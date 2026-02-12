@@ -1,0 +1,94 @@
+---
+title: PFC Mode Capability Matrix
+description: Capability differences across PFC tiers
+---
+
+# PFC Mode Capability Matrix
+
+The PFC tier determines orchestration strength, reflection depth, and policy strictness.
+
+Each tier modifies behavior, not architecture.
+
+---
+
+## Mode 0 — Off
+
+- No orchestration
+- No reflection
+- No memory gating
+- Direct model interaction
+- Tools disabled or rule-based only
+
+Use case: direct chat mode
+
+---
+
+## Mode 1 — Mobile
+
+- Single-pass routing
+- Minimal reflection
+- Lightweight memory triage
+- No multi-step planning
+- Limited retrieval evaluation
+
+Target: 1–4B class model
+
+---
+
+## Mode 2 — Low Spec PC
+
+- Reliable routing
+- Basic reflection pass
+- Controlled memory candidate generation
+- Retrieval trigger evaluation
+- Simple tool validation
+
+Target: 5–8B class model
+
+---
+
+## Mode 3 — Mid Spec PC
+
+- Two-pass reflection (draft + critique)
+- Better escalation detection
+- Structured memory validation
+- Improved policy enforcement
+- Tool result validation
+
+Target: 10–14B class model
+
+---
+
+## Mode 4 — High Spec PC
+
+- Multi-pass reflection
+- Deep planning capability
+- Strong conflict detection
+- Aggressive hallucination checking
+- Context optimization decisions
+
+Target: 20B+ class model
+
+---
+
+## Mode 5 — Remote Agent
+
+- Highest reasoning depth
+- Advanced reflection
+- Full orchestration strength
+- May operate with extended context
+- Dependent on remote provider
+
+Privacy posture depends on configuration.
+
+---
+
+## Important Constraint
+
+Regardless of tier:
+
+- Only the PFC may authorize tools
+- Only the PFC may persist memory
+- Specialists remain advisory
+
+Tiers increase strength, not authority.
