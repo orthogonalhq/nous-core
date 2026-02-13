@@ -1,11 +1,10 @@
 {
   "title": "Jarvis-OSS",
   "pages": [
-    "---Getting Started---",
     "index",
-    "---Architecture---",
+    "--- ---",
     "architecture",
-    "---Development---",
+    "--- ---",
     "roadmap"
   ]
 }

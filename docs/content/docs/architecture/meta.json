@@ -1,6 +1,7 @@
 {
   "title": "Architecture",
   "pages": [
+    "repo-folder-structure",
     "memory-system",
     "pfc-mode-capability-matrix"
   ]

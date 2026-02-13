@@ -1,0 +1,330 @@
+---
+title: Project Folder Structure
+description: Initial repository structure for Jarvis-OSS Phase 1
+---
+
+# Project Folder Structure
+
+This document defines the initial repository structure for Jarvis-OSS Phase 1.
+
+The goal is architectural clarity, strict boundary enforcement, and long-term extensibility.
+
+The structure reflects the runtime spine, PFC orchestration model, memory system, routing abstraction, and future skill integration.
+
+---
+
+# Monorepo Structure
+
+```
+jarvis-oss/
+│
+├─ apps/
+│   ├─ cli/
+│   └─ web/ (optional post-beta)
+│
+├─ packages/
+│   ├─ core/
+│   ├─ pfc/
+│   ├─ router/
+│   ├─ models/
+│   ├─ memory/
+│   ├─ tools/
+│   ├─ projects/
+│   ├─ storage/
+│   ├─ embeddings/
+│   ├─ runtime/
+│   ├─ sandbox/
+│   ├─ config/
+│   └─ shared/
+│
+├─ docs/
+│   ├─ index.mdx
+│   ├─ roadmap/
+│   ├─ architecture/
+│   └─ specs/
+│
+├─ examples/
+├─ scripts/
+└─ package.json
+```
+
+---
+
+# Directory Responsibilities
+
+## apps/
+
+### apps/cli
+
+Primary user interface for Phase 1.
+
+Responsibilities:
+
+* Command parsing
+* Streaming output
+* Trace visibility
+* Project switching
+* Config selection
+
+CLI should depend only on public interfaces from packages.
+
+### apps/web (optional later)
+
+Local web UI for trace inspection and memory visibility.
+
+Not required for initial beta.
+
+---
+
+# packages/
+
+All runtime logic lives in packages.
+
+Each package must have a clearly defined responsibility and no circular dependencies.
+
+---
+
+## core/
+
+The agent execution loop.
+
+Responsibilities:
+
+* Orchestrates runtime flow
+* Calls PFC engine
+* Invokes router
+* Coordinates memory and tools
+* Persists traces
+
+This package is the central execution spine.
+
+---
+
+## pfc/
+
+Prefrontal Cortex engine.
+
+Responsibilities:
+
+* Reflection
+* Escalation logic
+* Tool authorization
+* Memory write approval
+* Policy enforcement
+* Tier configuration (0–5)
+
+Only this package may authorize side effects.
+
+---
+
+## router/
+
+Role-based model routing.
+
+Responsibilities:
+
+* Resolve model role → provider
+* Apply profile configuration
+* Handle fallback rules
+* Enforce privacy constraints
+
+Router must not execute models directly.
+
+---
+
+## models/
+
+Model provider adapters.
+
+Subfolders:
+
+* local/
+* remote/
+* wasm/
+
+Responsibilities:
+
+* Normalize input/output schemas
+* Provide streaming support
+* Report token usage
+* Abstract provider differences
+
+No orchestration logic lives here.
+
+---
+
+## memory/
+
+STM and LTM orchestration layer.
+
+Responsibilities:
+
+* Manage working context
+* Generate MemoryWriteCandidate objects
+* Handle summarization
+* Coordinate retrieval
+
+Does not persist directly. Uses storage interface.
+
+---
+
+## embeddings/
+
+Embedding model abstraction.
+
+Responsibilities:
+
+* Generate vector embeddings
+* Support local or remote embedding providers
+* Provide retrieval query interface
+
+---
+
+## tools/
+
+Tool interface definitions and execution wrappers.
+
+Responsibilities:
+
+* Tool schema validation
+* Capability declaration
+* Permission metadata
+* Execution mediation
+
+Actual tool implementations may live in subdirectories.
+
+---
+
+## projects/
+
+Project container abstraction.
+
+Responsibilities:
+
+* Namespace memory
+* Store model configuration
+* Track tool permissions
+* Maintain execution traces
+
+Projects are first-class isolation boundaries.
+
+---
+
+## storage/
+
+Persistence abstraction layer.
+
+Responsibilities:
+
+* STM storage
+* LTM storage
+* Vector storage
+* Trace persistence
+* Config persistence
+
+May support SQLite, Postgres, or file-based storage.
+
+---
+
+## runtime/
+
+Environment and OS abstraction.
+
+Responsibilities:
+
+* Cross-platform path handling
+* Environment configuration
+* System-level capability mediation
+
+No direct filesystem access should occur outside this layer.
+
+---
+
+## sandbox/
+
+Execution isolation layer.
+
+Responsibilities:
+
+* WASM runtime integration
+* VM isolation (if used)
+* Capability gating enforcement
+
+This is foundational for future skill execution.
+
+---
+
+## config/
+
+Configuration schema and validation.
+
+Responsibilities:
+
+* PFC mode presets
+* Model role assignments
+* Profile definitions (local-control, local-all, remote-all)
+* Validation and defaults
+
+---
+
+## shared/
+
+Shared types and utilities.
+
+Responsibilities:
+
+* Type definitions
+* Event schemas
+* Trace models
+* Error types
+
+Must not contain business logic.
+
+---
+
+# Dependency Rules
+
+1. apps may depend on packages
+2. core may depend on pfc, router, memory, tools, storage
+3. pfc may depend on router and memory interfaces
+4. models must not depend on pfc or core
+5. tools must not depend on memory directly
+6. storage must not depend on models
+7. shared contains no execution logic
+
+These constraints prevent architectural drift.
+
+---
+
+# Phase 1 Implementation Priority
+
+1. shared
+2. config
+3. storage
+4. models
+5. router
+6. pfc
+7. memory
+8. core
+9. cli
+
+This ensures bottom-up stability.
+
+---
+
+# Future Expansion Compatibility
+
+This structure allows future additions:
+
+* skills/
+* registry/
+* policy/
+* enterprise/
+
+Without restructuring the core runtime.
+
+---
+
+This folder structure defines the architectural boundaries for Jarvis-OSS Phase 1.
+
+All development must respect these package responsibilities.
