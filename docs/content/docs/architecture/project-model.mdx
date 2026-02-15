@@ -1,0 +1,346 @@
+---
+title: Project Model
+description: Architecture for project types, workflow orchestration, and node-level governance in Nous-OSS
+---
+
+# Project Model
+
+Projects are the primary unit of work in Nous.
+
+A project is not a chat thread. It is a scoped, persistent execution environment with its own memory, model configuration, tool permissions, and governance policy.
+
+This document defines the project model architecture — how projects are created, how they execute, and how governance is applied.
+
+---
+
+## Project Type Spectrum
+
+Projects exist on a spectrum between two poles.
+
+### Protocol Projects (Structured)
+
+Defined workflows with explicit stages, measurable quality gates, and standardized outputs.
+
+Characteristics:
+
+- Workflow is known upfront or proposed by Nous and approved by the user
+- Steps are explicit — modeled as a node graph
+- Quality gates have measurable thresholds
+- PFC enforces the protocol and routes within it
+- Output is predictable and reproducible
+
+Example: A synthetic persona engine with defined identity validation thresholds, gated phase transitions, and standardized artifact outputs.
+
+### Intent Projects (Open-ended)
+
+Standing objectives with constraint boundaries. No predefined workflow.
+
+Characteristics:
+
+- User defines a goal and constraints, not steps
+- Nous determines how to accomplish the objective
+- Behavior is emergent and adaptive
+- PFC has high autonomy within declared guardrails
+- Success is judged heuristically, not by binary gates
+
+Example: "Keep my Outlook inbox tidy and notify me of anything urgent."
+
+### Hybrid Projects
+
+Most real projects are hybrid. They contain structured protocol segments alongside open-ended sub-tasks.
+
+A protocol project may have exploratory nodes ("find the best negative prompt anchors for this identity"). An intent project may develop internal protocols over time as patterns emerge ("I noticed you always forward messages from X to Y — should I formalize that as a rule?").
+
+Nous must support protocol emergence — the ability to propose formalizing learned patterns into explicit workflow nodes. The protocol crystallizes with confidence, not all-or-nothing.
+
+---
+
+## The Spectrum
+
+```
+Fully Explicit ◄────────────────────────────────► Fully Autonomous
+(Protocol)                                          (Intent)
+
+Defined node graph                        Goal + constraints only
+PFC enforces                              PFC improvises
+Predictable steps                         Emergent behavior
+Quality gates measured                    Success judged heuristically
+Lower PFC tier sufficient                 Higher PFC tier required
+```
+
+Every project declares where it sits on this spectrum, or allows individual regions of its workflow to sit at different points.
+
+---
+
+## Visual Workflow Interface
+
+The primary interface for project design and monitoring is a node-based visual editor.
+
+### For Protocol Projects
+
+The user builds or approves a workflow graph. Each node represents a discrete step — a model call, a tool execution, a quality gate, a human decision point, a branching condition.
+
+Nodes are wired together to define execution order, data flow, and conditional paths.
+
+This is the project's operational blueprint.
+
+### For Intent Projects
+
+The visual interface serves a different purpose. There is no upfront graph to build. Instead, the interface provides:
+
+- The standing objective and constraints
+- A live view of what Nous is currently doing
+- A history of actions taken and decisions made
+- Proposed protocol formalizations when patterns emerge
+
+### For Hybrid Projects
+
+Both views coexist. Structured segments are displayed as defined node graphs. Open-ended segments are displayed as live activity feeds within the broader workflow.
+
+---
+
+## Node Schema
+
+Every node in a workflow graph declares:
+
+- **Name** — human-readable identifier
+- **Type** — model call, tool execution, quality gate, human decision, condition, transform, etc.
+- **Inputs** — expected data from upstream nodes
+- **Outputs** — data produced for downstream nodes
+- **Model assignment** — which model role or specific provider handles this node (if applicable)
+- **Governance level** — MUST, SHOULD, or MAY (see below)
+- **Escalation rules** — when and how to involve the human
+- **Timeout and retry policy** — how long to wait, how many retries, what to do on failure
+
+---
+
+## Node Governance Levels
+
+Not all steps in a workflow carry equal weight. Even within a strict operational protocol, some steps are critical gates and others are discretionary.
+
+Each node declares its governance level:
+
+### MUST
+
+Hard gate. Binary pass/fail. No PFC discretion.
+
+- The PFC cannot override a MUST gate
+- Failure halts the workflow or triggers the defined failure path
+- All MUST evaluations are logged with full provenance
+- Used for: quality thresholds, compliance checks, safety boundaries
+
+Example: Identity validation must achieve ≥85% recognizability across the test grid. If it does not pass, the workflow does not proceed.
+
+### SHOULD
+
+Strong default. PFC can deviate with justification.
+
+- The PFC follows the defined behavior by default
+- Deviation is permitted but must include a logged justification
+- Deviations are flagged for human review (configurable)
+- Used for: best practices, standard operating procedures, recommended defaults
+
+Example: Video clips should be 5–10 seconds. The PFC may produce a 12-second clip if the content warrants it, but the deviation is logged and flagged.
+
+### MAY
+
+Discretionary. PFC uses judgment. Escalates only on low confidence.
+
+- The PFC operates with full autonomy within the node's declared constraints
+- No justification required for choices made
+- Escalation occurs only when PFC confidence drops below a configured threshold
+- Used for: creative decisions, optimization choices, non-critical parameter selection
+
+Example: Wardrobe selection for a photo batch. The PFC chooses based on content calendar context and prior performance. No escalation unless the choice falls outside declared constraints.
+
+### Governance Evolution
+
+Governance levels are not static. They are a tuning surface.
+
+A user may start a project with all nodes set to MUST (maximum control). As trust builds in Nous's judgment on specific steps, individual nodes can be relaxed to SHOULD or MAY.
+
+Conversely, if a MAY node produces poor outcomes, it can be tightened to SHOULD or MUST.
+
+This allows governance to evolve with confidence, per-node, without restructuring the workflow.
+
+---
+
+## PFC as Project Supervisor
+
+The PFC's role extends beyond per-turn evaluation. In the project model, the PFC is a persistent supervisor for the entire project lifecycle.
+
+### Per-Turn Role (Existing)
+
+- Evaluate a single interaction
+- Route to the appropriate model
+- Authorize tool execution
+- Gate memory writes
+- Respond and trace
+
+### Per-Project Role (Extended)
+
+- Supervise long-running workflow execution
+- Make routing decisions continuously as the graph executes
+- Enforce governance levels at each node
+- Track project state across sessions
+- Checkpoint and resume workflows after interruption
+- Escalate to human through configured channels when required
+- Propose protocol formalizations in intent projects
+- Learn from outcomes to improve future decisions within the project
+
+The PFC tier determines how much autonomous reasoning the supervisor applies. Protocol projects with explicit graphs may run at lower tiers. Intent projects with emergent workflows require higher tiers.
+
+---
+
+## Human Escalation
+
+Human involvement is a first-class concept, not an edge case.
+
+### Escalation Triggers
+
+- A MUST gate fails
+- A SHOULD deviation is flagged for review
+- PFC confidence drops below the configured threshold on a MAY node
+- An intent project encounters ambiguity it cannot resolve
+- A workflow reaches a node explicitly typed as "Human Decision"
+
+### Escalation Channels
+
+Nous supports configurable escalation channels per project:
+
+- In-app notification (GUI)
+- Push notification (mobile)
+- Message (Slack, Discord, SMS, etc.)
+- Email
+- Voice call (for high-priority escalations)
+
+Each project defines its channel preferences and priority mapping.
+
+### Escalation Contract
+
+When Nous escalates, it provides:
+
+- What happened (context)
+- Why it is escalating (trigger reason)
+- What it recommends (if applicable)
+- What it needs from the human (decision, approval, clarification)
+- What happens if no response is received within the timeout (default action or halt)
+
+---
+
+## Heterogeneous Provider Model
+
+Projects require more than LLMs. The Persona Engine uses diffusion models, image-to-video pipelines, and vision models. The inbox project uses email APIs and classification models.
+
+The provider abstraction must support:
+
+- **Text models** — LLMs for reasoning, prompt engineering, classification
+- **Image models** — diffusion models (FLUX, SDXL) via ComfyUI, A1111, or direct API
+- **Video models** — I2V pipelines (Wan, HunyuanVideo, CogVideoX) or cloud APIs (Kling, Runway, etc.)
+- **Vision models** — for validation, quality assessment, artifact detection
+- **Embedding models** — for memory retrieval and semantic search
+- **External APIs** — for tool execution (email, social media, scheduling, etc.)
+
+Each provider type has different I/O characteristics:
+
+| Provider Type | Input | Output | Execution Model |
+|---|---|---|---|
+| Text | Structured prompt | Streamed text | Synchronous / streaming |
+| Image | Prompt + conditioning | Binary image file | Async / batch |
+| Video | Image + motion params | Binary video file | Async / long-running |
+| Vision | Image / video | Structured analysis | Synchronous |
+| Embedding | Text | Vector | Synchronous |
+| External API | Structured request | Structured response | Synchronous / webhook |
+
+The model router must handle this heterogeneity. Routing decisions include not just which provider, but what execution model to use.
+
+---
+
+## Artifact Management
+
+Projects produce artifacts beyond text and memory entries. Images, videos, LoRA weights, configuration files, validation reports.
+
+Artifacts are:
+
+- **Binary or structured files** stored outside the memory system
+- **Versioned** with full provenance (which node produced them, when, with what parameters)
+- **Project-scoped** by default
+- **Exportable and deletable** consistent with Nous memory governance
+- **Referenceable** from workflow nodes and memory entries
+
+The Persona Pack is an example artifact bundle: a versioned collection containing an identity LoRA, prompt templates, negative anchors, pose presets, seed strategy, and validation report — all produced by different nodes in the workflow and packaged as a single deliverable.
+
+---
+
+## Execution Model
+
+Different nodes require different execution patterns.
+
+### Synchronous
+
+Standard request-response. Used for text model calls, classification, simple tool execution.
+
+### Streaming
+
+Token-by-token output. Used for LLM responses displayed to the user.
+
+### Async / Batch
+
+Long-running tasks submitted as jobs. Used for image generation, video generation, LoRA training.
+
+Requirements:
+
+- Job queuing
+- Progress tracking
+- Timeout and retry policy
+- Checkpoint and resume on failure
+
+### Scheduled / Recurring
+
+Time-triggered execution. Used for monitoring loops, content scheduling, periodic batch generation.
+
+Requirements:
+
+- Cron-like scheduling
+- Standing objective evaluation loops
+- Configurable frequency and conditions
+
+The workflow engine must support all four patterns within a single project graph.
+
+---
+
+## Project Lifecycle
+
+1. **Create** — User creates a project in the GUI. Selects project type (protocol, intent, hybrid). Defines initial configuration.
+2. **Design** — For protocol projects: build or approve the workflow graph. For intent projects: define the objective and constraints.
+3. **Configure** — Assign models per node/role. Set governance levels. Configure escalation channels. Define artifact storage.
+4. **Execute** — Nous PFC supervises execution. Workflow runs. Escalations occur as needed.
+5. **Evolve** — Governance levels tuned. Protocol emerges from intent. Workflows refined based on outcomes.
+6. **Archive or Retire** — Project completed or deactivated. Artifacts and memory preserved or exported per retention policy.
+
+---
+
+## Relationship to Existing Architecture
+
+This project model extends existing Nous concepts:
+
+- **ProjectStore** → Becomes the container for project type, workflow graph, governance configuration, and artifact references — not just namespace and config
+- **PFC Engine** → Gains a per-project supervisor mode in addition to per-turn evaluation
+- **ModelRouter** → Must route heterogeneous provider types, not just text model roles
+- **Tool Interface** → Nodes in the workflow are a superset of tools — they include model calls, quality gates, human decisions, and transforms alongside tool executions
+- **MemoryStore** → Remains responsible for text and embedding memory. Artifact storage is a separate concern.
+- **Storage** → Must support binary artifact persistence with versioning, in addition to existing memory and trace storage
+
+New architectural components implied:
+
+- **Workflow Engine** — graph executor with checkpoint, resume, conditional branching, and mixed execution models
+- **Artifact Store** — versioned binary asset management, project-scoped
+- **Scheduler** — time-triggered execution for recurring and monitoring workflows
+- **Escalation Service** — multi-channel human notification with response tracking
+- **Node Registry** — typed node definitions with governance, I/O schemas, and execution model declarations
+
+---
+
+This document captures the design direction for the Nous project model.
+
+It is a living document. Implementation details will be refined through SDS and ADR artifacts as individual components are designed and built.

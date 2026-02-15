@@ -1,0 +1,250 @@
+---
+title: Technology Stack
+description: Language, tooling, and infrastructure choices for Nous-OSS
+---
+
+# Technology Stack
+
+This document defines the technology stack for Nous-OSS. These are pre-production decisions that apply across all phases.
+
+The stack is chosen to support: TypeScript-first full-stack development, interface-first composable architecture, local-first deployment, and future cloud extensibility.
+
+---
+
+## Language and Runtime
+
+| Choice | Detail |
+|---|---|
+| **Language** | TypeScript |
+| **Runtime** | Node ≥22 (LTS) |
+| **TypeScript Version** | 5.9+ |
+
+TypeScript is the primary language across all layers — cortex, memory, subcortex, autonomic, shared, and apps. One language for the full stack. The type system maps directly to the interface-first architecture where every component sits behind a contract defined in `self/shared/interfaces/`.
+
+---
+
+## Monorepo and Build
+
+| Choice | Detail |
+|---|---|
+| **Package Manager** | pnpm |
+| **Monorepo** | pnpm workspaces |
+| **Bundler** | tsdown |
+| **Linter** | oxlint (Rust-based) |
+| **Formatter** | oxfmt (Rust-based) |
+
+pnpm workspaces provide lightweight monorepo management. Each package in `self/` (cortex/pfc, memory/stm, autonomic/storage, etc.) is a workspace. Dependencies are shared where appropriate, isolated where needed.
+
+tsdown is a fast, modern TypeScript bundler. oxlint and oxfmt are Rust-based alternatives to ESLint and Prettier — significantly faster for large codebases, with lower configuration overhead.
+
+Turborepo or similar build orchestration can be added later if build times warrant it.
+
+---
+
+## Testing
+
+| Choice | Detail |
+|---|---|
+| **Test Framework** | Vitest |
+| **E2E Testing** | Vitest + Playwright (for web UI) |
+
+Vitest is fast, TypeScript-native, and compatible with the Vite ecosystem. It provides unit testing, integration testing, and coverage reporting. Playwright handles end-to-end tests for the web UI.
+
+Testing patterns are established in Phase 1.1 and used consistently across all subsequent phases.
+
+---
+
+## Schema Validation
+
+| Choice | Detail |
+|---|---|
+| **Schema Library** | Zod |
+
+Zod provides runtime validation and static TypeScript types from a single schema definition. This is critical for the interface-first architecture — schemas defined in `self/shared/` serve as both compile-time contracts and runtime validators.
+
+Used for: configuration validation, MemoryWriteCandidate validation, API request/response validation, tool input/output validation, package manifest validation.
+
+---
+
+## Web UI
+
+| Choice | Detail |
+|---|---|
+| **Framework** | Next.js (App Router) |
+| **Component Library** | shadcn/ui + Radix primitives |
+| **Styling** | Tailwind CSS |
+| **Workflow Editor** | React Flow (Phase 5) |
+
+Next.js provides file-based routing, App Router with layouts, API routes, and server components. These are valuable even for local-first deployment as the UI grows in complexity (chat, projects, traces, memory, config, workflow editor).
+
+The same Next.js codebase serves the local application. A future cloud frontend will share components and contracts but have its own application shell with different routing, authentication, and security boundaries.
+
+shadcn/ui provides a modern, accessible component library built on Radix primitives and Tailwind CSS. Components are copied into the project (not imported from node_modules), giving full control over customization.
+
+React Flow will be used for the visual node-based workflow editor in Phase 5.
+
+### Headless API Principle
+
+The backend exposes a headless API (WebSocket for streaming, REST for CRUD). The Next.js UI is one consumer of this API. The CLI is another. Future consumers (cloud frontend, mobile app, messaging bridge) all talk to the same API.
+
+The API is the product. The UI is a skin. This ensures the UI framework choice never constrains the system.
+
+---
+
+## CLI
+
+| Choice | Detail |
+|---|---|
+| **CLI Framework** | Commander.js |
+
+Commander.js provides command parsing, help generation, and option handling. The CLI communicates with the same headless API as the web UI — it is an alternative interface, not a separate system.
+
+---
+
+## Storage
+
+| Interface | Phase 1–3 | Phase 4+ (Local) | Cloud |
+|---|---|---|---|
+| **IDocumentStore** | SQLite (better-sqlite3) | SQLite | PostgreSQL |
+| **IVectorStore** | SQLite (stub/basic) | LanceDB (embedded) | PostgreSQL + pgvector |
+| **IGraphStore** | SQLite (stub/basic) | LanceDB or dedicated | PostgreSQL |
+| **Config** | JSON5 files | JSON5 files | JSON5 files |
+
+Storage is not one database. It is three separate interfaces, each backed by the best tool for the job at the current maturity stage.
+
+### Document Storage (IDocumentStore)
+
+SQLite via better-sqlite3. Handles STM, project metadata, execution traces, configuration state, and basic LTM in early phases. Local-first, zero-infrastructure, file-based, portable across platforms. Synchronous access simplifies the execution model.
+
+SQLite remains the document store for local deployments through all phases. For cloud deployments, PostgreSQL fulfills the same interface.
+
+### Vector Storage (IVectorStore)
+
+**Phase 1–3:** Stub implementation or basic SQLite. Vector search is not needed until Phase 4 when experience records and semantic retrieval become real.
+
+**Phase 4+:** LanceDB — an embedded, Rust-based vector database designed for AI workloads. Handles vector similarity search natively without a running server. Supports the retrieval patterns we need: cosine similarity combined with metadata filtering (sentiment, confidence, recency). No infrastructure to install or manage.
+
+**Cloud:** PostgreSQL + pgvector. Same interface, server-backed for scale and concurrency.
+
+### Graph Storage (IGraphStore)
+
+**Phase 1–5:** Stub or basic SQLite representation. Graph queries are not needed until Phase 6 when the relationship mapping and taxonomy systems are built.
+
+**Phase 6+:** Dedicated graph storage evaluated at that time. LanceDB with metadata indices may suffice, or a lightweight embedded graph store may be warranted. Decision deferred until the data model is proven.
+
+**Cloud:** PostgreSQL with recursive CTEs or a dedicated graph layer.
+
+### Why Multiple Backends
+
+LTM at full maturity (Phase 4–6) is a graph + vector + relational problem:
+
+- **Experience records with embeddings** need vector similarity search
+- **Distilled patterns with confidence decay** need relational queries with complex scoring
+- **Cross-project relationship mapping** needs graph traversal
+- **Background distillation concurrent with PFC retrieval** needs concurrent access
+
+SQLite handles documents well but is single-writer, has no native vector operations, and makes graph queries painful. Rather than forcing everything into one database, the three separate interfaces allow each storage concern to use the right tool.
+
+The swap is invisible to everything above the autonomic layer. The memory system calls `IVectorStore.search()` — it doesn't know or care if that's SQLite, LanceDB, or pgvector underneath.
+
+### Maturity Path
+
+```
+Phase 1–3:   SQLite for everything (data volumes are tiny, get it working)
+Phase 4:     LanceDB introduced for IVectorStore (experience records + retrieval)
+Phase 6:     Graph storage evaluated for IGraphStore (relationship mapping)
+Cloud:       PostgreSQL + pgvector replaces SQLite + LanceDB for hosted deployments
+Local:       SQLite + LanceDB remains the zero-infrastructure default
+```
+
+### Config Format
+
+JSON5 for configuration files — human-readable with comments allowed. Validated at runtime with Zod schemas.
+
+---
+
+## API Layer
+
+| Choice | Detail |
+|---|---|
+| **API Framework** | tRPC |
+| **Transport** | WebSocket (subscriptions + real-time), HTTP (queries + mutations) |
+| **Future Transport** | WebTransport when Node.js support matures |
+
+tRPC provides a single, end-to-end type-safe API layer that replaces the need for separate WebSocket and REST protocols.
+
+- **Subscriptions** (over WebSocket) — streaming model responses, live trace updates, system health monitoring
+- **Queries** — read operations (list projects, get memory, fetch traces)
+- **Mutations** — write operations (create project, send message, update config)
+
+All operations are fully type-safe from backend to frontend. The API contract defined in `self/shared/interfaces/` becomes a tRPC router. The Next.js frontend and CLI both consume it with zero type drift — no hand-written API clients, no manual type synchronization.
+
+tRPC integrates natively with:
+
+- **Zod** — input/output validation from the same schemas used throughout the system
+- **Next.js App Router** — first-class support for server components and client components
+- **WebSocket** — subscriptions for real-time streaming
+
+The headless API principle still holds. tRPC defines the contract. The Next.js web UI and the CLI are both consumers. Future consumers (cloud frontend, mobile app, messaging bridge) can use the same tRPC client or consume the underlying HTTP/WebSocket endpoints directly.
+
+When WebTransport matures in the Node.js ecosystem, tRPC's transport layer can be swapped underneath without changing any application code. The API contract remains stable regardless of transport.
+
+---
+
+## Documentation
+
+| Choice | Detail |
+|---|---|
+| **Documentation Site** | Fumadocs (already in place) |
+
+Fumadocs is already configured and serving the architecture, roadmap, and business documentation. No change needed.
+
+---
+
+## Performance-Critical Components
+
+TypeScript is the orchestration language — the glue that connects every layer. But computationally intensive components (distillation, vector operations, similarity scoring, embedding) may require faster implementations as the system scales.
+
+The interface-first architecture supports this natively. Any TypeScript interface can be fulfilled by:
+
+- **TypeScript** — the default for all initial implementations. Get it working, prove the concept, profile.
+- **Rust via NAPI** — native Node.js addons for hot-path performance. Best for vector operations, similarity scoring, and any CPU-bound computation that runs on every query.
+- **Rust via WASM** — portable, sandboxed execution. Best for components that need to run in isolated contexts (package sandbox).
+- **Python via sidecar** — a separate process communicating over IPC or HTTP. Best for ML/AI workloads where the Python ecosystem has no TypeScript equivalent (specialized distillation models, research-phase components).
+
+The swap is invisible to everything above the interface. The PFC doesn't know if `IDistillationEngine.compress()` is running in TypeScript, Rust, or Python. It calls the interface and gets a result.
+
+The decision to use a non-TypeScript implementation is made per-component based on profiling, not speculatively. Start in TypeScript. Measure. Drop in Rust or Python where the data justifies it.
+
+---
+
+## Dependency Philosophy
+
+- Prefer well-maintained, widely-adopted libraries over novel or niche alternatives
+- Prefer libraries that align with the TypeScript-first approach
+- Minimize dependency count — add dependencies when they solve a real problem, not speculatively
+- Pin major versions and review upgrades deliberately
+- All dependencies must work cross-platform (macOS, Linux, Windows)
+
+---
+
+## Stack Summary
+
+```
+Language:        TypeScript 5.9+ on Node ≥22
+Monorepo:        pnpm workspaces
+Build:           tsdown
+Lint/Format:     oxlint + oxfmt
+Test:            Vitest + Playwright
+Validation:      Zod
+API Layer:       tRPC (WebSocket subscriptions + HTTP queries/mutations)
+Web UI:          Next.js (App Router) + shadcn/ui + Tailwind
+CLI:             Commander.js
+Storage:         SQLite (documents) → LanceDB (vectors, Phase 4) → PostgreSQL (cloud)
+Config:          JSON5
+Docs:            Fumadocs
+```
+
+---
+
+This document is a pre-production architecture reference. It applies across all phases and informs every implementation decision from Phase 1.1 onward.

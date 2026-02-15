@@ -1,8 +1,14 @@
 {
   "title": "Architecture",
   "pages": [
+    "the-mind-model",
+    "--- ---",
     "repo-folder-structure",
+    "tech-stack",
     "memory-system",
-    "pfc-mode-capability-matrix"
+    "pfc-mode-capability-matrix",
+    "project-model",
+    "interaction-surfaces",
+    "packages-and-plugins"
   ]
 }

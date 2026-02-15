@@ -1,123 +1,263 @@
 ---
-title: Project Folder Structure
-description: Initial repository structure for Jarvis-OSS Phase 1
+title: Repository Folder Structure
+description: Repository structure for Nous-OSS organized by the Mind Model — four layers of consciousness
 ---
 
-# Project Folder Structure
+# Repository Folder Structure
 
-This document defines the initial repository structure for Jarvis-OSS Phase 1.
+This document defines the repository structure for Nous-OSS.
 
-The goal is architectural clarity, strict boundary enforcement, and long-term extensibility.
+The structure is organized by the Mind Model — four layers of consciousness that mirror the architecture of the human mind. See [The Mind Model](/docs/architecture/the-mind-model) for the philosophical foundation.
 
-The structure reflects the runtime spine, PFC orchestration model, memory system, routing abstraction, and future skill integration.
+Everything that IS Nous lives inside `self/`. Everything else — documentation, examples, scripts — exists outside the being.
 
 ---
 
-# Monorepo Structure
+## Top-Level Structure
 
 ```
 jarvis-oss/
 │
-├─ apps/
-│   ├─ cli/
-│   └─ web/ (optional post-beta)
+├── self/                             # The being
+│   ├── apps/                         # Senses — interaction surfaces
+│   ├── cortex/                       # Layer 1 — Consciousness
+│   ├── memory/                       # Layer 2 — Memory System
+│   ├── subcortex/                    # Layer 3 — Subconscious Processing
+│   ├── autonomic/                    # Layer 4 — Infrastructure
+│   └── shared/                       # Cross-layer nervous system
 │
-├─ packages/
-│   ├─ core/
-│   ├─ pfc/
-│   ├─ router/
-│   ├─ models/
-│   ├─ memory/
-│   ├─ tools/
-│   ├─ projects/
-│   ├─ storage/
-│   ├─ embeddings/
-│   ├─ runtime/
-│   ├─ sandbox/
-│   ├─ config/
-│   └─ shared/
-│
-├─ docs/
-│   ├─ index.mdx
-│   ├─ roadmap/
-│   ├─ architecture/
-│   └─ specs/
-│
-├─ examples/
-├─ scripts/
-└─ package.json
+├── packages/                         # Acquired knowledge and workflows (not part of the being)
+│   ├── skills/                       #   Knowledge packages — makes Nous smarter
+│   └── projects/                     #   Workflow packages — makes Nous productive
+├── docs/                             # Written about the being
+├── examples/                         # Demonstrations of the being
+├── scripts/                          # Tools used during development
+└── package.json
 ```
 
 ---
 
-# Directory Responsibilities
+## self/
 
-## apps/
+Everything inside `self/` is Nous. The four layers of consciousness, the shared nervous system, and the senses through which Nous interfaces with the world.
 
-### apps/cli
-
-Primary user interface for Phase 1.
-
-Responsibilities:
-
-* Command parsing
-* Streaming output
-* Trace visibility
-* Project switching
-* Config selection
-
-CLI should depend only on public interfaces from packages.
-
-### apps/web (optional later)
-
-Local web UI for trace inspection and memory visibility.
-
-Not required for initial beta.
+Nothing outside `self/` is part of the runtime. Docs describe the being. Examples demonstrate it. Scripts support development. But the being itself is contained within this boundary.
 
 ---
 
-# packages/
+## self/apps/ — Senses
 
-All runtime logic lives in packages.
+How Nous perceives the world and communicates with the user. These are part of the being — your senses are not accessories, they are you.
 
-Each package must have a clearly defined responsibility and no circular dependencies.
+```
+self/apps/
+├── cli/                              # Terminal interface
+├── web/                              # Chat UI + Projects UI + Dashboard
+└── bridge/                           # Messaging integrations (Signal, Slack, etc.)
+```
+
+### cli/
+
+Terminal interface. Command parsing, streaming output, trace visibility, project switching.
+
+Primary interface for power users and automation.
+
+CLI depends only on public interfaces from `shared/`.
+
+### web/
+
+Web application containing three integrated surfaces:
+
+* Chat interface — conversational interaction with project-scoped context
+* Projects UI — node-based visual workflow editor
+* Dashboard — system health, project status, memory inspection
+
+Primary interface for most users.
+
+### bridge/
+
+Messaging integrations for mobile-first and asynchronous interaction.
+
+* Signal adapter
+* Slack adapter
+* SMS adapter
+* Email adapter
+* Voice call adapter (for high-priority escalations)
+
+Each adapter implements a common interface. New channels are added by implementing the adapter contract.
+
+All apps communicate with the system through the cortex. No app reaches into the subcortex or autonomic layer directly.
 
 ---
 
-## core/
+## self/cortex/ — Layer 1: Consciousness
 
-The agent execution loop.
+The thinnest layer. The highest authority. Decides, reflects, inhibits, authorizes.
 
-Responsibilities:
+```
+self/cortex/
+├── pfc/                              # Prefrontal Cortex engine
+└── core/                             # Central executive loop
+```
 
-* Orchestrates runtime flow
-* Calls PFC engine
-* Invokes router
-* Coordinates memory and tools
-* Persists traces
+### pfc/
 
-This package is the central execution spine.
-
----
-
-## pfc/
-
-Prefrontal Cortex engine.
+The Prefrontal Cortex engine.
 
 Responsibilities:
 
-* Reflection
-* Escalation logic
+* Reflection (evaluating outputs, checking confidence)
+* Inhibition (deciding what not to do)
+* Projection (simulating consequences before committing)
 * Tool authorization
 * Memory write approval
 * Policy enforcement
+* Escalation decisions
 * Tier configuration (0–5)
 
 Only this package may authorize side effects.
 
+### core/
+
+The central executive loop. The spine that connects consciousness to everything below.
+
+Responsibilities:
+
+* Orchestrates the runtime flow for single agent cycles
+* Orchestrates long-running project supervision loops
+* Calls the PFC engine
+* Coordinates the subcortex through interfaces
+* Coordinates memory through interfaces
+* Persists execution traces
+
+Core is the bridge between consciousness and the layers below. It does not make decisions — it coordinates the flow that allows the PFC to make decisions.
+
 ---
 
-## router/
+## self/memory/ — Layer 2: Memory System
+
+The learning system. Stages, compresses, consolidates, retrieves, and governs access to knowledge.
+
+Memory is its own layer because it is neither consciousness nor subconscious. It receives experiences from above (through PFC-approved writes) and serves context upward (through retrieval). It has internal processing (distillation) that runs on its own schedule.
+
+```
+self/memory/
+├── stm/                              # Short-term memory
+├── ltm/                              # Long-term memory
+├── distillation/                     # Experience → pattern compression
+├── retrieval/                        # Budgeted, scored retrieval orchestration
+├── knowledge-index/                  # Cross-project intelligence
+│   ├── meta-vectors/                 # Project-level embeddings
+│   ├── taxonomy/                     # Topic tagging and structural links
+│   ├── relationships/                # Background relationship mapping
+│   └── discovery/                    # Query-time project selection
+└── access/                           # Memory access policy engine
+```
+
+### stm/
+
+Short-term memory. Working context for active interactions.
+
+Responsibilities:
+
+* Recent conversation state
+* Active working context
+* Summaries of evicted older context
+* Recent tool outputs
+
+Optimized for context window efficiency. Older entries are summarized before eviction.
+
+### ltm/
+
+Long-term memory. Durable, structured knowledge.
+
+Responsibilities:
+
+* Structured facts
+* User preferences
+* Experience records (outcome-labeled with sentiment)
+* Distilled patterns
+* Project-scoped and global knowledge
+
+All entries include provenance metadata. All entries are auditable, exportable, and deletable.
+
+### distillation/
+
+The compression engine. Background process that converts clusters of experience records into distilled patterns.
+
+Responsibilities:
+
+* Identify clusters of related experience records
+* Compress clusters into pattern statements
+* Assign confidence scores based on consistency and volume
+* Mark superseded records for archival
+* Trigger meta-vector and relationship updates via knowledge-index
+
+This is the "sleep cycle" — consolidation that happens offline, not at query time.
+
+Designed for independent iteration. Swap distillation strategies without touching storage or retrieval.
+
+### retrieval/
+
+Query-time context assembly.
+
+Responsibilities:
+
+* Embed the current situation
+* Score candidates by semantic similarity, sentiment weight, recency, and confidence
+* Enforce retrieval token budget
+* Merge results from project-scoped and cross-project sources
+* Assemble labeled context for the LLM prompt
+* Log all retrieval decisions
+
+Retrieval is reconstruction, not lookup. The same knowledge may surface differently depending on the question.
+
+### knowledge-index/
+
+Cross-project intelligence. The layer that makes cross-referencing cheap at query time.
+
+**meta-vectors/** — One embedding per project summarizing its domain, themes, and knowledge profile. Updated when distilled patterns are created. Enables fast project-level similarity search.
+
+**taxonomy/** — Topic tags assigned to projects. Structural links between projects based on shared domains. Zero inference cost — pure set intersection.
+
+**relationships/** — Background relationship graph maintained by periodic LLM evaluation. Maps validated knowledge links between projects. Amortizes expensive inference over time rather than paying it per query.
+
+**discovery/** — Query-time orchestrator. Combines meta-vector search, taxonomy links, and relationship graph to determine which projects are relevant to the current situation. Fast and cheap.
+
+### access/
+
+Memory access policy enforcement.
+
+Responsibilities:
+
+* Evaluate `can_read_from` and `can_be_read_by` policies per project
+* Evaluate `inherits_global` for global memory access
+* Enforce node-level overrides (more restrictive only)
+* Gate all cross-project retrieval through policy checks
+
+Default: open. Isolation is opt-in.
+
+---
+
+## self/subcortex/ — Layer 3: Subconscious Processing
+
+The workhorse. Does the actual work — model invocation, tool execution, workflow orchestration, scheduling, escalation. Processes below the level of conscious orchestration. Surfaces results upward. Never commands upward.
+
+```
+self/subcortex/
+├── router/                           # Model role → provider routing
+├── providers/                        # Model provider adapters
+├── tools/                            # Tool execution and capability gating
+├── workflows/                        # Workflow graph engine
+├── projects/                         # Project container and lifecycle
+├── artifacts/                        # Versioned binary asset management
+├── scheduler/                        # Time-triggered and recurring execution
+├── escalation/                       # Human notification channels
+├── sandbox/                          # Execution isolation (WASM)
+└── sdk/                              # Project API surface for packages
+```
+
+### router/
 
 Role-based model routing.
 
@@ -125,62 +265,37 @@ Responsibilities:
 
 * Resolve model role → provider
 * Apply profile configuration
-* Handle fallback rules
+* Handle fallback and failover rules
 * Enforce privacy constraints
+* Support heterogeneous provider types (text, image, video, vision, embedding)
 
-Router must not execute models directly.
+Routing decisions are deterministic and logged.
 
----
+Router does not execute models directly.
 
-## models/
+### providers/
 
-Model provider adapters.
+Model provider adapters for all model types.
 
-Subfolders:
-
-* local/
-* remote/
-* wasm/
+```
+providers/
+├── local/                            # Local runtime models
+├── remote/                           # Remote API models
+└── wasm/                             # WASM models
+```
 
 Responsibilities:
 
-* Normalize input/output schemas
-* Provide streaming support
-* Report token usage
-* Abstract provider differences
+* Normalize input/output schemas across provider types
+* Support multiple I/O modalities (text, image, video, structured data)
+* Support multiple execution models (streaming, synchronous, async/batch)
+* Provide streaming support for text models
+* Report token/compute usage
+* Abstract provider-specific differences
 
 No orchestration logic lives here.
 
----
-
-## memory/
-
-STM and LTM orchestration layer.
-
-Responsibilities:
-
-* Manage working context
-* Generate MemoryWriteCandidate objects
-* Handle summarization
-* Coordinate retrieval
-
-Does not persist directly. Uses storage interface.
-
----
-
-## embeddings/
-
-Embedding model abstraction.
-
-Responsibilities:
-
-* Generate vector embeddings
-* Support local or remote embedding providers
-* Provide retrieval query interface
-
----
-
-## tools/
+### tools/
 
 Tool interface definitions and execution wrappers.
 
@@ -191,42 +306,226 @@ Responsibilities:
 * Permission metadata
 * Execution mediation
 
-Actual tool implementations may live in subdirectories.
+Each tool declares:
 
----
+* Name and version
+* Input and output schemas
+* Required capabilities
+* Permission scope
 
-## projects/
+Tools execute only through PFC authorization.
 
-Project container abstraction.
+### workflows/
+
+Workflow graph engine. The runtime for protocol and hybrid projects.
 
 Responsibilities:
 
-* Namespace memory
-* Store model configuration
-* Track tool permissions
-* Maintain execution traces
+* Execute node-based workflow graphs
+* Checkpoint and resume on interruption
+* Conditional branching based on node outputs and quality gates
+* Mixed execution model support (synchronous, streaming, async/batch, scheduled)
+* Node-level governance enforcement (MUST / SHOULD / MAY)
+* Progress tracking and state persistence
+
+This is the engine that makes protocol projects operational.
+
+### projects/
+
+Project container and lifecycle management.
+
+Responsibilities:
+
+* Project creation and type assignment (protocol, intent, hybrid)
+* Namespace management
+* Model role assignments per project
+* Governance configuration
+* Memory access policy storage
+* Tool permission sets
+* Execution trace tracking
+* Project lifecycle (create, configure, execute, evolve, archive)
 
 Projects are first-class isolation boundaries.
 
----
+### artifacts/
 
-## storage/
-
-Persistence abstraction layer.
+Versioned binary asset management.
 
 Responsibilities:
 
-* STM storage
-* LTM storage
-* Vector storage
-* Trace persistence
-* Config persistence
+* Store project-scoped binary artifacts (images, videos, LoRAs, configs, reports)
+* Version artifacts with full provenance (which node, when, what parameters)
+* Support export and deletion consistent with memory governance
+* Enable artifact referencing from workflow nodes and memory entries
 
-May support SQLite, Postgres, or file-based storage.
+### scheduler/
+
+Time-triggered and recurring execution.
+
+Responsibilities:
+
+* Cron-like scheduling for recurring tasks
+* Standing objective evaluation loops for intent projects
+* Monitoring feed polling
+* Batch generation scheduling
+* Configurable frequency and conditions
+
+The clock of the subconscious.
+
+### escalation/
+
+Multi-channel human notification.
+
+Responsibilities:
+
+* Deliver escalation messages through configured channels
+* Support: in-app notification, push, Signal, Slack, SMS, email, voice call
+* Structured escalation contracts (what happened, why, recommendation, what's needed, timeout default)
+* Response tracking across surfaces
+* Priority mapping per project and per channel
+
+### sandbox/
+
+Execution isolation.
+
+Responsibilities:
+
+* WASM runtime integration
+* VM isolation (if used)
+* Capability gating enforcement
+
+Foundational for package execution and future skill runtime.
+
+### sdk/
+
+The Project API surface. The mediated contract through which drop-in packages interact with Nous.
+
+```
+sdk/
+├── interfaces/                       # API contract definitions
+├── runtime/                          # SDK runtime for package execution
+└── validation/                       # Package manifest validation
+```
+
+Responsibilities:
+
+* Define the Project API contract (memory, model, tool, artifact, escalation, scheduler)
+* Provide the runtime that bridges packages to the Nous governance stack
+* Validate package manifests at install time
+* Enforce capability declarations
+
+See [Packages and Plugins](/docs/architecture/packages-and-plugins) for the full design.
 
 ---
 
-## runtime/
+## packages/ — Acquired Knowledge and Workflows
+
+Lives outside `self/`. Packages are things the being has acquired — education and plans — not organs the being grew.
+
+```
+packages/
+├── skills/                           # Knowledge packages
+│   ├── image-quality-assessment/
+│   ├── react-best-practices/
+│   ├── real-estate-fundamentals/
+│   ├── social-media-strategy/
+│   └── ...
+└── projects/                         # Workflow packages
+    ├── persona-engine/
+    ├── deal-scout/
+    ├── inbox-manager/
+    └── ...
+```
+
+### packages/skills/ — Knowledge
+
+Skills are educational packages. They teach Nous how to think about a domain.
+
+A skill contains:
+
+* Structured instructions and rules
+* Best practices organized by priority
+* Reference material and documentation
+* Scripts for validation or analysis (optional)
+
+Skills get absorbed into Nous's knowledge base and inform reasoning across any project that touches that domain. They don't execute workflows. They make Nous smarter.
+
+A skill is education. Books read, courses taken, expertise accumulated.
+
+### packages/projects/ — Workflows
+
+Projects are executable workflow packages. They give Nous a specific plan to execute.
+
+A project contains:
+
+* Workflow graph definitions (nodes, connections, governance levels)
+* Custom node logic (validation, transformation, integration)
+* Model role assignments and configuration
+* Prompt templates and configuration
+* Artifact schemas and storage definitions
+* Memory access policy defaults
+* Scheduling and escalation configurations
+
+Projects produce artifacts and outcomes. All execution is sandboxed. All interaction with Nous goes through the Project API.
+
+A project is a job. Specific work being executed, informed by the skills Nous has absorbed.
+
+### Composition
+
+Projects reference skills. The Persona Engine project uses the "image quality assessment" skill and the "social media strategy" skill. The project defines what to do. The skills inform how to think about it while doing it.
+
+---
+
+## self/autonomic/ — Layer 4: Infrastructure
+
+Invisible infrastructure. The foundational services that keep the organism alive. The cortex never reasons about these. The subcortex never surfaces them. They maintain the conditions that make everything above them possible.
+
+```
+self/autonomic/
+├── storage/                          # Persistence backends
+├── embeddings/                       # Embedding model abstraction
+├── runtime/                          # OS and environment abstraction
+├── config/                           # Configuration schema and validation
+└── health/                           # Monitoring, maintenance, diagnostics
+```
+
+### storage/
+
+Persistence abstraction layer with multiple backend types.
+
+```
+storage/
+├── interfaces/                       # Storage contracts
+├── vector/                           # Vector storage backends
+│   ├── sqlite-vec/
+│   ├── qdrant/
+│   └── ...
+├── document/                         # Structured document storage
+└── graph/                            # Graph storage (for relationships)
+```
+
+Responsibilities:
+
+* Vector storage (for embeddings and semantic search)
+* Document storage (for structured memory entries, configs, traces)
+* Graph storage (for relationship mapping)
+* Pure I/O — no knowledge of memory types or business logic
+
+Backends are swappable through interfaces.
+
+### embeddings/
+
+Embedding model abstraction.
+
+Responsibilities:
+
+* Generate vector embeddings
+* Support local or remote embedding providers
+* Provide retrieval query interface
+
+Does not know what the vectors are for. Generates them on request.
+
+### runtime/
 
 Environment and OS abstraction.
 
@@ -238,93 +537,150 @@ Responsibilities:
 
 No direct filesystem access should occur outside this layer.
 
----
-
-## sandbox/
-
-Execution isolation layer.
-
-Responsibilities:
-
-* WASM runtime integration
-* VM isolation (if used)
-* Capability gating enforcement
-
-This is foundational for future skill execution.
-
----
-
-## config/
+### config/
 
 Configuration schema and validation.
 
 Responsibilities:
 
-* PFC mode presets
+* PFC mode presets (tiers 0–5)
 * Model role assignments
 * Profile definitions (local-control, local-all, remote-all)
 * Validation and defaults
 
----
+### health/
 
-## shared/
-
-Shared types and utilities.
+System monitoring and maintenance.
 
 Responsibilities:
 
-* Type definitions
-* Event schemas
-* Trace models
-* Error types
+* Health diagnostics
+* Log management
+* Garbage collection
+* Maintenance scheduling
+* Backup coordination
 
-Must not contain business logic.
-
----
-
-# Dependency Rules
-
-1. apps may depend on packages
-2. core may depend on pfc, router, memory, tools, storage
-3. pfc may depend on router and memory interfaces
-4. models must not depend on pfc or core
-5. tools must not depend on memory directly
-6. storage must not depend on models
-7. shared contains no execution logic
-
-These constraints prevent architectural drift.
+You only notice the autonomic layer when it fails.
 
 ---
 
-# Phase 1 Implementation Priority
+## self/shared/ — Cross-Layer Nervous System
 
-1. shared
-2. config
-3. storage
-4. models
-5. router
-6. pfc
-7. memory
-8. core
-9. cli
+Shared types, interface contracts, event schemas, and error definitions used across all layers.
 
-This ensures bottom-up stability.
+```
+self/shared/
+├── types/                            # Shared type definitions
+├── interfaces/                       # Cross-layer interface contracts
+├── events/                           # Event schemas
+└── errors/                           # Error types
+```
+
+### types/
+
+Shared type definitions. Memory entry types, project types, model role types, governance levels, etc.
+
+### interfaces/
+
+Cross-layer contracts. When the cortex calls the subcortex, or memory calls storage, the contract is defined here. No layer imports directly from another layer's implementation.
+
+This is the critical composability mechanism. Layers depend on interfaces, not implementations.
+
+### events/
+
+Event schemas for inter-layer communication. Standardized event structure for all system events.
+
+### errors/
+
+Standardized error types. Consistent error handling across all layers.
+
+`shared/` contains no execution logic and no business logic. It is the type system and contract registry.
 
 ---
 
-# Future Expansion Compatibility
+## Dependency Rules
 
-This structure allows future additions:
+```
+cortex/     → depends on interfaces in shared/
+              → calls memory/ and subcortex/ through interfaces
+              → never touches autonomic/ directly
 
-* skills/
-* registry/
-* policy/
-* enterprise/
+memory/     → depends on interfaces in shared/
+              → calls autonomic/ (storage, embeddings) through interfaces
+              → never touches cortex/ or subcortex/ directly
 
-Without restructuring the core runtime.
+subcortex/  → depends on interfaces in shared/
+              → calls autonomic/ (storage, embeddings) through interfaces
+              → called by cortex/ through interfaces
+              → never calls cortex/ directly
+
+autonomic/  → depends on interfaces in shared/
+              → called by memory/ and subcortex/ through interfaces
+              → never touches cortex/
+              → never initiates upward communication
+
+shared/     → no dependencies on any layer
+              → no execution logic
+
+apps/       → depends on shared/ interfaces
+              → communicates with the system through cortex/
+              → never reaches into subcortex/ or autonomic/ directly
+```
+
+Processing flows down. Results flow up. Authority flows from the cortex. No layer reaches upward to command a layer above it.
 
 ---
 
-This folder structure defines the architectural boundaries for Jarvis-OSS Phase 1.
+## Implementation Priority
 
-All development must respect these package responsibilities.
+Bottom-up stability. Build the foundation before the intelligence.
+
+1. `shared/` — types, interfaces, contracts
+2. `autonomic/config/` — configuration schema
+3. `autonomic/storage/` — persistence backends
+4. `autonomic/runtime/` — OS abstraction
+5. `autonomic/embeddings/` — embedding generation
+6. `subcortex/providers/` — model adapters
+7. `subcortex/router/` — model routing
+8. `subcortex/tools/` — tool execution
+9. `subcortex/projects/` — project containers
+10. `memory/stm/` — short-term memory
+11. `memory/ltm/` — long-term memory
+12. `memory/access/` — access policy engine
+13. `memory/retrieval/` — retrieval orchestration
+14. `cortex/pfc/` — Prefrontal Cortex engine
+15. `cortex/core/` — central executive loop
+16. `self/apps/cli/` — terminal interface
+17. `memory/distillation/` — pattern compression
+18. `memory/knowledge-index/` — cross-project intelligence
+19. `subcortex/workflows/` — workflow graph engine
+20. `subcortex/artifacts/` — artifact management
+21. `subcortex/scheduler/` — scheduled execution
+22. `subcortex/escalation/` — human notification
+23. `self/apps/web/` — web UI
+24. `self/apps/bridge/` — messaging integrations
+25. `autonomic/health/` — monitoring and maintenance
+
+---
+
+## Future Expansion
+
+This structure accommodates future additions without restructuring:
+
+```
+self/subcortex/
+├── skills/                           # Skill SDK and runtime
+├── registry/                         # Skill registry and discovery
+└── policy/                           # Advanced policy engine
+
+self/apps/
+└── mobile/                           # Native mobile application
+```
+
+New capabilities are added within the layer they belong to. The structure scales with the system.
+
+---
+
+This folder structure embodies the Mind Model. It is the architectural boundary between what Nous *is* and what exists *around* Nous.
+
+All development must respect these layer boundaries and dependency rules.

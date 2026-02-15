@@ -1,0 +1,174 @@
+---
+title: Interaction Surfaces
+description: The three primary user interfaces for interacting with Nous
+---
+
+# Interaction Surfaces
+
+Nous is a single system accessed through multiple surfaces.
+
+Each surface is optimized for a different context of use. All surfaces share the same underlying runtime — PFC, memory, projects, routing, governance. The surface changes. The intelligence does not.
+
+---
+
+## Surface 1 — Secure Messaging and Voice
+
+The mobile-first channel.
+
+### Purpose
+
+Interaction with Nous when away from a workstation. Quick decisions, approvals, overrides, and escalation responses.
+
+### Characteristics
+
+- Nous reaches the user here for escalations and notifications
+- User can give quick natural language instructions
+- Supports text and voice
+- Always scoped to a project context (Nous states which project it is referencing)
+- Minimal UI — the conversation is the interface
+
+### Channel
+
+Preferred: Signal or equivalent secure messenger with end-to-end encryption.
+
+Requirements:
+
+- Authorized device binding
+- End-to-end encryption
+- Message integrity
+- Voice call support for high-priority escalations
+- No dependency on a specific vendor (channel must be configurable)
+
+### Interaction Examples
+
+- Nous sends: "Persona Engine — identity validation failed at 78%. Recommend adjusting LoRA training rate and re-running. Approve retry or review in Projects UI?"
+- User responds: "Approve retry"
+- Nous sends: "Inbox Manager — flagged an email from [sender] marked urgent. Subject: [subject]. Forward, reply, or ignore?"
+- User responds via voice call for complex decisions
+
+---
+
+## Surface 2 — Chat Interface
+
+The conversational workspace.
+
+### Purpose
+
+Thinking through problems, giving multi-step instructions, reviewing project state, and interacting with Nous conversationally. This is the desk-level interaction surface.
+
+### Characteristics
+
+- ChatGPT-style conversational UI
+- Project groups in the sidebar
+- Active Nous projects auto-populate as chat groups — no manual creation required
+- Conversations within a project group are automatically scoped to that project's memory and context
+- Supports rich content display (images, tables, code, workflow previews)
+- Full conversation history with search
+
+### Project Group Behavior
+
+- Each Nous project appears as a group in the chat sidebar
+- Opening a project group loads that project's context into the conversation
+- Nous responses within a project group draw from that project's STM, LTM, and artifact history
+- General conversations (not scoped to a project) are also supported
+- Users can create ad-hoc chat groups for exploratory conversations that may later become projects
+
+### Interaction Examples
+
+- User opens the Persona Engine group: "What was the reject rate on the last video batch?"
+- Nous responds with data from the project's memory and artifact history
+- User: "I want to try a different pose preset for the next identity grid. Show me what we have."
+- Nous retrieves the Persona Pack's pose presets and presents options
+
+---
+
+## Surface 3 — Projects UI
+
+The visual workflow editor and project management surface.
+
+### Purpose
+
+Designing, building, monitoring, and tuning project workflows. This is the engineering surface for structured project work.
+
+### Characteristics
+
+- Node-based visual workflow editor (ComfyUI / n8n paradigm)
+- Supports project creation, configuration, and lifecycle management
+- Workflow design for protocol projects
+- Live monitoring for intent and hybrid projects
+- Node-level governance configuration (MUST / SHOULD / MAY)
+- Model assignment per node
+- Artifact browsing and versioning
+- Execution trace inspection
+- Project-level dashboards and metrics
+
+### Complexity Range
+
+The Projects UI supports the full spectrum:
+
+- **Low complexity** — a handful of nodes, simple linear flow
+- **Medium complexity** — branching paths, quality gates, conditional logic
+- **High complexity** — multi-phase workflows with nested sub-workflows, batch operations, and scheduled triggers
+- **Ultra-high complexity** — full operational protocols with dozens of nodes, multiple model types, artifact pipelines, and continuous monitoring loops
+
+All complexity levels use the same editor. The interface scales with the project, not the other way around.
+
+### Project Type Support
+
+- **Protocol projects** — full workflow graph design and monitoring
+- **Intent projects** — objective and constraint configuration, live activity monitoring, protocol emergence proposals
+- **Hybrid projects** — both views coexist within a single project
+
+---
+
+## Surface Continuity
+
+The three surfaces are not isolated applications. They are windows into the same system.
+
+### Shared State
+
+All surfaces read from and write to the same project state:
+
+- Same PFC instance per project
+- Same memory (STM and LTM)
+- Same artifact store
+- Same execution traces
+- Same governance configuration
+
+### Cross-Surface Flows
+
+A typical cross-surface flow:
+
+1. Nous escalates via **Secure Messaging**: "Persona Engine — identity grid failed validation"
+2. User taps through to the **Chat Interface** for that project to ask follow-up questions
+3. User opens the **Projects UI** to inspect the failed node, adjust the governance threshold, and approve a retry
+4. Nous resumes execution
+
+The user moves between surfaces fluidly. Nous maintains continuity.
+
+### Notifications Across Surfaces
+
+- Escalations originate from the PFC based on governance rules
+- Delivery channel is configurable per project and per priority level
+- The same escalation can appear across multiple surfaces (e.g., a push notification and a chat message)
+- Acknowledgment on any surface resolves the escalation on all surfaces
+
+---
+
+## Security Model
+
+All surfaces must meet baseline security requirements:
+
+- **Authentication** — device and user identity verified before interaction
+- **Authorization** — project-scoped permissions enforced regardless of surface
+- **Encryption** — end-to-end for messaging, TLS minimum for web surfaces
+- **Audit** — all interactions logged with surface, timestamp, and project context
+- **Session management** — configurable timeout and re-authentication policies
+
+No surface bypasses the PFC. All tool execution, memory writes, and governance decisions flow through the same control plane regardless of which surface initiated the request.
+
+---
+
+This document defines the interaction layer of Nous.
+
+The runtime is the brain. These surfaces are how the user and Nous communicate.
