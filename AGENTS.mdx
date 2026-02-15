@@ -31,34 +31,44 @@ docs/content/docs/
 ```
 docs/content/docs/worklog/
   adr/                         # Architecture Decision Records
+  templates/                   # Document templates
   phase-X/phase-X.Y/
     goals.mdx                  # Why this work exists
-    sds.mdx                    # System design (if needed)
-    implementation.mdx         # Implementation plan
+    sds.mdx                    # Design rationale + ADR review
+    implementation-plan.mdx    # Explicit coding blueprint + todo list
 ```
+
+## Three documents per sub-phase (no exceptions)
+Every sub-phase produces:
+1. **Goals** — why this work exists, scope, success criteria
+2. **SDS** — design rationale, invariants, ADR review
+3. **Implementation Plan** — explicit coding blueprint, file-by-file, todo list
+
+Use templates at docs/content/docs/worklog/templates/. Fill in ALL sections. N/A with justification if not applicable. Never delete sections.
 
 ## Workflow gates (stop if missing)
 
 1) Goals
 - Goals doc exists: worklog/phase-X/phase-X.Y/goals.mdx
 - Scope and success criteria included
+- Links to relevant architecture docs
 - Approved by human
-- Skip for small changes (PR description covers it)
 
 2) Design
-- SDS exists if architecture changes: worklog/phase-X/phase-X.Y/sds.mdx
+- SDS exists: worklog/phase-X/phase-X.Y/sds.mdx
+- ADR Review section completed (existing ADRs checked, new ADRs identified or explicitly none)
 - ADR created if durable decision: worklog/adr/NNN-title.mdx
 - Approved by human
 
 3) Plan
-- Implementation spec exists: worklog/phase-X/phase-X.Y/implementation.mdx
-- Includes tasks, tests, acceptance criteria, rollback plan
+- Implementation Plan exists: worklog/phase-X/phase-X.Y/implementation-plan.mdx
+- Includes explicit task list (file by file, function by function), todo checklist, tests with descriptions, acceptance criteria, rollback plan
+- PR Compliance Checklist completed
 - Approved by human
-- Skip for small changes (PR description covers it)
 
 4) Implement + Verify
 - Branch: phase-X.Y/short-description
-- PR includes required links and checklist
+- PR includes links to all three worklog artifacts
 - CI green (lint/typecheck/tests)
 - Acceptance criteria met
 - Docs updated in same PR if reality changed
@@ -69,15 +79,25 @@ docs/content/docs/worklog/
 - ADR updated with PR link (if ADR exists)
 - SDS updated if implementation diverged
 
-## Change size guide
-- Small (bug fix, config, minor refactor): PR description sufficient. No goals/SDS/impl spec.
-- Medium (new package, new interfaces): Goals + Implementation Spec required. SDS if architecture changes.
-- Large (new layer, cross-cutting change): Goals + SDS + ADR(s) + Implementation Spec required.
+## ADR rules
+- Write an ADR when the decision is durable, cross-cutting, hard to reverse, or changes contracts/ops posture
+- BEFORE making any significant architectural decision, review ALL existing ADRs to avoid contradictions
+- ADRs are numbered sequentially: 001-title.mdx, 002-title.mdx, etc.
+- ADRs are never deleted. Superseded ADRs link to their replacement.
+- Do not contradict a previous ADR without creating a new ADR that explicitly supersedes it.
 
-## ADR rule
-Write an ADR when the decision is durable, cross-cutting, hard to reverse, or changes contracts/ops posture.
-ADRs are numbered sequentially: 001-title.mdx, 002-title.mdx, etc.
-ADRs are never deleted. Superseded ADRs link to their replacement.
+## Testing philosophy
+- Tests ship with every PR. No exceptions.
+- Tier 1: Contract tests (critical) — does the implementation fulfill the interface?
+- Tier 2: Behavior tests (important) — does the system do what the user expects?
+- Tier 3: Edge case/regression tests (as needed)
+- Target: 80% coverage on behavioral code. If below, explain why in the PR.
+- Do NOT write tests that only exist to pad coverage.
+
+## Change size guide
+- Small (bug fix, config, minor refactor): Brief Goals/SDS/Plan. Tests if behavioral.
+- Medium (new package, new interfaces): Full Goals/SDS/Plan. Tests required.
+- Large (new layer, cross-cutting change): Comprehensive Goals/SDS/Plan. ADR(s) likely. Tests required.
 
 ## Branch naming
 Format: phase-X.Y/short-description
@@ -87,30 +107,6 @@ Example: phase-1.1/shared-types-interfaces-config
 Format: type(scope): description
 Types: feat, fix, test, docs, refactor, chore
 Scope: package or layer name (e.g., shared, autonomic/storage, cortex/pfc)
-
-## Templates
-Use the templates at docs/content/docs/worklog/templates/ for all worklog artifacts:
-- goals.mdx — Goals document template
-- sds.mdx — System Design Spec template
-- implementation.mdx — Implementation Spec template (includes PR Compliance Checklist)
-
-Fill in every section. Use "N/A" with justification if a section does not apply. Do not delete sections.
-
-## PR Compliance Checklist (required on every plan and PR)
-```
-| Artifact               | Required by SOP       | Required for this PR | Status |
-|------------------------|-----------------------|----------------------|--------|
-| Goals doc              | Medium+ changes       |                      | ☐      |
-| SDS                    | Architecture changes  |                      | ☐      |
-| ADR(s)                 | Durable decisions     |                      | ☐      |
-| Implementation Spec    | Medium+ changes       |                      | ☐      |
-| Unit tests             | Every PR              |                      | ☐      |
-| Integration tests      | Cross-layer changes   |                      | ☐      |
-| Doc updates            | When reality changes  |                      | ☐      |
-| Rollback plan          | Every PR              |                      | ☐      |
-| Conventional commits   | Every PR              |                      | ☐      |
-```
-Fill in "Required for this PR" (Yes / No / N/A with reason) and mark Status when complete.
 
 ## Architecture docs to reference
 When working on any sub-phase, reference ALL relevant architecture docs:
@@ -122,3 +118,18 @@ When working on any sub-phase, reference ALL relevant architecture docs:
 - interaction-surfaces.mdx — UI surfaces
 - pfc-mode-capability-matrix.mdx — PFC tiers
 - packages-and-plugins.mdx — Package system and SDK
+
+## PR Compliance Checklist (required on every plan and PR)
+```
+| Artifact               | Required by SOP       | Required for this PR | Status |
+|------------------------|-----------------------|----------------------|--------|
+| Goals doc              | Every sub-phase       |                      | ☐      |
+| SDS                    | Every sub-phase       |                      | ☐      |
+| ADR(s)                 | Durable decisions     |                      | ☐      |
+| Implementation Plan    | Every sub-phase       |                      | ☐      |
+| Unit tests             | Every PR              |                      | ☐      |
+| Integration tests      | Cross-layer changes   |                      | ☐      |
+| Doc updates            | When reality changes  |                      | ☐      |
+| Rollback plan          | Every PR              |                      | ☐      |
+| Conventional commits   | Every PR              |                      | ☐      |
+```

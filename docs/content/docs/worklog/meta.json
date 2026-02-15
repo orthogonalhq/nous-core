@@ -3,7 +3,6 @@
   "pages": [
     "index",
     "templates",
-    "adr",
-    "phase-1"
+    "adr"
   ]
 }
