@@ -1,10 +1,16 @@
 {
-  "title": "Jarvis-OSS",
+  "title": "Nous-OSS",
   "pages": [
     "index",
     "--- ---",
     "architecture",
     "--- ---",
-    "roadmap"
+    "roadmap",
+    "--- ---",
+    "business",
+    "--- ---",
+    "sop",
+    "--- ---",
+    "worklog"
   ]
 }
