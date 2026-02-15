@@ -1,0 +1,21 @@
+{
+  "name": "@nous/autonomic-runtime",
+  "version": "0.0.1",
+  "private": true,
+  "description": "Cross-platform runtime abstraction for Nous-OSS",
+  "type": "module",
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "import": "./dist/index.js"
+    }
+  },
+  "scripts": {
+    "build": "tsc --build",
+    "typecheck": "tsc --noEmit",
+    "clean": "rm -rf dist"
+  },
+  "dependencies": {
+    "@nous/shared": "workspace:*"
+  }
+}

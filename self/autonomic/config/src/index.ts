@@ -27,3 +27,5 @@ export {
 } from './defaults.js';
 
 export { loadConfig } from './loader.js';
+
+export { ConfigManager } from './config-manager.js';
