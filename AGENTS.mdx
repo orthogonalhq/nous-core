@@ -87,3 +87,38 @@ Example: phase-1.1/shared-types-interfaces-config
 Format: type(scope): description
 Types: feat, fix, test, docs, refactor, chore
 Scope: package or layer name (e.g., shared, autonomic/storage, cortex/pfc)
+
+## Templates
+Use the templates at docs/content/docs/worklog/templates/ for all worklog artifacts:
+- goals.mdx — Goals document template
+- sds.mdx — System Design Spec template
+- implementation.mdx — Implementation Spec template (includes PR Compliance Checklist)
+
+Fill in every section. Use "N/A" with justification if a section does not apply. Do not delete sections.
+
+## PR Compliance Checklist (required on every plan and PR)
+```
+| Artifact               | Required by SOP       | Required for this PR | Status |
+|------------------------|-----------------------|----------------------|--------|
+| Goals doc              | Medium+ changes       |                      | ☐      |
+| SDS                    | Architecture changes  |                      | ☐      |
+| ADR(s)                 | Durable decisions     |                      | ☐      |
+| Implementation Spec    | Medium+ changes       |                      | ☐      |
+| Unit tests             | Every PR              |                      | ☐      |
+| Integration tests      | Cross-layer changes   |                      | ☐      |
+| Doc updates            | When reality changes  |                      | ☐      |
+| Rollback plan          | Every PR              |                      | ☐      |
+| Conventional commits   | Every PR              |                      | ☐      |
+```
+Fill in "Required for this PR" (Yes / No / N/A with reason) and mark Status when complete.
+
+## Architecture docs to reference
+When working on any sub-phase, reference ALL relevant architecture docs:
+- the-mind-model.mdx — Philosophical foundation and layer model
+- repo-folder-structure.mdx — self/ structure and dependency rules
+- tech-stack.mdx — Technology choices
+- memory-system.mdx — Memory types, learning loop, access policies
+- project-model.mdx — Project types, governance levels, node schema
+- interaction-surfaces.mdx — UI surfaces
+- pfc-mode-capability-matrix.mdx — PFC tiers
+- packages-and-plugins.mdx — Package system and SDK
