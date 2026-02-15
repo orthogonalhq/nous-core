@@ -4,3 +4,6 @@
 [submodule ".worklog"]
 	path = .worklog
 	url = https://github.com/nousai-hq/nous-core-worklog.git
+[submodule ".architecture"]
+	path = .architecture
+	url = https://github.com/nousai-hq/nous-core-architecture.git
