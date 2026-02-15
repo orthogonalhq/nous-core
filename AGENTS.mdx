@@ -1,51 +1,89 @@
 # AGENTS
 
-This repo follows the Agent Engineering Workflow SOP.
+This repo follows the Nous-OSS Engineering Workflow SOP.
 Source of truth is the repo docs. Manual approval at every gate.
 
 ## Read first
-- docs/sop/agent-engineering-workflow.md
+- docs/content/docs/sop/agent-engineering-workflow.mdx
 
-## Required doc paths
-docs/
-  overview/
-  architecture/sds/
-  architecture/adr/
-  roadmap/
-  specs/business/
-  specs/implementation/
-  operations/
-  engineering/
+## Core rules
+1. Repo docs are the system of record
+2. Work only moves forward when the required artifact exists
+3. Nothing merges without verification
+4. Nothing is complete until docs reflect reality
+5. One sub-phase = one branch = one PR
+6. Conventional commits required
+7. Manual approval at every gate
 
-## Checkpoints (stop if missing)
-1) Intake
-- Business Spec exists: docs/specs/business/...
-- Acceptance criteria included
+## Documentation paths
+
+### Reference docs (canonical truth)
+```
+docs/content/docs/
+  index.mdx                    # Project overview
+  architecture/                # System design
+  roadmap/                     # Phases and milestones
+  business/                    # Business model
+  sop/                         # Engineering workflow
+```
+
+### Working docs (accumulated artifacts)
+```
+docs/content/docs/worklog/
+  adr/                         # Architecture Decision Records
+  phase-X/phase-X.Y/
+    goals.mdx                  # Why this work exists
+    sds.mdx                    # System design (if needed)
+    implementation.mdx         # Implementation plan
+```
+
+## Workflow gates (stop if missing)
+
+1) Goals
+- Goals doc exists: worklog/phase-X/phase-X.Y/goals.mdx
+- Scope and success criteria included
 - Approved by human
+- Skip for small changes (PR description covers it)
 
 2) Design
-- SDS exists: docs/architecture/sds/...
-- ADRs created if durable decisions
+- SDS exists if architecture changes: worklog/phase-X/phase-X.Y/sds.mdx
+- ADR created if durable decision: worklog/adr/NNN-title.mdx
 - Approved by human
 
-3) Decompose
-- Roadmap subphase exists: docs/roadmap/...
-- Definition of Done included
+3) Plan
+- Implementation spec exists: worklog/phase-X/phase-X.Y/implementation.mdx
+- Includes tasks, tests, acceptance criteria, rollback plan
 - Approved by human
+- Skip for small changes (PR description covers it)
 
-4) Plan
-- Implementation Spec exists: docs/specs/implementation/...
-- Includes tasks, tests, validation, rollback
-- Approved by human
-
-5) Implement + Verify
+4) Implement + Verify
+- Branch: phase-X.Y/short-description
 - PR includes required links and checklist
 - CI green (lint/typecheck/tests)
+- Acceptance criteria met
+- Docs updated in same PR if reality changed
 - Approved by human
 
-6) Ratify
-- Docs updated to match reality (same PR or follow-up PR immediately)
+5) Ratify
+- Reference docs updated to match reality
 - ADR updated with PR link (if ADR exists)
+- SDS updated if implementation diverged
+
+## Change size guide
+- Small (bug fix, config, minor refactor): PR description sufficient. No goals/SDS/impl spec.
+- Medium (new package, new interfaces): Goals + Implementation Spec required. SDS if architecture changes.
+- Large (new layer, cross-cutting change): Goals + SDS + ADR(s) + Implementation Spec required.
 
 ## ADR rule
 Write an ADR when the decision is durable, cross-cutting, hard to reverse, or changes contracts/ops posture.
+ADRs are numbered sequentially: 001-title.mdx, 002-title.mdx, etc.
+ADRs are never deleted. Superseded ADRs link to their replacement.
+
+## Branch naming
+Format: phase-X.Y/short-description
+Example: phase-1.1/shared-types-interfaces-config
+
+## Conventional commits
+Format: type(scope): description
+Types: feat, fix, test, docs, refactor, chore
+Scope: package or layer name (e.g., shared, autonomic/storage, cortex/pfc)
