@@ -1,0 +1,12 @@
+packages:
+  - self/shared
+  - self/autonomic/*
+  - self/cortex/*
+  - self/memory/*
+  - self/subcortex/*
+  - self/apps/*
+  - docs
+ignoredBuiltDependencies:
+  - esbuild
+  - sharp
+  - unrs-resolver
