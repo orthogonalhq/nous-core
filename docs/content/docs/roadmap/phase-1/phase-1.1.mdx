@@ -1,156 +1,97 @@
 ---
-title: Phase 1.1 — Core Interfaces and Runtime Spine
-description: Foundational interfaces and execution flow for Jarvis-OSS
+title: Phase 1.1 — Shared Contracts
+description: Types, interfaces, configuration schema, and monorepo scaffolding
 ---
 
-# Phase 1.1 — Core Interfaces and Runtime Spine
+# Phase 1.1 — Shared Contracts
 
-Phase 1.1 defines the structural backbone of Jarvis.
+**Branch:** `phase-1.1/shared-types-interfaces-config`
 
-Before optimizing models, memory depth, or tool ecosystems, the runtime must be deterministic and interface-driven.
+**Size:** Medium
 
-This phase establishes the minimal stable contracts that every other component depends on.
+**Contributes to:** Milestone 2 (The Structure Exists)
 
----
-
-## Objective
-
-Define and implement the core interfaces that:
-
-- Separate orchestration from execution
-- Abstract model providers
-- Isolate tool execution
-- Encapsulate storage
-- Enable deterministic routing
-
-This phase creates the architectural skeleton of Jarvis.
+**Prerequisite:** Technology stack decision resolved and documented in architecture reference docs.
 
 ---
 
-## Runtime Flow (High Level)
+## Goals
 
-A single agent cycle follows this structure:
-
-1. Input received
-2. Context constructed (STM + project + retrieval)
-3. PFC evaluates
-4. Optional specialist model consulted
-5. PFC validates output
-6. Tool execution authorized if required
-7. Memory write candidates generated
-8. PFC approves/denies memory writes
-9. Response streamed
-10. Trace persisted
-
-Every step is explicit.
+Define and implement the foundational contracts that every subsequent sub-phase builds against. When 1.1 is done, the `self/` structure exists, every cross-layer interface is defined, and the monorepo builds and passes lint.
 
 ---
 
-## Core Interfaces
+## Scope
 
-### ModelProvider
+### In Scope
 
-Abstracts any model backend.
+- `self/shared/types/` — all core type definitions:
+  - PfcTier (0–5)
+  - ModelRole (orchestrator, reasoner, tool-advisor, summarizer, embedder, reranker, vision)
+  - ProjectType (protocol, intent, hybrid)
+  - GovernanceLevel (must, should, may)
+  - MemoryType (fact, preference, experience-record, distilled-pattern, task-state)
+  - MemoryScope (global, project)
+  - Sentiment (strong-positive, weak-positive, neutral, weak-negative, strong-negative)
+  - MemoryAccessPolicy (can_read_from, can_be_read_by, inherits_global)
+  - NodeType (model-call, tool-execution, quality-gate, human-decision, condition, transform)
+  - ExecutionModel (synchronous, streaming, async-batch, scheduled)
+  - ProviderType (text, image, video, vision, embedding, external-api)
+  - EscalationChannel (in-app, push, signal, slack, sms, email, voice)
+  - PackageType (skill, project)
 
-Responsibilities:
-- Accept structured prompt input
-- Return structured response
-- Support streaming
-- Provide token usage metadata
-- Normalize provider-specific formats
+- `self/shared/interfaces/` — cross-layer interface contracts:
+  - Cortex: IPfcEngine, ICoreExecutor
+  - Memory: IStmStore, ILtmStore, IDistillationEngine, IRetrievalEngine, IKnowledgeIndex, IAccessPolicy
+  - Subcortex: IModelRouter, IModelProvider, IToolExecutor, IWorkflowEngine, IProjectStore, IArtifactStore, IScheduler, IEscalationService, ISandbox, IProjectApi
+  - Autonomic: IVectorStore, IDocumentStore, IGraphStore, IEmbedder, IRuntime, IConfig, IHealthMonitor
 
-Providers may be:
-- Local runtime
-- WASM model
-- Remote API
+- `self/shared/events/` — base event schemas:
+  - SystemEvent, MemoryEvent, ModelEvent, ToolEvent, PfcEvent, ProjectEvent
 
----
+- `self/shared/errors/` — standardized error types:
+  - NousError, PfcDeniedError, MemoryAccessDeniedError, ProviderError, ToolExecutionError, ConfigError
 
-### ModelRouter
+- `self/autonomic/config/` — configuration schema:
+  - PFC tier presets (0–5)
+  - Model role assignment schema
+  - Profile definitions (local-only, remote-only, hybrid)
+  - Project configuration defaults
+  - Validation and defaults
 
-Maps model roles to providers.
+- Monorepo scaffolding:
+  - Package manager configuration
+  - Build tooling
+  - Linting and formatting
+  - Test framework setup
+  - CI pipeline (lint, typecheck, test on macOS/Linux/Windows)
 
-Responsibilities:
-- Resolve role → provider
-- Apply profile rules
-- Handle fallback and failover
-- Enforce privacy mode restrictions
+### Out of Scope
 
-Routing decisions are deterministic and logged.
-
----
-
-### PfcEngine
-
-The orchestration control plane.
-
-Responsibilities:
-- Reflection
-- Escalation decisions
-- Tool authorization
-- Memory write gating
-- Policy enforcement
-
-Only the PFC may authorize side effects.
-
----
-
-### Tool Interface
-
-Defines executable capabilities.
-
-Each tool must declare:
-
-- Name
-- Version
-- Input schema
-- Output schema
-- Required capabilities
-- Permission scope
-
-Tools execute only through the PFC.
+- Any runtime implementations (those start in 1.2)
+- Working functionality (this sub-phase produces contracts and scaffolding, not behavior)
+- Web UI, CLI, or any user-facing surface
 
 ---
 
-### MemoryStore
+## Definition of Done
 
-Abstracts STM and LTM persistence.
-
-Responsibilities:
-- Store short-term working state
-- Persist long-term structured memory
-- Persist semantic embeddings
-- Track provenance
-- Support deletion and export
-
-Memory writes must be explicit events.
-
----
-
-### ProjectStore
-
-Encapsulates project isolation.
-
-Responsibilities:
-- Namespace memory
-- Store model configuration
-- Maintain tool permission sets
-- Persist execution traces
-
-Projects are first-class boundaries.
+- [ ] `self/` folder structure exists with cortex/, memory/, subcortex/, autonomic/, shared/, apps/
+- [ ] All shared types defined and documented
+- [ ] All cross-layer interfaces defined (stub/empty implementations acceptable)
+- [ ] Event schemas defined
+- [ ] Error types defined
+- [ ] Configuration schema defined with validation
+- [ ] Monorepo builds without errors
+- [ ] Lint and typecheck pass
+- [ ] Test framework configured and at least one example test runs
+- [ ] CI pipeline runs on macOS, Linux, and Windows
+- [ ] Unit tests for configuration validation
 
 ---
 
-## Non-Negotiable Rule
+## Worklog Artifacts
 
-Only the PFC may:
-
-- Execute tools
-- Persist memory
-- Modify project configuration
-
-Specialist models never produce side effects directly.
-
----
-
-Phase 1.1 ends when these interfaces are implemented and testable with stub providers.
+- Goals: `worklog/phase-1/phase-1.1/goals.mdx`
+- SDS: `worklog/phase-1/phase-1.1/sds.mdx` (type system design)
+- Implementation: `worklog/phase-1/phase-1.1/implementation.mdx`

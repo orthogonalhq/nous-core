@@ -1,0 +1,106 @@
+---
+title: Phase 1.8 — CLI, Integration Testing, and Hardening
+description: CLI interface, comprehensive testing, cross-platform validation, and security baseline
+---
+
+# Phase 1.8 — CLI, Integration Testing, and Hardening
+
+**Branch:** `phase-1.8/cli-testing-cross-platform`
+
+**Size:** Medium
+
+**Contributes to:** Milestone 7 (Works Everywhere and Looks Good)
+
+**Prerequisite:** Phase 1.7 (installer and first-run must be working)
+
+---
+
+## Goals
+
+Harden everything. When 1.8 is done, Nous has a CLI alternative to the web UI, comprehensive integration and end-to-end tests, verified cross-platform support, and a security baseline. Phase 1 is complete.
+
+---
+
+## Scope
+
+### In Scope
+
+- `self/apps/cli/` — command-line interface:
+  - Command parsing (send message, list projects, switch project, view config)
+  - Streamed response display in terminal
+  - Project creation and switching
+  - Configuration viewing and modification
+  - Same backend as the web UI (both apps communicate through the same cortex API)
+
+- Integration test suite:
+  - Cross-layer tests: cortex → subcortex (PFC authorizes → router resolves → provider responds)
+  - Cross-layer tests: memory → autonomic (MWC approved → document store persists)
+  - Cross-layer tests: apps → cortex (web UI or CLI → core executor → full cycle)
+
+- End-to-end test:
+  - Message sent through web UI → routed to model → response streamed → trace persisted → memory candidate generated → PFC gates → approved entry stored
+  - Same test through CLI
+
+- Cross-platform validation:
+  - All unit tests pass on macOS, Linux, Windows
+  - All integration tests pass on macOS, Linux, Windows
+  - End-to-end tests pass on macOS, Linux, Windows
+  - Installer tested on all three platforms
+
+- Security baseline:
+  - Web UI accessible on localhost only by default
+  - Optional basic auth configuration for network-exposed deployments
+  - No sensitive data in execution traces by default (configurable)
+  - Storage encrypted at rest (configurable)
+  - Security considerations documented
+
+- Documentation:
+  - Testing patterns and conventions documented for use in all subsequent phases
+  - Security baseline documented
+  - Phase 1 retrospective (what worked, what should change for Phase 2)
+
+### Out of Scope
+
+- Performance optimization (future)
+- Load testing (future)
+- Accessibility audit of web UI (Phase 2+)
+- Advanced CLI features (scripting, piping, batch mode — future)
+
+---
+
+## Definition of Done
+
+- [ ] CLI sends messages and displays streamed responses
+- [ ] CLI creates, lists, and switches projects
+- [ ] CLI views and modifies configuration
+- [ ] CLI uses the same backend API as the web UI
+- [ ] Integration tests cover all cross-layer boundaries
+- [ ] End-to-end test passes through web UI
+- [ ] End-to-end test passes through CLI
+- [ ] All tests pass on macOS
+- [ ] All tests pass on Linux
+- [ ] All tests pass on Windows
+- [ ] Installer tested and working on all three platforms
+- [ ] Web UI defaults to localhost-only
+- [ ] Basic auth works when configured for network exposure
+- [ ] Storage encryption option works when configured
+- [ ] Testing patterns documented
+- [ ] Security baseline documented
+- [ ] Documentation site accessible from web UI
+
+---
+
+## Phase 1 Exit Verification
+
+When 1.8 is complete, verify all Phase 1 exit criteria from the [Phase 1 Overview](/docs/roadmap/phase-1):
+
+- [ ] All seven milestones are demonstrably met
+- [ ] All exit criteria checkboxes are satisfied
+- [ ] Phase 1 is complete
+
+---
+
+## Worklog Artifacts
+
+- Goals: `worklog/phase-1/phase-1.8/goals.mdx`
+- Implementation: `worklog/phase-1/phase-1.8/implementation.mdx`

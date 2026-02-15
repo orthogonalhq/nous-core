@@ -1,0 +1,74 @@
+---
+title: Phase 1.2 — Autonomic Layer
+description: Storage backends, runtime abstraction, and configuration loading
+---
+
+# Phase 1.2 — Autonomic Layer
+
+**Branch:** `phase-1.2/autonomic-storage-runtime-config`
+
+**Size:** Medium
+
+**Contributes to:** Milestone 2 (The Structure Exists)
+
+**Prerequisite:** Phase 1.1 (shared contracts must exist)
+
+---
+
+## Goals
+
+Implement the foundational infrastructure that every layer above depends on. When 1.2 is done, Nous can persist documents, resolve paths cross-platform, and load validated configuration.
+
+---
+
+## Scope
+
+### In Scope
+
+- `self/autonomic/storage/` — document store implementation:
+  - IDocumentStore fulfilled (SQLite or file-based)
+  - CRUD operations for structured documents
+  - Project-scoped namespacing at the storage level
+  - Stub implementations for IVectorStore and IGraphStore (interface only, deferred)
+
+- `self/autonomic/runtime/` — environment and OS abstraction:
+  - Cross-platform path handling
+  - Environment detection (OS, architecture)
+  - System capability checks (available ports, disk space)
+
+- `self/autonomic/config/` — configuration loading and validation:
+  - Load config from file (schema defined in 1.1, implementation here)
+  - Validate against schema
+  - Apply defaults
+  - Profile resolution (local-only, remote-only, hybrid)
+
+- Stub implementations for IEmbedder and IHealthMonitor (interface only, deferred)
+
+### Out of Scope
+
+- Vector storage (Phase 2)
+- Graph storage (Phase 6)
+- Embedding generation (Phase 2)
+- Health monitoring beyond basic checks (Phase 1.8)
+
+---
+
+## Definition of Done
+
+- [ ] Document store persists and retrieves structured data
+- [ ] Document store supports project-scoped namespacing
+- [ ] Runtime abstraction detects OS and resolves paths correctly on macOS, Linux, Windows
+- [ ] Configuration loads from file and validates against schema
+- [ ] Invalid configuration produces clear error messages
+- [ ] Default configuration works out of the box
+- [ ] Unit tests for document store CRUD operations
+- [ ] Unit tests for configuration validation
+- [ ] Unit tests for cross-platform path resolution
+- [ ] All tests pass on macOS, Linux, and Windows
+
+---
+
+## Worklog Artifacts
+
+- Goals: `worklog/phase-1/phase-1.2/goals.mdx`
+- Implementation: `worklog/phase-1/phase-1.2/implementation.mdx`

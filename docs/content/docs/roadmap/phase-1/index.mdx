@@ -1,196 +1,168 @@
 ---
-title: Phase 1 Overview — Core Runtime
-description: Architectural foundation for Jarvis-OSS P0.1 through Beta
+title: Phase 1 Overview — The Skeleton
+description: Architectural foundation with a functional web interface and guided installation for Nous-OSS
 ---
 
-# Phase 1 — Core Runtime
+# Phase 1 — The Skeleton
 
-Phase 1 establishes the control plane of Jarvis.
+Phase 1 delivers a working Nous instance. The `self/` structure stands with all four consciousness layers. A guided installer handles setup. A web UI provides conversational interaction. Basic memory persists across sessions. The PFC governs. Projects are isolated.
 
-This phase defines how models are orchestrated, how memory is persisted, how tools are executed, and how projects are isolated. Every future phase depends on the stability of these decisions.
-
-Jarvis is not being built as a chatbot wrapper.  
-It is being built as a governed agent runtime.
+At the end of Phase 1, Nous is real, interactive, and usable. Not yet intelligent. Not yet learning from outcomes. But architecturally sound, interface-driven, and running on your machine.
 
 ---
 
-## Objective
+## Completion Milestones
 
-Deliver a beta-ready local-first agent runtime that is:
+Phase 1 is defined by seven demonstrable outcomes. Not code tasks. Things you can point at and say "that works."
 
-- Architecturally deterministic  
-- Role-based in model routing  
-- Explicit in memory persistence  
-- Strict in tool authorization  
-- Cross-platform compatible  
-- Configurable across hardware tiers  
+### Milestone 1: Installation and Setup
 
-At the end of Phase 1, a user should be able to install Jarvis, configure a PFC tier, select local or remote models, create projects, persist memory, and execute governed tool workflows.
+- A guided installer handles the full local setup
+- LLM provider installation (Ollama or equivalent) with model download
+- Document storage initialized (SQLite or file-based — vector storage is Phase 2)
+- Initial configuration (PFC tier, model role assignments, default profile)
+- First-run experience through the web UI — not a terminal
+- Cross-platform: works on macOS, Linux, and Windows
+- Designed for local-first, but the web layer is architected so it could be hosted later without rewriting
 
----
+A user downloads Nous, runs the installer, and within minutes has a working system with a local model ready to go.
 
-## Architectural Spine
+### Milestone 2: The Structure Exists
 
-Phase 1 is organized around five core pillars.
+- The `self/` folder structure is real — cortex, memory, subcortex, autonomic, shared, apps
+- All cross-layer interface contracts are defined and compile
+- Dependency rules enforced — no layer reaches upward, processing flows down, results flow up
+- A developer can look at the repo and immediately understand where everything lives and why
 
-### 1. PFC Orchestration Model
+The architecture from the docs matches the code. The mind model is not just a paper — it is the structure.
 
-The Prefrontal Cortex is the control plane.
+### Milestone 3: Nous Can Think
 
-It is responsible for:
+- You send a message, Nous routes it to a model (local or remote), and you get a streamed response back
+- Model routing works — at least one local provider (Ollama) and one remote provider (OpenAI-compatible API)
+- The PFC is in the loop — it evaluates the request and authorizes the model call
+- An execution trace is generated for every interaction
+- Heterogeneous provider interface defined — text models work now, image/video/vision interfaces exist as stubs for later
 
-- Routing model roles  
-- Performing self-reflection  
-- Approving memory writes  
-- Authorizing tool execution  
-- Enforcing policy boundaries  
+### Milestone 4: Nous Can Remember
 
-Only the PFC may execute tools or persist memory.
+- Conversations persist across sessions — close the browser, come back, conversation is there
+- The PFC gates what gets written to memory — not everything is stored automatically
+- MemoryWriteCandidate flow is operational — the model proposes memory entries, the PFC approves or denies. This is the basic composable unit of memory governance; the simplest working implementation that honors the architecture
+- Basic memory inspection available in the UI — you can see what Nous remembers and what the PFC denied
+- Memory export and deletion work — user owns their data from day one
 
-PFC Modes:
+### Milestone 5: Nous Knows Which Project It's In
 
-0 — Off  
-1 — Mobile  
-2 — Low spec PC  
-3 — Mid spec PC  
-4 — High spec PC  
-5 — Remote agent  
+- Projects can be created from the web UI
+- Projects appear in the sidebar as conversation groups
+- Conversations are scoped to the active project — switching projects switches context
+- Memory is isolated per project by default
+- Project configuration is visible — what model is assigned, what PFC tier is active
 
-Each tier adjusts reasoning depth and orchestration strength.
+### Milestone 6: You Can See What's Happening
 
-Local PFC execution targets a WASM sandbox where feasible.
+- Execution traces are visible in the UI
+- Each trace shows: what the PFC decided, what model was called, what memory was written or denied
+- Configuration panel — view and modify model assignments, PFC tier, project settings
+- System health basics — is the local model running, is storage healthy
 
----
+### Milestone 7: It Works Everywhere and Looks Good
 
-### 2. Role-Based Model System
-
-Jarvis does not treat “the LLM” as a monolith.
-
-Models are assigned roles:
-
-- Orchestrator (PFC)  
-- Reasoner  
-- Tool advisor  
-- Summarizer  
-- Embedder  
-- Reranker  
-- Vision  
-
-Each role may be fulfilled by a local or remote provider.
-
-Specialist models advise the PFC.  
-They do not execute tools or write memory directly.
+- The web UI is clean, modern, and pleasant to use
+- Responsive design — works on desktop and tablet
+- Dark mode support
+- Cross-platform verified: macOS, Linux, Windows
+- CLI exists as an alternative interface to the same backend
+- Documentation site is accessible from within the UI
 
 ---
 
-### 3. Explicit Memory Architecture
+## What Phase 1 Does NOT Include
 
-Memory is structured and intentional.
+These are all architecturally designed and their interfaces exist as stubs. Implementations come in later phases.
 
-Two layers exist:
+- LTM with structured types, vector storage, semantic retrieval (Phase 2)
+- STM summarization and eviction (Phase 2)
+- Experience records or distillation (Phase 4)
+- Sentiment-weighted retrieval (Phase 4)
+- Cross-project memory access (Phase 3)
+- Memory access policies (Phase 3)
+- Workflow engine or node-based execution (Phase 5)
+- Per-node governance MUST/SHOULD/MAY (Phase 5)
+- Protocol/intent project types beyond metadata (Phase 3)
+- Artifact management (Phase 5)
+- Scheduling (Phase 5)
+- Messaging bridge (Phase 9)
+- Package ecosystem — skills and projects (Phase 7)
+- Knowledge-index or cross-project intelligence (Phase 6)
+- Nous Cloud or hosted offering (parallel business track)
+- Proprietary models (parallel business track)
 
-Short Term Memory  
-- Recent context  
-- Working state  
-- Summaries  
+## Testing Requirements
 
-Long Term Memory  
-- Structured facts and preferences  
-- Project-scoped knowledge  
-- Vector-backed semantic store  
+Phase 1 establishes the testing foundation for the entire project.
 
-All memory writes originate as `MemoryWriteCandidate` objects and require PFC approval before persistence.
+- Unit tests for every implemented package
+- Integration tests across layer boundaries (cortex → subcortex, memory → autonomic)
+- End-to-end test: message sent through web UI → routed to model → response streamed → trace persisted → memory candidate generated and PFC-gated
+- All tests run in CI on macOS, Linux, and Windows
+- Testing framework and patterns documented for use in all subsequent phases
 
-Memory is:
+## Security Requirements
 
-- Project-scoped  
-- Exportable  
-- Deletable  
-- Auditable  
+Phase 1 addresses basic security appropriate for a local-first system.
 
----
-
-### 4. Project Isolation
-
-Projects are first-class containers.
-
-Each project encapsulates:
-
-- Model configuration  
-- Memory namespace  
-- RAG index  
-- Tool permissions  
-- Execution traces  
-
-No implicit cross-project leakage is allowed.
-
----
-
-### 5. Tool Execution Model
-
-Tools are capability-gated and schema-defined.
-
-Each tool:
-
-- Declares permissions  
-- Declares required capabilities  
-- Defines typed input and output  
-- Executes within controlled boundaries  
-
-Tools never receive direct ambient authority to the system.
-
-All execution is mediated by the PFC.
+- Web UI accessible on localhost only by default
+- Optional basic auth for network-exposed deployments
+- No sensitive data in execution traces by default (configurable)
+- Storage encrypted at rest (configurable)
+- Security considerations documented for each sub-phase
 
 ---
 
-## Local and Remote Support
+## Sub-Phases
 
-Phase 1 supports multiple execution profiles:
+Working backwards from the milestones, Phase 1 breaks into sub-phases. Each produces stable, testable output.
 
-- Local PFC + Remote specialists  
-- Local PFC + Local specialists  
-- Remote PFC + Remote specialists  
-- PFC Off  
-
-Model providers are abstracted through normalized adapters.
-
-Remote models never receive unfiltered system state.
-
----
-
-## Cross-Platform Runtime
-
-Jarvis must support:
-
-- macOS  
-- Linux  
-- Windows (including WSL2)  
-
-OS-specific logic is isolated behind system interfaces.
-
-Local model execution should support native runtime and WASM where feasible.
+- **Pre-Phase 1** — Technology stack decision (architecture reference doc — must be resolved before 1.1)
+- **Phase 1.1** — Shared contracts (types, interfaces, configuration schema)
+- **Phase 1.2** — Autonomic layer (storage backends, runtime abstraction, config)
+- **Phase 1.3** — Subcortex foundation (providers, router, basic tools, project containers)
+- **Phase 1.4** — Memory foundation (STM with basic persistence, MemoryWriteCandidate flow)
+- **Phase 1.5** — Cortex (PFC engine, core execution loop, trace generation)
+- **Phase 1.6** — Web UI (chat interface, project sidebar, trace display, config panel)
+- **Phase 1.7** — Installer and first-run experience
+- **Phase 1.8** — CLI, integration testing, cross-platform hardening
 
 ---
 
-## Beta Exit Criteria
+## Exit Criteria
 
-Phase 1 reaches beta when the system can:
+Phase 1 is complete when all seven milestones are demonstrably met:
 
-- Install and run locally  
-- Configure PFC tier  
-- Configure local and/or remote models  
-- Create and switch projects  
-- Ingest documents for retrieval  
-- Persist STM and LTM across sessions  
-- Execute capability-gated tools  
-- Stream responses  
-- Inspect execution traces  
-- Export or delete memory  
-
-No marketplace functionality is included in Phase 1.
+- [ ] Guided installer works on macOS, Linux, and Windows
+- [ ] Local LLM provider (Ollama) installs and downloads a default model
+- [ ] `self/` folder structure exists with all four layers and shared contracts
+- [ ] All cross-layer interfaces defined in `shared/interfaces/`
+- [ ] At least one local and one remote model provider working
+- [ ] Model routing resolves roles to providers
+- [ ] PFC gates memory writes and tool execution
+- [ ] MemoryWriteCandidate flow operational
+- [ ] STM persists across sessions
+- [ ] Memory export and deletion functional
+- [ ] Projects can be created, switched, and isolated
+- [ ] Web chat interface is functional with project sidebar
+- [ ] Execution traces visible in the UI
+- [ ] Configuration viewable and editable in the UI
+- [ ] CLI accepts input and returns streamed responses
+- [ ] Unit tests for every implemented package
+- [ ] Integration tests across layer boundaries
+- [ ] End-to-end test passing (message → model → response → trace → memory)
+- [ ] All tests pass on macOS, Linux, and Windows
+- [ ] Web UI is clean, modern, responsive, with dark mode
+- [ ] Basic security measures in place (localhost default, optional auth)
 
 ---
 
-Phase 1 defines the architectural contract of Jarvis-OSS.
-
-Everything that follows depends on its stability.
+Phase 1 delivers the skeleton with a heartbeat. Everything that follows adds intelligence, learning, and capability — on top of a proven, installed, and usable foundation.
