@@ -1,0 +1,6 @@
+[submodule ".skills"]
+	path = .skills
+	url = https://github.com/nousai-hq/nous-skills.git
+[submodule "docs/content/docs/worklog"]
+	path = docs/content/docs/worklog
+	url = https://github.com/nousai-hq/nous-core-worklog.git

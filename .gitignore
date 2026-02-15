@@ -28,8 +28,9 @@ pnpm-debug.log*
 yarn-debug.log*
 yarn-error.log*
 
-# Skills (proprietary process infrastructure)
-.skills/
+# Backups (temporary)
+.skills-backup/
+worklog-backup/
 
 # Misc
 *.pem
