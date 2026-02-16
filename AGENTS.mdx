@@ -12,12 +12,17 @@ Read the SKILL.md before starting any work. It is the source of truth for how wo
 
 ## Project docs
 
-- **docs/content/docs/architecture/** — How the system is designed (reference docs, canonical truth)
-- **docs/content/docs/roadmap/** — What's planned and in what order
-- **.worklog/** — Accumulated artifacts: goals, SDS, implementation plans, completion reports, reviews, ADRs
+Reference docs (canonical truth) are split across two locations:
+
+- **.architecture/** — Canonical reference docs: mind model, memory system, roadmap (overview + phase specs), business model, packages & plugins (submodule: `nous-core-architecture`)
+- **docs/content/docs/architecture/** — Architecture docs served on the docs site: repo structure, tech stack, PFC matrix, project model, interaction surfaces
+
+Working docs (accumulated over time):
+
+- **.worklog/** — Accumulated artifacts: goals, SDS, implementation plans, completion reports, reviews, ADRs (submodule: `nous-core-worklog`)
 
 ## Scope boundary
 
-The `.skills/` directory is process infrastructure — it defines HOW work is done. Implementation agents (Agent B) read it but never modify it. Only the PFC modifies process documents.
+The `.skills/` directory is process infrastructure — it defines HOW work is done (submodule: `nous-skills`). Implementation agents (Agent B) read it but never modify it. Only the PFC modifies process documents.
 
-Project-specific docs live in `docs/`. Implementation agents produce worklog artifacts there.
+Project-specific docs live in `docs/content/docs/`. Implementation agents produce worklog artifacts in `.worklog/`.
