@@ -3,14 +3,6 @@
   "pages": [
     "index",
     "--- ---",
-    "architecture",
-    "--- ---",
-    "roadmap",
-    "--- ---",
-    "business",
-    "--- ---",
-    "sop",
-    "--- ---",
-    "worklog"
+    "architecture"
   ]
 }

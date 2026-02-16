@@ -28,5 +28,9 @@ pnpm-debug.log*
 yarn-debug.log*
 yarn-error.log*
 
+# Backups (temporary)
+.skills-backup/
+worklog-backup/
+
 # Misc
 *.pem
