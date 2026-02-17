@@ -123,7 +123,7 @@ export interface IScheduler {
 }
 
 export interface IEscalationService {
-  /** Send an escalation to the human */
+  /** Send an escalation to the Principal */
   notify(contract: EscalationContract): Promise<EscalationId>;
 
   /** Check if an escalation has been responded to */
