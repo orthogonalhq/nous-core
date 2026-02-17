@@ -8,6 +8,7 @@ import { tracesRouter } from './routers/traces';
 import { memoryRouter } from './routers/memory';
 import { configRouter } from './routers/config';
 import { healthRouter } from './routers/health';
+import { firstRunRouter } from './routers/first-run';
 
 export const appRouter = router({
   projects: projectsRouter,
@@ -16,6 +17,7 @@ export const appRouter = router({
   memory: memoryRouter,
   config: configRouter,
   health: healthRouter,
+  firstRun: firstRunRouter,
 });
 
 export type AppRouter = typeof appRouter;
