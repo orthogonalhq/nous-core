@@ -4,9 +4,9 @@
 
 The engineering workflow for this repo is defined as a skill:
 
-- **.skills/engineering-workflow-sop/SKILL.md** — Full SOP: core rules, gates, testing philosophy, compliance checklist, templates
-- **.skills/engineering-workflow-sop/dispatch-model.md** — Agent roles, flow diagram, lifecycle rules
-- **.skills/engineering-workflow-sop/revision-cycle-protocol.md** — Multi-cycle revision handling
+- **.skills/engineer-workflow-sop/SKILL.md** — Full SOP: core rules, gates, testing philosophy, compliance checklist, templates
+- **.skills/engineer-workflow-sop/shared/dispatch-model.md** — Agent roles, flow diagram, lifecycle rules
+- **.skills/engineer-workflow-sop/shared/revision-cycle-protocol.md** — Multi-cycle revision handling
 
 Read the SKILL.md before starting any work. It is the source of truth for how work moves from plan to merged code.
 
