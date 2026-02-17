@@ -1,0 +1,24 @@
+{
+  "name": "nous-install",
+  "version": "0.0.1",
+  "private": true,
+  "description": "Nous-OSS guided installer",
+  "type": "module",
+  "scripts": {
+    "build": "tsc",
+    "install:nous": "node dist/index.js",
+    "test": "vitest run",
+    "typecheck": "tsc --noEmit"
+  },
+  "dependencies": {
+    "@nous/autonomic-config": "workspace:*"
+  },
+  "devDependencies": {
+    "@types/node": "^20",
+    "typescript": "^5",
+    "vitest": "^4.0.18"
+  },
+  "engines": {
+    "node": ">=22"
+  }
+}
