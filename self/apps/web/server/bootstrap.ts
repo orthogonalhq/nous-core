@@ -129,6 +129,9 @@ export function createNousContext(): NousContext {
     return createMockProvider(id) as ReturnType<typeof providerRegistry.getProvider>;
   };
 
+  const cfg = config.get() as { security?: { traceSensitiveData?: boolean } };
+  const traceSensitiveData = cfg.security?.traceSensitiveData ?? false;
+
   const coreExecutor = new CoreExecutor({
     pfc,
     router,
@@ -138,6 +141,7 @@ export function createNousContext(): NousContext {
     mwcPipeline,
     projectStore,
     documentStore,
+    traceSensitiveData,
   });
 
   cachedContext = {

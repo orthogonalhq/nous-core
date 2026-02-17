@@ -39,6 +39,8 @@ export interface MwcPipelineLike {
   ): Promise<MemoryEntryId | null>;
 }
 
+const REDACTED = '[redacted]';
+
 export interface CoreExecutorDeps {
   pfc: IPfcEngine;
   router: IModelRouter;
@@ -48,6 +50,8 @@ export interface CoreExecutorDeps {
   mwcPipeline: MwcPipelineLike;
   projectStore: IProjectStore;
   documentStore: IDocumentStore;
+  /** When false (default), redact sensitive fields before persisting trace */
+  traceSensitiveData?: boolean;
 }
 
 export class CoreExecutor implements ICoreExecutor {
@@ -201,7 +205,7 @@ export class CoreExecutor implements ICoreExecutor {
     const completedAt = new Date().toISOString();
     console.info(`[nous:core] turn_complete traceId=${traceId}`);
 
-    const trace: ExecutionTrace = {
+    let traceToPersist = {
       traceId,
       projectId,
       startedAt,
@@ -209,7 +213,11 @@ export class CoreExecutor implements ICoreExecutor {
       turns: [turnData],
     };
 
-    const traceValid = ExecutionTraceSchema.safeParse(trace);
+    if (!this.deps.traceSensitiveData) {
+      traceToPersist = redactTrace(traceToPersist);
+    }
+
+    const traceValid = ExecutionTraceSchema.safeParse(traceToPersist);
     if (traceValid.success) {
       try {
         await this.deps.documentStore.put(
@@ -270,6 +278,29 @@ interface TurnData {
 }
 
 type TurnInput = Parameters<ICoreExecutor['executeTurn']>[0];
+
+function redactTrace(trace: {
+  traceId: TraceId;
+  projectId: ProjectId | undefined;
+  startedAt: string;
+  completedAt: string;
+  turns: TurnData[];
+}): typeof trace {
+  return {
+    ...trace,
+    turns: trace.turns.map((t) => ({
+      ...t,
+      input: REDACTED,
+      output: REDACTED,
+      toolDecisions: t.toolDecisions,
+      memoryWrites: t.memoryWrites,
+      memoryDenials: t.memoryDenials.map((d) => ({
+        candidate: { ...d.candidate, content: REDACTED },
+        reason: d.reason,
+      })),
+    })),
+  };
+}
 
 function buildPrompt(message: string, stmContext: StmContext): string {
   const parts: string[] = [];
