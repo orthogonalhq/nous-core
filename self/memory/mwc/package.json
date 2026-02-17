@@ -1,0 +1,26 @@
+{
+  "name": "@nous/memory-mwc",
+  "version": "0.0.1",
+  "private": true,
+  "description": "MemoryWriteCandidate pipeline for Nous-OSS — create, evaluate, persist, export, delete",
+  "type": "module",
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "import": "./dist/index.js"
+    }
+  },
+  "scripts": {
+    "build": "tsc --build",
+    "typecheck": "tsc --noEmit",
+    "clean": "rm -rf dist"
+  },
+  "dependencies": {
+    "@nous/shared": "workspace:*",
+    "@nous/autonomic-storage": "workspace:*",
+    "zod": "^3.24.1"
+  },
+  "devDependencies": {
+    "@nous/memory-stm": "workspace:*"
+  }
+}

@@ -12,4 +12,7 @@ export default defineWorkspace([
   'self/subcortex/tools',
   'self/subcortex/projects',
   'self/subcortex/stubs',
+  'self/memory/stm',
+  'self/memory/mwc',
+  'self/memory/stubs',
 ]);
