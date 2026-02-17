@@ -16,6 +16,7 @@ import type {
 import {
   MemoryWriteCandidateSchema,
   MemoryEntrySchema,
+  ValidationError,
 } from '@nous/shared';
 import type { MwcEvaluator } from './evaluator.js';
 
@@ -59,12 +60,20 @@ export class MwcPipeline {
     candidate: MemoryWriteCandidate,
     projectId?: ProjectId,
   ): Promise<MemoryEntryId | null> {
-    const validated = MemoryWriteCandidateSchema.parse(candidate);
-    const result = await this.evaluator(validated, projectId);
+    const parseResult = MemoryWriteCandidateSchema.safeParse(candidate);
+    if (!parseResult.success) {
+      const errors = parseResult.error.errors.map((e) => ({
+        path: e.path.join('.'),
+        message: e.message,
+      }));
+      throw new ValidationError('Invalid MemoryWriteCandidate', errors);
+    }
+    const validated = parseResult.data;
+    const evalResult = await this.evaluator(validated, projectId);
 
-    if (!result.approved) {
+    if (!evalResult.approved) {
       console.info(
-        `[nous:mwc] denied projectId=${projectId ?? 'global'} reason=${result.reason ?? 'unspecified'}`,
+        `[nous:mwc] denied projectId=${projectId ?? 'global'} reason=${evalResult.reason ?? 'unspecified'}`,
       );
       return null;
     }

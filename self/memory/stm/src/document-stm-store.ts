@@ -8,6 +8,7 @@ import type { IDocumentStore, IStmStore } from '@nous/shared';
 import {
   StmContextSchema,
   StmEntrySchema,
+  ValidationError,
   type ProjectId,
   type StmContext,
   type StmEntry,
@@ -43,7 +44,15 @@ export class DocumentStmStore implements IStmStore {
   }
 
   async append(projectId: ProjectId, entry: StmEntry): Promise<void> {
-    const validated = StmEntrySchema.parse(entry);
+    const result = StmEntrySchema.safeParse(entry);
+    if (!result.success) {
+      const errors = result.error.errors.map((e) => ({
+        path: e.path.join('.'),
+        message: e.message,
+      }));
+      throw new ValidationError('Invalid STM entry', errors);
+    }
+    const validated = result.data;
 
     const context = await this.getContext(projectId);
     const newEntries = [...context.entries, validated];
