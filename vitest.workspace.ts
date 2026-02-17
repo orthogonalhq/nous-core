@@ -7,4 +7,9 @@ export default defineWorkspace([
   'self/autonomic/storage',
   'self/autonomic/embeddings',
   'self/autonomic/health',
+  'self/subcortex/providers',
+  'self/subcortex/router',
+  'self/subcortex/tools',
+  'self/subcortex/projects',
+  'self/subcortex/stubs',
 ]);

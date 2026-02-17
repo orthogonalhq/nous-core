@@ -131,6 +131,58 @@ importers:
         specifier: ^3.25.76
         version: 3.25.76
 
+  self/subcortex/projects:
+    dependencies:
+      '@nous/autonomic-storage':
+        specifier: workspace:*
+        version: link:../../autonomic/storage
+      '@nous/shared':
+        specifier: workspace:*
+        version: link:../../shared
+      zod:
+        specifier: ^3.24.1
+        version: 3.25.76
+
+  self/subcortex/providers:
+    dependencies:
+      '@nous/autonomic-config':
+        specifier: workspace:*
+        version: link:../../autonomic/config
+      '@nous/shared':
+        specifier: workspace:*
+        version: link:../../shared
+      zod:
+        specifier: ^3.24.1
+        version: 3.25.76
+
+  self/subcortex/router:
+    dependencies:
+      '@nous/autonomic-config':
+        specifier: workspace:*
+        version: link:../../autonomic/config
+      '@nous/shared':
+        specifier: workspace:*
+        version: link:../../shared
+    devDependencies:
+      '@nous/subcortex-providers':
+        specifier: workspace:*
+        version: link:../providers
+
+  self/subcortex/stubs:
+    dependencies:
+      '@nous/shared':
+        specifier: workspace:*
+        version: link:../../shared
+
+  self/subcortex/tools:
+    dependencies:
+      '@nous/shared':
+        specifier: workspace:*
+        version: link:../../shared
+      zod:
+        specifier: ^3.24.1
+        version: 3.25.76
+
 packages:
 
   '@alloc/quick-lru@5.2.0':

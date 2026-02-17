@@ -1,0 +1,19 @@
+{
+  "extends": "../../../tsconfig.json",
+  "compilerOptions": {
+    "rootDir": "src",
+    "outDir": "dist",
+    "composite": true,
+    "paths": {
+      "@nous/shared": ["../../shared/src/index.ts"],
+      "@nous/autonomic-config": ["../../autonomic/config/src/index.ts"],
+      "@nous/subcortex-providers": ["../providers/src/index.ts"]
+    }
+  },
+  "include": ["src"],
+  "references": [
+    { "path": "../../shared" },
+    { "path": "../../autonomic/config" },
+    { "path": "../providers" }
+  ]
+}
