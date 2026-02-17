@@ -1,0 +1,235 @@
+/**
+ * Stub implementations for deferred subcortex interfaces.
+ *
+ * All methods throw NousError with code 'NOT_IMPLEMENTED'.
+ * Real implementations arrive in Phase 5 (workflows, artifacts, scheduler, escalation)
+ * and Phase 7 (sandbox, ProjectApi).
+ */
+import { NousError } from '@nous/shared';
+import type {
+  IWorkflowEngine,
+  IArtifactStore,
+  IScheduler,
+  IEscalationService,
+  ISandbox,
+  IProjectApi,
+  ProjectId,
+  WorkflowExecutionId,
+  WorkflowGraph,
+  WorkflowState,
+  ArtifactId,
+  ArtifactData,
+  ArtifactMetadata,
+  ArtifactFilter,
+  ScheduleDefinition,
+  EscalationId,
+  EscalationContract,
+  EscalationResponse,
+  SandboxPayload,
+  SandboxResult,
+  MemoryScope,
+  ModelRole,
+  EscalationChannel,
+  ProjectConfig,
+  ProjectState,
+  MemoryEntry,
+  MemoryWriteCandidate,
+  MemoryEntryId,
+  RetrievalResult,
+  ModelResponse,
+  ModelStreamChunk,
+  ToolResult,
+  ToolDefinition,
+  NousEvent,
+} from '@nous/shared';
+
+const stubNotImpl = (
+  interfaceName: string,
+  method: string,
+  targetPhase: string,
+): never => {
+  console.warn(`[nous:stub] ${interfaceName}.${method} called — not implemented`);
+  throw new NousError(
+    `${interfaceName}.${method}() is not implemented — real implementation in ${targetPhase}`,
+    'NOT_IMPLEMENTED',
+  );
+};
+
+export class StubWorkflowEngine implements IWorkflowEngine {
+  async start(
+    _projectId: ProjectId,
+    _graph: WorkflowGraph,
+  ): Promise<WorkflowExecutionId> {
+    return stubNotImpl('IWorkflowEngine', 'start', 'Phase 5');
+  }
+
+  async resume(_executionId: WorkflowExecutionId): Promise<void> {
+    stubNotImpl('IWorkflowEngine', 'resume', 'Phase 5');
+  }
+
+  async pause(_executionId: WorkflowExecutionId): Promise<void> {
+    stubNotImpl('IWorkflowEngine', 'pause', 'Phase 5');
+  }
+
+  async getState(
+    _executionId: WorkflowExecutionId,
+  ): Promise<WorkflowState> {
+    return stubNotImpl('IWorkflowEngine', 'getState', 'Phase 5');
+  }
+}
+
+export class StubArtifactStore implements IArtifactStore {
+  async store(_artifact: ArtifactData): Promise<ArtifactId> {
+    return stubNotImpl('IArtifactStore', 'store', 'Phase 5');
+  }
+
+  async retrieve(_id: ArtifactId): Promise<ArtifactData | null> {
+    return stubNotImpl('IArtifactStore', 'retrieve', 'Phase 5');
+  }
+
+  async list(
+    _projectId: ProjectId,
+    _filters?: ArtifactFilter,
+  ): Promise<ArtifactMetadata[]> {
+    return stubNotImpl('IArtifactStore', 'list', 'Phase 5');
+  }
+
+  async delete(_id: ArtifactId): Promise<boolean> {
+    return stubNotImpl('IArtifactStore', 'delete', 'Phase 5');
+  }
+}
+
+export class StubScheduler implements IScheduler {
+  async register(_schedule: ScheduleDefinition): Promise<string> {
+    return stubNotImpl('IScheduler', 'register', 'Phase 5');
+  }
+
+  async cancel(_scheduleId: string): Promise<boolean> {
+    return stubNotImpl('IScheduler', 'cancel', 'Phase 5');
+  }
+
+  async list(_projectId: ProjectId): Promise<ScheduleDefinition[]> {
+    return stubNotImpl('IScheduler', 'list', 'Phase 5');
+  }
+}
+
+export class StubEscalationService implements IEscalationService {
+  async notify(_contract: EscalationContract): Promise<EscalationId> {
+    return stubNotImpl('IEscalationService', 'notify', 'Phase 5');
+  }
+
+  async checkResponse(
+    _escalationId: EscalationId,
+  ): Promise<EscalationResponse | null> {
+    return stubNotImpl('IEscalationService', 'checkResponse', 'Phase 5');
+  }
+}
+
+export class StubSandbox implements ISandbox {
+  async execute(_code: SandboxPayload): Promise<SandboxResult> {
+    return stubNotImpl('ISandbox', 'execute', 'Phase 7');
+  }
+
+  hasCapability(_capability: string): boolean {
+    return stubNotImpl('ISandbox', 'hasCapability', 'Phase 7');
+  }
+}
+
+export class StubProjectApi implements IProjectApi {
+  memory = {
+    read: async (
+      _query: string,
+      _scope: MemoryScope,
+    ): Promise<MemoryEntry[]> => {
+      return stubNotImpl('IProjectApi.memory', 'read', 'Phase 7');
+    },
+    write: async (
+      _candidate: MemoryWriteCandidate,
+    ): Promise<MemoryEntryId | null> => {
+      return stubNotImpl('IProjectApi.memory', 'write', 'Phase 7');
+    },
+    retrieve: async (
+      _situation: string,
+      _budget: number,
+    ): Promise<RetrievalResult[]> => {
+      return stubNotImpl('IProjectApi.memory', 'retrieve', 'Phase 7');
+    },
+  };
+
+  model = {
+    invoke: async (
+      _role: ModelRole,
+      _input: unknown,
+    ): Promise<ModelResponse> => {
+      return stubNotImpl('IProjectApi.model', 'invoke', 'Phase 7');
+    },
+    // eslint-disable-next-line require-yield -- stub throws before yielding
+    stream: async function* (
+      _role: ModelRole,
+      _input: unknown,
+    ): AsyncIterable<ModelStreamChunk> {
+      stubNotImpl('IProjectApi.model', 'stream', 'Phase 7');
+    },
+  };
+
+  tool = {
+    execute: async (
+      _name: string,
+      _params: unknown,
+    ): Promise<ToolResult> => {
+      return stubNotImpl('IProjectApi.tool', 'execute', 'Phase 7');
+    },
+    list: async (
+      _capabilities?: string[],
+    ): Promise<ToolDefinition[]> => {
+      return stubNotImpl('IProjectApi.tool', 'list', 'Phase 7');
+    },
+  };
+
+  artifact = {
+    store: async (_data: ArtifactData): Promise<ArtifactId> => {
+      return stubNotImpl('IProjectApi.artifact', 'store', 'Phase 7');
+    },
+    retrieve: async (_id: ArtifactId): Promise<ArtifactData | null> => {
+      return stubNotImpl('IProjectApi.artifact', 'retrieve', 'Phase 7');
+    },
+    list: async (
+      _filters?: ArtifactFilter,
+    ): Promise<ArtifactMetadata[]> => {
+      return stubNotImpl('IProjectApi.artifact', 'list', 'Phase 7');
+    },
+  };
+
+  escalation = {
+    notify: async (
+      _channel: EscalationChannel,
+      _message: string,
+    ): Promise<EscalationId> => {
+      return stubNotImpl('IProjectApi.escalation', 'notify', 'Phase 7');
+    },
+    request: async (_decision: EscalationContract): Promise<EscalationResponse> => {
+      return stubNotImpl('IProjectApi.escalation', 'request', 'Phase 7');
+    },
+  };
+
+  scheduler = {
+    register: async (_schedule: ScheduleDefinition): Promise<string> => {
+      return stubNotImpl('IProjectApi.scheduler', 'register', 'Phase 7');
+    },
+    cancel: async (_id: string): Promise<boolean> => {
+      return stubNotImpl('IProjectApi.scheduler', 'cancel', 'Phase 7');
+    },
+  };
+
+  project = {
+    config: (): ProjectConfig => {
+      return stubNotImpl('IProjectApi.project', 'config', 'Phase 7');
+    },
+    state: (): ProjectState => {
+      return stubNotImpl('IProjectApi.project', 'state', 'Phase 7');
+    },
+    log: (_event: NousEvent): void => {
+      stubNotImpl('IProjectApi.project', 'log', 'Phase 7');
+    },
+  };
+}
