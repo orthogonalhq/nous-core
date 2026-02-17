@@ -9,7 +9,7 @@
     "node_modules",
     "dist",
     "coverage",
-    ".next",
+    "**/.next","**/.next/**",
     "docs"
   ]
 }

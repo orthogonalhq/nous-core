@@ -87,6 +87,23 @@ export class MwcPipeline {
     return entry.id;
   }
 
+  async listForProject(projectId: ProjectId): Promise<MemoryEntry[]> {
+    const raw = await this.documentStore.query<Record<string, unknown>>(
+      COLLECTION,
+      { where: { projectId } },
+    );
+
+    const entries: MemoryEntry[] = [];
+    for (const item of raw) {
+      const parsed = MemoryEntrySchema.safeParse(item);
+      if (parsed.success) {
+        entries.push(parsed.data);
+      }
+    }
+
+    return entries;
+  }
+
   async exportForProject(
     projectId: ProjectId,
   ): Promise<{ stm: StmContext; entries: MemoryEntry[] }> {
