@@ -252,7 +252,7 @@ self/subcortex/
 ├── projects/                         # Project container and lifecycle
 ├── artifacts/                        # Versioned binary asset management
 ├── scheduler/                        # Time-triggered and recurring execution
-├── escalation/                       # Human notification channels
+├── escalation/                       # Principal notification channels
 ├── sandbox/                          # Execution isolation (WASM)
 └── sdk/                              # Project API surface for packages
 ```
@@ -374,7 +374,7 @@ The clock of the subconscious.
 
 ### escalation/
 
-Multi-channel human notification.
+Multi-channel Principal notification.
 
 Responsibilities:
 
@@ -656,7 +656,7 @@ Bottom-up stability. Build the foundation before the intelligence.
 19. `subcortex/workflows/` — workflow graph engine
 20. `subcortex/artifacts/` — artifact management
 21. `subcortex/scheduler/` — scheduled execution
-22. `subcortex/escalation/` — human notification
+22. `subcortex/escalation/` — Principal notification
 23. `self/apps/web/` — web UI
 24. `self/apps/bridge/` — messaging integrations
 25. `autonomic/health/` — monitoring and maintenance

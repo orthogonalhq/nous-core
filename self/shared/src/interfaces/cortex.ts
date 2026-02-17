@@ -36,7 +36,7 @@ export interface IPfcEngine {
   /** Reflect on an output — assess confidence and quality */
   reflect(output: unknown, context: ReflectionContext): Promise<ReflectionResult>;
 
-  /** Determine whether to escalate to the human */
+  /** Determine whether to escalate to the Principal */
   evaluateEscalation(situation: EscalationSituation): Promise<EscalationDecision>;
 
   /** Get the current PFC tier */

@@ -125,6 +125,47 @@ importers:
         specifier: ^7.6.13
         version: 7.6.13
 
+  self/cortex/core:
+    dependencies:
+      '@nous/shared':
+        specifier: workspace:*
+        version: link:../../shared
+    devDependencies:
+      '@nous/autonomic-storage':
+        specifier: workspace:*
+        version: link:../../autonomic/storage
+      '@nous/cortex-pfc':
+        specifier: workspace:*
+        version: link:../pfc
+      '@nous/memory-mwc':
+        specifier: workspace:*
+        version: link:../../memory/mwc
+      '@nous/memory-stm':
+        specifier: workspace:*
+        version: link:../../memory/stm
+      '@nous/subcortex-projects':
+        specifier: workspace:*
+        version: link:../../subcortex/projects
+      '@nous/subcortex-providers':
+        specifier: workspace:*
+        version: link:../../subcortex/providers
+      '@nous/subcortex-router':
+        specifier: workspace:*
+        version: link:../../subcortex/router
+      '@nous/subcortex-tools':
+        specifier: workspace:*
+        version: link:../../subcortex/tools
+
+  self/cortex/pfc:
+    dependencies:
+      '@nous/shared':
+        specifier: workspace:*
+        version: link:../../shared
+    devDependencies:
+      '@nous/subcortex-tools':
+        specifier: workspace:*
+        version: link:../../subcortex/tools
+
   self/memory/mwc:
     dependencies:
       '@nous/autonomic-storage':

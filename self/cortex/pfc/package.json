@@ -1,0 +1,24 @@
+{
+  "name": "@nous/cortex-pfc",
+  "version": "0.0.1",
+  "private": true,
+  "description": "Prefrontal Cortex engine for Nous-OSS — reflection, memory gating, tool authorization",
+  "type": "module",
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "import": "./dist/index.js"
+    }
+  },
+  "scripts": {
+    "build": "tsc --build",
+    "typecheck": "tsc --noEmit",
+    "clean": "rm -rf dist"
+  },
+  "dependencies": {
+    "@nous/shared": "workspace:*"
+  },
+  "devDependencies": {
+    "@nous/subcortex-tools": "workspace:*"
+  }
+}

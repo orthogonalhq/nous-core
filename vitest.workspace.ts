@@ -15,4 +15,6 @@ export default defineWorkspace([
   'self/memory/stm',
   'self/memory/mwc',
   'self/memory/stubs',
+  'self/cortex/pfc',
+  'self/cortex/core',
 ]);

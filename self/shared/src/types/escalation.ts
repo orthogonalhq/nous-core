@@ -8,7 +8,7 @@ import { EscalationIdSchema } from './ids.js';
 import { EscalationChannelSchema } from './enums.js';
 
 // --- Escalation Response ---
-// Human response to an escalation.
+// Principal's response to an escalation.
 export const EscalationResponseSchema = z.object({
   escalationId: EscalationIdSchema,
   action: z.string(),
