@@ -4,7 +4,7 @@
  * Creates document store, STM, projects, MWC pipeline, PFC, router,
  * providers, and core executor. Uses NOUS_DATA_DIR and NOUS_CONFIG_PATH env.
  */
-import { join } from 'node:path';
+import { join, isAbsolute } from 'node:path';
 import { randomUUID } from 'node:crypto';
 import type { ProviderId, TraceId } from '@nous/shared';
 import { ConfigManager } from '@nous/autonomic-config';
@@ -19,7 +19,6 @@ import { ProviderRegistry } from '@nous/subcortex-providers';
 import { ToolExecutor } from '@nous/subcortex-tools';
 import type { NousContext } from './context';
 
-const DATA_DIR = process.env.NOUS_DATA_DIR ?? './data';
 const CONFIG_PATH = process.env.NOUS_CONFIG_PATH;
 
 const MOCK_PROVIDER_ID = '00000000-0000-0000-0000-000000000001' as ProviderId;
@@ -105,7 +104,8 @@ export function createNousContext(): NousContext {
 
   const baseConfig = new ConfigManager({ configPath: CONFIG_PATH });
   const config = configWithFallback(baseConfig) as typeof baseConfig;
-  const dataDir = join(process.cwd(), DATA_DIR);
+  const dataDirEnv = process.env.NOUS_DATA_DIR ?? './data';
+  const dataDir = isAbsolute(dataDirEnv) ? dataDirEnv : join(process.cwd(), dataDirEnv);
   const dbPath = join(dataDir, 'nous.sqlite');
 
   const documentStore = new SqliteDocumentStore(dbPath);
@@ -149,6 +149,7 @@ export function createNousContext(): NousContext {
     config,
     router,
     getProvider,
+    dataDir,
   };
 
   console.log('[nous:web] bootstrap complete');

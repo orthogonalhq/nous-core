@@ -16,6 +16,7 @@
     "test": "vitest run",
     "test:watch": "vitest",
     "dev:web": "pnpm --filter @nous/web dev",
+    "install:nous": "pnpm --filter nous-install run build && node scripts/install/dist/index.js",
     "clean": "pnpm -r run clean"
   },
   "devDependencies": {

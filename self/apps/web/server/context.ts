@@ -20,4 +20,5 @@ export interface NousContext {
   config: IConfig;
   router: IModelRouter;
   getProvider: (id: ProviderId) => IModelProvider | null;
+  dataDir: string;
 }
