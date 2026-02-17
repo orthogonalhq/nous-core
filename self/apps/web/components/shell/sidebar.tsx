@@ -58,17 +58,29 @@ export function Sidebar({
           </div>
           <div className="border-t border-border p-2">
             <nav className="space-y-0.5">
-              {NAV_CONFIG.items.map((item) => (
-                <Link
-                  key={item.href}
-                  href={item.href}
-                  className={`block rounded px-2 py-1.5 text-sm ${
-                    pathname === item.href ? 'bg-muted font-medium' : 'hover:bg-muted'
-                  }`}
-                >
-                  {item.label}
-                </Link>
-              ))}
+              {NAV_CONFIG.items.map((item) =>
+                item.external ? (
+                  <a
+                    key={item.href}
+                    href={item.href}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="block rounded px-2 py-1.5 text-sm hover:bg-muted"
+                  >
+                    {item.label}
+                  </a>
+                ) : (
+                  <Link
+                    key={item.href}
+                    href={item.href}
+                    className={`block rounded px-2 py-1.5 text-sm ${
+                      pathname === item.href ? 'bg-muted font-medium' : 'hover:bg-muted'
+                    }`}
+                  >
+                    {item.label}
+                  </Link>
+                ),
+              )}
             </nav>
           </div>
         </ScrollArea>

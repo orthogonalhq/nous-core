@@ -4,6 +4,11 @@
   "private": true,
   "description": "Nous-OSS web UI — chat, projects, traces, memory, configuration",
   "type": "module",
+  "exports": {
+    ".": ".",
+    "./server/bootstrap": "./server/bootstrap.ts",
+    "./server/trpc/root": "./server/trpc/root.ts"
+  },
   "scripts": {
     "dev": "next dev",
     "build": "next build",
