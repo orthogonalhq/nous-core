@@ -125,6 +125,40 @@ importers:
         specifier: ^7.6.13
         version: 7.6.13
 
+  self/memory/mwc:
+    dependencies:
+      '@nous/autonomic-storage':
+        specifier: workspace:*
+        version: link:../../autonomic/storage
+      '@nous/shared':
+        specifier: workspace:*
+        version: link:../../shared
+      zod:
+        specifier: ^3.24.1
+        version: 3.25.76
+    devDependencies:
+      '@nous/memory-stm':
+        specifier: workspace:*
+        version: link:../stm
+
+  self/memory/stm:
+    dependencies:
+      '@nous/autonomic-storage':
+        specifier: workspace:*
+        version: link:../../autonomic/storage
+      '@nous/shared':
+        specifier: workspace:*
+        version: link:../../shared
+      zod:
+        specifier: ^3.24.1
+        version: 3.25.76
+
+  self/memory/stubs:
+    dependencies:
+      '@nous/shared':
+        specifier: workspace:*
+        version: link:../../shared
+
   self/shared:
     dependencies:
       zod:
