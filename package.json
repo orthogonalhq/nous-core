@@ -15,6 +15,7 @@
     "format": "oxlint --fix self/",
     "test": "vitest run",
     "test:watch": "vitest",
+    "dev:web": "pnpm --filter @nous/web dev",
     "clean": "pnpm -r run clean"
   },
   "devDependencies": {
