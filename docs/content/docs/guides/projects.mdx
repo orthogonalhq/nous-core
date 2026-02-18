@@ -1,0 +1,35 @@
+---
+title: Projects
+description: Project containers and conversation context
+---
+
+# Projects
+
+Projects are isolation boundaries. Each project has its own:
+
+- Conversation history (STM)
+- Memory entries
+- Execution traces
+- Configuration (PFC tier, model assignments)
+
+## Creating a Project
+
+**Web UI:** Click "New Project" in the sidebar and enter a name.
+
+**CLI:**
+```bash
+pnpm dev:cli -- projects create --name "My Project"
+```
+
+## Switching Projects
+
+**Web UI:** Click a project in the sidebar. The chat, traces, and memory views update to that project's context.
+
+**CLI:**
+```bash
+pnpm dev:cli -- projects switch -p <project-id>
+```
+
+## Project Types
+
+Projects can be `protocol`, `intent`, or `hybrid`. Phase 1 creates projects as `hybrid` by default. Protocol and intent semantics are used in later phases for workflow execution.

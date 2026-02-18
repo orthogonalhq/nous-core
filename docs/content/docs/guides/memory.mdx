@@ -1,0 +1,30 @@
+---
+title: Memory
+description: Inspecting and managing memory entries
+---
+
+# Memory
+
+Nous stores approved memory entries per project. The Memory inspector lets you see what was written and what was denied.
+
+## Approved Entries
+
+Approved entries are persisted after the PFC evaluates memory write candidates. Each entry has:
+
+- Content
+- Type (fact, preference, experience-record, etc.)
+- Scope (global, project)
+- Provenance (trace, source, timestamp)
+
+## Denied Entries
+
+When the PFC denies a memory write, the candidate and reason are logged. The Memory page shows denied entries for the current project.
+
+## Export
+
+Export all memory for a project as structured data (`{ stm, entries }`). Use this for backup or analysis.
+
+## Delete
+
+- **Single entry** — Delete by ID
+- **All for project** — Delete all memory entries for the current project

@@ -1,0 +1,25 @@
+---
+title: Configuration
+description: Model assignments, PFC tier, and system health
+---
+
+# Configuration
+
+The Configuration panel in the web UI lets you view and modify key settings.
+
+## PFC Tier
+
+The PFC (Prefrontal Cortex) tier controls how much oversight Nous applies. Tiers 0–5; higher tiers enable more reflection, memory gating, and tool authorization. See [PFC Mode Capability Matrix](/docs/architecture/pfc-mode-capability-matrix).
+
+## Model Assignments
+
+Assign model roles to providers. For example, the `reasoner` role might be fulfilled by Ollama or an OpenAI-compatible API. The router uses these assignments to route requests.
+
+## System Health
+
+The health check shows:
+
+- **Storage** — Document store status
+- **Ollama** — Local model availability (if configured)
+
+When Ollama is not running, the Ollama component shows "unhealthy". Start Ollama to resolve.

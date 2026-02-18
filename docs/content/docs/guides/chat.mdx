@@ -1,0 +1,29 @@
+---
+title: Chat
+description: Conversational interaction with Nous
+---
+
+# Chat
+
+The chat interface is the primary way to interact with Nous. Messages are project-scoped — each project has its own conversation history.
+
+## Sending Messages
+
+1. Select a project in the sidebar (or create one)
+2. Type your message in the input field
+3. Press Enter or click Send
+
+Nous processes your message through the full execution cycle: PFC evaluation, model invocation, memory candidate generation, and response. The response appears when the turn completes.
+
+**Phase 1:** Responses are displayed in full after the turn completes. Streaming (token-by-token) is deferred to Phase 2+.
+
+## Message History
+
+Conversation history is stored in short-term memory (STM) and persists across sessions. When you switch projects, you see that project's history.
+
+## Via CLI
+
+```bash
+pnpm dev:cli -- send "Your message here"
+pnpm dev:cli -- -p <project-id> send "Project-scoped message"
+```

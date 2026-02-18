@@ -1,0 +1,61 @@
+---
+title: Troubleshooting
+description: Common issues and recovery steps
+---
+
+# Troubleshooting
+
+## Ollama Not Running
+
+**Symptom:** Health check shows Ollama as "unhealthy". Chat fails or times out.
+
+**Fix:**
+```bash
+# Start Ollama (in a separate terminal)
+ollama serve
+
+# Pull a model if needed
+ollama pull llama3.2:3b
+```
+
+## Backend Not Reachable
+
+**Symptom:** CLI or web UI cannot connect. "Connection refused" or similar.
+
+**Fix:**
+- Ensure the backend is running: `pnpm dev:web`
+- Check the API URL: CLI defaults to `http://localhost:3000`
+- If using a different port, set `--api-url` for CLI
+
+## pnpm install Fails (EPERM, Windows)
+
+**Symptom:** `pnpm install` fails with permission errors on Windows.
+
+**Fix:**
+- Run terminal as Administrator
+- Or use a different drive (e.g. D:) if C: has restrictions
+- Disable antivirus temporarily for the install directory
+
+## Tests Fail from Root (Workspace Resolution)
+
+**Symptom:** `pnpm test` from root fails for packages that import `@nous/shared` or other workspace packages.
+
+**Fix:** Run tests per-package:
+```bash
+pnpm exec vitest run --config self/<layer>/<package>/vitest.config.ts
+```
+
+## Config Validation Errors
+
+**Symptom:** Startup fails with ConfigError listing validation failures.
+
+**Fix:**
+- Check the config file (JSON5) for syntax errors
+- Ensure required fields are present: `profile`, `pfcTier`, `providers`, `storage`, etc.
+- Remove the config file to regenerate defaults, or fix the reported fields
+
+## First-Run Loop
+
+**Symptom:** First-run flow keeps appearing.
+
+**Fix:** First-run completes when you send a message and receive a response, or when a project exists. Ensure Ollama is running so the health check and model invocation succeed.

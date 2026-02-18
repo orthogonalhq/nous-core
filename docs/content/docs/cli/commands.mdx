@@ -1,0 +1,101 @@
+---
+title: CLI Commands
+description: Reference for Nous CLI commands
+---
+
+# CLI Commands
+
+All examples use `pnpm dev:cli --` to invoke the CLI from the repo root. Replace with your preferred invocation (e.g. a global `nous` binary) if configured.
+
+## send
+
+Send a message to Nous.
+
+```bash
+pnpm dev:cli -- send <message> [--project <id>]
+```
+
+**Arguments:**
+- `message` — The message to send
+
+**Options:**
+- `-p, --project <id>` — Project ID for context (inherited from global `--project` if set)
+
+**Example:**
+```bash
+pnpm dev:cli -- send "What is the capital of France?"
+pnpm dev:cli -- -p abc-123 send "Summarize our last conversation"
+```
+
+**Output:** Full response text. With `--json`, returns structured response including `traceId`.
+
+---
+
+## projects
+
+Manage projects.
+
+### projects list
+
+List all projects.
+
+```bash
+pnpm dev:cli -- projects list
+pnpm dev:cli -- projects
+```
+
+### projects create
+
+Create a new project.
+
+```bash
+pnpm dev:cli -- projects create --name <name>
+```
+
+**Options:**
+- `--name <name>` — Project name (required)
+
+### projects switch
+
+Switch the active project for subsequent commands.
+
+```bash
+pnpm dev:cli -- projects switch -p <id>
+```
+
+**Options:**
+- `-p, --project <id>` — Project ID to switch to (required)
+
+---
+
+## config
+
+View and modify configuration.
+
+### config get
+
+Get current configuration.
+
+```bash
+pnpm dev:cli -- config get
+```
+
+With `--json`, returns full config as JSON.
+
+### config set
+
+Modify configuration.
+
+```bash
+pnpm dev:cli -- config set --pfc-tier <0-5>
+```
+
+**Options:**
+- `--pfc-tier <0-5>` — Set PFC tier
+
+**Example:**
+```bash
+pnpm dev:cli -- config set --pfc-tier 4
+```
+
+Model role assignments can be modified via the web UI Configuration panel.

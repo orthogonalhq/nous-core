@@ -1,0 +1,23 @@
+---
+title: Execution Traces
+description: Viewing execution traces and PFC decisions
+---
+
+# Execution Traces
+
+Every interaction with Nous produces an execution trace. Traces capture what happened at each step of the cycle.
+
+## What's in a Trace
+
+- **PFC decisions** — Memory write approvals/denials, tool authorizations
+- **Model calls** — Which model was invoked, token usage
+- **Memory actions** — Approved entries, denied candidates with reasons
+- **Timing** — Step durations
+
+## Viewing Traces
+
+**Web UI:** Open the Traces page. Traces are listed for the current project. Expand a trace to see turn-by-turn details.
+
+## Trace Sensitivity
+
+By default, sensitive fields (user input, model output, memory candidate content) are redacted before persistence. Structure is preserved. To store full content, set `security.traceSensitiveData: true` in config. See [Security Baseline](/docs/architecture/security-baseline).

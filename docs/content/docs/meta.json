@@ -3,6 +3,14 @@
   "pages": [
     "index",
     "--- ---",
-    "architecture"
+    "getting-started",
+    "configuration",
+    "cli",
+    "api",
+    "guides",
+    "--- ---",
+    "architecture",
+    "development",
+    "playbooks"
   ]
 }
