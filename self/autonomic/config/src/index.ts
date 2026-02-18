@@ -7,6 +7,7 @@ export {
   ModelRoleAssignmentSchema,
   ProfileSchema,
   StorageConfigSchema,
+  SecurityConfigSchema,
   DefaultsConfigSchema,
   ProviderConfigEntrySchema,
 } from './schema.js';
@@ -16,6 +17,7 @@ export type {
   ModelRoleAssignment,
   Profile,
   StorageConfig,
+  SecurityConfig,
   DefaultsConfig,
   ProviderConfigEntry,
 } from './schema.js';

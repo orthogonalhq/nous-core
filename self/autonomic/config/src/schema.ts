@@ -76,8 +76,15 @@ export const StorageConfigSchema = z.object({
   documentBackend: z.enum(['sqlite']).default('sqlite'),
   vectorBackend: z.enum(['stub']).default('stub'),
   graphBackend: z.enum(['stub']).default('stub'),
+  storageEncryption: z.boolean().optional().default(false),
 });
 export type StorageConfig = z.infer<typeof StorageConfigSchema>;
+
+// --- Security Configuration ---
+export const SecurityConfigSchema = z.object({
+  traceSensitiveData: z.boolean().optional().default(false),
+});
+export type SecurityConfig = z.infer<typeof SecurityConfigSchema>;
 
 // --- Defaults ---
 export const DefaultsConfigSchema = z.object({
@@ -102,5 +109,8 @@ export const SystemConfigSchema = z.object({
   providers: z.array(ProviderConfigEntrySchema),
   defaults: DefaultsConfigSchema,
   storage: StorageConfigSchema,
+  security: SecurityConfigSchema.optional().default({
+    traceSensitiveData: false,
+  }),
 });
 export type SystemConfig = z.infer<typeof SystemConfigSchema>;

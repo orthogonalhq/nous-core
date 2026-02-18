@@ -47,6 +47,10 @@ export function generateDefaultConfig(
       documentBackend: 'sqlite',
       vectorBackend: 'stub',
       graphBackend: 'stub',
+      storageEncryption: false,
+    },
+    security: {
+      traceSensitiveData: false,
     },
   };
 

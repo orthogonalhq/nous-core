@@ -1,0 +1,62 @@
+---
+title: Security Baseline
+description: Phase 1 security measures for Nous-OSS
+---
+
+# Security Baseline
+
+Phase 1 establishes a baseline of security measures appropriate for a local-first system.
+
+## Localhost-Only by Default
+
+The web UI binds to localhost only. No network exposure unless explicitly configured.
+
+**Configuration:** Next.js dev server and production build default to localhost. For network exposure, set `HOST=0.0.0.0` and enable basic auth.
+
+## Basic Auth (Optional)
+
+When the backend is exposed on a network, basic auth protects all routes.
+
+**Configuration:** Set `NOUS_BASIC_AUTH=user:password` in the environment. The middleware validates the `Authorization: Basic` header on all protected routes.
+
+**CLI:** When basic auth is enabled, set `NOUS_BASIC_AUTH` in the environment when running CLI commands. The tRPC client adds the header automatically.
+
+## Trace Sensitivity
+
+Execution traces may contain model output and memory candidate content. By default, sensitive fields are redacted before persistence.
+
+**Configuration:** `security.traceSensitiveData` in config (default: `false`). When `false`, the following are redacted before trace persistence:
+
+- User input (message)
+- Model output (response)
+- Memory candidate content in denials
+
+Structure (traceId, projectId, timestamps, PFC decisions) is preserved.
+
+## Storage Encryption at Rest
+
+**Configuration:** `storage.storageEncryption` in config (default: `false`).
+
+When `true`, the user must ensure data at rest is protected. Options:
+
+- **Filesystem-level encryption** — LUKS (Linux), BitLocker (Windows), FileVault (macOS)
+- **SQLCipher** — Future; better-sqlite3 has no built-in encryption
+
+Phase 1: config option validated; runbook documents user responsibility.
+
+## CLI Credentials
+
+Never store credentials in CLI config files. Use environment variables:
+
+- `NOUS_BASIC_AUTH` — For tRPC auth when backend requires it
+- `NOUS_DATA_DIR` — Data directory (optional)
+- `NOUS_CONFIG_PATH` — Config file path (optional)
+
+## Runbook Summary
+
+| Measure | Default | When to Change |
+|---------|---------|----------------|
+| Localhost binding | Yes | Set `HOST=0.0.0.0` for network access |
+| Basic auth | Off | Set `NOUS_BASIC_AUTH` when exposing on network |
+| Trace redaction | On | Set `traceSensitiveData: true` for full traces |
+| Storage encryption | Off | Set `storageEncryption: true`; use filesystem encryption |

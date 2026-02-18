@@ -1,0 +1,27 @@
+---
+title: Phase 1 Retrospective
+description: What worked and what should change for Phase 2
+---
+
+# Phase 1 Retrospective
+
+## What Worked
+
+- **Interface-first architecture** — Shared contracts in `self/shared/` enabled clean layer boundaries and testability
+- **tRPC for API** — Single type-safe contract for web and CLI; createCaller simplified integration tests
+- **Vitest** — Fast, TypeScript-native; consistent across all packages
+- **Bootstrap pattern** — createNousContext with config fallback and mock provider made development and testing smooth
+- **Sub-phase structure** — Goals → SDS → Implementation Plan → Code → Completion Report provided clear gates
+
+## What Should Change for Phase 2
+
+- **Streaming** — Web and CLI use mutation-only; add tRPC subscription for streaming model responses
+- **AppRouter type sharing** — CLI uses manual type definition; consider extracting router to shared package
+- **CLI E2E** — Test server works but is custom; consider shared test harness for HTTP-based E2E
+- **Trace redaction scope** — Document which fields are considered sensitive; refine based on Phase 2 needs
+- **Docs integration** — Docs run as separate app; consider embedding or unified dev experience
+
+## Carried Forward
+
+- Full installer E2E remains manual per platform (Ollama dependency)
+- next-env.d.ts triple-slash warning; oxlint on .next
