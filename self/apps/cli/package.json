@@ -1,0 +1,31 @@
+{
+  "name": "@nous/cli",
+  "version": "0.0.1",
+  "private": true,
+  "description": "Nous-OSS CLI — terminal interface for chat, projects, config",
+  "type": "module",
+  "bin": {
+    "nous": "./dist/cli.js"
+  },
+  "scripts": {
+    "build": "tsc",
+    "dev": "tsc && node dist/cli.js",
+    "typecheck": "tsc --noEmit",
+    "test": "vitest run",
+    "test:watch": "vitest",
+    "clean": "rm -rf dist"
+  },
+  "dependencies": {
+    "@nous/shared": "workspace:*",
+    "@trpc/client": "^11.0.0-rc.0",
+    "commander": "^8.3.0",
+    "superjson": "^2.2.2"
+  },
+  "devDependencies": {
+    "@nous/web": "workspace:*",
+    "@trpc/server": "^11.0.0-rc.0",
+    "@types/node": "^20",
+    "typescript": "^5",
+    "vitest": "^4.0.18"
+  }
+}

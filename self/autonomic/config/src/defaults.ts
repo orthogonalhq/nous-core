@@ -130,5 +130,9 @@ export const DEFAULT_SYSTEM_CONFIG: SystemConfig = {
     documentBackend: 'sqlite',
     vectorBackend: 'stub',
     graphBackend: 'stub',
+    storageEncryption: false,
+  },
+  security: {
+    traceSensitiveData: false,
   },
 };

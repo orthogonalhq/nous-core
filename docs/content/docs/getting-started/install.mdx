@@ -1,0 +1,101 @@
+---
+title: Installation
+description: How to install Nous-OSS on macOS, Linux, and Windows
+---
+
+# Installation
+
+Nous runs locally on your machine. You need Node.js 22 or later and pnpm.
+
+## Prerequisites
+
+| Requirement | Version |
+|-------------|---------|
+| Node.js | ≥22 (LTS) |
+| pnpm | 10.x (recommended) |
+| Disk space | ~500 MB for app + models |
+| Memory | 4 GB minimum (8 GB recommended for local models) |
+
+## Quick Install (from source)
+
+```bash
+# Clone the repository
+git clone https://github.com/nous-oss/nous-core.git
+cd nous-core
+
+# Install dependencies
+pnpm install
+
+# Install launcher + run guided installer
+node scripts/bootstrap/install.mjs
+nous install
+```
+
+## Alternate Launcher Commands
+
+If you prefer shell-specific bootstrap commands:
+
+```powershell
+# Windows (PowerShell)
+powershell -NoProfile -ExecutionPolicy Bypass -File scripts/bootstrap/install.ps1
+# If not recognized yet, open a new terminal first.
+nous install
+```
+
+```bash
+# macOS/Linux
+bash scripts/bootstrap/install.sh
+nous install
+```
+
+## Direct Script Runner
+
+If you do not want a launcher command at all:
+
+```bash
+pnpm run install:nous
+```
+
+The guided installer will:
+
+1. Detect your platform (macOS, Linux, or Windows)
+2. Install or detect Ollama (local LLM runtime)
+3. Start Ollama and download a default model
+4. Initialize document storage
+5. Generate default configuration
+6. Start the web UI and open your browser
+
+## Manual Setup
+
+If you prefer to set up manually:
+
+```bash
+# 1. Install Ollama (if not already installed)
+# macOS: brew install ollama
+# Linux: curl -fsSL https://ollama.com/install.sh | sh
+# Windows: Download from https://ollama.com
+
+# 2. Start Ollama and pull a model
+ollama serve   # In a separate terminal
+ollama pull llama3.2:3b
+
+# 3. Build and run Nous
+pnpm install
+pnpm build
+pnpm dev:web
+```
+
+The web UI will be available at `http://localhost:4317`.
+
+## Environment Variables
+
+| Variable | Description | Default |
+|----------|-------------|---------|
+| `NOUS_DATA_DIR` | Data directory for storage | Platform-specific (e.g. `~/.local/share/nous`) |
+| `NOUS_CONFIG_PATH` | Path to config file | `{dataDir}/config.json5` |
+| `NOUS_WEB_PORT` | Web/API port used by installer and CLI defaults | `4317` |
+| `NOUS_BASIC_AUTH` | Basic auth for network exposure | Not set (localhost only) |
+
+## Next Steps
+
+After installation, you'll see the [first-run experience](/docs/getting-started/first-run) — a welcome flow that walks you through configuration and your first message to Nous.

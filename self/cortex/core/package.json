@@ -1,0 +1,31 @@
+{
+  "name": "@nous/cortex-core",
+  "version": "0.0.1",
+  "private": true,
+  "description": "Central execution loop for Nous-OSS — 10-step single-turn cycle, trace persistence",
+  "type": "module",
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "import": "./dist/index.js"
+    }
+  },
+  "scripts": {
+    "build": "tsc --build",
+    "typecheck": "tsc --noEmit",
+    "clean": "rm -rf dist"
+  },
+  "dependencies": {
+    "@nous/shared": "workspace:*"
+  },
+  "devDependencies": {
+    "@nous/autonomic-storage": "workspace:*",
+    "@nous/cortex-pfc": "workspace:*",
+    "@nous/memory-stm": "workspace:*",
+    "@nous/memory-mwc": "workspace:*",
+    "@nous/subcortex-providers": "workspace:*",
+    "@nous/subcortex-router": "workspace:*",
+    "@nous/subcortex-tools": "workspace:*",
+    "@nous/subcortex-projects": "workspace:*"
+  }
+}

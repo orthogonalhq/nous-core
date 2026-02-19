@@ -1,0 +1,61 @@
+---
+title: tRPC Procedures
+description: Reference for all tRPC procedures
+---
+
+# tRPC Procedures
+
+## projects
+
+| Procedure | Type | Input | Output |
+|----------|------|-------|--------|
+| `projects.list` | query | — | `ProjectConfig[]` |
+| `projects.create` | mutation | `{ name, type? }` | `ProjectConfig` |
+| `projects.get` | query | `{ id: ProjectId }` | `ProjectConfig \| null` |
+| `projects.update` | mutation | `{ id, updates: { name?, pfcTier?, modelAssignments? } }` | — |
+
+## chat
+
+| Procedure | Type | Input | Output |
+|----------|------|-------|--------|
+| `chat.sendMessage` | mutation | `{ message, projectId? }` | `{ response, traceId }` |
+| `chat.getHistory` | query | `{ projectId? }` | `StmContext` (entries, summary, tokenCount) |
+
+## traces
+
+| Procedure | Type | Input | Output |
+|----------|------|-------|--------|
+| `traces.list` | query | `{ projectId?, limit? }` | `ExecutionTrace[]` |
+| `traces.get` | query | `{ traceId }` | `ExecutionTrace \| null` |
+
+## memory
+
+| Procedure | Type | Input | Output |
+|----------|------|-------|--------|
+| `memory.list` | query | `{ projectId }` | `MemoryEntry[]` |
+| `memory.denials` | query | `{ projectId }` | `{ candidate, reason }[]` |
+| `memory.export` | query | `{ projectId }` | `{ stm, entries }` |
+| `memory.delete` | mutation | `{ id?, projectId? }` | `{ deleted: number }` |
+
+- `id` — Delete single entry
+- `projectId` — Delete all entries for project
+
+## config
+
+| Procedure | Type | Input | Output |
+|----------|------|-------|--------|
+| `config.get` | query | — | `SystemConfig` |
+| `config.update` | mutation | `{ pfcTier?, modelRoleAssignments? }` | — |
+
+## health
+
+| Procedure | Type | Input | Output |
+|----------|------|-------|--------|
+| `health.check` | query | — | `HealthReport` (component status) |
+
+## firstRun
+
+| Procedure | Type | Input | Output |
+|----------|------|-------|--------|
+| `firstRun.status` | query | — | `{ complete: boolean }` |
+| `firstRun.complete` | mutation | — | — |

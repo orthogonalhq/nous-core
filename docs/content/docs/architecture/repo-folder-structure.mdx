@@ -7,7 +7,7 @@ description: Repository structure for Nous-OSS organized by the Mind Model — f
 
 This document defines the repository structure for Nous-OSS.
 
-The structure is organized by the Mind Model — four layers of consciousness that mirror the architecture of the human mind. See [The Mind Model](/docs/architecture/the-mind-model) for the philosophical foundation.
+The structure is organized by the Mind Model — four layers of consciousness that mirror the architecture of the human mind. See the Mind Model (architecture reference) for the philosophical foundation.
 
 Everything that IS Nous lives inside `self/`. Everything else — documentation, examples, scripts — exists outside the being.
 
@@ -16,7 +16,7 @@ Everything that IS Nous lives inside `self/`. Everything else — documentation,
 ## Top-Level Structure
 
 ```
-jarvis-oss/
+nous-core/
 │
 ├── self/                             # The being
 │   ├── apps/                         # Senses — interaction surfaces
@@ -252,7 +252,7 @@ self/subcortex/
 ├── projects/                         # Project container and lifecycle
 ├── artifacts/                        # Versioned binary asset management
 ├── scheduler/                        # Time-triggered and recurring execution
-├── escalation/                       # Human notification channels
+├── escalation/                       # Principal notification channels
 ├── sandbox/                          # Execution isolation (WASM)
 └── sdk/                              # Project API surface for packages
 ```
@@ -374,7 +374,7 @@ The clock of the subconscious.
 
 ### escalation/
 
-Multi-channel human notification.
+Multi-channel Principal notification.
 
 Responsibilities:
 
@@ -414,7 +414,7 @@ Responsibilities:
 * Validate package manifests at install time
 * Enforce capability declarations
 
-See [Packages and Plugins](/docs/architecture/packages-and-plugins) for the full design.
+See Packages and Plugins (architecture reference) for the full design.
 
 ---
 
@@ -656,7 +656,7 @@ Bottom-up stability. Build the foundation before the intelligence.
 19. `subcortex/workflows/` — workflow graph engine
 20. `subcortex/artifacts/` — artifact management
 21. `subcortex/scheduler/` — scheduled execution
-22. `subcortex/escalation/` — human notification
+22. `subcortex/escalation/` — Principal notification
 23. `self/apps/web/` — web UI
 24. `self/apps/bridge/` — messaging integrations
 25. `autonomic/health/` — monitoring and maintenance

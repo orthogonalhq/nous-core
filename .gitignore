@@ -3,6 +3,8 @@ node_modules/
 
 # Build output
 dist/
+.next/
+.next-*/
 *.tsbuildinfo
 
 # Test coverage
@@ -27,6 +29,11 @@ npm-debug.log*
 pnpm-debug.log*
 yarn-debug.log*
 yarn-error.log*
+
+# SQLite runtime data
+*.sqlite
+*.sqlite-shm
+*.sqlite-wal
 
 # Misc
 *.pem

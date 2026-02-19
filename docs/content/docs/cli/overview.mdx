@@ -1,0 +1,64 @@
+---
+title: CLI Overview
+description: Command-line interface for Nous-OSS
+---
+
+# CLI Overview
+
+The Nous CLI provides a terminal interface to the same backend as the web UI. Both consume the tRPC API.
+
+## Running the CLI
+
+```bash
+# From the repo root, after pnpm install
+pnpm dev:cli -- <command> [options]
+
+# Or via the CLI package directly
+pnpm --filter @nous/cli run dev -- <command>
+```
+
+## Installer Command
+
+For guided local setup, use:
+
+```bash
+node scripts/bootstrap/install.mjs
+nous install
+```
+
+## Global Options
+
+| Option | Description | Default |
+|--------|-------------|---------|
+| `--api-url <url>` | API base URL | `http://localhost:4317` |
+| `-p, --project <id>` | Project ID for context | None |
+| `--json` | Output as JSON | Off |
+
+## Commands
+
+| Command | Description |
+|---------|-------------|
+| `send <message>` | Send a message to Nous |
+| `projects list` | List all projects |
+| `projects create --name <name>` | Create a new project |
+| `projects switch -p <id>` | Switch active project |
+| `config get` | Get current configuration |
+| `config set` | Modify configuration |
+
+## Prerequisites
+
+The backend must be running. Start it with:
+
+```bash
+pnpm dev:web
+```
+
+Then run CLI commands in another terminal.
+
+## Authentication
+
+When the backend uses basic auth (`NOUS_BASIC_AUTH`), set the same variable in the environment when running the CLI:
+
+```bash
+NOUS_BASIC_AUTH=user:password pnpm dev:cli -- send "Hello"
+```

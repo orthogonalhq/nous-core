@@ -29,14 +29,14 @@ TypeScript is the primary language across all layers — cortex, memory, subcort
 |---|---|
 | **Package Manager** | pnpm |
 | **Monorepo** | pnpm workspaces |
-| **Build — type packages** | tsc (see [ADR-001](/docs/worklog/adr/001-tsc-for-type-packages)) |
-| **Build — application packages** | tsdown (to be validated in Phase 1.6) |
+| **Build — type packages** | tsc (see ADR-001) |
+| **Build — application packages** | Next.js (`next build`) for web; tsc for CLI. tsdown re-evaluated for future app packages. |
 | **Linter** | oxlint (Rust-based) |
 | **Formatter** | oxfmt (Rust-based) |
 
 pnpm workspaces provide lightweight monorepo management. Each package in `self/` (cortex/pfc, memory/stm, autonomic/storage, etc.) is a workspace. Dependencies are shared where appropriate, isolated where needed.
 
-Type-definition-heavy packages (shared types, interfaces, schemas, error classes) are built with **tsc**. Application packages (CLI, web UI) where bundling, tree-shaking, and code splitting matter will use **tsdown** — to be validated when those packages are built in Phase 1.6+. See [ADR-001](/docs/worklog/adr/001-tsc-for-type-packages) for the rationale.
+Type-definition-heavy packages (shared types, interfaces, schemas, error classes) are built with **tsc**. The web app uses Next.js build; the CLI uses tsc. tsdown was deferred due to pnpm/Windows compatibility; it may be re-evaluated for future application packages. See ADR-001 for the rationale.
 
 oxlint and oxfmt are Rust-based alternatives to ESLint and Prettier — significantly faster for large codebases, with lower configuration overhead.
 
@@ -236,7 +236,7 @@ The decision to use a non-TypeScript implementation is made per-component based 
 ```
 Language:        TypeScript 5.9+ on Node ≥22
 Monorepo:        pnpm workspaces
-Build:           tsc (type packages) / tsdown (app packages, Phase 1.6+)
+Build:           tsc (type packages, CLI) / Next.js (web app)
 Lint/Format:     oxlint + oxfmt
 Test:            Vitest + Playwright
 Validation:      Zod

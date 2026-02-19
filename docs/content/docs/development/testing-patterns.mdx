@@ -1,0 +1,74 @@
+---
+title: Testing Patterns
+description: Conventions and patterns for testing Nous-OSS
+---
+
+# Testing Patterns
+
+This document describes the testing conventions used across Nous-OSS. All phases follow these patterns.
+
+## Test Tiers
+
+Tests are organized by purpose:
+
+### Tier 1 — Contract Tests (Critical)
+
+Does the implementation fulfill the interface contract?
+
+- Write for every class that implements a shared interface
+- Validate every method required by the contract
+
+### Tier 2 — Behavior Tests (Important)
+
+Does the system do what the user expects?
+
+- Write for every behavioral feature
+- Covers merge semantics, error handling, persistence, isolation boundaries
+
+### Tier 3 — Edge Case and Regression Tests (As Needed)
+
+Invalid input, failure conditions, boundary conditions.
+
+- Write when the SDS identifies specific failure modes
+- Write when bugs are found
+- Write when the implementation handles potentially dangerous input
+
+## File Organization
+
+```
+self/<layer>/<package>/
+  src/
+    __tests__/
+      <module-name>.test.ts
+    <module-name>.ts
+    index.ts
+```
+
+- Tests live in `src/__tests__/` — colocated with the source
+- Test file names match the source module: `sqlite-document-store.ts` → `sqlite-document-store.test.ts`
+
+## Naming Conventions
+
+**Test names:** `<method or behavior> <expected outcome>`
+
+- Good: `get() returns null for non-existent document`
+- Bad: `test storage`, `it works`
+
+## What NOT to Test
+
+- **Type existence** — The compiler handles this
+- **Pure mocks with no real code** — If everything is mocked, nothing is tested
+- **Coverage padding** — Every test should validate meaningful behavior
+
+## Coverage Target
+
+Aim for **80% coverage on behavioral code**. Exclude type definitions, stub implementations, generated code, and configuration scaffolding.
+
+## Framework
+
+- **Vitest** — Unit and integration tests
+- **Playwright** — E2E tests for web UI (Phase 2+)
+
+## Reference
+
+For the full SOP, see `.skills/engineer-workflow-sop/testing-patterns.md`.

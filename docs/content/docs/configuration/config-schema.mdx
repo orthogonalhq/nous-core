@@ -1,0 +1,142 @@
+---
+title: Configuration Schema
+description: System configuration reference for Nous-OSS
+---
+
+# Configuration Schema
+
+Nous uses JSON5 for configuration. The config file is validated at load time with Zod schemas.
+
+**Location:** `{dataDir}/config.json5` (or path from `NOUS_CONFIG_PATH`)
+
+## Top-Level Sections
+
+| Section | Description |
+|---------|-------------|
+| `profile` | Deployment profile (local-only, remote-only, hybrid) |
+| `pfcTier` | PFC tier 0–5 (see [PFC Mode Capability Matrix](/docs/architecture/pfc-mode-capability-matrix)) |
+| `pfcTierPresets` | Capability definitions per tier |
+| `modelRoleAssignments` | Which provider fulfills which model role |
+| `providers` | Provider configurations (Ollama, OpenAI-compatible, etc.) |
+| `defaults` | Default project settings |
+| `storage` | Storage backends and options |
+| `security` | Trace sensitivity, optional settings |
+
+## Profile
+
+```json5
+{
+  "profile": {
+    "name": "local-only",  // "local-only" | "remote-only" | "hybrid"
+    "description": "Local models only",
+    "defaultProviderType": "local",
+    "allowLocalProviders": true,
+    "allowRemoteProviders": false
+  }
+}
+```
+
+- **local-only** — Only local providers (e.g. Ollama)
+- **remote-only** — Only remote API providers
+- **hybrid** — Both local and remote allowed
+
+## PFC Tier
+
+`pfcTier` is a number 0–5. Higher tiers enable more capabilities (reflection, memory gating, tool authorization, planning, escalation detection). See [PFC Mode Capability Matrix](/docs/architecture/pfc-mode-capability-matrix).
+
+## Model Role Assignments
+
+```json5
+{
+  "modelRoleAssignments": [
+    { "role": "reasoner", "providerId": "ollama-default" },
+    { "role": "orchestrator", "providerId": "ollama-default" }
+  ]
+}
+```
+
+Roles: `orchestrator`, `reasoner`, `tool-advisor`, `summarizer`, `embedder`, `reranker`, `vision`.
+
+## Providers
+
+```json5
+{
+  "providers": [
+    {
+      "id": "ollama-default",
+      "name": "Ollama",
+      "type": "text",
+      "modelId": "llama3.2:3b",
+      "isLocal": true,
+      "capabilities": ["text"]
+    },
+    {
+      "id": "openai-compat",
+      "name": "OpenAI-compatible",
+      "type": "text",
+      "endpoint": "https://api.openai.com/v1",
+      "modelId": "gpt-4o-mini",
+      "isLocal": false,
+      "capabilities": ["text"]
+    }
+  ]
+}
+```
+
+Provider types: `text`, `image`, `video`, `vision`, `embedding`, `external-api`.
+
+## Storage
+
+```json5
+{
+  "storage": {
+    "dataDir": "/path/to/data",
+    "documentBackend": "sqlite",
+    "vectorBackend": "stub",
+    "graphBackend": "stub",
+    "storageEncryption": false
+  }
+}
+```
+
+- `storageEncryption` — When true, user is responsible for filesystem-level encryption (LUKS, BitLocker, FileVault). Phase 1: option validated; runbook in [Security Baseline](/docs/architecture/security-baseline).
+
+## Security
+
+```json5
+{
+  "security": {
+    "traceSensitiveData": false
+  }
+}
+```
+
+- `traceSensitiveData` — When false (default), user input, model output, and memory candidate content are redacted from traces. Structure (traceId, projectId, PFC decisions) is preserved.
+
+## Defaults
+
+```json5
+{
+  "defaults": {
+    "projectType": "hybrid",
+    "governance": "should",
+    "memoryAccessPolicy": {
+      "canReadFrom": "all",
+      "canBeReadBy": "all",
+      "inheritsGlobal": true
+    },
+    "retrievalBudgetTokens": 500,
+    "escalationChannels": ["in-app"]
+  }
+}
+```
+
+These apply to newly created projects.
+
+## Environment Variables
+
+| Variable | Overrides |
+|----------|-----------|
+| `NOUS_DATA_DIR` | `storage.dataDir` |
+| `NOUS_CONFIG_PATH` | Config file path |
+| `NOUS_BASIC_AUTH` | Basic auth for tRPC (format: `user:password`) |

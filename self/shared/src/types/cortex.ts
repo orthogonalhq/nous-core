@@ -99,6 +99,15 @@ export const ExecutionTraceSchema = z.object({
         }),
       ),
       pfcDecisions: z.array(PfcDecisionSchema),
+      toolDecisions: z
+        .array(
+          z.object({
+            toolName: z.string(),
+            approved: z.boolean(),
+            reason: z.string().optional(),
+          }),
+        )
+        .default([]),
       memoryWrites: z.array(MemoryEntryIdSchema),
       memoryDenials: z.array(z.object({
         candidate: MemoryWriteCandidateSchema,

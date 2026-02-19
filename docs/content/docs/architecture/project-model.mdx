@@ -78,7 +78,7 @@ The primary interface for project design and monitoring is a node-based visual e
 
 ### For Protocol Projects
 
-The user builds or approves a workflow graph. Each node represents a discrete step — a model call, a tool execution, a quality gate, a human decision point, a branching condition.
+The user builds or approves a workflow graph. Each node represents a discrete step — a model call, a tool execution, a quality gate, a Principal decision point, a branching condition.
 
 Nodes are wired together to define execution order, data flow, and conditional paths.
 
@@ -104,12 +104,12 @@ Both views coexist. Structured segments are displayed as defined node graphs. Op
 Every node in a workflow graph declares:
 
 - **Name** — human-readable identifier
-- **Type** — model call, tool execution, quality gate, human decision, condition, transform, etc.
+- **Type** — model call, tool execution, quality gate, Principal decision, condition, transform, etc.
 - **Inputs** — expected data from upstream nodes
 - **Outputs** — data produced for downstream nodes
 - **Model assignment** — which model role or specific provider handles this node (if applicable)
 - **Governance level** — MUST, SHOULD, or MAY (see below)
-- **Escalation rules** — when and how to involve the human
+- **Escalation rules** — when and how to involve the Principal
 - **Timeout and retry policy** — how long to wait, how many retries, what to do on failure
 
 ---
@@ -137,7 +137,7 @@ Strong default. PFC can deviate with justification.
 
 - The PFC follows the defined behavior by default
 - Deviation is permitted but must include a logged justification
-- Deviations are flagged for human review (configurable)
+- Deviations are flagged for Principal review (configurable)
 - Used for: best practices, standard operating procedures, recommended defaults
 
 Example: Video clips should be 5–10 seconds. The PFC may produce a 12-second clip if the content warrants it, but the deviation is logged and flagged.
@@ -184,7 +184,7 @@ The PFC's role extends beyond per-turn evaluation. In the project model, the PFC
 - Enforce governance levels at each node
 - Track project state across sessions
 - Checkpoint and resume workflows after interruption
-- Escalate to human through configured channels when required
+- Escalate to Principal through configured channels when required
 - Propose protocol formalizations in intent projects
 - Learn from outcomes to improve future decisions within the project
 
@@ -192,9 +192,9 @@ The PFC tier determines how much autonomous reasoning the supervisor applies. Pr
 
 ---
 
-## Human Escalation
+## Principal Escalation
 
-Human involvement is a first-class concept, not an edge case.
+Principal involvement is a first-class concept, not an edge case.
 
 ### Escalation Triggers
 
@@ -202,7 +202,7 @@ Human involvement is a first-class concept, not an edge case.
 - A SHOULD deviation is flagged for review
 - PFC confidence drops below the configured threshold on a MAY node
 - An intent project encounters ambiguity it cannot resolve
-- A workflow reaches a node explicitly typed as "Human Decision"
+- A workflow reaches a node explicitly typed as "Principal Decision"
 
 ### Escalation Channels
 
@@ -223,7 +223,7 @@ When Nous escalates, it provides:
 - What happened (context)
 - Why it is escalating (trigger reason)
 - What it recommends (if applicable)
-- What it needs from the human (decision, approval, clarification)
+- What it needs from the Principal (decision, approval, clarification)
 - What happens if no response is received within the timeout (default action or halt)
 
 ---
@@ -327,7 +327,7 @@ This project model extends existing Nous concepts:
 - **ProjectStore** → Becomes the container for project type, workflow graph, governance configuration, and artifact references — not just namespace and config
 - **PFC Engine** → Gains a per-project supervisor mode in addition to per-turn evaluation
 - **ModelRouter** → Must route heterogeneous provider types, not just text model roles
-- **Tool Interface** → Nodes in the workflow are a superset of tools — they include model calls, quality gates, human decisions, and transforms alongside tool executions
+- **Tool Interface** → Nodes in the workflow are a superset of tools — they include model calls, quality gates, Principal decisions, and transforms alongside tool executions
 - **MemoryStore** → Remains responsible for text and embedding memory. Artifact storage is a separate concern.
 - **Storage** → Must support binary artifact persistence with versioning, in addition to existing memory and trace storage
 
@@ -336,7 +336,7 @@ New architectural components implied:
 - **Workflow Engine** — graph executor with checkpoint, resume, conditional branching, and mixed execution models
 - **Artifact Store** — versioned binary asset management, project-scoped
 - **Scheduler** — time-triggered execution for recurring and monitoring workflows
-- **Escalation Service** — multi-channel human notification with response tracking
+- **Escalation Service** — multi-channel Principal notification with response tracking
 - **Node Registry** — typed node definitions with governance, I/O schemas, and execution model declarations
 
 ---

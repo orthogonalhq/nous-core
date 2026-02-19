@@ -3,14 +3,14 @@
   "pages": [
     "index",
     "--- ---",
+    "getting-started",
+    "configuration",
+    "cli",
+    "api",
+    "guides",
+    "--- ---",
     "architecture",
-    "--- ---",
-    "roadmap",
-    "--- ---",
-    "business",
-    "--- ---",
-    "sop",
-    "--- ---",
-    "worklog"
+    "development",
+    "playbooks"
   ]
 }

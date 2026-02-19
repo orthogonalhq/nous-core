@@ -1,0 +1,36 @@
+---
+title: API Overview
+description: tRPC API reference for Nous-OSS
+---
+
+# API Overview
+
+Nous exposes a headless tRPC API. The web UI and CLI both consume this API. The contract is defined by the tRPC router; no separate REST or GraphQL layer exists.
+
+## Base URL
+
+- **Development:** `http://localhost:4317`
+- **Route:** `/api/trpc`
+
+## Transport
+
+- **Queries and mutations** — HTTP (batched)
+- **Subscriptions** — WebSocket (Phase 1: not implemented; streaming deferred to Phase 2+)
+
+## Authentication
+
+When `NOUS_BASIC_AUTH` is set, include the `Authorization: Basic` header. The tRPC client adds it automatically when the env var is present.
+
+## Routers
+
+| Router | Purpose |
+|--------|---------|
+| `projects` | Project CRUD |
+| `chat` | Send messages, get history |
+| `traces` | Execution traces |
+| `memory` | Memory entries, export, delete |
+| `config` | Configuration get/update |
+| `health` | System health check |
+| `firstRun` | First-run flow status and completion |
+
+See [Procedures](/docs/api/procedures) for the full reference.
