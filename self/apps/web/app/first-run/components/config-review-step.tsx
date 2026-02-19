@@ -47,7 +47,7 @@ export function ConfigReviewStep({ onNext }: ConfigReviewStepProps) {
             )}
           </ul>
         </div>
-        <Button onClick={onNext}>Continue</Button>
+        <Button type="button" onClick={onNext}>Continue</Button>
       </CardContent>
     </Card>
   );

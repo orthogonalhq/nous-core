@@ -8,7 +8,8 @@ import {
   type SystemConfig,
 } from '@nous/autonomic-config';
 
-const OLLAMA_PROVIDER_ID = 'ollama-default';
+type ProviderId = SystemConfig['providers'][number]['id'];
+const OLLAMA_PROVIDER_ID = '6f4b38b4-e5d0-4c91-9e4b-f7f3f7f8a5ce' as ProviderId;
 
 export function generateDefaultConfig(
   dataDir: string,
@@ -18,9 +19,7 @@ export function generateDefaultConfig(
     profile: DEFAULT_PROFILES['local-only']!,
     pfcTier: 2,
     pfcTierPresets: DEFAULT_PFC_TIER_PRESETS,
-    modelRoleAssignments: [
-      { role: 'reasoner', providerId: OLLAMA_PROVIDER_ID },
-    ],
+    modelRoleAssignments: [{ role: 'reasoner', providerId: OLLAMA_PROVIDER_ID }],
     providers: [
       {
         id: OLLAMA_PROVIDER_ID,

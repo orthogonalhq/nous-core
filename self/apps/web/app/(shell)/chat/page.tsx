@@ -19,14 +19,11 @@ export default function ChatPage() {
 
   const utils = trpc.useUtils();
   const sendMessage = trpc.chat.sendMessage.useMutation({
-    onSuccess: (data) => {
-      setOptimisticMessages((prev) => [
-        ...prev,
-        { role: 'assistant', content: data.response },
-      ]);
+    onSuccess: async () => {
       if (projectId) {
-        utils.chat.getHistory.invalidate({ projectId });
+        await utils.chat.getHistory.invalidate({ projectId });
       }
+      setOptimisticMessages([]);
     },
   });
 

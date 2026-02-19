@@ -19,8 +19,6 @@ import { ProviderRegistry } from '@nous/subcortex-providers';
 import { ToolExecutor } from '@nous/subcortex-tools';
 import type { NousContext } from './context';
 
-const CONFIG_PATH = process.env.NOUS_CONFIG_PATH;
-
 const MOCK_PROVIDER_ID = '00000000-0000-0000-0000-000000000001' as ProviderId;
 
 /**
@@ -102,7 +100,8 @@ export function createNousContext(): NousContext {
     return cachedContext;
   }
 
-  const baseConfig = new ConfigManager({ configPath: CONFIG_PATH });
+  const configPath = process.env.NOUS_CONFIG_PATH;
+  const baseConfig = new ConfigManager({ configPath });
   const config = configWithFallback(baseConfig) as typeof baseConfig;
   const dataDirEnv = process.env.NOUS_DATA_DIR ?? './data';
   const dataDir = isAbsolute(dataDirEnv) ? dataDirEnv : join(process.cwd(), dataDirEnv);
@@ -124,9 +123,12 @@ export function createNousContext(): NousContext {
   const providerRegistry = new ProviderRegistry(config);
 
   const getProvider = (id: ProviderId) => {
-    const provider = providerRegistry.getProvider(id);
-    if (provider) return provider;
-    return createMockProvider(id) as ReturnType<typeof providerRegistry.getProvider>;
+    // Explicitly route the synthetic fallback provider to the in-process mock.
+    // This prevents accidental Ollama resolution for the mock config path.
+    if (id === MOCK_PROVIDER_ID) {
+      return createMockProvider(id) as ReturnType<typeof providerRegistry.getProvider>;
+    }
+    return providerRegistry.getProvider(id);
   };
 
   const cfg = config.get() as { security?: { traceSensitiveData?: boolean } };

@@ -27,6 +27,7 @@ export function ConfirmStep() {
           You&apos;ve completed the first-run setup. Nous is ready to use.
         </p>
         <Button
+          type="button"
           onClick={handleGetStarted}
           disabled={complete.isPending}
         >

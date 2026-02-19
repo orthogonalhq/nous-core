@@ -10,7 +10,11 @@ import type {
   ModelProviderConfig,
   ProviderId,
 } from '@nous/shared';
-import { ProviderIdSchema, ModelProviderConfigSchema } from '@nous/shared';
+import {
+  ConfigError,
+  ProviderIdSchema,
+  ModelProviderConfigSchema,
+} from '@nous/shared';
 import type { ProviderConfigEntry } from '@nous/autonomic-config';
 import { OllamaProvider } from './ollama-provider.js';
 import { OpenAiCompatibleProvider } from './openai-provider.js';
@@ -25,10 +29,10 @@ export class ProviderRegistry {
     for (const entry of entries) {
       const idResult = ProviderIdSchema.safeParse(entry.id);
       if (!idResult.success) {
-        console.warn(
-          `[nous:providers] Skipping provider "${entry.name}" — id must be UUID`,
+        throw new ConfigError(
+          `Provider "${entry.name}" has invalid id "${entry.id}" (must be UUID)`,
+          { providerName: entry.name, providerId: entry.id },
         );
-        continue;
       }
 
       const providerConfig: ModelProviderConfig = {
@@ -44,10 +48,17 @@ export class ProviderRegistry {
 
       const validated = ModelProviderConfigSchema.safeParse(providerConfig);
       if (!validated.success) {
-        console.warn(
-          `[nous:providers] Skipping provider "${entry.name}" — invalid config`,
+        throw new ConfigError(
+          `Provider "${entry.name}" has invalid configuration`,
+          {
+            providerName: entry.name,
+            providerId: entry.id,
+            errors: validated.error.issues.map((issue) => ({
+              path: issue.path.join('.'),
+              message: issue.message,
+            })),
+          },
         );
-        continue;
       }
 
       const provider = this.createProvider(validated.data);

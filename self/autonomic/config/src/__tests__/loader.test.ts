@@ -94,4 +94,30 @@ describe('loadConfig', () => {
       expect(Array.isArray(configErr.context?.errors)).toBe(true);
     }
   });
+
+  it('throws ConfigError when provider or assignment ids are not UUIDs', () => {
+    const configPath = join(TEST_DIR, 'invalid-provider-id.json5');
+    const content = JSON.stringify({
+      ...DEFAULT_SYSTEM_CONFIG,
+      providers: [
+        {
+          id: 'ollama-default',
+          name: 'Ollama',
+          type: 'text',
+          modelId: 'llama3.2:3b',
+          isLocal: true,
+          capabilities: [],
+        },
+      ],
+      modelRoleAssignments: [
+        {
+          role: 'reasoner',
+          providerId: 'ollama-default',
+        },
+      ],
+    });
+    writeFileSync(configPath, content, 'utf-8');
+
+    expect(() => loadConfig(configPath)).toThrow(ConfigError);
+  });
 });

@@ -8,7 +8,7 @@ export interface NavItem {
   external?: boolean;
 }
 
-const DOCS_URL = process.env.NEXT_PUBLIC_DOCS_URL ?? 'http://localhost:3001';
+const DOCS_URL = process.env.NEXT_PUBLIC_DOCS_URL ?? 'http://localhost:4318';
 
 export const NAV_CONFIG: { items: NavItem[] } = {
   items: [
