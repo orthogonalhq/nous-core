@@ -17,11 +17,20 @@ pnpm dev:cli -- <command> [options]
 pnpm --filter @nous/cli run dev -- <command>
 ```
 
+## Installer Command
+
+For guided local setup, use:
+
+```bash
+node scripts/bootstrap/install.mjs
+nous install
+```
+
 ## Global Options
 
 | Option | Description | Default |
 |--------|-------------|---------|
-| `--api-url <url>` | API base URL | `http://localhost:3000` |
+| `--api-url <url>` | API base URL | `http://localhost:4317` |
 | `-p, --project <id>` | Project ID for context | None |
 | `--json` | Output as JSON | Off |
 

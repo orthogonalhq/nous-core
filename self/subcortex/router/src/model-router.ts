@@ -17,7 +17,9 @@ import { ProviderIdSchema, ModelProviderConfigSchema } from '@nous/shared';
 import type { ModelRoleAssignment, Profile, ProviderConfigEntry } from '@nous/autonomic-config';
 
 export class ModelRouter implements IModelRouter {
-  constructor(private readonly config: IConfig) {}
+  constructor(private readonly config: IConfig) {
+    this.validateConfig();
+  }
 
   async route(role: ModelRole, _projectId?: ProjectId): Promise<ProviderId> {
     const configObj = this.config.get() as {
@@ -118,5 +120,35 @@ export class ModelRouter implements IModelRouter {
     }
 
     return result;
+  }
+
+  private validateConfig(): void {
+    const configObj = this.config.get() as {
+      modelRoleAssignments?: ModelRoleAssignment[];
+      providers?: ProviderConfigEntry[];
+    };
+
+    const assignments = configObj.modelRoleAssignments ?? [];
+    const providers = configObj.providers ?? [];
+
+    for (const assignment of assignments) {
+      const idResult = ProviderIdSchema.safeParse(assignment.providerId);
+      if (!idResult.success) {
+        throw new NousError(
+          `Provider id "${assignment.providerId}" is not a valid UUID`,
+          'PROVIDER_NOT_FOUND',
+        );
+      }
+    }
+
+    for (const entry of providers) {
+      const idResult = ProviderIdSchema.safeParse(entry.id);
+      if (!idResult.success) {
+        throw new NousError(
+          `Provider id "${entry.id}" is not a valid UUID`,
+          'PROVIDER_NOT_FOUND',
+        );
+      }
+    }
   }
 }

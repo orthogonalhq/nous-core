@@ -10,7 +10,7 @@
     "./server/trpc/root": "./server/trpc/root.ts"
   },
   "scripts": {
-    "dev": "next dev",
+    "dev": "node ./scripts/dev.mjs",
     "build": "next build",
     "start": "next start",
     "typecheck": "tsc --noEmit",

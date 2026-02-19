@@ -51,6 +51,7 @@ export function FirstMessageStep({ projectId, onNext }: FirstMessageStepProps) {
                 disabled={sendMessage.isPending}
               />
               <Button
+                type="button"
                 onClick={handleSend}
                 disabled={sendMessage.isPending || !message.trim()}
               >
@@ -64,7 +65,7 @@ export function FirstMessageStep({ projectId, onNext }: FirstMessageStepProps) {
               </div>
             )}
             {response && (
-              <Button onClick={onNext}>Continue</Button>
+              <Button type="button" onClick={onNext}>Continue</Button>
             )}
           </>
         )}

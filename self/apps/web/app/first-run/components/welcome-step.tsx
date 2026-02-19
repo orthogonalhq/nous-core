@@ -25,7 +25,7 @@ export function WelcomeStep({ onNext }: WelcomeStepProps) {
           local LLM), pulled a default model, created your configuration, and
           started the Nous backend. You&apos;re ready to go.
         </p>
-        <Button onClick={onNext}>Continue</Button>
+        <Button type="button" onClick={onNext}>Continue</Button>
       </CardContent>
     </Card>
   );

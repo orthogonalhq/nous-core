@@ -135,6 +135,15 @@ describe('ConfigManager', () => {
 
       expect(getTypedConfig(manager).pfcTier).toBe(beforeTier);
     });
+
+    it('rejects modelRoleAssignments when providerId is not UUID', async () => {
+      const manager = new ConfigManager();
+      await expect(
+        manager.update('modelRoleAssignments', [
+          { role: 'reasoner', providerId: 'ollama-default' },
+        ] as never),
+      ).rejects.toThrow(ConfigError);
+    });
   });
 
   describe('update() persistence', () => {

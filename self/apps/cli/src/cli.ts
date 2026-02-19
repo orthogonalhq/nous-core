@@ -8,7 +8,8 @@ import { runSend } from './commands/send.js';
 import { runProjectsList, runProjectsCreate, runProjectsSwitch } from './commands/projects.js';
 import { runConfigGet, runConfigSet } from './commands/config.js';
 
-const DEFAULT_API_URL = 'http://localhost:3000';
+const DEFAULT_API_PORT = process.env.NOUS_WEB_PORT ?? '4317';
+const DEFAULT_API_URL = process.env.NOUS_API_URL ?? `http://localhost:${DEFAULT_API_PORT}`;
 
 async function main(): Promise<number> {
   const program = new Command();

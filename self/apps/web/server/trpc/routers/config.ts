@@ -3,6 +3,7 @@
  */
 import { z } from 'zod';
 import { router, publicProcedure } from '../trpc';
+import { ProviderIdSchema } from '@nous/shared';
 
 export const configRouter = router({
   get: publicProcedure.query(({ ctx }) => {
@@ -14,7 +15,7 @@ export const configRouter = router({
       z.object({
         pfcTier: z.number().min(0).max(5).optional(),
         modelRoleAssignments: z
-          .array(z.object({ role: z.string(), providerId: z.string() }))
+          .array(z.object({ role: z.string(), providerId: ProviderIdSchema }))
           .optional(),
       }),
     )

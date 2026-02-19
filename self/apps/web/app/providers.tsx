@@ -11,7 +11,8 @@ import { trpc } from '@/lib/trpc';
 
 function getBaseUrl() {
   if (typeof window !== 'undefined') return '';
-  return process.env.NEXT_PUBLIC_APP_URL ?? 'http://localhost:3000';
+  const defaultPort = process.env.NOUS_WEB_PORT ?? '4317';
+  return process.env.NEXT_PUBLIC_APP_URL ?? `http://localhost:${defaultPort}`;
 }
 
 export function Providers({ children }: { children: React.ReactNode }) {
