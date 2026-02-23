@@ -26,7 +26,7 @@ Characteristics:
 - Workflow is known upfront or proposed by Nous and approved by the user
 - Steps are explicit — modeled as a node graph
 - Quality gates have measurable thresholds
-- PFC enforces the protocol and routes within it
+- Cortex enforces the protocol and routes within it
 - Output is predictable and reproducible
 
 Example: A synthetic persona engine with defined identity validation thresholds, gated phase transitions, and standardized artifact outputs.
@@ -40,7 +40,7 @@ Characteristics:
 - User defines a goal and constraints, not steps
 - Nous determines how to accomplish the objective
 - Behavior is emergent and adaptive
-- PFC has high autonomy within declared guardrails
+- Cortex has high autonomy within declared guardrails
 - Success is judged heuristically, not by binary gates
 
 Example: "Keep my Outlook inbox tidy and notify me of anything urgent."
@@ -62,10 +62,10 @@ Fully Explicit ◄────────────────────�
 (Protocol)                                          (Intent)
 
 Defined node graph                        Goal + constraints only
-PFC enforces                              PFC improvises
+Cortex enforces                              Cortex improvises
 Predictable steps                         Emergent behavior
 Quality gates measured                    Success judged heuristically
-Lower PFC tier sufficient                 Higher PFC tier required
+Lower Cortex tier sufficient                 Higher Cortex tier required
 ```
 
 Every project declares where it sits on this spectrum, or allows individual regions of its workflow to sit at different points.
@@ -122,9 +122,9 @@ Each node declares its governance level:
 
 ### MUST
 
-Hard gate. Binary pass/fail. No PFC discretion.
+Hard gate. Binary pass/fail. No Cortex discretion.
 
-- The PFC cannot override a MUST gate
+- The Cortex cannot override a MUST gate
 - Failure halts the workflow or triggers the defined failure path
 - All MUST evaluations are logged with full provenance
 - Used for: quality thresholds, compliance checks, safety boundaries
@@ -133,25 +133,25 @@ Example: Identity validation must achieve ≥85% recognizability across the test
 
 ### SHOULD
 
-Strong default. PFC can deviate with justification.
+Strong default. Cortex can deviate with justification.
 
-- The PFC follows the defined behavior by default
+- The Cortex follows the defined behavior by default
 - Deviation is permitted but must include a logged justification
 - Deviations are flagged for Principal review (configurable)
 - Used for: best practices, standard operating procedures, recommended defaults
 
-Example: Video clips should be 5–10 seconds. The PFC may produce a 12-second clip if the content warrants it, but the deviation is logged and flagged.
+Example: Video clips should be 5–10 seconds. The Cortex may produce a 12-second clip if the content warrants it, but the deviation is logged and flagged.
 
 ### MAY
 
-Discretionary. PFC uses judgment. Escalates only on low confidence.
+Discretionary. Cortex uses judgment. Escalates only on low confidence.
 
-- The PFC operates with full autonomy within the node's declared constraints
+- The Cortex operates with full autonomy within the node's declared constraints
 - No justification required for choices made
-- Escalation occurs only when PFC confidence drops below a configured threshold
+- Escalation occurs only when Cortex confidence drops below a configured threshold
 - Used for: creative decisions, optimization choices, non-critical parameter selection
 
-Example: Wardrobe selection for a photo batch. The PFC chooses based on content calendar context and prior performance. No escalation unless the choice falls outside declared constraints.
+Example: Wardrobe selection for a photo batch. The Cortex chooses based on content calendar context and prior performance. No escalation unless the choice falls outside declared constraints.
 
 ### Governance Evolution
 
@@ -165,9 +165,9 @@ This allows governance to evolve with confidence, per-node, without restructurin
 
 ---
 
-## PFC as Project Supervisor
+## Cortex as Project Supervisor
 
-The PFC's role extends beyond per-turn evaluation. In the project model, the PFC is a persistent supervisor for the entire project lifecycle.
+The Cortex's role extends beyond per-turn evaluation. In the project model, the Cortex is a persistent supervisor for the entire project lifecycle.
 
 ### Per-Turn Role (Existing)
 
@@ -188,7 +188,7 @@ The PFC's role extends beyond per-turn evaluation. In the project model, the PFC
 - Propose protocol formalizations in intent projects
 - Learn from outcomes to improve future decisions within the project
 
-The PFC tier determines how much autonomous reasoning the supervisor applies. Protocol projects with explicit graphs may run at lower tiers. Intent projects with emergent workflows require higher tiers.
+The Cortex tier determines how much autonomous reasoning the supervisor applies. Protocol projects with explicit graphs may run at lower tiers. Intent projects with emergent workflows require higher tiers.
 
 ---
 
@@ -200,7 +200,7 @@ Principal involvement is a first-class concept, not an edge case.
 
 - A MUST gate fails
 - A SHOULD deviation is flagged for review
-- PFC confidence drops below the configured threshold on a MAY node
+- Cortex confidence drops below the configured threshold on a MAY node
 - An intent project encounters ambiguity it cannot resolve
 - A workflow reaches a node explicitly typed as "Principal Decision"
 
@@ -314,7 +314,7 @@ The workflow engine must support all four patterns within a single project graph
 1. **Create** — User creates a project in the GUI. Selects project type (protocol, intent, hybrid). Defines initial configuration.
 2. **Design** — For protocol projects: build or approve the workflow graph. For intent projects: define the objective and constraints.
 3. **Configure** — Assign models per node/role. Set governance levels. Configure escalation channels. Define artifact storage.
-4. **Execute** — Nous PFC supervises execution. Workflow runs. Escalations occur as needed.
+4. **Execute** — Nous Cortex supervises execution. Workflow runs. Escalations occur as needed.
 5. **Evolve** — Governance levels tuned. Protocol emerges from intent. Workflows refined based on outcomes.
 6. **Archive or Retire** — Project completed or deactivated. Artifacts and memory preserved or exported per retention policy.
 
@@ -325,7 +325,7 @@ The workflow engine must support all four patterns within a single project graph
 This project model extends existing Nous concepts:
 
 - **ProjectStore** → Becomes the container for project type, workflow graph, governance configuration, and artifact references — not just namespace and config
-- **PFC Engine** → Gains a per-project supervisor mode in addition to per-turn evaluation
+- **Cortex Engine** → Gains a per-project supervisor mode in addition to per-turn evaluation
 - **ModelRouter** → Must route heterogeneous provider types, not just text model roles
 - **Tool Interface** → Nodes in the workflow are a superset of tools — they include model calls, quality gates, Principal decisions, and transforms alongside tool executions
 - **MemoryStore** → Remains responsible for text and embedding memory. Artifact storage is a separate concern.

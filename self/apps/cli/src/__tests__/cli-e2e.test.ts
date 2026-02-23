@@ -88,4 +88,23 @@ describe('CLI E2E', () => {
     expect(out).toBeTruthy();
     expect(out.length).toBeGreaterThan(0);
   });
+
+  it('CLI witness verify generates a verification report', async () => {
+    const cliPath = join(__dirname, '../../dist/cli.js');
+    const proc = spawn('node', [cliPath, 'witness', 'verify', '--api-url', baseUrl], {
+      env: { ...process.env },
+      stdio: ['ignore', 'pipe', 'pipe'],
+    });
+
+    const stdout: Buffer[] = [];
+    proc.stdout?.on('data', (d) => stdout.push(d));
+
+    const exitCode = await new Promise<number>((resolve) => {
+      proc.on('close', (code) => resolve(code ?? 0));
+    });
+
+    const out = Buffer.concat(stdout).toString('utf-8');
+    expect(exitCode).toBe(0);
+    expect(out).toContain('Verification report');
+  });
 });

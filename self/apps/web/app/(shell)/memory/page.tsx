@@ -15,6 +15,14 @@ export default function MemoryPage() {
     { projectId: projectId! },
     { enabled: !!projectId },
   );
+  const { data: audit } = trpc.memory.audit.useQuery(
+    { projectId: projectId! },
+    { enabled: !!projectId },
+  );
+  const { data: tombstones } = trpc.memory.tombstones.useQuery(
+    { projectId: projectId! },
+    { enabled: !!projectId },
+  );
   const deleteMutation = trpc.memory.delete.useMutation();
   const utils = trpc.useUtils();
 
@@ -37,6 +45,8 @@ export default function MemoryPage() {
     await deleteMutation.mutateAsync({ projectId });
     utils.memory.list.invalidate();
     utils.memory.denials.invalidate();
+    utils.memory.audit.invalidate();
+    utils.memory.tombstones.invalidate();
   };
 
   if (!projectId) {
@@ -86,8 +96,18 @@ export default function MemoryPage() {
                   className="rounded border border-border p-3 text-sm"
                 >
                   <div className="text-xs text-muted-foreground">
-                    {e.type} · {e.createdAt}
+                    {e.type} · {e.mutabilityClass} · {e.lifecycleStatus} · {e.createdAt}
                   </div>
+                  {e.supersededBy ? (
+                    <div className="text-xs text-muted-foreground">
+                      supersededBy: {e.supersededBy}
+                    </div>
+                  ) : null}
+                  {e.tombstoneId ? (
+                    <div className="text-xs text-muted-foreground">
+                      tombstoneId: {e.tombstoneId}
+                    </div>
+                  ) : null}
                   <p className="whitespace-pre-wrap">{e.content}</p>
                 </li>
               ))}
@@ -118,6 +138,59 @@ export default function MemoryPage() {
                       ? String((d.candidate as { content: string }).content)
                       : JSON.stringify(d.candidate)}
                   </p>
+                </li>
+              ))}
+            </ul>
+          )}
+        </CardContent>
+      </Card>
+
+      <Card>
+        <CardHeader>
+          <CardTitle>Mutation Audit</CardTitle>
+        </CardHeader>
+        <CardContent>
+          {!audit?.length ? (
+            <p className="text-muted-foreground">No mutation audit records.</p>
+          ) : (
+            <ul className="space-y-2">
+              {audit.map((item) => (
+                <li key={item.id} className="rounded border border-border p-3 text-sm">
+                  <div className="text-xs text-muted-foreground">
+                    #{item.sequence} · {item.action} · {item.outcome} · {item.reasonCode}
+                  </div>
+                  <div className="text-xs text-muted-foreground">
+                    actor: {item.actor} · at: {item.occurredAt}
+                  </div>
+                  <p className="whitespace-pre-wrap">{item.reason}</p>
+                </li>
+              ))}
+            </ul>
+          )}
+        </CardContent>
+      </Card>
+
+      <Card>
+        <CardHeader>
+          <CardTitle>Tombstones</CardTitle>
+        </CardHeader>
+        <CardContent>
+          {!tombstones?.length ? (
+            <p className="text-muted-foreground">No tombstones.</p>
+          ) : (
+            <ul className="space-y-2">
+              {tombstones.map((item) => (
+                <li key={item.id} className="rounded border border-border p-3 text-sm">
+                  <div className="text-xs text-muted-foreground">
+                    target: {item.targetEntryId}
+                  </div>
+                  <div className="text-xs text-muted-foreground">
+                    hash: {item.targetContentHash}
+                  </div>
+                  <div className="text-xs text-muted-foreground">
+                    created: {item.createdAt}
+                  </div>
+                  <p className="whitespace-pre-wrap">{item.reason}</p>
                 </li>
               ))}
             </ul>

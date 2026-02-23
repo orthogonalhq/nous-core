@@ -34,7 +34,7 @@ TypeScript is the primary language across all layers — cortex, memory, subcort
 | **Linter** | oxlint (Rust-based) |
 | **Formatter** | oxfmt (Rust-based) |
 
-pnpm workspaces provide lightweight monorepo management. Each package in `self/` (cortex/pfc, memory/stm, autonomic/storage, etc.) is a workspace. Dependencies are shared where appropriate, isolated where needed.
+pnpm workspaces provide lightweight monorepo management. Each package in `self/` (cortex/Cortex, memory/stm, autonomic/storage, etc.) is a workspace. Dependencies are shared where appropriate, isolated where needed.
 
 Type-definition-heavy packages (shared types, interfaces, schemas, error classes) are built with **tsc**. The web app uses Next.js build; the CLI uses tsc. tsdown was deferred due to pnpm/Windows compatibility; it may be re-evaluated for future application packages. See ADR-001 for the rationale.
 
@@ -144,7 +144,7 @@ LTM at full maturity (Phase 4–6) is a graph + vector + relational problem:
 - **Experience records with embeddings** need vector similarity search
 - **Distilled patterns with confidence decay** need relational queries with complex scoring
 - **Cross-project relationship mapping** needs graph traversal
-- **Background distillation concurrent with PFC retrieval** needs concurrent access
+- **Background distillation concurrent with Cortex retrieval** needs concurrent access
 
 SQLite handles documents well but is single-writer, has no native vector operations, and makes graph queries painful. Rather than forcing everything into one database, the three separate interfaces allow each storage concern to use the right tool.
 
@@ -215,7 +215,7 @@ The interface-first architecture supports this natively. Any TypeScript interfac
 - **Rust via WASM** — portable, sandboxed execution. Best for components that need to run in isolated contexts (package sandbox).
 - **Python via sidecar** — a separate process communicating over IPC or HTTP. Best for ML/AI workloads where the Python ecosystem has no TypeScript equivalent (specialized distillation models, research-phase components).
 
-The swap is invisible to everything above the interface. The PFC doesn't know if `IDistillationEngine.compress()` is running in TypeScript, Rust, or Python. It calls the interface and gets a result.
+The swap is invisible to everything above the interface. The Cortex doesn't know if `IDistillationEngine.compress()` is running in TypeScript, Rust, or Python. It calls the interface and gets a result.
 
 The decision to use a non-TypeScript implementation is made per-component based on profiling, not speculatively. Start in TypeScript. Measure. Drop in Rust or Python where the data justifies it.
 

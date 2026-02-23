@@ -27,6 +27,7 @@ description: Reference for all tRPC procedures
 |----------|------|-------|--------|
 | `traces.list` | query | `{ projectId?, limit? }` | `ExecutionTrace[]` |
 | `traces.get` | query | `{ traceId }` | `ExecutionTrace \| null` |
+| `traces.verificationReports` | query | `{ traceId }` | `VerificationReport[]` |
 
 ## memory
 
@@ -34,11 +35,18 @@ description: Reference for all tRPC procedures
 |----------|------|-------|--------|
 | `memory.list` | query | `{ projectId }` | `MemoryEntry[]` |
 | `memory.denials` | query | `{ projectId }` | `{ candidate, reason }[]` |
-| `memory.export` | query | `{ projectId }` | `{ stm, entries }` |
-| `memory.delete` | mutation | `{ id?, projectId? }` | `{ deleted: number }` |
+| `memory.audit` | query | `{ projectId? }` | `MemoryMutationAuditRecord[]` |
+| `memory.tombstones` | query | `{ projectId? }` | `MemoryTombstone[]` |
+| `memory.export` | query | `{ projectId }` | `{ stm, entries, audit, tombstones }` |
+| `memory.supersede` | mutation | `{ id, replacement, projectId?, reason? }` | `MutationResult` |
+| `memory.promote` | mutation | `{ id, reason? }` | `MutationResult` |
+| `memory.demote` | mutation | `{ id, projectId, reason? }` | `MutationResult` |
+| `memory.delete` | mutation | `{ id?, projectId?, hard?, rationale? }` | `{ deleted: number, result?: MutationResult }` |
 
-- `id` — Delete single entry
-- `projectId` — Delete all entries for project
+- `id` with `hard` unset or `false` — Soft-delete a single entry (default delete mode)
+- `id` with `hard: true` and `rationale` — Hard-delete path (requires principal override rationale and emits tombstone)
+- `projectId` only — Soft-delete all active entries for the project
+- `memory.audit`/`memory.tombstones` — Operator observability for mutation decisions and hard-delete proofs
 
 ## config
 
@@ -59,3 +67,14 @@ description: Reference for all tRPC procedures
 |----------|------|-------|--------|
 | `firstRun.status` | query | — | `{ complete: boolean }` |
 | `firstRun.complete` | mutation | — | — |
+
+## witness
+
+| Procedure | Type | Input | Output |
+|----------|------|-------|--------|
+| `witness.verify` | mutation | `{ fromSequence?, toSequence? }` | `VerificationReport` |
+| `witness.listReports` | query | `{ limit? }` | `VerificationReport[]` |
+| `witness.getReport` | query | `{ id: VerificationReportId }` | `VerificationReport \| null` |
+| `witness.latestCheckpoint` | query | — | `WitnessCheckpoint \| null` |
+| `witness.createCheckpoint` | mutation | `{ reason?: 'interval' \| 'manual' \| 'rotation' }` | `WitnessCheckpoint` |
+| `witness.rotateKeyEpoch` | mutation | — | `number` (new active key epoch) |

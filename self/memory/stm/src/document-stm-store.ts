@@ -4,9 +4,11 @@
  * STM stored as single document per project. Collection: stm_context.
  * Document ID: ProjectId.
  */
+import { createHash, randomUUID } from 'node:crypto';
 import type { IDocumentStore, IStmStore } from '@nous/shared';
 import {
   StmContextSchema,
+  StmCompactionSummarySchema,
   StmEntrySchema,
   ValidationError,
   type ProjectId,
@@ -15,6 +17,9 @@ import {
 } from '@nous/shared';
 
 const COLLECTION = 'stm_context';
+const COMPACTION_COLLECTION = 'stm_compaction_summaries';
+const MIN_ENTRIES_FOR_COMPACTION = 8;
+const RETAINED_RECENT_ENTRIES = 4;
 
 function estimateTokenCount(content: string): number {
   return Math.ceil(content.length / 4);
@@ -71,8 +76,62 @@ export class DocumentStmStore implements IStmStore {
     );
   }
 
-  async compact(_projectId: ProjectId): Promise<void> {
-    // No-op in Phase 1.4. Eviction deferred to Phase 2.
+  async compact(projectId: ProjectId): Promise<void> {
+    const context = await this.getContext(projectId);
+    if (context.entries.length < MIN_ENTRIES_FOR_COMPACTION) {
+      return;
+    }
+
+    const compactedEntries = context.entries.slice(
+      0,
+      context.entries.length - RETAINED_RECENT_ENTRIES,
+    );
+    const retainedEntries = context.entries.slice(-RETAINED_RECENT_ENTRIES);
+
+    const summaryText = compactedEntries
+      .map((entry) => `${entry.role}: ${entry.content}`)
+      .join('\n')
+      .slice(0, 4000);
+
+    const generatedAt = new Date().toISOString();
+    const summaryRecord = StmCompactionSummarySchema.parse({
+      id: randomUUID(),
+      projectId,
+      summary: summaryText,
+      sourceEntryRefs: compactedEntries.map((entry) => ({
+        timestamp: entry.timestamp,
+        role: entry.role,
+        contentHash: createHash('sha256').update(entry.content).digest('hex'),
+      })),
+      sourceEntryCount: compactedEntries.length,
+      generatedAt,
+    });
+
+    await this.documentStore.put(
+      COMPACTION_COLLECTION,
+      summaryRecord.id,
+      summaryRecord,
+    );
+
+    const mergedSummary = context.summary
+      ? `${context.summary}\n\n${summaryText}`
+      : summaryText;
+
+    const updated: StmContext = {
+      entries: retainedEntries,
+      summary: mergedSummary,
+      tokenCount:
+        estimateTokenCount(mergedSummary) +
+        retainedEntries.reduce(
+          (total, entry) => total + estimateTokenCount(entry.content),
+          0,
+        ),
+    };
+
+    await this.documentStore.put(COLLECTION, projectId, updated);
+    console.info(
+      `[nous:stm] compact projectId=${projectId} compacted=${compactedEntries.length} retained=${retainedEntries.length}`,
+    );
   }
 
   async clear(projectId: ProjectId): Promise<void> {

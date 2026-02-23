@@ -9,9 +9,9 @@ import { BaseEventSchema } from './base.js';
 export { BaseEventSchema } from './base.js';
 export type { BaseEvent } from './base.js';
 
-// --- PFC Events ---
+// --- Cortex Events ---
 export const PfcEventSchema = BaseEventSchema.extend({
-  domain: z.literal('pfc'),
+  domain: z.literal('Cortex'),
   action: z.enum([
     'authorize-tool',
     'deny-tool',

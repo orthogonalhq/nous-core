@@ -65,15 +65,15 @@ export function uiBanner(platform: string, modelId: string, dataDir: string): vo
         '║░░█▒░░█▒░█▒░░█▒░█▒░░█▒░█▒░░░░░║',
         '║░░█▒░░█▒░█▒░░█▒░█▒░░█▒░░██▒░░░║',
         '║░░█▒░░█▒░█▒░░█▒░█▒░░█▒░░░░█▒░░║',
-        '║░░█▒░░█▒░░███▒░░░███▒░░███▒░░░║',
+        '║░░█▒░░█▒▓▒███▒▓▒░███▒▓▒███▒▓▒░║',
         '╙──────────────────────────────╜',
     ];
 
     for (const row of logo) {
         uiLine(colorizeLogoLine(row));
     }
-    uiLine(`          ${paint('Neural Operations Unification System', 'bold')}`);
-    uiLine(`          ${paint('Nous unboxing experience', 'dim')}`);
+    uiLine(`      ${paint('Neural Operations Unification System', 'bold')}`);
+    uiLine(`      ${paint('Install Assistant', 'dim')}`);
     uiLine();
     uiLine(` Platform : ${paint(platform, 'bold')}`);
     uiLine(` Model    : ${paint(modelId, 'bold')}`);

@@ -1,17 +1,22 @@
 /**
- * Integration test: full cycle from input → PFC → model → memory gate → response → trace.
+ * Integration test: full cycle from input → Cortex → model → memory gate → response → trace.
  */
 import { describe, it, expect } from 'vitest';
 import { join } from 'node:path';
 import { tmpdir } from 'node:os';
 import { randomUUID } from 'node:crypto';
 import { CoreExecutor } from '../core-executor.js';
-import { PfcEngine, createPfcEvaluator } from '@nous/cortex-pfc';
+import {
+  PfcEngine,
+  createPfcEvaluator,
+  createPfcMutationEvaluator,
+} from '@nous/cortex-Cortex';
 import { DocumentStmStore } from '@nous/memory-stm';
 import { MwcPipeline } from '@nous/memory-mwc';
 import { ModelRouter } from '@nous/subcortex-router';
 import { ToolExecutor } from '@nous/subcortex-tools';
 import { DocumentProjectStore } from '@nous/subcortex-projects';
+import { WitnessService } from '@nous/subcortex-witnessd';
 import { SqliteDocumentStore } from '@nous/autonomic-storage';
 import type { IConfig } from '@nous/shared';
 
@@ -39,18 +44,22 @@ function mockConfig(): IConfig {
 }
 
 describe('Core full cycle integration', () => {
-  it('input → PFC → model → memory gate → response → trace', async () => {
+  it('input → Cortex → model → memory gate → response → trace', async () => {
     const dbPath = join(tmpdir(), `nous-core-integration-${randomUUID()}.sqlite`);
     const traceId = randomUUID() as import('@nous/shared').TraceId;
 
     const documentStore = new SqliteDocumentStore(dbPath);
     const stmStore = new DocumentStmStore(documentStore);
     const config = mockConfig();
-    const pfc = new PfcEngine(config, new ToolExecutor());
+    const Cortex = new PfcEngine(config, new ToolExecutor());
+    const witnessService = new WitnessService(documentStore, {
+      checkpointInterval: 100,
+    });
     const mwcPipeline = new MwcPipeline(
       documentStore,
       stmStore,
-      createPfcEvaluator(pfc),
+      createPfcEvaluator(Cortex),
+      createPfcMutationEvaluator(Cortex),
     );
 
     // Use a mock provider — ProviderRegistry with real config may not have working provider
@@ -85,7 +94,7 @@ describe('Core full cycle integration', () => {
     };
 
     const executor = new CoreExecutor({
-      pfc,
+      Cortex,
       router: new ModelRouter(config),
       getProvider: () => mockProvider as never,
       toolExecutor: new ToolExecutor(),
@@ -93,6 +102,7 @@ describe('Core full cycle integration', () => {
       mwcPipeline,
       projectStore: new DocumentProjectStore(documentStore),
       documentStore,
+      witnessService,
     });
 
     const result = await executor.executeTurn({
@@ -108,5 +118,6 @@ describe('Core full cycle integration', () => {
     expect(trace!.turns).toHaveLength(1);
     expect(trace!.turns[0].modelCalls).toHaveLength(1);
     expect(trace!.turns[0].memoryWrites.length).toBeGreaterThanOrEqual(0);
+    expect(trace!.turns[0].evidenceRefs.length).toBeGreaterThan(0);
   });
 });

@@ -34,7 +34,7 @@ export interface IStmStore {
 }
 
 export interface ILtmStore {
-  /** Write a memory entry (already PFC-approved) */
+  /** Write a memory entry (already Cortex-approved) */
   write(entry: MemoryEntry): Promise<MemoryEntryId>;
 
   /** Read a specific memory entry by ID */

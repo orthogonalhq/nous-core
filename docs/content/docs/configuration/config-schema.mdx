@@ -14,7 +14,7 @@ Nous uses JSON5 for configuration. The config file is validated at load time wit
 | Section | Description |
 |---------|-------------|
 | `profile` | Deployment profile (local-only, remote-only, hybrid) |
-| `pfcTier` | PFC tier 0–5 (see [PFC Mode Capability Matrix](/docs/architecture/pfc-mode-capability-matrix)) |
+| `pfcTier` | Cortex tier 0–5 (see [Cortex Mode Capability Matrix](/docs/architecture/Cortex-mode-capability-matrix)) |
 | `pfcTierPresets` | Capability definitions per tier |
 | `modelRoleAssignments` | Which provider fulfills which model role |
 | `providers` | Provider configurations (Ollama, OpenAI-compatible, etc.) |
@@ -40,9 +40,9 @@ Nous uses JSON5 for configuration. The config file is validated at load time wit
 - **remote-only** — Only remote API providers
 - **hybrid** — Both local and remote allowed
 
-## PFC Tier
+## Cortex Tier
 
-`pfcTier` is a number 0–5. Higher tiers enable more capabilities (reflection, memory gating, tool authorization, planning, escalation detection). See [PFC Mode Capability Matrix](/docs/architecture/pfc-mode-capability-matrix).
+`pfcTier` is a number 0–5. Higher tiers enable more capabilities (reflection, memory gating, tool authorization, planning, escalation detection). See [Cortex Mode Capability Matrix](/docs/architecture/Cortex-mode-capability-matrix).
 
 ## Model Role Assignments
 
@@ -111,7 +111,7 @@ Provider types: `text`, `image`, `video`, `vision`, `embedding`, `external-api`.
 }
 ```
 
-- `traceSensitiveData` — When false (default), user input, model output, and memory candidate content are redacted from traces. Structure (traceId, projectId, PFC decisions) is preserved.
+- `traceSensitiveData` — When false (default), user input, model output, and memory candidate content are redacted from traces. Structure (traceId, projectId, Cortex decisions) is preserved.
 
 ## Defaults
 

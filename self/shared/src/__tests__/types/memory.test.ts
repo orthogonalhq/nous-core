@@ -3,6 +3,10 @@ import {
   MemoryAccessPolicySchema,
   MemoryWriteCandidateSchema,
   MemoryEntrySchema,
+  MemoryMutationRequestSchema,
+  MemoryMutationAuditRecordSchema,
+  MemoryTombstoneSchema,
+  StmCompactionSummarySchema,
   ExperienceRecordSchema,
   DistilledPatternSchema,
   RetrievalResultSchema,
@@ -71,6 +75,14 @@ describe('MemoryWriteCandidateSchema', () => {
     expect(MemoryWriteCandidateSchema.safeParse(validCandidate).success).toBe(true);
   });
 
+  it('accepts optional mutabilityClass', () => {
+    const result = MemoryWriteCandidateSchema.safeParse({
+      ...validCandidate,
+      mutabilityClass: 'domain-versioned',
+    });
+    expect(result.success).toBe(true);
+  });
+
   it('rejects confidence > 1', () => {
     const result = MemoryWriteCandidateSchema.safeParse({
       ...validCandidate,
@@ -122,6 +134,13 @@ describe('MemoryEntrySchema', () => {
 
   it('accepts a valid entry', () => {
     expect(MemoryEntrySchema.safeParse(validEntry).success).toBe(true);
+  });
+
+  it('applies legacy compatibility defaults for mutability and lifecycle fields', () => {
+    const parsed = MemoryEntrySchema.parse(validEntry);
+    expect(parsed.mutabilityClass).toBe('domain-versioned');
+    expect(parsed.lifecycleStatus).toBe('active');
+    expect(parsed.placementState).toBe('project');
   });
 
   it('rejects missing id', () => {
@@ -249,6 +268,77 @@ describe('RetrievalResultSchema', () => {
         recency: 0.7,
         confidence: 0.9,
       },
+    });
+    expect(result.success).toBe(true);
+  });
+});
+
+describe('MemoryMutationRequestSchema', () => {
+  it('accepts a valid mutation request', () => {
+    const result = MemoryMutationRequestSchema.safeParse({
+      action: 'soft-delete',
+      actor: 'operator',
+      targetEntryId: VALID_UUID,
+      reason: 'cleanup',
+      traceId: VALID_UUID,
+    });
+    expect(result.success).toBe(true);
+  });
+});
+
+describe('MemoryMutationAuditRecordSchema', () => {
+  it('accepts audit record with evidence references', () => {
+    const result = MemoryMutationAuditRecordSchema.safeParse({
+      id: VALID_UUID,
+      sequence: 1,
+      action: 'soft-delete',
+      actor: 'operator',
+      outcome: 'applied',
+      reasonCode: 'MEM-SOFT-DELETE-APPLIED',
+      reason: 'approved',
+      targetEntryId: VALID_UUID_2,
+      evidenceRefs: [
+        {
+          actionCategory: 'memory-write',
+          authorizationEventId: VALID_UUID,
+        },
+      ],
+      occurredAt: NOW,
+    });
+    expect(result.success).toBe(true);
+  });
+});
+
+describe('MemoryTombstoneSchema', () => {
+  it('accepts a valid tombstone payload', () => {
+    const result = MemoryTombstoneSchema.safeParse({
+      id: VALID_UUID,
+      targetEntryId: VALID_UUID_2,
+      targetContentHash:
+        'a'.repeat(64),
+      deletedByMutationId: VALID_UUID,
+      reason: 'legal request',
+      createdAt: NOW,
+    });
+    expect(result.success).toBe(true);
+  });
+});
+
+describe('StmCompactionSummarySchema', () => {
+  it('accepts compaction summary with provenance refs', () => {
+    const result = StmCompactionSummarySchema.safeParse({
+      id: VALID_UUID,
+      projectId: VALID_UUID_2,
+      summary: 'Summarized prior context',
+      sourceEntryRefs: [
+        {
+          timestamp: NOW,
+          role: 'user',
+          contentHash: 'b'.repeat(64),
+        },
+      ],
+      sourceEntryCount: 1,
+      generatedAt: NOW,
     });
     expect(result.success).toBe(true);
   });

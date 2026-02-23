@@ -104,7 +104,8 @@ describe('MwcPipeline', () => {
     expect(deleted).toBe(true);
 
     const { entries } = await pipeline.exportForProject(projectId as any);
-    expect(entries).toHaveLength(0);
+    expect(entries).toHaveLength(1);
+    expect(entries[0].lifecycleStatus).toBe('soft-deleted');
   });
 
   it('deleteAllForProject clears memory_entries and STM', async () => {
@@ -120,7 +121,10 @@ describe('MwcPipeline', () => {
     expect(count).toBe(2);
 
     const result = await pipeline.exportForProject(projectId as any);
-    expect(result.entries).toHaveLength(0);
+    expect(result.entries).toHaveLength(2);
+    expect(result.entries.every((entry) => entry.lifecycleStatus !== 'active')).toBe(
+      true,
+    );
     expect(result.stm.entries).toHaveLength(0);
   });
 
@@ -172,5 +176,113 @@ describe('MwcPipeline', () => {
       '00000000-0000-0000-0000-000000000001' as any,
     );
     expect(result).toBe(false);
+  });
+
+  it('supersede mutation links old entry via supersededBy and creates replacement', async () => {
+    const originalId = await pipeline.submit(createValidCandidate(projectId), projectId as any);
+    expect(originalId).toBeTruthy();
+
+    const result = await pipeline.mutate({
+      action: 'supersede',
+      actor: 'operator',
+      projectId: projectId as any,
+      targetEntryId: originalId!,
+      replacementCandidate: {
+        ...createValidCandidate(projectId),
+        content: 'Updated preference',
+      },
+      reason: 'update preference',
+      traceId: randomUUID() as any,
+      evidenceRefs: [],
+    });
+
+    expect(result.applied).toBe(true);
+    expect(result.resultingEntryId).toBeTruthy();
+
+    const exported = await pipeline.exportForProject(projectId as any);
+    const original = exported.entries.find((entry) => entry.id === originalId);
+    const replacement = exported.entries.find(
+      (entry) => entry.id === result.resultingEntryId,
+    );
+
+    expect(original?.lifecycleStatus).toBe('superseded');
+    expect(original?.supersededBy).toBe(result.resultingEntryId);
+    expect(replacement?.lifecycleStatus).toBe('active');
+  });
+
+  it('hard delete requires principal override and creates tombstone', async () => {
+    const entryId = await pipeline.submit(createValidCandidate(projectId), projectId as any);
+    expect(entryId).toBeTruthy();
+
+    const denied = await pipeline.mutate({
+      action: 'hard-delete',
+      actor: 'operator',
+      targetEntryId: entryId!,
+      projectId: projectId as any,
+      reason: 'cleanup',
+      traceId: randomUUID() as any,
+      evidenceRefs: [],
+    });
+    expect(denied.applied).toBe(false);
+
+    const applied = await pipeline.mutate({
+      action: 'hard-delete',
+      actor: 'principal',
+      targetEntryId: entryId!,
+      projectId: projectId as any,
+      reason: 'legal erase',
+      traceId: randomUUID() as any,
+      evidenceRefs: [],
+    });
+    expect(applied.applied).toBe(true);
+    expect(applied.tombstoneId).toBeTruthy();
+
+    const exported = await pipeline.exportForProject(projectId as any);
+    const entry = exported.entries.find((item) => item.id === entryId);
+    expect(entry?.lifecycleStatus).toBe('hard-deleted');
+    expect(entry?.tombstoneId).toBe(applied.tombstoneId);
+    expect(entry?.content).toBe('[hard-deleted]');
+    expect(exported.tombstones).toHaveLength(1);
+  });
+
+  it('supports compatibility defaults for legacy entry records on export', async () => {
+    const legacyId = randomUUID();
+    await documentStore.put('memory_entries', legacyId, {
+      id: legacyId,
+      content: 'legacy',
+      type: 'fact',
+      scope: 'project',
+      projectId,
+      confidence: 0.8,
+      sensitivity: [],
+      retention: 'permanent',
+      provenance: {
+        traceId: randomUUID(),
+        source: 'legacy-test',
+        timestamp: new Date().toISOString(),
+      },
+      tags: ['legacy'],
+      createdAt: new Date().toISOString(),
+      updatedAt: new Date().toISOString(),
+    });
+
+    const exported = await pipeline.exportForProject(projectId as any);
+    expect(exported.entries).toHaveLength(1);
+    expect(exported.entries[0].mutabilityClass).toBe('domain-versioned');
+    expect(exported.entries[0].lifecycleStatus).toBe('active');
+  });
+
+  it('emits mutation audit records with increasing sequence order', async () => {
+    await pipeline.submit(createValidCandidate(projectId), projectId as any);
+    await pipeline.submit(
+      { ...createValidCandidate(projectId), content: 'another' },
+      projectId as any,
+    );
+
+    const audit = await pipeline.listMutationAudit(projectId as any);
+    expect(audit.length).toBeGreaterThanOrEqual(2);
+    for (let i = 1; i < audit.length; i++) {
+      expect(audit[i].sequence).toBeGreaterThan(audit[i - 1].sequence);
+    }
   });
 });

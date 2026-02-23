@@ -12,7 +12,7 @@ export async function runConfigGet(
     if (json) {
       console.log(JSON.stringify(config, null, 2));
     } else {
-      console.log('PFC Tier:', config.pfcTier);
+      console.log('Cortex Tier:', config.pfcTier);
       console.log(
         'Model assignments:',
         JSON.stringify(config.modelRoleAssignments ?? [], null, 2),
@@ -32,7 +32,7 @@ export async function runConfigSet(
   try {
     if (options.pfcTier !== undefined) {
       await client.config.update.mutate({ pfcTier: options.pfcTier });
-      console.log('Updated PFC tier to', options.pfcTier);
+      console.log('Updated Cortex tier to', options.pfcTier);
     }
     return 0;
   } catch (err) {

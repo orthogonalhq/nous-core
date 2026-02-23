@@ -87,15 +87,60 @@ With `--json`, returns full config as JSON.
 Modify configuration.
 
 ```bash
-pnpm dev:cli -- config set --pfc-tier <0-5>
+pnpm dev:cli -- config set --Cortex-tier <0-5>
 ```
 
 **Options:**
-- `--pfc-tier <0-5>` — Set PFC tier
+- `--Cortex-tier <0-5>` — Set Cortex tier
 
 **Example:**
 ```bash
-pnpm dev:cli -- config set --pfc-tier 4
+pnpm dev:cli -- config set --Cortex-tier 4
 ```
 
 Model role assignments can be modified via the web UI Configuration panel.
+
+---
+
+## witness
+
+Run witness verification and inspect verification artifacts.
+
+### witness verify
+
+Generate a witness `VerificationReport`.
+
+```bash
+pnpm dev:cli -- witness verify
+pnpm dev:cli -- witness verify --from 1 --to 200
+```
+
+**Options:**
+- `--from <sequence>` — Start event sequence (optional)
+- `--to <sequence>` — End event sequence (optional)
+
+With `--json`, prints full report JSON including `receipt` and `invariants`.
+
+### witness list
+
+List recent witness verification reports.
+
+```bash
+pnpm dev:cli -- witness list
+pnpm dev:cli -- witness list --limit 25
+pnpm dev:cli -- witness
+```
+
+**Options:**
+- `--limit <n>` — Max reports to return (optional)
+
+### witness get
+
+Retrieve a verification report by ID.
+
+```bash
+pnpm dev:cli -- witness get --id <report-id>
+```
+
+**Options:**
+- `--id <report-id>` — Verification report ID (required)

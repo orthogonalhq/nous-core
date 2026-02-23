@@ -36,6 +36,15 @@ import type {
   MemoryEntry,
   MemoryWriteCandidate,
   RetrievalResult,
+  WitnessAuthorizationInput,
+  WitnessCompletionInput,
+  WitnessInvariantInput,
+  WitnessCheckpoint,
+  WitnessCheckpointReason,
+  WitnessEvent,
+  VerificationReport,
+  VerificationReportId,
+  WitnessVerificationRequest,
 } from '../types/index.js';
 import type { NousEvent } from '../events/index.js';
 
@@ -59,7 +68,7 @@ export interface IModelProvider {
 }
 
 export interface IToolExecutor {
-  /** Execute a tool (already PFC-authorized) */
+  /** Execute a tool (already Cortex-authorized) */
   execute(toolName: string, params: unknown, projectId?: ProjectId): Promise<ToolResult>;
 
   /** List available tools and their capabilities */
@@ -183,4 +192,35 @@ export interface IProjectApi {
     state(): ProjectState;
     log(event: NousEvent): void;
   };
+}
+
+export interface IWitnessService {
+  /** Append authorization evidence before a critical side effect */
+  appendAuthorization(input: WitnessAuthorizationInput): Promise<WitnessEvent>;
+
+  /** Append completion evidence after a critical side effect */
+  appendCompletion(input: WitnessCompletionInput): Promise<WitnessEvent>;
+
+  /** Append invariant finding evidence */
+  appendInvariant(input: WitnessInvariantInput): Promise<WitnessEvent>;
+
+  /** Create a signed checkpoint for the current ledger head */
+  createCheckpoint(reason?: WitnessCheckpointReason): Promise<WitnessCheckpoint>;
+
+  /** Rotate to a new active key epoch */
+  rotateKeyEpoch(): Promise<number>;
+
+  /** Verify ledger and checkpoint integrity for a range */
+  verify(
+    request?: WitnessVerificationRequest,
+  ): Promise<VerificationReport>;
+
+  /** Retrieve a previously generated verification report */
+  getReport(id: VerificationReportId): Promise<VerificationReport | null>;
+
+  /** List recent verification reports */
+  listReports(limit?: number): Promise<VerificationReport[]>;
+
+  /** Get the latest signed checkpoint */
+  getLatestCheckpoint(): Promise<WitnessCheckpoint | null>;
 }

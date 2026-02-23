@@ -32,6 +32,9 @@ describe('StubLtmStore', () => {
         tags: [],
         createdAt: new Date().toISOString(),
         updatedAt: new Date().toISOString(),
+        mutabilityClass: 'domain-versioned',
+        lifecycleStatus: 'active',
+        placementState: 'project',
       }),
     ).rejects.toThrow(NousError);
     await expect(
@@ -51,6 +54,9 @@ describe('StubLtmStore', () => {
         tags: [],
         createdAt: new Date().toISOString(),
         updatedAt: new Date().toISOString(),
+        mutabilityClass: 'domain-versioned',
+        lifecycleStatus: 'active',
+        placementState: 'project',
       }),
     ).rejects.toMatchObject({ code: 'NOT_IMPLEMENTED' });
   });

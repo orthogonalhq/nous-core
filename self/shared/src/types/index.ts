@@ -13,3 +13,4 @@ export * from './scheduler.js';
 export * from './sandbox.js';
 export * from './autonomic.js';
 export * from './escalation.js';
+export * from './evidence.js';

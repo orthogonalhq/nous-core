@@ -39,10 +39,10 @@ describe('BaseEventSchema', () => {
 });
 
 describe('PfcEventSchema', () => {
-  it('accepts a valid PFC event', () => {
+  it('accepts a valid Cortex event', () => {
     const result = PfcEventSchema.safeParse({
       ...baseEvent,
-      domain: 'pfc',
+      domain: 'Cortex',
       action: 'authorize-tool',
       detail: { toolName: 'web-search' },
     });
@@ -52,7 +52,7 @@ describe('PfcEventSchema', () => {
   it('rejects invalid action', () => {
     const result = PfcEventSchema.safeParse({
       ...baseEvent,
-      domain: 'pfc',
+      domain: 'Cortex',
       action: 'invalid-action',
       detail: {},
     });
@@ -121,16 +121,16 @@ describe('SystemEventSchema', () => {
 });
 
 describe('NousEventSchema (discriminated union)', () => {
-  it('correctly identifies PFC event by domain', () => {
+  it('correctly identifies Cortex event by domain', () => {
     const result = NousEventSchema.safeParse({
       ...baseEvent,
-      domain: 'pfc',
+      domain: 'Cortex',
       action: 'reflect',
       detail: {},
     });
     expect(result.success).toBe(true);
     if (result.success) {
-      expect(result.data.domain).toBe('pfc');
+      expect(result.data.domain).toBe('Cortex');
     }
   });
 

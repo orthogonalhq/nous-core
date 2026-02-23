@@ -29,6 +29,7 @@
     "@nous/subcortex-providers": "workspace:*",
     "@nous/subcortex-router": "workspace:*",
     "@nous/subcortex-tools": "workspace:*",
+    "@nous/subcortex-witnessd": "workspace:*",
     "@tanstack/react-query": "^5.62.0",
     "@trpc/client": "^11.0.0-rc.0",
     "@trpc/react-query": "^11.0.0-rc.0",

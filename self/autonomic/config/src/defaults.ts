@@ -1,13 +1,13 @@
 /**
  * Default configuration values for Nous-OSS.
  *
- * PFC tier presets derived from pfc-mode-capability-matrix.mdx.
+ * Cortex tier presets derived from Cortex-mode-capability-matrix.mdx.
  * Profiles, defaults, and starter system configuration.
  */
 import type { PfcTierPreset, Profile, SystemConfig } from './schema.js';
 
-// --- PFC Tier Presets ---
-// From pfc-mode-capability-matrix.mdx.
+// --- Cortex Tier Presets ---
+// From Cortex-mode-capability-matrix.mdx.
 export const DEFAULT_PFC_TIER_PRESETS: PfcTierPreset[] = [
   {
     tier: 0,
