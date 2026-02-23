@@ -6,6 +6,13 @@ import { Card, CardHeader, CardTitle, CardContent } from '@/components/ui/card';
 import { Collapsible, CollapsibleTrigger, CollapsibleContent } from '@/components/ui/collapsible';
 import { Badge } from '@/components/ui/badge';
 
+function shortId(id: string): string {
+  if (id.length <= 14) {
+    return id;
+  }
+  return `${id.slice(0, 8)}...${id.slice(-6)}`;
+}
+
 export default function TracesPage() {
   const { projectId } = useProject();
   const { data: traces, isLoading } = trpc.traces.list.useQuery(
@@ -83,7 +90,7 @@ export default function TracesPage() {
                         ) : null}
                         {turn.pfcDecisions?.length ? (
                           <div>
-                            <span className="text-xs font-medium text-muted-foreground">PFC decisions:</span>
+                            <span className="text-xs font-medium text-muted-foreground">Cortex decisions:</span>
                             <ul className="list-inside list-disc text-sm">
                               {turn.pfcDecisions.map((d, j) => (
                                 <li key={j}>
@@ -105,6 +112,22 @@ export default function TracesPage() {
                             <ul className="list-inside list-disc text-sm">
                               {turn.memoryDenials.map((d, j) => (
                                 <li key={j}>{d.reason}</li>
+                              ))}
+                            </ul>
+                          </div>
+                        ) : null}
+                        {turn.evidenceRefs?.length ? (
+                          <div>
+                            <span className="text-xs font-medium text-muted-foreground">Evidence references:</span>
+                            <ul className="list-inside list-disc text-sm">
+                              {turn.evidenceRefs.map((ref, j) => (
+                                <li key={j}>
+                                  <code>{ref.actionCategory}</code>
+                                  {ref.authorizationEventId ? ` auth=${shortId(ref.authorizationEventId)}` : ''}
+                                  {ref.completionEventId ? ` completion=${shortId(ref.completionEventId)}` : ''}
+                                  {ref.invariantEventId ? ` invariant=${shortId(ref.invariantEventId)}` : ''}
+                                  {ref.verificationReportId ? ` report=${shortId(ref.verificationReportId)}` : ''}
+                                </li>
                               ))}
                             </ul>
                           </div>

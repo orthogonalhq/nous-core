@@ -9,6 +9,10 @@ export default defineConfig({
   resolve: {
     alias: {
       '@': path.resolve(__dirname, '.'),
+      '@nous/subcortex-witnessd': path.resolve(
+        __dirname,
+        '../../subcortex/witnessd/src/index.ts',
+      ),
     },
   },
 });
