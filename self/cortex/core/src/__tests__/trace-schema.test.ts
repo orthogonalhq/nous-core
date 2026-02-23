@@ -34,6 +34,13 @@ describe('ExecutionTrace schema', () => {
           ],
           memoryWrites: [] as import('@nous/shared').MemoryEntryId[],
           memoryDenials: [],
+          evidenceRefs: [
+            {
+              actionCategory: 'model-invoke',
+              authorizationEventId: randomUUID(),
+              completionEventId: randomUUID(),
+            },
+          ],
           timestamp: new Date().toISOString(),
         },
       ],
@@ -106,6 +113,7 @@ describe('ExecutionTrace schema', () => {
     expect(result.success).toBe(true);
     if (result.success) {
       expect(result.data.turns[0].toolDecisions).toEqual([]);
+      expect(result.data.turns[0].evidenceRefs).toEqual([]);
     }
   });
 });

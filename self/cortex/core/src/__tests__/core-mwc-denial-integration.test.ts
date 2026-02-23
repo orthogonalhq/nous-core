@@ -1,17 +1,22 @@
 /**
- * Integration test: PFC denies memory write; denial is traced.
+ * Integration test: Cortex denies memory write; denial is traced.
  */
 import { describe, it, expect } from 'vitest';
 import { join } from 'node:path';
 import { tmpdir } from 'node:os';
 import { randomUUID } from 'node:crypto';
 import { CoreExecutor } from '../core-executor.js';
-import { PfcEngine, createPfcEvaluator } from '@nous/cortex-pfc';
+import {
+  PfcEngine,
+  createPfcEvaluator,
+  createPfcMutationEvaluator,
+} from '@nous/cortex-Cortex';
 import { DocumentStmStore } from '@nous/memory-stm';
 import { MwcPipeline } from '@nous/memory-mwc';
 import { ModelRouter } from '@nous/subcortex-router';
 import { ToolExecutor } from '@nous/subcortex-tools';
 import { DocumentProjectStore } from '@nous/subcortex-projects';
+import { WitnessService } from '@nous/subcortex-witnessd';
 import { SqliteDocumentStore } from '@nous/autonomic-storage';
 import type { IConfig } from '@nous/shared';
 
@@ -38,7 +43,7 @@ function mockConfig(): IConfig {
 }
 
 describe('Core MWC denial integration', () => {
-  it('PFC denies low-confidence candidate; denial traced; no persist', async () => {
+  it('Cortex denies low-confidence candidate; denial traced; no persist', async () => {
     const dbPath = join(tmpdir(), `nous-mwc-denial-${randomUUID()}.sqlite`);
     const traceId = randomUUID() as import('@nous/shared').TraceId;
     const projectId = randomUUID() as import('@nous/shared').ProjectId;
@@ -46,14 +51,18 @@ describe('Core MWC denial integration', () => {
     const documentStore = new SqliteDocumentStore(dbPath);
     const stmStore = new DocumentStmStore(documentStore);
     const config = mockConfig();
-    const pfc = new PfcEngine(config, new ToolExecutor());
+    const Cortex = new PfcEngine(config, new ToolExecutor());
+    const witnessService = new WitnessService(documentStore, {
+      checkpointInterval: 100,
+    });
     const mwcPipeline = new MwcPipeline(
       documentStore,
       stmStore,
-      createPfcEvaluator(pfc),
+      createPfcEvaluator(Cortex),
+      createPfcMutationEvaluator(Cortex),
     );
 
-    // Model returns a low-confidence candidate (0.3) — PFC will deny
+    // Model returns a low-confidence candidate (0.3) — Cortex will deny
     const mockProvider = {
       invoke: async () => ({
         output: JSON.stringify({
@@ -85,7 +94,7 @@ describe('Core MWC denial integration', () => {
     };
 
     const executor = new CoreExecutor({
-      pfc,
+      Cortex,
       router: new ModelRouter(config),
       getProvider: () => mockProvider as never,
       toolExecutor: new ToolExecutor(),
@@ -93,6 +102,7 @@ describe('Core MWC denial integration', () => {
       mwcPipeline,
       projectStore: new DocumentProjectStore(documentStore),
       documentStore,
+      witnessService,
     });
 
     await executor.executeTurn({
@@ -104,8 +114,9 @@ describe('Core MWC denial integration', () => {
     const trace = await executor.getTrace(traceId);
     expect(trace).toBeTruthy();
     expect(trace!.turns[0].memoryDenials).toHaveLength(1);
-    expect(trace!.turns[0].memoryDenials[0].reason).toContain('confidence');
+    expect(trace!.turns[0].memoryDenials[0].reason).toContain('CONFIDENCE');
     expect(trace!.turns[0].memoryWrites).toHaveLength(0);
+    expect(trace!.turns[0].evidenceRefs.length).toBeGreaterThan(0);
 
     // Verify no entry persisted for this project
     const exportData = await mwcPipeline.exportForProject(projectId);

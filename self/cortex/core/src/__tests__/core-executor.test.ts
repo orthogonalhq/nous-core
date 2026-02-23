@@ -11,6 +11,7 @@ import type {
   IStmStore,
   IProjectStore,
   IDocumentStore,
+  IWitnessService,
 } from '@nous/shared';
 import { randomUUID } from 'node:crypto';
 
@@ -22,6 +23,11 @@ function mockPfc(): IPfcEngine {
       approved: true,
       reason: 'ok',
       confidence: 0.8,
+    }),
+    evaluateMemoryMutation: vi.fn().mockResolvedValue({
+      approved: true,
+      reason: 'MEM-MUTATION-APPROVED',
+      confidence: 1,
     }),
     evaluateToolExecution: vi.fn().mockResolvedValue({
       approved: true,
@@ -122,6 +128,29 @@ function mockDocumentStore(): IDocumentStore {
   };
 }
 
+function mockWitnessService(): IWitnessService {
+  const makeEvent = () =>
+    ({
+      id: randomUUID() as import('@nous/shared').WitnessEventId,
+    }) as import('@nous/shared').WitnessEvent;
+
+  return {
+    appendAuthorization: vi.fn().mockImplementation(async () => makeEvent()),
+    appendCompletion: vi.fn().mockImplementation(async () => makeEvent()),
+    appendInvariant: vi.fn().mockImplementation(async () => makeEvent()),
+    createCheckpoint: vi.fn().mockResolvedValue(
+      {} as import('@nous/shared').WitnessCheckpoint,
+    ),
+    rotateKeyEpoch: vi.fn().mockResolvedValue(1),
+    verify: vi.fn().mockResolvedValue(
+      {} as import('@nous/shared').VerificationReport,
+    ),
+    getReport: vi.fn().mockResolvedValue(null),
+    listReports: vi.fn().mockResolvedValue([]),
+    getLatestCheckpoint: vi.fn().mockResolvedValue(null),
+  };
+}
+
 describe('CoreExecutor', () => {
   it('implements ICoreExecutor contract', () => {
     const provider = mockProvider('hi');
@@ -135,6 +164,7 @@ describe('CoreExecutor', () => {
       mwcPipeline: mockMwcPipeline(),
       projectStore: mockProjectStore(),
       documentStore: docStore,
+      witnessService: mockWitnessService(),
     });
     expect(executor).toBeDefined();
     expect(typeof executor.executeTurn).toBe('function');
@@ -154,6 +184,7 @@ describe('CoreExecutor', () => {
       mwcPipeline: mockMwcPipeline(),
       projectStore: mockProjectStore(),
       documentStore: docStore,
+      witnessService: mockWitnessService(),
     });
 
     const result = await executor.executeTurn({
@@ -176,6 +207,7 @@ describe('CoreExecutor', () => {
       mwcPipeline: mockMwcPipeline(),
       projectStore: mockProjectStore(),
       documentStore: mockDocumentStore(),
+      witnessService: mockWitnessService(),
     });
 
     await expect(
@@ -197,6 +229,7 @@ describe('CoreExecutor', () => {
       mwcPipeline: mockMwcPipeline(),
       projectStore: mockProjectStore(),
       documentStore: mockDocumentStore(),
+      witnessService: mockWitnessService(),
     });
 
     await expect(
