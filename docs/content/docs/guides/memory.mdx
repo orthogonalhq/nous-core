@@ -5,26 +5,56 @@ description: Inspecting and managing memory entries
 
 # Memory
 
-Nous stores approved memory entries per project. The Memory inspector lets you see what was written and what was denied.
+Nous stores approved memory entries per project. The Memory inspector lets you review memory state, mutation history, and deletion proofs.
 
 ## Approved Entries
 
-Approved entries are persisted after the PFC evaluates memory write candidates. Each entry has:
+Approved entries are persisted after the Cortex evaluates memory write candidates. Each entry includes:
 
 - Content
 - Type (fact, preference, experience-record, etc.)
 - Scope (global, project)
 - Provenance (trace, source, timestamp)
+- Mutability class and lifecycle status
+- Supersession linkage (`supersededBy`) when an entry is replaced
+
+## Lifecycle and Mutations
+
+Memory entries move through governed lifecycle states:
+
+- `active` — current durable value
+- `superseded` — replaced by a newer entry (linked by `supersededBy`)
+- `soft-deleted` — hidden from active use, but retained for audit/recovery
+- `hard-deleted` — payload redacted with immutable tombstone proof retained
+
+Governed mutation procedures are exposed through the API:
+
+- `memory.supersede` to replace a value without in-place rewrite
+- `memory.promote` and `memory.demote` to move entries between project/global placement states
+- `memory.delete` for soft-delete (default) and hard-delete (with rationale)
 
 ## Denied Entries
 
-When the PFC denies a memory write, the candidate and reason are logged. The Memory page shows denied entries for the current project.
+When the Cortex denies a memory write or mutation, the candidate/action and reason are logged. Use:
 
-## Export
+- `memory.denials` for write denials
+- `memory.audit` for mutation allow/deny/failed outcomes and reason codes
 
-Export all memory for a project as structured data (`{ stm, entries }`). Use this for backup or analysis.
+## Export and Audit Visibility
 
-## Delete
+Export all memory for a project as structured data:
 
-- **Single entry** — Delete by ID
-- **All for project** — Delete all memory entries for the current project
+- `memory.export` -> `{ stm, entries, audit, tombstones }`
+
+This gives a full operator view:
+
+- Short-term conversation context (`stm`)
+- Durable memory entries and lifecycle state (`entries`)
+- Mutation history (`audit`)
+- Hard-delete proof artifacts (`tombstones`)
+
+## Delete Behavior
+
+- **Soft-delete (default):** preserves entry content and audit history while marking lifecycle state.
+- **Hard-delete:** requires `hard: true` plus `rationale`; payload content is replaced with `[hard-deleted]` and a tombstone record is created.
+- **Delete all for project:** applies soft-delete to active project entries and clears STM context.
