@@ -164,6 +164,9 @@ importers:
       '@nous/subcortex-tools':
         specifier: workspace:*
         version: link:../../subcortex/tools
+      '@nous/subcortex-witnessd':
+        specifier: workspace:*
+        version: link:../../subcortex/witnessd
       '@tanstack/react-query':
         specifier: ^5.62.0
         version: 5.90.21(react@19.2.3)
@@ -293,6 +296,9 @@ importers:
       '@nous/subcortex-tools':
         specifier: workspace:*
         version: link:../../subcortex/tools
+      '@nous/subcortex-witnessd':
+        specifier: workspace:*
+        version: link:../../subcortex/witnessd
 
   self/cortex/pfc:
     dependencies:
@@ -395,6 +401,12 @@ importers:
       zod:
         specifier: ^3.24.1
         version: 3.25.76
+
+  self/subcortex/witnessd:
+    dependencies:
+      '@nous/shared':
+        specifier: workspace:*
+        version: link:../../shared
 
 packages:
 

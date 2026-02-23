@@ -1,7 +1,7 @@
 /**
  * Configuration schema for Nous-OSS.
  *
- * Zod schemas for the full system configuration including PFC tier presets,
+ * Zod schemas for the full system configuration including Cortex tier presets,
  * model role assignments, deployment profiles, and storage backends.
  */
 import { z } from 'zod';
@@ -16,8 +16,8 @@ import {
   ProviderIdSchema,
 } from '@nous/shared';
 
-// --- PFC Tier Preset ---
-// What each tier enables — from pfc-mode-capability-matrix.mdx.
+// --- Cortex Tier Preset ---
+// What each tier enables — from Cortex-mode-capability-matrix.mdx.
 export const PfcTierPresetSchema = z.object({
   tier: PfcTierSchema,
   name: z.string(),

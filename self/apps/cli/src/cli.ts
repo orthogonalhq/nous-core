@@ -7,6 +7,7 @@ import { createCliTrpcClient } from './trpc-client.js';
 import { runSend } from './commands/send.js';
 import { runProjectsList, runProjectsCreate, runProjectsSwitch } from './commands/projects.js';
 import { runConfigGet, runConfigSet } from './commands/config.js';
+import { runWitnessGet, runWitnessList, runWitnessVerify } from './commands/witness.js';
 
 const DEFAULT_API_PORT = process.env.NOUS_WEB_PORT ?? '4317';
 const DEFAULT_API_URL = process.env.NOUS_API_URL ?? `http://localhost:${DEFAULT_API_PORT}`;
@@ -89,7 +90,7 @@ async function main(): Promise<number> {
   configCmd
     .command('set')
     .description('Update configuration')
-    .option('--pfc-tier <0-5>', 'PFC tier (0-5)', (v) => parseInt(v, 10))
+    .option('--Cortex-tier <0-5>', 'Cortex tier (0-5)', (v) => parseInt(v, 10))
     .action(async (cmdOpts: { pfcTier?: number }) => {
       console.error(`[nous:cli] command=config-set`);
       const client = createCliTrpcClient(program.opts().apiUrl);
@@ -101,6 +102,63 @@ async function main(): Promise<number> {
     const opts = program.opts();
     const client = createCliTrpcClient(opts.apiUrl);
     const code = await runConfigGet(client, opts.json ?? false);
+    process.exit(code);
+  });
+
+  const witnessCmd = program
+    .command('witness')
+    .description('Run witness verification and inspect reports');
+  witnessCmd
+    .command('verify')
+    .description('Generate a verification report for the witness evidence chain')
+    .option('--from <sequence>', 'Start event sequence', (v) => parseInt(v, 10))
+    .option('--to <sequence>', 'End event sequence', (v) => parseInt(v, 10))
+    .action(async (cmdOpts: { from?: number; to?: number }) => {
+      console.error(`[nous:cli] command=witness-verify`);
+      const opts = program.opts();
+      const client = createCliTrpcClient(opts.apiUrl);
+      const code = await runWitnessVerify(client, {
+        fromSequence: cmdOpts.from,
+        toSequence: cmdOpts.to,
+        json: opts.json ?? false,
+      });
+      process.exit(code);
+    });
+  witnessCmd
+    .command('list')
+    .description('List recent witness verification reports')
+    .option('--limit <n>', 'Max reports to list', (v) => parseInt(v, 10))
+    .action(async (cmdOpts: { limit?: number }) => {
+      console.error(`[nous:cli] command=witness-list`);
+      const opts = program.opts();
+      const client = createCliTrpcClient(opts.apiUrl);
+      const code = await runWitnessList(client, {
+        limit: cmdOpts.limit,
+        json: opts.json ?? false,
+      });
+      process.exit(code);
+    });
+  witnessCmd
+    .command('get')
+    .description('Get a witness verification report by id')
+    .requiredOption('--id <id>', 'Verification report id')
+    .action(async (cmdOpts: { id: string }) => {
+      console.error(`[nous:cli] command=witness-get`);
+      const opts = program.opts();
+      const client = createCliTrpcClient(opts.apiUrl);
+      const code = await runWitnessGet(client, {
+        id: cmdOpts.id,
+        json: opts.json ?? false,
+      });
+      process.exit(code);
+    });
+  witnessCmd.action(async () => {
+    console.error(`[nous:cli] command=witness`);
+    const opts = program.opts();
+    const client = createCliTrpcClient(opts.apiUrl);
+    const code = await runWitnessList(client, {
+      json: opts.json ?? false,
+    });
     process.exit(code);
   });
 
