@@ -11,7 +11,7 @@ export class PfcDeniedError extends NousError {
     reason: string,
     context?: Record<string, unknown>,
   ) {
-    super(`PFC denied: ${action} — ${reason}`, 'PFC_DENIED', context);
+    super(`Cortex denied: ${action} — ${reason}`, 'PFC_DENIED', context);
     this.name = 'PfcDeniedError';
   }
 }

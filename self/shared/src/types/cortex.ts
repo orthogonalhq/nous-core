@@ -7,9 +7,10 @@ import { z } from 'zod';
 import { ProjectIdSchema, TraceIdSchema, MemoryEntryIdSchema } from './ids.js';
 import { PfcTierSchema } from './enums.js';
 import { MemoryWriteCandidateSchema, StmContextSchema } from './memory.js';
+import { TraceEvidenceReferenceSchema } from './evidence.js';
 
-// --- PFC Decision ---
-// Result of a PFC evaluation — approve or deny with reason and confidence.
+// --- Cortex Decision ---
+// Result of a Cortex evaluation — approve or deny with reason and confidence.
 export const PfcDecisionSchema = z.object({
   approved: z.boolean(),
   reason: z.string(),
@@ -18,7 +19,7 @@ export const PfcDecisionSchema = z.object({
 export type PfcDecision = z.infer<typeof PfcDecisionSchema>;
 
 // --- Reflection Context ---
-// Context provided for PFC reflection.
+// Context provided for Cortex reflection.
 export const ReflectionContextSchema = z.object({
   output: z.unknown(),
   projectId: ProjectIdSchema.optional(),
@@ -28,7 +29,7 @@ export const ReflectionContextSchema = z.object({
 export type ReflectionContext = z.infer<typeof ReflectionContextSchema>;
 
 // --- Reflection Result ---
-// Result of a PFC reflection pass.
+// Result of a Cortex reflection pass.
 export const ReflectionResultSchema = z.object({
   confidence: z.number().min(0).max(1),
   qualityScore: z.number().min(0).max(1),
@@ -113,6 +114,7 @@ export const ExecutionTraceSchema = z.object({
         candidate: MemoryWriteCandidateSchema,
         reason: z.string(),
       })),
+      evidenceRefs: z.array(TraceEvidenceReferenceSchema).default([]),
       timestamp: z.string().datetime(),
     }),
   ),

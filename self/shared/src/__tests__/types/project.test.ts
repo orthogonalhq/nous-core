@@ -120,7 +120,7 @@ describe('ProjectConfigSchema', () => {
     expect(result.success).toBe(false);
   });
 
-  it('rejects invalid PFC tier (6)', () => {
+  it('rejects invalid Cortex tier (6)', () => {
     const result = ProjectConfigSchema.safeParse({
       ...validConfig,
       pfcTier: 6,

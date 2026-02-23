@@ -8,7 +8,7 @@
  */
 import { z } from 'zod';
 
-// --- PFC Tiers — from pfc-mode-capability-matrix.mdx ---
+// --- Cortex Tiers — from Cortex-mode-capability-matrix.mdx ---
 // Numeric: tiers are fundamentally ordinal values (tier 0 < tier 5)
 // and will be compared numerically in consuming code.
 export const PfcTierSchema = z.number().int().min(0).max(5);

@@ -9,6 +9,7 @@ import type {
   TraceId,
   PfcTier,
   MemoryWriteCandidate,
+  MemoryMutationRequest,
   PfcDecision,
   ReflectionContext,
   ReflectionResult,
@@ -26,6 +27,12 @@ export interface IPfcEngine {
     projectId?: ProjectId,
   ): Promise<PfcDecision>;
 
+  /** Evaluate a governed memory mutation request — approve or deny */
+  evaluateMemoryMutation(
+    request: MemoryMutationRequest,
+    projectId?: ProjectId,
+  ): Promise<PfcDecision>;
+
   /** Evaluate a tool execution request — authorize or deny */
   evaluateToolExecution(
     toolName: string,
@@ -39,7 +46,7 @@ export interface IPfcEngine {
   /** Determine whether to escalate to the Principal */
   evaluateEscalation(situation: EscalationSituation): Promise<EscalationDecision>;
 
-  /** Get the current PFC tier */
+  /** Get the current Cortex tier */
   getTier(): PfcTier;
 }
 
