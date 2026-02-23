@@ -95,6 +95,34 @@ describe('DocumentStmStore', () => {
     expect(context.entries).toHaveLength(1);
   });
 
+  it('compact summarizes older entries with provenance references', async () => {
+    for (let i = 0; i < 10; i++) {
+      await stmStore.append(projectId as any, {
+        role: i % 2 === 0 ? 'user' : 'assistant',
+        content: `Entry ${i}`,
+        timestamp: new Date(Date.now() + i * 1000).toISOString(),
+      });
+    }
+
+    await stmStore.compact(projectId as any);
+
+    const context = await stmStore.getContext(projectId as any);
+    expect(context.entries.length).toBeLessThan(10);
+    expect(context.summary).toBeTruthy();
+
+    const summaries = await documentStore.query<Record<string, unknown>>(
+      'stm_compaction_summaries',
+      { where: { projectId } },
+    );
+    expect(summaries.length).toBeGreaterThan(0);
+    const summary = summaries[0] as {
+      sourceEntryRefs?: unknown[];
+      sourceEntryCount?: number;
+    };
+    expect(Array.isArray(summary.sourceEntryRefs)).toBe(true);
+    expect(summary.sourceEntryCount).toBeGreaterThan(0);
+  });
+
   it('rejects invalid role', async () => {
     await expect(
       stmStore.append(projectId as any, {
