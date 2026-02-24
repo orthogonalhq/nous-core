@@ -8,6 +8,7 @@ import { runSend } from './commands/send.js';
 import { runProjectsList, runProjectsCreate, runProjectsSwitch } from './commands/projects.js';
 import { runConfigGet, runConfigSet } from './commands/config.js';
 import { runWitnessGet, runWitnessList, runWitnessVerify } from './commands/witness.js';
+import { runOpctlRequestProof } from './commands/opctl.js';
 
 const DEFAULT_API_PORT = process.env.NOUS_WEB_PORT ?? '4317';
 const DEFAULT_API_URL = process.env.NOUS_API_URL ?? `http://localhost:${DEFAULT_API_PORT}`;
@@ -160,6 +161,41 @@ async function main(): Promise<number> {
       json: opts.json ?? false,
     });
     process.exit(code);
+  });
+
+  const opctlCmd = program
+    .command('opctl')
+    .description('Operator control — submit commands and request confirmation');
+  opctlCmd
+    .command('request-proof')
+    .description('Request a confirmation proof for T1/T2/T3 commands')
+    .requiredOption('--action <action>', 'Control action (e.g. pause, cancel, hard_stop)')
+    .requiredOption('--tier <tier>', 'Confirmation tier (T1, T2, T3)')
+    .option('--scope-kind <kind>', 'Scope kind (single_agent, agent_set, project_run)', 'project_run')
+    .option('--scope-class <class>', 'Scope class', 'project_run_scope')
+    .option('--project <id>', 'Project ID for scope')
+    .option('--reason <reason>', 'Reason for confirmation')
+    .action(async (cmdOpts: { action: string; tier: string; scopeKind?: string; scopeClass?: string; project?: string; reason?: string }) => {
+      console.error(`[nous:cli] command=opctl-request-proof`);
+      const opts = program.opts();
+      const client = createCliTrpcClient(opts.apiUrl);
+      const code = await runOpctlRequestProof(client, {
+        scope: {
+          kind: cmdOpts.scopeKind ?? 'project_run',
+          scopeClass: cmdOpts.scopeClass ?? 'project_run_scope',
+          projectId: cmdOpts.project,
+        },
+        action: cmdOpts.action,
+        tier: cmdOpts.tier,
+        reason: cmdOpts.reason,
+        json: opts.json ?? false,
+      });
+      process.exit(code);
+    });
+  opctlCmd.action(async () => {
+    console.error(`[nous:cli] command=opctl`);
+    console.error('Use: nous opctl request-proof --action <action> --tier <tier>');
+    process.exit(0);
   });
 
   program.parse();
