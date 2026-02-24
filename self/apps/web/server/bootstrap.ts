@@ -22,6 +22,12 @@ import { ModelRouter } from '@nous/subcortex-router';
 import { ProviderRegistry } from '@nous/subcortex-providers';
 import { ToolExecutor } from '@nous/subcortex-tools';
 import { WitnessService } from '@nous/subcortex-witnessd';
+import {
+  OpctlService,
+  InMemoryReplayStore,
+  InMemoryStartLockStore,
+  InMemoryScopeLockStore,
+} from '@nous/subcortex-opctl';
 import type { NousContext } from './context';
 
 const MOCK_PROVIDER_ID = '00000000-0000-0000-0000-000000000001' as ProviderId;
@@ -116,6 +122,12 @@ export function createNousContext(): NousContext {
   const stmStore = new DocumentStmStore(documentStore);
   const projectStore = new DocumentProjectStore(documentStore);
   const witnessService = new WitnessService(documentStore);
+  const opctlService = new OpctlService({
+    replayStore: new InMemoryReplayStore(),
+    startLockStore: new InMemoryStartLockStore(),
+    scopeLockStore: new InMemoryScopeLockStore(),
+    witnessService,
+  });
 
   const toolExecutor = new ToolExecutor();
   const Cortex = new PfcEngine(config, toolExecutor);
@@ -151,6 +163,7 @@ export function createNousContext(): NousContext {
     projectStore,
     documentStore,
     witnessService,
+    opctlService,
     traceSensitiveData,
   });
 
@@ -164,6 +177,7 @@ export function createNousContext(): NousContext {
     router,
     getProvider,
     witnessService,
+    opctlService,
     dataDir,
   };
 

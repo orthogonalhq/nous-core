@@ -53,3 +53,6 @@ export type MemoryMutationId = z.infer<typeof MemoryMutationIdSchema>;
 
 export const MemoryTombstoneIdSchema = brandedId('MemoryTombstoneId');
 export type MemoryTombstoneId = z.infer<typeof MemoryTombstoneIdSchema>;
+
+export const ControlCommandIdSchema = brandedId('ControlCommandId');
+export type ControlCommandId = z.infer<typeof ControlCommandIdSchema>;

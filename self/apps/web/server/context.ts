@@ -8,6 +8,7 @@ import type {
   IProjectStore,
   IStmStore,
   IWitnessService,
+  IOpctlService,
 } from '@nous/shared';
 import type { MwcPipeline } from '@nous/memory-mwc';
 import type { IDocumentStore } from '@nous/shared';
@@ -26,5 +27,6 @@ export interface NousContext {
   router: IModelRouter;
   getProvider: (id: ProviderId) => IModelProvider | null;
   witnessService: IWitnessService;
+  opctlService: IOpctlService;
   dataDir: string;
 }

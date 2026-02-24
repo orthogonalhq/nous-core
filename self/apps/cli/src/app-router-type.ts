@@ -4,6 +4,10 @@
  * TODO: Import from shared package when router is extracted.
  */
 import type {
+  ConfirmationProof,
+  ConfirmationProofRequest,
+  ControlCommandEnvelope,
+  OpctlSubmitResult,
   ProjectId,
   TraceId,
   VerificationReport,
@@ -44,6 +48,20 @@ export type AppRouter = {
     };
     latestCheckpoint: {
       query: () => Promise<WitnessCheckpoint | null>;
+    };
+  };
+  opctl: {
+    submitCommand: {
+      mutate: (input: {
+        envelope: ControlCommandEnvelope;
+        confirmationProof?: ConfirmationProof;
+      }) => Promise<OpctlSubmitResult>;
+    };
+    requestConfirmationProof: {
+      mutate: (input: ConfirmationProofRequest) => Promise<ConfirmationProof>;
+    };
+    hasStartLock: {
+      query: (input: { projectId: string }) => Promise<boolean>;
     };
   };
 };

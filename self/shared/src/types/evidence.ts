@@ -31,12 +31,17 @@ export const InvariantPrefixSchema = z.enum([
   'CHAIN',
   'ISO',
   'PRV',
+  'OPCTL',
+  'START',
+  'ESC',
 ]);
 export type InvariantPrefix = z.infer<typeof InvariantPrefixSchema>;
 
 export const InvariantCodeSchema = z
   .string()
-  .regex(/^(AUTH|EVID|MEM|CHAIN|ISO|PRV)-[A-Z0-9][A-Z0-9-]*$/);
+  .regex(
+    /^(AUTH|EVID|MEM|CHAIN|ISO|PRV|OPCTL|START|ESC)-[A-Z0-9][A-Z0-9-]*$/,
+  );
 export type InvariantCode = z.infer<typeof InvariantCodeSchema>;
 
 export const CriticalActionCategorySchema = z.enum([
@@ -44,6 +49,7 @@ export const CriticalActionCategorySchema = z.enum([
   'tool-execute',
   'memory-write',
   'trace-persist',
+  'opctl-command',
 ]);
 export type CriticalActionCategory = z.infer<typeof CriticalActionCategorySchema>;
 
@@ -60,6 +66,8 @@ export const WitnessActorSchema = z.enum([
   'subcortex',
   'principal',
   'system',
+  'orchestration_agent',
+  'worker_agent',
 ]);
 export type WitnessActor = z.infer<typeof WitnessActorSchema>;
 
