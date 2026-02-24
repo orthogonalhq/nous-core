@@ -1,0 +1,25 @@
+{
+  "name": "nous-benchmark",
+  "version": "0.0.1",
+  "private": true,
+  "description": "Benchmark harness and adapter conformance for Nous-OSS",
+  "type": "module",
+  "scripts": {
+    "build": "tsc",
+    "typecheck": "tsc --noEmit",
+    "test": "vitest run",
+    "test:watch": "vitest",
+    "benchmark:tier0": "vitest run --config vitest.config.ts"
+  },
+  "dependencies": {
+    "@nous/shared": "workspace:*"
+  },
+  "devDependencies": {
+    "@types/node": "^20",
+    "typescript": "^5",
+    "vitest": "^4.0.18"
+  },
+  "engines": {
+    "node": ">=22"
+  }
+}

@@ -6,6 +6,7 @@ packages:
   - self/subcortex/*
   - self/apps/*
   - scripts/install
+  - scripts/benchmark
   - docs
 ignoredBuiltDependencies:
   - esbuild

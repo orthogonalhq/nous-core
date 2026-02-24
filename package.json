@@ -15,6 +15,7 @@
     "format": "oxlint --fix self/",
     "test": "vitest run",
     "test:watch": "vitest",
+    "benchmark:tier0": "pnpm --filter nous-benchmark run test",
     "dev:web": "pnpm --filter @nous/web dev",
     "dev:cli": "pnpm --filter @nous/cli run dev --",
     "dev:docs": "pnpm --filter docs dev",
