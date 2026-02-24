@@ -1,0 +1,112 @@
+---
+title: Benchmark Runbook
+description: How to run benchmarks, interpret reports, and handle overrides
+---
+
+# Benchmark Runbook
+
+Phase 2.4 establishes the benchmark infrastructure for regression prevention. This runbook covers how to run benchmarks, interpret reports, and handle change-control overrides.
+
+## Overview
+
+The benchmark harness lives in `scripts/benchmark`. It provides:
+
+- **Shared schemas** (`@nous/shared`): `BenchmarkSpec`, `RunRecord`, `EvidenceBundle`, `ScoreReport`
+- **AgentAdapter contract**: All target agents integrate through the same interface
+- **Tier 0 (PR gate)**: Deterministic subset using mock adapter; blocks merge on hard-gate failure
+- **Tier 1 (nightly)**: Full benchmark families with trend history
+- **Tier 2 (release)**: Release report contract and hard-stop conditions
+
+## Running Benchmarks
+
+### Tier 0 — PR Gate
+
+Runs on every PR. Deterministic; uses mock adapter.
+
+```bash
+pnpm run benchmark:tier0
+```
+
+Or run the benchmark package tests directly:
+
+```bash
+pnpm --filter nous-benchmark run test
+```
+
+### Tier 1 — Nightly
+
+```bash
+pnpm --filter nous-benchmark run test
+```
+
+### Tier 2 — Release Gate
+
+```bash
+pnpm --filter nous-benchmark run test
+```
+
+(Release report generation is wired in the harness; full CI integration is phased.)
+
+## Report Interpretation
+
+### ScoreReport
+
+Each run produces a `ScoreReport` with:
+
+- `gate_outcome`: `pass` | `fail` | `blocked`
+- `hard_gate_violations`: List of violation codes when gate fails
+- `metrics`: Family-specific metrics (e.g., `time_to_success_ms`, `intervention_events`)
+
+### Global Hard Gates
+
+| Gate | Violation | Meaning |
+|------|-----------|---------|
+| Evidence linkage | `missing_evidence_linkage` | Run has no `evidence_bundle_ref` |
+| Evidence mismatch | `evidence_bundle_ref_mismatch` | Artifact bundle ref doesn't match run record |
+| Side effects | `unauthorized_critical_side_effects` | Unauthorized tool/filesystem/network/memory actions |
+
+### Gate Outcome
+
+- **pass**: All hard gates satisfied; run is trendable
+- **fail**: One or more hard gates violated; run is not trendable
+- **blocked**: Adapter returned `capability_mismatch` or similar; run skipped
+
+## Override and Change Control
+
+Per ratified architecture:
+
+- **Threshold changes** require explicit Principal approval
+- **Rubric/scoring logic changes** require explicit Principal approval
+- **Benchmark removal from any blocking tier** requires explicit Principal approval
+- **Benchmark promotion between tiers** requires explicit Principal approval
+
+No autonomous threshold adjustment is allowed.
+
+## Adapter Conformance
+
+The baseline requires 5 conformance tests:
+
+1. Schema validation for all interface payloads
+2. Lifecycle ordering (`prepare` → `execute` → `capture` → `cleanup`)
+3. Idempotency for repeated capture calls
+4. Evidence bundle completeness
+5. Timestamp monotonicity
+
+The full contract defines 8 tests. Replay (deterministic seed reuse), capability mismatch behavior, and error mapping (raw target failures → normalized codes) are deferred to follow-up.
+
+Adapters are not eligible for release-gate benchmarking until all conformance tests pass.
+
+## Benchmark Families
+
+| Family | Purpose | Tier 0 | Tier 1 |
+|--------|---------|--------|--------|
+| NodeFlowBench | Strict workflow determinism | Smoke | Full |
+| MemoryQualityBench | Novel learning quality | Smoke | Full |
+| VendingBench | Autonomy learning | — | Reduced |
+| Reference-agent | Comparative usability | — | P0 |
+
+## Links
+
+- [Phase 2.4 Goals](/worklog/phase-2/phase-2.4/goals.mdx)
+- [Cross-Agent Benchmark Architecture](/.architecture/.decisions/2026-02-19-agent-architecture/cross-agent-benchmark-architecture-v1.md)
+- [Agent Adapter Contract](/.architecture/.decisions/2026-02-19-agent-architecture/agent-adapter-contract-v1.md)
