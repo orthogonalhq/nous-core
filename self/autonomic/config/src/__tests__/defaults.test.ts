@@ -96,7 +96,7 @@ describe('DEFAULT_SYSTEM_CONFIG', () => {
     expect(DEFAULT_SYSTEM_CONFIG.profile.name).toBe('local-only');
   });
 
-  it('defaults to PFC tier 2', () => {
+  it('defaults to Cortex tier 2', () => {
     expect(DEFAULT_SYSTEM_CONFIG.pfcTier).toBe(2);
   });
 

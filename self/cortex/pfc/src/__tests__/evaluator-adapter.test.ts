@@ -2,7 +2,10 @@
  * Unit tests for createPfcEvaluator adapter.
  */
 import { describe, it, expect } from 'vitest';
-import { createPfcEvaluator } from '../evaluator-adapter.js';
+import {
+  createPfcEvaluator,
+  createPfcMutationEvaluator,
+} from '../evaluator-adapter.js';
 import { PfcEngine } from '../pfc-engine.js';
 import type { IConfig, IToolExecutor } from '@nous/shared';
 
@@ -24,8 +27,8 @@ function mockToolExecutor(): IToolExecutor {
 
 describe('createPfcEvaluator', () => {
   it('maps PfcDecision to MwcEvaluator return shape when approved', async () => {
-    const pfc = new PfcEngine(mockConfig(), mockToolExecutor());
-    const evaluator = createPfcEvaluator(pfc);
+    const Cortex = new PfcEngine(mockConfig(), mockToolExecutor());
+    const evaluator = createPfcEvaluator(Cortex);
     const result = await evaluator(
       {
         content: 'test',
@@ -47,9 +50,9 @@ describe('createPfcEvaluator', () => {
     expect(result.reason).toBeDefined();
   });
 
-  it('returns approved false when PFC denies', async () => {
-    const pfc = new PfcEngine(mockConfig(), mockToolExecutor());
-    const evaluator = createPfcEvaluator(pfc);
+  it('returns approved false when Cortex denies', async () => {
+    const Cortex = new PfcEngine(mockConfig(), mockToolExecutor());
+    const evaluator = createPfcEvaluator(Cortex);
     const result = await evaluator(
       {
         content: 'test',
@@ -68,6 +71,40 @@ describe('createPfcEvaluator', () => {
       undefined,
     );
     expect(result.approved).toBe(false);
-    expect(result.reason).toContain('confidence');
+    expect(result.reason).toBe('MEM-CONFIDENCE-BELOW-THRESHOLD');
+  });
+});
+
+describe('createPfcMutationEvaluator', () => {
+  it('maps mutation denial to reasonCode when reason uses MEM prefix', async () => {
+    const Cortex = new PfcEngine(mockConfig(), mockToolExecutor());
+    const evaluator = createPfcMutationEvaluator(Cortex);
+    const result = await evaluator({
+      action: 'hard-delete',
+      actor: 'operator',
+      targetEntryId: '00000000-0000-0000-0000-000000000001' as never,
+      reason: 'test',
+      traceId: '00000000-0000-0000-0000-000000000001' as never,
+      evidenceRefs: [],
+    });
+
+    expect(result.approved).toBe(false);
+    expect(result.reasonCode).toBe('MEM-HARD-DELETE-REQUIRES-OVERRIDE');
+  });
+
+  it('maps approved mutation to MEM reasonCode', async () => {
+    const Cortex = new PfcEngine(mockConfig(), mockToolExecutor());
+    const evaluator = createPfcMutationEvaluator(Cortex);
+    const result = await evaluator({
+      action: 'soft-delete',
+      actor: 'operator',
+      targetEntryId: '00000000-0000-0000-0000-000000000001' as never,
+      reason: 'cleanup',
+      traceId: '00000000-0000-0000-0000-000000000001' as never,
+      evidenceRefs: [],
+    });
+
+    expect(result.approved).toBe(true);
+    expect(result.reasonCode).toBe('MEM-MUTATION-APPROVED');
   });
 });

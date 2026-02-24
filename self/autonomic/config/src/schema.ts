@@ -1,7 +1,7 @@
 /**
  * Configuration schema for Nous-OSS.
  *
- * Zod schemas for the full system configuration including PFC tier presets,
+ * Zod schemas for the full system configuration including Cortex tier presets,
  * model role assignments, deployment profiles, and storage backends.
  */
 import { z } from 'zod';
@@ -14,10 +14,11 @@ import {
   ProviderTypeSchema,
   MemoryAccessPolicySchema,
   ProviderIdSchema,
+  ProviderClassSchema,
 } from '@nous/shared';
 
-// --- PFC Tier Preset ---
-// What each tier enables — from pfc-mode-capability-matrix.mdx.
+// --- Cortex Tier Preset ---
+// What each tier enables — from Cortex-mode-capability-matrix.mdx.
 export const PfcTierPresetSchema = z.object({
   tier: PfcTierSchema,
   name: z.string(),
@@ -57,19 +58,45 @@ export const ProviderConfigEntrySchema = z.object({
   isLocal: z.boolean(),
   maxTokens: z.number().positive().optional(),
   capabilities: z.array(z.string()),
+  providerClass: ProviderClassSchema.optional(),
+  meetsProfiles: z.array(z.string()).optional(),
 });
 export type ProviderConfigEntry = z.infer<typeof ProviderConfigEntrySchema>;
+
+// --- Profile Name (legacy + canonical, Phase 2.3) ---
+export const ProfileNameSchema = z.enum([
+  'local-only',
+  'remote-only',
+  'hybrid',
+  'local_strict',
+  'hybrid_controlled',
+  'remote_primary',
+]);
+export type ProfileName = z.infer<typeof ProfileNameSchema>;
 
 // --- Profile ---
 // Deployment profile.
 export const ProfileSchema = z.object({
-  name: z.enum(['local-only', 'remote-only', 'hybrid']),
+  name: ProfileNameSchema,
   description: z.string(),
   defaultProviderType: z.enum(['local', 'remote']),
   allowLocalProviders: z.boolean(),
   allowRemoteProviders: z.boolean(),
+  allowSilentLocalToRemoteFailover: z.boolean().optional().default(false),
 });
 export type Profile = z.infer<typeof ProfileSchema>;
+
+// --- Credential Lookup Key (Phase 2.3) ---
+export const CredentialPurposeSchema = z.enum(['api_key', 'bearer', 'inference']);
+export type CredentialPurpose = z.infer<typeof CredentialPurposeSchema>;
+
+export const CredentialLookupKeySchema = z.object({
+  projectId: z.string().uuid().optional(),
+  profileId: z.string(),
+  providerClass: ProviderClassSchema,
+  credentialPurpose: CredentialPurposeSchema,
+});
+export type CredentialLookupKey = z.infer<typeof CredentialLookupKeySchema>;
 
 // --- Storage Configuration ---
 export const StorageConfigSchema = z.object({

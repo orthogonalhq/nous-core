@@ -35,3 +35,24 @@ export type WorkflowExecutionId = z.infer<typeof WorkflowExecutionIdSchema>;
 
 export const EscalationIdSchema = brandedId('EscalationId');
 export type EscalationId = z.infer<typeof EscalationIdSchema>;
+
+export const WitnessEventIdSchema = brandedId('WitnessEventId');
+export type WitnessEventId = z.infer<typeof WitnessEventIdSchema>;
+
+export const WitnessCheckpointIdSchema = brandedId('WitnessCheckpointId');
+export type WitnessCheckpointId = z.infer<typeof WitnessCheckpointIdSchema>;
+
+export const VerificationReportIdSchema = brandedId('VerificationReportId');
+export type VerificationReportId = z.infer<typeof VerificationReportIdSchema>;
+
+export const AttestationReceiptIdSchema = brandedId('AttestationReceiptId');
+export type AttestationReceiptId = z.infer<typeof AttestationReceiptIdSchema>;
+
+export const MemoryMutationIdSchema = brandedId('MemoryMutationId');
+export type MemoryMutationId = z.infer<typeof MemoryMutationIdSchema>;
+
+export const MemoryTombstoneIdSchema = brandedId('MemoryTombstoneId');
+export type MemoryTombstoneId = z.infer<typeof MemoryTombstoneIdSchema>;
+
+export const ControlCommandIdSchema = brandedId('ControlCommandId');
+export type ControlCommandId = z.infer<typeof ControlCommandIdSchema>;

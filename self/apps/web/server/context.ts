@@ -3,7 +3,15 @@
  *
  * Holds the wired Nous stack: core executor, stores, config, etc.
  */
-import type { ICoreExecutor, IProjectStore, IStmStore } from '@nous/shared';
+import type {
+  ICoreExecutor,
+  IProjectStore,
+  IStmStore,
+  IWitnessService,
+  IOpctlService,
+  IMaoProjectionService,
+  IGtmGateCalculator,
+} from '@nous/shared';
 import type { MwcPipeline } from '@nous/memory-mwc';
 import type { IDocumentStore } from '@nous/shared';
 import type { IModelRouter } from '@nous/shared';
@@ -20,5 +28,9 @@ export interface NousContext {
   config: IConfig;
   router: IModelRouter;
   getProvider: (id: ProviderId) => IModelProvider | null;
+  witnessService: IWitnessService;
+  opctlService: IOpctlService;
+  maoProjectionService: IMaoProjectionService;
+  gtmGateCalculator: IGtmGateCalculator;
   dataDir: string;
 }

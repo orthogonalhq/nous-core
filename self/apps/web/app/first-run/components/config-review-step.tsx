@@ -22,7 +22,7 @@ export function ConfigReviewStep({ onNext }: ConfigReviewStepProps) {
       </CardHeader>
       <CardContent className="space-y-4">
         <div>
-          <p className="text-sm font-medium">PFC Tier</p>
+          <p className="text-sm font-medium">Cortex Tier</p>
           <p className="text-muted-foreground text-sm">
             {pfcTier} — Controls orchestration strength and reflection depth.
           </p>

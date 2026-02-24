@@ -3,8 +3,11 @@
  */
 import { z } from 'zod';
 import { router, publicProcedure } from '../trpc';
-import { ProjectIdSchema } from '@nous/shared';
-import { ExecutionTraceSchema } from '@nous/shared';
+import {
+  ExecutionTraceSchema,
+  ProjectIdSchema,
+  VerificationReportIdSchema,
+} from '@nous/shared';
 
 const TRACE_COLLECTION = 'execution_traces';
 
@@ -41,5 +44,41 @@ export const tracesRouter = router({
       return ctx.coreExecutor.getTrace(
         input.traceId as import('@nous/shared').TraceId,
       );
+    }),
+
+  verificationReports: publicProcedure
+    .input(z.object({ traceId: z.string().uuid() }))
+    .query(async ({ ctx, input }) => {
+      const trace = await ctx.coreExecutor.getTrace(
+        input.traceId as import('@nous/shared').TraceId,
+      );
+      if (!trace) {
+        return [];
+      }
+
+      const reportIds = new Set<import('@nous/shared').VerificationReportId>();
+      for (const turn of trace.turns) {
+        for (const evidenceRef of turn.evidenceRefs) {
+          if (!evidenceRef.verificationReportId) {
+            continue;
+          }
+          const parsedId = VerificationReportIdSchema.safeParse(
+            evidenceRef.verificationReportId,
+          );
+          if (parsedId.success) {
+            reportIds.add(parsedId.data);
+          }
+        }
+      }
+
+      const reports: import('@nous/shared').VerificationReport[] = [];
+      for (const reportId of reportIds) {
+        const report = await ctx.witnessService.getReport(reportId);
+        if (report) {
+          reports.push(report);
+        }
+      }
+
+      return reports;
     }),
 });

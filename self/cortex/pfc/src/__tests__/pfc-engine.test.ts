@@ -38,6 +38,7 @@ describe('PfcEngine', () => {
     );
     expect(pfc).toBeDefined();
     expect(typeof pfc.evaluateMemoryWrite).toBe('function');
+    expect(typeof pfc.evaluateMemoryMutation).toBe('function');
     expect(typeof pfc.evaluateToolExecution).toBe('function');
     expect(typeof pfc.reflect).toBe('function');
     expect(typeof pfc.evaluateEscalation).toBe('function');
@@ -68,7 +69,7 @@ describe('PfcEngine', () => {
         undefined,
       );
       expect(decision.approved).toBe(false);
-      expect(decision.reason).toContain('confidence');
+      expect(decision.reason).toBe('MEM-CONFIDENCE-BELOW-THRESHOLD');
     });
 
     it('approves candidate with confidence >= 0.5', async () => {
@@ -94,7 +95,85 @@ describe('PfcEngine', () => {
         undefined,
       );
       expect(decision.approved).toBe(true);
-      expect(decision.reason).toContain('passed');
+      expect(decision.reason).toBe('MEM-WRITE-APPROVED');
+    });
+  });
+
+  describe('evaluateMemoryMutation', () => {
+    const traceId = '00000000-0000-0000-0000-000000000001' as never;
+
+    it('denies direct core actor mutation attempts', async () => {
+      const pfc = new PfcEngine(mockConfig(3), mockToolExecutor([]));
+      const decision = await pfc.evaluateMemoryMutation({
+        action: 'soft-delete',
+        actor: 'core',
+        targetEntryId: '00000000-0000-0000-0000-000000000002' as never,
+        reason: 'test',
+        traceId,
+        evidenceRefs: [],
+      });
+
+      expect(decision.approved).toBe(false);
+      expect(decision.reason).toBe('MEM-ACTOR-BOUNDARY-BLOCKED');
+    });
+
+    it('denies hard-delete without principal override', async () => {
+      const pfc = new PfcEngine(mockConfig(3), mockToolExecutor([]));
+      const decision = await pfc.evaluateMemoryMutation({
+        action: 'hard-delete',
+        actor: 'operator',
+        targetEntryId: '00000000-0000-0000-0000-000000000003' as never,
+        reason: 'cleanup',
+        traceId,
+        evidenceRefs: [],
+      });
+
+      expect(decision.approved).toBe(false);
+      expect(decision.reason).toBe('MEM-HARD-DELETE-REQUIRES-OVERRIDE');
+    });
+
+    it('approves hard-delete with principal override', async () => {
+      const pfc = new PfcEngine(mockConfig(3), mockToolExecutor([]));
+      const decision = await pfc.evaluateMemoryMutation({
+        action: 'hard-delete',
+        actor: 'operator',
+        targetEntryId: '00000000-0000-0000-0000-000000000004' as never,
+        reason: 'legal request',
+        traceId,
+        principalOverride: { rationale: 'principal approved destructive erase' },
+        evidenceRefs: [],
+      });
+
+      expect(decision.approved).toBe(true);
+      expect(decision.reason).toBe('MEM-MUTATION-APPROVED');
+    });
+
+    it('denies create mutation when replacement candidate confidence is below threshold', async () => {
+      const pfc = new PfcEngine(mockConfig(3), mockToolExecutor([]));
+      const decision = await pfc.evaluateMemoryMutation({
+        action: 'create',
+        actor: 'pfc',
+        reason: 'test',
+        traceId,
+        evidenceRefs: [],
+        replacementCandidate: {
+          content: 'candidate',
+          type: 'fact',
+          scope: 'project',
+          confidence: 0.2,
+          sensitivity: [],
+          retention: 'permanent',
+          provenance: {
+            traceId,
+            source: 'test',
+            timestamp: new Date().toISOString(),
+          },
+          tags: [],
+        },
+      });
+
+      expect(decision.approved).toBe(false);
+      expect(decision.reason).toBe('MEM-CONFIDENCE-BELOW-THRESHOLD');
     });
   });
 

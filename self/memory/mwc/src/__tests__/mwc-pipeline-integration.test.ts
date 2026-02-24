@@ -53,9 +53,10 @@ describe('MWC pipeline integration', () => {
     const deleted = await pipeline.deleteEntry(id!);
     expect(deleted).toBe(true);
 
-    // Export — assert empty
+    // Export — assert soft-deleted entry remains for audit transparency
     const export2 = await pipeline.exportForProject(projectId as any);
-    expect(export2.entries).toHaveLength(0);
+    expect(export2.entries).toHaveLength(1);
+    expect(export2.entries[0].lifecycleStatus).toBe('soft-deleted');
 
     // Submit another, add STM
     await stmStore.append(projectId as any, {
@@ -73,7 +74,82 @@ describe('MWC pipeline integration', () => {
     expect(count).toBe(1);
 
     const export3 = await pipeline.exportForProject(projectId as any);
-    expect(export3.entries).toHaveLength(0);
+    expect(export3.entries.some((entry) => entry.lifecycleStatus === 'active')).toBe(
+      false,
+    );
     expect(export3.stm.entries).toHaveLength(0);
+  });
+
+  it('deterministic mutation ordering for identical mutation sequence', async () => {
+    const build = async () => {
+      const deterministicIds = [
+        '00000000-0000-0000-0000-000000000001',
+        '00000000-0000-0000-0000-000000000002',
+        '00000000-0000-0000-0000-000000000003',
+        '00000000-0000-0000-0000-000000000004',
+        '00000000-0000-0000-0000-000000000005',
+        '00000000-0000-0000-0000-000000000006',
+      ];
+      let i = 0;
+      const fixedNow = '2026-02-22T00:00:00.000Z';
+      const dbPath = join(tmpdir(), `nous-mwc-order-${randomUUID()}.sqlite`);
+      const projectId = randomUUID();
+      const doc = new SqliteDocumentStore(dbPath);
+      const stm = new DocumentStmStore(doc);
+      const pip = new MwcPipeline(
+        doc,
+        stm,
+        createStubEvaluator(),
+        undefined,
+        {
+          idFactory: () => deterministicIds[i++ % deterministicIds.length],
+          now: () => fixedNow,
+        },
+      );
+
+      const candidate = {
+        content: 'Deterministic',
+        type: 'fact' as const,
+        scope: 'project' as const,
+        projectId: projectId as any,
+        confidence: 0.9,
+        sensitivity: [],
+        retention: 'permanent' as const,
+        provenance: {
+          traceId: randomUUID() as any,
+          source: 'test',
+          timestamp: fixedNow,
+        },
+        tags: [],
+      };
+
+      const firstId = await pip.submit(candidate, projectId as any);
+      await pip.mutate({
+        action: 'soft-delete',
+        actor: 'operator',
+        targetEntryId: firstId!,
+        projectId: projectId as any,
+        reason: 'delete',
+        traceId: candidate.provenance.traceId,
+        evidenceRefs: [],
+      });
+      return pip.listMutationAudit(projectId as any);
+    };
+
+    const runA = await build();
+    const runB = await build();
+    const shapeA = runA.map((item) => ({
+      sequence: item.sequence,
+      action: item.action,
+      outcome: item.outcome,
+      reasonCode: item.reasonCode,
+    }));
+    const shapeB = runB.map((item) => ({
+      sequence: item.sequence,
+      action: item.action,
+      outcome: item.outcome,
+      reasonCode: item.reasonCode,
+    }));
+    expect(shapeA).toEqual(shapeB);
   });
 });

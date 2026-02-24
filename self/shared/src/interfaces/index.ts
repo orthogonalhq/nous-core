@@ -21,6 +21,10 @@ export type {
   IEscalationService,
   ISandbox,
   IProjectApi,
+  IWitnessService,
+  IOpctlService,
+  IMaoProjectionService,
+  IGtmGateCalculator,
 } from './subcortex.js';
 export type {
   IDocumentStore,

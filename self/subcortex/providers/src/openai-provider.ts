@@ -39,6 +39,7 @@ export class OpenAiCompatibleProvider implements IModelProvider {
       throw new NousError(
         'OpenAI API key required — set OPENAI_API_KEY or pass apiKey option',
         'PROVIDER_AUTH_FAILED',
+        { failoverReasonCode: 'PRV-AUTH-FAILURE' },
       );
     }
   }
@@ -70,6 +71,15 @@ export class OpenAiCompatibleProvider implements IModelProvider {
       throw new NousError(
         'API key invalid or missing',
         'PROVIDER_AUTH_FAILED',
+        { failoverReasonCode: 'PRV-AUTH-FAILURE' },
+      );
+    }
+
+    if (response.status === 429) {
+      throw new NousError(
+        `OpenAI rate limit: ${response.status}`,
+        'PROVIDER_UNAVAILABLE',
+        { failoverReasonCode: 'PRV-RATE-LIMIT' },
       );
     }
 
@@ -78,6 +88,7 @@ export class OpenAiCompatibleProvider implements IModelProvider {
       throw new NousError(
         `OpenAI API error ${response.status}: ${text.slice(0, 200)}`,
         'PROVIDER_UNAVAILABLE',
+        { failoverReasonCode: 'PRV-PROVIDER-UNAVAILABLE' },
       );
     }
 
@@ -121,6 +132,15 @@ export class OpenAiCompatibleProvider implements IModelProvider {
       throw new NousError(
         'API key invalid or missing',
         'PROVIDER_AUTH_FAILED',
+        { failoverReasonCode: 'PRV-AUTH-FAILURE' },
+      );
+    }
+
+    if (response.status === 429) {
+      throw new NousError(
+        `OpenAI rate limit: ${response.status}`,
+        'PROVIDER_UNAVAILABLE',
+        { failoverReasonCode: 'PRV-RATE-LIMIT' },
       );
     }
 
@@ -129,6 +149,7 @@ export class OpenAiCompatibleProvider implements IModelProvider {
       throw new NousError(
         `OpenAI API error ${response.status}: ${text.slice(0, 200)}`,
         'PROVIDER_UNAVAILABLE',
+        { failoverReasonCode: 'PRV-PROVIDER-UNAVAILABLE' },
       );
     }
 
@@ -220,11 +241,13 @@ export class OpenAiCompatibleProvider implements IModelProvider {
         throw new NousError(
           `OpenAI request timed out after ${this.timeoutMs}ms`,
           'PROVIDER_UNAVAILABLE',
+          { failoverReasonCode: 'PRV-PROVIDER-UNAVAILABLE' },
         );
       }
       throw new NousError(
         `OpenAI endpoint unreachable: ${(e as Error).message}`,
         'PROVIDER_UNAVAILABLE',
+        { failoverReasonCode: 'PRV-PROVIDER-UNAVAILABLE' },
       );
     } finally {
       clearTimeout(timeout);

@@ -14,7 +14,7 @@ describe('SystemConfigSchema', () => {
     expect(result.success).toBe(false);
   });
 
-  it('rejects invalid PFC tier (6)', () => {
+  it('rejects invalid Cortex tier (6)', () => {
     const result = SystemConfigSchema.safeParse({
       ...DEFAULT_SYSTEM_CONFIG,
       pfcTier: 6,
@@ -22,7 +22,7 @@ describe('SystemConfigSchema', () => {
     expect(result.success).toBe(false);
   });
 
-  it('rejects negative PFC tier (-1)', () => {
+  it('rejects negative Cortex tier (-1)', () => {
     const result = SystemConfigSchema.safeParse({
       ...DEFAULT_SYSTEM_CONFIG,
       pfcTier: -1,

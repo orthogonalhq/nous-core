@@ -27,6 +27,7 @@ description: Reference for all tRPC procedures
 |----------|------|-------|--------|
 | `traces.list` | query | `{ projectId?, limit? }` | `ExecutionTrace[]` |
 | `traces.get` | query | `{ traceId }` | `ExecutionTrace \| null` |
+| `traces.verificationReports` | query | `{ traceId }` | `VerificationReport[]` |
 
 ## memory
 
@@ -34,11 +35,18 @@ description: Reference for all tRPC procedures
 |----------|------|-------|--------|
 | `memory.list` | query | `{ projectId }` | `MemoryEntry[]` |
 | `memory.denials` | query | `{ projectId }` | `{ candidate, reason }[]` |
-| `memory.export` | query | `{ projectId }` | `{ stm, entries }` |
-| `memory.delete` | mutation | `{ id?, projectId? }` | `{ deleted: number }` |
+| `memory.audit` | query | `{ projectId? }` | `MemoryMutationAuditRecord[]` |
+| `memory.tombstones` | query | `{ projectId? }` | `MemoryTombstone[]` |
+| `memory.export` | query | `{ projectId }` | `{ stm, entries, audit, tombstones }` |
+| `memory.supersede` | mutation | `{ id, replacement, projectId?, reason? }` | `MutationResult` |
+| `memory.promote` | mutation | `{ id, reason? }` | `MutationResult` |
+| `memory.demote` | mutation | `{ id, projectId, reason? }` | `MutationResult` |
+| `memory.delete` | mutation | `{ id?, projectId?, hard?, rationale? }` | `{ deleted: number, result?: MutationResult }` |
 
-- `id` — Delete single entry
-- `projectId` — Delete all entries for project
+- `id` with `hard` unset or `false` — Soft-delete a single entry (default delete mode)
+- `id` with `hard: true` and `rationale` — Hard-delete path (requires principal override rationale and emits tombstone)
+- `projectId` only — Soft-delete all active entries for the project
+- `memory.audit`/`memory.tombstones` — Operator observability for mutation decisions and hard-delete proofs
 
 ## config
 
@@ -46,6 +54,38 @@ description: Reference for all tRPC procedures
 |----------|------|-------|--------|
 | `config.get` | query | — | `SystemConfig` |
 | `config.update` | mutation | `{ pfcTier?, modelRoleAssignments? }` | — |
+
+## opctl
+
+| Procedure | Type | Input | Output |
+|----------|------|-------|--------|
+| `opctl.submitCommand` | mutation | `{ envelope: ControlCommandEnvelope, confirmationProof?: ConfirmationProof }` | `OpctlSubmitResult` |
+| `opctl.requestConfirmationProof` | mutation | `ConfirmationProofRequest` | `ConfirmationProof` |
+| `opctl.hasStartLock` | query | `{ projectId }` | `boolean` |
+| `opctl.getProjectControlState` | query | `{ projectId }` | `ProjectControlState` (running \| paused_review \| hard_stopped \| resuming) |
+
+- `submitCommand` — Submit a control command. For T1+ actions, include `confirmationProof` from `requestConfirmationProof`.
+- `requestConfirmationProof` — Request a runtime-issued, short-lived proof for T1/T2/T3 actions.
+- `hasStartLock` — Check if project has start lock (hard_stopped).
+- `getProjectControlState` — Get project control state for MAO-007 gating (running, paused_review, hard_stopped, resuming).
+
+## mao
+
+| Procedure | Type | Input | Output |
+|----------|------|-------|--------|
+| `mao.getAgentProjections` | query | `{ projectId }` | `MaoAgentProjection[]` |
+| `mao.getProjectControlProjection` | query | `{ projectId }` | `MaoProjectControlProjection \| null` |
+
+- `getAgentProjections` — Agent projections for a project (derived from canonical event/state truth).
+- `getProjectControlProjection` — Project control projection (pause/resume/hard-stop status, Cortex review).
+
+## gtm
+
+| Procedure | Type | Input | Output |
+|----------|------|-------|--------|
+| `gtm.computeGateReport` | query | `GtmGateReportInput` | `GtmGateReport` |
+
+- `computeGateReport` — Compute GTM gate report (CFPC, ABPR, promotion_blocked) from verification report, pillar status, benchmark results.
 
 ## health
 
@@ -59,3 +99,14 @@ description: Reference for all tRPC procedures
 |----------|------|-------|--------|
 | `firstRun.status` | query | — | `{ complete: boolean }` |
 | `firstRun.complete` | mutation | — | — |
+
+## witness
+
+| Procedure | Type | Input | Output |
+|----------|------|-------|--------|
+| `witness.verify` | mutation | `{ fromSequence?, toSequence? }` | `VerificationReport` |
+| `witness.listReports` | query | `{ limit? }` | `VerificationReport[]` |
+| `witness.getReport` | query | `{ id: VerificationReportId }` | `VerificationReport \| null` |
+| `witness.latestCheckpoint` | query | — | `WitnessCheckpoint \| null` |
+| `witness.createCheckpoint` | mutation | `{ reason?: 'interval' \| 'manual' \| 'rotation' }` | `WitnessCheckpoint` |
+| `witness.rotateKeyEpoch` | mutation | — | `number` (new active key epoch) |

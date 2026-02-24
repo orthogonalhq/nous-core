@@ -32,6 +32,10 @@ export default defineConfig({
         __dirname,
         '../../subcortex/projects/src/index.ts',
       ),
+      '@nous/subcortex-witnessd': path.resolve(
+        __dirname,
+        '../../subcortex/witnessd/src/index.ts',
+      ),
     },
   },
   test: {

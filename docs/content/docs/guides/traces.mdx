@@ -1,6 +1,6 @@
 ---
 title: Execution Traces
-description: Viewing execution traces and PFC decisions
+description: Viewing execution traces and Cortex decisions
 ---
 
 # Execution Traces
@@ -9,14 +9,31 @@ Every interaction with Nous produces an execution trace. Traces capture what hap
 
 ## What's in a Trace
 
-- **PFC decisions** — Memory write approvals/denials, tool authorizations
+- **Cortex decisions** — Memory write approvals/denials, tool authorizations
 - **Model calls** — Which model was invoked, token usage
 - **Memory actions** — Approved entries, denied candidates with reasons
+- **Evidence references** — Authorization/completion/invariant witness event IDs and linked verification report IDs
 - **Timing** — Step durations
 
 ## Viewing Traces
 
 **Web UI:** Open the Traces page. Traces are listed for the current project. Expand a trace to see turn-by-turn details.
+
+Each turn now includes evidence references for critical action categories (`model-invoke`, `tool-execute`, `memory-write`, `trace-persist`).
+
+## Trace -> Verification Workflow
+
+Use witness verification to generate integrity artifacts, then inspect linkage from trace evidence references:
+
+```bash
+pnpm dev:cli -- witness verify
+pnpm dev:cli -- witness list
+pnpm dev:cli -- witness get --id <report-id>
+```
+
+API consumers can use:
+- `witness.verify` to generate a `VerificationReport`
+- `traces.verificationReports` to retrieve reports linked to a specific trace
 
 ## Trace Sensitivity
 

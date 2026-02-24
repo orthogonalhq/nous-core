@@ -96,11 +96,11 @@ The thinnest layer. The highest authority. Decides, reflects, inhibits, authoriz
 
 ```
 self/cortex/
-├── pfc/                              # Prefrontal Cortex engine
+├── Cortex/                              # Prefrontal Cortex engine
 └── core/                             # Central executive loop
 ```
 
-### pfc/
+### Cortex/
 
 The Prefrontal Cortex engine.
 
@@ -125,12 +125,12 @@ Responsibilities:
 
 * Orchestrates the runtime flow for single agent cycles
 * Orchestrates long-running project supervision loops
-* Calls the PFC engine
+* Calls the Cortex engine
 * Coordinates the subcortex through interfaces
 * Coordinates memory through interfaces
 * Persists execution traces
 
-Core is the bridge between consciousness and the layers below. It does not make decisions — it coordinates the flow that allows the PFC to make decisions.
+Core is the bridge between consciousness and the layers below. It does not make decisions — it coordinates the flow that allows the Cortex to make decisions.
 
 ---
 
@@ -138,7 +138,7 @@ Core is the bridge between consciousness and the layers below. It does not make 
 
 The learning system. Stages, compresses, consolidates, retrieves, and governs access to knowledge.
 
-Memory is its own layer because it is neither consciousness nor subconscious. It receives experiences from above (through PFC-approved writes) and serves context upward (through retrieval). It has internal processing (distillation) that runs on its own schedule.
+Memory is its own layer because it is neither consciousness nor subconscious. It receives experiences from above (through Cortex-approved writes) and serves context upward (through retrieval). It has internal processing (distillation) that runs on its own schedule.
 
 ```
 self/memory/
@@ -313,7 +313,7 @@ Each tool declares:
 * Required capabilities
 * Permission scope
 
-Tools execute only through PFC authorization.
+Tools execute only through Cortex authorization.
 
 ### workflows/
 
@@ -543,7 +543,7 @@ Configuration schema and validation.
 
 Responsibilities:
 
-* PFC mode presets (tiers 0–5)
+* Cortex mode presets (tiers 0–5)
 * Model role assignments
 * Profile definitions (local-control, local-all, remote-all)
 * Validation and defaults
@@ -648,7 +648,7 @@ Bottom-up stability. Build the foundation before the intelligence.
 11. `memory/ltm/` — long-term memory
 12. `memory/access/` — access policy engine
 13. `memory/retrieval/` — retrieval orchestration
-14. `cortex/pfc/` — Prefrontal Cortex engine
+14. `cortex/Cortex/` — Prefrontal Cortex engine
 15. `cortex/core/` — central executive loop
 16. `self/apps/cli/` — terminal interface
 17. `memory/distillation/` — pattern compression

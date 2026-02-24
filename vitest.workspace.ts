@@ -12,6 +12,10 @@ export default defineWorkspace([
   'self/subcortex/tools',
   'self/subcortex/projects',
   'self/subcortex/stubs',
+  'self/subcortex/opctl',
+  'self/subcortex/witnessd',
+  'self/subcortex/mao',
+  'self/subcortex/gtm',
   'self/memory/stm',
   'self/memory/mwc',
   'self/memory/stubs',
@@ -19,4 +23,5 @@ export default defineWorkspace([
   'self/cortex/core',
   'self/apps/web',
   'scripts/install',
+  'scripts/benchmark',
 ]);

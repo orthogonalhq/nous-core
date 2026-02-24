@@ -11,6 +11,7 @@ import type {
   IStmStore,
   IProjectStore,
   IDocumentStore,
+  IWitnessService,
 } from '@nous/shared';
 import { randomUUID } from 'node:crypto';
 
@@ -22,6 +23,11 @@ function mockPfc(): IPfcEngine {
       approved: true,
       reason: 'ok',
       confidence: 0.8,
+    }),
+    evaluateMemoryMutation: vi.fn().mockResolvedValue({
+      approved: true,
+      reason: 'MEM-MUTATION-APPROVED',
+      confidence: 1,
     }),
     evaluateToolExecution: vi.fn().mockResolvedValue({
       approved: true,
@@ -42,9 +48,20 @@ function mockPfc(): IPfcEngine {
   };
 }
 
+const MOCK_PROVIDER_ID = randomUUID() as import('@nous/shared').ProviderId;
+
 function mockRouter(): IModelRouter {
   return {
-    route: vi.fn().mockResolvedValue(randomUUID() as import('@nous/shared').ProviderId),
+    route: vi.fn().mockResolvedValue(MOCK_PROVIDER_ID),
+    routeWithEvidence: vi.fn().mockResolvedValue({
+      providerId: MOCK_PROVIDER_ID,
+      evidence: {
+        profileId: 'hybrid_controlled',
+        policyLink: 'block_if_unmet',
+        capabilityProfile: 'review-standard',
+        selectedProviderId: MOCK_PROVIDER_ID,
+      },
+    }),
     listProviders: vi.fn().mockResolvedValue([]),
   };
 }
@@ -53,7 +70,7 @@ function mockProvider(output: string): IModelProvider {
   return {
     invoke: vi.fn().mockResolvedValue({
       output,
-      providerId: randomUUID() as import('@nous/shared').ProviderId,
+      providerId: MOCK_PROVIDER_ID,
       usage: { inputTokens: 0, outputTokens: 0 },
       traceId,
     }),
@@ -122,12 +139,35 @@ function mockDocumentStore(): IDocumentStore {
   };
 }
 
+function mockWitnessService(): IWitnessService {
+  const makeEvent = () =>
+    ({
+      id: randomUUID() as import('@nous/shared').WitnessEventId,
+    }) as import('@nous/shared').WitnessEvent;
+
+  return {
+    appendAuthorization: vi.fn().mockImplementation(async () => makeEvent()),
+    appendCompletion: vi.fn().mockImplementation(async () => makeEvent()),
+    appendInvariant: vi.fn().mockImplementation(async () => makeEvent()),
+    createCheckpoint: vi.fn().mockResolvedValue(
+      {} as import('@nous/shared').WitnessCheckpoint,
+    ),
+    rotateKeyEpoch: vi.fn().mockResolvedValue(1),
+    verify: vi.fn().mockResolvedValue(
+      {} as import('@nous/shared').VerificationReport,
+    ),
+    getReport: vi.fn().mockResolvedValue(null),
+    listReports: vi.fn().mockResolvedValue([]),
+    getLatestCheckpoint: vi.fn().mockResolvedValue(null),
+  };
+}
+
 describe('CoreExecutor', () => {
   it('implements ICoreExecutor contract', () => {
     const provider = mockProvider('hi');
     const docStore = mockDocumentStore();
     const executor = new CoreExecutor({
-      pfc: mockPfc(),
+      Cortex: mockPfc(),
       router: mockRouter(),
       getProvider: () => provider,
       toolExecutor: mockToolExecutor(),
@@ -135,6 +175,7 @@ describe('CoreExecutor', () => {
       mwcPipeline: mockMwcPipeline(),
       projectStore: mockProjectStore(),
       documentStore: docStore,
+      witnessService: mockWitnessService(),
     });
     expect(executor).toBeDefined();
     expect(typeof executor.executeTurn).toBe('function');
@@ -146,7 +187,7 @@ describe('CoreExecutor', () => {
     const provider = mockProvider('Hello from model');
     const docStore = mockDocumentStore();
     const executor = new CoreExecutor({
-      pfc: mockPfc(),
+      Cortex: mockPfc(),
       router: mockRouter(),
       getProvider: () => provider,
       toolExecutor: mockToolExecutor(),
@@ -154,6 +195,7 @@ describe('CoreExecutor', () => {
       mwcPipeline: mockMwcPipeline(),
       projectStore: mockProjectStore(),
       documentStore: docStore,
+      witnessService: mockWitnessService(),
     });
 
     const result = await executor.executeTurn({
@@ -168,7 +210,7 @@ describe('CoreExecutor', () => {
   it('throws ValidationError for invalid TurnInput', async () => {
     const { ValidationError } = await import('@nous/shared');
     const executor = new CoreExecutor({
-      pfc: mockPfc(),
+      Cortex: mockPfc(),
       router: mockRouter(),
       getProvider: () => mockProvider(''),
       toolExecutor: mockToolExecutor(),
@@ -176,6 +218,7 @@ describe('CoreExecutor', () => {
       mwcPipeline: mockMwcPipeline(),
       projectStore: mockProjectStore(),
       documentStore: mockDocumentStore(),
+      witnessService: mockWitnessService(),
     });
 
     await expect(
@@ -189,7 +232,7 @@ describe('CoreExecutor', () => {
   it('superviseProject throws NOT_IMPLEMENTED', async () => {
     const { NousError } = await import('@nous/shared');
     const executor = new CoreExecutor({
-      pfc: mockPfc(),
+      Cortex: mockPfc(),
       router: mockRouter(),
       getProvider: () => mockProvider(''),
       toolExecutor: mockToolExecutor(),
@@ -197,6 +240,7 @@ describe('CoreExecutor', () => {
       mwcPipeline: mockMwcPipeline(),
       projectStore: mockProjectStore(),
       documentStore: mockDocumentStore(),
+      witnessService: mockWitnessService(),
     });
 
     await expect(

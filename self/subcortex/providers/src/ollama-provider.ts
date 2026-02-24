@@ -165,11 +165,13 @@ export class OllamaProvider implements IModelProvider {
         throw new NousError(
           `Ollama request timed out after ${this.timeoutMs}ms`,
           'PROVIDER_UNAVAILABLE',
+          { failoverReasonCode: 'PRV-PROVIDER-UNAVAILABLE' },
         );
       }
       throw new NousError(
         `Ollama not available at ${this.endpoint}: ${(e as Error).message}`,
         'PROVIDER_UNAVAILABLE',
+        { failoverReasonCode: 'PRV-PROVIDER-UNAVAILABLE' },
       );
     } finally {
       clearTimeout(timeout);
@@ -179,11 +181,14 @@ export class OllamaProvider implements IModelProvider {
   private async handleError(response: Response): Promise<never> {
     const text = await response.text();
     if (response.status === 404) {
-      throw new NousError('Model not found', 'MODEL_NOT_FOUND');
+      throw new NousError('Model not found', 'MODEL_NOT_FOUND', {
+        failoverReasonCode: 'PRV-PROVIDER-UNAVAILABLE',
+      });
     }
     throw new NousError(
       `Ollama error ${response.status}: ${text.slice(0, 200)}`,
       'PROVIDER_UNAVAILABLE',
+      { failoverReasonCode: 'PRV-PROVIDER-UNAVAILABLE' },
     );
   }
 

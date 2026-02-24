@@ -1,11 +1,11 @@
 ---
 title: Security Baseline
-description: Phase 1 security measures for Nous-OSS
+description: Baseline security controls for Nous-OSS (Phase 1 + Phase 2.1 witness evidence chain)
 ---
 
 # Security Baseline
 
-Phase 1 establishes a baseline of security measures appropriate for a local-first system.
+Nous uses a layered local-first security baseline. Phase 1 established foundational controls, and Phase 2.1 added witness evidence-chain verification for critical actions.
 
 ## Localhost-Only by Default
 
@@ -31,7 +31,31 @@ Execution traces may contain model output and memory candidate content. By defau
 - Model output (response)
 - Memory candidate content in denials
 
-Structure (traceId, projectId, timestamps, PFC decisions) is preserved.
+Structure (traceId, projectId, timestamps, Cortex decisions) is preserved.
+
+## Witness Evidence Chain (Phase 2.1)
+
+Phase 2.1 introduces a tamper-evident witness baseline for critical action categories:
+
+- `model-invoke`
+- `tool-execute`
+- `memory-write`
+- `trace-persist`
+
+For each category, the system emits:
+- an authorization event,
+- a completion event,
+- optional invariant events,
+- trace evidence references linking to witness artifacts.
+
+Verifier surfaces:
+- CLI: `witness verify`, `witness list`, `witness get --id <report-id>`
+- API: `witness.*` procedures and `traces.verificationReports`
+
+Verifier output includes:
+- `VerificationReport` with chain and signature validation status
+- `AttestationReceipt` (local mode baseline)
+- per-severity invariant findings (`S0`, `S1`, `S2`)
 
 ## Storage Encryption at Rest
 

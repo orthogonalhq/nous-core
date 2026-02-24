@@ -1,0 +1,65 @@
+---
+title: Operator Control
+description: Control command semantics, confirmation tiers, and degraded-mode behavior
+---
+
+# Operator Control
+
+Phase 2.5 establishes the operator control command-integrity baseline. This document covers control command semantics, confirmation requirements, and degraded-mode behavior.
+
+## Overview
+
+Operator control commands allow the Principal and orchestration agent to pause, resume, cancel, or hard-stop runtime execution. All commands require:
+
+- **Anti-replay envelope**: `control_command_id`, actor/session binding, nonce, signature, expiry
+- **Confirmation proof** (for T1+ tiers): Runtime-issued, short-lived, scope-bound proof
+- **Witness linkage**: Non-emergency commands require durable witness acknowledgment before success
+
+## Confirmation Tiers
+
+| Tier | Actions | Requirement |
+|------|---------|-------------|
+| T0 | `retry`, `edit`, `revert` | No explicit confirmation |
+| T1 | `pause`, `stop_response`, `retry_step` | Single confirmation |
+| T2 | `cancel`, `revert_to_previous_state`, `edit_submitted_prompt` | Confirmation plus reason |
+| T3 | `hard_stop`, `resume` from hard_stopped, break-glass override | Step-up auth, two-step confirmation, reason, impact summary |
+
+## API
+
+### submitCommand
+
+Submit a control command. For T1+ actions, include `confirmationProof` from `requestConfirmationProof`.
+
+**Result statuses:**
+- `applied` — Command executed successfully
+- `blocked` — Command rejected (replay, missing proof, witness unavailable, concurrent conflict)
+- `rejected` — Envelope invalid (expired, replay detected, out-of-order)
+
+**Concurrent command arbitration:** Commands acquire a scope lock before apply. If a lower-precedence command is submitted while a higher-precedence command holds the lock, it is blocked with `reason_code: opctl_conflict_resolved`. Precedence order: `hard_stop` > `cancel` > `pause` > … > `retry` > `edit`.
+
+### requestConfirmationProof
+
+Request a runtime-issued confirmation proof. Proof is short-lived (default 5 minutes), scope-bound, and action-bound. Use with `submitCommand` for T1+ actions.
+
+## Degraded-Mode Behavior
+
+When the witness write path is unavailable:
+
+- **Non-emergency commands**: Fail closed. Command is blocked with reason `OPCTL-006`.
+- **Emergency hard_stop**: May execute. Result includes `degraded_integrity: true`. Resume is blocked until evidence channel recovers or reconciliation completes.
+
+## Start Lock
+
+When a project is `hard_stopped`, it sets `start_lock`. No new agent starts or admissions until the Principal explicitly releases the lock. Only the Principal may release the start lock.
+
+## Invariants
+
+| Code | Rule |
+|------|------|
+| OPCTL-001 | No control command without valid signature and actor/session binding |
+| OPCTL-002 | Replay/expired/out-of-order commands blocked and alert-visible |
+| OPCTL-003 | Destructive controls require runtime-valid confirmation proof |
+| OPCTL-005 | Conflicting concurrent commands resolve deterministically with evidence |
+| OPCTL-006 | Non-emergency control apply requires durable witness acknowledgment |
+| OPCTL-007 | Emergency hard-stop under evidence outage emits degraded-integrity evidence |
+| START-004 | `hard_stopped` project enforces start_lock until Principal release |

@@ -8,6 +8,10 @@ import {
   ProviderIdSchema,
   WorkflowExecutionIdSchema,
   EscalationIdSchema,
+  WitnessEventIdSchema,
+  WitnessCheckpointIdSchema,
+  VerificationReportIdSchema,
+  AttestationReceiptIdSchema,
 } from '../../types/ids.js';
 
 const VALID_UUID = '550e8400-e29b-41d4-a716-446655440000';
@@ -21,6 +25,10 @@ const schemas = [
   { name: 'ProviderIdSchema', schema: ProviderIdSchema },
   { name: 'WorkflowExecutionIdSchema', schema: WorkflowExecutionIdSchema },
   { name: 'EscalationIdSchema', schema: EscalationIdSchema },
+  { name: 'WitnessEventIdSchema', schema: WitnessEventIdSchema },
+  { name: 'WitnessCheckpointIdSchema', schema: WitnessCheckpointIdSchema },
+  { name: 'VerificationReportIdSchema', schema: VerificationReportIdSchema },
+  { name: 'AttestationReceiptIdSchema', schema: AttestationReceiptIdSchema },
 ];
 
 describe.each(schemas)('$name', ({ schema }) => {

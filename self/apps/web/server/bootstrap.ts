@@ -1,7 +1,7 @@
 /**
  * Bootstrap — wires the Nous stack for the web app.
  *
- * Creates document store, STM, projects, MWC pipeline, PFC, router,
+ * Creates document store, STM, projects, MWC pipeline, Cortex, router,
  * providers, and core executor. Uses NOUS_DATA_DIR and NOUS_CONFIG_PATH env.
  */
 import { join, isAbsolute } from 'node:path';
@@ -11,12 +11,26 @@ import { ConfigManager } from '@nous/autonomic-config';
 import { SqliteDocumentStore } from '@nous/autonomic-storage';
 import { DocumentStmStore } from '@nous/memory-stm';
 import { MwcPipeline } from '@nous/memory-mwc';
-import { PfcEngine, createPfcEvaluator } from '@nous/cortex-pfc';
+import {
+  PfcEngine,
+  createPfcEvaluator,
+  createPfcMutationEvaluator,
+} from '@nous/cortex-pfc';
 import { CoreExecutor } from '@nous/cortex-core';
 import { DocumentProjectStore } from '@nous/subcortex-projects';
 import { ModelRouter } from '@nous/subcortex-router';
 import { ProviderRegistry } from '@nous/subcortex-providers';
 import { ToolExecutor } from '@nous/subcortex-tools';
+import { WitnessService } from '@nous/subcortex-witnessd';
+import {
+  OpctlService,
+  InMemoryReplayStore,
+  InMemoryStartLockStore,
+  InMemoryScopeLockStore,
+  InMemoryProjectControlStateStore,
+} from '@nous/subcortex-opctl';
+import { MaoProjectionService } from '@nous/subcortex-mao';
+import { GtmGateCalculator } from '@nous/subcortex-gtm';
 import type { NousContext } from './context';
 
 const MOCK_PROVIDER_ID = '00000000-0000-0000-0000-000000000001' as ProviderId;
@@ -110,13 +124,29 @@ export function createNousContext(): NousContext {
   const documentStore = new SqliteDocumentStore(dbPath);
   const stmStore = new DocumentStmStore(documentStore);
   const projectStore = new DocumentProjectStore(documentStore);
+  const witnessService = new WitnessService(documentStore);
+  const opctlService = new OpctlService({
+    replayStore: new InMemoryReplayStore(),
+    startLockStore: new InMemoryStartLockStore(),
+    scopeLockStore: new InMemoryScopeLockStore(),
+    projectControlStateStore: new InMemoryProjectControlStateStore(),
+    witnessService,
+  });
+
+  const maoProjectionService = new MaoProjectionService({
+    opctlService,
+    witnessService,
+  });
+
+  const gtmGateCalculator = new GtmGateCalculator();
 
   const toolExecutor = new ToolExecutor();
-  const pfc = new PfcEngine(config, toolExecutor);
+  const Cortex = new PfcEngine(config, toolExecutor);
   const mwcPipeline = new MwcPipeline(
     documentStore,
     stmStore,
-    createPfcEvaluator(pfc),
+    createPfcEvaluator(Cortex),
+    createPfcMutationEvaluator(Cortex),
   );
 
   const router = new ModelRouter(config);
@@ -135,7 +165,7 @@ export function createNousContext(): NousContext {
   const traceSensitiveData = cfg.security?.traceSensitiveData ?? false;
 
   const coreExecutor = new CoreExecutor({
-    pfc,
+    Cortex,
     router,
     getProvider,
     toolExecutor,
@@ -143,6 +173,8 @@ export function createNousContext(): NousContext {
     mwcPipeline,
     projectStore,
     documentStore,
+    witnessService,
+    opctlService,
     traceSensitiveData,
   });
 
@@ -155,6 +187,10 @@ export function createNousContext(): NousContext {
     config,
     router,
     getProvider,
+    witnessService,
+    opctlService,
+    maoProjectionService,
+    gtmGateCalculator,
     dataDir,
   };
 

@@ -10,6 +10,11 @@ import {
   runProjectsSwitch,
 } from '../commands/projects.js';
 import { runConfigGet, runConfigSet } from '../commands/config.js';
+import {
+  runWitnessGet,
+  runWitnessList,
+  runWitnessVerify,
+} from '../commands/witness.js';
 import type { CliTrpcClient } from '../trpc-client.js';
 
 function createMockClient(): CliTrpcClient {
@@ -27,6 +32,12 @@ function createMockClient(): CliTrpcClient {
     config: {
       get: { query: vi.fn() },
       update: { mutate: vi.fn() },
+    },
+    witness: {
+      verify: { mutate: vi.fn() },
+      listReports: { query: vi.fn() },
+      getReport: { query: vi.fn() },
+      latestCheckpoint: { query: vi.fn() },
     },
   } as unknown as CliTrpcClient;
 }
@@ -140,7 +151,7 @@ describe('CLI commands', () => {
 
     const code = await runConfigGet(mockClient, false);
     expect(code).toBe(0);
-    expect(consoleSpy.log).toHaveBeenCalledWith('PFC Tier:', 3);
+    expect(consoleSpy.log).toHaveBeenCalledWith('Cortex Tier:', 3);
   });
 
   it('config get prints JSON when json flag', async () => {
@@ -154,11 +165,76 @@ describe('CLI commands', () => {
     );
   });
 
-  it('config set updates pfc tier', async () => {
+  it('config set updates Cortex tier', async () => {
     vi.mocked(mockClient.config.update.mutate).mockResolvedValue(undefined);
 
     const code = await runConfigSet(mockClient, { pfcTier: 4 });
     expect(code).toBe(0);
-    expect(consoleSpy.log).toHaveBeenCalledWith('Updated PFC tier to', 4);
+    expect(consoleSpy.log).toHaveBeenCalledWith('Updated Cortex tier to', 4);
+  });
+
+  it('witness verify prints summary lines', async () => {
+    vi.mocked(mockClient.witness.verify.mutate).mockResolvedValue({
+      id: '550e8400-e29b-41d4-a716-446655440000' as import('@nous/shared').VerificationReportId,
+      generatedAt: new Date().toISOString(),
+      range: { fromSequence: 1, toSequence: 2 },
+      ledger: {
+        eventCount: 2,
+        headEventHash: 'a'.repeat(64),
+        sequenceContiguous: true,
+        hashChainValid: true,
+      },
+      checkpoints: {
+        checkpointCount: 1,
+        headCheckpointHash: 'b'.repeat(64),
+        checkpointChainValid: true,
+        signaturesValid: true,
+      },
+      invariants: {
+        findings: [],
+        bySeverity: { S0: 0, S1: 0, S2: 0 },
+      },
+      status: 'pass',
+      receipt: {
+        id: '660e8400-e29b-41d4-a716-446655440001' as import('@nous/shared').AttestationReceiptId,
+        mode: 'local',
+        subjectType: 'verification-report',
+        subjectHash: 'c'.repeat(64),
+        keyEpoch: 1,
+        signatureAlgorithm: 'ed25519',
+        signature: 'sig',
+        verified: true,
+        issuedAt: new Date().toISOString(),
+      },
+    });
+
+    const code = await runWitnessVerify(mockClient, {});
+    expect(code).toBe(0);
+    expect(consoleSpy.log).toHaveBeenCalledWith(
+      expect.stringContaining('Verification report'),
+    );
+  });
+
+  it('witness list prints empty-state message', async () => {
+    vi.mocked(mockClient.witness.listReports.query).mockResolvedValue([]);
+
+    const code = await runWitnessList(mockClient, {});
+    expect(code).toBe(0);
+    expect(consoleSpy.log).toHaveBeenCalledWith(
+      'No witness verification reports found.',
+    );
+  });
+
+  it('witness get returns 1 when report is missing', async () => {
+    vi.mocked(mockClient.witness.getReport.query).mockResolvedValue(null);
+
+    const code = await runWitnessGet(mockClient, {
+      id: '550e8400-e29b-41d4-a716-446655440000',
+    });
+
+    expect(code).toBe(1);
+    expect(consoleSpy.error).toHaveBeenCalledWith(
+      expect.stringContaining('Witness report not found'),
+    );
   });
 });

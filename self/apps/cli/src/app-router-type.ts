@@ -3,7 +3,17 @@
  * Mirrors the procedures from @nous/web server.
  * TODO: Import from shared package when router is extracted.
  */
-import type { ProjectId, TraceId } from '@nous/shared';
+import type {
+  ConfirmationProof,
+  ConfirmationProofRequest,
+  ControlCommandEnvelope,
+  OpctlSubmitResult,
+  ProjectId,
+  TraceId,
+  VerificationReport,
+  VerificationReportId,
+  WitnessCheckpoint,
+} from '@nous/shared';
 
 export type AppRouter = {
   chat: {
@@ -22,5 +32,36 @@ export type AppRouter = {
   config: {
     get: { query: () => Promise<{ pfcTier: number; modelRoleAssignments?: Array<{ role: string; providerId: string }> }> };
     update: { mutate: (input: { pfcTier?: number }) => Promise<void> };
+  };
+  witness: {
+    verify: {
+      mutate: (input?: {
+        fromSequence?: number;
+        toSequence?: number;
+      }) => Promise<VerificationReport>;
+    };
+    listReports: {
+      query: (input?: { limit?: number }) => Promise<VerificationReport[]>;
+    };
+    getReport: {
+      query: (input: { id: VerificationReportId }) => Promise<VerificationReport | null>;
+    };
+    latestCheckpoint: {
+      query: () => Promise<WitnessCheckpoint | null>;
+    };
+  };
+  opctl: {
+    submitCommand: {
+      mutate: (input: {
+        envelope: ControlCommandEnvelope;
+        confirmationProof?: ConfirmationProof;
+      }) => Promise<OpctlSubmitResult>;
+    };
+    requestConfirmationProof: {
+      mutate: (input: ConfirmationProofRequest) => Promise<ConfirmationProof>;
+    };
+    hasStartLock: {
+      query: (input: { projectId: string }) => Promise<boolean>;
+    };
   };
 };

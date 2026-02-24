@@ -37,7 +37,7 @@ export default function ConfigPage() {
 
       <Card>
         <CardHeader>
-          <CardTitle>PFC Tier</CardTitle>
+          <CardTitle>Cortex Tier</CardTitle>
         </CardHeader>
         <CardContent>
           <Select

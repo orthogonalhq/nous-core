@@ -2,13 +2,16 @@
  * Memory domain types for Nous-OSS.
  *
  * Derived from memory-system.mdx. Covers memory entries, write candidates,
- * experience records, distilled patterns, access policies, retrieval, and STM.
+ * mutation governance, experience records, distilled patterns, access policies,
+ * retrieval, and STM.
  */
 import { z } from 'zod';
 import {
   ProjectIdSchema,
   MemoryEntryIdSchema,
   TraceIdSchema,
+  MemoryMutationIdSchema,
+  MemoryTombstoneIdSchema,
 } from './ids.js';
 import {
   MemoryTypeSchema,
@@ -16,6 +19,7 @@ import {
   SentimentSchema,
   RetentionPolicySchema,
 } from './enums.js';
+import { TraceEvidenceReferenceSchema } from './evidence.js';
 
 // --- Access List (used within MemoryAccessPolicy) ---
 // The options for canReadFrom / canBeReadBy fields.
@@ -45,9 +49,80 @@ export const ProvenanceSchema = z.object({
 });
 export type Provenance = z.infer<typeof ProvenanceSchema>;
 
+// --- Mutation Governance ---
+export const MemoryMutabilityClassSchema = z.enum([
+  'evidence-immutable',
+  'domain-versioned',
+  'operational-metadata',
+  'deletion-tombstone',
+]);
+export type MemoryMutabilityClass = z.infer<typeof MemoryMutabilityClassSchema>;
+
+export const MemoryLifecycleStatusSchema = z.enum([
+  'active',
+  'superseded',
+  'soft-deleted',
+  'hard-deleted',
+]);
+export type MemoryLifecycleStatus = z.infer<typeof MemoryLifecycleStatusSchema>;
+
+export const MemoryPlacementStateSchema = z.enum([
+  'project',
+  'global-probation',
+  'global-stable',
+]);
+export type MemoryPlacementState = z.infer<typeof MemoryPlacementStateSchema>;
+
+export const MemoryMutationActionSchema = z.enum([
+  'create',
+  'supersede',
+  'soft-delete',
+  'hard-delete',
+  'promote-global',
+  'demote-project',
+  'compact-stm',
+]);
+export type MemoryMutationAction = z.infer<typeof MemoryMutationActionSchema>;
+
+export const MemoryMutationActorSchema = z.enum([
+  'Cortex',
+  'pfc',
+  'principal',
+  'system',
+  'core',
+  'tool',
+  'operator',
+]);
+export type MemoryMutationActor = z.infer<typeof MemoryMutationActorSchema>;
+
+export const MemoryMutationOutcomeSchema = z.enum([
+  'approved',
+  'denied',
+  'applied',
+  'failed',
+]);
+export type MemoryMutationOutcome = z.infer<typeof MemoryMutationOutcomeSchema>;
+
+export const MemoryMutationReasonCodeSchema = z
+  .string()
+  .regex(/^MEM-[A-Z0-9][A-Z0-9-]*$/);
+export type MemoryMutationReasonCode = z.infer<
+  typeof MemoryMutationReasonCodeSchema
+>;
+
+export const MemoryDeleteModeSchema = z.enum(['soft', 'hard']);
+export type MemoryDeleteMode = z.infer<typeof MemoryDeleteModeSchema>;
+
+export const MemoryMutationPrincipalOverrideSchema = z.object({
+  rationale: z.string().min(1),
+});
+export type MemoryMutationPrincipalOverride = z.infer<
+  typeof MemoryMutationPrincipalOverrideSchema
+>;
+
 // --- Memory Write Candidate ---
 // From memory-system.mdx "MemoryWriteCandidate Structure".
-// Proposed by the model, evaluated by the PFC.
+// Proposed by the model, evaluated by the Cortex.
 export const MemoryWriteCandidateSchema = z.object({
   content: z.string(),
   type: MemoryTypeSchema,
@@ -59,11 +134,13 @@ export const MemoryWriteCandidateSchema = z.object({
   provenance: ProvenanceSchema,
   sentiment: SentimentSchema.optional(),
   tags: z.array(z.string()),
+  mutabilityClass: MemoryMutabilityClassSchema.optional(),
 });
 export type MemoryWriteCandidate = z.infer<typeof MemoryWriteCandidateSchema>;
 
 // --- Memory Entry ---
 // Persisted form of an approved MemoryWriteCandidate.
+// mutabilityClass + lifecycleStatus defaults preserve compatibility for legacy entries.
 export const MemoryEntrySchema = z.object({
   id: MemoryEntryIdSchema,
   content: z.string(),
@@ -78,10 +155,84 @@ export const MemoryEntrySchema = z.object({
   tags: z.array(z.string()),
   createdAt: z.string().datetime(),
   updatedAt: z.string().datetime(),
+  mutabilityClass: MemoryMutabilityClassSchema.default('domain-versioned'),
+  lifecycleStatus: MemoryLifecycleStatusSchema.default('active'),
   supersededBy: MemoryEntryIdSchema.optional(),
+  deletedAt: z.string().datetime().optional(),
+  tombstoneId: MemoryTombstoneIdSchema.optional(),
+  placementState: MemoryPlacementStateSchema.default('project'),
+  lastMutationId: MemoryMutationIdSchema.optional(),
   embedding: z.array(z.number()).optional(),
 });
 export type MemoryEntry = z.infer<typeof MemoryEntrySchema>;
+
+// --- Memory Mutation Request ---
+export const MemoryMutationRequestSchema = z.object({
+  id: MemoryMutationIdSchema.optional(),
+  action: MemoryMutationActionSchema,
+  actor: MemoryMutationActorSchema,
+  projectId: ProjectIdSchema.optional(),
+  targetEntryId: MemoryEntryIdSchema.optional(),
+  replacementCandidate: MemoryWriteCandidateSchema.optional(),
+  deleteMode: MemoryDeleteModeSchema.optional(),
+  reason: z.string().min(1),
+  principalOverride: MemoryMutationPrincipalOverrideSchema.optional(),
+  traceId: TraceIdSchema.optional(),
+  evidenceRefs: z.array(TraceEvidenceReferenceSchema).default([]),
+  requestedAt: z.string().datetime().optional(),
+});
+export type MemoryMutationRequest = z.infer<typeof MemoryMutationRequestSchema>;
+
+// --- Memory Mutation Audit Record ---
+export const MemoryMutationAuditRecordSchema = z.object({
+  id: MemoryMutationIdSchema,
+  sequence: z.number().int().positive(),
+  action: MemoryMutationActionSchema,
+  actor: MemoryMutationActorSchema,
+  outcome: MemoryMutationOutcomeSchema,
+  reasonCode: MemoryMutationReasonCodeSchema,
+  reason: z.string(),
+  projectId: ProjectIdSchema.optional(),
+  targetEntryId: MemoryEntryIdSchema.optional(),
+  resultingEntryId: MemoryEntryIdSchema.optional(),
+  tombstoneId: MemoryTombstoneIdSchema.optional(),
+  traceId: TraceIdSchema.optional(),
+  evidenceRefs: z.array(TraceEvidenceReferenceSchema).default([]),
+  occurredAt: z.string().datetime(),
+});
+export type MemoryMutationAuditRecord = z.infer<
+  typeof MemoryMutationAuditRecordSchema
+>;
+
+// --- Deletion Tombstone ---
+export const MemoryTombstoneSchema = z.object({
+  id: MemoryTombstoneIdSchema,
+  targetEntryId: MemoryEntryIdSchema,
+  targetContentHash: z.string().regex(/^[a-f0-9]{64}$/),
+  deletedByMutationId: MemoryMutationIdSchema,
+  projectId: ProjectIdSchema.optional(),
+  reason: z.string(),
+  createdAt: z.string().datetime(),
+});
+export type MemoryTombstone = z.infer<typeof MemoryTombstoneSchema>;
+
+// --- STM Compaction Summary ---
+export const StmCompactionSourceRefSchema = z.object({
+  timestamp: z.string().datetime(),
+  role: z.enum(['user', 'assistant', 'system', 'tool']),
+  contentHash: z.string().regex(/^[a-f0-9]{64}$/),
+});
+export type StmCompactionSourceRef = z.infer<typeof StmCompactionSourceRefSchema>;
+
+export const StmCompactionSummarySchema = z.object({
+  id: MemoryMutationIdSchema,
+  projectId: ProjectIdSchema,
+  summary: z.string(),
+  sourceEntryRefs: z.array(StmCompactionSourceRefSchema),
+  sourceEntryCount: z.number().int().nonnegative(),
+  generatedAt: z.string().datetime(),
+});
+export type StmCompactionSummary = z.infer<typeof StmCompactionSummarySchema>;
 
 // --- Experience Record ---
 // From memory-system.mdx "Experience Records".

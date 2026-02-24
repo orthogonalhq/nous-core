@@ -7,7 +7,7 @@ description: The three primary user interfaces for interacting with Nous
 
 Nous is a single system accessed through multiple surfaces.
 
-Each surface is optimized for a different context of use. All surfaces share the same underlying runtime — PFC, memory, projects, routing, governance. The surface changes. The intelligence does not.
+Each surface is optimized for a different context of use. All surfaces share the same underlying runtime — Cortex, memory, projects, routing, governance. The surface changes. The intelligence does not.
 
 ---
 
@@ -129,7 +129,7 @@ The three surfaces are not isolated applications. They are windows into the same
 
 All surfaces read from and write to the same project state:
 
-- Same PFC instance per project
+- Same Cortex instance per project
 - Same memory (STM and LTM)
 - Same artifact store
 - Same execution traces
@@ -148,7 +148,7 @@ The user moves between surfaces fluidly. Nous maintains continuity.
 
 ### Notifications Across Surfaces
 
-- Escalations originate from the PFC based on governance rules
+- Escalations originate from the Cortex based on governance rules
 - Delivery channel is configurable per project and per priority level
 - The same escalation can appear across multiple surfaces (e.g., a push notification and a chat message)
 - Acknowledgment on any surface resolves the escalation on all surfaces
@@ -165,7 +165,7 @@ All surfaces must meet baseline security requirements:
 - **Audit** — all interactions logged with surface, timestamp, and project context
 - **Session management** — configurable timeout and re-authentication policies
 
-No surface bypasses the PFC. All tool execution, memory writes, and governance decisions flow through the same control plane regardless of which surface initiated the request.
+No surface bypasses the Cortex. All tool execution, memory writes, and governance decisions flow through the same control plane regardless of which surface initiated the request.
 
 ---
 

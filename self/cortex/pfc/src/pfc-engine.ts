@@ -8,6 +8,7 @@ import type {
   IConfig,
   IToolExecutor,
   MemoryWriteCandidate,
+  MemoryMutationRequest,
   PfcDecision,
   ReflectionContext,
   ReflectionResult,
@@ -30,7 +31,7 @@ export class PfcEngine implements IPfcEngine {
     if (candidate.confidence < 0.5) {
       const decision: PfcDecision = {
         approved: false,
-        reason: 'confidence below threshold',
+        reason: 'MEM-CONFIDENCE-BELOW-THRESHOLD',
         confidence: candidate.confidence,
       };
       console.info(
@@ -40,13 +41,84 @@ export class PfcEngine implements IPfcEngine {
     }
     const decision: PfcDecision = {
       approved: true,
-      reason: 'passed Phase 1 checks',
+      reason: 'MEM-WRITE-APPROVED',
       confidence: candidate.confidence,
     };
     console.info(
       `[nous:pfc] memory_write approved=true reason=${decision.reason}`,
     );
     return decision;
+  }
+
+  async evaluateMemoryMutation(
+    request: MemoryMutationRequest,
+    _projectId?: ProjectId,
+  ): Promise<PfcDecision> {
+    if (request.actor === 'core' || request.actor === 'tool') {
+      return {
+        approved: false,
+        reason: 'MEM-ACTOR-BOUNDARY-BLOCKED',
+        confidence: 1,
+      };
+    }
+
+    if (request.action === 'hard-delete') {
+      const hasOverride = !!request.principalOverride?.rationale;
+      if (request.actor !== 'principal' && !hasOverride) {
+        return {
+          approved: false,
+          reason: 'MEM-HARD-DELETE-REQUIRES-OVERRIDE',
+          confidence: 1,
+        };
+      }
+    }
+
+    if (request.action === 'create' || request.action === 'supersede') {
+      if (!request.replacementCandidate) {
+        return {
+          approved: false,
+          reason: 'MEM-REPLACEMENT-CANDIDATE-REQUIRED',
+          confidence: 1,
+        };
+      }
+      if (request.replacementCandidate.confidence < 0.5) {
+        return {
+          approved: false,
+          reason: 'MEM-CONFIDENCE-BELOW-THRESHOLD',
+          confidence: request.replacementCandidate.confidence,
+        };
+      }
+    }
+
+    if (
+      (request.action === 'soft-delete' || request.action === 'hard-delete') &&
+      !request.targetEntryId
+    ) {
+      return {
+        approved: false,
+        reason: 'MEM-TARGET-REQUIRED',
+        confidence: 1,
+      };
+    }
+
+    if (
+      (request.action === 'promote-global' ||
+        request.action === 'demote-project' ||
+        request.action === 'compact-stm') &&
+      !request.projectId
+    ) {
+      return {
+        approved: false,
+        reason: 'MEM-PROJECT-REQUIRED',
+        confidence: 1,
+      };
+    }
+
+    return {
+      approved: true,
+      reason: 'MEM-MUTATION-APPROVED',
+      confidence: 1,
+    };
   }
 
   async evaluateToolExecution(
