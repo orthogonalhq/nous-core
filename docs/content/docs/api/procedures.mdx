@@ -55,6 +55,18 @@ description: Reference for all tRPC procedures
 | `config.get` | query | — | `SystemConfig` |
 | `config.update` | mutation | `{ pfcTier?, modelRoleAssignments? }` | — |
 
+## opctl
+
+| Procedure | Type | Input | Output |
+|----------|------|-------|--------|
+| `opctl.submitCommand` | mutation | `{ envelope: ControlCommandEnvelope, confirmationProof?: ConfirmationProof }` | `OpctlSubmitResult` |
+| `opctl.requestConfirmationProof` | mutation | `ConfirmationProofRequest` | `ConfirmationProof` |
+| `opctl.hasStartLock` | query | `{ projectId }` | `boolean` |
+
+- `submitCommand` — Submit a control command. For T1+ actions, include `confirmationProof` from `requestConfirmationProof`.
+- `requestConfirmationProof` — Request a runtime-issued, short-lived proof for T1/T2/T3 actions.
+- `hasStartLock` — Check if project has start lock (hard_stopped).
+
 ## health
 
 | Procedure | Type | Input | Output |

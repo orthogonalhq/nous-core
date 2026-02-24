@@ -102,6 +102,30 @@ Model role assignments can be modified via the web UI Configuration panel.
 
 ---
 
+## opctl
+
+Operator control commands.
+
+### opctl request-proof
+
+Request a runtime-issued confirmation proof for T1+ control actions. Use the proof with `submitCommand` when submitting `pause`, `cancel`, `hard_stop`, or other tiered actions.
+
+```bash
+pnpm dev:cli -- opctl request-proof --action <action> --tier <T1|T2|T3> [--project <id>]
+```
+
+**Options:**
+- `--action <action>` — Control action (e.g. `pause`, `cancel`, `hard_stop`) (required)
+- `--tier <tier>` — Confirmation tier: T1, T2, or T3 (required)
+- `--project <id>` — Project ID for scope (optional)
+- `--scope-kind <kind>` — Scope kind: `single_agent`, `agent_set`, `project_run` (default: `project_run`)
+- `--scope-class <class>` — Scope class (default: `project_run_scope`)
+- `--reason <text>` — Reason for confirmation (optional, for T2/T3)
+
+**Output:** Proof ID, action, and expiry. With `--json`, returns full proof JSON for use with `submitCommand` via tRPC or web UI.
+
+---
+
 ## witness
 
 Run witness verification and inspect verification artifacts.
