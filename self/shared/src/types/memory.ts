@@ -86,6 +86,7 @@ export type MemoryMutationAction = z.infer<typeof MemoryMutationActionSchema>;
 
 export const MemoryMutationActorSchema = z.enum([
   'Cortex',
+  'pfc',
   'principal',
   'system',
   'core',

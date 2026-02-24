@@ -6,7 +6,7 @@ import {
   createPfcEvaluator,
   createPfcMutationEvaluator,
 } from '../evaluator-adapter.js';
-import { PfcEngine } from '../Cortex-engine.js';
+import { PfcEngine } from '../pfc-engine.js';
 import type { IConfig, IToolExecutor } from '@nous/shared';
 
 function mockConfig(): IConfig {

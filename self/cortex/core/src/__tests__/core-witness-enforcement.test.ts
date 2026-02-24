@@ -62,6 +62,15 @@ function createPfc(): IPfcEngine {
 function createRouter(): IModelRouter {
   return {
     route: vi.fn().mockResolvedValue(PROVIDER_ID),
+    routeWithEvidence: vi.fn().mockResolvedValue({
+      providerId: PROVIDER_ID,
+      evidence: {
+        profileId: 'hybrid_controlled',
+        policyLink: 'block_if_unmet',
+        capabilityProfile: 'review-standard',
+        selectedProviderId: PROVIDER_ID,
+      },
+    }),
     listProviders: vi.fn().mockResolvedValue([]),
   };
 }
@@ -185,7 +194,7 @@ describe('Core witness enforcement ladder', () => {
   it('applies S1 auto-pause and stops remaining tool execution after completion evidence failure', async () => {
     const toolExecutor = createToolExecutor();
     const executor = new CoreExecutor({
-      pfc: createPfc(),
+      Cortex: createPfc(),
       router: createRouter(),
       getProvider: () => createProvider(),
       toolExecutor,
@@ -211,7 +220,7 @@ describe('Core witness enforcement ladder', () => {
   it('applies S0 hard-stop when invariant enforcement escalates to hard-stop', async () => {
     const toolExecutor = createToolExecutor();
     const executor = new CoreExecutor({
-      pfc: createPfc(),
+      Cortex: createPfc(),
       router: createRouter(),
       getProvider: () => createProvider(),
       toolExecutor,
