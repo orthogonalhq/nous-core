@@ -91,21 +91,22 @@ export class CoreExecutor implements ICoreExecutor {
       `[nous:core] turn_start traceId=${traceId} projectId=${projectId ?? 'none'}`,
     );
 
-    // Phase 2.5: Start-lock gating — block turns when project is hard_stopped
-    if (
-      projectId &&
-      this.deps.opctlService &&
-      (await this.deps.opctlService.hasStartLock(projectId))
-    ) {
-      console.info(
-        `[nous:core] turn_blocked start_lock projectId=${projectId} traceId=${traceId}`,
+    // Phase 2.5/2.6: MAO-007 — block turns when project is paused_review or hard_stopped
+    if (projectId && this.deps.opctlService) {
+      const controlState = await this.deps.opctlService.getProjectControlState(
+        projectId,
       );
-      return {
-        response: '[Project blocked by operator control (start_lock).]',
-        traceId,
-        memoryCandidates: [],
-        pfcDecisions: [],
-      };
+      if (controlState === 'paused_review' || controlState === 'hard_stopped') {
+        console.info(
+          `[nous:core] turn_blocked project_control_state=${controlState} projectId=${projectId} traceId=${traceId}`,
+        );
+        return {
+          response: `[Project blocked by operator control (${controlState}).]`,
+          traceId,
+          memoryCandidates: [],
+          pfcDecisions: [],
+        };
+      }
     }
 
     const turnData: TurnData = {
