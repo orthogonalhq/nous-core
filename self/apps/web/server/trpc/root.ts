@@ -10,6 +10,7 @@ import { configRouter } from './routers/config';
 import { healthRouter } from './routers/health';
 import { firstRunRouter } from './routers/first-run';
 import { witnessRouter } from './routers/witness';
+import { opctlRouter } from './routers/opctl';
 
 export const appRouter = router({
   projects: projectsRouter,
@@ -20,6 +21,7 @@ export const appRouter = router({
   health: healthRouter,
   firstRun: firstRunRouter,
   witness: witnessRouter,
+  opctl: opctlRouter,
 });
 
 export type AppRouter = typeof appRouter;
