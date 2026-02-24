@@ -9,6 +9,8 @@ import type {
   IStmStore,
   IWitnessService,
   IOpctlService,
+  IMaoProjectionService,
+  IGtmGateCalculator,
 } from '@nous/shared';
 import type { MwcPipeline } from '@nous/memory-mwc';
 import type { IDocumentStore } from '@nous/shared';
@@ -28,5 +30,7 @@ export interface NousContext {
   getProvider: (id: ProviderId) => IModelProvider | null;
   witnessService: IWitnessService;
   opctlService: IOpctlService;
+  maoProjectionService: IMaoProjectionService;
+  gtmGateCalculator: IGtmGateCalculator;
   dataDir: string;
 }

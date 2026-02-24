@@ -62,10 +62,30 @@ description: Reference for all tRPC procedures
 | `opctl.submitCommand` | mutation | `{ envelope: ControlCommandEnvelope, confirmationProof?: ConfirmationProof }` | `OpctlSubmitResult` |
 | `opctl.requestConfirmationProof` | mutation | `ConfirmationProofRequest` | `ConfirmationProof` |
 | `opctl.hasStartLock` | query | `{ projectId }` | `boolean` |
+| `opctl.getProjectControlState` | query | `{ projectId }` | `ProjectControlState` (running \| paused_review \| hard_stopped \| resuming) |
 
 - `submitCommand` — Submit a control command. For T1+ actions, include `confirmationProof` from `requestConfirmationProof`.
 - `requestConfirmationProof` — Request a runtime-issued, short-lived proof for T1/T2/T3 actions.
 - `hasStartLock` — Check if project has start lock (hard_stopped).
+- `getProjectControlState` — Get project control state for MAO-007 gating (running, paused_review, hard_stopped, resuming).
+
+## mao
+
+| Procedure | Type | Input | Output |
+|----------|------|-------|--------|
+| `mao.getAgentProjections` | query | `{ projectId }` | `MaoAgentProjection[]` |
+| `mao.getProjectControlProjection` | query | `{ projectId }` | `MaoProjectControlProjection \| null` |
+
+- `getAgentProjections` — Agent projections for a project (derived from canonical event/state truth).
+- `getProjectControlProjection` — Project control projection (pause/resume/hard-stop status, Cortex review).
+
+## gtm
+
+| Procedure | Type | Input | Output |
+|----------|------|-------|--------|
+| `gtm.computeGateReport` | query | `GtmGateReportInput` | `GtmGateReport` |
+
+- `computeGateReport` — Compute GTM gate report (CFPC, ABPR, promotion_blocked) from verification report, pillar status, benchmark results.
 
 ## health
 

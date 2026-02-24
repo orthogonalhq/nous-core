@@ -11,6 +11,7 @@ import type {
   ControlScope,
   ControlActorType,
   ProjectId,
+  ProjectControlState,
   WitnessActor,
 } from '@nous/shared';
 import {
@@ -23,6 +24,7 @@ import { resolveScope } from './scope.js';
 import type { ReplayStore } from './replay-store.js';
 import type { StartLockStore } from './start-lock.js';
 import type { ScopeLockStore } from './scope-lock.js';
+import type { ProjectControlStateStore } from './project-control-state.js';
 
 function mapActorToWitness(actor: ControlActorType): WitnessActor {
   if (actor === 'principal') return 'principal';
@@ -34,6 +36,7 @@ export interface OpctlServiceDeps {
   replayStore: ReplayStore;
   startLockStore: StartLockStore;
   scopeLockStore: ScopeLockStore;
+  projectControlStateStore?: ProjectControlStateStore;
   witnessService?: IWitnessService;
 }
 
@@ -145,6 +148,26 @@ export class OpctlService {
         });
       }
 
+      // Apply state changes for project_run scope (Phase 2.6)
+      const projectId = validEnvelope.scope.project_id;
+      if (projectId && this.deps.projectControlStateStore) {
+        const store = this.deps.projectControlStateStore;
+        if (validEnvelope.action === 'pause') {
+          await store.set(projectId, 'paused_review');
+        } else if (validEnvelope.action === 'resume') {
+          await store.set(projectId, 'running');
+        } else if (validEnvelope.action === 'hard_stop') {
+          await this.deps.startLockStore.setStartLock(projectId, true);
+          await store.clear(projectId);
+        }
+      } else if (
+        projectId &&
+        validEnvelope.action === 'hard_stop' &&
+        this.deps.startLockStore
+      ) {
+        await this.deps.startLockStore.setStartLock(projectId, true);
+      }
+
       if (isEmergencyHardStop) {
         return OpctlSubmitResultSchema.parse({
           status: 'applied',
@@ -194,5 +217,21 @@ export class OpctlService {
       throw new Error('Only principal may release start lock');
     }
     await this.deps.startLockStore.setStartLock(projectId, locked);
+    if (!locked && this.deps.projectControlStateStore) {
+      await this.deps.projectControlStateStore.clear(projectId);
+    }
+  }
+
+  async getProjectControlState(projectId: ProjectId): Promise<ProjectControlState> {
+    if (await this.deps.startLockStore.hasStartLock(projectId)) {
+      return 'hard_stopped';
+    }
+    const stored = this.deps.projectControlStateStore
+      ? await this.deps.projectControlStateStore.get(projectId)
+      : null;
+    if (stored === 'paused_review' || stored === 'resuming') {
+      return stored;
+    }
+    return 'running';
   }
 }

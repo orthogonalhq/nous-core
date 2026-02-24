@@ -15,7 +15,7 @@ import {
   PfcEngine,
   createPfcEvaluator,
   createPfcMutationEvaluator,
-} from '@nous/cortex-Cortex';
+} from '@nous/cortex-pfc';
 import { CoreExecutor } from '@nous/cortex-core';
 import { DocumentProjectStore } from '@nous/subcortex-projects';
 import { ModelRouter } from '@nous/subcortex-router';
@@ -27,7 +27,10 @@ import {
   InMemoryReplayStore,
   InMemoryStartLockStore,
   InMemoryScopeLockStore,
+  InMemoryProjectControlStateStore,
 } from '@nous/subcortex-opctl';
+import { MaoProjectionService } from '@nous/subcortex-mao';
+import { GtmGateCalculator } from '@nous/subcortex-gtm';
 import type { NousContext } from './context';
 
 const MOCK_PROVIDER_ID = '00000000-0000-0000-0000-000000000001' as ProviderId;
@@ -126,8 +129,16 @@ export function createNousContext(): NousContext {
     replayStore: new InMemoryReplayStore(),
     startLockStore: new InMemoryStartLockStore(),
     scopeLockStore: new InMemoryScopeLockStore(),
+    projectControlStateStore: new InMemoryProjectControlStateStore(),
     witnessService,
   });
+
+  const maoProjectionService = new MaoProjectionService({
+    opctlService,
+    witnessService,
+  });
+
+  const gtmGateCalculator = new GtmGateCalculator();
 
   const toolExecutor = new ToolExecutor();
   const Cortex = new PfcEngine(config, toolExecutor);
@@ -178,6 +189,8 @@ export function createNousContext(): NousContext {
     getProvider,
     witnessService,
     opctlService,
+    maoProjectionService,
+    gtmGateCalculator,
     dataDir,
   };
 

@@ -37,4 +37,12 @@ export const opctlRouter = router({
         input.projectId as import('@nous/shared').ProjectId,
       );
     }),
+
+  getProjectControlState: publicProcedure
+    .input(z.object({ projectId: z.string().uuid() }))
+    .query(async ({ ctx, input }) => {
+      return ctx.opctlService.getProjectControlState(
+        input.projectId as import('@nous/shared').ProjectId,
+      );
+    }),
 });
