@@ -22,6 +22,8 @@ const BASE_POLICY: Record<
   OPCTL: { severity: 'S0', enforcement: 'hard-stop' },
   START: { severity: 'S0', enforcement: 'hard-stop' },
   ESC: { severity: 'S0', enforcement: 'hard-stop' },
+  MAO: { severity: 'S0', enforcement: 'hard-stop' },
+  GTM: { severity: 'S0', enforcement: 'hard-stop' },
   EVID: { severity: 'S1', enforcement: 'auto-pause' },
   MEM: { severity: 'S2', enforcement: 'review' },
   PRV: { severity: 'S1', enforcement: 'auto-pause' },
