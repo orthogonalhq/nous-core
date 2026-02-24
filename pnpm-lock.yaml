@@ -82,6 +82,22 @@ importers:
         specifier: ^5
         version: 5.9.3
 
+  scripts/benchmark:
+    dependencies:
+      '@nous/shared':
+        specifier: workspace:*
+        version: link:../../self/shared
+    devDependencies:
+      '@types/node':
+        specifier: ^20
+        version: 20.19.33
+      typescript:
+        specifier: ^5
+        version: 5.9.3
+      vitest:
+        specifier: ^4.0.18
+        version: 4.0.18(@types/node@20.19.33)(jiti@2.6.1)(lightningcss@1.30.2)
+
   scripts/install:
     dependencies:
       '@nous/autonomic-config':

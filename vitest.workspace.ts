@@ -19,4 +19,5 @@ export default defineWorkspace([
   'self/cortex/core',
   'self/apps/web',
   'scripts/install',
+  'scripts/benchmark',
 ]);
