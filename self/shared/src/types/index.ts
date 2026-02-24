@@ -15,3 +15,5 @@ export * from './sandbox.js';
 export * from './autonomic.js';
 export * from './escalation.js';
 export * from './evidence.js';
+export * from './benchmark.js';
+export * from './adapter.js';
