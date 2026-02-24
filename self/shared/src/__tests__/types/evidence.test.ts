@@ -37,6 +37,9 @@ describe('InvariantCodeSchema', () => {
     expect(InvariantCodeSchema.safeParse('PRV-PROFILE-BOUNDARY').success).toBe(
       true,
     );
+    expect(InvariantCodeSchema.safeParse('OPCTL-001').success).toBe(true);
+    expect(InvariantCodeSchema.safeParse('START-002').success).toBe(true);
+    expect(InvariantCodeSchema.safeParse('ESC-001').success).toBe(true);
   });
 
   it('rejects unknown prefix', () => {
@@ -46,6 +49,9 @@ describe('InvariantCodeSchema', () => {
 
 describe('CriticalActionCategorySchema', () => {
   it('accepts supported categories', () => {
+    expect(CriticalActionCategorySchema.safeParse('opctl-command').success).toBe(
+      true,
+    );
     expect(CriticalActionCategorySchema.safeParse('model-invoke').success).toBe(
       true,
     );
