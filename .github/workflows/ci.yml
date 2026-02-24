@@ -64,5 +64,8 @@ jobs:
       - name: Test
         run: pnpm run test
 
+      - name: Benchmark Tier 0
+        run: pnpm run benchmark:tier0
+
       - name: Build
         run: pnpm run build
