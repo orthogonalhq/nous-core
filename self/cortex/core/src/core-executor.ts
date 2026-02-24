@@ -11,6 +11,7 @@ import {
   type ICoreExecutor,
   type IPfcEngine,
   type IWitnessService,
+  type IOpctlService,
   type IModelRouter,
   type IModelProvider,
   type IToolExecutor,
@@ -62,6 +63,8 @@ export interface CoreExecutorDeps {
   projectStore: IProjectStore;
   documentStore: IDocumentStore;
   witnessService: IWitnessService;
+  /** Phase 2.5: Operator control service for start/admission gating. Optional for backward compat. */
+  opctlService?: IOpctlService;
   /** When false (default), redact sensitive fields before persisting trace */
   traceSensitiveData?: boolean;
 }
@@ -87,6 +90,23 @@ export class CoreExecutor implements ICoreExecutor {
     console.debug(
       `[nous:core] turn_start traceId=${traceId} projectId=${projectId ?? 'none'}`,
     );
+
+    // Phase 2.5: Start-lock gating — block turns when project is hard_stopped
+    if (
+      projectId &&
+      this.deps.opctlService &&
+      (await this.deps.opctlService.hasStartLock(projectId))
+    ) {
+      console.info(
+        `[nous:core] turn_blocked start_lock projectId=${projectId} traceId=${traceId}`,
+      );
+      return {
+        response: '[Project blocked by operator control (start_lock).]',
+        traceId,
+        memoryCandidates: [],
+        pfcDecisions: [],
+      };
+    }
 
     const turnData: TurnData = {
       input: validInput.message,
