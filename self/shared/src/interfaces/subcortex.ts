@@ -54,6 +54,13 @@ import type {
   ScopeSnapshot,
   ControlScope,
   ControlActorType,
+  ProjectControlState,
+  MaoAgentProjection,
+  MaoProjectControlProjection,
+  MaoEventType,
+  GtmGateReportInput,
+  GtmGateReport,
+  GtmStageLabel,
 } from '../types/index.js';
 import type { NousEvent } from '../events/index.js';
 
@@ -267,4 +274,34 @@ export interface IOpctlService {
     locked: boolean,
     actor: ControlActorType,
   ): Promise<void>;
+
+  /** Get project control state (running | paused_review | hard_stopped | resuming). Phase 2.6. */
+  getProjectControlState(projectId: ProjectId): Promise<ProjectControlState>;
+}
+
+export interface IMaoProjectionService {
+  /** Derive agent projections for a project from canonical event/state truth. */
+  getAgentProjections(projectId: ProjectId): Promise<MaoAgentProjection[]>;
+
+  /** Derive project control projection for a project. */
+  getProjectControlProjection(
+    projectId: ProjectId,
+  ): Promise<MaoProjectControlProjection | null>;
+
+  /** Emit MAO projection event (witness-linked). */
+  emitProjectionEvent(
+    eventType: MaoEventType,
+    detail: Record<string, unknown>,
+  ): Promise<void>;
+}
+
+export interface IGtmGateCalculator {
+  /** Compute GTM gate report from verification report, pillar status, benchmark results. */
+  computeGateReport(input: GtmGateReportInput): Promise<GtmGateReport>;
+
+  /** Check if promotion is blocked (open S0 or threshold failure). */
+  isPromotionBlocked(
+    report: GtmGateReport,
+    targetStage: GtmStageLabel,
+  ): boolean;
 }
