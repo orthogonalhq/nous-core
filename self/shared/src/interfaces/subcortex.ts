@@ -45,12 +45,17 @@ import type {
   VerificationReport,
   VerificationReportId,
   WitnessVerificationRequest,
+  RouteContext,
+  RouteResult,
 } from '../types/index.js';
 import type { NousEvent } from '../events/index.js';
 
 export interface IModelRouter {
-  /** Route a model role to the appropriate provider */
+  /** Route a model role to the appropriate provider (legacy) */
   route(role: ModelRole, projectId?: ProjectId): Promise<ProviderId>;
+
+  /** Route with evidence (Phase 2.3): returns providerId and RouteDecisionEvidence */
+  routeWithEvidence(role: ModelRole, context: RouteContext): Promise<RouteResult>;
 
   /** List all available providers */
   listProviders(): Promise<ModelProviderConfig[]>;

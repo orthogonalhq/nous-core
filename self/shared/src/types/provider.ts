@@ -8,6 +8,10 @@ import { z } from 'zod';
 import { ProviderIdSchema, ProjectIdSchema, TraceIdSchema } from './ids.js';
 import { ProviderTypeSchema, ModelRoleSchema } from './enums.js';
 
+// --- Provider Class (Phase 2.3) ---
+export const ProviderClassSchema = z.enum(['local_text', 'remote_text']);
+export type ProviderClass = z.infer<typeof ProviderClassSchema>;
+
 // --- Model Provider Configuration ---
 export const ModelProviderConfigSchema = z.object({
   id: ProviderIdSchema,
@@ -18,6 +22,8 @@ export const ModelProviderConfigSchema = z.object({
   isLocal: z.boolean(),
   maxTokens: z.number().positive().optional(),
   capabilities: z.array(z.string()),
+  providerClass: ProviderClassSchema.optional(),
+  meetsProfiles: z.array(z.string()).optional(),
 });
 export type ModelProviderConfig = z.infer<typeof ModelProviderConfigSchema>;
 

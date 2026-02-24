@@ -88,3 +88,203 @@ describe('ModelRouter', () => {
     expect(list[0]).toHaveProperty('modelId');
   });
 });
+
+describe('ModelRouter routeWithEvidence', () => {
+  const TRACE_ID =
+    '00000000-0000-0000-0000-000000000000' as import('@nous/shared').TraceId;
+  const PROVIDER_ID = '00000000-0000-0000-0000-000000000001' as const;
+  const FALLBACK_ID = '00000000-0000-0000-0000-000000000002' as const;
+
+  it('returns providerId and evidence', async () => {
+    const config = createMockConfig();
+    const router = new ModelRouter(config as any);
+
+    const result = await router.routeWithEvidence('reasoner', {
+      traceId: TRACE_ID,
+      modelRequirements: {
+        profile: 'review-standard',
+        fallbackPolicy: 'block_if_unmet',
+      },
+    });
+
+    expect(result.providerId).toBe(PROVIDER_ID);
+    expect(result.evidence).toBeDefined();
+    expect(result.evidence.profileId).toBe('hybrid_controlled');
+    expect(result.evidence.policyLink).toBe('block_if_unmet');
+    expect(result.evidence.capabilityProfile).toBe('review-standard');
+    expect(result.evidence.selectedProviderId).toBe(PROVIDER_ID);
+  });
+
+  it('profile boundary blocks local_strict + remote primary provider', async () => {
+    const config = createMockConfig({
+      profile: {
+        name: 'local_strict',
+        description: 'Local only',
+        defaultProviderType: 'local',
+        allowLocalProviders: true,
+        allowRemoteProviders: false,
+        allowSilentLocalToRemoteFailover: false,
+      },
+      providers: [
+        {
+          id: FALLBACK_ID,
+          name: 'OpenAI',
+          type: 'text',
+          modelId: 'gpt-4',
+          isLocal: false,
+          capabilities: ['text'],
+        },
+      ],
+      modelRoleAssignments: [
+        { role: 'reasoner', providerId: FALLBACK_ID },
+      ],
+    });
+    const router = new ModelRouter(config as any);
+
+    await expect(
+      router.routeWithEvidence('reasoner', {
+        traceId: TRACE_ID,
+        modelRequirements: {
+          profile: 'review-standard',
+          fallbackPolicy: 'block_if_unmet',
+        },
+      }),
+    ).rejects.toThrow(NousError);
+
+    try {
+      await router.routeWithEvidence('reasoner', {
+        traceId: TRACE_ID,
+        modelRequirements: {
+          profile: 'review-standard',
+          fallbackPolicy: 'block_if_unmet',
+        },
+      });
+    } catch (e) {
+      expect((e as NousError).context?.failoverReasonCode).toBe(
+        'PRV-PROFILE-BOUNDARY',
+      );
+    }
+  });
+
+  it('hybrid_controlled allows fallback when configured', async () => {
+    const config = createMockConfig({
+      profile: {
+        name: 'hybrid_controlled',
+        description: 'Hybrid',
+        defaultProviderType: 'local',
+        allowLocalProviders: true,
+        allowRemoteProviders: true,
+        allowSilentLocalToRemoteFailover: false,
+      },
+      providers: [
+        {
+          id: PROVIDER_ID,
+          name: 'Ollama',
+          type: 'text',
+          modelId: 'llama',
+          isLocal: true,
+          capabilities: ['text'],
+        },
+        {
+          id: FALLBACK_ID,
+          name: 'OpenAI',
+          type: 'text',
+          modelId: 'gpt-4',
+          isLocal: false,
+          capabilities: ['text'],
+        },
+      ],
+      modelRoleAssignments: [
+        {
+          role: 'reasoner',
+          providerId: PROVIDER_ID,
+          fallbackProviderId: FALLBACK_ID,
+        },
+      ],
+    });
+    const router = new ModelRouter(config as any);
+
+    const result = await router.routeWithEvidence('reasoner', {
+      traceId: TRACE_ID,
+      modelRequirements: {
+        profile: 'review-standard',
+        fallbackPolicy: 'block_if_unmet',
+      },
+    });
+
+    expect(result.providerId).toBe(PROVIDER_ID);
+    expect(result.evidence.failoverHop).toBe(0);
+  });
+
+  it('throws PRV-THRESHOLD-MISS when no provider meets profile', async () => {
+    const config = createMockConfig({
+      providers: [
+        {
+          id: PROVIDER_ID,
+          name: 'Ollama',
+          type: 'text',
+          modelId: 'llama',
+          isLocal: true,
+          capabilities: ['text'],
+          meetsProfiles: ['prompt-generation'],
+        },
+      ],
+      modelRoleAssignments: [{ role: 'reasoner', providerId: PROVIDER_ID }],
+    });
+    const router = new ModelRouter(config as any);
+
+    await expect(
+      router.routeWithEvidence('reasoner', {
+        traceId: TRACE_ID,
+        modelRequirements: {
+          profile: 'review-standard',
+          fallbackPolicy: 'block_if_unmet',
+        },
+      }),
+    ).rejects.toThrow(NousError);
+
+    try {
+      await router.routeWithEvidence('reasoner', {
+        traceId: TRACE_ID,
+        modelRequirements: {
+          profile: 'review-standard',
+          fallbackPolicy: 'block_if_unmet',
+        },
+      });
+    } catch (e) {
+      expect((e as NousError).context?.failoverReasonCode).toBe(
+        'PRV-THRESHOLD-MISS',
+      );
+    }
+  });
+
+  it('principalOverrideEvidence allows dispatch with PRV-PRINCIPAL-OVERRIDE', async () => {
+    const config = createMockConfig({
+      providers: [
+        {
+          id: PROVIDER_ID,
+          name: 'Ollama',
+          type: 'text',
+          modelId: 'llama',
+          isLocal: true,
+          capabilities: ['text'],
+          meetsProfiles: ['prompt-generation'],
+        },
+      ],
+      modelRoleAssignments: [{ role: 'reasoner', providerId: PROVIDER_ID }],
+    });
+    const router = new ModelRouter(config as any);
+
+    const result = await router.routeWithEvidence('reasoner', {
+      traceId: TRACE_ID,
+      modelRequirements: {
+        profile: 'review-standard',
+        fallbackPolicy: 'block_if_unmet',
+      },
+      principalOverrideEvidence: true,
+    });
+
+    expect(result.providerId).toBe(PROVIDER_ID);
+    expect(result.evidence.failoverReasonCode).toBe('PRV-PRINCIPAL-OVERRIDE');
+  });
+});

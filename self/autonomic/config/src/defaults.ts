@@ -82,7 +82,7 @@ export const DEFAULT_PFC_TIER_PRESETS: PfcTierPreset[] = [
   },
 ];
 
-// --- Default Profiles ---
+// --- Default Profiles (legacy + canonical, Phase 2.3) ---
 export const DEFAULT_PROFILES: Record<string, Profile> = {
   'local-only': {
     name: 'local-only',
@@ -90,6 +90,7 @@ export const DEFAULT_PROFILES: Record<string, Profile> = {
     defaultProviderType: 'local',
     allowLocalProviders: true,
     allowRemoteProviders: false,
+    allowSilentLocalToRemoteFailover: false,
   },
   'remote-only': {
     name: 'remote-only',
@@ -97,6 +98,7 @@ export const DEFAULT_PROFILES: Record<string, Profile> = {
     defaultProviderType: 'remote',
     allowLocalProviders: false,
     allowRemoteProviders: true,
+    allowSilentLocalToRemoteFailover: false,
   },
   hybrid: {
     name: 'hybrid',
@@ -104,6 +106,31 @@ export const DEFAULT_PROFILES: Record<string, Profile> = {
     defaultProviderType: 'local',
     allowLocalProviders: true,
     allowRemoteProviders: true,
+    allowSilentLocalToRemoteFailover: false,
+  },
+  local_strict: {
+    name: 'local_strict',
+    description: 'Local providers only. No silent local-to-remote failover.',
+    defaultProviderType: 'local',
+    allowLocalProviders: true,
+    allowRemoteProviders: false,
+    allowSilentLocalToRemoteFailover: false,
+  },
+  hybrid_controlled: {
+    name: 'hybrid_controlled',
+    description: 'Local preferred with explicit remote fallback under policy.',
+    defaultProviderType: 'local',
+    allowLocalProviders: true,
+    allowRemoteProviders: true,
+    allowSilentLocalToRemoteFailover: false,
+  },
+  remote_primary: {
+    name: 'remote_primary',
+    description: 'Remote providers primary. Local only when explicitly configured.',
+    defaultProviderType: 'remote',
+    allowLocalProviders: false,
+    allowRemoteProviders: true,
+    allowSilentLocalToRemoteFailover: false,
   },
 };
 

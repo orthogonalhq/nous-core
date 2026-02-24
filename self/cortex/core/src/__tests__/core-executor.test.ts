@@ -48,9 +48,20 @@ function mockPfc(): IPfcEngine {
   };
 }
 
+const MOCK_PROVIDER_ID = randomUUID() as import('@nous/shared').ProviderId;
+
 function mockRouter(): IModelRouter {
   return {
-    route: vi.fn().mockResolvedValue(randomUUID() as import('@nous/shared').ProviderId),
+    route: vi.fn().mockResolvedValue(MOCK_PROVIDER_ID),
+    routeWithEvidence: vi.fn().mockResolvedValue({
+      providerId: MOCK_PROVIDER_ID,
+      evidence: {
+        profileId: 'hybrid_controlled',
+        policyLink: 'block_if_unmet',
+        capabilityProfile: 'review-standard',
+        selectedProviderId: MOCK_PROVIDER_ID,
+      },
+    }),
     listProviders: vi.fn().mockResolvedValue([]),
   };
 }
@@ -59,7 +70,7 @@ function mockProvider(output: string): IModelProvider {
   return {
     invoke: vi.fn().mockResolvedValue({
       output,
-      providerId: randomUUID() as import('@nous/shared').ProviderId,
+      providerId: MOCK_PROVIDER_ID,
       usage: { inputTokens: 0, outputTokens: 0 },
       traceId,
     }),
@@ -156,7 +167,7 @@ describe('CoreExecutor', () => {
     const provider = mockProvider('hi');
     const docStore = mockDocumentStore();
     const executor = new CoreExecutor({
-      pfc: mockPfc(),
+      Cortex: mockPfc(),
       router: mockRouter(),
       getProvider: () => provider,
       toolExecutor: mockToolExecutor(),
@@ -176,7 +187,7 @@ describe('CoreExecutor', () => {
     const provider = mockProvider('Hello from model');
     const docStore = mockDocumentStore();
     const executor = new CoreExecutor({
-      pfc: mockPfc(),
+      Cortex: mockPfc(),
       router: mockRouter(),
       getProvider: () => provider,
       toolExecutor: mockToolExecutor(),
@@ -199,7 +210,7 @@ describe('CoreExecutor', () => {
   it('throws ValidationError for invalid TurnInput', async () => {
     const { ValidationError } = await import('@nous/shared');
     const executor = new CoreExecutor({
-      pfc: mockPfc(),
+      Cortex: mockPfc(),
       router: mockRouter(),
       getProvider: () => mockProvider(''),
       toolExecutor: mockToolExecutor(),
@@ -221,7 +232,7 @@ describe('CoreExecutor', () => {
   it('superviseProject throws NOT_IMPLEMENTED', async () => {
     const { NousError } = await import('@nous/shared');
     const executor = new CoreExecutor({
-      pfc: mockPfc(),
+      Cortex: mockPfc(),
       router: mockRouter(),
       getProvider: () => mockProvider(''),
       toolExecutor: mockToolExecutor(),

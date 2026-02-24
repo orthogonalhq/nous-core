@@ -32,6 +32,11 @@ describe('InvariantCodeSchema', () => {
     expect(InvariantCodeSchema.safeParse('ISO-APPEND-ONLY-VIOLATION').success).toBe(
       true,
     );
+    expect(InvariantCodeSchema.safeParse('PRV-AUTH-FAILURE').success).toBe(true);
+    expect(InvariantCodeSchema.safeParse('PRV-THRESHOLD-MISS').success).toBe(true);
+    expect(InvariantCodeSchema.safeParse('PRV-PROFILE-BOUNDARY').success).toBe(
+      true,
+    );
   });
 
   it('rejects unknown prefix', () => {

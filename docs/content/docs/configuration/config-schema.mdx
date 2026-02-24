@@ -13,7 +13,7 @@ Nous uses JSON5 for configuration. The config file is validated at load time wit
 
 | Section | Description |
 |---------|-------------|
-| `profile` | Deployment profile (local-only, remote-only, hybrid) |
+| `profile` | Deployment profile (local_strict, hybrid_controlled, remote_primary; legacy: local-only, remote-only, hybrid) |
 | `pfcTier` | Cortex tier 0–5 (see [Cortex Mode Capability Matrix](/docs/architecture/Cortex-mode-capability-matrix)) |
 | `pfcTierPresets` | Capability definitions per tier |
 | `modelRoleAssignments` | Which provider fulfills which model role |
@@ -27,18 +27,25 @@ Nous uses JSON5 for configuration. The config file is validated at load time wit
 ```json5
 {
   "profile": {
-    "name": "local-only",  // "local-only" | "remote-only" | "hybrid"
-    "description": "Local models only",
+    "name": "hybrid_controlled",  // see Profile names below
+    "description": "Local preferred with explicit remote fallback",
     "defaultProviderType": "local",
     "allowLocalProviders": true,
-    "allowRemoteProviders": false
+    "allowRemoteProviders": true,
+    "allowSilentLocalToRemoteFailover": false
   }
 }
 ```
 
-- **local-only** — Only local providers (e.g. Ollama)
-- **remote-only** — Only remote API providers
-- **hybrid** — Both local and remote allowed
+**Profile names (Phase 2.3):**
+
+| Canonical | Legacy (deprecated) | Semantics |
+|-----------|--------------------|-----------|
+| `local_strict` | `local-only` | Local providers only; no silent local→remote failover |
+| `remote_primary` | `remote-only` | Remote providers primary; local only when explicitly configured |
+| `hybrid_controlled` | `hybrid` | Local preferred with explicit remote fallback under policy |
+
+Legacy names are normalized at runtime. `allowSilentLocalToRemoteFailover` — when false (default), remote is allowed only as explicit fallback in hybrid_controlled.
 
 ## Cortex Tier
 
@@ -49,13 +56,13 @@ Nous uses JSON5 for configuration. The config file is validated at load time wit
 ```json5
 {
   "modelRoleAssignments": [
-    { "role": "reasoner", "providerId": "ollama-default" },
-    { "role": "orchestrator", "providerId": "ollama-default" }
+    { "role": "reasoner", "providerId": "550e8400-e29b-41d4-a716-446655440001" },
+    { "role": "orchestrator", "providerId": "550e8400-e29b-41d4-a716-446655440001" }
   ]
 }
 ```
 
-Roles: `orchestrator`, `reasoner`, `tool-advisor`, `summarizer`, `embedder`, `reranker`, `vision`.
+`providerId` must be a valid UUID matching a provider `id` in the providers array. Roles: `orchestrator`, `reasoner`, `tool-advisor`, `summarizer`, `embedder`, `reranker`, `vision`.
 
 ## Providers
 
@@ -63,25 +70,32 @@ Roles: `orchestrator`, `reasoner`, `tool-advisor`, `summarizer`, `embedder`, `re
 {
   "providers": [
     {
-      "id": "ollama-default",
+      "id": "550e8400-e29b-41d4-a716-446655440001",
       "name": "Ollama",
       "type": "text",
       "modelId": "llama3.2:3b",
       "isLocal": true,
-      "capabilities": ["text"]
+      "capabilities": ["text"],
+      "providerClass": "local_text",
+      "meetsProfiles": ["review-standard", "prompt-generation"]
     },
     {
-      "id": "openai-compat",
+      "id": "550e8400-e29b-41d4-a716-446655440002",
       "name": "OpenAI-compatible",
       "type": "text",
       "endpoint": "https://api.openai.com/v1",
       "modelId": "gpt-4o-mini",
       "isLocal": false,
-      "capabilities": ["text"]
+      "capabilities": ["text"],
+      "providerClass": "remote_text",
+      "meetsProfiles": ["review-standard", "review-implementation"]
     }
   ]
 }
 ```
+
+- **providerClass** (optional): `local_text` | `remote_text` — used for credential segregation and profile boundary.
+- **meetsProfiles** (optional): Array of capability profiles (e.g. `review-standard`, `review-implementation`). Router enforces that the selected provider meets the required profile unless Principal override evidence is present.
 
 Provider types: `text`, `image`, `video`, `vision`, `embedding`, `external-api`.
 

@@ -7,6 +7,7 @@ export * from './memory.js';
 export * from './project.js';
 export * from './provider.js';
 export * from './cortex.js';
+export * from './routing.js';
 export * from './tools.js';
 export * from './artifacts.js';
 export * from './scheduler.js';

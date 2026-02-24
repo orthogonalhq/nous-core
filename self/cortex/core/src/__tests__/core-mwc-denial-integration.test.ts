@@ -10,7 +10,7 @@ import {
   PfcEngine,
   createPfcEvaluator,
   createPfcMutationEvaluator,
-} from '@nous/cortex-Cortex';
+} from '@nous/cortex-pfc';
 import { DocumentStmStore } from '@nous/memory-stm';
 import { MwcPipeline } from '@nous/memory-mwc';
 import { ModelRouter } from '@nous/subcortex-router';
