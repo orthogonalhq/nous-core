@@ -30,12 +30,13 @@ export const InvariantPrefixSchema = z.enum([
   'MEM',
   'CHAIN',
   'ISO',
+  'PRV',
 ]);
 export type InvariantPrefix = z.infer<typeof InvariantPrefixSchema>;
 
 export const InvariantCodeSchema = z
   .string()
-  .regex(/^(AUTH|EVID|MEM|CHAIN|ISO)-[A-Z0-9][A-Z0-9-]*$/);
+  .regex(/^(AUTH|EVID|MEM|CHAIN|ISO|PRV)-[A-Z0-9][A-Z0-9-]*$/);
 export type InvariantCode = z.infer<typeof InvariantCodeSchema>;
 
 export const CriticalActionCategorySchema = z.enum([

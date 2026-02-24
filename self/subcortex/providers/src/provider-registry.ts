@@ -44,6 +44,8 @@ export class ProviderRegistry {
         isLocal: entry.isLocal,
         maxTokens: entry.maxTokens,
         capabilities: entry.capabilities ?? [],
+        providerClass: entry.providerClass,
+        meetsProfiles: entry.meetsProfiles,
       };
 
       const validated = ModelProviderConfigSchema.safeParse(providerConfig);

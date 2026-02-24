@@ -31,3 +31,5 @@ export {
 export { loadConfig } from './loader.js';
 
 export { ConfigManager } from './config-manager.js';
+
+export { normalizeProfileName } from './profile-normalize.js';

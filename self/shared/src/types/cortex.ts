@@ -8,6 +8,7 @@ import { ProjectIdSchema, TraceIdSchema, MemoryEntryIdSchema } from './ids.js';
 import { PfcTierSchema } from './enums.js';
 import { MemoryWriteCandidateSchema, StmContextSchema } from './memory.js';
 import { TraceEvidenceReferenceSchema } from './evidence.js';
+import { ModelRequirementsSchema, RouteDecisionEvidenceSchema } from './routing.js';
 
 // --- Cortex Decision ---
 // Result of a Cortex evaluation — approve or deny with reason and confidence.
@@ -66,6 +67,10 @@ export const TurnInputSchema = z.object({
   projectId: ProjectIdSchema.optional(),
   traceId: TraceIdSchema,
   stmContext: StmContextSchema.optional(),
+  /** Model routing requirements (Phase 2.3). Default: review-standard, block_if_unmet */
+  modelRequirements: ModelRequirementsSchema.optional(),
+  /** When true, allow dispatch below capability threshold with PRV-PRINCIPAL-OVERRIDE evidence */
+  principalOverrideEvidence: z.boolean().optional(),
 });
 export type TurnInput = z.infer<typeof TurnInputSchema>;
 
@@ -97,6 +102,7 @@ export const ExecutionTraceSchema = z.object({
           inputTokens: z.number().int().min(0).optional(),
           outputTokens: z.number().int().min(0).optional(),
           durationMs: z.number().min(0).optional(),
+          routeEvidence: RouteDecisionEvidenceSchema.optional(),
         }),
       ),
       pfcDecisions: z.array(PfcDecisionSchema),

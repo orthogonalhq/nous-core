@@ -21,6 +21,7 @@ const BASE_POLICY: Record<
   ISO: { severity: 'S0', enforcement: 'hard-stop' },
   EVID: { severity: 'S1', enforcement: 'auto-pause' },
   MEM: { severity: 'S2', enforcement: 'review' },
+  PRV: { severity: 'S1', enforcement: 'auto-pause' },
 };
 
 export function getInvariantPrefix(code: InvariantCode): InvariantPrefix {

@@ -34,6 +34,9 @@ import {
   type InvariantCode,
   type EnforcementAction,
   type WitnessEvent,
+  type RouteContext,
+  type RouteResult,
+  type RouteDecisionEvidence,
 } from '@nous/shared';
 import { parseModelOutput } from './output-parser.js';
 
@@ -111,7 +114,41 @@ export class CoreExecutor implements ICoreExecutor {
       const prompt = buildPrompt(validInput.message, stmContext);
 
       // Step 4: Model
-      const providerId = await this.deps.router.route(modelRole, projectId);
+      const modelRequirements = validInput.modelRequirements ?? {
+        profile: 'review-standard',
+        fallbackPolicy: 'block_if_unmet' as const,
+      };
+      const routeContext: RouteContext = {
+        traceId,
+        projectId,
+        modelRequirements,
+        principalOverrideEvidence: validInput.principalOverrideEvidence,
+      };
+
+      let routeResult: RouteResult;
+      try {
+        routeResult = await this.deps.router.routeWithEvidence(
+          modelRole,
+          routeContext,
+        );
+      } catch (routeError) {
+        const failoverCode = (routeError as NousError)?.context?.failoverReasonCode as
+          | string
+          | undefined;
+        if (
+          failoverCode === 'PRV-THRESHOLD-MISS' &&
+          validInput.principalOverrideEvidence
+        ) {
+          routeResult = await this.deps.router.routeWithEvidence(modelRole, {
+            ...routeContext,
+            principalOverrideEvidence: true,
+          });
+        } else {
+          throw routeError;
+        }
+      }
+
+      const { providerId, evidence: routeEvidence } = routeResult;
       const provider = this.deps.getProvider(providerId);
       if (!provider) {
         throw new NousError(
@@ -125,7 +162,10 @@ export class CoreExecutor implements ICoreExecutor {
         actionRef: providerId,
         actor: 'core',
         status: 'approved',
-        detail: { role: modelRole },
+        detail: {
+          role: modelRole,
+          routeEvidence: routeEvidence as Record<string, unknown>,
+        },
         traceId,
         projectId,
       });
@@ -145,6 +185,10 @@ export class CoreExecutor implements ICoreExecutor {
           traceId,
         });
       } catch (error) {
+        const failoverCode =
+          error instanceof NousError
+            ? (error.context?.failoverReasonCode as string | undefined)
+            : undefined;
         const completionState = await this.handleCompletionFailure({
           actionCategory: 'model-invoke',
           actionRef: providerId,
@@ -152,6 +196,8 @@ export class CoreExecutor implements ICoreExecutor {
           actor: 'core',
           detail: {
             reason: normalizeErrorMessage(error),
+            routeEvidence: routeEvidence as Record<string, unknown>,
+            ...(failoverCode && { failoverReasonCode: failoverCode }),
           },
           traceId,
           projectId,
@@ -175,6 +221,7 @@ export class CoreExecutor implements ICoreExecutor {
         status: 'succeeded',
         detail: {
           durationMs,
+          routeEvidence: routeEvidence as Record<string, unknown>,
         },
         traceId,
         projectId,
@@ -193,6 +240,7 @@ export class CoreExecutor implements ICoreExecutor {
         inputTokens: response.usage?.inputTokens,
         outputTokens: response.usage?.outputTokens,
         durationMs,
+        routeEvidence,
       });
 
       // Step 5: Cortex reflect
@@ -235,7 +283,7 @@ export class CoreExecutor implements ICoreExecutor {
         const toolAuthorization = await this.authorizeCriticalAction({
           actionCategory: 'tool-execute',
           actionRef: tc.name,
-          actor: 'Cortex',
+          actor: 'core',
           status: decision.approved ? 'approved' : 'denied',
           detail: {
             reason: decision.reason,
@@ -325,7 +373,7 @@ export class CoreExecutor implements ICoreExecutor {
         const memoryAuthorization = await this.authorizeCriticalAction({
           actionCategory: 'memory-write',
           actionRef: candidate.type,
-          actor: 'Cortex',
+          actor: 'core',
           status: decision.approved ? 'approved' : 'denied',
           detail: {
             reason: decision.reason,
@@ -728,6 +776,7 @@ interface TurnData {
     inputTokens?: number;
     outputTokens?: number;
     durationMs?: number;
+    routeEvidence?: RouteDecisionEvidence;
   }>;
   pfcDecisions: PfcDecision[];
   toolDecisions: Array<{ toolName: string; approved: boolean; reason?: string }>;
