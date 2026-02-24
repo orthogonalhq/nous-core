@@ -47,6 +47,13 @@ import type {
   WitnessVerificationRequest,
   RouteContext,
   RouteResult,
+  ControlCommandEnvelope,
+  ConfirmationProof,
+  ConfirmationProofRequest,
+  OpctlSubmitResult,
+  ScopeSnapshot,
+  ControlScope,
+  ControlActorType,
 } from '../types/index.js';
 import type { NousEvent } from '../events/index.js';
 
@@ -228,4 +235,36 @@ export interface IWitnessService {
 
   /** Get the latest signed checkpoint */
   getLatestCheckpoint(): Promise<WitnessCheckpoint | null>;
+}
+
+export interface IOpctlService {
+  /** Submit a control command; returns apply result or rejection with reason. */
+  submitCommand(
+    envelope: ControlCommandEnvelope,
+    confirmationProof?: ConfirmationProof,
+  ): Promise<OpctlSubmitResult>;
+
+  /** Request a confirmation proof for T1/T2/T3 commands (runtime-issued, short-lived). */
+  requestConfirmationProof(
+    params: ConfirmationProofRequest,
+  ): Promise<ConfirmationProof>;
+
+  /** Validate confirmation proof (scope-bound, action-bound, not expired). */
+  validateConfirmationProof(
+    proof: ConfirmationProof,
+    envelope: ControlCommandEnvelope,
+  ): Promise<boolean>;
+
+  /** Resolve scope to target snapshot; used internally by submitCommand. */
+  resolveScope(scope: ControlScope): Promise<ScopeSnapshot>;
+
+  /** Check if project has start_lock (hard_stopped). */
+  hasStartLock(projectId: ProjectId): Promise<boolean>;
+
+  /** Set/release start lock (Principal-only for release). */
+  setStartLock(
+    projectId: ProjectId,
+    locked: boolean,
+    actor: ControlActorType,
+  ): Promise<void>;
 }

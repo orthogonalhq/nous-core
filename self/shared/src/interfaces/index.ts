@@ -22,6 +22,7 @@ export type {
   ISandbox,
   IProjectApi,
   IWitnessService,
+  IOpctlService,
 } from './subcortex.js';
 export type {
   IDocumentStore,
