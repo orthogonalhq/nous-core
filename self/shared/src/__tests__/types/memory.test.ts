@@ -1,5 +1,6 @@
 import { describe, it, expect } from 'vitest';
 import {
+  DEFAULT_MEMORY_ACCESS_POLICY,
   MemoryAccessPolicySchema,
   MemoryWriteCandidateSchema,
   MemoryEntrySchema,
@@ -15,6 +16,24 @@ import {
 const VALID_UUID = '550e8400-e29b-41d4-a716-446655440000';
 const VALID_UUID_2 = '660e8400-e29b-41d4-a716-446655440001';
 const NOW = new Date().toISOString();
+
+describe('DEFAULT_MEMORY_ACCESS_POLICY', () => {
+  it('parses as valid MemoryAccessPolicy', () => {
+    expect(
+      MemoryAccessPolicySchema.safeParse(DEFAULT_MEMORY_ACCESS_POLICY).success,
+    ).toBe(true);
+  });
+
+  it('matches schema structure', () => {
+    const result = MemoryAccessPolicySchema.safeParse(DEFAULT_MEMORY_ACCESS_POLICY);
+    expect(result.success).toBe(true);
+    if (result.success) {
+      expect(result.data.canReadFrom).toBe('all');
+      expect(result.data.canBeReadBy).toBe('all');
+      expect(result.data.inheritsGlobal).toBe(true);
+    }
+  });
+});
 
 describe('MemoryAccessPolicySchema', () => {
   it('accepts "all" / "all" / true', () => {

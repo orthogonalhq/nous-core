@@ -21,7 +21,33 @@ import {
   TimeoutActionSchema,
   TimeoutDefaultActionSchema,
 } from './enums.js';
-import { MemoryAccessPolicySchema } from './memory.js';
+import {
+  AccessListSchema,
+  MemoryAccessPolicySchema,
+} from './memory.js';
+
+// --- Project Identity Contract ---
+// Canonical subset of project fields for deterministic identity across surfaces.
+export const ProjectIdentityContractSchema = z.object({
+  id: ProjectIdSchema,
+  name: z.string().min(1),
+  type: ProjectTypeSchema,
+});
+export type ProjectIdentityContract = z.infer<
+  typeof ProjectIdentityContractSchema
+>;
+
+// --- Node Memory Access Policy Override ---
+// Optional. When present, MUST be more restrictive than project policy.
+// Schema defines structure only; "more restrictive" comparison is runtime in phase-3.2.
+export const NodeMemoryAccessPolicyOverrideSchema = z.object({
+  canReadFrom: AccessListSchema.optional(),
+  canBeReadBy: AccessListSchema.optional(),
+  inheritsGlobal: z.boolean().optional(),
+});
+export type NodeMemoryAccessPolicyOverride = z.infer<
+  typeof NodeMemoryAccessPolicyOverrideSchema
+>;
 
 // --- Node Schema ---
 // From project-model.mdx "Node Schema".
@@ -44,6 +70,7 @@ export const NodeSchemaDefinition = z.object({
     onTimeout: TimeoutActionSchema,
   }),
   executionModel: ExecutionModelSchema,
+  memoryAccessPolicyOverride: NodeMemoryAccessPolicyOverrideSchema.optional(),
 });
 export type NodeSchema = z.infer<typeof NodeSchemaDefinition>;
 
