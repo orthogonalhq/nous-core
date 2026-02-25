@@ -145,6 +145,8 @@ Each project declares a memory access policy with three fields:
 
 **Policy decision engine:** Cross-project memory operations (read, write, retrieve) are evaluated by the policy decision engine (`@nous/memory-access`). Denied attempts emit durable evidence with deterministic `POL-*` reason codes (e.g. `POL-CANNOT-READ-FROM`, `POL-GLOBAL-DENIED`, `POL-CONTROL-STATE-BLOCKED`). When a project is `hard_stopped`, all cross-project access is blocked.
 
+**Enforcement surfaces (Phase 3.3):** (1) Core-executor — policy gate before memory write submission for chat-driven turns; (2) `PolicyEnforcedRetrievalEngine` — wraps retrieval, evaluates policy before delegating; (3) `IProjectApi.memory` (stub/implementation) — policy gate at API boundary when cross-project or global scope.
+
 ---
 
 ## Node Governance Levels

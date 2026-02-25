@@ -22,6 +22,7 @@
     "@nous/autonomic-storage": "workspace:*",
     "@nous/cortex-core": "workspace:*",
     "@nous/cortex-pfc": "workspace:*",
+    "@nous/memory-access": "workspace:*",
     "@nous/memory-mwc": "workspace:*",
     "@nous/memory-stm": "workspace:*",
     "@nous/shared": "workspace:*",

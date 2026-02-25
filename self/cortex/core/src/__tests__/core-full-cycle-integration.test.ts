@@ -16,6 +16,7 @@ import { MwcPipeline } from '@nous/memory-mwc';
 import { ModelRouter } from '@nous/subcortex-router';
 import { ToolExecutor } from '@nous/subcortex-tools';
 import { DocumentProjectStore } from '@nous/subcortex-projects';
+import { MemoryAccessPolicyEngine } from '@nous/memory-access';
 import { WitnessService } from '@nous/subcortex-witnessd';
 import { SqliteDocumentStore } from '@nous/autonomic-storage';
 import type { IConfig } from '@nous/shared';
@@ -103,6 +104,7 @@ describe('Core full cycle integration', () => {
       projectStore: new DocumentProjectStore(documentStore),
       documentStore,
       witnessService,
+      policyEngine: new MemoryAccessPolicyEngine(),
     });
 
     const result = await executor.executeTurn({
