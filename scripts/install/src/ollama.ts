@@ -9,6 +9,13 @@ import type { Platform } from './detect-platform.js';
 const OLLAMA_URL = 'http://localhost:11434';
 const OLLAMA_READY_TIMEOUT_MS = 30_000;
 const OLLAMA_POLL_INTERVAL_MS = 500;
+const COMMAND_TIMEOUTS_MS = {
+  commandProbe: 8_000,
+  modelList: 20_000,
+  updateCheck: 20_000,
+  install: 15 * 60_000,
+  update: 15 * 60_000,
+} as const;
 
 export type OllamaUpdateCheck = {
   state: 'available' | 'up-to-date' | 'unknown';
@@ -22,29 +29,104 @@ export type OllamaUpdateResult = {
 
 const OLLAMA_WINGET_ID = 'Ollama.Ollama';
 
+type ExecOptions = {
+  cwd?: string;
+  env?: NodeJS.ProcessEnv;
+  timeoutMs?: number;
+};
+
+type ExecResult = {
+  exitCode: number;
+  stdout: string;
+  stderr: string;
+  timedOut: boolean;
+};
+
+function killProcessTree(proc: ReturnType<typeof spawn>): void {
+  if (!proc.pid) {
+    return;
+  }
+
+  if (process.platform === 'win32') {
+    const killer = spawn('taskkill', ['/pid', String(proc.pid), '/T', '/F'], {
+      stdio: 'ignore',
+    });
+    killer.unref();
+    return;
+  }
+
+  try {
+    proc.kill('SIGTERM');
+  } catch {
+    // Ignore kill failures and let process exit naturally.
+  }
+}
+
 function exec(
   command: string,
   args: string[],
-  options?: { cwd?: string; env?: NodeJS.ProcessEnv },
-): Promise<{ exitCode: number; stdout: string; stderr: string }> {
+  options?: ExecOptions,
+): Promise<ExecResult> {
   return new Promise((resolve) => {
     const proc = spawn(command, args, {
-      shell: true,
+      shell: false,
       stdio: ['ignore', 'pipe', 'pipe'],
       cwd: options?.cwd,
       env: options?.env ?? process.env,
     });
+
+    const timeoutMs = options?.timeoutMs ?? 0;
     let stdout = '';
     let stderr = '';
+    let settled = false;
+    let timedOut = false;
+    let timeoutHandle: NodeJS.Timeout | null = null;
+
+    const finish = (result: ExecResult) => {
+      if (settled) {
+        return;
+      }
+      settled = true;
+      if (timeoutHandle) {
+        clearTimeout(timeoutHandle);
+      }
+      resolve(result);
+    };
+
     proc.stdout?.on('data', (d) => (stdout += d.toString()));
     proc.stderr?.on('data', (d) => (stderr += d.toString()));
+    proc.on('error', (err) => {
+      const message = err instanceof Error ? err.message : String(err);
+      finish({
+        exitCode: -1,
+        stdout,
+        stderr: stderr ? `${stderr}\n${message}` : message,
+        timedOut,
+      });
+    });
     proc.on('close', (code) => {
-      resolve({
+      finish({
         exitCode: code ?? -1,
         stdout,
         stderr,
+        timedOut,
       });
     });
+
+    if (timeoutMs > 0) {
+      timeoutHandle = setTimeout(() => {
+        timedOut = true;
+        killProcessTree(proc);
+        const timeoutMessage = `Command "${command}" timed out after ${timeoutMs}ms`;
+        finish({
+          exitCode: -1,
+          stdout,
+          stderr: stderr ? `${stderr}\n${timeoutMessage}` : timeoutMessage,
+          timedOut,
+        });
+      }, timeoutMs);
+      timeoutHandle.unref();
+    }
   });
 }
 
@@ -62,13 +144,17 @@ async function resolveOllamaCommand(): Promise<string | null> {
   // 1) Explicit override for custom installs.
   const envPath = process.env.OLLAMA_PATH;
   if (envPath && existsSync(envPath)) {
-    const { exitCode } = await exec(envPath, ['--version']);
+    const { exitCode } = await exec(envPath, ['--version'], {
+      timeoutMs: COMMAND_TIMEOUTS_MS.commandProbe,
+    });
     if (exitCode === 0) return envPath;
   }
 
   // 2) PATH lookup.
   {
-    const { exitCode } = await exec('ollama', ['--version']);
+    const { exitCode } = await exec('ollama', ['--version'], {
+      timeoutMs: COMMAND_TIMEOUTS_MS.commandProbe,
+    });
     if (exitCode === 0) return 'ollama';
   }
 
@@ -78,7 +164,9 @@ async function resolveOllamaCommand(): Promise<string | null> {
     if (localAppData) {
       const localPath = join(localAppData, 'Programs', 'Ollama', 'ollama.exe');
       if (existsSync(localPath)) {
-        const { exitCode } = await exec(localPath, ['--version']);
+        const { exitCode } = await exec(localPath, ['--version'], {
+          timeoutMs: COMMAND_TIMEOUTS_MS.commandProbe,
+        });
         if (exitCode === 0) return localPath;
       }
     }
@@ -114,8 +202,10 @@ export async function isOllamaRunning(): Promise<boolean> {
 
 export async function isModelInstalled(modelId: string): Promise<boolean> {
   const ollamaCommand = await requireOllamaCommand();
-  const { exitCode, stdout } = await exec(ollamaCommand, ['list']);
-  if (exitCode !== 0) {
+  const { exitCode, stdout, timedOut } = await exec(ollamaCommand, ['list'], {
+    timeoutMs: COMMAND_TIMEOUTS_MS.modelList,
+  });
+  if (exitCode !== 0 || timedOut) {
     return false;
   }
 
@@ -130,8 +220,12 @@ export async function isModelInstalled(modelId: string): Promise<boolean> {
   });
 }
 
-export async function checkOllamaUpdate(platform: Platform): Promise<OllamaUpdateCheck> {
-  if (!(await isOllamaInstalled())) {
+export async function checkOllamaUpdate(
+  platform: Platform,
+  options?: { assumeInstalled?: boolean },
+): Promise<OllamaUpdateCheck> {
+  const ollamaInstalled = options?.assumeInstalled ?? (await isOllamaInstalled());
+  if (!ollamaInstalled) {
     return { state: 'unknown', detail: 'Ollama not installed' };
   }
 
@@ -142,7 +236,15 @@ export async function checkOllamaUpdate(platform: Platform): Promise<OllamaUpdat
         '--id',
         OLLAMA_WINGET_ID,
         '--exact',
-      ]);
+      ], {
+        timeoutMs: COMMAND_TIMEOUTS_MS.updateCheck,
+      });
+      if (installed.timedOut) {
+        return {
+          state: 'unknown',
+          detail: `winget list timed out after ${COMMAND_TIMEOUTS_MS.updateCheck / 1000}s`,
+        };
+      }
       if (installed.exitCode !== 0) {
         return { state: 'unknown', detail: `winget list exited ${installed.exitCode}` };
       }
@@ -152,7 +254,15 @@ export async function checkOllamaUpdate(platform: Platform): Promise<OllamaUpdat
         '--id',
         OLLAMA_WINGET_ID,
         '--exact',
-      ]);
+      ], {
+        timeoutMs: COMMAND_TIMEOUTS_MS.updateCheck,
+      });
+      if (available.timedOut) {
+        return {
+          state: 'unknown',
+          detail: `winget search timed out after ${COMMAND_TIMEOUTS_MS.updateCheck / 1000}s`,
+        };
+      }
       if (available.exitCode !== 0) {
         return { state: 'unknown', detail: `winget search exited ${available.exitCode}` };
       }
@@ -174,7 +284,17 @@ export async function checkOllamaUpdate(platform: Platform): Promise<OllamaUpdat
       };
     }
     case 'darwin': {
-      const { exitCode, stdout, stderr } = await exec('brew', ['outdated', '--formula', 'ollama']);
+      const { exitCode, stdout, stderr, timedOut } = await exec(
+        'brew',
+        ['outdated', '--formula', 'ollama'],
+        { timeoutMs: COMMAND_TIMEOUTS_MS.updateCheck },
+      );
+      if (timedOut) {
+        return {
+          state: 'unknown',
+          detail: `brew outdated timed out after ${COMMAND_TIMEOUTS_MS.updateCheck / 1000}s`,
+        };
+      }
       if (exitCode !== 0) {
         const detail = stderr.trim() || `brew exited ${exitCode}`;
         return { state: 'unknown', detail };
@@ -196,12 +316,12 @@ export async function checkOllamaUpdate(platform: Platform): Promise<OllamaUpdat
 export async function updateOllama(platform: Platform): Promise<OllamaUpdateResult> {
   switch (platform) {
     case 'win32': {
-      const precheck = await checkOllamaUpdate(platform);
+      const precheck = await checkOllamaUpdate(platform, { assumeInstalled: true });
       if (precheck.state === 'up-to-date') {
         return { updated: false, detail: precheck.detail };
       }
 
-      const { exitCode, stdout, stderr } = await exec('winget', [
+      const { exitCode, stdout, stderr, timedOut } = await exec('winget', [
         'upgrade',
         '--id',
         OLLAMA_WINGET_ID,
@@ -209,8 +329,15 @@ export async function updateOllama(platform: Platform): Promise<OllamaUpdateResu
         '--accept-package-agreements',
         '--accept-source-agreements',
         '--disable-interactivity',
-      ]);
+      ], {
+        timeoutMs: COMMAND_TIMEOUTS_MS.update,
+      });
       const combined = `${stdout}\n${stderr}`;
+      if (timedOut) {
+        throw new Error(
+          `Ollama update timed out after ${COMMAND_TIMEOUTS_MS.update / 1000}s. Try running winget upgrade manually.`,
+        );
+      }
       if (exitCode !== 0) {
         if (/no available upgrade found|no applicable update found/i.test(combined)) {
           return { updated: false, detail: 'Already up to date' };
@@ -223,8 +350,15 @@ export async function updateOllama(platform: Platform): Promise<OllamaUpdateResu
       return { updated: true, detail: 'Updated via winget' };
     }
     case 'darwin': {
-      const { exitCode, stdout, stderr } = await exec('brew', ['upgrade', 'ollama']);
+      const { exitCode, stdout, stderr, timedOut } = await exec('brew', ['upgrade', 'ollama'], {
+        timeoutMs: COMMAND_TIMEOUTS_MS.update,
+      });
       const combined = `${stdout}\n${stderr}`;
+      if (timedOut) {
+        throw new Error(
+          `Ollama update timed out after ${COMMAND_TIMEOUTS_MS.update / 1000}s. Try running brew upgrade ollama manually.`,
+        );
+      }
       if (exitCode !== 0) {
         if (/already up-to-date/i.test(combined)) {
           return { updated: false, detail: 'Already up to date' };
@@ -274,7 +408,14 @@ export async function installOllama(platform: Platform): Promise<void> {
       throw new Error(`Unsupported platform for Ollama install: ${platform}`);
   }
 
-  const { exitCode, stdout, stderr } = await exec(cmd, args);
+  const { exitCode, stdout, stderr, timedOut } = await exec(cmd, args, {
+    timeoutMs: COMMAND_TIMEOUTS_MS.install,
+  });
+  if (timedOut) {
+    throw new Error(
+      `Ollama installation timed out after ${COMMAND_TIMEOUTS_MS.install / 1000}s. Manual install: https://ollama.com`,
+    );
+  }
   if (exitCode !== 0) {
     if (platform === 'win32') {
       const combined = `${stdout}\n${stderr}`;
@@ -312,11 +453,13 @@ async function waitForOllama(): Promise<void> {
 export async function startOllama(): Promise<void> {
   const ollamaCommand = await requireOllamaCommand();
   // ollama list starts the server if not running (on most platforms)
-  const { exitCode } = await exec(ollamaCommand, ['list']);
+  const { exitCode } = await exec(ollamaCommand, ['list'], {
+    timeoutMs: COMMAND_TIMEOUTS_MS.modelList,
+  });
   if (exitCode !== 0) {
     // Try explicit serve in background
     spawn(ollamaCommand, ['serve'], {
-      shell: true,
+      shell: false,
       stdio: 'ignore',
       detached: true,
     });
@@ -327,7 +470,7 @@ export async function startOllama(): Promise<void> {
 export async function pullModel(modelId: string): Promise<void> {
   const ollamaCommand = await requireOllamaCommand();
   const proc = spawn(ollamaCommand, ['pull', modelId], {
-    shell: true,
+    shell: false,
     stdio: ['ignore', 'inherit', 'inherit'],
   });
   const exitCode = await new Promise<number>((resolve) => {

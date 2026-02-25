@@ -208,11 +208,18 @@ async function assessInstallation(
     const hasConfig = existsSync(configPath);
     const hasDatabase = existsSync(join(dataDir, 'nous.sqlite'));
     const configValid = hasConfig ? isConfigValid(configPath) : false;
-    const ollamaInstalled = await isOllamaInstalled();
-    const ollamaRunning = ollamaInstalled ? await isOllamaRunning() : false;
-    const modelInstalled = ollamaInstalled ? await isModelInstalled(DEFAULT_MODEL) : false;
-    const backendState = await probeBackendState();
-    const updateCheck = await checkOllamaUpdate(platform);
+    const [ollamaInstalled, backendState] = await Promise.all([
+        isOllamaInstalled(),
+        probeBackendState(),
+    ]);
+
+    const [ollamaRunning, modelInstalled, updateCheck] = ollamaInstalled
+        ? await Promise.all([
+              isOllamaRunning(),
+              isModelInstalled(DEFAULT_MODEL),
+              checkOllamaUpdate(platform, { assumeInstalled: true }),
+          ])
+        : ([false, false, { state: 'unknown', detail: 'Ollama not installed' }] as const);
 
     return {
         existing: hasDataDir || hasConfig || hasDatabase,
@@ -458,7 +465,8 @@ async function main(): Promise<void> {
     log(`[nous:install] platform=${display}`);
     uiBanner(display, DEFAULT_MODEL, dataDir);
 
-    await runStep(1, 1, 'Inspect machine requirements', 'Disk and memory sanity checks', async () => {
+    const assessmentSteps = 2;
+    await runStep(1, assessmentSteps, 'Inspect machine requirements', 'Disk and memory sanity checks', async () => {
         const req = checkRequirements();
         if (!req.ok) {
             req.errors.forEach((e) => uiWarn(e));
@@ -466,7 +474,13 @@ async function main(): Promise<void> {
         }
     });
 
-    const assessment = await assessInstallation(plat, dataDir, configPath);
+    const assessment = await runStep(
+        2,
+        assessmentSteps,
+        'Inspect existing workspace',
+        'Check install health and optional Ollama updates',
+        async () => assessInstallation(plat, dataDir, configPath),
+    );
     if (assessment.existing) {
         renderExistingSummary(assessment);
 
