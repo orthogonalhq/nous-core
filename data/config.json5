@@ -4,9 +4,10 @@
     "description": "All models run locally. Maximum privacy.",
     "defaultProviderType": "local",
     "allowLocalProviders": true,
-    "allowRemoteProviders": false
+    "allowRemoteProviders": false,
+    "allowSilentLocalToRemoteFailover": false
   },
-  "pfcTier": 2,
+  "pfcTier": 5,
   "pfcTierPresets": [
     {
       "tier": 0,
