@@ -31,6 +31,7 @@ import {
 } from '@nous/subcortex-opctl';
 import { MaoProjectionService } from '@nous/subcortex-mao';
 import { GtmGateCalculator } from '@nous/subcortex-gtm';
+import { MemoryAccessPolicyEngine } from '@nous/memory-access';
 import type { NousContext } from './context';
 
 const MOCK_PROVIDER_ID = '00000000-0000-0000-0000-000000000001' as ProviderId;
@@ -164,6 +165,8 @@ export function createNousContext(): NousContext {
   const cfg = config.get() as { security?: { traceSensitiveData?: boolean } };
   const traceSensitiveData = cfg.security?.traceSensitiveData ?? false;
 
+  const policyEngine = new MemoryAccessPolicyEngine();
+
   const coreExecutor = new CoreExecutor({
     Cortex,
     router,
@@ -175,6 +178,7 @@ export function createNousContext(): NousContext {
     documentStore,
     witnessService,
     opctlService,
+    policyEngine,
     traceSensitiveData,
   });
 
