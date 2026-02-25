@@ -41,6 +41,15 @@ export const MemoryAccessPolicySchema = z.object({
 });
 export type MemoryAccessPolicy = z.infer<typeof MemoryAccessPolicySchema>;
 
+// --- Default Memory Access Policy ---
+// Explicit default for fully open cross-referencing. Consumers apply when
+// project config is loaded without an explicit policy. No implicit inheritance.
+export const DEFAULT_MEMORY_ACCESS_POLICY: MemoryAccessPolicy = {
+  canReadFrom: 'all',
+  canBeReadBy: 'all',
+  inheritsGlobal: true,
+};
+
 // --- Provenance ---
 export const ProvenanceSchema = z.object({
   traceId: TraceIdSchema,
