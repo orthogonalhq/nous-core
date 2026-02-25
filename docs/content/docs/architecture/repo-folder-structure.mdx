@@ -238,7 +238,9 @@ Responsibilities:
 * Emit durable denial evidence with `POL-*` reason codes for unauthorized attempts
 * Consume project control-state (`hard_stopped` blocks all access)
 
-The policy decision engine (`MemoryAccessPolicyEngine.evaluate()`) is synchronous and replay-deterministic. Callers supply project config and control state as inputs. Surface integration (retrieval, cortex) is Phase 3.3.
+The policy decision engine (`MemoryAccessPolicyEngine.evaluate()`) is synchronous and replay-deterministic. Callers supply project config and control state as inputs.
+
+**Phase 3.3 surface integration:** Policy enforcement is wired at (1) core-executor — policy gate before `mwcPipeline.submit()` for cross-project memory writes; (2) `PolicyEnforcedRetrievalEngine` — wraps `IRetrievalEngine`, evaluates policy before delegating, filters results by policy; (3) `StubProjectApi.memory` — optional policy deps run gate before throwing for read/write/retrieve when cross-project or global scope.
 
 Default: open. Isolation is opt-in.
 
