@@ -2,7 +2,7 @@
  * Memory layer interface contracts.
  *
  * IStmStore, ILtmStore, IDistillationEngine, IRetrievalEngine,
- * IKnowledgeIndex, IAccessPolicy.
+ * IKnowledgeIndex, IAccessPolicy, IMemoryAccessPolicyEngine.
  */
 import type {
   ProjectId,
@@ -17,6 +17,8 @@ import type {
   DistillationResult,
   RetrievalQuery,
   RetrievalResult,
+  PolicyAccessContext,
+  PolicyEvaluationResult,
 } from '../types/index.js';
 
 export interface IStmStore {
@@ -86,4 +88,10 @@ export interface IAccessPolicy {
 
   /** Get the full access policy for a project */
   getPolicy(projectId: ProjectId): Promise<MemoryAccessPolicy>;
+}
+
+/** Phase 3.2 — Deterministic policy decision engine for cross-project memory access */
+export interface IMemoryAccessPolicyEngine {
+  /** Evaluate policy for a cross-project memory operation. Synchronous for replay-determinism. */
+  evaluate(ctx: PolicyAccessContext): PolicyEvaluationResult;
 }

@@ -143,6 +143,8 @@ Each project declares a memory access policy with three fields:
 
 **Node-level override:** Individual nodes can declare a `memoryAccessPolicyOverride` to restrict memory access below the project default. Overrides can only be *more restrictive* — a node cannot expand access beyond what the project allows. Used for compliance-sensitive nodes (e.g. validation gates that must not see cross-project context).
 
+**Policy decision engine:** Cross-project memory operations (read, write, retrieve) are evaluated by the policy decision engine (`@nous/memory-access`). Denied attempts emit durable evidence with deterministic `POL-*` reason codes (e.g. `POL-CANNOT-READ-FROM`, `POL-GLOBAL-DENIED`, `POL-CONTROL-STATE-BLOCKED`). When a project is `hard_stopped`, all cross-project access is blocked.
+
 ---
 
 ## Node Governance Levels

@@ -226,7 +226,7 @@ Cross-project intelligence. The layer that makes cross-referencing cheap at quer
 
 ### access/
 
-Memory access policy enforcement.
+Memory access policy enforcement. Implemented as `@nous/memory-access` (Phase 3.2).
 
 Responsibilities:
 
@@ -234,6 +234,11 @@ Responsibilities:
 * Evaluate `inherits_global` for global memory access
 * Enforce node-level overrides (more restrictive only)
 * Gate all cross-project retrieval through policy checks
+* Support read, write, and retrieve actions with deterministic evaluation order
+* Emit durable denial evidence with `POL-*` reason codes for unauthorized attempts
+* Consume project control-state (`hard_stopped` blocks all access)
+
+The policy decision engine (`MemoryAccessPolicyEngine.evaluate()`) is synchronous and replay-deterministic. Callers supply project config and control state as inputs. Surface integration (retrieval, cortex) is Phase 3.3.
 
 Default: open. Isolation is opt-in.
 

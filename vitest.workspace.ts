@@ -18,6 +18,7 @@ export default defineWorkspace([
   'self/subcortex/gtm',
   'self/memory/stm',
   'self/memory/mwc',
+  'self/memory/access',
   'self/memory/stubs',
   'self/cortex/pfc',
   'self/cortex/core',
