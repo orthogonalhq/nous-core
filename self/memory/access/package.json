@@ -1,0 +1,22 @@
+{
+  "name": "@nous/memory-access",
+  "version": "0.0.1",
+  "private": true,
+  "description": "Cross-project memory access policy decision engine for Nous-OSS",
+  "type": "module",
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "import": "./dist/index.js"
+    }
+  },
+  "scripts": {
+    "build": "tsc --build",
+    "typecheck": "tsc --noEmit",
+    "clean": "rm -rf dist"
+  },
+  "dependencies": {
+    "@nous/shared": "workspace:*",
+    "zod": "^3.24.1"
+  }
+}
