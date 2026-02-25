@@ -18,6 +18,7 @@ import {
   type IStmStore,
   type IProjectStore,
   type IDocumentStore,
+  type IMemoryAccessPolicyEngine,
   type MemoryWriteCandidate,
   type MemoryEntryId,
   type ProjectId,
@@ -39,6 +40,10 @@ import {
   type RouteResult,
   type RouteDecisionEvidence,
 } from '@nous/shared';
+import {
+  isCrossProjectMemoryWrite,
+  buildPolicyAccessContextForMemoryWrite,
+} from '@nous/memory-access';
 import { parseModelOutput } from './output-parser.js';
 
 const TRACE_COLLECTION = 'execution_traces';
@@ -65,6 +70,8 @@ export interface CoreExecutorDeps {
   witnessService: IWitnessService;
   /** Phase 2.5: Operator control service for start/admission gating. Optional for backward compat. */
   opctlService?: IOpctlService;
+  /** Phase 3.3: Policy engine for cross-project memory access. Required for policy enforcement. */
+  policyEngine: IMemoryAccessPolicyEngine;
   /** When false (default), redact sensitive fields before persisting trace */
   traceSensitiveData?: boolean;
 }
@@ -384,6 +391,120 @@ export class CoreExecutor implements ICoreExecutor {
       for (const candidate of parsed.memoryCandidates) {
         if (pipelinePaused) {
           break;
+        }
+
+        // Phase 3.3: Cross-project policy gate
+        if (isCrossProjectMemoryWrite(candidate, projectId)) {
+          if (projectId == null) {
+            turnData.memoryDenials.push({
+              candidate,
+              reason: 'Cross-project write requires project context; deny-by-default',
+            });
+            continue;
+          }
+          const actingConfig = await this.deps.projectStore.get(projectId);
+          const targetConfig =
+            candidate.projectId != null && candidate.projectId !== projectId
+              ? await this.deps.projectStore.get(candidate.projectId)
+              : undefined;
+          const controlState = this.deps.opctlService
+            ? await this.deps.opctlService.getProjectControlState(projectId)
+            : undefined;
+
+          const policyCtx = buildPolicyAccessContextForMemoryWrite({
+            candidate,
+            actingProjectId: projectId,
+            actingProjectConfig: actingConfig,
+            targetProjectConfig: targetConfig ?? null,
+            projectControlState: controlState,
+            traceId,
+          });
+
+          if (policyCtx == null) {
+            turnData.memoryDenials.push({
+              candidate,
+              reason: 'Policy config unavailable; deny-by-default',
+            });
+            const memoryAuthorization = await this.authorizeCriticalAction({
+              actionCategory: 'memory-write',
+              actionRef: candidate.type,
+              actor: 'core',
+              status: 'denied',
+              detail: { reason: 'Policy config unavailable' },
+              traceId,
+              projectId,
+            });
+            const memoryRef: TraceEvidenceReference = {
+              actionCategory: 'memory-write',
+              authorizationEventId: memoryAuthorization.id,
+            };
+            turnData.evidenceRefs.push(memoryRef);
+            continue;
+          }
+
+          const policyResult = this.deps.policyEngine.evaluate(policyCtx);
+          if (!policyResult.allowed) {
+            turnData.memoryDenials.push({
+              candidate,
+              reason: `${policyResult.reasonCode}: ${policyResult.reason}`,
+              decisionRecord: policyResult.decisionRecord,
+            });
+            const memoryAuthorization = await this.authorizeCriticalAction({
+              actionCategory: 'memory-write',
+              actionRef: candidate.type,
+              actor: 'core',
+              status: 'denied',
+              detail: { reason: policyResult.reason },
+              traceId,
+              projectId,
+            });
+            const memoryCompletion = await this.completeCriticalAction({
+              actionCategory: 'memory-write',
+              actionRef: candidate.type,
+              authorizationRef: memoryAuthorization.id,
+              actor: 'core',
+              status: 'blocked',
+              detail: { reason: policyResult.reason },
+              traceId,
+              projectId,
+            });
+            const memoryRef: TraceEvidenceReference = {
+              actionCategory: 'memory-write',
+              authorizationEventId: memoryAuthorization.id,
+              completionEventId: memoryCompletion.id,
+            };
+            const reviewInvariant = await this.signalInvariant({
+              code: 'MEM-POLICY-REVIEW',
+              actionCategory: 'memory-write',
+              actionRef: candidate.type,
+              actor: 'system',
+              detail: {
+                description: 'memory write denied by policy',
+                evidenceEventIds: [memoryAuthorization.id, memoryCompletion.id],
+              },
+              traceId,
+              projectId,
+            });
+            const enforcement = this.applyInvariantOutcome(
+              reviewInvariant,
+              'MEM-POLICY-REVIEW',
+              turnData,
+            );
+            if (reviewInvariant) {
+              memoryRef.invariantEventId = reviewInvariant.id;
+            }
+            if (enforcement === 'stop') {
+              throw new NousError(
+                'Critical action blocked by S0 invariant',
+                'WITNESS_ENFORCEMENT_HARD_STOP',
+              );
+            }
+            if (enforcement === 'pause') {
+              pipelinePaused = true;
+            }
+            turnData.evidenceRefs.push(memoryRef);
+            continue;
+          }
         }
 
         const decision = await this.deps.Cortex.evaluateMemoryWrite(
@@ -802,7 +923,11 @@ interface TurnData {
   pfcDecisions: PfcDecision[];
   toolDecisions: Array<{ toolName: string; approved: boolean; reason?: string }>;
   memoryWrites: MemoryEntryId[];
-  memoryDenials: Array<{ candidate: MemoryWriteCandidate; reason: string }>;
+  memoryDenials: Array<{
+    candidate: MemoryWriteCandidate;
+    reason: string;
+    decisionRecord?: import('@nous/shared').PolicyDecisionRecord;
+  }>;
   evidenceRefs: TraceEvidenceReference[];
   timestamp: string;
 }
@@ -827,6 +952,7 @@ function redactTrace(trace: {
       memoryDenials: t.memoryDenials.map((d) => ({
         candidate: { ...d.candidate, content: REDACTED },
         reason: d.reason,
+        ...(d.decisionRecord != null && { decisionRecord: d.decisionRecord }),
       })),
       evidenceRefs: t.evidenceRefs,
     })),

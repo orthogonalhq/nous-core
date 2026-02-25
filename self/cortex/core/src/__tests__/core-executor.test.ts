@@ -3,6 +3,7 @@
  */
 import { describe, it, expect, vi } from 'vitest';
 import { CoreExecutor } from '../core-executor.js';
+import { MemoryAccessPolicyEngine } from '@nous/memory-access';
 import type {
   IPfcEngine,
   IModelRouter,
@@ -14,6 +15,8 @@ import type {
   IWitnessService,
 } from '@nous/shared';
 import { randomUUID } from 'node:crypto';
+
+const policyEngine = new MemoryAccessPolicyEngine();
 
 const traceId = randomUUID() as import('@nous/shared').TraceId;
 
@@ -176,6 +179,7 @@ describe('CoreExecutor', () => {
       projectStore: mockProjectStore(),
       documentStore: docStore,
       witnessService: mockWitnessService(),
+      policyEngine,
     });
     expect(executor).toBeDefined();
     expect(typeof executor.executeTurn).toBe('function');
@@ -196,6 +200,7 @@ describe('CoreExecutor', () => {
       projectStore: mockProjectStore(),
       documentStore: docStore,
       witnessService: mockWitnessService(),
+      policyEngine,
     });
 
     const result = await executor.executeTurn({
@@ -219,6 +224,7 @@ describe('CoreExecutor', () => {
       projectStore: mockProjectStore(),
       documentStore: mockDocumentStore(),
       witnessService: mockWitnessService(),
+      policyEngine,
     });
 
     await expect(
@@ -241,6 +247,7 @@ describe('CoreExecutor', () => {
       projectStore: mockProjectStore(),
       documentStore: mockDocumentStore(),
       witnessService: mockWitnessService(),
+      policyEngine,
     });
 
     await expect(
