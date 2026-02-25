@@ -8,4 +8,5 @@ export {
   StubEscalationService,
   StubSandbox,
   StubProjectApi,
+  type StubProjectApiPolicyDeps,
 } from './stubs.js';

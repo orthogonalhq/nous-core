@@ -4,8 +4,23 @@
  * All methods throw NousError with code 'NOT_IMPLEMENTED'.
  * Real implementations arrive in Phase 5 (workflows, artifacts, scheduler, escalation)
  * and Phase 7 (sandbox, ProjectApi).
+ *
+ * Phase 3.3: StubProjectApi accepts optional policy enforcement deps. When provided,
+ * memory.read/write/retrieve evaluate policy before throwing. Cross-project/global
+ * operations that would be denied return [] or null; allowed operations still throw
+ * NOT_IMPLEMENTED. Enforcement boundary documented in Phase 3.3 SDS.
  */
 import { NousError } from '@nous/shared';
+import {
+  isCrossProjectMemoryWrite,
+  buildPolicyAccessContextForMemoryWrite,
+} from '@nous/memory-access';
+import { DEFAULT_MEMORY_ACCESS_POLICY } from '@nous/shared';
+import type {
+  IMemoryAccessPolicyEngine,
+  IProjectStore,
+  ProjectControlState,
+} from '@nous/shared';
 import type {
   IWorkflowEngine,
   IArtifactStore,
@@ -135,23 +150,93 @@ export class StubSandbox implements ISandbox {
   }
 }
 
+/** Optional policy enforcement deps for StubProjectApi. When provided, memory ops run policy gate before throwing. */
+export interface StubProjectApiPolicyDeps {
+  projectId: ProjectId;
+  policyEngine: IMemoryAccessPolicyEngine;
+  projectStore: IProjectStore;
+  getProjectControlState?: (projectId: ProjectId) => Promise<ProjectControlState | undefined>;
+}
+
 export class StubProjectApi implements IProjectApi {
+  constructor(private readonly policyDeps?: StubProjectApiPolicyDeps) {}
+
   memory = {
     read: async (
       _query: string,
-      _scope: MemoryScope,
+      scope: MemoryScope,
     ): Promise<MemoryEntry[]> => {
+      const deps = this.policyDeps;
+      if (deps && scope === 'global') {
+        const config = await deps.projectStore.get(deps.projectId);
+        const policy = config?.memoryAccessPolicy ?? DEFAULT_MEMORY_ACCESS_POLICY;
+        const controlState = deps.getProjectControlState
+          ? await deps.getProjectControlState(deps.projectId)
+          : undefined;
+        const ctx = {
+          action: 'retrieve' as const,
+          fromProjectId: deps.projectId,
+          includeGlobal: true,
+          projectPolicy: policy,
+          targetProjectIds: [] as ProjectId[],
+          targetProjectPolicies: {} as Record<string, typeof policy>,
+          projectControlState: controlState,
+        };
+        const result = deps.policyEngine.evaluate(ctx);
+        if (!result.allowed) return [];
+      }
       return stubNotImpl('IProjectApi.memory', 'read', 'Phase 7');
     },
     write: async (
-      _candidate: MemoryWriteCandidate,
+      candidate: MemoryWriteCandidate,
     ): Promise<MemoryEntryId | null> => {
+      const deps = this.policyDeps;
+      if (deps && isCrossProjectMemoryWrite(candidate, deps.projectId)) {
+        const actingConfig = await deps.projectStore.get(deps.projectId);
+        const targetConfig =
+          candidate.projectId != null && candidate.projectId !== deps.projectId
+            ? await deps.projectStore.get(candidate.projectId)
+            : undefined;
+        const controlState = deps.getProjectControlState
+          ? await deps.getProjectControlState(deps.projectId)
+          : undefined;
+        const policyCtx = buildPolicyAccessContextForMemoryWrite({
+          candidate,
+          actingProjectId: deps.projectId,
+          actingProjectConfig: actingConfig,
+          targetProjectConfig: targetConfig ?? null,
+          projectControlState: controlState,
+        });
+        if (policyCtx != null) {
+          const result = deps.policyEngine.evaluate(policyCtx);
+          if (!result.allowed) return null;
+        }
+      }
       return stubNotImpl('IProjectApi.memory', 'write', 'Phase 7');
     },
     retrieve: async (
       _situation: string,
       _budget: number,
     ): Promise<RetrievalResult[]> => {
+      const deps = this.policyDeps;
+      if (deps) {
+        const config = await deps.projectStore.get(deps.projectId);
+        const policy = config?.memoryAccessPolicy ?? DEFAULT_MEMORY_ACCESS_POLICY;
+        const controlState = deps.getProjectControlState
+          ? await deps.getProjectControlState(deps.projectId)
+          : undefined;
+        const ctx = {
+          action: 'retrieve' as const,
+          fromProjectId: deps.projectId,
+          includeGlobal: true,
+          projectPolicy: policy,
+          targetProjectIds: [] as ProjectId[],
+          targetProjectPolicies: {} as Record<string, typeof policy>,
+          projectControlState: controlState,
+        };
+        const result = deps.policyEngine.evaluate(ctx);
+        if (!result.allowed) return [];
+      }
       return stubNotImpl('IProjectApi.memory', 'retrieve', 'Phase 7');
     },
   };
