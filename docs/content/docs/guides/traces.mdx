@@ -11,7 +11,7 @@ Every interaction with Nous produces an execution trace. Traces capture what hap
 
 - **Cortex decisions** — Memory write approvals/denials, tool authorizations
 - **Model calls** — Which model was invoked, token usage
-- **Memory actions** — Approved entries, denied candidates with reasons
+- **Memory actions** — Approved entries, denied candidates with reasons. Policy denials include `decisionRecord` with `reasonCode` (e.g. `POL-GLOBAL-DENIED`, `POL-CONTROL-STATE-BLOCKED`) for traceability.
 - **Evidence references** — Authorization/completion/invariant witness event IDs and linked verification report IDs
 - **Timing** — Step durations
 
