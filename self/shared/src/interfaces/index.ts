@@ -9,6 +9,7 @@ export type {
   IRetrievalEngine,
   IKnowledgeIndex,
   IAccessPolicy,
+  IMemoryAccessPolicyEngine,
 } from './memory.js';
 export type {
   IModelRouter,

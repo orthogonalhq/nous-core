@@ -3,6 +3,8 @@ import {
   NodeSchemaDefinition,
   EscalationContractSchema,
   ProjectConfigSchema,
+  ProjectIdentityContractSchema,
+  NodeMemoryAccessPolicyOverrideSchema,
 } from '../../types/project.js';
 
 const VALID_UUID = '550e8400-e29b-41d4-a716-446655440000';
@@ -53,6 +55,75 @@ describe('NodeSchemaDefinition', () => {
     const result = NodeSchemaDefinition.safeParse({
       ...validNode,
       timeout: { ...validNode.timeout, durationMs: -1 },
+    });
+    expect(result.success).toBe(false);
+  });
+
+  it('accepts optional memoryAccessPolicyOverride', () => {
+    const result = NodeSchemaDefinition.safeParse({
+      ...validNode,
+      memoryAccessPolicyOverride: {
+        canReadFrom: 'none',
+        inheritsGlobal: false,
+      },
+    });
+    expect(result.success).toBe(true);
+  });
+});
+
+describe('ProjectIdentityContractSchema', () => {
+  it('extracts from valid config subset', () => {
+    const result = ProjectIdentityContractSchema.safeParse({
+      id: VALID_UUID,
+      name: 'Deal Scout',
+      type: 'hybrid',
+    });
+    expect(result.success).toBe(true);
+    if (result.success) {
+      expect(result.data.id).toBe(VALID_UUID);
+      expect(result.data.name).toBe('Deal Scout');
+      expect(result.data.type).toBe('hybrid');
+    }
+  });
+
+  it('rejects empty name', () => {
+    const result = ProjectIdentityContractSchema.safeParse({
+      id: VALID_UUID,
+      name: '',
+      type: 'protocol',
+    });
+    expect(result.success).toBe(false);
+  });
+});
+
+describe('NodeMemoryAccessPolicyOverrideSchema', () => {
+  it('accepts optional fields', () => {
+    expect(
+      NodeMemoryAccessPolicyOverrideSchema.safeParse({}).success,
+    ).toBe(true);
+    expect(
+      NodeMemoryAccessPolicyOverrideSchema.safeParse({
+        canReadFrom: 'none',
+      }).success,
+    ).toBe(true);
+    expect(
+      NodeMemoryAccessPolicyOverrideSchema.safeParse({
+        canBeReadBy: 'none',
+        inheritsGlobal: false,
+      }).success,
+    ).toBe(true);
+  });
+
+  it('accepts project ID array for canReadFrom', () => {
+    const result = NodeMemoryAccessPolicyOverrideSchema.safeParse({
+      canReadFrom: [VALID_UUID],
+    });
+    expect(result.success).toBe(true);
+  });
+
+  it('rejects invalid AccessList value', () => {
+    const result = NodeMemoryAccessPolicyOverrideSchema.safeParse({
+      canReadFrom: 'some',
     });
     expect(result.success).toBe(false);
   });

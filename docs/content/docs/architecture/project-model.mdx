@@ -111,6 +111,43 @@ Every node in a workflow graph declares:
 - **Governance level** — MUST, SHOULD, or MAY (see below)
 - **Escalation rules** — when and how to involve the Principal
 - **Timeout and retry policy** — how long to wait, how many retries, what to do on failure
+- **Memory access override** (optional) — when a node requires more restrictive cross-project memory access than the project default (see Memory Access Policy below)
+
+---
+
+## Project Identity and Memory Access Policy
+
+Every project has a canonical identity and a memory access policy that governs cross-project memory boundaries.
+
+### Project Identity
+
+Project identity is deterministic across all surfaces (chat, runtime, MAO/UI):
+
+- **id** — UUID, stable for the project lifetime
+- **name** — human-readable identifier
+- **type** — `protocol`, `intent`, or `hybrid`
+
+These fields resolve identically regardless of which interface is used.
+
+### Memory Access Policy
+
+Each project declares a memory access policy with three fields:
+
+| Field | Values | Semantics |
+|-------|--------|-----------|
+| `canReadFrom` | `all`, `none`, or project ID list | Which projects this project can read memory from |
+| `canBeReadBy` | `all`, `none`, or project ID list | Which projects can read this project's memory |
+| `inheritsGlobal` | `true` or `false` | Whether this project has access to global (cross-project) memory |
+
+**Explicit defaults:** When a project is created without an explicit policy, the default is fully open: `canReadFrom: all`, `canBeReadBy: all`, `inheritsGlobal: true`. No implicit trust inheritance from other projects.
+
+**Node-level override:** Individual nodes can declare a `memoryAccessPolicyOverride` to restrict memory access below the project default. Overrides can only be *more restrictive* — a node cannot expand access beyond what the project allows. Used for compliance-sensitive nodes (e.g. validation gates that must not see cross-project context).
+
+**Policy decision engine:** Cross-project memory operations (read, write, retrieve) are evaluated by the policy decision engine (`@nous/memory-access`). Denied attempts emit durable evidence with deterministic `POL-*` reason codes (e.g. `POL-CANNOT-READ-FROM`, `POL-GLOBAL-DENIED`, `POL-CONTROL-STATE-BLOCKED`). When a project is `hard_stopped`, all cross-project access is blocked.
+
+**Enforcement surfaces (Phase 3.3):** (1) Core-executor — policy gate before memory write submission for chat-driven turns; (2) `PolicyEnforcedRetrievalEngine` — wraps retrieval, evaluates policy before delegating; (3) `IProjectApi.memory` (stub/implementation) — policy gate at API boundary when cross-project or global scope.
+
+**Policy observability (Phase 3.4):** Every denial/approval traces to `PolicyDecisionRecord` with `reasonCode` and `traceId`. When `hard_stopped` or `paused_review`, policy denies with `POL-CONTROL-STATE-BLOCKED` or `POL-PAUSED-BLOCKED`. Downstream phase intake (Phase 4 learning loop, Phase 5 workflow foundation) is documented in `.worklog/phase-3/phase-3.4/export-hooks.mdx`.
 
 ---
 

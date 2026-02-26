@@ -40,6 +40,7 @@ describe('InvariantCodeSchema', () => {
     expect(InvariantCodeSchema.safeParse('OPCTL-001').success).toBe(true);
     expect(InvariantCodeSchema.safeParse('START-002').success).toBe(true);
     expect(InvariantCodeSchema.safeParse('ESC-001').success).toBe(true);
+    expect(InvariantCodeSchema.safeParse('POL-DENIED').success).toBe(true);
   });
 
   it('rejects unknown prefix', () => {

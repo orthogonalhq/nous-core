@@ -17,6 +17,7 @@ import { ModelRouter } from '@nous/subcortex-router';
 import { ToolExecutor } from '@nous/subcortex-tools';
 import { DocumentProjectStore } from '@nous/subcortex-projects';
 import { WitnessService } from '@nous/subcortex-witnessd';
+import { MemoryAccessPolicyEngine } from '@nous/memory-access';
 import { SqliteDocumentStore } from '@nous/autonomic-storage';
 import type { IConfig } from '@nous/shared';
 
@@ -103,6 +104,7 @@ describe('Core MWC denial integration', () => {
       projectStore: new DocumentProjectStore(documentStore),
       documentStore,
       witnessService,
+      policyEngine: new MemoryAccessPolicyEngine(),
     });
 
     await executor.executeTurn({

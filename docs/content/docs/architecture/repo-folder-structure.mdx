@@ -226,7 +226,7 @@ Cross-project intelligence. The layer that makes cross-referencing cheap at quer
 
 ### access/
 
-Memory access policy enforcement.
+Memory access policy enforcement. Implemented as `@nous/memory-access` (Phase 3.2).
 
 Responsibilities:
 
@@ -234,6 +234,15 @@ Responsibilities:
 * Evaluate `inherits_global` for global memory access
 * Enforce node-level overrides (more restrictive only)
 * Gate all cross-project retrieval through policy checks
+* Support read, write, and retrieve actions with deterministic evaluation order
+* Emit durable denial evidence with `POL-*` reason codes for unauthorized attempts
+* Consume project control-state (`hard_stopped` blocks all access)
+
+The policy decision engine (`MemoryAccessPolicyEngine.evaluate()`) is synchronous and replay-deterministic. Callers supply project config and control state as inputs.
+
+**Phase 3.3 surface integration:** Policy enforcement is wired at (1) core-executor — policy gate before `mwcPipeline.submit()` for cross-project memory writes; (2) `PolicyEnforcedRetrievalEngine` — wraps `IRetrievalEngine`, evaluates policy before delegating, filters results by policy; (3) `StubProjectApi.memory` — optional policy deps run gate before throwing for read/write/retrieve when cross-project or global scope.
+
+**Phase 3.4 policy observability:** All policy decisions derive from canonical truth. Denials include `PolicyDecisionRecord` (reasonCode, traceId, evidenceRefs). Export hooks for Phase 4 (learning loop) and Phase 5 (workflow foundation) are documented in `.worklog/phase-3/phase-3.4/export-hooks.mdx`.
 
 Default: open. Isolation is opt-in.
 

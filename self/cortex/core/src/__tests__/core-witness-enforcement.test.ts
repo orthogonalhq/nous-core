@@ -1,6 +1,7 @@
 import { randomUUID } from 'node:crypto';
 import { describe, expect, it, vi } from 'vitest';
 import { CoreExecutor } from '../core-executor.js';
+import { MemoryAccessPolicyEngine } from '@nous/memory-access';
 import type {
   IDocumentStore,
   IModelProvider,
@@ -203,6 +204,7 @@ describe('Core witness enforcement ladder', () => {
       projectStore: createProjectStore(),
       documentStore: createDocumentStore(),
       witnessService: createWitnessService('auto-pause'),
+      policyEngine: new MemoryAccessPolicyEngine(),
     });
 
     const result = await executor.executeTurn({
@@ -229,6 +231,7 @@ describe('Core witness enforcement ladder', () => {
       projectStore: createProjectStore(),
       documentStore: createDocumentStore(),
       witnessService: createWitnessService('hard-stop'),
+      policyEngine: new MemoryAccessPolicyEngine(),
     });
 
     const result = await executor.executeTurn({

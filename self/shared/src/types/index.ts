@@ -20,3 +20,4 @@ export * from './benchmark.js';
 export * from './adapter.js';
 export * from './mao.js';
 export * from './gtm.js';
+export * from './policy.js';

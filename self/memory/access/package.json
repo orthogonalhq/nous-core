@@ -1,8 +1,8 @@
 {
-  "name": "@nous/subcortex-stubs",
+  "name": "@nous/memory-access",
   "version": "0.0.1",
   "private": true,
-  "description": "Stub implementations for deferred subcortex interfaces — IWorkflowEngine, IArtifactStore, IScheduler, IEscalationService, ISandbox, IProjectApi",
+  "description": "Cross-project memory access policy decision engine for Nous-OSS",
   "type": "module",
   "exports": {
     ".": {
@@ -16,7 +16,7 @@
     "clean": "rm -rf dist"
   },
   "dependencies": {
-    "@nous/memory-access": "workspace:*",
-    "@nous/shared": "workspace:*"
+    "@nous/shared": "workspace:*",
+    "zod": "^3.24.1"
   }
 }

@@ -9,6 +9,7 @@ import { PfcTierSchema } from './enums.js';
 import { MemoryWriteCandidateSchema, StmContextSchema } from './memory.js';
 import { TraceEvidenceReferenceSchema } from './evidence.js';
 import { ModelRequirementsSchema, RouteDecisionEvidenceSchema } from './routing.js';
+import { PolicyDecisionRecordSchema } from './policy.js';
 
 // --- Cortex Decision ---
 // Result of a Cortex evaluation — approve or deny with reason and confidence.
@@ -119,6 +120,7 @@ export const ExecutionTraceSchema = z.object({
       memoryDenials: z.array(z.object({
         candidate: MemoryWriteCandidateSchema,
         reason: z.string(),
+        decisionRecord: PolicyDecisionRecordSchema.optional(),
       })),
       evidenceRefs: z.array(TraceEvidenceReferenceSchema).default([]),
       timestamp: z.string().datetime(),

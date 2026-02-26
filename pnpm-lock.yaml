@@ -159,6 +159,9 @@ importers:
       '@nous/cortex-pfc':
         specifier: workspace:*
         version: link:../../cortex/pfc
+      '@nous/memory-access':
+        specifier: workspace:*
+        version: link:../../memory/access
       '@nous/memory-mwc':
         specifier: workspace:*
         version: link:../../memory/mwc
@@ -293,6 +296,9 @@ importers:
 
   self/cortex/core:
     dependencies:
+      '@nous/memory-access':
+        specifier: workspace:*
+        version: link:../../memory/access
       '@nous/shared':
         specifier: workspace:*
         version: link:../../shared
@@ -334,6 +340,15 @@ importers:
       '@nous/subcortex-tools':
         specifier: workspace:*
         version: link:../../subcortex/tools
+
+  self/memory/access:
+    dependencies:
+      '@nous/shared':
+        specifier: workspace:*
+        version: link:../../shared
+      zod:
+        specifier: ^3.24.1
+        version: 3.25.76
 
   self/memory/mwc:
     dependencies:
@@ -444,6 +459,9 @@ importers:
 
   self/subcortex/stubs:
     dependencies:
+      '@nous/memory-access':
+        specifier: workspace:*
+        version: link:../../memory/access
       '@nous/shared':
         specifier: workspace:*
         version: link:../../shared
