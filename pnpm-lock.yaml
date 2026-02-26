@@ -88,6 +88,21 @@ importers:
         specifier: workspace:*
         version: link:../../self/shared
     devDependencies:
+      '@nous/autonomic-embeddings':
+        specifier: workspace:*
+        version: link:../../self/autonomic/embeddings
+      '@nous/autonomic-storage':
+        specifier: workspace:*
+        version: link:../../self/autonomic/storage
+      '@nous/memory-access':
+        specifier: workspace:*
+        version: link:../../self/memory/access
+      '@nous/memory-retrieval':
+        specifier: workspace:*
+        version: link:../../self/memory/retrieval
+      '@nous/memory-stubs':
+        specifier: workspace:*
+        version: link:../../self/memory/stubs
       '@types/node':
         specifier: ^20
         version: 20.19.33
@@ -349,6 +364,22 @@ importers:
       zod:
         specifier: ^3.24.1
         version: 3.25.76
+    devDependencies:
+      '@nous/autonomic-embeddings':
+        specifier: workspace:*
+        version: link:../../autonomic/embeddings
+      '@nous/autonomic-storage':
+        specifier: workspace:*
+        version: link:../../autonomic/storage
+      '@nous/memory-retrieval':
+        specifier: workspace:*
+        version: link:../retrieval
+      '@nous/memory-stubs':
+        specifier: workspace:*
+        version: link:../stubs
+      vitest:
+        specifier: ^4.0.18
+        version: 4.0.18(@types/node@20.19.33)(jiti@2.6.1)(lightningcss@1.30.2)
 
   self/memory/mwc:
     dependencies:
@@ -365,6 +396,28 @@ importers:
       '@nous/memory-stm':
         specifier: workspace:*
         version: link:../stm
+
+  self/memory/retrieval:
+    dependencies:
+      '@nous/autonomic-embeddings':
+        specifier: workspace:*
+        version: link:../../autonomic/embeddings
+      '@nous/autonomic-storage':
+        specifier: workspace:*
+        version: link:../../autonomic/storage
+      '@nous/memory-stubs':
+        specifier: workspace:*
+        version: link:../stubs
+      '@nous/shared':
+        specifier: workspace:*
+        version: link:../../shared
+      zod:
+        specifier: ^3.24.1
+        version: 3.25.76
+    devDependencies:
+      vitest:
+        specifier: ^4.0.18
+        version: 4.0.18(@types/node@20.19.33)(jiti@2.6.1)(lightningcss@1.30.2)
 
   self/memory/stm:
     dependencies:
