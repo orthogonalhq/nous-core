@@ -4,6 +4,7 @@
 export * from './ids.js';
 export * from './enums.js';
 export * from './memory.js';
+export * from './sentiment.js';
 export * from './project.js';
 export * from './provider.js';
 export * from './cortex.js';

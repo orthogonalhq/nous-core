@@ -3,6 +3,7 @@ import {
   DEFAULT_MEMORY_ACCESS_POLICY,
   MemoryAccessPolicySchema,
   MemoryWriteCandidateSchema,
+  ExperienceRecordWriteCandidateSchema,
   MemoryEntrySchema,
   MemoryMutationRequestSchema,
   MemoryMutationAuditRecordSchema,
@@ -129,6 +130,70 @@ describe('MemoryWriteCandidateSchema', () => {
       sentiment: 'strong-positive',
     });
     expect(result.success).toBe(true);
+  });
+
+  it('accepts non-experience-record without context/action/outcome/reason (backward compatibility)', () => {
+    expect(MemoryWriteCandidateSchema.safeParse(validCandidate).success).toBe(true);
+  });
+});
+
+describe('ExperienceRecordWriteCandidateSchema', () => {
+  const validExpCandidate = {
+    content: 'Kitchen gut property rejected',
+    type: 'experience-record' as const,
+    scope: 'project' as const,
+    projectId: VALID_UUID,
+    confidence: 0.85,
+    sensitivity: [] as string[],
+    retention: 'permanent' as const,
+    provenance: {
+      traceId: VALID_UUID,
+      source: 'pfc',
+      timestamp: NOW,
+    },
+    tags: ['real-estate'],
+    sentiment: 'strong-negative' as const,
+    context: '3-bed property, kitchen gut',
+    action: 'Submitted for review',
+    outcome: 'rejected',
+    reason: 'Repair estimate exceeded tolerance',
+  };
+
+  it('accepts valid experience-record candidate with sentiment, context, action, outcome, reason', () => {
+    expect(ExperienceRecordWriteCandidateSchema.safeParse(validExpCandidate).success).toBe(true);
+  });
+
+  it('rejects when context missing', () => {
+    const { context: _, ...noContext } = validExpCandidate;
+    expect(ExperienceRecordWriteCandidateSchema.safeParse(noContext).success).toBe(false);
+  });
+
+  it('rejects when action missing', () => {
+    const { action: _, ...noAction } = validExpCandidate;
+    expect(ExperienceRecordWriteCandidateSchema.safeParse(noAction).success).toBe(false);
+  });
+
+  it('rejects when outcome missing', () => {
+    const { outcome: _, ...noOutcome } = validExpCandidate;
+    expect(ExperienceRecordWriteCandidateSchema.safeParse(noOutcome).success).toBe(false);
+  });
+
+  it('rejects when reason missing', () => {
+    const { reason: _, ...noReason } = validExpCandidate;
+    expect(ExperienceRecordWriteCandidateSchema.safeParse(noReason).success).toBe(false);
+  });
+
+  it('rejects when sentiment missing', () => {
+    const { sentiment: _, ...noSentiment } = validExpCandidate;
+    expect(ExperienceRecordWriteCandidateSchema.safeParse(noSentiment).success).toBe(false);
+  });
+
+  it('rejects when type is experience-record but sentiment absent', () => {
+    const result = ExperienceRecordWriteCandidateSchema.safeParse({
+      ...validExpCandidate,
+      sentiment: undefined,
+    });
+    expect(result.success).toBe(false);
   });
 });
 
