@@ -147,6 +147,8 @@ Each project declares a memory access policy with three fields:
 
 **Enforcement surfaces (Phase 3.3):** (1) Core-executor — policy gate before memory write submission for chat-driven turns; (2) `PolicyEnforcedRetrievalEngine` — wraps retrieval, evaluates policy before delegating; (3) `IProjectApi.memory` (stub/implementation) — policy gate at API boundary when cross-project or global scope.
 
+**Policy observability (Phase 3.4):** Every denial/approval traces to `PolicyDecisionRecord` with `reasonCode` and `traceId`. When `hard_stopped` or `paused_review`, policy denies with `POL-CONTROL-STATE-BLOCKED` or `POL-PAUSED-BLOCKED`. Downstream phase intake (Phase 4 learning loop, Phase 5 workflow foundation) is documented in `.worklog/phase-3/phase-3.4/export-hooks.mdx`.
+
 ---
 
 ## Node Governance Levels
