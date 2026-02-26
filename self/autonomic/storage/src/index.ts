@@ -6,3 +6,4 @@
  */
 export { SqliteDocumentStore } from './sqlite-document-store.js';
 export { StubVectorStore, StubGraphStore } from './stubs.js';
+export { InMemoryVectorStore } from './in-memory-vector-store.js';
