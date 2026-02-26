@@ -128,6 +128,71 @@ describe('MwcPipeline', () => {
     expect(result.stm.entries).toHaveLength(0);
   });
 
+  it('submit rejects experience-record candidate missing context', async () => {
+    const expCandidateMissingContext = {
+      content: 'Kitchen gut rejected',
+      type: 'experience-record' as const,
+      scope: 'project' as const,
+      projectId: projectId as any,
+      confidence: 0.85,
+      sensitivity: [] as string[],
+      retention: 'permanent' as const,
+      provenance: {
+        traceId: randomUUID() as any,
+        source: 'pfc',
+        timestamp: new Date().toISOString(),
+      },
+      tags: ['real-estate'],
+      sentiment: 'strong-negative' as const,
+      action: 'Submitted for review',
+      outcome: 'rejected',
+      reason: 'Repair estimate exceeded',
+    };
+
+    await expect(
+      pipeline.submit(expCandidateMissingContext as any, projectId as any),
+    ).rejects.toThrow(ValidationError);
+
+    const { entries } = await pipeline.exportForProject(projectId as any);
+    expect(entries).toHaveLength(0);
+  });
+
+  it('submit accepts valid experience-record candidate and persists entry with context, action, outcome, reason', async () => {
+    const validExpCandidate = {
+      content: 'Kitchen gut property rejected',
+      type: 'experience-record' as const,
+      scope: 'project' as const,
+      projectId: projectId as any,
+      confidence: 0.85,
+      sensitivity: [] as string[],
+      retention: 'permanent' as const,
+      provenance: {
+        traceId: randomUUID() as any,
+        source: 'pfc',
+        timestamp: new Date().toISOString(),
+      },
+      tags: ['real-estate'],
+      sentiment: 'strong-negative' as const,
+      context: '3-bed property, kitchen gut',
+      action: 'Submitted for review',
+      outcome: 'rejected',
+      reason: 'Repair estimate exceeded tolerance',
+    };
+
+    const id = await pipeline.submit(validExpCandidate as any, projectId as any);
+    expect(id).toBeTruthy();
+
+    const { entries } = await pipeline.exportForProject(projectId as any);
+    expect(entries).toHaveLength(1);
+    expect(entries[0].id).toBe(id);
+    expect(entries[0].type).toBe('experience-record');
+    expect(entries[0].context).toBe(validExpCandidate.context);
+    expect(entries[0].action).toBe(validExpCandidate.action);
+    expect(entries[0].outcome).toBe(validExpCandidate.outcome);
+    expect(entries[0].reason).toBe(validExpCandidate.reason);
+    expect(entries[0].sentiment).toBe(validExpCandidate.sentiment);
+  });
+
   it('invalid candidate throws ValidationError before evaluator', async () => {
     const invalidCandidate = {
       content: 'Test',

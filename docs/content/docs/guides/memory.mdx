@@ -18,6 +18,32 @@ Approved entries are persisted after the Cortex evaluates memory write candidate
 - Mutability class and lifecycle status
 - Supersession linkage (`supersededBy`) when an entry is replaced
 
+### Experience Records
+
+Experience records are outcome-labeled memories with sentiment. They form the foundation of Nous's learning system. Each experience record has a canonical structure:
+
+- **Context** — the situation as it was understood at decision time
+- **Action** — what was done or proposed
+- **Outcome** — what happened (approved, rejected, succeeded, failed, etc.)
+- **Reason** — why the outcome occurred (user-stated or Cortex-inferred)
+- **Sentiment** — valence of the outcome (see Sentiment Scale below)
+
+All experience-record writes are policy-evaluated. Cross-project writes require explicit policy approval and are trace-linked for audit.
+
+### Sentiment Scale
+
+Experience records use a canonical sentiment scale for retrieval and confidence consumers:
+
+| Sentiment | Meaning |
+|-----------|---------|
+| `strong-positive` | User approved immediately; high-confidence positive outcome |
+| `weak-positive` | User approved with caveats or after adjustment |
+| `neutral` | No clear valence; informational or mixed outcome |
+| `weak-negative` | User rejected or outcome was negative with mitigating factors |
+| `strong-negative` | User rejected firmly; high-confidence negative outcome |
+
+Strong signals (positive or negative) weight higher than weak signals in retrieval scoring.
+
 ## Lifecycle and Mutations
 
 Memory entries move through governed lifecycle states:
