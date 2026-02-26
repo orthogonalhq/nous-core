@@ -17,6 +17,7 @@ import type {
   DistillationResult,
   RetrievalQuery,
   RetrievalResult,
+  RetrievalResponse,
   PolicyAccessContext,
   PolicyEvaluationResult,
 } from '../types/index.js';
@@ -68,7 +69,7 @@ export interface IDistillationEngine {
 
 export interface IRetrievalEngine {
   /** Retrieve relevant memories for the current situation */
-  retrieve(query: RetrievalQuery): Promise<RetrievalResult[]>;
+  retrieve(query: RetrievalQuery): Promise<RetrievalResponse>;
 }
 
 export interface IKnowledgeIndex {

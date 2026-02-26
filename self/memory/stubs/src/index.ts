@@ -8,3 +8,4 @@ export {
   StubKnowledgeIndex,
   StubAccessPolicy,
 } from './stubs.js';
+export { InMemoryLtmStore } from './in-memory-ltm-store.js';

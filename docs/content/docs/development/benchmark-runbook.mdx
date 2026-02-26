@@ -33,6 +33,8 @@ Or run the benchmark package tests directly:
 pnpm --filter nous-benchmark run test
 ```
 
+**Memory-quality retrieval (Phase 4.2):** The retrieval benchmark tests relevance (semantically similar results rank higher) and policy-conformance (denial returns `policyDenial`). These tests depend on `@nous/memory-access` being built. If retrieval tests fail with unexpected response shape, run `pnpm --filter @nous/memory-access build` first.
+
 ### Tier 1 — Nightly
 
 ```bash

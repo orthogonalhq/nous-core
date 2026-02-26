@@ -21,7 +21,7 @@ import type {
   DistilledPattern,
   DistillationResult,
   RetrievalQuery,
-  RetrievalResult,
+  RetrievalResponse,
 } from '@nous/shared';
 
 const stubNotImpl = (
@@ -84,7 +84,7 @@ export class StubDistillationEngine implements IDistillationEngine {
 }
 
 export class StubRetrievalEngine implements IRetrievalEngine {
-  async retrieve(_query: RetrievalQuery): Promise<RetrievalResult[]> {
+  async retrieve(_query: RetrievalQuery): Promise<RetrievalResponse> {
     return stubNotImpl('IRetrievalEngine', 'retrieve', 'Phase 2');
   }
 }

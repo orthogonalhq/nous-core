@@ -44,6 +44,12 @@ Experience records use a canonical sentiment scale for retrieval and confidence 
 
 Strong signals (positive or negative) weight higher than weak signals in retrieval scoring.
 
+### Retrieval and Policy
+
+Retrieval is policy-enforced. All retrieval paths run through `PolicyEnforcedRetrievalEngine`, which evaluates access policy before delegating to the inner retrieval engine. When policy denies a retrieval (for example, global scope with `inheritsGlobal: false`), the response includes `policyDenial` — a `PolicyDecisionRecord` with reason code, trace ID, and evidence refs for audit.
+
+Retrieval responses have the shape `{ results, policyDenial? }`. Use `response.results` for the scored entries; use `response.policyDenial` when present to trace denied or degraded outcomes.
+
 ## Lifecycle and Mutations
 
 Memory entries move through governed lifecycle states:

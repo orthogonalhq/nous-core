@@ -1,8 +1,8 @@
 {
-  "name": "@nous/memory-access",
+  "name": "@nous/memory-retrieval",
   "version": "0.0.1",
   "private": true,
-  "description": "Cross-project memory access policy decision engine for Nous-OSS",
+  "description": "Sentiment-weighted retrieval engine for Nous-OSS",
   "type": "module",
   "exports": {
     ".": {
@@ -13,17 +13,17 @@
   "scripts": {
     "build": "tsc --build",
     "typecheck": "tsc --noEmit",
-    "clean": "rm -rf dist"
+    "clean": "rm -rf dist",
+    "test": "vitest run"
   },
   "dependencies": {
     "@nous/shared": "workspace:*",
+    "@nous/autonomic-storage": "workspace:*",
+    "@nous/autonomic-embeddings": "workspace:*",
+    "@nous/memory-stubs": "workspace:*",
     "zod": "^3.24.1"
   },
   "devDependencies": {
-    "@nous/autonomic-embeddings": "workspace:*",
-    "@nous/autonomic-storage": "workspace:*",
-    "@nous/memory-retrieval": "workspace:*",
-    "@nous/memory-stubs": "workspace:*",
     "vitest": "^4.0.18"
   }
 }

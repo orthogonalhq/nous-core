@@ -15,6 +15,11 @@
     "@nous/shared": "workspace:*"
   },
   "devDependencies": {
+    "@nous/autonomic-embeddings": "workspace:*",
+    "@nous/autonomic-storage": "workspace:*",
+    "@nous/memory-access": "workspace:*",
+    "@nous/memory-retrieval": "workspace:*",
+    "@nous/memory-stubs": "workspace:*",
     "@types/node": "^20",
     "typescript": "^5",
     "vitest": "^4.0.18"
