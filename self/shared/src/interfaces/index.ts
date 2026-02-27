@@ -43,6 +43,17 @@ export type {
   IChatThreadBindGuard,
 } from './chat.js';
 export type {
+  IIngressTriggerValidator,
+  IIngressAuthnVerifier,
+  IIngressAuthzEvaluator,
+  IIngressIdempotencyStore,
+  IIngressDispatchAdmission,
+  IngressValidationResult,
+  IngressAuthnResult,
+  IngressAuthzResult,
+  IngressIdempotencyCheckResult,
+} from './ingress.js';
+export type {
   IDocumentStore,
   IVectorStore,
   IGraphStore,
