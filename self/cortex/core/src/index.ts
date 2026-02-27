@@ -18,6 +18,13 @@ export {
   InMemoryChatThreadStore,
   ChatThreadBindGuard,
 } from './chat/index.js';
+export {
+  IngressTriggerValidator,
+  IngressAuthnVerifier,
+  IngressAuthzEvaluator,
+  InMemoryIngressIdempotencyStore,
+  IngressDispatchAdmission,
+} from './ingress/index.js';
 export { CoreExecutor } from './core-executor.js';
 export type { CoreExecutorDeps, MwcPipelineLike } from './core-executor.js';
 export { parseModelOutput } from './output-parser.js';
