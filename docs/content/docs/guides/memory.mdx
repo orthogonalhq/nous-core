@@ -59,6 +59,27 @@ Each distilled pattern includes:
 
 **Supersession reversal:** If a distilled pattern is found to be incorrect, `reverseSupersession` restores the source records to active and retires the pattern. The caller must emit an audit record for the reversal (ADR-002 evidence-chain). No silent replacement.
 
+### Confidence and Governance
+
+Confidence tiers (low, medium, high) map explicitly to governance behavior. There is no opaque autonomy path — every autonomy decision traces to a documented tier and node governance level.
+
+| Tier | Escalation | Autonomy | Deviations |
+|------|------------|----------|------------|
+| **Low** | Required — Nous presents emerging patterns for validation before applying | None | All deviations flagged |
+| **Medium** | Not required | None — patterns applied but deviations flagged | User notified when pattern influences a decision |
+| **High** | Not required | Bounded — MAY nodes only; no autonomy on MUST/SHOULD | No flagging |
+
+**High-risk actions** (tool-execute with elevated scope, memory-write cross-project, opctl-command) always require confirmation regardless of confidence.
+
+**Escalation signals** — When the system escalates due to low confidence or contradiction, it emits deterministic signals:
+
+- `CONF-LOW` — insufficient confidence to apply pattern
+- `CONF-CONTRADICTION` — conflicting signals
+- `CONF-STALENESS` — pattern has not been confirmed recently
+- `CONF-RETIREMENT` — pattern flagged for retirement
+
+**Explainability** — When a pattern influences an outcome, the system produces a trace-linked explanation (what pattern, which outcome, evidence refs) for audit and operator inspection.
+
 ### Retrieval and Policy
 
 Retrieval is policy-enforced. All retrieval paths run through `PolicyEnforcedRetrievalEngine`, which evaluates access policy before delegating to the inner retrieval engine. When policy denies a retrieval (for example, global scope with `inheritsGlobal: false`), the response includes `policyDenial` — a `PolicyDecisionRecord` with reason code, trace ID, and evidence refs for audit.
