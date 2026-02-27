@@ -58,6 +58,59 @@ export function uiLine(value = ''): void {
     console.log(value);
 }
 
+export type UiProgressHandle = {
+    stop: () => void;
+    setLabel: (nextLabel: string) => void;
+};
+
+export function uiStartProgressBar(label: string): UiProgressHandle {
+    if (!process.stdout.isTTY) {
+        uiLine(`      ${paint('…', 'cyan')} ${paint(label, 'dim')}`);
+        return {
+            stop: () => {
+                // no-op
+            },
+            setLabel: () => {
+                // no-op
+            },
+        };
+    }
+
+    const barWidth = 12;
+    let frameIndex = 0;
+    let currentLabel = label;
+    const startTime = Date.now();
+    let lastRenderLength = 0;
+
+    const render = () => {
+        const headPosition = frameIndex % barWidth;
+        const cells = Array.from({ length: barWidth }, (_, idx) => (idx === headPosition ? '>' : '='));
+        const elapsedSeconds = Math.floor((Date.now() - startTime) / 1000);
+        const bar = `[${cells.join('')}]`;
+        const text = `      ${paint(bar, 'cyan')} ${currentLabel} ${paint(`${elapsedSeconds}s`, 'dim')}`;
+        const padded = text.padEnd(lastRenderLength, ' ');
+        process.stdout.write(`\r${padded}`);
+        lastRenderLength = Math.max(lastRenderLength, text.length);
+        frameIndex += 1;
+    };
+
+    render();
+    const interval = setInterval(render, 120);
+    interval.unref();
+
+    return {
+        setLabel: (nextLabel: string) => {
+            currentLabel = nextLabel;
+        },
+        stop: () => {
+            clearInterval(interval);
+            if (lastRenderLength > 0) {
+                process.stdout.write(`\r${' '.repeat(lastRenderLength)}\r`);
+            }
+        },
+    };
+}
+
 export function uiBanner(platform: string, modelId: string, dataDir: string): void {
     const logo = [
         '╓──────────────────────────────╖',

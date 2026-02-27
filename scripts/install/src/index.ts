@@ -29,7 +29,7 @@ import {
 import { generateDefaultConfig } from './config-generator.js';
 import { writeConfig } from './write-config.js';
 import { initStorage } from './init-storage.js';
-import { uiBanner, uiFail, uiLine, uiNext, uiOk, uiStep, uiWarn } from './ui.js';
+import { uiBanner, uiFail, uiLine, uiNext, uiOk, uiStartProgressBar, uiStep, uiWarn } from './ui.js';
 
 const MIN_PORT = 1;
 const MAX_PORT = 65_535;
@@ -130,9 +130,23 @@ function openBrowser(url: string): void {
     const cmd = plat === 'win32' ? 'start' : plat === 'darwin' ? 'open' : 'xdg-open';
     const args = plat === 'win32' ? ['', url] : [url];
     try {
-        spawn(cmd, args, { shell: true, stdio: 'ignore' });
+        const child = spawn(cmd, args, {
+            shell: true,
+            stdio: 'ignore',
+            detached: true,
+        });
+        child.unref();
     } catch {
         log(`Open ${url} in your browser.`);
+    }
+}
+
+async function withProgressBar<T>(label: string, fn: () => Promise<T>): Promise<T> {
+    const progress = uiStartProgressBar(label);
+    try {
+        return await fn();
+    } finally {
+        progress.stop();
     }
 }
 
@@ -441,6 +455,7 @@ function finalizeInstaller(backend: BackendLaunchResult): void {
     if (!backend.process) {
         log(`[nous:install] Backend already running on port ${backend.port}. Installer complete.`);
         uiLine(` Installer complete. Existing backend reused on port ${backend.port}.`);
+        setImmediate(() => process.exit(0));
         return;
     }
 
@@ -463,7 +478,7 @@ async function runInstallFlow(
         let ollamaDetected = await isOllamaInstalled();
         if (!ollamaDetected) {
             log('[nous:install] ollama=installing...');
-            await installOllama(platform);
+            await withProgressBar('Installing Ollama runtime', async () => installOllama(platform));
             log('[nous:install] ollama=installed');
             ollamaDetected = await isOllamaInstalled();
         } else {
@@ -479,7 +494,7 @@ async function runInstallFlow(
 
     await runStep(2, total, 'Start Ollama', 'Ensure local model server is reachable', async () => {
         log('[nous:install] ollama=starting...');
-        await startOllama();
+        await withProgressBar('Waiting for Ollama service', async () => startOllama());
         log('[nous:install] ollama=started');
     });
 
@@ -602,7 +617,9 @@ async function main(): Promise<void> {
             );
             if (shouldUpdate) {
                 await runStep(1, 1, 'Update Ollama runtime', 'Apply available package update', async () => {
-                    const result = await updateOllama(plat);
+                    const result = await withProgressBar('Applying Ollama update', async () =>
+                        updateOllama(plat),
+                    );
                     log(`[nous:install] ollama=update ${result.updated ? 'applied' : 'skipped'} (${result.detail})`);
                 });
             }
