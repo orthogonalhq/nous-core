@@ -44,6 +44,21 @@ Experience records use a canonical sentiment scale for retrieval and confidence 
 
 Strong signals (positive or negative) weight higher than weak signals in retrieval scoring.
 
+### Distilled Patterns
+
+Experience records are periodically compressed into **distilled patterns** — consolidated knowledge derived from clusters of related experiences. This is the "sleep cycle" — consolidation that happens offline, not at query time.
+
+Each distilled pattern includes:
+
+- **Content** — synthesized from source records (context → outcome: reason)
+- **Confidence** — assigned from sentiment consistency and volume; refreshed on confirming signals, decayed on staleness or contradiction
+- **Provenance** — `basedOn` and `supersedes` link to source experience records; `evidenceRefs` link to clustering and write evidence
+- **Scope** — project-scoped by default; cross-project distillation requires policy evaluation before write
+
+**Confidence lifecycle:** Patterns gain confidence when new experience records align (refresh); they lose confidence when contradicted or when they become stale (decay). Contradiction below a threshold flags the pattern for retirement.
+
+**Supersession reversal:** If a distilled pattern is found to be incorrect, `reverseSupersession` restores the source records to active and retires the pattern. The caller must emit an audit record for the reversal (ADR-002 evidence-chain). No silent replacement.
+
 ### Retrieval and Policy
 
 Retrieval is policy-enforced. All retrieval paths run through `PolicyEnforcedRetrievalEngine`, which evaluates access policy before delegating to the inner retrieval engine. When policy denies a retrieval (for example, global scope with `inheritsGlobal: false`), the response includes `policyDenial` — a `PolicyDecisionRecord` with reason code, trace ID, and evidence refs for audit.

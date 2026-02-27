@@ -85,7 +85,7 @@ pnpm build
 pnpm dev:web
 ```
 
-The web UI will be available at `http://localhost:4317`.
+The web UI prefers `http://localhost:4317`. If that port is in use, installer/dev runtime will move to the next free port and print the resolved URL.
 
 ## Environment Variables
 
@@ -94,6 +94,7 @@ The web UI will be available at `http://localhost:4317`.
 | `NOUS_DATA_DIR` | Data directory for storage | Platform-specific (e.g. `~/.local/share/nous`) |
 | `NOUS_CONFIG_PATH` | Path to config file | `{dataDir}/config.json5` |
 | `NOUS_WEB_PORT` | Web/API port used by installer and CLI defaults | `4317` |
+| `NOUS_WEB_PORT_SCAN_LIMIT` | How many ports to scan upward when preferred web port is unavailable | `20` |
 | `NOUS_BASIC_AUTH` | Basic auth for network exposure | Not set (localhost only) |
 
 ## Next Steps
