@@ -28,6 +28,14 @@ export type {
   IGtmGateCalculator,
 } from './subcortex.js';
 export type {
+  IWorkmodeRegistry,
+  IWorkmodeAdmissionGuard,
+  ILeaseStore,
+  AuthorityActor,
+  DispatchAdmissionInput,
+  LifecycleAdmissionInput,
+} from './workmode.js';
+export type {
   IDocumentStore,
   IVectorStore,
   IGraphStore,
