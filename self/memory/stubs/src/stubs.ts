@@ -22,6 +22,7 @@ import type {
   DistillationResult,
   RetrievalQuery,
   RetrievalResponse,
+  ConfidenceUpdateResult,
 } from '@nous/shared';
 
 const stubNotImpl = (
@@ -80,6 +81,18 @@ export class StubDistillationEngine implements IDistillationEngine {
     _projectId?: ProjectId,
   ): Promise<DistillationResult> {
     return stubNotImpl('IDistillationEngine', 'runDistillationPass', 'Phase 4');
+  }
+
+  async updateConfidence(
+    _input: Parameters<IDistillationEngine['updateConfidence']>[0],
+  ): Promise<ConfidenceUpdateResult> {
+    return stubNotImpl('IDistillationEngine', 'updateConfidence', 'Phase 4');
+  }
+
+  async reverseSupersession(
+    _request: Parameters<IDistillationEngine['reverseSupersession']>[0],
+  ): Promise<void> {
+    return stubNotImpl('IDistillationEngine', 'reverseSupersession', 'Phase 4');
   }
 }
 

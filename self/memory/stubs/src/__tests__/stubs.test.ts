@@ -115,6 +115,26 @@ describe('StubDistillationEngine', () => {
       code: 'NOT_IMPLEMENTED',
     });
   });
+
+  it('updateConfidence throws NOT_IMPLEMENTED', async () => {
+    await expect(
+      engine.updateConfidence({
+        patternId: '550e8400-e29b-41d4-a716-446655440010' as any,
+        confirmingRecordId: '550e8400-e29b-41d4-a716-446655440011' as any,
+        alignmentScore: 0.9,
+      }),
+    ).rejects.toMatchObject({ code: 'NOT_IMPLEMENTED' });
+  });
+
+  it('reverseSupersession throws NOT_IMPLEMENTED', async () => {
+    await expect(
+      engine.reverseSupersession({
+        patternId: '550e8400-e29b-41d4-a716-446655440020' as any,
+        reason: 'test',
+        evidenceRefs: [{ actionCategory: 'memory-write' as const }],
+      }),
+    ).rejects.toMatchObject({ code: 'NOT_IMPLEMENTED' });
+  });
 });
 
 describe('StubRetrievalEngine', () => {
