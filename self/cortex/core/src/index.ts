@@ -11,6 +11,13 @@ export {
   SYSTEM_SKILL_AUTHORING,
   evaluateLifecycleAdmission,
 } from './workmode/index.js';
+export {
+  ChatScopeResolver,
+  ChatIntentClassifier,
+  ChatControlRouter,
+  InMemoryChatThreadStore,
+  ChatThreadBindGuard,
+} from './chat/index.js';
 export { CoreExecutor } from './core-executor.js';
 export type { CoreExecutorDeps, MwcPipelineLike } from './core-executor.js';
 export { parseModelOutput } from './output-parser.js';

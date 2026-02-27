@@ -26,6 +26,7 @@ const BASE_POLICY: Record<
   GTM: { severity: 'S0', enforcement: 'hard-stop' },
   POL: { severity: 'S2', enforcement: 'review' },
   WMODE: { severity: 'S0', enforcement: 'hard-stop' },
+  PCP: { severity: 'S0', enforcement: 'hard-stop' },
   EVID: { severity: 'S1', enforcement: 'auto-pause' },
   MEM: { severity: 'S2', enforcement: 'review' },
   PRV: { severity: 'S1', enforcement: 'auto-pause' },
