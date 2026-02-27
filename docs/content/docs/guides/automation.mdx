@@ -1,0 +1,65 @@
+---
+title: Automation Gateway
+description: Programmatic triggers for scheduler, hooks, and webhooks (Phase 5.3)
+---
+
+# Automation Gateway
+
+The automation gateway is the programmatic entry point for triggering Nous workflows. Scheduler runs, internal hooks, and external webhooks all pass through a single governed ingress path with authentication, authorization, idempotency, and evidence linkage.
+
+## Trigger Types
+
+| Type | Source | Auth |
+|------|--------|------|
+| **scheduler** | Internal cron/scheduled runs | Internal principal |
+| **hook** | Internal system events | Internal principal |
+| **webhook** | External integration callbacks | HMAC signature required |
+| **system_event** | Internal system events | System principal |
+
+## Ingress Flow
+
+Every trigger follows the same pipeline:
+
+1. **Validate** — Envelope must include `project_id`, `workflow_ref`, valid `trigger_type`, and integrity-addressed `payload_ref`
+2. **Authenticate** — Scheduler/hook: internal. Webhook: HMAC verification (adapter responsibility)
+3. **Authorize** — Principal must be bound to workflow; event type must be in allowlist
+4. **Idempotency** — Duplicate triggers (same `source_id` + `idempotency_key`) return existing run; no second run created
+5. **Replay check** — Stale timestamps or duplicate nonces are rejected
+6. **Dispatch admission** — Control state (PCP-007) must allow; project cannot be `hard_stopped` or `paused_review`
+
+## Outcomes
+
+| Outcome | Meaning |
+|---------|---------|
+| `accepted_dispatched` | New run created; evidence chain and run linkage emitted |
+| `accepted_already_dispatched` | Duplicate trigger; original run_id returned; no new run |
+| `rejected` | Trigger rejected with reason code |
+
+## Rejection Reason Codes
+
+When a trigger is rejected, the response includes a reason code:
+
+| Code | Cause |
+|------|-------|
+| `unauthenticated` | Webhook: HMAC verification failed or missing |
+| `scope_mismatch` | Principal not bound to target workflow |
+| `event_forbidden` | Event type not in credential allowlist |
+| `policy_blocked` | Project/workflow policy blocks this trigger class |
+| `replay_detected` | Stale timestamp or duplicate nonce (replay attack) |
+| `rate_limited` | Rate limit exceeded |
+| `invalid_envelope` | Missing project_id, workflow_ref, or invalid trigger_type |
+| `control_state_blocked` | Project is hard_stopped or paused_review (PCP-007) |
+
+## Recovery and Handoff
+
+- **Duplicate handling:** If you receive `accepted_already_dispatched`, use the returned `run_id` to reference the original run. Do not retry with the same `idempotency_key`.
+- **Control state block:** If `control_state_blocked`, the project must be resumed or released from hard_stop before new triggers can dispatch. Use the Projects UI or operator-control to change control state.
+- **Replay:** If `replay_detected`, ensure your `occurred_at` is within the acceptance window (+/- 5 minutes) and that each request uses a unique nonce per source.
+
+## payload_ref Format
+
+Payload integrity is addressed via `payload_ref`. V1 format: `sha256:<64-char-hex>` — the SHA-256 digest of the payload body. Adapters must compute the digest before constructing the envelope.
+
+## Credential Scope (Webhooks)
+
+Webhook credentials are **workflow-bound** — scoped by `project_id`, `workflow_ref`, and `allowed_event_names`. No project-wide wildcards. Rotation requires overlap window and explicit revocation.
