@@ -15,6 +15,8 @@ Phase 5.1 establishes the foundational runtime contracts for workflow dispatch a
 
 All dispatch admissions validate target identity, action admissibility, and authority-chain constraints. Invalid attempts are blocked and evidence-logged.
 
+**Chat is intent, not authority (PCP-001):** Chat turns are proposals interpreted by the runtime. Chat cannot directly mutate execution state; control intents route through operator-control. See [Operator Control](/docs/development/operator-control) and [Chat](/docs/guides/chat).
+
 ## Canonical Authority Chain
 
 | Authority | Role | May dispatch to |

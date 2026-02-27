@@ -17,6 +17,32 @@ Nous processes your message through the full execution cycle: Cortex evaluation,
 
 **Phase 1:** Responses are displayed in full after the turn completes. Streaming (token-by-token) is deferred to Phase 2+.
 
+## Thread Types and Project Scope
+
+Chat uses **thread topology** to enforce control-plane integrity:
+
+| Thread Type | Purpose | Executable? |
+|-------------|---------|-------------|
+| **Project root** | Main project conversation | Yes (when bound) |
+| **Run-bound** | Conversation tied to a specific run | Yes |
+| **Node-scope** | Conversation promoted to a node context | Yes |
+| **Governance** | Project admin and policy discussions | Yes |
+| **Scratch** | Exploratory, ad-hoc conversation | No |
+
+**Project scope is mandatory** for any action that dispatches work or mutates run state. If you ask Nous to run a task, pause execution, or perform a control action without an explicit project context, Nous will ask for clarification before proceeding. No side effects occur until scope is resolved.
+
+**Scratch threads** remain non-executable until you explicitly bind them to a project or run. This prevents accidental execution from exploratory conversations.
+
+## Control Actions via Chat
+
+Lifecycle control actions (pause, resume, stop, recover) requested in chat **route through operator-control** — the same integrity contracts used by the Projects UI and CLI. Chat does not bypass confirmation requirements or evidence linkage.
+
+When you ask Nous to pause or stop a run, the request is validated, routed to operator-control, and requires confirmation proof per [Operator Control](/docs/development/operator-control). Chat is intent; authority remains with the control plane.
+
+## Clarification Behavior
+
+When Nous cannot confidently classify your intent (e.g., ambiguous scope, high-impact action with low confidence), it **fails closed** — it asks for clarification and performs no side effects. This applies to executable requests, control intents, and project-admin actions.
+
 ## Message History
 
 Conversation history is stored in short-term memory (STM) and persists across sessions. When you switch projects, you see that project's history.
