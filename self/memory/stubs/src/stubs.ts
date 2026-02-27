@@ -21,7 +21,8 @@ import type {
   DistilledPattern,
   DistillationResult,
   RetrievalQuery,
-  RetrievalResult,
+  RetrievalResponse,
+  ConfidenceUpdateResult,
 } from '@nous/shared';
 
 const stubNotImpl = (
@@ -81,10 +82,22 @@ export class StubDistillationEngine implements IDistillationEngine {
   ): Promise<DistillationResult> {
     return stubNotImpl('IDistillationEngine', 'runDistillationPass', 'Phase 4');
   }
+
+  async updateConfidence(
+    _input: Parameters<IDistillationEngine['updateConfidence']>[0],
+  ): Promise<ConfidenceUpdateResult> {
+    return stubNotImpl('IDistillationEngine', 'updateConfidence', 'Phase 4');
+  }
+
+  async reverseSupersession(
+    _request: Parameters<IDistillationEngine['reverseSupersession']>[0],
+  ): Promise<void> {
+    return stubNotImpl('IDistillationEngine', 'reverseSupersession', 'Phase 4');
+  }
 }
 
 export class StubRetrievalEngine implements IRetrievalEngine {
-  async retrieve(_query: RetrievalQuery): Promise<RetrievalResult[]> {
+  async retrieve(_query: RetrievalQuery): Promise<RetrievalResponse> {
     return stubNotImpl('IRetrievalEngine', 'retrieve', 'Phase 2');
   }
 }

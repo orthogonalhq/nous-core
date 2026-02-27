@@ -33,6 +33,10 @@ Or run the benchmark package tests directly:
 pnpm --filter nous-benchmark run test
 ```
 
+**Memory-quality retrieval (Phase 4.2):** The retrieval benchmark tests relevance (semantically similar results rank higher) and policy-conformance (denial returns `policyDenial`). These tests depend on `@nous/memory-access` being built. If retrieval tests fail with unexpected response shape, run `pnpm --filter @nous/memory-access build` first.
+
+**Memory-quality distillation (Phase 4.3):** The distillation benchmark tests clustering consistency (same input → same cluster keys), confidence formula determinism, and provenance completeness. These tests depend on `@nous/memory-distillation`. AA-004 traceability: distillation-quality regression bar.
+
 ### Tier 1 — Nightly
 
 ```bash
@@ -101,7 +105,7 @@ Adapters are not eligible for release-gate benchmarking until all conformance te
 | Family | Purpose | Tier 0 | Tier 1 |
 |--------|---------|--------|--------|
 | NodeFlowBench | Strict workflow determinism | Smoke | Full |
-| MemoryQualityBench | Novel learning quality | Smoke | Full |
+| MemoryQualityBench | Novel learning quality (retrieval + distillation) | Smoke | Full |
 | VendingBench | Autonomy learning | — | Reduced |
 | Reference-agent | Comparative usability | — | P0 |
 

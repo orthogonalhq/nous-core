@@ -1,0 +1,29 @@
+{
+  "name": "@nous/memory-retrieval",
+  "version": "0.0.1",
+  "private": true,
+  "description": "Sentiment-weighted retrieval engine for Nous-OSS",
+  "type": "module",
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "import": "./dist/index.js"
+    }
+  },
+  "scripts": {
+    "build": "tsc --build",
+    "typecheck": "tsc --noEmit",
+    "clean": "rm -rf dist",
+    "test": "vitest run"
+  },
+  "dependencies": {
+    "@nous/shared": "workspace:*",
+    "@nous/autonomic-storage": "workspace:*",
+    "@nous/autonomic-embeddings": "workspace:*",
+    "@nous/memory-stubs": "workspace:*",
+    "zod": "^3.24.1"
+  },
+  "devDependencies": {
+    "vitest": "^4.0.18"
+  }
+}

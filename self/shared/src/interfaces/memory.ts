@@ -17,8 +17,13 @@ import type {
   DistillationResult,
   RetrievalQuery,
   RetrievalResult,
+  RetrievalResponse,
   PolicyAccessContext,
   PolicyEvaluationResult,
+  ConfidenceRefreshInput,
+  ConfidenceDecayInput,
+  ConfidenceUpdateResult,
+  SupersessionReversalRequest,
 } from '../types/index.js';
 
 export interface IStmStore {
@@ -64,11 +69,19 @@ export interface IDistillationEngine {
 
   /** Run a full distillation pass */
   runDistillationPass(projectId?: ProjectId): Promise<DistillationResult>;
+
+  /** Update pattern confidence (refresh on confirming signal, decay on staleness/contradiction). Phase 4.3. */
+  updateConfidence(
+    input: ConfidenceRefreshInput | ConfidenceDecayInput,
+  ): Promise<ConfidenceUpdateResult>;
+
+  /** Reverse supersession: restore source records to active, retire pattern. Phase 4.3. */
+  reverseSupersession(request: SupersessionReversalRequest): Promise<void>;
 }
 
 export interface IRetrievalEngine {
   /** Retrieve relevant memories for the current situation */
-  retrieve(query: RetrievalQuery): Promise<RetrievalResult[]>;
+  retrieve(query: RetrievalQuery): Promise<RetrievalResponse>;
 }
 
 export interface IKnowledgeIndex {

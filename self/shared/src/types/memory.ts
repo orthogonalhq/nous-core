@@ -132,6 +132,7 @@ export type MemoryMutationPrincipalOverride = z.infer<
 // --- Memory Write Candidate ---
 // From memory-system.mdx "MemoryWriteCandidate Structure".
 // Proposed by the model, evaluated by the Cortex.
+// Phase 4.1: Optional context/action/outcome/reason for experience-record type.
 export const MemoryWriteCandidateSchema = z.object({
   content: z.string(),
   type: MemoryTypeSchema,
@@ -144,12 +145,34 @@ export const MemoryWriteCandidateSchema = z.object({
   sentiment: SentimentSchema.optional(),
   tags: z.array(z.string()),
   mutabilityClass: MemoryMutabilityClassSchema.optional(),
+  context: z.string().optional(),
+  action: z.string().optional(),
+  outcome: z.string().optional(),
+  reason: z.string().optional(),
 });
 export type MemoryWriteCandidate = z.infer<typeof MemoryWriteCandidateSchema>;
+
+// --- Experience Record Write Candidate ---
+// Phase 4.1: Refinement for type === 'experience-record'.
+// Requires sentiment, context, action, outcome, reason.
+export const ExperienceRecordWriteCandidateSchema = MemoryWriteCandidateSchema.and(
+  z.object({
+    type: z.literal('experience-record'),
+    sentiment: SentimentSchema,
+    context: z.string().min(1),
+    action: z.string().min(1),
+    outcome: z.string().min(1),
+    reason: z.string().min(1),
+  }),
+);
+export type ExperienceRecordWriteCandidate = z.infer<
+  typeof ExperienceRecordWriteCandidateSchema
+>;
 
 // --- Memory Entry ---
 // Persisted form of an approved MemoryWriteCandidate.
 // mutabilityClass + lifecycleStatus defaults preserve compatibility for legacy entries.
+// Phase 4.1: Optional context/action/outcome/reason for experience-record type.
 export const MemoryEntrySchema = z.object({
   id: MemoryEntryIdSchema,
   content: z.string(),
@@ -172,6 +195,10 @@ export const MemoryEntrySchema = z.object({
   placementState: MemoryPlacementStateSchema.default('project'),
   lastMutationId: MemoryMutationIdSchema.optional(),
   embedding: z.array(z.number()).optional(),
+  context: z.string().optional(),
+  action: z.string().optional(),
+  outcome: z.string().optional(),
+  reason: z.string().optional(),
 });
 export type MemoryEntry = z.infer<typeof MemoryEntrySchema>;
 
@@ -258,11 +285,13 @@ export type ExperienceRecord = z.infer<typeof ExperienceRecordSchema>;
 
 // --- Distilled Pattern ---
 // From memory-system.mdx "Distilled Patterns".
+// Phase 4.3: evidenceRefs required for provenance; basedOn/supersedes non-empty.
 // Compressed knowledge derived from multiple experience records.
 export const DistilledPatternSchema = MemoryEntrySchema.extend({
   type: z.literal('distilled-pattern'),
-  basedOn: z.array(MemoryEntryIdSchema),
-  supersedes: z.array(MemoryEntryIdSchema),
+  basedOn: z.array(MemoryEntryIdSchema).min(1),
+  supersedes: z.array(MemoryEntryIdSchema).min(1),
+  evidenceRefs: z.array(TraceEvidenceReferenceSchema).min(1),
 });
 export type DistilledPattern = z.infer<typeof DistilledPatternSchema>;
 

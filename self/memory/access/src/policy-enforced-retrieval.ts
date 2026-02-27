@@ -9,7 +9,7 @@ import type {
   IMemoryAccessPolicyEngine,
   IProjectStore,
   RetrievalQuery,
-  RetrievalResult,
+  RetrievalResponse,
   PolicyAccessContext,
   ProjectConfig,
   ProjectControlState,
@@ -121,19 +121,19 @@ function isResultAllowed(
 export class PolicyEnforcedRetrievalEngine implements IRetrievalEngine {
   constructor(private readonly deps: PolicyEnforcedRetrievalEngineDeps) {}
 
-  async retrieve(query: RetrievalQuery): Promise<RetrievalResult[]> {
+  async retrieve(query: RetrievalQuery): Promise<RetrievalResponse> {
     const fromProjectId = query.projectId;
-    if (fromProjectId == null) return [];
+    if (fromProjectId == null) return { results: [] };
 
     const fromConfig = await this.deps.projectStore.get(fromProjectId);
     const projectPolicy = getEffectivePolicy(fromConfig);
-    if (projectPolicy == null) return [];
+    if (projectPolicy == null) return { results: [] };
 
     const targetProjectConfigs = new Map<string, ProjectConfig>();
     const targetProjectId = query.filters?.projectId;
     if (targetProjectId != null && targetProjectId !== fromProjectId) {
       const targetConfig = await this.deps.projectStore.get(targetProjectId as ProjectId);
-      if (targetConfig == null) return [];
+      if (targetConfig == null) return { results: [] };
       targetProjectConfigs.set(targetProjectId, targetConfig);
     }
 
@@ -148,12 +148,15 @@ export class PolicyEnforcedRetrievalEngine implements IRetrievalEngine {
       projectControlState
     );
 
-    if (policyCtx == null) return [];
+    if (policyCtx == null) return { results: [] };
 
     const policyResult = this.deps.policyEngine.evaluate(policyCtx);
-    if (!policyResult.allowed) return [];
+    if (!policyResult.allowed) {
+      return { results: [], policyDenial: policyResult.decisionRecord };
+    }
 
-    const results = await this.deps.inner.retrieve(query);
+    const response = await this.deps.inner.retrieve(query);
+    const results = response.results;
 
     const policyByProject = new Map<string, { canReadFrom: string | string[]; canBeReadBy: string | string[] }>();
     for (const r of results) {
@@ -166,7 +169,7 @@ export class PolicyEnforcedRetrievalEngine implements IRetrievalEngine {
       }
     }
 
-    return results.filter((r) => {
+    const filtered = results.filter((r) => {
       const targetId = r.entry.projectId;
       const targetPolicy =
         targetId != null && targetId !== fromProjectId
@@ -180,5 +183,7 @@ export class PolicyEnforcedRetrievalEngine implements IRetrievalEngine {
         targetPolicy ?? undefined
       );
     });
+
+    return { results: filtered };
   }
 }

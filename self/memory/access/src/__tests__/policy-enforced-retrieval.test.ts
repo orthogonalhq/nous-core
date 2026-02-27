@@ -66,7 +66,7 @@ function createResult(
 
 function createInner(results: RetrievalResult[]): IRetrievalEngine {
   return {
-    retrieve: vi.fn().mockResolvedValue(results),
+    retrieve: vi.fn().mockResolvedValue({ results }),
   };
 }
 
@@ -95,14 +95,15 @@ describe('PolicyEnforcedRetrievalEngine', () => {
         projectStore: store,
       });
 
-      const results = await engine.retrieve({
+      const response = await engine.retrieve({
         situation: 'test',
         projectId: FROM_ID,
         scope: 'project',
         tokenBudget: 100,
       });
 
-      expect(results).toHaveLength(1);
+      expect(response.results).toHaveLength(1);
+      expect(response.policyDenial).toBeUndefined();
       expect(inner.retrieve).toHaveBeenCalledTimes(1);
     });
   });
@@ -117,12 +118,13 @@ describe('PolicyEnforcedRetrievalEngine', () => {
         projectStore: store,
       });
 
-      const results = await engine.retrieve({
+      const response = await engine.retrieve({
         situation: 'test',
         tokenBudget: 100,
       });
 
-      expect(results).toHaveLength(0);
+      expect(response.results).toHaveLength(0);
+      expect(response.policyDenial).toBeUndefined();
       expect(inner.retrieve).not.toHaveBeenCalled();
     });
 
@@ -135,13 +137,13 @@ describe('PolicyEnforcedRetrievalEngine', () => {
         projectStore: store,
       });
 
-      const results = await engine.retrieve({
+      const response = await engine.retrieve({
         situation: 'test',
         projectId: FROM_ID,
         tokenBudget: 100,
       });
 
-      expect(results).toHaveLength(0);
+      expect(response.results).toHaveLength(0);
       expect(inner.retrieve).not.toHaveBeenCalled();
     });
 
@@ -156,14 +158,15 @@ describe('PolicyEnforcedRetrievalEngine', () => {
         projectStore: store,
       });
 
-      const results = await engine.retrieve({
+      const response = await engine.retrieve({
         situation: 'test',
         projectId: FROM_ID,
         scope: 'global',
         tokenBudget: 100,
       });
 
-      expect(results).toHaveLength(0);
+      expect(response.results).toHaveLength(0);
+      expect(response.policyDenial).toBeDefined();
       expect(inner.retrieve).not.toHaveBeenCalled();
     });
 
@@ -178,15 +181,15 @@ describe('PolicyEnforcedRetrievalEngine', () => {
         projectStore: store,
       });
 
-      const results = await engine.retrieve({
+      const response = await engine.retrieve({
         situation: 'test',
         projectId: FROM_ID,
         scope: 'global',
         tokenBudget: 100,
       });
 
-      expect(results).toHaveLength(1);
-      expect(results[0].entry.scope).toBe('global');
+      expect(response.results).toHaveLength(1);
+      expect(response.results[0].entry.scope).toBe('global');
     });
 
     it('filters out global results when inheritsGlobal false', async () => {
@@ -203,15 +206,15 @@ describe('PolicyEnforcedRetrievalEngine', () => {
         projectStore: store,
       });
 
-      const results = await engine.retrieve({
+      const response = await engine.retrieve({
         situation: 'test',
         projectId: FROM_ID,
         scope: 'project',
         tokenBudget: 100,
       });
 
-      expect(results).toHaveLength(1);
-      expect(results[0].entry.scope).toBe('project');
+      expect(response.results).toHaveLength(1);
+      expect(response.results[0].entry.scope).toBe('project');
     });
   });
 });

@@ -24,6 +24,7 @@ import type {
 } from '@nous/shared';
 import {
   MemoryWriteCandidateSchema,
+  ExperienceRecordWriteCandidateSchema,
   MemoryEntrySchema,
   MemoryMutationRequestSchema,
   MemoryMutationAuditRecordSchema,
@@ -60,14 +61,14 @@ function candidateToEntry(input: {
   now: string;
   mutationId: MemoryMutationId;
   id: MemoryEntryId;
-}): MemoryEntry {
+}): MemoryEntry & Record<string, unknown> {
   const { candidate, projectId, now, mutationId, id } = input;
   const entryProjectId = projectId ?? candidate.projectId;
   const placementState = candidate.scope === 'global'
     ? 'global-probation'
     : 'project';
 
-  return {
+  const base: MemoryEntry & Record<string, unknown> = {
     id,
     content: candidate.content,
     type: candidate.type,
@@ -90,6 +91,21 @@ function candidateToEntry(input: {
     lastMutationId: mutationId,
     embedding: undefined,
   };
+
+  if (
+    candidate.type === 'experience-record' &&
+    candidate.context != null &&
+    candidate.action != null &&
+    candidate.outcome != null &&
+    candidate.reason != null
+  ) {
+    base.context = candidate.context;
+    base.action = candidate.action;
+    base.outcome = candidate.outcome;
+    base.reason = candidate.reason;
+  }
+
+  return base;
 }
 
 export class MwcPipeline {
@@ -121,6 +137,20 @@ export class MwcPipeline {
       throw new ValidationError('Invalid MemoryWriteCandidate', errors);
     }
     const validated = parseResult.data;
+
+    if (validated.type === 'experience-record') {
+      const expResult = ExperienceRecordWriteCandidateSchema.safeParse(validated);
+      if (!expResult.success) {
+        const errors = expResult.error.errors.map((e) => ({
+          path: e.path.join('.'),
+          message: e.message,
+        }));
+        throw new ValidationError(
+          'Invalid ExperienceRecordWriteCandidate: experience-record requires sentiment, context, action, outcome, reason',
+          errors,
+        );
+      }
+    }
     const evalResult = await this.evaluator(validated, projectId);
     const mutationId = this.makeMutationId();
     const now = this.now();

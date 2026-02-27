@@ -3,6 +3,7 @@ import {
   DEFAULT_MEMORY_ACCESS_POLICY,
   MemoryAccessPolicySchema,
   MemoryWriteCandidateSchema,
+  ExperienceRecordWriteCandidateSchema,
   MemoryEntrySchema,
   MemoryMutationRequestSchema,
   MemoryMutationAuditRecordSchema,
@@ -12,6 +13,12 @@ import {
   DistilledPatternSchema,
   RetrievalResultSchema,
 } from '../../types/memory.js';
+import {
+  RetrievalResponseSchema,
+  RetrievalBudgetTelemetrySchema,
+  RetrievalScoringWeightsSchema,
+  DEFAULT_RETRIEVAL_WEIGHTS,
+} from '../../types/retrieval.js';
 
 const VALID_UUID = '550e8400-e29b-41d4-a716-446655440000';
 const VALID_UUID_2 = '660e8400-e29b-41d4-a716-446655440001';
@@ -130,6 +137,70 @@ describe('MemoryWriteCandidateSchema', () => {
     });
     expect(result.success).toBe(true);
   });
+
+  it('accepts non-experience-record without context/action/outcome/reason (backward compatibility)', () => {
+    expect(MemoryWriteCandidateSchema.safeParse(validCandidate).success).toBe(true);
+  });
+});
+
+describe('ExperienceRecordWriteCandidateSchema', () => {
+  const validExpCandidate = {
+    content: 'Kitchen gut property rejected',
+    type: 'experience-record' as const,
+    scope: 'project' as const,
+    projectId: VALID_UUID,
+    confidence: 0.85,
+    sensitivity: [] as string[],
+    retention: 'permanent' as const,
+    provenance: {
+      traceId: VALID_UUID,
+      source: 'pfc',
+      timestamp: NOW,
+    },
+    tags: ['real-estate'],
+    sentiment: 'strong-negative' as const,
+    context: '3-bed property, kitchen gut',
+    action: 'Submitted for review',
+    outcome: 'rejected',
+    reason: 'Repair estimate exceeded tolerance',
+  };
+
+  it('accepts valid experience-record candidate with sentiment, context, action, outcome, reason', () => {
+    expect(ExperienceRecordWriteCandidateSchema.safeParse(validExpCandidate).success).toBe(true);
+  });
+
+  it('rejects when context missing', () => {
+    const { context: _, ...noContext } = validExpCandidate;
+    expect(ExperienceRecordWriteCandidateSchema.safeParse(noContext).success).toBe(false);
+  });
+
+  it('rejects when action missing', () => {
+    const { action: _, ...noAction } = validExpCandidate;
+    expect(ExperienceRecordWriteCandidateSchema.safeParse(noAction).success).toBe(false);
+  });
+
+  it('rejects when outcome missing', () => {
+    const { outcome: _, ...noOutcome } = validExpCandidate;
+    expect(ExperienceRecordWriteCandidateSchema.safeParse(noOutcome).success).toBe(false);
+  });
+
+  it('rejects when reason missing', () => {
+    const { reason: _, ...noReason } = validExpCandidate;
+    expect(ExperienceRecordWriteCandidateSchema.safeParse(noReason).success).toBe(false);
+  });
+
+  it('rejects when sentiment missing', () => {
+    const { sentiment: _, ...noSentiment } = validExpCandidate;
+    expect(ExperienceRecordWriteCandidateSchema.safeParse(noSentiment).success).toBe(false);
+  });
+
+  it('rejects when type is experience-record but sentiment absent', () => {
+    const result = ExperienceRecordWriteCandidateSchema.safeParse({
+      ...validExpCandidate,
+      sentiment: undefined,
+    });
+    expect(result.success).toBe(false);
+  });
 });
 
 describe('MemoryEntrySchema', () => {
@@ -244,21 +315,182 @@ describe('DistilledPatternSchema', () => {
     updatedAt: NOW,
     basedOn: [VALID_UUID_2],
     supersedes: [VALID_UUID_2],
+    evidenceRefs: [{ actionCategory: 'memory-write' as const }],
   };
 
   it('accepts a valid distilled pattern', () => {
     expect(DistilledPatternSchema.safeParse(validPattern).success).toBe(true);
   });
 
-  it('requires basedOn array', () => {
+  it('requires basedOn array (min 1)', () => {
     const { basedOn: _, ...noBasedOn } = validPattern;
     expect(DistilledPatternSchema.safeParse(noBasedOn).success).toBe(false);
+  });
+
+  it('rejects empty basedOn', () => {
+    expect(
+      DistilledPatternSchema.safeParse({
+        ...validPattern,
+        basedOn: [],
+      }).success,
+    ).toBe(false);
+  });
+
+  it('rejects empty supersedes', () => {
+    expect(
+      DistilledPatternSchema.safeParse({
+        ...validPattern,
+        supersedes: [],
+      }).success,
+    ).toBe(false);
+  });
+
+  it('requires evidenceRefs (min 1)', () => {
+    const { evidenceRefs: _, ...noEvidenceRefs } = validPattern;
+    expect(DistilledPatternSchema.safeParse(noEvidenceRefs).success).toBe(false);
+  });
+
+  it('rejects empty evidenceRefs', () => {
+    expect(
+      DistilledPatternSchema.safeParse({
+        ...validPattern,
+        evidenceRefs: [],
+      }).success,
+    ).toBe(false);
   });
 
   it('enforces type must be distilled-pattern', () => {
     const result = DistilledPatternSchema.safeParse({
       ...validPattern,
       type: 'fact',
+    });
+    expect(result.success).toBe(false);
+  });
+});
+
+describe('RetrievalResponseSchema', () => {
+  const validRetrievalResult = {
+    entry: {
+      id: VALID_UUID,
+      content: 'A fact',
+      type: 'fact',
+      scope: 'global',
+      confidence: 0.9,
+      sensitivity: [],
+      retention: 'permanent',
+      provenance: { traceId: VALID_UUID, source: 'pfc', timestamp: NOW },
+      tags: [],
+      createdAt: NOW,
+      updatedAt: NOW,
+    },
+    score: 0.95,
+    components: {
+      similarity: 0.9,
+      sentimentWeight: 0.8,
+      recency: 0.7,
+      confidence: 0.9,
+    },
+  };
+
+  it('accepts valid response with results only', () => {
+    const result = RetrievalResponseSchema.safeParse({
+      results: [validRetrievalResult],
+    });
+    expect(result.success).toBe(true);
+  });
+
+  it('accepts valid response with policyDenial', () => {
+    const result = RetrievalResponseSchema.safeParse({
+      results: [],
+      policyDenial: {
+        id: VALID_UUID,
+        projectId: VALID_UUID_2,
+        action: 'retrieve',
+        outcome: 'denied',
+        reasonCode: 'POL-GLOBAL-DENIED',
+        reason: 'inheritsGlobal is false',
+        occurredAt: NOW,
+      },
+    });
+    expect(result.success).toBe(true);
+  });
+
+  it('rejects missing results', () => {
+    const result = RetrievalResponseSchema.safeParse({
+      policyDenial: { id: VALID_UUID, projectId: VALID_UUID_2, action: 'retrieve', outcome: 'denied', reasonCode: 'POL-DENIED', reason: 'x', occurredAt: NOW },
+    });
+    expect(result.success).toBe(false);
+  });
+
+  it('rejects invalid results element', () => {
+    const result = RetrievalResponseSchema.safeParse({
+      results: [{ invalid: 'result' }],
+    });
+    expect(result.success).toBe(false);
+  });
+});
+
+describe('RetrievalBudgetTelemetrySchema', () => {
+  it('accepts valid telemetry', () => {
+    const result = RetrievalBudgetTelemetrySchema.safeParse({
+      consumedTokens: 150,
+      candidateCount: 10,
+      truncatedCount: 3,
+    });
+    expect(result.success).toBe(true);
+  });
+
+  it('rejects negative consumedTokens', () => {
+    const result = RetrievalBudgetTelemetrySchema.safeParse({
+      consumedTokens: -1,
+      candidateCount: 10,
+      truncatedCount: 0,
+    });
+    expect(result.success).toBe(false);
+  });
+
+  it('rejects non-integer consumedTokens', () => {
+    const result = RetrievalBudgetTelemetrySchema.safeParse({
+      consumedTokens: 1.5,
+      candidateCount: 10,
+      truncatedCount: 0,
+    });
+    expect(result.success).toBe(false);
+  });
+});
+
+describe('RetrievalScoringWeightsSchema', () => {
+  it('accepts DEFAULT_RETRIEVAL_WEIGHTS', () => {
+    const result = RetrievalScoringWeightsSchema.safeParse(DEFAULT_RETRIEVAL_WEIGHTS);
+    expect(result.success).toBe(true);
+  });
+
+  it('accepts valid weights summing to 1', () => {
+    const result = RetrievalScoringWeightsSchema.safeParse({
+      wSimilarity: 0.4,
+      wSentiment: 0.3,
+      wRecency: 0.2,
+      wConfidence: 0.1,
+    });
+    expect(result.success).toBe(true);
+  });
+
+  it('rejects weights not summing to 1', () => {
+    const result = RetrievalScoringWeightsSchema.safeParse({
+      wSimilarity: 0.5,
+      wSentiment: 0.5,
+      wRecency: 0.1,
+      wConfidence: 0.1,
+    });
+    expect(result.success).toBe(false);
+  });
+
+  it('rejects weight out of range', () => {
+    const result = RetrievalScoringWeightsSchema.safeParse({
+      wSimilarity: 1.5,
+      wSentiment: 0,
+      wRecency: 0,
+      wConfidence: 0,
     });
     expect(result.success).toBe(false);
   });

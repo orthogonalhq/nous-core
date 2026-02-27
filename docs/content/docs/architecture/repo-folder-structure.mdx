@@ -183,15 +183,16 @@ All entries include provenance metadata. All entries are auditable, exportable, 
 
 ### distillation/
 
-The compression engine. Background process that converts clusters of experience records into distilled patterns.
+The compression engine. Implemented as `@nous/memory-distillation` (Phase 4.3). Background process that converts clusters of experience records into distilled patterns.
 
 Responsibilities:
 
-* Identify clusters of related experience records
-* Compress clusters into pattern statements
-* Assign confidence scores based on consistency and volume
-* Mark superseded records for archival
-* Trigger meta-vector and relationship updates via knowledge-index
+* Identify clusters of related experience records (tag/project strategies; semantic deferred)
+* Compress clusters into pattern statements with provenance (`basedOn`, `supersedes`, `evidenceRefs`)
+* Assign initial confidence from sentiment consistency and volume; support refresh (confirming signals) and decay (staleness, contradiction)
+* Mark superseded records for archival via `ILtmStore.markSuperseded`
+* Support supersession reversal — restore source records to active, retire pattern (caller emits audit)
+* Policy gate: caller must invoke policy evaluation before distillation writes when scope is cross-project or global
 
 This is the "sleep cycle" — consolidation that happens offline, not at query time.
 
@@ -199,16 +200,18 @@ Designed for independent iteration. Swap distillation strategies without touchin
 
 ### retrieval/
 
-Query-time context assembly.
+Query-time context assembly. Implemented as `@nous/memory-retrieval` (Phase 4.2).
 
 Responsibilities:
 
 * Embed the current situation
-* Score candidates by semantic similarity, sentiment weight, recency, and confidence
-* Enforce retrieval token budget
+* Score candidates by semantic similarity, sentiment weight, recency, and confidence (deterministic formula; tie-break by entry.id)
+* Enforce retrieval token budget with truncation telemetry
 * Merge results from project-scoped and cross-project sources
 * Assemble labeled context for the LLM prompt
 * Log all retrieval decisions
+
+`SentimentWeightedRetrievalEngine` combines semantic similarity, sentiment valence (via `getSentimentWeight`), recency, and confidence. Configurable weights default to semantic relevance primary. All retrieval flows through `PolicyEnforcedRetrievalEngine`; when policy denies, the response includes `policyDenial` for trace linkage.
 
 Retrieval is reconstruction, not lookup. The same knowledge may surface differently depending on the question.
 

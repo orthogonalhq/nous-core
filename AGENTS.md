@@ -13,8 +13,16 @@
 
 1. Use only project-local skills under `.skills/`.
 2. `.skills/.system/` is the location for system-level project skills.
-3. `.skills/.contracts/` is the canonical contracts path.
-4. Do not use or reference user-home/global skill directories.
+3. `self/shared/contracts/` is the canonical path for core runtime packet contracts.
+4. `.skills/.contracts/` is the canonical path for workflow/process lane contracts.
+5. Do not use or reference user-home/global skill directories.
+
+### Packet Reinforcement Contract (Authoritative)
+
+1. Every packet MUST include both `reinforcement` and `context_hydration_ack`.
+2. Canonical schema and semantics are defined in `self/shared/contracts/reinforcement-packet-contract.md`.
+3. Single-packet invariant is mandatory: one fenced packet block == one node-to-node connection, no nested packet envelopes.
+4. Missing or mismatched reinforcement/context hydration fields are fail-close contract violations.
 
 ### Changelog Drift Guard (Authoritative)
 
@@ -30,6 +38,7 @@
 - Follow `.skills/engineer-workflow-sop/SKILL.md`.
 - Project edits are allowed per the SOP.
 - Mandatory form-factor gate for non-trivial capability changes: classify delivery as `function`, `skill`, or `hybrid`; record rationale; block implementation dispatch until `orchestration_agent` recommendation is ratified by `nous_cortex`.
+- Orchestrator lane invariant: `Orchestrator::engineer-workflow` is dispatch/orchestration-only. It must not perform inline project/governance artifact authoring; artifacts are produced by worker or governance lanes and returned via handoff.
 
 ### Identity and Personalization (Authoritative)
 
