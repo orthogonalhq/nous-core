@@ -3,6 +3,7 @@ import {
   AttestationReceiptSchema,
   CriticalActionCategorySchema,
   InvariantCodeSchema,
+  InvariantPrefixSchema,
   InvariantSeveritySchema,
   TraceEvidenceReferenceSchema,
   VerificationReportSchema,
@@ -44,6 +45,11 @@ describe('InvariantCodeSchema', () => {
     expect(InvariantCodeSchema.safeParse('WMODE-001').success).toBe(true);
     expect(InvariantCodeSchema.safeParse('WMODE-002').success).toBe(true);
     expect(InvariantCodeSchema.safeParse('WMODE-010').success).toBe(true);
+    expect(InvariantCodeSchema.safeParse('PCP-001').success).toBe(true);
+    expect(InvariantCodeSchema.safeParse('PCP-002').success).toBe(true);
+    expect(InvariantCodeSchema.safeParse('PCP-007').success).toBe(true);
+    expect(InvariantCodeSchema.safeParse('PCP-008').success).toBe(true);
+    expect(InvariantCodeSchema.safeParse('PCP-009').success).toBe(true);
   });
 
   it('rejects unknown prefix', () => {
@@ -203,6 +209,12 @@ describe('TraceEvidenceReferenceSchema', () => {
     });
 
     expect(result.success).toBe(true);
+  });
+});
+
+describe('InvariantPrefixSchema', () => {
+  it('includes PCP for project-chat-control-plane', () => {
+    expect(InvariantPrefixSchema.safeParse('PCP').success).toBe(true);
   });
 });
 

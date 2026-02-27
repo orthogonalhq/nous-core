@@ -1,14 +1,14 @@
 # Reinforcement Packet Contract
 
-Status: Draft v0  
-Owner: Runtime/Core  
+Status: Draft v1
+Owner: Runtime/Core
 Canonical location: `self/shared/contracts/`
 
 ## Purpose
 
 Define required reinforcement and context-hydration fields that MUST be present in every Nous packet.
 
-This contract is meant to prevent role drift and compaction amnesia by making required reads and read acknowledgments machine-checkable.
+This contract prevents role drift and compaction amnesia by making required reads and read acknowledgments machine-checkable.
 
 ## Scope
 
@@ -20,25 +20,19 @@ Applies to all packets with a `nous` envelope:
 
 ## Core Rule
 
-Every packet MUST include both:
+Every packet MUST include a top-level `reinforcement` block.
 
-1. `reinforcement`
-2. `context_hydration_ack`
+`context_hydration_ack` is removed. Hydration acknowledgment fields are part of `reinforcement.context_hydration`.
 
-Missing either is contract-invalid and fail-close.
+Missing required reinforcement/context-hydration fields is contract-invalid and fail-close.
 
 ## Required Fields
 
 ```yaml
 reinforcement:
   required: true
-  role_lock: <canonical-role-id>
+  role_lock: <must match nous.route.target.id>
   terminal_boundary: <lane-terminal-behavior>
-  invariants:
-    route_emitter_id: <must match nous.route.emitter.id>
-    route_target_id: <must match nous.route.target.id>
-    envelope_type: <must match nous.envelope.type>
-    envelope_action: <must match nous.envelope.action>
   fail_close_action: boundary_violation_escalation|invalid_handoff
   context_hydration:
     required: true
@@ -46,15 +40,12 @@ reinforcement:
     required_reads:
       - <required-doc-path-1>
       - <required-doc-path-2>
-
-context_hydration_ack:
-  loaded: true
-  read_bundle_id: <must match reinforcement.context_hydration.read_bundle_id>
-  entrypoint: <lane-entrypoint-read>
-  sop_refs:
-    - <sop-doc-read>
-  phase_refs:
-    - <phase-doc-read-or-empty-list>
+    loaded: true
+    entrypoint: <lane-entrypoint-read>
+    sop_refs:
+      - <sop-doc-read>
+    phase_refs:
+      - <phase-doc-read-or-empty-list>
 ```
 
 ## Required Reads Policy
@@ -68,23 +59,30 @@ context_hydration_ack:
 
 ## Consistency Rules
 
-1. `reinforcement.invariants.*` MUST exactly match packet header values.
-2. `context_hydration_ack.read_bundle_id` MUST equal `reinforcement.context_hydration.read_bundle_id`.
-3. `context_hydration_ack.entrypoint` MUST be included in `required_reads`.
-4. `context_hydration_ack.sop_refs` MUST be a subset of `required_reads`.
-5. `context_hydration_ack.phase_refs` MUST be a subset of `required_reads` (or empty when phase-agnostic).
-6. Packet payload/body MUST NOT contain nested packet envelopes.
+1. `reinforcement.role_lock` MUST equal `nous.route.target.id`.
+2. `reinforcement.context_hydration.required` MUST be `true`.
+3. `reinforcement.context_hydration.loaded` MUST be `true`.
+4. `reinforcement.context_hydration.entrypoint` MUST be included in `required_reads`.
+5. `reinforcement.context_hydration.sop_refs` MUST be a subset of `required_reads`.
+6. `reinforcement.context_hydration.phase_refs` MUST be a subset of `required_reads` (or `n/a` when phase-agnostic).
+7. Packet payload/body MUST NOT contain nested packet envelopes.
+
+Legacy/disallowed markers in packet blocks:
+
+- top-level `context_hydration_ack`
+- `reinforcement.invariants`
+- reinforcement invariant mirrors (`route_emitter_id`, `route_target_id`, `envelope_type`, `envelope_action`)
 
 ## Validation Outcome
 
 Invalid packet conditions (non-exhaustive):
 
 - missing `reinforcement`
-- missing `context_hydration_ack`
-- invariant/header mismatch
+- missing required reinforcement/context-hydration keys
+- `role_lock` does not match packet target role id
 - `loaded` is not `true`
-- `read_bundle_id` mismatch
-- required reads missing required categories
+- required read categories missing
+- disallowed legacy markers present
 - nested packet envelope detected
 
 Required response:
@@ -116,33 +114,25 @@ nous:
 
 reinforcement:
   required: true
-  role_lock: Worker::implementation
+  role_lock: Orchestrator::engineer-workflow
   terminal_boundary: emit_and_stop
-  invariants:
-    route_emitter_id: Worker::implementation
-    route_target_id: Orchestrator::engineer-workflow
-    envelope_type: handoff
-    envelope_action: preflight_blocked
   fail_close_action: boundary_violation_escalation
   context_hydration:
     required: true
     read_bundle_id: rb-phase-4.3-preflight-001
     required_reads:
       - @AGENTS.md
-      - @.skills/engineer-workflow-sop/implementation-agent/ENTRY.md
+      - @.skills/engineer-workflow-sop/orchestrator/ENTRY.md
       - @.skills/engineer-workflow-sop/shared/dispatch-model.md
       - @.skills/engineer-workflow-sop/shared/revision-cycle-protocol.md
       - @.skills/engineer-workflow-sop/implementation-agent/responses/preflight.md
       - @.architecture/roadmap/phase-4/phase-4.3.md
-
-context_hydration_ack:
-  loaded: true
-  read_bundle_id: rb-phase-4.3-preflight-001
-  entrypoint: @.skills/engineer-workflow-sop/implementation-agent/ENTRY.md
-  sop_refs:
-    - @.skills/engineer-workflow-sop/shared/dispatch-model.md
-    - @.skills/engineer-workflow-sop/shared/revision-cycle-protocol.md
-  phase_refs:
-    - @.architecture/roadmap/phase-4/phase-4.3.md
+    loaded: true
+    entrypoint: @.skills/engineer-workflow-sop/orchestrator/ENTRY.md
+    sop_refs:
+      - @.skills/engineer-workflow-sop/shared/dispatch-model.md
+      - @.skills/engineer-workflow-sop/shared/revision-cycle-protocol.md
+    phase_refs:
+      - @.architecture/roadmap/phase-4/phase-4.3.md
 ```
 

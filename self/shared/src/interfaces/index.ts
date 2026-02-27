@@ -36,6 +36,13 @@ export type {
   LifecycleAdmissionInput,
 } from './workmode.js';
 export type {
+  IChatScopeResolver,
+  IChatIntentClassifier,
+  IChatControlRouter,
+  IChatThreadStore,
+  IChatThreadBindGuard,
+} from './chat.js';
+export type {
   IDocumentStore,
   IVectorStore,
   IGraphStore,
