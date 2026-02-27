@@ -1,9 +1,17 @@
 /**
  * Supersession reversal — restore source records, retire pattern.
  * Phase 4.3: Explicit rollback, no silent replacement.
+ *
+ * **Caller contract (Phase 4.4, ADR-002):** When invoking reverseSupersession,
+ * the caller MUST emit MemoryMutationAuditRecord with action 'supersede',
+ * traceId, evidenceRefs from request, outcome 'applied', reason from request.
+ * See .worklog/phase-4/phase-4.4/export-hooks.mdx
  */
 import type { ILtmStore, MemoryEntry, DistilledPattern } from '@nous/shared';
 import { type SupersessionReversalRequest } from '@nous/shared';
+
+export const REVERSAL_AUDIT_CALLER_CONTRACT =
+  'Caller must emit MemoryMutationAuditRecord when invoking reverseSupersession';
 
 export async function reverseSupersession(
   ltm: ILtmStore,
