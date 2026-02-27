@@ -1,0 +1,86 @@
+---
+title: Workmode and Authority Boundaries
+description: Canonical workmode contracts, lease semantics, and authority-chain enforcement for workflow dispatch
+---
+
+# Workmode and Authority Boundaries
+
+Phase 5.1 establishes the foundational runtime contracts for workflow dispatch and admission in Nous-OSS. This document describes workmode contracts, lease semantics, and authority-chain guardrails that enforce deterministic, fail-closed admission before higher-level control-plane capabilities are layered on.
+
+## Overview
+
+- **Workmode** — Execution context that defines entrypoint, SOP path, allowed artifact surfaces, and scope boundaries.
+- **Lease** — Time-bound, non-transferable authorization for an orchestration agent to execute within a workmode.
+- **Authority chain** — Strict hierarchy: `nous_cortex` → `orchestration_agent` → `worker_agent`. Authority narrows down-chain only.
+
+All dispatch admissions validate target identity, action admissibility, and authority-chain constraints. Invalid attempts are blocked and evidence-logged.
+
+## Canonical Authority Chain
+
+| Authority | Role | May dispatch to |
+|-----------|------|------------------|
+| `nous_cortex` | Executive authority | `orchestration_agent`, `worker_agent` |
+| `orchestration_agent` | Scoped orchestration | `worker_agent` only |
+| `worker_agent` | Scoped execution | — (cannot dispatch) |
+
+**Invariants:**
+
+- **WMODE-002:** Authority must narrow down-chain. An orchestration agent cannot dispatch to cortex; a worker cannot dispatch to anyone.
+- **WMODE-003:** Nested orchestration is forbidden. An orchestration agent cannot dispatch to another orchestration agent.
+- **WMODE-010:** A worker agent cannot escalate authority or dispatch authoritative agents.
+
+## System Workmodes
+
+Canonical system workmodes shipped with Nous:
+
+| Workmode | Purpose | Allowed artifact surfaces |
+|----------|---------|--------------------------|
+| `system:implementation` | Implementation workflow | `.worklog/`, `self/`, `docs/`, `packages/`, `scripts/` |
+| `system:architecture` | Architecture ideation | `.architecture/` only |
+| `system:skill_authoring` | Skill authoring | `.skills/` only |
+
+Skill-installed workmodes follow the pattern `skill:<slug>:<entrypoint>`.
+
+## Lease Contract
+
+A lease is issued by `nous_cortex` and grants an orchestration agent the right to execute within a workmode for a bounded time.
+
+**Lease rules:**
+
+- Non-transferable
+- Revocable by cortex at any time
+- Cannot widen scope or capabilities after issuance without re-authorization
+- Context-profile switches require explicit transition event before downstream dispatch
+
+**Lifecycle:** Lease exits when task objectives complete, TTL expires, budget guard trips, policy violation requires stop, or cortex revokes.
+
+## Lifecycle Admission
+
+Lifecycle actions (`start`, `pause`, `resume`, `stop`, `recover`) are gated by:
+
+- **Control state** — Valid transitions only (e.g. `pause` requires `running`).
+
+- **Confirmation proof** — Required per ADR-004. Runtime-issued, scope-bound, action-bound. Cannot use stale or UI-only approval.
+
+Unknown control state or missing confirmation proof → fail-closed (deny).
+
+## Blocked Actions and Reason Codes
+
+When a dispatch or lifecycle action is blocked, the admission guard returns a `reasonCode` and `evidenceRefs`.
+
+| Code | Meaning |
+|------|---------|
+| `WMODE-002` | Authority widening blocked — e.g. worker attempting to dispatch, or orchestrator dispatching to cortex |
+| `WMODE-003` | Nested orchestration blocked — orchestrator attempting to dispatch to orchestrator |
+| `WMODE-010` | Worker escalation blocked — worker cannot dispatch to any authoritative agent |
+| `POL-CONTROL-STATE-BLOCKED` | Control state undefined or invalid for admission |
+| `OPCTL-CONFIRMATION-REQUIRED` | Lifecycle action requires confirmation proof |
+| `OPCTL-INVALID-STATE` | Control state does not allow the requested action |
+
+All blocked outcomes include `evidenceRefs` (min 1) for audit linkage per ADR-002.
+
+## Related
+
+- [Operator Control](/docs/development/operator-control) — lifecycle command semantics, confirmation tiers
+- [Security Baseline](/docs/architecture/security-baseline) — witness evidence chain
+- [Project Model](/docs/architecture/project-model) — project types and governance

@@ -60,3 +60,17 @@ pnpm exec vitest run --config self/<layer>/<package>/vitest.config.ts
 **Symptom:** First-run flow keeps appearing.
 
 **Fix:** First-run completes when you send a message and receive a response, or when a project exists. Ensure Ollama is running so the health check and model invocation succeed.
+
+## Dispatch or Action Blocked (WMODE-*)
+
+**Symptom:** A workflow dispatch or lifecycle action is blocked with a reason code such as `WMODE-002`, `WMODE-003`, or `WMODE-010`.
+
+**Meaning:** The admission guard rejected the action because it would violate the authority chain or workmode boundaries.
+
+| Code | Cause |
+|------|-------|
+| WMODE-002 | Authority widening — e.g. a worker attempted to dispatch, or an orchestrator tried to dispatch to cortex |
+| WMODE-003 | Nested orchestration — an orchestrator tried to dispatch to another orchestrator |
+| WMODE-010 | Worker escalation — a worker attempted to dispatch to an authoritative agent |
+
+**Fix:** The action is not permitted by design. Check that the dispatch source and target respect the authority chain: `nous_cortex` → `orchestration_agent` → `worker_agent`. See [Workmode and Authority Boundaries](/docs/architecture/workmode-and-authority-boundaries).
