@@ -315,15 +315,48 @@ describe('DistilledPatternSchema', () => {
     updatedAt: NOW,
     basedOn: [VALID_UUID_2],
     supersedes: [VALID_UUID_2],
+    evidenceRefs: [{ actionCategory: 'memory-write' as const }],
   };
 
   it('accepts a valid distilled pattern', () => {
     expect(DistilledPatternSchema.safeParse(validPattern).success).toBe(true);
   });
 
-  it('requires basedOn array', () => {
+  it('requires basedOn array (min 1)', () => {
     const { basedOn: _, ...noBasedOn } = validPattern;
     expect(DistilledPatternSchema.safeParse(noBasedOn).success).toBe(false);
+  });
+
+  it('rejects empty basedOn', () => {
+    expect(
+      DistilledPatternSchema.safeParse({
+        ...validPattern,
+        basedOn: [],
+      }).success,
+    ).toBe(false);
+  });
+
+  it('rejects empty supersedes', () => {
+    expect(
+      DistilledPatternSchema.safeParse({
+        ...validPattern,
+        supersedes: [],
+      }).success,
+    ).toBe(false);
+  });
+
+  it('requires evidenceRefs (min 1)', () => {
+    const { evidenceRefs: _, ...noEvidenceRefs } = validPattern;
+    expect(DistilledPatternSchema.safeParse(noEvidenceRefs).success).toBe(false);
+  });
+
+  it('rejects empty evidenceRefs', () => {
+    expect(
+      DistilledPatternSchema.safeParse({
+        ...validPattern,
+        evidenceRefs: [],
+      }).success,
+    ).toBe(false);
   });
 
   it('enforces type must be distilled-pattern', () => {
