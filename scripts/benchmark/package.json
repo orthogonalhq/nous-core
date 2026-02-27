@@ -18,6 +18,7 @@
     "@nous/autonomic-embeddings": "workspace:*",
     "@nous/autonomic-storage": "workspace:*",
     "@nous/memory-access": "workspace:*",
+    "@nous/memory-distillation": "workspace:^",
     "@nous/memory-retrieval": "workspace:*",
     "@nous/memory-stubs": "workspace:*",
     "@types/node": "^20",
