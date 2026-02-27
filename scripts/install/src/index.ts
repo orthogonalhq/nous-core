@@ -31,17 +31,53 @@ import { writeConfig } from './write-config.js';
 import { initStorage } from './init-storage.js';
 import { uiBanner, uiFail, uiLine, uiNext, uiOk, uiStep, uiWarn } from './ui.js';
 
+const MIN_PORT = 1;
+const MAX_PORT = 65_535;
+
+function parsePositiveInteger(rawValue: string | undefined, fallback: number): number {
+    if (!rawValue) {
+        return fallback;
+    }
+
+    const parsed = Number.parseInt(rawValue, 10);
+    if (!Number.isInteger(parsed) || parsed <= 0) {
+        return fallback;
+    }
+    return parsed;
+}
+
+function parsePort(rawValue: string | undefined, fallback: number): number {
+    const parsed = parsePositiveInteger(rawValue, fallback);
+    if (parsed < MIN_PORT || parsed > MAX_PORT) {
+        return fallback;
+    }
+    return parsed;
+}
+
 const DEFAULT_MODEL = 'llama3.2:3b';
 const DATA_DIR = process.env.NOUS_DATA_DIR ?? './data';
-const BACKEND_PORT = process.env.NOUS_WEB_PORT ?? '4317';
-const BACKEND_URL = `http://localhost:${BACKEND_PORT}`;
-const NEXT_DIST_DIR = process.env.NOUS_NEXT_DIST_DIR ?? `.next-${BACKEND_PORT}`;
+const DEFAULT_BACKEND_PORT = parsePort(process.env.NOUS_WEB_PORT, 4317);
+const BACKEND_PORT_SCAN_LIMIT = parsePositiveInteger(process.env.NOUS_WEB_PORT_SCAN_LIMIT, 20);
+const BACKEND_DISCOVERY_TIMEOUT_MS = 1_000;
+const NEXT_DIST_DIR_OVERRIDE = process.env.NOUS_NEXT_DIST_DIR;
 const BACKEND_READY_TIMEOUT_MS = 60_000;
 const BACKEND_POLL_INTERVAL_MS = 500;
 const WEB_APP_DIR = join(process.cwd(), 'self', 'apps', 'web');
 
 type BackendState = 'healthy' | 'unhealthy' | 'down';
 type InstallerAction = 'open' | 'repair' | 'reconfigure' | 'uninstall' | 'quit';
+type ResolvedBackendTarget = {
+    port: number;
+    url: string;
+    distDir: string;
+    reuseExisting: boolean;
+};
+type BackendLaunchResult = {
+    process: ChildProcess | null;
+    port: number;
+    url: string;
+    reusedExisting: boolean;
+};
 
 type InstallAssessment = {
     existing: boolean;
@@ -53,8 +89,17 @@ type InstallAssessment = {
     ollamaRunning: boolean;
     modelInstalled: boolean;
     backendState: BackendState;
+    backendPort: number | null;
     updateCheck: OllamaUpdateCheck;
 };
+
+function getBackendUrl(port: number): string {
+    return `http://localhost:${port}`;
+}
+
+function getBackendDistDir(port: number): string {
+    return NEXT_DIST_DIR_OVERRIDE ?? `.next-${port}`;
+}
 
 function log(msg: string): void {
     console.log(msg);
@@ -141,11 +186,11 @@ async function promptYesNo(question: string, defaultYes: boolean): Promise<boole
     return choice === 'y';
 }
 
-async function waitForBackend(): Promise<void> {
+async function waitForBackend(url: string): Promise<void> {
     const start = Date.now();
     while (Date.now() - start < BACKEND_READY_TIMEOUT_MS) {
         try {
-            const res = await fetch(BACKEND_URL, {
+            const res = await fetch(url, {
                 signal: AbortSignal.timeout(3000),
             });
             if (res.ok) return;
@@ -159,10 +204,10 @@ async function waitForBackend(): Promise<void> {
     );
 }
 
-async function probeBackendState(): Promise<BackendState> {
+async function probeBackendState(url: string, timeoutMs = 3000): Promise<BackendState> {
     try {
-        const res = await fetch(BACKEND_URL, {
-            signal: AbortSignal.timeout(3000),
+        const res = await fetch(url, {
+            signal: AbortSignal.timeout(timeoutMs),
         });
         return res.ok ? 'healthy' : 'unhealthy';
     } catch {
@@ -190,6 +235,60 @@ async function isPortInUse(port: number): Promise<boolean> {
     });
 }
 
+function buildBackendTarget(port: number, reuseExisting: boolean): ResolvedBackendTarget {
+    return {
+        port,
+        url: getBackendUrl(port),
+        distDir: getBackendDistDir(port),
+        reuseExisting,
+    };
+}
+
+async function resolveBackendTarget(preferredPort: number): Promise<ResolvedBackendTarget> {
+    for (let offset = 0; offset < BACKEND_PORT_SCAN_LIMIT; offset += 1) {
+        const port = preferredPort + offset;
+        if (port > MAX_PORT) {
+            break;
+        }
+
+        const occupied = await isPortInUse(port);
+        if (!occupied) {
+            return buildBackendTarget(port, false);
+        }
+
+        const state = await probeBackendState(getBackendUrl(port), BACKEND_DISCOVERY_TIMEOUT_MS);
+        if (state === 'healthy') {
+            return buildBackendTarget(port, true);
+        }
+    }
+
+    const maxCandidatePort = Math.min(MAX_PORT, preferredPort + BACKEND_PORT_SCAN_LIMIT - 1);
+    throw new Error(
+        `Unable to find a usable backend port in range ${preferredPort}-${maxCandidatePort}. Stop conflicting processes or set NOUS_WEB_PORT.`,
+    );
+}
+
+async function detectHealthyBackendPort(preferredPort: number): Promise<number | null> {
+    for (let offset = 0; offset < BACKEND_PORT_SCAN_LIMIT; offset += 1) {
+        const port = preferredPort + offset;
+        if (port > MAX_PORT) {
+            break;
+        }
+
+        const occupied = await isPortInUse(port);
+        if (!occupied) {
+            continue;
+        }
+
+        const state = await probeBackendState(getBackendUrl(port), BACKEND_DISCOVERY_TIMEOUT_MS);
+        if (state === 'healthy') {
+            return port;
+        }
+    }
+
+    return null;
+}
+
 function isConfigValid(configPath: string): boolean {
     try {
         loadConfig(configPath);
@@ -208,10 +307,13 @@ async function assessInstallation(
     const hasConfig = existsSync(configPath);
     const hasDatabase = existsSync(join(dataDir, 'nous.sqlite'));
     const configValid = hasConfig ? isConfigValid(configPath) : false;
-    const [ollamaInstalled, backendState] = await Promise.all([
+    const [ollamaInstalled, backendPort] = await Promise.all([
         isOllamaInstalled(),
-        probeBackendState(),
+        detectHealthyBackendPort(DEFAULT_BACKEND_PORT),
     ]);
+    const backendState = backendPort
+        ? 'healthy'
+        : await probeBackendState(getBackendUrl(DEFAULT_BACKEND_PORT));
 
     const [ollamaRunning, modelInstalled, updateCheck] = ollamaInstalled
         ? await Promise.all([
@@ -231,6 +333,7 @@ async function assessInstallation(
         ollamaRunning,
         modelInstalled,
         backendState,
+        backendPort,
         updateCheck,
     };
 }
@@ -258,7 +361,9 @@ function renderExistingSummary(assessment: InstallAssessment): void {
     uiLine(` Ollama installed  : ${asStatus(assessment.ollamaInstalled)}`);
     uiLine(` Ollama running    : ${asStatus(assessment.ollamaRunning)}`);
     uiLine(` Model ${DEFAULT_MODEL}: ${assessment.modelInstalled ? 'present' : 'missing'}`);
-    uiLine(` Web backend       : ${assessment.backendState}`);
+    uiLine(
+        ` Web backend       : ${assessment.backendState}${assessment.backendPort ? ` (port ${assessment.backendPort})` : ''}`,
+    );
 
     if (assessment.updateCheck.state === 'available') {
         uiLine(` Ollama update     : available (${assessment.updateCheck.detail})`);
@@ -292,50 +397,56 @@ async function promptExistingAction(healthy: boolean): Promise<InstallerAction> 
     return 'quit';
 }
 
-async function ensureBackendRunning(dataDir: string, configPath: string): Promise<ChildProcess | null> {
-    const backendState = await probeBackendState();
-    if (backendState === 'healthy') {
-        log('[nous:install] backend=detected-running');
-        return null;
+async function ensureBackendRunning(dataDir: string, configPath: string): Promise<BackendLaunchResult> {
+    const backendTarget = await resolveBackendTarget(DEFAULT_BACKEND_PORT);
+    if (backendTarget.reuseExisting) {
+        log(`[nous:install] backend=detected-running port=${backendTarget.port}`);
+        return {
+            process: null,
+            port: backendTarget.port,
+            url: backendTarget.url,
+            reusedExisting: true,
+        };
     }
-    if (backendState === 'unhealthy') {
-        throw new Error(
-            `Port ${BACKEND_PORT} is already in use by an unhealthy process. Stop it and rerun installer.`,
-        );
-    }
-    const portOccupied = await isPortInUse(Number(BACKEND_PORT));
-    if (portOccupied) {
-        throw new Error(
-            `Port ${BACKEND_PORT} is already in use by a non-responsive process. Stop it and rerun installer.`,
+
+    if (backendTarget.port !== DEFAULT_BACKEND_PORT) {
+        uiWarn(
+            `Preferred port ${DEFAULT_BACKEND_PORT} is unavailable. Using ${backendTarget.port}.`,
         );
     }
 
-    log('[nous:install] backend=starting...');
-    const proc = spawn('pnpm', ['exec', 'next', 'dev', '--port', BACKEND_PORT], {
+    log(`[nous:install] backend=starting port=${backendTarget.port}...`);
+    const proc = spawn('pnpm', ['exec', 'next', 'dev', '--port', String(backendTarget.port)], {
         shell: true,
         stdio: 'inherit',
         cwd: WEB_APP_DIR,
         env: {
             ...process.env,
+            NOUS_WEB_PORT: String(backendTarget.port),
             NOUS_DATA_DIR: dataDir,
             NOUS_CONFIG_PATH: configPath,
-            NOUS_NEXT_DIST_DIR: NEXT_DIST_DIR,
+            NOUS_NEXT_DIST_DIR: backendTarget.distDir,
         },
     });
-    await waitForBackend();
-    return proc;
+    await waitForBackend(backendTarget.url);
+    return {
+        process: proc,
+        port: backendTarget.port,
+        url: backendTarget.url,
+        reusedExisting: false,
+    };
 }
 
-function finalizeInstaller(devProcess: ChildProcess | null): void {
-    if (!devProcess) {
-        log('[nous:install] Backend already running. Installer complete.');
-        uiLine(' Installer complete. Existing backend reused.');
+function finalizeInstaller(backend: BackendLaunchResult): void {
+    if (!backend.process) {
+        log(`[nous:install] Backend already running on port ${backend.port}. Installer complete.`);
+        uiLine(` Installer complete. Existing backend reused on port ${backend.port}.`);
         return;
     }
 
-    log('[nous:install] Backend is running. Press Ctrl+C to stop.');
-    uiLine(' Installer complete. Backend is running; press Ctrl+C to stop.');
-    devProcess.on('exit', (code) => {
+    log(`[nous:install] Backend is running on ${backend.url}. Press Ctrl+C to stop.`);
+    uiLine(` Installer complete. Backend is running on ${backend.url}; press Ctrl+C to stop.`);
+    backend.process.on('exit', (code) => {
         process.exit(code ?? 0);
     });
 }
@@ -345,7 +456,7 @@ async function runInstallFlow(
     dataDir: string,
     configPath: string,
     options?: { forceRewriteConfig?: boolean },
-): Promise<ChildProcess | null> {
+): Promise<BackendLaunchResult> {
     const total = 6;
 
     await runStep(1, total, 'Prepare Ollama runtime', 'Detect existing install or install if missing', async () => {
@@ -400,41 +511,41 @@ async function runInstallFlow(
         log(`[nous:install] config retained at ${configPath}`);
     });
 
-    const devProcess = await runStep(
+    const backend = await runStep(
         5,
         total,
         'Boot web app',
-        `Start backend on port ${BACKEND_PORT}`,
+        `Start backend (prefer port ${DEFAULT_BACKEND_PORT})`,
         async () => ensureBackendRunning(dataDir, configPath),
     );
 
     await runStep(6, total, 'Open app experience', 'Launch browser to local app', async () => {
-        openBrowser(BACKEND_URL);
-        log(`[nous:install] Open ${BACKEND_URL} in your browser.`);
+        openBrowser(backend.url);
+        log(`[nous:install] Open ${backend.url} in your browser.`);
     });
-    uiNext(BACKEND_URL);
+    uiNext(backend.url);
 
-    return devProcess;
+    return backend;
 }
 
-async function runOpenFlow(dataDir: string, configPath: string): Promise<ChildProcess | null> {
+async function runOpenFlow(dataDir: string, configPath: string): Promise<BackendLaunchResult> {
     const total = 2;
 
-    const devProcess = await runStep(
+    const backend = await runStep(
         1,
         total,
         'Boot web app',
-        `Start backend on port ${BACKEND_PORT}`,
+        `Start backend (prefer port ${DEFAULT_BACKEND_PORT})`,
         async () => ensureBackendRunning(dataDir, configPath),
     );
 
     await runStep(2, total, 'Open app experience', 'Launch browser to local app', async () => {
-        openBrowser(BACKEND_URL);
-        log(`[nous:install] Open ${BACKEND_URL} in your browser.`);
+        openBrowser(backend.url);
+        log(`[nous:install] Open ${backend.url} in your browser.`);
     });
-    uiNext(BACKEND_URL);
+    uiNext(backend.url);
 
-    return devProcess;
+    return backend;
 }
 
 async function runReconfigureFlow(dataDir: string, configPath: string): Promise<void> {
@@ -511,16 +622,16 @@ async function main(): Promise<void> {
         }
 
         if (action === 'open') {
-            const devProcess = await runOpenFlow(dataDir, configPath);
-            finalizeInstaller(devProcess);
+            const backend = await runOpenFlow(dataDir, configPath);
+            finalizeInstaller(backend);
             return;
         }
 
         if (action === 'repair') {
-            const devProcess = await runInstallFlow(plat, dataDir, configPath, {
+            const backend = await runInstallFlow(plat, dataDir, configPath, {
                 forceRewriteConfig: !assessment.configValid,
             });
-            finalizeInstaller(devProcess);
+            finalizeInstaller(backend);
             return;
         }
 
@@ -528,8 +639,8 @@ async function main(): Promise<void> {
             await runReconfigureFlow(dataDir, configPath);
             const bootNow = await promptYesNo('Open app now?', true);
             if (bootNow) {
-                const devProcess = await runOpenFlow(dataDir, configPath);
-                finalizeInstaller(devProcess);
+                const backend = await runOpenFlow(dataDir, configPath);
+                finalizeInstaller(backend);
             }
             return;
         }
@@ -549,17 +660,17 @@ async function main(): Promise<void> {
             return;
         }
 
-        const devProcess = await runInstallFlow(plat, dataDir, configPath, {
+        const backend = await runInstallFlow(plat, dataDir, configPath, {
             forceRewriteConfig: true,
         });
-        finalizeInstaller(devProcess);
+        finalizeInstaller(backend);
         return;
     }
 
-    const devProcess = await runInstallFlow(plat, dataDir, configPath, {
+    const backend = await runInstallFlow(plat, dataDir, configPath, {
         forceRewriteConfig: true,
     });
-    finalizeInstaller(devProcess);
+    finalizeInstaller(backend);
 }
 
 main().catch((err) => {

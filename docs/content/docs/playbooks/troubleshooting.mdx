@@ -25,6 +25,7 @@ ollama pull llama3.2:3b
 **Fix:**
 - Ensure the backend is running: `pnpm dev:web`
 - Check the API URL: CLI defaults to `http://localhost:4317`
+- If `4317` was busy, installer/dev may have started on the next free port; use the printed URL (or set `--api-url` in CLI)
 - If using a different port, set `--api-url` for CLI
 
 ## pnpm install Fails (EPERM, Windows)

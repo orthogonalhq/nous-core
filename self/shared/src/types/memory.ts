@@ -285,11 +285,13 @@ export type ExperienceRecord = z.infer<typeof ExperienceRecordSchema>;
 
 // --- Distilled Pattern ---
 // From memory-system.mdx "Distilled Patterns".
+// Phase 4.3: evidenceRefs required for provenance; basedOn/supersedes non-empty.
 // Compressed knowledge derived from multiple experience records.
 export const DistilledPatternSchema = MemoryEntrySchema.extend({
   type: z.literal('distilled-pattern'),
-  basedOn: z.array(MemoryEntryIdSchema),
-  supersedes: z.array(MemoryEntryIdSchema),
+  basedOn: z.array(MemoryEntryIdSchema).min(1),
+  supersedes: z.array(MemoryEntryIdSchema).min(1),
+  evidenceRefs: z.array(TraceEvidenceReferenceSchema).min(1),
 });
 export type DistilledPattern = z.infer<typeof DistilledPatternSchema>;
 

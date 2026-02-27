@@ -1,0 +1,28 @@
+{
+  "name": "@nous/memory-distillation",
+  "version": "0.0.1",
+  "private": true,
+  "description": "Distillation engine — experience record clustering, pattern compression, confidence lifecycle",
+  "type": "module",
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "import": "./dist/index.js"
+    }
+  },
+  "scripts": {
+    "build": "tsc --build",
+    "typecheck": "tsc --noEmit",
+    "clean": "rm -rf dist",
+    "test": "vitest run"
+  },
+  "dependencies": {
+    "@nous/shared": "workspace:*",
+    "@nous/memory-stubs": "workspace:*",
+    "@nous/autonomic-storage": "workspace:*",
+    "zod": "^3.24.1"
+  },
+  "devDependencies": {
+    "vitest": "^4.0.18"
+  }
+}
