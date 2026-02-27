@@ -34,3 +34,7 @@ export * from './chat-thread.js';
 export * from './chat-node-context.js';
 export * from './chat-card.js';
 export * from './chat-scope.js';
+export * from './ingress-trigger.js';
+export * from './ingress-outcome.js';
+export * from './ingress-events.js';
+export * from './ingress-credential.js';

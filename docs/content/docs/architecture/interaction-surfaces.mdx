@@ -122,6 +122,30 @@ All complexity levels use the same editor. The interface scales with the project
 
 ---
 
+## Automation Gateway (Phase 5.3)
+
+The programmatic trigger surface for scheduled runs, internal hooks, and external webhooks.
+
+### Purpose
+
+Triggering Nous workflows without user interaction. Cron jobs, CI/CD hooks, and integration callbacks use this surface.
+
+### Characteristics
+
+- Scheduler, hook, webhook, and system_event trigger types
+- Single governed ingress path: validate → authenticate → authorize → idempotency → dispatch
+- Duplicate triggers return existing run; no second run created
+- Replay protection: stale timestamps and duplicate nonces rejected
+- Control state gating: projects in `hard_stopped` or `paused_review` block new dispatch
+
+### Requirements
+
+- **Webhooks:** HMAC signature with key_id, timestamp, nonce
+- **All triggers:** project_id, workflow_ref, idempotency_key, nonce, payload_ref (sha256:hex)
+- **Credentials:** Workflow-bound; no project-wide wildcards
+
+---
+
 ## Surface Continuity
 
 The three surfaces are not isolated applications. They are windows into the same system.
