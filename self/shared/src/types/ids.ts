@@ -56,3 +56,6 @@ export type MemoryTombstoneId = z.infer<typeof MemoryTombstoneIdSchema>;
 
 export const ControlCommandIdSchema = brandedId('ControlCommandId');
 export type ControlCommandId = z.infer<typeof ControlCommandIdSchema>;
+
+export const LeaseIdSchema = brandedId('LeaseId');
+export type LeaseId = z.infer<typeof LeaseIdSchema>;
