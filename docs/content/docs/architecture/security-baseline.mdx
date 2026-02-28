@@ -134,6 +134,22 @@ When an update is rolled back (e.g., migration failure):
 
 Package trust decisions are witness-linked. Use `witness_ref` and `evidenceRefs` to trace why a package was blocked or allowed. Verifier CLI and API surfaces support audit replay.
 
+### Contract Layer Implemented in Phase 7.2
+
+Phase 7.2 defines the shared contract layer that Phase 7.3 and Phase 7.4 enforcement logic consumes:
+
+- **Package manifest schema** in `self/shared/src/types/package-manifest.ts`
+  - requires: `id`, `name`, `version`, `package_type`, `origin_class`, `api_contract_range`, `capabilities`
+  - enforces `self_created_local` requirements: `author_principal_id`, `origin_instance_id`
+- **Lifecycle event schema** in `self/shared/src/types/package-lifecycle.ts`
+  - standard event envelope: `event_type`, `package_id`, `package_version`, `origin_class`, `witness_ref`
+  - blocked/denied event types require deterministic `reason_code`
+- **Compatibility gate schema/helpers** in `self/shared/src/types/package-compatibility.ts`
+  - semver range evaluation (`api_contract_range` vs runtime SDK version)
+  - capability delta computation with explicit re-approval requirement on expansion (`PKG-002-*`)
+
+These contracts are shared definitions only (no runtime bypass). Runtime admission and lifecycle transitions remain fail-closed and are enforced by subsequent Phase 7 implementation slices.
+
 ---
 
 ## Runbook Summary

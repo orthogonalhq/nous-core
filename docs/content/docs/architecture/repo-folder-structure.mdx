@@ -596,11 +596,21 @@ self/shared/
 
 Shared type definitions. Memory entry types, project types, model role types, governance levels, etc.
 
+Phase 7.2 package-contract additions live here:
+
+- `package-manifest.ts` — package identity/provenance/trust/compatibility schema
+- `package-lifecycle.ts` — lifecycle event and reason-code contracts
+- `package-compatibility.ts` — API range and capability-delta gate contracts
+
 ### interfaces/
 
 Cross-layer contracts. When the cortex calls the subcortex, or memory calls storage, the contract is defined here. No layer imports directly from another layer's implementation.
 
 This is the critical composability mechanism. Layers depend on interfaces, not implementations.
+
+Phase 7.2 adds:
+
+- `project-api.ts` — canonical seven-surface Project API membrane contract for package runtime mediation
 
 ### events/
 
