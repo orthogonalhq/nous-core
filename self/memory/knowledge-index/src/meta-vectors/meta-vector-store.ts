@@ -9,6 +9,12 @@ import { ProjectMetaVectorSchema } from '@nous/shared';
 
 const META_VECTORS_COLLECTION = 'meta-vectors';
 
+/**
+ * Phase 6.2/6.3: Embedder dimension for meta-vector zero-vector search.
+ * Must align with IEmbedder output. Default 128; override if embedder differs.
+ */
+export const META_VECTOR_EMBEDDER_DIMS = 128;
+
 export interface IMetaVectorStore {
   get(projectId: ProjectId): Promise<ProjectMetaVector | null>;
   upsert(metaVector: ProjectMetaVector): Promise<void>;
@@ -24,7 +30,7 @@ export class MetaVectorStore implements IMetaVectorStore {
   constructor(private readonly deps: MetaVectorStoreDeps) {}
 
   async get(projectId: ProjectId): Promise<ProjectMetaVector | null> {
-    const dims = 128;
+    const dims = META_VECTOR_EMBEDDER_DIMS;
     const zeroVector = Array.from({ length: dims }, () => 0);
     const results = await this.deps.vectorStore.search(
       META_VECTORS_COLLECTION,
