@@ -58,6 +58,15 @@ describe('DiscoveryOrchestrator', () => {
     expect(output.results[0]!.rank).toBe(1);
     expect(output.audit.projectIdsDiscovered).toHaveLength(2);
     expect(output.audit.mergeStrategy).toBeDefined();
+    expect(output.explainability).toBeDefined();
+    expect(output.explainability).toHaveLength(2);
+    expect(output.explainability![0]).toMatchObject({
+      resultIndex: 0,
+      projectId: P1,
+      influencingSource: expect.any(String),
+      evidenceRefs: expect.any(Array),
+    });
+    expect(output.explainability![0]!.evidenceRefs).toHaveLength(1);
   });
 
   it('discoverRelevantProjects tie-breaks by projectId', async () => {

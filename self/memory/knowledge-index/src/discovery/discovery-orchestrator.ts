@@ -2,6 +2,7 @@
  * Discovery orchestrator — combines meta-vectors, taxonomy, relationships.
  *
  * Phase 6.3: Query-time project selection with deterministic merge and audit.
+ * Phase 6.4: Explainability per result; trace linkage to evidence.
  */
 import type {
   DiscoveryOrchestratorInput,
@@ -9,6 +10,7 @@ import type {
   DiscoveryResult,
   DiscoveryAudit,
   ProjectId,
+  CrossProjectRecommendationExplainability,
 } from '@nous/shared';
 import {
   DiscoveryOrchestratorInputSchema,
@@ -134,6 +136,40 @@ export class DiscoveryOrchestrator implements IDiscoveryOrchestrator {
       rank: i + 1,
     }));
 
+    const explainability: CrossProjectRecommendationExplainability[] = [];
+    for (let i = 0; i < top.length; i++) {
+      const r = top[i]!;
+      const scores = scoreMap.get(String(r.projectId)) ?? {
+        meta: 0,
+        taxonomy: 0,
+        rel: 0,
+      };
+      const influencingSource =
+        scores.meta > 0 && (scores.taxonomy > 0 || scores.rel > 0)
+          ? 'combined'
+          : scores.meta > 0
+            ? 'meta_vector'
+            : scores.taxonomy > 0 && scores.rel > 0
+              ? 'combined'
+              : scores.taxonomy > 0
+                ? 'taxonomy'
+                : 'relationship';
+      const tags =
+        parsed.includeTaxonomy && requestingTags.length > 0
+          ? await this.deps.taxonomyMapping.getTagsForProject(
+              r.projectId as ProjectId,
+            )
+          : [];
+      explainability.push({
+        resultIndex: i,
+        projectId: r.projectId,
+        influencingSource,
+        metaVectorScore: r.metaVectorScore,
+        taxonomyTags: tags.length > 0 ? tags : undefined,
+        evidenceRefs: [{ actionCategory: 'mao-projection' as const }],
+      });
+    }
+
     const audit: DiscoveryAudit = {
       traceId: undefined,
       projectIdsDiscovered: top.map((r) => r.projectId),
@@ -150,6 +186,7 @@ export class DiscoveryOrchestrator implements IDiscoveryOrchestrator {
       projectIds: top.map((r) => r.projectId),
       results: top,
       audit,
+      explainability,
     });
   }
 }

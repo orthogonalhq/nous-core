@@ -51,3 +51,5 @@ export * from './taxonomy.js';
 export * from './cross-project-benchmark.js';
 export * from './relationships.js';
 export * from './discovery.js';
+export * from './explainability.js';
+export * from './phase8-export.js';
