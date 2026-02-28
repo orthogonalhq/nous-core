@@ -54,6 +54,25 @@ export type {
   IngressIdempotencyCheckResult,
 } from './ingress.js';
 export type {
+  IRecoveryLedgerStore,
+  ICheckpointManager,
+  IRetryPolicyEvaluator,
+  IRollbackPolicyEvaluator,
+  IRecoveryOrchestrator,
+  RetryPolicyResult,
+  RollbackPolicyResult,
+  RecoveryCriticalEvent,
+  AppendResult,
+  SealResult,
+  CheckpointSnapshot,
+  PrepareResult,
+  CommitResult,
+  ChainValidationResult,
+  RetryEvaluationContext,
+  RollbackEvaluationContext,
+  RecoveryOrchestratorContext,
+} from './recovery.js';
+export type {
   IDocumentStore,
   IVectorStore,
   IGraphStore,

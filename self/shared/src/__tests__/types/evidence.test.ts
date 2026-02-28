@@ -55,6 +55,8 @@ describe('InvariantCodeSchema', () => {
     expect(InvariantCodeSchema.safeParse('ING-003').success).toBe(true);
     expect(InvariantCodeSchema.safeParse('ING-004').success).toBe(true);
     expect(InvariantCodeSchema.safeParse('ING-005').success).toBe(true);
+    expect(InvariantCodeSchema.safeParse('FR-001').success).toBe(true);
+    expect(InvariantCodeSchema.safeParse('FR-010').success).toBe(true);
   });
 
   it('rejects unknown prefix', () => {
@@ -224,6 +226,10 @@ describe('InvariantPrefixSchema', () => {
 
   it('includes ING for ingress invariants', () => {
     expect(InvariantPrefixSchema.safeParse('ING').success).toBe(true);
+  });
+
+  it('includes FR for recovery invariants', () => {
+    expect(InvariantPrefixSchema.safeParse('FR').success).toBe(true);
   });
 });
 
