@@ -1,0 +1,29 @@
+{
+  "name": "@nous/ui",
+  "version": "0.0.1",
+  "private": false,
+  "description": "Nous shared UI library — design tokens, components, and dockview panel implementations",
+  "type": "module",
+  "exports": {
+    ".": "./src/index.ts",
+    "./panels": "./src/panels/index.ts",
+    "./components": "./src/components/index.ts",
+    "./tokens": "./src/tokens/index.ts"
+  },
+  "peerDependencies": {
+    "react": "^19.0.0",
+    "react-dom": "^19.0.0",
+    "dockview-react": "^4.0.0"
+  },
+  "devDependencies": {
+    "@types/react": "^19",
+    "@types/react-dom": "^19",
+    "dockview-react": "^4.2.0",
+    "react": "^19.0.0",
+    "react-dom": "^19.0.0",
+    "typescript": "^5"
+  },
+  "scripts": {
+    "typecheck": "tsc --noEmit"
+  }
+}

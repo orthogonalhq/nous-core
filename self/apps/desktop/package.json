@@ -1,0 +1,33 @@
+{
+  "name": "@nous/desktop",
+  "version": "0.0.1",
+  "private": true,
+  "description": "Nous desktop application — Electron shell with dockview panel engine",
+  "main": "out/main/index.js",
+  "scripts": {
+    "dev": "electron-vite dev",
+    "build": "electron-vite build",
+    "preview": "electron-vite preview",
+    "typecheck": "tsc -p tsconfig.json --noEmit && tsc -p tsconfig.web.json --noEmit"
+  },
+  "dependencies": {
+    "@nous/ui": "workspace:*",
+    "dockview-react": "^4.2.0",
+    "electron-store": "^8.2.0",
+    "react": "^19.0.0",
+    "react-dom": "^19.0.0"
+  },
+  "devDependencies": {
+    "@types/node": "^20",
+    "@types/react": "^19",
+    "@types/react-dom": "^19",
+    "@vitejs/plugin-react": "^4.3.0",
+    "autoprefixer": "^10.4.20",
+    "electron": "^34.0.0",
+    "electron-vite": "^2.3.0",
+    "postcss": "^8.4.49",
+    "tailwindcss": "^3.4.15",
+    "typescript": "^5",
+    "vite": "^5.0.0"
+  }
+}

@@ -17,6 +17,8 @@
     "test:watch": "vitest",
     "benchmark:tier0": "pnpm --filter nous-benchmark run test",
     "dev:web": "pnpm --filter @nous/web dev",
+    "dev:desktop": "pnpm --filter @nous/desktop dev",
+    "build:desktop": "pnpm --filter @nous/desktop build",
     "dev:cli": "pnpm --filter @nous/cli run dev --",
     "dev:docs": "pnpm --filter docs dev",
     "install:nous": "node scripts/install/run.mjs",
