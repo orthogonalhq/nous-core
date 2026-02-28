@@ -49,3 +49,5 @@ export * from './recovery-terminal-state.js';
 export * from './meta-vectors.js';
 export * from './taxonomy.js';
 export * from './cross-project-benchmark.js';
+export * from './relationships.js';
+export * from './discovery.js';
