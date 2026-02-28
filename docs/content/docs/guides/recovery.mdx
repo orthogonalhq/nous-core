@@ -1,0 +1,66 @@
+---
+title: Recovery Governance
+description: Failure-recovery states, checkpoint/resume, retry/rollback policy, and operator actions (Phase 5.4)
+---
+
+# Recovery Governance
+
+Phase 5.4 delivers deterministic failure-recovery runtime behavior. The recovery system provides an immutable segmented ledger, two-phase checkpoints, retry and rollback policies, and operator-visible recovery states. This guide describes recovery states, terminal outcomes, and what operators should do when recovery requires review.
+
+## Overview
+
+- **Recovery ledger** — Append-only segments with hash-chain integrity; witness-linked sealing.
+- **Checkpoint protocol** — Two-phase prepare/commit; only committed checkpoints are resumable.
+- **Retry policy** — Failure class, budget, and idempotency evidence; side-effecting operations require idempotency proof before retry.
+- **Rollback policy** — Operation class and domain boundary; `unknown_external_effect` blocks blind auto-resume.
+
+Every recovery flow ends in a deterministic terminal state. Unbounded retry loops are impossible by contract.
+
+## Terminal States
+
+| State | Meaning | Operator Action |
+|-------|---------|-----------------|
+| `recovery_completed` | Recovery finished successfully; workflow can resume from last committed checkpoint | None; workflow continues |
+| `recovery_blocked_review_required` | Recovery cannot proceed without explicit review; e.g. `unknown_external_effect` or retry blocked | Review evidence; use operator-control to authorize resume or escalate |
+| `recovery_failed_hard_stop` | Recovery failed; workflow stopped | Investigate; use operator-control to change control state if needed |
+
+## Recovery Evidence Events
+
+The runtime emits recovery evidence events for audit and projection. Key events include:
+
+| Event | Meaning |
+|-------|---------|
+| `fr_recovery_started` | Recovery flow initiated |
+| `fr_checkpoint_committed` | Checkpoint committed; resumable |
+| `fr_retry_scheduled` / `fr_retry_attempted` | Retry in progress |
+| `fr_retry_exhausted` | Retry budget exhausted |
+| `fr_retry_blocked` | Retry blocked (e.g. missing idempotency proof) |
+| `fr_rollback_applied` | Rollback applied |
+| `fr_rollback_blocked` | Rollback blocked |
+| `fr_unknown_external_effect_flagged` | External effect detected; auto-resume blocked |
+| `fr_resume_authorized` | Resume authorized by policy or operator |
+| `fr_resume_blocked` | Resume blocked |
+| `fr_recovery_completed` | Recovery completed successfully |
+| `fr_recovery_blocked_review_required` | Recovery blocked; review required |
+| `fr_recovery_failed_hard_stop` | Recovery failed; hard stop |
+
+## Operator Actions
+
+### When `recovery_blocked_review_required`
+
+1. **Review evidence** — Check the recovery ledger and evidence chain for the run.
+2. **Assess cause** — Common causes: `unknown_external_effect`, `fr_retry_blocked` (missing idempotency), or policy/invariant violation.
+3. **Authorize or escalate** — Use operator-control to authorize resume if safe, or escalate to cortex for review-gated decision evidence.
+
+### When `recovery_failed_hard_stop`
+
+1. **Investigate** — Check logs and evidence for integrity mismatch or policy violation.
+2. **Control state** — Use operator-control to change project control state (resume, hard_stop) as needed.
+3. **Re-trigger** — If appropriate, re-trigger the workflow via Automation Gateway or manual dispatch.
+
+## Related
+
+- [Workmode and Authority Boundaries](/docs/architecture/workmode-and-authority-boundaries) — Recovery governance and lifecycle admission
+- [Automation Gateway](/docs/guides/automation) — Ingress and recovery handoff
+- [Troubleshooting](/docs/playbooks/troubleshooting) — Recovery-related issues
+- [Operator Control](/docs/development/operator-control) — Lifecycle commands and confirmation tiers

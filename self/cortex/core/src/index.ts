@@ -1,6 +1,37 @@
 /**
  * @nous/cortex-core — Central execution loop for Nous-OSS.
  */
+export {
+  InMemoryWorkmodeRegistry,
+  InMemoryLeaseStore,
+  WorkmodeAdmissionGuard,
+  CANONICAL_SYSTEM_WORKMODES,
+  SYSTEM_IMPLEMENTATION,
+  SYSTEM_ARCHITECTURE,
+  SYSTEM_SKILL_AUTHORING,
+  evaluateLifecycleAdmission,
+} from './workmode/index.js';
+export {
+  ChatScopeResolver,
+  ChatIntentClassifier,
+  ChatControlRouter,
+  InMemoryChatThreadStore,
+  ChatThreadBindGuard,
+} from './chat/index.js';
+export {
+  IngressTriggerValidator,
+  IngressAuthnVerifier,
+  IngressAuthzEvaluator,
+  InMemoryIngressIdempotencyStore,
+  IngressDispatchAdmission,
+} from './ingress/index.js';
+export {
+  InMemoryRecoveryLedgerStore,
+  CheckpointManager,
+  RetryPolicyEvaluator,
+  RollbackPolicyEvaluator,
+  RecoveryOrchestrator,
+} from './recovery/index.js';
 export { CoreExecutor } from './core-executor.js';
 export type { CoreExecutorDeps, MwcPipelineLike } from './core-executor.js';
 export { parseModelOutput } from './output-parser.js';

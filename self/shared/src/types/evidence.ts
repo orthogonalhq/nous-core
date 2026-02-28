@@ -37,13 +37,17 @@ export const InvariantPrefixSchema = z.enum([
   'MAO',
   'GTM',
   'POL',
+  'WMODE',
+  'PCP',
+  'ING',
+  'FR',
 ]);
 export type InvariantPrefix = z.infer<typeof InvariantPrefixSchema>;
 
 export const InvariantCodeSchema = z
   .string()
   .regex(
-    /^(AUTH|EVID|MEM|CHAIN|ISO|PRV|OPCTL|START|ESC|MAO|GTM|POL)-[A-Z0-9][A-Z0-9-]*$/,
+    /^(AUTH|EVID|MEM|CHAIN|ISO|PRV|OPCTL|START|ESC|MAO|GTM|POL|WMODE|PCP|ING|FR)-[A-Z0-9][A-Z0-9-]*$/,
   );
 export type InvariantCode = z.infer<typeof InvariantCodeSchema>;
 

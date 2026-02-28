@@ -70,8 +70,9 @@ Thinking through problems, giving multi-step instructions, reviewing project sta
 - Each Nous project appears as a group in the chat sidebar
 - Opening a project group loads that project's context into the conversation
 - Nous responses within a project group draw from that project's STM, LTM, and artifact history
-- General conversations (not scoped to a project) are also supported
+- General conversations (not scoped to a project) are also supported — these are **scratch threads** and remain non-executable until explicitly bound to a project
 - Users can create ad-hoc chat groups for exploratory conversations that may later become projects
+- **Project scope is mandatory** for executable or control actions; Nous asks for clarification when scope is ambiguous
 
 ### Interaction Examples
 
@@ -118,6 +119,30 @@ All complexity levels use the same editor. The interface scales with the project
 - **Protocol projects** — full workflow graph design and monitoring
 - **Intent projects** — objective and constraint configuration, live activity monitoring, protocol emergence proposals
 - **Hybrid projects** — both views coexist within a single project
+
+---
+
+## Automation Gateway (Phase 5.3)
+
+The programmatic trigger surface for scheduled runs, internal hooks, and external webhooks.
+
+### Purpose
+
+Triggering Nous workflows without user interaction. Cron jobs, CI/CD hooks, and integration callbacks use this surface.
+
+### Characteristics
+
+- Scheduler, hook, webhook, and system_event trigger types
+- Single governed ingress path: validate → authenticate → authorize → idempotency → dispatch
+- Duplicate triggers return existing run; no second run created
+- Replay protection: stale timestamps and duplicate nonces rejected
+- Control state gating: projects in `hard_stopped` or `paused_review` block new dispatch
+
+### Requirements
+
+- **Webhooks:** HMAC signature with key_id, timestamp, nonce
+- **All triggers:** project_id, workflow_ref, idempotency_key, nonce, payload_ref (sha256:hex)
+- **Credentials:** Workflow-bound; no project-wide wildcards
 
 ---
 

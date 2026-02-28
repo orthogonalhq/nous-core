@@ -60,3 +60,49 @@ pnpm exec vitest run --config self/<layer>/<package>/vitest.config.ts
 **Symptom:** First-run flow keeps appearing.
 
 **Fix:** First-run completes when you send a message and receive a response, or when a project exists. Ensure Ollama is running so the health check and model invocation succeed.
+
+## Dispatch or Action Blocked (WMODE-*)
+
+**Symptom:** A workflow dispatch or lifecycle action is blocked with a reason code such as `WMODE-002`, `WMODE-003`, or `WMODE-010`.
+
+**Meaning:** The admission guard rejected the action because it would violate the authority chain or workmode boundaries.
+
+| Code | Cause |
+|------|-------|
+| WMODE-002 | Authority widening — e.g. a worker attempted to dispatch, or an orchestrator tried to dispatch to cortex |
+| WMODE-003 | Nested orchestration — an orchestrator tried to dispatch to another orchestrator |
+| WMODE-010 | Worker escalation — a worker attempted to dispatch to an authoritative agent |
+
+**Fix:** The action is not permitted by design. Check that the dispatch source and target respect the authority chain: `nous_cortex` → `orchestration_agent` → `worker_agent`. See [Workmode and Authority Boundaries](/docs/architecture/workmode-and-authority-boundaries).
+
+## Ingress Rejection (Phase 5.3)
+
+**Symptom:** Automation trigger (scheduler, hook, webhook) returns `rejected` with a reason code.
+
+**Reason codes and fixes:**
+
+| Code | Cause | Fix |
+|------|-------|-----|
+| `unauthenticated` | Webhook HMAC failed or missing | Verify HMAC signature; ensure key_id and auth_context_ref are correct |
+| `scope_mismatch` | Principal not bound to workflow | Check credential scope matches project_id and workflow_ref |
+| `event_forbidden` | Event type not in allowlist | Add event_name to credential's allowed_event_names |
+| `policy_blocked` | Policy blocks this trigger class | Review project/workflow policy for external trigger allowance |
+| `replay_detected` | Stale timestamp or duplicate nonce | Ensure occurred_at within +/- 5 min; use unique nonce per request |
+| `rate_limited` | Rate limit exceeded | Wait and retry with backoff; reduce request frequency |
+| `invalid_envelope` | Missing project_id, workflow_ref, or invalid trigger_type | Fix envelope; ensure all required fields present |
+| `control_state_blocked` | Project hard_stopped or paused_review | Resume project or release hard_stop via Projects UI / operator-control |
+
+See [Automation Gateway](/docs/guides/automation) for full operator guidance.
+
+## Recovery Blocked or Failed (Phase 5.4)
+
+**Symptom:** Workflow shows `recovery_blocked_review_required` or `recovery_failed_hard_stop`.
+
+**Meaning:** The recovery system reached a terminal state that requires operator action or investigation.
+
+| State | Cause | Fix |
+|-------|-------|-----|
+| `recovery_blocked_review_required` | `unknown_external_effect` flagged; retry blocked (missing idempotency); or policy/invariant violation | Review evidence; use operator-control to authorize resume or escalate |
+| `recovery_failed_hard_stop` | Integrity mismatch; policy violation; or unrecoverable failure | Investigate logs and evidence; use operator-control to change control state; re-trigger if appropriate |
+
+**Fix:** See [Recovery Governance](/docs/guides/recovery) for full operator guidance.

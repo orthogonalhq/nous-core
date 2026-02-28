@@ -9,7 +9,9 @@ Phase 2.5 establishes the operator control command-integrity baseline. This docu
 
 ## Overview
 
-Operator control commands allow the Principal and orchestration agent to pause, resume, cancel, or hard-stop runtime execution. All commands require:
+Operator control commands allow the Principal and orchestration agent to pause, resume, cancel, or hard-stop runtime execution. **Chat-initiated control intents** (Phase 5.2) route through this same path — chat is intent, not authority; all control actions flow through operator-control with the same anti-replay and confirmation requirements.
+
+All commands require:
 
 - **Anti-replay envelope**: `control_command_id`, actor/session binding, nonce, signature, expiry
 - **Confirmation proof** (for T1+ tiers): Runtime-issued, short-lived, scope-bound proof
@@ -63,3 +65,14 @@ When a project is `hard_stopped`, it sets `start_lock`. No new agent starts or a
 | OPCTL-006 | Non-emergency control apply requires durable witness acknowledgment |
 | OPCTL-007 | Emergency hard-stop under evidence outage emits degraded-integrity evidence |
 | START-004 | `hard_stopped` project enforces start_lock until Principal release |
+
+## Chat-Initiated Control (Phase 5.2)
+
+Control intents expressed in chat (e.g., "pause the run", "stop execution") are routed through operator-control. The chat control-plane:
+
+- Validates project scope before routing
+- Blocks from scratch threads (non-executable until explicit bind)
+- Produces `ControlCommandEnvelope` with evidence linkage
+- Requires confirmation proof per tier (T1+)
+
+Chat never bypasses operator-control. See [Chat](/docs/guides/chat) for thread types and clarification behavior.

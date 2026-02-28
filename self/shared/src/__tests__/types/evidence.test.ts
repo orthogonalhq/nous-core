@@ -3,6 +3,7 @@ import {
   AttestationReceiptSchema,
   CriticalActionCategorySchema,
   InvariantCodeSchema,
+  InvariantPrefixSchema,
   InvariantSeveritySchema,
   TraceEvidenceReferenceSchema,
   VerificationReportSchema,
@@ -41,6 +42,21 @@ describe('InvariantCodeSchema', () => {
     expect(InvariantCodeSchema.safeParse('START-002').success).toBe(true);
     expect(InvariantCodeSchema.safeParse('ESC-001').success).toBe(true);
     expect(InvariantCodeSchema.safeParse('POL-DENIED').success).toBe(true);
+    expect(InvariantCodeSchema.safeParse('WMODE-001').success).toBe(true);
+    expect(InvariantCodeSchema.safeParse('WMODE-002').success).toBe(true);
+    expect(InvariantCodeSchema.safeParse('WMODE-010').success).toBe(true);
+    expect(InvariantCodeSchema.safeParse('PCP-001').success).toBe(true);
+    expect(InvariantCodeSchema.safeParse('PCP-002').success).toBe(true);
+    expect(InvariantCodeSchema.safeParse('PCP-007').success).toBe(true);
+    expect(InvariantCodeSchema.safeParse('PCP-008').success).toBe(true);
+    expect(InvariantCodeSchema.safeParse('PCP-009').success).toBe(true);
+    expect(InvariantCodeSchema.safeParse('ING-001').success).toBe(true);
+    expect(InvariantCodeSchema.safeParse('ING-002').success).toBe(true);
+    expect(InvariantCodeSchema.safeParse('ING-003').success).toBe(true);
+    expect(InvariantCodeSchema.safeParse('ING-004').success).toBe(true);
+    expect(InvariantCodeSchema.safeParse('ING-005').success).toBe(true);
+    expect(InvariantCodeSchema.safeParse('FR-001').success).toBe(true);
+    expect(InvariantCodeSchema.safeParse('FR-010').success).toBe(true);
   });
 
   it('rejects unknown prefix', () => {
@@ -200,6 +216,20 @@ describe('TraceEvidenceReferenceSchema', () => {
     });
 
     expect(result.success).toBe(true);
+  });
+});
+
+describe('InvariantPrefixSchema', () => {
+  it('includes PCP for project-chat-control-plane', () => {
+    expect(InvariantPrefixSchema.safeParse('PCP').success).toBe(true);
+  });
+
+  it('includes ING for ingress invariants', () => {
+    expect(InvariantPrefixSchema.safeParse('ING').success).toBe(true);
+  });
+
+  it('includes FR for recovery invariants', () => {
+    expect(InvariantPrefixSchema.safeParse('FR').success).toBe(true);
   });
 });
 

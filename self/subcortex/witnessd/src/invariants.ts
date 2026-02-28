@@ -25,6 +25,10 @@ const BASE_POLICY: Record<
   MAO: { severity: 'S0', enforcement: 'hard-stop' },
   GTM: { severity: 'S0', enforcement: 'hard-stop' },
   POL: { severity: 'S2', enforcement: 'review' },
+  WMODE: { severity: 'S0', enforcement: 'hard-stop' },
+  PCP: { severity: 'S0', enforcement: 'hard-stop' },
+  ING: { severity: 'S0', enforcement: 'hard-stop' },
+  FR: { severity: 'S0', enforcement: 'hard-stop' },
   EVID: { severity: 'S1', enforcement: 'auto-pause' },
   MEM: { severity: 'S2', enforcement: 'review' },
   PRV: { severity: 'S1', enforcement: 'auto-pause' },
@@ -55,6 +59,46 @@ export function mapInvariantToEnforcement(
       code,
       severity: 'S0',
       enforcement: 'hard-stop',
+    });
+  }
+
+  // ING-002, ING-003, ING-004: S1 (auto-pause)
+  if (
+    prefix === 'ING' &&
+    (code.startsWith('ING-002') ||
+      code.startsWith('ING-003') ||
+      code.startsWith('ING-004'))
+  ) {
+    return InvariantEnforcementDecisionSchema.parse({
+      code,
+      severity: 'S1',
+      enforcement: 'auto-pause',
+    });
+  }
+
+  // ING-005: S2 (review)
+  if (prefix === 'ING' && code.startsWith('ING-005')) {
+    return InvariantEnforcementDecisionSchema.parse({
+      code,
+      severity: 'S2',
+      enforcement: 'review',
+    });
+  }
+
+  // FR-003, FR-005, FR-006, FR-007, FR-008, FR-009: S1 (auto-pause)
+  if (
+    prefix === 'FR' &&
+    (code.startsWith('FR-003') ||
+      code.startsWith('FR-005') ||
+      code.startsWith('FR-006') ||
+      code.startsWith('FR-007') ||
+      code.startsWith('FR-008') ||
+      code.startsWith('FR-009'))
+  ) {
+    return InvariantEnforcementDecisionSchema.parse({
+      code,
+      severity: 'S1',
+      enforcement: 'auto-pause',
     });
   }
 

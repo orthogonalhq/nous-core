@@ -28,6 +28,51 @@ export type {
   IGtmGateCalculator,
 } from './subcortex.js';
 export type {
+  IWorkmodeRegistry,
+  IWorkmodeAdmissionGuard,
+  ILeaseStore,
+  AuthorityActor,
+  DispatchAdmissionInput,
+  LifecycleAdmissionInput,
+} from './workmode.js';
+export type {
+  IChatScopeResolver,
+  IChatIntentClassifier,
+  IChatControlRouter,
+  IChatThreadStore,
+  IChatThreadBindGuard,
+} from './chat.js';
+export type {
+  IIngressTriggerValidator,
+  IIngressAuthnVerifier,
+  IIngressAuthzEvaluator,
+  IIngressIdempotencyStore,
+  IIngressDispatchAdmission,
+  IngressValidationResult,
+  IngressAuthnResult,
+  IngressAuthzResult,
+  IngressIdempotencyCheckResult,
+} from './ingress.js';
+export type {
+  IRecoveryLedgerStore,
+  ICheckpointManager,
+  IRetryPolicyEvaluator,
+  IRollbackPolicyEvaluator,
+  IRecoveryOrchestrator,
+  RetryPolicyResult,
+  RollbackPolicyResult,
+  RecoveryCriticalEvent,
+  AppendResult,
+  SealResult,
+  CheckpointSnapshot,
+  PrepareResult,
+  CommitResult,
+  ChainValidationResult,
+  RetryEvaluationContext,
+  RollbackEvaluationContext,
+  RecoveryOrchestratorContext,
+} from './recovery.js';
+export type {
   IDocumentStore,
   IVectorStore,
   IGraphStore,
