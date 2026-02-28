@@ -1,4 +1,7 @@
-// Shared component library — populated in ui/phase-1.2 (design system and component library)
-// This file is a scaffold placeholder.
-
-export {}
+export * from './badge'
+export * from './button'
+export * from './card'
+export * from './collapsible'
+export * from './input'
+export * from './scroll-area'
+export * from './select'
