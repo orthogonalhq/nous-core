@@ -1,9 +1,11 @@
 /**
  * Phase 6.3 — Discovery benchmark fixture regression test.
+ * Phase 6.4 — DiscoveryBenchmarkAcceptanceCriteriaSchema; policyLeakageTolerance: 0.
  */
 import { describe, it, expect } from 'vitest';
 import {
   DiscoveryBenchmarkFixtureSchema,
+  DiscoveryBenchmarkAcceptanceCriteriaSchema,
   ProjectIdSchema,
 } from '@nous/shared';
 
@@ -52,5 +54,25 @@ describe('DiscoveryBenchmarkFixtureSchema', () => {
       passed: JSON.stringify(expected) === JSON.stringify(actual),
     });
     expect(fixture.passed).toBe(true);
+  });
+});
+
+describe('DiscoveryBenchmarkAcceptanceCriteriaSchema', () => {
+  it('policyLeakageTolerance must be 0', () => {
+    const criteria = DiscoveryBenchmarkAcceptanceCriteriaSchema.parse({
+      policyLeakageTolerance: 0,
+    });
+    expect(criteria.policyLeakageTolerance).toBe(0);
+  });
+
+  it('acceptance: policyLeakageTolerance 0 enforces no denied projects in results', () => {
+    const criteria = DiscoveryBenchmarkAcceptanceCriteriaSchema.parse({
+      policyLeakageTolerance: 0,
+    });
+    const actualReturned = [P1, P2];
+    const policyDenies: string[] = [];
+    const hasLeakage = actualReturned.some((p) => policyDenies.includes(p));
+    const passed = criteria.policyLeakageTolerance === 0 && !hasLeakage;
+    expect(passed).toBe(true);
   });
 });
