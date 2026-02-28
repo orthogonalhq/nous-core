@@ -5,6 +5,7 @@ export * from './ids.js';
 export * from './enums.js';
 export * from './memory.js';
 export * from './retrieval.js';
+export * from './cross-project-retrieval.js';
 export * from './distillation.js';
 export * from './confidence-governance.js';
 export * from './sentiment.js';

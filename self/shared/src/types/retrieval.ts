@@ -2,17 +2,20 @@
  * Retrieval domain types for Nous-OSS.
  *
  * Phase 4.2: RetrievalResponse, RetrievalBudgetTelemetry, RetrievalScoringWeights.
- * Extends return type for denial traceability and configurable scoring.
+ * Phase 6.1: selectionAudit for cross-project retrieval audit trail.
  */
 import { z } from 'zod';
 import { RetrievalResultSchema } from './memory.js';
 import { PolicyDecisionRecordSchema } from './policy.js';
+import { SelectionAuditSchema } from './cross-project-retrieval.js';
 
 // --- Retrieval Response ---
 // Phase 4.2: Extends return for denial traceability. When policy denies, policyDenial is set.
+// Phase 6.1: selectionAudit for cross-project retrieval audit trail.
 export const RetrievalResponseSchema = z.object({
   results: z.array(RetrievalResultSchema),
   policyDenial: PolicyDecisionRecordSchema.optional(),
+  selectionAudit: SelectionAuditSchema.optional(),
 });
 export type RetrievalResponse = z.infer<typeof RetrievalResponseSchema>;
 
