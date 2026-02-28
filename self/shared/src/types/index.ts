@@ -46,3 +46,6 @@ export * from './recovery-segment.js';
 export * from './recovery-checkpoint.js';
 export * from './recovery-events.js';
 export * from './recovery-terminal-state.js';
+export * from './meta-vectors.js';
+export * from './taxonomy.js';
+export * from './cross-project-benchmark.js';
