@@ -88,12 +88,14 @@ Retrieval responses have the shape `{ results, policyDenial?, selectionAudit? }`
 
 **Cross-project retrieval (Phase 6.1):** When a query specifies `targetProjectIds` explicitly, the engine evaluates policy for each target project before retrieving. No hidden cross-project joins — all cross-project reads are explicit and policy-gated. The response includes `selectionAudit` when cross-project scope is used: `projectIdsQueried`, `candidateCount`, `resultCount`, and `truncationReason` (token_budget, result_cap, or none). Selection policy enforces token budget and result cap; policy denial cannot be bypassed by any recommendation path.
 
-**Project discovery (Phase 6.2):** Cross-project retrieval can be filtered by project relevance. The Knowledge Index provides:
+**Project discovery (Phase 6.2–6.3):** Cross-project retrieval can be filtered by project relevance. The Knowledge Index provides:
 
 - **Meta-vectors** — One embedding per project summarizing its domain, themes, and knowledge profile. Generated from distilled patterns. `MetaVectorService.searchSimilarProjects(queryVector, topK)` returns ranked project IDs by semantic similarity. Deterministic tie-break by project ID.
 - **Topic taxonomy** — Structural tags (e.g. `real-estate`, `budgeting`) assigned to projects. Zero inference cost — pure set operations. Projects can be filtered by shared tags.
+- **Relationship graph (Phase 6.3)** — Background mapping between projects based on distilled patterns. Validated knowledge links with provenance (`evidenceRefs`, `sourcePatternIds`). Amortizes expensive inference over time rather than per query.
+- **Discovery orchestrator (Phase 6.3)** — Combines meta-vector search, taxonomy links, and relationship graph to determine which projects are relevant. `DiscoveryOrchestrator.discoverRelevantProjects()` returns ranked project IDs with an audit trail. Deterministic merge; tie-break by project ID.
 
-Discovery produces candidate `targetProjectIds`. The caller must apply policy filter before passing them to retrieval. All retrieval still flows through `PolicyEnforcedRetrievalEngine`; discovery does not bypass policy.
+Discovery produces candidate `targetProjectIds` only — no retrieval. The caller must apply policy filter before passing them to retrieval. All retrieval still flows through `PolicyEnforcedRetrievalEngine`; discovery does not bypass policy.
 
 ## Lifecycle and Mutations
 
