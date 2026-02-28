@@ -213,19 +213,21 @@ Responsibilities:
 
 `SentimentWeightedRetrievalEngine` combines semantic similarity, sentiment valence (via `getSentimentWeight`), recency, and confidence. Configurable weights default to semantic relevance primary. All retrieval flows through `PolicyEnforcedRetrievalEngine`; when policy denies, the response includes `policyDenial` for trace linkage.
 
+**Phase 6.1 cross-project retrieval:** Queries may specify `targetProjectIds` explicitly for multi-project scope. No hidden cross-project joins — all cross-project reads are policy-gated and explicit. When `targetProjectIds` is present, the engine applies a selection policy (token budget, result cap) and returns `selectionAudit` (projectIdsQueried, candidateCount, resultCount, truncationReason) for audit.
+
 Retrieval is reconstruction, not lookup. The same knowledge may surface differently depending on the question.
 
 ### knowledge-index/
 
-Cross-project intelligence. The layer that makes cross-referencing cheap at query time.
+Cross-project intelligence. Implemented as `@nous/memory-knowledge-index` (Phase 6.2). The layer that makes cross-referencing cheap at query time.
 
-**meta-vectors/** — One embedding per project summarizing its domain, themes, and knowledge profile. Updated when distilled patterns are created. Enables fast project-level similarity search.
+**meta-vectors/** — One embedding per project summarizing its domain, themes, and knowledge profile. `MetaVectorStore` (IVectorStore-backed) and `MetaVectorService`; updated when distilled patterns are created via `upsertFromPatterns`. Enables fast project-level similarity search. `searchSimilarProjects(queryVector, topK)` returns ranked project IDs.
 
-**taxonomy/** — Topic tags assigned to projects. Structural links between projects based on shared domains. Zero inference cost — pure set intersection.
+**taxonomy/** — Topic tags assigned to projects. `InMemoryTaxonomyStore` and `InMemoryProjectTaxonomyMapping`; additive tags; project-to-tag and tag-to-project mapping. Structural links between projects based on shared domains. Zero inference cost — pure set intersection.
 
-**relationships/** — Background relationship graph maintained by periodic LLM evaluation. Maps validated knowledge links between projects. Amortizes expensive inference over time rather than paying it per query.
+**relationships/** — Background relationship graph maintained by periodic LLM evaluation (Phase 6.3). Maps validated knowledge links between projects. Amortizes expensive inference over time rather than paying it per query.
 
-**discovery/** — Query-time orchestrator. Combines meta-vector search, taxonomy links, and relationship graph to determine which projects are relevant to the current situation. Fast and cheap.
+**discovery/** — Query-time orchestrator (Phase 6.3). Combines meta-vector search, taxonomy links, and relationship graph to determine which projects are relevant to the current situation. Fast and cheap.
 
 ### access/
 
@@ -246,6 +248,8 @@ The policy decision engine (`MemoryAccessPolicyEngine.evaluate()`) is synchronou
 **Phase 3.3 surface integration:** Policy enforcement is wired at (1) core-executor — policy gate before `mwcPipeline.submit()` for cross-project memory writes; (2) `PolicyEnforcedRetrievalEngine` — wraps `IRetrievalEngine`, evaluates policy before delegating, filters results by policy; (3) `StubProjectApi.memory` — optional policy deps run gate before throwing for read/write/retrieve when cross-project or global scope.
 
 **Phase 3.4 policy observability:** All policy decisions derive from canonical truth. Denials include `PolicyDecisionRecord` (reasonCode, traceId, evidenceRefs). Export hooks for Phase 4 (learning loop) and Phase 5 (workflow foundation) are documented in `.worklog/phase-3/phase-3.4/export-hooks.mdx`.
+
+**Phase 6.1 cross-project contract:** Cross-project retrieval requires explicit `targetProjectIds` (from project discovery or allowlist). Policy evaluation runs before any cross-project read. Selection policy governs token budget and result cap; `selectionAudit` preserves audit trails for why results were selected. No recommendation path bypasses policy denial.
 
 Default: open. Isolation is opt-in.
 

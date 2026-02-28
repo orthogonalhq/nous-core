@@ -350,6 +350,8 @@ export const RetrievalQuerySchema = z.object({
   scope: MemoryScopeSchema.optional(),
   tokenBudget: z.number().positive(),
   filters: MemoryQueryFilterSchema.optional(),
+  /** Phase 6.1: Explicit target projects for cross-project retrieval. No hidden joins. */
+  targetProjectIds: z.array(ProjectIdSchema).optional(),
 });
 export type RetrievalQuery = z.infer<typeof RetrievalQuerySchema>;
 
