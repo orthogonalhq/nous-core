@@ -219,15 +219,15 @@ Retrieval is reconstruction, not lookup. The same knowledge may surface differen
 
 ### knowledge-index/
 
-Cross-project intelligence. The layer that makes cross-referencing cheap at query time.
+Cross-project intelligence. Implemented as `@nous/memory-knowledge-index` (Phase 6.2). The layer that makes cross-referencing cheap at query time.
 
-**meta-vectors/** — One embedding per project summarizing its domain, themes, and knowledge profile. Updated when distilled patterns are created. Enables fast project-level similarity search.
+**meta-vectors/** — One embedding per project summarizing its domain, themes, and knowledge profile. `MetaVectorStore` (IVectorStore-backed) and `MetaVectorService`; updated when distilled patterns are created via `upsertFromPatterns`. Enables fast project-level similarity search. `searchSimilarProjects(queryVector, topK)` returns ranked project IDs.
 
-**taxonomy/** — Topic tags assigned to projects. Structural links between projects based on shared domains. Zero inference cost — pure set intersection.
+**taxonomy/** — Topic tags assigned to projects. `InMemoryTaxonomyStore` and `InMemoryProjectTaxonomyMapping`; additive tags; project-to-tag and tag-to-project mapping. Structural links between projects based on shared domains. Zero inference cost — pure set intersection.
 
-**relationships/** — Background relationship graph maintained by periodic LLM evaluation. Maps validated knowledge links between projects. Amortizes expensive inference over time rather than paying it per query.
+**relationships/** — Background relationship graph maintained by periodic LLM evaluation (Phase 6.3). Maps validated knowledge links between projects. Amortizes expensive inference over time rather than paying it per query.
 
-**discovery/** — Query-time orchestrator. Combines meta-vector search, taxonomy links, and relationship graph to determine which projects are relevant to the current situation. Fast and cheap.
+**discovery/** — Query-time orchestrator (Phase 6.3). Combines meta-vector search, taxonomy links, and relationship graph to determine which projects are relevant to the current situation. Fast and cheap.
 
 ### access/
 
