@@ -28,6 +28,7 @@ const BASE_POLICY: Record<
   WMODE: { severity: 'S0', enforcement: 'hard-stop' },
   PCP: { severity: 'S0', enforcement: 'hard-stop' },
   ING: { severity: 'S0', enforcement: 'hard-stop' },
+  FR: { severity: 'S0', enforcement: 'hard-stop' },
   EVID: { severity: 'S1', enforcement: 'auto-pause' },
   MEM: { severity: 'S2', enforcement: 'review' },
   PRV: { severity: 'S1', enforcement: 'auto-pause' },
@@ -81,6 +82,23 @@ export function mapInvariantToEnforcement(
       code,
       severity: 'S2',
       enforcement: 'review',
+    });
+  }
+
+  // FR-003, FR-005, FR-006, FR-007, FR-008, FR-009: S1 (auto-pause)
+  if (
+    prefix === 'FR' &&
+    (code.startsWith('FR-003') ||
+      code.startsWith('FR-005') ||
+      code.startsWith('FR-006') ||
+      code.startsWith('FR-007') ||
+      code.startsWith('FR-008') ||
+      code.startsWith('FR-009'))
+  ) {
+    return InvariantEnforcementDecisionSchema.parse({
+      code,
+      severity: 'S1',
+      enforcement: 'auto-pause',
     });
   }
 
