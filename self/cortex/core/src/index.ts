@@ -25,6 +25,13 @@ export {
   InMemoryIngressIdempotencyStore,
   IngressDispatchAdmission,
 } from './ingress/index.js';
+export {
+  InMemoryRecoveryLedgerStore,
+  CheckpointManager,
+  RetryPolicyEvaluator,
+  RollbackPolicyEvaluator,
+  RecoveryOrchestrator,
+} from './recovery/index.js';
 export { CoreExecutor } from './core-executor.js';
 export type { CoreExecutorDeps, MwcPipelineLike } from './core-executor.js';
 export { parseModelOutput } from './output-parser.js';
