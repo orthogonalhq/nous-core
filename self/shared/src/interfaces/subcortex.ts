@@ -2,19 +2,15 @@
  * Subcortex layer interface contracts.
  *
  * IModelRouter, IModelProvider, IToolExecutor, IWorkflowEngine,
- * IProjectStore, IArtifactStore, IScheduler, IEscalationService,
- * ISandbox, IProjectApi.
+ * IProjectStore, IArtifactStore, IScheduler, IEscalationService, ISandbox.
  */
 import type {
   ProjectId,
   ProviderId,
   ArtifactId,
-  MemoryEntryId,
   WorkflowExecutionId,
   EscalationId,
   ModelRole,
-  MemoryScope,
-  EscalationChannel,
   ModelProviderConfig,
   ModelRequest,
   ModelResponse,
@@ -24,7 +20,6 @@ import type {
   WorkflowGraph,
   WorkflowState,
   ProjectConfig,
-  ProjectState,
   ArtifactData,
   ArtifactMetadata,
   ArtifactFilter,
@@ -33,9 +28,6 @@ import type {
   EscalationResponse,
   SandboxPayload,
   SandboxResult,
-  MemoryEntry,
-  MemoryWriteCandidate,
-  RetrievalResult,
   WitnessAuthorizationInput,
   WitnessCompletionInput,
   WitnessInvariantInput,
@@ -62,7 +54,7 @@ import type {
   GtmGateReport,
   GtmStageLabel,
 } from '../types/index.js';
-import type { NousEvent } from '../events/index.js';
+import type { IProjectApi } from './project-api.js';
 
 export interface IModelRouter {
   /** Route a model role to the appropriate provider (legacy) */
@@ -166,52 +158,7 @@ export interface ISandbox {
   hasCapability(capability: string): boolean;
 }
 
-export interface IProjectApi {
-  /** Memory API for the current project */
-  memory: {
-    read(query: string, scope: MemoryScope): Promise<MemoryEntry[]>;
-    write(candidate: MemoryWriteCandidate): Promise<MemoryEntryId | null>;
-    retrieve(situation: string, budget: number): Promise<RetrievalResult[]>;
-  };
-
-  /** Model API for the current project */
-  model: {
-    invoke(role: ModelRole, input: unknown): Promise<ModelResponse>;
-    stream(role: ModelRole, input: unknown): AsyncIterable<ModelStreamChunk>;
-  };
-
-  /** Tool API for the current project */
-  tool: {
-    execute(name: string, params: unknown): Promise<ToolResult>;
-    list(capabilities?: string[]): Promise<ToolDefinition[]>;
-  };
-
-  /** Artifact API for the current project */
-  artifact: {
-    store(data: ArtifactData): Promise<ArtifactId>;
-    retrieve(id: ArtifactId): Promise<ArtifactData | null>;
-    list(filters?: ArtifactFilter): Promise<ArtifactMetadata[]>;
-  };
-
-  /** Escalation API for the current project */
-  escalation: {
-    notify(channel: EscalationChannel, message: string): Promise<EscalationId>;
-    request(decision: EscalationContract): Promise<EscalationResponse>;
-  };
-
-  /** Scheduler API for the current project */
-  scheduler: {
-    register(schedule: ScheduleDefinition): Promise<string>;
-    cancel(id: string): Promise<boolean>;
-  };
-
-  /** Project API for the current project */
-  project: {
-    config(): ProjectConfig;
-    state(): ProjectState;
-    log(event: NousEvent): void;
-  };
-}
+export type { IProjectApi };
 
 export interface IWitnessService {
   /** Append authorization evidence before a critical side effect */
