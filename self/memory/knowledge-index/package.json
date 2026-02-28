@@ -1,0 +1,28 @@
+{
+  "name": "@nous/memory-knowledge-index",
+  "version": "0.0.1",
+  "private": true,
+  "description": "Project meta-vectors and topic taxonomy for cross-project intelligence",
+  "type": "module",
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "import": "./dist/index.js"
+    }
+  },
+  "scripts": {
+    "build": "tsc --build",
+    "typecheck": "tsc --noEmit",
+    "clean": "rm -rf dist",
+    "test": "vitest run"
+  },
+  "dependencies": {
+    "@nous/shared": "workspace:*",
+    "@nous/autonomic-storage": "workspace:*",
+    "@nous/autonomic-embeddings": "workspace:*",
+    "zod": "^3.24.1"
+  },
+  "devDependencies": {
+    "vitest": "^4.0.18"
+  }
+}
