@@ -93,3 +93,16 @@ pnpm exec vitest run --config self/<layer>/<package>/vitest.config.ts
 | `control_state_blocked` | Project hard_stopped or paused_review | Resume project or release hard_stop via Projects UI / operator-control |
 
 See [Automation Gateway](/docs/guides/automation) for full operator guidance.
+
+## Recovery Blocked or Failed (Phase 5.4)
+
+**Symptom:** Workflow shows `recovery_blocked_review_required` or `recovery_failed_hard_stop`.
+
+**Meaning:** The recovery system reached a terminal state that requires operator action or investigation.
+
+| State | Cause | Fix |
+|-------|-------|-----|
+| `recovery_blocked_review_required` | `unknown_external_effect` flagged; retry blocked (missing idempotency); or policy/invariant violation | Review evidence; use operator-control to authorize resume or escalate |
+| `recovery_failed_hard_stop` | Integrity mismatch; policy violation; or unrecoverable failure | Investigate logs and evidence; use operator-control to change control state; re-trigger if appropriate |
+
+**Fix:** See [Recovery Governance](/docs/guides/recovery) for full operator guidance.
