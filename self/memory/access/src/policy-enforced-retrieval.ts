@@ -2,7 +2,7 @@
  * @nous/memory-access — Policy-enforced retrieval wrapper.
  *
  * Phase 3.3: Wraps IRetrievalEngine, evaluates policy before delegating.
- * Surfaces must supply includeGlobal: true in PolicyAccessContext when global scope is in scope.
+ * Phase 6.1: targetProjectIds for explicit cross-project scope; selection policy; selectionAudit.
  */
 import type {
   IRetrievalEngine,
@@ -10,18 +10,26 @@ import type {
   IProjectStore,
   RetrievalQuery,
   RetrievalResponse,
+  RetrievalResult,
   PolicyAccessContext,
   ProjectConfig,
   ProjectControlState,
   ProjectId,
+  SelectionAudit,
+  CrossProjectSelectionPolicy,
 } from '@nous/shared';
-import { DEFAULT_MEMORY_ACCESS_POLICY } from '@nous/shared';
+import {
+  DEFAULT_MEMORY_ACCESS_POLICY,
+  DEFAULT_CROSS_PROJECT_SELECTION_POLICY,
+} from '@nous/shared';
 
 export interface PolicyEnforcedRetrievalEngineDeps {
   policyEngine: IMemoryAccessPolicyEngine;
   inner: IRetrievalEngine;
   projectStore: IProjectStore;
   getProjectControlState?: (projectId: ProjectId) => Promise<ProjectControlState | undefined>;
+  /** Phase 6.1: Optional selection policy for cross-project queries. Default used when absent. */
+  selectionPolicy?: CrossProjectSelectionPolicy;
 }
 
 function getEffectivePolicy(config: ProjectConfig | null) {
@@ -29,8 +37,52 @@ function getEffectivePolicy(config: ProjectConfig | null) {
   return config.memoryAccessPolicy ?? DEFAULT_MEMORY_ACCESS_POLICY;
 }
 
+/** ~4 chars per token heuristic for selection policy truncation. */
+const TOKENS_PER_CHAR = 1 / 4;
+
+function estimateTokens(content: string): number {
+  return Math.ceil(content.length * TOKENS_PER_CHAR);
+}
+
+/**
+ * Apply selection policy: result cap and token budget. Deterministic: score desc, tie-break by entry.id.
+ */
+function applySelectionPolicy(
+  results: RetrievalResult[],
+  policy: CrossProjectSelectionPolicy
+): {
+  results: RetrievalResult[];
+  truncationReason: 'token_budget' | 'result_cap' | 'none';
+} {
+  const sorted = [...results].sort((a, b) => {
+    if (b.score !== a.score) return b.score - a.score;
+    return String(a.entry.id).localeCompare(String(b.entry.id));
+  });
+
+  let truncationReason: 'token_budget' | 'result_cap' | 'none' = 'none';
+  let kept = sorted.slice(0, policy.resultCap);
+  if (kept.length < sorted.length) truncationReason = 'result_cap';
+
+  let consumed = 0;
+  const final: RetrievalResult[] = [];
+  for (const r of kept) {
+    const tokens = estimateTokens(r.entry.content);
+    if (consumed + tokens > policy.tokenBudget && final.length > 0) {
+      truncationReason = truncationReason === 'none' ? 'token_budget' : truncationReason;
+      break;
+    }
+    final.push(r);
+    consumed += tokens;
+  }
+  if (final.length < kept.length && truncationReason === 'none')
+    truncationReason = 'token_budget';
+
+  return { results: final, truncationReason };
+}
+
 /**
  * Build PolicyAccessContext for retrieval. includeGlobal: true when query scope is global or undefined.
+ * Phase 6.1: targetProjectIds for explicit multi-project cross-project retrieval.
  */
 function buildPolicyAccessContextForRetrieval(
   query: RetrievalQuery,
@@ -46,6 +98,33 @@ function buildPolicyAccessContextForRetrieval(
 
   const includeGlobal =
     query.scope === 'global' || query.scope === undefined;
+
+  // Phase 6.1: Explicit targetProjectIds for cross-project retrieval
+  const targetProjectIds = query.targetProjectIds;
+  if (
+    targetProjectIds != null &&
+    targetProjectIds.length > 0
+  ) {
+    const targetProjectPolicies: Record<string, ReturnType<typeof getEffectivePolicy>> = {};
+    for (const tid of targetProjectIds) {
+      const cfg = targetProjectConfigs.get(tid);
+      const pol = getEffectivePolicy(cfg ?? null);
+      if (pol == null) return null; // Missing config → deny
+      targetProjectPolicies[tid] = pol;
+    }
+    return {
+      action: 'retrieve',
+      fromProjectId,
+      includeGlobal,
+      projectPolicy,
+      targetProjectIds,
+      targetProjectPolicies: targetProjectPolicies as Record<
+        string,
+        NonNullable<ReturnType<typeof getEffectivePolicy>>
+      >,
+      projectControlState,
+    };
+  }
 
   const targetProjectId = query.filters?.projectId;
   if (targetProjectId != null && targetProjectId !== fromProjectId) {
@@ -130,11 +209,21 @@ export class PolicyEnforcedRetrievalEngine implements IRetrievalEngine {
     if (projectPolicy == null) return { results: [] };
 
     const targetProjectConfigs = new Map<string, ProjectConfig>();
-    const targetProjectId = query.filters?.projectId;
-    if (targetProjectId != null && targetProjectId !== fromProjectId) {
-      const targetConfig = await this.deps.projectStore.get(targetProjectId as ProjectId);
-      if (targetConfig == null) return { results: [] };
-      targetProjectConfigs.set(targetProjectId, targetConfig);
+    // Phase 6.1: Load configs for explicit targetProjectIds
+    const targetProjectIds = query.targetProjectIds;
+    if (targetProjectIds != null && targetProjectIds.length > 0) {
+      for (const tid of targetProjectIds) {
+        const cfg = await this.deps.projectStore.get(tid);
+        if (cfg == null) return { results: [] };
+        targetProjectConfigs.set(tid, cfg);
+      }
+    } else {
+      const targetProjectId = query.filters?.projectId;
+      if (targetProjectId != null && targetProjectId !== fromProjectId) {
+        const targetConfig = await this.deps.projectStore.get(targetProjectId as ProjectId);
+        if (targetConfig == null) return { results: [] };
+        targetProjectConfigs.set(targetProjectId, targetConfig);
+      }
     }
 
     const projectControlState = this.deps.getProjectControlState
@@ -183,6 +272,28 @@ export class PolicyEnforcedRetrievalEngine implements IRetrievalEngine {
         targetPolicy ?? undefined
       );
     });
+
+    // Phase 6.1: Apply selection policy and populate selectionAudit when targetProjectIds present
+    const selectionPolicy =
+      this.deps.selectionPolicy ?? DEFAULT_CROSS_PROJECT_SELECTION_POLICY;
+    const projectIdsQueried =
+      targetProjectIds != null && targetProjectIds.length > 0
+        ? [fromProjectId, ...targetProjectIds]
+        : [fromProjectId];
+
+    if (targetProjectIds != null && targetProjectIds.length > 0) {
+      const { results: truncated, truncationReason } = applySelectionPolicy(
+        filtered,
+        selectionPolicy
+      );
+      const selectionAudit: SelectionAudit = {
+        projectIdsQueried,
+        candidateCount: filtered.length,
+        resultCount: truncated.length,
+        truncationReason,
+      };
+      return { results: truncated, selectionAudit };
+    }
 
     return { results: filtered };
   }

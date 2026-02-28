@@ -84,7 +84,9 @@ Confidence tiers (low, medium, high) map explicitly to governance behavior. Ther
 
 Retrieval is policy-enforced. All retrieval paths run through `PolicyEnforcedRetrievalEngine`, which evaluates access policy before delegating to the inner retrieval engine. When policy denies a retrieval (for example, global scope with `inheritsGlobal: false`), the response includes `policyDenial` — a `PolicyDecisionRecord` with reason code, trace ID, and evidence refs for audit.
 
-Retrieval responses have the shape `{ results, policyDenial? }`. Use `response.results` for the scored entries; use `response.policyDenial` when present to trace denied or degraded outcomes.
+Retrieval responses have the shape `{ results, policyDenial?, selectionAudit? }`. Use `response.results` for the scored entries; use `response.policyDenial` when present to trace denied or degraded outcomes.
+
+**Cross-project retrieval (Phase 6.1):** When a query specifies `targetProjectIds` explicitly, the engine evaluates policy for each target project before retrieving. No hidden cross-project joins — all cross-project reads are explicit and policy-gated. The response includes `selectionAudit` when cross-project scope is used: `projectIdsQueried`, `candidateCount`, `resultCount`, and `truncationReason` (token_budget, result_cap, or none). Selection policy enforces token budget and result cap; policy denial cannot be bypassed by any recommendation path.
 
 ## Lifecycle and Mutations
 
