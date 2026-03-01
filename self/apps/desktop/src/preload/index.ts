@@ -9,4 +9,10 @@ contextBridge.exposeInMainWorld('electronAPI', {
     readDir: (path: string): Promise<null> => ipcRenderer.invoke('fs:readDir', path),
     readFile: (path: string): Promise<null> => ipcRenderer.invoke('fs:readFile', path),
   },
+  chat: {
+    send: (message: string): Promise<{ response: string; traceId: string }> =>
+      ipcRenderer.invoke('chat:send', message),
+    getHistory: (): Promise<{ role: string; content: string; timestamp: string }[]> =>
+      ipcRenderer.invoke('chat:getHistory'),
+  },
 })

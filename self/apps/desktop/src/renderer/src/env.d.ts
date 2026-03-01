@@ -9,6 +9,10 @@ interface ElectronAPI {
     readDir: (path: string) => Promise<null>
     readFile: (path: string) => Promise<null>
   }
+  chat: {
+    send: (message: string) => Promise<{ response: string; traceId: string }>
+    getHistory: () => Promise<{ role: string; content: string; timestamp: string }[]>
+  }
 }
 
 interface Window {
