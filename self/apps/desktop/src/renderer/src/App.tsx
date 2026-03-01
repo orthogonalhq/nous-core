@@ -1,12 +1,13 @@
 import { useState, useEffect } from 'react'
 import { DockviewReact } from 'dockview-react'
 import type { DockviewReadyEvent, SerializedDockview } from 'dockview-react'
-import { PlaceholderPanel } from '@nous/ui/panels'
+import { PlaceholderPanel, ChatPanel } from '@nous/ui/panels'
 
 import 'dockview-react/dist/styles/dockview.css'
 
 const panelComponents = {
   placeholder: PlaceholderPanel,
+  chat: ChatPanel,
 }
 
 // Loading state: undefined = not yet fetched; null = fetched, no saved layout
@@ -73,8 +74,11 @@ function DockviewShell({ savedLayout }: { savedLayout: SerializedDockview | null
 
 function initDefaultLayout(event: DockviewReadyEvent) {
   event.api.addPanel({
-    id: 'welcome',
-    component: 'placeholder',
-    title: 'Welcome to Nous',
+    id: 'chat',
+    component: 'chat',
+    title: 'Principal ↔ Cortex',
+    params: {
+      chatApi: (window as any).electronAPI?.chat,
+    },
   })
 }

@@ -1,6 +1,7 @@
 import { app, BrowserWindow, ipcMain } from 'electron'
 import { join } from 'node:path'
 import Store from 'electron-store'
+import { createTRPCClient, httpBatchLink } from '@trpc/client'
 
 interface StoredLayout {
   version: 1
@@ -27,6 +28,38 @@ ipcMain.handle('layout:set', (_event, layout: unknown) => {
 // Filesystem stubs — implemented in ui/phase-1.4
 ipcMain.handle('fs:readDir', () => null)
 ipcMain.handle('fs:readFile', () => null)
+
+// Chat handlers — tRPC proxy to localhost:3000 with mock fallback
+// Lazy tRPC client — created on first use
+let trpcClient: ReturnType<typeof createTRPCClient> | null = null
+
+function getTrpcClient() {
+  if (!trpcClient) {
+    trpcClient = createTRPCClient({
+      links: [httpBatchLink({ url: 'http://localhost:3000/api/trpc' })],
+    })
+  }
+  return trpcClient
+}
+
+const chatHistory: { role: string; content: string; timestamp: string }[] = []
+
+ipcMain.handle('chat:send', async (_event, message: string) => {
+  chatHistory.push({ role: 'user', content: message, timestamp: new Date().toISOString() })
+  try {
+    const client = getTrpcClient() as any
+    const result = await client.chat.sendMessage.mutate({ message })
+    chatHistory.push({ role: 'assistant', content: result.response, timestamp: new Date().toISOString() })
+    return { response: result.response, traceId: result.traceId }
+  } catch {
+    // Fallback mock response for demo
+    const mockResponse = `[Demo mode] Nous received: "${message}". The tRPC server is not running — start the web app with \`pnpm dev:web\` to enable live responses.`
+    chatHistory.push({ role: 'assistant', content: mockResponse, timestamp: new Date().toISOString() })
+    return { response: mockResponse, traceId: 'demo-' + Date.now() }
+  }
+})
+
+ipcMain.handle('chat:getHistory', () => chatHistory)
 
 function createWindow(): void {
   const win = new BrowserWindow({
