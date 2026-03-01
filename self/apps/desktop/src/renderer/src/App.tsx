@@ -1,7 +1,13 @@
 import { useState, useEffect } from 'react'
 import { DockviewReact } from 'dockview-react'
 import type { DockviewReadyEvent, SerializedDockview } from 'dockview-react'
-import { PlaceholderPanel, ChatPanel, FileBrowserPanel } from '@nous/ui/panels'
+import {
+  PlaceholderPanel,
+  ChatPanel,
+  FileBrowserPanel,
+  NodeProjectionPanel,
+  MAOPanel,
+} from '@nous/ui/panels'
 
 import 'dockview-react/dist/styles/dockview.css'
 
@@ -9,6 +15,8 @@ const panelComponents = {
   placeholder: PlaceholderPanel,
   chat: ChatPanel,
   'file-browser': FileBrowserPanel,
+  'node-projection': NodeProjectionPanel,
+  mao: MAOPanel,
 }
 
 // Loading state: undefined = not yet fetched; null = fetched, no saved layout
@@ -74,22 +82,41 @@ function DockviewShell({ savedLayout }: { savedLayout: SerializedDockview | null
 }
 
 function initDefaultLayout(event: DockviewReadyEvent) {
+  // Left column: chat (primary interaction)
   event.api.addPanel({
     id: 'chat',
     component: 'chat',
-    title: 'Principal ↔ Cortex',
+    title: 'Principal \u2194 Cortex',
     params: {
       chatApi: (window as any).electronAPI?.chat,
     },
   })
+
+  // Left column bottom: file browser
   event.api.addPanel({
     id: 'files',
     component: 'file-browser',
     title: 'Files',
-    position: { direction: 'right', referencePanel: 'chat' },
+    position: { direction: 'below', referencePanel: 'chat' },
     params: {
       fsApi: (window as any).electronAPI?.fs,
       initialPath: '/',
     },
+  })
+
+  // Right column top: node projection
+  event.api.addPanel({
+    id: 'node-projection',
+    component: 'node-projection',
+    title: 'Skill Projection',
+    position: { direction: 'right', referencePanel: 'chat' },
+  })
+
+  // Right column bottom: MAO
+  event.api.addPanel({
+    id: 'mao',
+    component: 'mao',
+    title: 'MAO',
+    position: { direction: 'below', referencePanel: 'node-projection' },
   })
 }
