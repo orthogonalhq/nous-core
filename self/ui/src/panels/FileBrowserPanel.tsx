@@ -44,16 +44,22 @@ export function FileBrowserPanel({ params }: FileBrowserPanelProps) {
   }
 
   return (
-    <div style={{ display: 'flex', flexDirection: 'column', height: '100%', background: '#18181b', color: '#e4e4e7', fontFamily: '-apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif', fontSize: '13px' }}>
+    <div style={{ display: 'flex', flexDirection: 'column', height: '100%', background: '#1e1e1e', color: '#cccccc', fontSize: '13px' }}>
       {/* Path bar */}
-      <div style={{ padding: '8px 12px', borderBottom: '1px solid #3f3f46', display: 'flex', alignItems: 'center', gap: '8px', background: '#1c1c1f' }}>
-        <button onClick={goUp} style={{ background: 'none', border: 'none', color: '#a1a1aa', cursor: 'pointer', padding: '2px 6px', borderRadius: '4px', fontSize: '14px' }}>↑</button>
-        <span style={{ color: '#71717a', flex: 1, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{currentPath}</span>
+      <div style={{ padding: '5px 8px', borderBottom: '1px solid #3c3c3c', display: 'flex', alignItems: 'center', gap: '6px', background: '#252526' }}>
+        <button
+          onClick={goUp}
+          style={{ background: 'none', border: 'none', color: '#9d9d9d', cursor: 'pointer', padding: '2px 4px', borderRadius: '3px', display: 'flex', alignItems: 'center' }}
+          title="Go up"
+        >
+          <i className="codicon codicon-arrow-up" style={{ fontSize: '13px' }} />
+        </button>
+        <span style={{ color: '#6a6a6a', flex: 1, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', fontSize: '12px' }}>{currentPath}</span>
       </div>
       {/* File list */}
-      <div style={{ flex: 1, overflowY: 'auto', padding: '4px 0' }}>
-        {!fsApi && <div style={{ padding: '16px', color: '#52525b', textAlign: 'center' }}>File system API not connected.</div>}
-        {loading && <div style={{ padding: '16px', color: '#52525b', textAlign: 'center' }}>Loading...</div>}
+      <div style={{ flex: 1, overflowY: 'auto', padding: '2px 0' }}>
+        {!fsApi && <div style={{ padding: '16px', color: '#6a6a6a', textAlign: 'center' }}>File system API not connected.</div>}
+        {loading && <div style={{ padding: '16px', color: '#6a6a6a', textAlign: 'center' }}>Loading...</div>}
         {!loading && entries.map(entry => (
           <div
             key={entry.path}
@@ -62,23 +68,24 @@ export function FileBrowserPanel({ params }: FileBrowserPanelProps) {
               else setSelected(entry.path)
             }}
             style={{
-              padding: '5px 12px', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '8px',
-              background: selected === entry.path ? '#2d2d30' : 'transparent',
-              color: entry.isDirectory ? '#93c5fd' : '#e4e4e7',
+              padding: '3px 12px', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '6px',
+              background: selected === entry.path ? '#094771' : 'transparent',
+              color: '#cccccc',
             }}
-            onMouseEnter={e => { if (selected !== entry.path) (e.currentTarget as HTMLElement).style.background = '#27272a' }}
+            onMouseEnter={e => { if (selected !== entry.path) (e.currentTarget as HTMLElement).style.background = '#2a2d2e' }}
             onMouseLeave={e => { if (selected !== entry.path) (e.currentTarget as HTMLElement).style.background = 'transparent' }}
           >
-            <span style={{ fontSize: '12px', width: '16px', textAlign: 'center', flexShrink: 0 }}>
-              {entry.isDirectory ? '📁' : '📄'}
-            </span>
+            <i
+              className={`codicon ${entry.isDirectory ? 'codicon-folder' : 'codicon-file'}`}
+              style={{ fontSize: '14px', flexShrink: 0, color: entry.isDirectory ? '#dcb67a' : '#9d9d9d' }}
+            />
             <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{entry.name}</span>
           </div>
         ))}
       </div>
       {/* Status bar */}
       {selected && (
-        <div style={{ padding: '4px 12px', borderTop: '1px solid #3f3f46', color: '#71717a', fontSize: '11px', background: '#1c1c1f', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+        <div style={{ padding: '3px 12px', borderTop: '1px solid #3c3c3c', color: '#6a6a6a', fontSize: '11px', background: '#252526', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
           {selected}
         </div>
       )}

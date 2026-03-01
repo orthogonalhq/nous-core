@@ -84,24 +84,24 @@ export function ChatPanel({ params }: ChatPanelProps) {
   }
 
   return (
-    <div style={{ display: 'flex', flexDirection: 'column', height: '100%', background: '#18181b', color: '#e4e4e7', fontFamily: '-apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif' }}>
+    <div style={{ display: 'flex', flexDirection: 'column', height: '100%', background: '#1e1e1e', color: '#cccccc' }}>
       {/* Header */}
-      <div style={{ padding: '12px 16px', borderBottom: '1px solid #3f3f46', fontSize: '13px', fontWeight: 600, color: '#a1a1aa' }}>
+      <div style={{ padding: '10px 16px', borderBottom: '1px solid #3c3c3c', fontSize: '12px', fontWeight: 600, color: '#9d9d9d' }}>
         Principal ↔ Cortex
       </div>
       {/* Messages */}
       <div style={{ flex: 1, overflowY: 'auto', padding: '16px', display: 'flex', flexDirection: 'column', gap: '12px' }}>
         {messages.length === 0 && (
-          <div style={{ textAlign: 'center', color: '#52525b', fontSize: '13px', marginTop: '40px' }}>
+          <div style={{ textAlign: 'center', color: '#6a6a6a', fontSize: '13px', marginTop: '40px' }}>
             {chatApi ? 'Start a conversation with Nous.' : 'Chat API not connected.'}
           </div>
         )}
         {messages.map((msg, i) => (
           <div key={i} style={{ display: 'flex', justifyContent: msg.role === 'user' ? 'flex-end' : 'flex-start' }}>
             <div style={{
-              maxWidth: '80%', padding: '8px 12px', borderRadius: '8px', fontSize: '13px', lineHeight: '1.5',
-              background: msg.role === 'user' ? '#3b82f6' : '#27272a',
-              color: msg.role === 'user' ? '#fff' : '#e4e4e7',
+              maxWidth: '80%', padding: '8px 12px', borderRadius: '4px', fontSize: '13px', lineHeight: '1.5',
+              background: msg.role === 'user' ? '#264f78' : '#252526',
+              color: '#cccccc',
             }}>
               {msg.content}
             </div>
@@ -109,7 +109,7 @@ export function ChatPanel({ params }: ChatPanelProps) {
         ))}
         {sending && (
           <div style={{ display: 'flex', justifyContent: 'flex-start' }}>
-            <div style={{ padding: '8px 12px', borderRadius: '8px', background: '#27272a', color: '#71717a', fontSize: '13px' }}>
+            <div style={{ padding: '8px 12px', borderRadius: '4px', background: '#252526', color: '#6a6a6a', fontSize: '13px' }}>
               Thinking...
             </div>
           </div>
@@ -117,7 +117,7 @@ export function ChatPanel({ params }: ChatPanelProps) {
         <div ref={messagesEndRef} />
       </div>
       {/* Input */}
-      <div style={{ padding: '12px 16px', borderTop: '1px solid #3f3f46', display: 'flex', gap: '8px', alignItems: 'flex-end' }}>
+      <div style={{ padding: '10px 12px', borderTop: '1px solid #3c3c3c', display: 'flex', gap: '6px', alignItems: 'flex-end' }}>
         <textarea
           value={input}
           onChange={e => setInput(e.target.value)}
@@ -125,9 +125,9 @@ export function ChatPanel({ params }: ChatPanelProps) {
           placeholder="Message Nous... (Enter to send, Shift+Enter for newline)"
           disabled={sending}
           style={{
-            flex: 1, resize: 'none', background: '#27272a', border: '1px solid #3f3f46',
-            borderRadius: '6px', padding: '8px 10px', color: '#e4e4e7', fontSize: '13px',
-            outline: 'none', lineHeight: '1.5', minHeight: '40px', maxHeight: '120px',
+            flex: 1, resize: 'none', background: '#3c3c3c', border: '1px solid transparent',
+            borderRadius: '4px', padding: '7px 10px', color: '#cccccc', fontSize: '13px',
+            outline: 'none', lineHeight: '1.5', minHeight: '36px', maxHeight: '120px',
             fontFamily: 'inherit',
           }}
           rows={1}
@@ -136,19 +136,19 @@ export function ChatPanel({ params }: ChatPanelProps) {
           onClick={toggleVoice}
           title={isListening ? 'Stop listening' : 'Voice input'}
           style={{
-            background: isListening ? '#ef4444' : '#27272a', border: '1px solid #3f3f46',
-            borderRadius: '6px', padding: '8px 10px', color: isListening ? '#fff' : '#a1a1aa',
-            cursor: 'pointer', fontSize: '16px', lineHeight: 1,
+            background: isListening ? '#f14c4c' : '#3c3c3c', border: '1px solid transparent',
+            borderRadius: '4px', padding: '7px 9px', color: isListening ? '#fff' : '#9d9d9d',
+            cursor: 'pointer', display: 'flex', alignItems: 'center',
           }}
         >
-          🎤
+          <i className={`codicon ${isListening ? 'codicon-circle-slash' : 'codicon-mic'}`} style={{ fontSize: '14px' }} />
         </button>
         <button
           onClick={send}
           disabled={sending || !input.trim() || !chatApi}
           style={{
-            background: '#3b82f6', border: 'none', borderRadius: '6px',
-            padding: '8px 14px', color: '#fff', cursor: sending ? 'not-allowed' : 'pointer',
+            background: '#007acc', border: 'none', borderRadius: '4px',
+            padding: '7px 14px', color: '#fff', cursor: sending ? 'not-allowed' : 'pointer',
             fontSize: '13px', fontWeight: 500, opacity: (sending || !input.trim() || !chatApi) ? 0.5 : 1,
           }}
         >

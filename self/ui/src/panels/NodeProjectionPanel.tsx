@@ -35,13 +35,13 @@ const NODE_POSITIONS: Record<string, { x: number; y: number }> = {
 }
 
 const STATE_COLORS: Record<NodeState, string> = {
-  idle: '#3f3f46',
-  active: '#2563eb',
-  waiting: '#d97706',
-  blocked: '#dc2626',
-  complete: '#16a34a',
-  approved: '#0891b2',
-  'needs-revision': '#9333ea',
+  idle:             '#3c3c3c',
+  active:           '#007acc',
+  waiting:          '#cca700',
+  blocked:          '#f14c4c',
+  complete:         '#16825d',
+  approved:         '#4dc9b0',
+  'needs-revision': '#bc8cff',
 }
 
 interface NodeProjectionPanelProps extends IDockviewPanelProps {
@@ -53,18 +53,18 @@ export function NodeProjectionPanel({ params }: NodeProjectionPanelProps) {
   const [hoveredNode, setHoveredNode] = useState<string | null>(null)
 
   return (
-    <div style={{ display: 'flex', flexDirection: 'column', height: '100%', background: '#18181b', color: '#e4e4e7', fontFamily: 'system-ui, sans-serif' }}>
+    <div style={{ display: 'flex', flexDirection: 'column', height: '100%', background: '#1e1e1e', color: '#cccccc' }}>
       {/* Header */}
-      <div style={{ padding: '10px 16px', borderBottom: '1px solid #3f3f46', fontSize: '12px', color: '#a1a1aa', display: 'flex', justifyContent: 'space-between' }}>
+      <div style={{ padding: '8px 16px', borderBottom: '1px solid #3c3c3c', fontSize: '11px', color: '#9d9d9d', display: 'flex', justifyContent: 'space-between', textTransform: 'uppercase', letterSpacing: '0.06em' }}>
         <span style={{ fontWeight: 600 }}>Node Projection</span>
-        <span style={{ color: '#52525b' }}>{graph.skillId}</span>
+        <span style={{ color: '#6a6a6a', textTransform: 'none', letterSpacing: 0 }}>{graph.skillId}</span>
       </div>
       {/* Graph */}
       <div style={{ flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '16px' }}>
         <svg viewBox="0 0 600 340" style={{ width: '100%', maxWidth: '600px', height: 'auto' }}>
           <defs>
             <marker id="arrow" markerWidth="8" markerHeight="8" refX="6" refY="3" orient="auto">
-              <path d="M0,0 L0,6 L8,3 z" fill="#52525b" />
+              <path d="M0,0 L0,6 L8,3 z" fill="#6a6a6a" />
             </marker>
           </defs>
           {/* Edges */}
@@ -72,7 +72,6 @@ export function NodeProjectionPanel({ params }: NodeProjectionPanelProps) {
             const from = NODE_POSITIONS[edge.source]
             const to = NODE_POSITIONS[edge.target]
             if (!from || !to) return null
-            // Offset line ends to node edge (half-width=40, half-height=16)
             const dx = to.x - from.x
             const dy = to.y - from.y
             const len = Math.sqrt(dx * dx + dy * dy)
@@ -81,9 +80,9 @@ export function NodeProjectionPanel({ params }: NodeProjectionPanelProps) {
             const x2 = to.x - ux * 48, y2 = to.y - uy * 20
             return (
               <g key={edge.id}>
-                <line x1={x1} y1={y1} x2={x2} y2={y2} stroke="#3f3f46" strokeWidth="1.5" markerEnd="url(#arrow)" />
+                <line x1={x1} y1={y1} x2={x2} y2={y2} stroke="#3c3c3c" strokeWidth="1.5" markerEnd="url(#arrow)" />
                 {edge.label && (
-                  <text x={(x1 + x2) / 2} y={(y1 + y2) / 2 - 6} fill="#52525b" fontSize="9" textAnchor="middle">{edge.label}</text>
+                  <text x={(x1 + x2) / 2} y={(y1 + y2) / 2 - 6} fill="#6a6a6a" fontSize="9" textAnchor="middle">{edge.label}</text>
                 )}
               </g>
             )
@@ -99,8 +98,8 @@ export function NodeProjectionPanel({ params }: NodeProjectionPanelProps) {
                 onMouseEnter={() => setHoveredNode(node.id)}
                 onMouseLeave={() => setHoveredNode(null)}
                 style={{ cursor: 'default' }}>
-                {isActive && <rect x="-4" y="-4" width="88" height="40" rx="10" fill="none" stroke="#60a5fa" strokeWidth="2.5" opacity="0.5" />}
-                <rect width="80" height="32" rx="7" fill={STATE_COLORS[node.state]} />
+                {isActive && <rect x="-4" y="-4" width="88" height="40" rx="10" fill="none" stroke="#007acc" strokeWidth="2" opacity="0.6" />}
+                <rect width="80" height="32" rx="5" fill={STATE_COLORS[node.state]} />
                 <text x="40" y="21" fill="white" fontSize="10" fontWeight={600} textAnchor="middle">{node.label}</text>
                 {isHovered && (
                   <title>{`${node.id} · ${node.type} · ${node.state}${node.cycle ? ` · cycle ${node.cycle}` : ''}`}</title>
@@ -111,7 +110,7 @@ export function NodeProjectionPanel({ params }: NodeProjectionPanelProps) {
         </svg>
       </div>
       {/* Footer */}
-      <div style={{ padding: '6px 16px', borderTop: '1px solid #3f3f46', fontSize: '11px', color: '#52525b', display: 'flex', justifyContent: 'space-between' }}>
+      <div style={{ padding: '5px 16px', borderTop: '1px solid #3c3c3c', fontSize: '11px', color: '#6a6a6a', display: 'flex', justifyContent: 'space-between' }}>
         <span>{graph.nodes.length} nodes · {graph.edges.length} edges</span>
         <span>{new Date(graph.snapshotAt).toLocaleTimeString()}</span>
       </div>
