@@ -58,6 +58,12 @@
   --nous-state-approved-fill:      #0d6e5e;
   --nous-state-needs-revision-fill:#6b3d99;
 
+  /* ── Overlay / shadow ────────────────────────────────────────────────── */
+  --nous-btn-hover:    rgba(255,255,255,0.07);  /* subtle hover on frameless window controls & menu triggers */
+  --nous-fg-on-color:  #ffffff;                  /* text on accent / error / selection backgrounds */
+  --nous-shadow:       rgba(0,0,0,0.4);          /* dropdown / floating element box-shadow */
+  --nous-drag-over-bg: rgba(0,122,204,0.15);     /* dockview drag-over feedback tint */
+
   /* ── Chrome dimensions ───────────────────────────────────────────────── */
   --nous-titlebar-height:  30px;
   --nous-statusbar-height: 22px;

@@ -137,7 +137,7 @@ export function ChatPanel({ params }: ChatPanelProps) {
           title={isListening ? 'Stop listening' : 'Voice input'}
           style={{
             background: isListening ? 'var(--nous-state-blocked)' : 'var(--nous-bg-input)', border: '1px solid transparent',
-            borderRadius: '4px', padding: '7px 9px', color: isListening ? '#fff' : 'var(--nous-fg-muted)',
+            borderRadius: '4px', padding: '7px 9px', color: isListening ? 'var(--nous-fg-on-color)' : 'var(--nous-fg-muted)',
             cursor: 'pointer', display: 'flex', alignItems: 'center',
           }}
         >
@@ -148,7 +148,7 @@ export function ChatPanel({ params }: ChatPanelProps) {
           disabled={sending || !input.trim() || !chatApi}
           style={{
             background: 'var(--nous-accent)', border: 'none', borderRadius: '4px',
-            padding: '7px 14px', color: '#fff', cursor: sending ? 'not-allowed' : 'pointer',
+            padding: '7px 14px', color: 'var(--nous-fg-on-color)', cursor: sending ? 'not-allowed' : 'pointer',
             fontSize: '13px', fontWeight: 500, opacity: (sending || !input.trim() || !chatApi) ? 0.5 : 1,
           }}
         >

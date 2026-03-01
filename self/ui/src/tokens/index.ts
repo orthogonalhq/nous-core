@@ -32,6 +32,7 @@ export const tokens = {
     iconFolder:   '#dcb67a',
     chatUserBg:   '#264f78',
     closeBtnHover:'#e81123',
+    fgOnColor:    '#ffffff',
 
     state: {
       idle:          '#6a6a6a',

@@ -31,7 +31,7 @@ const contentStyle: CSSProperties = {
   border: '1px solid var(--nous-menu-border)',
   borderRadius: '4px',
   padding: '4px 0',
-  boxShadow: '0 2px 8px rgba(0,0,0,0.4)',
+  boxShadow: '0 2px 8px var(--nous-shadow)',
   zIndex: 9999,
 }
 
@@ -79,13 +79,13 @@ function injectHoverStyles() {
   style.textContent = `
     [data-nous-menu-trigger]:hover,
     [data-nous-menu-trigger][data-state="open"] {
-      background: rgba(255,255,255,0.07) !important;
+      background: var(--nous-btn-hover) !important;
     }
     [data-nous-menu-item]:hover,
     [data-nous-menu-item]:focus,
     [data-nous-menu-item][data-highlighted] {
       background: var(--nous-menu-hover) !important;
-      color: #ffffff !important;
+      color: var(--nous-fg-on-color) !important;
       outline: none;
     }
     [data-nous-menu-item][data-highlighted] span {

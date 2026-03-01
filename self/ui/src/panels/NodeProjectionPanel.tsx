@@ -102,7 +102,7 @@ export function NodeProjectionPanel({ params }: NodeProjectionPanelProps) {
                 style={{ cursor: 'default' }}>
                 {isActive && <rect x="-4" y="-4" width="88" height="40" rx="10" fill="none" stroke={tokens.colors.accent} strokeWidth="2" opacity="0.6" />}
                 <rect width="80" height="32" rx="5" fill={STATE_FILL[node.state]} />
-                <text x="40" y="21" fill="white" fontSize="10" fontWeight={600} textAnchor="middle">{node.label}</text>
+                <text x="40" y="21" fill={tokens.colors.fgOnColor} fontSize="10" fontWeight={600} textAnchor="middle">{node.label}</text>
                 {isHovered && (
                   <title>{`${node.id} · ${node.type} · ${node.state}${node.cycle ? ` · cycle ${node.cycle}` : ''}`}</title>
                 )}
