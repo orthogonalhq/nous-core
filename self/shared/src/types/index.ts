@@ -52,19 +52,7 @@ export * from './cross-project-benchmark.js';
 export * from './relationships.js';
 export * from './discovery.js';
 export * from './explainability.js';
-export {
-  ManifestPackageTypeSchema,
-  type ManifestPackageType,
-  OriginClassSchema,
-  type OriginClass,
-  MigrationContractSchema,
-  type MigrationContract,
-  NousPackageManifestSchema,
-  type NousPackageManifest,
-  type ManifestValidationResult,
-  parseNousPackageManifest,
-  validateNousPackageManifest,
-} from './package-manifest.js';
+export * from './phase8-export.js';
+export * from './package-manifest.js';
 export * from './package-lifecycle.js';
 export * from './package-compatibility.js';
-export * from './phase8-export.js';

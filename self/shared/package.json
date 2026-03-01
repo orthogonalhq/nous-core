@@ -17,11 +17,11 @@
     "typecheck": "tsc --noEmit",
     "clean": "rm -rf dist"
   },
-  "dependencies": {
-    "semver": "^7.7.4",
-    "zod": "^3.25.76"
-  },
   "devDependencies": {
     "@types/semver": "^7.7.1"
+  },
+  "dependencies": {
+    "semver": "^7.6.3",
+    "zod": "^3.25.76"
   }
 }

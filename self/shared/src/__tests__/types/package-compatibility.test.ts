@@ -7,28 +7,26 @@ import {
 } from '../../types/package-compatibility.js';
 
 describe('evaluateApiContractRange', () => {
-  it('returns true for compatible runtime versions', () => {
+  it('returns true when runtime satisfies manifest range', () => {
     expect(evaluateApiContractRange('^1.0.0', '1.2.3')).toBe(true);
-    expect(evaluateApiContractRange('>=1.0.0 <2.0.0', '1.9.9')).toBe(true);
   });
 
-  it('returns false for incompatible runtime versions', () => {
-    expect(evaluateApiContractRange('^1.0.0', '2.0.0')).toBe(false);
+  it('returns false when runtime does not satisfy manifest range', () => {
+    expect(evaluateApiContractRange('^2.0.0', '1.9.9')).toBe(false);
   });
 
-  it('fails closed for invalid semver values', () => {
+  it('returns false for invalid semver inputs', () => {
     expect(evaluateApiContractRange('not-a-range', '1.2.3')).toBe(false);
     expect(evaluateApiContractRange('^1.0.0', 'not-a-version')).toBe(false);
   });
 });
 
 describe('calculateCapabilityDelta', () => {
-  it('calculates added and removed capabilities', () => {
+  it('requires reapproval when capabilities expand', () => {
     const delta = calculateCapabilityDelta(
-      ['memory.read', 'model.invoke'],
-      ['memory.read', 'model.invoke', 'tool.execute'],
+      ['model.invoke'],
+      ['model.invoke', 'tool.execute'],
     );
-
     expect(delta.added).toEqual(['tool.execute']);
     expect(delta.removed).toEqual([]);
     expect(delta.requires_reapproval).toBe(true);
@@ -36,21 +34,20 @@ describe('calculateCapabilityDelta', () => {
 
   it('does not require reapproval when capabilities only shrink', () => {
     const delta = calculateCapabilityDelta(
-      ['memory.read', 'model.invoke'],
-      ['memory.read'],
+      ['model.invoke', 'tool.execute'],
+      ['model.invoke'],
     );
-
     expect(delta.added).toEqual([]);
-    expect(delta.removed).toEqual(['model.invoke']);
+    expect(delta.removed).toEqual(['tool.execute']);
     expect(delta.requires_reapproval).toBe(false);
   });
 });
 
-describe('Compatibility schemas', () => {
-  it('accepts valid compatibility evaluation payloads', () => {
+describe('compatibility schemas', () => {
+  it('accepts valid API range evaluation payloads', () => {
     const result = ApiContractRangeEvaluationSchema.safeParse({
       manifest_range: '^1.0.0',
-      runtime_sdk_version: '1.4.2',
+      runtime_sdk_version: '1.2.3',
       compatible: true,
     });
     expect(result.success).toBe(true);

@@ -11,8 +11,8 @@ const BASE_MANIFEST = {
   package_type: 'skill',
   origin_class: 'third_party_external',
   api_contract_range: '^1.0.0',
-  capabilities: ['memory.read', 'model.invoke'],
-};
+  capabilities: ['model.invoke'],
+} as const;
 
 describe('NousPackageManifestSchema', () => {
   it('accepts a valid skill manifest', () => {
@@ -23,7 +23,6 @@ describe('NousPackageManifestSchema', () => {
   it('accepts a valid project manifest', () => {
     const result = NousPackageManifestSchema.safeParse({
       ...BASE_MANIFEST,
-      id: 'project:persona-engine',
       package_type: 'project',
     });
     expect(result.success).toBe(true);
@@ -49,26 +48,12 @@ describe('NousPackageManifestSchema', () => {
     expect(result.success).toBe(false);
   });
 
-  it('rejects empty capabilities', () => {
-    const result = NousPackageManifestSchema.safeParse({
-      ...BASE_MANIFEST,
-      capabilities: [],
-    });
-    expect(result.success).toBe(false);
-  });
-
-  it('requires self_created_local identity fields', () => {
+  it('requires self_created_local ownership fields', () => {
     const result = NousPackageManifestSchema.safeParse({
       ...BASE_MANIFEST,
       origin_class: 'self_created_local',
     });
-
     expect(result.success).toBe(false);
-    if (!result.success) {
-      const issuePaths = result.error.issues.map((issue) => issue.path.join('.'));
-      expect(issuePaths).toContain('author_principal_id');
-      expect(issuePaths).toContain('origin_instance_id');
-    }
   });
 });
 

@@ -2,15 +2,19 @@
  * Subcortex layer interface contracts.
  *
  * IModelRouter, IModelProvider, IToolExecutor, IWorkflowEngine,
- * IProjectStore, IArtifactStore, IScheduler, IEscalationService, ISandbox.
+ * IProjectStore, IArtifactStore, IScheduler, IEscalationService,
+ * ISandbox, IProjectApi.
  */
 import type {
   ProjectId,
   ProviderId,
   ArtifactId,
+  MemoryEntryId,
   WorkflowExecutionId,
   EscalationId,
   ModelRole,
+  MemoryScope,
+  EscalationChannel,
   ModelProviderConfig,
   ModelRequest,
   ModelResponse,
@@ -20,6 +24,7 @@ import type {
   WorkflowGraph,
   WorkflowState,
   ProjectConfig,
+  ProjectState,
   ArtifactData,
   ArtifactMetadata,
   ArtifactFilter,
@@ -28,6 +33,9 @@ import type {
   EscalationResponse,
   SandboxPayload,
   SandboxResult,
+  MemoryEntry,
+  MemoryWriteCandidate,
+  RetrievalResult,
   WitnessAuthorizationInput,
   WitnessCompletionInput,
   WitnessInvariantInput,
@@ -54,7 +62,7 @@ import type {
   GtmGateReport,
   GtmStageLabel,
 } from '../types/index.js';
-import type { IProjectApi } from './project-api.js';
+import type { NousEvent } from '../events/index.js';
 
 export interface IModelRouter {
   /** Route a model role to the appropriate provider (legacy) */
@@ -151,14 +159,59 @@ export interface IEscalationService {
 }
 
 export interface ISandbox {
-  /** Execute code in an isolated sandbox */
-  execute(code: SandboxPayload): Promise<SandboxResult>;
+  /** Execute package runtime request through governed membrane sandbox. */
+  execute(request: SandboxPayload): Promise<SandboxResult>;
 
-  /** Check if a capability is permitted */
-  hasCapability(capability: string): boolean;
+  /** Check if a capability is permitted for the current sandbox profile. */
+  hasCapability(capability: string, declaredCapabilities?: readonly string[]): boolean;
 }
 
-export type { IProjectApi };
+export interface IProjectApi {
+  /** Memory API for the current project */
+  memory: {
+    read(query: string, scope: MemoryScope): Promise<MemoryEntry[]>;
+    write(candidate: MemoryWriteCandidate): Promise<MemoryEntryId | null>;
+    retrieve(situation: string, budget: number): Promise<RetrievalResult[]>;
+  };
+
+  /** Model API for the current project */
+  model: {
+    invoke(role: ModelRole, input: unknown): Promise<ModelResponse>;
+    stream(role: ModelRole, input: unknown): AsyncIterable<ModelStreamChunk>;
+  };
+
+  /** Tool API for the current project */
+  tool: {
+    execute(name: string, params: unknown): Promise<ToolResult>;
+    list(capabilities?: string[]): Promise<ToolDefinition[]>;
+  };
+
+  /** Artifact API for the current project */
+  artifact: {
+    store(data: ArtifactData): Promise<ArtifactId>;
+    retrieve(id: ArtifactId): Promise<ArtifactData | null>;
+    list(filters?: ArtifactFilter): Promise<ArtifactMetadata[]>;
+  };
+
+  /** Escalation API for the current project */
+  escalation: {
+    notify(channel: EscalationChannel, message: string): Promise<EscalationId>;
+    request(decision: EscalationContract): Promise<EscalationResponse>;
+  };
+
+  /** Scheduler API for the current project */
+  scheduler: {
+    register(schedule: ScheduleDefinition): Promise<string>;
+    cancel(id: string): Promise<boolean>;
+  };
+
+  /** Project API for the current project */
+  project: {
+    config(): ProjectConfig;
+    state(): ProjectState;
+    log(event: NousEvent): void;
+  };
+}
 
 export interface IWitnessService {
   /** Append authorization evidence before a critical side effect */
