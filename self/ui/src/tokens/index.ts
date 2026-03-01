@@ -17,7 +17,7 @@ export const tokens = {
     menuHover:    '#094771',
   },
   chrome: {
-    titlebarHeight: 35,  // px — custom frameless titlebar
+    titlebarHeight: 30,  // px — custom frameless titlebar
     statusbarHeight: 22, // px — bottom status bar
   },
 } as const

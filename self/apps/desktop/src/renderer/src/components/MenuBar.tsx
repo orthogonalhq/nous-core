@@ -13,9 +13,9 @@ const triggerStyle: ElectronStyle = {
   WebkitAppRegion: 'no-drag',
   display: 'flex',
   alignItems: 'center',
-  padding: '0 8px',
-  height: '35px',
-  fontSize: '13px',
+  padding: '0 6px',
+  height: '30px',
+  fontSize: '12px',
   color: '#cccccc',
   background: 'transparent',
   border: 'none',
@@ -31,7 +31,7 @@ const contentStyle: CSSProperties = {
   border: '1px solid #454545',
   borderRadius: '4px',
   padding: '4px 0',
-  boxShadow: '0 4px 16px rgba(0,0,0,0.5)',
+  boxShadow: '0 2px 8px rgba(0,0,0,0.4)',
   zIndex: 9999,
 }
 
@@ -40,8 +40,8 @@ const itemStyle: CSSProperties = {
   alignItems: 'center',
   justifyContent: 'space-between',
   gap: '32px',
-  padding: '4px 12px',
-  fontSize: '13px',
+  padding: '4px 8px',
+  fontSize: '12px',
   color: '#cccccc',
   cursor: 'default',
   outline: 'none',
@@ -64,9 +64,9 @@ const separatorStyle: CSSProperties = {
 }
 
 const labelStyle: CSSProperties = {
-  padding: '4px 12px 2px',
+  padding: '4px 8px 2px',
   fontSize: '11px',
-  color: '#9d9d9d',
+  color: '#6a6a6a',
   userSelect: 'none',
 }
 

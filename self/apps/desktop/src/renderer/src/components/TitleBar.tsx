@@ -36,10 +36,9 @@ export function TitleBar() {
       style={{
         display: 'flex',
         alignItems: 'center',
-        height: '35px',
-        minHeight: '35px',
+        height: '30px',
+        minHeight: '30px',
         background: '#1e1e1e',
-        borderBottom: '1px solid #2d2d2d',
         WebkitAppRegion: 'drag',
         userSelect: 'none',
         flexShrink: 0,
@@ -57,12 +56,12 @@ export function TitleBar() {
           flexShrink: 0,
         } as ElectronStyle}
       >
-        <span style={{ fontSize: '14px', color: '#9d9d9d', lineHeight: 1 }}>◈</span>
+        <span style={{ fontSize: '13px', color: '#858585', lineHeight: 1 }}>◈</span>
         <span
           style={{
-            fontSize: '13px',
+            fontSize: '12px',
             fontWeight: 500,
-            color: '#cccccc',
+            color: '#858585',
             letterSpacing: '0.01em',
           }}
         >
@@ -91,15 +90,15 @@ export function TitleBar() {
           onMouseLeave={() => setBtnHover(null)}
           style={{
             width: '46px',
-            height: '35px',
+            height: '30px',
             display: 'flex',
             alignItems: 'center',
             justifyContent: 'center',
             background: btnHover === 'min' ? 'rgba(255,255,255,0.07)' : 'transparent',
             border: 'none',
             cursor: 'default',
-            color: '#9d9d9d',
-            fontSize: '12px',
+            color: '#858585',
+            fontSize: '11px',
             transition: 'background 0.1s',
           }}
           title="Minimize"
@@ -114,14 +113,14 @@ export function TitleBar() {
           onMouseLeave={() => setBtnHover(null)}
           style={{
             width: '46px',
-            height: '35px',
+            height: '30px',
             display: 'flex',
             alignItems: 'center',
             justifyContent: 'center',
             background: btnHover === 'max' ? 'rgba(255,255,255,0.07)' : 'transparent',
             border: 'none',
             cursor: 'default',
-            color: '#9d9d9d',
+            color: '#858585',
             fontSize: '11px',
             transition: 'background 0.1s',
           }}
@@ -137,15 +136,15 @@ export function TitleBar() {
           onMouseLeave={() => setBtnHover(null)}
           style={{
             width: '46px',
-            height: '35px',
+            height: '30px',
             display: 'flex',
             alignItems: 'center',
             justifyContent: 'center',
             background: btnHover === 'close' ? '#e81123' : 'transparent',
             border: 'none',
             cursor: 'default',
-            color: btnHover === 'close' ? '#ffffff' : '#9d9d9d',
-            fontSize: '13px',
+            color: btnHover === 'close' ? '#ffffff' : '#858585',
+            fontSize: '12px',
             transition: 'background 0.1s, color 0.1s',
           }}
           title="Close"
