@@ -8,6 +8,7 @@
  */
 export const tokens = {
   colors: {
+    surface:      '#141414',
     bg:           '#1e1e1e',
     bgElevated:   '#252526',
     bgHover:      '#2a2d2e',

@@ -100,7 +100,7 @@ function DockviewShell({ savedLayout }: { savedLayout: SerializedDockview | null
   }
 
   return (
-    <div style={{ height: '100%', width: '100%' }}>
+    <div style={{ height: '100%', width: '100%', background: 'var(--nous-surface)' }}>
       <DockviewReact
         className="dockview-theme-dark"
         onReady={onReady}

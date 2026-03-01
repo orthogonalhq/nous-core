@@ -10,6 +10,7 @@
 
 :root {
   /* ── Backgrounds ─────────────────────────────────────────────────────── */
+  --nous-surface:      #141414;  /* outer "table" — panels sit on top of this */
   --nous-bg:           #1e1e1e;
   --nous-bg-elevated:  #252526;
   --nous-bg-hover:     #2a2d2e;
