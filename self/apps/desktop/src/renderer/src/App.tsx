@@ -1,12 +1,14 @@
 import { useState, useEffect } from 'react'
 import { DockviewReact } from 'dockview-react'
 import type { DockviewReadyEvent, SerializedDockview } from 'dockview-react'
-import { PlaceholderPanel } from '@nous/ui/panels'
+import { PlaceholderPanel, NodeProjectionPanel, MAOPanel } from '@nous/ui/panels'
 
 import 'dockview-react/dist/styles/dockview.css'
 
 const panelComponents = {
   placeholder: PlaceholderPanel,
+  'node-projection': NodeProjectionPanel,
+  'mao': MAOPanel,
 }
 
 // Loading state: undefined = not yet fetched; null = fetched, no saved layout
@@ -73,8 +75,14 @@ function DockviewShell({ savedLayout }: { savedLayout: SerializedDockview | null
 
 function initDefaultLayout(event: DockviewReadyEvent) {
   event.api.addPanel({
-    id: 'welcome',
-    component: 'placeholder',
-    title: 'Welcome to Nous',
+    id: 'node-projection',
+    component: 'node-projection',
+    title: 'Skill Projection',
+  })
+  event.api.addPanel({
+    id: 'mao',
+    component: 'mao',
+    title: 'MAO',
+    position: { direction: 'below', referencePanel: 'node-projection' },
   })
 }
