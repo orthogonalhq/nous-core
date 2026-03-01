@@ -7,6 +7,7 @@ export {
   StubScheduler,
   StubEscalationService,
   StubSandbox,
+  type StubSandboxOptions,
   StubProjectApi,
   type StubProjectApiPolicyDeps,
 } from './stubs.js';

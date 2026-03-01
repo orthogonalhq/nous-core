@@ -1,9 +1,12 @@
 /**
  * Stub implementations for deferred subcortex interfaces.
  *
- * All methods throw NousError with code 'NOT_IMPLEMENTED'.
+ * Most methods throw NousError with code 'NOT_IMPLEMENTED'.
  * Real implementations arrive in Phase 5 (workflows, artifacts, scheduler, escalation)
- * and Phase 7 (sandbox, ProjectApi).
+ * and Phase 7 (ProjectApi).
+ *
+ * Phase 7.3 provides a governed baseline for StubSandbox by routing execute()
+ * through @nous/subcortex-sandbox RuntimeMembrane.
  *
  * Phase 3.3: StubProjectApi accepts optional policy enforcement deps. When provided,
  * memory.read/write/retrieve evaluate policy before throwing. Cross-project/global
@@ -11,6 +14,11 @@
  * NOT_IMPLEMENTED. Enforcement boundary documented in Phase 3.3 SDS.
  */
 import { NousError } from '@nous/shared';
+import {
+  InMemoryGrantReplayStore,
+  RuntimeMembrane,
+  type GrantReplayStore,
+} from '@nous/subcortex-sandbox';
 import {
   isCrossProjectMemoryWrite,
   buildPolicyAccessContextForMemoryWrite,
@@ -140,13 +148,39 @@ export class StubEscalationService implements IEscalationService {
   }
 }
 
+export interface StubSandboxOptions {
+  allowedCapabilities?: readonly string[];
+  replayStore?: GrantReplayStore;
+  now?: () => Date;
+}
+
 export class StubSandbox implements ISandbox {
-  async execute(_code: SandboxPayload): Promise<SandboxResult> {
-    return stubNotImpl('ISandbox', 'execute', 'Phase 7');
+  private readonly membrane: RuntimeMembrane;
+  private readonly allowedCapabilities: Set<string>;
+
+  constructor(options: StubSandboxOptions = {}) {
+    this.allowedCapabilities = new Set(options.allowedCapabilities ?? []);
+    this.membrane = new RuntimeMembrane({
+      replayStore: options.replayStore ?? new InMemoryGrantReplayStore(),
+      now: options.now,
+    });
   }
 
-  hasCapability(_capability: string): boolean {
-    return stubNotImpl('ISandbox', 'hasCapability', 'Phase 7');
+  async execute(code: SandboxPayload): Promise<SandboxResult> {
+    return this.membrane.execute(code);
+  }
+
+  hasCapability(capability: string, declaredCapabilities?: readonly string[]): boolean {
+    const declaredAllowed = declaredCapabilities
+      ? declaredCapabilities.includes(capability)
+      : false;
+    if (this.allowedCapabilities.size === 0) {
+      return declaredAllowed;
+    }
+    if (!this.allowedCapabilities.has(capability)) {
+      return false;
+    }
+    return declaredCapabilities ? declaredAllowed : true;
   }
 }
 

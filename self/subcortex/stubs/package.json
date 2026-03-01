@@ -2,7 +2,7 @@
   "name": "@nous/subcortex-stubs",
   "version": "0.0.1",
   "private": true,
-  "description": "Stub implementations for deferred subcortex interfaces — IWorkflowEngine, IArtifactStore, IScheduler, IEscalationService, ISandbox, IProjectApi",
+  "description": "Stub implementations for deferred subcortex interfaces — with Phase 7.3 runtime membrane baseline for ISandbox",
   "type": "module",
   "exports": {
     ".": {
@@ -17,6 +17,7 @@
   },
   "dependencies": {
     "@nous/memory-access": "workspace:*",
+    "@nous/subcortex-sandbox": "workspace:*",
     "@nous/shared": "workspace:*"
   }
 }
