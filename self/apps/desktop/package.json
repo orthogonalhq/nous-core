@@ -5,7 +5,7 @@
   "description": "Nous desktop application — Electron shell with dockview panel engine",
   "main": "out/main/index.js",
   "scripts": {
-    "dev": "electron-vite dev",
+    "dev": "node scripts/start-dev.mjs",
     "build": "electron-vite build",
     "preview": "electron-vite preview",
     "typecheck": "tsc -p tsconfig.json --noEmit && tsc -p tsconfig.web.json --noEmit"
