@@ -1,20 +1,20 @@
 export const tokens = {
   colors: {
-    background: 'hsl(var(--background))',
-    foreground: 'hsl(var(--foreground))',
-    border: 'hsl(var(--border))',
-    muted: 'hsl(var(--muted))',
-    mutedForeground: 'hsl(var(--muted-foreground))',
-    primary: 'hsl(var(--primary))',
-    primaryForeground: 'hsl(var(--primary-foreground))',
-    // dark defaults (zinc palette)
-    bgDefault: '#18181b',    // zinc-900
-    bgElevated: '#27272a',   // zinc-800
-    fgDefault: '#e4e4e7',    // zinc-200
-    fgMuted: '#71717a',      // zinc-500
-    fgSubtle: '#a1a1aa',     // zinc-400
-    borderDefault: '#3f3f46', // zinc-700
-    borderSubtle: '#27272a',  // zinc-800
+    // Cursor / VS Code Dark palette
+    bg:           '#1e1e1e',
+    bgElevated:   '#252526',
+    bgHover:      '#2a2d2e',
+    border:       '#3c3c3c',
+    borderSubtle: '#2d2d2d',
+    fg:           '#cccccc',
+    fgMuted:      '#9d9d9d',
+    fgSubtle:     '#6a6a6a',
+    accent:       '#007acc',
+    accentHover:  '#1a85d0',
+    selection:    '#094771',
+    menuBg:       '#252526',
+    menuBorder:   '#454545',
+    menuHover:    '#094771',
   },
   chrome: {
     titlebarHeight: 35,  // px — custom frameless titlebar

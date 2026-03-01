@@ -12,6 +12,7 @@
   },
   "dependencies": {
     "@nous/ui": "workspace:*",
+    "@radix-ui/react-menubar": "^1.1.7",
     "@trpc/client": "^11.0.0",
     "dockview-react": "^4.2.0",
     "electron-store": "^8.2.0",

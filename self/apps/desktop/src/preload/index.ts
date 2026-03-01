@@ -16,9 +16,16 @@ contextBridge.exposeInMainWorld('electronAPI', {
       ipcRenderer.invoke('chat:getHistory'),
   },
   win: {
-    minimize:    (): Promise<void>    => ipcRenderer.invoke('win:minimize'),
-    maximize:    (): Promise<void>    => ipcRenderer.invoke('win:maximize'),
-    close:       (): Promise<void>    => ipcRenderer.invoke('win:close'),
-    isMaximized: (): Promise<boolean> => ipcRenderer.invoke('win:isMaximized'),
+    minimize:         (): Promise<void>    => ipcRenderer.invoke('win:minimize'),
+    maximize:         (): Promise<void>    => ipcRenderer.invoke('win:maximize'),
+    close:            (): Promise<void>    => ipcRenderer.invoke('win:close'),
+    isMaximized:      (): Promise<boolean> => ipcRenderer.invoke('win:isMaximized'),
+    toggleDevTools:   (): Promise<void>    => ipcRenderer.invoke('win:toggleDevTools'),
+    toggleFullScreen: (): Promise<void>    => ipcRenderer.invoke('win:toggleFullScreen'),
+    isFullScreen:     (): Promise<boolean> => ipcRenderer.invoke('win:isFullScreen'),
+  },
+  app: {
+    quit:      (): Promise<void> => ipcRenderer.invoke('app:quit'),
+    newWindow: (): Promise<void> => ipcRenderer.invoke('app:newWindow'),
   },
 })

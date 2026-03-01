@@ -53,10 +53,15 @@ ipcMain.handle('fs:readFile', async (_event, filePath: string) => {
 })
 
 // Window control handlers — used by the custom frameless titlebar
-ipcMain.handle('win:minimize',    () => win?.minimize())
-ipcMain.handle('win:maximize',    () => { if (win) win.isMaximized() ? win.unmaximize() : win.maximize() })
-ipcMain.handle('win:close',       () => win?.close())
-ipcMain.handle('win:isMaximized', () => win?.isMaximized() ?? false)
+ipcMain.handle('win:minimize',         () => win?.minimize())
+ipcMain.handle('win:maximize',         () => { if (win) win.isMaximized() ? win.unmaximize() : win.maximize() })
+ipcMain.handle('win:close',            () => win?.close())
+ipcMain.handle('win:isMaximized',      () => win?.isMaximized() ?? false)
+ipcMain.handle('win:toggleDevTools',   () => win?.webContents.toggleDevTools())
+ipcMain.handle('win:toggleFullScreen', () => win?.setFullScreen(!win?.isFullScreen()))
+ipcMain.handle('win:isFullScreen',     () => win?.isFullScreen() ?? false)
+ipcMain.handle('app:quit',             () => app.quit())
+ipcMain.handle('app:newWindow',        () => createWindow())
 
 // Chat handlers — tRPC proxy to localhost:3000 with mock fallback
 // Lazy tRPC client — created on first use

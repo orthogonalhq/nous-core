@@ -1,6 +1,7 @@
 'use client'
 import { useState, useEffect, useCallback } from 'react'
 import type { CSSProperties } from 'react'
+import { AppMenuBar } from './MenuBar'
 
 // Electron-specific CSS property not in standard CSSProperties
 type ElectronStyle = CSSProperties & { WebkitAppRegion?: 'drag' | 'no-drag' }
@@ -37,36 +38,40 @@ export function TitleBar() {
         alignItems: 'center',
         height: '35px',
         minHeight: '35px',
-        background: '#18181b',
-        borderBottom: '1px solid #27272a',
+        background: '#1e1e1e',
+        borderBottom: '1px solid #2d2d2d',
         WebkitAppRegion: 'drag',
         userSelect: 'none',
         flexShrink: 0,
       } as ElectronStyle}
     >
-      {/* App identity — left side */}
+      {/* App icon + name — left anchor, no-drag */}
       <div
         style={{
           display: 'flex',
           alignItems: 'center',
           gap: '7px',
-          padding: '0 14px',
+          padding: '0 10px 0 14px',
           WebkitAppRegion: 'no-drag',
           pointerEvents: 'none',
+          flexShrink: 0,
         } as ElectronStyle}
       >
-        <span style={{ fontSize: '14px', color: '#a1a1aa', lineHeight: 1 }}>◈</span>
+        <span style={{ fontSize: '14px', color: '#9d9d9d', lineHeight: 1 }}>◈</span>
         <span
           style={{
             fontSize: '13px',
             fontWeight: 500,
-            color: '#d4d4d8',
+            color: '#cccccc',
             letterSpacing: '0.01em',
           }}
         >
           Nous
         </span>
       </div>
+
+      {/* Menu bar — File / View / Help */}
+      <AppMenuBar />
 
       {/* Drag region fills the middle */}
       <div style={{ flex: 1 }} />
@@ -90,10 +95,10 @@ export function TitleBar() {
             display: 'flex',
             alignItems: 'center',
             justifyContent: 'center',
-            background: btnHover === 'min' ? 'rgba(255,255,255,0.08)' : 'transparent',
+            background: btnHover === 'min' ? 'rgba(255,255,255,0.07)' : 'transparent',
             border: 'none',
             cursor: 'default',
-            color: '#a1a1aa',
+            color: '#9d9d9d',
             fontSize: '12px',
             transition: 'background 0.1s',
           }}
@@ -113,10 +118,10 @@ export function TitleBar() {
             display: 'flex',
             alignItems: 'center',
             justifyContent: 'center',
-            background: btnHover === 'max' ? 'rgba(255,255,255,0.08)' : 'transparent',
+            background: btnHover === 'max' ? 'rgba(255,255,255,0.07)' : 'transparent',
             border: 'none',
             cursor: 'default',
-            color: '#a1a1aa',
+            color: '#9d9d9d',
             fontSize: '11px',
             transition: 'background 0.1s',
           }}
@@ -139,7 +144,7 @@ export function TitleBar() {
             background: btnHover === 'close' ? '#e81123' : 'transparent',
             border: 'none',
             cursor: 'default',
-            color: btnHover === 'close' ? '#ffffff' : '#a1a1aa',
+            color: btnHover === 'close' ? '#ffffff' : '#9d9d9d',
             fontSize: '13px',
             transition: 'background 0.1s, color 0.1s',
           }}
