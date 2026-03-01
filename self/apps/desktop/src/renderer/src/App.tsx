@@ -1,12 +1,13 @@
 import { useState, useEffect } from 'react'
 import { DockviewReact } from 'dockview-react'
 import type { DockviewReadyEvent, SerializedDockview } from 'dockview-react'
-import { PlaceholderPanel } from '@nous/ui/panels'
+import { PlaceholderPanel, FileBrowserPanel } from '@nous/ui/panels'
 
 import 'dockview-react/dist/styles/dockview.css'
 
 const panelComponents = {
   placeholder: PlaceholderPanel,
+  'file-browser': FileBrowserPanel,
 }
 
 // Loading state: undefined = not yet fetched; null = fetched, no saved layout
@@ -76,5 +77,15 @@ function initDefaultLayout(event: DockviewReadyEvent) {
     id: 'welcome',
     component: 'placeholder',
     title: 'Welcome to Nous',
+  })
+  event.api.addPanel({
+    id: 'files',
+    component: 'file-browser',
+    title: 'Files',
+    position: { direction: 'right', referencePanel: 'welcome' },
+    params: {
+      fsApi: (window as any).electronAPI?.fs,
+      initialPath: '/',
+    },
   })
 }
