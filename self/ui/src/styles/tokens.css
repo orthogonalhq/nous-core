@@ -1,0 +1,64 @@
+/**
+ * @nous/ui — Design token CSS custom properties
+ *
+ * Single source of truth for all colour, dimension, and state tokens.
+ * Import via: import '@nous/ui/styles'
+ *
+ * The JS mirror lives at src/tokens/index.ts for TypeScript consumers
+ * (e.g. SVG/canvas code that cannot use CSS var()).
+ */
+
+:root {
+  /* ── Backgrounds ─────────────────────────────────────────────────────── */
+  --nous-bg:           #1e1e1e;
+  --nous-bg-elevated:  #252526;
+  --nous-bg-hover:     #2a2d2e;
+  --nous-bg-input:     #3c3c3c;
+
+  /* ── Borders ─────────────────────────────────────────────────────────── */
+  --nous-border:        #3c3c3c;
+  --nous-border-subtle: #2d2d2d;
+
+  /* ── Foreground ──────────────────────────────────────────────────────── */
+  --nous-fg:        #cccccc;
+  --nous-fg-muted:  #9d9d9d;
+  --nous-fg-dim:    #858585;
+  --nous-fg-subtle: #6a6a6a;
+
+  /* ── Accent / interactive ────────────────────────────────────────────── */
+  --nous-accent:       #007acc;
+  --nous-accent-hover: #1a85d0;
+  --nous-selection:    #094771;
+
+  /* ── Menu ────────────────────────────────────────────────────────────── */
+  --nous-menu-bg:     #252526;
+  --nous-menu-border: #454545;
+  --nous-menu-hover:  #094771;
+
+  /* ── Specific component tokens ───────────────────────────────────────── */
+  --nous-icon-folder:   #dcb67a;
+  --nous-chat-user-bg:  #264f78;
+  --nous-close-btn:     #e81123;
+
+  /* ── Agent / node state — icon / text colour ─────────────────────────── */
+  --nous-state-idle:          #6a6a6a;
+  --nous-state-active:        #007acc;
+  --nous-state-complete:      #89d185;
+  --nous-state-waiting:       #cca700;
+  --nous-state-blocked:       #f14c4c;
+  --nous-state-approved:      #4dc9b0;
+  --nous-state-needs-revision:#bc8cff;
+
+  /* ── Agent / node state — fill colour (SVG nodes, used via JS tokens) ── */
+  --nous-state-idle-fill:          #3c3c3c;
+  --nous-state-active-fill:        #007acc;
+  --nous-state-complete-fill:      #16825d;
+  --nous-state-waiting-fill:       #6e5a00;
+  --nous-state-blocked-fill:       #8b1a1a;
+  --nous-state-approved-fill:      #0d6e5e;
+  --nous-state-needs-revision-fill:#6b3d99;
+
+  /* ── Chrome dimensions ───────────────────────────────────────────────── */
+  --nous-titlebar-height:  30px;
+  --nous-statusbar-height: 22px;
+}

@@ -9,6 +9,7 @@
     "./panels": "./src/panels/index.ts",
     "./components": "./src/components/index.ts",
     "./tokens": "./src/tokens/index.ts",
+    "./styles": "./src/styles/tokens.css",
     "./lib/cn": "./src/lib/cn.ts"
   },
   "dependencies": {

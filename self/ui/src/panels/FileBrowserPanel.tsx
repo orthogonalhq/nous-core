@@ -44,22 +44,22 @@ export function FileBrowserPanel({ params }: FileBrowserPanelProps) {
   }
 
   return (
-    <div style={{ display: 'flex', flexDirection: 'column', height: '100%', background: '#1e1e1e', color: '#cccccc', fontSize: '13px' }}>
+    <div style={{ display: 'flex', flexDirection: 'column', height: '100%', background: 'var(--nous-bg)', color: 'var(--nous-fg)', fontSize: '13px' }}>
       {/* Path bar */}
-      <div style={{ padding: '5px 8px', borderBottom: '1px solid #3c3c3c', display: 'flex', alignItems: 'center', gap: '6px', background: '#252526' }}>
+      <div style={{ padding: '5px 8px', borderBottom: '1px solid var(--nous-border)', display: 'flex', alignItems: 'center', gap: '6px', background: 'var(--nous-bg-elevated)' }}>
         <button
           onClick={goUp}
-          style={{ background: 'none', border: 'none', color: '#9d9d9d', cursor: 'pointer', padding: '2px 4px', borderRadius: '3px', display: 'flex', alignItems: 'center' }}
+          style={{ background: 'none', border: 'none', color: 'var(--nous-fg-muted)', cursor: 'pointer', padding: '2px 4px', borderRadius: '3px', display: 'flex', alignItems: 'center' }}
           title="Go up"
         >
           <i className="codicon codicon-arrow-up" style={{ fontSize: '13px' }} />
         </button>
-        <span style={{ color: '#6a6a6a', flex: 1, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', fontSize: '12px' }}>{currentPath}</span>
+        <span style={{ color: 'var(--nous-fg-subtle)', flex: 1, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', fontSize: '12px' }}>{currentPath}</span>
       </div>
       {/* File list */}
       <div style={{ flex: 1, overflowY: 'auto', padding: '2px 0' }}>
-        {!fsApi && <div style={{ padding: '16px', color: '#6a6a6a', textAlign: 'center' }}>File system API not connected.</div>}
-        {loading && <div style={{ padding: '16px', color: '#6a6a6a', textAlign: 'center' }}>Loading...</div>}
+        {!fsApi && <div style={{ padding: '16px', color: 'var(--nous-fg-subtle)', textAlign: 'center' }}>File system API not connected.</div>}
+        {loading && <div style={{ padding: '16px', color: 'var(--nous-fg-subtle)', textAlign: 'center' }}>Loading...</div>}
         {!loading && entries.map(entry => (
           <div
             key={entry.path}
@@ -69,15 +69,15 @@ export function FileBrowserPanel({ params }: FileBrowserPanelProps) {
             }}
             style={{
               padding: '3px 12px', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '6px',
-              background: selected === entry.path ? '#094771' : 'transparent',
-              color: '#cccccc',
+              background: selected === entry.path ? 'var(--nous-selection)' : 'transparent',
+              color: 'var(--nous-fg)',
             }}
-            onMouseEnter={e => { if (selected !== entry.path) (e.currentTarget as HTMLElement).style.background = '#2a2d2e' }}
+            onMouseEnter={e => { if (selected !== entry.path) (e.currentTarget as HTMLElement).style.background = 'var(--nous-bg-hover)' }}
             onMouseLeave={e => { if (selected !== entry.path) (e.currentTarget as HTMLElement).style.background = 'transparent' }}
           >
             <i
               className={`codicon ${entry.isDirectory ? 'codicon-folder' : 'codicon-file'}`}
-              style={{ fontSize: '14px', flexShrink: 0, color: entry.isDirectory ? '#dcb67a' : '#9d9d9d' }}
+              style={{ fontSize: '14px', flexShrink: 0, color: entry.isDirectory ? 'var(--nous-icon-folder)' : 'var(--nous-fg-muted)' }}
             />
             <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{entry.name}</span>
           </div>
@@ -85,7 +85,7 @@ export function FileBrowserPanel({ params }: FileBrowserPanelProps) {
       </div>
       {/* Status bar */}
       {selected && (
-        <div style={{ padding: '3px 12px', borderTop: '1px solid #3c3c3c', color: '#6a6a6a', fontSize: '11px', background: '#252526', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+        <div style={{ padding: '3px 12px', borderTop: '1px solid var(--nous-border)', color: 'var(--nous-fg-subtle)', fontSize: '11px', background: 'var(--nous-bg-elevated)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
           {selected}
         </div>
       )}

@@ -25,11 +25,11 @@ const ROLE_CODICON: Record<string, string> = {
   'prompt-gen': 'codicon-edit',
 }
 
-const STATE_COLOR: Record<string, string> = {
-  idle:     '#6a6a6a',
-  active:   '#007acc',
-  complete: '#89d185',
-  waiting:  '#cca700',
+const STATE_VAR: Record<string, string> = {
+  idle:     'var(--nous-state-idle)',
+  active:   'var(--nous-state-active)',
+  complete: 'var(--nous-state-complete)',
+  waiting:  'var(--nous-state-waiting)',
 }
 
 interface MAOPanelProps extends IDockviewPanelProps {
@@ -40,22 +40,22 @@ export function MAOPanel({ params }: MAOPanelProps) {
   const entries = params?.entries ?? DEMO_MAO_STATE
 
   return (
-    <div style={{ display: 'flex', flexDirection: 'column', height: '100%', background: '#1e1e1e', color: '#cccccc', fontSize: '13px' }}>
-      <div style={{ padding: '8px 16px', borderBottom: '1px solid #3c3c3c', fontWeight: 600, fontSize: '11px', color: '#9d9d9d', display: 'flex', justifyContent: 'space-between', textTransform: 'uppercase', letterSpacing: '0.06em' }}>
+    <div style={{ display: 'flex', flexDirection: 'column', height: '100%', background: 'var(--nous-bg)', color: 'var(--nous-fg)', fontSize: '13px' }}>
+      <div style={{ padding: '8px 16px', borderBottom: '1px solid var(--nous-border)', fontWeight: 600, fontSize: '11px', color: 'var(--nous-fg-muted)', display: 'flex', justifyContent: 'space-between', textTransform: 'uppercase', letterSpacing: '0.06em' }}>
         <span>MAO — Agent Cycle</span>
-        <span style={{ color: '#6a6a6a', fontWeight: 400, textTransform: 'none', letterSpacing: 0 }}>Cycle {Math.max(...entries.map(e => e.cycle))}</span>
+        <span style={{ color: 'var(--nous-fg-subtle)', fontWeight: 400, textTransform: 'none', letterSpacing: 0 }}>Cycle {Math.max(...entries.map(e => e.cycle))}</span>
       </div>
       <div style={{ flex: 1, overflowY: 'auto' }}>
         {entries.map((entry, i) => (
-          <div key={i} style={{ padding: '9px 16px', borderBottom: '1px solid #2d2d2d', display: 'flex', alignItems: 'center', gap: '12px' }}>
-            <i className={`codicon ${ROLE_CODICON[entry.role]}`} style={{ fontSize: '14px', flexShrink: 0, color: STATE_COLOR[entry.state] }} />
+          <div key={i} style={{ padding: '9px 16px', borderBottom: '1px solid var(--nous-border-subtle)', display: 'flex', alignItems: 'center', gap: '12px' }}>
+            <i className={`codicon ${ROLE_CODICON[entry.role]}`} style={{ fontSize: '14px', flexShrink: 0, color: STATE_VAR[entry.state] }} />
             <div style={{ flex: 1, minWidth: 0 }}>
               <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                <span style={{ fontWeight: 500, color: '#cccccc' }}>{entry.agent}</span>
-                <span style={{ fontSize: '11px', color: STATE_COLOR[entry.state], fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.04em' }}>{entry.state}</span>
+                <span style={{ fontWeight: 500, color: 'var(--nous-fg)' }}>{entry.agent}</span>
+                <span style={{ fontSize: '11px', color: STATE_VAR[entry.state], fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.04em' }}>{entry.state}</span>
               </div>
               {entry.lastPacket && (
-                <div style={{ fontSize: '11px', color: '#6a6a6a', marginTop: '2px', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                <div style={{ fontSize: '11px', color: 'var(--nous-fg-subtle)', marginTop: '2px', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
                   {entry.lastPacket}
                 </div>
               )}
@@ -63,7 +63,7 @@ export function MAOPanel({ params }: MAOPanelProps) {
           </div>
         ))}
       </div>
-      <div style={{ padding: '5px 16px', borderTop: '1px solid #3c3c3c', fontSize: '11px', color: '#3c3c3c' }}>
+      <div style={{ padding: '5px 16px', borderTop: '1px solid var(--nous-border)', fontSize: '11px', color: 'var(--nous-border)' }}>
         Stub — live adapter pending DISC-2026-02-28-001 ratification
       </div>
     </div>

@@ -557,9 +557,16 @@ importers:
 
   self/shared:
     dependencies:
+      semver:
+        specifier: ^7.6.3
+        version: 7.7.4
       zod:
         specifier: ^3.25.76
         version: 3.25.76
+    devDependencies:
+      '@types/semver':
+        specifier: ^7.7.1
+        version: 7.7.1
 
   self/subcortex/gtm:
     dependencies:
@@ -628,6 +635,12 @@ importers:
         specifier: workspace:*
         version: link:../providers
 
+  self/subcortex/sandbox:
+    dependencies:
+      '@nous/shared':
+        specifier: workspace:*
+        version: link:../../shared
+
   self/subcortex/stubs:
     dependencies:
       '@nous/memory-access':
@@ -636,6 +649,9 @@ importers:
       '@nous/shared':
         specifier: workspace:*
         version: link:../../shared
+      '@nous/subcortex-sandbox':
+        specifier: workspace:*
+        version: link:../sandbox
 
   self/subcortex/tools:
     dependencies:
@@ -2608,6 +2624,9 @@ packages:
 
   '@types/responselike@1.0.3':
     resolution: {integrity: sha512-H/+L+UkTV33uf49PH5pCAUBVPNj2nDBXTN+qS1dOwyyg24l3CcicicCA7ca+HMvJBZcFgl5r8e+RR6elsb4Lyw==}
+
+  '@types/semver@7.7.1':
+    resolution: {integrity: sha512-FmgJfu+MOcQ370SD0ev7EI8TlCAfKYU+B4m5T3yXc1CiRN94g/SZPtsCkk506aUDtlMnFZvasDwHHUcZUEaYuA==}
 
   '@types/trusted-types@2.0.7':
     resolution: {integrity: sha512-ScaPdn1dQczgbl0QFTeTOmVHFULt394XJgOQNoyVhZ6r2vLnMLJfBPd53SB52T/3G36VI1/g2MZaX0cwDuXsfw==}
@@ -7718,6 +7737,8 @@ snapshots:
   '@types/responselike@1.0.3':
     dependencies:
       '@types/node': 20.19.33
+
+  '@types/semver@7.7.1': {}
 
   '@types/trusted-types@2.0.7':
     optional: true

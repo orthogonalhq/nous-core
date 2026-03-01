@@ -1,33 +1,11 @@
+/* Design tokens are loaded from @nous/ui/styles (imported in main.tsx). */
+
 *,
 *::before,
 *::after {
   box-sizing: border-box;
   margin: 0;
   padding: 0;
-}
-
-:root {
-  /* Cursor / VS Code Dark palette */
-  --bg:              #1e1e1e;
-  --bg-elevated:     #252526;
-  --bg-hover:        #2a2d2e;
-  --border:          #3c3c3c;
-  --border-subtle:   #2d2d2d;
-  --fg:              #cccccc;
-  --fg-muted:        #9d9d9d;
-  --fg-subtle:       #6a6a6a;
-  --accent:          #007acc;
-  --accent-hover:    #1a85d0;
-  --selection:       #094771;
-  --menu-bg:         #252526;
-  --menu-border:     #454545;
-  --menu-item-hover: #094771;
-
-  /* State palette — aligned to VS Code terminal colors */
-  --state-active:   #007acc;
-  --state-complete: #89d185;
-  --state-waiting:  #cca700;
-  --state-blocked:  #f14c4c;
 }
 
 html,
@@ -45,8 +23,8 @@ body {
   line-height: 1.4;
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
-  background: var(--bg);
-  color: var(--fg);
+  background: var(--nous-bg);
+  color: var(--nous-fg);
 }
 
 /* Ensure interactive elements inside panel content are never treated as drag regions */
@@ -60,22 +38,22 @@ a {
 
 /* ─── Dockview theme overrides ─────────────────────────────────────────────── */
 .dockview-theme-dark {
-  --dv-background-color:                               #1e1e1e;
-  --dv-group-view-background-color:                    #1e1e1e;
-  --dv-tabs-and-actions-container-background-color:    #252526;
+  --dv-background-color:                               var(--nous-bg);
+  --dv-group-view-background-color:                    var(--nous-bg);
+  --dv-tabs-and-actions-container-background-color:    var(--nous-bg-elevated);
   --dv-tabs-and-actions-container-height:              35px;
   --dv-tabs-and-actions-container-font-size:           13px;
-  --dv-activegroup-visiblepanel-tab-background-color:  #1e1e1e;
-  --dv-activegroup-visiblepanel-tab-color:             #cccccc;
-  --dv-activegroup-hiddenpanel-tab-background-color:   #252526;
-  --dv-activegroup-hiddenpanel-tab-color:              #9d9d9d;
-  --dv-inactivegroup-visiblepanel-tab-background-color:#252526;
-  --dv-inactivegroup-visiblepanel-tab-color:           #9d9d9d;
-  --dv-inactivegroup-hiddenpanel-tab-background-color: #252526;
-  --dv-inactivegroup-hiddenpanel-tab-color:            #6a6a6a;
-  --dv-separator-border:                               #3c3c3c;
-  --dv-tab-divider-color:                              #3c3c3c;
+  --dv-activegroup-visiblepanel-tab-background-color:  var(--nous-bg);
+  --dv-activegroup-visiblepanel-tab-color:             var(--nous-fg);
+  --dv-activegroup-hiddenpanel-tab-background-color:   var(--nous-bg-elevated);
+  --dv-activegroup-hiddenpanel-tab-color:              var(--nous-fg-muted);
+  --dv-inactivegroup-visiblepanel-tab-background-color:var(--nous-bg-elevated);
+  --dv-inactivegroup-visiblepanel-tab-color:           var(--nous-fg-muted);
+  --dv-inactivegroup-hiddenpanel-tab-background-color: var(--nous-bg-elevated);
+  --dv-inactivegroup-hiddenpanel-tab-color:            var(--nous-fg-subtle);
+  --dv-separator-border:                               var(--nous-border);
+  --dv-tab-divider-color:                              var(--nous-border);
   --dv-drag-over-background-color:                     rgba(0,122,204,0.15);
-  --dv-drag-over-border-color:                         #007acc;
-  --dv-editor-tabs-container-scrollbar-color:          #424242;
+  --dv-drag-over-border-color:                         var(--nous-accent);
+  --dv-editor-tabs-container-scrollbar-color:          var(--nous-border);
 }

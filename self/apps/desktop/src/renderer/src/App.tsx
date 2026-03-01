@@ -33,7 +33,7 @@ function ChromeShell({ children }: { children: React.ReactNode }) {
         flexDirection: 'column',
         height: '100vh',
         overflow: 'hidden',
-        background: '#1e1e1e',
+        background: 'var(--nous-bg)',
       }}
     >
       <TitleBar />
@@ -63,8 +63,8 @@ export function App() {
             display: 'flex',
             alignItems: 'center',
             justifyContent: 'center',
-            background: '#1e1e1e',
-            color: '#6a6a6a',
+            background: 'var(--nous-bg)',
+            color: 'var(--nous-fg-subtle)',
             fontSize: '13px',
           }}
         >

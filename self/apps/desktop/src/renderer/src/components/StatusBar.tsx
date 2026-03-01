@@ -10,10 +10,10 @@ export function StatusBar() {
         height: '22px',
         minHeight: '22px',
         padding: '0 0',
-        background: '#1e1e1e',
-        borderTop: '1px solid #2d2d2d',
+        background: 'var(--nous-bg)',
+        borderTop: '1px solid var(--nous-border-subtle)',
         fontSize: '11px',
-        color: '#6a6a6a',
+        color: 'var(--nous-fg-subtle)',
         userSelect: 'none',
         flexShrink: 0,
       }}

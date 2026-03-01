@@ -16,7 +16,7 @@ const triggerStyle: ElectronStyle = {
   padding: '0 6px',
   height: '30px',
   fontSize: '12px',
-  color: '#cccccc',
+  color: 'var(--nous-fg)',
   background: 'transparent',
   border: 'none',
   cursor: 'default',
@@ -27,8 +27,8 @@ const triggerStyle: ElectronStyle = {
 
 const contentStyle: CSSProperties = {
   minWidth: '200px',
-  background: '#252526',
-  border: '1px solid #454545',
+  background: 'var(--nous-menu-bg)',
+  border: '1px solid var(--nous-menu-border)',
   borderRadius: '4px',
   padding: '4px 0',
   boxShadow: '0 2px 8px rgba(0,0,0,0.4)',
@@ -42,7 +42,7 @@ const itemStyle: CSSProperties = {
   gap: '32px',
   padding: '4px 8px',
   fontSize: '12px',
-  color: '#cccccc',
+  color: 'var(--nous-fg)',
   cursor: 'default',
   outline: 'none',
   userSelect: 'none',
@@ -52,21 +52,21 @@ const itemStyle: CSSProperties = {
 
 const shortcutStyle: CSSProperties = {
   fontSize: '12px',
-  color: '#9d9d9d',
+  color: 'var(--nous-fg-muted)',
   marginLeft: 'auto',
   flexShrink: 0,
 }
 
 const separatorStyle: CSSProperties = {
   height: '1px',
-  background: '#3c3c3c',
+  background: 'var(--nous-border)',
   margin: '4px 0',
 }
 
 const labelStyle: CSSProperties = {
   padding: '4px 8px 2px',
   fontSize: '11px',
-  color: '#6a6a6a',
+  color: 'var(--nous-fg-subtle)',
   userSelect: 'none',
 }
 
@@ -84,15 +84,15 @@ function injectHoverStyles() {
     [data-nous-menu-item]:hover,
     [data-nous-menu-item]:focus,
     [data-nous-menu-item][data-highlighted] {
-      background: #094771 !important;
+      background: var(--nous-menu-hover) !important;
       color: #ffffff !important;
       outline: none;
     }
     [data-nous-menu-item][data-highlighted] span {
-      color: #cccccc !important;
+      color: var(--nous-fg) !important;
     }
     [data-nous-menu-item][data-disabled] {
-      color: #6a6a6a !important;
+      color: var(--nous-fg-subtle) !important;
       cursor: not-allowed;
     }
   `

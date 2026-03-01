@@ -38,7 +38,7 @@ export function TitleBar() {
         alignItems: 'center',
         height: '30px',
         minHeight: '30px',
-        background: '#1e1e1e',
+        background: 'var(--nous-bg)',
         WebkitAppRegion: 'drag',
         userSelect: 'none',
         flexShrink: 0,
@@ -56,12 +56,12 @@ export function TitleBar() {
           flexShrink: 0,
         } as ElectronStyle}
       >
-        <span style={{ fontSize: '13px', color: '#858585', lineHeight: 1 }}>◈</span>
+        <span style={{ fontSize: '13px', color: 'var(--nous-fg-dim)', lineHeight: 1 }}>◈</span>
         <span
           style={{
             fontSize: '12px',
             fontWeight: 500,
-            color: '#858585',
+            color: 'var(--nous-fg-dim)',
             letterSpacing: '0.01em',
           }}
         >
@@ -97,7 +97,7 @@ export function TitleBar() {
             background: btnHover === 'min' ? 'rgba(255,255,255,0.07)' : 'transparent',
             border: 'none',
             cursor: 'default',
-            color: '#858585',
+            color: 'var(--nous-fg-dim)',
             fontSize: '11px',
             transition: 'background 0.1s',
           }}
@@ -120,7 +120,7 @@ export function TitleBar() {
             background: btnHover === 'max' ? 'rgba(255,255,255,0.07)' : 'transparent',
             border: 'none',
             cursor: 'default',
-            color: '#858585',
+            color: 'var(--nous-fg-dim)',
             fontSize: '11px',
             transition: 'background 0.1s',
           }}
@@ -140,10 +140,10 @@ export function TitleBar() {
             display: 'flex',
             alignItems: 'center',
             justifyContent: 'center',
-            background: btnHover === 'close' ? '#e81123' : 'transparent',
+            background: btnHover === 'close' ? 'var(--nous-close-btn)' : 'transparent',
             border: 'none',
             cursor: 'default',
-            color: btnHover === 'close' ? '#ffffff' : '#858585',
+            color: btnHover === 'close' ? '#ffffff' : 'var(--nous-fg-dim)',
             fontSize: '12px',
             transition: 'background 0.1s, color 0.1s',
           }}
