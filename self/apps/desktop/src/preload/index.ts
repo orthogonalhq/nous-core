@@ -6,8 +6,8 @@ contextBridge.exposeInMainWorld('electronAPI', {
     set: (layout: unknown): Promise<void> => ipcRenderer.invoke('layout:set', layout),
   },
   fs: {
-    readDir: (path: string): Promise<null> => ipcRenderer.invoke('fs:readDir', path),
-    readFile: (path: string): Promise<null> => ipcRenderer.invoke('fs:readFile', path),
+    readDir: (path: string): Promise<{ name: string; isDirectory: boolean; path: string }[]> => ipcRenderer.invoke('fs:readDir', path),
+    readFile: (path: string): Promise<string | null> => ipcRenderer.invoke('fs:readFile', path),
   },
   chat: {
     send: (message: string): Promise<{ response: string; traceId: string }> =>

@@ -1,13 +1,14 @@
 import { useState, useEffect } from 'react'
 import { DockviewReact } from 'dockview-react'
 import type { DockviewReadyEvent, SerializedDockview } from 'dockview-react'
-import { PlaceholderPanel, ChatPanel } from '@nous/ui/panels'
+import { PlaceholderPanel, ChatPanel, FileBrowserPanel } from '@nous/ui/panels'
 
 import 'dockview-react/dist/styles/dockview.css'
 
 const panelComponents = {
   placeholder: PlaceholderPanel,
   chat: ChatPanel,
+  'file-browser': FileBrowserPanel,
 }
 
 // Loading state: undefined = not yet fetched; null = fetched, no saved layout
@@ -79,6 +80,16 @@ function initDefaultLayout(event: DockviewReadyEvent) {
     title: 'Principal ↔ Cortex',
     params: {
       chatApi: (window as any).electronAPI?.chat,
+    },
+  })
+  event.api.addPanel({
+    id: 'files',
+    component: 'file-browser',
+    title: 'Files',
+    position: { direction: 'right', referencePanel: 'chat' },
+    params: {
+      fsApi: (window as any).electronAPI?.fs,
+      initialPath: '/',
     },
   })
 }

@@ -1,5 +1,6 @@
 import { app, BrowserWindow, ipcMain } from 'electron'
 import { join } from 'node:path'
+import { readdir, readFile } from 'node:fs/promises'
 import Store from 'electron-store'
 import { createTRPCClient, httpBatchLink } from '@trpc/client'
 
@@ -25,9 +26,28 @@ ipcMain.handle('layout:set', (_event, layout: unknown) => {
   } satisfies StoredLayout)
 })
 
-// Filesystem stubs — implemented in ui/phase-1.4
-ipcMain.handle('fs:readDir', () => null)
-ipcMain.handle('fs:readFile', () => null)
+// Filesystem handlers — implemented in ui/phase-1.4
+ipcMain.handle('fs:readDir', async (_event, dirPath: string) => {
+  try {
+    const entries = await readdir(dirPath, { withFileTypes: true })
+    return entries.map(e => ({
+      name: e.name,
+      isDirectory: e.isDirectory(),
+      path: dirPath.replace(/\\/g, '/') + '/' + e.name,
+    }))
+  } catch {
+    return []
+  }
+})
+
+ipcMain.handle('fs:readFile', async (_event, filePath: string) => {
+  try {
+    const content = await readFile(filePath, 'utf-8')
+    return content
+  } catch {
+    return null
+  }
+})
 
 // Chat handlers — tRPC proxy to localhost:3000 with mock fallback
 // Lazy tRPC client — created on first use
