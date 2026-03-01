@@ -9,10 +9,6 @@ export default defineConfig({
   resolve: {
     alias: {
       '@nous/shared': path.resolve(__dirname, '../../shared/src/index.ts'),
-      '@nous/subcortex-sandbox': path.resolve(
-        __dirname,
-        '../sandbox/src/index.ts',
-      ),
     },
   },
   test: {

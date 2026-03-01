@@ -1,11 +1,9 @@
 {
-  "name": "@nous/shared",
+  "name": "@nous/subcortex-sandbox",
   "version": "0.0.1",
   "private": true,
-  "description": "Cross-layer nervous system — types, interfaces, events, and errors for Nous-OSS",
+  "description": "Governed runtime membrane and sandbox capability enforcement for Nous-OSS",
   "type": "module",
-  "main": "./dist/index.js",
-  "types": "./dist/index.d.ts",
   "exports": {
     ".": {
       "types": "./dist/index.d.ts",
@@ -17,11 +15,8 @@
     "typecheck": "tsc --noEmit",
     "clean": "rm -rf dist"
   },
-  "devDependencies": {
-    "@types/semver": "^7.7.1"
-  },
   "dependencies": {
-    "semver": "^7.6.3",
-    "zod": "^3.25.76"
+    "@nous/shared": "workspace:*"
   }
 }
+

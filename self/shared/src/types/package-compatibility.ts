@@ -1,7 +1,5 @@
 /**
  * Package compatibility and capability-delta contracts.
- *
- * Phase 7.2: Shared compatibility gate types and helpers for package admission.
  */
 import semver from 'semver';
 import { z } from 'zod';

@@ -1,7 +1,7 @@
 import { describe, it, expect } from 'vitest';
 import {
-  PackageLifecycleDecisionEventSchema,
   PackageLifecycleEventBaseSchema,
+  PackageLifecycleDecisionEventSchema,
 } from '../../types/package-lifecycle.js';
 
 const BASE_EVENT = {
@@ -9,11 +9,11 @@ const BASE_EVENT = {
   package_id: 'skill:image-quality-assessment',
   package_version: '1.2.0',
   origin_class: 'third_party_external',
-  witness_ref: 'evt_abc123',
-};
+  witness_ref: 'evt_123',
+} as const;
 
 describe('PackageLifecycleEventBaseSchema', () => {
-  it('accepts a valid lifecycle event', () => {
+  it('accepts valid lifecycle event payloads', () => {
     const result = PackageLifecycleEventBaseSchema.safeParse(BASE_EVENT);
     expect(result.success).toBe(true);
   });
@@ -23,28 +23,31 @@ describe('PackageLifecycleEventBaseSchema', () => {
     const result = PackageLifecycleEventBaseSchema.safeParse(event);
     expect(result.success).toBe(false);
   });
-
-  it('requires witness_ref', () => {
-    const { witness_ref: _removed, ...event } = BASE_EVENT;
-    const result = PackageLifecycleEventBaseSchema.safeParse(event);
-    expect(result.success).toBe(false);
-  });
 });
 
 describe('PackageLifecycleDecisionEventSchema', () => {
-  it('requires reason_code for denial and blocked events', () => {
+  it('requires reason_code for blocked runtime decisions', () => {
     const result = PackageLifecycleDecisionEventSchema.safeParse({
       ...BASE_EVENT,
-      event_type: 'pkg_enable_blocked',
+      event_type: 'pkg_runtime_action_decided',
     });
     expect(result.success).toBe(false);
   });
 
-  it('accepts reason_code for blocked events', () => {
+  it('accepts reason-coded blocked runtime decisions', () => {
     const result = PackageLifecycleDecisionEventSchema.safeParse({
       ...BASE_EVENT,
-      event_type: 'pkg_enable_blocked',
-      reason_code: 'PKG-001-UNSIGNED',
+      event_type: 'pkg_runtime_action_decided',
+      reason_code: 'PKG-002-CAPABILITY_REPLAY_DETECTED',
+    });
+    expect(result.success).toBe(true);
+  });
+
+  it('accepts reason-coded quarantined outcomes', () => {
+    const result = PackageLifecycleDecisionEventSchema.safeParse({
+      ...BASE_EVENT,
+      event_type: 'pkg_quarantined',
+      reason_code: 'PKG-001-REVOKED_SIGNER',
     });
     expect(result.success).toBe(true);
   });

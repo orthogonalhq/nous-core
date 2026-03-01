@@ -1,7 +1,5 @@
 /**
  * Package lifecycle event and reason-code contracts.
- *
- * Phase 7.2: Shared package lifecycle event shapes consumed by runtime layers.
  */
 import { z } from 'zod';
 import { OriginClassSchema } from './package-manifest.js';
@@ -23,6 +21,9 @@ export const PACKAGE_LIFECYCLE_EVENT_TYPES = [
   'pkg_import_verified',
   'pkg_import_rejected',
   'pkg_removed',
+  'pkg_runtime_admission_decided',
+  'pkg_runtime_action_decided',
+  'pkg_quarantined',
 ] as const;
 export const PackageLifecycleEventTypeSchema = z.enum(
   PACKAGE_LIFECYCLE_EVENT_TYPES,
@@ -33,11 +34,23 @@ export type PackageLifecycleEventType = z.infer<
 
 export const PACKAGE_LIFECYCLE_REASON_CODES = {
   'PKG-001-UNSIGNED': 'No signature was provided for package admission.',
-  'PKG-001-REVOKED_SIGNER': 'Package signer key is revoked or untrusted.',
+  'PKG-001-REVOKED_SIGNER': 'Package signer key is revoked or unknown.',
+  'PKG-002-CAPABILITY_NOT_GRANTED':
+    'Requested capability is not granted for runtime action.',
+  'PKG-002-CAPABILITY_SCOPE_MISMATCH':
+    'Capability grant scope does not authorize this runtime action.',
+  'PKG-002-CAPABILITY_GRANT_EXPIRED':
+    'Capability grant is expired at runtime decision time.',
+  'PKG-002-CAPABILITY_REPLAY_DETECTED':
+    'Capability grant replay attempt was detected.',
   'PKG-002-CAP_EXPANSION_PENDING':
     'Capability expansion requires explicit re-approval.',
   'PKG-003-API_RANGE_MISMATCH':
     'Manifest api_contract_range does not match runtime version.',
+  'PKG-003-POLICY_INCOMPATIBLE':
+    'Runtime policy posture is incompatible with requested action.',
+  'PKG-003-DIRECT_ACCESS_DENIED':
+    'Direct runtime/filesystem/network access outside membrane is denied.',
   'PKG-003-MIGRATION_CONTRACT_REQUIRED':
     'Package requires migration_contract for versioned data schemas.',
   'PKG-004-MIGRATION_FAILED':
@@ -56,7 +69,7 @@ export const PACKAGE_LIFECYCLE_REASON_CODES = {
 
 export const PackageLifecycleReasonCodeSchema = z
   .string()
-  .regex(/^(PKG-00[1-8]|API-003)-[A-Z0-9][A-Z0-9-]*$/);
+  .regex(/^(PKG-00[1-8]|API-003)-[A-Z0-9][A-Z0-9_-]*$/);
 export type PackageLifecycleReasonCode = z.infer<
   typeof PackageLifecycleReasonCodeSchema
 >;
@@ -79,6 +92,9 @@ export const PACKAGE_LIFECYCLE_REASON_CODE_REQUIRED_EVENT_TYPES = [
   'pkg_enable_blocked',
   'pkg_update_rolled_back',
   'pkg_import_rejected',
+  'pkg_runtime_admission_decided',
+  'pkg_runtime_action_decided',
+  'pkg_quarantined',
 ] as const satisfies readonly PackageLifecycleEventType[];
 
 const reasonCodeRequiredTypes = new Set<string>(
@@ -101,4 +117,3 @@ export const PackageLifecycleDecisionEventSchema =
 export type PackageLifecycleDecisionEvent = z.infer<
   typeof PackageLifecycleDecisionEventSchema
 >;
-
