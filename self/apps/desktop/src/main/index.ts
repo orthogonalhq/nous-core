@@ -12,6 +12,9 @@ interface StoredLayout {
 
 const store = new Store<{ layoutStore: StoredLayout | undefined }>()
 
+// Hoisted window reference — needed by IPC handlers registered before createWindow
+let win: BrowserWindow | null = null
+
 // IPC handlers registered once — before any window is created
 ipcMain.handle('layout:get', () => {
   const stored = store.get('layoutStore')
@@ -49,6 +52,12 @@ ipcMain.handle('fs:readFile', async (_event, filePath: string) => {
   }
 })
 
+// Window control handlers — used by the custom frameless titlebar
+ipcMain.handle('win:minimize',    () => win?.minimize())
+ipcMain.handle('win:maximize',    () => { if (win) win.isMaximized() ? win.unmaximize() : win.maximize() })
+ipcMain.handle('win:close',       () => win?.close())
+ipcMain.handle('win:isMaximized', () => win?.isMaximized() ?? false)
+
 // Chat handlers — tRPC proxy to localhost:3000 with mock fallback
 // Lazy tRPC client — created on first use
 let trpcClient: ReturnType<typeof createTRPCClient> | null = null
@@ -82,12 +91,14 @@ ipcMain.handle('chat:send', async (_event, message: string) => {
 ipcMain.handle('chat:getHistory', () => chatHistory)
 
 function createWindow(): void {
-  const win = new BrowserWindow({
+  win = new BrowserWindow({
     width: 1400,
     height: 900,
     minWidth: 800,
     minHeight: 600,
     backgroundColor: '#18181b',
+    frame: false,
+    titleBarStyle: 'hidden',
     webPreferences: {
       preload: join(__dirname, '../preload/index.js'),
       contextIsolation: true,
@@ -101,6 +112,8 @@ function createWindow(): void {
   } else {
     win.loadFile(join(__dirname, '../renderer/index.html'))
   }
+
+  win.on('closed', () => { win = null })
 }
 
 app.whenReady().then(() => {

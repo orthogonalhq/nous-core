@@ -8,6 +8,8 @@ import {
   NodeProjectionPanel,
   MAOPanel,
 } from '@nous/ui/panels'
+import { TitleBar } from './components/TitleBar'
+import { StatusBar } from './components/StatusBar'
 
 import 'dockview-react/dist/styles/dockview.css'
 
@@ -22,6 +24,27 @@ const panelComponents = {
 // Loading state: undefined = not yet fetched; null = fetched, no saved layout
 type LayoutState = SerializedDockview | null | undefined
 
+// Outer chrome shell — titlebar + content area + statusbar
+function ChromeShell({ children }: { children: React.ReactNode }) {
+  return (
+    <div
+      style={{
+        display: 'flex',
+        flexDirection: 'column',
+        height: '100vh',
+        overflow: 'hidden',
+        background: '#18181b',
+      }}
+    >
+      <TitleBar />
+      <div style={{ flex: 1, overflow: 'hidden', minHeight: 0 }}>
+        {children}
+      </div>
+      <StatusBar />
+    </div>
+  )
+}
+
 export function App() {
   const [savedLayout, setSavedLayout] = useState<LayoutState>(undefined)
 
@@ -33,23 +56,29 @@ export function App() {
 
   if (savedLayout === undefined) {
     return (
-      <div
-        style={{
-          height: '100%',
-          display: 'flex',
-          alignItems: 'center',
-          justifyContent: 'center',
-          background: '#18181b',
-          color: '#71717a',
-          fontSize: '14px',
-        }}
-      >
-        Loading...
-      </div>
+      <ChromeShell>
+        <div
+          style={{
+            height: '100%',
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            background: '#18181b',
+            color: '#71717a',
+            fontSize: '13px',
+          }}
+        >
+          Loading...
+        </div>
+      </ChromeShell>
     )
   }
 
-  return <DockviewShell savedLayout={savedLayout} />
+  return (
+    <ChromeShell>
+      <DockviewShell savedLayout={savedLayout} />
+    </ChromeShell>
+  )
 }
 
 function DockviewShell({ savedLayout }: { savedLayout: SerializedDockview | null }) {

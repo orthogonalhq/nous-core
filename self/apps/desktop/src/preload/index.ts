@@ -15,4 +15,10 @@ contextBridge.exposeInMainWorld('electronAPI', {
     getHistory: (): Promise<{ role: string; content: string; timestamp: string }[]> =>
       ipcRenderer.invoke('chat:getHistory'),
   },
+  win: {
+    minimize:    (): Promise<void>    => ipcRenderer.invoke('win:minimize'),
+    maximize:    (): Promise<void>    => ipcRenderer.invoke('win:maximize'),
+    close:       (): Promise<void>    => ipcRenderer.invoke('win:close'),
+    isMaximized: (): Promise<boolean> => ipcRenderer.invoke('win:isMaximized'),
+  },
 })
