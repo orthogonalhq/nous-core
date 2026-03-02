@@ -44,22 +44,22 @@ export function FileBrowserPanel({ params }: FileBrowserPanelProps) {
   }
 
   return (
-    <div style={{ display: 'flex', flexDirection: 'column', height: '100%', background: 'var(--nous-bg)', color: 'var(--nous-fg)', fontSize: '13px' }}>
+    <div style={{ display: 'flex', flexDirection: 'column', height: '100%', color: 'var(--nous-fg)', fontSize: 'var(--nous-font-size-base)' }}>
       {/* Path bar */}
-      <div style={{ padding: '5px 8px', borderBottom: '1px solid var(--nous-border)', display: 'flex', alignItems: 'center', gap: '6px', background: 'var(--nous-bg-elevated)' }}>
+      <div style={{ padding: 'var(--nous-space-sm) var(--nous-space-md)', borderBottom: '1px solid var(--nous-border)', display: 'flex', alignItems: 'center', gap: 'var(--nous-space-sm)', background: 'var(--nous-bg-elevated)' }}>
         <button
           onClick={goUp}
-          style={{ background: 'none', border: 'none', color: 'var(--nous-fg-muted)', cursor: 'pointer', padding: '2px 4px', borderRadius: '3px', display: 'flex', alignItems: 'center' }}
+          style={{ background: 'none', border: 'none', color: 'var(--nous-fg-muted)', cursor: 'pointer', padding: 'var(--nous-space-2xs) var(--nous-space-xs)', borderRadius: 'var(--nous-radius-sm)', display: 'flex', alignItems: 'center' }}
           title="Go up"
         >
-          <i className="codicon codicon-arrow-up" style={{ fontSize: '13px' }} />
+          <i className="codicon codicon-arrow-up" style={{ fontSize: 'var(--nous-font-size-base)' }} />
         </button>
-        <span style={{ color: 'var(--nous-fg-subtle)', flex: 1, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', fontSize: '12px' }}>{currentPath}</span>
+        <span style={{ color: 'var(--nous-fg-subtle)', flex: 1, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', fontSize: 'var(--nous-font-size-sm)' }}>{currentPath}</span>
       </div>
       {/* File list */}
-      <div style={{ flex: 1, overflowY: 'auto', padding: '2px 0' }}>
-        {!fsApi && <div style={{ padding: '16px', color: 'var(--nous-fg-subtle)', textAlign: 'center' }}>File system API not connected.</div>}
-        {loading && <div style={{ padding: '16px', color: 'var(--nous-fg-subtle)', textAlign: 'center' }}>Loading...</div>}
+      <div style={{ flex: 1, overflowY: 'auto', padding: 'var(--nous-space-2xs) 0' }}>
+        {!fsApi && <div style={{ padding: 'var(--nous-space-2xl)', color: 'var(--nous-fg-subtle)', textAlign: 'center' }}>File system API not connected.</div>}
+        {loading && <div style={{ padding: 'var(--nous-space-2xl)', color: 'var(--nous-fg-subtle)', textAlign: 'center' }}>Loading...</div>}
         {!loading && entries.map(entry => (
           <div
             key={entry.path}
@@ -68,7 +68,7 @@ export function FileBrowserPanel({ params }: FileBrowserPanelProps) {
               else setSelected(entry.path)
             }}
             style={{
-              padding: '3px 12px', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '6px',
+              padding: 'var(--nous-space-2xs) var(--nous-space-xl)', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 'var(--nous-space-sm)',
               background: selected === entry.path ? 'var(--nous-selection)' : 'transparent',
               color: 'var(--nous-fg)',
             }}
@@ -77,7 +77,7 @@ export function FileBrowserPanel({ params }: FileBrowserPanelProps) {
           >
             <i
               className={`codicon ${entry.isDirectory ? 'codicon-folder' : 'codicon-file'}`}
-              style={{ fontSize: '14px', flexShrink: 0, color: entry.isDirectory ? 'var(--nous-icon-folder)' : 'var(--nous-fg-muted)' }}
+              style={{ fontSize: 'var(--nous-icon-size-sm)', flexShrink: 0, color: entry.isDirectory ? 'var(--nous-icon-folder)' : 'var(--nous-fg-muted)' }}
             />
             <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{entry.name}</span>
           </div>
@@ -85,7 +85,7 @@ export function FileBrowserPanel({ params }: FileBrowserPanelProps) {
       </div>
       {/* Status bar */}
       {selected && (
-        <div style={{ padding: '3px 12px', borderTop: '1px solid var(--nous-border)', color: 'var(--nous-fg-subtle)', fontSize: '11px', background: 'var(--nous-bg-elevated)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+        <div style={{ padding: 'var(--nous-space-2xs) var(--nous-space-xl)', borderTop: '1px solid var(--nous-border)', color: 'var(--nous-fg-subtle)', fontSize: 'var(--nous-font-size-xs)', background: 'var(--nous-bg-elevated)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
           {selected}
         </div>
       )}

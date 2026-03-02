@@ -11,13 +11,12 @@ export function PlaceholderPanel({ api }: IDockviewPanelProps) {
         flexDirection: 'column',
         alignItems: 'center',
         justifyContent: 'center',
-        background: 'var(--nous-bg)',
         color: 'var(--nous-fg-muted)',
       }}
     >
-      <div style={{ textAlign: 'center', gap: '6px', display: 'flex', flexDirection: 'column' }}>
-        <span style={{ fontSize: '16px', fontWeight: 600, color: 'var(--nous-fg)' }}>Nous</span>
-        <span style={{ fontSize: '12px', color: 'var(--nous-fg-subtle)' }}>Panel: {api.id}</span>
+      <div style={{ textAlign: 'center', gap: 'var(--nous-space-sm)', display: 'flex', flexDirection: 'column' }}>
+        <span style={{ fontSize: 'var(--nous-font-size-lg)', fontWeight: 'var(--nous-font-weight-semibold)' as any, color: 'var(--nous-fg)' }}>Nous</span>
+        <span style={{ fontSize: 'var(--nous-font-size-sm)', color: 'var(--nous-fg-subtle)' }}>Panel: {api.id}</span>
       </div>
     </div>
   )

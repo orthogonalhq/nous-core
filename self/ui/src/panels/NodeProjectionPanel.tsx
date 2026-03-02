@@ -55,14 +55,14 @@ export function NodeProjectionPanel({ params }: NodeProjectionPanelProps) {
   const [hoveredNode, setHoveredNode] = useState<string | null>(null)
 
   return (
-    <div style={{ display: 'flex', flexDirection: 'column', height: '100%', background: 'var(--nous-bg)', color: 'var(--nous-fg)' }}>
+    <div style={{ display: 'flex', flexDirection: 'column', height: '100%', color: 'var(--nous-fg)' }}>
       {/* Header */}
-      <div style={{ padding: '8px 16px', borderBottom: '1px solid var(--nous-border)', fontSize: '11px', color: 'var(--nous-fg-muted)', display: 'flex', justifyContent: 'space-between', textTransform: 'uppercase', letterSpacing: '0.06em' }}>
-        <span style={{ fontWeight: 600 }}>Node Projection</span>
+      <div style={{ padding: 'var(--nous-space-md) var(--nous-space-2xl)', borderBottom: '1px solid var(--nous-border)', fontSize: 'var(--nous-font-size-xs)', color: 'var(--nous-fg-muted)', display: 'flex', justifyContent: 'space-between', textTransform: 'uppercase', letterSpacing: '0.06em' }}>
+        <span style={{ fontWeight: 'var(--nous-font-weight-semibold)' as any }}>Node Projection</span>
         <span style={{ color: 'var(--nous-fg-subtle)', textTransform: 'none', letterSpacing: 0 }}>{graph.skillId}</span>
       </div>
       {/* Graph */}
-      <div style={{ flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '16px' }}>
+      <div style={{ flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 'var(--nous-space-2xl)' }}>
         <svg viewBox="0 0 600 340" style={{ width: '100%', maxWidth: '600px', height: 'auto' }}>
           <defs>
             <marker id="arrow" markerWidth="8" markerHeight="8" refX="6" refY="3" orient="auto">
@@ -112,7 +112,7 @@ export function NodeProjectionPanel({ params }: NodeProjectionPanelProps) {
         </svg>
       </div>
       {/* Footer */}
-      <div style={{ padding: '5px 16px', borderTop: '1px solid var(--nous-border)', fontSize: '11px', color: 'var(--nous-fg-subtle)', display: 'flex', justifyContent: 'space-between' }}>
+      <div style={{ padding: 'var(--nous-space-sm) var(--nous-space-2xl)', borderTop: '1px solid var(--nous-border)', fontSize: 'var(--nous-font-size-xs)', color: 'var(--nous-fg-subtle)', display: 'flex', justifyContent: 'space-between' }}>
         <span>{graph.nodes.length} nodes · {graph.edges.length} edges</span>
         <span>{new Date(graph.snapshotAt).toLocaleTimeString()}</span>
       </div>
