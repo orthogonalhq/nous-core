@@ -1,28 +1,31 @@
 /**
- * @nous/ui — Design token CSS custom properties
+ * @nous/ui — Design primitives
  *
- * Single source of truth for all colour, dimension, and state tokens.
- * Import via: import '@nous/ui/styles'
+ * Raw colour, dimension, scale, and state tokens.
+ * Component-level semantic aliases live in components.css.
  *
- * The JS mirror lives at src/tokens/index.ts for TypeScript consumers
- * (e.g. SVG/canvas code that cannot use CSS var()).
+ * Both files are imported via: import '@nous/ui/styles'
+ * The JS mirror lives at src/tokens/index.ts for TypeScript consumers.
  */
 
 :root {
   /* ── Backgrounds ─────────────────────────────────────────────────────── */
-  --nous-surface:      #141414;  /* outer "table" — panels sit on top of this */
-  --nous-bg:           #1e1e1e;
-  --nous-bg-elevated:  #252526;
+  --nous-surface:        #030303;  /* outer "table" — panels sit on top of this */
+  --nous-surface-nested: #131313;  /* inset surface — nested widget gaps inside a panel */
+  --nous-bg:             #131313;
+  --nous-bg-elevated:    #1d1d1d;
   --nous-bg-hover:     #2a2d2e;
-  --nous-bg-input:     #3c3c3c;
+  --nous-bg-input:     #3c3c3c53;
 
   /* ── Borders ─────────────────────────────────────────────────────────── */
-  --nous-border:        #3c3c3c;
-  --nous-border-subtle: #2d2d2d;
+  --nous-border:        #3c3c3c20;
+  --nous-border-subtle: #2d2d2d0a;
+
+  --nous-nested-panel-border: transparent;
 
   /* ── Foreground ──────────────────────────────────────────────────────── */
-  --nous-fg:        #cccccc;
-  --nous-fg-muted:  #9d9d9d;
+  --nous-fg:        #fafafa;
+  --nous-fg-muted:  #bababa;
   --nous-fg-dim:    #858585;
   --nous-fg-subtle: #6a6a6a;
 
@@ -62,10 +65,92 @@
   /* ── Overlay / shadow ────────────────────────────────────────────────── */
   --nous-btn-hover:    rgba(255,255,255,0.07);  /* subtle hover on frameless window controls & menu triggers */
   --nous-fg-on-color:  #ffffff;                  /* text on accent / error / selection backgrounds */
-  --nous-shadow:       rgba(0,0,0,0.4);          /* dropdown / floating element box-shadow */
+  --nous-shadow:       rgba(0,0,0,0.4);          /* DEPRECATED — use --nous-shadow-md instead */
   --nous-drag-over-bg: rgba(0,122,204,0.15);     /* dockview drag-over feedback tint */
 
-  /* ── Chrome dimensions ───────────────────────────────────────────────── */
-  --nous-titlebar-height:  30px;
-  --nous-statusbar-height: 22px;
+  /* ── Spacing ─────────────────────────────────────────────────────────── */
+  --nous-space-2xs:  2px;
+  --nous-space-xs:   4px;
+  --nous-space-sm:   6px;
+  --nous-space-md:   8px;
+  --nous-space-lg:  10px;
+  --nous-space-xl:  12px;
+  --nous-space-2xl: 16px;
+  --nous-space-3xl: 24px;
+  --nous-space-4xl: 32px;
+
+  /* ── Font size ──────────────────────────────────────────────────────── */
+  --nous-font-size-2xs:  9px;
+  --nous-font-size-xs:  11px;
+  --nous-font-size-sm:  12px;
+  --nous-font-size-base: 13px;
+  --nous-font-size-md:  14px;
+  --nous-font-size-lg:  16px;
+  --nous-font-size-xl:  20px;
+
+  /* ── Font weight ────────────────────────────────────────────────────── */
+  --nous-font-weight-regular:  400;
+  --nous-font-weight-medium:   500;
+  --nous-font-weight-semibold: 600;
+
+  /* ── Line height ────────────────────────────────────────────────────── */
+  --nous-line-height-tight:   1;
+  --nous-line-height-compact: 1.2;
+  --nous-line-height-normal:  1.4;
+
+  /* ── Font family ────────────────────────────────────────────────────── */
+  --nous-font-family:      "Segoe WPC", "Segoe UI", system-ui, -apple-system, Ubuntu, "Droid Sans", sans-serif;
+  --nous-font-family-mono: "Cascadia Code", "Fira Code", monospace;
+
+  /* ── Border radius ──────────────────────────────────────────────────── */
+  --nous-radius-xs: 4px;
+  --nous-radius-sm: 6px;
+  --nous-radius-md: 8px;
+  --nous-radius-lg: 12px;
+  --nous-radius-xl: 16px;
+  --nous-radius-2xl: 24px;
+  --nous-radius-full: 100%;
+
+  /* ── Shadow ─────────────────────────────────────────────────────────── */
+  --nous-shadow-sm: 0 1px 2px rgba(0,0,0,0.3);
+  --nous-shadow-md: 0 2px 8px rgba(0,0,0,0.4);
+  --nous-shadow-lg: 0 4px 16px rgba(0,0,0,0.5);
+
+  /* ── Z-index layers ─────────────────────────────────────────────────── */
+  --nous-z-base:     0;
+  --nous-z-dropdown: 100;
+  --nous-z-overlay:  200;
+  --nous-z-modal:    300;
+  --nous-z-toast:    400;
+
+  /* ── Transition duration ────────────────────────────────────────────── */
+  --nous-duration-micro:  100ms;
+  --nous-duration-fast:   150ms;
+  --nous-duration-normal: 200ms;
+  --nous-duration-slow:   300ms;
+
+  /* ── Easing curves ──────────────────────────────────────────────────── */
+  --nous-ease-out:    cubic-bezier(0.0, 0, 0.2, 1);
+  --nous-ease-in:     cubic-bezier(0.4, 0, 1, 1);
+  --nous-ease-in-out: cubic-bezier(0.4, 0, 0.2, 1);
+
+  /* ── Icon size ──────────────────────────────────────────────────────── */
+  --nous-icon-size-sm: 14px;
+  --nous-icon-size-md: 16px;
+  --nous-icon-size-lg: 20px;
+
+  /* ── Chrome dimensions ─────────────────────────────────────────────── */
+  --nous-titlebar-height:    30px;
+  --nous-statusbar-height:   22px;
+  --nous-titlebar-btn-width: 46px;
+  --nous-dv-tab-height:      35px;
+  --nous-dv-tab-height-nested: 28px;
+
+  /* ── Scrollbar ──────────────────────────────────────────────────────── */
+  --nous-scrollbar-size:        6px;
+  --nous-scrollbar-thumb:       rgba(255, 255, 255, 0.10);
+  --nous-scrollbar-thumb-hover: rgba(255, 255, 255, 0.25);
+
+  /* ── Overlay ────────────────────────────────────────────────────────── */
+  --nous-overlay-bg: rgba(0, 0, 0, 0.5);
 }

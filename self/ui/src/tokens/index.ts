@@ -8,7 +8,7 @@
  */
 export const tokens = {
   colors: {
-    surface:      '#141414',
+    surface:      '#0b0b0b',
     bg:           '#1e1e1e',
     bgElevated:   '#252526',
     bgHover:      '#2a2d2e',
@@ -56,8 +56,80 @@ export const tokens = {
     },
   },
 
+  space: {
+    '2xs': 2,
+    xs:    4,
+    sm:    6,
+    md:    8,
+    lg:   10,
+    xl:   12,
+    '2xl': 16,
+    '3xl': 24,
+    '4xl': 32,
+  },
+
+  fontSize: {
+    '2xs':  9,
+    xs:    11,
+    sm:    12,
+    base:  13,
+    md:    14,
+    lg:    16,
+    xl:    20,
+  },
+
+  fontWeight: {
+    regular:  400,
+    medium:   500,
+    semibold: 600,
+  },
+
+  lineHeight: {
+    tight:   1,
+    compact: 1.2,
+    normal:  1.4,
+  },
+
+  radius: {
+    xs: 2,
+    sm: 3,
+    md: 4,
+    lg: 8,
+    xl: 16,
+  },
+
+  shadow: {
+    sm: '0 1px 2px rgba(0,0,0,0.3)',
+    md: '0 2px 8px rgba(0,0,0,0.4)',
+    lg: '0 4px 16px rgba(0,0,0,0.5)',
+  },
+
+  zIndex: {
+    base:     0,
+    dropdown: 100,
+    overlay:  200,
+    modal:    300,
+    toast:    400,
+  },
+
+  duration: {
+    micro:  100,
+    fast:   150,
+    normal: 200,
+    slow:   300,
+  },
+
+  iconSize: {
+    sm: 14,
+    md: 16,
+    lg: 20,
+  },
+
   chrome: {
-    titlebarHeight:  30,  // px
-    statusbarHeight: 22,  // px
+    titlebarHeight:    30,
+    statusbarHeight:   22,
+    titlebarBtnWidth:  46,
+    dvTabHeight:       35,
+    dvTabHeightNested: 28,
   },
 } as const

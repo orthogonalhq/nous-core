@@ -9,7 +9,10 @@
     "./panels": "./src/panels/index.ts",
     "./components": "./src/components/index.ts",
     "./tokens": "./src/tokens/index.ts",
-    "./styles": "./src/styles/tokens.css",
+    "./styles": "./src/styles/index.css",
+    "./styles/tokens": "./src/styles/tokens.css",
+    "./styles/components": "./src/styles/components.css",
+    "./styles/nous-dark": "./src/styles/nous-dark.css",
     "./lib/cn": "./src/lib/cn.ts"
   },
   "dependencies": {
