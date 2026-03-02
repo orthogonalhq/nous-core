@@ -17,12 +17,15 @@
 4. `.skills/.contracts/` is the canonical path for workflow/process lane contracts.
 5. Do not use or reference user-home/global skill directories.
 
-### Packet Reinforcement Contract (Authoritative)
+### Packet Contract (`nous.v: 3`) (Authoritative)
 
-1. Every packet MUST include both `reinforcement` and `context_hydration_ack`.
-2. Canonical schema and semantics are defined in `self/shared/contracts/reinforcement-packet-contract.md`.
-3. Single-packet invariant is mandatory: one fenced packet block == one node-to-node connection, no nested packet envelopes.
-4. Missing or mismatched reinforcement/context hydration fields are fail-close contract violations.
+1. `nous.v: 3` is the canonical packet header format for this repository.
+2. `route.*.id` MUST use step-qualified endpoint IDs: `<workspace>::<agent_scope>::<agent_task_or_mode>::<step>`.
+3. `route.*.class`, `route.*.node`, `envelope.workflow`, and `envelope.action` are derived in v3 and MUST NOT be present.
+4. YAML packet-body `reinforcement:` and top-level `context_hydration_ack` are legacy and MUST NOT be present in v3 packets.
+5. Context hydration and execution instructions MUST be expressed as the inline v3 agent directive in packet body text.
+6. Single-packet invariant is mandatory: one fenced packet block == one node-to-node connection, no nested packet envelopes.
+7. Canonical schema and validation semantics are defined in `.skills/.contracts/handoff-contract.md` and `self/shared/contracts/reinforcement-packet-contract.md`.
 
 ### Changelog Drift Guard (Authoritative)
 
