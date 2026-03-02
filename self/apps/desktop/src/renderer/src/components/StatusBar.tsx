@@ -7,13 +7,13 @@ export function StatusBar() {
         display: 'flex',
         alignItems: 'center',
         justifyContent: 'space-between',
-        height: '22px',
-        minHeight: '22px',
+        height: 'var(--nous-statusbar-height)',
+        minHeight: 'var(--nous-statusbar-height)',
         padding: '0 0',
-        background: 'var(--nous-bg)',
-        borderTop: '1px solid var(--nous-border-subtle)',
-        fontSize: '11px',
-        color: 'var(--nous-fg-subtle)',
+        background: 'var(--nous-footer-bg)',
+        borderTop: '1px solid var(--nous-footer-border)',
+        fontSize: 'var(--nous-font-size-xs)',
+        color: 'var(--nous-footer-fg)',
         userSelect: 'none',
         flexShrink: 0,
       }}
@@ -24,13 +24,13 @@ export function StatusBar() {
           style={{
             display: 'flex',
             alignItems: 'center',
-            gap: '5px',
-            padding: '0 10px',
+            gap: 'var(--nous-space-sm)',
+            padding: '0 var(--nous-space-lg)',
             height: '100%',
             cursor: 'default',
           }}
         >
-          <span style={{ fontSize: '9px', lineHeight: 1 }}>◈</span>
+          <span style={{ fontSize: 'var(--nous-font-size-2xs)', lineHeight: 'var(--nous-line-height-tight)' }}>◈</span>
           <span>phase-7.3</span>
         </div>
 
@@ -38,12 +38,12 @@ export function StatusBar() {
           style={{
             display: 'flex',
             alignItems: 'center',
-            gap: '4px',
-            padding: '0 8px',
+            gap: 'var(--nous-space-xs)',
+            padding: '0 var(--nous-space-md)',
           }}
         >
-          <span style={{ display: 'flex', alignItems: 'center', gap: '4px' }}>
-            <span style={{ fontSize: '8px' }}>●</span>
+          <span style={{ display: 'flex', alignItems: 'center', gap: 'var(--nous-space-xs)' }}>
+            <span style={{ fontSize: 'var(--nous-indicator-size)' }}>●</span>
             <span>ready</span>
           </span>
         </div>
@@ -57,7 +57,7 @@ export function StatusBar() {
           height: '100%',
         }}
       >
-        <div style={{ padding: '0 10px' }}>v0.0.1</div>
+        <div style={{ padding: '0 var(--nous-space-lg)' }}>v0.0.1</div>
       </div>
     </div>
   )

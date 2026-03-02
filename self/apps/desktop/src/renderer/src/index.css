@@ -1,4 +1,4 @@
-/* Design tokens are loaded from @nous/ui/styles (imported in main.tsx). */
+/* Design tokens + theme are loaded from @nous/ui/styles (imported in main.tsx). */
 
 *,
 *::before,
@@ -17,10 +17,9 @@ body,
 }
 
 body {
-  /* VS Code / Cursor font stack */
-  font-family: "Segoe WPC", "Segoe UI", system-ui, -apple-system, Ubuntu, "Droid Sans", sans-serif;
-  font-size: 13px;
-  line-height: 1.4;
+  font-family: var(--nous-font-family);
+  font-size: var(--nous-font-size-base);
+  line-height: var(--nous-line-height-normal);
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
   background: var(--nous-bg);
@@ -34,58 +33,4 @@ textarea,
 select,
 a {
   -webkit-app-region: no-drag;
-}
-
-/* ─── Dockview theme overrides ─────────────────────────────────────────────── */
-.dockview-theme-dark {
-  /* Card layout — padding exposes the surface behind panels */
-  box-sizing: border-box;
-  padding: 6px;
-  --dv-border-radius: 8px;
-
-  --dv-background-color:                               var(--nous-surface);
-  --dv-group-view-background-color:                    var(--nous-surface);
-  --dv-tabs-and-actions-container-background-color:    var(--nous-bg-elevated);
-  --dv-tabs-and-actions-container-height:              35px;
-  --dv-tabs-and-actions-container-font-size:           13px;
-  --dv-activegroup-visiblepanel-tab-background-color:  var(--nous-bg);
-  --dv-activegroup-visiblepanel-tab-color:             var(--nous-fg);
-  --dv-activegroup-hiddenpanel-tab-background-color:   var(--nous-bg-elevated);
-  --dv-activegroup-hiddenpanel-tab-color:              var(--nous-fg-muted);
-  --dv-inactivegroup-visiblepanel-tab-background-color:var(--nous-bg-elevated);
-  --dv-inactivegroup-visiblepanel-tab-color:           var(--nous-fg-muted);
-  --dv-inactivegroup-hiddenpanel-tab-background-color: var(--nous-bg-elevated);
-  --dv-inactivegroup-hiddenpanel-tab-color:            var(--nous-fg-subtle);
-  --dv-separator-border:                               var(--nous-border);
-  --dv-tab-divider-color:                              var(--nous-border);
-  --dv-drag-over-background-color:                     var(--nous-drag-over-bg);
-  --dv-drag-over-border-color:                         var(--nous-accent);
-  --dv-editor-tabs-container-scrollbar-color:          var(--nous-border);
-}
-
-/* ─── Panel cards ───────────────────────────────────────────────────────────── */
-/* The resize wrapper that holds each group gets rounded corners */
-.dockview-theme-dark .dv-resize-container:has(> .dv-groupview) {
-  border-radius: var(--dv-border-radius);
-}
-.dockview-theme-dark .dv-resize-container {
-  border-radius: var(--dv-border-radius) !important;
-  border: none;
-}
-/* Each panel group clips its content to the card shape */
-.dockview-theme-dark .dv-groupview {
-  overflow: hidden;
-  border-radius: var(--dv-border-radius);
-}
-/* Subtle border distinguishes active from inactive cards */
-.dockview-theme-dark .dv-groupview.dv-active-group {
-  border: 1px solid var(--nous-border);
-}
-.dockview-theme-dark .dv-groupview.dv-inactive-group {
-  border: 1px solid var(--nous-border-subtle);
-}
-/* Sash (the drag-to-resize handle between panels) is transparent —
-   the surface color shows through it, acting as the visible gap */
-.dockview-theme-dark .dv-sash {
-  background-color: transparent;
 }

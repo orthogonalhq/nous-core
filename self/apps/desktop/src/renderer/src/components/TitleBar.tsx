@@ -1,6 +1,7 @@
 'use client'
 import { useState, useEffect, useCallback } from 'react'
 import type { CSSProperties } from 'react'
+import type { DockviewApi } from 'dockview-react'
 import { AppMenuBar } from './MenuBar'
 
 // Electron-specific CSS property not in standard CSSProperties
@@ -8,7 +9,7 @@ type ElectronStyle = CSSProperties & { WebkitAppRegion?: 'drag' | 'no-drag' }
 
 const winAPI = () => (window as any).electronAPI?.win
 
-export function TitleBar() {
+export function TitleBar({ dockviewApi }: { dockviewApi: DockviewApi | null }) {
   const [isMaximized, setIsMaximized] = useState(false)
   const [btnHover, setBtnHover] = useState<'min' | 'max' | 'close' | null>(null)
 
@@ -36,9 +37,10 @@ export function TitleBar() {
       style={{
         display: 'flex',
         alignItems: 'center',
-        height: '30px',
-        minHeight: '30px',
-        background: 'var(--nous-bg)',
+        height: 'var(--nous-titlebar-height)',
+        minHeight: 'var(--nous-titlebar-height)',
+        background: 'var(--nous-header-bg)',
+        borderBottom: '1px solid var(--nous-header-border)',
         WebkitAppRegion: 'drag',
         userSelect: 'none',
         flexShrink: 0,
@@ -49,19 +51,19 @@ export function TitleBar() {
         style={{
           display: 'flex',
           alignItems: 'center',
-          gap: '7px',
-          padding: '0 10px 0 14px',
+          gap: 'var(--nous-space-md)',
+          padding: '0 var(--nous-space-lg) 0 var(--nous-space-xl)',
           WebkitAppRegion: 'no-drag',
           pointerEvents: 'none',
           flexShrink: 0,
         } as ElectronStyle}
       >
-        <span style={{ fontSize: '13px', color: 'var(--nous-fg-dim)', lineHeight: 1 }}>◈</span>
+        <span style={{ fontSize: 'var(--nous-font-size-base)', color: 'var(--nous-header-fg)', lineHeight: 'var(--nous-line-height-tight)' }}>◈</span>
         <span
           style={{
-            fontSize: '12px',
-            fontWeight: 500,
-            color: 'var(--nous-fg-dim)',
+            fontSize: 'var(--nous-font-size-sm)',
+            fontWeight: 'var(--nous-font-weight-medium)' as any,
+            color: 'var(--nous-header-fg)',
             letterSpacing: '0.01em',
           }}
         >
@@ -70,7 +72,7 @@ export function TitleBar() {
       </div>
 
       {/* Menu bar — File / View / Help */}
-      <AppMenuBar />
+      <AppMenuBar dockviewApi={dockviewApi} />
 
       {/* Drag region fills the middle */}
       <div style={{ flex: 1 }} />
@@ -89,17 +91,17 @@ export function TitleBar() {
           onMouseEnter={() => setBtnHover('min')}
           onMouseLeave={() => setBtnHover(null)}
           style={{
-            width: '46px',
-            height: '30px',
+            width: 'var(--nous-titlebar-btn-width)',
+            height: 'var(--nous-titlebar-height)',
             display: 'flex',
             alignItems: 'center',
             justifyContent: 'center',
             background: btnHover === 'min' ? 'var(--nous-btn-hover)' : 'transparent',
             border: 'none',
             cursor: 'default',
-            color: 'var(--nous-fg-dim)',
-            fontSize: '11px',
-            transition: 'background 0.1s',
+            color: 'var(--nous-header-fg)',
+            fontSize: 'var(--nous-font-size-xs)',
+            transition: 'background var(--nous-duration-micro) var(--nous-ease-in-out)',
           }}
           title="Minimize"
         >
@@ -112,17 +114,17 @@ export function TitleBar() {
           onMouseEnter={() => setBtnHover('max')}
           onMouseLeave={() => setBtnHover(null)}
           style={{
-            width: '46px',
-            height: '30px',
+            width: 'var(--nous-titlebar-btn-width)',
+            height: 'var(--nous-titlebar-height)',
             display: 'flex',
             alignItems: 'center',
             justifyContent: 'center',
             background: btnHover === 'max' ? 'var(--nous-btn-hover)' : 'transparent',
             border: 'none',
             cursor: 'default',
-            color: 'var(--nous-fg-dim)',
-            fontSize: '11px',
-            transition: 'background 0.1s',
+            color: 'var(--nous-header-fg)',
+            fontSize: 'var(--nous-font-size-xs)',
+            transition: 'background var(--nous-duration-micro) var(--nous-ease-in-out)',
           }}
           title={isMaximized ? 'Restore' : 'Maximize'}
         >
@@ -135,17 +137,17 @@ export function TitleBar() {
           onMouseEnter={() => setBtnHover('close')}
           onMouseLeave={() => setBtnHover(null)}
           style={{
-            width: '46px',
-            height: '30px',
+            width: 'var(--nous-titlebar-btn-width)',
+            height: 'var(--nous-titlebar-height)',
             display: 'flex',
             alignItems: 'center',
             justifyContent: 'center',
             background: btnHover === 'close' ? 'var(--nous-close-btn)' : 'transparent',
             border: 'none',
             cursor: 'default',
-            color: btnHover === 'close' ? 'var(--nous-fg-on-color)' : 'var(--nous-fg-dim)',
-            fontSize: '12px',
-            transition: 'background 0.1s, color 0.1s',
+            color: btnHover === 'close' ? 'var(--nous-fg-on-color)' : 'var(--nous-header-fg)',
+            fontSize: 'var(--nous-font-size-sm)',
+            transition: 'background var(--nous-duration-micro) var(--nous-ease-in-out), color var(--nous-duration-micro) var(--nous-ease-in-out)',
           }}
           title="Close"
         >

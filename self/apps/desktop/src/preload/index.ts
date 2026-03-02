@@ -15,6 +15,9 @@ contextBridge.exposeInMainWorld('electronAPI', {
     getHistory: (): Promise<{ role: string; content: string; timestamp: string }[]> =>
       ipcRenderer.invoke('chat:getHistory'),
   },
+  usage: {
+    getSnapshot: (): Promise<unknown> => ipcRenderer.invoke('usage:getSnapshot'),
+  },
   win: {
     minimize:         (): Promise<void>    => ipcRenderer.invoke('win:minimize'),
     maximize:         (): Promise<void>    => ipcRenderer.invoke('win:maximize'),

@@ -2,6 +2,7 @@ import React from 'react'
 import ReactDOM from 'react-dom/client'
 import { App } from './App'
 import '@nous/ui/styles'
+import '@nous/ui/styles/nous-dark'
 import '@vscode/codicons/dist/codicon.css'
 import './index.css'
 
