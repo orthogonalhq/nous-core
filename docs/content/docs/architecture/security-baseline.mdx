@@ -91,11 +91,23 @@ Unsigned, revoked-signer, incompatible, or policy-violating package actions are 
 | `PKG-001-*` | Signature/verification failure | `PKG-001-UNSIGNED`, `PKG-001-REVOKED_SIGNER` |
 | `PKG-002-*` | Capability approval required | `PKG-002-CAP_EXPANSION_PENDING` |
 | `PKG-003-*` | Compatibility gate failure | `PKG-003-API_RANGE_MISMATCH` |
-| `PKG-004-*` | Update/rollback outcome | `PKG-004-ROLLBACK_MIGRATION_FAILED` |
-| `PKG-005-*` | Evidence completeness | `PKG-005-MISSING_WITNESS_REF` |
+| `PKG-004-*` | Update/rollback outcome | `PKG-004-UPDATE_STAGE_CHECK_FAILED`, `PKG-004-ROLLBACK_TRUST_CHECK_FAILED` |
+| `PKG-005-*` | Evidence and lifecycle transition completeness | `PKG-005-MISSING_WITNESS_REF`, `PKG-005-INVALID_TRANSITION`, `PKG-005-REMOVE_RETENTION_DECISION_REQUIRED` |
 | `PKG-006-*` | Draft state violation | `PKG-006-EXEC_ATTEMPT_IN_DRAFT` |
 | `PKG-007-*` | Cross-instance trust | `PKG-007-RE_TRUST_REQUIRED` |
 | `PKG-008-*` | Import verification | `PKG-008-IMPORT_VERIFICATION_PENDING` |
+
+### Lifecycle Orchestration Controls (Phase 7.4)
+
+Phase 7.4 adds deterministic lifecycle orchestration controls on top of Phase 7.2/7.3 package trust contracts:
+
+- explicit transition matrix enforcement (`ingest/install/enable/update/import/export/remove`)
+- staged update snapshots with previous-safe-version rollback targets
+- fail-closed rollback posture (`rolled_back` or `disabled`, never silent partial apply)
+- explicit remove retention governance (`export_then_remove` or `delete_confirmed`)
+- witness-linked lifecycle outcomes for allowed/blocked/rolled_back/disabled decisions
+
+Operationally, lifecycle success is invalid if witness linkage is missing; such transitions are treated as blocked (`PKG-005-*`).
 
 ### Interpreting Package Lifecycle Events
 
@@ -141,9 +153,10 @@ Phase 7.2 defines the shared contract layer that Phase 7.3 and Phase 7.4 enforce
 - **Package manifest schema** in `self/shared/src/types/package-manifest.ts`
   - requires: `id`, `name`, `version`, `package_type`, `origin_class`, `api_contract_range`, `capabilities`
   - enforces `self_created_local` requirements: `author_principal_id`, `origin_instance_id`
-- **Lifecycle event schema** in `self/shared/src/types/package-lifecycle.ts`
+- **Lifecycle event and transition schema** in `self/shared/src/types/package-lifecycle.ts`
   - standard event envelope: `event_type`, `package_id`, `package_version`, `origin_class`, `witness_ref`
   - blocked/denied event types require deterministic `reason_code`
+  - lifecycle state/transition contracts enforce valid transition ordering and reason-coded blocked outcomes
 - **Compatibility gate schema/helpers** in `self/shared/src/types/package-compatibility.ts`
   - semver range evaluation (`api_contract_range` vs runtime SDK version)
   - capability delta computation with explicit re-approval requirement on expansion (`PKG-002-*`)

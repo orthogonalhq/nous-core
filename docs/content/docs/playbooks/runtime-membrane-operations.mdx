@@ -1,24 +1,29 @@
 ---
 title: Runtime Membrane Operations
-description: Operator guidance for capability approvals, blocked actions, and quarantine behavior
+description: Operator guidance for capability approvals, lifecycle blocked actions, and quarantine behavior
 ---
 
 # Runtime Membrane Operations
 
-Phase 7.3 introduces governed runtime membrane controls for package execution. This playbook covers how to interpret and handle approvals, blocked actions, and quarantine outcomes.
+Phases 7.3 and 7.4 introduce governed runtime membrane and lifecycle controls for package execution. This playbook covers how to interpret and handle approvals, blocked actions, lifecycle outcomes, and quarantine states.
 
 ## Capability Approvals
 
 ### When approvals are required
 
-Approvals are required for elevated package actions where `requires_approval` is true for the requested capability/action.
+Approvals are required when:
+
+- `requires_approval` is true for the requested capability/action
+- install or update introduces capability expansion (`PKG-002-CAP_EXPANSION_PENDING`)
+- import posture requires receiving-instance re-verification/re-approval (`PKG-008-*`)
 
 ### Approval flow
 
 1. Package request enters membrane admission.
 2. Runtime checks trust/signature/policy compatibility.
-3. Capability grant is validated (scope, status, expiry, replay state).
-4. Membrane emits `allow`, `deny`, or `quarantine` with a reason code.
+3. Lifecycle gate checks transition validity and current package state.
+4. Capability grant is validated (scope, status, expiry, replay state).
+5. Membrane/lifecycle emits `allow`, `deny`, `quarantine`, `rolled_back`, or `disabled` with a reason code.
 
 ### Scope and anti-replay
 
@@ -46,8 +51,42 @@ Expired grants are denied with `PKG-002-CAPABILITY_GRANT_EXPIRED`.
 | `PKG-002-CAPABILITY_SCOPE_MISMATCH` | Grant scope does not match requested action | Grant is valid but not for this surface/action |
 | `PKG-002-CAPABILITY_GRANT_EXPIRED` | Approval grant expired | Re-approval required |
 | `PKG-002-CAPABILITY_REPLAY_DETECTED` | Grant nonce replay detected | Security protection triggered; investigate duplicate/replayed request |
+| `PKG-002-CAP_EXPANSION_PENDING` | Update/install adds capability scope | Explicit re-approval required before transition can continue |
 | `PKG-003-DIRECT_ACCESS_DENIED` | Direct host access attempted | Package attempted forbidden direct access outside membrane |
 | `PKG-003-POLICY_INCOMPATIBLE` | Policy/control-state incompatible | Project/runtime policy currently blocks this request |
+| `PKG-003-API_RANGE_MISMATCH` | Package API contract incompatible with runtime | Update/import/install cannot proceed until compatible package/runtime version is used |
+| `PKG-004-UPDATE_STAGE_CHECK_FAILED` | Staged update checks did not pass | Review compatibility, migration, and health check evidence before retry |
+| `PKG-004-ROLLBACK_TRUST_CHECK_FAILED` | Rollback target failed trust/verification checks | Package is forced to safe disabled posture until trusted rollback target exists |
+| `PKG-005-INVALID_TRANSITION` | Lifecycle transition is not allowed from current state | Request sequencing is invalid; run required prior transition first |
+| `PKG-005-REMOVE_RETENTION_DECISION_REQUIRED` | Remove requested without retention decision | Supply explicit `export_then_remove` or `delete_confirmed` decision |
+| `PKG-007-RE_TRUST_REQUIRED` | Cross-instance trust cannot be auto-transferred | Complete receiving-instance trust workflow |
+| `PKG-008-IMPORT_VERIFICATION_PENDING` | Imported package not yet re-verified/re-approved | Keep blocked until verification and approval complete |
+
+## Lifecycle Outcomes (Phase 7.4)
+
+Lifecycle orchestration now enforces deterministic transitions for:
+
+- `ingest -> install -> enable`
+- `enable -> stage_update -> commit_update`
+- `stage_update -> rollback_update` (or forced disabled on trust failure)
+- `export/remove` with explicit retention posture
+- `import -> import_verified -> enable`
+
+### Update and rollback handling
+
+1. `stage_update` records a previous safe version snapshot.
+2. Compatibility, migration, and health checks run before commit.
+3. If commit checks fail, lifecycle transitions to deterministic rollback behavior.
+4. If rollback target trust checks fail, package transitions to `disabled` (fail-closed).
+
+### Remove handling
+
+Remove is blocked until one of:
+
+- `export_then_remove`
+- `delete_confirmed`
+
+is explicitly provided and evidence-linked.
 
 ## Quarantine Behavior
 
@@ -68,6 +107,7 @@ Expired grants are denied with `PKG-002-CAPABILITY_GRANT_EXPIRED`.
 
 1. Verify signer/trust evidence and package provenance.
 2. Complete required re-verification/re-approval workflow for imported or changed package state.
-3. Confirm policy/control-state allows execution.
-4. Retry only after posture is restored and a valid scoped approval grant exists.
+3. Confirm lifecycle transition ordering is valid for the requested action.
+4. Confirm policy/control-state allows execution.
+5. Retry only after posture is restored and a valid scoped approval grant exists.
 
