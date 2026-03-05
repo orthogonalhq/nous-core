@@ -61,6 +61,9 @@ import type {
   GtmGateReportInput,
   GtmGateReport,
   GtmStageLabel,
+  PackageLifecycleTransitionRequest,
+  PackageLifecycleTransitionResult,
+  PackageLifecycleStateRecord,
 } from '../types/index.js';
 import type { NousEvent } from '../events/index.js';
 
@@ -164,6 +167,59 @@ export interface ISandbox {
 
   /** Check if a capability is permitted for the current sandbox profile. */
   hasCapability(capability: string, declaredCapabilities?: readonly string[]): boolean;
+}
+
+export interface IPackageLifecycleOrchestrator {
+  /** Process package ingestion and create initial lifecycle state. */
+  ingest(
+    request: PackageLifecycleTransitionRequest,
+  ): Promise<PackageLifecycleTransitionResult>;
+
+  /** Process package install transition with trust/compatibility/capability checks. */
+  install(
+    request: PackageLifecycleTransitionRequest,
+  ): Promise<PackageLifecycleTransitionResult>;
+
+  /** Process package enable transition with runtime admission checks. */
+  enable(
+    request: PackageLifecycleTransitionRequest,
+  ): Promise<PackageLifecycleTransitionResult>;
+
+  /** Stage package update while preserving previous safe version snapshot. */
+  stageUpdate(
+    request: PackageLifecycleTransitionRequest,
+  ): Promise<PackageLifecycleTransitionResult>;
+
+  /** Commit staged update or return deterministic blocked/rollback decision. */
+  commitUpdate(
+    request: PackageLifecycleTransitionRequest,
+  ): Promise<PackageLifecycleTransitionResult>;
+
+  /** Roll back staged update to previous safe version or disable when trust checks fail. */
+  rollbackUpdate(
+    request: PackageLifecycleTransitionRequest,
+  ): Promise<PackageLifecycleTransitionResult>;
+
+  /** Export package with deterministic lifecycle evidence. */
+  exportPackage(
+    request: PackageLifecycleTransitionRequest,
+  ): Promise<PackageLifecycleTransitionResult>;
+
+  /** Import package with explicit re-verification and re-approval gates. */
+  importPackage(
+    request: PackageLifecycleTransitionRequest,
+  ): Promise<PackageLifecycleTransitionResult>;
+
+  /** Remove package after explicit retention decision governance checks. */
+  removePackage(
+    request: PackageLifecycleTransitionRequest,
+  ): Promise<PackageLifecycleTransitionResult>;
+
+  /** Retrieve canonical lifecycle state for project/package identity. */
+  getState(
+    projectId: ProjectId,
+    packageId: string,
+  ): Promise<PackageLifecycleStateRecord | null>;
 }
 
 export interface IProjectApi {

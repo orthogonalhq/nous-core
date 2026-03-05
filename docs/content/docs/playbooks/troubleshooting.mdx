@@ -39,12 +39,12 @@ ollama pull llama3.2:3b
 
 ## Tests Fail from Root (Workspace Resolution)
 
-**Symptom:** `pnpm test` from root fails for packages that import `@nous/shared` or other workspace packages.
+**Symptom:** Root test runs fail with package import resolution errors (for example `Cannot find package '@nous/shared'`) or discover unexpected `dist/` test files.
 
-**Fix:** Run tests per-package:
-```bash
-pnpm exec vitest run --config self/<layer>/<package>/vitest.config.ts
-```
+**Fix:**
+- Run root tests through the workspace command: `pnpm test`
+- Run package-local tests with each package script: `pnpm --filter <package-name> test`
+- Avoid ad-hoc root invocation (`pnpm exec vitest run`) unless you explicitly pass the intended config file
 
 ## Config Validation Errors
 

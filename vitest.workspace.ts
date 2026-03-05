@@ -7,6 +7,7 @@ export default defineWorkspace([
   'self/autonomic/storage',
   'self/autonomic/embeddings',
   'self/autonomic/health',
+  'self/subcortex/sandbox',
   'self/subcortex/providers',
   'self/subcortex/router',
   'self/subcortex/tools',
@@ -25,6 +26,7 @@ export default defineWorkspace([
   'self/cortex/pfc',
   'self/cortex/core',
   'self/apps/web',
+  'self/apps/cli',
   'scripts/install',
   'scripts/benchmark',
 ]);

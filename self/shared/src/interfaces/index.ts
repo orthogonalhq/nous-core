@@ -21,6 +21,7 @@ export type {
   IScheduler,
   IEscalationService,
   ISandbox,
+  IPackageLifecycleOrchestrator,
   IWitnessService,
   IOpctlService,
   IMaoProjectionService,
