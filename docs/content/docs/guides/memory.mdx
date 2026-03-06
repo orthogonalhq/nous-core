@@ -86,6 +86,17 @@ Retrieval is policy-enforced. All retrieval paths run through `PolicyEnforcedRet
 
 Retrieval responses have the shape `{ results, policyDenial?, selectionAudit? }`. Use `response.results` for the scored entries; use `response.policyDenial` when present to trace denied or degraded outcomes.
 
+### Vector Indexing Foundation (Phase 8.1)
+
+Approved writes can now be indexed through the vector foundation path (embed -> validate -> upsert) before durable completion. This path is deterministic and fail-closed:
+
+- If embedding generation or metadata validation fails, indexing is rejected and the write is not completed through the indexing path.
+- Indexed vectors carry provenance metadata (`modelId`, `modelVersion`, `modelHash`, `requestId`, `generatedAt`, `inputHash`) plus trace/evidence linkage.
+- Retrieval candidate ordering is deterministic for score ties (`score DESC`, then `entry.id ASC`).
+- Token-budget truncation is deterministic; when `tokenBudget <= 0`, retrieval returns an empty result set with truncation telemetry.
+
+These guarantees make retrieval behavior replayable and auditable across equivalent inputs.
+
 **Cross-project retrieval (Phase 6.1):** When a query specifies `targetProjectIds` explicitly, the engine evaluates policy for each target project before retrieving. No hidden cross-project joins — all cross-project reads are explicit and policy-gated. The response includes `selectionAudit` when cross-project scope is used: `projectIdsQueried`, `candidateCount`, `resultCount`, and `truncationReason` (token_budget, result_cap, or none). Selection policy enforces token budget and result cap; policy denial cannot be bypassed by any recommendation path.
 
 **Project discovery (Phase 6.2–6.3):** Cross-project retrieval can be filtered by project relevance. The Knowledge Index provides:

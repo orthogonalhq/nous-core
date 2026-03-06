@@ -511,18 +511,18 @@ Persistence abstraction layer with multiple backend types.
 
 ```
 storage/
-├── interfaces/                       # Storage contracts
-├── vector/                           # Vector storage backends
-│   ├── sqlite-vec/
-│   ├── qdrant/
-│   └── ...
-├── document/                         # Structured document storage
-└── graph/                            # Graph storage (for relationships)
+├── src/
+│   ├── sqlite-document-store.ts      # Structured document storage
+│   ├── sqlite-vector-store.ts        # IVectorStore local runtime backend
+│   ├── in-memory-vector-store.ts     # Deterministic test/runtime baseline
+│   ├── in-memory-document-store.ts   # In-memory document baseline
+│   └── stubs.ts                      # Contract stubs for fail-close surfaces
+└── __tests__/                        # Contract and behavior tests
 ```
 
 Responsibilities:
 
-* Vector storage (for embeddings and semantic search)
+* Vector storage (for embeddings and semantic search) with deterministic ordering semantics
 * Document storage (for structured memory entries, configs, traces)
 * Graph storage (for relationship mapping)
 * Pure I/O — no knowledge of memory types or business logic
