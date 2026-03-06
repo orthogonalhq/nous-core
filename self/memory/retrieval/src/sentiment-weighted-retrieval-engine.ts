@@ -35,6 +35,22 @@ export interface SentimentWeightedRetrievalEngineDeps {
 const DEFAULT_COLLECTION = 'memory';
 const VECTOR_SEARCH_LIMIT = 100;
 
+function buildVectorFilter(
+  query: RetrievalQuery,
+): { where: Record<string, unknown> } | undefined {
+  const where: Record<string, unknown> = {};
+  if (query.filters?.projectId) {
+    where.projectId = query.filters.projectId;
+  }
+  if (query.filters?.scope) {
+    where.scope = query.filters.scope;
+  }
+  if (query.filters?.type) {
+    where.memoryType = query.filters.type;
+  }
+  return Object.keys(where).length > 0 ? { where } : undefined;
+}
+
 export class SentimentWeightedRetrievalEngine implements IRetrievalEngine {
   constructor(private readonly deps: SentimentWeightedRetrievalEngineDeps) {}
 
@@ -47,13 +63,11 @@ export class SentimentWeightedRetrievalEngine implements IRetrievalEngine {
       collection,
       queryVector,
       VECTOR_SEARCH_LIMIT,
-      query.filters?.projectId
-        ? { where: { projectId: query.filters.projectId } }
-        : undefined,
+      buildVectorFilter(query),
     );
 
     if (vectorResults.length === 0) {
-      const { results, telemetry } = truncateByTokenBudget([], query.tokenBudget);
+      const { results } = truncateByTokenBudget([], query.tokenBudget);
       return { results };
     }
 
@@ -89,7 +103,7 @@ export class SentimentWeightedRetrievalEngine implements IRetrievalEngine {
       return String(a.entry.id).localeCompare(String(b.entry.id));
     });
 
-    const { results, telemetry } = truncateByTokenBudget(
+    const { results } = truncateByTokenBudget(
       sorted,
       query.tokenBudget,
     );

@@ -17,13 +17,15 @@ function makeEntry(
   content: string,
   confidence: number,
   updatedAt: string,
-  type: 'fact' | 'experience-record' = 'fact',
+  type: 'fact' | 'experience-record' | 'preference' = 'fact',
+  projectId?: string,
 ): Parameters<InMemoryLtmStore['write']>[0] {
   const base = {
     id: id as any,
     content,
     type,
     scope: 'project' as const,
+    projectId: projectId as any,
     confidence,
     sensitivity: [],
     retention: 'permanent' as const,
@@ -199,5 +201,53 @@ describe('SentimentWeightedRetrievalEngine', () => {
         expect(ids[i]! >= ids[i - 1]!).toBe(true);
       }
     }
+  });
+
+  it('applies vector metadata filters for project/type/scope', async () => {
+    const ltm = new InMemoryLtmStore();
+    const vectorStore = new InMemoryVectorStore();
+    const embedder = new InMemoryEmbedder();
+    const projectId = '550e8400-e29b-41d4-a716-446655440000';
+
+    const fact = makeEntry('fact-1', 'shared content', 0.9, NOW, 'fact', projectId);
+    const pref = makeEntry(
+      'pref-1',
+      'shared content',
+      0.9,
+      NOW,
+      'preference',
+      projectId,
+    );
+    await ltm.write(fact);
+    await ltm.write(pref);
+
+    for (const entry of [fact, pref]) {
+      const vector = await embedder.embed(entry.content);
+      await vectorStore.upsert('memory', entry.id, vector, {
+        projectId,
+        scope: entry.scope,
+        memoryType: entry.type,
+      });
+    }
+
+    const engine = new SentimentWeightedRetrievalEngine({
+      ltmStore: ltm,
+      vectorStore,
+      embedder,
+    });
+
+    const response = await engine.retrieve({
+      situation: 'shared content',
+      projectId: projectId as any,
+      tokenBudget: 100,
+      filters: {
+        projectId: projectId as any,
+        scope: 'project',
+        type: 'fact',
+      },
+    });
+
+    expect(response.results).toHaveLength(1);
+    expect(response.results[0]!.entry.id).toBe('fact-1');
   });
 });
