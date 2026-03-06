@@ -51,6 +51,35 @@ pnpm --filter nous-benchmark run test
 
 (Release report generation is wired in the harness; full CI integration is phased.)
 
+## SkillBench Admission Evidence (Phase 7.5)
+
+Phase 7.5 adds skill-admission benchmark helpers used to construct promotion-ready evidence bundles and detect fixed-model drift.
+
+Helper surface (benchmark package):
+
+- `detectFixedModelDrift(runs, lockedModelProfile)`
+- `buildSkillAttributionEvidenceBundle(input)`
+
+### Required Evidence Fields
+
+Admission-oriented SkillBench evidence must include:
+
+- `benchmark_pack_ref`
+- `model_profile_locked`
+- `baseline_revision_ref`
+- `candidate_revision_ref`
+- `seed_set_ref`
+- `run_record_refs` (non-empty)
+- `score_report_refs` (non-empty)
+- `trace_bundle_refs` (non-empty)
+- `drift_detected`
+
+### Fail-Closed Admission Implications
+
+- Any fixed-model drift (`drift_detected: true`) invalidates benchmark evidence for promotion.
+- Missing required refs invalidate benchmark evidence for promotion.
+- Admission flow remains `pending_cortex` until benchmark evidence, attribution thesis, and contract validation are all complete.
+
 ## Report Interpretation
 
 ### ScoreReport
