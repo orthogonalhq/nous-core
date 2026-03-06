@@ -27,6 +27,17 @@ export function truncateByTokenBudget(
   tokenBudget: number,
   tokensPerChar = DEFAULT_TOKENS_PER_CHAR,
 ): { results: RetrievalResult[]; telemetry: RetrievalBudgetTelemetry } {
+  if (tokenBudget <= 0) {
+    return {
+      results: [],
+      telemetry: {
+        consumedTokens: 0,
+        candidateCount: results.length,
+        truncatedCount: results.length,
+      },
+    };
+  }
+
   const sorted = [...results].sort((a, b) => {
     if (b.score !== a.score) return b.score - a.score;
     return String(a.entry.id).localeCompare(String(b.entry.id));

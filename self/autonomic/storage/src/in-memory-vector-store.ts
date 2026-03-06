@@ -77,7 +77,10 @@ export class InMemoryVectorStore implements IVectorStore {
       candidates.push({ id, score, metadata: stored.metadata });
     }
 
-    candidates.sort((a, b) => b.score - a.score);
+    candidates.sort((a, b) => {
+      if (b.score !== a.score) return b.score - a.score;
+      return a.id.localeCompare(b.id);
+    });
     return candidates.slice(0, limit).map((c) => ({
       id: c.id,
       score: c.score,

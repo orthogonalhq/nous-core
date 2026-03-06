@@ -74,4 +74,16 @@ describe('truncateByTokenBudget', () => {
     expect(telemetry.candidateCount).toBe(2);
     expect(telemetry.truncatedCount).toBe(0);
   });
+
+  it('returns empty results when tokenBudget is zero', () => {
+    const results = [
+      makeResult('x', 0.9, 'a'),
+      makeResult('y', 0.8, 'b'),
+    ];
+    const { results: kept, telemetry } = truncateByTokenBudget(results, 0);
+    expect(kept).toEqual([]);
+    expect(telemetry.consumedTokens).toBe(0);
+    expect(telemetry.candidateCount).toBe(2);
+    expect(telemetry.truncatedCount).toBe(2);
+  });
 });

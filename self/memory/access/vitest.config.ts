@@ -17,7 +17,11 @@ export default defineConfig({
         __dirname,
         '../../autonomic/embeddings/src/index.ts',
       ),
-      '@nous/memory-stm': path.resolve(__dirname, '../stm/src/index.ts'),
+      '@nous/memory-retrieval': path.resolve(
+        __dirname,
+        '../retrieval/src/index.ts',
+      ),
+      '@nous/memory-stubs': path.resolve(__dirname, '../stubs/src/index.ts'),
     },
   },
   test: {

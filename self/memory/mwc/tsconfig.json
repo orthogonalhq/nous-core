@@ -6,7 +6,8 @@
     "composite": true,
     "paths": {
       "@nous/shared": ["../../shared/src/index.ts"],
-      "@nous/autonomic-storage": ["../../autonomic/storage/src/index.ts"]
+      "@nous/autonomic-storage": ["../../autonomic/storage/src/index.ts"],
+      "@nous/autonomic-embeddings": ["../../autonomic/embeddings/src/index.ts"]
     }
   },
   "include": ["src"],
@@ -14,6 +15,7 @@
   "references": [
     { "path": "../../shared" },
     { "path": "../../autonomic/storage" },
+    { "path": "../../autonomic/embeddings" },
     { "path": "../stm" }
   ]
 }

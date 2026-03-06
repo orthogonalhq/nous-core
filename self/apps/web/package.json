@@ -19,6 +19,7 @@
   },
   "dependencies": {
     "@nous/autonomic-config": "workspace:*",
+    "@nous/autonomic-embeddings": "workspace:*",
     "@nous/autonomic-storage": "workspace:*",
     "@nous/cortex-core": "workspace:*",
     "@nous/cortex-pfc": "workspace:*",
