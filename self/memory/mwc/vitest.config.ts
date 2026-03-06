@@ -13,6 +13,10 @@ export default defineConfig({
         __dirname,
         '../../autonomic/storage/src/index.ts',
       ),
+      '@nous/autonomic-embeddings': path.resolve(
+        __dirname,
+        '../../autonomic/embeddings/src/index.ts',
+      ),
       '@nous/memory-stm': path.resolve(__dirname, '../stm/src/index.ts'),
     },
   },

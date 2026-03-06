@@ -18,6 +18,7 @@
   "dependencies": {
     "@nous/shared": "workspace:*",
     "@nous/autonomic-storage": "workspace:*",
+    "@nous/autonomic-embeddings": "workspace:*",
     "zod": "^3.24.1"
   },
   "devDependencies": {

@@ -8,6 +8,8 @@ import { createHash, randomUUID } from 'node:crypto';
 import type {
   IDocumentStore,
   IStmStore,
+  IVectorStore,
+  IEmbedder,
   MemoryWriteCandidate,
   MemoryEntry,
   MemoryEntryId,
@@ -21,6 +23,8 @@ import type {
   MemoryMutationReasonCode,
   MemoryMutationAction,
   MemoryMutationOutcome,
+  EmbeddingModelProvenance,
+  TraceEvidenceReference,
 } from '@nous/shared';
 import {
   MemoryWriteCandidateSchema,
@@ -31,6 +35,7 @@ import {
   MemoryTombstoneSchema,
   ValidationError,
 } from '@nous/shared';
+import { DeterministicEmbeddingPipeline } from '@nous/autonomic-embeddings';
 import {
   createStubMutationEvaluator,
   type MwcEvaluator,
@@ -40,10 +45,27 @@ import {
 const COLLECTION = 'memory_entries';
 const AUDIT_COLLECTION = 'memory_mutation_audit';
 const TOMBSTONE_COLLECTION = 'memory_tombstones';
+const DEFAULT_VECTOR_COLLECTION = 'memory';
 
 export interface MwcPipelineOptions {
   idFactory?: () => string;
   now?: () => string;
+  vectorIndexing?: MwcVectorIndexingOptions;
+}
+
+export interface MwcVectorIndexingOptions {
+  vectorStore: IVectorStore;
+  embedder: IEmbedder;
+  profile: EmbeddingModelProvenance;
+  collection?: string;
+  buildEvidenceRefs?: (entry: MemoryEntry) => TraceEvidenceReference[];
+}
+
+interface MwcVectorIndexingRuntime {
+  vectorStore: IVectorStore;
+  collection: string;
+  pipeline: DeterministicEmbeddingPipeline;
+  buildEvidenceRefs: (entry: MemoryEntry) => TraceEvidenceReference[];
 }
 
 export interface MutationResult {
@@ -113,6 +135,8 @@ export class MwcPipeline {
 
   private readonly now: () => string;
 
+  private readonly vectorIndexing?: MwcVectorIndexingRuntime;
+
   constructor(
     private readonly documentStore: IDocumentStore,
     private readonly stmStore: IStmStore,
@@ -122,6 +146,22 @@ export class MwcPipeline {
   ) {
     this.idFactory = options.idFactory ?? randomUUID;
     this.now = options.now ?? (() => new Date().toISOString());
+    if (options.vectorIndexing) {
+      this.vectorIndexing = {
+        vectorStore: options.vectorIndexing.vectorStore,
+        collection:
+          options.vectorIndexing.collection ?? DEFAULT_VECTOR_COLLECTION,
+        pipeline: new DeterministicEmbeddingPipeline({
+          embedder: options.vectorIndexing.embedder,
+          profile: options.vectorIndexing.profile,
+          idFactory: this.idFactory,
+          now: this.now,
+        }),
+        buildEvidenceRefs:
+          options.vectorIndexing.buildEvidenceRefs ??
+          (() => [{ actionCategory: 'memory-write' }]),
+      };
+    }
   }
 
   async submit(
@@ -187,7 +227,13 @@ export class MwcPipeline {
       mutationId,
       id: this.makeMemoryEntryId(),
     });
-    await this.documentStore.put(COLLECTION, entry.id, entry);
+    const preparedEntry = await this.prepareVectorIndexing(entry);
+    try {
+      await this.documentStore.put(COLLECTION, preparedEntry.id, preparedEntry);
+    } catch (error) {
+      await this.rollbackVectorIndex(preparedEntry.id);
+      throw error;
+    }
     await this.appendAuditRecord({
       id: mutationId,
       action: 'create',
@@ -195,19 +241,19 @@ export class MwcPipeline {
       outcome: 'applied',
       reasonCode: normalizeReasonCode(evalResult.reason, 'MEM-CREATE-APPLIED'),
       reason: evalResult.reason ?? 'approved',
-      projectId: entry.projectId,
+      projectId: preparedEntry.projectId,
       targetEntryId: undefined,
-      resultingEntryId: entry.id,
+      resultingEntryId: preparedEntry.id,
       tombstoneId: undefined,
-      traceId: entry.provenance.traceId,
+      traceId: preparedEntry.provenance.traceId,
       evidenceRefs: [],
       occurredAt: now,
     });
 
     console.info(
-      `[nous:mwc] persisted projectId=${entry.projectId ?? 'global'} entryId=${entry.id}`,
+      `[nous:mwc] persisted projectId=${preparedEntry.projectId ?? 'global'} entryId=${preparedEntry.id}`,
     );
-    return entry.id;
+    return preparedEntry.id;
   }
 
   async mutate(
@@ -586,6 +632,45 @@ export class MwcPipeline {
     }
   }
 
+  private async prepareVectorIndexing(entry: MemoryEntry): Promise<MemoryEntry> {
+    if (!this.vectorIndexing) {
+      return entry;
+    }
+    const embedded = await this.vectorIndexing.pipeline.embedText(entry.content);
+    const metadata = this.vectorIndexing.pipeline.buildIndexMetadata({
+      memoryEntryId: entry.id,
+      memoryType: entry.type,
+      scope: entry.scope,
+      projectId: entry.projectId,
+      traceId: entry.provenance.traceId,
+      evidenceRefs: this.vectorIndexing.buildEvidenceRefs(entry),
+      tokenEstimate: embedded.tokenEstimate,
+      generation: embedded.generation,
+    });
+    await this.vectorIndexing.vectorStore.upsert(
+      this.vectorIndexing.collection,
+      entry.id,
+      embedded.vector,
+      metadata as unknown as Record<string, unknown>,
+    );
+    return {
+      ...entry,
+      embedding: embedded.vector,
+    };
+  }
+
+  private async rollbackVectorIndex(id: MemoryEntryId): Promise<void> {
+    if (!this.vectorIndexing) return;
+    try {
+      await this.vectorIndexing.vectorStore.delete(
+        this.vectorIndexing.collection,
+        id,
+      );
+    } catch {
+      // Best-effort compensation. Primary error is surfaced to caller.
+    }
+  }
+
   private async persistCandidate(
     candidate: MemoryWriteCandidate,
     projectId: ProjectId | undefined,
@@ -607,8 +692,18 @@ export class MwcPipeline {
       mutationId,
       id: this.makeMemoryEntryId(),
     });
-    await this.documentStore.put(COLLECTION, entry.id, entry);
-    return entry;
+    const preparedEntry = await this.prepareVectorIndexing(entry);
+    try {
+      await this.documentStore.put(
+        COLLECTION,
+        preparedEntry.id,
+        preparedEntry,
+      );
+    } catch (error) {
+      await this.rollbackVectorIndex(preparedEntry.id);
+      throw error;
+    }
+    return preparedEntry;
   }
 
   private async readEntry(id: MemoryEntryId): Promise<MemoryEntry | null> {
