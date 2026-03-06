@@ -43,10 +43,12 @@ description: Reference for all tRPC procedures
 | `memory.demote` | mutation | `{ id, projectId, reason? }` | `MutationResult` |
 | `memory.delete` | mutation | `{ id?, projectId?, hard?, rationale? }` | `{ deleted: number, result?: MutationResult }` |
 
+- `memory.list` — Returns the active durable entries for a project. Superseded or deleted records stay visible through `memory.export`, `memory.audit`, and `memory.tombstones`.
 - `id` with `hard` unset or `false` — Soft-delete a single entry (default delete mode)
 - `id` with `hard: true` and `rationale` — Hard-delete path (requires principal override rationale and emits tombstone)
 - `projectId` only — Soft-delete all active entries for the project
-- `memory.audit`/`memory.tombstones` — Operator observability for mutation decisions and hard-delete proofs
+- `memory.audit`/`memory.tombstones` — Operator observability for mutation decisions, policy-governed denial outcomes, and hard-delete proofs
+- `memory.export` — Full project memory export including STM context, durable entries, audit history, and tombstones
 
 ## config
 

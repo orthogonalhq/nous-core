@@ -8,6 +8,8 @@ const nextConfig: NextConfig = {
     '@nous/shared',
     '@nous/cortex-core',
     '@nous/cortex-pfc',
+    '@nous/memory-access',
+    '@nous/memory-ltm',
     '@nous/memory-stm',
     '@nous/memory-mwc',
     '@nous/subcortex-projects',
@@ -18,6 +20,16 @@ const nextConfig: NextConfig = {
     '@nous/autonomic-storage',
     '@nous/autonomic-config',
   ],
+  webpack(config) {
+    config.resolve ??= {};
+    config.resolve.extensionAlias = {
+      ...config.resolve.extensionAlias,
+      '.js': ['.ts', '.tsx', '.js'],
+      '.mjs': ['.mts', '.mjs'],
+      '.cjs': ['.cts', '.cjs'],
+    };
+    return config;
+  },
 };
 
 export default nextConfig;

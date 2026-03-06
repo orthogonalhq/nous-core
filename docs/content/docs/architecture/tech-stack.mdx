@@ -109,7 +109,7 @@ Commander.js provides command parsing, help generation, and option handling. The
 | Interface | Phase 1–3 | Phase 4+ (Local) | Cloud |
 |---|---|---|---|
 | **IDocumentStore** | SQLite (better-sqlite3) | SQLite | PostgreSQL |
-| **IVectorStore** | In-memory / SQLite (stub/basic) | SQLite-backed runtime store (Phase 8.1 baseline); backend swap optional | PostgreSQL + pgvector |
+| **IVectorStore** | In-memory / SQLite (stub/basic) | SQLite-backed runtime store (Phase 8.1 baseline) coupled to typed LTM writes in Phase 8.2; backend swap optional | PostgreSQL + pgvector |
 | **IGraphStore** | SQLite (stub/basic) | LanceDB or dedicated | PostgreSQL |
 | **Config** | JSON5 files | JSON5 files | JSON5 files |
 
@@ -117,7 +117,9 @@ Storage is not one database. It is three separate interfaces, each backed by the
 
 ### Document Storage (IDocumentStore)
 
-SQLite via better-sqlite3. Handles STM, project metadata, execution traces, configuration state, and basic LTM in early phases. Local-first, zero-infrastructure, file-based, portable across platforms. Synchronous access simplifies the execution model.
+SQLite via better-sqlite3. Handles STM, project metadata, execution traces, configuration state, and the current structured LTM runtime. Local-first, zero-infrastructure, file-based, portable across platforms. Synchronous access simplifies the execution model.
+
+As of Phase 8.2, the local document-store path backs the production `@nous/memory-ltm` runtime over canonical collections such as `memory_entries`, `memory_mutation_audit`, and `memory_tombstones`.
 
 SQLite remains the document store for local deployments through all phases. For cloud deployments, PostgreSQL fulfills the same interface.
 
@@ -126,6 +128,8 @@ SQLite remains the document store for local deployments through all phases. For 
 **Phase 1–7:** Stub implementation or basic/in-memory vector handling.
 
 **Phase 8.1 baseline (current):** SQLite-backed `IVectorStore` implementation with deterministic search ordering, metadata filtering, and provenance-aware indexing metadata support.
+
+**Phase 8.2 coupling:** governed typed `fact`/`preference` writes reuse the same deterministic embed/index path. If vector indexing fails, the typed durable-write path fails closed rather than committing partially indexed state.
 
 **Future local optimization:** LanceDB (or equivalent) remains an optional backend swap if local corpus/query scale requires specialized vector indexing performance.
 
