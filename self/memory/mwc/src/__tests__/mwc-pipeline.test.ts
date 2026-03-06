@@ -8,7 +8,8 @@ import { randomUUID } from 'node:crypto';
 import { MwcPipeline, createStubEvaluator } from '../index.js';
 import { DocumentStmStore } from '@nous/memory-stm';
 import { SqliteDocumentStore } from '@nous/autonomic-storage';
-import { ValidationError } from '@nous/shared';
+import { MemoryAccessPolicyEngine } from '@nous/memory-access';
+import { ValidationError, type ProjectConfig } from '@nous/shared';
 
 function createTempDbPath(): string {
   return join(tmpdir(), `nous-mwc-test-${randomUUID()}.sqlite`);
@@ -29,6 +30,27 @@ function createValidCandidate(projectId?: string) {
       timestamp: new Date().toISOString(),
     },
     tags: ['ui', 'preference'],
+  };
+}
+
+function createProjectConfig(
+  projectId: string,
+  inheritsGlobal: boolean,
+): ProjectConfig {
+  return {
+    id: projectId as any,
+    name: `Project ${projectId}`,
+    type: 'hybrid',
+    pfcTier: 0,
+    memoryAccessPolicy: {
+      canReadFrom: 'all',
+      canBeReadBy: 'all',
+      inheritsGlobal,
+    },
+    escalationChannels: ['in-app'],
+    retrievalBudgetTokens: 500,
+    createdAt: new Date().toISOString(),
+    updatedAt: new Date().toISOString(),
   };
 }
 
@@ -349,5 +371,42 @@ describe('MwcPipeline', () => {
     for (let i = 1; i < audit.length; i++) {
       expect(audit[i].sequence).toBeGreaterThan(audit[i - 1].sequence);
     }
+  });
+
+  it('denies governed global typed writes through the delegated policy runtime', async () => {
+    const actingProjectId = randomUUID();
+    const governedPipeline = new MwcPipeline(
+      documentStore,
+      stmStore,
+      createStubEvaluator(),
+      undefined,
+      {
+        policy: {
+          policyEngine: new MemoryAccessPolicyEngine(),
+          projectStore: {
+            async get(id) {
+              if (id === actingProjectId) {
+                return createProjectConfig(id, false);
+              }
+              return null;
+            },
+          },
+        },
+      },
+    );
+
+    const id = await governedPipeline.submit(
+      {
+        ...createValidCandidate(),
+        scope: 'global',
+      },
+      actingProjectId as any,
+    );
+
+    expect(id).toBeNull();
+    const audit = await governedPipeline.listMutationAudit();
+    expect(audit).toHaveLength(1);
+    expect(audit[0].outcome).toBe('denied');
+    expect(audit[0].reason).toContain('POL-GLOBAL-DENIED');
   });
 });

@@ -4,6 +4,7 @@
 export {
   MwcPipeline,
   type MwcPipelineOptions,
+  type MwcPolicyOptions,
   type MwcVectorIndexingOptions,
 } from './mwc-pipeline.js';
 export {

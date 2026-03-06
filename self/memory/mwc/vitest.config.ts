@@ -17,6 +17,8 @@ export default defineConfig({
         __dirname,
         '../../autonomic/embeddings/src/index.ts',
       ),
+      '@nous/memory-access': path.resolve(__dirname, '../access/src/index.ts'),
+      '@nous/memory-ltm': path.resolve(__dirname, '../ltm/src/index.ts'),
       '@nous/memory-stm': path.resolve(__dirname, '../stm/src/index.ts'),
     },
   },
