@@ -13,6 +13,10 @@ export default defineConfig({
         __dirname,
         '../../autonomic/storage/src/index.ts',
       ),
+      '@nous/autonomic-embeddings': path.resolve(
+        __dirname,
+        '../../autonomic/embeddings/src/index.ts',
+      ),
       '@nous/cortex-pfc': path.resolve(__dirname, '../pfc/src/index.ts'),
       '@nous/memory-stm': path.resolve(__dirname, '../../memory/stm/src/index.ts'),
       '@nous/memory-mwc': path.resolve(__dirname, '../../memory/mwc/src/index.ts'),
