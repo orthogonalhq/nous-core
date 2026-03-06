@@ -69,6 +69,13 @@ Aim for **80% coverage on behavioral code**. Exclude type definitions, stub impl
 - **Vitest** — Unit and integration tests
 - **Playwright** — E2E tests for web UI (Phase 2+)
 
+## Workspace Test Execution
+
+- Root workspace tests should run via `pnpm test` from repository root.
+- Root test execution uses `vitest.config.mts` with explicit `test.projects` entries so package-local Vitest configs (aliases, include/exclude patterns) apply consistently.
+- For package-only runs, use `pnpm --filter <package-name> test`.
+- Avoid ad-hoc root `vitest run` invocations that bypass the intended workspace configuration.
+
 ## Reference
 
 For the full SOP, see `.skills/engineer-workflow-sop/implementation-agent/testing-patterns.md`.

@@ -1,0 +1,36 @@
+import { defineConfig } from 'vitest/config';
+
+export default defineConfig({
+  test: {
+    projects: [
+      'self/shared',
+      'self/autonomic/config',
+      'self/autonomic/runtime',
+      'self/autonomic/storage',
+      'self/autonomic/embeddings',
+      'self/autonomic/health',
+      'self/subcortex/sandbox',
+      'self/subcortex/providers',
+      'self/subcortex/router',
+      'self/subcortex/tools',
+      'self/subcortex/projects',
+      'self/subcortex/stubs',
+      'self/subcortex/opctl',
+      'self/subcortex/witnessd',
+      'self/subcortex/mao',
+      'self/subcortex/gtm',
+      'self/memory/stm',
+      'self/memory/mwc',
+      'self/memory/access',
+      'self/memory/retrieval',
+      'self/memory/distillation',
+      'self/memory/stubs',
+      'self/cortex/pfc',
+      'self/cortex/core',
+      'self/apps/web',
+      'self/apps/cli',
+      'scripts/install',
+      'scripts/benchmark',
+    ],
+  },
+});

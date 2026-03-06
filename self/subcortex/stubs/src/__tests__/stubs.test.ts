@@ -141,17 +141,121 @@ describe('StubEscalationService', () => {
 });
 
 describe('StubSandbox', () => {
-  const stub = new StubSandbox();
-
-  it('execute() throws NousError with code NOT_IMPLEMENTED', async () => {
-    await assertNotImplemented(
-      () => stub.execute({} as any),
-      'ISandbox',
-    );
+  const createPayload = (overrides: Record<string, unknown> = {}) => ({
+    source: 'export const run = () => "ok";',
+    package_id: 'skill:image-quality-assessment',
+    package_version: '1.0.0',
+    package_type: 'skill',
+    origin_class: 'third_party_external',
+    declared_capabilities: ['model.invoke'],
+    admission: {
+      signature_valid: true,
+      signer_known: true,
+      api_compatible: true,
+      policy_compatible: true,
+      is_draft_unsigned: false,
+      is_imported: false,
+      reverification_complete: true,
+      reapproval_complete: true,
+    },
+    action: {
+      surface: 'model',
+      action: 'invoke',
+      requested_capability: 'model.invoke',
+      requires_approval: true,
+      direct_access_target: 'none',
+    },
+    runtime: {
+      project_id: 'project-123',
+      policy_profile: 'default',
+      control_state: 'running',
+    },
+    capability_grant: {
+      grant_id: 'grant-1',
+      package_id: 'skill:image-quality-assessment',
+      project_id: 'project-123',
+      capability: 'model.invoke',
+      approved_by: 'principal-1',
+      confirmation_proof_ref: 'proof-1',
+      nonce: 'nonce-1',
+      issued_at: '2026-03-01T00:00:00.000Z',
+      expires_at: '2026-03-01T01:00:00.000Z',
+      scope: {
+        action_surfaces: ['model'],
+        action_names: ['invoke'],
+      },
+      status: 'active',
+    },
+    ...overrides,
   });
 
-  it('hasCapability() throws NousError with code NOT_IMPLEMENTED', () => {
-    assertNotImplementedSync(() => stub.hasCapability('read'), 'ISandbox');
+  it('execute() enforces membrane allow/deny behavior', async () => {
+    const stub = new StubSandbox({
+      now: () => new Date('2026-03-01T00:30:00.000Z'),
+    });
+
+    const allowed = await stub.execute(createPayload() as any);
+    expect(allowed.success).toBe(true);
+    expect(allowed.decision.decision).toBe('allow');
+
+    const denied = await stub.execute(
+      createPayload({
+        action: {
+          surface: 'model',
+          action: 'invoke',
+          requested_capability: 'model.invoke',
+          requires_approval: true,
+          direct_access_target: 'network',
+        },
+      }) as any,
+    );
+    expect(denied.success).toBe(false);
+    expect(denied.decision.decision).toBe('deny');
+    expect(denied.decision.reason_code).toBe('PKG-003-DIRECT_ACCESS_DENIED');
+  });
+
+  it('execute() quarantines invalid signer posture', async () => {
+    const stub = new StubSandbox({
+      now: () => new Date('2026-03-01T00:30:00.000Z'),
+    });
+    const result = await stub.execute(
+      createPayload({
+        admission: {
+          signature_valid: true,
+          signer_known: false,
+          api_compatible: true,
+          policy_compatible: true,
+          is_draft_unsigned: false,
+          is_imported: false,
+          reverification_complete: true,
+          reapproval_complete: true,
+        },
+      }) as any,
+    );
+    expect(result.success).toBe(false);
+    expect(result.decision.decision).toBe('quarantine');
+    expect(result.decision.reason_code).toBe('PKG-001-REVOKED_SIGNER');
+  });
+
+  it('execute() blocks replayed grant nonce attempts', async () => {
+    const stub = new StubSandbox({
+      now: () => new Date('2026-03-01T00:30:00.000Z'),
+    });
+    const payload = createPayload();
+    const first = await stub.execute(payload as any);
+    const second = await stub.execute(payload as any);
+    expect(first.success).toBe(true);
+    expect(second.success).toBe(false);
+    expect(second.decision.reason_code).toBe('PKG-002-CAPABILITY_REPLAY_DETECTED');
+  });
+
+  it('hasCapability() respects configured and declared capabilities', () => {
+    const stub = new StubSandbox({
+      allowedCapabilities: ['model.invoke'],
+    });
+    expect(stub.hasCapability('model.invoke', ['model.invoke'])).toBe(true);
+    expect(stub.hasCapability('model.invoke', ['tool.execute'])).toBe(false);
+    expect(stub.hasCapability('tool.execute', ['tool.execute'])).toBe(false);
   });
 });
 

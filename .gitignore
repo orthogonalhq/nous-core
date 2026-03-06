@@ -3,6 +3,7 @@ node_modules/
 
 # Build output
 dist/
+out/
 .next/
 .next-*/
 *.tsbuildinfo
@@ -16,6 +17,7 @@ Thumbs.db
 
 # IDE
 .idea/
+.claude/
 *.swp
 *.swo
 

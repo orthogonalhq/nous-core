@@ -43,6 +43,26 @@ Canonical system workmodes shipped with Nous:
 
 Skill-installed workmodes follow the pattern `skill:<slug>:<entrypoint>`.
 
+## Skill Creator Admission (Phase 7.5)
+
+`system:skill_authoring` governs creation and revision of skill artifacts only. It does not grant admission or promotion authority.
+
+Admission and promotion are control-plane decisions with additional hard gates:
+
+1. Skill contract validation must pass (runtime artifacts present and valid).
+2. SkillBench evidence must be complete and fixed-model-locked.
+3. Attribution thesis evidence must classify uplift source and recommendation.
+4. Final admission/promotion decision must be recorded by `nous_cortex`.
+
+Blocked or invalid states return deterministic reason codes and evidence refs.
+
+Examples:
+
+- `SCM-003-WORKER-SELF-PROMOTION`: worker lane attempted self-promotion.
+- `SCM-005-MODEL-DRIFT`: fixed-model drift detected in benchmark evidence.
+- `SKADM-002-CORTEX-AUTH-REQUIRED`: non-cortex actor attempted final decision.
+- `EVID-001-MISSING-WITNESS`: required witness linkage missing.
+
 ## Lease Contract
 
 A lease is issued by `nous_cortex` and grants an orchestration agent the right to execute within a workmode for a bounded time.

@@ -1,6 +1,6 @@
 ---
 title: Security Baseline
-description: Baseline security controls for Nous-OSS (Phase 1 + Phase 2.1 witness evidence chain)
+description: Baseline security controls for Nous-OSS (Phase 1 + Phase 2.1 witness evidence chain + Phase 7 package trust)
 ---
 
 # Security Baseline
@@ -75,6 +75,95 @@ Never store credentials in CLI config files. Use environment variables:
 - `NOUS_BASIC_AUTH` — For tRPC auth when backend requires it
 - `NOUS_DATA_DIR` — Data directory (optional)
 - `NOUS_CONFIG_PATH` — Config file path (optional)
+
+## Package Trust Architecture (Phase 7)
+
+Phase 7 establishes the package trust and lifecycle security baseline. Skills and project packages are verified, signed, and governed before execution. The following applies when package lifecycle features are implemented (Phase 7.2+).
+
+### Fail-Closed Posture
+
+Unsigned, revoked-signer, incompatible, or policy-violating package actions are blocked. No silent bypass. Denial outcomes emit deterministic reason codes for operator interpretation.
+
+### Reason Codes for Package Lifecycle
+
+| Pattern | Meaning | Example |
+|---------|---------|---------|
+| `PKG-001-*` | Signature/verification failure | `PKG-001-UNSIGNED`, `PKG-001-REVOKED_SIGNER` |
+| `PKG-002-*` | Capability approval required | `PKG-002-CAP_EXPANSION_PENDING` |
+| `PKG-003-*` | Compatibility gate failure | `PKG-003-API_RANGE_MISMATCH` |
+| `PKG-004-*` | Update/rollback outcome | `PKG-004-UPDATE_STAGE_CHECK_FAILED`, `PKG-004-ROLLBACK_TRUST_CHECK_FAILED` |
+| `PKG-005-*` | Evidence and lifecycle transition completeness | `PKG-005-MISSING_WITNESS_REF`, `PKG-005-INVALID_TRANSITION`, `PKG-005-REMOVE_RETENTION_DECISION_REQUIRED` |
+| `PKG-006-*` | Draft state violation | `PKG-006-EXEC_ATTEMPT_IN_DRAFT` |
+| `PKG-007-*` | Cross-instance trust | `PKG-007-RE_TRUST_REQUIRED` |
+| `PKG-008-*` | Import verification | `PKG-008-IMPORT_VERIFICATION_PENDING` |
+
+### Lifecycle Orchestration Controls (Phase 7.4)
+
+Phase 7.4 adds deterministic lifecycle orchestration controls on top of Phase 7.2/7.3 package trust contracts:
+
+- explicit transition matrix enforcement (`ingest/install/enable/update/import/export/remove`)
+- staged update snapshots with previous-safe-version rollback targets
+- fail-closed rollback posture (`rolled_back` or `disabled`, never silent partial apply)
+- explicit remove retention governance (`export_then_remove` or `delete_confirmed`)
+- witness-linked lifecycle outcomes for allowed/blocked/rolled_back/disabled decisions
+
+Operationally, lifecycle success is invalid if witness linkage is missing; such transitions are treated as blocked (`PKG-005-*`).
+
+### Interpreting Package Lifecycle Events
+
+When a package enable is blocked (e.g., unsigned package):
+
+```json
+{
+  "event_type": "pkg_enable_blocked",
+  "package_id": "skill:image-quality-assessment",
+  "package_version": "1.2.0",
+  "origin_class": "third_party_external",
+  "reason_code": "PKG-001-UNSIGNED",
+  "witness_ref": "evt_abc123"
+}
+```
+
+**Action:** Re-sign the package with an approved key, or obtain a signed release from the maintainer.
+
+When an update is rolled back (e.g., migration failure):
+
+```json
+{
+  "event_type": "pkg_update_rolled_back",
+  "package_id": "project:persona-engine",
+  "package_version": "2.0.0",
+  "origin_class": "nous_first_party",
+  "reason_code": "PKG-004-MIGRATION_FAILED",
+  "witness_ref": "evt_def456",
+  "previous_safe_version": "1.5.2"
+}
+```
+
+**Action:** The system reverted to the previous safe version. Review migration requirements before retrying the update.
+
+### Evidence Linkage
+
+Package trust decisions are witness-linked. Use `witness_ref` and `evidenceRefs` to trace why a package was blocked or allowed. Verifier CLI and API surfaces support audit replay.
+
+### Contract Layer Implemented in Phase 7.2
+
+Phase 7.2 defines the shared contract layer that Phase 7.3 and Phase 7.4 enforcement logic consumes:
+
+- **Package manifest schema** in `self/shared/src/types/package-manifest.ts`
+  - requires: `id`, `name`, `version`, `package_type`, `origin_class`, `api_contract_range`, `capabilities`
+  - enforces `self_created_local` requirements: `author_principal_id`, `origin_instance_id`
+- **Lifecycle event and transition schema** in `self/shared/src/types/package-lifecycle.ts`
+  - standard event envelope: `event_type`, `package_id`, `package_version`, `origin_class`, `witness_ref`
+  - blocked/denied event types require deterministic `reason_code`
+  - lifecycle state/transition contracts enforce valid transition ordering and reason-coded blocked outcomes
+- **Compatibility gate schema/helpers** in `self/shared/src/types/package-compatibility.ts`
+  - semver range evaluation (`api_contract_range` vs runtime SDK version)
+  - capability delta computation with explicit re-approval requirement on expansion (`PKG-002-*`)
+
+These contracts are shared definitions only (no runtime bypass). Runtime admission and lifecycle transitions remain fail-closed and are enforced by subsequent Phase 7 implementation slices.
+
+---
 
 ## Runbook Summary
 

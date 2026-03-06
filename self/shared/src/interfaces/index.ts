@@ -21,12 +21,23 @@ export type {
   IScheduler,
   IEscalationService,
   ISandbox,
-  IProjectApi,
+  IPackageLifecycleOrchestrator,
+  ISkillAdmissionOrchestrator,
   IWitnessService,
   IOpctlService,
   IMaoProjectionService,
   IGtmGateCalculator,
 } from './subcortex.js';
+export type {
+  IProjectApiMemory,
+  IProjectApiModel,
+  IProjectApiTool,
+  IProjectApiArtifact,
+  IProjectApiEscalation,
+  IProjectApiScheduler,
+  IProjectApiProject,
+  IProjectApi,
+} from './project-api.js';
 export type {
   IWorkmodeRegistry,
   IWorkmodeAdmissionGuard,
