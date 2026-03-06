@@ -144,6 +144,7 @@ Memory is its own layer because it is neither consciousness nor subconscious. It
 self/memory/
 ├── stm/                              # Short-term memory
 ├── ltm/                              # Long-term memory
+├── mwc/                              # Memory write candidate ingress/orchestration
 ├── distillation/                     # Experience → pattern compression
 ├── retrieval/                        # Budgeted, scored retrieval orchestration
 ├── knowledge-index/                  # Cross-project intelligence
@@ -151,7 +152,8 @@ self/memory/
 │   ├── taxonomy/                     # Topic tagging and structural links
 │   ├── relationships/                # Background relationship mapping
 │   └── discovery/                    # Query-time project selection
-└── access/                           # Memory access policy engine
+├── access/                           # Memory access policy engine
+└── stubs/                            # Contract stubs for fail-close surfaces
 ```
 
 ### stm/
@@ -180,6 +182,27 @@ Responsibilities:
 * Project-scoped and global knowledge
 
 All entries include provenance metadata. All entries are auditable, exportable, and deletable.
+
+Implemented in the current runtime as `@nous/memory-ltm` (Phase 8.2). The package owns:
+
+* Document-backed durable entry storage
+* Mutation audit history and tombstone creation
+* Lifecycle-aware query/export defaults
+* Governed typed-write flows for `fact` and `preference`
+* Coupling of approved typed writes to the Phase 8.1 vector-index path
+
+### mwc/
+
+Memory write candidate ingress and mutation orchestration. Implemented as `@nous/memory-mwc`.
+
+Responsibilities:
+
+* Accept Cortex-approved memory write candidates
+* Evaluate mutation requests at the candidate/orchestration boundary
+* Delegate durable typed entry persistence and lifecycle mutations to `@nous/memory-ltm`
+* Preserve STM-specific operations such as `compact-stm`
+
+This package is the ingress seam between Cortex-approved write intent and the durable memory runtime.
 
 ### distillation/
 
@@ -244,6 +267,10 @@ Responsibilities:
 * Consume project control-state (`hard_stopped` blocks all access)
 
 The policy decision engine (`MemoryAccessPolicyEngine.evaluate()`) is synchronous and replay-deterministic. Callers supply project config and control state as inputs.
+
+### stubs/
+
+Contract stubs and fail-close baselines for memory interfaces used in tests and incomplete runtime surfaces.
 
 **Phase 3.3 surface integration:** Policy enforcement is wired at (1) core-executor — policy gate before `mwcPipeline.submit()` for cross-project memory writes; (2) `PolicyEnforcedRetrievalEngine` — wraps `IRetrievalEngine`, evaluates policy before delegating, filters results by policy; (3) `StubProjectApi.memory` — optional policy deps run gate before throwing for read/write/retrieve when cross-project or global scope.
 

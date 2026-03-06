@@ -137,6 +137,18 @@ describe('PolicyAccessContextSchema', () => {
       true,
     );
   });
+
+  it('accepts write shape with includeGlobal only', () => {
+    const globalWrite = {
+      action: 'write' as const,
+      fromProjectId: VALID_UUID,
+      includeGlobal: true,
+      projectPolicy: DEFAULT_MEMORY_ACCESS_POLICY,
+    };
+    expect(PolicyAccessContextSchema.safeParse(globalWrite).success).toBe(
+      true,
+    );
+  });
 });
 
 describe('PolicyEvaluationResultSchema', () => {

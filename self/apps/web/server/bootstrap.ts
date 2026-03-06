@@ -6,7 +6,7 @@
  */
 import { join, isAbsolute } from 'node:path';
 import { randomUUID } from 'node:crypto';
-import type { ProviderId, TraceId } from '@nous/shared';
+import type { ProjectId, ProviderId, TraceId } from '@nous/shared';
 import { ConfigManager } from '@nous/autonomic-config';
 import { SqliteDocumentStore } from '@nous/autonomic-storage';
 import { DocumentStmStore } from '@nous/memory-stm';
@@ -140,6 +140,7 @@ export function createNousContext(): NousContext {
   });
 
   const gtmGateCalculator = new GtmGateCalculator();
+  const policyEngine = new MemoryAccessPolicyEngine();
 
   const toolExecutor = new ToolExecutor();
   const Cortex = new PfcEngine(config, toolExecutor);
@@ -148,6 +149,14 @@ export function createNousContext(): NousContext {
     stmStore,
     createPfcEvaluator(Cortex),
     createPfcMutationEvaluator(Cortex),
+    {
+      policy: {
+        policyEngine,
+        projectStore,
+        getProjectControlState: (projectId: ProjectId) =>
+          opctlService.getProjectControlState(projectId),
+      },
+    },
   );
 
   const router = new ModelRouter(config);
@@ -164,8 +173,6 @@ export function createNousContext(): NousContext {
 
   const cfg = config.get() as { security?: { traceSensitiveData?: boolean } };
   const traceSensitiveData = cfg.security?.traceSensitiveData ?? false;
-
-  const policyEngine = new MemoryAccessPolicyEngine();
 
   const coreExecutor = new CoreExecutor({
     Cortex,

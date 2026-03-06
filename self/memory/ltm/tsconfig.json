@@ -7,7 +7,7 @@
     "paths": {
       "@nous/shared": ["../../shared/src/index.ts"],
       "@nous/autonomic-embeddings": ["../../autonomic/embeddings/src/index.ts"],
-      "@nous/memory-ltm": ["../ltm/src/index.ts"]
+      "@nous/memory-access": ["../access/src/index.ts"]
     }
   },
   "include": ["src"],
@@ -15,7 +15,6 @@
   "references": [
     { "path": "../../shared" },
     { "path": "../../autonomic/embeddings" },
-    { "path": "../ltm" },
-    { "path": "../stm" }
+    { "path": "../access" }
   ]
 }

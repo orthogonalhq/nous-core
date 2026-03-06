@@ -18,6 +18,17 @@ Approved entries are persisted after the Cortex evaluates memory write candidate
 - Mutability class and lifecycle status
 - Supersession linkage (`supersededBy`) when an entry is replaced
 
+### Structured LTM Runtime (Phase 8.2)
+
+`fact` and `preference` entries now flow through the structured long-term-memory runtime before they are considered durable:
+
+- The write is validated against the typed LTM schema.
+- The entry is stored in the canonical durable collections.
+- Global and cross-project durable writes are policy-evaluated before persistence.
+- Successful typed writes can be vector-indexed on the same governed path.
+
+Denied governed writes do not partially persist. Instead, the denial is captured in mutation audit history with trace-linked policy evidence.
+
 ### Experience Records
 
 Experience records are outcome-labeled memories with sentiment. They form the foundation of Nous's learning system. Each experience record has a canonical structure:
@@ -125,6 +136,8 @@ Governed mutation procedures are exposed through the API:
 - `memory.promote` and `memory.demote` to move entries between project/global placement states
 - `memory.delete` for soft-delete (default) and hard-delete (with rationale)
 
+Default list views surface only `active` entries. Use export, audit, and tombstone surfaces when you need full historical visibility into superseded or deleted memory.
+
 ## Denied Entries
 
 When the Cortex denies a memory write or mutation, the candidate/action and reason are logged. Use:
@@ -137,6 +150,7 @@ When the Cortex denies a memory write or mutation, the candidate/action and reas
 Export all memory for a project as structured data:
 
 - `memory.export` -> `{ stm, entries, audit, tombstones }`
+- `memory.list` -> active durable entries only for the requested project
 
 This gives a full operator view:
 
