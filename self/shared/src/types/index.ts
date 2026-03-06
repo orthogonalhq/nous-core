@@ -56,3 +56,4 @@ export * from './phase8-export.js';
 export * from './package-manifest.js';
 export * from './package-lifecycle.js';
 export * from './package-compatibility.js';
+export * from './skill-admission.js';

@@ -64,6 +64,16 @@ import type {
   PackageLifecycleTransitionRequest,
   PackageLifecycleTransitionResult,
   PackageLifecycleStateRecord,
+  SkillAdmissionDecisionInput,
+  SkillAdmissionDecisionRecord,
+  SkillAdmissionRequest,
+  SkillAdmissionResult,
+  SkillAttributionThesisRequest,
+  SkillAttributionThesisResult,
+  SkillBenchEvaluationRequest,
+  SkillBenchEvaluationResult,
+  SkillContractValidationRequest,
+  SkillContractValidationResult,
 } from '../types/index.js';
 import type { NousEvent } from '../events/index.js';
 
@@ -220,6 +230,39 @@ export interface IPackageLifecycleOrchestrator {
     projectId: ProjectId,
     packageId: string,
   ): Promise<PackageLifecycleStateRecord | null>;
+}
+
+export interface ISkillAdmissionOrchestrator {
+  /** Validate canonical skill runtime contract artifacts. */
+  validateSkillContract(
+    input: SkillContractValidationRequest,
+  ): Promise<SkillContractValidationResult>;
+
+  /** Evaluate SkillBench evidence and fixed-model drift posture. */
+  evaluateSkillBench(
+    input: SkillBenchEvaluationRequest,
+  ): Promise<SkillBenchEvaluationResult>;
+
+  /** Evaluate attribution thesis completeness and recommendation posture. */
+  evaluateAttributionThesis(
+    input: SkillAttributionThesisRequest,
+  ): Promise<SkillAttributionThesisResult>;
+
+  /** Request admission/promotion from the orchestration lane. */
+  requestAdmission(
+    input: SkillAdmissionRequest,
+  ): Promise<SkillAdmissionResult>;
+
+  /** Record the final cortex decision for a pending admission. */
+  recordCortexDecision(
+    input: SkillAdmissionDecisionInput,
+  ): Promise<SkillAdmissionResult>;
+
+  /** Retrieve canonical admission decision state for a skill revision. */
+  getDecision(
+    skillId: string,
+    revisionId: string,
+  ): Promise<SkillAdmissionDecisionRecord | null>;
 }
 
 export interface IProjectApi {

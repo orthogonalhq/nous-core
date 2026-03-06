@@ -35,6 +35,11 @@ export const WorkmodeEventTypeSchema = z.enum([
   'wmode_lease_expired',
   'wmode_context_profile_switched',
   'wmode_authority_violation_blocked',
+  'wmode_skill_admission_requested',
+  'wmode_skill_admission_blocked',
+  'wmode_skill_promoted',
+  'wmode_skill_held',
+  'wmode_skill_rolled_back',
 ]);
 export type WorkmodeEventType = z.infer<typeof WorkmodeEventTypeSchema>;
 

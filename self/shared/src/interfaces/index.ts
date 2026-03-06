@@ -22,6 +22,7 @@ export type {
   IEscalationService,
   ISandbox,
   IPackageLifecycleOrchestrator,
+  ISkillAdmissionOrchestrator,
   IWitnessService,
   IOpctlService,
   IMaoProjectionService,
