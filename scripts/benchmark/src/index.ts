@@ -14,3 +14,4 @@ export * from './families/nodeflow/smoke.js';
 export * from './families/memory-quality/smoke.js';
 export * from './families/vending/reduced.js';
 export * from './families/reference-agent/p0.js';
+export * from './skillbench/index.js';

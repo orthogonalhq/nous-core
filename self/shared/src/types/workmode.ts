@@ -26,6 +26,13 @@ export const WorkmodeContractSchema = z.object({
   allowed_artifact_surfaces: z.array(z.string().min(1)),
   default_scope_constraints: z.record(z.unknown()).optional(),
   required_capabilities: z.array(z.string()).optional(),
+  admission_requirements: z
+    .object({
+      require_contract_validation: z.boolean().optional(),
+      require_benchmark_evidence: z.boolean().optional(),
+      require_attribution_thesis: z.boolean().optional(),
+    })
+    .optional(),
   policy_group_compatibility: z.array(PolicyGroupSchema),
   version: z.string().min(1),
 });
