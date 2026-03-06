@@ -183,6 +183,9 @@ importers:
       '@nous/memory-access':
         specifier: workspace:*
         version: link:../../memory/access
+      '@nous/memory-ltm':
+        specifier: workspace:*
+        version: link:../../memory/ltm
       '@nous/memory-mwc':
         specifier: workspace:*
         version: link:../../memory/mwc
@@ -425,14 +428,14 @@ importers:
         specifier: ^4.0.18
         version: 4.0.18(@types/node@20.19.33)(jiti@2.6.1)(lightningcss@1.30.2)(tsx@4.21.0)
 
-  self/memory/mwc:
+  self/memory/ltm:
     dependencies:
       '@nous/autonomic-embeddings':
         specifier: workspace:*
         version: link:../../autonomic/embeddings
-      '@nous/autonomic-storage':
+      '@nous/memory-access':
         specifier: workspace:*
-        version: link:../../autonomic/storage
+        version: link:../access
       '@nous/shared':
         specifier: workspace:*
         version: link:../../shared
@@ -440,6 +443,34 @@ importers:
         specifier: ^3.24.1
         version: 3.25.76
     devDependencies:
+      '@nous/autonomic-storage':
+        specifier: workspace:*
+        version: link:../../autonomic/storage
+      vitest:
+        specifier: ^4.0.18
+        version: 4.0.18(@types/node@20.19.33)(jiti@2.6.1)(lightningcss@1.30.2)(tsx@4.21.0)
+
+  self/memory/mwc:
+    dependencies:
+      '@nous/autonomic-embeddings':
+        specifier: workspace:*
+        version: link:../../autonomic/embeddings
+      '@nous/memory-ltm':
+        specifier: workspace:*
+        version: link:../ltm
+      '@nous/shared':
+        specifier: workspace:*
+        version: link:../../shared
+      zod:
+        specifier: ^3.24.1
+        version: 3.25.76
+    devDependencies:
+      '@nous/autonomic-storage':
+        specifier: workspace:*
+        version: link:../../autonomic/storage
+      '@nous/memory-access':
+        specifier: workspace:*
+        version: link:../access
       '@nous/memory-stm':
         specifier: workspace:*
         version: link:../stm
