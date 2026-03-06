@@ -5,6 +5,7 @@ import {
   MemoryWriteCandidateSchema,
   ExperienceRecordWriteCandidateSchema,
   MemoryEntrySchema,
+  MemoryQueryFilterSchema,
   MemoryMutationRequestSchema,
   MemoryMutationAuditRecordSchema,
   MemoryTombstoneSchema,
@@ -242,6 +243,30 @@ describe('MemoryEntrySchema', () => {
     const result = MemoryEntrySchema.safeParse({
       ...validEntry,
       createdAt: 'not-a-date',
+    });
+    expect(result.success).toBe(false);
+  });
+});
+
+describe('MemoryQueryFilterSchema', () => {
+  it('accepts lifecycle-aware filter fields for LTM queries', () => {
+    const result = MemoryQueryFilterSchema.safeParse({
+      type: 'fact',
+      scope: 'project',
+      projectId: VALID_UUID,
+      lifecycleStatus: 'active',
+      placementState: 'project',
+      includeSuperseded: true,
+      includeDeleted: true,
+      limit: 10,
+      offset: 0,
+    });
+    expect(result.success).toBe(true);
+  });
+
+  it('rejects invalid lifecycle status', () => {
+    const result = MemoryQueryFilterSchema.safeParse({
+      lifecycleStatus: 'invalid-status',
     });
     expect(result.success).toBe(false);
   });

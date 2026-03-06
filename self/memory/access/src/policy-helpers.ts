@@ -69,12 +69,10 @@ export function buildPolicyAccessContextForMemoryWrite(
 
   if (candidate.scope === 'global') {
     return {
-      action: 'retrieve',
+      action: 'write',
       fromProjectId: actingProjectId,
       includeGlobal: true,
       projectPolicy,
-      targetProjectIds: [],
-      targetProjectPolicies: {},
       projectControlState,
       traceId,
       nodeId,

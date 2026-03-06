@@ -86,7 +86,7 @@ describe('phase-4.1 contract verification', () => {
         traceId: VALID_UUID as any,
       });
       expect(result).not.toBeNull();
-      expect(result?.action).toBe('retrieve');
+      expect(result?.action).toBe('write');
       expect(result?.fromProjectId).toBe(VALID_UUID);
       expect(result?.includeGlobal).toBe(true);
     });

@@ -126,6 +126,14 @@ function createDecisionRecord(
 /** Validate action-specific required fields. Throws if invalid. */
 function validateActionContext(ctx: PolicyAccessContext): void {
   if (ctx.action === 'read' || ctx.action === 'write') {
+    if (
+      ctx.action === 'write' &&
+      ctx.includeGlobal &&
+      ctx.targetProjectId === undefined &&
+      ctx.targetProjectPolicy === undefined
+    ) {
+      return;
+    }
     if (ctx.targetProjectId === undefined || ctx.targetProjectId === '') {
       throw new Error(
         `PolicyAccessContext: action ${ctx.action} requires targetProjectId`
@@ -253,6 +261,37 @@ export class MemoryAccessPolicyEngine {
 
     // 4. Write evaluation (same as read per memory-system)
     if (parsed.action === 'write') {
+      if (parsed.includeGlobal && parsed.targetProjectId == null) {
+        if (!effectivePolicy.inheritsGlobal) {
+          const record = createDecisionRecord(
+            parsed,
+            false,
+            'POL-GLOBAL-DENIED',
+            POLICY_REASON_CODES['POL-GLOBAL-DENIED']
+          );
+          return {
+            allowed: false,
+            reasonCode: 'POL-GLOBAL-DENIED',
+            reason: POLICY_REASON_CODES['POL-GLOBAL-DENIED'],
+            decisionRecord: record,
+          };
+        }
+
+        const reasonCode = parsed.nodeOverride ? 'POL-NODE-OVERRIDE' : 'POL-DEFAULT';
+        const record = createDecisionRecord(
+          parsed,
+          true,
+          reasonCode,
+          POLICY_REASON_CODES[reasonCode]
+        );
+        return {
+          allowed: true,
+          reasonCode,
+          reason: POLICY_REASON_CODES[reasonCode],
+          decisionRecord: record,
+        };
+      }
+
       const targetId = parsed.targetProjectId!;
       const targetPolicy = parsed.targetProjectPolicy!;
 
