@@ -140,12 +140,27 @@ Provider types: `text`, `image`, `video`, `vision`, `embedding`, `external-api`.
       "inheritsGlobal": true
     },
     "retrievalBudgetTokens": 500,
+    "stmCompactionPolicy": {
+      "maxContextTokens": 1024,
+      "targetContextTokens": 640,
+      "minEntriesBeforeCompaction": 8,
+      "retainedRecentEntries": 4
+    },
     "escalationChannels": ["in-app"]
   }
 }
 ```
 
 These apply to newly created projects.
+
+- `retrievalBudgetTokens` — Default token budget for retrieval result assembly in new projects.
+- `stmCompactionPolicy` — Default short-term-memory pressure policy for new projects.
+  - `maxContextTokens` — Threshold where STM should compact.
+  - `targetContextTokens` — Post-compaction token budget.
+  - `minEntriesBeforeCompaction` — Minimum recent turns required before compaction is allowed.
+  - `retainedRecentEntries` — Number of newest turns kept verbatim when older context is summarized.
+
+`targetContextTokens` must be lower than `maxContextTokens`, and `retainedRecentEntries` must be lower than `minEntriesBeforeCompaction`.
 
 ## Environment Variables
 

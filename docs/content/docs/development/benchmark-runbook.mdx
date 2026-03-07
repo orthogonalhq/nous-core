@@ -33,7 +33,7 @@ Or run the benchmark package tests directly:
 pnpm --filter nous-benchmark run test
 ```
 
-**Memory-quality retrieval (Phase 4.2):** The retrieval benchmark tests relevance (semantically similar results rank higher) and policy-conformance (denial returns `policyDenial`). These tests depend on `@nous/memory-access` being built. If retrieval tests fail with unexpected response shape, run `pnpm --filter @nous/memory-access build` first.
+**Memory-quality retrieval (Phase 4.2 / Phase 8.3 runtime):** The retrieval benchmark tests relevance (semantically similar results rank higher), policy-conformance (denial returns `policyDenial`), and deterministic runtime metadata (`budgetTelemetry`, `decision`, truncation reason, tie-break behavior). These tests depend on the built retrieval stack. If retrieval tests fail with unexpected response shape or stale package output, rebuild `@nous/shared`, `@nous/memory-retrieval`, and `@nous/memory-access` first.
 
 **Memory-quality distillation (Phase 4.3):** The distillation benchmark tests clustering consistency (same input → same cluster keys), confidence formula determinism, and provenance completeness. These tests depend on `@nous/memory-distillation`. AA-004 traceability: distillation-quality regression bar.
 

@@ -29,6 +29,22 @@ Approved entries are persisted after the Cortex evaluates memory write candidate
 
 Denied governed writes do not partially persist. Instead, the denial is captured in mutation audit history with trace-linked policy evidence.
 
+## Short-Term Context and Compaction (Phase 8.3)
+
+Short-term memory (STM) now keeps two forms of conversational context for each project:
+
+- Recent verbatim turns
+- An optional generated summary of older turns compacted under token pressure
+
+When STM reaches the configured pressure threshold, Nous compacts older context into the summary and keeps the newest turns verbatim. The current STM context surfaces:
+
+- `entries` — retained recent turns
+- `summary` — compacted context, when present
+- `tokenCount` — estimated current STM token load
+- `compactionState` — whether compaction is required, what triggered it, and the active max/target thresholds
+
+This behavior is deterministic for equivalent inputs. Runtime compaction is also audit-visible through the governed mutation path (`compact-stm`) rather than being a hidden UI-only rewrite.
+
 ### Experience Records
 
 Experience records are outcome-labeled memories with sentiment. They form the foundation of Nous's learning system. Each experience record has a canonical structure:
@@ -95,7 +111,15 @@ Confidence tiers (low, medium, high) map explicitly to governance behavior. Ther
 
 Retrieval is policy-enforced. All retrieval paths run through `PolicyEnforcedRetrievalEngine`, which evaluates access policy before delegating to the inner retrieval engine. When policy denies a retrieval (for example, global scope with `inheritsGlobal: false`), the response includes `policyDenial` — a `PolicyDecisionRecord` with reason code, trace ID, and evidence refs for audit.
 
-Retrieval responses have the shape `{ results, policyDenial?, selectionAudit? }`. Use `response.results` for the scored entries; use `response.policyDenial` when present to trace denied or degraded outcomes.
+Retrieval responses now have the shape `{ results, policyDenial?, selectionAudit?, budgetTelemetry?, decision? }`.
+
+- `results` — scored entries returned to the caller
+- `policyDenial` — policy decision evidence when access is denied
+- `selectionAudit` — explicit cross-project selection metadata when target-project retrieval is used
+- `budgetTelemetry` — `{ consumedTokens, candidateCount, truncatedCount }`
+- `decision` — deterministic retrieval metadata: `vectorCandidateCount`, `scoredCandidateCount`, `returnedCount`, `truncationReason`, `tieBreakStrategy`, and `scoringWeights`
+
+Use `response.results` for returned entries, `response.policyDenial` to trace denied outcomes, and `budgetTelemetry` / `decision` when you need to inspect why equivalent queries returned a specific result set.
 
 ### Vector Indexing Foundation (Phase 8.1)
 
@@ -104,7 +128,7 @@ Approved writes can now be indexed through the vector foundation path (embed -> 
 - If embedding generation or metadata validation fails, indexing is rejected and the write is not completed through the indexing path.
 - Indexed vectors carry provenance metadata (`modelId`, `modelVersion`, `modelHash`, `requestId`, `generatedAt`, `inputHash`) plus trace/evidence linkage.
 - Retrieval candidate ordering is deterministic for score ties (`score DESC`, then `entry.id ASC`).
-- Token-budget truncation is deterministic; when `tokenBudget <= 0`, retrieval returns an empty result set with truncation telemetry.
+- Token-budget truncation is deterministic; when `tokenBudget <= 0`, retrieval returns an empty result set with truncation telemetry and `decision.truncationReason = 'token_budget'`.
 
 These guarantees make retrieval behavior replayable and auditable across equivalent inputs.
 
@@ -154,7 +178,7 @@ Export all memory for a project as structured data:
 
 This gives a full operator view:
 
-- Short-term conversation context (`stm`)
+- Short-term conversation context (`stm`: entries, summary, tokenCount, compactionState)
 - Durable memory entries and lifecycle state (`entries`)
 - Mutation history (`audit`)
 - Hard-delete proof artifacts (`tombstones`)
