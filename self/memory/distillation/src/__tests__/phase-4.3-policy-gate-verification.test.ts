@@ -4,71 +4,51 @@
  *
  * Contract: Caller MUST invoke policy evaluation before distillation writes
  * when scope is cross-project or global. DistillationEngine writes directly
- * to the provided LTM — no built-in policy bypass. For cross-project scope
+ * to the provided LTM - no built-in policy bypass. For cross-project scope
  * (future), caller must pass a policy-enforced LTM or invoke policy before write.
  */
-import { describe, it, expect, vi } from 'vitest';
-import { DistillationEngine } from '../distillation-engine.js';
+import { describe, expect, it, vi } from 'vitest';
 import { InMemoryLtmStore } from '@nous/memory-stubs';
-import type { ExperienceRecord } from '@nous/shared';
-import { ExperienceRecordSchema } from '@nous/shared';
-
-const NOW = new Date().toISOString();
-const PROJ = '550e8400-e29b-41d4-a716-446655440000';
-const TRACE = '550e8400-e29b-41d4-a716-446655440001';
-
-function makeRecord(id: string): ExperienceRecord {
-  return ExperienceRecordSchema.parse({
-    id,
-    content: 'ctx',
-    type: 'experience-record',
-    scope: 'project',
-    projectId: PROJ,
-    confidence: 0.8,
-    sensitivity: [],
-    retention: 'permanent',
-    provenance: { traceId: TRACE, source: 'test', timestamp: NOW },
-    tags: ['tag1'],
-    sentiment: 'strong-positive',
-    context: 'ctx',
-    action: 'act',
-    outcome: 'out',
-    reason: 'reason',
-    createdAt: NOW,
-    updatedAt: NOW,
-  });
-}
+import { DistillationEngine } from '../distillation-engine.js';
+import {
+  NOW,
+  PROJECT_ID,
+  makeStablePromotionCluster,
+} from './fixtures/production-scenarios.js';
 
 describe('Phase 4.3 policy-gate verification', () => {
   it('runDistillationPass produces project-scoped patterns only', async () => {
     const ltm = new InMemoryLtmStore();
-    await ltm.write(makeRecord('550e8400-e29b-41d4-a716-446655440010'));
-    await ltm.write(makeRecord('550e8400-e29b-41d4-a716-446655440011'));
-    await ltm.write(makeRecord('550e8400-e29b-41d4-a716-446655440012'));
+    const cluster = makeStablePromotionCluster();
+    for (const record of cluster.records) {
+      await ltm.write(record);
+    }
 
     const engine = new DistillationEngine(ltm, {
-      clusterConfig: { minClusterSize: 2, maxClusterSize: 10, clusteringStrategy: 'project' },
+      now: () => NOW,
     });
-    const result = await engine.runDistillationPass(PROJ);
+    const result = await engine.runDistillationPass(PROJECT_ID);
 
-    expect(result.patternsCreated.length).toBeGreaterThan(0);
-    for (const p of result.patternsCreated) {
-      expect(p.scope).toBe('project');
-      expect(p.projectId).toBe(PROJ);
+    expect(result.patternsCreated.length).toBe(1);
+    for (const pattern of result.patternsCreated) {
+      expect(pattern.scope).toBe('project');
+      expect(pattern.projectId).toBe(PROJECT_ID);
     }
   });
 
-  it('writes go through provided LTM — no built-in bypass', async () => {
+  it('writes go through the provided LTM with no built-in bypass path', async () => {
     const ltm = new InMemoryLtmStore();
+    const cluster = makeStablePromotionCluster();
+    for (const record of cluster.records) {
+      await ltm.write(record);
+    }
     const writeSpy = vi.spyOn(ltm, 'write');
-    await ltm.write(makeRecord('550e8400-e29b-41d4-a716-446655440010'));
-    await ltm.write(makeRecord('550e8400-e29b-41d4-a716-446655440011'));
     writeSpy.mockClear();
 
     const engine = new DistillationEngine(ltm, {
-      clusterConfig: { minClusterSize: 2, maxClusterSize: 10, clusteringStrategy: 'project' },
+      now: () => NOW,
     });
-    await engine.runDistillationPass(PROJ);
+    await engine.runDistillationPass(PROJECT_ID);
 
     expect(writeSpy).toHaveBeenCalled();
     writeSpy.mockRestore();

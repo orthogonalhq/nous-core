@@ -18,11 +18,12 @@
   },
   "dependencies": {
     "@nous/shared": "workspace:*",
-    "@nous/memory-stubs": "workspace:*",
-    "@nous/autonomic-storage": "workspace:*",
     "zod": "^3.24.1"
   },
   "devDependencies": {
+    "@nous/autonomic-storage": "workspace:*",
+    "@nous/memory-ltm": "workspace:*",
+    "@nous/memory-stubs": "workspace:*",
     "vitest": "^4.0.18"
   }
 }
