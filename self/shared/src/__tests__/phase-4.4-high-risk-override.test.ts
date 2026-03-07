@@ -22,6 +22,12 @@ describe('Phase 4.4 high-risk override (ADR-004)', () => {
     }
   });
 
+  it('contains no duplicate categories', () => {
+    expect(new Set(HIGH_RISK_ACTION_CATEGORIES).size).toBe(
+      HIGH_RISK_ACTION_CATEGORIES.length,
+    );
+  });
+
   it('confidence cannot bypass: even high tier does not grant autonomy for high-risk', () => {
     const highMapping = CANONICAL_CONFIDENCE_GOVERNANCE_MAPPING.find(
       (m) => m.tier === 'high',

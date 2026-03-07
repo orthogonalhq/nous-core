@@ -84,21 +84,25 @@ Each distilled pattern includes:
 - **Provenance** — `basedOn` and `supersedes` link to source experience records; `evidenceRefs` link to clustering and write evidence
 - **Scope** — project-scoped by default; cross-project distillation requires policy evaluation before write
 
-**Confidence lifecycle:** Patterns gain confidence when new experience records align (refresh); they lose confidence when contradicted or when they become stale (decay). Phase 8.5 implements deterministic initial assignment, confirming refresh, contradiction decay, staleness decay, and retirement flagging while preserving explicit confidence metadata for downstream governance and visibility consumers.
+**Confidence lifecycle:** Patterns gain confidence when new experience records align (refresh); they lose confidence when contradicted or when they become stale (decay). Phase 8.5 implements deterministic initial assignment, confirming refresh, contradiction decay, staleness decay, and retirement flagging. Phase 8.6 then consumes those exports in the runtime confidence-governance evaluator, so the confidence metadata now directly drives allow, flag, escalate, defer, and deny outcomes.
 
 **Supersession reversal:** If a distilled pattern is found to be incorrect, `reverseSupersession` restores the source records to active and retires the pattern. The caller must emit an audit record for the reversal (ADR-002 evidence-chain). No silent replacement.
 
 ### Confidence and Governance
 
-Confidence tiers (low, medium, high) map explicitly to governance behavior. There is no opaque autonomy path — every autonomy decision traces to a documented tier and node governance level.
+Confidence tiers (low, medium, high) map explicitly to governance behavior. There is no opaque autonomy path - every runtime decision traces to a documented tier, node governance level, and reason-coded outcome.
 
-| Tier | Escalation | Autonomy | Deviations |
+| Confidence state | Stable `may` | Stable `should` | Stable `must` |
 |------|------------|----------|------------|
-| **Low** | Required — Nous presents emerging patterns for validation before applying | None | All deviations flagged |
-| **Medium** | Not required | None — patterns applied but deviations flagged | User notified when pattern influences a decision |
-| **High** | Not required | Bounded — MAY nodes only; no autonomy on MUST/SHOULD | No flagging |
+| **Low** | `escalate` | `escalate` | `escalate` |
+| **Medium** | `allow_with_flag` | `allow_with_flag` | `deny` |
+| **High** | `allow_autonomy` | `allow_with_flag` | `deny` |
 
-**High-risk actions** (tool-execute with elevated scope, memory-write cross-project, opctl-command) always require confirmation regardless of confidence.
+Low confidence and any non-stable decay state (`decaying`, `flagged_retirement`) require escalation context before runtime execution proceeds.
+
+**High-risk action categories** (`tool-execute`, `memory-write`, `opctl-command`) always defer for explicit confirmation regardless of confidence or governance level.
+
+**Control-state gating** - Project control states override the confidence mapping. `hard_stopped` denies runtime autonomy, while `paused_review` and `resuming` defer execution until the project is cleared.
 
 **Escalation signals** — When the system escalates due to low confidence or contradiction, it emits deterministic signals:
 
@@ -107,7 +111,7 @@ Confidence tiers (low, medium, high) map explicitly to governance behavior. Ther
 - `CONF-STALENESS` — pattern has not been confirmed recently
 - `CONF-RETIREMENT` — pattern flagged for retirement
 
-**Explainability** — When a pattern is allowed to influence an outcome, the system must produce a trace-linked explanation (what pattern, which outcome, evidence refs) for audit and operator inspection. Phase 8.5 emits the evidence-linked pattern, confidence, escalation, and export payloads required for that path; later phases decide when those outputs drive autonomy or operator-facing UI surfaces.
+**Explainability** — When a pattern is allowed to influence an outcome, the system produces a trace-linked explanation (what pattern, which outcome, evidence refs) plus a reason-coded runtime decision for audit and operator inspection. Phase 8.6 wires the Phase 8.5 pattern, confidence, escalation, and explanation exports into the live PFC runtime so equivalent inputs resolve to the same governance outcome.
 
 ### Retrieval and Policy
 
