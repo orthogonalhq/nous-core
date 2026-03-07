@@ -45,10 +45,11 @@ describe('truncateByTokenBudget', () => {
       makeResult('longer content here', 0.8, 'b'),
       makeResult('x', 0.7, 'c'),
     ];
-    const { results: kept, telemetry } = truncateByTokenBudget(results, 5);
+    const { telemetry, truncationReason } = truncateByTokenBudget(results, 5);
     expect(telemetry.consumedTokens).toBeLessThanOrEqual(5);
     expect(telemetry.candidateCount).toBe(3);
     expect(telemetry.truncatedCount).toBeGreaterThanOrEqual(0);
+    expect(truncationReason).toBe('token_budget');
   });
 
   it('returns deterministic ordering: score desc, then id asc', () => {
@@ -69,10 +70,11 @@ describe('truncateByTokenBudget', () => {
       makeResult('x', 0.9, 'a'),
       makeResult('y', 0.8, 'b'),
     ];
-    const { telemetry } = truncateByTokenBudget(results, 100);
+    const { telemetry, truncationReason } = truncateByTokenBudget(results, 100);
     expect(telemetry.consumedTokens).toBeGreaterThanOrEqual(0);
     expect(telemetry.candidateCount).toBe(2);
     expect(telemetry.truncatedCount).toBe(0);
+    expect(truncationReason).toBe('none');
   });
 
   it('returns empty results when tokenBudget is zero', () => {
@@ -80,10 +82,24 @@ describe('truncateByTokenBudget', () => {
       makeResult('x', 0.9, 'a'),
       makeResult('y', 0.8, 'b'),
     ];
-    const { results: kept, telemetry } = truncateByTokenBudget(results, 0);
+    const { results: kept, telemetry, truncationReason } = truncateByTokenBudget(results, 0);
     expect(kept).toEqual([]);
     expect(telemetry.consumedTokens).toBe(0);
     expect(telemetry.candidateCount).toBe(2);
     expect(telemetry.truncatedCount).toBe(2);
+    expect(truncationReason).toBe('token_budget');
+  });
+
+  it('does not return an entry that exceeds the available budget by itself', () => {
+    const results = [makeResult('x'.repeat(40), 0.9, 'a')];
+    const { results: kept, telemetry, truncationReason } = truncateByTokenBudget(
+      results,
+      5,
+    );
+
+    expect(kept).toEqual([]);
+    expect(telemetry.consumedTokens).toBe(0);
+    expect(telemetry.truncatedCount).toBe(1);
+    expect(truncationReason).toBe('token_budget');
   });
 });
