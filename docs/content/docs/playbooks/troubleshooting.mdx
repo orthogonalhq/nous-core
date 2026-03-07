@@ -61,6 +61,41 @@ ollama pull llama3.2:3b
 
 **Fix:** First-run completes when you send a message and receive a response, or when a project exists. Ensure Ollama is running so the health check and model invocation succeed.
 
+## Memory Inspector Shows a Global-Scope Warning
+
+**Symptom:** The `/memory` page shows a reason-code banner after you switch Scope to `Global only` or `Project + global`, and global entries do not appear.
+
+**Meaning:** The selected project either does not inherit global memory or the runtime denied global-scope inspection. This is an explicit policy result, not an empty-state guess.
+
+**Fix:**
+- Read the banner's reason code and explanation first.
+- If you only need project-local memory, switch Scope back to `Project only`.
+- If you expected global visibility, check the project's memory-access policy and whether `inheritsGlobal` is enabled.
+- If the denial should not have happened, inspect trace and audit evidence for the underlying policy decision rather than retrying blindly.
+
+## Memory Export Includes More Than the Current Filtered View
+
+**Symptom:** The exported memory bundle contains entries that are not visible in the current inspector result list.
+
+**Meaning:** This is expected. The export flow always returns the full project memory bundle, including STM context, durable entries, audit history, and tombstones. Search and filter controls narrow the on-screen inspection view only.
+
+**Fix:**
+- Use the inspector filters to review a subset.
+- Use export when you need the authoritative full-state bundle.
+- If you need a narrower dataset for analysis, filter the exported bundle after download.
+
+## Hard Delete Cannot Be Confirmed or Is Rejected
+
+**Symptom:** The Memory inspector refuses to proceed with hard delete, or the result banner says the delete was not applied.
+
+**Meaning:** Hard delete is confirmation-protected and requires a non-empty rationale before the request is sent. Even with a rationale, the governed mutation can still deny or defer the action.
+
+**Fix:**
+- Enter a clear rationale before selecting **Confirm hard delete**.
+- Read the returned reason code in the result banner.
+- If the action was not applied, inspect `memory.audit` for the authoritative mutation outcome and evidence refs.
+- Treat deny or defer outcomes as runtime truth; clear the governing blocker instead of retrying without changes.
+
 ## Dispatch or Action Blocked (WMODE-*)
 
 **Symptom:** A workflow dispatch or lifecycle action is blocked with a reason code such as `WMODE-002`, `WMODE-003`, or `WMODE-010`.

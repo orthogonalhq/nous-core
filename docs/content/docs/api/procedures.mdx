@@ -37,7 +37,8 @@ description: Reference for all tRPC procedures
 | Procedure | Type | Input | Output |
 |----------|------|-------|--------|
 | `memory.list` | query | `{ projectId }` | `MemoryEntry[]` |
-| `memory.denials` | query | `{ projectId }` | `{ candidate, reason }[]` |
+| `memory.inspect` | query | `{ projectId, scope?, query?, types?, lifecycleStatus?, includeSuperseded?, includeDeleted?, placementState?, tags?, limit?, offset?, sortBy?, sortDirection? }` | `{ entries, diagnostics }` |
+| `memory.denials` | query | `{ projectId }` | `{ candidate, reason, decisionRecord?, traceId?, timestamp? }[]` |
 | `memory.audit` | query | `{ projectId? }` | `MemoryMutationAuditRecord[]` |
 | `memory.tombstones` | query | `{ projectId? }` | `MemoryTombstone[]` |
 | `memory.export` | query | `{ projectId }` | `{ stm, entries, audit, tombstones }` |
@@ -47,6 +48,14 @@ description: Reference for all tRPC procedures
 | `memory.delete` | mutation | `{ id?, projectId?, hard?, rationale? }` | `{ deleted: number, result?: MutationResult }` |
 
 - `memory.list` — Returns the active durable entries for a project. Superseded or deleted records stay visible through `memory.export`, `memory.audit`, and `memory.tombstones`.
+- `memory.inspect` — Inspect-first durable-memory query for the `/memory` UI.
+  - `scope` accepts `project`, `global`, or `all`.
+  - Filters accept free-text `query`, canonical `types`, `lifecycleStatus`, `placementState`, comma-ready `tags`, plus `includeSuperseded` and `includeDeleted`.
+  - Sorting accepts `updatedAt`, `createdAt`, `confidence`, `type`, or `sentiment` with `asc` / `desc`.
+  - Response shape: `{ entries, diagnostics }`, where `diagnostics` includes `requestedScope`, `projectInheritsGlobal`, and optional `globalScopeDecision` when global inspection is requested.
+- `memory.denials` — Returns denied memory-write candidates with operator-visible diagnostics.
+  - `decisionRecord` preserves the canonical policy/governance decision when present.
+  - `traceId` and `timestamp` let the UI link the denial back to the originating trace/turn.
 - `id` with `hard` unset or `false` — Soft-delete a single entry (default delete mode)
 - `id` with `hard: true` and `rationale` — Hard-delete path (requires principal override rationale and emits tombstone)
 - `projectId` only — Soft-delete all active entries for the project

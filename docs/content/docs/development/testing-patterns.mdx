@@ -46,6 +46,8 @@ self/<layer>/<package>/
 
 - Tests live in `src/__tests__/` — colocated with the source
 - Test file names match the source module: `sqlite-document-store.ts` → `sqlite-document-store.test.ts`
+- Web app rendered tests may live in package-root `__tests__/` when they exercise app routes or client composition rather than a single `src/` module.
+- Use `.test.tsx` for rendered UI suites.
 
 ## Naming Conventions
 
@@ -75,6 +77,12 @@ Aim for **80% coverage on behavioral code**. Exclude type definitions, stub impl
 - Root test execution uses `vitest.config.mts` with explicit `test.projects` entries so package-local Vitest configs (aliases, include/exclude patterns) apply consistently.
 - For package-only runs, use `pnpm --filter <package-name> test`.
 - Avoid ad-hoc root `vitest run` invocations that bypass the intended workspace configuration.
+
+## Rendered Web Tests
+
+- In `@nous/web`, server-side suites continue to run in the default `node` environment.
+- Rendered UI suites opt into `jsdom` per file with a header comment: `// @vitest-environment jsdom`.
+- Prefer this per-file opt-in when only a subset of a package needs DOM APIs; it keeps non-rendered suites fast and avoids changing the environment for unrelated tests.
 
 ## Reference
 
