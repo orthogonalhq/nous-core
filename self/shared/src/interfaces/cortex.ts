@@ -8,6 +8,8 @@ import type {
   ProjectId,
   TraceId,
   PfcTier,
+  ConfidenceGovernanceEvaluationInput,
+  ConfidenceGovernanceEvaluationResult,
   MemoryWriteCandidate,
   MemoryMutationRequest,
   PfcDecision,
@@ -21,6 +23,11 @@ import type {
 } from '../types/index.js';
 
 export interface IPfcEngine {
+  /** Evaluate a confidence-governance runtime decision bundle */
+  evaluateConfidenceGovernance(
+    input: ConfidenceGovernanceEvaluationInput,
+  ): Promise<ConfidenceGovernanceEvaluationResult>;
+
   /** Evaluate a memory write candidate — approve or deny */
   evaluateMemoryWrite(
     candidate: MemoryWriteCandidate,

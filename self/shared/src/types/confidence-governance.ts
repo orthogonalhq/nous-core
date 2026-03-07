@@ -2,7 +2,7 @@
  * Confidence-governance coupling and Phase 6 export types for Nous-OSS.
  *
  * Phase 4.4: Confidence tier mapping, explainability, escalation signals,
- * and Phase 6 intake contracts.
+ * Phase 6 intake contracts, and Phase 8.6 runtime evaluation contracts.
  */
 import { z } from 'zod';
 import {
@@ -11,8 +11,29 @@ import {
   TraceIdSchema,
 } from './ids.js';
 import { GovernanceLevelSchema, MemoryScopeSchema } from './enums.js';
-import { TraceEvidenceReferenceSchema } from './evidence.js';
-import type { CriticalActionCategory } from './evidence.js';
+import {
+  CriticalActionCategorySchema,
+  TraceEvidenceReferenceSchema,
+} from './evidence.js';
+import { ProjectControlStateSchema } from './mao.js';
+import type {
+  CriticalActionCategory,
+  TraceEvidenceReference,
+} from './evidence.js';
+
+function evidenceRefKey(ref: TraceEvidenceReference): string {
+  return JSON.stringify(
+    Object.entries(ref).sort(([left], [right]) => left.localeCompare(right)),
+  );
+}
+
+function isEvidenceSubset(
+  subset: TraceEvidenceReference[],
+  superset: TraceEvidenceReference[],
+): boolean {
+  const allowed = new Set(superset.map((ref) => evidenceRefKey(ref)));
+  return subset.every((ref) => allowed.has(evidenceRefKey(ref)));
+}
 
 // --- Confidence Tier ---
 // Maps from ConfidenceLifecycleSchema thresholds (Phase 4.3):
@@ -21,6 +42,13 @@ import type { CriticalActionCategory } from './evidence.js';
 // high:   confidence >= 0.9 AND supportingSignals >= 15
 export const ConfidenceTierSchema = z.enum(['low', 'medium', 'high']);
 export type ConfidenceTier = z.infer<typeof ConfidenceTierSchema>;
+
+export const ConfidenceDecayStateSchema = z.enum([
+  'stable',
+  'decaying',
+  'flagged_retirement',
+]);
+export type ConfidenceDecayState = z.infer<typeof ConfidenceDecayStateSchema>;
 
 // --- Confidence Governance Mapping ---
 // Explicit mapping from tier to governance behavior. No opaque autonomy.
@@ -127,9 +155,7 @@ export const Phase6ConfidenceSignalExportSchema = z.object({
   supportingSignals: z.number().int().min(0),
   patternId: MemoryEntryIdSchema.optional(),
   entryId: MemoryEntryIdSchema.optional(),
-  decayState: z
-    .enum(['stable', 'decaying', 'flagged_retirement'])
-    .optional(),
+  decayState: ConfidenceDecayStateSchema.optional(),
 });
 export type Phase6ConfidenceSignalExport = z.infer<
   typeof Phase6ConfidenceSignalExportSchema
@@ -142,4 +168,211 @@ export const Phase6EvidenceLinkageExpectationsSchema = z.object({
 });
 export type Phase6EvidenceLinkageExpectations = z.infer<
   typeof Phase6EvidenceLinkageExpectationsSchema
+>;
+
+// --- Phase 8.6 Runtime Evaluation Contracts ---
+
+export const ConfidenceGovernanceDecisionOutcomeSchema = z.enum([
+  'allow_autonomy',
+  'allow_with_flag',
+  'escalate',
+  'defer',
+  'deny',
+]);
+export type ConfidenceGovernanceDecisionOutcome = z.infer<
+  typeof ConfidenceGovernanceDecisionOutcomeSchema
+>;
+
+export const ConfidenceGovernanceDecisionReasonCodeSchema = z.enum([
+  'CGR-ALLOW-AUTONOMY',
+  'CGR-ALLOW-WITH-FLAG',
+  'CGR-ESCALATE-LOW-CONFIDENCE',
+  'CGR-ESCALATE-CONTRADICTION',
+  'CGR-ESCALATE-STALENESS',
+  'CGR-ESCALATE-RETIREMENT',
+  'CGR-DEFER-HIGH-RISK-CONFIRMATION',
+  'CGR-DEFER-PAUSED-REVIEW',
+  'CGR-DEFER-RESUMING',
+  'CGR-DENY-HARD-STOPPED',
+  'CGR-DENY-GOVERNANCE-CEILING',
+  'CGR-DENY-MISSING-ESCALATION-CONTEXT',
+]);
+export type ConfidenceGovernanceDecisionReasonCode = z.infer<
+  typeof ConfidenceGovernanceDecisionReasonCodeSchema
+>;
+
+export const ConfidenceGovernanceEvaluationInputSchema = z
+  .object({
+    governance: GovernanceLevelSchema,
+    actionCategory: CriticalActionCategorySchema,
+    projectControlState: ProjectControlStateSchema.optional(),
+    pattern: Phase6DistilledPatternExportSchema,
+    confidenceSignal: Phase6ConfidenceSignalExportSchema,
+    explanation: LearnedBehaviorExplanationSchema,
+    escalationSignal: EscalationSignalSchema.optional(),
+  })
+  .superRefine((value, ctx) => {
+    if (value.pattern.evidenceRefs.length === 0) {
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        message: 'pattern evidenceRefs must be non-empty',
+        path: ['pattern', 'evidenceRefs'],
+      });
+    }
+
+    if (value.explanation.patternId !== value.pattern.id) {
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        message: 'explanation.patternId must match pattern.id',
+        path: ['explanation', 'patternId'],
+      });
+    }
+
+    if (
+      value.confidenceSignal.patternId &&
+      value.confidenceSignal.patternId !== value.pattern.id
+    ) {
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        message: 'confidenceSignal.patternId must match pattern.id',
+        path: ['confidenceSignal', 'patternId'],
+      });
+    }
+
+    if (
+      value.confidenceSignal.entryId &&
+      value.confidenceSignal.entryId !== value.pattern.id
+    ) {
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        message: 'confidenceSignal.entryId must match pattern.id',
+        path: ['confidenceSignal', 'entryId'],
+      });
+    }
+
+    if (
+      value.escalationSignal?.patternId &&
+      value.escalationSignal.patternId !== value.pattern.id
+    ) {
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        message: 'escalationSignal.patternId must match pattern.id',
+        path: ['escalationSignal', 'patternId'],
+      });
+    }
+
+    if (
+      !isEvidenceSubset(
+        value.explanation.evidenceRefs,
+        value.pattern.evidenceRefs,
+      )
+    ) {
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        message:
+          'explanation.evidenceRefs must align to the canonical pattern evidenceRefs',
+        path: ['explanation', 'evidenceRefs'],
+      });
+    }
+  });
+export type ConfidenceGovernanceEvaluationInput = z.infer<
+  typeof ConfidenceGovernanceEvaluationInputSchema
+>;
+
+export const ConfidenceGovernanceEvaluationResultSchema = z
+  .object({
+    outcome: ConfidenceGovernanceDecisionOutcomeSchema,
+    reasonCode: ConfidenceGovernanceDecisionReasonCodeSchema,
+    governance: GovernanceLevelSchema,
+    actionCategory: CriticalActionCategorySchema,
+    projectControlState: ProjectControlStateSchema.optional(),
+    patternId: MemoryEntryIdSchema,
+    confidence: z.number().min(0).max(1),
+    confidenceTier: ConfidenceTierSchema,
+    supportingSignals: z.number().int().min(0),
+    decayState: ConfidenceDecayStateSchema.optional(),
+    autonomyAllowed: z.boolean(),
+    requiresConfirmation: z.boolean(),
+    highRiskOverrideApplied: z.boolean(),
+    evidenceRefs: z.array(TraceEvidenceReferenceSchema).min(1),
+    explanation: LearnedBehaviorExplanationSchema,
+    escalationSignal: EscalationSignalSchema.optional(),
+  })
+  .superRefine((value, ctx) => {
+    if (value.outcome === 'allow_autonomy' && !value.autonomyAllowed) {
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        message: 'allow_autonomy outcomes must set autonomyAllowed=true',
+        path: ['autonomyAllowed'],
+      });
+    }
+
+    if (value.outcome !== 'allow_autonomy' && value.autonomyAllowed) {
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        message: 'only allow_autonomy outcomes may set autonomyAllowed=true',
+        path: ['autonomyAllowed'],
+      });
+    }
+
+    if (
+      value.highRiskOverrideApplied &&
+      value.reasonCode !== 'CGR-DEFER-HIGH-RISK-CONFIRMATION'
+    ) {
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        message:
+          'highRiskOverrideApplied results must use CGR-DEFER-HIGH-RISK-CONFIRMATION',
+        path: ['reasonCode'],
+      });
+    }
+
+    if (
+      value.requiresConfirmation &&
+      value.reasonCode !== 'CGR-DEFER-HIGH-RISK-CONFIRMATION'
+    ) {
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        message:
+          'requiresConfirmation may only be true for the high-risk confirmation defer path',
+        path: ['requiresConfirmation'],
+      });
+    }
+
+    if (
+      value.reasonCode === 'CGR-DEFER-HIGH-RISK-CONFIRMATION' &&
+      (!value.highRiskOverrideApplied ||
+        !value.requiresConfirmation ||
+        value.outcome !== 'defer')
+    ) {
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        message:
+          'high-risk confirmation defer results must set defer outcome, requiresConfirmation=true, and highRiskOverrideApplied=true',
+        path: ['reasonCode'],
+      });
+    }
+
+    if (value.outcome === 'escalate' && !value.escalationSignal) {
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        message: 'escalate outcomes require escalationSignal context',
+        path: ['escalationSignal'],
+      });
+    }
+
+    if (
+      value.reasonCode === 'CGR-DENY-MISSING-ESCALATION-CONTEXT' &&
+      value.escalationSignal
+    ) {
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        message:
+          'missing-escalation-context deny results must not carry escalationSignal',
+        path: ['escalationSignal'],
+      });
+    }
+  });
+export type ConfidenceGovernanceEvaluationResult = z.infer<
+  typeof ConfidenceGovernanceEvaluationResultSchema
 >;
