@@ -7,6 +7,8 @@ import type {
   IPfcEngine,
   IConfig,
   IToolExecutor,
+  ConfidenceGovernanceEvaluationInput,
+  ConfidenceGovernanceEvaluationResult,
   MemoryWriteCandidate,
   MemoryMutationRequest,
   PfcDecision,
@@ -17,12 +19,32 @@ import type {
   PfcTier,
   ProjectId,
 } from '@nous/shared';
+import {
+  observeConfidenceGovernanceDecision,
+  evaluateConfidenceGovernanceRuntime,
+  type ConfidenceGovernanceObserver,
+} from './confidence-governance-runtime.js';
 
 export class PfcEngine implements IPfcEngine {
   constructor(
     private readonly config: IConfig,
     private readonly toolExecutor: IToolExecutor,
+    private readonly confidenceGovernanceObserver?: ConfidenceGovernanceObserver,
   ) {}
+
+  async evaluateConfidenceGovernance(
+    input: ConfidenceGovernanceEvaluationInput,
+  ): Promise<ConfidenceGovernanceEvaluationResult> {
+    const decision = evaluateConfidenceGovernanceRuntime(input);
+    await observeConfidenceGovernanceDecision(
+      decision,
+      this.confidenceGovernanceObserver,
+    );
+    console.info(
+      `[nous:pfc] confidence_governance patternId=${decision.patternId} outcome=${decision.outcome} reasonCode=${decision.reasonCode} governance=${decision.governance} tier=${decision.confidenceTier} actionCategory=${decision.actionCategory}`,
+    );
+    return decision;
+  }
 
   async evaluateMemoryWrite(
     candidate: MemoryWriteCandidate,
