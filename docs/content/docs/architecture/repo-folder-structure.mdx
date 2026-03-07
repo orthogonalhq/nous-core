@@ -206,7 +206,7 @@ This package is the ingress seam between Cortex-approved write intent and the du
 
 ### distillation/
 
-The compression engine. Implemented as `@nous/memory-distillation` (Phase 4.3). Background process that converts clusters of experience records into distilled patterns.
+The compression engine. Implemented as `@nous/memory-distillation` (Phase 4.3). The package and heuristic baseline exist today, and Phase 8.4 adds a prototype evaluation harness for candidate distillation approaches. Production background promotion and supersession through this path remain gated until Phase 8.5 ratifies the runtime coupling.
 
 Responsibilities:
 
@@ -217,7 +217,7 @@ Responsibilities:
 * Support supersession reversal — restore source records to active, retire pattern (caller emits audit)
 * Policy gate: caller must invoke policy evaluation before distillation writes when scope is cross-project or global
 
-This is the "sleep cycle" — consolidation that happens offline, not at query time.
+This is the intended "sleep cycle" — consolidation that happens offline, not at query time, once the production distillation path is ratified.
 
 Designed for independent iteration. Swap distillation strategies without touching storage or retrieval.
 
