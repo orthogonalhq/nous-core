@@ -39,6 +39,12 @@ export function generateDefaultConfig(
         inheritsGlobal: true,
       },
       retrievalBudgetTokens: 500,
+      stmCompactionPolicy: {
+        maxContextTokens: 1024,
+        targetContextTokens: 640,
+        minEntriesBeforeCompaction: 8,
+        retainedRecentEntries: 4,
+      },
       escalationChannels: ['in-app'],
     },
     storage: {
