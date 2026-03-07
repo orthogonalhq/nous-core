@@ -1,5 +1,6 @@
 import { describe, it, expect } from 'vitest';
 import {
+  DEFAULT_STM_COMPACTION_POLICY,
   DEFAULT_MEMORY_ACCESS_POLICY,
   MemoryAccessPolicySchema,
   MemoryWriteCandidateSchema,
@@ -9,6 +10,8 @@ import {
   MemoryMutationRequestSchema,
   MemoryMutationAuditRecordSchema,
   MemoryTombstoneSchema,
+  StmCompactionPolicySchema,
+  StmCompactionStateSchema,
   StmCompactionSummarySchema,
   ExperienceRecordSchema,
   DistilledPatternSchema,
@@ -17,8 +20,10 @@ import {
 import {
   RetrievalResponseSchema,
   RetrievalBudgetTelemetrySchema,
+  RetrievalDecisionMetadataSchema,
   RetrievalScoringWeightsSchema,
   DEFAULT_RETRIEVAL_WEIGHTS,
+  RETRIEVAL_TIE_BREAK_STRATEGY,
 } from '../../types/retrieval.js';
 
 const VALID_UUID = '550e8400-e29b-41d4-a716-446655440000';
@@ -40,6 +45,14 @@ describe('DEFAULT_MEMORY_ACCESS_POLICY', () => {
       expect(result.data.canBeReadBy).toBe('all');
       expect(result.data.inheritsGlobal).toBe(true);
     }
+  });
+});
+
+describe('DEFAULT_STM_COMPACTION_POLICY', () => {
+  it('parses as valid StmCompactionPolicy', () => {
+    expect(
+      StmCompactionPolicySchema.safeParse(DEFAULT_STM_COMPACTION_POLICY).success,
+    ).toBe(true);
   });
 });
 
@@ -440,6 +453,26 @@ describe('RetrievalResponseSchema', () => {
     expect(result.success).toBe(true);
   });
 
+  it('accepts budget telemetry and deterministic decision metadata', () => {
+    const result = RetrievalResponseSchema.safeParse({
+      results: [validRetrievalResult],
+      budgetTelemetry: {
+        consumedTokens: 42,
+        candidateCount: 3,
+        truncatedCount: 1,
+      },
+      decision: {
+        vectorCandidateCount: 5,
+        scoredCandidateCount: 3,
+        returnedCount: 1,
+        truncationReason: 'token_budget',
+        tieBreakStrategy: RETRIEVAL_TIE_BREAK_STRATEGY,
+        scoringWeights: DEFAULT_RETRIEVAL_WEIGHTS,
+      },
+    });
+    expect(result.success).toBe(true);
+  });
+
   it('rejects missing results', () => {
     const result = RetrievalResponseSchema.safeParse({
       policyDenial: { id: VALID_UUID, projectId: VALID_UUID_2, action: 'retrieve', outcome: 'denied', reasonCode: 'POL-DENIED', reason: 'x', occurredAt: NOW },
@@ -518,6 +551,20 @@ describe('RetrievalScoringWeightsSchema', () => {
       wConfidence: 0,
     });
     expect(result.success).toBe(false);
+  });
+});
+
+describe('RetrievalDecisionMetadataSchema', () => {
+  it('accepts deterministic retrieval metadata', () => {
+    const result = RetrievalDecisionMetadataSchema.safeParse({
+      vectorCandidateCount: 5,
+      scoredCandidateCount: 4,
+      returnedCount: 2,
+      truncationReason: 'none',
+      tieBreakStrategy: RETRIEVAL_TIE_BREAK_STRATEGY,
+      scoringWeights: DEFAULT_RETRIEVAL_WEIGHTS,
+    });
+    expect(result.success).toBe(true);
   });
 });
 
@@ -614,7 +661,24 @@ describe('StmCompactionSummarySchema', () => {
         },
       ],
       sourceEntryCount: 1,
+      trigger: 'token-threshold',
+      preCompactionTokenCount: 128,
+      postCompactionTokenCount: 64,
+      retainedEntryCount: 4,
       generatedAt: NOW,
+    });
+    expect(result.success).toBe(true);
+  });
+});
+
+describe('StmCompactionStateSchema', () => {
+  it('accepts computed token-threshold state', () => {
+    const result = StmCompactionStateSchema.safeParse({
+      requiresCompaction: true,
+      trigger: 'token-threshold',
+      currentTokenCount: 2048,
+      maxContextTokens: 1024,
+      targetContextTokens: 640,
     });
     expect(result.success).toBe(true);
   });

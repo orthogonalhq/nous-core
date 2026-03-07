@@ -10,8 +10,6 @@ import { InMemoryEmbedder } from '@nous/autonomic-embeddings';
 import { InMemoryLtmStore } from '@nous/memory-stubs';
 
 const NOW = new Date().toISOString();
-const PAST = new Date(Date.now() - 86400000).toISOString();
-
 function makeEntry(
   id: string,
   content: string,
@@ -19,6 +17,7 @@ function makeEntry(
   updatedAt: string,
   type: 'fact' | 'experience-record' | 'preference' = 'fact',
   projectId?: string,
+  lifecycleStatus: 'active' | 'superseded' | 'soft-deleted' | 'hard-deleted' = 'active',
 ): Parameters<InMemoryLtmStore['write']>[0] {
   const base = {
     id: id as any,
@@ -33,6 +32,7 @@ function makeEntry(
     tags: [],
     createdAt: NOW,
     updatedAt,
+    lifecycleStatus,
   };
   if (type === 'experience-record') {
     return {
@@ -75,6 +75,8 @@ describe('SentimentWeightedRetrievalEngine', () => {
     expect(response.results[0]).toHaveProperty('entry');
     expect(response.results[0]).toHaveProperty('score');
     expect(response.results[0]).toHaveProperty('components');
+    expect(response.budgetTelemetry).toBeDefined();
+    expect(response.decision?.returnedCount).toBe(response.results.length);
   });
 
   it('combines similarity, sentiment, recency, confidence in scoring', async () => {
@@ -142,6 +144,8 @@ describe('SentimentWeightedRetrievalEngine', () => {
     });
 
     expect(response.results.length).toBeLessThan(2);
+    expect(response.decision?.truncationReason).toBe('token_budget');
+    expect(response.budgetTelemetry?.truncatedCount).toBeGreaterThan(0);
   });
 
   it('returns empty results when no vector matches', async () => {
@@ -161,6 +165,7 @@ describe('SentimentWeightedRetrievalEngine', () => {
     });
 
     expect(response.results).toEqual([]);
+    expect(response.decision?.vectorCandidateCount).toBe(0);
   });
 
   it('sorts by score desc, tie-break by id asc', async () => {
@@ -249,5 +254,52 @@ describe('SentimentWeightedRetrievalEngine', () => {
 
     expect(response.results).toHaveLength(1);
     expect(response.results[0]!.entry.id).toBe('fact-1');
+  });
+
+  it('filters non-active entries unless lifecycle filters explicitly include them', async () => {
+    const ltm = new InMemoryLtmStore();
+    const vectorStore = new InMemoryVectorStore();
+    const embedder = new InMemoryEmbedder();
+
+    const active = makeEntry('active-1', 'same content', 0.9, NOW);
+    const superseded = makeEntry(
+      'superseded-1',
+      'same content',
+      0.95,
+      NOW,
+      'fact',
+      undefined,
+      'superseded',
+    );
+    await ltm.write(active);
+    await ltm.write(superseded);
+
+    for (const entry of [active, superseded]) {
+      const vector = await embedder.embed(entry.content);
+      await vectorStore.upsert('memory', entry.id, vector, {});
+    }
+
+    const engine = new SentimentWeightedRetrievalEngine({
+      ltmStore: ltm,
+      vectorStore,
+      embedder,
+    });
+
+    const defaultResponse = await engine.retrieve({
+      situation: 'same content',
+      tokenBudget: 100,
+    });
+    expect(defaultResponse.results.map((result) => result.entry.id)).toEqual([
+      'active-1',
+    ]);
+
+    const expandedResponse = await engine.retrieve({
+      situation: 'same content',
+      tokenBudget: 100,
+      filters: {
+        includeSuperseded: true,
+      },
+    });
+    expect(expandedResponse.results).toHaveLength(2);
   });
 });

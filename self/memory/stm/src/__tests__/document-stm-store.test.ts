@@ -29,6 +29,7 @@ describe('DocumentStmStore', () => {
     const context = await stmStore.getContext(projectId as any);
     expect(context).toHaveProperty('entries');
     expect(context).toHaveProperty('tokenCount');
+    expect(context).toHaveProperty('compactionState');
     expect(Array.isArray(context.entries)).toBe(true);
     expect(context.tokenCount).toBe(0);
   });
@@ -118,9 +119,77 @@ describe('DocumentStmStore', () => {
     const summary = summaries[0] as {
       sourceEntryRefs?: unknown[];
       sourceEntryCount?: number;
+      trigger?: unknown;
+      preCompactionTokenCount?: unknown;
+      postCompactionTokenCount?: unknown;
+      retainedEntryCount?: unknown;
     };
     expect(Array.isArray(summary.sourceEntryRefs)).toBe(true);
     expect(summary.sourceEntryCount).toBeGreaterThan(0);
+    expect(summary.trigger).toBe('manual');
+    expect(summary.preCompactionTokenCount).toEqual(expect.any(Number));
+    expect(summary.postCompactionTokenCount).toEqual(expect.any(Number));
+    expect(summary.retainedEntryCount).toBe(4);
+  });
+
+  it('marks compactionState when configured token threshold is exceeded', async () => {
+    const thresholdStore = new DocumentStmStore(documentStore, {
+      compactionPolicy: {
+        maxContextTokens: 12,
+        targetContextTokens: 8,
+        minEntriesBeforeCompaction: 3,
+        retainedRecentEntries: 1,
+      },
+    });
+
+    await thresholdStore.append(projectId as any, {
+      role: 'user',
+      content: 'one two three four',
+      timestamp: new Date().toISOString(),
+    });
+    await thresholdStore.append(projectId as any, {
+      role: 'assistant',
+      content: 'five six seven eight',
+      timestamp: new Date().toISOString(),
+    });
+    await thresholdStore.append(projectId as any, {
+      role: 'user',
+      content: 'nine ten eleven twelve',
+      timestamp: new Date().toISOString(),
+    });
+
+    const context = await thresholdStore.getContext(projectId as any);
+    expect(context.compactionState?.requiresCompaction).toBe(true);
+    expect(context.compactionState?.trigger).toBe('token-threshold');
+  });
+
+  it('compacts to the configured target budget when thresholds are exceeded', async () => {
+    const thresholdStore = new DocumentStmStore(documentStore, {
+      compactionPolicy: {
+        maxContextTokens: 12,
+        targetContextTokens: 8,
+        minEntriesBeforeCompaction: 4,
+        retainedRecentEntries: 2,
+      },
+    });
+
+    for (let i = 0; i < 6; i++) {
+      await thresholdStore.append(projectId as any, {
+        role: i % 2 === 0 ? 'user' : 'assistant',
+        content: `Entry ${i} text`,
+        timestamp: new Date(Date.now() + i * 1000).toISOString(),
+      });
+    }
+
+    const before = await thresholdStore.getContext(projectId as any);
+    expect(before.compactionState?.requiresCompaction).toBe(true);
+
+    await thresholdStore.compact(projectId as any);
+
+    const after = await thresholdStore.getContext(projectId as any);
+    expect(after.entries).toHaveLength(2);
+    expect(after.tokenCount).toBeLessThanOrEqual(8);
+    expect(after.compactionState?.requiresCompaction).toBe(false);
   });
 
   it('rejects invalid role', async () => {

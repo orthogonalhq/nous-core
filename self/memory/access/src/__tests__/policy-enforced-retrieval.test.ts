@@ -13,7 +13,12 @@ import type {
   ProjectConfig,
   ProjectId,
 } from '@nous/shared';
-import { DEFAULT_MEMORY_ACCESS_POLICY, ProjectIdSchema } from '@nous/shared';
+import {
+  DEFAULT_MEMORY_ACCESS_POLICY,
+  DEFAULT_RETRIEVAL_WEIGHTS,
+  ProjectIdSchema,
+  RETRIEVAL_TIE_BREAK_STRATEGY,
+} from '@nous/shared';
 
 const FROM_ID = ProjectIdSchema.parse('550e8400-e29b-41d4-a716-446655440000');
 
@@ -66,7 +71,22 @@ function createResult(
 
 function createInner(results: RetrievalResult[]): IRetrievalEngine {
   return {
-    retrieve: vi.fn().mockResolvedValue({ results }),
+    retrieve: vi.fn().mockResolvedValue({
+      results,
+      budgetTelemetry: {
+        consumedTokens: results.length,
+        candidateCount: results.length,
+        truncatedCount: 0,
+      },
+      decision: {
+        vectorCandidateCount: results.length,
+        scoredCandidateCount: results.length,
+        returnedCount: results.length,
+        truncationReason: 'none',
+        tieBreakStrategy: RETRIEVAL_TIE_BREAK_STRATEGY,
+        scoringWeights: DEFAULT_RETRIEVAL_WEIGHTS,
+      },
+    }),
   };
 }
 
@@ -104,6 +124,8 @@ describe('PolicyEnforcedRetrievalEngine', () => {
 
       expect(response.results).toHaveLength(1);
       expect(response.policyDenial).toBeUndefined();
+      expect(response.decision?.returnedCount).toBe(1);
+      expect(response.budgetTelemetry?.candidateCount).toBe(1);
       expect(inner.retrieve).toHaveBeenCalledTimes(1);
     });
   });
@@ -125,6 +147,7 @@ describe('PolicyEnforcedRetrievalEngine', () => {
 
       expect(response.results).toHaveLength(0);
       expect(response.policyDenial).toBeUndefined();
+      expect(response.decision?.truncationReason).toBe('none');
       expect(inner.retrieve).not.toHaveBeenCalled();
     });
 
@@ -167,6 +190,7 @@ describe('PolicyEnforcedRetrievalEngine', () => {
 
       expect(response.results).toHaveLength(0);
       expect(response.policyDenial).toBeDefined();
+      expect(response.decision?.truncationReason).toBe('policy_denied');
       expect(inner.retrieve).not.toHaveBeenCalled();
     });
 
@@ -190,6 +214,7 @@ describe('PolicyEnforcedRetrievalEngine', () => {
 
       expect(response.results).toHaveLength(1);
       expect(response.results[0].entry.scope).toBe('global');
+      expect(response.decision?.returnedCount).toBe(1);
     });
 
     it('filters out global results when inheritsGlobal false', async () => {
@@ -215,6 +240,7 @@ describe('PolicyEnforcedRetrievalEngine', () => {
 
       expect(response.results).toHaveLength(1);
       expect(response.results[0].entry.scope).toBe('project');
+      expect(response.budgetTelemetry?.candidateCount).toBe(1);
     });
   });
 });

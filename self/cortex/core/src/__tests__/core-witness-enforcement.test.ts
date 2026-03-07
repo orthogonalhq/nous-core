@@ -200,7 +200,14 @@ describe('Core witness enforcement ladder', () => {
       getProvider: () => createProvider(),
       toolExecutor,
       stmStore: createStmStore(),
-      mwcPipeline: { submit: vi.fn().mockResolvedValue(null) },
+      mwcPipeline: {
+        submit: vi.fn().mockResolvedValue(null),
+        mutate: vi.fn().mockResolvedValue({
+          applied: true,
+          reason: 'approved',
+          reasonCode: 'MEM-COMPACT-STM-APPLIED',
+        }),
+      },
       projectStore: createProjectStore(),
       documentStore: createDocumentStore(),
       witnessService: createWitnessService('auto-pause'),
@@ -227,7 +234,14 @@ describe('Core witness enforcement ladder', () => {
       getProvider: () => createProvider(),
       toolExecutor,
       stmStore: createStmStore(),
-      mwcPipeline: { submit: vi.fn().mockResolvedValue(null) },
+      mwcPipeline: {
+        submit: vi.fn().mockResolvedValue(null),
+        mutate: vi.fn().mockResolvedValue({
+          applied: true,
+          reason: 'approved',
+          reasonCode: 'MEM-COMPACT-STM-APPLIED',
+        }),
+      },
       projectStore: createProjectStore(),
       documentStore: createDocumentStore(),
       witnessService: createWitnessService('hard-stop'),

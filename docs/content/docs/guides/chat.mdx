@@ -47,6 +47,8 @@ When Nous cannot confidently classify your intent (e.g., ambiguous scope, high-i
 
 Conversation history is stored in short-term memory (STM) and persists across sessions. When you switch projects, you see that project's history.
 
+When a conversation grows beyond the configured STM pressure threshold, Nous compacts older turns into a generated summary and keeps the newest turns verbatim. This keeps long-running project chats usable without dropping project context. The retained turns stay in chronological order, and the current STM state is visible through history and memory export surfaces.
+
 ## Via CLI
 
 ```bash

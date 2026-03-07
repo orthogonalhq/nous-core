@@ -66,6 +66,12 @@ describe('SystemConfigSchema', () => {
       expect(result.data.defaults.projectType).toBe('hybrid');
       expect(result.data.defaults.governance).toBe('should');
       expect(result.data.defaults.retrievalBudgetTokens).toBe(500);
+      expect(result.data.defaults.stmCompactionPolicy).toMatchObject({
+        maxContextTokens: 1024,
+        targetContextTokens: 640,
+        minEntriesBeforeCompaction: 8,
+        retainedRecentEntries: 4,
+      });
     }
   });
 
@@ -77,6 +83,23 @@ describe('SystemConfigSchema', () => {
         retrievalBudgetTokens: 0,
       },
     });
+    expect(result.success).toBe(false);
+  });
+
+  it('rejects invalid STM compaction policy defaults', () => {
+    const result = SystemConfigSchema.safeParse({
+      ...DEFAULT_SYSTEM_CONFIG,
+      defaults: {
+        ...DEFAULT_SYSTEM_CONFIG.defaults,
+        stmCompactionPolicy: {
+          maxContextTokens: 128,
+          targetContextTokens: 256,
+          minEntriesBeforeCompaction: 4,
+          retainedRecentEntries: 4,
+        },
+      },
+    });
+
     expect(result.success).toBe(false);
   });
 });

@@ -7,26 +7,42 @@
 import { createHash, randomUUID } from 'node:crypto';
 import type { IDocumentStore, IStmStore } from '@nous/shared';
 import {
+  DEFAULT_STM_COMPACTION_POLICY,
   StmContextSchema,
+  StmCompactionPolicySchema,
   StmCompactionSummarySchema,
   StmEntrySchema,
   ValidationError,
   type ProjectId,
+  type StmCompactionPolicy,
+  type StmCompactionTrigger,
   type StmContext,
   type StmEntry,
 } from '@nous/shared';
 
 const COLLECTION = 'stm_context';
 const COMPACTION_COLLECTION = 'stm_compaction_summaries';
-const MIN_ENTRIES_FOR_COMPACTION = 8;
-const RETAINED_RECENT_ENTRIES = 4;
 
 function estimateTokenCount(content: string): number {
   return Math.ceil(content.length / 4);
 }
 
+export interface DocumentStmStoreOptions {
+  compactionPolicy?: Partial<StmCompactionPolicy>;
+}
+
 export class DocumentStmStore implements IStmStore {
-  constructor(private readonly documentStore: IDocumentStore) {}
+  private readonly compactionPolicy: StmCompactionPolicy;
+
+  constructor(
+    private readonly documentStore: IDocumentStore,
+    options: DocumentStmStoreOptions = {},
+  ) {
+    this.compactionPolicy = StmCompactionPolicySchema.parse({
+      ...DEFAULT_STM_COMPACTION_POLICY,
+      ...options.compactionPolicy,
+    });
+  }
 
   async getContext(projectId: ProjectId): Promise<StmContext> {
     const raw = await this.documentStore.get<Record<string, unknown>>(
@@ -34,18 +50,25 @@ export class DocumentStmStore implements IStmStore {
       projectId,
     );
     if (!raw) {
-      return { entries: [], tokenCount: 0 };
+      return buildContext(
+        { entries: [], summary: undefined },
+        this.compactionPolicy,
+      );
     }
 
     const result = StmContextSchema.safeParse(raw);
     if (!result.success) {
-      return { entries: [], tokenCount: 0 };
+      return buildContext(
+        { entries: [], summary: undefined },
+        this.compactionPolicy,
+      );
     }
 
+    const context = buildContext(result.data, this.compactionPolicy);
     console.debug(
-      `[nous:stm] get_context projectId=${projectId} entries=${result.data.entries.length}`,
+      `[nous:stm] get_context projectId=${projectId} entries=${context.entries.length} tokens=${context.tokenCount}`,
     );
-    return result.data;
+    return context;
   }
 
   async append(projectId: ProjectId, entry: StmEntry): Promise<void> {
@@ -60,50 +83,82 @@ export class DocumentStmStore implements IStmStore {
     const validated = result.data;
 
     const context = await this.getContext(projectId);
-    const newEntries = [...context.entries, validated];
-    const tokenDelta = estimateTokenCount(validated.content);
-    const newTokenCount = context.tokenCount + tokenDelta;
-
-    const updated: StmContext = {
-      entries: newEntries,
-      summary: context.summary,
-      tokenCount: newTokenCount,
-    };
+    const updated = buildContext(
+      {
+        entries: [...context.entries, validated],
+        summary: context.summary,
+      },
+      this.compactionPolicy,
+    );
 
     await this.documentStore.put(COLLECTION, projectId, updated);
     console.debug(
-      `[nous:stm] append projectId=${projectId} role=${validated.role} length=${validated.content.length}`,
+      `[nous:stm] append projectId=${projectId} role=${validated.role} length=${validated.content.length} tokens=${updated.tokenCount}`,
     );
   }
 
   async compact(projectId: ProjectId): Promise<void> {
     const context = await this.getContext(projectId);
-    if (context.entries.length < MIN_ENTRIES_FOR_COMPACTION) {
+    if (context.entries.length < this.compactionPolicy.minEntriesBeforeCompaction) {
       return;
     }
 
+    const retainedEntries = context.entries.slice(
+      -this.compactionPolicy.retainedRecentEntries,
+    );
     const compactedEntries = context.entries.slice(
       0,
-      context.entries.length - RETAINED_RECENT_ENTRIES,
+      Math.max(
+        context.entries.length - this.compactionPolicy.retainedRecentEntries,
+        0,
+      ),
     );
-    const retainedEntries = context.entries.slice(-RETAINED_RECENT_ENTRIES);
+    if (compactedEntries.length === 0) {
+      return;
+    }
 
-    const summaryText = compactedEntries
+    const retainedTokens = sumEntryTokens(retainedEntries);
+    const summaryBudgetTokens = Math.max(
+      this.compactionPolicy.targetContextTokens - retainedTokens,
+      0,
+    );
+    const rawSummaryText = compactedEntries
       .map((entry) => `${entry.role}: ${entry.content}`)
-      .join('\n')
-      .slice(0, 4000);
+      .join('\n');
+    const storedSummary = trimSummaryToBudget(
+      rawSummaryText,
+      summaryBudgetTokens,
+    );
+    const mergedSummary = trimSummaryToBudget(
+      mergeSummaries(context.summary, rawSummaryText),
+      summaryBudgetTokens,
+    );
+    const updated = buildContext(
+      {
+        entries: retainedEntries,
+        summary: mergedSummary,
+      },
+      this.compactionPolicy,
+    );
+    const trigger: StmCompactionTrigger = context.compactionState?.requiresCompaction
+      ? 'token-threshold'
+      : 'manual';
 
     const generatedAt = new Date().toISOString();
     const summaryRecord = StmCompactionSummarySchema.parse({
       id: randomUUID(),
       projectId,
-      summary: summaryText,
+      summary: storedSummary ?? '',
       sourceEntryRefs: compactedEntries.map((entry) => ({
         timestamp: entry.timestamp,
         role: entry.role,
         contentHash: createHash('sha256').update(entry.content).digest('hex'),
       })),
       sourceEntryCount: compactedEntries.length,
+      trigger,
+      preCompactionTokenCount: context.tokenCount,
+      postCompactionTokenCount: updated.tokenCount,
+      retainedEntryCount: retainedEntries.length,
       generatedAt,
     });
 
@@ -113,24 +168,9 @@ export class DocumentStmStore implements IStmStore {
       summaryRecord,
     );
 
-    const mergedSummary = context.summary
-      ? `${context.summary}\n\n${summaryText}`
-      : summaryText;
-
-    const updated: StmContext = {
-      entries: retainedEntries,
-      summary: mergedSummary,
-      tokenCount:
-        estimateTokenCount(mergedSummary) +
-        retainedEntries.reduce(
-          (total, entry) => total + estimateTokenCount(entry.content),
-          0,
-        ),
-    };
-
     await this.documentStore.put(COLLECTION, projectId, updated);
     console.info(
-      `[nous:stm] compact projectId=${projectId} compacted=${compactedEntries.length} retained=${retainedEntries.length}`,
+      `[nous:stm] compact projectId=${projectId} trigger=${trigger} compacted=${compactedEntries.length} retained=${retainedEntries.length} preTokens=${context.tokenCount} postTokens=${updated.tokenCount}`,
     );
   }
 
@@ -138,4 +178,78 @@ export class DocumentStmStore implements IStmStore {
     await this.documentStore.delete(COLLECTION, projectId);
     console.info(`[nous:stm] clear projectId=${projectId}`);
   }
+}
+
+function buildContext(
+  input: Pick<StmContext, 'entries' | 'summary'>,
+  compactionPolicy: StmCompactionPolicy,
+): StmContext {
+  const summary = normalizeSummary(input.summary);
+  const tokenCount = calculateContextTokenCount(input.entries, summary);
+  const requiresCompaction =
+    tokenCount > compactionPolicy.maxContextTokens &&
+    input.entries.length >= compactionPolicy.minEntriesBeforeCompaction;
+
+  return {
+    entries: input.entries,
+    summary,
+    tokenCount,
+    compactionState: {
+      requiresCompaction,
+      trigger: requiresCompaction ? 'token-threshold' : 'none',
+      currentTokenCount: tokenCount,
+      maxContextTokens: compactionPolicy.maxContextTokens,
+      targetContextTokens: compactionPolicy.targetContextTokens,
+    },
+  };
+}
+
+function calculateContextTokenCount(
+  entries: StmEntry[],
+  summary?: string,
+): number {
+  return estimateTokenCount(summary ?? '') + sumEntryTokens(entries);
+}
+
+function sumEntryTokens(entries: StmEntry[]): number {
+  return entries.reduce(
+    (total, entry) => total + estimateTokenCount(entry.content),
+    0,
+  );
+}
+
+function mergeSummaries(
+  existingSummary: string | undefined,
+  nextSummary: string,
+): string {
+  if (!existingSummary) {
+    return nextSummary;
+  }
+  if (!nextSummary) {
+    return existingSummary;
+  }
+  return `${existingSummary}\n\n${nextSummary}`;
+}
+
+function trimSummaryToBudget(
+  summary: string,
+  tokenBudget: number,
+): string | undefined {
+  if (!summary || tokenBudget <= 0) {
+    return undefined;
+  }
+
+  const maxChars = tokenBudget * 4;
+  if (summary.length <= maxChars) {
+    return summary;
+  }
+
+  return summary.slice(summary.length - maxChars);
+}
+
+function normalizeSummary(summary: string | undefined): string | undefined {
+  if (!summary) {
+    return undefined;
+  }
+  return summary.length > 0 ? summary : undefined;
 }

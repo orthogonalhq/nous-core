@@ -13,7 +13,7 @@ import { SentimentWeightedRetrievalEngine } from '@nous/memory-retrieval';
 import { InMemoryVectorStore } from '@nous/autonomic-storage';
 import { InMemoryEmbedder } from '@nous/autonomic-embeddings';
 import { InMemoryLtmStore } from '@nous/memory-stubs';
-import type { IProjectStore, ProjectConfig, ProjectId } from '@nous/shared';
+import type { IProjectStore, ProjectConfig } from '@nous/shared';
 import { DEFAULT_MEMORY_ACCESS_POLICY, ProjectIdSchema } from '@nous/shared';
 
 const NOW = new Date().toISOString();
@@ -99,6 +99,8 @@ describe('Phase 4.2 — Retrieval path verification', () => {
     expect(response.results[0]).toHaveProperty('score');
     expect(response.results[0]).toHaveProperty('components');
     expect(response.policyDenial).toBeUndefined();
+    expect(response.budgetTelemetry).toBeDefined();
+    expect(response.decision?.returnedCount).toBe(response.results.length);
   });
 
   it('policy denial returns policyDenial when policy denies', async () => {
@@ -139,5 +141,6 @@ describe('Phase 4.2 — Retrieval path verification', () => {
 
     expect(response.results).toEqual([]);
     expect(response.policyDenial).toBeDefined();
+    expect(response.decision?.truncationReason).toBe('policy_denied');
   });
 });

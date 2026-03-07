@@ -15,8 +15,10 @@ import type {
 } from '@nous/shared';
 import {
   DEFAULT_MEMORY_ACCESS_POLICY,
+  DEFAULT_RETRIEVAL_WEIGHTS,
   ProjectIdSchema,
   DEFAULT_CROSS_PROJECT_SELECTION_POLICY,
+  RETRIEVAL_TIE_BREAK_STRATEGY,
 } from '@nous/shared';
 
 const FROM_ID = ProjectIdSchema.parse('550e8400-e29b-41d4-a716-446655440000');
@@ -73,7 +75,22 @@ function createResult(
 
 function createInner(results: RetrievalResult[]): IRetrievalEngine {
   return {
-    retrieve: vi.fn().mockResolvedValue({ results }),
+    retrieve: vi.fn().mockResolvedValue({
+      results,
+      budgetTelemetry: {
+        consumedTokens: results.length,
+        candidateCount: results.length,
+        truncatedCount: 0,
+      },
+      decision: {
+        vectorCandidateCount: results.length,
+        scoredCandidateCount: results.length,
+        returnedCount: results.length,
+        truncationReason: 'none',
+        tieBreakStrategy: RETRIEVAL_TIE_BREAK_STRATEGY,
+        scoringWeights: DEFAULT_RETRIEVAL_WEIGHTS,
+      },
+    }),
   };
 }
 
@@ -122,6 +139,7 @@ describe('PolicyEnforcedRetrievalEngine — Phase 6.1 cross-project', () => {
     expect(response.selectionAudit!.projectIdsQueried).toContain(TARGET_B);
     expect(response.selectionAudit!.candidateCount).toBe(3);
     expect(response.selectionAudit!.resultCount).toBe(3);
+    expect(response.decision?.returnedCount).toBe(3);
     expect(inner.retrieve).toHaveBeenCalledTimes(1);
   });
 
@@ -149,6 +167,7 @@ describe('PolicyEnforcedRetrievalEngine — Phase 6.1 cross-project', () => {
     expect(response.results).toHaveLength(0);
     expect(response.policyDenial).toBeDefined();
     expect(response.policyDenial!.reasonCode).toBe('POL-CANNOT-BE-READ-BY');
+    expect(response.decision?.truncationReason).toBe('policy_denied');
     expect(inner.retrieve).not.toHaveBeenCalled();
   });
 
@@ -177,6 +196,7 @@ describe('PolicyEnforcedRetrievalEngine — Phase 6.1 cross-project', () => {
     expect(response.results).toHaveLength(0);
     expect(response.policyDenial).toBeDefined();
     expect(response.policyDenial!.reasonCode).toBe('POL-CONTROL-STATE-BLOCKED');
+    expect(response.decision?.truncationReason).toBe('policy_denied');
     expect(inner.retrieve).not.toHaveBeenCalled();
   });
 
@@ -210,6 +230,8 @@ describe('PolicyEnforcedRetrievalEngine — Phase 6.1 cross-project', () => {
     expect(response.selectionAudit!.candidateCount).toBe(30);
     expect(response.selectionAudit!.resultCount).toBe(5);
     expect(response.selectionAudit!.truncationReason).toBe('result_cap');
+    expect(response.decision?.truncationReason).toBe('result_cap');
+    expect(response.decision?.returnedCount).toBe(5);
   });
 
   it('does not add selectionAudit when targetProjectIds is absent', async () => {
@@ -230,5 +252,6 @@ describe('PolicyEnforcedRetrievalEngine — Phase 6.1 cross-project', () => {
 
     expect(response.results).toHaveLength(1);
     expect(response.selectionAudit).toBeUndefined();
+    expect(response.decision?.returnedCount).toBe(1);
   });
 });

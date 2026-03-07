@@ -46,6 +46,38 @@ describe('tRPC procedures', () => {
     expect(result.traceId).toBe(traceId);
   });
 
+  it('chat.sendMessage stores STM history without duplicate router appends', async () => {
+    const ctx = createNousContext();
+    const caller = appRouter.createCaller(ctx);
+    const projectId = await ctx.projectStore.create({
+      id: randomUUID() as import('@nous/shared').ProjectId,
+      name: 'Chat History Project',
+      type: 'hybrid',
+      pfcTier: 3,
+      memoryAccessPolicy: {
+        canReadFrom: 'all',
+        canBeReadBy: 'all',
+        inheritsGlobal: true,
+      },
+      escalationChannels: ['in-app'],
+      retrievalBudgetTokens: 500,
+      createdAt: new Date().toISOString(),
+      updatedAt: new Date().toISOString(),
+    });
+
+    const response = await caller.chat.sendMessage({
+      message: 'Hello project chat',
+      projectId,
+    });
+    const history = await caller.chat.getHistory({ projectId });
+
+    expect(response.response).toBeDefined();
+    expect(history.entries).toHaveLength(2);
+    expect(history.entries[0]?.role).toBe('user');
+    expect(history.entries[0]?.content).toBe('Hello project chat');
+    expect(history.entries[1]?.role).toBe('assistant');
+  });
+
   it('traces.list returns traces for project', async () => {
     const ctx = createNousContext();
     const projectId = randomUUID() as import('@nous/shared').ProjectId;

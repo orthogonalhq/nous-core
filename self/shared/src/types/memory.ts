@@ -266,6 +266,10 @@ export const StmCompactionSummarySchema = z.object({
   summary: z.string(),
   sourceEntryRefs: z.array(StmCompactionSourceRefSchema),
   sourceEntryCount: z.number().int().nonnegative(),
+  trigger: z.enum(['token-threshold', 'manual']),
+  preCompactionTokenCount: z.number().int().min(0),
+  postCompactionTokenCount: z.number().int().min(0),
+  retainedEntryCount: z.number().int().min(0),
   generatedAt: z.string().datetime(),
 });
 export type StmCompactionSummary = z.infer<typeof StmCompactionSummarySchema>;
@@ -337,12 +341,63 @@ export const StmEntrySchema = z.object({
 });
 export type StmEntry = z.infer<typeof StmEntrySchema>;
 
+export const StmCompactionTriggerSchema = z.enum([
+  'none',
+  'token-threshold',
+  'manual',
+]);
+export type StmCompactionTrigger = z.infer<typeof StmCompactionTriggerSchema>;
+
+export const StmCompactionPolicySchema = z
+  .object({
+    maxContextTokens: z.number().int().positive(),
+    targetContextTokens: z.number().int().positive(),
+    minEntriesBeforeCompaction: z.number().int().min(1),
+    retainedRecentEntries: z.number().int().min(1),
+  })
+  .superRefine((value, ctx) => {
+    if (value.targetContextTokens >= value.maxContextTokens) {
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        message: 'targetContextTokens must be less than maxContextTokens',
+        path: ['targetContextTokens'],
+      });
+    }
+
+    if (value.retainedRecentEntries >= value.minEntriesBeforeCompaction) {
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        message:
+          'retainedRecentEntries must be less than minEntriesBeforeCompaction',
+        path: ['retainedRecentEntries'],
+      });
+    }
+  });
+export type StmCompactionPolicy = z.infer<typeof StmCompactionPolicySchema>;
+
+export const DEFAULT_STM_COMPACTION_POLICY: StmCompactionPolicy = {
+  maxContextTokens: 1024,
+  targetContextTokens: 640,
+  minEntriesBeforeCompaction: 8,
+  retainedRecentEntries: 4,
+};
+
+export const StmCompactionStateSchema = z.object({
+  requiresCompaction: z.boolean(),
+  trigger: StmCompactionTriggerSchema,
+  currentTokenCount: z.number().int().min(0),
+  maxContextTokens: z.number().int().positive(),
+  targetContextTokens: z.number().int().positive(),
+});
+export type StmCompactionState = z.infer<typeof StmCompactionStateSchema>;
+
 // --- STM Context ---
 // Current working context — recent entries plus summary of evicted context.
 export const StmContextSchema = z.object({
   entries: z.array(StmEntrySchema),
   summary: z.string().optional(),
   tokenCount: z.number().int().min(0),
+  compactionState: StmCompactionStateSchema.optional(),
 });
 export type StmContext = z.infer<typeof StmContextSchema>;
 
