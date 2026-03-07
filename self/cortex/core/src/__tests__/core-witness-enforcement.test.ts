@@ -30,7 +30,29 @@ function createDocumentStore(): IDocumentStore {
 }
 
 function createPfc(): IPfcEngine {
+  const patternId = randomUUID() as import('@nous/shared').MemoryEntryId;
+  const evidenceRefs = [{ actionCategory: 'trace-persist' as const }];
   return {
+    evaluateConfidenceGovernance: vi.fn().mockResolvedValue({
+      outcome: 'allow_with_flag',
+      reasonCode: 'CGR-ALLOW-WITH-FLAG',
+      governance: 'should',
+      actionCategory: 'model-invoke',
+      patternId,
+      confidence: 0.8,
+      confidenceTier: 'medium',
+      supportingSignals: 8,
+      decayState: 'stable',
+      autonomyAllowed: false,
+      requiresConfirmation: false,
+      highRiskOverrideApplied: false,
+      evidenceRefs,
+      explanation: {
+        patternId,
+        outcomeRef: 'outcome-1',
+        evidenceRefs,
+      },
+    }),
     evaluateMemoryWrite: vi.fn().mockResolvedValue({
       approved: true,
       reason: 'ok',
