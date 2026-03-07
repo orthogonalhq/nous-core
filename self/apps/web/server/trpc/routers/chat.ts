@@ -20,24 +20,7 @@ export const chatRouter = router({
         message: input.message,
         projectId: input.projectId,
         traceId,
-        stmContext: input.projectId
-          ? await ctx.stmStore.getContext(input.projectId)
-          : undefined,
       });
-
-      if (input.projectId) {
-        const now = new Date().toISOString();
-        await ctx.stmStore.append(input.projectId, {
-          role: 'user',
-          content: input.message,
-          timestamp: now,
-        });
-        await ctx.stmStore.append(input.projectId, {
-          role: 'assistant',
-          content: result.response,
-          timestamp: now,
-        });
-      }
 
       return { response: result.response, traceId: result.traceId };
     }),
