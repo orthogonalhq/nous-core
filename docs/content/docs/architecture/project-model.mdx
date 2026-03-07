@@ -200,6 +200,22 @@ Conversely, if a MAY node produces poor outcomes, it can be tightened to SHOULD 
 
 This allows governance to evolve with confidence, per-node, without restructuring the workflow.
 
+### Runtime Confidence Governance (Phase 8.6)
+
+Node governance is resolved at runtime from the canonical confidence-governance mapping plus the pattern confidence tier, decay state, project control state, and action category. The runtime is deterministic: equivalent inputs resolve to the same outcome with the same evidence-linked explanation.
+
+| Governance | Medium confidence | High confidence |
+|---|---|---|
+| `may` | `allow_with_flag` | `allow_autonomy` |
+| `should` | `allow_with_flag` | `allow_with_flag` |
+| `must` | `deny` | `deny` |
+
+Additional runtime rules:
+
+- `hard_stopped` denies execution; `paused_review` and `resuming` defer it
+- High-risk action categories (`tool-execute`, `memory-write`, `opctl-command`) always defer for explicit confirmation
+- Low-confidence, contradiction, staleness, and retirement paths escalate with evidence-linked, reason-coded outcomes
+
 ---
 
 ## Cortex as Project Supervisor
