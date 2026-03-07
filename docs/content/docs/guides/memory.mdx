@@ -7,6 +7,44 @@ description: Inspecting and managing memory entries
 
 Nous stores approved memory entries per project. The Memory inspector lets you review memory state, mutation history, and deletion proofs.
 
+## Memory Inspector (Phase 8.7)
+
+The `/memory` route is now an inspect-first surface over canonical durable memory. It does not maintain a parallel UI-only memory model. The page queries the same governed runtime state used elsewhere in the system and exposes that state with operator-readable filters, diagnostics, and action outcomes.
+
+### Search and Filter Controls
+
+Use the left-side filter panel to narrow the durable-memory view:
+
+- **Search** matches content, tags, provenance fields, and structured experience-record fields
+- **Scope** switches between `project`, `global`, and `project + global`
+- **Type** filters canonical memory types: `fact`, `preference`, `experience-record`, `distilled-pattern`, and `task-state`
+- **Lifecycle** keeps the default active-only view or explicitly includes `superseded`, `soft-deleted`, and `hard-deleted` entries
+- **Placement** filters `project`, `global-probation`, and `global-stable`
+- **Sort** orders by updated time, created time, confidence, type, or sentiment
+- **Tags** accepts comma-separated tag filters
+
+The `Include superseded` and `Include deleted` toggles expand the result set without changing the underlying durable-state rules. Equivalent inputs resolve to the same ordering because the server keeps deterministic sort and tie-break behavior.
+
+### Global-Scope Diagnostics
+
+When you request `global` or `project + global`, the inspector returns explicit diagnostics about whether global memory can be read for the selected project.
+
+- If the project does not inherit global memory, the UI shows the canonical reason code and explanatory text instead of silently implying that global memory is empty.
+- The warning banner reflects the underlying policy decision. It does not invent a UI-only denial status.
+- Project-scoped results still remain available when the requested combined scope can only partially succeed.
+
+### Entry Detail View
+
+Selecting a result opens the detail pane for that entry. The detail view surfaces:
+
+- provenance (`traceId`, source, timestamps, tags)
+- state and confidence metadata
+- structured experience-record fields when the selected entry is an `experience-record`
+- linked mutation-audit records
+- linked tombstone proofs, when present
+
+The detail view is intended for inspection and governed action review. It does not perform in-place editing or bypass lifecycle controls.
+
 ## Approved Entries
 
 Approved entries are persisted after the Cortex evaluates memory write candidates. Each entry includes:
@@ -175,6 +213,16 @@ When the Cortex denies a memory write or mutation, the candidate/action and reas
 - `memory.denials` for write denials
 - `memory.audit` for mutation allow/deny/failed outcomes and reason codes
 
+The Memory inspector renders denied-write cards directly from `memory.denials`. When available, each card includes:
+
+- the denied candidate content
+- the human-readable reason
+- the canonical policy/governance reason code from `decisionRecord`
+- the originating trace ID
+- the recorded turn timestamp
+
+Use these details to distinguish true "no relevant result" situations from explicit policy or governance denials.
+
 ## Export and Audit Visibility
 
 Export all memory for a project as structured data:
@@ -189,8 +237,22 @@ This gives a full operator view:
 - Mutation history (`audit`)
 - Hard-delete proof artifacts (`tombstones`)
 
+From the Memory inspector UI, export is confirmation-protected. Selecting **Export project memory** opens a confirmation card before the bundle is fetched.
+
+- Export always includes the full project bundle: STM context, durable entries, mutation audit, and tombstones.
+- Current search/filter controls do **not** narrow the exported payload.
+- Use filters for inspection, then export when you need the canonical full-state bundle.
+
 ## Delete Behavior
 
 - **Soft-delete (default):** preserves entry content and audit history while marking lifecycle state.
 - **Hard-delete:** requires `hard: true` plus `rationale`; payload content is replaced with `[hard-deleted]` and a tombstone record is created.
 - **Delete all for project:** applies soft-delete to active project entries and clears STM context.
+
+In the Memory inspector UI:
+
+- soft delete requires an explicit confirmation click from the selected entry detail panel
+- hard delete requires both confirmation and a non-empty rationale before the request is sent
+- the result banner shows the canonical mutation outcome and `reasonCode` when the runtime returns one
+
+If delete is denied or deferred, check the banner first and then inspect the linked mutation-audit records for the authoritative outcome details.

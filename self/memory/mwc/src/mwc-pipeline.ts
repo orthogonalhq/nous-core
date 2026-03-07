@@ -15,6 +15,7 @@ import type {
   MemoryEntryId,
   MemoryMutationAuditRecord,
   MemoryMutationId,
+  MemoryQueryFilter,
   MemoryMutationReasonCode,
   MemoryMutationRequest,
   MemoryTombstone,
@@ -213,6 +214,10 @@ export class MwcPipeline {
 
   async listForProject(projectId: ProjectId): Promise<MemoryEntry[]> {
     return this.ltmStore.listForProject(projectId);
+  }
+
+  async queryEntries(filter: MemoryQueryFilter): Promise<MemoryEntry[]> {
+    return this.ltmStore.query(filter);
   }
 
   async listMutationAudit(
