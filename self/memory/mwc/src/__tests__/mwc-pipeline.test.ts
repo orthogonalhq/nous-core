@@ -150,6 +150,83 @@ describe('MwcPipeline', () => {
     expect(result.stm.entries).toHaveLength(0);
   });
 
+  it('queryEntries applies lifecycle, scope, and tag filters through the canonical LTM seam', async () => {
+    const activeProjectId = await pipeline.submit(
+      createValidCandidate(projectId),
+      projectId as any,
+    );
+    const supersededId = await pipeline.submit(
+      { ...createValidCandidate(projectId), content: 'superseded candidate' },
+      projectId as any,
+    );
+    const deletedId = await pipeline.submit(
+      {
+        ...createValidCandidate(projectId),
+        content: 'delete me later',
+        tags: ['ui', 'archived'],
+      },
+      projectId as any,
+    );
+    await pipeline.submit(
+      {
+        ...createValidCandidate(),
+        content: 'global memory',
+        scope: 'global',
+      },
+      projectId as any,
+    );
+
+    await pipeline.mutate({
+      action: 'supersede',
+      actor: 'operator',
+      projectId: projectId as any,
+      targetEntryId: supersededId!,
+      replacementCandidate: {
+        ...createValidCandidate(projectId),
+        content: 'superseding replacement',
+      },
+      reason: 'supersede for query test',
+      traceId: randomUUID() as any,
+      evidenceRefs: [],
+    });
+    await pipeline.mutate({
+      action: 'soft-delete',
+      actor: 'operator',
+      projectId: projectId as any,
+      targetEntryId: deletedId!,
+      reason: 'delete for query test',
+      traceId: randomUUID() as any,
+      evidenceRefs: [],
+    });
+
+    const activeOnly = await pipeline.queryEntries({ projectId: projectId as any });
+    expect(activeOnly.some((entry) => entry.id === activeProjectId)).toBe(true);
+    expect(activeOnly.some((entry) => entry.id === supersededId)).toBe(false);
+    expect(activeOnly.some((entry) => entry.id === deletedId)).toBe(false);
+    expect(activeOnly.every((entry) => entry.scope !== 'global')).toBe(true);
+
+    const history = await pipeline.queryEntries({
+      projectId: projectId as any,
+      includeSuperseded: true,
+      includeDeleted: true,
+    });
+    expect(history.some((entry) => entry.id === supersededId)).toBe(true);
+    expect(history.some((entry) => entry.id === deletedId)).toBe(true);
+
+    const globalOnly = await pipeline.queryEntries({ scope: 'global' });
+    expect(globalOnly).toHaveLength(1);
+    expect(globalOnly[0].scope).toBe('global');
+
+    const archived = await pipeline.queryEntries({
+      projectId: projectId as any,
+      includeDeleted: true,
+      tags: ['archived'],
+    });
+    expect(archived).toHaveLength(1);
+    expect(archived[0].id).toBe(deletedId);
+    expect(archived[0].lifecycleStatus).toBe('soft-deleted');
+  });
+
   it('submit rejects experience-record candidate missing context', async () => {
     const expCandidateMissingContext = {
       content: 'Kitchen gut rejected',

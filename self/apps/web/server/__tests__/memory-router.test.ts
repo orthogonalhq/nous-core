@@ -9,35 +9,48 @@ import type { ProjectConfig } from '@nous/shared';
 import { appRouter } from '../trpc/root';
 import { clearNousContextCache, createNousContext } from '../bootstrap';
 
-function createProjectConfig(): ProjectConfig {
+function createProjectConfig(
+  overrides: Partial<ProjectConfig> = {},
+): ProjectConfig {
   const now = new Date().toISOString();
   return {
-    id: randomUUID() as import('@nous/shared').ProjectId,
-    name: 'Memory Router Test Project',
-    type: 'hybrid',
-    pfcTier: 3,
-    memoryAccessPolicy: {
+    id: overrides.id ?? (randomUUID() as import('@nous/shared').ProjectId),
+    name: overrides.name ?? 'Memory Router Test Project',
+    type: overrides.type ?? 'hybrid',
+    pfcTier: overrides.pfcTier ?? 3,
+    memoryAccessPolicy: overrides.memoryAccessPolicy ?? {
       canReadFrom: 'all',
       canBeReadBy: 'all',
       inheritsGlobal: true,
     },
     escalationChannels: ['in-app'],
     retrievalBudgetTokens: 500,
-    createdAt: now,
-    updatedAt: now,
+    createdAt: overrides.createdAt ?? now,
+    updatedAt: overrides.updatedAt ?? now,
   };
 }
 
 function createCandidate(
-  projectId: import('@nous/shared').ProjectId,
+  projectId: import('@nous/shared').ProjectId | undefined,
   content: string,
+  overrides: Partial<{
+    type: 'fact' | 'preference' | 'experience-record' | 'distilled-pattern' | 'task-state';
+    scope: 'project' | 'global';
+    confidence: number;
+    tags: string[];
+    sentiment: 'strong-positive' | 'weak-positive' | 'neutral' | 'weak-negative' | 'strong-negative';
+    context: string;
+    action: string;
+    outcome: string;
+    reason: string;
+  }> = {},
 ) {
   return {
     content,
-    type: 'preference' as const,
-    scope: 'project' as const,
+    type: overrides.type ?? ('preference' as const),
+    scope: overrides.scope ?? ('project' as const),
     projectId,
-    confidence: 0.9,
+    confidence: overrides.confidence ?? 0.9,
     sensitivity: [],
     retention: 'permanent' as const,
     provenance: {
@@ -45,7 +58,12 @@ function createCandidate(
       source: 'memory-router-test',
       timestamp: new Date().toISOString(),
     },
-    tags: ['router-test'],
+    tags: overrides.tags ?? ['router-test'],
+    sentiment: overrides.sentiment,
+    context: overrides.context,
+    action: overrides.action,
+    outcome: overrides.outcome,
+    reason: overrides.reason,
   };
 }
 
@@ -136,5 +154,215 @@ describe('memory router', () => {
     expect(original?.lifecycleStatus).toBe('superseded');
     expect(original?.supersededBy).toBe(result.resultingEntryId);
     expect(next?.lifecycleStatus).toBe('active');
+  });
+
+  it('inspect returns deterministic filtered results across project and global scopes', async () => {
+    const ctx = createNousContext();
+    const caller = appRouter.createCaller(ctx);
+    const projectId = await ctx.projectStore.create(createProjectConfig());
+
+    const projectFactId = await ctx.mwcPipeline.submit(
+      createCandidate(projectId, 'Project fact for inspection', {
+        type: 'fact',
+        tags: ['facts'],
+      }),
+      projectId,
+    );
+    const experienceId = await ctx.mwcPipeline.submit(
+      createCandidate(projectId, 'Deployment succeeded after rollout review', {
+        type: 'experience-record',
+        tags: ['release'],
+        sentiment: 'strong-positive',
+        context: 'release train',
+        action: 'deploy feature set',
+        outcome: 'approved and shipped',
+        reason: 'smooth rollout',
+      }),
+      projectId,
+    );
+    const supersededId = await ctx.mwcPipeline.submit(
+      createCandidate(projectId, 'Legacy preference', {
+        tags: ['legacy'],
+      }),
+      projectId,
+    );
+    const deletedId = await ctx.mwcPipeline.submit(
+      createCandidate(projectId, 'Temporary note', {
+        tags: ['temporary'],
+      }),
+      projectId,
+    );
+    const globalId = await ctx.mwcPipeline.submit(
+      createCandidate(undefined, 'Global operating rule', {
+        type: 'fact',
+        scope: 'global',
+        tags: ['global'],
+      }),
+      projectId,
+    );
+
+    expect(projectFactId).toBeTruthy();
+    expect(experienceId).toBeTruthy();
+    expect(supersededId).toBeTruthy();
+    expect(deletedId).toBeTruthy();
+    expect(globalId).toBeTruthy();
+
+    await caller.memory.supersede({
+      id: supersededId!,
+      replacement: createCandidate(projectId, 'Replacement preference', {
+        tags: ['replacement'],
+      }),
+      projectId,
+    });
+    await caller.memory.delete({ id: deletedId! });
+
+    const defaultInspection = await caller.memory.inspect({
+      projectId,
+      scope: 'all',
+      sortBy: 'updatedAt',
+      sortDirection: 'desc',
+    });
+    expect(defaultInspection.diagnostics.projectInheritsGlobal).toBe(true);
+    expect(defaultInspection.entries.some((entry) => entry.id === projectFactId)).toBe(
+      true,
+    );
+    expect(defaultInspection.entries.some((entry) => entry.id === experienceId)).toBe(
+      true,
+    );
+    expect(defaultInspection.entries.some((entry) => entry.id === globalId)).toBe(true);
+    expect(defaultInspection.entries.some((entry) => entry.id === supersededId)).toBe(
+      false,
+    );
+    expect(defaultInspection.entries.some((entry) => entry.id === deletedId)).toBe(
+      false,
+    );
+
+    const searchInspection = await caller.memory.inspect({
+      projectId,
+      scope: 'all',
+      query: 'smooth rollout',
+      types: ['experience-record'],
+      sortBy: 'updatedAt',
+      sortDirection: 'desc',
+    });
+    expect(searchInspection.entries).toHaveLength(1);
+    expect(searchInspection.entries[0].id).toBe(experienceId);
+
+    const deletedInspection = await caller.memory.inspect({
+      projectId,
+      scope: 'project',
+      includeDeleted: true,
+      tags: ['temporary'],
+      sortBy: 'updatedAt',
+      sortDirection: 'desc',
+    });
+    expect(deletedInspection.entries).toHaveLength(1);
+    expect(deletedInspection.entries[0].id).toBe(deletedId);
+    expect(deletedInspection.entries[0].lifecycleStatus).toBe('soft-deleted');
+  });
+
+  it('inspect returns explicit diagnostics when global scope is unavailable', async () => {
+    const ctx = createNousContext();
+    const caller = appRouter.createCaller(ctx);
+    const sourceProjectId = await ctx.projectStore.create(createProjectConfig());
+    const projectId = await ctx.projectStore.create(
+      createProjectConfig({
+        memoryAccessPolicy: {
+          canReadFrom: 'all',
+          canBeReadBy: 'all',
+          inheritsGlobal: false,
+        },
+      }),
+    );
+
+    await ctx.mwcPipeline.submit(
+      createCandidate(undefined, 'Global memory that should stay hidden', {
+        type: 'fact',
+        scope: 'global',
+        tags: ['global'],
+      }),
+      sourceProjectId,
+    );
+    const projectEntryId = await ctx.mwcPipeline.submit(
+      createCandidate(projectId, 'Project-local memory remains visible', {
+        tags: ['local'],
+      }),
+      projectId,
+    );
+
+    const allScope = await caller.memory.inspect({
+      projectId,
+      scope: 'all',
+      sortBy: 'updatedAt',
+      sortDirection: 'desc',
+    });
+    expect(allScope.diagnostics.projectInheritsGlobal).toBe(false);
+    expect(allScope.diagnostics.globalScopeDecision?.reasonCode).toBe(
+      'POL-GLOBAL-DENIED',
+    );
+    expect(allScope.entries).toHaveLength(1);
+    expect(allScope.entries[0].id).toBe(projectEntryId);
+
+    const globalScope = await caller.memory.inspect({
+      projectId,
+      scope: 'global',
+      sortBy: 'updatedAt',
+      sortDirection: 'desc',
+    });
+    expect(globalScope.entries).toHaveLength(0);
+    expect(globalScope.diagnostics.globalScopeDecision?.reasonCode).toBe(
+      'POL-GLOBAL-DENIED',
+    );
+  });
+
+  it('denials preserves decision records and trace metadata', async () => {
+    const ctx = createNousContext();
+    const caller = appRouter.createCaller(ctx);
+    const projectId = await ctx.projectStore.create(createProjectConfig());
+    const traceId = randomUUID() as import('@nous/shared').TraceId;
+    const timestamp = new Date().toISOString();
+
+    await ctx.documentStore.put('execution_traces', traceId, {
+      traceId,
+      projectId,
+      startedAt: timestamp,
+      turns: [
+        {
+          input: 'remember this',
+          output: 'noted',
+          modelCalls: [],
+          pfcDecisions: [],
+          toolDecisions: [],
+          memoryWrites: [],
+          memoryDenials: [
+            {
+              candidate: createCandidate(projectId, 'Denied candidate'),
+              reason: 'Global write denied',
+              decisionRecord: {
+                id: randomUUID(),
+                projectId,
+                action: 'write',
+                outcome: 'denied',
+                reasonCode: 'POL-GLOBAL-DENIED',
+                reason: 'inheritsGlobal is false; global access denied',
+                traceId,
+                evidenceRefs: [],
+                occurredAt: timestamp,
+              },
+            },
+          ],
+          evidenceRefs: [],
+          timestamp,
+        },
+      ],
+    });
+
+    const denials = await caller.memory.denials({ projectId });
+    expect(denials).toHaveLength(1);
+    expect(denials[0].reason).toBe('Global write denied');
+    expect(denials[0].traceId).toBe(traceId);
+    expect(denials[0].timestamp).toBe(timestamp);
+    expect(denials[0].decisionRecord?.reasonCode).toBe('POL-GLOBAL-DENIED');
+    expect(denials[0].candidate.content).toBe('Denied candidate');
   });
 });
