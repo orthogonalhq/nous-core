@@ -206,18 +206,20 @@ This package is the ingress seam between Cortex-approved write intent and the du
 
 ### distillation/
 
-The compression engine. Implemented as `@nous/memory-distillation` (Phase 4.3). The package and heuristic baseline exist today, and Phase 8.4 adds a prototype evaluation harness for candidate distillation approaches. Production background promotion and supersession through this path remain gated until Phase 8.5 ratifies the runtime coupling.
+The compression engine. Implemented as `@nous/memory-distillation` (Phase 4.3). Phase 8.4 adds the prototype evaluation harness that selected `structured-summary-v1`, and Phase 8.5 promotes that approved path into the live project-scoped production runtime. Prototype comparators remain package-local and test-only; scheduler-triggered orchestration, autonomy enforcement, and operator-facing visibility stay in later phases.
 
 Responsibilities:
 
 * Identify clusters of related experience records (tag/project strategies; semantic deferred)
 * Compress clusters into pattern statements with provenance (`basedOn`, `supersedes`, `evidenceRefs`)
 * Assign initial confidence from sentiment consistency and volume; support refresh (confirming signals) and decay (staleness, contradiction)
+* Persist only guarded `promote` decisions; hold or reject contradictory, stale, or weakly supported clusters
 * Mark superseded records for archival via `ILtmStore.markSuperseded`
 * Support supersession reversal — restore source records to active, retire pattern (caller emits audit)
+* Emit lifecycle and export outputs for downstream governance and visibility consumers
 * Policy gate: caller must invoke policy evaluation before distillation writes when scope is cross-project or global
 
-This is the intended "sleep cycle" — consolidation that happens offline, not at query time, once the production distillation path is ratified.
+This is the current "sleep cycle" runtime slice: offline consolidation through the production distillation engine rather than query-time summarization. Background scheduling, autonomy decisions, and UI visibility are layered on later; they are not owned by this package.
 
 Designed for independent iteration. Swap distillation strategies without touching storage or retrieval.
 

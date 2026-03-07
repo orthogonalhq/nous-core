@@ -1,7 +1,5 @@
-import { InMemoryLtmStore } from '@nous/memory-stubs';
 import type { ExperienceRecord } from '@nous/shared';
 import { computeInitialConfidence } from './confidence.js';
-import { DistillationEngine } from './distillation-engine.js';
 import {
   DEFAULT_PROTOTYPE_EVALUATION_REFERENCE_AT,
   DistillationPrototypeProposalSchema,
@@ -16,6 +14,7 @@ import {
   sortClusterRecords,
   sortMemoryEntryIds,
 } from './prototype-contracts.js';
+import { buildStructuredSummary } from './structured-summary.js';
 
 const DAY_MS = 24 * 60 * 60 * 1000;
 
@@ -150,26 +149,6 @@ function adjustConfidence(
   return Math.round(adjusted * 100) / 100;
 }
 
-function dominantSignalLabel(
-  analysis: PrototypeSignalAnalysis,
-): 'positive' | 'negative' | 'neutral' {
-  if (
-    analysis.positiveCount >= analysis.negativeCount &&
-    analysis.positiveCount >= analysis.neutralCount
-  ) {
-    return 'positive';
-  }
-
-  if (
-    analysis.negativeCount >= analysis.positiveCount &&
-    analysis.negativeCount >= analysis.neutralCount
-  ) {
-    return 'negative';
-  }
-
-  return 'neutral';
-}
-
 function buildStructuredRationale(
   analysis: PrototypeSignalAnalysis,
 ): string[] {
@@ -212,31 +191,32 @@ function buildStructuredRationale(
   return rationale;
 }
 
-export function createBaselineCurrentEngineCandidate(
-  engine: DistillationEngine = new DistillationEngine(new InMemoryLtmStore()),
-): DistillationPrototypeCandidate {
+export function createBaselineCurrentEngineCandidate(): DistillationPrototypeCandidate {
   return {
     id: 'baseline-current-engine',
     async propose(
       scenario: DistillationPrototypeScenario,
     ): Promise<DistillationPrototypeProposal> {
       const analysis = analyzeScenario(scenario);
-      const pattern = await engine.distill(scenario.cluster);
+      const records = sortClusterRecords(scenario.cluster);
+      const content = records
+        .map((record) => `${record.context} -> ${record.outcome}: ${record.reason}`)
+        .join('; ');
 
       return DistillationPrototypeProposalSchema.parse({
         candidateId: 'baseline-current-engine',
         scenarioId: scenario.id,
-        content: pattern.content,
+        content,
         basedOn: analysis.basedOn,
-        evidenceRefs: pattern.evidenceRefs,
+        evidenceRefs: analysis.evidenceRefs,
         supersedes: analysis.supersessionEligible ? analysis.basedOn : [],
-        proposedConfidence: pattern.confidence,
+        proposedConfidence: computeInitialConfidence(records),
         promotionDecision: analysis.promotionDecision,
         contradictionStatus: analysis.contradictionStatus,
         stalenessStatus: analysis.stalenessStatus,
         supersessionEligible: analysis.supersessionEligible,
         rationale: [
-          'Baseline heuristic output uses the current DistillationEngine compression.',
+          'Baseline heuristic output uses the pre-Phase-8.5 compression format.',
           analysis.supersessionEligible
             ? 'Baseline output remains promotion eligible under the current heuristic posture.'
             : 'Baseline output requires additional operator review before any promotion decision.',
@@ -260,18 +240,20 @@ export function createStructuredSummaryCandidate(): DistillationPrototypeCandida
         analysis.contradictionStatus,
         analysis.stalenessStatus,
       );
-      const dominantLabel = dominantSignalLabel(analysis);
-      const content = [
-        `Signals: ${records.length} records with dominant ${dominantLabel} evidence.`,
-        `Contradiction: ${analysis.contradictionStatus}.`,
-        `Freshness: ${analysis.stalenessStatus}; latest evidence is ${analysis.latestAgeDays} day(s) old.`,
-        `Decision: ${analysis.promotionDecision}.`,
-      ].join(' ');
 
       return DistillationPrototypeProposalSchema.parse({
         candidateId: 'structured-summary-v1',
         scenarioId: scenario.id,
-        content,
+        content: buildStructuredSummary({
+          supportingSignalCount: records.length,
+          positiveCount: analysis.positiveCount,
+          negativeCount: analysis.negativeCount,
+          neutralCount: analysis.neutralCount,
+          latestAgeDays: analysis.latestAgeDays,
+          contradictionStatus: analysis.contradictionStatus,
+          stalenessStatus: analysis.stalenessStatus,
+          decision: analysis.promotionDecision,
+        }),
         basedOn: analysis.basedOn,
         evidenceRefs: analysis.evidenceRefs,
         supersedes: analysis.supersessionEligible ? analysis.basedOn : [],

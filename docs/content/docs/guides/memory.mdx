@@ -73,9 +73,9 @@ Strong signals (positive or negative) weight higher than weak signals in retriev
 
 ### Distilled Patterns
 
-Experience records can be compressed into **distilled patterns** — consolidated knowledge derived from clusters of related experiences. `@nous/memory-distillation` owns that model, and Phase 8.4 adds the prototype evaluation harness used to judge candidate distillation approaches before they are allowed to mutate live project memory.
+Experience records can be compressed into **distilled patterns** — consolidated knowledge derived from clusters of related experiences. `@nous/memory-distillation` owns that model. Phase 8.4 ratified `structured-summary-v1` as the approved production baseline, and Phase 8.5 promotes that path into the live project-scoped distillation runtime.
 
-Current runtime posture: production background promotion and supersession through this path are still gated for Phase 8.5. The rest of this section describes the intended distillation model and the prototype criteria being validated, not an already-live autonomous background loop in operator-facing memory surfaces.
+Current runtime posture: the production engine generates a deterministic `structured-summary-v1` draft, persists only explicit `promote` decisions, supersedes source records only after successful pattern persistence, and fails closed on contradiction, stale evidence, or incomplete provenance. Scheduler-triggered background orchestration and operator-facing visibility for this loop still land in later phases.
 
 Each distilled pattern includes:
 
@@ -84,7 +84,7 @@ Each distilled pattern includes:
 - **Provenance** — `basedOn` and `supersedes` link to source experience records; `evidenceRefs` link to clustering and write evidence
 - **Scope** — project-scoped by default; cross-project distillation requires policy evaluation before write
 
-**Confidence lifecycle target:** Patterns should gain confidence when new experience records align (refresh); they should lose confidence when contradicted or when they become stale (decay). Phase 8.4 explicitly tests contradiction and staleness behavior before that lifecycle is promoted into the production runtime.
+**Confidence lifecycle:** Patterns gain confidence when new experience records align (refresh); they lose confidence when contradicted or when they become stale (decay). Phase 8.5 implements deterministic initial assignment, confirming refresh, contradiction decay, staleness decay, and retirement flagging while preserving explicit confidence metadata for downstream governance and visibility consumers.
 
 **Supersession reversal:** If a distilled pattern is found to be incorrect, `reverseSupersession` restores the source records to active and retires the pattern. The caller must emit an audit record for the reversal (ADR-002 evidence-chain). No silent replacement.
 
@@ -107,7 +107,7 @@ Confidence tiers (low, medium, high) map explicitly to governance behavior. Ther
 - `CONF-STALENESS` — pattern has not been confirmed recently
 - `CONF-RETIREMENT` — pattern flagged for retirement
 
-**Explainability** — When a pattern is eventually allowed to influence an outcome, the system must produce a trace-linked explanation (what pattern, which outcome, evidence refs) for audit and operator inspection. Phase 8.4 keeps this as a prototype gate requirement rather than a silently enabled production behavior.
+**Explainability** — When a pattern is allowed to influence an outcome, the system must produce a trace-linked explanation (what pattern, which outcome, evidence refs) for audit and operator inspection. Phase 8.5 emits the evidence-linked pattern, confidence, escalation, and export payloads required for that path; later phases decide when those outputs drive autonomy or operator-facing UI surfaces.
 
 ### Retrieval and Policy
 

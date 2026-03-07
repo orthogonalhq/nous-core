@@ -4,6 +4,7 @@
  */
 import type { ExperienceRecord, ConfidenceLifecycle } from '@nous/shared';
 import { DEFAULT_CONFIDENCE_LIFECYCLE } from '@nous/shared';
+import { roundConfidence } from './production-contracts.js';
 
 /**
  * Compute base consistency: fraction of records with aligned outcome class.
@@ -40,5 +41,5 @@ export function computeInitialConfidence(
   );
 
   const raw = baseConsistency * volumeFactor;
-  return Math.round(raw * 100) / 100;
+  return roundConfidence(raw);
 }
