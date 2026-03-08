@@ -364,8 +364,15 @@ Tools execute only through Cortex authorization.
 
 Workflow graph engine. The runtime for protocol and hybrid projects.
 
+Phase 9.1 establishes the first concrete workflow-runtime baseline in `@nous/subcortex-workflows`.
+
 Responsibilities:
 
+* Resolve canonical workflow definitions from project-scoped configuration
+* Build deterministic derived graphs from canonical node and edge definitions
+* Validate DAG structure and reject invalid workflow graphs before execution
+* Evaluate fail-closed admission before any run is created
+* Track canonical run, node, and dispatch-lineage state
 * Execute node-based workflow graphs
 * Checkpoint and resume on interruption
 * Conditional branching based on node outputs and quality gates
@@ -374,6 +381,8 @@ Responsibilities:
 * Progress tracking and state persistence
 
 This is the engine that makes protocol projects operational.
+
+Current Phase 9.1 modules in this package include graph builder, graph validator, traversal, admission, run-state, and workflow-engine foundations. Concrete node handlers, scheduler-backed recurring execution, and artifact persistence remain later-phase work.
 
 ### projects/
 
@@ -631,6 +640,10 @@ Phase 7.2 package-contract additions live here:
 - `package-lifecycle.ts` — lifecycle event and reason-code contracts
 - `package-compatibility.ts` — API range and capability-delta gate contracts
 
+Phase 9.1 adds:
+
+- `workflow.ts` — canonical workflow definition, derived graph, admission, run-state, and dispatch-lineage schemas
+
 ### interfaces/
 
 Cross-layer contracts. When the cortex calls the subcortex, or memory calls storage, the contract is defined here. No layer imports directly from another layer's implementation.
@@ -640,6 +653,10 @@ This is the critical composability mechanism. Layers depend on interfaces, not i
 Phase 7.2 adds:
 
 - `project-api.ts` — canonical seven-surface Project API membrane contract for package runtime mediation
+
+Phase 9.1 expands:
+
+- `subcortex.ts` — workflow engine interfaces for definition resolution, graph derivation, admission, run progression, and state retrieval
 
 ### events/
 

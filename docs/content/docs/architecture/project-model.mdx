@@ -151,6 +151,47 @@ Each project declares a memory access policy with three fields:
 
 ---
 
+## Workflow Definition and Runtime State (Phase 9.1)
+
+Phase 9.1 adds the first canonical workflow-runtime contract layer for protocol and hybrid projects.
+
+### Canonical Workflow Definition
+
+Workflow truth is project-scoped. A project can store one or more workflow definitions plus a default workflow reference inside project configuration.
+
+The canonical definition carries:
+
+- Versioned workflow identity
+- Entry nodes
+- Node definitions
+- Edge definitions
+- Mode (`protocol` or `hybrid`)
+
+This stored definition is authoritative. The execution graph is derived from it and can be rebuilt at any time. UI surfaces, automation, and future scheduler projections must not invent a competing workflow graph state model.
+
+### Admission Before Run Creation
+
+The workflow runtime does not create a run as soon as a request arrives. It first:
+
+1. Resolves the workflow definition from the target project
+2. Validates the graph as a deterministic DAG
+3. Evaluates project scope, workmode compatibility, authority-chain integrity, and control-state compatibility
+4. Mints a run only after those checks pass
+
+Blocked admissions remain reason-coded and evidence-linked. Missing definitions, invalid graph structure, authority mismatch, and blocked control states all fail closed before a new run is created.
+
+### Explicit Runtime State
+
+Phase 9.1 makes workflow execution state explicit rather than leaving later surfaces to infer it:
+
+- **Run state** records workflow ID, graph digest, admission result, ready nodes, completed nodes, and overall status
+- **Node run state** records per-node execution status, reason codes, evidence refs, and last dispatch
+- **Dispatch lineage** records how a node became ready, including parent node, edge linkage, attempt number, and evidence refs
+
+This gives scheduler, chat, Projects UI, and MAO consumers a canonical runtime truth to project from without re-deriving execution history locally.
+
+---
+
 ## Node Governance Levels
 
 Not all steps in a workflow carry equal weight. Even within a strict operational protocol, some steps are critical gates and others are discretionary.
@@ -377,7 +418,7 @@ The workflow engine must support all four patterns within a single project graph
 
 This project model extends existing Nous concepts:
 
-- **ProjectStore** → Becomes the container for project type, workflow graph, governance configuration, and artifact references — not just namespace and config
+- **ProjectStore** → Becomes the container for project type, workflow graph, governance configuration, artifact references, and Phase 9.1 canonical workflow definitions/default workflow references — not just namespace and config
 - **Cortex Engine** → Gains a per-project supervisor mode in addition to per-turn evaluation
 - **ModelRouter** → Must route heterogeneous provider types, not just text model roles
 - **Tool Interface** → Nodes in the workflow are a superset of tools — they include model calls, quality gates, Principal decisions, and transforms alongside tool executions
@@ -386,7 +427,7 @@ This project model extends existing Nous concepts:
 
 New architectural components implied:
 
-- **Workflow Engine** — graph executor with checkpoint, resume, conditional branching, and mixed execution models
+- **Workflow Engine** — Phase 9.1 establishes deterministic graph derivation, admission, and explicit run/node/dispatch lineage state; later phases add concrete node executors, scheduler integration, and artifact persistence
 - **Artifact Store** — versioned binary asset management, project-scoped
 - **Scheduler** — time-triggered execution for recurring and monitoring workflows
 - **Escalation Service** — multi-channel Principal notification with response tracking

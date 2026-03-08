@@ -152,6 +152,68 @@ ollama pull llama3.2:3b
 
 See [Automation Gateway](/docs/guides/automation) for full operator guidance.
 
+## Workflow Cannot Start Because the Definition Is Missing or Invalid
+
+**Symptom:** A workflow start request returns `workflow_definition_unavailable` or `workflow_definition_invalid`, and no new `run_id` is created.
+
+**Meaning:** The runtime could not resolve or validate the canonical workflow definition stored in the target project. This fails closed before any run starts.
+
+| Code | Cause | Fix |
+|------|-------|-----|
+| `workflow_definition_unavailable` | The project has no matching workflow definition or no valid default workflow reference | Check the project's stored workflow configuration and default workflow selection |
+| `workflow_definition_invalid` | The canonical workflow definition failed validation | Correct the graph definition, then retry after validation passes |
+
+Common validation failures include:
+
+- Cycles in the node graph
+- Dangling edges that reference missing nodes
+- Missing or invalid entry nodes
+- Duplicate node or edge identities
+
+Do not retry the same start request until the canonical project workflow definition is repaired.
+
+## Workflow Admission Blocked Before Run Creation (Phase 9.1)
+
+**Symptom:** A start or automation request clears transport-level checks, but the workflow still does not start and returns an admission reason code.
+
+**Meaning:** Workflow admission failed after definition resolution but before run creation. No canonical run state exists yet, so the fix is at the project, authority, or control-state layer.
+
+| Code | Cause | Fix |
+|------|-------|-----|
+| `AUTH-SCOPE-MISMATCH` | The request scope and resolved workflow definition do not match | Ensure the project/workflow identifiers point at the same stored definition |
+| `POL-CONTROL-STATE-BLOCKED` | The project is hard stopped or otherwise blocked | Use operator-control to release the blocking state |
+| `POL-PAUSED-BLOCKED` | The project is paused for review | Resume the project before retrying |
+| `OPCTL-INVALID-STATE` | The request attempts to resume from an invalid control state | Fix the control-state transition first |
+| `WMODE-001` | Unsupported workmode for this admission path | Use a supported workmode configuration |
+| `WMODE-002` | Authority widening was attempted | Narrow the request back to the allowed authority chain |
+| `WMODE-003` | Nested orchestration was attempted | Use the standard orchestration lane rather than orchestrating inside orchestration |
+| `WMODE-010` | A worker attempted an authoritative start path | Reissue the request from the correct authority source |
+
+Admission failures are authoritative. Use the returned `reasonCode` and `evidenceRefs` before retrying.
+
+## Workflow Run State or Dispatch Lineage Is Hard to Interpret
+
+**Symptom:** A run exists, but it appears stalled, paused, blocked, or unexpectedly branched.
+
+**Meaning:** Phase 9.1 exposes canonical run, node, and dispatch-lineage state. Those records explain what happened without requiring the UI to infer workflow truth.
+
+| Field | How to use it |
+|------|---------------|
+| `status` | Overall workflow state such as `ready`, `running`, `paused`, `completed`, or `failed` |
+| `readyNodeIds` | Nodes eligible to dispatch now |
+| `completedNodeIds` | Nodes that have already finished |
+| `nodeStates[<nodeId>].status` | Per-node state such as `pending`, `ready`, `dispatched`, `running`, `completed`, `blocked`, or `failed` |
+| `dispatchLineage[*].dispatchLineageId` | Unique identifier for one dispatch attempt |
+| `parentNodeId` / `viaEdgeId` | How the current node became ready |
+| `reasonCode` / `evidenceRefs` | The authoritative explanation for a transition, pause, block, or failure |
+
+**Fix:**
+
+- If the run is `paused`, inspect control-state and operator actions first.
+- If a node is `blocked` or `failed`, use the `reasonCode` and `evidenceRefs` to identify the governing blocker.
+- If branching looks wrong, inspect `parentNodeId` and `viaEdgeId` in dispatch lineage before assuming the UI or scheduler is wrong.
+- If no nodes are ready, inspect upstream node states and graph structure rather than replaying the same dispatch.
+
 ## Recovery Blocked or Failed (Phase 5.4)
 
 **Symptom:** Workflow shows `recovery_blocked_review_required` or `recovery_failed_hard_stop`.
