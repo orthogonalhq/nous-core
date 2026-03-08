@@ -5,7 +5,12 @@ import { beforeAll, describe, expect, it } from 'vitest';
 import { randomUUID } from 'node:crypto';
 import { join } from 'node:path';
 import { tmpdir } from 'node:os';
-import type { ProjectConfig } from '@nous/shared';
+import { DocumentLtmStore } from '@nous/memory-ltm';
+import type {
+  DistilledPattern,
+  ExperienceRecord,
+  ProjectConfig,
+} from '@nous/shared';
 import { appRouter } from '../trpc/root';
 import { clearNousContextCache, createNousContext } from '../bootstrap';
 
@@ -64,6 +69,67 @@ function createCandidate(
     action: overrides.action,
     outcome: overrides.outcome,
     reason: overrides.reason,
+  };
+}
+
+function createExperienceRecord(projectId: import('@nous/shared').ProjectId): ExperienceRecord {
+  const timestamp = new Date().toISOString();
+  return {
+    id: randomUUID() as any,
+    content: 'Release review confirms the guarded rollout stayed predictable',
+    type: 'experience-record',
+    scope: 'project',
+    projectId,
+    confidence: 0.86,
+    sensitivity: [],
+    retention: 'permanent',
+    provenance: {
+      traceId: randomUUID() as any,
+      source: 'learning-router-test',
+      timestamp,
+    },
+    sentiment: 'strong-positive',
+    tags: ['learning', 'release'],
+    createdAt: timestamp,
+    updatedAt: timestamp,
+    mutabilityClass: 'domain-versioned',
+    lifecycleStatus: 'active',
+    placementState: 'project',
+    context: 'release train with rollback notes',
+    action: 'deploy guarded release',
+    outcome: 'positive operator confidence',
+    reason: 'rollback posture remained explicit',
+  };
+}
+
+function createDistilledPattern(
+  projectId: import('@nous/shared').ProjectId,
+  sourceIds: import('@nous/shared').MemoryEntryId[],
+): DistilledPattern {
+  const timestamp = new Date().toISOString();
+  return {
+    id: randomUUID() as any,
+    content: 'Patterns with explicit rollback notes preserve operator trust',
+    type: 'distilled-pattern',
+    scope: 'project',
+    projectId,
+    confidence: 0.93,
+    sensitivity: [],
+    retention: 'permanent',
+    provenance: {
+      traceId: randomUUID() as any,
+      source: 'learning-router-test',
+      timestamp,
+    },
+    tags: ['learning', 'pattern'],
+    createdAt: timestamp,
+    updatedAt: timestamp,
+    mutabilityClass: 'domain-versioned',
+    lifecycleStatus: 'active',
+    placementState: 'project',
+    basedOn: sourceIds,
+    supersedes: sourceIds,
+    evidenceRefs: [{ actionCategory: 'memory-write' }],
   };
 }
 
@@ -364,5 +430,130 @@ describe('memory router', () => {
     expect(denials[0].timestamp).toBe(timestamp);
     expect(denials[0].decisionRecord?.reasonCode).toBe('POL-GLOBAL-DENIED');
     expect(denials[0].candidate.content).toBe('Denied candidate');
+  });
+
+  it('learningOverview returns typed pattern summaries with confidence and lineage diagnostics', async () => {
+    const ctx = createNousContext();
+    const caller = appRouter.createCaller(ctx);
+    const projectId = await ctx.projectStore.create(createProjectConfig());
+    const ltmStore = new DocumentLtmStore(ctx.documentStore);
+    const firstSource = createExperienceRecord(projectId);
+    const secondSource = createExperienceRecord(projectId);
+    const pattern = createDistilledPattern(projectId, [
+      firstSource.id,
+      secondSource.id,
+    ]);
+
+    await ltmStore.write(firstSource);
+    await ltmStore.write(secondSource);
+    await ltmStore.write(pattern);
+
+    const overview = await caller.memory.learningOverview({
+      projectId,
+      sortBy: 'updatedAt',
+      sortDirection: 'desc',
+      tier: 'all',
+      decayState: 'all',
+      includeRetired: true,
+    });
+    expect(overview.items).toHaveLength(1);
+    expect(overview.items[0].pattern.id).toBe(pattern.id);
+    expect(overview.items[0].pattern.basedOn).toEqual(pattern.basedOn);
+    expect(overview.items[0].sourceCount).toBe(2);
+    expect(overview.items[0].missingSourceCount).toBe(0);
+    expect(overview.items[0].confidenceSignal.supportingSignals).toBe(2);
+    expect(overview.items[0].lineageIntegrityStatus).toBe('complete');
+
+    const filtered = await caller.memory.learningOverview({
+      projectId,
+      query: 'not-present-in-pattern-content',
+      sortBy: 'updatedAt',
+      sortDirection: 'desc',
+      tier: 'all',
+      decayState: 'all',
+      includeRetired: true,
+    });
+    expect(filtered.items).toHaveLength(0);
+  });
+
+  it('learningDetail derives lifecycle events and representative governance cards from canonical contracts', async () => {
+    const ctx = createNousContext();
+    ctx.opctlService.getProjectControlState = async () => 'paused_review';
+    const caller = appRouter.createCaller(ctx);
+    const projectId = await ctx.projectStore.create(createProjectConfig());
+    const ltmStore = new DocumentLtmStore(ctx.documentStore);
+    const source = createExperienceRecord(projectId);
+    const pattern = createDistilledPattern(projectId, [source.id]);
+
+    await ltmStore.write(source);
+    await ltmStore.write(pattern);
+
+    const detail = await caller.memory.learningDetail({
+      projectId,
+      patternId: pattern.id,
+    });
+    expect(detail).toBeTruthy();
+    expect(detail?.diagnostics.historicalDecisionLogAvailable).toBe(false);
+    expect(detail?.sourceTimeline).toHaveLength(1);
+    expect(detail?.lifecycleEvents.some((event) => event.derived)).toBe(true);
+    expect(
+      detail?.decisionProjections.some(
+        (projection) =>
+          projection.scenarioId === 'high-risk-memory-write' &&
+          projection.evaluation.reasonCode ===
+            'CGR-DEFER-HIGH-RISK-CONFIRMATION',
+      ),
+    ).toBe(true);
+    expect(
+      detail?.decisionProjections.some(
+        (projection) =>
+          projection.scenarioId === 'current-control-state' &&
+          projection.evaluation.reasonCode === 'CGR-DEFER-PAUSED-REVIEW',
+      ),
+    ).toBe(true);
+  });
+
+  it('learningDetail surfaces missing-source and missing-evidence diagnostics without inventing history', async () => {
+    const ctx = createNousContext();
+    const caller = appRouter.createCaller(ctx);
+    const projectId = await ctx.projectStore.create(createProjectConfig());
+    const missingSourceId = randomUUID() as import('@nous/shared').MemoryEntryId;
+    const patternId = randomUUID() as import('@nous/shared').MemoryEntryId;
+    const timestamp = new Date().toISOString();
+
+    await ctx.documentStore.put('memory_entries', patternId, {
+      id: patternId,
+      content: 'Corrupted pattern missing canonical evidence refs',
+      type: 'distilled-pattern',
+      scope: 'project',
+      projectId,
+      confidence: 0.41,
+      sensitivity: [],
+      retention: 'permanent',
+      provenance: {
+        traceId: randomUUID(),
+        source: 'learning-router-test',
+        timestamp,
+      },
+      tags: ['learning', 'corrupted'],
+      createdAt: timestamp,
+      updatedAt: timestamp,
+      mutabilityClass: 'domain-versioned',
+      lifecycleStatus: 'active',
+      placementState: 'project',
+      basedOn: [missingSourceId],
+      supersedes: [missingSourceId],
+    });
+
+    const detail = await caller.memory.learningDetail({
+      projectId,
+      patternId,
+    });
+    expect(detail).toBeTruthy();
+    expect(detail?.diagnostics.historicalDecisionLogAvailable).toBe(false);
+    expect(detail?.diagnostics.missingEvidenceRefs).toBe(true);
+    expect(detail?.lineage.missingSourceIds).toEqual([missingSourceId]);
+    expect(detail?.lineage.lineageIntegrityStatus).toBe('mixed');
+    expect(detail?.decisionProjections).toHaveLength(0);
   });
 });
