@@ -15,6 +15,8 @@ import {
   MemoryAccessPolicySchema,
   ProviderIdSchema,
   ProviderClassSchema,
+  StmCompactionPolicySchema,
+  DEFAULT_STM_COMPACTION_POLICY,
 } from '@nous/shared';
 
 // --- Cortex Tier Preset ---
@@ -124,6 +126,9 @@ export const DefaultsConfigSchema = z.object({
     inheritsGlobal: true,
   }),
   retrievalBudgetTokens: z.number().positive().default(500),
+  stmCompactionPolicy: StmCompactionPolicySchema.default(
+    DEFAULT_STM_COMPACTION_POLICY,
+  ),
   escalationChannels: z.array(EscalationChannelSchema).default(['in-app']),
 });
 export type DefaultsConfig = z.infer<typeof DefaultsConfigSchema>;

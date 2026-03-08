@@ -1,95 +1,129 @@
-/**
- * DistillationEngine behavior tests.
- * Phase 4.3: identifyClusters, distill, runDistillationPass produce valid patterns with provenance.
- */
-import { describe, it, expect } from 'vitest';
-import { DistillationEngine } from '../distillation-engine.js';
+import { describe, expect, it } from 'vitest';
 import { InMemoryLtmStore } from '@nous/memory-stubs';
-import type { ExperienceRecord } from '@nous/shared';
-import { ExperienceRecordSchema } from '@nous/shared';
+import type { ExperienceCluster } from '@nous/shared';
+import { DistillationEngine } from '../distillation-engine.js';
+import {
+  CollectingObserver,
+  NOW,
+  PROJECT_ID,
+  makeLowSupportCluster,
+  makeStablePromotionCluster,
+} from './fixtures/production-scenarios.js';
 
-const NOW = new Date().toISOString();
-const PROJ = '550e8400-e29b-41d4-a716-446655440000';
-const TRACE = '550e8400-e29b-41d4-a716-446655440001';
-
-function makeRecord(id: string): ExperienceRecord {
-  return ExperienceRecordSchema.parse({
-    id,
-    content: 'ctx',
-    type: 'experience-record',
-    scope: 'project',
-    projectId: PROJ,
-    confidence: 0.8,
-    sensitivity: [],
-    retention: 'permanent',
-    provenance: { traceId: TRACE, source: 'test', timestamp: NOW },
-    tags: ['tag1'],
-    sentiment: 'strong-positive',
-    context: 'ctx',
-    action: 'act',
-    outcome: 'out',
-    reason: 'reason',
-    createdAt: NOW,
-    updatedAt: NOW,
-  });
+async function writeCluster(
+  store: InMemoryLtmStore,
+  cluster: ExperienceCluster,
+) {
+  for (const record of cluster.records) {
+    await store.write(record);
+  }
 }
 
 describe('DistillationEngine', () => {
-  it('identifyClusters returns clusters', async () => {
-    const ltm = new InMemoryLtmStore();
-    await ltm.write(makeRecord('550e8400-e29b-41d4-a716-446655440010'));
-    await ltm.write(makeRecord('550e8400-e29b-41d4-a716-446655440011'));
-    await ltm.write(makeRecord('550e8400-e29b-41d4-a716-446655440012'));
+  it('distill returns a structured-summary draft with full source coverage', async () => {
+    const store = new InMemoryLtmStore();
+    const cluster = makeStablePromotionCluster();
+    await writeCluster(store, cluster);
 
-    const engine = new DistillationEngine(ltm, {
-      clusterConfig: { minClusterSize: 2, maxClusterSize: 10, clusteringStrategy: 'project' },
+    const engine = new DistillationEngine(store, {
+      now: () => NOW,
+      idFactory: (() => {
+        let next = 1;
+        return () => `990e8400-e29b-41d4-a716-${String(next++).padStart(12, '0')}`;
+      })(),
     });
-    const clusters = await engine.identifyClusters(PROJ);
-    expect(clusters.length).toBeGreaterThan(0);
-    expect(clusters[0]!.records.length).toBe(3);
+
+    const draft = await engine.distill(cluster);
+
+    expect(draft.type).toBe('distilled-pattern');
+    expect(draft.content).toContain('Signals:');
+    expect(draft.content).toContain('Decision: promote.');
+    expect(draft.basedOn).toHaveLength(cluster.records.length);
+    expect(draft.supersedes).toEqual(draft.basedOn);
+    expect(draft.evidenceRefs.length).toBeGreaterThan(0);
+
+    const persistedPatterns = await store.query({ type: 'distilled-pattern' });
+    expect(persistedPatterns).toHaveLength(0);
   });
 
-  it('distill produces pattern with provenance', async () => {
-    const ltm = new InMemoryLtmStore();
-    const recs = [
-      makeRecord('550e8400-e29b-41d4-a716-446655440010'),
-      makeRecord('550e8400-e29b-41d4-a716-446655440011'),
-      makeRecord('550e8400-e29b-41d4-a716-446655440012'),
-    ];
-    for (const r of recs) await ltm.write(r);
+  it('runDistillationPass persists only promote decisions and supersedes source records', async () => {
+    const store = new InMemoryLtmStore();
+    const cluster = makeStablePromotionCluster();
+    await writeCluster(store, cluster);
+    const observer = new CollectingObserver();
+    const auditRecords: Array<{ resultingEntryId?: string; reasonCode: string }> =
+      [];
 
-    const engine = new DistillationEngine(ltm);
-    const clusters = await engine.identifyClusters(PROJ);
-    expect(clusters.length).toBeGreaterThan(0);
+    const engine = new DistillationEngine(store, {
+      now: () => NOW,
+      idFactory: (() => {
+        let next = 1;
+        return () => `991e8400-e29b-41d4-a716-${String(next++).padStart(12, '0')}`;
+      })(),
+      observer,
+      auditSink: {
+        async appendAuditRecord(input) {
+          auditRecords.push({
+            resultingEntryId: input.resultingEntryId,
+            reasonCode: input.reasonCode,
+          });
+        },
+      },
+    });
 
-    const pattern = await engine.distill(clusters[0]!);
-    expect(pattern.type).toBe('distilled-pattern');
-    expect(pattern.basedOn.length).toBe(3);
-    expect(pattern.supersedes.length).toBe(3);
-    expect(pattern.evidenceRefs.length).toBeGreaterThan(0);
-    expect(pattern.confidence).toBeGreaterThanOrEqual(0);
+    const result = await engine.runDistillationPass(PROJECT_ID);
+
+    expect(result.clustersProcessed).toBe(1);
+    expect(result.patternsCreated).toHaveLength(1);
+    expect(result.recordsSuperseded).toHaveLength(cluster.records.length);
+    expect(auditRecords).toHaveLength(1);
+    expect(auditRecords[0]?.reasonCode).toBe('MEM-SUPERSEDE-APPLIED');
+
+    const persistedPattern = result.patternsCreated[0]!;
+    expect(persistedPattern.content).toContain('Decision: promote.');
+    for (const record of cluster.records) {
+      const updated = await store.read(record.id);
+      expect(updated?.lifecycleStatus).toBe('superseded');
+      expect(updated?.supersededBy).toBe(persistedPattern.id);
+    }
+
+    expect(
+      observer.metrics.some(
+        (metric) =>
+          metric.name === 'distillation_production_decision_total' &&
+          metric.labels?.decision === 'promote',
+      ),
+    ).toBe(true);
+    expect(
+      observer.logs.some(
+        (log) =>
+          log.event === 'distillation.production.decision' &&
+          log.fields.projectId === PROJECT_ID &&
+          log.fields.decision === 'promote',
+      ),
+    ).toBe(true);
   });
 
-  it('runDistillationPass creates patterns and marks superseded', async () => {
-    const ltm = new InMemoryLtmStore();
-    const recs = [
-      makeRecord('550e8400-e29b-41d4-a716-446655440010'),
-      makeRecord('550e8400-e29b-41d4-a716-446655440011'),
-      makeRecord('550e8400-e29b-41d4-a716-446655440012'),
-    ];
-    for (const r of recs) await ltm.write(r);
+  it('runDistillationPass leaves hold decisions unpersisted', async () => {
+    const store = new InMemoryLtmStore();
+    const cluster = makeLowSupportCluster();
+    await writeCluster(store, cluster);
 
-    const engine = new DistillationEngine(ltm, {
-      clusterConfig: { minClusterSize: 2, maxClusterSize: 10, clusteringStrategy: 'project' },
+    const engine = new DistillationEngine(store, {
+      now: () => NOW,
     });
-    const result = await engine.runDistillationPass(PROJ);
 
-    expect(result.clustersProcessed).toBeGreaterThan(0);
-    expect(result.patternsCreated.length).toBeGreaterThan(0);
-    expect(result.recordsSuperseded.length).toBe(3);
+    const result = await engine.runDistillationPass(PROJECT_ID);
 
-    const superseded = await ltm.read('550e8400-e29b-41d4-a716-446655440010');
-    expect(superseded?.lifecycleStatus).toBe('superseded');
-    expect(superseded?.supersededBy).toBeDefined();
+    expect(result.clustersProcessed).toBe(1);
+    expect(result.patternsCreated).toHaveLength(0);
+    expect(result.recordsSuperseded).toHaveLength(0);
+
+    const persistedPatterns = await store.query({ type: 'distilled-pattern' });
+    expect(persistedPatterns).toHaveLength(0);
+    for (const record of cluster.records) {
+      const updated = await store.read(record.id);
+      expect(updated?.lifecycleStatus).not.toBe('superseded');
+    }
   });
 });

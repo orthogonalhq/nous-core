@@ -286,5 +286,34 @@ describe('MemoryAccessPolicyEngine', () => {
       const result = engine.evaluate(ctx);
       expect(result.allowed).toBe(true);
     });
+
+    it('allows global write when inheritsGlobal is true', () => {
+      const ctx: PolicyAccessContext = {
+        action: 'write',
+        fromProjectId: FROM_ID,
+        includeGlobal: true,
+        projectPolicy: DEFAULT_MEMORY_ACCESS_POLICY,
+      };
+      const result = engine.evaluate(ctx);
+      expect(result.allowed).toBe(true);
+      expect(result.decisionRecord.action).toBe('write');
+    });
+
+    it('denies global write when inheritsGlobal is false', () => {
+      const ctx: PolicyAccessContext = {
+        action: 'write',
+        fromProjectId: FROM_ID,
+        includeGlobal: true,
+        projectPolicy: {
+          canReadFrom: 'all',
+          canBeReadBy: 'all',
+          inheritsGlobal: false,
+        },
+      };
+      const result = engine.evaluate(ctx);
+      expect(result.allowed).toBe(false);
+      expect(result.reasonCode).toBe('POL-GLOBAL-DENIED');
+      expect(result.decisionRecord.action).toBe('write');
+    });
   });
 });

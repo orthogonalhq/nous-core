@@ -15,12 +15,13 @@ import type {
   ProjectConfig,
   ProjectControlState,
   ProjectId,
-  SelectionAudit,
   CrossProjectSelectionPolicy,
 } from '@nous/shared';
 import {
   DEFAULT_MEMORY_ACCESS_POLICY,
   DEFAULT_CROSS_PROJECT_SELECTION_POLICY,
+  DEFAULT_RETRIEVAL_WEIGHTS,
+  RETRIEVAL_TIE_BREAK_STRATEGY,
 } from '@nous/shared';
 
 export interface PolicyEnforcedRetrievalEngineDeps {
@@ -67,7 +68,7 @@ function applySelectionPolicy(
   const final: RetrievalResult[] = [];
   for (const r of kept) {
     const tokens = estimateTokens(r.entry.content);
-    if (consumed + tokens > policy.tokenBudget && final.length > 0) {
+    if (consumed + tokens > policy.tokenBudget) {
       truncationReason = truncationReason === 'none' ? 'token_budget' : truncationReason;
       break;
     }
@@ -202,11 +203,11 @@ export class PolicyEnforcedRetrievalEngine implements IRetrievalEngine {
 
   async retrieve(query: RetrievalQuery): Promise<RetrievalResponse> {
     const fromProjectId = query.projectId;
-    if (fromProjectId == null) return { results: [] };
+    if (fromProjectId == null) return buildEmptyResponse();
 
     const fromConfig = await this.deps.projectStore.get(fromProjectId);
     const projectPolicy = getEffectivePolicy(fromConfig);
-    if (projectPolicy == null) return { results: [] };
+    if (projectPolicy == null) return buildEmptyResponse();
 
     const targetProjectConfigs = new Map<string, ProjectConfig>();
     // Phase 6.1: Load configs for explicit targetProjectIds
@@ -214,14 +215,14 @@ export class PolicyEnforcedRetrievalEngine implements IRetrievalEngine {
     if (targetProjectIds != null && targetProjectIds.length > 0) {
       for (const tid of targetProjectIds) {
         const cfg = await this.deps.projectStore.get(tid);
-        if (cfg == null) return { results: [] };
+        if (cfg == null) return buildEmptyResponse();
         targetProjectConfigs.set(tid, cfg);
       }
     } else {
       const targetProjectId = query.filters?.projectId;
       if (targetProjectId != null && targetProjectId !== fromProjectId) {
         const targetConfig = await this.deps.projectStore.get(targetProjectId as ProjectId);
-        if (targetConfig == null) return { results: [] };
+        if (targetConfig == null) return buildEmptyResponse();
         targetProjectConfigs.set(targetProjectId, targetConfig);
       }
     }
@@ -237,11 +238,19 @@ export class PolicyEnforcedRetrievalEngine implements IRetrievalEngine {
       projectControlState
     );
 
-    if (policyCtx == null) return { results: [] };
+    if (policyCtx == null) return buildEmptyResponse();
 
     const policyResult = this.deps.policyEngine.evaluate(policyCtx);
     if (!policyResult.allowed) {
-      return { results: [], policyDenial: policyResult.decisionRecord };
+      const denied = buildEmptyResponse();
+      return {
+        ...denied,
+        policyDenial: policyResult.decisionRecord,
+        decision: {
+          ...denied.decision!,
+          truncationReason: 'policy_denied',
+        },
+      };
     }
 
     const response = await this.deps.inner.retrieve(query);
@@ -281,20 +290,76 @@ export class PolicyEnforcedRetrievalEngine implements IRetrievalEngine {
         ? [fromProjectId, ...targetProjectIds]
         : [fromProjectId];
 
+    let finalResults = filtered;
+    let selectionAudit = response.selectionAudit;
+    let truncationReason = response.decision?.truncationReason ?? 'none';
+
     if (targetProjectIds != null && targetProjectIds.length > 0) {
-      const { results: truncated, truncationReason } = applySelectionPolicy(
+      const selection = applySelectionPolicy(
         filtered,
         selectionPolicy
       );
-      const selectionAudit: SelectionAudit = {
+      finalResults = selection.results;
+      selectionAudit = {
         projectIdsQueried,
         candidateCount: filtered.length,
-        resultCount: truncated.length,
-        truncationReason,
+        resultCount: selection.results.length,
+        truncationReason: selection.truncationReason,
       };
-      return { results: truncated, selectionAudit };
+      if (selection.truncationReason !== 'none') {
+        truncationReason = selection.truncationReason;
+      }
     }
 
-    return { results: filtered };
+    return {
+      results: finalResults,
+      selectionAudit,
+      budgetTelemetry: buildBudgetTelemetry(finalResults, filtered.length),
+      decision: {
+        vectorCandidateCount: response.decision?.vectorCandidateCount ?? 0,
+        scoredCandidateCount:
+          response.decision?.scoredCandidateCount ?? filtered.length,
+        returnedCount: finalResults.length,
+        truncationReason,
+        tieBreakStrategy:
+          response.decision?.tieBreakStrategy ?? RETRIEVAL_TIE_BREAK_STRATEGY,
+        scoringWeights:
+          response.decision?.scoringWeights ?? DEFAULT_RETRIEVAL_WEIGHTS,
+      },
+    };
   }
+}
+
+function buildBudgetTelemetry(
+  results: RetrievalResult[],
+  candidateCount: number,
+): NonNullable<RetrievalResponse['budgetTelemetry']> {
+  const consumedTokens = results.reduce(
+    (total, result) => total + estimateTokens(result.entry.content),
+    0,
+  );
+  return {
+    consumedTokens,
+    candidateCount,
+    truncatedCount: Math.max(candidateCount - results.length, 0),
+  };
+}
+
+function buildEmptyResponse(): RetrievalResponse {
+  return {
+    results: [],
+    budgetTelemetry: {
+      consumedTokens: 0,
+      candidateCount: 0,
+      truncatedCount: 0,
+    },
+    decision: {
+      vectorCandidateCount: 0,
+      scoredCandidateCount: 0,
+      returnedCount: 0,
+      truncationReason: 'none',
+      tieBreakStrategy: RETRIEVAL_TIE_BREAK_STRATEGY,
+      scoringWeights: DEFAULT_RETRIEVAL_WEIGHTS,
+    },
+  };
 }

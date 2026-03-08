@@ -20,6 +20,7 @@ import {
   type IDocumentStore,
   type IMemoryAccessPolicyEngine,
   type MemoryWriteCandidate,
+  type MemoryMutationRequest,
   type MemoryEntryId,
   type ProjectId,
   type ProviderId,
@@ -54,6 +55,10 @@ export interface MwcPipelineLike {
     candidate: MemoryWriteCandidate,
     projectId?: ProjectId,
   ): Promise<MemoryEntryId | null>;
+  mutate(
+    request: MemoryMutationRequest,
+    projectId?: ProjectId,
+  ): Promise<{ applied: boolean; reason: string; reasonCode: string }>;
 }
 
 const REDACTED = '[redacted]';
@@ -647,6 +652,7 @@ export class CoreExecutor implements ICoreExecutor {
       );
     }
 
+    await this.finalizeStmTurn(projectId, validInput.message, turnData.output, traceId, turnData);
     const completedAt = new Date().toISOString();
     console.info(`[nous:core] turn_complete traceId=${traceId}`);
 
@@ -907,6 +913,56 @@ export class CoreExecutor implements ICoreExecutor {
     const parsed = ExecutionTraceSchema.safeParse(raw);
     return parsed.success ? parsed.data : null;
   }
+
+  private async finalizeStmTurn(
+    projectId: ProjectId | undefined,
+    userMessage: string,
+    assistantResponse: string,
+    traceId: TraceId,
+    turnData: TurnData,
+  ): Promise<void> {
+    if (!projectId) {
+      return;
+    }
+
+    const timestamp = new Date().toISOString();
+    try {
+      await this.deps.stmStore.append(projectId, {
+        role: 'user',
+        content: userMessage,
+        timestamp,
+      });
+      await this.deps.stmStore.append(projectId, {
+        role: 'assistant',
+        content: assistantResponse,
+        timestamp,
+      });
+
+      const stmContext = await this.deps.stmStore.getContext(projectId);
+      if (!stmContext.compactionState?.requiresCompaction) {
+        return;
+      }
+
+      const mutation = await this.deps.mwcPipeline.mutate({
+        action: 'compact-stm',
+        actor: 'pfc',
+        projectId,
+        reason: 'Automatic STM compaction due to token threshold',
+        traceId,
+        evidenceRefs: [...turnData.evidenceRefs],
+      });
+      if (!mutation.applied) {
+        console.warn(
+          `[nous:core] stm_compaction_not_applied projectId=${projectId} reasonCode=${mutation.reasonCode} reason=${mutation.reason}`,
+        );
+      }
+    } catch (error) {
+      console.error(
+        `[nous:core] stm_finalize_failed projectId=${projectId} traceId=${traceId}`,
+        error,
+      );
+    }
+  }
 }
 
 interface TurnData {
@@ -961,6 +1017,9 @@ function redactTrace(trace: {
 
 function buildPrompt(message: string, stmContext: StmContext): string {
   const parts: string[] = [];
+  if (stmContext.summary) {
+    parts.push(`Summary: ${stmContext.summary}`);
+  }
   for (const e of stmContext.entries ?? []) {
     parts.push(`${e.role}: ${e.content}`);
   }

@@ -10,20 +10,21 @@ import { InMemoryEmbedder } from '@nous/autonomic-embeddings';
 import { InMemoryLtmStore } from '@nous/memory-stubs';
 
 const NOW = new Date().toISOString();
-const PAST = new Date(Date.now() - 86400000).toISOString();
-
 function makeEntry(
   id: string,
   content: string,
   confidence: number,
   updatedAt: string,
-  type: 'fact' | 'experience-record' = 'fact',
+  type: 'fact' | 'experience-record' | 'preference' = 'fact',
+  projectId?: string,
+  lifecycleStatus: 'active' | 'superseded' | 'soft-deleted' | 'hard-deleted' = 'active',
 ): Parameters<InMemoryLtmStore['write']>[0] {
   const base = {
     id: id as any,
     content,
     type,
     scope: 'project' as const,
+    projectId: projectId as any,
     confidence,
     sensitivity: [],
     retention: 'permanent' as const,
@@ -31,6 +32,7 @@ function makeEntry(
     tags: [],
     createdAt: NOW,
     updatedAt,
+    lifecycleStatus,
   };
   if (type === 'experience-record') {
     return {
@@ -73,6 +75,8 @@ describe('SentimentWeightedRetrievalEngine', () => {
     expect(response.results[0]).toHaveProperty('entry');
     expect(response.results[0]).toHaveProperty('score');
     expect(response.results[0]).toHaveProperty('components');
+    expect(response.budgetTelemetry).toBeDefined();
+    expect(response.decision?.returnedCount).toBe(response.results.length);
   });
 
   it('combines similarity, sentiment, recency, confidence in scoring', async () => {
@@ -140,6 +144,8 @@ describe('SentimentWeightedRetrievalEngine', () => {
     });
 
     expect(response.results.length).toBeLessThan(2);
+    expect(response.decision?.truncationReason).toBe('token_budget');
+    expect(response.budgetTelemetry?.truncatedCount).toBeGreaterThan(0);
   });
 
   it('returns empty results when no vector matches', async () => {
@@ -159,6 +165,7 @@ describe('SentimentWeightedRetrievalEngine', () => {
     });
 
     expect(response.results).toEqual([]);
+    expect(response.decision?.vectorCandidateCount).toBe(0);
   });
 
   it('sorts by score desc, tie-break by id asc', async () => {
@@ -199,5 +206,100 @@ describe('SentimentWeightedRetrievalEngine', () => {
         expect(ids[i]! >= ids[i - 1]!).toBe(true);
       }
     }
+  });
+
+  it('applies vector metadata filters for project/type/scope', async () => {
+    const ltm = new InMemoryLtmStore();
+    const vectorStore = new InMemoryVectorStore();
+    const embedder = new InMemoryEmbedder();
+    const projectId = '550e8400-e29b-41d4-a716-446655440000';
+
+    const fact = makeEntry('fact-1', 'shared content', 0.9, NOW, 'fact', projectId);
+    const pref = makeEntry(
+      'pref-1',
+      'shared content',
+      0.9,
+      NOW,
+      'preference',
+      projectId,
+    );
+    await ltm.write(fact);
+    await ltm.write(pref);
+
+    for (const entry of [fact, pref]) {
+      const vector = await embedder.embed(entry.content);
+      await vectorStore.upsert('memory', entry.id, vector, {
+        projectId,
+        scope: entry.scope,
+        memoryType: entry.type,
+      });
+    }
+
+    const engine = new SentimentWeightedRetrievalEngine({
+      ltmStore: ltm,
+      vectorStore,
+      embedder,
+    });
+
+    const response = await engine.retrieve({
+      situation: 'shared content',
+      projectId: projectId as any,
+      tokenBudget: 100,
+      filters: {
+        projectId: projectId as any,
+        scope: 'project',
+        type: 'fact',
+      },
+    });
+
+    expect(response.results).toHaveLength(1);
+    expect(response.results[0]!.entry.id).toBe('fact-1');
+  });
+
+  it('filters non-active entries unless lifecycle filters explicitly include them', async () => {
+    const ltm = new InMemoryLtmStore();
+    const vectorStore = new InMemoryVectorStore();
+    const embedder = new InMemoryEmbedder();
+
+    const active = makeEntry('active-1', 'same content', 0.9, NOW);
+    const superseded = makeEntry(
+      'superseded-1',
+      'same content',
+      0.95,
+      NOW,
+      'fact',
+      undefined,
+      'superseded',
+    );
+    await ltm.write(active);
+    await ltm.write(superseded);
+
+    for (const entry of [active, superseded]) {
+      const vector = await embedder.embed(entry.content);
+      await vectorStore.upsert('memory', entry.id, vector, {});
+    }
+
+    const engine = new SentimentWeightedRetrievalEngine({
+      ltmStore: ltm,
+      vectorStore,
+      embedder,
+    });
+
+    const defaultResponse = await engine.retrieve({
+      situation: 'same content',
+      tokenBudget: 100,
+    });
+    expect(defaultResponse.results.map((result) => result.entry.id)).toEqual([
+      'active-1',
+    ]);
+
+    const expandedResponse = await engine.retrieve({
+      situation: 'same content',
+      tokenBudget: 100,
+      filters: {
+        includeSuperseded: true,
+      },
+    });
+    expect(expandedResponse.results).toHaveLength(2);
   });
 });

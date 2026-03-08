@@ -29,6 +29,18 @@ describe('Phase 4.4 confidence tier mapping', () => {
     }
   });
 
+  it('medium remains the canonical allow_with_flag tier via shouldFlagDeviations', () => {
+    const medium = CANONICAL_CONFIDENCE_GOVERNANCE_MAPPING.find(
+      (m) => m.tier === 'medium',
+    );
+    const high = CANONICAL_CONFIDENCE_GOVERNANCE_MAPPING.find(
+      (m) => m.tier === 'high',
+    );
+
+    expect(medium?.shouldFlagDeviations).toBe(true);
+    expect(high?.shouldFlagDeviations).toBe(false);
+  });
+
   it('low and medium never grant mayAutonomyAllowed (regression)', () => {
     const low = CANONICAL_CONFIDENCE_GOVERNANCE_MAPPING.find(
       (m) => m.tier === 'low',

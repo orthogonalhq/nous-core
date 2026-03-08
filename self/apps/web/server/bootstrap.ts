@@ -6,7 +6,16 @@
  */
 import { join, isAbsolute } from 'node:path';
 import { randomUUID } from 'node:crypto';
-import type { ProviderId, TraceId } from '@nous/shared';
+import {
+  DEFAULT_STM_COMPACTION_POLICY,
+  StmCompactionPolicySchema,
+} from '@nous/shared';
+import type {
+  ProjectId,
+  ProviderId,
+  TraceId,
+  StmCompactionPolicy,
+} from '@nous/shared';
 import { ConfigManager } from '@nous/autonomic-config';
 import { SqliteDocumentStore } from '@nous/autonomic-storage';
 import { DocumentStmStore } from '@nous/memory-stm';
@@ -104,6 +113,24 @@ function createMockProvider(providerId: ProviderId) {
   };
 }
 
+function resolveStmCompactionPolicy(config: unknown): StmCompactionPolicy {
+  const candidate =
+    typeof config === 'object' &&
+    config != null &&
+    'defaults' in config &&
+    typeof config.defaults === 'object' &&
+    config.defaults != null &&
+    'stmCompactionPolicy' in config.defaults
+      ? (config.defaults as { stmCompactionPolicy?: Partial<StmCompactionPolicy> })
+          .stmCompactionPolicy
+      : undefined;
+
+  return StmCompactionPolicySchema.parse({
+    ...DEFAULT_STM_COMPACTION_POLICY,
+    ...candidate,
+  });
+}
+
 let cachedContext: NousContext | null = null;
 
 export function clearNousContextCache(): void {
@@ -118,12 +145,15 @@ export function createNousContext(): NousContext {
   const configPath = process.env.NOUS_CONFIG_PATH;
   const baseConfig = new ConfigManager({ configPath });
   const config = configWithFallback(baseConfig) as typeof baseConfig;
+  const resolvedConfig = config.get();
   const dataDirEnv = process.env.NOUS_DATA_DIR ?? './data';
   const dataDir = isAbsolute(dataDirEnv) ? dataDirEnv : join(process.cwd(), dataDirEnv);
   const dbPath = join(dataDir, 'nous.sqlite');
 
   const documentStore = new SqliteDocumentStore(dbPath);
-  const stmStore = new DocumentStmStore(documentStore);
+  const stmStore = new DocumentStmStore(documentStore, {
+    compactionPolicy: resolveStmCompactionPolicy(resolvedConfig),
+  });
   const projectStore = new DocumentProjectStore(documentStore);
   const witnessService = new WitnessService(documentStore);
   const opctlService = new OpctlService({
@@ -140,6 +170,7 @@ export function createNousContext(): NousContext {
   });
 
   const gtmGateCalculator = new GtmGateCalculator();
+  const policyEngine = new MemoryAccessPolicyEngine();
 
   const toolExecutor = new ToolExecutor();
   const Cortex = new PfcEngine(config, toolExecutor);
@@ -148,6 +179,14 @@ export function createNousContext(): NousContext {
     stmStore,
     createPfcEvaluator(Cortex),
     createPfcMutationEvaluator(Cortex),
+    {
+      policy: {
+        policyEngine,
+        projectStore,
+        getProjectControlState: (projectId: ProjectId) =>
+          opctlService.getProjectControlState(projectId),
+      },
+    },
   );
 
   const router = new ModelRouter(config);
@@ -162,10 +201,10 @@ export function createNousContext(): NousContext {
     return providerRegistry.getProvider(id);
   };
 
-  const cfg = config.get() as { security?: { traceSensitiveData?: boolean } };
+  const cfg = resolvedConfig as {
+    security?: { traceSensitiveData?: boolean };
+  };
   const traceSensitiveData = cfg.security?.traceSensitiveData ?? false;
-
-  const policyEngine = new MemoryAccessPolicyEngine();
 
   const coreExecutor = new CoreExecutor({
     Cortex,

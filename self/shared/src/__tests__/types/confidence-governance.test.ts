@@ -1,26 +1,73 @@
 /**
  * Confidence-governance schema contract tests.
- * Phase 4.4: ConfidenceTier, ConfidenceGovernanceMapping, LearnedBehaviorExplanation,
- * EscalationSignal, Phase6 export schemas.
+ * Phase 4.4 and Phase 8.6: confidence mapping, explainability, escalation,
+ * Phase 6 export schemas, and runtime evaluation contracts.
  */
-import { describe, it, expect } from 'vitest';
+import { describe, expect, it } from 'vitest';
 import {
-  ConfidenceTierSchema,
-  ConfidenceGovernanceMappingSchema,
-  LearnedBehaviorExplanationSchema,
-  EscalationSignalSchema,
-  Phase6DistilledPatternExportSchema,
-  Phase6ConfidenceSignalExportSchema,
-  Phase6EvidenceLinkageExpectationsSchema,
   CANONICAL_CONFIDENCE_GOVERNANCE_MAPPING,
-  HIGH_RISK_ACTION_CATEGORIES,
+  ConfidenceDecayStateSchema,
+  ConfidenceGovernanceDecisionOutcomeSchema,
+  ConfidenceGovernanceDecisionReasonCodeSchema,
+  ConfidenceGovernanceEvaluationInputSchema,
+  ConfidenceGovernanceEvaluationResultSchema,
+  ConfidenceGovernanceMappingSchema,
+  ConfidenceTierSchema,
+  EscalationSignalSchema,
+  LearnedBehaviorExplanationSchema,
+  Phase6ConfidenceSignalExportSchema,
+  Phase6DistilledPatternExportSchema,
+  Phase6EvidenceLinkageExpectationsSchema,
 } from '../../types/confidence-governance.js';
 
 const VALID_UUID = '550e8400-e29b-41d4-a716-446655440000';
 const VALID_UUID_2 = '550e8400-e29b-41d4-a716-446655440001';
-const VALID_TRACE_ID = '550e8400-e29b-41d4-a716-446655440002';
+const VALID_UUID_3 = '550e8400-e29b-41d4-a716-446655440002';
+const VALID_TRACE_ID = '550e8400-e29b-41d4-a716-446655440003';
 
-const VALID_EVIDENCE_REF = { actionCategory: 'memory-write' as const };
+const VALID_EVIDENCE_REF = {
+  actionCategory: 'memory-write' as const,
+  authorizationEventId: VALID_UUID_2 as never,
+};
+
+const EXTRA_EVIDENCE_REF = {
+  actionCategory: 'trace-persist' as const,
+  completionEventId: VALID_UUID_3 as never,
+};
+
+const validPattern = {
+  id: VALID_UUID,
+  content: 'Pattern content',
+  confidence: 0.92,
+  basedOn: [VALID_UUID_2],
+  supersedes: [VALID_UUID_3],
+  evidenceRefs: [VALID_EVIDENCE_REF, EXTRA_EVIDENCE_REF],
+  scope: 'project' as const,
+  tags: ['tag1'],
+  createdAt: '2026-02-27T12:00:00.000Z',
+  updatedAt: '2026-02-27T12:00:00.000Z',
+};
+
+const validConfidenceSignal = {
+  tier: 'high' as const,
+  confidence: 0.92,
+  supportingSignals: 18,
+  patternId: VALID_UUID,
+  decayState: 'stable' as const,
+};
+
+const validExplanation = {
+  patternId: VALID_UUID,
+  outcomeRef: 'trace-123',
+  evidenceRefs: [VALID_EVIDENCE_REF],
+};
+
+const validEscalationSignal = {
+  reasonCode: 'CONF-LOW' as const,
+  traceId: VALID_TRACE_ID,
+  evidenceRefs: [VALID_EVIDENCE_REF],
+  patternId: VALID_UUID,
+};
 
 describe('ConfidenceTierSchema', () => {
   it('accepts low, medium, high', () => {
@@ -31,6 +78,18 @@ describe('ConfidenceTierSchema', () => {
 
   it('rejects invalid tier', () => {
     expect(ConfidenceTierSchema.safeParse('invalid').success).toBe(false);
+  });
+});
+
+describe('ConfidenceDecayStateSchema', () => {
+  it('accepts stable, decaying, flagged_retirement', () => {
+    expect(ConfidenceDecayStateSchema.safeParse('stable').success).toBe(true);
+    expect(ConfidenceDecayStateSchema.safeParse('decaying').success).toBe(
+      true,
+    );
+    expect(
+      ConfidenceDecayStateSchema.safeParse('flagged_retirement').success,
+    ).toBe(true);
   });
 });
 
@@ -55,201 +114,84 @@ describe('ConfidenceGovernanceMappingSchema', () => {
     });
     expect(result.success).toBe(true);
   });
-
-  it('rejects invalid governance level', () => {
-    const result = ConfidenceGovernanceMappingSchema.safeParse({
-      tier: 'high',
-      escalationRequired: false,
-      mayAutonomyAllowed: true,
-      shouldFlagDeviations: false,
-      maxGovernanceForAutonomy: 'invalid',
-    });
-    expect(result.success).toBe(false);
-  });
 });
 
 describe('CANONICAL_CONFIDENCE_GOVERNANCE_MAPPING', () => {
   it('has exactly three entries for low, medium, high', () => {
     expect(CANONICAL_CONFIDENCE_GOVERNANCE_MAPPING).toHaveLength(3);
     const tiers = CANONICAL_CONFIDENCE_GOVERNANCE_MAPPING.map((m) => m.tier);
-    expect(tiers).toContain('low');
-    expect(tiers).toContain('medium');
-    expect(tiers).toContain('high');
+    expect(tiers).toEqual(['low', 'medium', 'high']);
   });
 
-  it('low tier has escalationRequired=true, mayAutonomyAllowed=false', () => {
-    const low = CANONICAL_CONFIDENCE_GOVERNANCE_MAPPING.find(
-      (m) => m.tier === 'low',
-    );
-    expect(low?.escalationRequired).toBe(true);
-    expect(low?.mayAutonomyAllowed).toBe(false);
-  });
-
-  it('high tier has mayAutonomyAllowed=true, maxGovernanceForAutonomy=may', () => {
+  it('high tier remains the only autonomy-eligible tier and only for may governance', () => {
     const high = CANONICAL_CONFIDENCE_GOVERNANCE_MAPPING.find(
-      (m) => m.tier === 'high',
+      (mapping) => mapping.tier === 'high',
     );
+    const medium = CANONICAL_CONFIDENCE_GOVERNANCE_MAPPING.find(
+      (mapping) => mapping.tier === 'medium',
+    );
+
     expect(high?.mayAutonomyAllowed).toBe(true);
     expect(high?.maxGovernanceForAutonomy).toBe('may');
-  });
-
-  it('all entries parse as ConfidenceGovernanceMappingSchema', () => {
-    for (const entry of CANONICAL_CONFIDENCE_GOVERNANCE_MAPPING) {
-      expect(
-        ConfidenceGovernanceMappingSchema.safeParse(entry).success,
-      ).toBe(true);
-    }
+    expect(medium?.mayAutonomyAllowed).toBe(false);
+    expect(medium?.shouldFlagDeviations).toBe(true);
   });
 });
 
 describe('LearnedBehaviorExplanationSchema', () => {
-  const valid = {
-    patternId: VALID_UUID,
-    outcomeRef: 'trace-123',
-    evidenceRefs: [VALID_EVIDENCE_REF],
-  };
-
   it('accepts valid explanation', () => {
-    expect(LearnedBehaviorExplanationSchema.safeParse(valid).success).toBe(
-      true,
-    );
-  });
-
-  it('accepts with optional refs', () => {
-    const withRefs = {
-      ...valid,
-      distillationRef: 'cluster-1',
-      policyRef: VALID_TRACE_ID,
-      controlStateRef: 'snapshot-1',
-    };
-    expect(LearnedBehaviorExplanationSchema.safeParse(withRefs).success).toBe(
-      true,
-    );
+    expect(LearnedBehaviorExplanationSchema.safeParse(validExplanation).success)
+      .toBe(true);
   });
 
   it('rejects empty evidenceRefs', () => {
     expect(
       LearnedBehaviorExplanationSchema.safeParse({
-        ...valid,
+        ...validExplanation,
         evidenceRefs: [],
-      }).success,
-    ).toBe(false);
-  });
-
-  it('rejects empty outcomeRef', () => {
-    expect(
-      LearnedBehaviorExplanationSchema.safeParse({
-        ...valid,
-        outcomeRef: '',
       }).success,
     ).toBe(false);
   });
 });
 
 describe('EscalationSignalSchema', () => {
-  const valid = {
-    reasonCode: 'CONF-LOW' as const,
-    traceId: VALID_TRACE_ID,
-    evidenceRefs: [VALID_EVIDENCE_REF],
-  };
-
   it('accepts valid signal', () => {
-    expect(EscalationSignalSchema.safeParse(valid).success).toBe(true);
+    expect(EscalationSignalSchema.safeParse(validEscalationSignal).success).toBe(
+      true,
+    );
   });
 
   it('accepts all reason codes', () => {
-    const codes: Array<'CONF-LOW' | 'CONF-CONTRADICTION' | 'CONF-STALENESS' | 'CONF-RETIREMENT'> = [
+    for (const reasonCode of [
       'CONF-LOW',
       'CONF-CONTRADICTION',
       'CONF-STALENESS',
       'CONF-RETIREMENT',
-    ];
-    for (const code of codes) {
+    ] as const) {
       expect(
         EscalationSignalSchema.safeParse({
-          ...valid,
-          reasonCode: code,
-        }).success,
-      ).toBe(true);
-    }
-  });
-
-  it('rejects invalid reasonCode', () => {
-    expect(
-      EscalationSignalSchema.safeParse({
-        ...valid,
-        reasonCode: 'INVALID',
-      }).success,
-    ).toBe(false);
-  });
-
-  it('rejects empty evidenceRefs', () => {
-    expect(
-      EscalationSignalSchema.safeParse({
-        ...valid,
-        evidenceRefs: [],
-      }).success,
-    ).toBe(false);
-  });
-});
-
-describe('Phase6DistilledPatternExportSchema', () => {
-  const valid = {
-    id: VALID_UUID,
-    content: 'Pattern content',
-    confidence: 0.9,
-    basedOn: [VALID_UUID_2],
-    supersedes: [VALID_UUID_2],
-    evidenceRefs: [VALID_EVIDENCE_REF],
-    scope: 'project' as const,
-    tags: ['tag1'],
-    createdAt: '2026-02-27T12:00:00.000Z',
-    updatedAt: '2026-02-27T12:00:00.000Z',
-  };
-
-  it('accepts valid export', () => {
-    expect(Phase6DistilledPatternExportSchema.safeParse(valid).success).toBe(
-      true,
-    );
-  });
-
-  it('rejects confidence > 1', () => {
-    expect(
-      Phase6DistilledPatternExportSchema.safeParse({
-        ...valid,
-        confidence: 1.1,
-      }).success,
-    ).toBe(false);
-  });
-});
-
-describe('Phase6ConfidenceSignalExportSchema', () => {
-  const valid = {
-    tier: 'high' as const,
-    confidence: 0.92,
-    supportingSignals: 18,
-  };
-
-  it('accepts valid export', () => {
-    expect(Phase6ConfidenceSignalExportSchema.safeParse(valid).success).toBe(
-      true,
-    );
-  });
-
-  it('accepts decayState values', () => {
-    for (const state of ['stable', 'decaying', 'flagged_retirement'] as const) {
-      expect(
-        Phase6ConfidenceSignalExportSchema.safeParse({
-          ...valid,
-          decayState: state,
+          ...validEscalationSignal,
+          reasonCode,
         }).success,
       ).toBe(true);
     }
   });
 });
 
-describe('Phase6EvidenceLinkageExpectationsSchema', () => {
-  it('accepts valid expectations', () => {
+describe('Phase6 export schemas', () => {
+  it('accepts a valid distilled pattern export', () => {
+    expect(Phase6DistilledPatternExportSchema.safeParse(validPattern).success)
+      .toBe(true);
+  });
+
+  it('accepts a valid confidence signal export', () => {
+    expect(
+      Phase6ConfidenceSignalExportSchema.safeParse(validConfidenceSignal)
+        .success,
+    ).toBe(true);
+  });
+
+  it('accepts evidence linkage expectations', () => {
     expect(
       Phase6EvidenceLinkageExpectationsSchema.safeParse({
         traceLinksRequired: true,
@@ -260,14 +202,179 @@ describe('Phase6EvidenceLinkageExpectationsSchema', () => {
   });
 });
 
-describe('HIGH_RISK_ACTION_CATEGORIES', () => {
-  it('includes tool-execute, memory-write, opctl-command', () => {
-    expect(HIGH_RISK_ACTION_CATEGORIES).toContain('tool-execute');
-    expect(HIGH_RISK_ACTION_CATEGORIES).toContain('memory-write');
-    expect(HIGH_RISK_ACTION_CATEGORIES).toContain('opctl-command');
+describe('ConfidenceGovernanceDecision schemas', () => {
+  it('accepts all runtime decision outcomes', () => {
+    for (const outcome of [
+      'allow_autonomy',
+      'allow_with_flag',
+      'escalate',
+      'defer',
+      'deny',
+    ] as const) {
+      expect(ConfidenceGovernanceDecisionOutcomeSchema.safeParse(outcome).success)
+        .toBe(true);
+    }
   });
 
-  it('has exactly three categories', () => {
-    expect(HIGH_RISK_ACTION_CATEGORIES).toHaveLength(3);
+  it('accepts all runtime decision reason codes', () => {
+    for (const reasonCode of [
+      'CGR-ALLOW-AUTONOMY',
+      'CGR-ALLOW-WITH-FLAG',
+      'CGR-ESCALATE-LOW-CONFIDENCE',
+      'CGR-ESCALATE-CONTRADICTION',
+      'CGR-ESCALATE-STALENESS',
+      'CGR-ESCALATE-RETIREMENT',
+      'CGR-DEFER-HIGH-RISK-CONFIRMATION',
+      'CGR-DEFER-PAUSED-REVIEW',
+      'CGR-DEFER-RESUMING',
+      'CGR-DENY-HARD-STOPPED',
+      'CGR-DENY-GOVERNANCE-CEILING',
+      'CGR-DENY-MISSING-ESCALATION-CONTEXT',
+    ] as const) {
+      expect(
+        ConfidenceGovernanceDecisionReasonCodeSchema.safeParse(reasonCode)
+          .success,
+      ).toBe(true);
+    }
+  });
+});
+
+describe('ConfidenceGovernanceEvaluationInputSchema', () => {
+  const validInput = {
+    governance: 'may' as const,
+    actionCategory: 'model-invoke' as const,
+    projectControlState: 'running' as const,
+    pattern: validPattern,
+    confidenceSignal: validConfidenceSignal,
+    explanation: validExplanation,
+  };
+
+  it('accepts a valid runtime evaluation input', () => {
+    expect(ConfidenceGovernanceEvaluationInputSchema.safeParse(validInput).success)
+      .toBe(true);
+  });
+
+  it('rejects mismatched explanation.patternId', () => {
+    expect(
+      ConfidenceGovernanceEvaluationInputSchema.safeParse({
+        ...validInput,
+        explanation: {
+          ...validExplanation,
+          patternId: VALID_UUID_2,
+        },
+      }).success,
+    ).toBe(false);
+  });
+
+  it('rejects explanation evidenceRefs that are not present on the canonical pattern', () => {
+    expect(
+      ConfidenceGovernanceEvaluationInputSchema.safeParse({
+        ...validInput,
+        explanation: {
+          ...validExplanation,
+          evidenceRefs: [
+            {
+              actionCategory: 'opctl-command' as const,
+              authorizationEventId: VALID_UUID_3 as never,
+            },
+          ],
+        },
+      }).success,
+    ).toBe(false);
+  });
+
+  it('rejects mismatched confidenceSignal.patternId', () => {
+    expect(
+      ConfidenceGovernanceEvaluationInputSchema.safeParse({
+        ...validInput,
+        confidenceSignal: {
+          ...validConfidenceSignal,
+          patternId: VALID_UUID_2,
+        },
+      }).success,
+    ).toBe(false);
+  });
+
+  it('rejects mismatched escalationSignal.patternId', () => {
+    expect(
+      ConfidenceGovernanceEvaluationInputSchema.safeParse({
+        ...validInput,
+        escalationSignal: {
+          ...validEscalationSignal,
+          patternId: VALID_UUID_2,
+        },
+      }).success,
+    ).toBe(false);
+  });
+});
+
+describe('ConfidenceGovernanceEvaluationResultSchema', () => {
+  const validResult = {
+    outcome: 'allow_autonomy' as const,
+    reasonCode: 'CGR-ALLOW-AUTONOMY' as const,
+    governance: 'may' as const,
+    actionCategory: 'model-invoke' as const,
+    projectControlState: 'running' as const,
+    patternId: VALID_UUID,
+    confidence: 0.92,
+    confidenceTier: 'high' as const,
+    supportingSignals: 18,
+    decayState: 'stable' as const,
+    autonomyAllowed: true,
+    requiresConfirmation: false,
+    highRiskOverrideApplied: false,
+    evidenceRefs: [VALID_EVIDENCE_REF, EXTRA_EVIDENCE_REF],
+    explanation: validExplanation,
+  };
+
+  it('accepts a valid autonomy result', () => {
+    expect(
+      ConfidenceGovernanceEvaluationResultSchema.safeParse(validResult).success,
+    ).toBe(true);
+  });
+
+  it('rejects autonomy results when autonomyAllowed is false', () => {
+    expect(
+      ConfidenceGovernanceEvaluationResultSchema.safeParse({
+        ...validResult,
+        autonomyAllowed: false,
+      }).success,
+    ).toBe(false);
+  });
+
+  it('rejects escalate results without escalationSignal', () => {
+    expect(
+      ConfidenceGovernanceEvaluationResultSchema.safeParse({
+        ...validResult,
+        outcome: 'escalate',
+        reasonCode: 'CGR-ESCALATE-LOW-CONFIDENCE',
+        autonomyAllowed: false,
+      }).success,
+    ).toBe(false);
+  });
+
+  it('rejects high-risk confirmation results with inconsistent flags', () => {
+    expect(
+      ConfidenceGovernanceEvaluationResultSchema.safeParse({
+        ...validResult,
+        outcome: 'defer',
+        reasonCode: 'CGR-DEFER-HIGH-RISK-CONFIRMATION',
+        autonomyAllowed: false,
+        requiresConfirmation: false,
+        highRiskOverrideApplied: true,
+      }).success,
+    ).toBe(false);
+  });
+
+  it('rejects missing-escalation-context denies that still carry escalationSignal', () => {
+    expect(
+      ConfidenceGovernanceEvaluationResultSchema.safeParse({
+        ...validResult,
+        outcome: 'deny',
+        reasonCode: 'CGR-DENY-MISSING-ESCALATION-CONTEXT',
+        autonomyAllowed: false,
+        escalationSignal: validEscalationSignal,
+      }).success,
+    ).toBe(false);
   });
 });

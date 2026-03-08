@@ -12,15 +12,18 @@
   },
   "scripts": {
     "build": "tsc --build",
-    "typecheck": "tsc --noEmit",
+    "typecheck": "pnpm --filter @nous/memory-ltm build && tsc --noEmit",
     "clean": "rm -rf dist"
   },
   "dependencies": {
     "@nous/shared": "workspace:*",
-    "@nous/autonomic-storage": "workspace:*",
+    "@nous/autonomic-embeddings": "workspace:*",
+    "@nous/memory-ltm": "workspace:*",
     "zod": "^3.24.1"
   },
   "devDependencies": {
+    "@nous/autonomic-storage": "workspace:*",
+    "@nous/memory-access": "workspace:*",
     "@nous/memory-stm": "workspace:*"
   }
 }

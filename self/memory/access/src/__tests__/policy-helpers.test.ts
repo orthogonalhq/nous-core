@@ -93,7 +93,7 @@ describe('buildPolicyAccessContextForMemoryWrite', () => {
     expect(result).toBeNull();
   });
 
-  it('builds retrieve context for global scope', () => {
+  it('builds write context for global scope', () => {
     const candidate = createCandidate({ scope: 'global' });
     const actingConfig = createProjectConfig(ACTING_ID);
     const result = buildPolicyAccessContextForMemoryWrite({
@@ -104,11 +104,11 @@ describe('buildPolicyAccessContextForMemoryWrite', () => {
       traceId: 'trace-1' as any,
     });
     expect(result).not.toBeNull();
-    expect(result!.action).toBe('retrieve');
+    expect(result!.action).toBe('write');
     expect(result!.includeGlobal).toBe(true);
     expect(result!.fromProjectId).toBe(ACTING_ID);
     expect(result!.projectPolicy).toEqual(DEFAULT_MEMORY_ACCESS_POLICY);
-    expect(result!.targetProjectIds).toEqual([]);
+    expect(result!.targetProjectId).toBeUndefined();
   });
 
   it('builds write context when candidate targets different project', () => {

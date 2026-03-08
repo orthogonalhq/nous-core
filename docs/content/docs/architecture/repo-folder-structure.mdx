@@ -144,6 +144,7 @@ Memory is its own layer because it is neither consciousness nor subconscious. It
 self/memory/
 ├── stm/                              # Short-term memory
 ├── ltm/                              # Long-term memory
+├── mwc/                              # Memory write candidate ingress/orchestration
 ├── distillation/                     # Experience → pattern compression
 ├── retrieval/                        # Budgeted, scored retrieval orchestration
 ├── knowledge-index/                  # Cross-project intelligence
@@ -151,7 +152,8 @@ self/memory/
 │   ├── taxonomy/                     # Topic tagging and structural links
 │   ├── relationships/                # Background relationship mapping
 │   └── discovery/                    # Query-time project selection
-└── access/                           # Memory access policy engine
+├── access/                           # Memory access policy engine
+└── stubs/                            # Contract stubs for fail-close surfaces
 ```
 
 ### stm/
@@ -181,20 +183,43 @@ Responsibilities:
 
 All entries include provenance metadata. All entries are auditable, exportable, and deletable.
 
+Implemented in the current runtime as `@nous/memory-ltm` (Phase 8.2). The package owns:
+
+* Document-backed durable entry storage
+* Mutation audit history and tombstone creation
+* Lifecycle-aware query/export defaults
+* Governed typed-write flows for `fact` and `preference`
+* Coupling of approved typed writes to the Phase 8.1 vector-index path
+
+### mwc/
+
+Memory write candidate ingress and mutation orchestration. Implemented as `@nous/memory-mwc`.
+
+Responsibilities:
+
+* Accept Cortex-approved memory write candidates
+* Evaluate mutation requests at the candidate/orchestration boundary
+* Delegate durable typed entry persistence and lifecycle mutations to `@nous/memory-ltm`
+* Preserve STM-specific operations such as `compact-stm`
+
+This package is the ingress seam between Cortex-approved write intent and the durable memory runtime.
+
 ### distillation/
 
-The compression engine. Implemented as `@nous/memory-distillation` (Phase 4.3). Background process that converts clusters of experience records into distilled patterns.
+The compression engine. Implemented as `@nous/memory-distillation` (Phase 4.3). Phase 8.4 adds the prototype evaluation harness that selected `structured-summary-v1`, and Phase 8.5 promotes that approved path into the live project-scoped production runtime. Prototype comparators remain package-local and test-only; scheduler-triggered orchestration, autonomy enforcement, and operator-facing visibility stay in later phases.
 
 Responsibilities:
 
 * Identify clusters of related experience records (tag/project strategies; semantic deferred)
 * Compress clusters into pattern statements with provenance (`basedOn`, `supersedes`, `evidenceRefs`)
 * Assign initial confidence from sentiment consistency and volume; support refresh (confirming signals) and decay (staleness, contradiction)
+* Persist only guarded `promote` decisions; hold or reject contradictory, stale, or weakly supported clusters
 * Mark superseded records for archival via `ILtmStore.markSuperseded`
 * Support supersession reversal — restore source records to active, retire pattern (caller emits audit)
+* Emit lifecycle and export outputs for downstream governance and visibility consumers
 * Policy gate: caller must invoke policy evaluation before distillation writes when scope is cross-project or global
 
-This is the "sleep cycle" — consolidation that happens offline, not at query time.
+This is the current "sleep cycle" runtime slice: offline consolidation through the production distillation engine rather than query-time summarization. Background scheduling, autonomy decisions, and UI visibility are layered on later; they are not owned by this package.
 
 Designed for independent iteration. Swap distillation strategies without touching storage or retrieval.
 
@@ -244,6 +269,10 @@ Responsibilities:
 * Consume project control-state (`hard_stopped` blocks all access)
 
 The policy decision engine (`MemoryAccessPolicyEngine.evaluate()`) is synchronous and replay-deterministic. Callers supply project config and control state as inputs.
+
+### stubs/
+
+Contract stubs and fail-close baselines for memory interfaces used in tests and incomplete runtime surfaces.
 
 **Phase 3.3 surface integration:** Policy enforcement is wired at (1) core-executor — policy gate before `mwcPipeline.submit()` for cross-project memory writes; (2) `PolicyEnforcedRetrievalEngine` — wraps `IRetrievalEngine`, evaluates policy before delegating, filters results by policy; (3) `StubProjectApi.memory` — optional policy deps run gate before throwing for read/write/retrieve when cross-project or global scope.
 
@@ -511,18 +540,18 @@ Persistence abstraction layer with multiple backend types.
 
 ```
 storage/
-├── interfaces/                       # Storage contracts
-├── vector/                           # Vector storage backends
-│   ├── sqlite-vec/
-│   ├── qdrant/
-│   └── ...
-├── document/                         # Structured document storage
-└── graph/                            # Graph storage (for relationships)
+├── src/
+│   ├── sqlite-document-store.ts      # Structured document storage
+│   ├── sqlite-vector-store.ts        # IVectorStore local runtime backend
+│   ├── in-memory-vector-store.ts     # Deterministic test/runtime baseline
+│   ├── in-memory-document-store.ts   # In-memory document baseline
+│   └── stubs.ts                      # Contract stubs for fail-close surfaces
+└── __tests__/                        # Contract and behavior tests
 ```
 
 Responsibilities:
 
-* Vector storage (for embeddings and semantic search)
+* Vector storage (for embeddings and semantic search) with deterministic ordering semantics
 * Document storage (for structured memory entries, configs, traces)
 * Graph storage (for relationship mapping)
 * Pure I/O — no knowledge of memory types or business logic

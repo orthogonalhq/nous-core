@@ -4,6 +4,7 @@
 import { describe, it, expect } from 'vitest';
 import { PfcEngine } from '../pfc-engine.js';
 import type { IConfig, IToolExecutor, ToolDefinition } from '@nous/shared';
+import { createEvaluationInput } from './fixtures/confidence-governance-scenarios.js';
 
 function mockConfig(pfcTier: number): IConfig {
   return {
@@ -37,12 +38,85 @@ describe('PfcEngine', () => {
       mockToolExecutor(['echo']),
     );
     expect(pfc).toBeDefined();
+    expect(typeof pfc.evaluateConfidenceGovernance).toBe('function');
     expect(typeof pfc.evaluateMemoryWrite).toBe('function');
     expect(typeof pfc.evaluateMemoryMutation).toBe('function');
     expect(typeof pfc.evaluateToolExecution).toBe('function');
     expect(typeof pfc.reflect).toBe('function');
     expect(typeof pfc.evaluateEscalation).toBe('function');
     expect(typeof pfc.getTier).toBe('function');
+  });
+
+  describe('evaluateConfidenceGovernance', () => {
+    it('returns the runtime governance decision bundle', async () => {
+      const pfc = new PfcEngine(mockConfig(3), mockToolExecutor([]));
+
+      const decision = await pfc.evaluateConfidenceGovernance(
+        createEvaluationInput({
+          governance: 'may',
+          actionCategory: 'model-invoke',
+          confidenceSignal: {
+            tier: 'high',
+            confidence: 0.95,
+            supportingSignals: 22,
+            decayState: 'stable',
+          },
+        }),
+      );
+
+      expect(decision.outcome).toBe('allow_autonomy');
+      expect(decision.reasonCode).toBe('CGR-ALLOW-AUTONOMY');
+      expect(decision.autonomyAllowed).toBe(true);
+    });
+
+    it('emits observer metrics and structured logs for the runtime decision', async () => {
+      const metrics: Array<{
+        name: string;
+        labels?: Record<string, string | number | boolean>;
+      }> = [];
+      const logs: Array<{ event: string; fields: Record<string, unknown> }> = [];
+      const pfc = new PfcEngine(mockConfig(3), mockToolExecutor([]), {
+        metric(input) {
+          metrics.push(input);
+        },
+        log(input) {
+          logs.push(input);
+        },
+      });
+
+      const decision = await pfc.evaluateConfidenceGovernance(
+        createEvaluationInput({
+          actionCategory: 'tool-execute',
+          governance: 'may',
+          confidenceSignal: {
+            tier: 'high',
+            confidence: 0.99,
+            supportingSignals: 30,
+            decayState: 'stable',
+          },
+        }),
+      );
+
+      expect(decision.reasonCode).toBe('CGR-DEFER-HIGH-RISK-CONFIRMATION');
+      expect(
+        metrics.some(
+          (metric) =>
+            metric.name === 'confidence_governance_decision_total' &&
+            metric.labels?.reasonCode === 'CGR-DEFER-HIGH-RISK-CONFIRMATION',
+        ),
+      ).toBe(true);
+      expect(
+        metrics.some(
+          (metric) =>
+            metric.name ===
+              'confidence_governance_high_risk_override_total' &&
+            metric.labels?.actionCategory === 'tool-execute',
+        ),
+      ).toBe(true);
+      expect(logs).toHaveLength(1);
+      expect(logs[0]?.event).toBe('confidence_governance.runtime.decision');
+      expect(logs[0]?.fields.outcome).toBe('defer');
+    });
   });
 
   describe('evaluateMemoryWrite', () => {

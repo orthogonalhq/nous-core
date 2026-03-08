@@ -7,8 +7,15 @@ import { tmpdir } from 'node:os';
 import { randomUUID } from 'node:crypto';
 import { MwcPipeline, createStubEvaluator } from '../index.js';
 import { DocumentStmStore } from '@nous/memory-stm';
+import { DocumentLtmStore } from '@nous/memory-ltm';
 import { SqliteDocumentStore } from '@nous/autonomic-storage';
-import { ValidationError } from '@nous/shared';
+import { MemoryAccessPolicyEngine } from '@nous/memory-access';
+import {
+  ValidationError,
+  type DistilledPattern,
+  type ExperienceRecord,
+  type ProjectConfig,
+} from '@nous/shared';
 
 function createTempDbPath(): string {
   return join(tmpdir(), `nous-mwc-test-${randomUUID()}.sqlite`);
@@ -29,6 +36,88 @@ function createValidCandidate(projectId?: string) {
       timestamp: new Date().toISOString(),
     },
     tags: ['ui', 'preference'],
+  };
+}
+
+function createProjectConfig(
+  projectId: string,
+  inheritsGlobal: boolean,
+): ProjectConfig {
+  return {
+    id: projectId as any,
+    name: `Project ${projectId}`,
+    type: 'hybrid',
+    pfcTier: 0,
+    memoryAccessPolicy: {
+      canReadFrom: 'all',
+      canBeReadBy: 'all',
+      inheritsGlobal,
+    },
+    escalationChannels: ['in-app'],
+    retrievalBudgetTokens: 500,
+    createdAt: new Date().toISOString(),
+    updatedAt: new Date().toISOString(),
+  };
+}
+
+function createExperienceRecord(projectId: string): ExperienceRecord {
+  const now = new Date().toISOString();
+  return {
+    id: randomUUID() as any,
+    content: 'Release review noted strong operator confidence',
+    type: 'experience-record',
+    scope: 'project',
+    projectId: projectId as any,
+    confidence: 0.84,
+    sensitivity: [],
+    retention: 'permanent',
+    provenance: {
+      traceId: randomUUID() as any,
+      source: 'pipeline-test',
+      timestamp: now,
+    },
+    sentiment: 'strong-positive',
+    tags: ['learning', 'release'],
+    createdAt: now,
+    updatedAt: now,
+    mutabilityClass: 'domain-versioned',
+    lifecycleStatus: 'active',
+    placementState: 'project',
+    context: 'release notes and operator review',
+    action: 'shipped guarded release',
+    outcome: 'positive operator feedback',
+    reason: 'rollback readiness stayed explicit',
+  };
+}
+
+function createDistilledPattern(
+  projectId: string,
+  sourceId: string,
+): DistilledPattern {
+  const now = new Date().toISOString();
+  return {
+    id: randomUUID() as any,
+    content: 'Patterns with explicit rollback notes keep operator trust high',
+    type: 'distilled-pattern',
+    scope: 'project',
+    projectId: projectId as any,
+    confidence: 0.93,
+    sensitivity: [],
+    retention: 'permanent',
+    provenance: {
+      traceId: randomUUID() as any,
+      source: 'pipeline-test',
+      timestamp: now,
+    },
+    tags: ['learning', 'pattern'],
+    createdAt: now,
+    updatedAt: now,
+    mutabilityClass: 'domain-versioned',
+    lifecycleStatus: 'active',
+    placementState: 'project',
+    basedOn: [sourceId as any],
+    supersedes: [sourceId as any],
+    evidenceRefs: [{ actionCategory: 'memory-write' }],
   };
 }
 
@@ -126,6 +215,109 @@ describe('MwcPipeline', () => {
       true,
     );
     expect(result.stm.entries).toHaveLength(0);
+  });
+
+  it('queryEntries applies lifecycle, scope, and tag filters through the canonical LTM seam', async () => {
+    const activeProjectId = await pipeline.submit(
+      createValidCandidate(projectId),
+      projectId as any,
+    );
+    const supersededId = await pipeline.submit(
+      { ...createValidCandidate(projectId), content: 'superseded candidate' },
+      projectId as any,
+    );
+    const deletedId = await pipeline.submit(
+      {
+        ...createValidCandidate(projectId),
+        content: 'delete me later',
+        tags: ['ui', 'archived'],
+      },
+      projectId as any,
+    );
+    await pipeline.submit(
+      {
+        ...createValidCandidate(),
+        content: 'global memory',
+        scope: 'global',
+      },
+      projectId as any,
+    );
+
+    await pipeline.mutate({
+      action: 'supersede',
+      actor: 'operator',
+      projectId: projectId as any,
+      targetEntryId: supersededId!,
+      replacementCandidate: {
+        ...createValidCandidate(projectId),
+        content: 'superseding replacement',
+      },
+      reason: 'supersede for query test',
+      traceId: randomUUID() as any,
+      evidenceRefs: [],
+    });
+    await pipeline.mutate({
+      action: 'soft-delete',
+      actor: 'operator',
+      projectId: projectId as any,
+      targetEntryId: deletedId!,
+      reason: 'delete for query test',
+      traceId: randomUUID() as any,
+      evidenceRefs: [],
+    });
+
+    const activeOnly = await pipeline.queryEntries({ projectId: projectId as any });
+    expect(activeOnly.some((entry) => entry.id === activeProjectId)).toBe(true);
+    expect(activeOnly.some((entry) => entry.id === supersededId)).toBe(false);
+    expect(activeOnly.some((entry) => entry.id === deletedId)).toBe(false);
+    expect(activeOnly.every((entry) => entry.scope !== 'global')).toBe(true);
+
+    const history = await pipeline.queryEntries({
+      projectId: projectId as any,
+      includeSuperseded: true,
+      includeDeleted: true,
+    });
+    expect(history.some((entry) => entry.id === supersededId)).toBe(true);
+    expect(history.some((entry) => entry.id === deletedId)).toBe(true);
+
+    const globalOnly = await pipeline.queryEntries({ scope: 'global' });
+    expect(globalOnly).toHaveLength(1);
+    expect(globalOnly[0].scope).toBe('global');
+
+    const archived = await pipeline.queryEntries({
+      projectId: projectId as any,
+      includeDeleted: true,
+      tags: ['archived'],
+    });
+    expect(archived).toHaveLength(1);
+    expect(archived[0].id).toBe(deletedId);
+    expect(archived[0].lifecycleStatus).toBe('soft-deleted');
+  });
+
+  it('readEntries preserves typed learning records through the MWC seam', async () => {
+    const ltmStore = new DocumentLtmStore(documentStore);
+    const source = createExperienceRecord(projectId);
+    const pattern = createDistilledPattern(projectId, source.id);
+
+    await ltmStore.write(source);
+    await ltmStore.write(pattern);
+
+    const entries = await pipeline.readEntries([pattern.id, source.id]);
+    expect(entries).toHaveLength(2);
+    expect(entries.map((entry) => entry.id)).toEqual([pattern.id, source.id]);
+    expect(entries[0]).toMatchObject({
+      type: 'distilled-pattern',
+      basedOn: [source.id],
+      supersedes: [source.id],
+      evidenceRefs: [{ actionCategory: 'memory-write' }],
+    });
+    expect(entries[1]).toMatchObject({
+      type: 'experience-record',
+      context: source.context,
+      action: source.action,
+      outcome: source.outcome,
+      reason: source.reason,
+    });
   });
 
   it('submit rejects experience-record candidate missing context', async () => {
@@ -349,5 +541,42 @@ describe('MwcPipeline', () => {
     for (let i = 1; i < audit.length; i++) {
       expect(audit[i].sequence).toBeGreaterThan(audit[i - 1].sequence);
     }
+  });
+
+  it('denies governed global typed writes through the delegated policy runtime', async () => {
+    const actingProjectId = randomUUID();
+    const governedPipeline = new MwcPipeline(
+      documentStore,
+      stmStore,
+      createStubEvaluator(),
+      undefined,
+      {
+        policy: {
+          policyEngine: new MemoryAccessPolicyEngine(),
+          projectStore: {
+            async get(id) {
+              if (id === actingProjectId) {
+                return createProjectConfig(id, false);
+              }
+              return null;
+            },
+          },
+        },
+      },
+    );
+
+    const id = await governedPipeline.submit(
+      {
+        ...createValidCandidate(),
+        scope: 'global',
+      },
+      actingProjectId as any,
+    );
+
+    expect(id).toBeNull();
+    const audit = await governedPipeline.listMutationAudit();
+    expect(audit).toHaveLength(1);
+    expect(audit[0].outcome).toBe('denied');
+    expect(audit[0].reason).toContain('POL-GLOBAL-DENIED');
   });
 });

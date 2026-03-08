@@ -7,6 +7,74 @@ description: Inspecting and managing memory entries
 
 Nous stores approved memory entries per project. The Memory inspector lets you review memory state, mutation history, and deletion proofs.
 
+## Memory Inspector (Phase 8.7)
+
+The `/memory` route is now an inspect-first surface over canonical durable memory. It does not maintain a parallel UI-only memory model. The page queries the same governed runtime state used elsewhere in the system and exposes that state with operator-readable filters, diagnostics, and action outcomes.
+
+### Search and Filter Controls
+
+Use the left-side filter panel to narrow the durable-memory view:
+
+- **Search** matches content, tags, provenance fields, and structured experience-record fields
+- **Scope** switches between `project`, `global`, and `project + global`
+- **Type** filters canonical memory types: `fact`, `preference`, `experience-record`, `distilled-pattern`, and `task-state`
+- **Lifecycle** keeps the default active-only view or explicitly includes `superseded`, `soft-deleted`, and `hard-deleted` entries
+- **Placement** filters `project`, `global-probation`, and `global-stable`
+- **Sort** orders by updated time, created time, confidence, type, or sentiment
+- **Tags** accepts comma-separated tag filters
+
+The `Include superseded` and `Include deleted` toggles expand the result set without changing the underlying durable-state rules. Equivalent inputs resolve to the same ordering because the server keeps deterministic sort and tie-break behavior.
+
+### Global-Scope Diagnostics
+
+When you request `global` or `project + global`, the inspector returns explicit diagnostics about whether global memory can be read for the selected project.
+
+- If the project does not inherit global memory, the UI shows the canonical reason code and explanatory text instead of silently implying that global memory is empty.
+- The warning banner reflects the underlying policy decision. It does not invent a UI-only denial status.
+- Project-scoped results still remain available when the requested combined scope can only partially succeed.
+
+### Entry Detail View
+
+Selecting a result opens the detail pane for that entry. The detail view surfaces:
+
+- provenance (`traceId`, source, timestamps, tags)
+- state and confidence metadata
+- structured experience-record fields when the selected entry is an `experience-record`
+- linked mutation-audit records
+- linked tombstone proofs, when present
+
+The detail view is intended for inspection and governed action review. It does not perform in-place editing or bypass lifecycle controls.
+
+### Learning Visibility (Phase 8.8)
+
+For `distilled-pattern` entries, the same `/memory` route now includes a Learning mode. Open it from a distilled-pattern row or from the pattern's detail pane. This stays inside the inspect-first surface; it does not switch to a separate dashboard or a UI-only learning model.
+
+The learning overview supports:
+
+- free-text pattern search
+- confidence-tier filtering
+- decay-state filtering
+- an `Include retired` toggle for retirement-flagged patterns
+- sort by updated time, confidence, supporting signals, or source count
+
+Selecting a pattern opens a learning-detail view that surfaces:
+
+- source timelines resolved from canonical `basedOn` experience records
+- confidence, contradiction, staleness, and retirement summaries derived from the Phase 8.5 lifecycle exports
+- supersession lineage, rollback visibility, and missing-source or missing-evidence diagnostics
+- representative governance cards showing how the current pattern resolves through the Phase 8.6 evaluator
+
+### Learning Interpretation Notes
+
+The learning view is designed to make limits explicit instead of hiding them:
+
+- Lifecycle events are marked **derived** because Phase 8.8 reconstructs them from canonical timestamps and lifecycle configuration rather than a persisted event ledger.
+- Governance cards are **representative projections**, not replayed historical workflow-runtime decisions.
+- `historicalDecisionLogAvailable: false` means you should use traces and audit evidence when you need proof of a specific past decision.
+- Missing source records, missing evidence refs, and unavailable control-state context appear as explicit diagnostics rather than being normalized away.
+
+For operator guidance on interpreting `CGR-*` outcomes in these cards, see [Confidence Governance Operations](/docs/playbooks/confidence-governance-operations).
+
 ## Approved Entries
 
 Approved entries are persisted after the Cortex evaluates memory write candidates. Each entry includes:
@@ -17,6 +85,33 @@ Approved entries are persisted after the Cortex evaluates memory write candidate
 - Provenance (trace, source, timestamp)
 - Mutability class and lifecycle status
 - Supersession linkage (`supersededBy`) when an entry is replaced
+
+### Structured LTM Runtime (Phase 8.2)
+
+`fact` and `preference` entries now flow through the structured long-term-memory runtime before they are considered durable:
+
+- The write is validated against the typed LTM schema.
+- The entry is stored in the canonical durable collections.
+- Global and cross-project durable writes are policy-evaluated before persistence.
+- Successful typed writes can be vector-indexed on the same governed path.
+
+Denied governed writes do not partially persist. Instead, the denial is captured in mutation audit history with trace-linked policy evidence.
+
+## Short-Term Context and Compaction (Phase 8.3)
+
+Short-term memory (STM) now keeps two forms of conversational context for each project:
+
+- Recent verbatim turns
+- An optional generated summary of older turns compacted under token pressure
+
+When STM reaches the configured pressure threshold, Nous compacts older context into the summary and keeps the newest turns verbatim. The current STM context surfaces:
+
+- `entries` — retained recent turns
+- `summary` — compacted context, when present
+- `tokenCount` — estimated current STM token load
+- `compactionState` — whether compaction is required, what triggered it, and the active max/target thresholds
+
+This behavior is deterministic for equivalent inputs. Runtime compaction is also audit-visible through the governed mutation path (`compact-stm`) rather than being a hidden UI-only rewrite.
 
 ### Experience Records
 
@@ -46,7 +141,9 @@ Strong signals (positive or negative) weight higher than weak signals in retriev
 
 ### Distilled Patterns
 
-Experience records are periodically compressed into **distilled patterns** — consolidated knowledge derived from clusters of related experiences. This is the "sleep cycle" — consolidation that happens offline, not at query time.
+Experience records can be compressed into **distilled patterns** — consolidated knowledge derived from clusters of related experiences. `@nous/memory-distillation` owns that model. Phase 8.4 ratified `structured-summary-v1` as the approved production baseline, and Phase 8.5 promotes that path into the live project-scoped distillation runtime.
+
+Current runtime posture: the production engine generates a deterministic `structured-summary-v1` draft, persists only explicit `promote` decisions, supersedes source records only after successful pattern persistence, and fails closed on contradiction, stale evidence, or incomplete provenance. Scheduler-triggered background orchestration and operator-facing visibility for this loop still land in later phases.
 
 Each distilled pattern includes:
 
@@ -55,21 +152,25 @@ Each distilled pattern includes:
 - **Provenance** — `basedOn` and `supersedes` link to source experience records; `evidenceRefs` link to clustering and write evidence
 - **Scope** — project-scoped by default; cross-project distillation requires policy evaluation before write
 
-**Confidence lifecycle:** Patterns gain confidence when new experience records align (refresh); they lose confidence when contradicted or when they become stale (decay). Contradiction below a threshold flags the pattern for retirement.
+**Confidence lifecycle:** Patterns gain confidence when new experience records align (refresh); they lose confidence when contradicted or when they become stale (decay). Phase 8.5 implements deterministic initial assignment, confirming refresh, contradiction decay, staleness decay, and retirement flagging. Phase 8.6 then consumes those exports in the runtime confidence-governance evaluator, so the confidence metadata now directly drives allow, flag, escalate, defer, and deny outcomes.
 
 **Supersession reversal:** If a distilled pattern is found to be incorrect, `reverseSupersession` restores the source records to active and retires the pattern. The caller must emit an audit record for the reversal (ADR-002 evidence-chain). No silent replacement.
 
 ### Confidence and Governance
 
-Confidence tiers (low, medium, high) map explicitly to governance behavior. There is no opaque autonomy path — every autonomy decision traces to a documented tier and node governance level.
+Confidence tiers (low, medium, high) map explicitly to governance behavior. There is no opaque autonomy path - every runtime decision traces to a documented tier, node governance level, and reason-coded outcome.
 
-| Tier | Escalation | Autonomy | Deviations |
+| Confidence state | Stable `may` | Stable `should` | Stable `must` |
 |------|------------|----------|------------|
-| **Low** | Required — Nous presents emerging patterns for validation before applying | None | All deviations flagged |
-| **Medium** | Not required | None — patterns applied but deviations flagged | User notified when pattern influences a decision |
-| **High** | Not required | Bounded — MAY nodes only; no autonomy on MUST/SHOULD | No flagging |
+| **Low** | `escalate` | `escalate` | `escalate` |
+| **Medium** | `allow_with_flag` | `allow_with_flag` | `deny` |
+| **High** | `allow_autonomy` | `allow_with_flag` | `deny` |
 
-**High-risk actions** (tool-execute with elevated scope, memory-write cross-project, opctl-command) always require confirmation regardless of confidence.
+Low confidence and any non-stable decay state (`decaying`, `flagged_retirement`) require escalation context before runtime execution proceeds.
+
+**High-risk action categories** (`tool-execute`, `memory-write`, `opctl-command`) always defer for explicit confirmation regardless of confidence or governance level.
+
+**Control-state gating** - Project control states override the confidence mapping. `hard_stopped` denies runtime autonomy, while `paused_review` and `resuming` defer execution until the project is cleared.
 
 **Escalation signals** — When the system escalates due to low confidence or contradiction, it emits deterministic signals:
 
@@ -78,13 +179,32 @@ Confidence tiers (low, medium, high) map explicitly to governance behavior. Ther
 - `CONF-STALENESS` — pattern has not been confirmed recently
 - `CONF-RETIREMENT` — pattern flagged for retirement
 
-**Explainability** — When a pattern influences an outcome, the system produces a trace-linked explanation (what pattern, which outcome, evidence refs) for audit and operator inspection.
+**Explainability** — When a pattern is allowed to influence an outcome, the system produces a trace-linked explanation (what pattern, which outcome, evidence refs) plus a reason-coded runtime decision for audit and operator inspection. Phase 8.6 wires the Phase 8.5 pattern, confidence, escalation, and explanation exports into the live PFC runtime so equivalent inputs resolve to the same governance outcome.
 
 ### Retrieval and Policy
 
 Retrieval is policy-enforced. All retrieval paths run through `PolicyEnforcedRetrievalEngine`, which evaluates access policy before delegating to the inner retrieval engine. When policy denies a retrieval (for example, global scope with `inheritsGlobal: false`), the response includes `policyDenial` — a `PolicyDecisionRecord` with reason code, trace ID, and evidence refs for audit.
 
-Retrieval responses have the shape `{ results, policyDenial?, selectionAudit? }`. Use `response.results` for the scored entries; use `response.policyDenial` when present to trace denied or degraded outcomes.
+Retrieval responses now have the shape `{ results, policyDenial?, selectionAudit?, budgetTelemetry?, decision? }`.
+
+- `results` — scored entries returned to the caller
+- `policyDenial` — policy decision evidence when access is denied
+- `selectionAudit` — explicit cross-project selection metadata when target-project retrieval is used
+- `budgetTelemetry` — `{ consumedTokens, candidateCount, truncatedCount }`
+- `decision` — deterministic retrieval metadata: `vectorCandidateCount`, `scoredCandidateCount`, `returnedCount`, `truncationReason`, `tieBreakStrategy`, and `scoringWeights`
+
+Use `response.results` for returned entries, `response.policyDenial` to trace denied outcomes, and `budgetTelemetry` / `decision` when you need to inspect why equivalent queries returned a specific result set.
+
+### Vector Indexing Foundation (Phase 8.1)
+
+Approved writes can now be indexed through the vector foundation path (embed -> validate -> upsert) before durable completion. This path is deterministic and fail-closed:
+
+- If embedding generation or metadata validation fails, indexing is rejected and the write is not completed through the indexing path.
+- Indexed vectors carry provenance metadata (`modelId`, `modelVersion`, `modelHash`, `requestId`, `generatedAt`, `inputHash`) plus trace/evidence linkage.
+- Retrieval candidate ordering is deterministic for score ties (`score DESC`, then `entry.id ASC`).
+- Token-budget truncation is deterministic; when `tokenBudget <= 0`, retrieval returns an empty result set with truncation telemetry and `decision.truncationReason = 'token_budget'`.
+
+These guarantees make retrieval behavior replayable and auditable across equivalent inputs.
 
 **Cross-project retrieval (Phase 6.1):** When a query specifies `targetProjectIds` explicitly, the engine evaluates policy for each target project before retrieving. No hidden cross-project joins — all cross-project reads are explicit and policy-gated. The response includes `selectionAudit` when cross-project scope is used: `projectIdsQueried`, `candidateCount`, `resultCount`, and `truncationReason` (token_budget, result_cap, or none). Selection policy enforces token budget and result cap; policy denial cannot be bypassed by any recommendation path.
 
@@ -114,6 +234,8 @@ Governed mutation procedures are exposed through the API:
 - `memory.promote` and `memory.demote` to move entries between project/global placement states
 - `memory.delete` for soft-delete (default) and hard-delete (with rationale)
 
+Default list views surface only `active` entries. Use export, audit, and tombstone surfaces when you need full historical visibility into superseded or deleted memory.
+
 ## Denied Entries
 
 When the Cortex denies a memory write or mutation, the candidate/action and reason are logged. Use:
@@ -121,21 +243,46 @@ When the Cortex denies a memory write or mutation, the candidate/action and reas
 - `memory.denials` for write denials
 - `memory.audit` for mutation allow/deny/failed outcomes and reason codes
 
+The Memory inspector renders denied-write cards directly from `memory.denials`. When available, each card includes:
+
+- the denied candidate content
+- the human-readable reason
+- the canonical policy/governance reason code from `decisionRecord`
+- the originating trace ID
+- the recorded turn timestamp
+
+Use these details to distinguish true "no relevant result" situations from explicit policy or governance denials.
+
 ## Export and Audit Visibility
 
 Export all memory for a project as structured data:
 
 - `memory.export` -> `{ stm, entries, audit, tombstones }`
+- `memory.list` -> active durable entries only for the requested project
 
 This gives a full operator view:
 
-- Short-term conversation context (`stm`)
+- Short-term conversation context (`stm`: entries, summary, tokenCount, compactionState)
 - Durable memory entries and lifecycle state (`entries`)
 - Mutation history (`audit`)
 - Hard-delete proof artifacts (`tombstones`)
+
+From the Memory inspector UI, export is confirmation-protected. Selecting **Export project memory** opens a confirmation card before the bundle is fetched.
+
+- Export always includes the full project bundle: STM context, durable entries, mutation audit, and tombstones.
+- Current search/filter controls do **not** narrow the exported payload.
+- Use filters for inspection, then export when you need the canonical full-state bundle.
 
 ## Delete Behavior
 
 - **Soft-delete (default):** preserves entry content and audit history while marking lifecycle state.
 - **Hard-delete:** requires `hard: true` plus `rationale`; payload content is replaced with `[hard-deleted]` and a tombstone record is created.
 - **Delete all for project:** applies soft-delete to active project entries and clears STM context.
+
+In the Memory inspector UI:
+
+- soft delete requires an explicit confirmation click from the selected entry detail panel
+- hard delete requires both confirmation and a non-empty rationale before the request is sent
+- the result banner shows the canonical mutation outcome and `reasonCode` when the runtime returns one
+
+If delete is denied or deferred, check the banner first and then inspect the linked mutation-audit records for the authoritative outcome details.

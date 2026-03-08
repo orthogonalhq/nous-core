@@ -109,7 +109,7 @@ Commander.js provides command parsing, help generation, and option handling. The
 | Interface | Phase 1–3 | Phase 4+ (Local) | Cloud |
 |---|---|---|---|
 | **IDocumentStore** | SQLite (better-sqlite3) | SQLite | PostgreSQL |
-| **IVectorStore** | SQLite (stub/basic) | LanceDB (embedded) | PostgreSQL + pgvector |
+| **IVectorStore** | In-memory / SQLite (stub/basic) | SQLite-backed runtime store (Phase 8.1 baseline) coupled to typed LTM writes in Phase 8.2; backend swap optional | PostgreSQL + pgvector |
 | **IGraphStore** | SQLite (stub/basic) | LanceDB or dedicated | PostgreSQL |
 | **Config** | JSON5 files | JSON5 files | JSON5 files |
 
@@ -117,15 +117,21 @@ Storage is not one database. It is three separate interfaces, each backed by the
 
 ### Document Storage (IDocumentStore)
 
-SQLite via better-sqlite3. Handles STM, project metadata, execution traces, configuration state, and basic LTM in early phases. Local-first, zero-infrastructure, file-based, portable across platforms. Synchronous access simplifies the execution model.
+SQLite via better-sqlite3. Handles STM, project metadata, execution traces, configuration state, and the current structured LTM runtime. Local-first, zero-infrastructure, file-based, portable across platforms. Synchronous access simplifies the execution model.
+
+As of Phase 8.2, the local document-store path backs the production `@nous/memory-ltm` runtime over canonical collections such as `memory_entries`, `memory_mutation_audit`, and `memory_tombstones`.
 
 SQLite remains the document store for local deployments through all phases. For cloud deployments, PostgreSQL fulfills the same interface.
 
 ### Vector Storage (IVectorStore)
 
-**Phase 1–3:** Stub implementation or basic SQLite. Vector search is not needed until Phase 4 when experience records and semantic retrieval become real.
+**Phase 1–7:** Stub implementation or basic/in-memory vector handling.
 
-**Phase 4+:** LanceDB — an embedded, Rust-based vector database designed for AI workloads. Handles vector similarity search natively without a running server. Supports the retrieval patterns we need: cosine similarity combined with metadata filtering (sentiment, confidence, recency). No infrastructure to install or manage.
+**Phase 8.1 baseline (current):** SQLite-backed `IVectorStore` implementation with deterministic search ordering, metadata filtering, and provenance-aware indexing metadata support.
+
+**Phase 8.2 coupling:** governed typed `fact`/`preference` writes reuse the same deterministic embed/index path. If vector indexing fails, the typed durable-write path fails closed rather than committing partially indexed state.
+
+**Future local optimization:** LanceDB (or equivalent) remains an optional backend swap if local corpus/query scale requires specialized vector indexing performance.
 
 **Cloud:** PostgreSQL + pgvector. Same interface, server-backed for scale and concurrency.
 
@@ -153,11 +159,12 @@ The swap is invisible to everything above the autonomic layer. The memory system
 ### Maturity Path
 
 ```
-Phase 1–3:   SQLite for everything (data volumes are tiny, get it working)
-Phase 4:     LanceDB introduced for IVectorStore (experience records + retrieval)
+Phase 1–7:   In-memory/basic SQLite vector handling while contracts mature
+Phase 8.1:   SQLite-backed IVectorStore introduced (deterministic metadata + retrieval baseline)
+Future:      Optional local backend swap (for example LanceDB) if scale requires
 Phase 6:     Graph storage evaluated for IGraphStore (relationship mapping)
-Cloud:       PostgreSQL + pgvector replaces SQLite + LanceDB for hosted deployments
-Local:       SQLite + LanceDB remains the zero-infrastructure default
+Cloud:       PostgreSQL + pgvector for hosted deployments
+Local:       SQLite remains the zero-infrastructure default
 ```
 
 ### Config Format
@@ -243,7 +250,7 @@ Validation:      Zod
 API Layer:       tRPC (WebSocket subscriptions + HTTP queries/mutations)
 Web UI:          Next.js (App Router) + shadcn/ui + Tailwind
 CLI:             Commander.js
-Storage:         SQLite (documents) → LanceDB (vectors, Phase 4) → PostgreSQL (cloud)
+Storage:         SQLite (documents + current local vectors) → optional specialized vector backend → PostgreSQL (cloud)
 Config:          JSON5
 Docs:            Fumadocs
 ```

@@ -21,7 +21,29 @@ const policyEngine = new MemoryAccessPolicyEngine();
 const traceId = randomUUID() as import('@nous/shared').TraceId;
 
 function mockPfc(): IPfcEngine {
+  const patternId = randomUUID() as import('@nous/shared').MemoryEntryId;
+  const evidenceRefs = [{ actionCategory: 'trace-persist' as const }];
   return {
+    evaluateConfidenceGovernance: vi.fn().mockResolvedValue({
+      outcome: 'allow_with_flag',
+      reasonCode: 'CGR-ALLOW-WITH-FLAG',
+      governance: 'should',
+      actionCategory: 'model-invoke',
+      patternId,
+      confidence: 0.8,
+      confidenceTier: 'medium',
+      supportingSignals: 8,
+      decayState: 'stable',
+      autonomyAllowed: false,
+      requiresConfirmation: false,
+      highRiskOverrideApplied: false,
+      evidenceRefs,
+      explanation: {
+        patternId,
+        outcomeRef: 'outcome-1',
+        evidenceRefs,
+      },
+    }),
     evaluateMemoryWrite: vi.fn().mockResolvedValue({
       approved: true,
       reason: 'ok',
@@ -112,9 +134,17 @@ function mockStmStore(): IStmStore {
   };
 }
 
-function mockMwcPipeline(): { submit: ReturnType<typeof vi.fn> } {
+function mockMwcPipeline(): {
+  submit: ReturnType<typeof vi.fn>;
+  mutate: ReturnType<typeof vi.fn>;
+} {
   return {
     submit: vi.fn().mockResolvedValue(randomUUID() as import('@nous/shared').MemoryEntryId),
+    mutate: vi.fn().mockResolvedValue({
+      applied: true,
+      reason: 'approved',
+      reasonCode: 'MEM-COMPACT-STM-APPLIED',
+    }),
   };
 }
 
@@ -210,6 +240,113 @@ describe('CoreExecutor', () => {
 
     expect(result.response).toBe('Hello from model');
     expect(result.traceId).toBe(traceId);
+  });
+
+  it('includes STM summary in the model prompt', async () => {
+    const provider = mockProvider('Hello from model');
+    const docStore = mockDocumentStore();
+    const executor = new CoreExecutor({
+      Cortex: mockPfc(),
+      router: mockRouter(),
+      getProvider: () => provider,
+      toolExecutor: mockToolExecutor(),
+      stmStore: mockStmStore(),
+      mwcPipeline: mockMwcPipeline(),
+      projectStore: mockProjectStore(),
+      documentStore: docStore,
+      witnessService: mockWitnessService(),
+      policyEngine,
+    });
+
+    await executor.executeTurn({
+      message: 'new question',
+      traceId,
+      stmContext: {
+        entries: [],
+        summary: 'Earlier summary',
+        tokenCount: 4,
+      },
+    });
+
+    expect(provider.invoke).toHaveBeenCalledWith(
+      expect.objectContaining({
+        input: expect.objectContaining({
+          prompt: expect.stringContaining('Summary: Earlier summary'),
+        }),
+      }),
+    );
+  });
+
+  it('appends STM entries and triggers compaction through the MWC seam', async () => {
+    const provider = mockProvider('Hello from model');
+    const docStore = mockDocumentStore();
+    const stmStore = mockStmStore();
+    const mwcPipeline = mockMwcPipeline();
+    const projectId = randomUUID() as import('@nous/shared').ProjectId;
+    const getContext = stmStore.getContext as ReturnType<typeof vi.fn>;
+
+    getContext
+      .mockResolvedValueOnce({ entries: [], tokenCount: 0 })
+      .mockResolvedValueOnce({
+        entries: [
+          {
+            role: 'user',
+            content: 'hi',
+            timestamp: new Date().toISOString(),
+          },
+          {
+            role: 'assistant',
+            content: 'hello',
+            timestamp: new Date().toISOString(),
+          },
+        ],
+        tokenCount: 24,
+        compactionState: {
+          requiresCompaction: true,
+          trigger: 'token-threshold',
+          currentTokenCount: 24,
+          maxContextTokens: 12,
+          targetContextTokens: 8,
+        },
+      });
+
+    const executor = new CoreExecutor({
+      Cortex: mockPfc(),
+      router: mockRouter(),
+      getProvider: () => provider,
+      toolExecutor: mockToolExecutor(),
+      stmStore,
+      mwcPipeline,
+      projectStore: mockProjectStore(),
+      documentStore: docStore,
+      witnessService: mockWitnessService(),
+      policyEngine,
+    });
+
+    await executor.executeTurn({
+      message: 'test',
+      projectId,
+      traceId,
+    });
+
+    expect(stmStore.append).toHaveBeenCalledTimes(2);
+    expect(stmStore.append).toHaveBeenNthCalledWith(
+      1,
+      projectId,
+      expect.objectContaining({ role: 'user', content: 'test' }),
+    );
+    expect(stmStore.append).toHaveBeenNthCalledWith(
+      2,
+      projectId,
+      expect.objectContaining({ role: 'assistant', content: 'Hello from model' }),
+    );
+    expect(mwcPipeline.mutate).toHaveBeenCalledWith(
+      expect.objectContaining({
+        action: 'compact-stm',
+        actor: 'pfc',
+        projectId,
+      }),
+    );
   });
 
   it('throws ValidationError for invalid TurnInput', async () => {

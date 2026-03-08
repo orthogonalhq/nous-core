@@ -1,0 +1,81 @@
+---
+title: Confidence Governance Operations
+description: How to interpret runtime confidence-governance outcomes, escalation signals, and operator actions
+---
+
+# Confidence Governance Operations
+
+Phase 8.6 introduces deterministic runtime confidence-governance decisions for learned-pattern application. This playbook explains how to interpret those decisions when they appear in audit evidence, logs, or downstream operator-facing surfaces.
+
+For background on confidence tiers and learned-pattern semantics, see [Memory](/docs/guides/memory). For pause, resume, and hard-stop controls, see [Operator Control](/docs/development/operator-control).
+
+## Outcome Action Map
+
+| Outcome | Common reason codes | What it means | Operator action |
+|---|---|---|---|
+| `allow_autonomy` | `CGR-ALLOW-AUTONOMY` | Stable high-confidence pattern on a `may` path. Runtime is allowed to proceed autonomously. | No approval is required. Monitor normally. If this behavior is no longer acceptable, tighten the node governance from `may` to `should` or `must`. |
+| `allow_with_flag` | `CGR-ALLOW-WITH-FLAG` | Runtime may proceed, but the decision should remain visible because the path is not autonomy-eligible. This is expected for stable `should` paths and stable `may` + `medium` confidence. | Review the flagged result in normal operations. If the same flag repeats and should become a hard gate, tighten governance or revisit the underlying pattern. |
+| `escalate` | `CGR-ESCALATE-LOW-CONFIDENCE`, `CGR-ESCALATE-CONTRADICTION`, `CGR-ESCALATE-STALENESS`, `CGR-ESCALATE-RETIREMENT` | Runtime lacks sufficient confidence to act autonomously. Evidence and explanation are present, but operator judgment is required. | Inspect the explanation and evidence refs, then choose whether to approve a manual action, gather more evidence, refresh the pattern, or retire it. Do not treat escalation as a silent retry signal. |
+| `defer` | `CGR-DEFER-HIGH-RISK-CONFIRMATION`, `CGR-DEFER-PAUSED-REVIEW`, `CGR-DEFER-RESUMING` | Runtime intentionally pauses action rather than proceeding or failing. The blocker is explicit and expected. | If the defer is high-risk, provide the required confirmation through the normal control path. If the defer is control-state driven, clear the project state first, then retry. |
+| `deny` | `CGR-DENY-HARD-STOPPED`, `CGR-DENY-GOVERNANCE-CEILING`, `CGR-DENY-MISSING-ESCALATION-CONTEXT` | Runtime will not proceed. Either the control plane forbids action, the governance level does not permit it, or required escalation context is missing. | Treat deny as fail-closed. Release the block only by changing the controlling condition: clear `hard_stopped`, route the work through a non-autonomous/manual path, or repair the missing escalation context before retrying. |
+
+## Escalation Signal Meanings
+
+When the runtime returns `escalate`, the attached escalation signal tells you why:
+
+| Signal | Meaning | Typical operator response |
+|---|---|---|
+| `CONF-LOW` | The pattern does not have enough confidence to apply safely. | Validate the recommendation manually or wait for more confirming evidence before relying on the pattern. |
+| `CONF-CONTRADICTION` | New evidence conflicts with the pattern's prior behavior. | Review the conflicting evidence. Retire, split, or replace the pattern if the contradiction is real. |
+| `CONF-STALENESS` | The pattern has not been confirmed recently enough to rely on. | Refresh it with new evidence or stop using it until current evidence exists. |
+| `CONF-RETIREMENT` | The pattern is flagged for retirement and should not keep driving behavior. | Move off the pattern and treat any remaining usage as an explicit manual decision. |
+
+## High-Risk and Control-State Overrides
+
+Some outcomes are controlled by hard precedence rules rather than by the confidence tier alone.
+
+### High-risk confirmation defer
+
+`tool-execute`, `memory-write`, and `opctl-command` are high-risk action categories. They always return `CGR-DEFER-HIGH-RISK-CONFIRMATION` until an operator explicitly confirms the action. High confidence does not bypass this rule.
+
+Use the existing operator-control flow for confirmation-sensitive actions. Do not treat a high-risk defer as a system failure.
+
+### Control-state blocks and defers
+
+| Reason code | Meaning | Operator action |
+|---|---|---|
+| `CGR-DENY-HARD-STOPPED` | The project is hard stopped. Runtime action is denied. | Investigate why the project was hard stopped, then use [Operator Control](/docs/development/operator-control) to release the stop only if safe. |
+| `CGR-DEFER-PAUSED-REVIEW` | The project is paused for review. Runtime must wait. | Complete the review process before retrying. |
+| `CGR-DEFER-RESUMING` | The project is still transitioning back to active execution. | Wait for the project to finish resuming, then retry. |
+
+## Learning Visibility Cards (Phase 8.8)
+
+The `/memory` Learning view now renders operator-facing governance cards for distilled patterns. Those cards use the same canonical Phase 8.6 contracts described in this playbook, but they have an important interpretation caveat:
+
+- `projectionBasis: representative` means the card is a server-side scenario projection such as `may-safe`, `should-safe`, `must-governance-ceiling`, or `high-risk-memory-write`.
+- `projectionBasis: current-control-state` means the card includes the project's current control state when that state is available.
+- `historicalDecisionLogAvailable: false` means the UI is not replaying a persisted historical decision log for that pattern in this phase.
+
+Use the cards to understand how the current pattern and confidence signal resolve through the confidence-governance evaluator now. Use traces, mutation audit, and linked evidence refs when you need proof of a specific past runtime decision.
+
+If a Learning card shows missing escalation context, missing evidence, or unavailable control-state diagnostics, treat that as real missing context. It is not a hidden allow path and should not be normalized away in operator workflows.
+
+## Recommended Operator Flow
+
+1. Read the `outcome` first. It tells you whether the system proceeded, paused, escalated, or failed closed.
+2. Check the `reasonCode`. This explains which rule produced the outcome.
+3. Review the explanation and `evidenceRefs` before overriding or retrying anything.
+4. If the same reason repeats, fix the root cause instead of repeatedly retrying:
+   - add evidence for `CONF-LOW`
+   - resolve conflicting evidence for `CONF-CONTRADICTION`
+   - refresh or retire stale patterns
+   - change control state before retrying paused or hard-stopped work
+5. If the issue is governance, change the workflow design or route the action through a manual/operator-approved path rather than forcing autonomy.
+
+## Quick Reference
+
+- `allow_autonomy` means the runtime may proceed on its own.
+- `allow_with_flag` means the runtime may proceed, but the decision should remain visible.
+- `escalate` means operator judgment is required.
+- `defer` means the action is intentionally waiting on confirmation or control-state clearance.
+- `deny` means the action is blocked and must not proceed until the cause is fixed.

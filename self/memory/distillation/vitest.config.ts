@@ -10,6 +10,7 @@ export default defineConfig({
     alias: {
       '@nous/shared': path.resolve(__dirname, '../../shared/src/index.ts'),
       '@nous/autonomic-storage': path.resolve(__dirname, '../../autonomic/storage/src/index.ts'),
+      '@nous/memory-ltm': path.resolve(__dirname, '../ltm/src/index.ts'),
       '@nous/memory-stubs': path.resolve(__dirname, '../stubs/src/index.ts'),
     },
   },

@@ -2,8 +2,9 @@
  * Stub implementations for IVectorStore and IGraphStore.
  *
  * These fulfill the interface contracts but throw NousError with code
- * 'NOT_IMPLEMENTED' on every method call. Real implementations arrive
- * in Phase 4 (LanceDB for vectors) and Phase 6 (graph storage).
+ * 'NOT_IMPLEMENTED' on every method call. Real implementations are
+ * available for document/vector stores; these stubs remain for explicit
+ * fallback wiring and deferred graph storage implementation.
  */
 import { NousError } from '@nous/shared';
 import type {
@@ -25,7 +26,7 @@ export class StubVectorStore implements IVectorStore {
       '[nous:stub] IVectorStore.upsert() called — not implemented',
     );
     throw new NousError(
-      'IVectorStore.upsert() is not implemented — real implementation in Phase 4 (LanceDB)',
+      'IVectorStore.upsert() is not implemented — use SqliteVectorStore for a real backend',
       'NOT_IMPLEMENTED',
     );
   }
@@ -40,7 +41,7 @@ export class StubVectorStore implements IVectorStore {
       '[nous:stub] IVectorStore.search() called — not implemented',
     );
     throw new NousError(
-      'IVectorStore.search() is not implemented — real implementation in Phase 4 (LanceDB)',
+      'IVectorStore.search() is not implemented — use SqliteVectorStore for a real backend',
       'NOT_IMPLEMENTED',
     );
   }
@@ -50,7 +51,7 @@ export class StubVectorStore implements IVectorStore {
       '[nous:stub] IVectorStore.delete() called — not implemented',
     );
     throw new NousError(
-      'IVectorStore.delete() is not implemented — real implementation in Phase 4 (LanceDB)',
+      'IVectorStore.delete() is not implemented — use SqliteVectorStore for a real backend',
       'NOT_IMPLEMENTED',
     );
   }

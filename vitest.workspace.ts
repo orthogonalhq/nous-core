@@ -18,6 +18,7 @@ export default defineWorkspace([
   'self/subcortex/mao',
   'self/subcortex/gtm',
   'self/memory/stm',
+  'self/memory/ltm',
   'self/memory/mwc',
   'self/memory/access',
   'self/memory/retrieval',

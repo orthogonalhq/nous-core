@@ -53,6 +53,7 @@ export * from './relationships.js';
 export * from './discovery.js';
 export * from './explainability.js';
 export * from './phase8-export.js';
+export * from './vector-index.js';
 export * from './package-manifest.js';
 export * from './package-lifecycle.js';
 export * from './package-compatibility.js';
