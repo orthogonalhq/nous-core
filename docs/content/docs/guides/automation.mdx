@@ -35,6 +35,17 @@ Every trigger follows the same pipeline:
 | `accepted_already_dispatched` | Duplicate trigger; original run_id returned; no new run |
 | `rejected` | Trigger rejected with reason code |
 
+## Workflow Admission Before Run Creation
+
+Passing ingress validation is necessary, but it is not sufficient to start a workflow run. After the trigger envelope clears gateway checks, the workflow runtime still has to:
+
+1. Resolve the canonical workflow definition from the target project's stored configuration
+2. Validate the workflow as a deterministic DAG
+3. Evaluate project scope, workmode, authority-chain, and control-state admission
+4. Mint a run ID only if all of those checks succeed
+
+If any of those steps fail, the workflow does not start and no new run is created. Treat that as an admission failure, not as a transient transport error.
+
 ## Rejection Reason Codes
 
 When a trigger is rejected, the response includes a reason code:
@@ -50,10 +61,28 @@ When a trigger is rejected, the response includes a reason code:
 | `invalid_envelope` | Missing project_id, workflow_ref, or invalid trigger_type |
 | `control_state_blocked` | Project is hard_stopped or paused_review (PCP-007) |
 
+## Workflow Admission Reason Codes (Phase 9.1)
+
+When ingress is valid but the workflow runtime cannot start the run, inspect the admission reason code:
+
+| Code | Cause | Operator action |
+|------|-------|-----------------|
+| `workflow_definition_unavailable` | The project does not expose the requested or default workflow definition | Fix project workflow configuration before retrying |
+| `workflow_definition_invalid` | The workflow definition failed graph validation (for example cycles, dangling edges, or invalid entry nodes) | Correct the canonical workflow definition and re-run validation |
+| `AUTH-SCOPE-MISMATCH` | The admission request project/workflow scope does not match the resolved definition | Ensure the request and project configuration point at the same project/workflow pair |
+| `POL-CONTROL-STATE-BLOCKED` | The project is in a blocking control state such as `hard_stopped` | Release the blocker through operator-control before retrying |
+| `POL-PAUSED-BLOCKED` | The project is in `paused_review` and cannot admit a new run | Resume the project before retrying |
+| `OPCTL-INVALID-STATE` | The request attempts to resume from a control state that is not eligible to resume | Fix the control-state transition first |
+| `WMODE-001` | The requested workmode is not valid for workflow admission | Use a supported workmode configuration |
+| `WMODE-002` | Authority widening was attempted during admission | Narrow the authority chain; do not escalate a worker into a higher-authority start path |
+| `WMODE-003` | Nested orchestration was attempted | Use the standard `nous_cortex -> orchestration_agent -> worker_agent` chain |
+| `WMODE-010` | A worker-origin start attempted an authoritative dispatch path | Reissue the request from the correct authority lane |
+
 ## Recovery and Handoff
 
 - **Duplicate handling:** If you receive `accepted_already_dispatched`, use the returned `run_id` to reference the original run. Do not retry with the same `idempotency_key`.
 - **Control state block:** If `control_state_blocked`, the project must be resumed or released from hard_stop before new triggers can dispatch. Use the Projects UI or operator-control to change control state.
+- **Workflow admission block:** If the reason code points to missing definitions, invalid graph structure, or authority mismatch, repair the canonical workflow/project configuration instead of replaying the same trigger.
 - **Replay:** If `replay_detected`, ensure your `occurred_at` is within the acceptance window (+/- 5 minutes) and that each request uses a unique nonce per source.
 
 ## payload_ref Format

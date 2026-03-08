@@ -5,6 +5,7 @@ import {
   ProjectConfigSchema,
   ProjectIdentityContractSchema,
   NodeMemoryAccessPolicyOverrideSchema,
+  ProjectWorkflowConfigurationSchema,
 } from '../../types/project.js';
 
 const VALID_UUID = '550e8400-e29b-41d4-a716-446655440000';
@@ -205,6 +206,47 @@ describe('ProjectConfigSchema', () => {
     expect(result.success).toBe(true);
     if (result.success) {
       expect(result.data.retrievalBudgetTokens).toBe(500);
+    }
+  });
+
+  it('accepts optional workflow configuration with embedded definitions', () => {
+    const result = ProjectConfigSchema.safeParse({
+      ...validConfig,
+      workflow: {
+        defaultWorkflowDefinitionId: '550e8400-e29b-41d4-a716-446655440099',
+        definitions: [
+          {
+            id: '550e8400-e29b-41d4-a716-446655440099',
+            projectId: VALID_UUID,
+            mode: 'hybrid',
+            version: '1.0.0',
+            name: 'Primary Workflow',
+            entryNodeIds: ['550e8400-e29b-41d4-a716-446655440100'],
+            nodes: [
+              {
+                id: '550e8400-e29b-41d4-a716-446655440100',
+                name: 'Draft',
+                type: 'model-call',
+                governance: 'must',
+                executionModel: 'synchronous',
+                config: {},
+              },
+            ],
+            edges: [],
+          },
+        ],
+      },
+    });
+    expect(result.success).toBe(true);
+  });
+});
+
+describe('ProjectWorkflowConfigurationSchema', () => {
+  it('defaults definitions to an empty array', () => {
+    const result = ProjectWorkflowConfigurationSchema.safeParse({});
+    expect(result.success).toBe(true);
+    if (result.success) {
+      expect(result.data.definitions).toEqual([]);
     }
   });
 });

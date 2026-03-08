@@ -33,6 +33,27 @@ export type ProviderId = z.infer<typeof ProviderIdSchema>;
 export const WorkflowExecutionIdSchema = brandedId('WorkflowExecutionId');
 export type WorkflowExecutionId = z.infer<typeof WorkflowExecutionIdSchema>;
 
+export const WorkflowDefinitionIdSchema = brandedId('WorkflowDefinitionId');
+export type WorkflowDefinitionId = z.infer<typeof WorkflowDefinitionIdSchema>;
+
+export const WorkflowNodeDefinitionIdSchema = brandedId('WorkflowNodeDefinitionId');
+export type WorkflowNodeDefinitionId = z.infer<
+  typeof WorkflowNodeDefinitionIdSchema
+>;
+
+export const WorkflowEdgeIdSchema = brandedId('WorkflowEdgeId');
+export type WorkflowEdgeId = z.infer<typeof WorkflowEdgeIdSchema>;
+
+export const WorkflowNodeRunIdSchema = brandedId('WorkflowNodeRunId');
+export type WorkflowNodeRunId = z.infer<typeof WorkflowNodeRunIdSchema>;
+
+export const WorkflowDispatchLineageIdSchema = brandedId(
+  'WorkflowDispatchLineageId',
+);
+export type WorkflowDispatchLineageId = z.infer<
+  typeof WorkflowDispatchLineageIdSchema
+>;
+
 export const EscalationIdSchema = brandedId('EscalationId');
 export type EscalationId = z.infer<typeof EscalationIdSchema>;
 

@@ -15,6 +15,7 @@ export type {
   IModelRouter,
   IModelProvider,
   IToolExecutor,
+  WorkflowStartRequest,
   IWorkflowEngine,
   IProjectStore,
   IArtifactStore,

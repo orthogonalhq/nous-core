@@ -11,6 +11,7 @@ Projects are isolation boundaries. Each project has its own:
 - Memory entries
 - Execution traces
 - Configuration (Cortex tier, model assignments)
+- Workflow definitions and runtime state for protocol and hybrid execution
 
 ## Creating a Project
 
@@ -33,3 +34,50 @@ pnpm dev:cli -- projects switch -p <project-id>
 ## Project Types
 
 Projects can be `protocol`, `intent`, or `hybrid`. Phase 1 creates projects as `hybrid` by default. Protocol and intent semantics are used in later phases for workflow execution.
+
+## Workflow Definitions
+
+Protocol and hybrid projects can carry canonical workflow definitions inside project configuration. That project-scoped definition is the source of truth for workflow execution.
+
+Phase 9.1 adds two important rules:
+
+1. The project config owns the canonical workflow definitions and the default workflow reference.
+2. The runtime derives an execution graph from that canonical definition. UI surfaces, automation, and future scheduler views should treat the derived graph as rebuildable runtime state, not a separate source of truth.
+
+When a workflow definition changes, downstream consumers should expect the runtime to rebuild graph structure, ready-node ordering, and graph digest from the stored definition rather than from surface-local state.
+
+## Workflow Run State
+
+Before a workflow run starts, the runtime:
+
+1. Resolves the canonical workflow definition from the project
+2. Validates the definition as a DAG
+3. Evaluates admission for project scope, workmode, authority chain, and control state
+4. Mints a run only if all of those checks pass
+
+If admission is blocked, the workflow does not start and the failure remains reason-coded and evidence-linked. Fix the admission problem first instead of retrying blindly.
+
+Common runtime states:
+
+| State | Meaning |
+|------|---------|
+| `ready` | The run was admitted and has entry nodes ready to dispatch |
+| `running` | At least one node has been dispatched or is actively running |
+| `paused` | Control state or explicit operator action paused progress |
+| `completed` | All required nodes completed successfully |
+| `failed` | The run reached a terminal failure state |
+
+## Node Runs and Dispatch Lineage
+
+Workflow diagnostics now distinguish durable definition IDs from per-run execution records:
+
+- **Workflow definition ID** identifies the canonical stored workflow
+- **Node definition ID** identifies a node in that stored workflow
+- **Node run ID** identifies one node instance inside one workflow run
+- **Dispatch lineage ID** identifies a specific dispatch attempt and how that node became ready
+
+If a workflow looks stalled or branches unexpectedly, inspect the node status, `reasonCode`, `evidenceRefs`, `parentNodeId`, and `viaEdgeId` fields first. Those fields are the authoritative explanation for why a node was admitted, delayed, paused, or blocked.
+
+## Current Scope
+
+Phase 9.1 ships the workflow runtime foundation only. Later phases add concrete node handlers, scheduler-backed recurring execution, artifact persistence, richer Projects UI editing, and MAO projections over the canonical run state delivered here.
