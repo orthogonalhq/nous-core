@@ -96,6 +96,29 @@ ollama pull llama3.2:3b
 - If the action was not applied, inspect `memory.audit` for the authoritative mutation outcome and evidence refs.
 - Treat deny or defer outcomes as runtime truth; clear the governing blocker instead of retrying without changes.
 
+## Learning Visibility Shows Missing Source or Evidence Diagnostics
+
+**Symptom:** The `/memory` Learning detail view reports missing source records, missing evidence refs, degraded lineage integrity, or unavailable control-state context.
+
+**Meaning:** The selected distilled pattern references canonical inputs that are no longer fully resolvable in the current project view. Phase 8.8 surfaces those gaps explicitly instead of hiding them.
+
+**Fix:**
+- Read the diagnostic first; it is part of the contract, not a cosmetic warning.
+- Check whether the referenced source records were superseded, deleted, or created in an older state that no longer has full evidence linkage.
+- Use linked trace IDs, audit history, and evidence refs to determine whether the pattern should be refreshed, replaced, or retired through the governed runtime path.
+- Do not assume the missing input can be reconstructed from the UI alone.
+
+## Learning Visibility Says Governance Cards Are Representative
+
+**Symptom:** The Learning view notes that lifecycle events are derived, governance cards are representative, or `historicalDecisionLogAvailable` is false.
+
+**Meaning:** Phase 8.8 projects the current canonical confidence-governance outcome for a pattern, but it does not yet persist a per-pattern historical decision ledger in workflow runtime history.
+
+**Fix:**
+- Use the card's `outcome` and `reasonCode` to understand the current governance posture of the pattern.
+- Use traces, audit evidence, and linked provenance when you need proof of a specific past decision.
+- Treat representative cards as interpretation aids for current behavior, not as historical proof that a particular runtime action already happened.
+
 ## Dispatch or Action Blocked (WMODE-*)
 
 **Symptom:** A workflow dispatch or lifecycle action is blocked with a reason code such as `WMODE-002`, `WMODE-003`, or `WMODE-010`.
