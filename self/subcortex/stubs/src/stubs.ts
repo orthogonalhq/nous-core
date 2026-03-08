@@ -31,6 +31,7 @@ import type {
 } from '@nous/shared';
 import type {
   IWorkflowEngine,
+  WorkflowStartRequest,
   IArtifactStore,
   IScheduler,
   IEscalationService,
@@ -38,8 +39,14 @@ import type {
   IProjectApi,
   ProjectId,
   WorkflowExecutionId,
-  WorkflowGraph,
-  WorkflowState,
+  WorkflowDefinition,
+  DerivedWorkflowGraph,
+  WorkflowAdmissionRequest,
+  WorkflowAdmissionResult,
+  WorkflowStartResult,
+  WorkflowTransitionInput,
+  WorkflowNodeDefinitionId,
+  WorkflowRunState,
   ArtifactId,
   ArtifactData,
   ArtifactMetadata,
@@ -79,24 +86,54 @@ const stubNotImpl = (
 };
 
 export class StubWorkflowEngine implements IWorkflowEngine {
-  async start(
-    _projectId: ProjectId,
-    _graph: WorkflowGraph,
-  ): Promise<WorkflowExecutionId> {
-    return stubNotImpl('IWorkflowEngine', 'start', 'Phase 5');
+  async resolveDefinition(
+    _projectConfig: ProjectConfig,
+    _workflowDefinitionId?: import('@nous/shared').WorkflowDefinitionId,
+  ): Promise<WorkflowDefinition> {
+    return stubNotImpl('IWorkflowEngine', 'resolveDefinition', 'Phase 9.1');
   }
 
-  async resume(_executionId: WorkflowExecutionId): Promise<void> {
-    stubNotImpl('IWorkflowEngine', 'resume', 'Phase 5');
+  async deriveGraph(
+    _definition: WorkflowDefinition,
+  ): Promise<DerivedWorkflowGraph> {
+    return stubNotImpl('IWorkflowEngine', 'deriveGraph', 'Phase 9.1');
   }
 
-  async pause(_executionId: WorkflowExecutionId): Promise<void> {
-    stubNotImpl('IWorkflowEngine', 'pause', 'Phase 5');
+  async evaluateAdmission(
+    _request: WorkflowAdmissionRequest,
+  ): Promise<WorkflowAdmissionResult> {
+    return stubNotImpl('IWorkflowEngine', 'evaluateAdmission', 'Phase 9.1');
+  }
+
+  async start(_request: WorkflowStartRequest): Promise<WorkflowStartResult> {
+    return stubNotImpl('IWorkflowEngine', 'start', 'Phase 9.1');
+  }
+
+  async resume(
+    _executionId: WorkflowExecutionId,
+    _transition: WorkflowTransitionInput,
+  ): Promise<WorkflowRunState> {
+    return stubNotImpl('IWorkflowEngine', 'resume', 'Phase 9.1');
+  }
+
+  async pause(
+    _executionId: WorkflowExecutionId,
+    _transition: WorkflowTransitionInput,
+  ): Promise<WorkflowRunState> {
+    return stubNotImpl('IWorkflowEngine', 'pause', 'Phase 9.1');
+  }
+
+  async completeNode(
+    _executionId: WorkflowExecutionId,
+    _nodeDefinitionId: WorkflowNodeDefinitionId,
+    _transition: WorkflowTransitionInput,
+  ): Promise<WorkflowRunState> {
+    return stubNotImpl('IWorkflowEngine', 'completeNode', 'Phase 9.1');
   }
 
   async getState(
     _executionId: WorkflowExecutionId,
-  ): Promise<WorkflowState> {
+  ): Promise<WorkflowRunState | null> {
     return stubNotImpl('IWorkflowEngine', 'getState', 'Phase 5');
   }
 }
