@@ -9,6 +9,7 @@ const nextConfig: NextConfig = {
     '@nous/cortex-core',
     '@nous/cortex-pfc',
     '@nous/memory-access',
+    '@nous/memory-distillation',
     '@nous/memory-ltm',
     '@nous/memory-stm',
     '@nous/memory-mwc',
