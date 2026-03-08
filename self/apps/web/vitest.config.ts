@@ -34,6 +34,10 @@ export default defineConfig({
         __dirname,
         '../../memory/ltm/src/index.ts',
       ),
+      '@nous/memory-distillation': path.resolve(
+        __dirname,
+        '../../memory/distillation/src/index.ts',
+      ),
       '@nous/subcortex-witnessd': path.resolve(
         __dirname,
         '../../subcortex/witnessd/src/index.ts',

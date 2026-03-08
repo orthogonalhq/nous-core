@@ -11,12 +11,17 @@ import type {
   ProjectId,
 } from '@nous/shared';
 import {
+  DistilledPatternSchema,
+  ExperienceRecordSchema,
+  MemoryEntryIdSchema,
   MemoryEntrySchema,
   MemoryMutationAuditRecordSchema,
   MemoryQueryFilterSchema,
   MemoryTombstoneSchema,
+  TraceEvidenceReferenceSchema,
   ValidationError,
 } from '@nous/shared';
+import { z } from 'zod';
 
 export const MEMORY_ENTRY_COLLECTION = 'memory_entries';
 export const MEMORY_MUTATION_AUDIT_COLLECTION = 'memory_mutation_audit';
@@ -48,9 +53,9 @@ export class DocumentLtmStore implements ILtmStore {
   }
 
   async write(entry: MemoryEntry): Promise<MemoryEntryId> {
-    const parsed = MemoryEntrySchema.safeParse(entry);
+    const parsed = parseEntryForWrite(entry);
     if (!parsed.success) {
-      throw toValidationError('Invalid MemoryEntry', parsed.error.errors);
+      throw toValidationError('Invalid MemoryEntry', parsed.errors);
     }
 
     await this.documentStore.put(
@@ -70,8 +75,7 @@ export class DocumentLtmStore implements ILtmStore {
       return null;
     }
 
-    const parsed = MemoryEntrySchema.safeParse(raw);
-    return parsed.success ? parsed.data : null;
+    return parseStoredMemoryEntry(raw);
   }
 
   async query(filter: MemoryQueryFilter): Promise<MemoryEntry[]> {
@@ -87,9 +91,8 @@ export class DocumentLtmStore implements ILtmStore {
     );
 
     const matches = raw
-      .map((item) => MemoryEntrySchema.safeParse(item))
-      .filter((result): result is { success: true; data: MemoryEntry } => result.success)
-      .map((result) => result.data)
+      .map(parseStoredMemoryEntry)
+      .filter((entry): entry is MemoryEntry => entry != null)
       .filter((entry) => matchesFilter(entry, normalized))
       .sort(sortEntries);
 
@@ -220,6 +223,67 @@ export class DocumentLtmStore implements ILtmStore {
     }
     return records[records.length - 1].sequence + 1;
   }
+}
+
+const StoredDistilledPatternFallbackSchema = MemoryEntrySchema.extend({
+  type: z.literal('distilled-pattern'),
+  basedOn: z.array(MemoryEntryIdSchema).default([]),
+  supersedes: z.array(MemoryEntryIdSchema).default([]),
+  evidenceRefs: z.array(TraceEvidenceReferenceSchema).default([]),
+});
+
+function parseEntryForWrite(entry: MemoryEntry):
+  | { success: true; data: MemoryEntry }
+  | {
+      success: false;
+      errors: Array<{ path: (string | number)[]; message: string }>;
+    } {
+  if (entry.type === 'distilled-pattern') {
+    const parsed = DistilledPatternSchema.safeParse(entry);
+    if (parsed.success) {
+      return { success: true, data: parsed.data };
+    }
+    return { success: false, errors: parsed.error.errors };
+  }
+
+  if (entry.type === 'experience-record') {
+    const parsed = ExperienceRecordSchema.safeParse(entry);
+    if (parsed.success) {
+      return { success: true, data: parsed.data };
+    }
+    return { success: false, errors: parsed.error.errors };
+  }
+
+  const parsed = MemoryEntrySchema.safeParse(entry);
+  if (parsed.success) {
+    return { success: true, data: parsed.data };
+  }
+  return { success: false, errors: parsed.error.errors };
+}
+
+function parseStoredMemoryEntry(raw: Record<string, unknown>): MemoryEntry | null {
+  const subtypeParser = resolveStoredEntryParser(raw.type);
+  if (subtypeParser) {
+    const parsedSubtype = subtypeParser.safeParse(raw);
+    if (parsedSubtype.success) {
+      return parsedSubtype.data;
+    }
+  }
+
+  const parsed = MemoryEntrySchema.safeParse(raw);
+  return parsed.success ? parsed.data : null;
+}
+
+function resolveStoredEntryParser(type: unknown) {
+  if (type === 'distilled-pattern') {
+    return z.union([DistilledPatternSchema, StoredDistilledPatternFallbackSchema]);
+  }
+
+  if (type === 'experience-record') {
+    return ExperienceRecordSchema;
+  }
+
+  return null;
 }
 
 function buildDocumentFilter(filter: LifecycleAwareMemoryQueryFilter): {

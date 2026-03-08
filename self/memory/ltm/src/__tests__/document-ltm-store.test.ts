@@ -3,7 +3,7 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { beforeEach, describe, expect, it } from 'vitest';
 import { SqliteDocumentStore } from '@nous/autonomic-storage';
-import type { MemoryEntry } from '@nous/shared';
+import type { DistilledPattern, MemoryEntry } from '@nous/shared';
 import {
   DocumentLtmStore,
   MEMORY_ENTRY_COLLECTION,
@@ -45,6 +45,22 @@ function createEntry(overrides: Partial<MemoryEntry> = {}): MemoryEntry {
     action: overrides.action,
     outcome: overrides.outcome,
     reason: overrides.reason,
+  };
+}
+
+function createPattern(overrides: Partial<DistilledPattern> = {}): DistilledPattern {
+  const base = createEntry({
+    ...overrides,
+    type: 'distilled-pattern',
+    tags: overrides.tags ?? ['pattern'],
+  });
+
+  return {
+    ...base,
+    type: 'distilled-pattern',
+    basedOn: overrides.basedOn ?? [randomUUID() as any, randomUUID() as any],
+    supersedes: overrides.supersedes ?? [randomUUID() as any],
+    evidenceRefs: overrides.evidenceRefs ?? [{ actionCategory: 'memory-write' }],
   };
 }
 
@@ -134,6 +150,37 @@ describe('DocumentLtmStore', () => {
       'superseded',
       'soft-deleted',
     ]);
+  });
+
+  it('preserves distilled-pattern fields on write, read, and query', async () => {
+    const projectId = randomUUID() as any;
+    const pattern = createPattern({
+      projectId,
+      content: 'Prefer release windows with explicit rollback notes',
+    });
+
+    await ltmStore.write(pattern);
+
+    const loaded = await ltmStore.read(pattern.id);
+    expect(loaded?.type).toBe('distilled-pattern');
+    expect(loaded).toMatchObject({
+      id: pattern.id,
+      basedOn: pattern.basedOn,
+      supersedes: pattern.supersedes,
+      evidenceRefs: pattern.evidenceRefs,
+    });
+
+    const queried = await ltmStore.query({
+      projectId,
+      type: 'distilled-pattern',
+    });
+    expect(queried).toHaveLength(1);
+    expect(queried[0]).toMatchObject({
+      id: pattern.id,
+      basedOn: pattern.basedOn,
+      supersedes: pattern.supersedes,
+      evidenceRefs: pattern.evidenceRefs,
+    });
   });
 
   it('marks superseded entries and appends audit records with increasing sequence', async () => {

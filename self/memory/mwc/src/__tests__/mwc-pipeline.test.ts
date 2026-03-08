@@ -7,9 +7,15 @@ import { tmpdir } from 'node:os';
 import { randomUUID } from 'node:crypto';
 import { MwcPipeline, createStubEvaluator } from '../index.js';
 import { DocumentStmStore } from '@nous/memory-stm';
+import { DocumentLtmStore } from '@nous/memory-ltm';
 import { SqliteDocumentStore } from '@nous/autonomic-storage';
 import { MemoryAccessPolicyEngine } from '@nous/memory-access';
-import { ValidationError, type ProjectConfig } from '@nous/shared';
+import {
+  ValidationError,
+  type DistilledPattern,
+  type ExperienceRecord,
+  type ProjectConfig,
+} from '@nous/shared';
 
 function createTempDbPath(): string {
   return join(tmpdir(), `nous-mwc-test-${randomUUID()}.sqlite`);
@@ -51,6 +57,67 @@ function createProjectConfig(
     retrievalBudgetTokens: 500,
     createdAt: new Date().toISOString(),
     updatedAt: new Date().toISOString(),
+  };
+}
+
+function createExperienceRecord(projectId: string): ExperienceRecord {
+  const now = new Date().toISOString();
+  return {
+    id: randomUUID() as any,
+    content: 'Release review noted strong operator confidence',
+    type: 'experience-record',
+    scope: 'project',
+    projectId: projectId as any,
+    confidence: 0.84,
+    sensitivity: [],
+    retention: 'permanent',
+    provenance: {
+      traceId: randomUUID() as any,
+      source: 'pipeline-test',
+      timestamp: now,
+    },
+    sentiment: 'strong-positive',
+    tags: ['learning', 'release'],
+    createdAt: now,
+    updatedAt: now,
+    mutabilityClass: 'domain-versioned',
+    lifecycleStatus: 'active',
+    placementState: 'project',
+    context: 'release notes and operator review',
+    action: 'shipped guarded release',
+    outcome: 'positive operator feedback',
+    reason: 'rollback readiness stayed explicit',
+  };
+}
+
+function createDistilledPattern(
+  projectId: string,
+  sourceId: string,
+): DistilledPattern {
+  const now = new Date().toISOString();
+  return {
+    id: randomUUID() as any,
+    content: 'Patterns with explicit rollback notes keep operator trust high',
+    type: 'distilled-pattern',
+    scope: 'project',
+    projectId: projectId as any,
+    confidence: 0.93,
+    sensitivity: [],
+    retention: 'permanent',
+    provenance: {
+      traceId: randomUUID() as any,
+      source: 'pipeline-test',
+      timestamp: now,
+    },
+    tags: ['learning', 'pattern'],
+    createdAt: now,
+    updatedAt: now,
+    mutabilityClass: 'domain-versioned',
+    lifecycleStatus: 'active',
+    placementState: 'project',
+    basedOn: [sourceId as any],
+    supersedes: [sourceId as any],
+    evidenceRefs: [{ actionCategory: 'memory-write' }],
   };
 }
 
@@ -225,6 +292,32 @@ describe('MwcPipeline', () => {
     expect(archived).toHaveLength(1);
     expect(archived[0].id).toBe(deletedId);
     expect(archived[0].lifecycleStatus).toBe('soft-deleted');
+  });
+
+  it('readEntries preserves typed learning records through the MWC seam', async () => {
+    const ltmStore = new DocumentLtmStore(documentStore);
+    const source = createExperienceRecord(projectId);
+    const pattern = createDistilledPattern(projectId, source.id);
+
+    await ltmStore.write(source);
+    await ltmStore.write(pattern);
+
+    const entries = await pipeline.readEntries([pattern.id, source.id]);
+    expect(entries).toHaveLength(2);
+    expect(entries.map((entry) => entry.id)).toEqual([pattern.id, source.id]);
+    expect(entries[0]).toMatchObject({
+      type: 'distilled-pattern',
+      basedOn: [source.id],
+      supersedes: [source.id],
+      evidenceRefs: [{ actionCategory: 'memory-write' }],
+    });
+    expect(entries[1]).toMatchObject({
+      type: 'experience-record',
+      context: source.context,
+      action: source.action,
+      outcome: source.outcome,
+      reason: source.reason,
+    });
   });
 
   it('submit rejects experience-record candidate missing context', async () => {

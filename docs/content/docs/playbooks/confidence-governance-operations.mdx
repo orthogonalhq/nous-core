@@ -48,6 +48,18 @@ Use the existing operator-control flow for confirmation-sensitive actions. Do no
 | `CGR-DEFER-PAUSED-REVIEW` | The project is paused for review. Runtime must wait. | Complete the review process before retrying. |
 | `CGR-DEFER-RESUMING` | The project is still transitioning back to active execution. | Wait for the project to finish resuming, then retry. |
 
+## Learning Visibility Cards (Phase 8.8)
+
+The `/memory` Learning view now renders operator-facing governance cards for distilled patterns. Those cards use the same canonical Phase 8.6 contracts described in this playbook, but they have an important interpretation caveat:
+
+- `projectionBasis: representative` means the card is a server-side scenario projection such as `may-safe`, `should-safe`, `must-governance-ceiling`, or `high-risk-memory-write`.
+- `projectionBasis: current-control-state` means the card includes the project's current control state when that state is available.
+- `historicalDecisionLogAvailable: false` means the UI is not replaying a persisted historical decision log for that pattern in this phase.
+
+Use the cards to understand how the current pattern and confidence signal resolve through the confidence-governance evaluator now. Use traces, mutation audit, and linked evidence refs when you need proof of a specific past runtime decision.
+
+If a Learning card shows missing escalation context, missing evidence, or unavailable control-state diagnostics, treat that as real missing context. It is not a hidden allow path and should not be normalized away in operator workflows.
+
 ## Recommended Operator Flow
 
 1. Read the `outcome` first. It tells you whether the system proceeded, paused, escalated, or failed closed.

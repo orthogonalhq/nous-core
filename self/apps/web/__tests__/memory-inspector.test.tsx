@@ -16,6 +16,8 @@ const projectId = 'project-memory-ui' as ProjectId;
 
 const mocks = vi.hoisted(() => ({
   inspectUseQuery: vi.fn(),
+  learningOverviewUseQuery: vi.fn(),
+  learningDetailUseQuery: vi.fn(),
   denialsUseQuery: vi.fn(),
   auditUseQuery: vi.fn(),
   tombstonesUseQuery: vi.fn(),
@@ -27,6 +29,8 @@ vi.mock('@/lib/trpc', () => ({
   trpc: {
     memory: {
       inspect: { useQuery: mocks.inspectUseQuery },
+      learningOverview: { useQuery: mocks.learningOverviewUseQuery },
+      learningDetail: { useQuery: mocks.learningDetailUseQuery },
       denials: { useQuery: mocks.denialsUseQuery },
       audit: { useQuery: mocks.auditUseQuery },
       tombstones: { useQuery: mocks.tombstonesUseQuery },
@@ -41,6 +45,8 @@ import { MemoryInspector } from '@/components/memory/memory-inspector';
 describe('MemoryInspector', () => {
   const exportFetch = vi.fn<() => Promise<MemoryExportBundle>>();
   const inspectInvalidate = vi.fn<() => Promise<void>>();
+  const learningOverviewInvalidate = vi.fn<() => Promise<void>>();
+  const learningDetailInvalidate = vi.fn<() => Promise<void>>();
   const denialsInvalidate = vi.fn<() => Promise<void>>();
   const auditInvalidate = vi.fn<() => Promise<void>>();
   const tombstonesInvalidate = vi.fn<() => Promise<void>>();
@@ -59,6 +65,16 @@ describe('MemoryInspector', () => {
           globalScopeDecision: createDecisionRecord(),
         },
       },
+      isLoading: false,
+    });
+    mocks.learningOverviewUseQuery.mockReturnValue({
+      data: {
+        items: [createLearningSummary()],
+      },
+      isLoading: false,
+    });
+    mocks.learningDetailUseQuery.mockReturnValue({
+      data: createLearningDetail(),
       isLoading: false,
     });
     mocks.denialsUseQuery.mockReturnValue({
@@ -88,6 +104,8 @@ describe('MemoryInspector', () => {
     mocks.useUtils.mockReturnValue({
       memory: {
         inspect: { invalidate: inspectInvalidate },
+        learningOverview: { invalidate: learningOverviewInvalidate },
+        learningDetail: { invalidate: learningDetailInvalidate },
         denials: { invalidate: denialsInvalidate },
         audit: { invalidate: auditInvalidate },
         tombstones: { invalidate: tombstonesInvalidate },
@@ -100,7 +118,7 @@ describe('MemoryInspector', () => {
     cleanup();
   });
 
-  it('renders entries, denied diagnostics, and updates inspect query inputs from filter controls', async () => {
+  it('renders inspection diagnostics and updates inspect query inputs from filter controls', async () => {
     render(<MemoryInspector projectId={projectId} />);
 
     expect(screen.getByText('Memory Inspector')).toBeTruthy();
@@ -133,7 +151,36 @@ describe('MemoryInspector', () => {
     });
   });
 
-  it('requires rationale before hard delete and surfaces canonical mutation outcomes', async () => {
+  it('switches from entry inspection into learning visibility and renders derived and representative caveats', async () => {
+    render(<MemoryInspector projectId={projectId} />);
+
+    fireEvent.click(
+      screen.getByRole('button', { name: 'Open learning visibility' }),
+    );
+
+    expect(await screen.findByText('Learning Detail')).toBeTruthy();
+    expect(
+      screen.getByText(
+        /Lifecycle events below are derived from canonical timestamps/i,
+      ),
+    ).toBeTruthy();
+    expect(
+      screen.getByText(
+        /Governance cards are representative projections over current canonical contracts/i,
+      ),
+    ).toBeTruthy();
+    expect(screen.getByText('Representative high-risk memory write')).toBeTruthy();
+    expect(screen.getByText('CGR-DEFER-HIGH-RISK-CONFIRMATION')).toBeTruthy();
+
+    await waitFor(() => {
+      expect(mocks.learningOverviewUseQuery).toHaveBeenCalledWith(
+        expect.objectContaining({ projectId }),
+      );
+      expect(mocks.learningDetailUseQuery).toHaveBeenCalled();
+    });
+  });
+
+  it('requires rationale before hard delete and invalidates inspect and learning queries on success', async () => {
     mutateAsync.mockResolvedValue({
       deleted: 1,
       result: {
@@ -169,6 +216,8 @@ describe('MemoryInspector', () => {
       await screen.findByText('Hard delete applied (MEM-HARD-DELETE-APPLIED).'),
     ).toBeTruthy();
     expect(inspectInvalidate).toHaveBeenCalled();
+    expect(learningOverviewInvalidate).toHaveBeenCalled();
+    expect(learningDetailInvalidate).toHaveBeenCalled();
     expect(denialsInvalidate).toHaveBeenCalled();
     expect(auditInvalidate).toHaveBeenCalled();
     expect(tombstonesInvalidate).toHaveBeenCalled();
@@ -230,7 +279,7 @@ function createEntry(): MemoryEntry {
   return {
     id: 'entry-1' as any,
     content: 'Project preference for concise updates',
-    type: 'preference',
+    type: 'distilled-pattern',
     scope: 'project',
     projectId,
     confidence: 0.92,
@@ -248,6 +297,117 @@ function createEntry(): MemoryEntry {
     lifecycleStatus: 'active',
     placementState: 'project',
     lastMutationId: 'mutation-1' as any,
+    basedOn: ['source-1'] as any,
+    supersedes: ['source-1'] as any,
+    evidenceRefs: [{ actionCategory: 'memory-write' }] as any,
+  } as MemoryEntry;
+}
+
+function createLearningSummary() {
+  return {
+    pattern: {
+      id: 'entry-1',
+      content: 'Patterns with explicit rollback notes preserve operator trust',
+      updatedAt: '2026-03-07T19:00:00.000Z',
+      tags: ['learning', 'pattern'],
+      basedOn: ['source-1'],
+      supersedes: ['source-1'],
+    },
+    confidenceSignal: {
+      confidence: 0.92,
+      tier: 'high' as const,
+      supportingSignals: 1,
+      decayState: 'stable' as const,
+    },
+    contradictionStatus: 'none' as const,
+    stalenessStatus: 'fresh' as const,
+    flaggedForRetirement: false,
+    sourceCount: 1,
+    missingSourceCount: 0,
+    lineageIntegrityStatus: 'complete' as const,
+  };
+}
+
+function createLearningDetail() {
+  return {
+    pattern: {
+      id: 'entry-1',
+      content: 'Patterns with explicit rollback notes preserve operator trust',
+      confidence: 0.92,
+      provenance: {
+        traceId: 'trace-1',
+        source: 'memory-ui-test',
+        timestamp: '2026-03-07T18:30:00.000Z',
+      },
+      tags: ['learning', 'pattern'],
+      createdAt: '2026-03-07T18:30:00.000Z',
+      updatedAt: '2026-03-07T19:00:00.000Z',
+      lifecycleStatus: 'active',
+      basedOn: ['source-1'],
+      supersedes: ['source-1'],
+      evidenceRefs: [{ actionCategory: 'memory-write' }],
+    },
+    patternExport: {
+      id: 'entry-1',
+    },
+    confidenceSignal: {
+      confidence: 0.92,
+      tier: 'high' as const,
+      supportingSignals: 1,
+      decayState: 'stable' as const,
+    },
+    sourceTimeline: [
+      {
+        id: 'source-1',
+        content: 'Release review confirms the guarded rollout stayed predictable',
+        context: 'release train with rollback notes',
+        action: 'deploy guarded release',
+        outcome: 'positive operator confidence',
+        reason: 'rollback posture remained explicit',
+        sentiment: 'strong-positive',
+        updatedAt: '2026-03-07T19:00:00.000Z',
+        provenance: {
+          traceId: 'trace-source-1',
+        },
+      },
+    ],
+    lifecycleEvents: [
+      {
+        id: 'entry-1:pattern-created',
+        kind: 'pattern-created',
+        label: 'Pattern created from canonical distillation output.',
+        at: '2026-03-07T18:30:00.000Z',
+        derived: true as const,
+      },
+    ],
+    decisionProjections: [
+      {
+        scenarioId: 'high-risk-memory-write',
+        label: 'Representative high-risk memory write',
+        projectionBasis: 'representative' as const,
+        explanation: {
+          outcomeRef: 'learning-projection:entry-1:high-risk-memory-write',
+        },
+        evaluation: {
+          outcome: 'defer',
+          governance: 'may',
+          reasonCode: 'CGR-DEFER-HIGH-RISK-CONFIRMATION',
+          confidence: 0.92,
+          confidenceTier: 'high',
+        },
+      },
+    ],
+    lineage: {
+      supersededIds: ['source-1'],
+      missingSourceIds: [],
+      rollbackVisibility: 'available' as const,
+      lineageIntegrityStatus: 'complete' as const,
+    },
+    diagnostics: {
+      historicalDecisionLogAvailable: false as const,
+      missingEvidenceRefs: false,
+      projectControlState: 'running',
+    },
   };
 }
 

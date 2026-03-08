@@ -38,6 +38,8 @@ description: Reference for all tRPC procedures
 |----------|------|-------|--------|
 | `memory.list` | query | `{ projectId }` | `MemoryEntry[]` |
 | `memory.inspect` | query | `{ projectId, scope?, query?, types?, lifecycleStatus?, includeSuperseded?, includeDeleted?, placementState?, tags?, limit?, offset?, sortBy?, sortDirection? }` | `{ entries, diagnostics }` |
+| `memory.learningOverview` | query | `{ projectId, query?, tier?, decayState?, includeRetired?, sortBy?, sortDirection? }` | `{ items }` |
+| `memory.learningDetail` | query | `{ projectId, patternId }` | `LearningPatternDetail \| null` |
 | `memory.denials` | query | `{ projectId }` | `{ candidate, reason, decisionRecord?, traceId?, timestamp? }[]` |
 | `memory.audit` | query | `{ projectId? }` | `MemoryMutationAuditRecord[]` |
 | `memory.tombstones` | query | `{ projectId? }` | `MemoryTombstone[]` |
@@ -53,6 +55,13 @@ description: Reference for all tRPC procedures
   - Filters accept free-text `query`, canonical `types`, `lifecycleStatus`, `placementState`, comma-ready `tags`, plus `includeSuperseded` and `includeDeleted`.
   - Sorting accepts `updatedAt`, `createdAt`, `confidence`, `type`, or `sentiment` with `asc` / `desc`.
   - Response shape: `{ entries, diagnostics }`, where `diagnostics` includes `requestedScope`, `projectInheritsGlobal`, and optional `globalScopeDecision` when global inspection is requested.
+- `memory.learningOverview` — Returns project-scoped distilled-pattern summaries for the Learning mode on `/memory`.
+  - Filters accept free-text `query`, `tier`, `decayState`, and `includeRetired`.
+  - Sorting accepts `updatedAt`, `confidence`, `supportingSignals`, or `sourceCount` with `asc` / `desc`.
+  - Response shape: `{ items }`, where each item includes the canonical pattern export, confidence signal, contradiction/staleness posture, source counts, and lineage-integrity diagnostics.
+- `memory.learningDetail` — Returns learning detail for one distilled pattern or `null` when the pattern is unavailable in the requested project.
+  - Input shape: `{ projectId, patternId }`.
+  - Response includes canonical pattern data, source timeline, derived lifecycle events, representative governance projections, lineage and rollback diagnostics, optional current control-state context, and explicit `historicalDecisionLogAvailable: false`.
 - `memory.denials` — Returns denied memory-write candidates with operator-visible diagnostics.
   - `decisionRecord` preserves the canonical policy/governance decision when present.
   - `traceId` and `timestamp` let the UI link the denial back to the originating trace/turn.

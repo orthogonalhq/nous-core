@@ -25,6 +25,33 @@
     "paths": {
       "@/*": [
         "./*"
+      ],
+      "@nous/shared": [
+        "../../shared/src/index.ts"
+      ],
+      "@nous/autonomic-storage": [
+        "../../autonomic/storage/src/index.ts"
+      ],
+      "@nous/autonomic-embeddings": [
+        "../../autonomic/embeddings/src/index.ts"
+      ],
+      "@nous/memory-access": [
+        "../../memory/access/src/index.ts"
+      ],
+      "@nous/memory-mwc": [
+        "../../memory/mwc/src/index.ts"
+      ],
+      "@nous/memory-ltm": [
+        "../../memory/ltm/src/index.ts"
+      ],
+      "@nous/memory-distillation": [
+        "../../memory/distillation/src/index.ts"
+      ],
+      "@nous/cortex-pfc": [
+        "../../cortex/pfc/src/index.ts"
+      ],
+      "@nous/subcortex-witnessd": [
+        "../../subcortex/witnessd/src/index.ts"
       ]
     }
   },
