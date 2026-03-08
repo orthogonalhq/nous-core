@@ -67,6 +67,13 @@ export function MemoryEntryList({
                         tags: {entry.tags.join(', ')}
                       </p>
                     ) : null}
+                    {entry.type === 'distilled-pattern' ? (
+                      <div className="mt-3">
+                        <Badge variant="secondary">
+                          learning visibility available
+                        </Badge>
+                      </div>
+                    ) : null}
                   </button>
                 );
               })}

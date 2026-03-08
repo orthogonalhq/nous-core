@@ -21,6 +21,7 @@ interface MemoryEntryDetailProps {
   onCancelDelete: () => void;
   onConfirmDelete: () => void;
   onDeleteRationaleChange: (value: string) => void;
+  onOpenLearning?: (entryId: string) => void;
 }
 
 export function MemoryEntryDetail({
@@ -34,7 +35,10 @@ export function MemoryEntryDetail({
   onCancelDelete,
   onConfirmDelete,
   onDeleteRationaleChange,
+  onOpenLearning,
 }: MemoryEntryDetailProps) {
+  const learningPattern = entry ? getLearningPatternFields(entry) : null;
+
   return (
     <Card className="min-h-[24rem]">
       <CardHeader className="border-b border-border">
@@ -92,6 +96,46 @@ export function MemoryEntryDetail({
                 <DetailRow label="Action" value={entry.action ?? 'n/a'} />
                 <DetailRow label="Outcome" value={entry.outcome ?? 'n/a'} />
                 <DetailRow label="Reason" value={entry.reason ?? 'n/a'} />
+              </DetailSection>
+            ) : null}
+
+            {learningPattern ? (
+              <DetailSection title="Learning Visibility">
+                <div className="space-y-3">
+                  <p className="text-sm text-muted-foreground">
+                    Distilled patterns can be inspected in the dedicated learning
+                    view for source timelines, derived lifecycle events, and
+                    representative governance projections.
+                  </p>
+                  <DetailRow
+                    label="Based on"
+                    value={learningPattern.basedOn.join(', ') || 'none'}
+                  />
+                  <DetailRow
+                    label="Supersedes"
+                    value={learningPattern.supersedes.join(', ') || 'none'}
+                  />
+                  <DetailRow
+                    label="Evidence refs"
+                    value={
+                      learningPattern.evidenceRefs.length > 0
+                        ? learningPattern.evidenceRefs
+                            .map(formatEvidenceRef)
+                            .join(', ')
+                        : 'none'
+                    }
+                  />
+                  {onOpenLearning ? (
+                    <div className="pt-1">
+                      <Button
+                        variant="outline"
+                        onClick={() => onOpenLearning(entry.id)}
+                      >
+                        Open learning visibility
+                      </Button>
+                    </div>
+                  ) : null}
+                </div>
               </DetailSection>
             ) : null}
 
@@ -214,6 +258,30 @@ export function MemoryEntryDetail({
       </CardContent>
     </Card>
   );
+}
+
+function getLearningPatternFields(
+  entry: MemoryEntry,
+): {
+  basedOn: string[];
+  supersedes: string[];
+  evidenceRefs: MemoryMutationAuditRecord['evidenceRefs'];
+} | null {
+  if (entry.type !== 'distilled-pattern') {
+    return null;
+  }
+
+  const pattern = entry as MemoryEntry & {
+    basedOn?: string[];
+    supersedes?: string[];
+    evidenceRefs?: MemoryMutationAuditRecord['evidenceRefs'];
+  };
+
+  return {
+    basedOn: pattern.basedOn ?? [],
+    supersedes: pattern.supersedes ?? [],
+    evidenceRefs: pattern.evidenceRefs ?? [],
+  };
 }
 
 function DetailSection({
