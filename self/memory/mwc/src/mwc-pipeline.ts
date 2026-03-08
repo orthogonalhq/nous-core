@@ -220,6 +220,15 @@ export class MwcPipeline {
     return this.ltmStore.query(filter);
   }
 
+  async readEntry(id: MemoryEntryId): Promise<MemoryEntry | null> {
+    return this.ltmStore.read(id);
+  }
+
+  async readEntries(ids: MemoryEntryId[]): Promise<MemoryEntry[]> {
+    const entries = await Promise.all(ids.map((id) => this.readEntry(id)));
+    return entries.filter((entry): entry is MemoryEntry => entry != null);
+  }
+
   async listMutationAudit(
     projectId?: ProjectId,
   ): Promise<MemoryMutationAuditRecord[]> {
