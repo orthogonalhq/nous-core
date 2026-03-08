@@ -8,6 +8,7 @@ import { z } from 'zod';
 import {
   ProjectIdSchema,
   NodeIdSchema,
+  WorkflowDefinitionIdSchema,
 } from './ids.js';
 import {
   NodeTypeSchema,
@@ -25,6 +26,16 @@ import {
   AccessListSchema,
   MemoryAccessPolicySchema,
 } from './memory.js';
+import {
+  WorkflowDefinitionSchema,
+  WorkflowEdgeDefinitionSchema,
+  WorkflowGraphSchema,
+  WorkflowStateSchema,
+  type WorkflowDefinition,
+  type WorkflowEdgeDefinition,
+  type WorkflowGraph,
+  type WorkflowState,
+} from './workflow.js';
 
 // --- Project Identity Contract ---
 // Canonical subset of project fields for deterministic identity across surfaces.
@@ -74,34 +85,14 @@ export const NodeSchemaDefinition = z.object({
 });
 export type NodeSchema = z.infer<typeof NodeSchemaDefinition>;
 
-// --- Workflow Graph ---
-// A workflow definition — nodes, edges, entry point.
-export const WorkflowEdgeSchema = z.object({
-  from: NodeIdSchema,
-  to: NodeIdSchema,
-  condition: z.string().optional(),
-});
-export type WorkflowEdge = z.infer<typeof WorkflowEdgeSchema>;
-
-export const WorkflowGraphSchema = z.object({
-  nodes: z.array(NodeSchemaDefinition),
-  edges: z.array(WorkflowEdgeSchema),
-  entryNodeId: NodeIdSchema,
-});
-export type WorkflowGraph = z.infer<typeof WorkflowGraphSchema>;
-
-// --- Workflow State ---
-// Current state of a workflow execution.
-export const WorkflowStateSchema = z.object({
-  status: z.enum(['running', 'paused', 'completed', 'failed']),
-  activeNodeId: NodeIdSchema.optional(),
-  completedNodeIds: z.array(NodeIdSchema),
-  failedNodeId: NodeIdSchema.optional(),
-  error: z.string().optional(),
-  startedAt: z.string().datetime(),
-  updatedAt: z.string().datetime(),
-});
-export type WorkflowState = z.infer<typeof WorkflowStateSchema>;
+// --- Workflow Definition and Derived Runtime Aliases ---
+// Phase 9.1 promotes the shared workflow runtime contract family to the
+// canonical workflow source for projects. These aliases preserve the older
+// placeholder names while consumers migrate to the richer types.
+export const WorkflowEdgeSchema = WorkflowEdgeDefinitionSchema;
+export type WorkflowEdge = WorkflowEdgeDefinition;
+export { WorkflowGraphSchema, WorkflowStateSchema };
+export type { WorkflowDefinition, WorkflowGraph, WorkflowState };
 
 // --- Escalation Contract ---
 // From project-model.mdx "Escalation Contract".
@@ -121,6 +112,14 @@ export const EscalationContractSchema = z.object({
 export type EscalationContract = z.infer<typeof EscalationContractSchema>;
 
 // --- Project Configuration ---
+export const ProjectWorkflowConfigurationSchema = z.object({
+  definitions: z.array(WorkflowDefinitionSchema).default([]),
+  defaultWorkflowDefinitionId: WorkflowDefinitionIdSchema.optional(),
+});
+export type ProjectWorkflowConfiguration = z.infer<
+  typeof ProjectWorkflowConfigurationSchema
+>;
+
 export const ProjectConfigSchema = z.object({
   id: ProjectIdSchema,
   name: z.string().min(1),
@@ -129,6 +128,7 @@ export const ProjectConfigSchema = z.object({
   modelAssignments: z.record(ModelRoleSchema, z.string()).optional(),
   memoryAccessPolicy: MemoryAccessPolicySchema,
   escalationChannels: z.array(EscalationChannelSchema),
+  workflow: ProjectWorkflowConfigurationSchema.optional(),
   retrievalBudgetTokens: z.number().positive().default(500),
   createdAt: z.string().datetime(),
   updatedAt: z.string().datetime(),

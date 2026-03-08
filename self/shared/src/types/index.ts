@@ -9,6 +9,7 @@ export * from './cross-project-retrieval.js';
 export * from './distillation.js';
 export * from './confidence-governance.js';
 export * from './sentiment.js';
+export * from './workflow.js';
 export * from './project.js';
 export * from './provider.js';
 export * from './cortex.js';

@@ -11,6 +11,16 @@ import type {
   ArtifactId,
   MemoryEntryId,
   WorkflowExecutionId,
+  WorkflowDefinitionId,
+  WorkflowDefinition,
+  DerivedWorkflowGraph,
+  WorkflowAdmissionRequest,
+  WorkflowAdmissionResult,
+  WorkflowStartResult,
+  WorkflowTransitionInput,
+  WorkflowNodeDefinitionId,
+  WorkflowRunState,
+  WorkmodeId,
   EscalationId,
   ModelRole,
   MemoryScope,
@@ -21,8 +31,6 @@ import type {
   ModelStreamChunk,
   ToolResult,
   ToolDefinition,
-  WorkflowGraph,
-  WorkflowState,
   ProjectConfig,
   ProjectState,
   ArtifactData,
@@ -107,18 +115,56 @@ export interface IToolExecutor {
   listTools(): Promise<ToolDefinition[]>;
 }
 
+export interface WorkflowStartRequest {
+  projectConfig: ProjectConfig;
+  workflowDefinitionId?: WorkflowDefinitionId;
+  workmodeId: WorkmodeId;
+  sourceActor: import('./workmode.js').AuthorityActor;
+  targetActor?: import('./workmode.js').AuthorityActor;
+  controlState?: ProjectControlState;
+  admissionEvidenceRefs?: string[];
+  startedAt?: string;
+}
+
 export interface IWorkflowEngine {
-  /** Start executing a workflow graph */
-  start(projectId: ProjectId, graph: WorkflowGraph): Promise<WorkflowExecutionId>;
+  /** Resolve canonical workflow definition from project-scoped configuration */
+  resolveDefinition(
+    projectConfig: ProjectConfig,
+    workflowDefinitionId?: WorkflowDefinitionId,
+  ): Promise<WorkflowDefinition>;
+
+  /** Derive deterministic executable graph from canonical definition */
+  deriveGraph(definition: WorkflowDefinition): Promise<DerivedWorkflowGraph>;
+
+  /** Evaluate fail-closed admission before run creation */
+  evaluateAdmission(
+    request: WorkflowAdmissionRequest,
+  ): Promise<WorkflowAdmissionResult>;
+
+  /** Start executing a workflow definition under the current workmode/control state */
+  start(request: WorkflowStartRequest): Promise<WorkflowStartResult>;
 
   /** Resume a paused workflow */
-  resume(executionId: WorkflowExecutionId): Promise<void>;
+  resume(
+    executionId: WorkflowExecutionId,
+    transition: WorkflowTransitionInput,
+  ): Promise<WorkflowRunState>;
 
   /** Pause a running workflow */
-  pause(executionId: WorkflowExecutionId): Promise<void>;
+  pause(
+    executionId: WorkflowExecutionId,
+    transition: WorkflowTransitionInput,
+  ): Promise<WorkflowRunState>;
+
+  /** Mark a ready/running node completed and advance deterministic traversal */
+  completeNode(
+    executionId: WorkflowExecutionId,
+    nodeDefinitionId: WorkflowNodeDefinitionId,
+    transition: WorkflowTransitionInput,
+  ): Promise<WorkflowRunState>;
 
   /** Get workflow execution state */
-  getState(executionId: WorkflowExecutionId): Promise<WorkflowState>;
+  getState(executionId: WorkflowExecutionId): Promise<WorkflowRunState | null>;
 }
 
 export interface IProjectStore {
