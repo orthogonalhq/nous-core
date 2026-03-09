@@ -46,6 +46,8 @@ Phase 9.1 adds two important rules:
 
 When a workflow definition changes, downstream consumers should expect the runtime to rebuild graph structure, ready-node ordering, and graph digest from the stored definition rather than from surface-local state.
 
+Phase 9.2 extends that same truth model to node execution details. Wait states, correction arcs, checkpoint references, and selected branch paths are all canonical runtime fields derived from the stored definition plus execution history. Surface-specific projections should read them, not reinterpret them.
+
 ## Workflow Run State
 
 Before a workflow run starts, the runtime:
@@ -62,10 +64,29 @@ Common runtime states:
 | State | Meaning |
 |------|---------|
 | `ready` | The run was admitted and has entry nodes ready to dispatch |
-| `running` | At least one node has been dispatched or is actively running |
+| `running` | At least one node is executing, or ready successors are being advanced |
+| `waiting` | The run is intentionally paused on a node wait such as `async_batch`, `human_decision`, `retry_backoff`, or `checkpoint_commit` |
+| `blocked_review` | The run reached a review-gated blocker and requires a correction path before it can continue |
 | `paused` | Control state or explicit operator action paused progress |
 | `completed` | All required nodes completed successfully |
 | `failed` | The run reached a terminal failure state |
+
+If admission fails before a run is created, treat `admission_blocked` as an admission result rather than as an actively progressing run.
+
+## Node Attempts, Waits, and Correction Arcs
+
+Phase 9.2 makes per-node execution history explicit:
+
+| Field | What it tells you |
+|------|--------------------|
+| `nodeStates[<nodeId>].attempts` | Append-only history of every execution attempt for that node |
+| `activeAttempt` | Which attempt number is currently active for the node, if any |
+| `activeWaitState` | Why the node is waiting now, including wait kind, reason code, evidence refs, and optional `resumeToken` |
+| `correctionArcs` | The correction posture the runtime recorded after a blocked or resumed path (`resume`, `retry`, `reprompt`, or `rollback`) |
+| `lastCommittedCheckpointId` | The last durable checkpoint tied to that node |
+| `selectedBranchKey` | Which condition-branch path the node ultimately activated |
+
+These fields are the canonical explanation for why a node is waiting, blocked, resumed, or completed. Use them instead of inferring intent from UI state alone.
 
 ## Node Runs and Dispatch Lineage
 
@@ -78,6 +99,20 @@ Workflow diagnostics now distinguish durable definition IDs from per-run executi
 
 If a workflow looks stalled or branches unexpectedly, inspect the node status, `reasonCode`, `evidenceRefs`, `parentNodeId`, and `viaEdgeId` fields first. Those fields are the authoritative explanation for why a node was admitted, delayed, paused, or blocked.
 
+## Checkpoints and Branch Diagnostics
+
+Workflow runs now also expose branch and checkpoint truth directly:
+
+| Field | How to use it |
+|------|---------------|
+| `waitingNodeIds` | Nodes that are waiting on a canonical continuation path |
+| `blockedNodeIds` | Nodes that pushed the run into `blocked_review` |
+| `lastPreparedCheckpointId` | The most recent prepared checkpoint, which may still be provisional |
+| `lastCommittedCheckpointId` | The latest checkpoint that is durable enough for continuation |
+| `activatedEdgeIds` | The set of outbound edges the runtime actually activated while traversing the graph |
+
+Condition nodes activate only the branch edges chosen by the canonical `selectedBranchKey`. If a downstream join looks surprising, inspect `selectedBranchKey` on the source node and `activatedEdgeIds` on the run before assuming the graph or scheduler is wrong.
+
 ## Current Scope
 
-Phase 9.1 ships the workflow runtime foundation only. Later phases add concrete node handlers, scheduler-backed recurring execution, artifact persistence, richer Projects UI editing, and MAO projections over the canonical run state delivered here.
+Phase 9.1 and Phase 9.2 ship the canonical runtime foundation only. Later phases add broader scheduler-backed recurring execution, artifact persistence, richer Projects UI editing, and MAO projections over the run, wait, checkpoint, and correction state delivered here.

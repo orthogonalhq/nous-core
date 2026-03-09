@@ -78,11 +78,54 @@ When ingress is valid but the workflow runtime cannot start the run, inspect the
 | `WMODE-003` | Nested orchestration was attempted | Use the standard `nous_cortex -> orchestration_agent -> worker_agent` chain |
 | `WMODE-010` | A worker-origin start attempted an authoritative dispatch path | Reissue the request from the correct authority lane |
 
+## Governed Runtime Outcomes After Run Creation (Phase 9.2)
+
+Admission tells you whether a workflow run could start. After a `run_id` exists, automation clients should read canonical run state instead of assuming the trigger finished synchronously.
+
+| Run status | Meaning | Operator action |
+|------------|---------|-----------------|
+| `running` | One or more nodes are executing, or the runtime is advancing ready successors | Monitor node-level state until the run reaches a wait or terminal state |
+| `waiting` | The run is intentionally paused on a canonical wait state | Inspect the waiting node's `activeWaitState.kind`, `reasonCode`, and `resumeToken` |
+| `blocked_review` | Progress stopped on a review-gated blocker or correction arc | Use `reasonCode`, `evidenceRefs`, and `correctionArcs` to decide whether to resume, retry, reprompt, or roll back |
+| `paused` | Operator or control state paused execution after the run was created | Resume the project/control state before continuing |
+| `completed` | All active nodes resolved successfully | Consume outputs and audit evidence from the completed run |
+| `failed` | The run reached a terminal failure state | Investigate the terminal `reasonCode` and upstream node attempts before retrying |
+
+### Canonical Wait Kinds
+
+| Wait kind | Meaning | Resume posture |
+|-----------|---------|----------------|
+| `async_batch` | External or long-running model/tool work is still in flight | Wait for the completion witness, then continue the same node with the matching continuation token |
+| `human_decision` | The runtime requires explicit approval or rejection | Submit the decision via continuation; do not create a replacement run |
+| `retry_backoff` | Governance or retry policy deferred immediate progress | Clear the blocker or let the backoff elapse, then resume or reprompt the same node |
+| `checkpoint_commit` | Node output exists, but checkpoint commit is not yet durable | Wait for commit completion and continue from the same run/node/checkpoint instead of re-executing the node |
+
+### Blocked Review After Run Creation
+
+When a run enters `blocked_review`, the runtime is deliberately refusing blind progress. Common reason codes are:
+
+| Reason code | Cause | Operator action |
+|-------------|-------|-----------------|
+| `workflow_continuation_token_mismatch` | A stale or wrong continuation token was supplied | Re-read the current waiting node and use its latest `resumeToken` |
+| `workflow_resume_review_required` | Side effects are unknown and blind resume is unsafe | Review evidence and explicitly approve continuation before resuming |
+| `workflow_human_decision_rejected` | A human-decision step was rejected | Follow the correction arc instead of replaying the same continuation |
+| `workflow_resume_denied_hard_stopped` | Control state became `hard_stopped` during resume | Release the hard stop first, then retry continuation |
+| `workflow_retry_backoff_resolution_required` | A retry/backoff path needs explicit intervention | Apply the indicated retry or reprompt path before resuming |
+
+Correction arcs are part of the canonical run state. They tell downstream surfaces whether the runtime expects a `resume`, `retry`, `reprompt`, or `rollback` posture after the block.
+
+### Checkpointed Continuation Posture
+
+Phase 9.2 only advances continuation from committed checkpoints. If a node is waiting on `checkpoint_commit`, treat the prepared checkpoint as provisional until the run exposes a committed checkpoint reference. Do not redispatch the node while that wait is active.
+
 ## Recovery and Handoff
 
 - **Duplicate handling:** If you receive `accepted_already_dispatched`, use the returned `run_id` to reference the original run. Do not retry with the same `idempotency_key`.
 - **Control state block:** If `control_state_blocked`, the project must be resumed or released from hard_stop before new triggers can dispatch. Use the Projects UI or operator-control to change control state.
 - **Workflow admission block:** If the reason code points to missing definitions, invalid graph structure, or authority mismatch, repair the canonical workflow/project configuration instead of replaying the same trigger.
+- **Runtime wait:** If the run is `waiting`, inspect the node's `activeWaitState.kind`, `reasonCode`, and `resumeToken` before retrying anything.
+- **Blocked review:** If the run is `blocked_review`, inspect `correctionArcs`, `reasonCode`, and `evidenceRefs` first. Treat those fields as runtime truth, not advisory hints.
+- **Checkpoint commit pending:** If the node is waiting on `checkpoint_commit`, wait for the checkpoint commit to complete and continue the same node. Do not create a second execution attempt for the same work.
 - **Replay:** If `replay_detected`, ensure your `occurred_at` is within the acceptance window (+/- 5 minutes) and that each request uses a unique nonce per source.
 
 ## payload_ref Format
