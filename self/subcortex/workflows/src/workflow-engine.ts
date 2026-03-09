@@ -464,4 +464,23 @@ export class DeterministicWorkflowEngine implements IWorkflowEngine {
     const state = this.states.get(executionId);
     return state ? clone(state) : null;
   }
+
+  async listProjectRuns(projectId: ProjectConfig['id']): Promise<WorkflowRunState[]> {
+    return [...this.states.values()]
+      .filter((state) => state.projectId === projectId)
+      .sort(
+        (left, right) =>
+          right.updatedAt.localeCompare(left.updatedAt) ||
+          right.startedAt.localeCompare(left.startedAt) ||
+          right.runId.localeCompare(left.runId),
+      )
+      .map((state) => clone(state));
+  }
+
+  async getRunGraph(
+    executionId: WorkflowExecutionId,
+  ): Promise<DerivedWorkflowGraph | null> {
+    const graph = this.graphs.get(executionId);
+    return graph ? clone(graph) : null;
+  }
 }
