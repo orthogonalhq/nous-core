@@ -131,6 +131,18 @@ export class StubWorkflowEngine implements IWorkflowEngine {
     return stubNotImpl('IWorkflowEngine', 'completeNode', 'Phase 9.1');
   }
 
+  async executeReadyNode(
+    _request: import('@nous/shared').WorkflowExecuteNodeRequest,
+  ): Promise<WorkflowRunState> {
+    return stubNotImpl('IWorkflowEngine', 'executeReadyNode', 'Phase 9.2');
+  }
+
+  async continueNode(
+    _request: import('@nous/shared').WorkflowContinueNodeRequest,
+  ): Promise<WorkflowRunState> {
+    return stubNotImpl('IWorkflowEngine', 'continueNode', 'Phase 9.2');
+  }
+
   async getState(
     _executionId: WorkflowExecutionId,
   ): Promise<WorkflowRunState | null> {

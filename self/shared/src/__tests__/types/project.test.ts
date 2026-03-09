@@ -229,7 +229,11 @@ describe('ProjectConfigSchema', () => {
                 type: 'model-call',
                 governance: 'must',
                 executionModel: 'synchronous',
-                config: {},
+                config: {
+                  type: 'model-call',
+                  modelRole: 'reasoner',
+                  promptRef: 'prompt://draft',
+                },
               },
             ],
             edges: [],

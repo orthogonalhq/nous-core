@@ -56,7 +56,11 @@ describe('Phase 9.1 workflow runtime integration', () => {
                 type: 'model-call',
                 governance: 'must',
                 executionModel: 'synchronous',
-                config: {},
+                config: {
+                  type: 'model-call',
+                  modelRole: 'reasoner',
+                  promptRef: 'prompt://draft',
+                },
               },
               {
                 id: NODE_B as any,
@@ -64,7 +68,12 @@ describe('Phase 9.1 workflow runtime integration', () => {
                 type: 'quality-gate',
                 governance: 'must',
                 executionModel: 'synchronous',
-                config: {},
+                config: {
+                  type: 'quality-gate',
+                  evaluatorRef: 'evaluator://quality',
+                  passThresholdRef: 'threshold://default',
+                  failureAction: 'block',
+                },
               },
             ],
             edges: [

@@ -37,7 +37,11 @@ const createProjectConfig = () => ({
             type: 'model-call' as const,
             governance: 'must' as const,
             executionModel: 'synchronous' as const,
-            config: {},
+            config: {
+              type: 'model-call',
+              modelRole: 'reasoner' as const,
+              promptRef: 'prompt://draft',
+            },
           },
         ],
         edges: [],
@@ -132,7 +136,11 @@ describe('DocumentProjectStore', () => {
                 type: 'model-call',
                 governance: 'must',
                 executionModel: 'synchronous',
-                config: { revision: 2 },
+                config: {
+                  type: 'model-call',
+                  modelRole: 'reasoner',
+                  promptRef: 'prompt://draft-v2',
+                },
               },
             ],
             edges: [],
@@ -144,7 +152,9 @@ describe('DocumentProjectStore', () => {
     const got = await store.get(PROJECT_ID);
     expect(got?.workflow?.definitions[0]?.version).toBe('1.0.1');
     expect(got?.workflow?.definitions[0]?.nodes[0]?.config).toEqual({
-      revision: 2,
+      type: 'model-call',
+      modelRole: 'reasoner',
+      promptRef: 'prompt://draft-v2',
     });
   });
 });

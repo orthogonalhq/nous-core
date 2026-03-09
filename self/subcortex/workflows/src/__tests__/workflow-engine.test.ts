@@ -1,10 +1,12 @@
-import { describe, it, expect } from 'vitest';
+import { describe, it, expect, vi } from 'vitest';
 import { DeterministicWorkflowEngine } from '../workflow-engine.js';
 
 const PROJECT_ID = '550e8400-e29b-41d4-a716-446655440501';
 const WORKFLOW_ID = '550e8400-e29b-41d4-a716-446655440502';
 const NODE_A = '550e8400-e29b-41d4-a716-446655440503';
 const NODE_B = '550e8400-e29b-41d4-a716-446655440504';
+const PATTERN_ID = '550e8400-e29b-41d4-a716-446655440505';
+const EVENT_ID = '550e8400-e29b-41d4-a716-446655440506';
 
 const projectConfig = {
   id: PROJECT_ID,
@@ -35,7 +37,11 @@ const projectConfig = {
             type: 'model-call' as const,
             governance: 'must' as const,
             executionModel: 'synchronous' as const,
-            config: {},
+            config: {
+              type: 'model-call' as const,
+              modelRole: 'reasoner' as const,
+              promptRef: 'prompt://draft',
+            },
           },
           {
             id: NODE_B,
@@ -43,12 +49,17 @@ const projectConfig = {
             type: 'quality-gate' as const,
             governance: 'must' as const,
             executionModel: 'synchronous' as const,
-            config: {},
+            config: {
+              type: 'quality-gate' as const,
+              evaluatorRef: 'evaluator://quality',
+              passThresholdRef: 'threshold://default',
+              failureAction: 'block' as const,
+            },
           },
         ],
         edges: [
           {
-            id: '550e8400-e29b-41d4-a716-446655440505',
+            id: '550e8400-e29b-41d4-a716-446655440507',
             from: NODE_A,
             to: NODE_B,
             priority: 0,
@@ -60,13 +71,47 @@ const projectConfig = {
   retrievalBudgetTokens: 500,
   createdAt: '2026-03-08T00:00:00.000Z',
   updatedAt: '2026-03-08T00:00:00.000Z',
-} as any;
+} as const;
+
+function createGovernanceDecision(input: {
+  actionCategory: 'model-invoke' | 'trace-persist';
+  governance: 'must';
+  outcome?: 'allow_with_flag' | 'deny';
+  reasonCode?: 'CGR-ALLOW-WITH-FLAG' | 'CGR-DENY-GOVERNANCE-CEILING';
+}) {
+  const evidenceRef = {
+    actionCategory: input.actionCategory,
+    authorizationEventId: EVENT_ID,
+  };
+
+  return {
+    outcome: input.outcome ?? 'allow_with_flag',
+    reasonCode: input.reasonCode ?? 'CGR-ALLOW-WITH-FLAG',
+    governance: input.governance,
+    actionCategory: input.actionCategory,
+    projectControlState: 'running' as const,
+    patternId: PATTERN_ID,
+    confidence: 0.94,
+    confidenceTier: 'high' as const,
+    supportingSignals: 16,
+    decayState: 'stable' as const,
+    autonomyAllowed: false,
+    requiresConfirmation: false,
+    highRiskOverrideApplied: false,
+    evidenceRefs: [evidenceRef],
+    explanation: {
+      patternId: PATTERN_ID,
+      outcomeRef: `workflow:${WORKFLOW_ID}`,
+      evidenceRefs: [evidenceRef],
+    },
+  } as any;
+}
 
 describe('DeterministicWorkflowEngine', () => {
   it('blocks start when control state disallows admission', async () => {
     const engine = new DeterministicWorkflowEngine();
     const result = await engine.start({
-      projectConfig,
+      projectConfig: projectConfig as any,
       workmodeId: 'system:implementation',
       sourceActor: 'orchestration_agent',
       controlState: 'hard_stopped',
@@ -78,10 +123,10 @@ describe('DeterministicWorkflowEngine', () => {
     }
   });
 
-  it('starts, persists, and advances workflow state', async () => {
+  it('starts, persists, and advances workflow state through manual completion', async () => {
     const engine = new DeterministicWorkflowEngine();
     const started = await engine.start({
-      projectConfig,
+      projectConfig: projectConfig as any,
       workmodeId: 'system:implementation',
       sourceActor: 'orchestration_agent',
       controlState: 'running',
@@ -103,7 +148,7 @@ describe('DeterministicWorkflowEngine', () => {
       reasonCode: 'workflow_resumed',
       evidenceRefs: ['workflow:resume'],
     });
-    expect(resumed.status).toBe('running');
+    expect(resumed.status).toBe('ready');
 
     const afterFirstNode = await engine.completeNode(runId, NODE_A as any, {
       reasonCode: 'node_completed',
@@ -119,5 +164,113 @@ describe('DeterministicWorkflowEngine', () => {
 
     const current = await engine.getState(runId);
     expect(current?.status).toBe('completed');
+  });
+
+  it('executes ready nodes through governance and handler dispatch', async () => {
+    const pfcEngine = {
+      evaluateConfidenceGovernance: vi.fn(
+        async (input: { actionCategory: 'model-invoke' | 'trace-persist'; governance: 'must' }) =>
+          createGovernanceDecision({
+            actionCategory: input.actionCategory,
+            governance: input.governance,
+          }),
+      ),
+    };
+    const modelRouter = {
+      route: vi.fn(async () => 'provider://reasoner'),
+    };
+    const engine = new DeterministicWorkflowEngine({
+      pfcEngine: pfcEngine as any,
+      modelRouter: modelRouter as any,
+    });
+
+    const started = await engine.start({
+      projectConfig: projectConfig as any,
+      workmodeId: 'system:implementation',
+      sourceActor: 'orchestration_agent',
+      controlState: 'running',
+    });
+
+    expect(started.status).toBe('started');
+    if (started.status !== 'started') {
+      return;
+    }
+
+    const afterModel = await engine.executeReadyNode({
+      executionId: started.runState.runId,
+      nodeDefinitionId: NODE_A as any,
+      controlState: 'running',
+      transition: {
+        reasonCode: 'node_executed',
+        evidenceRefs: ['workflow:execute:a'],
+      },
+    });
+
+    expect(afterModel.completedNodeIds).toEqual([NODE_A]);
+    expect(afterModel.readyNodeIds).toEqual([NODE_B]);
+    expect(afterModel.nodeStates[NODE_A]?.attempts).toHaveLength(1);
+    expect(afterModel.nodeStates[NODE_A]?.attempts[0]?.outputRef).toContain(
+      'provider://reasoner',
+    );
+
+    const completed = await engine.executeReadyNode({
+      executionId: started.runState.runId,
+      nodeDefinitionId: NODE_B as any,
+      controlState: 'running',
+      payload: {
+        qualityGatePassed: true,
+        detail: {},
+      },
+      transition: {
+        reasonCode: 'node_executed',
+        evidenceRefs: ['workflow:execute:b'],
+      },
+    });
+
+    expect(completed.status).toBe('completed');
+    expect(pfcEngine.evaluateConfidenceGovernance).toHaveBeenCalledTimes(2);
+  });
+
+  it('records blocked review when governance denies node execution', async () => {
+    const pfcEngine = {
+      evaluateConfidenceGovernance: vi.fn(
+        async (input: { actionCategory: 'model-invoke'; governance: 'must' }) =>
+          createGovernanceDecision({
+            actionCategory: input.actionCategory,
+            governance: input.governance,
+            outcome: 'deny',
+            reasonCode: 'CGR-DENY-GOVERNANCE-CEILING',
+          }),
+      ),
+    };
+    const engine = new DeterministicWorkflowEngine({
+      pfcEngine: pfcEngine as any,
+    });
+
+    const started = await engine.start({
+      projectConfig: projectConfig as any,
+      workmodeId: 'system:implementation',
+      sourceActor: 'orchestration_agent',
+      controlState: 'running',
+    });
+
+    expect(started.status).toBe('started');
+    if (started.status !== 'started') {
+      return;
+    }
+
+    const blocked = await engine.executeReadyNode({
+      executionId: started.runState.runId,
+      nodeDefinitionId: NODE_A as any,
+      controlState: 'running',
+      transition: {
+        reasonCode: 'node_executed',
+        evidenceRefs: ['workflow:execute:a'],
+      },
+    });
+
+    expect(blocked.status).toBe('blocked_review');
+    expect(blocked.blockedNodeIds).toEqual([NODE_A]);
+    expect(blocked.nodeStates[NODE_A]?.status).toBe('blocked');
   });
 });

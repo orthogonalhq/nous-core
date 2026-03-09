@@ -21,6 +21,33 @@ export {
   pauseWorkflowRunState,
   resumeWorkflowRunState,
   completeWorkflowNodeInRunState,
+  recordWorkflowNodeExecution,
+  resolveWorkflowNodeContinuation,
   type CreateInitialWorkflowRunStateInput,
+  type RecordWorkflowNodeExecutionInput,
+  type ResolveWorkflowNodeContinuationInput,
 } from './run-state.js';
+export {
+  executeWorkflowNode,
+  type WorkflowRuntimeObserver,
+  type WorkflowExecutionCoordinatorDependencies,
+  type ExecuteWorkflowNodeInput,
+} from './execution-coordinator.js';
+export {
+  captureWorkflowCheckpoint,
+  commitWorkflowCheckpoint,
+  type WorkflowCheckpointRuntimeDependencies,
+  type CaptureWorkflowCheckpointInput,
+  type CaptureWorkflowCheckpointResult,
+  type CommitWorkflowCheckpointInput,
+  type CommitWorkflowCheckpointResult,
+} from './checkpoint-runtime.js';
+export {
+  resolveWorkflowContinuation,
+  type ResolveWorkflowContinuationInput,
+} from './continuations.js';
+export {
+  createWorkflowNodeHandlerRegistry,
+  type WorkflowNodeHandlerDependencies,
+} from './handlers/index.js';
 export { DeterministicWorkflowEngine } from './workflow-engine.js';

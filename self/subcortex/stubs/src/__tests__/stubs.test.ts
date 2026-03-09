@@ -101,6 +101,39 @@ describe('StubWorkflowEngine', () => {
     );
   });
 
+  it('executeReadyNode() throws NousError with code NOT_IMPLEMENTED', async () => {
+    await assertNotImplemented(
+      () =>
+        stub.executeReadyNode({
+          executionId: '00000000-0000-0000-0000-000000000001' as any,
+          nodeDefinitionId: '00000000-0000-0000-0000-000000000002' as any,
+          controlState: 'running',
+          transition: {
+            reasonCode: 'node_executed',
+            evidenceRefs: ['workflow:execute'],
+          },
+        }),
+      'IWorkflowEngine',
+    );
+  });
+
+  it('continueNode() throws NousError with code NOT_IMPLEMENTED', async () => {
+    await assertNotImplemented(
+      () =>
+        stub.continueNode({
+          executionId: '00000000-0000-0000-0000-000000000001' as any,
+          nodeDefinitionId: '00000000-0000-0000-0000-000000000002' as any,
+          controlState: 'running',
+          action: 'resume',
+          transition: {
+            reasonCode: 'node_resumed',
+            evidenceRefs: ['workflow:resume'],
+          },
+        }),
+      'IWorkflowEngine',
+    );
+  });
+
   it('getState() throws NousError with code NOT_IMPLEMENTED', async () => {
     await assertNotImplemented(
       () => stub.getState('00000000-0000-0000-0000-000000000001' as any),

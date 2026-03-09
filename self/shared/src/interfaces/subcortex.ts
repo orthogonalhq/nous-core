@@ -20,6 +20,8 @@ import type {
   WorkflowTransitionInput,
   WorkflowNodeDefinitionId,
   WorkflowRunState,
+  WorkflowExecuteNodeRequest,
+  WorkflowContinueNodeRequest,
   WorkmodeId,
   EscalationId,
   ModelRole,
@@ -162,6 +164,12 @@ export interface IWorkflowEngine {
     nodeDefinitionId: WorkflowNodeDefinitionId,
     transition: WorkflowTransitionInput,
   ): Promise<WorkflowRunState>;
+
+  /** Execute a ready node through the governed runtime and record canonical node/run state */
+  executeReadyNode(request: WorkflowExecuteNodeRequest): Promise<WorkflowRunState>;
+
+  /** Resolve a waiting node continuation (async, human, retry, checkpoint) */
+  continueNode(request: WorkflowContinueNodeRequest): Promise<WorkflowRunState>;
 
   /** Get workflow execution state */
   getState(executionId: WorkflowExecutionId): Promise<WorkflowRunState | null>;
