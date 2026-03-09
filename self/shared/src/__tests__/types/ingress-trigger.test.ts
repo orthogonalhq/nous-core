@@ -44,6 +44,7 @@ describe('IngressTriggerEnvelopeSchema', () => {
     source_id: 'scheduler-1',
     project_id: UUID,
     workflow_ref: 'workflow:test',
+    workmode_id: 'system:implementation',
     event_name: 'scheduled_run',
     payload_ref: 'sha256:' + 'a'.repeat(64),
     idempotency_key: 'key-1',
@@ -60,6 +61,7 @@ describe('IngressTriggerEnvelopeSchema', () => {
     if (result.success) {
       expect(result.data.project_id).toBe(UUID);
       expect(result.data.workflow_ref).toBe('workflow:test');
+      expect(result.data.workmode_id).toBe('system:implementation');
       expect(result.data.requested_delivery_mode).toBe('none');
     }
   });
@@ -71,6 +73,11 @@ describe('IngressTriggerEnvelopeSchema', () => {
 
   it('rejects missing workflow_ref', () => {
     const invalid = { ...validEnvelope, workflow_ref: '' };
+    expect(IngressTriggerEnvelopeSchema.safeParse(invalid).success).toBe(false);
+  });
+
+  it('rejects missing workmode_id', () => {
+    const invalid = { ...validEnvelope, workmode_id: undefined };
     expect(IngressTriggerEnvelopeSchema.safeParse(invalid).success).toBe(false);
   });
 
