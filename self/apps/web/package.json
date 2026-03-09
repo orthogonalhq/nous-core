@@ -25,6 +25,7 @@
     "@nous/cortex-pfc": "workspace:*",
     "@nous/memory-access": "workspace:*",
     "@nous/memory-distillation": "workspace:*",
+    "@nous/memory-knowledge-index": "workspace:*",
     "@nous/memory-ltm": "workspace:*",
     "@nous/memory-mwc": "workspace:*",
     "@nous/memory-stm": "workspace:*",

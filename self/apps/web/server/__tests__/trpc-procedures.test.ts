@@ -155,6 +155,54 @@ describe('tRPC procedures', () => {
     expect(exported.audit.length).toBeGreaterThan(0);
   });
 
+  it('discovery.refresh and discovery.snapshot expose the knowledge index runtime', async () => {
+    const ctx = createNousContext();
+    const caller = appRouter.createCaller(ctx);
+
+    const projectId = await ctx.projectStore.create({
+      id: randomUUID() as import('@nous/shared').ProjectId,
+      name: 'Discovery Procedure Project',
+      type: 'hybrid',
+      pfcTier: 3,
+      memoryAccessPolicy: { canReadFrom: 'all', canBeReadBy: 'all', inheritsGlobal: true },
+      escalationChannels: ['in-app'],
+      retrievalBudgetTokens: 500,
+      createdAt: new Date().toISOString(),
+      updatedAt: new Date().toISOString(),
+    });
+
+    await ctx.documentStore.put('memory_entries', `${projectId}:pattern`, {
+      id: `${projectId}:pattern`,
+      content: 'release notes and roadmap',
+      type: 'distilled-pattern',
+      scope: 'project',
+      projectId,
+      confidence: 0.92,
+      sensitivity: [],
+      retention: 'permanent',
+      provenance: {
+        traceId: randomUUID(),
+        source: 'trpc-test',
+        timestamp: new Date().toISOString(),
+      },
+      tags: ['release'],
+      createdAt: new Date().toISOString(),
+      updatedAt: new Date().toISOString(),
+      mutabilityClass: 'domain-versioned',
+      lifecycleStatus: 'active',
+      placementState: 'project',
+      basedOn: [randomUUID()],
+      supersedes: [randomUUID()],
+      evidenceRefs: [{ actionCategory: 'memory-write' }],
+    });
+
+    const refresh = await caller.discovery.refresh({ projectId });
+    const snapshot = await caller.discovery.snapshot({ projectId });
+
+    expect(['updated', 'skipped_no_change']).toContain(refresh.outcome);
+    expect(snapshot?.latestRefresh?.id).toBe(refresh.id);
+  });
+
   it('witness verify/list/get returns report artifacts', async () => {
     const ctx = createNousContext();
     const caller = appRouter.createCaller(ctx);

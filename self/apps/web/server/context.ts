@@ -5,6 +5,7 @@
  */
 import type {
   ICoreExecutor,
+  IKnowledgeIndex,
   IProjectStore,
   IStmStore,
   IWitnessService,
@@ -32,5 +33,6 @@ export interface NousContext {
   opctlService: IOpctlService;
   maoProjectionService: IMaoProjectionService;
   gtmGateCalculator: IGtmGateCalculator;
+  knowledgeIndex: IKnowledgeIndex;
   dataDir: string;
 }

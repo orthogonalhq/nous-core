@@ -13,6 +13,7 @@ import { witnessRouter } from './routers/witness';
 import { opctlRouter } from './routers/opctl';
 import { maoRouter } from './routers/mao';
 import { gtmRouter } from './routers/gtm';
+import { discoveryRouter } from './routers/discovery';
 
 export const appRouter = router({
   projects: projectsRouter,
@@ -26,6 +27,7 @@ export const appRouter = router({
   opctl: opctlRouter,
   mao: maoRouter,
   gtm: gtmRouter,
+  discovery: discoveryRouter,
 });
 
 export type AppRouter = typeof appRouter;
