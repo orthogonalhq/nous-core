@@ -1,8 +1,8 @@
 /**
  * Workflow runtime contract types for Nous-OSS.
  *
- * Phase 9.1 — canonical workflow definition, derived graph, admission,
- * run-state, and dispatch-lineage baseline.
+ * Phase 9.2 — canonical workflow definition, governed node execution,
+ * continuation, checkpoint, and run-state contracts.
  */
 import { z } from 'zod';
 import {
@@ -18,9 +18,17 @@ import {
   GovernanceLevelSchema,
   ExecutionModelSchema,
   NodeTypeSchema,
+  ModelRoleSchema,
 } from './enums.js';
 import { WorkmodeIdSchema } from './workmode.js';
-import { ProjectControlStateSchema } from './mao.js';
+import { ProjectControlStateSchema, type ProjectControlState } from './mao.js';
+import {
+  ConfidenceGovernanceEvaluationInputSchema,
+  ConfidenceGovernanceEvaluationResultSchema,
+  type ConfidenceGovernanceEvaluationInput,
+  type ConfidenceGovernanceEvaluationResult,
+} from './confidence-governance.js';
+import type { ProjectConfig } from './project.js';
 
 export const WorkflowDefinitionModeSchema = z.enum(['protocol', 'hybrid']);
 export type WorkflowDefinitionMode = z.infer<
@@ -42,15 +50,128 @@ export type WorkflowAuthorityActor = z.infer<
   typeof WorkflowAuthorityActorSchema
 >;
 
-export const WorkflowNodeDefinitionSchema = z.object({
-  id: WorkflowNodeDefinitionIdSchema,
-  name: z.string().min(1),
-  type: WorkflowNodeKindSchema,
-  description: z.string().min(1).optional(),
-  governance: GovernanceLevelSchema,
-  executionModel: ExecutionModelSchema,
-  config: z.record(z.unknown()).default({}),
+export const WorkflowModelCallNodeConfigSchema = z.object({
+  type: z.literal('model-call'),
+  modelRole: ModelRoleSchema,
+  promptRef: z.string().min(1),
+  outputSchemaRef: z.string().min(1).optional(),
 });
+export type WorkflowModelCallNodeConfig = z.infer<
+  typeof WorkflowModelCallNodeConfigSchema
+>;
+
+export const WorkflowToolExecutionNodeConfigSchema = z.object({
+  type: z.literal('tool-execution'),
+  toolName: z.string().min(1),
+  inputMappingRef: z.string().min(1),
+  resultSchemaRef: z.string().min(1).optional(),
+});
+export type WorkflowToolExecutionNodeConfig = z.infer<
+  typeof WorkflowToolExecutionNodeConfigSchema
+>;
+
+export const WorkflowConditionNodeConfigSchema = z.object({
+  type: z.literal('condition'),
+  predicateRef: z.string().min(1),
+  trueBranchKey: z.string().min(1),
+  falseBranchKey: z.string().min(1),
+});
+export type WorkflowConditionNodeConfig = z.infer<
+  typeof WorkflowConditionNodeConfigSchema
+>;
+
+export const WorkflowTransformNodeConfigSchema = z.object({
+  type: z.literal('transform'),
+  transformRef: z.string().min(1),
+  inputMappingRef: z.string().min(1),
+});
+export type WorkflowTransformNodeConfig = z.infer<
+  typeof WorkflowTransformNodeConfigSchema
+>;
+
+export const WorkflowQualityGateNodeConfigSchema = z.object({
+  type: z.literal('quality-gate'),
+  evaluatorRef: z.string().min(1),
+  passThresholdRef: z.string().min(1),
+  failureAction: z.enum(['block', 'reprompt', 'rollback']),
+});
+export type WorkflowQualityGateNodeConfig = z.infer<
+  typeof WorkflowQualityGateNodeConfigSchema
+>;
+
+export const WorkflowHumanDecisionNodeConfigSchema = z.object({
+  type: z.literal('human-decision'),
+  decisionRef: z.string().min(1),
+  timeoutMs: z.number().positive().optional(),
+  defaultOnTimeout: z.enum(['halt', 'fallback']).optional(),
+});
+export type WorkflowHumanDecisionNodeConfig = z.infer<
+  typeof WorkflowHumanDecisionNodeConfigSchema
+>;
+
+export const WorkflowSubworkflowNodeConfigSchema = z
+  .object({
+    type: z.literal('subworkflow'),
+    subworkflowDefinitionId: WorkflowDefinitionIdSchema.optional(),
+  })
+  .passthrough();
+export type WorkflowSubworkflowNodeConfig = z.infer<
+  typeof WorkflowSubworkflowNodeConfigSchema
+>;
+
+export const WorkflowTypedNodeConfigSchema = z.discriminatedUnion('type', [
+  WorkflowModelCallNodeConfigSchema,
+  WorkflowToolExecutionNodeConfigSchema,
+  WorkflowConditionNodeConfigSchema,
+  WorkflowTransformNodeConfigSchema,
+  WorkflowQualityGateNodeConfigSchema,
+  WorkflowHumanDecisionNodeConfigSchema,
+]);
+export type WorkflowTypedNodeConfig = z.infer<
+  typeof WorkflowTypedNodeConfigSchema
+>;
+
+export const WorkflowNodeConfigSchema = z.discriminatedUnion('type', [
+  WorkflowModelCallNodeConfigSchema,
+  WorkflowToolExecutionNodeConfigSchema,
+  WorkflowConditionNodeConfigSchema,
+  WorkflowTransformNodeConfigSchema,
+  WorkflowQualityGateNodeConfigSchema,
+  WorkflowHumanDecisionNodeConfigSchema,
+  WorkflowSubworkflowNodeConfigSchema,
+]);
+export type WorkflowNodeConfig = z.infer<typeof WorkflowNodeConfigSchema>;
+
+export const WorkflowNodeDefinitionSchema = z
+  .object({
+    id: WorkflowNodeDefinitionIdSchema,
+    name: z.string().min(1),
+    type: WorkflowNodeKindSchema,
+    description: z.string().min(1).optional(),
+    governance: GovernanceLevelSchema,
+    executionModel: ExecutionModelSchema,
+    config: WorkflowNodeConfigSchema,
+  })
+  .superRefine((value, ctx) => {
+    if (value.type !== value.config.type) {
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        path: ['config', 'type'],
+        message: `workflow node config.type (${value.config.type}) must match node type (${value.type})`,
+      });
+    }
+
+    if (
+      value.config.type === 'condition' &&
+      value.config.trueBranchKey === value.config.falseBranchKey
+    ) {
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        path: ['config', 'falseBranchKey'],
+        message: 'condition branch keys must be distinct',
+      });
+    }
+  });
 export type WorkflowNodeDefinition = z.infer<
   typeof WorkflowNodeDefinitionSchema
 >;
@@ -140,6 +261,7 @@ export const WorkflowDispatchLineageSchema = z.object({
   nodeDefinitionId: WorkflowNodeDefinitionIdSchema,
   parentNodeDefinitionId: WorkflowNodeDefinitionIdSchema.optional(),
   viaEdgeId: WorkflowEdgeIdSchema.optional(),
+  branchKey: z.string().min(1).optional(),
   attempt: z.number().int().nonnegative(),
   reasonCode: z.string().min(1),
   evidenceRefs: z.array(z.string().min(1)).default([]),
@@ -152,8 +274,8 @@ export type WorkflowDispatchLineage = z.infer<
 export const WorkflowNodeRunStatusSchema = z.enum([
   'pending',
   'ready',
-  'dispatched',
   'running',
+  'waiting',
   'completed',
   'skipped',
   'blocked',
@@ -167,11 +289,50 @@ export const WorkflowRunStatusSchema = z.enum([
   'admission_blocked',
   'ready',
   'running',
+  'waiting',
+  'blocked_review',
   'paused',
   'completed',
   'failed',
 ]);
 export type WorkflowRunStatus = z.infer<typeof WorkflowRunStatusSchema>;
+
+export const WorkflowCheckpointStateSchema = z.enum([
+  'idle',
+  'prepare_pending',
+  'commit_pending',
+]);
+export type WorkflowCheckpointState = z.infer<
+  typeof WorkflowCheckpointStateSchema
+>;
+
+export const WorkflowNodeWaitKindSchema = z.enum([
+  'async_batch',
+  'human_decision',
+  'retry_backoff',
+  'checkpoint_commit',
+]);
+export type WorkflowNodeWaitKind = z.infer<typeof WorkflowNodeWaitKindSchema>;
+
+export const WorkflowCorrectionArcTypeSchema = z.enum([
+  'retry',
+  'rollback',
+  'reprompt',
+  'resume',
+]);
+export type WorkflowCorrectionArcType = z.infer<
+  typeof WorkflowCorrectionArcTypeSchema
+>;
+
+export const WorkflowExternalEffectStatusSchema = z.enum([
+  'none',
+  'idempotent',
+  'compensatable',
+  'unknown_external_effect',
+]);
+export type WorkflowExternalEffectStatus = z.infer<
+  typeof WorkflowExternalEffectStatusSchema
+>;
 
 export const WorkflowTransitionInputSchema = z.object({
   reasonCode: z.string().min(1),
@@ -182,11 +343,63 @@ export type WorkflowTransitionInput = z.infer<
   typeof WorkflowTransitionInputSchema
 >;
 
+export const WorkflowNodeWaitStateSchema = z.object({
+  kind: WorkflowNodeWaitKindSchema,
+  reasonCode: z.string().min(1),
+  evidenceRefs: z.array(z.string().min(1)).min(1),
+  requestedAt: z.string().datetime(),
+  resumeToken: z.string().min(1).optional(),
+  externalRef: z.string().min(1).optional(),
+});
+export type WorkflowNodeWaitState = z.infer<
+  typeof WorkflowNodeWaitStateSchema
+>;
+
+export const WorkflowCorrectionArcSchema = z.object({
+  id: z.string().uuid(),
+  runId: WorkflowExecutionIdSchema,
+  nodeDefinitionId: WorkflowNodeDefinitionIdSchema,
+  type: WorkflowCorrectionArcTypeSchema,
+  sourceAttempt: z.number().int().positive(),
+  targetAttempt: z.number().int().positive().optional(),
+  checkpointId: z.string().uuid().optional(),
+  reasonCode: z.string().min(1),
+  evidenceRefs: z.array(z.string().min(1)).min(1),
+  occurredAt: z.string().datetime(),
+});
+export type WorkflowCorrectionArc = z.infer<
+  typeof WorkflowCorrectionArcSchema
+>;
+
+export const WorkflowNodeAttemptSchema = z.object({
+  attempt: z.number().int().positive(),
+  status: WorkflowNodeRunStatusSchema,
+  dispatchLineageId: WorkflowDispatchLineageIdSchema,
+  governanceDecision: ConfidenceGovernanceEvaluationResultSchema,
+  waitState: WorkflowNodeWaitStateSchema.optional(),
+  sideEffectStatus: WorkflowExternalEffectStatusSchema,
+  checkpointId: z.string().uuid().optional(),
+  outputRef: z.string().min(1).optional(),
+  selectedBranchKey: z.string().min(1).optional(),
+  reasonCode: z.string().min(1),
+  evidenceRefs: z.array(z.string().min(1)).min(1),
+  startedAt: z.string().datetime(),
+  updatedAt: z.string().datetime(),
+  completedAt: z.string().datetime().optional(),
+});
+export type WorkflowNodeAttempt = z.infer<typeof WorkflowNodeAttemptSchema>;
+
 export const WorkflowNodeRunStateSchema = z.object({
   id: WorkflowNodeRunIdSchema,
   nodeDefinitionId: WorkflowNodeDefinitionIdSchema,
   status: WorkflowNodeRunStatusSchema,
-  attempt: z.number().int().nonnegative().default(0),
+  attempts: z.array(WorkflowNodeAttemptSchema).default([]),
+  activeAttempt: z.number().int().positive().nullable(),
+  latestGovernanceDecision: ConfidenceGovernanceEvaluationResultSchema.optional(),
+  activeWaitState: WorkflowNodeWaitStateSchema.optional(),
+  lastCommittedCheckpointId: z.string().uuid().optional(),
+  selectedBranchKey: z.string().min(1).optional(),
+  correctionArcs: z.array(WorkflowCorrectionArcSchema).default([]),
   reasonCode: z.string().min(1).optional(),
   evidenceRefs: z.array(z.string().min(1)).default([]),
   lastDispatchLineageId: WorkflowDispatchLineageIdSchema.optional(),
@@ -204,8 +417,15 @@ export const WorkflowRunStateSchema = z.object({
   admission: WorkflowAdmissionResultSchema,
   reasonCode: z.string().min(1).optional(),
   evidenceRefs: z.array(z.string().min(1)).default([]),
+  activeNodeIds: z.array(WorkflowNodeDefinitionIdSchema).default([]),
+  activatedEdgeIds: z.array(WorkflowEdgeIdSchema).default([]),
   readyNodeIds: z.array(WorkflowNodeDefinitionIdSchema).default([]),
+  waitingNodeIds: z.array(WorkflowNodeDefinitionIdSchema).default([]),
+  blockedNodeIds: z.array(WorkflowNodeDefinitionIdSchema).default([]),
   completedNodeIds: z.array(WorkflowNodeDefinitionIdSchema).default([]),
+  lastPreparedCheckpointId: z.string().uuid().optional(),
+  lastCommittedCheckpointId: z.string().uuid().optional(),
+  checkpointState: WorkflowCheckpointStateSchema.default('idle'),
   nodeStates: z.record(z.string().uuid(), WorkflowNodeRunStateSchema),
   dispatchLineage: z.array(WorkflowDispatchLineageSchema).default([]),
   startedAt: z.string().datetime(),
@@ -225,6 +445,95 @@ export const WorkflowStartResultSchema = z.discriminatedUnion('status', [
   }),
 ]);
 export type WorkflowStartResult = z.infer<typeof WorkflowStartResultSchema>;
+
+export const WorkflowNodeExecutionPayloadSchema = z
+  .object({
+    modelInput: z.unknown().optional(),
+    toolParams: z.unknown().optional(),
+    conditionResult: z.boolean().optional(),
+    transformOutput: z.unknown().optional(),
+    qualityGatePassed: z.boolean().optional(),
+    humanDecision: z.enum(['approved', 'rejected']).optional(),
+    outputRef: z.string().min(1).optional(),
+    externalRef: z.string().min(1).optional(),
+    selectedBranchKey: z.string().min(1).optional(),
+    sideEffectStatus: WorkflowExternalEffectStatusSchema.optional(),
+    checkpointCommitMode: z.enum(['immediate', 'deferred']).optional(),
+    detail: z.record(z.unknown()).default({}),
+  })
+  .passthrough();
+export type WorkflowNodeExecutionPayload = z.infer<
+  typeof WorkflowNodeExecutionPayloadSchema
+>;
+
+export const WorkflowNodeContinuationActionSchema = z.enum([
+  'complete',
+  'retry',
+  'rollback',
+  'reprompt',
+  'resume',
+  'reject',
+]);
+export type WorkflowNodeContinuationAction = z.infer<
+  typeof WorkflowNodeContinuationActionSchema
+>;
+
+export const WorkflowExecuteNodeRequestSchema = z.object({
+  executionId: WorkflowExecutionIdSchema,
+  nodeDefinitionId: WorkflowNodeDefinitionIdSchema,
+  controlState: ProjectControlStateSchema,
+  governanceInput: ConfidenceGovernanceEvaluationInputSchema.optional(),
+  payload: WorkflowNodeExecutionPayloadSchema.optional(),
+  transition: WorkflowTransitionInputSchema,
+});
+export type WorkflowExecuteNodeRequest = z.infer<
+  typeof WorkflowExecuteNodeRequestSchema
+>;
+
+export const WorkflowContinueNodeRequestSchema = z.object({
+  executionId: WorkflowExecutionIdSchema,
+  nodeDefinitionId: WorkflowNodeDefinitionIdSchema,
+  controlState: ProjectControlStateSchema,
+  action: WorkflowNodeContinuationActionSchema.default('complete'),
+  continuationToken: z.string().min(1).optional(),
+  payload: WorkflowNodeExecutionPayloadSchema.optional(),
+  transition: WorkflowTransitionInputSchema,
+  checkpointId: z.string().uuid().optional(),
+  witnessRef: z.string().min(1).optional(),
+});
+export type WorkflowContinueNodeRequest = z.infer<
+  typeof WorkflowContinueNodeRequestSchema
+>;
+
+export interface WorkflowNodeExecutionContext {
+  projectConfig: ProjectConfig;
+  graph: DerivedWorkflowGraph;
+  runState: WorkflowRunState;
+  nodeDefinition: WorkflowNodeDefinition;
+  dispatchLineage: WorkflowDispatchLineage;
+  controlState: ProjectControlState;
+  governanceInput: ConfidenceGovernanceEvaluationInput;
+  governanceDecision: ConfidenceGovernanceEvaluationResult;
+  payload?: WorkflowNodeExecutionPayload;
+}
+
+export interface WorkflowNodeExecutionResult {
+  outcome: 'completed' | 'waiting' | 'blocked' | 'failed';
+  governanceDecision: ConfidenceGovernanceEvaluationResult;
+  waitState?: WorkflowNodeWaitState;
+  correctionArc?: WorkflowCorrectionArc;
+  sideEffectStatus: WorkflowExternalEffectStatus;
+  outputRef?: string;
+  checkpointId?: string;
+  selectedBranchKey?: string;
+  reasonCode: string;
+  evidenceRefs: string[];
+}
+
+export interface IWorkflowNodeHandler {
+  readonly nodeType: WorkflowNodeKind;
+  execute(context: WorkflowNodeExecutionContext): Promise<WorkflowNodeExecutionResult>;
+}
 
 // Backward-compatible aliases for the previous placeholder names.
 export const WorkflowGraphSchema = DerivedWorkflowGraphSchema;
