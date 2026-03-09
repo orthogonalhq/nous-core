@@ -52,7 +52,7 @@ How Nous perceives the world and communicates with the user. These are part of t
 ```
 self/apps/
 ├── cli/                              # Terminal interface
-├── web/                              # Chat UI + Projects UI + Dashboard
+├── web/                              # Chat UI + Projects UI + Dashboard + MAO projection
 └── bridge/                           # Messaging integrations (Signal, Slack, etc.)
 ```
 
@@ -66,11 +66,12 @@ CLI depends only on public interfaces from `shared/`.
 
 ### web/
 
-Web application containing three integrated surfaces:
+Web application containing integrated operator surfaces:
 
 * Chat interface — conversational interaction with project-scoped context
-* Projects UI — node-based visual workflow editor
+* Projects UI — workflow monitoring plus basic canonical-definition editing
 * Dashboard — system health, project status, memory inspection, and discovery projection
+* MAO projection — forward-linked project control and agent visibility from workflow surfaces
 
 Primary interface for most users.
 
@@ -664,6 +665,11 @@ Phase 9.3 adds:
 - `artifacts.ts` — versioned artifact write/read/delete/list contracts, integrity refs, and lineage
 - `ingress-trigger.ts` / `ingress-outcome.ts` expansions for explicit `workmode_id`, duplicate return linkage, and workflow-admission rejection posture
 
+Phase 9.4 and Phase 9.5 add:
+
+- `knowledge-index.ts` — canonical project discovery, refresh, taxonomy, and relationship-runtime contracts
+- `workflow-monitoring.ts` — workflow-surface snapshot, node projection, diagnostics, validation, and save-input schemas used by the Projects UI and web server
+
 ### interfaces/
 
 Cross-layer contracts. When the cortex calls the subcortex, or memory calls storage, the contract is defined here. No layer imports directly from another layer's implementation.
@@ -683,6 +689,10 @@ Phase 9.3 further expands:
 - `subcortex.ts` — scheduler and artifact request/result contracts, plus workflow start trigger provenance
 - `project-api.ts` — project-scoped artifact request/result contracts and scheduler binding surfaces
 - `ingress.ts` — callable ingress gateway and reservation-based idempotency interfaces
+
+Phase 9.5 further expands:
+
+- `subcortex.ts` — workflow-runtime list/graph retrieval surfaces used by the Projects monitoring projection
 
 ### events/
 

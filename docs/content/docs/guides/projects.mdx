@@ -50,6 +50,21 @@ Phase 9.2 extends that same truth model to node execution details. Wait states, 
 
 Phase 9.3 extends the same rule to trigger provenance. If a run came from scheduler, hook, or system-event intake, the canonical run state stores that trigger context directly. The scheduler is allowed to persist schedule definitions and due cursors; it is not a second source of truth for why a run started.
 
+## Projects Workflow Surface (Phase 9.5)
+
+Phase 9.5 adds a dedicated Projects workflow surface in the web app. It is a projection and editing surface over canonical project workflow state, not a second workflow store.
+
+From the Projects page you can now:
+
+- Inspect recent runs with runtime availability states such as `live`, `no_active_run`, and degraded runtime conditions
+- Browse grouped node projections by status or node type, then collapse, filter, and search them for high-node-count runs
+- Inspect recent committed artifacts and recent traces linked to the current workflow snapshot
+- Follow deep links back to Chat, into Traces, or forward into the MAO projection for the same project, run, and node context
+- Edit the canonical workflow definition with starter authoring, node creation, edge creation, governance selection, execution-model assignment, and model-role configuration
+- Validate the draft on the server before saving so invalid graphs never become canonical project truth
+
+Inspect-first behavior still applies. If a project has no canonical workflow definition yet, the Projects surface shows an authoring-first empty state instead of inventing runtime data.
+
 ## Workflow Run State
 
 Before a workflow run starts, the runtime:
@@ -144,4 +159,4 @@ Phase 9.3 adds two downstream runtime services that still derive from project an
 
 ## Current Scope
 
-Phase 9.1 through Phase 9.3 now cover the canonical workflow foundation plus ingress-backed scheduler dispatch and integrity-verified artifact persistence. Later phases add richer Projects UI editing and MAO projections over the run, wait, checkpoint, trigger, and artifact state delivered here.
+Phase 9.1 through Phase 9.5 now cover the canonical workflow foundation, ingress-backed scheduler dispatch, integrity-verified artifact persistence, and the first Projects UI monitoring/editor surface with linked Chat, Traces, and MAO projections. Later phases can refine authoring ergonomics and richer MAO/runtime supervision without changing the canonical truth model described here.
