@@ -17,9 +17,16 @@ import type {
   StmCompactionPolicy,
 } from '@nous/shared';
 import { ConfigManager } from '@nous/autonomic-config';
-import { SqliteDocumentStore } from '@nous/autonomic-storage';
+import { InMemoryEmbedder } from '@nous/autonomic-embeddings';
+import { SqliteDocumentStore, SqliteVectorStore } from '@nous/autonomic-storage';
 import { DocumentStmStore } from '@nous/memory-stm';
 import { MwcPipeline } from '@nous/memory-mwc';
+import {
+  DocumentProjectTaxonomyMapping,
+  DocumentRelationshipGraphStore,
+  KnowledgeIndexRuntime,
+  MetaVectorStore,
+} from '@nous/memory-knowledge-index';
 import {
   PfcEngine,
   createPfcEvaluator,
@@ -29,7 +36,12 @@ import { CoreExecutor } from '@nous/cortex-core';
 import { DocumentProjectStore } from '@nous/subcortex-projects';
 import { ModelRouter } from '@nous/subcortex-router';
 import { ProviderRegistry } from '@nous/subcortex-providers';
-import { ToolExecutor } from '@nous/subcortex-tools';
+import {
+  DiscoverProjectsTool,
+  EchoTool,
+  RefreshProjectKnowledgeTool,
+  ToolExecutor,
+} from '@nous/subcortex-tools';
 import { WitnessService } from '@nous/subcortex-witnessd';
 import {
   OpctlService,
@@ -151,6 +163,8 @@ export function createNousContext(): NousContext {
   const dbPath = join(dataDir, 'nous.sqlite');
 
   const documentStore = new SqliteDocumentStore(dbPath);
+  const vectorStore = new SqliteVectorStore(dbPath);
+  const embedder = new InMemoryEmbedder();
   const stmStore = new DocumentStmStore(documentStore, {
     compactionPolicy: resolveStmCompactionPolicy(resolvedConfig),
   });
@@ -171,8 +185,23 @@ export function createNousContext(): NousContext {
 
   const gtmGateCalculator = new GtmGateCalculator();
   const policyEngine = new MemoryAccessPolicyEngine();
+  const knowledgeIndex = new KnowledgeIndexRuntime({
+    documentStore,
+    projectStore,
+    metaVectorStore: new MetaVectorStore({ vectorStore }),
+    taxonomyMapping: new DocumentProjectTaxonomyMapping(documentStore),
+    relationshipGraphStore: new DocumentRelationshipGraphStore(documentStore),
+    embedder,
+    accessPolicyEngine: policyEngine,
+    getProjectControlState: (projectId: ProjectId) =>
+      opctlService.getProjectControlState(projectId),
+  });
 
-  const toolExecutor = new ToolExecutor();
+  const toolExecutor = new ToolExecutor([
+    new EchoTool(),
+    new DiscoverProjectsTool(knowledgeIndex),
+    new RefreshProjectKnowledgeTool(knowledgeIndex),
+  ]);
   const Cortex = new PfcEngine(config, toolExecutor);
   const mwcPipeline = new MwcPipeline(
     documentStore,
@@ -234,6 +263,7 @@ export function createNousContext(): NousContext {
     opctlService,
     maoProjectionService,
     gtmGateCalculator,
+    knowledgeIndex,
     dataDir,
   };
 

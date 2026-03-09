@@ -38,6 +38,14 @@ export default defineConfig({
         __dirname,
         '../../memory/distillation/src/index.ts',
       ),
+      '@nous/memory-knowledge-index': path.resolve(
+        __dirname,
+        '../../memory/knowledge-index/src/index.ts',
+      ),
+      '@nous/subcortex-tools': path.resolve(
+        __dirname,
+        '../../subcortex/tools/src/index.ts',
+      ),
       '@nous/subcortex-witnessd': path.resolve(
         __dirname,
         '../../subcortex/witnessd/src/index.ts',

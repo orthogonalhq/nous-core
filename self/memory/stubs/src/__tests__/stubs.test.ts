@@ -151,14 +151,36 @@ describe('StubKnowledgeIndex', () => {
   const index = new StubKnowledgeIndex();
   const projectId = '00000000-0000-0000-0000-000000000001' as any;
 
-  it('updateMetaVector throws NOT_IMPLEMENTED', async () => {
-    await expect(index.updateMetaVector(projectId)).rejects.toMatchObject({
+  it('discoverProjects throws NOT_IMPLEMENTED', async () => {
+    await expect(
+      index.discoverProjects({
+        requestingProjectId: projectId,
+        query: 'test',
+        topK: 5,
+        includeMetaVector: true,
+        includeTaxonomy: true,
+        includeRelationships: true,
+      }),
+    ).rejects.toMatchObject({
       code: 'NOT_IMPLEMENTED',
     });
   });
 
-  it('discoverProjects throws NOT_IMPLEMENTED', async () => {
-    await expect(index.discoverProjects('test')).rejects.toMatchObject({
+  it('refreshProjectKnowledge throws NOT_IMPLEMENTED', async () => {
+    await expect(
+      index.refreshProjectKnowledge({
+        projectId,
+        trigger: 'manual',
+        reasonCode: 'refresh.project.manual',
+        requestedAt: new Date().toISOString(),
+      }),
+    ).rejects.toMatchObject({
+      code: 'NOT_IMPLEMENTED',
+    });
+  });
+
+  it('getProjectSnapshot throws NOT_IMPLEMENTED', async () => {
+    await expect(index.getProjectSnapshot(projectId)).rejects.toMatchObject({
       code: 'NOT_IMPLEMENTED',
     });
   });

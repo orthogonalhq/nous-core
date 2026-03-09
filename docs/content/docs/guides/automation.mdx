@@ -141,6 +141,21 @@ Phase 9.2 only advances continuation from committed checkpoints. If a node is wa
 - **Checkpoint commit pending:** If the node is waiting on `checkpoint_commit`, wait for the checkpoint commit to complete and continue the same node. Do not create a second execution attempt for the same work.
 - **Replay:** If `replay_detected`, ensure your `occurred_at` is within the acceptance window (+/- 5 minutes) and that each request uses a unique nonce per source.
 
+## Scheduled Knowledge Refresh (Phase 9.4)
+
+Phase 9.4 adds a governed refresh path for the cross-project knowledge index. Scheduler participation stays narrow:
+
+- The scheduler submits one ingress envelope per due project schedule. It does not batch projects into repo-wide refresh runs.
+- The envelope remains the canonical trigger record. Scheduled refresh still flows through `scheduler -> ingress -> workflow -> tool-execution -> refresh_project_knowledge`.
+- Scheduler identity is duplicate-safe at the envelope level: scheduled runs use `schedule:<scheduleId>:<occurredAt>` idempotency keys, so replay detection and duplicate suppression remain ingress-owned instead of scheduler-local.
+
+Operational guardrails:
+
+- Refresh is serialized per project inside the knowledge-index runtime.
+- Equivalent local refresh inputs are suppressed with a deterministic `inputDigest`, producing `skipped_no_change` when the canonical input set has not changed.
+- The supported posture is explicitly `single_process_local`. Phase 9.4 does not claim restart-survivable or multi-process refresh idempotency.
+- Cron/cadence design should stay project-scoped. If many projects need refresh, create multiple narrow schedules rather than one synthetic sweep job.
+
 ## payload_ref Format
 
 Payload integrity is addressed via `payload_ref`. V1 format: `sha256:<64-char-hex>` — the SHA-256 digest of the payload body. Adapters must compute the digest before constructing the envelope.

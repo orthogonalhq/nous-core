@@ -7,9 +7,26 @@ description: Inspecting and managing memory entries
 
 Nous stores approved memory entries per project. The Memory inspector lets you review memory state, mutation history, and deletion proofs.
 
-## Memory Inspector (Phase 8.7)
+## Memory Inspector (Phase 8.7-9.4)
 
 The `/memory` route is now an inspect-first surface over canonical durable memory. It does not maintain a parallel UI-only memory model. The page queries the same governed runtime state used elsewhere in the system and exposes that state with operator-readable filters, diagnostics, and action outcomes.
+
+### Discovery Mode (Phase 9.4)
+
+The same `/memory` route now includes a Discover mode for cross-project intelligence. This remains a projection over canonical runtime state; it does not create a second discovery model in the browser.
+
+Discover mode uses the governed knowledge-index runtime to:
+
+- run project discovery from a text query
+- inspect the selected project's snapshot of meta-vector, taxonomy, relationship, and latest refresh state
+- trigger a manual refresh of the current project's knowledge projection
+
+The surface is intentionally bounded:
+
+- Discovery returns candidate `targetProjectIds`, ranking, explainability, and policy-summary diagnostics only.
+- Denied candidate identity is suppressed. The UI shows aggregated denial counts and reason codes instead of blocked project IDs.
+- Snapshot diagnostics expose the current runtime posture as `single_process_local`. Phase 9.4 does not claim restart-survivable or multi-process refresh idempotency.
+- Manual refresh updates only the canonical knowledge projection for one project. It does not mutate durable memory entries outside the existing authorized memory-write paths.
 
 ### Search and Filter Controls
 
@@ -208,7 +225,7 @@ These guarantees make retrieval behavior replayable and auditable across equival
 
 **Cross-project retrieval (Phase 6.1):** When a query specifies `targetProjectIds` explicitly, the engine evaluates policy for each target project before retrieving. No hidden cross-project joins — all cross-project reads are explicit and policy-gated. The response includes `selectionAudit` when cross-project scope is used: `projectIdsQueried`, `candidateCount`, `resultCount`, and `truncationReason` (token_budget, result_cap, or none). Selection policy enforces token budget and result cap; policy denial cannot be bypassed by any recommendation path.
 
-**Project discovery (Phase 6.2–6.3):** Cross-project retrieval can be filtered by project relevance. The Knowledge Index provides:
+**Project discovery (Phase 6.2-9.4):** Cross-project retrieval can be filtered by project relevance. The Knowledge Index provides:
 
 - **Meta-vectors** — One embedding per project summarizing its domain, themes, and knowledge profile. Generated from distilled patterns. `MetaVectorService.searchSimilarProjects(queryVector, topK)` returns ranked project IDs by semantic similarity. Deterministic tie-break by project ID.
 - **Topic taxonomy** — Structural tags (e.g. `real-estate`, `budgeting`) assigned to projects. Zero inference cost — pure set operations. Projects can be filtered by shared tags.
@@ -216,6 +233,9 @@ These guarantees make retrieval behavior replayable and auditable across equival
 - **Discovery orchestrator (Phase 6.3)** — Combines meta-vector search, taxonomy links, and relationship graph to determine which projects are relevant. `DiscoveryOrchestrator.discoverRelevantProjects()` returns ranked project IDs with an audit trail. Deterministic merge; tie-break by project ID.
 - **Explainability (Phase 6.4)** — Each discovery result includes trace linkage: which source (meta-vector, taxonomy, relationship, or combined) influenced the outcome, scores, taxonomy tags, and evidence refs. Policy-denied or low-confidence paths emit `policyDenialRef` or `EscalationSignal`. No recommendation path bypasses policy denial. Example payload: `{ influencingSource: 'meta_vector', metaVectorScore: 0.87, taxonomyTags: ['budgeting', 'planning'], evidenceRefs: [...] }`.
 - **Benchmarking (Phase 6.4)** — Discovery quality is benchmarked with acceptance criteria; regression tests detect policy leakage across project boundaries. Phase 8 export schemas (`Phase8DiscoveryExportSchema`, `Phase8EvidenceExportSchema`) define the intake contract for marketplace governance.
+- **Runtime activation and refresh (Phase 9.4)** — `IKnowledgeIndex` is now a live runtime seam. `refreshProjectKnowledge()` recomputes one project's meta-vector, taxonomy, and relationship projection from canonical distilled-pattern inputs, records an auditable refresh ledger entry, and suppresses unchanged local reruns with a deterministic `inputDigest`.
+- **Project snapshots (Phase 9.4)** — `getProjectSnapshot()` assembles the current meta-vector, taxonomy assignments, incoming and outgoing relationships, latest refresh record, and bounded-support diagnostics on read. The snapshot is a projection over canonical stores, not a separately persisted shadow record.
+- **Operator discovery surface (Phase 9.4)** — `/memory` Discover mode and the `discovery.*` tRPC procedures expose discovery results, snapshot freshness, and manual refresh actions without bypassing policy or retrieval boundaries.
 
 Discovery produces candidate `targetProjectIds` only — no retrieval. The caller must apply policy filter before passing them to retrieval. All retrieval still flows through `PolicyEnforcedRetrievalEngine`; discovery does not bypass policy.
 

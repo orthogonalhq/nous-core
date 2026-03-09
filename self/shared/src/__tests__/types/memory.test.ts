@@ -1,4 +1,5 @@
 import { describe, it, expect } from 'vitest';
+import type { IKnowledgeIndex } from '../../interfaces/memory.js';
 import {
   DEFAULT_STM_COMPACTION_POLICY,
   DEFAULT_MEMORY_ACCESS_POLICY,
@@ -17,6 +18,13 @@ import {
   DistilledPatternSchema,
   RetrievalResultSchema,
 } from '../../types/memory.js';
+import type {
+  ProjectDiscoveryRequest,
+  ProjectDiscoveryResult,
+  ProjectKnowledgeRefreshRecord,
+  ProjectKnowledgeRefreshRequest,
+  ProjectKnowledgeSnapshot,
+} from '../../types/knowledge-index.js';
 import {
   RetrievalResponseSchema,
   RetrievalBudgetTelemetrySchema,
@@ -606,6 +614,32 @@ describe('MemoryMutationRequestSchema', () => {
       traceId: VALID_UUID,
     });
     expect(result.success).toBe(true);
+  });
+});
+
+describe('IKnowledgeIndex contract', () => {
+  it('exposes refresh, snapshot, and discovery methods', async () => {
+    const knowledgeIndex: IKnowledgeIndex = {
+      async refreshProjectKnowledge(
+        _request: ProjectKnowledgeRefreshRequest,
+      ): Promise<ProjectKnowledgeRefreshRecord> {
+        throw new Error('not implemented');
+      },
+      async getProjectSnapshot(
+        _projectId,
+      ): Promise<ProjectKnowledgeSnapshot | null> {
+        return null;
+      },
+      async discoverProjects(
+        _request: ProjectDiscoveryRequest,
+      ): Promise<ProjectDiscoveryResult> {
+        throw new Error('not implemented');
+      },
+    };
+
+    expect(typeof knowledgeIndex.refreshProjectKnowledge).toBe('function');
+    expect(typeof knowledgeIndex.getProjectSnapshot).toBe('function');
+    expect(typeof knowledgeIndex.discoverProjects).toBe('function');
   });
 });
 

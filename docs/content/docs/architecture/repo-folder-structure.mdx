@@ -70,7 +70,7 @@ Web application containing three integrated surfaces:
 
 * Chat interface — conversational interaction with project-scoped context
 * Projects UI — node-based visual workflow editor
-* Dashboard — system health, project status, memory inspection
+* Dashboard — system health, project status, memory inspection, and discovery projection
 
 Primary interface for most users.
 
@@ -244,15 +244,19 @@ Retrieval is reconstruction, not lookup. The same knowledge may surface differen
 
 ### knowledge-index/
 
-Cross-project intelligence. Implemented as `@nous/memory-knowledge-index` (Phase 6.2). The layer that makes cross-referencing cheap at query time.
+Cross-project intelligence. Implemented as `@nous/memory-knowledge-index` (Phase 6.2, runtime-expanded in Phase 9.4). The layer that makes cross-referencing cheap at query time and now exposes a canonical runtime seam for refresh, snapshots, and policy-filtered discovery.
 
-**meta-vectors/** — One embedding per project summarizing its domain, themes, and knowledge profile. `MetaVectorStore` (IVectorStore-backed) and `MetaVectorService`; updated when distilled patterns are created via `upsertFromPatterns`. Enables fast project-level similarity search. `searchSimilarProjects(queryVector, topK)` returns ranked project IDs.
+**knowledge-index-runtime.ts** — The Phase 9.4 facade that owns one-project-at-a-time refresh, text-query embedding, policy filtering, snapshot assembly, and bounded-support diagnostics. This is the implementation behind `IKnowledgeIndex`.
 
-**taxonomy/** — Topic tags assigned to projects. `InMemoryTaxonomyStore` and `InMemoryProjectTaxonomyMapping`; additive tags; project-to-tag and tag-to-project mapping. Structural links between projects based on shared domains. Zero inference cost — pure set intersection.
+**knowledge-refresh-store.ts** — Append-only refresh ledger for auditable refresh outcomes, duplicate-suppression inputs, and latest-refresh lookup per project.
 
-**relationships/** — Background relationship graph maintained by periodic LLM evaluation (Phase 6.3). Maps validated knowledge links between projects. Amortizes expensive inference over time rather than paying it per query.
+**meta-vectors/** — One embedding per project summarizing its domain, themes, and knowledge profile. `MetaVectorStore` (IVectorStore-backed) and `MetaVectorService`; Phase 9.4 adds auditable metadata (`evidenceRefs`, `inputDigest`, `refreshRecordId`) and refresh-on-pattern inputs.
 
-**discovery/** — Query-time orchestrator (Phase 6.3). Combines meta-vector search, taxonomy links, and relationship graph to determine which projects are relevant to the current situation. Fast and cheap.
+**taxonomy/** — Topic tags assigned to projects. Phase 9.4 adds document-backed assignment records so project-to-tag and tag-to-project lookups stay canonical and queryable beyond in-memory test support.
+
+**relationships/** — Background relationship graph maintained by periodic evaluation (Phase 6.3). Phase 9.4 upgrades the store to deterministic semantic edge IDs and document-backed inspection so repeated refreshes can diff created, updated, and invalidated edges.
+
+**discovery/** — Query-time orchestrator (Phase 6.3) plus the Phase 9.4 runtime assembly that combines meta-vector search, taxonomy links, relationship graph, and policy filtering to determine relevant candidate projects without performing retrieval.
 
 ### access/
 
@@ -350,6 +354,11 @@ Responsibilities:
 * Capability declaration
 * Permission metadata
 * Execution mediation
+
+Phase 9.4 adds internal knowledge-index tools:
+
+* `discover_projects` — governed, policy-filtered discovery for text queries
+* `refresh_project_knowledge` — canonical one-project refresh for meta-vector, taxonomy, and relationship projections
 
 Each tool declares:
 

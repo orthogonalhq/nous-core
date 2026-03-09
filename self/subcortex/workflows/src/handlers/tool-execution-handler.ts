@@ -58,7 +58,7 @@ export class ToolExecutionWorkflowNodeHandler implements IWorkflowNodeHandler {
 
     const toolResult = await this.toolExecutor.execute(
       config.toolName,
-      context.payload?.toolParams ?? { inputMappingRef: config.inputMappingRef },
+      buildToolParams(context, config.toolName),
       context.projectConfig.id,
     );
 
@@ -86,4 +86,50 @@ export class ToolExecutionWorkflowNodeHandler implements IWorkflowNodeHandler {
       evidenceRefs,
     };
   }
+}
+
+function buildToolParams(
+  context: WorkflowNodeExecutionContext,
+  toolName: string,
+): unknown {
+  const params =
+    context.payload?.toolParams != null
+      ? context.payload.toolParams
+      : { inputMappingRef: context.nodeDefinition.config.type === 'tool-execution'
+          ? context.nodeDefinition.config.inputMappingRef
+          : undefined };
+
+  if (params == null || typeof params !== 'object' || Array.isArray(params)) {
+    return params;
+  }
+
+  return {
+    ...params,
+    workflowRunId:
+      'workflowRunId' in params ? (params as Record<string, unknown>).workflowRunId : context.runState.runId,
+    dispatchLineageId:
+      'dispatchLineageId' in params
+        ? (params as Record<string, unknown>).dispatchLineageId
+        : context.dispatchLineage.id,
+    projectId:
+      toolName === 'refresh_project_knowledge' &&
+      !('projectId' in params)
+        ? context.projectConfig.id
+        : (params as Record<string, unknown>).projectId,
+    trigger:
+      toolName === 'refresh_project_knowledge' &&
+      !('trigger' in params)
+        ? 'workflow'
+        : (params as Record<string, unknown>).trigger,
+    requestedAt:
+      toolName === 'refresh_project_knowledge' &&
+      !('requestedAt' in params)
+        ? new Date().toISOString()
+        : (params as Record<string, unknown>).requestedAt,
+    reasonCode:
+      toolName === 'refresh_project_knowledge' &&
+      !('reasonCode' in params)
+        ? 'workflow_tool_refresh'
+        : (params as Record<string, unknown>).reasonCode,
+  };
 }
