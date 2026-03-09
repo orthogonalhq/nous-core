@@ -149,6 +149,7 @@ ollama pull llama3.2:3b
 | `rate_limited` | Rate limit exceeded | Wait and retry with backoff; reduce request frequency |
 | `invalid_envelope` | Missing project_id, workflow_ref, or invalid trigger_type | Fix envelope; ensure all required fields present |
 | `control_state_blocked` | Project hard_stopped or paused_review | Resume project or release hard_stop via Projects UI / operator-control |
+| `workflow_admission_blocked` | Ingress was valid but canonical workflow admission still failed | Inspect the returned `reason_code`, project lookup, and workflow configuration before retrying |
 
 See [Automation Gateway](/docs/guides/automation) for full operator guidance.
 
@@ -190,6 +191,45 @@ Do not retry the same start request until the canonical project workflow definit
 | `WMODE-010` | A worker attempted an authoritative start path | Reissue the request from the correct authority source |
 
 Admission failures are authoritative. Use the returned `reasonCode` and `evidenceRefs` before retrying.
+
+## Scheduled Trigger Repeats or Never Advances (Phase 9.3)
+
+**Symptom:** A cron/calendar schedule appears stuck, keeps returning duplicate outcomes, or never seems to fire again after a restart.
+
+**Meaning:** Phase 9.3 persists schedule definitions and due cursors, but actual run truth still comes from ingress and workflow state.
+
+**Fix:**
+
+- Check the schedule's `nextDueAt`, `lastDispatchedAt`, `workflowDefinitionId`, and `workmodeId`.
+- If ingress returns `accepted_already_dispatched`, treat that as duplicate-safe recovery of the original run rather than a failure.
+- If the schedule keeps returning `workflow_admission_blocked`, repair the target project's workflow configuration instead of forcing redispatch.
+- If `nextDueAt` is missing or stale after restart, let the scheduler recompute it from the canonical trigger definition before assuming work was skipped.
+
+## Artifact Retrieve/List Returns Nothing Even Though a Write Happened (Phase 9.3)
+
+**Symptom:** An artifact write appears to succeed, but default retrieve or list calls return nothing.
+
+**Meaning:** Phase 9.3 keeps prepared versions hidden from default visibility. Only committed versions are normal runtime truth.
+
+**Fix:**
+
+- Check whether the artifact version is still `prepared` instead of `committed`.
+- If the producing workflow is still waiting on `checkpoint_commit`, do not treat the artifact as durably available yet.
+- Verify you are reading from the correct `projectId`; artifact IDs are not global bearer tokens.
+- If a prepared version never commits, inspect recovery or checkpoint evidence instead of replaying the same write blindly.
+
+## Artifact Integrity Mismatch or Corruption Signal (Phase 9.3)
+
+**Symptom:** Artifact retrieval fails closed, or downstream tooling reports an integrity mismatch.
+
+**Meaning:** The stored payload bytes no longer match the artifact manifest's `integrityRef` (`sha256:<64-char-hex>`). The runtime is deliberately refusing to return corrupted content.
+
+**Fix:**
+
+- Treat the failure as authoritative; do not bypass it by reading the raw payload directly.
+- Check whether the payload document was interrupted, partially rewritten, or manually edited.
+- Recreate or recommit the artifact from the canonical workflow output if the checkpoint and evidence chain allow it.
+- If the producing run had uncertain external effects, escalate into review rather than assuming the artifact can be reconstructed safely.
 
 ## Workflow Run State or Dispatch Lineage Is Hard to Interpret
 

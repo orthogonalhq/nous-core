@@ -382,7 +382,7 @@ Responsibilities:
 
 This is the engine that makes protocol projects operational.
 
-Current Phase 9.1 modules in this package include graph builder, graph validator, traversal, admission, run-state, and workflow-engine foundations. Concrete node handlers, scheduler-backed recurring execution, and artifact persistence remain later-phase work.
+Current Phase 9.3 modules in this package include graph builder, graph validator, traversal, admission, governed node execution, checkpoint/runtime continuation handling, run-state, workflow-engine foundations, and canonical trigger provenance persistence.
 
 ### projects/
 
@@ -409,8 +409,11 @@ Responsibilities:
 
 * Store project-scoped binary artifacts (images, videos, LoRAs, configs, reports)
 * Version artifacts with full provenance (which node, when, what parameters)
+* Persist artifact integrity refs and prepared-versus-committed visibility state
 * Support export and deletion consistent with memory governance
 * Enable artifact referencing from workflow nodes and memory entries
+
+Phase 9.3 implements this package as `@nous/subcortex-artifacts`, backed by the autonomic document store. The runtime exposes canonical version records, project-scoped read/delete contracts, and integrity verification on retrieval.
 
 ### scheduler/
 
@@ -419,12 +422,14 @@ Time-triggered and recurring execution.
 Responsibilities:
 
 * Cron-like scheduling for recurring tasks
-* Standing objective evaluation loops for intent projects
-* Monitoring feed polling
-* Batch generation scheduling
-* Configurable frequency and conditions
+* Calendar-style one-shot execution
+* Hook and system-event envelope submission through the canonical ingress gateway
+* Duplicate-safe redispatch using ingress idempotency instead of scheduler-local side effects
+* Configurable delivery mode, workmode, and workflow bindings per schedule
 
 The clock of the subconscious.
+
+Phase 9.3 implements this package as `@nous/subcortex-scheduler`. It persists schedule definitions and due cursors locally, but all actual execution still flows through ingress and workflow admission rather than a scheduler-local shortcut.
 
 ### escalation/
 
@@ -644,6 +649,12 @@ Phase 9.1 adds:
 
 - `workflow.ts` — canonical workflow definition, derived graph, admission, run-state, and dispatch-lineage schemas
 
+Phase 9.3 adds:
+
+- `scheduler.ts` — canonical schedule definitions, trigger variants, workmode binding, and due-cursor state
+- `artifacts.ts` — versioned artifact write/read/delete/list contracts, integrity refs, and lineage
+- `ingress-trigger.ts` / `ingress-outcome.ts` expansions for explicit `workmode_id`, duplicate return linkage, and workflow-admission rejection posture
+
 ### interfaces/
 
 Cross-layer contracts. When the cortex calls the subcortex, or memory calls storage, the contract is defined here. No layer imports directly from another layer's implementation.
@@ -657,6 +668,12 @@ Phase 7.2 adds:
 Phase 9.1 expands:
 
 - `subcortex.ts` — workflow engine interfaces for definition resolution, graph derivation, admission, run progression, and state retrieval
+
+Phase 9.3 further expands:
+
+- `subcortex.ts` — scheduler and artifact request/result contracts, plus workflow start trigger provenance
+- `project-api.ts` — project-scoped artifact request/result contracts and scheduler binding surfaces
+- `ingress.ts` — callable ingress gateway and reservation-based idempotency interfaces
 
 ### events/
 

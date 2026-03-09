@@ -48,6 +48,8 @@ When a workflow definition changes, downstream consumers should expect the runti
 
 Phase 9.2 extends that same truth model to node execution details. Wait states, correction arcs, checkpoint references, and selected branch paths are all canonical runtime fields derived from the stored definition plus execution history. Surface-specific projections should read them, not reinterpret them.
 
+Phase 9.3 extends the same rule to trigger provenance. If a run came from scheduler, hook, or system-event intake, the canonical run state stores that trigger context directly. The scheduler is allowed to persist schedule definitions and due cursors; it is not a second source of truth for why a run started.
+
 ## Workflow Run State
 
 Before a workflow run starts, the runtime:
@@ -72,6 +74,24 @@ Common runtime states:
 | `failed` | The run reached a terminal failure state |
 
 If admission fails before a run is created, treat `admission_blocked` as an admission result rather than as an actively progressing run.
+
+## Trigger Provenance (Phase 9.3)
+
+Workflow runs may now include `triggerContext`:
+
+| Field | Meaning |
+|------|---------|
+| `triggerId` | Canonical ingress trigger identity |
+| `triggerType` | `scheduler`, `hook`, `webhook`, or `system_event` |
+| `sourceId` | Trigger source such as `schedule:<schedule-id>` or an internal hook source |
+| `workflowRef` | The admitted workflow definition reference |
+| `workmodeId` | The explicit workmode used for admission |
+| `idempotencyKey` | The dedup identity that suppresses duplicate side effects |
+| `dispatchRef` | The canonical dispatch linkage returned by ingress |
+| `evidenceRef` | Primary evidence pointer for the intake decision |
+| `occurredAt` | The trigger's event time |
+
+If a scheduler view and workflow view disagree, trust `triggerContext` on the workflow run first.
 
 ## Node Attempts, Waits, and Correction Arcs
 
@@ -113,6 +133,15 @@ Workflow runs now also expose branch and checkpoint truth directly:
 
 Condition nodes activate only the branch edges chosen by the canonical `selectedBranchKey`. If a downstream join looks surprising, inspect `selectedBranchKey` on the source node and `activatedEdgeIds` on the run before assuming the graph or scheduler is wrong.
 
+## Scheduler and Artifact Runtime Truth (Phase 9.3)
+
+Phase 9.3 adds two downstream runtime services that still derive from project and workflow truth instead of replacing it:
+
+- Scheduler records store canonical schedule definitions, `workflowDefinitionId`, `workmodeId`, and due cursors. They submit execution through ingress and rely on workflow run state for actual run truth.
+- Artifact records store version, integrity, and lineage back to workflow run, node, dispatch lineage, checkpoint, and evidence references.
+- Prepared artifact versions remain hidden from default retrieve/list behavior. Only committed versions are normal runtime truth.
+- Knowing an artifact ID alone is not enough to read or delete it. Artifact operations stay project-scoped.
+
 ## Current Scope
 
-Phase 9.1 and Phase 9.2 ship the canonical runtime foundation only. Later phases add broader scheduler-backed recurring execution, artifact persistence, richer Projects UI editing, and MAO projections over the run, wait, checkpoint, and correction state delivered here.
+Phase 9.1 through Phase 9.3 now cover the canonical workflow foundation plus ingress-backed scheduler dispatch and integrity-verified artifact persistence. Later phases add richer Projects UI editing and MAO projections over the run, wait, checkpoint, trigger, and artifact state delivered here.
