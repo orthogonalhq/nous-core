@@ -19,6 +19,7 @@ const CHECKPOINT_ID = '550e8400-e29b-41d4-a716-446655440409';
 const GOVERNANCE_PATTERN_ID = '550e8400-e29b-41d4-a716-446655440410';
 const GOVERNANCE_EVENT_ID = '550e8400-e29b-41d4-a716-446655440411';
 const CORRECTION_ARC_ID = '550e8400-e29b-41d4-a716-446655440412';
+const TRIGGER_ID = '550e8400-e29b-41d4-a716-446655440413';
 const NOW = '2026-03-08T00:00:00.000Z';
 
 function createGovernanceDecision(actionCategory: 'trace-persist' | 'opctl-command') {
@@ -173,6 +174,17 @@ describe('workflow run state helpers', () => {
         reasonCode: 'workflow_admitted',
         evidenceRefs: ['workflow:admission'],
       },
+      triggerContext: {
+        triggerId: TRIGGER_ID,
+        triggerType: 'hook',
+        sourceId: 'scheduler://hook',
+        workflowRef: WORKFLOW_ID,
+        workmodeId: 'system:implementation',
+        idempotencyKey: 'hook:123',
+        dispatchRef: `dispatch:${RUN_ID}`,
+        evidenceRef: `evidence:${TRIGGER_ID}`,
+        occurredAt: NOW,
+      },
       startedAt: NOW,
     });
 
@@ -180,6 +192,8 @@ describe('workflow run state helpers', () => {
     expect(runState.activeNodeIds).toEqual([NODE_A]);
     expect(runState.readyNodeIds).toEqual([NODE_A]);
     expect(runState.dispatchLineage).toHaveLength(1);
+    expect(runState.triggerContext?.triggerId).toBe(TRIGGER_ID);
+    expect(runState.triggerContext?.dispatchRef).toBe(`dispatch:${RUN_ID}`);
   });
 
   it('completes nodes and advances successors deterministically for legacy progression', () => {

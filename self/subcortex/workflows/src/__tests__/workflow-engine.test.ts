@@ -7,6 +7,8 @@ const NODE_A = '550e8400-e29b-41d4-a716-446655440503';
 const NODE_B = '550e8400-e29b-41d4-a716-446655440504';
 const PATTERN_ID = '550e8400-e29b-41d4-a716-446655440505';
 const EVENT_ID = '550e8400-e29b-41d4-a716-446655440506';
+const RUN_ID = '550e8400-e29b-41d4-a716-446655440508';
+const TRIGGER_ID = '550e8400-e29b-41d4-a716-446655440509';
 
 const projectConfig = {
   id: PROJECT_ID,
@@ -127,9 +129,21 @@ describe('DeterministicWorkflowEngine', () => {
     const engine = new DeterministicWorkflowEngine();
     const started = await engine.start({
       projectConfig: projectConfig as any,
+      runId: RUN_ID as any,
       workmodeId: 'system:implementation',
       sourceActor: 'orchestration_agent',
       controlState: 'running',
+      triggerContext: {
+        triggerId: TRIGGER_ID,
+        triggerType: 'hook',
+        sourceId: 'scheduler://event',
+        workflowRef: WORKFLOW_ID,
+        workmodeId: 'system:implementation',
+        idempotencyKey: 'event:workflow-engine',
+        dispatchRef: `dispatch:${RUN_ID}`,
+        evidenceRef: `evidence:${TRIGGER_ID}`,
+        occurredAt: '2026-03-08T00:00:00.000Z',
+      },
     });
 
     expect(started.status).toBe('started');
@@ -138,6 +152,8 @@ describe('DeterministicWorkflowEngine', () => {
     }
 
     const runId = started.runState.runId;
+    expect(runId).toBe(RUN_ID);
+    expect(started.runState.triggerContext?.triggerId).toBe(TRIGGER_ID);
     const paused = await engine.pause(runId, {
       reasonCode: 'workflow_paused',
       evidenceRefs: ['workflow:pause'],
@@ -164,6 +180,7 @@ describe('DeterministicWorkflowEngine', () => {
 
     const current = await engine.getState(runId);
     expect(current?.status).toBe('completed');
+    expect(current?.triggerContext?.dispatchRef).toBe(`dispatch:${RUN_ID}`);
   });
 
   it('executes ready nodes through governance and handler dispatch', async () => {

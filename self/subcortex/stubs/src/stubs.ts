@@ -47,10 +47,13 @@ import type {
   WorkflowTransitionInput,
   WorkflowNodeDefinitionId,
   WorkflowRunState,
-  ArtifactId,
-  ArtifactData,
-  ArtifactMetadata,
-  ArtifactFilter,
+  ArtifactDeleteRequest,
+  ArtifactListFilter,
+  ArtifactReadRequest,
+  ArtifactReadResult,
+  ArtifactVersionRecord,
+  ArtifactWriteRequest,
+  ArtifactWriteResult,
   ScheduleDefinition,
   EscalationId,
   EscalationContract,
@@ -151,22 +154,22 @@ export class StubWorkflowEngine implements IWorkflowEngine {
 }
 
 export class StubArtifactStore implements IArtifactStore {
-  async store(_artifact: ArtifactData): Promise<ArtifactId> {
+  async store(_artifact: ArtifactWriteRequest): Promise<ArtifactWriteResult> {
     return stubNotImpl('IArtifactStore', 'store', 'Phase 5');
   }
 
-  async retrieve(_id: ArtifactId): Promise<ArtifactData | null> {
+  async retrieve(_request: ArtifactReadRequest): Promise<ArtifactReadResult | null> {
     return stubNotImpl('IArtifactStore', 'retrieve', 'Phase 5');
   }
 
   async list(
     _projectId: ProjectId,
-    _filters?: ArtifactFilter,
-  ): Promise<ArtifactMetadata[]> {
+    _filters?: ArtifactListFilter,
+  ): Promise<ArtifactVersionRecord[]> {
     return stubNotImpl('IArtifactStore', 'list', 'Phase 5');
   }
 
-  async delete(_id: ArtifactId): Promise<boolean> {
+  async delete(_request: ArtifactDeleteRequest): Promise<boolean> {
     return stubNotImpl('IArtifactStore', 'delete', 'Phase 5');
   }
 }
@@ -355,16 +358,19 @@ export class StubProjectApi implements IProjectApi {
   };
 
   artifact = {
-    store: async (_data: ArtifactData): Promise<ArtifactId> => {
+    store: async (_data: ArtifactWriteRequest): Promise<ArtifactWriteResult> => {
       return stubNotImpl('IProjectApi.artifact', 'store', 'Phase 7');
     },
-    retrieve: async (_id: ArtifactId): Promise<ArtifactData | null> => {
+    retrieve: async (_request: ArtifactReadRequest): Promise<ArtifactReadResult | null> => {
       return stubNotImpl('IProjectApi.artifact', 'retrieve', 'Phase 7');
     },
     list: async (
-      _filters?: ArtifactFilter,
-    ): Promise<ArtifactMetadata[]> => {
+      _filters?: ArtifactListFilter,
+    ): Promise<ArtifactVersionRecord[]> => {
       return stubNotImpl('IProjectApi.artifact', 'list', 'Phase 7');
+    },
+    delete: async (_request: ArtifactDeleteRequest): Promise<boolean> => {
+      return stubNotImpl('IProjectApi.artifact', 'delete', 'Phase 7');
     },
   };
 

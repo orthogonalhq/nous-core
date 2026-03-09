@@ -212,11 +212,12 @@ export class DeterministicWorkflowEngine implements IWorkflowEngine {
       return { status: 'admission_blocked', admission };
     }
 
-    const runId = randomUUID() as WorkflowExecutionId;
+    const runId = request.runId ?? (randomUUID() as WorkflowExecutionId);
     const runState = createInitialWorkflowRunState({
       runId,
       graph,
       admission,
+      triggerContext: request.triggerContext,
       transition: {
         reasonCode: 'workflow_started',
         evidenceRefs:
