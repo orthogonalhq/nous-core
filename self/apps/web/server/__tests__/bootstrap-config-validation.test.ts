@@ -64,4 +64,17 @@ describe('bootstrap config validation', () => {
       /Config validation failed|invalid id|valid UUID/i,
     );
   });
+
+  it('wires workflow and artifact services into the web context', () => {
+    const dataDir = join(tmpdir(), `nous-web-context-${randomUUID()}`);
+    mkdirSync(dataDir, { recursive: true });
+
+    process.env.NOUS_DATA_DIR = dataDir;
+    delete process.env.NOUS_CONFIG_PATH;
+    clearNousContextCache();
+
+    const ctx = createNousContext();
+    expect(ctx.workflowEngine).toBeDefined();
+    expect(ctx.artifactStore).toBeDefined();
+  });
 });

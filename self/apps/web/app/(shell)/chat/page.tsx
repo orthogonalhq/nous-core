@@ -1,13 +1,23 @@
 'use client';
 
-import { useState } from 'react';
+import { Suspense, useState } from 'react';
+import { useSearchParams } from 'next/navigation';
 import { trpc } from '@/lib/trpc';
 import { useProject } from '@/lib/project-context';
 import { MessageList } from '@/components/chat/message-list';
 import { ChatInput } from '@/components/chat/chat-input';
 
 export default function ChatPage() {
+  return (
+    <Suspense fallback={<div className="flex h-full flex-col" />}>
+      <ChatPageContent />
+    </Suspense>
+  );
+}
+
+function ChatPageContent() {
   const { projectId } = useProject();
+  const searchParams = useSearchParams();
   const [optimisticMessages, setOptimisticMessages] = useState<
     Array<{ role: 'user' | 'assistant'; content: string }>
   >([]);
@@ -67,8 +77,18 @@ export default function ChatPage() {
     );
   }
 
+  const linkedRunId = searchParams.get('runId');
+  const linkedNodeId = searchParams.get('nodeId');
+
   return (
     <div className="flex h-full flex-col">
+      {linkedRunId || linkedNodeId ? (
+        <div className="border-b border-border bg-muted/20 px-6 py-3 text-sm text-muted-foreground">
+          Linked workflow context
+          {linkedRunId ? ` run ${linkedRunId.slice(0, 8)}` : ''}
+          {linkedNodeId ? ` node ${linkedNodeId.slice(0, 8)}` : ''}.
+        </div>
+      ) : null}
       <MessageList context={displayContext} />
       <ChatInput
         onSend={handleSend}

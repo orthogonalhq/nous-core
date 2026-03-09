@@ -203,6 +203,95 @@ describe('tRPC procedures', () => {
     expect(snapshot?.latestRefresh?.id).toBe(refresh.id);
   });
 
+  it('projects workflow procedures validate and persist workflow definitions', async () => {
+    const ctx = createNousContext();
+    const caller = appRouter.createCaller(ctx);
+    const projectId = randomUUID() as import('@nous/shared').ProjectId;
+    await ctx.projectStore.create({
+      id: projectId,
+      name: 'Projects Workflow Procedure Project',
+      type: 'hybrid',
+      pfcTier: 3,
+      memoryAccessPolicy: {
+        canReadFrom: 'all',
+        canBeReadBy: 'all',
+        inheritsGlobal: true,
+      },
+      escalationChannels: ['in-app'],
+      workflow: {
+        defaultWorkflowDefinitionId: '550e8400-e29b-41d4-a716-446655442002' as any,
+        definitions: [
+          {
+            id: '550e8400-e29b-41d4-a716-446655442002',
+            projectId,
+            mode: 'hybrid',
+            version: '1.0.0',
+            name: 'Procedure Workflow',
+            entryNodeIds: ['550e8400-e29b-41d4-a716-446655442003'] as any,
+            nodes: [
+              {
+                id: '550e8400-e29b-41d4-a716-446655442003',
+                name: 'Draft',
+                type: 'model-call',
+                governance: 'must',
+                executionModel: 'synchronous',
+                config: {
+                  type: 'model-call',
+                  modelRole: 'reasoner',
+                  promptRef: 'prompt://draft',
+                },
+              },
+            ],
+            edges: [],
+          } as any,
+        ],
+      },
+      retrievalBudgetTokens: 500,
+      createdAt: new Date().toISOString(),
+      updatedAt: new Date().toISOString(),
+    });
+
+    const validDefinition = {
+      id: '550e8400-e29b-41d4-a716-446655442002',
+      projectId,
+      mode: 'hybrid' as const,
+      version: '1.0.1',
+      name: 'Procedure Workflow',
+      entryNodeIds: ['550e8400-e29b-41d4-a716-446655442003'],
+      nodes: [
+        {
+          id: '550e8400-e29b-41d4-a716-446655442003',
+          name: 'Draft',
+          type: 'model-call' as const,
+          governance: 'must' as const,
+          executionModel: 'synchronous' as const,
+          config: {
+            type: 'model-call' as const,
+            modelRole: 'reasoner' as const,
+            promptRef: 'prompt://draft-v2',
+          },
+        },
+      ],
+      edges: [],
+    };
+
+    const validation = await caller.projects.validateWorkflowDefinition({
+      projectId,
+      workflowDefinition: validDefinition,
+    });
+    expect(validation.valid).toBe(true);
+
+    const saved = await caller.projects.saveWorkflowDefinition({
+      projectId,
+      workflowDefinition: validDefinition,
+      setAsDefault: true,
+    });
+    expect(saved.project.workflow?.definitions[0]?.version).toBe('1.0.1');
+
+    const snapshot = await caller.projects.workflowSnapshot({ projectId });
+    expect(snapshot.workflowDefinition?.version).toBe('1.0.1');
+  });
+
   it('witness verify/list/get returns report artifacts', async () => {
     const ctx = createNousContext();
     const caller = appRouter.createCaller(ctx);

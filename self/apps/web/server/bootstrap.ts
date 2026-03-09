@@ -34,6 +34,7 @@ import {
 } from '@nous/cortex-pfc';
 import { CoreExecutor } from '@nous/cortex-core';
 import { DocumentProjectStore } from '@nous/subcortex-projects';
+import { DocumentArtifactStore } from '@nous/subcortex-artifacts';
 import { ModelRouter } from '@nous/subcortex-router';
 import { ProviderRegistry } from '@nous/subcortex-providers';
 import {
@@ -42,6 +43,7 @@ import {
   RefreshProjectKnowledgeTool,
   ToolExecutor,
 } from '@nous/subcortex-tools';
+import { DeterministicWorkflowEngine } from '@nous/subcortex-workflows';
 import { WitnessService } from '@nous/subcortex-witnessd';
 import {
   OpctlService,
@@ -169,6 +171,7 @@ export function createNousContext(): NousContext {
     compactionPolicy: resolveStmCompactionPolicy(resolvedConfig),
   });
   const projectStore = new DocumentProjectStore(documentStore);
+  const artifactStore = new DocumentArtifactStore(documentStore);
   const witnessService = new WitnessService(documentStore);
   const opctlService = new OpctlService({
     replayStore: new InMemoryReplayStore(),
@@ -220,6 +223,11 @@ export function createNousContext(): NousContext {
 
   const router = new ModelRouter(config);
   const providerRegistry = new ProviderRegistry(config);
+  const workflowEngine = new DeterministicWorkflowEngine({
+    pfcEngine: Cortex,
+    modelRouter: router,
+    toolExecutor,
+  });
 
   const getProvider = (id: ProviderId) => {
     // Explicitly route the synthetic fallback provider to the in-process mock.
@@ -264,6 +272,8 @@ export function createNousContext(): NousContext {
     maoProjectionService,
     gtmGateCalculator,
     knowledgeIndex,
+    workflowEngine,
+    artifactStore,
     dataDir,
   };
 

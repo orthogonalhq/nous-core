@@ -290,4 +290,56 @@ describe('DeterministicWorkflowEngine', () => {
     expect(blocked.blockedNodeIds).toEqual([NODE_A]);
     expect(blocked.nodeStates[NODE_A]?.status).toBe('blocked');
   });
+
+  it('lists project runs newest first and returns the associated run graph', async () => {
+    const engine = new DeterministicWorkflowEngine();
+
+    const first = await engine.start({
+      projectConfig: projectConfig as any,
+      runId: '550e8400-e29b-41d4-a716-446655440510' as any,
+      workmodeId: 'system:implementation',
+      sourceActor: 'orchestration_agent',
+      controlState: 'running',
+      startedAt: '2026-03-08T00:00:00.000Z',
+    });
+    const second = await engine.start({
+      projectConfig: projectConfig as any,
+      runId: '550e8400-e29b-41d4-a716-446655440511' as any,
+      workmodeId: 'system:implementation',
+      sourceActor: 'orchestration_agent',
+      controlState: 'running',
+      startedAt: '2026-03-08T01:00:00.000Z',
+    });
+
+    expect(first.status).toBe('started');
+    expect(second.status).toBe('started');
+    if (first.status !== 'started' || second.status !== 'started') {
+      return;
+    }
+
+    const runs = await engine.listProjectRuns(PROJECT_ID as any);
+    expect(runs.map((run) => run.runId)).toEqual([
+      second.runState.runId,
+      first.runState.runId,
+    ]);
+
+    const graph = await engine.getRunGraph(second.runState.runId);
+    expect(graph?.workflowDefinitionId).toBe(WORKFLOW_ID);
+    expect(graph?.projectId).toBe(PROJECT_ID);
+  });
+
+  it('returns empty monitoring results for unknown projects and runs', async () => {
+    const engine = new DeterministicWorkflowEngine();
+
+    expect(
+      await engine.listProjectRuns(
+        '550e8400-e29b-41d4-a716-446655440599' as any,
+      ),
+    ).toEqual([]);
+    expect(
+      await engine.getRunGraph(
+        '550e8400-e29b-41d4-a716-446655440598' as any,
+      ),
+    ).toBeNull();
+  });
 });

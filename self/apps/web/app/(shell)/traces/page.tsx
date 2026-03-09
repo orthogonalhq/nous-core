@@ -1,5 +1,7 @@
 'use client';
 
+import { Suspense } from 'react';
+import { useSearchParams } from 'next/navigation';
 import { useProject } from '@/lib/project-context';
 import { trpc } from '@/lib/trpc';
 import { Card, CardHeader, CardTitle, CardContent } from '@/components/ui/card';
@@ -14,7 +16,23 @@ function shortId(id: string): string {
 }
 
 export default function TracesPage() {
+  return (
+    <Suspense
+      fallback={
+        <div className="p-8">
+          <p className="text-muted-foreground">Loading traces...</p>
+        </div>
+      }
+    >
+      <TracesPageContent />
+    </Suspense>
+  );
+}
+
+function TracesPageContent() {
   const { projectId } = useProject();
+  const searchParams = useSearchParams();
+  const selectedTraceId = searchParams.get('traceId');
   const { data: traces, isLoading } = trpc.traces.list.useQuery(
     { projectId: projectId ?? undefined, limit: 50 },
     { enabled: !!projectId },
@@ -41,13 +59,18 @@ export default function TracesPage() {
   return (
     <div className="space-y-4 p-8">
       <h1 className="text-2xl font-semibold">Execution Traces</h1>
+      {selectedTraceId ? (
+        <p className="text-sm text-muted-foreground">
+          Linked trace reference: {selectedTraceId.slice(0, 8)}...
+        </p>
+      ) : null}
       {!traces?.length ? (
         <p className="text-muted-foreground">No traces yet. Send a message in Chat to create one.</p>
       ) : (
         <div className="space-y-4">
           {(traces ?? []).map((trace) => (
             <Card key={trace.traceId}>
-              <Collapsible defaultOpen={false}>
+              <Collapsible defaultOpen={trace.traceId === selectedTraceId}>
                 <CardHeader className="py-3">
                   <CollapsibleTrigger className="flex w-full items-center justify-between text-left">
                     <CardTitle className="text-sm font-medium">

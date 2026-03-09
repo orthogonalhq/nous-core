@@ -13,6 +13,7 @@ const DOCS_URL = process.env.NEXT_PUBLIC_DOCS_URL ?? 'http://localhost:4318';
 export const NAV_CONFIG: { items: NavItem[] } = {
   items: [
     { href: '/chat', label: 'Chat' },
+    { href: '/projects', label: 'Projects' },
     { href: '/traces', label: 'Traces' },
     { href: '/memory', label: 'Memory' },
     { href: '/config', label: 'Configuration' },

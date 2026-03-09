@@ -38,6 +38,8 @@
     "@nous/subcortex-witnessd": "workspace:*",
     "@nous/subcortex-mao": "workspace:*",
     "@nous/subcortex-gtm": "workspace:*",
+    "@nous/subcortex-artifacts": "workspace:*",
+    "@nous/subcortex-workflows": "workspace:*",
     "@tanstack/react-query": "^5.62.0",
     "@trpc/client": "^11.0.0-rc.0",
     "@trpc/react-query": "^11.0.0-rc.0",
