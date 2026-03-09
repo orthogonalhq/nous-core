@@ -12,6 +12,10 @@ import {
   PolicyLeakageRegressionFixtureSchema,
 } from '../../types/discovery.js';
 import {
+  ProjectDiscoveryRequestSchema,
+  ProjectDiscoveryResultSchema,
+} from '../../types/knowledge-index.js';
+import {
   Phase8DiscoveryExportSchema,
   Phase8EvidenceExportSchema,
 } from '../../types/phase8-export.js';
@@ -162,6 +166,75 @@ describe('Phase8EvidenceExportSchema', () => {
       evidenceRefs: [{ actionCategory: 'mao-projection' as const }],
     };
     expect(Phase8EvidenceExportSchema.safeParse(valid).success).toBe(true);
+  });
+});
+
+describe('ProjectDiscoveryRequestSchema', () => {
+  it('accepts a valid text-query discovery request', () => {
+    const result = ProjectDiscoveryRequestSchema.safeParse({
+      requestingProjectId: P1,
+      query: 'budget forecasting',
+      topK: 5,
+    });
+    expect(result.success).toBe(true);
+    if (result.success) {
+      expect(result.data.includeMetaVector).toBe(true);
+      expect(result.data.includeTaxonomy).toBe(true);
+      expect(result.data.includeRelationships).toBe(true);
+    }
+  });
+
+  it('rejects topK outside supported range', () => {
+    expect(
+      ProjectDiscoveryRequestSchema.safeParse({
+        requestingProjectId: P1,
+        query: 'budget forecasting',
+        topK: 0,
+      }).success,
+    ).toBe(false);
+  });
+});
+
+describe('ProjectDiscoveryResultSchema', () => {
+  it('accepts a policy-filtered discovery runtime result', () => {
+    const result = ProjectDiscoveryResultSchema.safeParse({
+      discovery: {
+        version: '1.0',
+        exportedAt: new Date().toISOString(),
+        requestingProjectId: P1,
+        projectIds: [P1],
+        results: [{ projectId: P1, rank: 1, combinedScore: 0.9 }],
+        audit: {
+          projectIdsDiscovered: [P1],
+          metaVectorCount: 1,
+          taxonomyCount: 1,
+          relationshipCount: 0,
+          mergeStrategy: 'meta-vector-primary',
+        },
+      },
+      policy: {
+        deniedProjectCount: 1,
+        reasonCodes: ['POLICY-DENIED'],
+        controlState: 'running',
+      },
+      snapshot: {
+        projectId: P1,
+        metaVector: null,
+        taxonomy: [],
+        relationships: {
+          projectId: P1,
+          outgoing: [],
+          incoming: [],
+        },
+        latestRefresh: null,
+        diagnostics: {
+          runtimePosture: 'single_process_local',
+          refreshInFlight: false,
+          confidenceReasonCodes: [],
+        },
+      },
+    });
+    expect(result.success).toBe(true);
   });
 });
 
