@@ -4,6 +4,7 @@
  * Phase 6.3: Invoked when patterns are distilled. Extractor produces edges;
  * service stores with provenance.
  */
+import { createHash } from 'node:crypto';
 import type {
   Phase6DistilledPatternExport,
   ProjectId,
@@ -36,29 +37,56 @@ export class RelationshipMappingService {
       });
     }
 
-    const edges = await this.deps.extractor.extract(projectId, patterns);
-    const evidenceRefs: TraceEvidenceReference[] = patterns.flatMap((p) =>
-      p.evidenceRefs.length > 0 ? p.evidenceRefs : [],
+    const extracted = await this.deps.extractor.extract(projectId, patterns);
+    const edges = dedupeEdges(
+      extracted.map((edge) => ({
+        ...edge,
+        id: buildDeterministicRelationshipEdgeId(
+          edge.sourceProjectId,
+          edge.targetProjectId,
+          edge.type,
+        ),
+      })),
     );
-
-    const existing = await this.deps.graphStore.getEdges(projectId);
-    const existingCount = existing.length;
-
-    if (edges.length > 0) {
-      await this.deps.graphStore.invalidateEdges(projectId);
-      await this.deps.graphStore.upsertEdges(edges);
-    }
-
-    const created = edges.length;
-    const updated = 0;
-    const invalidated = existingCount;
+    const evidenceRefs: TraceEvidenceReference[] = patterns.flatMap((pattern) =>
+      pattern.evidenceRefs.length > 0 ? pattern.evidenceRefs : [],
+    );
+    const counts = await this.deps.graphStore.replaceEdgesForSource(projectId, edges);
 
     return RelationshipMappingOutputSchema.parse({
       projectId,
-      edgesCreated: created,
-      edgesUpdated: updated,
-      edgesInvalidated: invalidated,
+      edgesCreated: counts.created,
+      edgesUpdated: counts.updated,
+      edgesInvalidated: counts.invalidated,
       evidenceRefs: evidenceRefs.length > 0 ? evidenceRefs : [],
     });
   }
+}
+
+export function buildDeterministicRelationshipEdgeId(
+  sourceProjectId: ProjectId,
+  targetProjectId: ProjectId,
+  type: string,
+): string {
+  const hash = createHash('sha256')
+    .update(`${sourceProjectId}:${targetProjectId}:${type}`)
+    .digest('hex');
+  const variant = (parseInt(hash.slice(16, 18), 16) & 0x3f | 0x80)
+    .toString(16)
+    .padStart(2, '0');
+  return [
+    hash.slice(0, 8),
+    hash.slice(8, 12),
+    `5${hash.slice(13, 16)}`,
+    `${variant}${hash.slice(18, 20)}`,
+    hash.slice(20, 32),
+  ].join('-');
+}
+
+function dedupeEdges<T extends { id: string }>(edges: T[]): T[] {
+  const byId = new Map<string, T>();
+  for (const edge of edges) {
+    byId.set(edge.id, edge);
+  }
+  return Array.from(byId.values());
 }

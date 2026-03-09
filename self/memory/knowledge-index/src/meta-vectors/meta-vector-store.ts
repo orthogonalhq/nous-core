@@ -47,6 +47,9 @@ export class MetaVectorStore implements IMetaVectorStore {
       projectId: meta.projectId ?? r.id,
       vector,
       basedOn: meta.basedOn ?? [],
+      evidenceRefs: meta.evidenceRefs ?? [],
+      inputDigest: meta.inputDigest,
+      refreshRecordId: meta.refreshRecordId,
       updatedAt: meta.updatedAt,
       createdAt: meta.createdAt,
     });
@@ -63,6 +66,9 @@ export class MetaVectorStore implements IMetaVectorStore {
       {
         projectId: parsed.projectId,
         basedOn: parsed.basedOn,
+        evidenceRefs: parsed.evidenceRefs,
+        inputDigest: parsed.inputDigest,
+        refreshRecordId: parsed.refreshRecordId,
         updatedAt: parsed.updatedAt,
         createdAt: parsed.createdAt,
         vector: parsed.vector,

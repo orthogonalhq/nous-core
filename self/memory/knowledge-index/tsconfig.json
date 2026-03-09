@@ -3,13 +3,20 @@
   "compilerOptions": {
     "rootDir": "src",
     "outDir": "dist",
-    "composite": true
+    "composite": true,
+    "paths": {
+      "@nous/shared": ["../../shared/src/index.ts"],
+      "@nous/autonomic-storage": ["../../autonomic/storage/src/index.ts"],
+      "@nous/autonomic-embeddings": ["../../autonomic/embeddings/src/index.ts"],
+      "@nous/memory-access": ["../../memory/access/src/index.ts"]
+    }
   },
   "include": ["src"],
   "exclude": ["src/**/__tests__/**"],
   "references": [
     { "path": "../../shared" },
     { "path": "../../autonomic/storage" },
-    { "path": "../../autonomic/embeddings" }
+    { "path": "../../autonomic/embeddings" },
+    { "path": "../../memory/access" }
   ]
 }

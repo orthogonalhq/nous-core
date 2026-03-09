@@ -6,4 +6,6 @@ export {
 export {
   MetaVectorService,
   type MetaVectorServiceDeps,
+  type MetaVectorRefreshOptions,
+  type MetaVectorRefreshResult,
 } from './meta-vector-service.js';
