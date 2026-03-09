@@ -179,6 +179,12 @@ export interface IWorkflowEngine {
 
   /** Get workflow execution state */
   getState(executionId: WorkflowExecutionId): Promise<WorkflowRunState | null>;
+
+  /** List known in-process workflow runs for a project, newest first */
+  listProjectRuns(projectId: ProjectId): Promise<WorkflowRunState[]>;
+
+  /** Get the derived graph associated with a known in-process workflow run */
+  getRunGraph(executionId: WorkflowExecutionId): Promise<DerivedWorkflowGraph | null>;
 }
 
 export interface IProjectStore {
