@@ -15,6 +15,7 @@ const validPayload = {
   source_id: 'scheduler-1',
   project_id: UUID,
   workflow_ref: 'workflow:test',
+  workmode_id: 'system:implementation',
   event_name: 'scheduled_run',
   payload_ref: 'sha256:' + 'a'.repeat(64),
   idempotency_key: 'key-1',
@@ -33,6 +34,7 @@ describe('IngressTriggerValidator', () => {
     if (result.valid) {
       expect(result.envelope.project_id).toBe(UUID);
       expect(result.envelope.workflow_ref).toBe('workflow:test');
+      expect(result.envelope.workmode_id).toBe('system:implementation');
     }
   });
 
@@ -59,6 +61,16 @@ describe('IngressTriggerValidator', () => {
   it('validate() rejects unknown trigger_type', () => {
     const validator = new IngressTriggerValidator();
     const invalid = { ...validPayload, trigger_type: 'invalid' };
+    const result = validator.validate(invalid);
+    expect(result.valid).toBe(false);
+    if (!result.valid) {
+      expect(result.reason).toBe('invalid_envelope');
+    }
+  });
+
+  it('validate() rejects missing workmode_id', () => {
+    const validator = new IngressTriggerValidator();
+    const invalid = { ...validPayload, workmode_id: undefined };
     const result = validator.validate(invalid);
     expect(result.valid).toBe(false);
     if (!result.valid) {

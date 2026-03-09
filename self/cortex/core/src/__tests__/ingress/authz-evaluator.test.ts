@@ -19,6 +19,7 @@ function makeEnvelope(
     source_id: 'scheduler-1',
     project_id: UUID as import('@nous/shared').ProjectId,
     workflow_ref: 'workflow:test',
+    workmode_id: 'system:implementation',
     event_name: 'scheduled_run',
     payload_ref: 'sha256:' + 'a'.repeat(64),
     idempotency_key: 'key-1',
