@@ -22,6 +22,7 @@ import {
 } from './enums.js';
 import { WorkmodeIdSchema } from './workmode.js';
 import { ProjectControlStateSchema, type ProjectControlState } from './mao.js';
+import { IngressTriggerTypeSchema } from './ingress-trigger.js';
 import {
   ConfidenceGovernanceEvaluationInputSchema,
   ConfidenceGovernanceEvaluationResultSchema,
@@ -407,6 +408,21 @@ export const WorkflowNodeRunStateSchema = z.object({
 });
 export type WorkflowNodeRunState = z.infer<typeof WorkflowNodeRunStateSchema>;
 
+export const WorkflowRunTriggerContextSchema = z.object({
+  triggerId: z.string().uuid(),
+  triggerType: IngressTriggerTypeSchema,
+  sourceId: z.string().min(1),
+  workflowRef: z.string().min(1),
+  workmodeId: WorkmodeIdSchema,
+  idempotencyKey: z.string().min(1),
+  dispatchRef: z.string().min(1),
+  evidenceRef: z.string().min(1),
+  occurredAt: z.string().datetime(),
+});
+export type WorkflowRunTriggerContext = z.infer<
+  typeof WorkflowRunTriggerContextSchema
+>;
+
 export const WorkflowRunStateSchema = z.object({
   runId: WorkflowExecutionIdSchema,
   workflowDefinitionId: WorkflowDefinitionIdSchema,
@@ -426,6 +442,7 @@ export const WorkflowRunStateSchema = z.object({
   lastPreparedCheckpointId: z.string().uuid().optional(),
   lastCommittedCheckpointId: z.string().uuid().optional(),
   checkpointState: WorkflowCheckpointStateSchema.default('idle'),
+  triggerContext: WorkflowRunTriggerContextSchema.optional(),
   nodeStates: z.record(z.string().uuid(), WorkflowNodeRunStateSchema),
   dispatchLineage: z.array(WorkflowDispatchLineageSchema).default([]),
   startedAt: z.string().datetime(),

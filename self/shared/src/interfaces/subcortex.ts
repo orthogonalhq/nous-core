@@ -8,7 +8,6 @@
 import type {
   ProjectId,
   ProviderId,
-  ArtifactId,
   MemoryEntryId,
   WorkflowExecutionId,
   WorkflowDefinitionId,
@@ -20,6 +19,7 @@ import type {
   WorkflowTransitionInput,
   WorkflowNodeDefinitionId,
   WorkflowRunState,
+  WorkflowRunTriggerContext,
   WorkflowExecuteNodeRequest,
   WorkflowContinueNodeRequest,
   WorkmodeId,
@@ -35,9 +35,13 @@ import type {
   ToolDefinition,
   ProjectConfig,
   ProjectState,
-  ArtifactData,
-  ArtifactMetadata,
-  ArtifactFilter,
+  ArtifactDeleteRequest,
+  ArtifactListFilter,
+  ArtifactReadRequest,
+  ArtifactReadResult,
+  ArtifactVersionRecord,
+  ArtifactWriteRequest,
+  ArtifactWriteResult,
   ScheduleDefinition,
   EscalationContract,
   EscalationResponse,
@@ -120,10 +124,12 @@ export interface IToolExecutor {
 export interface WorkflowStartRequest {
   projectConfig: ProjectConfig;
   workflowDefinitionId?: WorkflowDefinitionId;
+  runId?: WorkflowExecutionId;
   workmodeId: WorkmodeId;
   sourceActor: import('./workmode.js').AuthorityActor;
   targetActor?: import('./workmode.js').AuthorityActor;
   controlState?: ProjectControlState;
+  triggerContext?: WorkflowRunTriggerContext;
   admissionEvidenceRefs?: string[];
   startedAt?: string;
 }
@@ -194,16 +200,19 @@ export interface IProjectStore {
 
 export interface IArtifactStore {
   /** Store a versioned artifact */
-  store(artifact: ArtifactData): Promise<ArtifactId>;
+  store(request: ArtifactWriteRequest): Promise<ArtifactWriteResult>;
 
-  /** Retrieve an artifact by ID */
-  retrieve(id: ArtifactId): Promise<ArtifactData | null>;
+  /** Retrieve an artifact by project-scoped request */
+  retrieve(request: ArtifactReadRequest): Promise<ArtifactReadResult | null>;
 
   /** List artifacts for a project */
-  list(projectId: ProjectId, filters?: ArtifactFilter): Promise<ArtifactMetadata[]>;
+  list(
+    projectId: ProjectId,
+    filters?: ArtifactListFilter,
+  ): Promise<ArtifactVersionRecord[]>;
 
   /** Delete an artifact */
-  delete(id: ArtifactId): Promise<boolean>;
+  delete(request: ArtifactDeleteRequest): Promise<boolean>;
 }
 
 export interface IScheduler {
@@ -341,9 +350,12 @@ export interface IProjectApi {
 
   /** Artifact API for the current project */
   artifact: {
-    store(data: ArtifactData): Promise<ArtifactId>;
-    retrieve(id: ArtifactId): Promise<ArtifactData | null>;
-    list(filters?: ArtifactFilter): Promise<ArtifactMetadata[]>;
+    store(data: Omit<ArtifactWriteRequest, 'projectId'>): Promise<ArtifactWriteResult>;
+    retrieve(
+      request: Omit<ArtifactReadRequest, 'projectId'>,
+    ): Promise<ArtifactReadResult | null>;
+    list(filters?: ArtifactListFilter): Promise<ArtifactVersionRecord[]>;
+    delete(request: Omit<ArtifactDeleteRequest, 'projectId'>): Promise<boolean>;
   };
 
   /** Escalation API for the current project */

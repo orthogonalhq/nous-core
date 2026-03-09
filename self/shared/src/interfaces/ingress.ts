@@ -8,6 +8,7 @@ import type {
   IngressTriggerEnvelope,
   IngressDispatchOutcome,
   IngressRejectReason,
+  WorkflowExecutionId,
 } from '../types/index.js';
 
 /** Result of trigger validation: either validated envelope or reject reason. */
@@ -28,16 +29,24 @@ export type IngressAuthzResult =
       reason: 'scope_mismatch' | 'event_forbidden' | 'policy_blocked';
     };
 
-/** Result of idempotency/replay check. */
-export type IngressIdempotencyCheckResult =
-  | { status: 'new' }
+/** Result of idempotency reservation / replay check. */
+export type IngressIdempotencyClaimResult =
+  | {
+      status: 'claimed';
+      reservation_id: string;
+      run_id: WorkflowExecutionId;
+      recorded_at: string;
+    }
   | {
       status: 'duplicate';
-      run_id: string;
+      run_id: WorkflowExecutionId;
       dispatch_ref: string;
       evidence_ref: string;
     }
   | { status: 'replay' };
+
+// Backward-compatible alias retained while Phase 9.3 propagates through runtime code.
+export type IngressIdempotencyCheckResult = IngressIdempotencyClaimResult;
 
 /** Validates raw trigger payload against IngressTriggerEnvelope schema. */
 export interface IIngressTriggerValidator {
@@ -63,14 +72,17 @@ export interface IIngressAuthzEvaluator {
 
 /** Stores and retrieves dedup records. Dedup identity: source_id + idempotency_key. */
 export interface IIngressIdempotencyStore {
-  recordAndCheck(
+  claim(
     envelope: IngressTriggerEnvelope,
-  ): Promise<IngressIdempotencyCheckResult>;
-  recordDispatch(
-    envelope: IngressTriggerEnvelope,
-    run_id: string,
-    dispatch_ref: string,
-    evidence_ref: string,
+  ): Promise<IngressIdempotencyClaimResult>;
+  commitDispatch(
+    reservationId: string,
+    dispatchRef: string,
+    evidenceRef: string,
+  ): Promise<void>;
+  releaseClaim(
+    reservationId: string,
+    reasonCode: string,
   ): Promise<void>;
 }
 
@@ -78,6 +90,11 @@ export interface IIngressIdempotencyStore {
 export interface IIngressDispatchAdmission {
   admit(
     envelope: IngressTriggerEnvelope,
-    idempotencyResult: IngressIdempotencyCheckResult,
+    idempotencyResult: IngressIdempotencyClaimResult,
   ): Promise<IngressDispatchOutcome>;
+}
+
+/** Callable canonical ingress path for scheduler and future adapters. */
+export interface IIngressGateway {
+  submit(envelope: IngressTriggerEnvelope): Promise<IngressDispatchOutcome>;
 }

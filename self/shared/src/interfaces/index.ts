@@ -60,9 +60,11 @@ export type {
   IIngressAuthzEvaluator,
   IIngressIdempotencyStore,
   IIngressDispatchAdmission,
+  IIngressGateway,
   IngressValidationResult,
   IngressAuthnResult,
   IngressAuthzResult,
+  IngressIdempotencyClaimResult,
   IngressIdempotencyCheckResult,
 } from './ingress.js';
 export type {
