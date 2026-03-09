@@ -6,8 +6,10 @@
 import type {
   ICoreExecutor,
   IKnowledgeIndex,
+  IArtifactStore,
   IProjectStore,
   IStmStore,
+  IWorkflowEngine,
   IWitnessService,
   IOpctlService,
   IMaoProjectionService,
@@ -34,5 +36,7 @@ export interface NousContext {
   maoProjectionService: IMaoProjectionService;
   gtmGateCalculator: IGtmGateCalculator;
   knowledgeIndex: IKnowledgeIndex;
+  workflowEngine: IWorkflowEngine;
+  artifactStore: IArtifactStore;
   dataDir: string;
 }
