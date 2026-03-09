@@ -24,6 +24,8 @@ describe('ProjectMetaVectorSchema', () => {
       projectId: PROJECT_ID,
       vector: [0.1, 0.2, 0.3],
       basedOn: [ENTRY_ID],
+      evidenceRefs: [{ actionCategory: 'memory-write' as const }],
+      inputDigest: 'a'.repeat(64),
       updatedAt: '2026-02-28T00:00:00.000Z',
       createdAt: '2026-02-27T00:00:00.000Z',
     };
@@ -31,7 +33,20 @@ describe('ProjectMetaVectorSchema', () => {
     expect(parsed.projectId).toBe(PROJECT_ID);
     expect(parsed.vector).toEqual([0.1, 0.2, 0.3]);
     expect(parsed.basedOn).toHaveLength(1);
+    expect(parsed.evidenceRefs).toHaveLength(1);
+    expect(parsed.inputDigest).toBe('a'.repeat(64));
     expect(parsed.updatedAt).toBe('2026-02-28T00:00:00.000Z');
+  });
+
+  it('defaults evidenceRefs when omitted', () => {
+    const parsed = ProjectMetaVectorSchema.parse({
+      projectId: PROJECT_ID,
+      vector: [0.1],
+      basedOn: [ENTRY_ID],
+      updatedAt: '2026-02-28T00:00:00.000Z',
+      createdAt: '2026-02-27T00:00:00.000Z',
+    });
+    expect(parsed.evidenceRefs).toEqual([]);
   });
 
   it('rejects empty vector', () => {

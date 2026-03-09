@@ -24,6 +24,11 @@ import type {
   ConfidenceDecayInput,
   ConfidenceUpdateResult,
   SupersessionReversalRequest,
+  ProjectKnowledgeRefreshRequest,
+  ProjectKnowledgeRefreshRecord,
+  ProjectKnowledgeSnapshot,
+  ProjectDiscoveryRequest,
+  ProjectDiscoveryResult,
 } from '../types/index.js';
 
 export interface IStmStore {
@@ -85,11 +90,20 @@ export interface IRetrievalEngine {
 }
 
 export interface IKnowledgeIndex {
-  /** Update meta-vector for a project */
-  updateMetaVector(projectId: ProjectId): Promise<void>;
+  /** Refresh canonical meta-vector, taxonomy, and relationship projections for a project */
+  refreshProjectKnowledge(
+    request: ProjectKnowledgeRefreshRequest,
+  ): Promise<ProjectKnowledgeRefreshRecord>;
 
-  /** Discover relevant projects for a query */
-  discoverProjects(query: string, excludeProjectIds?: ProjectId[]): Promise<ProjectId[]>;
+  /** Get the current knowledge snapshot for a project */
+  getProjectSnapshot(
+    projectId: ProjectId,
+  ): Promise<ProjectKnowledgeSnapshot | null>;
+
+  /** Discover relevant candidate projects for a text query */
+  discoverProjects(
+    request: ProjectDiscoveryRequest,
+  ): Promise<ProjectDiscoveryResult>;
 }
 
 export interface IAccessPolicy {
