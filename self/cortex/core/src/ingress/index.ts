@@ -17,3 +17,7 @@ export {
   IngressDispatchAdmission,
   type IngressDispatchAdmissionOptions,
 } from './dispatch-admission.js';
+export {
+  IngressGateway,
+  type IngressGatewayOptions,
+} from './gateway.js';

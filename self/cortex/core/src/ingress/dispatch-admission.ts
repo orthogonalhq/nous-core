@@ -1,33 +1,81 @@
 /**
  * Ingress dispatch admission implementation.
  *
- * Phase 5.3 — Automation Gateway Ingress and Dispatch Admission.
- * Admits validated trigger into run creation path. PCP-007: control state blocks.
+ * Phase 9.3 upgrades dispatch admission from "mint a run id locally" to
+ * "complete the canonical ingress-to-workflow-start path" with project lookup,
+ * workflow start, and idempotency reservation finalization.
  */
 import type {
-  IngressTriggerEnvelope,
+  AuthorityActor,
+  IProjectStore,
+  IWorkflowEngine,
   IngressDispatchOutcome,
-  IngressIdempotencyCheckResult,
+  IngressIdempotencyClaimResult,
+  IngressTriggerEnvelope,
+  ProjectId,
+  ProjectControlState,
+  WorkflowDefinitionId,
+  WorkflowRunTriggerContext,
 } from '@nous/shared';
 import type {
   IIngressDispatchAdmission,
   IIngressIdempotencyStore,
   IOpctlService,
 } from '@nous/shared';
-import type { ProjectId } from '@nous/shared';
-import { randomUUID } from 'node:crypto';
 
 export interface IngressDispatchAdmissionOptions {
   opctl: IOpctlService | null;
   idempotencyStore: IIngressIdempotencyStore;
+  projectStore: IProjectStore;
+  workflowEngine: IWorkflowEngine;
+  sourceActor?: AuthorityActor;
 }
 
 export class IngressDispatchAdmission implements IIngressDispatchAdmission {
   constructor(private readonly options: IngressDispatchAdmissionOptions) {}
 
+  private async rejectAndRelease(
+    envelope: IngressTriggerEnvelope,
+    idempotencyResult: Extract<IngressIdempotencyClaimResult, { status: 'claimed' }>,
+    reason: Extract<IngressDispatchOutcome, { outcome: 'rejected' }>['reason'],
+    reasonCode: string,
+    evidenceRefs: string[],
+  ): Promise<IngressDispatchOutcome> {
+    await this.options.idempotencyStore.releaseClaim(
+      idempotencyResult.reservation_id,
+      reasonCode,
+    );
+
+    return {
+      outcome: 'rejected',
+      reason,
+      reason_code: reasonCode,
+      evidence_ref: `ingress:${envelope.trigger_id}`,
+      evidence_refs: evidenceRefs,
+    };
+  }
+
+  private buildTriggerContext(
+    envelope: IngressTriggerEnvelope,
+    dispatchRef: string,
+    evidenceRef: string,
+  ): WorkflowRunTriggerContext {
+    return {
+      triggerId: envelope.trigger_id,
+      triggerType: envelope.trigger_type,
+      sourceId: envelope.source_id,
+      workflowRef: envelope.workflow_ref,
+      workmodeId: envelope.workmode_id,
+      idempotencyKey: envelope.idempotency_key,
+      dispatchRef,
+      evidenceRef,
+      occurredAt: envelope.occurred_at,
+    };
+  }
+
   async admit(
     envelope: IngressTriggerEnvelope,
-    idempotencyResult: IngressIdempotencyCheckResult,
+    idempotencyResult: IngressIdempotencyClaimResult,
   ): Promise<IngressDispatchOutcome> {
     if (idempotencyResult.status === 'duplicate') {
       return {
@@ -47,48 +95,93 @@ export class IngressDispatchAdmission implements IIngressDispatchAdmission {
       };
     }
 
-    // status === 'new': check control state, create run
     const opctl = this.options.opctl;
     if (!opctl) {
-      return {
-        outcome: 'rejected',
-        reason: 'control_state_blocked',
-        evidence_ref: `ingress:${envelope.trigger_id}`,
-        evidence_refs: ['opctl unavailable; cannot verify control state'],
-      };
+      return this.rejectAndRelease(
+        envelope,
+        idempotencyResult,
+        'control_state_blocked',
+        'opctl_unavailable',
+        ['opctl unavailable; cannot verify control state'],
+      );
     }
 
     const controlState = await opctl.getProjectControlState(
       envelope.project_id as ProjectId,
     );
     if (controlState === 'hard_stopped' || controlState === 'paused_review') {
-      return {
-        outcome: 'rejected',
-        reason: 'control_state_blocked',
-        evidence_ref: `ingress:${envelope.trigger_id}`,
-        evidence_refs: [`control_state=${controlState} blocks dispatch`],
-      };
+      return this.rejectAndRelease(
+        envelope,
+        idempotencyResult,
+        'control_state_blocked',
+        `project_control_state_${controlState}`,
+        [`control_state=${controlState} blocks dispatch`],
+      );
     }
 
-    const run_id = randomUUID();
-    const dispatch_ref = `dispatch:${run_id}`;
-    const policy_ref = `policy:${envelope.workflow_ref}`;
-    const evidence_ref = `evidence:${envelope.trigger_id}:${run_id}`;
-
-    await this.options.idempotencyStore.recordDispatch(
-      envelope,
-      run_id,
-      dispatch_ref,
-      evidence_ref,
+    const projectConfig = await this.options.projectStore.get(
+      envelope.project_id as ProjectId,
     );
+    if (!projectConfig) {
+      return this.rejectAndRelease(
+        envelope,
+        idempotencyResult,
+        'workflow_admission_blocked',
+        'project_not_found',
+        [`project_id=${envelope.project_id} not found`],
+      );
+    }
 
-    return {
-      outcome: 'accepted_dispatched',
-      run_id,
-      dispatch_ref,
-      workflow_ref: envelope.workflow_ref,
-      policy_ref,
-      evidence_ref,
-    };
+    const runId = idempotencyResult.run_id;
+    const dispatchRef = `dispatch:${runId}`;
+    const evidenceRef = `evidence:${envelope.trigger_id}:${runId}`;
+
+    try {
+      const startResult = await this.options.workflowEngine.start({
+        projectConfig,
+        workflowDefinitionId: envelope.workflow_ref as WorkflowDefinitionId,
+        runId,
+        workmodeId: envelope.workmode_id,
+        sourceActor: this.options.sourceActor ?? 'orchestration_agent',
+        controlState: controlState as ProjectControlState,
+        triggerContext: this.buildTriggerContext(envelope, dispatchRef, evidenceRef),
+        admissionEvidenceRefs: [evidenceRef],
+        startedAt: envelope.occurred_at,
+      });
+
+      if (startResult.status === 'admission_blocked') {
+        return this.rejectAndRelease(
+          envelope,
+          idempotencyResult,
+          'workflow_admission_blocked',
+          startResult.admission.reasonCode,
+          startResult.admission.evidenceRefs,
+        );
+      }
+
+      await this.options.idempotencyStore.commitDispatch(
+        idempotencyResult.reservation_id,
+        dispatchRef,
+        evidenceRef,
+      );
+
+      return {
+        outcome: 'accepted_dispatched',
+        run_id: runId,
+        dispatch_ref: dispatchRef,
+        workflow_ref: envelope.workflow_ref,
+        policy_ref:
+          startResult.runState.admission.policyRef ?? `policy:${envelope.workflow_ref}`,
+        evidence_ref: evidenceRef,
+      };
+    } catch (error) {
+      return this.rejectAndRelease(
+        envelope,
+        idempotencyResult,
+        'workflow_admission_blocked',
+        'workflow_start_failed',
+        [(error as Error).message],
+      );
+    }
   }
 }
