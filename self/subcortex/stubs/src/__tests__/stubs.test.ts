@@ -154,7 +154,11 @@ describe('StubArtifactStore', () => {
 
   it('retrieve() throws NousError with code NOT_IMPLEMENTED', async () => {
     await assertNotImplemented(
-      () => stub.retrieve('00000000-0000-0000-0000-000000000001' as any),
+      () =>
+        stub.retrieve({
+          projectId: '00000000-0000-0000-0000-000000000001' as any,
+          artifactId: '00000000-0000-0000-0000-000000000002' as any,
+        }),
       'IArtifactStore',
     );
   });
@@ -168,7 +172,11 @@ describe('StubArtifactStore', () => {
 
   it('delete() throws NousError with code NOT_IMPLEMENTED', async () => {
     await assertNotImplemented(
-      () => stub.delete('00000000-0000-0000-0000-000000000001' as any),
+      () =>
+        stub.delete({
+          projectId: '00000000-0000-0000-0000-000000000001' as any,
+          artifactId: '00000000-0000-0000-0000-000000000002' as any,
+        }),
       'IArtifactStore',
     );
   });

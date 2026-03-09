@@ -12,6 +12,7 @@ import {
   WorkflowNodeAttemptSchema,
   WorkflowNodeRunStateSchema,
   WorkflowNodeWaitStateSchema,
+  WorkflowRunTriggerContextSchema,
   WorkflowRunStateSchema,
   WorkflowStartResultSchema,
   WorkflowStateSchema,
@@ -34,6 +35,7 @@ const CHECKPOINT_ID = '550e8400-e29b-41d4-a716-446655440013';
 const DIGEST =
   '0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef';
 const NOW = '2026-03-08T00:00:00.000Z';
+const TRIGGER_ID = '550e8400-e29b-41d4-a716-446655440014';
 
 const governanceEvidenceRef = {
   actionCategory: 'model-invoke' as const,
@@ -163,6 +165,18 @@ const correctionArc = {
   occurredAt: NOW,
 };
 
+const triggerContext = {
+  triggerId: TRIGGER_ID,
+  triggerType: 'scheduler' as const,
+  sourceId: 'scheduler://phase-9.3',
+  workflowRef: WORKFLOW_ID,
+  workmodeId: 'system:implementation',
+  idempotencyKey: 'schedule:daily:1',
+  dispatchRef: 'dispatch://workflow-start',
+  evidenceRef: 'evidence://workflow-start',
+  occurredAt: NOW,
+};
+
 const nodeAttempt = {
   attempt: 1,
   status: 'waiting' as const,
@@ -200,6 +214,7 @@ const runState = {
   completedNodeIds: [],
   lastPreparedCheckpointId: CHECKPOINT_ID,
   checkpointState: 'commit_pending' as const,
+  triggerContext,
   nodeStates: {
     [NODE_A_ID]: {
       id: NODE_RUN_A_ID,
@@ -332,6 +347,9 @@ describe('Workflow runtime schemas', () => {
       true,
     );
     expect(WorkflowNodeAttemptSchema.safeParse(nodeAttempt).success).toBe(true);
+    expect(WorkflowRunTriggerContextSchema.safeParse(triggerContext).success).toBe(
+      true,
+    );
     expect(
       WorkflowNodeRunStateSchema.safeParse(runState.nodeStates[NODE_A_ID]).success,
     ).toBe(true);

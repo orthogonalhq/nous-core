@@ -12,6 +12,7 @@ import {
   type WorkflowNodeExecutionResult,
   type WorkflowNodeRunId,
   type WorkflowRunState,
+  type WorkflowRunTriggerContext,
   type WorkflowTransitionInput,
 } from '@nous/shared';
 import {
@@ -25,6 +26,7 @@ export interface CreateInitialWorkflowRunStateInput {
   runId: WorkflowExecutionId;
   graph: DerivedWorkflowGraph;
   admission: WorkflowAdmissionResult;
+  triggerContext?: WorkflowRunTriggerContext;
   transition?: WorkflowTransitionInput;
   startedAt?: string;
 }
@@ -366,6 +368,7 @@ export function createInitialWorkflowRunState(
     blockedNodeIds: [],
     completedNodeIds: [],
     checkpointState: 'idle',
+    triggerContext: input.triggerContext,
     nodeStates,
     dispatchLineage,
     startedAt: timestamp,

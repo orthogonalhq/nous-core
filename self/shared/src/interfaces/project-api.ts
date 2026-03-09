@@ -4,10 +4,13 @@
  * Phase 7.2: Canonical seven-surface package API contract.
  */
 import type {
-  ArtifactData,
-  ArtifactFilter,
-  ArtifactId,
-  ArtifactMetadata,
+  ArtifactDeleteRequest,
+  ArtifactListFilter,
+  ArtifactReadRequest,
+  ArtifactReadResult,
+  ArtifactVersionRecord,
+  ArtifactWriteRequest,
+  ArtifactWriteResult,
   EscalationChannel,
   EscalationContract,
   EscalationId,
@@ -45,9 +48,12 @@ export interface IProjectApiTool {
 }
 
 export interface IProjectApiArtifact {
-  store(data: ArtifactData): Promise<ArtifactId>;
-  retrieve(id: ArtifactId): Promise<ArtifactData | null>;
-  list(filters?: ArtifactFilter): Promise<ArtifactMetadata[]>;
+  store(data: Omit<ArtifactWriteRequest, 'projectId'>): Promise<ArtifactWriteResult>;
+  retrieve(
+    request: Omit<ArtifactReadRequest, 'projectId'>,
+  ): Promise<ArtifactReadResult | null>;
+  list(filters?: ArtifactListFilter): Promise<ArtifactVersionRecord[]>;
+  delete(request: Omit<ArtifactDeleteRequest, 'projectId'>): Promise<boolean>;
 }
 
 export interface IProjectApiEscalation {

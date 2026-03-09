@@ -1,6 +1,6 @@
 ---
 title: Automation Gateway
-description: Programmatic triggers for scheduler, hooks, and webhooks (Phase 5.3)
+description: Programmatic triggers for scheduler, hooks, webhooks, and system events (Phase 5.3 and 9.3)
 ---
 
 # Automation Gateway
@@ -20,10 +20,10 @@ The automation gateway is the programmatic entry point for triggering Nous workf
 
 Every trigger follows the same pipeline:
 
-1. **Validate** — Envelope must include `project_id`, `workflow_ref`, valid `trigger_type`, and integrity-addressed `payload_ref`
+1. **Validate** — Envelope must include `project_id`, `workflow_ref`, `workmode_id`, valid `trigger_type`, and integrity-addressed `payload_ref`
 2. **Authenticate** — Scheduler/hook: internal. Webhook: HMAC verification (adapter responsibility)
 3. **Authorize** — Principal must be bound to workflow; event type must be in allowlist
-4. **Idempotency** — Duplicate triggers (same `source_id` + `idempotency_key`) return existing run; no second run created
+4. **Idempotency** — Duplicate triggers (same `source_id` + `idempotency_key`) return the original `run_id` and `dispatch_ref`; no second run created
 5. **Replay check** — Stale timestamps or duplicate nonces are rejected
 6. **Dispatch admission** — Control state (PCP-007) must allow; project cannot be `hard_stopped` or `paused_review`
 
@@ -32,8 +32,8 @@ Every trigger follows the same pipeline:
 | Outcome | Meaning |
 |---------|---------|
 | `accepted_dispatched` | New run created; evidence chain and run linkage emitted |
-| `accepted_already_dispatched` | Duplicate trigger; original run_id returned; no new run |
-| `rejected` | Trigger rejected with reason code |
+| `accepted_already_dispatched` | Duplicate trigger; original `run_id` and `dispatch_ref` returned; no new run |
+| `rejected` | Trigger rejected with a gateway reason and optional workflow/runtime `reason_code` |
 
 ## Workflow Admission Before Run Creation
 
@@ -60,6 +60,18 @@ When a trigger is rejected, the response includes a reason code:
 | `rate_limited` | Rate limit exceeded |
 | `invalid_envelope` | Missing project_id, workflow_ref, or invalid trigger_type |
 | `control_state_blocked` | Project is hard_stopped or paused_review (PCP-007) |
+| `workflow_admission_blocked` | Ingress was valid, but canonical workflow admission or project lookup failed before run creation |
+
+## Canonical Trigger Provenance (Phase 9.3)
+
+When ingress succeeds, the created workflow run stores the trigger as canonical runtime state:
+
+- `triggerContext.triggerId` links the run back to the accepted ingress envelope
+- `triggerContext.dispatchRef` is the durable dispatch linkage returned by ingress
+- `triggerContext.workmodeId` is the admitted workmode, not a hidden default
+- `triggerContext.evidenceRef` is the primary evidence pointer surfaces should deep-link
+
+Scheduler, hook, and system-event callers should read that workflow state instead of inventing a scheduler-local explanation for why a run exists.
 
 ## Workflow Admission Reason Codes (Phase 9.1)
 
@@ -121,6 +133,7 @@ Phase 9.2 only advances continuation from committed checkpoints. If a node is wa
 ## Recovery and Handoff
 
 - **Duplicate handling:** If you receive `accepted_already_dispatched`, use the returned `run_id` to reference the original run. Do not retry with the same `idempotency_key`.
+- **Duplicate scheduler/event intake:** The returned `dispatch_ref` is authoritative. Treat it as the original dispatch linkage, not as a retry receipt.
 - **Control state block:** If `control_state_blocked`, the project must be resumed or released from hard_stop before new triggers can dispatch. Use the Projects UI or operator-control to change control state.
 - **Workflow admission block:** If the reason code points to missing definitions, invalid graph structure, or authority mismatch, repair the canonical workflow/project configuration instead of replaying the same trigger.
 - **Runtime wait:** If the run is `waiting`, inspect the node's `activeWaitState.kind`, `reasonCode`, and `resumeToken` before retrying anything.
@@ -131,6 +144,8 @@ Phase 9.2 only advances continuation from committed checkpoints. If a node is wa
 ## payload_ref Format
 
 Payload integrity is addressed via `payload_ref`. V1 format: `sha256:<64-char-hex>` — the SHA-256 digest of the payload body. Adapters must compute the digest before constructing the envelope.
+
+`payload_ref` precision is strict. Do not replace it with opaque IDs or unhashed payload markers unless every contract and operator table is updated together.
 
 ## Credential Scope (Webhooks)
 

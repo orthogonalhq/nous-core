@@ -23,6 +23,9 @@ describe('IngressRejectReasonSchema', () => {
     expect(IngressRejectReasonSchema.safeParse('control_state_blocked').success).toBe(
       true,
     );
+    expect(
+      IngressRejectReasonSchema.safeParse('workflow_admission_blocked').success,
+    ).toBe(true);
   });
 });
 
@@ -55,13 +58,15 @@ describe('IngressDispatchOutcomeSchema', () => {
   it('parses rejected with reason and evidence_refs', () => {
     const result = IngressDispatchOutcomeSchema.safeParse({
       outcome: 'rejected',
-      reason: 'control_state_blocked',
+      reason: 'workflow_admission_blocked',
+      reason_code: 'workflow_definition_unavailable',
       evidence_ref: 'evidence:1',
       evidence_refs: ['control_state=hard_stopped blocks dispatch'],
     });
     expect(result.success).toBe(true);
     if (result.success && result.data.outcome === 'rejected') {
-      expect(result.data.reason).toBe('control_state_blocked');
+      expect(result.data.reason).toBe('workflow_admission_blocked');
+      expect(result.data.reason_code).toBe('workflow_definition_unavailable');
       expect(result.data.evidence_refs).toHaveLength(1);
     }
   });

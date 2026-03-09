@@ -537,6 +537,22 @@ importers:
         specifier: ^7.7.1
         version: 7.7.1
 
+  self/subcortex/artifacts:
+    dependencies:
+      '@nous/autonomic-storage':
+        specifier: workspace:*
+        version: link:../../autonomic/storage
+      '@nous/shared':
+        specifier: workspace:*
+        version: link:../../shared
+      zod:
+        specifier: ^3.24.1
+        version: 3.25.76
+    devDependencies:
+      vitest:
+        specifier: ^2.1.0
+        version: 2.1.9(@types/node@20.19.33)(jsdom@26.1.0)(lightningcss@1.30.2)
+
   self/subcortex/gtm:
     dependencies:
       '@nous/shared':
@@ -610,6 +626,22 @@ importers:
         specifier: workspace:*
         version: link:../../shared
 
+  self/subcortex/scheduler:
+    dependencies:
+      '@nous/autonomic-storage':
+        specifier: workspace:*
+        version: link:../../autonomic/storage
+      '@nous/shared':
+        specifier: workspace:*
+        version: link:../../shared
+      zod:
+        specifier: ^3.24.1
+        version: 3.25.76
+    devDependencies:
+      vitest:
+        specifier: ^2.1.0
+        version: 2.1.9(@types/node@20.19.33)(jsdom@26.1.0)(lightningcss@1.30.2)
+
   self/subcortex/stubs:
     dependencies:
       '@nous/memory-access':
@@ -636,6 +668,22 @@ importers:
       '@nous/shared':
         specifier: workspace:*
         version: link:../../shared
+
+  self/subcortex/workflows:
+    dependencies:
+      '@nous/autonomic-storage':
+        specifier: workspace:*
+        version: link:../../autonomic/storage
+      '@nous/shared':
+        specifier: workspace:*
+        version: link:../../shared
+      '@nous/subcortex-projects':
+        specifier: workspace:*
+        version: link:../projects
+    devDependencies:
+      vitest:
+        specifier: ^2.1.0
+        version: 2.1.9(@types/node@20.19.33)(jsdom@26.1.0)(lightningcss@1.30.2)
 
 packages:
 

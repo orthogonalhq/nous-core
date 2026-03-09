@@ -1,0 +1,27 @@
+{
+  "name": "@nous/subcortex-artifacts",
+  "version": "0.0.1",
+  "private": true,
+  "description": "Integrity-verified, document-backed artifact storage for Nous-OSS",
+  "type": "module",
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "import": "./dist/index.js"
+    }
+  },
+  "scripts": {
+    "build": "tsc --build",
+    "typecheck": "tsc --noEmit",
+    "test": "vitest run --config vitest.config.ts",
+    "clean": "rm -rf dist"
+  },
+  "dependencies": {
+    "@nous/shared": "workspace:*",
+    "@nous/autonomic-storage": "workspace:*",
+    "zod": "^3.24.1"
+  },
+  "devDependencies": {
+    "vitest": "^2.1.0"
+  }
+}

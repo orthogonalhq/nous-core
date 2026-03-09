@@ -11,6 +11,7 @@
  */
 import { z } from 'zod';
 import { ProjectIdSchema } from './ids.js';
+import { WorkmodeIdSchema } from './workmode.js';
 
 export const IngressTriggerTypeSchema = z.enum([
   'scheduler',
@@ -33,6 +34,7 @@ export const IngressTriggerEnvelopeSchema = z.object({
   source_id: z.string().min(1),
   project_id: ProjectIdSchema,
   workflow_ref: z.string().min(1),
+  workmode_id: WorkmodeIdSchema,
   event_name: z.string().min(1),
   payload_ref: z.string().min(1),
   idempotency_key: z.string().min(1),
