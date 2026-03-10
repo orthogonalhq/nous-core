@@ -43,8 +43,11 @@ import type {
   ArtifactWriteRequest,
   ArtifactWriteResult,
   ScheduleDefinition,
+  ScheduleUpsertInput,
   EscalationContract,
   EscalationResponse,
+  InAppEscalationRecord,
+  AcknowledgeInAppEscalationInput,
   SandboxPayload,
   SandboxResult,
   MemoryEntry,
@@ -225,6 +228,12 @@ export interface IScheduler {
   /** Register a scheduled task */
   register(schedule: ScheduleDefinition): Promise<string>;
 
+  /** Create or update a schedule without delete/recreate churn */
+  upsert(input: ScheduleUpsertInput): Promise<ScheduleDefinition>;
+
+  /** Get a schedule by its canonical ID */
+  get(scheduleId: string): Promise<ScheduleDefinition | null>;
+
   /** Cancel a scheduled task */
   cancel(scheduleId: string): Promise<boolean>;
 
@@ -238,6 +247,17 @@ export interface IEscalationService {
 
   /** Check if an escalation has been responded to */
   checkResponse(escalationId: EscalationId): Promise<EscalationResponse | null>;
+
+  /** Get a canonical in-app escalation record */
+  get(escalationId: EscalationId): Promise<InAppEscalationRecord | null>;
+
+  /** List canonical in-app escalations for a project */
+  listProjectQueue(projectId: ProjectId): Promise<InAppEscalationRecord[]>;
+
+  /** Acknowledge a canonical in-app escalation from a supported surface */
+  acknowledge(
+    input: AcknowledgeInAppEscalationInput,
+  ): Promise<InAppEscalationRecord | null>;
 }
 
 export interface ISandbox {

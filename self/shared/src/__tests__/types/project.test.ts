@@ -6,6 +6,9 @@ import {
   ProjectIdentityContractSchema,
   NodeMemoryAccessPolicyOverrideSchema,
   ProjectWorkflowConfigurationSchema,
+  ProjectGovernanceDefaultsSchema,
+  ProjectEscalationPreferencesSchema,
+  ProjectPackageDefaultIntakeSchema,
 } from '../../types/project.js';
 
 const VALID_UUID = '550e8400-e29b-41d4-a716-446655440000';
@@ -206,6 +209,9 @@ describe('ProjectConfigSchema', () => {
     expect(result.success).toBe(true);
     if (result.success) {
       expect(result.data.retrievalBudgetTokens).toBe(500);
+      expect(result.data.governanceDefaults.defaultNodeGovernance).toBe('must');
+      expect(result.data.escalationPreferences.mirrorToChat).toBe(true);
+      expect(result.data.packageDefaultIntake).toEqual([]);
     }
   });
 
@@ -241,6 +247,38 @@ describe('ProjectConfigSchema', () => {
         ],
       },
     });
+    expect(result.success).toBe(true);
+  });
+});
+
+describe('ProjectGovernanceDefaultsSchema', () => {
+  it('applies sensible defaults', () => {
+    const result = ProjectGovernanceDefaultsSchema.parse({});
+    expect(result.defaultNodeGovernance).toBe('must');
+    expect(result.requireExplicitReviewForShouldDeviation).toBe(true);
+    expect(result.blockedActionFeedbackMode).toBe('reason_coded');
+  });
+});
+
+describe('ProjectEscalationPreferencesSchema', () => {
+  it('applies default in-app routing preferences', () => {
+    const result = ProjectEscalationPreferencesSchema.parse({});
+    expect(result.routeByPriority.critical).toEqual(['projects', 'chat', 'mao']);
+    expect(result.acknowledgementSurfaces).toEqual(['projects', 'chat']);
+    expect(result.mirrorToChat).toBe(true);
+  });
+});
+
+describe('ProjectPackageDefaultIntakeSchema', () => {
+  it('accepts package-derived default provenance records', () => {
+    const result = ProjectPackageDefaultIntakeSchema.safeParse({
+      sourcePackageId: 'package://projects/dashboard',
+      sourcePackageVersion: '1.2.3',
+      sourceManifestRef: 'manifest://dashboard',
+      appliedSections: ['project_type', 'escalation_preferences'],
+      appliedAt: NOW,
+    });
+
     expect(result.success).toBe(true);
   });
 });

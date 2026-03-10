@@ -26,6 +26,7 @@ import {
   AccessListSchema,
   MemoryAccessPolicySchema,
 } from './memory.js';
+import { InAppEscalationSurfaceSchema } from './escalation.js';
 import {
   WorkflowDefinitionSchema,
   WorkflowEdgeDefinitionSchema,
@@ -120,15 +121,79 @@ export type ProjectWorkflowConfiguration = z.infer<
   typeof ProjectWorkflowConfigurationSchema
 >;
 
+export const ProjectGovernanceDefaultsSchema = z.object({
+  defaultNodeGovernance: GovernanceLevelSchema.default('must'),
+  requireExplicitReviewForShouldDeviation: z.boolean().default(true),
+  blockedActionFeedbackMode: z
+    .enum(['reason_coded', 'minimal'])
+    .default('reason_coded'),
+});
+export type ProjectGovernanceDefaults = z.infer<
+  typeof ProjectGovernanceDefaultsSchema
+>;
+
+export const ProjectEscalationPreferencesSchema = z.object({
+  routeByPriority: z
+    .object({
+      low: z.array(InAppEscalationSurfaceSchema).default(['projects']),
+      medium: z.array(InAppEscalationSurfaceSchema).default(['projects']),
+      high: z
+        .array(InAppEscalationSurfaceSchema)
+        .default(['projects', 'chat']),
+      critical: z
+        .array(InAppEscalationSurfaceSchema)
+        .default(['projects', 'chat', 'mao']),
+    })
+    .default({
+      low: ['projects'],
+      medium: ['projects'],
+      high: ['projects', 'chat'],
+      critical: ['projects', 'chat', 'mao'],
+    }),
+  acknowledgementSurfaces: z
+    .array(InAppEscalationSurfaceSchema)
+    .default(['projects', 'chat']),
+  mirrorToChat: z.boolean().default(true),
+});
+export type ProjectEscalationPreferences = z.infer<
+  typeof ProjectEscalationPreferencesSchema
+>;
+
+export const ProjectPackageDefaultSectionSchema = z.enum([
+  'project_type',
+  'governance_defaults',
+  'model_assignments',
+  'memory_access_policy',
+  'schedule_settings',
+  'escalation_preferences',
+]);
+export type ProjectPackageDefaultSection = z.infer<
+  typeof ProjectPackageDefaultSectionSchema
+>;
+
+export const ProjectPackageDefaultIntakeSchema = z.object({
+  sourcePackageId: z.string().min(1),
+  sourcePackageVersion: z.string().min(1),
+  sourceManifestRef: z.string().min(1),
+  appliedSections: z.array(ProjectPackageDefaultSectionSchema).min(1),
+  appliedAt: z.string().datetime(),
+});
+export type ProjectPackageDefaultIntake = z.infer<
+  typeof ProjectPackageDefaultIntakeSchema
+>;
+
 export const ProjectConfigSchema = z.object({
   id: ProjectIdSchema,
   name: z.string().min(1),
   type: ProjectTypeSchema,
   pfcTier: PfcTierSchema,
+  governanceDefaults: ProjectGovernanceDefaultsSchema.default({}),
   modelAssignments: z.record(ModelRoleSchema, z.string()).optional(),
   memoryAccessPolicy: MemoryAccessPolicySchema,
   escalationChannels: z.array(EscalationChannelSchema),
+  escalationPreferences: ProjectEscalationPreferencesSchema.default({}),
   workflow: ProjectWorkflowConfigurationSchema.optional(),
+  packageDefaultIntake: z.array(ProjectPackageDefaultIntakeSchema).default([]),
   retrievalBudgetTokens: z.number().positive().default(500),
   createdAt: z.string().datetime(),
   updatedAt: z.string().datetime(),

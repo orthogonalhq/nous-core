@@ -11,6 +11,7 @@ export * from './confidence-governance.js';
 export * from './sentiment.js';
 export * from './workflow.js';
 export * from './workflow-monitoring.js';
+export * from './project-surface.js';
 export * from './project.js';
 export * from './provider.js';
 export * from './cortex.js';
