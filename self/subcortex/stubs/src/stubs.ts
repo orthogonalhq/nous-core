@@ -154,6 +154,18 @@ export class StubWorkflowEngine implements IWorkflowEngine {
   ): Promise<WorkflowRunState | null> {
     return stubNotImpl('IWorkflowEngine', 'getState', 'Phase 5');
   }
+
+  async listProjectRuns(
+    _projectId: ProjectId,
+  ): Promise<WorkflowRunState[]> {
+    return stubNotImpl('IWorkflowEngine', 'listProjectRuns', 'Phase 9.7');
+  }
+
+  async getRunGraph(
+    _executionId: WorkflowExecutionId,
+  ): Promise<DerivedWorkflowGraph | null> {
+    return stubNotImpl('IWorkflowEngine', 'getRunGraph', 'Phase 9.7');
+  }
 }
 
 export class StubArtifactStore implements IArtifactStore {
