@@ -1,16 +1,20 @@
 'use client';
 
 import * as React from 'react';
+import Link from 'next/link';
 import type { ProjectEscalationQueueSnapshot } from '@nous/shared';
 import { trpc } from '@/lib/trpc';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
+import type { MaoNavigationContext } from '@/lib/mao-links';
+import { buildMaoReturnHref } from '@/lib/mao-links';
 
 interface EscalationInboxProps {
   queue: ProjectEscalationQueueSnapshot;
+  maoContext?: MaoNavigationContext | null;
 }
 
-export function EscalationInbox({ queue }: EscalationInboxProps) {
+export function EscalationInbox({ queue, maoContext }: EscalationInboxProps) {
   const utils = trpc.useUtils();
   const acknowledge = trpc.escalations.acknowledge.useMutation({
     onSuccess: async (updated) => {
@@ -31,6 +35,18 @@ export function EscalationInbox({ queue }: EscalationInboxProps) {
           <Badge variant="outline">{queue.urgentCount} urgent</Badge>
         </div>
       </div>
+      {maoContext ? (
+        <div className="mb-3 rounded-md border border-border bg-background px-3 py-2 text-sm text-muted-foreground">
+          MAO-linked escalation context is active.
+          {maoContext.evidenceRef ? ` evidence ${maoContext.evidenceRef}.` : ''}
+          <Link
+            href={buildMaoReturnHref(maoContext)}
+            className="ml-2 underline underline-offset-4"
+          >
+            Return to MAO
+          </Link>
+        </div>
+      ) : null}
       <div className="space-y-2">
         {queue.items.slice(0, 3).map((item) => (
           <div

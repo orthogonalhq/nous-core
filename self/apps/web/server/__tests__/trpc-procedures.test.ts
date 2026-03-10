@@ -250,6 +250,26 @@ describe('tRPC procedures', () => {
     expect(snapshot.workflowDefinition?.version).toBe('1.0.1');
   });
 
+  it('mao procedures expose snapshot and control projection routes', async () => {
+    const ctx = createNousContext();
+    const caller = appRouter.createCaller(ctx);
+    const projectId = await ctx.projectStore.create(createProjectConfig({
+      id: randomUUID() as import('@nous/shared').ProjectId,
+      name: 'MAO Procedure Project',
+    }));
+
+    const controlProjection = await caller.mao.getProjectControlProjection({
+      projectId,
+    });
+    const snapshot = await caller.mao.getProjectSnapshot({
+      projectId,
+      densityMode: 'D2',
+    });
+
+    expect(controlProjection?.project_id).toBe(projectId);
+    expect(snapshot.projectId).toBe(projectId);
+  });
+
   it('witness verify/list/get returns report artifacts', async () => {
     const ctx = createNousContext();
     const caller = appRouter.createCaller(ctx);

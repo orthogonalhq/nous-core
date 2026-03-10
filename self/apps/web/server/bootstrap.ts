@@ -185,11 +185,6 @@ export function createNousContext(): NousContext {
     witnessService,
   });
 
-  const maoProjectionService = new MaoProjectionService({
-    opctlService,
-    witnessService,
-  });
-
   const gtmGateCalculator = new GtmGateCalculator();
   const policyEngine = new MemoryAccessPolicyEngine();
   const knowledgeIndex = new KnowledgeIndexRuntime({
@@ -248,6 +243,13 @@ export function createNousContext(): NousContext {
   const escalationService = new EscalationService({
     escalationStore,
     projectStore,
+  });
+  const maoProjectionService = new MaoProjectionService({
+    opctlService,
+    workflowEngine,
+    escalationService,
+    schedulerService,
+    witnessService,
   });
 
   const getProvider = (id: ProviderId) => {

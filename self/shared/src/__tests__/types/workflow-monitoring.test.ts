@@ -112,7 +112,7 @@ describe('WorkflowRuntimeAvailabilitySchema', () => {
 describe('WorkflowSurfaceLinkSchema', () => {
   it('accepts canonical deep-link references', () => {
     const parsed = WorkflowSurfaceLinkSchema.parse({
-      target: 'chat',
+      target: 'projects',
       projectId: PROJECT_ID,
       workflowRunId: RUN_ID,
       nodeDefinitionId: NODE_ID,
@@ -121,6 +121,7 @@ describe('WorkflowSurfaceLinkSchema', () => {
     });
 
     expect(parsed.workflowRunId).toBe(RUN_ID);
+    expect(parsed.target).toBe('projects');
   });
 });
 

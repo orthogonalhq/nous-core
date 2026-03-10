@@ -1,9 +1,12 @@
 'use client';
 
 import * as React from 'react';
+import Link from 'next/link';
 import type { ProjectWorkflowSurfaceSnapshot } from '@nous/shared';
 import { Badge } from '@/components/ui/badge';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
+import type { MaoNavigationContext } from '@/lib/mao-links';
+import { buildMaoReturnHref } from '@/lib/mao-links';
 import {
   createDefaultWorkflowDigestState,
   WorkflowDigestControls,
@@ -16,6 +19,8 @@ import { WorkflowRunList } from './workflow-run-list';
 interface WorkflowMonitorProps {
   snapshot: ProjectWorkflowSurfaceSnapshot;
   selectedRunId: string | null;
+  linkedNodeId?: string | null;
+  maoContext?: MaoNavigationContext | null;
   onSelectRun: (runId: string | null) => void;
   onStartAuthoring: () => void;
 }
@@ -23,6 +28,8 @@ interface WorkflowMonitorProps {
 export function WorkflowMonitor({
   snapshot,
   selectedRunId,
+  linkedNodeId,
+  maoContext,
   onSelectRun,
   onStartAuthoring,
 }: WorkflowMonitorProps) {
@@ -40,12 +47,20 @@ export function WorkflowMonitor({
     }
 
     if (
+      linkedNodeId &&
+      snapshot.nodeProjections.some((node) => node.nodeDefinitionId === linkedNodeId)
+    ) {
+      setSelectedNodeId(linkedNodeId);
+      return;
+    }
+
+    if (
       selectedNodeId == null ||
       !snapshot.nodeProjections.some((node) => node.nodeDefinitionId === selectedNodeId)
     ) {
       setSelectedNodeId(snapshot.nodeProjections[0]?.nodeDefinitionId ?? null);
     }
-  }, [selectedNodeId, snapshot.nodeProjections]);
+  }, [linkedNodeId, selectedNodeId, snapshot.nodeProjections]);
 
   const filteredNodes = snapshot.nodeProjections.filter((node) => {
     if (digestState.hideCompleted && node.status === 'completed') {
@@ -91,6 +106,17 @@ export function WorkflowMonitor({
             <CardTitle className="text-base">Projection diagnostics</CardTitle>
           </CardHeader>
           <CardContent className="space-y-2 pt-4 text-sm text-muted-foreground">
+            {maoContext ? (
+              <div className="rounded-md border border-border bg-muted/20 px-3 py-2">
+                MAO evidence handoff active.
+                <Link
+                  href={buildMaoReturnHref(maoContext)}
+                  className="ml-2 underline underline-offset-4"
+                >
+                  Return to MAO
+                </Link>
+              </div>
+            ) : null}
             <p>runtime posture: {snapshot.diagnostics.runtimePosture}</p>
             <p>inspect-first mode: {snapshot.diagnostics.inspectFirstMode}</p>
             {snapshot.diagnostics.degradedReasonCode ? (

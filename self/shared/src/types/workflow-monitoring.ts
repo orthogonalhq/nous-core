@@ -34,6 +34,7 @@ export type WorkflowRuntimeAvailability = z.infer<
 
 export const WorkflowSurfaceLinkTargetSchema = z.enum([
   'chat',
+  'projects',
   'traces',
   'artifact',
   'mao',

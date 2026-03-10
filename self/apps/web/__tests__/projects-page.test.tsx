@@ -209,6 +209,27 @@ describe('ProjectsPage', () => {
       screen.getByText(/intent project has no canonical workflow definition yet/i),
     ).toBeTruthy();
   });
+
+  it('preserves MAO handoff context in the project surface', () => {
+    mocks.useSearchParams.mockReturnValue({
+      get: vi.fn((key: string) => {
+        const values: Record<string, string | null> = {
+          source: 'mao',
+          projectId: '550e8400-e29b-41d4-a716-446655443001',
+          runId: '550e8400-e29b-41d4-a716-446655443004',
+          nodeId: '550e8400-e29b-41d4-a716-446655443003',
+          evidenceRef: 'evidence://workflow:blocked',
+        };
+        return values[key] ?? null;
+      }),
+    });
+
+    render(<ProjectsPage />);
+
+    expect(screen.getByText(/MAO handoff active/i)).toBeTruthy();
+    expect(screen.getAllByText(/Return to MAO/i).length).toBeGreaterThan(0);
+    expect(screen.getByText(/MAO-origin monitoring context is active/i)).toBeTruthy();
+  });
 });
 
 function createWorkflowSnapshot(overrides: Record<string, unknown> = {}) {

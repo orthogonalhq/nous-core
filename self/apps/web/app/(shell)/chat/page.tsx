@@ -1,12 +1,14 @@
 'use client';
 
 import * as React from 'react';
+import Link from 'next/link';
 import { useSearchParams } from 'next/navigation';
 import { trpc } from '@/lib/trpc';
 import { useProject } from '@/lib/project-context';
 import { EscalationInbox } from '@/components/chat/escalation-inbox';
 import { MessageList } from '@/components/chat/message-list';
 import { ChatInput } from '@/components/chat/chat-input';
+import { buildMaoReturnHref, readMaoNavigationContext } from '@/lib/mao-links';
 
 export default function ChatPage() {
   return (
@@ -17,11 +19,19 @@ export default function ChatPage() {
 }
 
 function ChatPageContent() {
-  const { projectId } = useProject();
+  const { projectId, setProjectId } = useProject();
   const searchParams = useSearchParams();
+  const linkedProjectId = searchParams.get('projectId');
+  const maoContext = readMaoNavigationContext(searchParams);
   const [optimisticMessages, setOptimisticMessages] = React.useState<
     Array<{ role: 'user' | 'assistant'; content: string }>
   >([]);
+
+  React.useEffect(() => {
+    if (linkedProjectId && linkedProjectId !== projectId) {
+      setProjectId(linkedProjectId);
+    }
+  }, [linkedProjectId, projectId, setProjectId]);
 
   const { data: history } = trpc.chat.getHistory.useQuery(
     { projectId: projectId ?? undefined },
@@ -87,7 +97,22 @@ function ChatPageContent() {
 
   return (
     <div className="flex h-full flex-col">
-      {escalationQueue ? <EscalationInbox queue={escalationQueue} /> : null}
+      {escalationQueue ? (
+        <EscalationInbox queue={escalationQueue} maoContext={maoContext} />
+      ) : null}
+      {maoContext ? (
+        <div className="border-b border-border bg-muted/20 px-6 py-3 text-sm text-muted-foreground">
+          MAO reasoning handoff active
+          {maoContext.reasoningRef ? ` with reasoning ${maoContext.reasoningRef}` : ''}
+          {maoContext.evidenceRef ? ` and evidence ${maoContext.evidenceRef}` : ''}.
+          <Link
+            href={buildMaoReturnHref(maoContext)}
+            className="ml-2 underline underline-offset-4"
+          >
+            Return to MAO
+          </Link>
+        </div>
+      ) : null}
       {linkedRunId || linkedNodeId ? (
         <div className="border-b border-border bg-muted/20 px-6 py-3 text-sm text-muted-foreground">
           Linked workflow context

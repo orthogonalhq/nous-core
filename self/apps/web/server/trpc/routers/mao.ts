@@ -1,7 +1,13 @@
 /**
- * MAO tRPC router — agent and project control projections.
+ * MAO tRPC router — canonical MAO snapshot, inspect, graph, and control flows.
  */
 import { z } from 'zod';
+import {
+  MaoAgentInspectInputSchema,
+  MaoProjectControlRequestSchema,
+  MaoProjectSnapshotInputSchema,
+  ConfirmationProofSchema,
+} from '@nous/shared';
 import { router, publicProcedure } from '../trpc';
 
 export const maoRouter = router({
@@ -18,6 +24,38 @@ export const maoRouter = router({
     .query(async ({ ctx, input }) => {
       return ctx.maoProjectionService.getProjectControlProjection(
         input.projectId as import('@nous/shared').ProjectId,
+      );
+    }),
+
+  getProjectSnapshot: publicProcedure
+    .input(MaoProjectSnapshotInputSchema)
+    .query(async ({ ctx, input }) => {
+      return ctx.maoProjectionService.getProjectSnapshot(input);
+    }),
+
+  getAgentInspectProjection: publicProcedure
+    .input(MaoAgentInspectInputSchema)
+    .query(async ({ ctx, input }) => {
+      return ctx.maoProjectionService.getAgentInspectProjection(input);
+    }),
+
+  getRunGraphSnapshot: publicProcedure
+    .input(MaoProjectSnapshotInputSchema)
+    .query(async ({ ctx, input }) => {
+      return ctx.maoProjectionService.getRunGraphSnapshot(input);
+    }),
+
+  requestProjectControl: publicProcedure
+    .input(
+      z.object({
+        request: MaoProjectControlRequestSchema,
+        confirmationProof: ConfirmationProofSchema.optional(),
+      }),
+    )
+    .mutation(async ({ ctx, input }) => {
+      return ctx.maoProjectionService.requestProjectControl(
+        input.request,
+        input.confirmationProof,
       );
     }),
 });
