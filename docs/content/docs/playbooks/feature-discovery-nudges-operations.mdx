@@ -1,0 +1,132 @@
+---
+title: Feature Discovery Nudges Operations
+description: How to interpret advisory discovery signals, ranking posture, suppression state, and acceptance routes
+---
+
+# Feature Discovery Nudges Operations
+
+Phase 10.2 adds the canonical advisory discovery runtime that turns registry eligibility, discovery-policy posture, and governed ranking signals into feature-discovery nudges. This playbook explains how to interpret those records when they surface in logs, diagnostics, or later UI projections.
+
+For registry trust and install eligibility, see [Runtime Membrane Operations](/docs/playbooks/runtime-membrane-operations). For confidence-governance outcomes attached to ranking decisions, see [Confidence Governance Operations](/docs/playbooks/confidence-governance-operations).
+
+## Runtime Scope
+
+The nudge runtime is advisory only.
+
+- It can record signals, generate candidates, rank them, apply suppression, and record delivery outcomes.
+- It can route acceptance into a lifecycle authorization intent for marketplace packages.
+- It cannot install, enable, dispatch, or execute directly.
+
+If an operator or downstream surface treats a nudge as a direct execution path, that is a contract violation.
+
+## Signal Families
+
+The runtime currently records four signal families:
+
+| Signal type | Meaning | Typical example |
+|---|---|---|
+| `workflow_friction` | A workflow step is repeatedly slow, blocked, or awkward | Repeated retries around the same manual step |
+| `missing_capability` | The current project lacks a capability that a package or template could provide | A workflow wants package behavior that is not installed |
+| `manual_workaround` | The user or workflow keeps repeating manual steps that should be automatable | Repeated copy/paste or handoff work |
+| `benchmark_gap` | Benchmarks show a meaningful capability gap compared with the desired outcome | Quality or throughput repeatedly misses target |
+
+Signal records are not recommendations by themselves. They are evidence-linked inputs to candidate generation.
+
+## Candidate and Eligibility Interpretation
+
+Generated candidates wrap the baseline nudge object with runtime context:
+
+- registry install-eligibility posture when the source is a marketplace package
+- discovery explainability when cross-project relevance contributed context
+- policy-denial posture when discovery inputs were filtered
+- runtime reason codes and evidence refs
+
+### Common candidate reason codes
+
+| Reason code | Meaning | Operator interpretation |
+|---|---|---|
+| `NDG-CANDIDATE-ELIGIBLE` | Candidate remained eligible after runtime checks | Candidate may proceed to ranking |
+| `NDG-CANDIDATE-BLOCKED-REGISTRY` | Registry trust, metadata, moderation, or distribution posture blocks the candidate | Do not treat the candidate as deliverable until registry posture changes |
+| `NDG-CANDIDATE-BLOCKED-COMPATIBILITY` | Compatibility posture blocks the candidate | Runtime correctly failed closed before delivery |
+| `NDG-CANDIDATE-BLOCKED-POLICY-DENIAL` | Cross-project discovery inputs were denied by policy | Treat as privacy boundary enforcement, not a weak recommendation |
+
+Blocked candidates may still appear in diagnostics or audit state, but they must not be treated as deliverable suggestions.
+
+## Ranking Policy and Score Components
+
+Ranking decisions are governed by an explicit ranking-policy record. There is no local tuning knob and no hidden override path.
+
+Each ranked decision carries seven score components:
+
+| Component | Meaning |
+|---|---|
+| `relevance` | How closely the candidate matches the detected need |
+| `expected_outcome_gain` | Expected improvement if the user follows the suggestion |
+| `trust_confidence` | Confidence in package/source trust posture |
+| `compatibility_confidence` | Confidence that the candidate fits the runtime posture |
+| `novelty` | Whether the candidate is meaningfully new rather than repetitive |
+| `fatigue_penalty` | Down-rank for repeated or recently ignored suggestions |
+| `risk_penalty` | Down-rank for higher governance or delivery risk |
+
+### Ranking and delivery reason codes
+
+| Reason code | Meaning | Operator interpretation |
+|---|---|---|
+| `NDG-RANK-POLICY-VERSION-APPLIED` | A governed ranking policy version was applied | Expected path for any successful ranking |
+| `NDG-RANK-BLOCKED-MISSING-POLICY` | Runtime could not resolve an active ranking policy | Fail closed; repair policy state before retrying |
+| `NDG-DELIVERY-ALLOWED` | Candidate remained deliverable after ranking and suppression checks | Surface may render the suggestion |
+| `NDG-DELIVERY-BLOCKED-CONFIDENCE` | Confidence-governance posture blocked delivery | Review attached confidence-governance outcome before retrying |
+| `NDG-DELIVERY-BLOCKED-SUPPRESSION` | Suppression state blocked delivery | Respect suppression; do not re-render on another surface |
+| `NDG-DELIVERY-BLOCKED-AUTHORITY` | A downstream authority boundary blocked delivery | Treat as fail-closed governance, not a transient rendering issue |
+
+## Suppression Semantics
+
+Suppression state is canonical runtime truth, not a UI-local preference cache.
+
+| Action | Scope | Meaning |
+|---|---|---|
+| `dismiss_once` | `candidate` | Hide this exact candidate fingerprint once |
+| `snooze` | `candidate` with `expires_at` | Temporarily hide the candidate until the snooze expires |
+| `mute_category` | `category` | Hide this candidate source class across enabled surfaces |
+| `mute_project` | `project` | Hide nudges for the current project scope |
+| `mute_global` | `global` | Hide nudges across all project scopes and surfaces |
+
+Important rules:
+
+- Suppression applies across delivery surfaces, not only the surface where it was created.
+- Expired snoozes reactivate automatically.
+- Candidate-scoped dismissals must not over-mute category, project, or global state.
+- Delivery-block records are first-class outputs; absence of a card is not the only signal.
+
+## Acceptance Routes
+
+Accepted nudges do not execute directly. They resolve to one of three route types:
+
+| Route | Source types | Meaning |
+|---|---|---|
+| `runtime_authorization_required` | `marketplace_package` | Runtime recorded a lifecycle authorization intent; package install/enable still goes through the existing membrane and lifecycle gates |
+| `workflow_template_draft` | `workflow_template` | Runtime recorded draft intent only; no template is executed automatically |
+| `advisory_acknowledged` | `runtime_tip`, `first_party_guidance` | Runtime recorded the acknowledgment as advisory evidence only |
+
+### Acceptance reason codes
+
+| Reason code | Meaning |
+|---|---|
+| `NDG-ACCEPTANCE-ROUTED-RUNTIME-AUTH` | Marketplace-package acceptance was routed into runtime authorization intent |
+| `NDG-ACCEPTANCE-RECORDED-ADVISORY` | Acceptance was recorded as draft/advisory acknowledgement without execution |
+
+## Recommended Operator Flow
+
+1. Check whether the candidate was blocked before ranking. If `NDG-CANDIDATE-BLOCKED-*` is present, stop there.
+2. If ranked, read the applied policy version and the seven component scores before interpreting rank position.
+3. Review suppression and delivery-block reason codes before assuming a missing suggestion is a UI defect.
+4. For marketplace-package acceptance, follow the normal lifecycle authorization path. Do not install directly from the nudge record.
+5. For policy-denial or confidence-governance blocks, fix the governing condition rather than retrying the same delivery path.
+
+## Quick Reference
+
+- Signals describe detected need; they are not recommendations yet.
+- Candidate blocking is fail-closed and authoritative.
+- Ranking is governed by explicit policy version records.
+- Suppression is cross-surface runtime truth.
+- Acceptance records intent; execution still belongs to existing authorization paths.
