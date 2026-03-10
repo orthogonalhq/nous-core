@@ -21,6 +21,10 @@ Every interaction with Nous produces an execution trace. Traces capture what hap
 
 Each turn now includes evidence references for critical action categories (`model-invoke`, `tool-execute`, `memory-write`, `trace-persist`).
 
+Phase 9.5 adds workflow-linked navigation from the Projects workflow surface. When you open Traces from a workflow node or run projection, the Traces page receives a `traceId` deep link, shows the linked trace reference at the top of the page, and expands the matching trace by default.
+
+Use that linked view when you need to move from workflow runtime state to canonical execution evidence without losing project scope.
+
 ## Trace -> Verification Workflow
 
 Use witness verification to generate integrity artifacts, then inspect linkage from trace evidence references:

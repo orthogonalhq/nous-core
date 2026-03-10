@@ -11,7 +11,9 @@ import type {
   Phase6ConfidenceSignalExport,
   Phase6DistilledPatternExport,
   PolicyDecisionRecord,
+  ProjectDiscoveryResult,
   ProjectId,
+  ProjectKnowledgeSnapshot,
   StmContext,
   TraceEvidenceReference,
 } from '@nous/shared';
@@ -32,8 +34,15 @@ import {
   MemoryFilterBar,
   type MemoryFilterState,
 } from './memory-filter-bar';
+import {
+  createDefaultDiscoveryFilters,
+  MemoryDiscoveryFilterBar,
+  type DiscoveryFilterState,
+} from './memory-discovery-filter-bar';
 import { MemoryEntryList } from './memory-entry-list';
 import { MemoryEntryDetail } from './memory-entry-detail';
+import { MemoryDiscoveryOverview } from './memory-discovery-overview';
+import { MemoryDiscoveryDetail } from './memory-discovery-detail';
 
 interface MemoryExportBundle {
   stm: StmContext;
@@ -138,16 +147,22 @@ export function MemoryInspector({
   downloadExport = downloadMemoryExport,
 }: MemoryInspectorProps) {
   const typedProjectId = projectId as ProjectId;
-  const [viewMode, setViewMode] = React.useState<'inspect' | 'learning'>(
+  const [viewMode, setViewMode] = React.useState<'inspect' | 'learning' | 'discover'>(
     'inspect',
   );
   const [filters, setFilters] = React.useState<MemoryFilterState>(
     createDefaultMemoryFilters(),
   );
+  const [discoveryFilters, setDiscoveryFilters] = React.useState<DiscoveryFilterState>(
+    createDefaultDiscoveryFilters(),
+  );
   const [learningFilters, setLearningFilters] = React.useState<LearningFilterState>(
     createDefaultLearningFilters(),
   );
   const [selectedEntryId, setSelectedEntryId] = React.useState<string | null>(null);
+  const [selectedDiscoveryProjectId, setSelectedDiscoveryProjectId] = React.useState<
+    string | null
+  >(null);
   const [selectedLearningPatternId, setSelectedLearningPatternId] = React.useState<
     string | null
   >(null);
@@ -191,16 +206,42 @@ export function MemoryInspector({
       enabled: selectedLearningPatternId != null,
     },
   );
+  const discoveryQuery = trpc.discovery.discover.useQuery(
+    {
+      requestingProjectId: typedProjectId,
+      query: discoveryFilters.query.trim() || 'project discovery',
+      topK: discoveryFilters.topK,
+      includeMetaVector: true,
+      includeTaxonomy: discoveryFilters.includeTaxonomy,
+      includeRelationships: discoveryFilters.includeRelationships,
+    },
+    {
+      enabled: viewMode === 'discover',
+    },
+  );
+  const discoverySnapshotQuery = trpc.discovery.snapshot.useQuery(
+    {
+      projectId: (selectedDiscoveryProjectId ?? typedProjectId) as ProjectId,
+    },
+    {
+      enabled: viewMode === 'discover' && selectedDiscoveryProjectId != null,
+    },
+  );
   const denialsQuery = trpc.memory.denials.useQuery({ projectId: typedProjectId });
   const auditQuery = trpc.memory.audit.useQuery({ projectId: typedProjectId });
   const tombstonesQuery = trpc.memory.tombstones.useQuery({ projectId: typedProjectId });
   const deleteMutation = trpc.memory.delete.useMutation();
+  const refreshDiscoveryMutation = trpc.discovery.refresh.useMutation();
 
   const entries = inspectQuery.data?.entries ?? [];
   const learningItems =
     (learningOverviewQuery.data?.items ?? []) as LearningPatternSummary[];
   const learningDetail = (learningDetailQuery.data ?? null) as
     | LearningPatternDetail
+    | null;
+  const discoveryResult = (discoveryQuery.data ?? null) as ProjectDiscoveryResult | null;
+  const discoverySnapshot = (discoverySnapshotQuery.data ?? null) as
+    | ProjectKnowledgeSnapshot
     | null;
   const denials = (denialsQuery.data ?? []) as MemoryDenialProjection[];
   const audit = auditQuery.data ?? [];
@@ -251,6 +292,21 @@ export function MemoryInspector({
     }
   }, [learningDetail, learningItems, selectedLearningPatternId]);
 
+  React.useEffect(() => {
+    const discoveredProjectIds = discoveryResult?.discovery.projectIds ?? [];
+    if (discoveredProjectIds.length === 0) {
+      setSelectedDiscoveryProjectId(null);
+      return;
+    }
+
+    if (
+      selectedDiscoveryProjectId == null ||
+      !discoveredProjectIds.includes(selectedDiscoveryProjectId as ProjectId)
+    ) {
+      setSelectedDiscoveryProjectId(discoveredProjectIds[0]);
+    }
+  }, [discoveryResult, selectedDiscoveryProjectId]);
+
   async function invalidateMemoryData() {
     await Promise.all([
       utils.memory.inspect.invalidate(),
@@ -259,6 +315,8 @@ export function MemoryInspector({
       utils.memory.denials.invalidate(),
       utils.memory.audit.invalidate(),
       utils.memory.tombstones.invalidate(),
+      utils.discovery.discover.invalidate(),
+      utils.discovery.snapshot.invalidate(),
     ]);
   }
 
@@ -345,6 +403,32 @@ export function MemoryInspector({
     }
   }
 
+  async function handleRefreshDiscovery() {
+    setActionMessage({
+      tone: 'info',
+      text: 'Refreshing project knowledge projections...',
+    });
+
+    try {
+      const result = await refreshDiscoveryMutation.mutateAsync({
+        projectId: typedProjectId,
+      });
+      setActionMessage({
+        tone: 'success',
+        text: `Knowledge refresh completed (${result.outcome}).`,
+      });
+      await Promise.all([
+        utils.discovery.discover.invalidate(),
+        utils.discovery.snapshot.invalidate(),
+      ]);
+    } catch (error) {
+      setActionMessage({
+        tone: 'error',
+        text: `Discovery refresh failed: ${getErrorMessage(error)}`,
+      });
+    }
+  }
+
   return (
     <div className="space-y-6">
       <div className="flex flex-wrap items-start justify-between gap-4">
@@ -367,6 +451,12 @@ export function MemoryInspector({
             onClick={() => setViewMode('learning')}
           >
             Learning
+          </Button>
+          <Button
+            variant={viewMode === 'discover' ? 'default' : 'outline'}
+            onClick={() => setViewMode('discover')}
+          >
+            Discover
           </Button>
           <Button
             variant="outline"
@@ -590,7 +680,7 @@ export function MemoryInspector({
             </Card>
           </div>
         </div>
-      ) : (
+      ) : viewMode === 'learning' ? (
         <div className="grid gap-6 xl:grid-cols-[22rem_minmax(0,1fr)_minmax(0,1.1fr)]">
           <div className="space-y-6">
             <MemoryLearningFilterBar
@@ -623,6 +713,43 @@ export function MemoryInspector({
           <MemoryLearningDetail
             detail={learningDetail}
             isLoading={learningDetailQuery.isLoading}
+          />
+        </div>
+      ) : (
+        <div className="grid gap-6 xl:grid-cols-[22rem_minmax(0,1fr)_minmax(0,1fr)]">
+          <div className="space-y-6">
+            <MemoryDiscoveryFilterBar
+              filters={discoveryFilters}
+              onChange={(next) =>
+                setDiscoveryFilters((current) => ({ ...current, ...next }))
+              }
+              onReset={() => setDiscoveryFilters(createDefaultDiscoveryFilters())}
+            />
+            <Card>
+              <CardHeader className="border-b border-border">
+                <CardTitle className="text-base">Projection Notes</CardTitle>
+              </CardHeader>
+              <CardContent className="space-y-2 pt-4 text-sm text-muted-foreground">
+                <p>Discovery results remain candidate project IDs and explainability only.</p>
+                <p>Denied candidates are summarized by count and reason code, not leaked by identity.</p>
+                <p>Snapshot detail is a projection over canonical refresh, taxonomy, and relationship records.</p>
+              </CardContent>
+            </Card>
+          </div>
+
+          <MemoryDiscoveryOverview
+            result={discoveryResult}
+            isLoading={discoveryQuery.isLoading}
+            selectedProjectId={selectedDiscoveryProjectId}
+            onSelect={setSelectedDiscoveryProjectId}
+            onRefresh={handleRefreshDiscovery}
+            isRefreshing={refreshDiscoveryMutation.isPending}
+          />
+
+          <MemoryDiscoveryDetail
+            projectId={selectedDiscoveryProjectId}
+            snapshot={discoverySnapshot}
+            isLoading={discoverySnapshotQuery.isLoading}
           />
         </div>
       )}

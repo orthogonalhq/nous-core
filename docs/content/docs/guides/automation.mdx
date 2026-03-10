@@ -1,6 +1,6 @@
 ---
 title: Automation Gateway
-description: Programmatic triggers for scheduler, hooks, and webhooks (Phase 5.3)
+description: Programmatic triggers for scheduler, hooks, webhooks, and system events (Phase 5.3 and 9.3)
 ---
 
 # Automation Gateway
@@ -20,10 +20,10 @@ The automation gateway is the programmatic entry point for triggering Nous workf
 
 Every trigger follows the same pipeline:
 
-1. **Validate** — Envelope must include `project_id`, `workflow_ref`, valid `trigger_type`, and integrity-addressed `payload_ref`
+1. **Validate** — Envelope must include `project_id`, `workflow_ref`, `workmode_id`, valid `trigger_type`, and integrity-addressed `payload_ref`
 2. **Authenticate** — Scheduler/hook: internal. Webhook: HMAC verification (adapter responsibility)
 3. **Authorize** — Principal must be bound to workflow; event type must be in allowlist
-4. **Idempotency** — Duplicate triggers (same `source_id` + `idempotency_key`) return existing run; no second run created
+4. **Idempotency** — Duplicate triggers (same `source_id` + `idempotency_key`) return the original `run_id` and `dispatch_ref`; no second run created
 5. **Replay check** — Stale timestamps or duplicate nonces are rejected
 6. **Dispatch admission** — Control state (PCP-007) must allow; project cannot be `hard_stopped` or `paused_review`
 
@@ -32,8 +32,19 @@ Every trigger follows the same pipeline:
 | Outcome | Meaning |
 |---------|---------|
 | `accepted_dispatched` | New run created; evidence chain and run linkage emitted |
-| `accepted_already_dispatched` | Duplicate trigger; original run_id returned; no new run |
-| `rejected` | Trigger rejected with reason code |
+| `accepted_already_dispatched` | Duplicate trigger; original `run_id` and `dispatch_ref` returned; no new run |
+| `rejected` | Trigger rejected with a gateway reason and optional workflow/runtime `reason_code` |
+
+## Workflow Admission Before Run Creation
+
+Passing ingress validation is necessary, but it is not sufficient to start a workflow run. After the trigger envelope clears gateway checks, the workflow runtime still has to:
+
+1. Resolve the canonical workflow definition from the target project's stored configuration
+2. Validate the workflow as a deterministic DAG
+3. Evaluate project scope, workmode, authority-chain, and control-state admission
+4. Mint a run ID only if all of those checks succeed
+
+If any of those steps fail, the workflow does not start and no new run is created. Treat that as an admission failure, not as a transient transport error.
 
 ## Rejection Reason Codes
 
@@ -49,16 +60,107 @@ When a trigger is rejected, the response includes a reason code:
 | `rate_limited` | Rate limit exceeded |
 | `invalid_envelope` | Missing project_id, workflow_ref, or invalid trigger_type |
 | `control_state_blocked` | Project is hard_stopped or paused_review (PCP-007) |
+| `workflow_admission_blocked` | Ingress was valid, but canonical workflow admission or project lookup failed before run creation |
+
+## Canonical Trigger Provenance (Phase 9.3)
+
+When ingress succeeds, the created workflow run stores the trigger as canonical runtime state:
+
+- `triggerContext.triggerId` links the run back to the accepted ingress envelope
+- `triggerContext.dispatchRef` is the durable dispatch linkage returned by ingress
+- `triggerContext.workmodeId` is the admitted workmode, not a hidden default
+- `triggerContext.evidenceRef` is the primary evidence pointer surfaces should deep-link
+
+Scheduler, hook, and system-event callers should read that workflow state instead of inventing a scheduler-local explanation for why a run exists.
+
+## Workflow Admission Reason Codes (Phase 9.1)
+
+When ingress is valid but the workflow runtime cannot start the run, inspect the admission reason code:
+
+| Code | Cause | Operator action |
+|------|-------|-----------------|
+| `workflow_definition_unavailable` | The project does not expose the requested or default workflow definition | Fix project workflow configuration before retrying |
+| `workflow_definition_invalid` | The workflow definition failed graph validation (for example cycles, dangling edges, or invalid entry nodes) | Correct the canonical workflow definition and re-run validation |
+| `AUTH-SCOPE-MISMATCH` | The admission request project/workflow scope does not match the resolved definition | Ensure the request and project configuration point at the same project/workflow pair |
+| `POL-CONTROL-STATE-BLOCKED` | The project is in a blocking control state such as `hard_stopped` | Release the blocker through operator-control before retrying |
+| `POL-PAUSED-BLOCKED` | The project is in `paused_review` and cannot admit a new run | Resume the project before retrying |
+| `OPCTL-INVALID-STATE` | The request attempts to resume from a control state that is not eligible to resume | Fix the control-state transition first |
+| `WMODE-001` | The requested workmode is not valid for workflow admission | Use a supported workmode configuration |
+| `WMODE-002` | Authority widening was attempted during admission | Narrow the authority chain; do not escalate a worker into a higher-authority start path |
+| `WMODE-003` | Nested orchestration was attempted | Use the standard `nous_cortex -> orchestration_agent -> worker_agent` chain |
+| `WMODE-010` | A worker-origin start attempted an authoritative dispatch path | Reissue the request from the correct authority lane |
+
+## Governed Runtime Outcomes After Run Creation (Phase 9.2)
+
+Admission tells you whether a workflow run could start. After a `run_id` exists, automation clients should read canonical run state instead of assuming the trigger finished synchronously.
+
+| Run status | Meaning | Operator action |
+|------------|---------|-----------------|
+| `running` | One or more nodes are executing, or the runtime is advancing ready successors | Monitor node-level state until the run reaches a wait or terminal state |
+| `waiting` | The run is intentionally paused on a canonical wait state | Inspect the waiting node's `activeWaitState.kind`, `reasonCode`, and `resumeToken` |
+| `blocked_review` | Progress stopped on a review-gated blocker or correction arc | Use `reasonCode`, `evidenceRefs`, and `correctionArcs` to decide whether to resume, retry, reprompt, or roll back |
+| `paused` | Operator or control state paused execution after the run was created | Resume the project/control state before continuing |
+| `completed` | All active nodes resolved successfully | Consume outputs and audit evidence from the completed run |
+| `failed` | The run reached a terminal failure state | Investigate the terminal `reasonCode` and upstream node attempts before retrying |
+
+### Canonical Wait Kinds
+
+| Wait kind | Meaning | Resume posture |
+|-----------|---------|----------------|
+| `async_batch` | External or long-running model/tool work is still in flight | Wait for the completion witness, then continue the same node with the matching continuation token |
+| `human_decision` | The runtime requires explicit approval or rejection | Submit the decision via continuation; do not create a replacement run |
+| `retry_backoff` | Governance or retry policy deferred immediate progress | Clear the blocker or let the backoff elapse, then resume or reprompt the same node |
+| `checkpoint_commit` | Node output exists, but checkpoint commit is not yet durable | Wait for commit completion and continue from the same run/node/checkpoint instead of re-executing the node |
+
+### Blocked Review After Run Creation
+
+When a run enters `blocked_review`, the runtime is deliberately refusing blind progress. Common reason codes are:
+
+| Reason code | Cause | Operator action |
+|-------------|-------|-----------------|
+| `workflow_continuation_token_mismatch` | A stale or wrong continuation token was supplied | Re-read the current waiting node and use its latest `resumeToken` |
+| `workflow_resume_review_required` | Side effects are unknown and blind resume is unsafe | Review evidence and explicitly approve continuation before resuming |
+| `workflow_human_decision_rejected` | A human-decision step was rejected | Follow the correction arc instead of replaying the same continuation |
+| `workflow_resume_denied_hard_stopped` | Control state became `hard_stopped` during resume | Release the hard stop first, then retry continuation |
+| `workflow_retry_backoff_resolution_required` | A retry/backoff path needs explicit intervention | Apply the indicated retry or reprompt path before resuming |
+
+Correction arcs are part of the canonical run state. They tell downstream surfaces whether the runtime expects a `resume`, `retry`, `reprompt`, or `rollback` posture after the block.
+
+### Checkpointed Continuation Posture
+
+Phase 9.2 only advances continuation from committed checkpoints. If a node is waiting on `checkpoint_commit`, treat the prepared checkpoint as provisional until the run exposes a committed checkpoint reference. Do not redispatch the node while that wait is active.
 
 ## Recovery and Handoff
 
 - **Duplicate handling:** If you receive `accepted_already_dispatched`, use the returned `run_id` to reference the original run. Do not retry with the same `idempotency_key`.
+- **Duplicate scheduler/event intake:** The returned `dispatch_ref` is authoritative. Treat it as the original dispatch linkage, not as a retry receipt.
 - **Control state block:** If `control_state_blocked`, the project must be resumed or released from hard_stop before new triggers can dispatch. Use the Projects UI or operator-control to change control state.
+- **Workflow admission block:** If the reason code points to missing definitions, invalid graph structure, or authority mismatch, repair the canonical workflow/project configuration instead of replaying the same trigger.
+- **Runtime wait:** If the run is `waiting`, inspect the node's `activeWaitState.kind`, `reasonCode`, and `resumeToken` before retrying anything.
+- **Blocked review:** If the run is `blocked_review`, inspect `correctionArcs`, `reasonCode`, and `evidenceRefs` first. Treat those fields as runtime truth, not advisory hints.
+- **Checkpoint commit pending:** If the node is waiting on `checkpoint_commit`, wait for the checkpoint commit to complete and continue the same node. Do not create a second execution attempt for the same work.
 - **Replay:** If `replay_detected`, ensure your `occurred_at` is within the acceptance window (+/- 5 minutes) and that each request uses a unique nonce per source.
+
+## Scheduled Knowledge Refresh (Phase 9.4)
+
+Phase 9.4 adds a governed refresh path for the cross-project knowledge index. Scheduler participation stays narrow:
+
+- The scheduler submits one ingress envelope per due project schedule. It does not batch projects into repo-wide refresh runs.
+- The envelope remains the canonical trigger record. Scheduled refresh still flows through `scheduler -> ingress -> workflow -> tool-execution -> refresh_project_knowledge`.
+- Scheduler identity is duplicate-safe at the envelope level: scheduled runs use `schedule:<scheduleId>:<occurredAt>` idempotency keys, so replay detection and duplicate suppression remain ingress-owned instead of scheduler-local.
+
+Operational guardrails:
+
+- Refresh is serialized per project inside the knowledge-index runtime.
+- Equivalent local refresh inputs are suppressed with a deterministic `inputDigest`, producing `skipped_no_change` when the canonical input set has not changed.
+- The supported posture is explicitly `single_process_local`. Phase 9.4 does not claim restart-survivable or multi-process refresh idempotency.
+- Cron/cadence design should stay project-scoped. If many projects need refresh, create multiple narrow schedules rather than one synthetic sweep job.
 
 ## payload_ref Format
 
 Payload integrity is addressed via `payload_ref`. V1 format: `sha256:<64-char-hex>` — the SHA-256 digest of the payload body. Adapters must compute the digest before constructing the envelope.
+
+`payload_ref` precision is strict. Do not replace it with opaque IDs or unhashed payload markers unless every contract and operator table is updated together.
 
 ## Credential Scope (Webhooks)
 

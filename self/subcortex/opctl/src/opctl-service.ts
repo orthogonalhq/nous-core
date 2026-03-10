@@ -155,7 +155,8 @@ export class OpctlService {
         if (validEnvelope.action === 'pause') {
           await store.set(projectId, 'paused_review');
         } else if (validEnvelope.action === 'resume') {
-          await store.set(projectId, 'running');
+          await this.deps.startLockStore.setStartLock(projectId, false);
+          await store.set(projectId, 'resuming');
         } else if (validEnvelope.action === 'hard_stop') {
           await this.deps.startLockStore.setStartLock(projectId, true);
           await store.clear(projectId);

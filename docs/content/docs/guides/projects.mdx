@@ -11,6 +11,7 @@ Projects are isolation boundaries. Each project has its own:
 - Memory entries
 - Execution traces
 - Configuration (Cortex tier, model assignments)
+- Workflow definitions and runtime state for protocol and hybrid execution
 
 ## Creating a Project
 
@@ -33,3 +34,210 @@ pnpm dev:cli -- projects switch -p <project-id>
 ## Project Types
 
 Projects can be `protocol`, `intent`, or `hybrid`. Phase 1 creates projects as `hybrid` by default. Protocol and intent semantics are used in later phases for workflow execution.
+
+## Workflow Definitions
+
+Protocol and hybrid projects can carry canonical workflow definitions inside project configuration. That project-scoped definition is the source of truth for workflow execution.
+
+Phase 9.1 adds two important rules:
+
+1. The project config owns the canonical workflow definitions and the default workflow reference.
+2. The runtime derives an execution graph from that canonical definition. UI surfaces, automation, and future scheduler views should treat the derived graph as rebuildable runtime state, not a separate source of truth.
+
+When a workflow definition changes, downstream consumers should expect the runtime to rebuild graph structure, ready-node ordering, and graph digest from the stored definition rather than from surface-local state.
+
+Phase 9.2 extends that same truth model to node execution details. Wait states, correction arcs, checkpoint references, and selected branch paths are all canonical runtime fields derived from the stored definition plus execution history. Surface-specific projections should read them, not reinterpret them.
+
+Phase 9.3 extends the same rule to trigger provenance. If a run came from scheduler, hook, or system-event intake, the canonical run state stores that trigger context directly. The scheduler is allowed to persist schedule definitions and due cursors; it is not a second source of truth for why a run started.
+
+## Projects Workflow Surface (Phase 9.5)
+
+Phase 9.5 adds a dedicated Projects workflow surface in the web app. It is a projection and editing surface over canonical project workflow state, not a second workflow store.
+
+From the Projects page you can now:
+
+- Inspect recent runs with runtime availability states such as `live`, `no_active_run`, and degraded runtime conditions
+- Browse grouped node projections by status or node type, then collapse, filter, and search them for high-node-count runs
+- Inspect recent committed artifacts and recent traces linked to the current workflow snapshot
+- Follow deep links back to Chat, into Traces, or forward into the MAO projection for the same project, run, and node context
+- Edit the canonical workflow definition with starter authoring, node creation, edge creation, governance selection, execution-model assignment, and model-role configuration
+- Validate the draft on the server before saving so invalid graphs never become canonical project truth
+
+Inspect-first behavior still applies. If a project has no canonical workflow definition yet, the Projects surface shows an authoring-first empty state instead of inventing runtime data.
+
+## Project Operating Surface (Phase 9.6)
+
+Phase 9.6 expands the Projects page from a workflow-only surface into a broader project operating surface. The page now renders canonical dashboard, configuration, schedule, and escalation projections from the server layer instead of inventing a client-owned project status model.
+
+### Health and Control Posture
+
+The dashboard now combines:
+
+- Workflow runtime availability
+- Project control posture
+- Enabled schedule count
+- Open escalation count
+- Package-default intake visibility
+
+Blocked actions are derived on the server from canonical control state. That means the Projects page can tell you when configuration edits or schedule changes are blocked under states such as `hard_stopped`, `paused_review`, or `resuming`, while still allowing safe read-only inspection.
+
+### Governed Project Configuration
+
+The configuration panel now covers:
+
+- Project type
+- Governance defaults
+- Model-role assignments
+- Memory access policy
+- Retrieval budget
+- Escalation preferences
+- Schedule settings
+
+Two rules matter:
+
+1. Project configuration is still canonical project truth. The UI is a projection and mutation surface over that truth, not a second config store.
+2. Schedule records remain canonical scheduler truth. The configuration panel can inspect and update schedule settings, but schedule runtime state is not duplicated into project config.
+
+If another operator updates project configuration first, the save is rejected as a conflict. Refresh the project surface and reapply your change against the newest snapshot instead of retrying blindly.
+
+### Package Default Provenance
+
+Projects can now show package-derived defaults and whether a field is still coming from package intake or has been overridden at the project level.
+
+Phase 9.6 currently records this at the package-section level, not as a per-field override ledger. The surface can still show where defaults came from, which package applied them, and when that intake happened.
+
+### In-App Escalation Queue
+
+The Projects page now includes a project-scoped escalation queue. It shows the same canonical escalation records used by other surfaces.
+
+From the queue you can:
+
+- Inspect severity and current delivery status
+- Review required action and linked evidence context
+- Acknowledge the escalation from the Projects surface
+
+Acknowledgement is shared across surfaces. If you acknowledge an escalation in Projects, the chat inbox reflects that same canonical acknowledgement record on the next fetch. The queue is not a workflow-recovery engine by itself; acknowledging an escalation records operator awareness, but it does not bypass workflow or control-plane rules.
+
+### Current Boundary
+
+The Projects surface can configure schedules and inspect dashboard truth, but the web process is not the canonical autonomous scheduler executor. Actual due-schedule dispatch remains outside the web bootstrap seam and still flows through the canonical ingress and workflow-admission path.
+
+## MAO Continuity and Project-Scope Controls (Phase 9.7)
+
+Phase 9.7 keeps the Projects surface as a governed continuation surface for MAO rather than turning Projects into a second observability backend.
+
+When you arrive from MAO, the Projects page now preserves:
+
+- The linked project, run, and node context
+- Evidence and reasoning continuity through an MAO handoff banner
+- A direct return path back to the originating MAO context
+
+The dashboard and workflow monitor still read canonical server projections. MAO is allowed to hand off context into Projects, but Projects does not create its own copy of MAO state.
+
+### What the Projects Surface Shows from MAO
+
+- The current project control posture, including `running`, `paused_review`, `hard_stopped`, and `resuming`
+- Workflow evidence continuity for the linked run and node
+- A canonical route back into the MAO surface for deeper density-grid or run-graph inspection
+
+### What It Does Not Do
+
+- It does not resume or override project control state by itself
+- It does not duplicate reasoning-log preview storage
+- It does not invent a second project-health model separate from the dashboard and workflow projections returned by the server
+
+## Workflow Run State
+
+Before a workflow run starts, the runtime:
+
+1. Resolves the canonical workflow definition from the project
+2. Validates the definition as a DAG
+3. Evaluates admission for project scope, workmode, authority chain, and control state
+4. Mints a run only if all of those checks pass
+
+If admission is blocked, the workflow does not start and the failure remains reason-coded and evidence-linked. Fix the admission problem first instead of retrying blindly.
+
+Common runtime states:
+
+| State | Meaning |
+|------|---------|
+| `ready` | The run was admitted and has entry nodes ready to dispatch |
+| `running` | At least one node is executing, or ready successors are being advanced |
+| `waiting` | The run is intentionally paused on a node wait such as `async_batch`, `human_decision`, `retry_backoff`, or `checkpoint_commit` |
+| `blocked_review` | The run reached a review-gated blocker and requires a correction path before it can continue |
+| `paused` | Control state or explicit operator action paused progress |
+| `completed` | All required nodes completed successfully |
+| `failed` | The run reached a terminal failure state |
+
+If admission fails before a run is created, treat `admission_blocked` as an admission result rather than as an actively progressing run.
+
+## Trigger Provenance (Phase 9.3)
+
+Workflow runs may now include `triggerContext`:
+
+| Field | Meaning |
+|------|---------|
+| `triggerId` | Canonical ingress trigger identity |
+| `triggerType` | `scheduler`, `hook`, `webhook`, or `system_event` |
+| `sourceId` | Trigger source such as `schedule:<schedule-id>` or an internal hook source |
+| `workflowRef` | The admitted workflow definition reference |
+| `workmodeId` | The explicit workmode used for admission |
+| `idempotencyKey` | The dedup identity that suppresses duplicate side effects |
+| `dispatchRef` | The canonical dispatch linkage returned by ingress |
+| `evidenceRef` | Primary evidence pointer for the intake decision |
+| `occurredAt` | The trigger's event time |
+
+If a scheduler view and workflow view disagree, trust `triggerContext` on the workflow run first.
+
+## Node Attempts, Waits, and Correction Arcs
+
+Phase 9.2 makes per-node execution history explicit:
+
+| Field | What it tells you |
+|------|--------------------|
+| `nodeStates[<nodeId>].attempts` | Append-only history of every execution attempt for that node |
+| `activeAttempt` | Which attempt number is currently active for the node, if any |
+| `activeWaitState` | Why the node is waiting now, including wait kind, reason code, evidence refs, and optional `resumeToken` |
+| `correctionArcs` | The correction posture the runtime recorded after a blocked or resumed path (`resume`, `retry`, `reprompt`, or `rollback`) |
+| `lastCommittedCheckpointId` | The last durable checkpoint tied to that node |
+| `selectedBranchKey` | Which condition-branch path the node ultimately activated |
+
+These fields are the canonical explanation for why a node is waiting, blocked, resumed, or completed. Use them instead of inferring intent from UI state alone.
+
+## Node Runs and Dispatch Lineage
+
+Workflow diagnostics now distinguish durable definition IDs from per-run execution records:
+
+- **Workflow definition ID** identifies the canonical stored workflow
+- **Node definition ID** identifies a node in that stored workflow
+- **Node run ID** identifies one node instance inside one workflow run
+- **Dispatch lineage ID** identifies a specific dispatch attempt and how that node became ready
+
+If a workflow looks stalled or branches unexpectedly, inspect the node status, `reasonCode`, `evidenceRefs`, `parentNodeId`, and `viaEdgeId` fields first. Those fields are the authoritative explanation for why a node was admitted, delayed, paused, or blocked.
+
+## Checkpoints and Branch Diagnostics
+
+Workflow runs now also expose branch and checkpoint truth directly:
+
+| Field | How to use it |
+|------|---------------|
+| `waitingNodeIds` | Nodes that are waiting on a canonical continuation path |
+| `blockedNodeIds` | Nodes that pushed the run into `blocked_review` |
+| `lastPreparedCheckpointId` | The most recent prepared checkpoint, which may still be provisional |
+| `lastCommittedCheckpointId` | The latest checkpoint that is durable enough for continuation |
+| `activatedEdgeIds` | The set of outbound edges the runtime actually activated while traversing the graph |
+
+Condition nodes activate only the branch edges chosen by the canonical `selectedBranchKey`. If a downstream join looks surprising, inspect `selectedBranchKey` on the source node and `activatedEdgeIds` on the run before assuming the graph or scheduler is wrong.
+
+## Scheduler and Artifact Runtime Truth (Phase 9.3)
+
+Phase 9.3 adds two downstream runtime services that still derive from project and workflow truth instead of replacing it:
+
+- Scheduler records store canonical schedule definitions, `workflowDefinitionId`, `workmodeId`, and due cursors. They submit execution through ingress and rely on workflow run state for actual run truth.
+- Artifact records store version, integrity, and lineage back to workflow run, node, dispatch lineage, checkpoint, and evidence references.
+- Prepared artifact versions remain hidden from default retrieve/list behavior. Only committed versions are normal runtime truth.
+- Knowing an artifact ID alone is not enough to read or delete it. Artifact operations stay project-scoped.
+
+## Current Scope
+
+Phase 9.1 through Phase 9.6 now cover the canonical workflow foundation, ingress-backed scheduler dispatch, integrity-verified artifact persistence, the Projects workflow surface, governed project configuration, schedule settings, and the first in-app escalation acknowledgement flow shared between Projects and chat. Later phases can refine authoring ergonomics, richer provenance, and deeper MAO/runtime supervision without changing the canonical truth model described here.

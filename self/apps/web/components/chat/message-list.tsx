@@ -1,5 +1,6 @@
 'use client';
 
+import * as React from 'react';
 import type { StmContext } from '@nous/shared';
 
 export function MessageList({ context }: { context: StmContext }) {

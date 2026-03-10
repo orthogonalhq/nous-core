@@ -6,7 +6,16 @@ import { describe, it, expect } from 'vitest';
 import {
   MaoDensityModeSchema,
   ProjectControlStateSchema,
+  MaoAgentLifecycleStateSchema,
+  MaoReasoningLogPreviewSchema,
   MaoAgentProjectionSchema,
+  MaoGridTileProjectionSchema,
+  MaoRunGraphSnapshotSchema,
+  MaoProjectSnapshotSchema,
+  MaoAgentInspectProjectionSchema,
+  MaoProjectControlImpactSummarySchema,
+  MaoProjectControlRequestSchema,
+  MaoProjectControlResultSchema,
   MaoProjectControlProjectionSchema,
   MaoProjectControlActionSchema,
   MaoEventTypeSchema,
@@ -14,6 +23,9 @@ import {
 
 const PROJECT_ID = '11111111-1111-1111-1111-111111111111' as const;
 const AGENT_ID = '22222222-2222-2222-2222-222222222222' as const;
+const RUN_ID = '33333333-3333-3333-3333-333333333333' as const;
+const NODE_ID = '44444444-4444-4444-4444-444444444444' as const;
+const COMMAND_ID = '55555555-5555-5555-5555-555555555555' as const;
 
 describe('MaoDensityModeSchema', () => {
   it('accepts valid density modes', () => {
@@ -39,26 +51,82 @@ describe('ProjectControlStateSchema', () => {
   });
 });
 
+describe('MaoAgentLifecycleStateSchema', () => {
+  it('accepts waiting and resuming lifecycle states', () => {
+    expect(MaoAgentLifecycleStateSchema.parse('waiting_pfc')).toBe('waiting_pfc');
+    expect(MaoAgentLifecycleStateSchema.parse('resuming')).toBe('resuming');
+  });
+});
+
+describe('MaoReasoningLogPreviewSchema', () => {
+  it('accepts redaction-aware reasoning previews with deep links', () => {
+    const parsed = MaoReasoningLogPreviewSchema.parse({
+      class: 'blocker',
+      summary: 'Waiting for principal review',
+      evidenceRef: 'evidence://review',
+      artifactRefs: ['artifact://summary'],
+      redactionClass: 'public_operator',
+      previewMode: 'inline',
+      emittedAt: '2026-03-10T01:00:00.000Z',
+      chatLink: {
+        target: 'chat',
+        projectId: PROJECT_ID,
+        workflowRunId: RUN_ID,
+        nodeDefinitionId: NODE_ID,
+      },
+      projectsLink: {
+        target: 'projects',
+        projectId: PROJECT_ID,
+        workflowRunId: RUN_ID,
+        nodeDefinitionId: NODE_ID,
+      },
+    });
+
+    expect(parsed.projectsLink?.target).toBe('projects');
+  });
+});
+
 describe('MaoAgentProjectionSchema', () => {
   const valid = {
     agent_id: AGENT_ID,
     project_id: PROJECT_ID,
+    workflow_run_id: RUN_ID,
+    workflow_node_definition_id: NODE_ID,
     dispatching_task_agent_id: null,
     dispatch_origin_ref: 'ref-1',
-    state: 'running',
+    state: 'running' as const,
+    state_reason_code: 'workflow_running',
     current_step: 'step-1',
     progress_percent: 50,
     risk_level: 'low' as const,
+    urgency_level: 'normal' as const,
     attention_level: 'none' as const,
     pfc_alert_status: 'none',
     pfc_mitigation_status: 'none',
     dispatch_state: 'dispatched',
     reflection_cycle_count: 0,
     last_update_at: '2026-02-24T22:00:00.000Z',
-    reasoning_log_preview: null,
-    reasoning_log_last_entry_class: null,
-    reasoning_log_last_entry_at: null,
+    reasoning_log_preview: {
+      class: 'result_summary',
+      summary: 'Step finished normally',
+      evidenceRef: 'evidence://step',
+      artifactRefs: [],
+      redactionClass: 'public_operator' as const,
+      previewMode: 'inline' as const,
+      emittedAt: '2026-02-24T22:00:00.000Z',
+    },
+    reasoning_log_last_entry_class: 'result_summary' as const,
+    reasoning_log_last_entry_at: '2026-02-24T22:00:00.000Z',
     reasoning_log_redaction_state: 'none' as const,
+    deepLinks: [
+      {
+        target: 'chat' as const,
+        projectId: PROJECT_ID,
+        workflowRunId: RUN_ID,
+        nodeDefinitionId: NODE_ID,
+      },
+    ],
+    evidenceRefs: ['evidence://step'],
   };
 
   it('parses valid agent projection', () => {
@@ -66,6 +134,7 @@ describe('MaoAgentProjectionSchema', () => {
     expect(result.agent_id).toBe(AGENT_ID);
     expect(result.project_id).toBe(PROJECT_ID);
     expect(result.progress_percent).toBe(50);
+    expect(result.reasoning_log_preview?.class).toBe('result_summary');
   });
 
   it('rejects invalid agent_id', () => {
@@ -81,6 +150,37 @@ describe('MaoAgentProjectionSchema', () => {
   });
 });
 
+describe('MaoGridTileProjectionSchema', () => {
+  it('accepts inspect-only density-grid tiles', () => {
+    const parsed = MaoGridTileProjectionSchema.parse({
+      agent: MaoAgentProjectionSchema.parse({
+        agent_id: AGENT_ID,
+        project_id: PROJECT_ID,
+        dispatching_task_agent_id: null,
+        dispatch_origin_ref: 'ref-1',
+        state: 'waiting_pfc',
+        current_step: 'Await approval',
+        progress_percent: 25,
+        risk_level: 'high',
+        urgency_level: 'urgent',
+        attention_level: 'urgent',
+        pfc_alert_status: 'pending',
+        pfc_mitigation_status: 'awaiting_operator',
+        dispatch_state: 'blocked',
+        reflection_cycle_count: 1,
+        last_update_at: '2026-03-10T01:00:00.000Z',
+        reasoning_log_preview: null,
+        reasoning_log_redaction_state: 'partial',
+      }),
+      densityMode: 'D4',
+      inspectOnly: true,
+      showUrgentOverlay: true,
+    });
+
+    expect(parsed.inspectOnly).toBe(true);
+  });
+});
+
 describe('MaoProjectControlProjectionSchema', () => {
   const valid = {
     project_id: PROJECT_ID,
@@ -88,6 +188,7 @@ describe('MaoProjectControlProjectionSchema', () => {
     active_agent_count: 2,
     blocked_agent_count: 0,
     urgent_agent_count: 0,
+    resume_readiness_status: 'not_applicable' as const,
     pfc_project_review_status: 'none' as const,
     pfc_project_recommendation: 'continue' as const,
   };
@@ -105,6 +206,189 @@ describe('MaoProjectControlProjectionSchema', () => {
         project_control_state: 'invalid',
       }),
     ).toThrow();
+  });
+});
+
+describe('MaoProjectSnapshotSchema', () => {
+  it('accepts grid and graph snapshots that reconcile to one project', () => {
+    const parsed = MaoProjectSnapshotSchema.parse({
+      projectId: PROJECT_ID,
+      densityMode: 'D2',
+      workflowRunId: RUN_ID,
+      controlProjection: {
+        project_id: PROJECT_ID,
+        project_control_state: 'running',
+        active_agent_count: 1,
+        blocked_agent_count: 0,
+        urgent_agent_count: 0,
+        pfc_project_review_status: 'none',
+        pfc_project_recommendation: 'continue',
+      },
+      grid: [],
+      graph: {
+        projectId: PROJECT_ID,
+        workflowRunId: RUN_ID,
+        nodes: [
+          {
+            id: `agent:${NODE_ID}`,
+            kind: 'agent',
+            agentId: AGENT_ID,
+            workflowRunId: RUN_ID,
+            workflowNodeDefinitionId: NODE_ID,
+            label: 'Draft',
+            state: 'running',
+            evidenceRefs: ['evidence://draft'],
+          },
+        ],
+        edges: [
+          {
+            id: 'edge-1',
+            kind: 'dispatch',
+            fromNodeId: `agent:${NODE_ID}`,
+            toNodeId: `agent:${NODE_ID}`,
+            reasonCode: 'workflow_started',
+            evidenceRefs: ['evidence://dispatch'],
+            occurredAt: '2026-03-10T01:00:00.000Z',
+          },
+        ],
+        generatedAt: '2026-03-10T01:00:00.000Z',
+      },
+      urgentOverlay: {
+        urgentAgentIds: [AGENT_ID],
+        blockedAgentIds: [],
+        generatedAt: '2026-03-10T01:00:00.000Z',
+      },
+      summary: {
+        activeAgentCount: 1,
+        blockedAgentCount: 0,
+        failedAgentCount: 0,
+        waitingPfcAgentCount: 0,
+        urgentAgentCount: 1,
+      },
+      diagnostics: {
+        runtimePosture: 'single_process_local',
+      },
+      generatedAt: '2026-03-10T01:00:00.000Z',
+    });
+
+    expect(parsed.graph.nodes).toHaveLength(1);
+    expect(parsed.summary.urgentAgentCount).toBe(1);
+  });
+});
+
+describe('MaoRunGraphSnapshotSchema', () => {
+  it('accepts corrective graph edges with evidence refs', () => {
+    const parsed = MaoRunGraphSnapshotSchema.parse({
+      projectId: PROJECT_ID,
+      workflowRunId: RUN_ID,
+      nodes: [],
+      edges: [
+        {
+          id: 'edge-2',
+          kind: 'reflection_review',
+          fromNodeId: 'agent:a',
+          toNodeId: 'agent:a',
+          reasonCode: 'workflow_wait_paused_review',
+          evidenceRefs: ['evidence://paused'],
+          occurredAt: '2026-03-10T01:00:00.000Z',
+        },
+      ],
+      generatedAt: '2026-03-10T01:00:00.000Z',
+    });
+
+    expect(parsed.edges[0]?.kind).toBe('reflection_review');
+  });
+});
+
+describe('MaoAgentInspectProjectionSchema', () => {
+  it('accepts inspect projections with attempt and correction summaries', () => {
+    const parsed = MaoAgentInspectProjectionSchema.parse({
+      projectId: PROJECT_ID,
+      workflowRunId: RUN_ID,
+      workflowNodeDefinitionId: NODE_ID,
+      agent: {
+        agent_id: AGENT_ID,
+        project_id: PROJECT_ID,
+        dispatching_task_agent_id: null,
+        dispatch_origin_ref: 'ref-2',
+        state: 'blocked',
+        current_step: 'Review gate',
+        progress_percent: 75,
+        risk_level: 'high',
+        urgency_level: 'urgent',
+        attention_level: 'urgent',
+        pfc_alert_status: 'active',
+        pfc_mitigation_status: 'awaiting_operator',
+        dispatch_state: 'blocked',
+        reflection_cycle_count: 1,
+        last_update_at: '2026-03-10T01:00:00.000Z',
+        reasoning_log_preview: null,
+        reasoning_log_redaction_state: 'restricted',
+      },
+      projectControlState: 'paused_review',
+      runStatus: 'blocked_review',
+      waitKind: 'human_decision',
+      latestAttempt: {
+        attempt: 1,
+        status: 'blocked',
+        reasonCode: 'workflow_wait_paused_review',
+        evidenceRefs: ['evidence://paused'],
+        startedAt: '2026-03-10T01:00:00.000Z',
+      },
+      correctionArcs: [
+        {
+          id: '66666666-6666-6666-6666-666666666666',
+          type: 'resume',
+          sourceAttempt: 1,
+          reasonCode: 'workflow_resume_denied_hard_stopped',
+          evidenceRefs: ['evidence://resume'],
+          occurredAt: '2026-03-10T01:00:00.000Z',
+        },
+      ],
+      evidenceRefs: ['evidence://paused'],
+      generatedAt: '2026-03-10T01:00:00.000Z',
+    });
+
+    expect(parsed.waitKind).toBe('human_decision');
+  });
+});
+
+describe('MaoProjectControl request/result schemas', () => {
+  it('accepts impact-aware project control requests and results', () => {
+    const impact = MaoProjectControlImpactSummarySchema.parse({
+      activeRunCount: 1,
+      activeAgentCount: 2,
+      blockedAgentCount: 1,
+      urgentAgentCount: 1,
+      affectedScheduleCount: 1,
+      evidenceRefs: ['evidence://impact'],
+    });
+    const request = MaoProjectControlRequestSchema.parse({
+      command_id: COMMAND_ID,
+      project_id: PROJECT_ID,
+      action: 'resume_project',
+      actor_id: 'principal-operator',
+      actor_type: 'operator',
+      reason: 'Resume after review',
+      requested_at: '2026-03-10T01:00:00.000Z',
+      impactSummary: impact,
+    });
+    const result = MaoProjectControlResultSchema.parse({
+      command_id: COMMAND_ID,
+      project_id: PROJECT_ID,
+      accepted: true,
+      status: 'applied',
+      from_state: 'paused_review',
+      to_state: 'resuming',
+      reason_code: 'resume_requested',
+      decision_ref: 'witness://decision',
+      impactSummary: impact,
+      evidenceRefs: ['evidence://resume'],
+      readiness_status: 'pending',
+    });
+
+    expect(request.action).toBe('resume_project');
+    expect(result.to_state).toBe('resuming');
   });
 });
 

@@ -36,23 +36,100 @@ const assertNotImplementedSync = (fn: () => unknown, interfaceName: string) => {
 describe('StubWorkflowEngine', () => {
   const stub = new StubWorkflowEngine();
 
+  it('resolveDefinition() throws NousError with code NOT_IMPLEMENTED', async () => {
+    await assertNotImplemented(
+      () => stub.resolveDefinition({} as any),
+      'IWorkflowEngine',
+    );
+  });
+
+  it('deriveGraph() throws NousError with code NOT_IMPLEMENTED', async () => {
+    await assertNotImplemented(
+      () => stub.deriveGraph({} as any),
+      'IWorkflowEngine',
+    );
+  });
+
+  it('evaluateAdmission() throws NousError with code NOT_IMPLEMENTED', async () => {
+    await assertNotImplemented(
+      () => stub.evaluateAdmission({} as any),
+      'IWorkflowEngine',
+    );
+  });
+
   it('start() throws NousError with code NOT_IMPLEMENTED', async () => {
     await assertNotImplemented(
-      () => stub.start('00000000-0000-0000-0000-000000000001' as any, {} as any),
+      () => stub.start({} as any),
       'IWorkflowEngine',
     );
   });
 
   it('resume() throws NousError with code NOT_IMPLEMENTED', async () => {
     await assertNotImplemented(
-      () => stub.resume('00000000-0000-0000-0000-000000000001' as any),
+      () =>
+        stub.resume('00000000-0000-0000-0000-000000000001' as any, {
+          reasonCode: 'workflow_resumed',
+          evidenceRefs: ['workflow:resume'],
+        }),
       'IWorkflowEngine',
     );
   });
 
   it('pause() throws NousError with code NOT_IMPLEMENTED', async () => {
     await assertNotImplemented(
-      () => stub.pause('00000000-0000-0000-0000-000000000001' as any),
+      () =>
+        stub.pause('00000000-0000-0000-0000-000000000001' as any, {
+          reasonCode: 'workflow_paused',
+          evidenceRefs: ['workflow:pause'],
+        }),
+      'IWorkflowEngine',
+    );
+  });
+
+  it('completeNode() throws NousError with code NOT_IMPLEMENTED', async () => {
+    await assertNotImplemented(
+      () =>
+        stub.completeNode(
+          '00000000-0000-0000-0000-000000000001' as any,
+          '00000000-0000-0000-0000-000000000002' as any,
+          {
+            reasonCode: 'node_completed',
+            evidenceRefs: ['workflow:complete'],
+          },
+        ),
+      'IWorkflowEngine',
+    );
+  });
+
+  it('executeReadyNode() throws NousError with code NOT_IMPLEMENTED', async () => {
+    await assertNotImplemented(
+      () =>
+        stub.executeReadyNode({
+          executionId: '00000000-0000-0000-0000-000000000001' as any,
+          nodeDefinitionId: '00000000-0000-0000-0000-000000000002' as any,
+          controlState: 'running',
+          transition: {
+            reasonCode: 'node_executed',
+            evidenceRefs: ['workflow:execute'],
+          },
+        }),
+      'IWorkflowEngine',
+    );
+  });
+
+  it('continueNode() throws NousError with code NOT_IMPLEMENTED', async () => {
+    await assertNotImplemented(
+      () =>
+        stub.continueNode({
+          executionId: '00000000-0000-0000-0000-000000000001' as any,
+          nodeDefinitionId: '00000000-0000-0000-0000-000000000002' as any,
+          controlState: 'running',
+          action: 'resume',
+          transition: {
+            reasonCode: 'node_resumed',
+            evidenceRefs: ['workflow:resume'],
+          },
+        }),
       'IWorkflowEngine',
     );
   });
@@ -77,7 +154,11 @@ describe('StubArtifactStore', () => {
 
   it('retrieve() throws NousError with code NOT_IMPLEMENTED', async () => {
     await assertNotImplemented(
-      () => stub.retrieve('00000000-0000-0000-0000-000000000001' as any),
+      () =>
+        stub.retrieve({
+          projectId: '00000000-0000-0000-0000-000000000001' as any,
+          artifactId: '00000000-0000-0000-0000-000000000002' as any,
+        }),
       'IArtifactStore',
     );
   });
@@ -91,7 +172,11 @@ describe('StubArtifactStore', () => {
 
   it('delete() throws NousError with code NOT_IMPLEMENTED', async () => {
     await assertNotImplemented(
-      () => stub.delete('00000000-0000-0000-0000-000000000001' as any),
+      () =>
+        stub.delete({
+          projectId: '00000000-0000-0000-0000-000000000001' as any,
+          artifactId: '00000000-0000-0000-0000-000000000002' as any,
+        }),
       'IArtifactStore',
     );
   });

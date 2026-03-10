@@ -5,12 +5,17 @@
  */
 import type {
   ICoreExecutor,
+  IKnowledgeIndex,
+  IArtifactStore,
+  IScheduler,
   IProjectStore,
   IStmStore,
+  IWorkflowEngine,
   IWitnessService,
   IOpctlService,
   IMaoProjectionService,
   IGtmGateCalculator,
+  IEscalationService,
 } from '@nous/shared';
 import type { MwcPipeline } from '@nous/memory-mwc';
 import type { IDocumentStore } from '@nous/shared';
@@ -32,5 +37,10 @@ export interface NousContext {
   opctlService: IOpctlService;
   maoProjectionService: IMaoProjectionService;
   gtmGateCalculator: IGtmGateCalculator;
+  knowledgeIndex: IKnowledgeIndex;
+  workflowEngine: IWorkflowEngine;
+  artifactStore: IArtifactStore;
+  schedulerService: IScheduler;
+  escalationService: IEscalationService;
   dataDir: string;
 }

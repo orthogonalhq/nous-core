@@ -113,6 +113,8 @@ Every node in a workflow graph declares:
 - **Timeout and retry policy** — how long to wait, how many retries, what to do on failure
 - **Memory access override** (optional) — when a node requires more restrictive cross-project memory access than the project default (see Memory Access Policy below)
 
+Phase 9.2 turns that abstract schema into typed node contracts. `model-call`, `tool-execution`, `condition`, `transform`, `quality-gate`, `human-decision`, and `subworkflow` nodes each validate their own config shape before runtime execution begins. A node whose `config.type` does not match its declared node type fails closed during workflow-definition validation rather than at execution time.
+
 ---
 
 ## Project Identity and Memory Access Policy
@@ -148,6 +150,77 @@ Each project declares a memory access policy with three fields:
 **Enforcement surfaces (Phase 3.3):** (1) Core-executor — policy gate before memory write submission for chat-driven turns; (2) `PolicyEnforcedRetrievalEngine` — wraps retrieval, evaluates policy before delegating; (3) `IProjectApi.memory` (stub/implementation) — policy gate at API boundary when cross-project or global scope.
 
 **Policy observability (Phase 3.4):** Every denial/approval traces to `PolicyDecisionRecord` with `reasonCode` and `traceId`. When `hard_stopped` or `paused_review`, policy denies with `POL-CONTROL-STATE-BLOCKED` or `POL-PAUSED-BLOCKED`. Downstream phase intake (Phase 4 learning loop, Phase 5 workflow foundation) is documented in `.worklog/phase-3/phase-3.4/export-hooks.mdx`.
+
+---
+
+## Workflow Definition and Runtime State (Phases 9.1-9.2)
+
+Phase 9.1 adds the first canonical workflow-runtime contract layer for protocol and hybrid projects. Phase 9.2 extends that layer into governed node execution, continuation, and checkpointed recovery.
+
+### Canonical Workflow Definition
+
+Workflow truth is project-scoped. A project can store one or more workflow definitions plus a default workflow reference inside project configuration.
+
+The canonical definition carries:
+
+- Versioned workflow identity
+- Entry nodes
+- Node definitions
+- Edge definitions
+- Mode (`protocol` or `hybrid`)
+
+This stored definition is authoritative. The execution graph is derived from it and can be rebuilt at any time. UI surfaces, automation, and future scheduler projections must not invent a competing workflow graph state model.
+
+### Admission Before Run Creation
+
+The workflow runtime does not create a run as soon as a request arrives. It first:
+
+1. Resolves the workflow definition from the target project
+2. Validates the graph as a deterministic DAG
+3. Evaluates project scope, workmode compatibility, authority-chain integrity, and control-state compatibility
+4. Mints a run only after those checks pass
+
+Blocked admissions remain reason-coded and evidence-linked. Missing definitions, invalid graph structure, authority mismatch, and blocked control states all fail closed before a new run is created.
+
+### Explicit Runtime State
+
+Phase 9.1 makes workflow execution state explicit rather than leaving later surfaces to infer it:
+
+- **Run state** records workflow ID, graph digest, admission result, ready nodes, completed nodes, and overall status
+- **Node run state** records per-node execution status, reason codes, evidence refs, and last dispatch
+- **Dispatch lineage** records how a node became ready, including parent node, edge linkage, attempt number, and evidence refs
+
+This gives scheduler, chat, Projects UI, and MAO consumers a canonical runtime truth to project from without re-deriving execution history locally.
+
+### Typed Node Contracts and Governed Execution (Phase 9.2)
+
+Phase 9.2 hardens the execution layer in three ways:
+
+1. **Typed configs before execution** — every executable node is validated against a node-type-specific config schema before the runtime accepts it.
+2. **Governance through the PFC seam only** — node execution posture is derived from the canonical confidence-governance decision engine, not from duplicated local autonomy rules.
+3. **Explicit execute/continue boundaries** — the runtime distinguishes "execute a ready node" from "continue a waiting node" so downstream surfaces can reason about dispatch, waits, and resumes without guesswork.
+
+This preserves determinism at the workflow boundary. A node cannot silently reinterpret its shape, and the runtime cannot bypass governance by invoking handlers directly on an unvalidated or out-of-scope path.
+
+### Append-Only Attempts, Waits, and Correction Arcs (Phase 9.2)
+
+Phase 9.2 also makes node execution history durable and projection-friendly:
+
+- **Attempts are append-only.** Every node execution attempt is preserved with its governance decision, reason code, evidence refs, timestamps, and optional output/checkpoint linkage.
+- **Wait states are first-class.** Nodes can explicitly wait on `async_batch`, `human_decision`, `retry_backoff`, or `checkpoint_commit`.
+- **Correction arcs are explicit.** When execution is blocked or intentionally redirected, the runtime records whether the corrective posture is `resume`, `retry`, `reprompt`, or `rollback`.
+
+This matters because downstream surfaces no longer need to infer whether a run is "stuck" or "paused for review." The canonical runtime state already distinguishes waiting from blocked review and preserves the reason-coded path that led there.
+
+### Checkpointed Continuation and Branch Truth (Phase 9.2)
+
+Phase 9.2 couples continuation to checkpoint integrity and activated branch paths:
+
+- **Prepared vs. committed checkpoints** are distinct. The runtime can expose a prepared checkpoint while it is still waiting for durable commit.
+- **Continuation resumes only from committed checkpoints.** A `checkpoint_commit` wait protects the run from advancing on provisional state.
+- **Condition branches activate explicit outbound edges.** The selected branch key and the set of activated edges are stored in canonical runtime state so joins and successors remain deterministic.
+
+This keeps recovery compatible with external side effects and prevents later projections from inventing alternate branch histories.
 
 ---
 
@@ -377,7 +450,7 @@ The workflow engine must support all four patterns within a single project graph
 
 This project model extends existing Nous concepts:
 
-- **ProjectStore** → Becomes the container for project type, workflow graph, governance configuration, and artifact references — not just namespace and config
+- **ProjectStore** → Becomes the container for project type, workflow graph, governance configuration, artifact references, and Phase 9.1 canonical workflow definitions/default workflow references — not just namespace and config
 - **Cortex Engine** → Gains a per-project supervisor mode in addition to per-turn evaluation
 - **ModelRouter** → Must route heterogeneous provider types, not just text model roles
 - **Tool Interface** → Nodes in the workflow are a superset of tools — they include model calls, quality gates, Principal decisions, and transforms alongside tool executions
@@ -386,7 +459,7 @@ This project model extends existing Nous concepts:
 
 New architectural components implied:
 
-- **Workflow Engine** — graph executor with checkpoint, resume, conditional branching, and mixed execution models
+- **Workflow Engine** — Phase 9.1 establishes deterministic graph derivation, admission, and explicit run/node/dispatch lineage state. Phase 9.2 adds governed node execution, append-only attempts, wait/correction state, checkpointed continuation, and activated-branch tracking; later phases add broader scheduler integration and artifact persistence
 - **Artifact Store** — versioned binary asset management, project-scoped
 - **Scheduler** — time-triggered execution for recurring and monitoring workflows
 - **Escalation Service** — multi-channel Principal notification with response tracking

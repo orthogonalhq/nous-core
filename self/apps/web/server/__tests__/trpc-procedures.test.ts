@@ -7,6 +7,7 @@ import { tmpdir } from 'node:os';
 import { randomUUID } from 'node:crypto';
 import { createNousContext } from '../bootstrap';
 import { appRouter } from '../trpc/root';
+import { createProjectConfig } from '../../test-support/project-fixtures';
 
 describe('tRPC procedures', () => {
   beforeAll(async () => {
@@ -17,17 +18,10 @@ describe('tRPC procedures', () => {
 
   it('projects.create and list returns new project', async () => {
     const ctx = createNousContext();
-    const projectId = await ctx.projectStore.create({
+    const projectId = await ctx.projectStore.create(createProjectConfig({
       id: randomUUID() as import('@nous/shared').ProjectId,
       name: 'Test Project',
-      type: 'hybrid',
-      pfcTier: 3,
-      memoryAccessPolicy: { canReadFrom: 'all', canBeReadBy: 'all', inheritsGlobal: true },
-      escalationChannels: ['in-app'],
-      retrievalBudgetTokens: 500,
-      createdAt: new Date().toISOString(),
-      updatedAt: new Date().toISOString(),
-    });
+    }));
 
     const list = await ctx.projectStore.list();
     expect(list.some((p) => p.id === projectId)).toBe(true);
@@ -49,21 +43,10 @@ describe('tRPC procedures', () => {
   it('chat.sendMessage stores STM history without duplicate router appends', async () => {
     const ctx = createNousContext();
     const caller = appRouter.createCaller(ctx);
-    const projectId = await ctx.projectStore.create({
+    const projectId = await ctx.projectStore.create(createProjectConfig({
       id: randomUUID() as import('@nous/shared').ProjectId,
       name: 'Chat History Project',
-      type: 'hybrid',
-      pfcTier: 3,
-      memoryAccessPolicy: {
-        canReadFrom: 'all',
-        canBeReadBy: 'all',
-        inheritsGlobal: true,
-      },
-      escalationChannels: ['in-app'],
-      retrievalBudgetTokens: 500,
-      createdAt: new Date().toISOString(),
-      updatedAt: new Date().toISOString(),
-    });
+    }));
 
     const response = await caller.chat.sendMessage({
       message: 'Hello project chat',
@@ -115,17 +98,10 @@ describe('tRPC procedures', () => {
     const ctx = createNousContext();
     const caller = appRouter.createCaller(ctx);
 
-    const projectId = await ctx.projectStore.create({
+    const projectId = await ctx.projectStore.create(createProjectConfig({
       id: randomUUID() as import('@nous/shared').ProjectId,
       name: 'Memory Export Project',
-      type: 'hybrid',
-      pfcTier: 3,
-      memoryAccessPolicy: { canReadFrom: 'all', canBeReadBy: 'all', inheritsGlobal: true },
-      escalationChannels: ['in-app'],
-      retrievalBudgetTokens: 500,
-      createdAt: new Date().toISOString(),
-      updatedAt: new Date().toISOString(),
-    });
+    }));
     const entryId = await ctx.mwcPipeline.submit(
       {
         content: 'export payload',
@@ -153,6 +129,145 @@ describe('tRPC procedures', () => {
     expect(Array.isArray(exported.audit)).toBe(true);
     expect(Array.isArray(exported.tombstones)).toBe(true);
     expect(exported.audit.length).toBeGreaterThan(0);
+  });
+
+  it('discovery.refresh and discovery.snapshot expose the knowledge index runtime', async () => {
+    const ctx = createNousContext();
+    const caller = appRouter.createCaller(ctx);
+
+    const projectId = await ctx.projectStore.create(createProjectConfig({
+      id: randomUUID() as import('@nous/shared').ProjectId,
+      name: 'Discovery Procedure Project',
+    }));
+
+    await ctx.documentStore.put('memory_entries', `${projectId}:pattern`, {
+      id: `${projectId}:pattern`,
+      content: 'release notes and roadmap',
+      type: 'distilled-pattern',
+      scope: 'project',
+      projectId,
+      confidence: 0.92,
+      sensitivity: [],
+      retention: 'permanent',
+      provenance: {
+        traceId: randomUUID(),
+        source: 'trpc-test',
+        timestamp: new Date().toISOString(),
+      },
+      tags: ['release'],
+      createdAt: new Date().toISOString(),
+      updatedAt: new Date().toISOString(),
+      mutabilityClass: 'domain-versioned',
+      lifecycleStatus: 'active',
+      placementState: 'project',
+      basedOn: [randomUUID()],
+      supersedes: [randomUUID()],
+      evidenceRefs: [{ actionCategory: 'memory-write' }],
+    });
+
+    const refresh = await caller.discovery.refresh({ projectId });
+    const snapshot = await caller.discovery.snapshot({ projectId });
+
+    expect(['updated', 'skipped_no_change']).toContain(refresh.outcome);
+    expect(snapshot?.latestRefresh?.id).toBe(refresh.id);
+  });
+
+  it('projects workflow procedures validate and persist workflow definitions', async () => {
+    const ctx = createNousContext();
+    const caller = appRouter.createCaller(ctx);
+    const projectId = randomUUID() as import('@nous/shared').ProjectId;
+    await ctx.projectStore.create(createProjectConfig({
+      id: projectId,
+      name: 'Projects Workflow Procedure Project',
+      workflow: {
+        defaultWorkflowDefinitionId: '550e8400-e29b-41d4-a716-446655442002' as any,
+        definitions: [
+          {
+            id: '550e8400-e29b-41d4-a716-446655442002',
+            projectId,
+            mode: 'hybrid',
+            version: '1.0.0',
+            name: 'Procedure Workflow',
+            entryNodeIds: ['550e8400-e29b-41d4-a716-446655442003'] as any,
+            nodes: [
+              {
+                id: '550e8400-e29b-41d4-a716-446655442003',
+                name: 'Draft',
+                type: 'model-call',
+                governance: 'must',
+                executionModel: 'synchronous',
+                config: {
+                  type: 'model-call',
+                  modelRole: 'reasoner',
+                  promptRef: 'prompt://draft',
+                },
+              },
+            ],
+            edges: [],
+          } as any,
+        ],
+      },
+    }));
+
+    const validDefinition = {
+      id: '550e8400-e29b-41d4-a716-446655442002',
+      projectId,
+      mode: 'hybrid' as const,
+      version: '1.0.1',
+      name: 'Procedure Workflow',
+      entryNodeIds: ['550e8400-e29b-41d4-a716-446655442003'],
+      nodes: [
+        {
+          id: '550e8400-e29b-41d4-a716-446655442003',
+          name: 'Draft',
+          type: 'model-call' as const,
+          governance: 'must' as const,
+          executionModel: 'synchronous' as const,
+          config: {
+            type: 'model-call' as const,
+            modelRole: 'reasoner' as const,
+            promptRef: 'prompt://draft-v2',
+          },
+        },
+      ],
+      edges: [],
+    };
+
+    const validation = await caller.projects.validateWorkflowDefinition({
+      projectId,
+      workflowDefinition: validDefinition,
+    });
+    expect(validation.valid).toBe(true);
+
+    const saved = await caller.projects.saveWorkflowDefinition({
+      projectId,
+      workflowDefinition: validDefinition,
+      setAsDefault: true,
+    });
+    expect(saved.project.workflow?.definitions[0]?.version).toBe('1.0.1');
+
+    const snapshot = await caller.projects.workflowSnapshot({ projectId });
+    expect(snapshot.workflowDefinition?.version).toBe('1.0.1');
+  });
+
+  it('mao procedures expose snapshot and control projection routes', async () => {
+    const ctx = createNousContext();
+    const caller = appRouter.createCaller(ctx);
+    const projectId = await ctx.projectStore.create(createProjectConfig({
+      id: randomUUID() as import('@nous/shared').ProjectId,
+      name: 'MAO Procedure Project',
+    }));
+
+    const controlProjection = await caller.mao.getProjectControlProjection({
+      projectId,
+    });
+    const snapshot = await caller.mao.getProjectSnapshot({
+      projectId,
+      densityMode: 'D2',
+    });
+
+    expect(controlProjection?.project_id).toBe(projectId);
+    expect(snapshot.projectId).toBe(projectId);
   });
 
   it('witness verify/list/get returns report artifacts', async () => {

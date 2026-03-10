@@ -12,6 +12,18 @@ export interface MetaVectorServiceDeps {
   embedder: IEmbedder;
 }
 
+export interface MetaVectorRefreshOptions {
+  evidenceRefs?: ProjectMetaVector['evidenceRefs'];
+  inputDigest?: ProjectMetaVector['inputDigest'];
+  refreshRecordId?: ProjectMetaVector['refreshRecordId'];
+  now?: string;
+}
+
+export interface MetaVectorRefreshResult {
+  state: 'updated' | 'deleted' | 'unchanged';
+  metaVector: ProjectMetaVector | null;
+}
+
 export class MetaVectorService {
   constructor(private readonly deps: MetaVectorServiceDeps) {}
 
@@ -27,21 +39,53 @@ export class MetaVectorService {
     projectId: ProjectId,
     patterns: Phase6DistilledPatternExport[],
   ): Promise<void> {
-    if (patterns.length === 0) return;
-    const content = patterns.map((p) => p.content).join('\n\n');
-    const vector = await this.deps.embedder.embed(content);
-    const now = new Date().toISOString();
-    const metaVector: ProjectMetaVector = {
-      projectId,
-      vector,
-      basedOn: patterns.map((p) => p.id),
-      updatedAt: now,
-      createdAt: now,
-    };
-    await this.deps.store.upsert(metaVector);
+    await this.refreshFromPatterns(projectId, patterns);
   }
 
   async get(projectId: ProjectId): Promise<ProjectMetaVector | null> {
     return this.deps.store.get(projectId);
+  }
+
+  async refreshFromPatterns(
+    projectId: ProjectId,
+    patterns: Phase6DistilledPatternExport[],
+    options: MetaVectorRefreshOptions = {},
+  ): Promise<MetaVectorRefreshResult> {
+    if (patterns.length === 0) {
+      const existing = await this.deps.store.get(projectId);
+      if (!existing) {
+        return {
+          state: 'unchanged',
+          metaVector: null,
+        };
+      }
+      await this.deps.store.delete(projectId);
+      return {
+        state: 'deleted',
+        metaVector: null,
+      };
+    }
+
+    const content = patterns.map((p) => p.content).join('\n\n');
+    const vector = await this.deps.embedder.embed(content);
+    const now = options.now ?? new Date().toISOString();
+    const existing = await this.deps.store.get(projectId);
+    const metaVector: ProjectMetaVector = {
+      projectId,
+      vector,
+      basedOn: patterns.map((p) => p.id),
+      evidenceRefs:
+        options.evidenceRefs ??
+        patterns.flatMap((pattern) => pattern.evidenceRefs),
+      inputDigest: options.inputDigest,
+      refreshRecordId: options.refreshRecordId,
+      updatedAt: now,
+      createdAt: existing?.createdAt ?? now,
+    };
+    await this.deps.store.upsert(metaVector);
+    return {
+      state: 'updated',
+      metaVector,
+    };
   }
 }

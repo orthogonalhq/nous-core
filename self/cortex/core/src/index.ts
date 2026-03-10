@@ -24,6 +24,7 @@ export {
   IngressAuthzEvaluator,
   InMemoryIngressIdempotencyStore,
   IngressDispatchAdmission,
+  IngressGateway,
 } from './ingress/index.js';
 export {
   InMemoryRecoveryLedgerStore,

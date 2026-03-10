@@ -32,6 +32,9 @@ pnpm-debug.log*
 yarn-debug.log*
 yarn-error.log*
 
+# Temporary session artifacts
+.tmp-*
+
 # SQLite runtime data
 *.sqlite
 *.sqlite-shm

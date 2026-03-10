@@ -1,5 +1,7 @@
 // @vitest-environment jsdom
 
+/* @vitest-environment jsdom */
+
 import * as React from 'react';
 import { cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
@@ -22,6 +24,9 @@ const mocks = vi.hoisted(() => ({
   auditUseQuery: vi.fn(),
   tombstonesUseQuery: vi.fn(),
   deleteUseMutation: vi.fn(),
+  discoveryUseQuery: vi.fn(),
+  discoverySnapshotUseQuery: vi.fn(),
+  discoveryRefreshUseMutation: vi.fn(),
   useUtils: vi.fn(),
 }));
 
@@ -35,6 +40,11 @@ vi.mock('@/lib/trpc', () => ({
       audit: { useQuery: mocks.auditUseQuery },
       tombstones: { useQuery: mocks.tombstonesUseQuery },
       delete: { useMutation: mocks.deleteUseMutation },
+    },
+    discovery: {
+      discover: { useQuery: mocks.discoveryUseQuery },
+      snapshot: { useQuery: mocks.discoverySnapshotUseQuery },
+      refresh: { useMutation: mocks.discoveryRefreshUseMutation },
     },
     useUtils: mocks.useUtils,
   },
@@ -50,7 +60,10 @@ describe('MemoryInspector', () => {
   const denialsInvalidate = vi.fn<() => Promise<void>>();
   const auditInvalidate = vi.fn<() => Promise<void>>();
   const tombstonesInvalidate = vi.fn<() => Promise<void>>();
+  const discoveryInvalidate = vi.fn<() => Promise<void>>();
+  const discoverySnapshotInvalidate = vi.fn<() => Promise<void>>();
   const mutateAsync = vi.fn();
+  const refreshMutateAsync = vi.fn();
   const downloadExport = vi.fn();
 
   beforeEach(() => {
@@ -101,6 +114,18 @@ describe('MemoryInspector', () => {
       mutateAsync,
       isPending: false,
     });
+    mocks.discoveryUseQuery.mockReturnValue({
+      data: createDiscoveryResult(),
+      isLoading: false,
+    });
+    mocks.discoverySnapshotUseQuery.mockReturnValue({
+      data: createDiscoverySnapshot(),
+      isLoading: false,
+    });
+    mocks.discoveryRefreshUseMutation.mockReturnValue({
+      mutateAsync: refreshMutateAsync,
+      isPending: false,
+    });
     mocks.useUtils.mockReturnValue({
       memory: {
         inspect: { invalidate: inspectInvalidate },
@@ -110,6 +135,10 @@ describe('MemoryInspector', () => {
         audit: { invalidate: auditInvalidate },
         tombstones: { invalidate: tombstonesInvalidate },
         export: { fetch: exportFetch },
+      },
+      discovery: {
+        discover: { invalidate: discoveryInvalidate },
+        snapshot: { invalidate: discoverySnapshotInvalidate },
       },
     });
   });
@@ -265,6 +294,29 @@ describe('MemoryInspector', () => {
         'Export ready. Bundle contains 1 entries, 1 audit records, and 1 tombstones.',
       ),
     ).toBeTruthy();
+  });
+
+  it('renders discovery mode and invalidates discovery queries after manual refresh', async () => {
+    refreshMutateAsync.mockResolvedValue({
+      outcome: 'updated',
+    });
+
+    render(<MemoryInspector projectId={projectId} />);
+
+    fireEvent.click(screen.getByRole('button', { name: 'Discover' }));
+
+    expect(await screen.findByText('Discovery Results')).toBeTruthy();
+    expect(screen.getByText('denied 1')).toBeTruthy();
+    expect(screen.getByText('POL-CANNOT-BE-READ-BY')).toBeTruthy();
+
+    fireEvent.click(screen.getByRole('button', { name: 'Refresh knowledge' }));
+
+    await waitFor(() => {
+      expect(refreshMutateAsync).toHaveBeenCalledWith({ projectId });
+    });
+    expect(await screen.findByText('Knowledge refresh completed (updated).')).toBeTruthy();
+    expect(discoveryInvalidate).toHaveBeenCalled();
+    expect(discoverySnapshotInvalidate).toHaveBeenCalled();
   });
 });
 
@@ -452,5 +504,86 @@ function createDecisionRecord(): PolicyDecisionRecord {
     traceId: 'trace-1' as any,
     evidenceRefs: [],
     occurredAt: '2026-03-07T19:00:00.000Z',
+  };
+}
+
+function createDiscoveryResult() {
+  return {
+    discovery: {
+      version: '1.0',
+      exportedAt: '2026-03-09T16:30:00.000Z',
+      requestingProjectId: projectId,
+      projectIds: ['project-discovery-1'],
+      results: [
+        {
+          projectId: 'project-discovery-1',
+          rank: 1,
+          combinedScore: 0.88,
+        },
+      ],
+      audit: {
+        projectIdsDiscovered: ['project-discovery-1'],
+        metaVectorCount: 1,
+        taxonomyCount: 1,
+        relationshipCount: 0,
+        mergeStrategy: 'test',
+      },
+      explainability: [],
+    },
+    policy: {
+      deniedProjectCount: 1,
+      reasonCodes: ['POL-CANNOT-BE-READ-BY'],
+    },
+    snapshot: createDiscoverySnapshot(),
+  };
+}
+
+function createDiscoverySnapshot() {
+  return {
+    projectId: 'project-discovery-1',
+    metaVector: null,
+    taxonomy: [
+      {
+        id: 'assignment-1',
+        projectId: 'project-discovery-1',
+        tag: 'release',
+        refreshRecordId: 'refresh-1',
+        evidenceRefs: [],
+        createdAt: '2026-03-09T16:30:00.000Z',
+        updatedAt: '2026-03-09T16:30:00.000Z',
+      },
+    ],
+    relationships: {
+      projectId: 'project-discovery-1',
+      outgoing: [],
+      incoming: [],
+    },
+    latestRefresh: {
+      id: 'refresh-1',
+      projectId: 'project-discovery-1',
+      trigger: 'manual',
+      reasonCode: 'operator_refresh',
+      inputDigest:
+        'aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa',
+      outcome: 'updated',
+      metaVectorState: 'updated',
+      taxonomyTagCount: 1,
+      relationship: {
+        projectId: 'project-discovery-1',
+        edgesCreated: 0,
+        edgesUpdated: 0,
+        edgesInvalidated: 0,
+        evidenceRefs: [],
+      },
+      evidenceRefs: [],
+      sourcePatternIds: [],
+      startedAt: '2026-03-09T16:30:00.000Z',
+      completedAt: '2026-03-09T16:30:00.000Z',
+    },
+    diagnostics: {
+      runtimePosture: 'single_process_local',
+      refreshInFlight: false,
+      confidenceReasonCodes: [],
+    },
   };
 }

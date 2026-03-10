@@ -31,6 +31,7 @@ import type {
 } from '@nous/shared';
 import type {
   IWorkflowEngine,
+  WorkflowStartRequest,
   IArtifactStore,
   IScheduler,
   IEscalationService,
@@ -38,16 +39,28 @@ import type {
   IProjectApi,
   ProjectId,
   WorkflowExecutionId,
-  WorkflowGraph,
-  WorkflowState,
-  ArtifactId,
-  ArtifactData,
-  ArtifactMetadata,
-  ArtifactFilter,
+  WorkflowDefinition,
+  DerivedWorkflowGraph,
+  WorkflowAdmissionRequest,
+  WorkflowAdmissionResult,
+  WorkflowStartResult,
+  WorkflowTransitionInput,
+  WorkflowNodeDefinitionId,
+  WorkflowRunState,
+  ArtifactDeleteRequest,
+  ArtifactListFilter,
+  ArtifactReadRequest,
+  ArtifactReadResult,
+  ArtifactVersionRecord,
+  ArtifactWriteRequest,
+  ArtifactWriteResult,
   ScheduleDefinition,
+  ScheduleUpsertInput,
   EscalationId,
   EscalationContract,
   EscalationResponse,
+  InAppEscalationRecord,
+  AcknowledgeInAppEscalationInput,
   SandboxPayload,
   SandboxResult,
   MemoryScope,
@@ -79,45 +92,99 @@ const stubNotImpl = (
 };
 
 export class StubWorkflowEngine implements IWorkflowEngine {
-  async start(
-    _projectId: ProjectId,
-    _graph: WorkflowGraph,
-  ): Promise<WorkflowExecutionId> {
-    return stubNotImpl('IWorkflowEngine', 'start', 'Phase 5');
+  async resolveDefinition(
+    _projectConfig: ProjectConfig,
+    _workflowDefinitionId?: import('@nous/shared').WorkflowDefinitionId,
+  ): Promise<WorkflowDefinition> {
+    return stubNotImpl('IWorkflowEngine', 'resolveDefinition', 'Phase 9.1');
   }
 
-  async resume(_executionId: WorkflowExecutionId): Promise<void> {
-    stubNotImpl('IWorkflowEngine', 'resume', 'Phase 5');
+  async deriveGraph(
+    _definition: WorkflowDefinition,
+  ): Promise<DerivedWorkflowGraph> {
+    return stubNotImpl('IWorkflowEngine', 'deriveGraph', 'Phase 9.1');
   }
 
-  async pause(_executionId: WorkflowExecutionId): Promise<void> {
-    stubNotImpl('IWorkflowEngine', 'pause', 'Phase 5');
+  async evaluateAdmission(
+    _request: WorkflowAdmissionRequest,
+  ): Promise<WorkflowAdmissionResult> {
+    return stubNotImpl('IWorkflowEngine', 'evaluateAdmission', 'Phase 9.1');
+  }
+
+  async start(_request: WorkflowStartRequest): Promise<WorkflowStartResult> {
+    return stubNotImpl('IWorkflowEngine', 'start', 'Phase 9.1');
+  }
+
+  async resume(
+    _executionId: WorkflowExecutionId,
+    _transition: WorkflowTransitionInput,
+  ): Promise<WorkflowRunState> {
+    return stubNotImpl('IWorkflowEngine', 'resume', 'Phase 9.1');
+  }
+
+  async pause(
+    _executionId: WorkflowExecutionId,
+    _transition: WorkflowTransitionInput,
+  ): Promise<WorkflowRunState> {
+    return stubNotImpl('IWorkflowEngine', 'pause', 'Phase 9.1');
+  }
+
+  async completeNode(
+    _executionId: WorkflowExecutionId,
+    _nodeDefinitionId: WorkflowNodeDefinitionId,
+    _transition: WorkflowTransitionInput,
+  ): Promise<WorkflowRunState> {
+    return stubNotImpl('IWorkflowEngine', 'completeNode', 'Phase 9.1');
+  }
+
+  async executeReadyNode(
+    _request: import('@nous/shared').WorkflowExecuteNodeRequest,
+  ): Promise<WorkflowRunState> {
+    return stubNotImpl('IWorkflowEngine', 'executeReadyNode', 'Phase 9.2');
+  }
+
+  async continueNode(
+    _request: import('@nous/shared').WorkflowContinueNodeRequest,
+  ): Promise<WorkflowRunState> {
+    return stubNotImpl('IWorkflowEngine', 'continueNode', 'Phase 9.2');
   }
 
   async getState(
     _executionId: WorkflowExecutionId,
-  ): Promise<WorkflowState> {
+  ): Promise<WorkflowRunState | null> {
     return stubNotImpl('IWorkflowEngine', 'getState', 'Phase 5');
+  }
+
+  async listProjectRuns(
+    _projectId: ProjectId,
+  ): Promise<WorkflowRunState[]> {
+    return stubNotImpl('IWorkflowEngine', 'listProjectRuns', 'Phase 9.7');
+  }
+
+  async getRunGraph(
+    _executionId: WorkflowExecutionId,
+  ): Promise<DerivedWorkflowGraph | null> {
+    return stubNotImpl('IWorkflowEngine', 'getRunGraph', 'Phase 9.7');
   }
 }
 
 export class StubArtifactStore implements IArtifactStore {
-  async store(_artifact: ArtifactData): Promise<ArtifactId> {
+  async store(_artifact: ArtifactWriteRequest): Promise<ArtifactWriteResult> {
     return stubNotImpl('IArtifactStore', 'store', 'Phase 5');
   }
 
-  async retrieve(_id: ArtifactId): Promise<ArtifactData | null> {
+  async retrieve(_request: ArtifactReadRequest): Promise<ArtifactReadResult | null> {
     return stubNotImpl('IArtifactStore', 'retrieve', 'Phase 5');
   }
 
   async list(
     _projectId: ProjectId,
-    _filters?: ArtifactFilter,
-  ): Promise<ArtifactMetadata[]> {
+    _filters?: ArtifactListFilter,
+  ): Promise<ArtifactVersionRecord[]> {
     return stubNotImpl('IArtifactStore', 'list', 'Phase 5');
   }
 
-  async delete(_id: ArtifactId): Promise<boolean> {
+  async delete(_request: ArtifactDeleteRequest): Promise<boolean> {
     return stubNotImpl('IArtifactStore', 'delete', 'Phase 5');
   }
 }
@@ -125,6 +192,14 @@ export class StubArtifactStore implements IArtifactStore {
 export class StubScheduler implements IScheduler {
   async register(_schedule: ScheduleDefinition): Promise<string> {
     return stubNotImpl('IScheduler', 'register', 'Phase 5');
+  }
+
+  async upsert(_input: ScheduleUpsertInput): Promise<ScheduleDefinition> {
+    return stubNotImpl('IScheduler', 'upsert', 'Phase 9.6');
+  }
+
+  async get(_scheduleId: string): Promise<ScheduleDefinition | null> {
+    return stubNotImpl('IScheduler', 'get', 'Phase 9.6');
   }
 
   async cancel(_scheduleId: string): Promise<boolean> {
@@ -145,6 +220,24 @@ export class StubEscalationService implements IEscalationService {
     _escalationId: EscalationId,
   ): Promise<EscalationResponse | null> {
     return stubNotImpl('IEscalationService', 'checkResponse', 'Phase 5');
+  }
+
+  async get(
+    _escalationId: EscalationId,
+  ): Promise<InAppEscalationRecord | null> {
+    return stubNotImpl('IEscalationService', 'get', 'Phase 9.6');
+  }
+
+  async listProjectQueue(
+    _projectId: ProjectId,
+  ): Promise<InAppEscalationRecord[]> {
+    return stubNotImpl('IEscalationService', 'listProjectQueue', 'Phase 9.6');
+  }
+
+  async acknowledge(
+    _input: AcknowledgeInAppEscalationInput,
+  ): Promise<InAppEscalationRecord | null> {
+    return stubNotImpl('IEscalationService', 'acknowledge', 'Phase 9.6');
   }
 }
 
@@ -306,16 +399,19 @@ export class StubProjectApi implements IProjectApi {
   };
 
   artifact = {
-    store: async (_data: ArtifactData): Promise<ArtifactId> => {
+    store: async (_data: ArtifactWriteRequest): Promise<ArtifactWriteResult> => {
       return stubNotImpl('IProjectApi.artifact', 'store', 'Phase 7');
     },
-    retrieve: async (_id: ArtifactId): Promise<ArtifactData | null> => {
+    retrieve: async (_request: ArtifactReadRequest): Promise<ArtifactReadResult | null> => {
       return stubNotImpl('IProjectApi.artifact', 'retrieve', 'Phase 7');
     },
     list: async (
-      _filters?: ArtifactFilter,
-    ): Promise<ArtifactMetadata[]> => {
+      _filters?: ArtifactListFilter,
+    ): Promise<ArtifactVersionRecord[]> => {
       return stubNotImpl('IProjectApi.artifact', 'list', 'Phase 7');
+    },
+    delete: async (_request: ArtifactDeleteRequest): Promise<boolean> => {
+      return stubNotImpl('IProjectApi.artifact', 'delete', 'Phase 7');
     },
   };
 

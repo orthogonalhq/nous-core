@@ -94,4 +94,38 @@ describe('RelationshipMappingService', () => {
     expect(edges).toHaveLength(1);
     expect(edges[0]!.targetProjectId).toBe(P2);
   });
+
+  it('counts updates and invalidations using deterministic semantic ids', async () => {
+    const graphStore = new InMemoryRelationshipGraphStore();
+    let strength = 0.6;
+    const extractor = {
+      extract: async () => {
+        const now = new Date().toISOString();
+        return [
+          {
+            id: crypto.randomUUID(),
+            sourceProjectId: P1,
+            targetProjectId: P2,
+            strength,
+            type: 'thematic' as const,
+            evidenceRefs: [{ actionCategory: 'memory-write' as const }],
+            sourcePatternIds: [MID],
+            createdAt: now,
+            updatedAt: now,
+          },
+        ];
+      },
+    };
+    const service = new RelationshipMappingService({ graphStore, extractor });
+
+    await service.evaluateFromPatterns(P1, [makePattern()]);
+    strength = 0.9;
+    const updated = await service.evaluateFromPatterns(P1, [
+      makePattern({ content: 'changed pattern content' }),
+    ]);
+    const cleared = await graphStore.replaceEdgesForSource(P1, []);
+
+    expect(updated.edgesUpdated).toBe(1);
+    expect(cleared.invalidated).toBe(1);
+  });
 });

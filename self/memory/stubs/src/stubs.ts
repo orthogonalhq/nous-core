@@ -23,6 +23,11 @@ import type {
   RetrievalQuery,
   RetrievalResponse,
   ConfidenceUpdateResult,
+  ProjectKnowledgeRefreshRequest,
+  ProjectKnowledgeRefreshRecord,
+  ProjectKnowledgeSnapshot,
+  ProjectDiscoveryRequest,
+  ProjectDiscoveryResult,
 } from '@nous/shared';
 
 const stubNotImpl = (
@@ -103,15 +108,22 @@ export class StubRetrievalEngine implements IRetrievalEngine {
 }
 
 export class StubKnowledgeIndex implements IKnowledgeIndex {
-  async updateMetaVector(_projectId: ProjectId): Promise<void> {
-    return stubNotImpl('IKnowledgeIndex', 'updateMetaVector', 'Phase 6');
+  async refreshProjectKnowledge(
+    _request: ProjectKnowledgeRefreshRequest,
+  ): Promise<ProjectKnowledgeRefreshRecord> {
+    return stubNotImpl('IKnowledgeIndex', 'refreshProjectKnowledge', 'Phase 9');
   }
 
   async discoverProjects(
-    _query: string,
-    _excludeProjectIds?: ProjectId[],
-  ): Promise<ProjectId[]> {
-    return stubNotImpl('IKnowledgeIndex', 'discoverProjects', 'Phase 6');
+    _request: ProjectDiscoveryRequest,
+  ): Promise<ProjectDiscoveryResult> {
+    return stubNotImpl('IKnowledgeIndex', 'discoverProjects', 'Phase 9');
+  }
+
+  async getProjectSnapshot(
+    _projectId: ProjectId,
+  ): Promise<ProjectKnowledgeSnapshot | null> {
+    return stubNotImpl('IKnowledgeIndex', 'getProjectSnapshot', 'Phase 9');
   }
 }
 

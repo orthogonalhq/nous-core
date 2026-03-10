@@ -71,6 +71,27 @@ description: Reference for all tRPC procedures
 - `memory.audit`/`memory.tombstones` — Operator observability for mutation decisions, policy-governed denial outcomes, hard-delete proofs, and STM compaction audit records
 - `memory.export` — Full project memory export including STM context (`entries`, `summary`, `tokenCount`, `compactionState?`), durable entries, audit history, and tombstones
 
+## discovery
+
+| Procedure | Type | Input | Output |
+|----------|------|-------|--------|
+| `discovery.discover` | query | `ProjectDiscoveryRequest` | `ProjectDiscoveryResult` |
+| `discovery.snapshot` | query | `{ projectId }` | `ProjectKnowledgeSnapshot \| null` |
+| `discovery.refresh` | mutation | `{ projectId, reasonCode? }` | `ProjectKnowledgeRefreshRecord` |
+
+- `discovery.discover` — Runs policy-filtered project discovery for the requesting project.
+  - Input accepts `requestingProjectId`, a text `query`, `topK`, and booleans for meta-vector, taxonomy, and relationship participation.
+  - Output shape is `{ discovery, policy, snapshot }`.
+  - `discovery.projectIds` are already policy-filtered candidate IDs. Denied candidates contribute only aggregated `policy.deniedProjectCount` and `policy.reasonCodes`.
+  - `snapshot` is the requesting project's current knowledge snapshot so the UI does not need a second round trip for freshness and runtime-posture diagnostics.
+- `discovery.snapshot` — Returns the current assembled knowledge snapshot for a project.
+  - Response includes meta-vector state, taxonomy assignments, incoming/outgoing relationship edges, the latest refresh record, and `diagnostics.runtimePosture`.
+  - `null` means the project has no current knowledge-index projection and no in-flight refresh state.
+- `discovery.refresh` — Triggers a manual refresh of one project's canonical knowledge projection.
+  - The server supplies `trigger: 'manual'` and `requestedAt`.
+  - `reasonCode` defaults to `operator_manual_refresh`.
+  - Output `outcome` is one of `updated`, `cleared`, `skipped_no_change`, or `failed`.
+
 ## config
 
 | Procedure | Type | Input | Output |

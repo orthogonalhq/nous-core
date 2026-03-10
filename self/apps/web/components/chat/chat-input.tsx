@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useCallback } from 'react';
+import * as React from 'react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 
@@ -11,9 +11,9 @@ export function ChatInput({
   onSend: (message: string) => void;
   disabled?: boolean;
 }) {
-  const [value, setValue] = useState('');
+  const [value, setValue] = React.useState('');
 
-  const handleSubmit = useCallback(
+  const handleSubmit = React.useCallback(
     (e: React.FormEvent) => {
       e.preventDefault();
       const trimmed = value.trim();

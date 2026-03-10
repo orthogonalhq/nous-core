@@ -7,6 +7,7 @@ import { tmpdir } from 'node:os';
 import { randomUUID } from 'node:crypto';
 import { createNousContext, clearNousContextCache } from '../server/bootstrap';
 import { isFirstRunComplete, markFirstRunComplete } from '../server/first-run';
+import { createProjectConfig } from '../test-support/project-fixtures';
 
 describe('first-run flow', () => {
   beforeAll(() => {
@@ -32,17 +33,10 @@ describe('first-run flow', () => {
 
     const ctx = createNousContext();
 
-    await ctx.projectStore.create({
+    await ctx.projectStore.create(createProjectConfig({
       id: randomUUID() as import('@nous/shared').ProjectId,
       name: 'Test',
-      type: 'hybrid',
-      pfcTier: 3,
-      memoryAccessPolicy: { canReadFrom: 'all', canBeReadBy: 'all', inheritsGlobal: true },
-      escalationChannels: ['in-app'],
-      retrievalBudgetTokens: 500,
-      createdAt: new Date().toISOString(),
-      updatedAt: new Date().toISOString(),
-    });
+    }));
 
     const complete = await isFirstRunComplete(ctx.dataDir, ctx.projectStore);
     expect(complete).toBe(true);

@@ -52,7 +52,7 @@ How Nous perceives the world and communicates with the user. These are part of t
 ```
 self/apps/
 ├── cli/                              # Terminal interface
-├── web/                              # Chat UI + Projects UI + Dashboard
+├── web/                              # Chat UI + Projects UI + Dashboard + MAO projection
 └── bridge/                           # Messaging integrations (Signal, Slack, etc.)
 ```
 
@@ -66,11 +66,13 @@ CLI depends only on public interfaces from `shared/`.
 
 ### web/
 
-Web application containing three integrated surfaces:
+Web application containing integrated operator surfaces:
 
 * Chat interface — conversational interaction with project-scoped context
-* Projects UI — node-based visual workflow editor
-* Dashboard — system health, project status, memory inspection
+* Projects UI — workflow monitoring, canonical project dashboard, governed configuration, schedule settings, and project-scoped escalation queue acknowledgement
+* Dashboard — system health, project status, memory inspection, and discovery projection
+* MAO operator surface — density-grid observability, run-graph inspection, reasoning-preview handoff, and governed project control
+* Chat escalation inbox — acknowledgement of the same canonical in-app escalation queue used by Projects
 
 Primary interface for most users.
 
@@ -244,15 +246,19 @@ Retrieval is reconstruction, not lookup. The same knowledge may surface differen
 
 ### knowledge-index/
 
-Cross-project intelligence. Implemented as `@nous/memory-knowledge-index` (Phase 6.2). The layer that makes cross-referencing cheap at query time.
+Cross-project intelligence. Implemented as `@nous/memory-knowledge-index` (Phase 6.2, runtime-expanded in Phase 9.4). The layer that makes cross-referencing cheap at query time and now exposes a canonical runtime seam for refresh, snapshots, and policy-filtered discovery.
 
-**meta-vectors/** — One embedding per project summarizing its domain, themes, and knowledge profile. `MetaVectorStore` (IVectorStore-backed) and `MetaVectorService`; updated when distilled patterns are created via `upsertFromPatterns`. Enables fast project-level similarity search. `searchSimilarProjects(queryVector, topK)` returns ranked project IDs.
+**knowledge-index-runtime.ts** — The Phase 9.4 facade that owns one-project-at-a-time refresh, text-query embedding, policy filtering, snapshot assembly, and bounded-support diagnostics. This is the implementation behind `IKnowledgeIndex`.
 
-**taxonomy/** — Topic tags assigned to projects. `InMemoryTaxonomyStore` and `InMemoryProjectTaxonomyMapping`; additive tags; project-to-tag and tag-to-project mapping. Structural links between projects based on shared domains. Zero inference cost — pure set intersection.
+**knowledge-refresh-store.ts** — Append-only refresh ledger for auditable refresh outcomes, duplicate-suppression inputs, and latest-refresh lookup per project.
 
-**relationships/** — Background relationship graph maintained by periodic LLM evaluation (Phase 6.3). Maps validated knowledge links between projects. Amortizes expensive inference over time rather than paying it per query.
+**meta-vectors/** — One embedding per project summarizing its domain, themes, and knowledge profile. `MetaVectorStore` (IVectorStore-backed) and `MetaVectorService`; Phase 9.4 adds auditable metadata (`evidenceRefs`, `inputDigest`, `refreshRecordId`) and refresh-on-pattern inputs.
 
-**discovery/** — Query-time orchestrator (Phase 6.3). Combines meta-vector search, taxonomy links, and relationship graph to determine which projects are relevant to the current situation. Fast and cheap.
+**taxonomy/** — Topic tags assigned to projects. Phase 9.4 adds document-backed assignment records so project-to-tag and tag-to-project lookups stay canonical and queryable beyond in-memory test support.
+
+**relationships/** — Background relationship graph maintained by periodic evaluation (Phase 6.3). Phase 9.4 upgrades the store to deterministic semantic edge IDs and document-backed inspection so repeated refreshes can diff created, updated, and invalidated edges.
+
+**discovery/** — Query-time orchestrator (Phase 6.3) plus the Phase 9.4 runtime assembly that combines meta-vector search, taxonomy links, relationship graph, and policy filtering to determine relevant candidate projects without performing retrieval.
 
 ### access/
 
@@ -298,6 +304,7 @@ self/subcortex/
 ├── artifacts/                        # Versioned binary asset management
 ├── scheduler/                        # Time-triggered and recurring execution
 ├── escalation/                       # Principal notification channels
+├── mao/                              # Multi-agent observability aggregation and control projection
 ├── sandbox/                          # Execution isolation (WASM)
 └── sdk/                              # Project API surface for packages
 ```
@@ -351,6 +358,11 @@ Responsibilities:
 * Permission metadata
 * Execution mediation
 
+Phase 9.4 adds internal knowledge-index tools:
+
+* `discover_projects` — governed, policy-filtered discovery for text queries
+* `refresh_project_knowledge` — canonical one-project refresh for meta-vector, taxonomy, and relationship projections
+
 Each tool declares:
 
 * Name and version
@@ -364,8 +376,15 @@ Tools execute only through Cortex authorization.
 
 Workflow graph engine. The runtime for protocol and hybrid projects.
 
+Phase 9.1 establishes the first concrete workflow-runtime baseline in `@nous/subcortex-workflows`.
+
 Responsibilities:
 
+* Resolve canonical workflow definitions from project-scoped configuration
+* Build deterministic derived graphs from canonical node and edge definitions
+* Validate DAG structure and reject invalid workflow graphs before execution
+* Evaluate fail-closed admission before any run is created
+* Track canonical run, node, and dispatch-lineage state
 * Execute node-based workflow graphs
 * Checkpoint and resume on interruption
 * Conditional branching based on node outputs and quality gates
@@ -374,6 +393,8 @@ Responsibilities:
 * Progress tracking and state persistence
 
 This is the engine that makes protocol projects operational.
+
+Current Phase 9.3 modules in this package include graph builder, graph validator, traversal, admission, governed node execution, checkpoint/runtime continuation handling, run-state, workflow-engine foundations, and canonical trigger provenance persistence.
 
 ### projects/
 
@@ -400,8 +421,11 @@ Responsibilities:
 
 * Store project-scoped binary artifacts (images, videos, LoRAs, configs, reports)
 * Version artifacts with full provenance (which node, when, what parameters)
+* Persist artifact integrity refs and prepared-versus-committed visibility state
 * Support export and deletion consistent with memory governance
 * Enable artifact referencing from workflow nodes and memory entries
+
+Phase 9.3 implements this package as `@nous/subcortex-artifacts`, backed by the autonomic document store. The runtime exposes canonical version records, project-scoped read/delete contracts, and integrity verification on retrieval.
 
 ### scheduler/
 
@@ -410,12 +434,14 @@ Time-triggered and recurring execution.
 Responsibilities:
 
 * Cron-like scheduling for recurring tasks
-* Standing objective evaluation loops for intent projects
-* Monitoring feed polling
-* Batch generation scheduling
-* Configurable frequency and conditions
+* Calendar-style one-shot execution
+* Hook and system-event envelope submission through the canonical ingress gateway
+* Duplicate-safe redispatch using ingress idempotency instead of scheduler-local side effects
+* Configurable delivery mode, workmode, and workflow bindings per schedule
 
 The clock of the subconscious.
+
+Phase 9.3 implements this package as `@nous/subcortex-scheduler`. It persists schedule definitions and due cursors locally, but all actual execution still flows through ingress and workflow admission rather than a scheduler-local shortcut.
 
 ### escalation/
 
@@ -428,6 +454,19 @@ Responsibilities:
 * Structured escalation contracts (what happened, why, recommendation, what's needed, timeout default)
 * Response tracking across surfaces
 * Priority mapping per project and per channel
+
+Phase 9.6 implements the first canonical in-app escalation runtime here as `@nous/subcortex-escalation`. The package owns the document-backed escalation queue, acknowledgement records, project-scoped list/get behavior, and the shared truth consumed by both Projects and chat.
+
+### mao/
+
+Multi-agent observability and operator control projection.
+
+Responsibilities:
+
+* Aggregate density-grid, inspect, urgent-overlay, and run-graph views from canonical workflow, opctl, escalation, and scheduler truth
+* Produce evidence-linked reasoning previews without exposing hidden private reasoning
+* Derive project-control impact and resume-readiness summaries for the MAO operator surface
+* Preserve deep-link continuity into Projects, Chat, and Traces without creating a second runtime model
 
 ### sandbox/
 
@@ -631,6 +670,32 @@ Phase 7.2 package-contract additions live here:
 - `package-lifecycle.ts` — lifecycle event and reason-code contracts
 - `package-compatibility.ts` — API range and capability-delta gate contracts
 
+Phase 9.1 adds:
+
+- `workflow.ts` — canonical workflow definition, derived graph, admission, run-state, and dispatch-lineage schemas
+
+Phase 9.3 adds:
+
+- `scheduler.ts` — canonical schedule definitions, trigger variants, workmode binding, and due-cursor state
+- `artifacts.ts` — versioned artifact write/read/delete/list contracts, integrity refs, and lineage
+- `ingress-trigger.ts` / `ingress-outcome.ts` expansions for explicit `workmode_id`, duplicate return linkage, and workflow-admission rejection posture
+
+Phase 9.4 and Phase 9.5 add:
+
+- `knowledge-index.ts` — canonical project discovery, refresh, taxonomy, and relationship-runtime contracts
+- `workflow-monitoring.ts` — workflow-surface snapshot, node projection, diagnostics, validation, and save-input schemas used by the Projects UI and web server
+
+Phase 9.7 adds:
+
+- `mao.ts` — density-grid, run-graph, inspect, urgent-overlay, reasoning-preview, and project-control contracts used by MAO and linked surfaces
+
+Phase 9.6 adds:
+
+- `project-surface.ts` — canonical project dashboard, configuration snapshot, blocked-action, health-summary, and field-provenance schemas
+- `project.ts` expansions for governance defaults, escalation preferences, and package-default intake provenance
+- `escalation.ts` in-app escalation queue, acknowledgement, and queue snapshot contracts
+- `scheduler.ts` schedule upsert inputs used by the Projects operating surface
+
 ### interfaces/
 
 Cross-layer contracts. When the cortex calls the subcortex, or memory calls storage, the contract is defined here. No layer imports directly from another layer's implementation.
@@ -640,6 +705,28 @@ This is the critical composability mechanism. Layers depend on interfaces, not i
 Phase 7.2 adds:
 
 - `project-api.ts` — canonical seven-surface Project API membrane contract for package runtime mediation
+
+Phase 9.1 expands:
+
+- `subcortex.ts` — workflow engine interfaces for definition resolution, graph derivation, admission, run progression, and state retrieval
+
+Phase 9.3 further expands:
+
+- `subcortex.ts` — scheduler and artifact request/result contracts, plus workflow start trigger provenance
+- `project-api.ts` — project-scoped artifact request/result contracts and scheduler binding surfaces
+- `ingress.ts` — callable ingress gateway and reservation-based idempotency interfaces
+
+Phase 9.5 further expands:
+
+- `subcortex.ts` — workflow-runtime list/graph retrieval surfaces used by the Projects monitoring projection
+
+Phase 9.6 further expands:
+
+- `subcortex.ts` — scheduler `upsert/get` and escalation `get/listProjectQueue/acknowledge` interfaces used by the Projects and chat operating surfaces
+
+Phase 9.7 further expands:
+
+- `subcortex.ts` — `IMaoProjectionService` snapshot, inspect, graph, and project-control methods used by the MAO surface and web server
 
 ### events/
 

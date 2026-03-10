@@ -17,9 +17,16 @@ import type {
   StmCompactionPolicy,
 } from '@nous/shared';
 import { ConfigManager } from '@nous/autonomic-config';
-import { SqliteDocumentStore } from '@nous/autonomic-storage';
+import { InMemoryEmbedder } from '@nous/autonomic-embeddings';
+import { SqliteDocumentStore, SqliteVectorStore } from '@nous/autonomic-storage';
 import { DocumentStmStore } from '@nous/memory-stm';
 import { MwcPipeline } from '@nous/memory-mwc';
+import {
+  DocumentProjectTaxonomyMapping,
+  DocumentRelationshipGraphStore,
+  KnowledgeIndexRuntime,
+  MetaVectorStore,
+} from '@nous/memory-knowledge-index';
 import {
   PfcEngine,
   createPfcEvaluator,
@@ -27,9 +34,18 @@ import {
 } from '@nous/cortex-pfc';
 import { CoreExecutor } from '@nous/cortex-core';
 import { DocumentProjectStore } from '@nous/subcortex-projects';
+import { DocumentArtifactStore } from '@nous/subcortex-artifacts';
+import { DocumentEscalationStore, EscalationService } from '@nous/subcortex-escalation';
 import { ModelRouter } from '@nous/subcortex-router';
 import { ProviderRegistry } from '@nous/subcortex-providers';
-import { ToolExecutor } from '@nous/subcortex-tools';
+import {
+  DiscoverProjectsTool,
+  EchoTool,
+  RefreshProjectKnowledgeTool,
+  ToolExecutor,
+} from '@nous/subcortex-tools';
+import { DocumentScheduleStore, SchedulerService } from '@nous/subcortex-scheduler';
+import { DeterministicWorkflowEngine } from '@nous/subcortex-workflows';
 import { WitnessService } from '@nous/subcortex-witnessd';
 import {
   OpctlService,
@@ -151,10 +167,15 @@ export function createNousContext(): NousContext {
   const dbPath = join(dataDir, 'nous.sqlite');
 
   const documentStore = new SqliteDocumentStore(dbPath);
+  const vectorStore = new SqliteVectorStore(dbPath);
+  const embedder = new InMemoryEmbedder();
   const stmStore = new DocumentStmStore(documentStore, {
     compactionPolicy: resolveStmCompactionPolicy(resolvedConfig),
   });
   const projectStore = new DocumentProjectStore(documentStore);
+  const artifactStore = new DocumentArtifactStore(documentStore);
+  const scheduleStore = new DocumentScheduleStore(documentStore);
+  const escalationStore = new DocumentEscalationStore(documentStore);
   const witnessService = new WitnessService(documentStore);
   const opctlService = new OpctlService({
     replayStore: new InMemoryReplayStore(),
@@ -164,15 +185,25 @@ export function createNousContext(): NousContext {
     witnessService,
   });
 
-  const maoProjectionService = new MaoProjectionService({
-    opctlService,
-    witnessService,
-  });
-
   const gtmGateCalculator = new GtmGateCalculator();
   const policyEngine = new MemoryAccessPolicyEngine();
+  const knowledgeIndex = new KnowledgeIndexRuntime({
+    documentStore,
+    projectStore,
+    metaVectorStore: new MetaVectorStore({ vectorStore }),
+    taxonomyMapping: new DocumentProjectTaxonomyMapping(documentStore),
+    relationshipGraphStore: new DocumentRelationshipGraphStore(documentStore),
+    embedder,
+    accessPolicyEngine: policyEngine,
+    getProjectControlState: (projectId: ProjectId) =>
+      opctlService.getProjectControlState(projectId),
+  });
 
-  const toolExecutor = new ToolExecutor();
+  const toolExecutor = new ToolExecutor([
+    new EchoTool(),
+    new DiscoverProjectsTool(knowledgeIndex),
+    new RefreshProjectKnowledgeTool(knowledgeIndex),
+  ]);
   const Cortex = new PfcEngine(config, toolExecutor);
   const mwcPipeline = new MwcPipeline(
     documentStore,
@@ -191,6 +222,35 @@ export function createNousContext(): NousContext {
 
   const router = new ModelRouter(config);
   const providerRegistry = new ProviderRegistry(config);
+  const workflowEngine = new DeterministicWorkflowEngine({
+    pfcEngine: Cortex,
+    modelRouter: router,
+    toolExecutor,
+  });
+  const schedulerService = new SchedulerService({
+    scheduleStore,
+    projectStore,
+    ingressGateway: {
+      submit: async (envelope) => ({
+        outcome: 'rejected',
+        reason: 'workflow_admission_blocked',
+        reason_code: 'web_bootstrap_ingress_unwired',
+        evidence_ref: `ingress:${envelope.trigger_id}`,
+        evidence_refs: ['web bootstrap does not wire ingress dispatch'],
+      }),
+    },
+  });
+  const escalationService = new EscalationService({
+    escalationStore,
+    projectStore,
+  });
+  const maoProjectionService = new MaoProjectionService({
+    opctlService,
+    workflowEngine,
+    escalationService,
+    schedulerService,
+    witnessService,
+  });
 
   const getProvider = (id: ProviderId) => {
     // Explicitly route the synthetic fallback provider to the in-process mock.
@@ -234,6 +294,11 @@ export function createNousContext(): NousContext {
     opctlService,
     maoProjectionService,
     gtmGateCalculator,
+    knowledgeIndex,
+    workflowEngine,
+    artifactStore,
+    schedulerService,
+    escalationService,
     dataDir,
   };
 

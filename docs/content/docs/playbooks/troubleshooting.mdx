@@ -149,8 +149,162 @@ ollama pull llama3.2:3b
 | `rate_limited` | Rate limit exceeded | Wait and retry with backoff; reduce request frequency |
 | `invalid_envelope` | Missing project_id, workflow_ref, or invalid trigger_type | Fix envelope; ensure all required fields present |
 | `control_state_blocked` | Project hard_stopped or paused_review | Resume project or release hard_stop via Projects UI / operator-control |
+| `workflow_admission_blocked` | Ingress was valid but canonical workflow admission still failed | Inspect the returned `reason_code`, project lookup, and workflow configuration before retrying |
 
 See [Automation Gateway](/docs/guides/automation) for full operator guidance.
+
+## Workflow Cannot Start Because the Definition Is Missing or Invalid
+
+**Symptom:** A workflow start request returns `workflow_definition_unavailable` or `workflow_definition_invalid`, and no new `run_id` is created.
+
+**Meaning:** The runtime could not resolve or validate the canonical workflow definition stored in the target project. This fails closed before any run starts.
+
+| Code | Cause | Fix |
+|------|-------|-----|
+| `workflow_definition_unavailable` | The project has no matching workflow definition or no valid default workflow reference | Check the project's stored workflow configuration and default workflow selection |
+| `workflow_definition_invalid` | The canonical workflow definition failed validation | Correct the graph definition, then retry after validation passes |
+
+Common validation failures include:
+
+- Cycles in the node graph
+- Dangling edges that reference missing nodes
+- Missing or invalid entry nodes
+- Duplicate node or edge identities
+
+Do not retry the same start request until the canonical project workflow definition is repaired.
+
+## Workflow Admission Blocked Before Run Creation (Phase 9.1)
+
+**Symptom:** A start or automation request clears transport-level checks, but the workflow still does not start and returns an admission reason code.
+
+**Meaning:** Workflow admission failed after definition resolution but before run creation. No canonical run state exists yet, so the fix is at the project, authority, or control-state layer.
+
+| Code | Cause | Fix |
+|------|-------|-----|
+| `AUTH-SCOPE-MISMATCH` | The request scope and resolved workflow definition do not match | Ensure the project/workflow identifiers point at the same stored definition |
+| `POL-CONTROL-STATE-BLOCKED` | The project is hard stopped or otherwise blocked | Use operator-control to release the blocking state |
+| `POL-PAUSED-BLOCKED` | The project is paused for review | Resume the project before retrying |
+| `OPCTL-INVALID-STATE` | The request attempts to resume from an invalid control state | Fix the control-state transition first |
+| `WMODE-001` | Unsupported workmode for this admission path | Use a supported workmode configuration |
+| `WMODE-002` | Authority widening was attempted | Narrow the request back to the allowed authority chain |
+| `WMODE-003` | Nested orchestration was attempted | Use the standard orchestration lane rather than orchestrating inside orchestration |
+| `WMODE-010` | A worker attempted an authoritative start path | Reissue the request from the correct authority source |
+
+Admission failures are authoritative. Use the returned `reasonCode` and `evidenceRefs` before retrying.
+
+## Scheduled Trigger Repeats or Never Advances (Phase 9.3)
+
+**Symptom:** A cron/calendar schedule appears stuck, keeps returning duplicate outcomes, or never seems to fire again after a restart.
+
+**Meaning:** Phase 9.3 persists schedule definitions and due cursors, but actual run truth still comes from ingress and workflow state.
+
+**Fix:**
+
+- Check the schedule's `nextDueAt`, `lastDispatchedAt`, `workflowDefinitionId`, and `workmodeId`.
+- If ingress returns `accepted_already_dispatched`, treat that as duplicate-safe recovery of the original run rather than a failure.
+- If the schedule keeps returning `workflow_admission_blocked`, repair the target project's workflow configuration instead of forcing redispatch.
+- If `nextDueAt` is missing or stale after restart, let the scheduler recompute it from the canonical trigger definition before assuming work was skipped.
+
+## Artifact Retrieve/List Returns Nothing Even Though a Write Happened (Phase 9.3)
+
+**Symptom:** An artifact write appears to succeed, but default retrieve or list calls return nothing.
+
+**Meaning:** Phase 9.3 keeps prepared versions hidden from default visibility. Only committed versions are normal runtime truth.
+
+**Fix:**
+
+- Check whether the artifact version is still `prepared` instead of `committed`.
+- If the producing workflow is still waiting on `checkpoint_commit`, do not treat the artifact as durably available yet.
+- Verify you are reading from the correct `projectId`; artifact IDs are not global bearer tokens.
+- If a prepared version never commits, inspect recovery or checkpoint evidence instead of replaying the same write blindly.
+
+## Artifact Integrity Mismatch or Corruption Signal (Phase 9.3)
+
+**Symptom:** Artifact retrieval fails closed, or downstream tooling reports an integrity mismatch.
+
+**Meaning:** The stored payload bytes no longer match the artifact manifest's `integrityRef` (`sha256:<64-char-hex>`). The runtime is deliberately refusing to return corrupted content.
+
+**Fix:**
+
+- Treat the failure as authoritative; do not bypass it by reading the raw payload directly.
+- Check whether the payload document was interrupted, partially rewritten, or manually edited.
+- Recreate or recommit the artifact from the canonical workflow output if the checkpoint and evidence chain allow it.
+- If the producing run had uncertain external effects, escalate into review rather than assuming the artifact can be reconstructed safely.
+
+## Workflow Run State or Dispatch Lineage Is Hard to Interpret
+
+**Symptom:** A run exists, but it appears stalled, paused, blocked, or unexpectedly branched.
+
+**Meaning:** Phase 9.1 and Phase 9.2 expose canonical run, node, wait, checkpoint, correction, and dispatch-lineage state. Those records explain what happened without requiring the UI to infer workflow truth.
+
+| Field | How to use it |
+|------|---------------|
+| `status` | Overall workflow state such as `ready`, `running`, `waiting`, `blocked_review`, `paused`, `completed`, or `failed` |
+| `readyNodeIds` | Nodes eligible to dispatch now |
+| `waitingNodeIds` | Nodes intentionally paused on a continuation path |
+| `blockedNodeIds` | Nodes that forced the run into review-required posture |
+| `completedNodeIds` | Nodes that have already finished |
+| `nodeStates[<nodeId>].status` | Per-node state such as `pending`, `ready`, `running`, `waiting`, `completed`, `blocked`, or `failed` |
+| `nodeStates[<nodeId>].activeWaitState` | Canonical wait details, including wait kind, reason code, evidence refs, and optional `resumeToken` |
+| `nodeStates[<nodeId>].correctionArcs` | The corrective path recorded by the runtime (`resume`, `retry`, `reprompt`, or `rollback`) |
+| `lastPreparedCheckpointId` / `lastCommittedCheckpointId` | Whether the run has only prepared checkpoint state or a durable checkpoint that is safe to continue from |
+| `selectedBranchKey` / `activatedEdgeIds` | Which condition branch actually fired and which outbound edges became live |
+| `dispatchLineage[*].dispatchLineageId` | Unique identifier for one dispatch attempt |
+| `parentNodeId` / `viaEdgeId` | How the current node became ready |
+| `reasonCode` / `evidenceRefs` | The authoritative explanation for a transition, pause, block, or failure |
+
+**Fix:**
+
+- If the run is `paused`, inspect control-state and operator actions first.
+- If the run is `waiting`, inspect `activeWaitState.kind`, `reasonCode`, and `resumeToken` on the waiting node before dispatching anything else.
+- If a node is `blocked` or `failed`, use the `reasonCode` and `evidenceRefs` to identify the governing blocker.
+- If the run is `blocked_review`, inspect the newest `correctionArcs` entry before deciding whether the path is resume, retry, reprompt, or rollback.
+- If branching looks wrong, inspect `parentNodeId` and `viaEdgeId` in dispatch lineage before assuming the UI or scheduler is wrong.
+- If checkpoint behavior looks wrong, compare `lastPreparedCheckpointId` and `lastCommittedCheckpointId` before resuming.
+- If no nodes are ready, inspect upstream node states and graph structure rather than replaying the same dispatch.
+
+## Workflow Is Waiting and Will Not Advance (Phase 9.2)
+
+**Symptom:** A run remains `waiting`, and no new nodes dispatch even though the run is not failed.
+
+**Meaning:** The runtime is intentionally holding progress on a canonical wait state. The wait kind tells you what must happen next.
+
+| Wait kind | Meaning | Fix |
+|-----------|---------|-----|
+| `async_batch` | External or long-running work has not been completed yet | Wait for the completion witness, then continue the same node with the current `resumeToken` |
+| `human_decision` | A person must approve or reject the step | Submit the explicit decision instead of replaying the node |
+| `retry_backoff` | Governance or retry policy deferred immediate progress | Clear the blocker or let the backoff condition resolve, then resume or reprompt the same node |
+| `checkpoint_commit` | The node output exists, but the checkpoint commit is not durable yet | Wait for checkpoint commit completion and continue the same node rather than executing it again |
+
+If the control state is `paused_review` or `resuming`, the wait can remain active with reason codes such as `workflow_wait_paused_review` or `workflow_wait_resuming` until the control-state transition is resolved.
+
+## Workflow Is Blocked for Review After Resume, Decision, or Retry (Phase 9.2)
+
+**Symptom:** A run enters `blocked_review` after a continuation, human decision, or retry-related step.
+
+**Meaning:** The runtime refused blind progress and recorded a correction posture in `correctionArcs`.
+
+| Reason code | Cause | Fix |
+|-------------|-------|-----|
+| `workflow_continuation_token_mismatch` | A stale or wrong continuation token was supplied | Re-read the waiting node and use its current `resumeToken` |
+| `workflow_resume_review_required` | The previous attempt has `unknown_external_effect`, so blind resume is unsafe | Review the evidence and explicitly approve continuation before resuming |
+| `workflow_human_decision_rejected` | The human-decision node was rejected | Follow the correction arc and rollback/reprompt path instead of replaying the same continuation |
+| `workflow_resume_denied_hard_stopped` | The project became `hard_stopped` during resume | Clear the hard stop before trying to continue |
+| `workflow_retry_backoff_resolution_required` | A retry/backoff path needs explicit operator action | Apply the indicated retry or reprompt path, then continue from the same run |
+
+Treat `correctionArcs` as authoritative runtime state. They are not suggestions; they are the canonical record of how the workflow expects recovery to proceed.
+
+## Checkpoint Commit Stays Pending (Phase 9.2)
+
+**Symptom:** The run stays `waiting` with `activeWaitState.kind = checkpoint_commit`, or `lastPreparedCheckpointId` changes while `lastCommittedCheckpointId` does not.
+
+**Meaning:** The runtime prepared checkpoint state but has not yet durably committed it. Phase 9.2 does not allow blind continuation from provisional checkpoint state.
+
+**Fix:**
+
+- Wait for the checkpoint commit to succeed, then continue the same node/run with the committed checkpoint reference.
+- Do not redispatch the node while `checkpoint_commit` is still active.
+- If commit never completes, inspect checkpoint-manager evidence and the node's `reasonCode` before deciding whether the path should remain waiting or be escalated into a review workflow.
 
 ## Recovery Blocked or Failed (Phase 5.4)
 

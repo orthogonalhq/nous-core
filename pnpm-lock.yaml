@@ -147,6 +147,9 @@ importers:
         specifier: ^2.2.2
         version: 2.2.6
     devDependencies:
+      '@nous/subcortex-escalation':
+        specifier: workspace:*
+        version: link:../../subcortex/escalation
       '@nous/web':
         specifier: workspace:*
         version: link:../web
@@ -186,6 +189,9 @@ importers:
       '@nous/memory-distillation':
         specifier: workspace:*
         version: link:../../memory/distillation
+      '@nous/memory-knowledge-index':
+        specifier: workspace:*
+        version: link:../../memory/knowledge-index
       '@nous/memory-ltm':
         specifier: workspace:*
         version: link:../../memory/ltm
@@ -198,6 +204,12 @@ importers:
       '@nous/shared':
         specifier: workspace:*
         version: link:../../shared
+      '@nous/subcortex-artifacts':
+        specifier: workspace:*
+        version: link:../../subcortex/artifacts
+      '@nous/subcortex-escalation':
+        specifier: workspace:*
+        version: link:../../subcortex/escalation
       '@nous/subcortex-gtm':
         specifier: workspace:*
         version: link:../../subcortex/gtm
@@ -216,12 +228,18 @@ importers:
       '@nous/subcortex-router':
         specifier: workspace:*
         version: link:../../subcortex/router
+      '@nous/subcortex-scheduler':
+        specifier: workspace:*
+        version: link:../../subcortex/scheduler
       '@nous/subcortex-tools':
         specifier: workspace:*
         version: link:../../subcortex/tools
       '@nous/subcortex-witnessd':
         specifier: workspace:*
         version: link:../../subcortex/witnessd
+      '@nous/subcortex-workflows':
+        specifier: workspace:*
+        version: link:../../subcortex/workflows
       '@tanstack/react-query':
         specifier: ^5.62.0
         version: 5.90.21(react@19.2.3)
@@ -426,6 +444,9 @@ importers:
       '@nous/autonomic-storage':
         specifier: workspace:*
         version: link:../../autonomic/storage
+      '@nous/memory-access':
+        specifier: workspace:*
+        version: link:../access
       '@nous/shared':
         specifier: workspace:*
         version: link:../../shared
@@ -537,6 +558,32 @@ importers:
         specifier: ^7.7.1
         version: 7.7.1
 
+  self/subcortex/artifacts:
+    dependencies:
+      '@nous/autonomic-storage':
+        specifier: workspace:*
+        version: link:../../autonomic/storage
+      '@nous/shared':
+        specifier: workspace:*
+        version: link:../../shared
+      zod:
+        specifier: ^3.24.1
+        version: 3.25.76
+    devDependencies:
+      vitest:
+        specifier: ^2.1.0
+        version: 2.1.9(@types/node@20.19.33)(jsdom@26.1.0)(lightningcss@1.30.2)
+
+  self/subcortex/escalation:
+    dependencies:
+      '@nous/shared':
+        specifier: workspace:*
+        version: link:../../shared
+    devDependencies:
+      vitest:
+        specifier: ^2.1.0
+        version: 2.1.9(@types/node@20.19.33)(jsdom@26.1.0)(lightningcss@1.30.2)
+
   self/subcortex/gtm:
     dependencies:
       '@nous/shared':
@@ -610,6 +657,22 @@ importers:
         specifier: workspace:*
         version: link:../../shared
 
+  self/subcortex/scheduler:
+    dependencies:
+      '@nous/autonomic-storage':
+        specifier: workspace:*
+        version: link:../../autonomic/storage
+      '@nous/shared':
+        specifier: workspace:*
+        version: link:../../shared
+      zod:
+        specifier: ^3.24.1
+        version: 3.25.76
+    devDependencies:
+      vitest:
+        specifier: ^2.1.0
+        version: 2.1.9(@types/node@20.19.33)(jsdom@26.1.0)(lightningcss@1.30.2)
+
   self/subcortex/stubs:
     dependencies:
       '@nous/memory-access':
@@ -636,6 +699,22 @@ importers:
       '@nous/shared':
         specifier: workspace:*
         version: link:../../shared
+
+  self/subcortex/workflows:
+    dependencies:
+      '@nous/autonomic-storage':
+        specifier: workspace:*
+        version: link:../../autonomic/storage
+      '@nous/shared':
+        specifier: workspace:*
+        version: link:../../shared
+      '@nous/subcortex-projects':
+        specifier: workspace:*
+        version: link:../projects
+    devDependencies:
+      vitest:
+        specifier: ^2.1.0
+        version: 2.1.9(@types/node@20.19.33)(jsdom@26.1.0)(lightningcss@1.30.2)
 
 packages:
 

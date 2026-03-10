@@ -8,9 +8,21 @@
 import type {
   ProjectId,
   ProviderId,
-  ArtifactId,
   MemoryEntryId,
   WorkflowExecutionId,
+  WorkflowDefinitionId,
+  WorkflowDefinition,
+  DerivedWorkflowGraph,
+  WorkflowAdmissionRequest,
+  WorkflowAdmissionResult,
+  WorkflowStartResult,
+  WorkflowTransitionInput,
+  WorkflowNodeDefinitionId,
+  WorkflowRunState,
+  WorkflowRunTriggerContext,
+  WorkflowExecuteNodeRequest,
+  WorkflowContinueNodeRequest,
+  WorkmodeId,
   EscalationId,
   ModelRole,
   MemoryScope,
@@ -21,16 +33,21 @@ import type {
   ModelStreamChunk,
   ToolResult,
   ToolDefinition,
-  WorkflowGraph,
-  WorkflowState,
   ProjectConfig,
   ProjectState,
-  ArtifactData,
-  ArtifactMetadata,
-  ArtifactFilter,
+  ArtifactDeleteRequest,
+  ArtifactListFilter,
+  ArtifactReadRequest,
+  ArtifactReadResult,
+  ArtifactVersionRecord,
+  ArtifactWriteRequest,
+  ArtifactWriteResult,
   ScheduleDefinition,
+  ScheduleUpsertInput,
   EscalationContract,
   EscalationResponse,
+  InAppEscalationRecord,
+  AcknowledgeInAppEscalationInput,
   SandboxPayload,
   SandboxResult,
   MemoryEntry,
@@ -56,8 +73,15 @@ import type {
   ControlActorType,
   ProjectControlState,
   MaoAgentProjection,
+  MaoAgentInspectInput,
+  MaoAgentInspectProjection,
+  MaoProjectControlRequest,
+  MaoProjectControlResult,
   MaoProjectControlProjection,
+  MaoProjectSnapshot,
+  MaoProjectSnapshotInput,
   MaoEventType,
+  MaoRunGraphSnapshot,
   GtmGateReportInput,
   GtmGateReport,
   GtmStageLabel,
@@ -107,18 +131,70 @@ export interface IToolExecutor {
   listTools(): Promise<ToolDefinition[]>;
 }
 
+export interface WorkflowStartRequest {
+  projectConfig: ProjectConfig;
+  workflowDefinitionId?: WorkflowDefinitionId;
+  runId?: WorkflowExecutionId;
+  workmodeId: WorkmodeId;
+  sourceActor: import('./workmode.js').AuthorityActor;
+  targetActor?: import('./workmode.js').AuthorityActor;
+  controlState?: ProjectControlState;
+  triggerContext?: WorkflowRunTriggerContext;
+  admissionEvidenceRefs?: string[];
+  startedAt?: string;
+}
+
 export interface IWorkflowEngine {
-  /** Start executing a workflow graph */
-  start(projectId: ProjectId, graph: WorkflowGraph): Promise<WorkflowExecutionId>;
+  /** Resolve canonical workflow definition from project-scoped configuration */
+  resolveDefinition(
+    projectConfig: ProjectConfig,
+    workflowDefinitionId?: WorkflowDefinitionId,
+  ): Promise<WorkflowDefinition>;
+
+  /** Derive deterministic executable graph from canonical definition */
+  deriveGraph(definition: WorkflowDefinition): Promise<DerivedWorkflowGraph>;
+
+  /** Evaluate fail-closed admission before run creation */
+  evaluateAdmission(
+    request: WorkflowAdmissionRequest,
+  ): Promise<WorkflowAdmissionResult>;
+
+  /** Start executing a workflow definition under the current workmode/control state */
+  start(request: WorkflowStartRequest): Promise<WorkflowStartResult>;
 
   /** Resume a paused workflow */
-  resume(executionId: WorkflowExecutionId): Promise<void>;
+  resume(
+    executionId: WorkflowExecutionId,
+    transition: WorkflowTransitionInput,
+  ): Promise<WorkflowRunState>;
 
   /** Pause a running workflow */
-  pause(executionId: WorkflowExecutionId): Promise<void>;
+  pause(
+    executionId: WorkflowExecutionId,
+    transition: WorkflowTransitionInput,
+  ): Promise<WorkflowRunState>;
+
+  /** Mark a ready/running node completed and advance deterministic traversal */
+  completeNode(
+    executionId: WorkflowExecutionId,
+    nodeDefinitionId: WorkflowNodeDefinitionId,
+    transition: WorkflowTransitionInput,
+  ): Promise<WorkflowRunState>;
+
+  /** Execute a ready node through the governed runtime and record canonical node/run state */
+  executeReadyNode(request: WorkflowExecuteNodeRequest): Promise<WorkflowRunState>;
+
+  /** Resolve a waiting node continuation (async, human, retry, checkpoint) */
+  continueNode(request: WorkflowContinueNodeRequest): Promise<WorkflowRunState>;
 
   /** Get workflow execution state */
-  getState(executionId: WorkflowExecutionId): Promise<WorkflowState>;
+  getState(executionId: WorkflowExecutionId): Promise<WorkflowRunState | null>;
+
+  /** List known in-process workflow runs for a project, newest first */
+  listProjectRuns(projectId: ProjectId): Promise<WorkflowRunState[]>;
+
+  /** Get the derived graph associated with a known in-process workflow run */
+  getRunGraph(executionId: WorkflowExecutionId): Promise<DerivedWorkflowGraph | null>;
 }
 
 export interface IProjectStore {
@@ -140,21 +216,30 @@ export interface IProjectStore {
 
 export interface IArtifactStore {
   /** Store a versioned artifact */
-  store(artifact: ArtifactData): Promise<ArtifactId>;
+  store(request: ArtifactWriteRequest): Promise<ArtifactWriteResult>;
 
-  /** Retrieve an artifact by ID */
-  retrieve(id: ArtifactId): Promise<ArtifactData | null>;
+  /** Retrieve an artifact by project-scoped request */
+  retrieve(request: ArtifactReadRequest): Promise<ArtifactReadResult | null>;
 
   /** List artifacts for a project */
-  list(projectId: ProjectId, filters?: ArtifactFilter): Promise<ArtifactMetadata[]>;
+  list(
+    projectId: ProjectId,
+    filters?: ArtifactListFilter,
+  ): Promise<ArtifactVersionRecord[]>;
 
   /** Delete an artifact */
-  delete(id: ArtifactId): Promise<boolean>;
+  delete(request: ArtifactDeleteRequest): Promise<boolean>;
 }
 
 export interface IScheduler {
   /** Register a scheduled task */
   register(schedule: ScheduleDefinition): Promise<string>;
+
+  /** Create or update a schedule without delete/recreate churn */
+  upsert(input: ScheduleUpsertInput): Promise<ScheduleDefinition>;
+
+  /** Get a schedule by its canonical ID */
+  get(scheduleId: string): Promise<ScheduleDefinition | null>;
 
   /** Cancel a scheduled task */
   cancel(scheduleId: string): Promise<boolean>;
@@ -169,6 +254,17 @@ export interface IEscalationService {
 
   /** Check if an escalation has been responded to */
   checkResponse(escalationId: EscalationId): Promise<EscalationResponse | null>;
+
+  /** Get a canonical in-app escalation record */
+  get(escalationId: EscalationId): Promise<InAppEscalationRecord | null>;
+
+  /** List canonical in-app escalations for a project */
+  listProjectQueue(projectId: ProjectId): Promise<InAppEscalationRecord[]>;
+
+  /** Acknowledge a canonical in-app escalation from a supported surface */
+  acknowledge(
+    input: AcknowledgeInAppEscalationInput,
+  ): Promise<InAppEscalationRecord | null>;
 }
 
 export interface ISandbox {
@@ -287,9 +383,12 @@ export interface IProjectApi {
 
   /** Artifact API for the current project */
   artifact: {
-    store(data: ArtifactData): Promise<ArtifactId>;
-    retrieve(id: ArtifactId): Promise<ArtifactData | null>;
-    list(filters?: ArtifactFilter): Promise<ArtifactMetadata[]>;
+    store(data: Omit<ArtifactWriteRequest, 'projectId'>): Promise<ArtifactWriteResult>;
+    retrieve(
+      request: Omit<ArtifactReadRequest, 'projectId'>,
+    ): Promise<ArtifactReadResult | null>;
+    list(filters?: ArtifactListFilter): Promise<ArtifactVersionRecord[]>;
+    delete(request: Omit<ArtifactDeleteRequest, 'projectId'>): Promise<boolean>;
   };
 
   /** Escalation API for the current project */
@@ -386,6 +485,27 @@ export interface IMaoProjectionService {
   getProjectControlProjection(
     projectId: ProjectId,
   ): Promise<MaoProjectControlProjection | null>;
+
+  /** Derive the full MAO operating-surface snapshot for a project. */
+  getProjectSnapshot(
+    input: MaoProjectSnapshotInput,
+  ): Promise<MaoProjectSnapshot>;
+
+  /** Derive inspect data for a selected MAO agent projection. */
+  getAgentInspectProjection(
+    input: MaoAgentInspectInput,
+  ): Promise<MaoAgentInspectProjection | null>;
+
+  /** Derive the canonical run-graph snapshot used by MAO graph views. */
+  getRunGraphSnapshot(
+    input: MaoProjectSnapshotInput,
+  ): Promise<MaoRunGraphSnapshot>;
+
+  /** Submit a project-scope control request from the MAO surface. */
+  requestProjectControl(
+    input: MaoProjectControlRequest,
+    confirmationProof?: ConfirmationProof,
+  ): Promise<MaoProjectControlResult>;
 
   /** Emit MAO projection event (witness-linked). */
   emitProjectionEvent(

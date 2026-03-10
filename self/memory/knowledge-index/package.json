@@ -17,6 +17,7 @@
     "test": "vitest run"
   },
   "dependencies": {
+    "@nous/memory-access": "workspace:*",
     "@nous/shared": "workspace:*",
     "@nous/autonomic-storage": "workspace:*",
     "@nous/autonomic-embeddings": "workspace:*",

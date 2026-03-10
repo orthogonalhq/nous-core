@@ -13,26 +13,15 @@ import type {
 } from '@nous/shared';
 import { appRouter } from '../trpc/root';
 import { clearNousContextCache, createNousContext } from '../bootstrap';
+import { createProjectConfig as createProjectConfigFixture } from '../../test-support/project-fixtures';
 
 function createProjectConfig(
   overrides: Partial<ProjectConfig> = {},
 ): ProjectConfig {
-  const now = new Date().toISOString();
-  return {
-    id: overrides.id ?? (randomUUID() as import('@nous/shared').ProjectId),
-    name: overrides.name ?? 'Memory Router Test Project',
-    type: overrides.type ?? 'hybrid',
-    pfcTier: overrides.pfcTier ?? 3,
-    memoryAccessPolicy: overrides.memoryAccessPolicy ?? {
-      canReadFrom: 'all',
-      canBeReadBy: 'all',
-      inheritsGlobal: true,
-    },
-    escalationChannels: ['in-app'],
-    retrievalBudgetTokens: 500,
-    createdAt: overrides.createdAt ?? now,
-    updatedAt: overrides.updatedAt ?? now,
-  };
+  return createProjectConfigFixture({
+    name: 'Memory Router Test Project',
+    ...overrides,
+  });
 }
 
 function createCandidate(
