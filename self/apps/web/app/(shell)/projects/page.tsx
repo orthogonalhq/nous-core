@@ -1,6 +1,7 @@
 'use client';
 
 import * as React from 'react';
+import Link from 'next/link';
 import { useSearchParams } from 'next/navigation';
 import { Badge } from '@/components/ui/badge';
 import { ProjectConfigurationPanel } from '@/components/projects/project-configuration-panel';
@@ -8,6 +9,7 @@ import { ProjectDashboard } from '@/components/projects/project-dashboard';
 import { ProjectEscalationQueue } from '@/components/projects/project-escalation-queue';
 import { WorkflowEditor } from '@/components/projects/workflow-editor';
 import { WorkflowMonitor } from '@/components/projects/workflow-monitor';
+import { buildMaoReturnHref, readMaoNavigationContext } from '@/lib/mao-links';
 import { trpc } from '@/lib/trpc';
 import { useProject } from '@/lib/project-context';
 
@@ -26,12 +28,21 @@ export default function ProjectsPage() {
 }
 
 function ProjectsPageContent() {
-  const { projectId } = useProject();
+  const { projectId, setProjectId } = useProject();
   const searchParams = useSearchParams();
+  const linkedProjectId = searchParams.get('projectId');
   const linkedRunId = searchParams.get('runId');
+  const linkedNodeId = searchParams.get('nodeId');
+  const maoContext = readMaoNavigationContext(searchParams);
   const [selectedRunId, setSelectedRunId] = React.useState<string | null>(
     linkedRunId,
   );
+
+  React.useEffect(() => {
+    if (linkedProjectId && linkedProjectId !== projectId) {
+      setProjectId(linkedProjectId);
+    }
+  }, [linkedProjectId, projectId, setProjectId]);
 
   React.useEffect(() => {
     setSelectedRunId(linkedRunId);
@@ -128,7 +139,22 @@ function ProjectsPageContent() {
         </div>
       </div>
 
-      <ProjectDashboard snapshot={dashboard} />
+      {maoContext ? (
+        <div className="rounded-md border border-border bg-muted/20 px-4 py-3 text-sm text-muted-foreground">
+          MAO handoff active
+          {linkedRunId ? ` for run ${linkedRunId.slice(0, 8)}` : ''}
+          {linkedNodeId ? ` and node ${linkedNodeId.slice(0, 8)}` : ''}
+          {maoContext.evidenceRef ? ` with evidence ${maoContext.evidenceRef}` : ''}.
+          <Link
+            href={buildMaoReturnHref(maoContext)}
+            className="ml-2 underline underline-offset-4"
+          >
+            Return to MAO
+          </Link>
+        </div>
+      ) : null}
+
+      <ProjectDashboard snapshot={dashboard} maoContext={maoContext} />
 
       <div className="grid gap-6 xl:grid-cols-[minmax(0,1.5fr)_minmax(0,1fr)]">
         <ProjectConfigurationPanel snapshot={configuration} />
@@ -141,6 +167,8 @@ function ProjectsPageContent() {
       <WorkflowMonitor
         snapshot={snapshot}
         selectedRunId={selectedRunId}
+        linkedNodeId={linkedNodeId}
+        maoContext={maoContext}
         onSelectRun={setSelectedRunId}
         onStartAuthoring={() => {
           setSelectedRunId(null);

@@ -1,15 +1,22 @@
 'use client';
 
 import * as React from 'react';
+import Link from 'next/link';
 import type { ProjectDashboardSnapshot } from '@nous/shared';
 import { Badge } from '@/components/ui/badge';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
+import type { MaoNavigationContext } from '@/lib/mao-links';
+import { buildMaoReturnHref } from '@/lib/mao-links';
 
 interface ProjectDashboardProps {
   snapshot: ProjectDashboardSnapshot;
+  maoContext?: MaoNavigationContext | null;
 }
 
-export function ProjectDashboard({ snapshot }: ProjectDashboardProps) {
+export function ProjectDashboard({
+  snapshot,
+  maoContext,
+}: ProjectDashboardProps) {
   return (
     <Card>
       <CardHeader className="border-b border-border">
@@ -23,6 +30,12 @@ export function ProjectDashboard({ snapshot }: ProjectDashboardProps) {
                 {snapshot.controlProjection.project_control_state}
               </Badge>
             ) : null}
+            <Link
+              href={`/mao?projectId=${snapshot.project.id}`}
+              className="rounded-md border border-border px-2 py-0.5 text-xs font-medium hover:bg-muted/20"
+            >
+              Open MAO
+            </Link>
           </div>
         </CardTitle>
       </CardHeader>
@@ -73,6 +86,17 @@ export function ProjectDashboard({ snapshot }: ProjectDashboardProps) {
           <div className="text-xs uppercase tracking-wide text-muted-foreground">
             Blocked action feedback
           </div>
+          {maoContext ? (
+            <div className="mt-3 rounded-md border border-border bg-muted/20 px-3 py-2 text-sm text-muted-foreground">
+              MAO-origin monitoring context is active.
+              <Link
+                href={buildMaoReturnHref(maoContext)}
+                className="ml-2 underline underline-offset-4"
+              >
+                Return to MAO
+              </Link>
+            </div>
+          ) : null}
           <div className="mt-3 grid gap-2 md:grid-cols-2">
             {snapshot.blockedActions.map((action) => (
               <div

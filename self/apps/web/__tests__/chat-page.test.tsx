@@ -137,4 +137,26 @@ describe('ChatPage', () => {
       note: 'Acknowledged from Chat',
     });
   });
+
+  it('renders MAO-origin reasoning continuity in chat', () => {
+    mocks.useSearchParams.mockReturnValue({
+      get: vi.fn((key: string) => {
+        const values: Record<string, string | null> = {
+          source: 'mao',
+          projectId: '550e8400-e29b-41d4-a716-446655444001',
+          runId: '550e8400-e29b-41d4-a716-446655444010',
+          nodeId: '550e8400-e29b-41d4-a716-446655444011',
+          evidenceRef: 'evidence://workflow:blocked',
+          reasoningRef: 'evidence://reasoning-preview',
+        };
+        return values[key] ?? null;
+      }),
+    });
+
+    render(<ChatPage />);
+
+    expect(screen.getByText(/MAO reasoning handoff active/i)).toBeTruthy();
+    expect(screen.getByText(/MAO-linked escalation context is active/i)).toBeTruthy();
+    expect(screen.getAllByText(/Return to MAO/i).length).toBeGreaterThan(0);
+  });
 });
