@@ -138,4 +138,44 @@ describe('PackageLifecycleOrchestrator adversarial flows', () => {
     expect(result.decision).toBe('blocked');
     expect(result.reason_code).toBe('PKG-005-MISSING_WITNESS_REF');
   });
+
+  it('blocks replayed registry metadata during install', async () => {
+    const orchestrator = new PackageLifecycleOrchestrator();
+
+    await orchestrator.ingest(buildRequest('ingest'));
+
+    const result = await orchestrator.install(
+      buildRequest('install', {
+        admission: {
+          signature_valid: true,
+          signer_known: true,
+          policy_compatible: true,
+          is_draft_unsigned: false,
+          is_imported: false,
+          reverification_complete: true,
+          reapproval_complete: true,
+        },
+        compatibility: {
+          api_compatible: true,
+        },
+        registry_eligibility: {
+          package_id: 'skill:adversarial',
+          release_id: 'release-adv-1',
+          package_version: '1.0.0',
+          trust_tier: 'verified_maintainer',
+          distribution_status: 'active',
+          compatibility_state: 'compatible',
+          metadata_valid: false,
+          signer_valid: true,
+          requires_principal_override: false,
+          block_reason_codes: ['MKT-008-METADATA_REPLAYED'],
+          evidence_refs: ['witness:registry-adv'],
+          evaluated_at: '2026-03-10T00:00:00.000Z',
+        },
+      }),
+    );
+
+    expect(result.decision).toBe('blocked');
+    expect(result.reason_code).toBe('MKT-008-METADATA_REPLAYED');
+  });
 });
