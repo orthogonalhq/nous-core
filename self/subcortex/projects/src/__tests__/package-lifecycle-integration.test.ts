@@ -180,4 +180,46 @@ describe('Package lifecycle integration flows', () => {
     expect(remove.decision).toBe('allowed');
     expect(remove.to_state).toBe('removed');
   });
+
+  it('keeps registry distribution truth advisory to lifecycle by blocking unregistered installs', async () => {
+    const orchestrator = new PackageLifecycleOrchestrator({
+      now: () => new Date('2026-03-02T00:00:00.000Z'),
+    });
+
+    await orchestrator.ingest(buildRequest('ingest'));
+
+    const install = await orchestrator.install(
+      buildRequest('install', {
+        admission: {
+          signature_valid: true,
+          signer_known: true,
+          policy_compatible: true,
+          is_draft_unsigned: false,
+          is_imported: false,
+          reverification_complete: true,
+          reapproval_complete: true,
+        },
+        compatibility: {
+          api_compatible: true,
+        },
+        registry_eligibility: {
+          package_id: 'project:persona-engine',
+          release_id: 'release-registry-1',
+          package_version: '2.0.0',
+          trust_tier: 'unregistered_external',
+          distribution_status: 'blocked',
+          compatibility_state: 'compatible',
+          metadata_valid: true,
+          signer_valid: true,
+          requires_principal_override: false,
+          block_reason_codes: ['MKT-002-UNREGISTERED_EXTERNAL'],
+          evidence_refs: ['witness:registry-block'],
+          evaluated_at: '2026-03-02T00:00:00.000Z',
+        },
+      }),
+    );
+
+    expect(install.decision).toBe('blocked');
+    expect(install.reason_code).toBe('MKT-002-UNREGISTERED_EXTERNAL');
+  });
 });

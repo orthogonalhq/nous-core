@@ -217,4 +217,46 @@ describe('PackageLifecycleOrchestrator', () => {
       'PKG-005-REMOVE_RETENTION_DECISION_REQUIRED',
     );
   });
+
+  it('blocks install when registry eligibility requires Principal override', async () => {
+    const orchestrator = new PackageLifecycleOrchestrator({
+      now: () => new Date('2026-03-02T00:00:00.000Z'),
+    });
+
+    await orchestrator.ingest(buildRequest('ingest'));
+
+    const install = await orchestrator.install(
+      buildRequest('install', {
+        admission: {
+          signature_valid: true,
+          signer_known: true,
+          policy_compatible: true,
+          is_draft_unsigned: false,
+          is_imported: false,
+          reverification_complete: true,
+          reapproval_complete: true,
+        },
+        compatibility: {
+          api_compatible: true,
+        },
+        registry_eligibility: {
+          package_id: 'skill:image-quality-assessment',
+          release_id: 'release-1',
+          package_version: '1.0.0',
+          trust_tier: 'community_unverified',
+          distribution_status: 'active',
+          compatibility_state: 'compatible',
+          metadata_valid: true,
+          signer_valid: true,
+          requires_principal_override: true,
+          block_reason_codes: [],
+          evidence_refs: ['witness:registry'],
+          evaluated_at: '2026-03-02T00:00:00.000Z',
+        },
+      }),
+    );
+
+    expect(install.decision).toBe('blocked');
+    expect(install.reason_code).toBe('MKT-004-PRINCIPAL_OVERRIDE_REQUIRED');
+  });
 });

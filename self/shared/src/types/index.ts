@@ -61,4 +61,6 @@ export * from './vector-index.js';
 export * from './package-manifest.js';
 export * from './package-lifecycle.js';
 export * from './package-compatibility.js';
+export * from './registry.js';
+export * from './nudge.js';
 export * from './skill-admission.js';

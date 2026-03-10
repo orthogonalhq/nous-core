@@ -35,6 +35,7 @@ import type {
   IArtifactStore,
   IScheduler,
   IEscalationService,
+  IRegistryService,
   ISandbox,
   IProjectApi,
   ProjectId,
@@ -61,6 +62,18 @@ import type {
   EscalationResponse,
   InAppEscalationRecord,
   AcknowledgeInAppEscalationInput,
+  RegistryReleaseSubmissionInput,
+  RegistryReleaseSubmissionResult,
+  RegistryMetadataValidationInput,
+  RegistryMetadataValidationResult,
+  RegistryEligibilityRequest,
+  RegistryInstallEligibilitySnapshot,
+  RegistryGovernanceActionInput,
+  RegistryGovernanceAction,
+  MaintainerIdentity,
+  RegistryAppealSubmissionInput,
+  RegistryAppealResolutionInput,
+  RegistryAppealRecord,
   SandboxPayload,
   SandboxResult,
   MemoryScope,
@@ -238,6 +251,72 @@ export class StubEscalationService implements IEscalationService {
     _input: AcknowledgeInAppEscalationInput,
   ): Promise<InAppEscalationRecord | null> {
     return stubNotImpl('IEscalationService', 'acknowledge', 'Phase 9.6');
+  }
+}
+
+export class StubRegistryService implements IRegistryService {
+  async submitRelease(
+    _input: RegistryReleaseSubmissionInput,
+  ): Promise<RegistryReleaseSubmissionResult> {
+    return stubNotImpl('IRegistryService', 'submitRelease', 'Phase 10.1');
+  }
+
+  async getPackage(
+    _packageId: string,
+  ): Promise<import('@nous/shared').RegistryPackage | null> {
+    return stubNotImpl('IRegistryService', 'getPackage', 'Phase 10.1');
+  }
+
+  async getRelease(
+    _releaseId: string,
+  ): Promise<import('@nous/shared').RegistryRelease | null> {
+    return stubNotImpl('IRegistryService', 'getRelease', 'Phase 10.1');
+  }
+
+  async listReleases(
+    _packageId: string,
+  ): Promise<import('@nous/shared').RegistryRelease[]> {
+    return stubNotImpl('IRegistryService', 'listReleases', 'Phase 10.1');
+  }
+
+  async validateMetadataChain(
+    _input: RegistryMetadataValidationInput,
+  ): Promise<RegistryMetadataValidationResult> {
+    return stubNotImpl('IRegistryService', 'validateMetadataChain', 'Phase 10.1');
+  }
+
+  async evaluateInstallEligibility(
+    _input: RegistryEligibilityRequest,
+  ): Promise<RegistryInstallEligibilitySnapshot> {
+    return stubNotImpl(
+      'IRegistryService',
+      'evaluateInstallEligibility',
+      'Phase 10.1',
+    );
+  }
+
+  async applyGovernanceAction(
+    _input: RegistryGovernanceActionInput,
+  ): Promise<RegistryGovernanceAction> {
+    return stubNotImpl('IRegistryService', 'applyGovernanceAction', 'Phase 10.1');
+  }
+
+  async getMaintainer(
+    _maintainerId: string,
+  ): Promise<MaintainerIdentity | null> {
+    return stubNotImpl('IRegistryService', 'getMaintainer', 'Phase 10.1');
+  }
+
+  async submitAppeal(
+    _input: RegistryAppealSubmissionInput,
+  ): Promise<RegistryAppealRecord> {
+    return stubNotImpl('IRegistryService', 'submitAppeal', 'Phase 10.1');
+  }
+
+  async resolveAppeal(
+    _input: RegistryAppealResolutionInput,
+  ): Promise<RegistryAppealRecord> {
+    return stubNotImpl('IRegistryService', 'resolveAppeal', 'Phase 10.1');
   }
 }
 

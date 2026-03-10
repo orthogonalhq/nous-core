@@ -301,6 +301,7 @@ self/subcortex/
 ├── tools/                            # Tool execution and capability gating
 ├── workflows/                        # Workflow graph engine
 ├── projects/                         # Project container and lifecycle
+├── registry/                         # Registry governance, moderation, and compatibility runtime
 ├── artifacts/                        # Versioned binary asset management
 ├── scheduler/                        # Time-triggered and recurring execution
 ├── escalation/                       # Principal notification channels
@@ -412,6 +413,18 @@ Responsibilities:
 * Project lifecycle (create, configure, execute, evolve, archive)
 
 Projects are first-class isolation boundaries.
+
+### registry/
+
+Registry governance, moderation, and compatibility enforcement runtime. Implemented in Phase 10.1 as `@nous/subcortex-registry`.
+
+Responsibilities:
+
+* Canonical registry package, release, maintainer, governance-action, and appeal persistence
+* Signed metadata-chain validation with replay, downgrade, expiry, signer, and digest checks
+* Install/update eligibility projection for lifecycle consumers without taking executable-state authority
+* Moderation ladder and maintainer-governance state transitions
+* Witness-linked registry evidence and reuse of the existing escalation runtime for high-risk blocks
 
 ### artifacts/
 
@@ -689,6 +702,11 @@ Phase 9.7 adds:
 
 - `mao.ts` — density-grid, run-graph, inspect, urgent-overlay, reasoning-preview, and project-control contracts used by MAO and linked surfaces
 
+Phase 10.1 adds:
+
+- `registry.ts` — canonical registry package, release, maintainer, moderation, governance, appeal, metadata-validation, and install-eligibility contracts
+- `nudge.ts` — canonical nudge signal, candidate, decision, and feedback object contracts required by Phase 10.2 consumers
+
 Phase 9.6 adds:
 
 - `project-surface.ts` — canonical project dashboard, configuration snapshot, blocked-action, health-summary, and field-provenance schemas
@@ -727,6 +745,10 @@ Phase 9.6 further expands:
 Phase 9.7 further expands:
 
 - `subcortex.ts` — `IMaoProjectionService` snapshot, inspect, graph, and project-control methods used by the MAO surface and web server
+
+Phase 10.1 further expands:
+
+- `subcortex.ts` — `IRegistryService` submission, metadata validation, install-eligibility, governance, maintainer, and appeal interfaces used by the registry runtime and lifecycle consumers
 
 ### events/
 
@@ -812,7 +834,6 @@ This structure accommodates future additions without restructuring:
 ```
 self/subcortex/
 ├── skills/                           # Skill SDK and runtime
-├── registry/                         # Skill registry and discovery
 └── policy/                           # Advanced policy engine
 
 self/apps/
