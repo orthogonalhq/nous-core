@@ -6,6 +6,7 @@ import { join } from 'node:path';
 import { tmpdir } from 'node:os';
 import { randomUUID } from 'node:crypto';
 import { createNousContext, clearNousContextCache } from '../server/bootstrap';
+import { createProjectConfig } from '../test-support/project-fixtures';
 
 describe('e2e flow', () => {
   beforeAll(async () => {
@@ -17,17 +18,10 @@ describe('e2e flow', () => {
     const ctx = createNousContext();
 
     // Create project
-    const projectId = await ctx.projectStore.create({
+    const projectId = await ctx.projectStore.create(createProjectConfig({
       id: randomUUID() as import('@nous/shared').ProjectId,
       name: 'E2E Test Project',
-      type: 'hybrid',
-      pfcTier: 3,
-      memoryAccessPolicy: { canReadFrom: 'all', canBeReadBy: 'all', inheritsGlobal: true },
-      escalationChannels: ['in-app'],
-      retrievalBudgetTokens: 500,
-      createdAt: new Date().toISOString(),
-      updatedAt: new Date().toISOString(),
-    });
+    }));
 
     const project = await ctx.projectStore.get(projectId);
     expect(project).toBeDefined();

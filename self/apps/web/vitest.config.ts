@@ -1,55 +1,25 @@
-import { defineConfig } from 'vitest/config';
 import path from 'node:path';
+import { fileURLToPath } from 'node:url';
+import { defineConfig } from 'vitest/config';
+
+const __dirname = path.dirname(fileURLToPath(import.meta.url));
 
 export default defineConfig({
-  test: {
-    environment: 'node',
-    include: [
-      'server/**/*.test.ts',
-      '__tests__/**/*.test.ts',
-      '__tests__/**/*.test.tsx',
-    ],
-  },
   resolve: {
     alias: {
-      '@': path.resolve(__dirname, '.'),
+      '@': path.resolve(__dirname),
       '@nous/shared': path.resolve(__dirname, '../../shared/src/index.ts'),
-      '@nous/autonomic-storage': path.resolve(
+      '@nous/subcortex-scheduler': path.resolve(
         __dirname,
-        '../../autonomic/storage/src/index.ts',
+        '../../subcortex/scheduler/src/index.ts',
       ),
-      '@nous/autonomic-embeddings': path.resolve(
+      '@nous/subcortex-escalation': path.resolve(
         __dirname,
-        '../../autonomic/embeddings/src/index.ts',
-      ),
-      '@nous/memory-access': path.resolve(
-        __dirname,
-        '../../memory/access/src/index.ts',
-      ),
-      '@nous/memory-mwc': path.resolve(
-        __dirname,
-        '../../memory/mwc/src/index.ts',
-      ),
-      '@nous/memory-ltm': path.resolve(
-        __dirname,
-        '../../memory/ltm/src/index.ts',
-      ),
-      '@nous/memory-distillation': path.resolve(
-        __dirname,
-        '../../memory/distillation/src/index.ts',
-      ),
-      '@nous/memory-knowledge-index': path.resolve(
-        __dirname,
-        '../../memory/knowledge-index/src/index.ts',
-      ),
-      '@nous/subcortex-tools': path.resolve(
-        __dirname,
-        '../../subcortex/tools/src/index.ts',
-      ),
-      '@nous/subcortex-witnessd': path.resolve(
-        __dirname,
-        '../../subcortex/witnessd/src/index.ts',
+        '../../subcortex/escalation/src/index.ts',
       ),
     },
+  },
+  test: {
+    environment: 'node',
   },
 });

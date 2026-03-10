@@ -9,8 +9,13 @@ import type {
   WorkflowEdgeId,
   WorkflowNodeDefinitionId,
 } from '@nous/shared';
+import { TRPCError } from '@trpc/server';
 import { appRouter } from '../trpc/root';
 import { clearNousContextCache, createNousContext } from '../bootstrap';
+import {
+  createProjectConfig,
+  createScheduleUpsertInput,
+} from '../../test-support/project-fixtures';
 
 const WORKFLOW_ID = '550e8400-e29b-41d4-a716-446655441002' as WorkflowDefinitionId;
 const NODE_A = '550e8400-e29b-41d4-a716-446655441003' as WorkflowNodeDefinitionId;
@@ -69,17 +74,10 @@ async function createProjectWithWorkflow(
   type: 'protocol' | 'intent' | 'hybrid' = 'hybrid',
 ) {
   const projectId = randomUUID() as ProjectId;
-  await ctx.projectStore.create({
+  await ctx.projectStore.create(createProjectConfig({
     id: projectId,
     name: `${type} project`,
     type,
-    pfcTier: 3,
-    memoryAccessPolicy: {
-      canReadFrom: 'all',
-      canBeReadBy: 'all',
-      inheritsGlobal: true,
-    },
-    escalationChannels: ['in-app'],
     workflow:
       type === 'intent'
         ? undefined
@@ -87,10 +85,7 @@ async function createProjectWithWorkflow(
             defaultWorkflowDefinitionId: WORKFLOW_ID,
             definitions: [createWorkflow(projectId)],
           },
-    retrievalBudgetTokens: 500,
-    createdAt: new Date().toISOString(),
-    updatedAt: new Date().toISOString(),
-  });
+  }));
 
   return projectId;
 }
@@ -101,7 +96,7 @@ describe('projects router', () => {
     clearNousContextCache();
   });
 
-  it('returns a live workflow snapshot with canonical artifacts and traces', async () => {
+  it('returns a live dashboard snapshot with canonical workflow, schedule, and escalation truth', async () => {
     const ctx = createNousContext();
     const caller = appRouter.createCaller(ctx);
     const projectId = await createProjectWithWorkflow(ctx);
@@ -155,49 +150,107 @@ describe('projects router', () => {
       ],
     });
 
-    const snapshot = await caller.projects.workflowSnapshot({ projectId });
+    await ctx.schedulerService.upsert(createScheduleUpsertInput({
+      projectId,
+      workflowDefinitionId: WORKFLOW_ID,
+      workmodeId: 'system:implementation',
+      trigger: {
+        kind: 'cron',
+        cron: '0 * * * *',
+      },
+    }));
+    await ctx.escalationService.notify({
+      context: 'Workflow blocked on review',
+      triggerReason: 'review_required',
+      requiredAction: 'Review and resume',
+      channel: 'in-app',
+      projectId,
+      priority: 'high',
+      timestamp: '2026-03-09T19:05:00.000Z',
+    });
 
-    expect(snapshot.runtimeAvailability).toBe('live');
-    expect(snapshot.activeRunState?.runId).toBe(started.runState.runId);
-    expect(snapshot.nodeProjections[0]?.artifactRefs.length).toBe(1);
-    expect(snapshot.recentTraces[0]?.traceId).toBe(TRACE_ID);
-    expect(snapshot.controlProjection?.project_id).toBe(projectId);
+    const dashboard = await caller.projects.dashboardSnapshot({ projectId });
+
+    expect(dashboard.workflowSnapshot?.runtimeAvailability).toBe('live');
+    expect(dashboard.schedules).toHaveLength(1);
+    expect(dashboard.openEscalations).toHaveLength(1);
+    expect(dashboard.health.enabledScheduleCount).toBe(1);
+    expect(dashboard.controlProjection?.project_id).toBe(projectId);
   });
 
-  it('returns structured validation issues and persists valid workflow updates', async () => {
+  it('returns configuration snapshots and persists governed configuration and schedule updates', async () => {
     const ctx = createNousContext();
     const caller = appRouter.createCaller(ctx);
     const projectId = await createProjectWithWorkflow(ctx);
 
-    const invalid = await caller.projects.validateWorkflowDefinition({
+    const snapshot = await caller.projects.configurationSnapshot({ projectId });
+    expect(snapshot.fieldProvenance.some((entry) => entry.field === 'memoryAccessPolicy')).toBe(
+      true,
+    );
+
+    const updated = await caller.projects.updateConfiguration({
       projectId,
-      workflowDefinition: {
-        ...createWorkflow(randomUUID() as ProjectId),
-        entryNodeIds: ['550e8400-e29b-41d4-a716-446655441099'] as any,
+      expectedUpdatedAt: snapshot.updatedAt,
+      updates: {
+        type: 'protocol',
+        governanceDefaults: {
+          defaultNodeGovernance: 'should',
+          requireExplicitReviewForShouldDeviation: true,
+          blockedActionFeedbackMode: 'reason_coded',
+        },
+        memoryAccessPolicy: {
+          canReadFrom: 'none',
+          canBeReadBy: 'all',
+          inheritsGlobal: false,
+        },
+        retrievalBudgetTokens: 750,
       },
     });
 
-    expect(invalid.valid).toBe(false);
+    expect(updated.config.type).toBe('protocol');
+    expect(updated.config.memoryAccessPolicy.canReadFrom).toBe('none');
+
+    const schedule = await caller.projects.upsertSchedule({
+      projectId,
+      workflowDefinitionId: WORKFLOW_ID,
+      workmodeId: 'system:implementation',
+      trigger: {
+        kind: 'cron',
+        cron: '30 * * * *',
+      },
+      enabled: true,
+    });
+    expect(schedule.trigger).toEqual({
+      kind: 'cron',
+      cron: '30 * * * *',
+    });
+  });
+
+  it('blocks configuration edits when the project control state is hard stopped', async () => {
+    const ctx = createNousContext();
+    const caller = appRouter.createCaller(ctx);
+    const projectId = await createProjectWithWorkflow(ctx);
+
+    ctx.opctlService.getProjectControlState = async () => 'hard_stopped';
+
+    const snapshot = await caller.projects.configurationSnapshot({ projectId });
     expect(
-      invalid.issues.some((issue) =>
-        [
-          'workflow_definition_project_mismatch',
-          'workflow_entry_node_missing',
-        ].includes(issue.code),
+      snapshot.blockedActions.some(
+        (action) =>
+          action.action === 'edit_project_configuration' && !action.allowed,
       ),
     ).toBe(true);
 
-    const saveResult = await caller.projects.saveWorkflowDefinition({
-      projectId,
-      workflowDefinition: createWorkflow(projectId, '1.0.1'),
-      setAsDefault: true,
-    });
-
-    expect(saveResult.validation.valid).toBe(true);
-    expect(
-      saveResult.project.workflow?.definitions.find((definition) => definition.id === WORKFLOW_ID)
-        ?.version,
-    ).toBe('1.0.1');
+    await expect(
+      caller.projects.updateConfiguration({
+        projectId,
+        updates: {
+          pfcTier: 4,
+        },
+      }),
+    ).rejects.toMatchObject({
+      code: 'FORBIDDEN',
+    } satisfies Partial<TRPCError>);
   });
 
   it('preserves inspect-first no-definition posture for intent projects', async () => {

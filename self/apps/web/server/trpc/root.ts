@@ -14,9 +14,11 @@ import { opctlRouter } from './routers/opctl';
 import { maoRouter } from './routers/mao';
 import { gtmRouter } from './routers/gtm';
 import { discoveryRouter } from './routers/discovery';
+import { escalationsRouter } from './routers/escalations';
 
 export const appRouter = router({
   projects: projectsRouter,
+  escalations: escalationsRouter,
   chat: chatRouter,
   traces: tracesRouter,
   memory: memoryRouter,

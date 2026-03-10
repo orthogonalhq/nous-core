@@ -35,6 +35,7 @@ import {
 import { CoreExecutor } from '@nous/cortex-core';
 import { DocumentProjectStore } from '@nous/subcortex-projects';
 import { DocumentArtifactStore } from '@nous/subcortex-artifacts';
+import { DocumentEscalationStore, EscalationService } from '@nous/subcortex-escalation';
 import { ModelRouter } from '@nous/subcortex-router';
 import { ProviderRegistry } from '@nous/subcortex-providers';
 import {
@@ -43,6 +44,7 @@ import {
   RefreshProjectKnowledgeTool,
   ToolExecutor,
 } from '@nous/subcortex-tools';
+import { DocumentScheduleStore, SchedulerService } from '@nous/subcortex-scheduler';
 import { DeterministicWorkflowEngine } from '@nous/subcortex-workflows';
 import { WitnessService } from '@nous/subcortex-witnessd';
 import {
@@ -172,6 +174,8 @@ export function createNousContext(): NousContext {
   });
   const projectStore = new DocumentProjectStore(documentStore);
   const artifactStore = new DocumentArtifactStore(documentStore);
+  const scheduleStore = new DocumentScheduleStore(documentStore);
+  const escalationStore = new DocumentEscalationStore(documentStore);
   const witnessService = new WitnessService(documentStore);
   const opctlService = new OpctlService({
     replayStore: new InMemoryReplayStore(),
@@ -228,6 +232,23 @@ export function createNousContext(): NousContext {
     modelRouter: router,
     toolExecutor,
   });
+  const schedulerService = new SchedulerService({
+    scheduleStore,
+    projectStore,
+    ingressGateway: {
+      submit: async (envelope) => ({
+        outcome: 'rejected',
+        reason: 'workflow_admission_blocked',
+        reason_code: 'web_bootstrap_ingress_unwired',
+        evidence_ref: `ingress:${envelope.trigger_id}`,
+        evidence_refs: ['web bootstrap does not wire ingress dispatch'],
+      }),
+    },
+  });
+  const escalationService = new EscalationService({
+    escalationStore,
+    projectStore,
+  });
 
   const getProvider = (id: ProviderId) => {
     // Explicitly route the synthetic fallback provider to the in-process mock.
@@ -274,6 +295,8 @@ export function createNousContext(): NousContext {
     knowledgeIndex,
     workflowEngine,
     artifactStore,
+    schedulerService,
+    escalationService,
     dataDir,
   };
 
