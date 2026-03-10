@@ -110,6 +110,21 @@ import type {
   RegistryAppealSubmissionInput,
   RegistryAppealResolutionInput,
   RegistryAppealRecord,
+  NudgeSignalRecordInput,
+  NudgeSignalRecord,
+  NudgeCandidateGenerationInput,
+  NudgeCandidateGenerationResult,
+  NudgeRankingRequest,
+  NudgeRankingResult,
+  NudgeSuppressionCheckRequest,
+  NudgeSuppressionCheckResult,
+  NudgeDeliveryRecordInput,
+  NudgeDeliveryRecord,
+  NudgeFeedbackRecordInput,
+  NudgeFeedbackRecord,
+  NudgeAcceptanceRouteRequest,
+  NudgeAcceptanceRouteResult,
+  NudgeRankingPolicy,
 } from '../types/index.js';
 import type { NousEvent } from '../events/index.js';
 
@@ -321,6 +336,38 @@ export interface IRegistryService {
   resolveAppeal(
     input: RegistryAppealResolutionInput,
   ): Promise<RegistryAppealRecord>;
+}
+
+export interface INudgeDiscoveryService {
+  /** Record a canonical discovery signal with evidence linkage. */
+  recordSignal(input: NudgeSignalRecordInput): Promise<NudgeSignalRecord>;
+
+  /** Generate candidate envelopes from signal-linked seeds and registry/policy posture. */
+  generateCandidates(
+    input: NudgeCandidateGenerationInput,
+  ): Promise<NudgeCandidateGenerationResult>;
+
+  /** Rank candidates using a governed ranking policy and optional PFC evaluation. */
+  rankCandidates(input: NudgeRankingRequest): Promise<NudgeRankingResult>;
+
+  /** Evaluate cross-surface suppression state for a candidate and delivery surface. */
+  evaluateSuppression(
+    input: NudgeSuppressionCheckRequest,
+  ): Promise<NudgeSuppressionCheckResult>;
+
+  /** Persist a canonical delivery or delivery-block record. */
+  recordDelivery(input: NudgeDeliveryRecordInput): Promise<NudgeDeliveryRecord>;
+
+  /** Persist explicit user feedback that may inform future ranking state. */
+  recordFeedback(input: NudgeFeedbackRecordInput): Promise<NudgeFeedbackRecord>;
+
+  /** Route acceptance into advisory acknowledgement or runtime authorization seams. */
+  routeAcceptance(
+    input: NudgeAcceptanceRouteRequest,
+  ): Promise<NudgeAcceptanceRouteResult>;
+
+  /** Retrieve the current or explicitly selected ranking policy. */
+  getRankingPolicy(policyVersion?: string): Promise<NudgeRankingPolicy>;
 }
 
 export interface ISandbox {

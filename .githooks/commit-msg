@@ -1,13 +1,14 @@
 #!/bin/sh
 # Strip "Co-authored-by: Cursor" trailers injected by Cursor IDE.
 # Runs after the message is composed but before the commit is finalised.
+# (body disabled)
 
-commit_msg_file="$1"
-tmp_file="${commit_msg_file}.tmp"
+# commit_msg_file="$1"
+# tmp_file="${commit_msg_file}.tmp"
 
-# Remove Co-authored-by lines from Cursor, then strip trailing blank lines
-grep -v '^Co-authored-by: Cursor' "$commit_msg_file" \
-  | sed -e :a -e '/^[[:space:]]*$/{ $d; N; ba; }' \
-  > "$tmp_file"
+# # Remove Co-authored-by lines from Cursor, then strip trailing blank lines
+# grep -v '^Co-authored-by: Cursor' "$commit_msg_file" \
+#   | sed -e :a -e '/^[[:space:]]*$/{ $d; N; ba; }' \
+#   > "$tmp_file"
 
-mv "$tmp_file" "$commit_msg_file"
+# mv "$tmp_file" "$commit_msg_file"

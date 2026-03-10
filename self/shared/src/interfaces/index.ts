@@ -22,6 +22,7 @@ export type {
   IScheduler,
   IEscalationService,
   IRegistryService,
+  INudgeDiscoveryService,
   ISandbox,
   IPackageLifecycleOrchestrator,
   ISkillAdmissionOrchestrator,
