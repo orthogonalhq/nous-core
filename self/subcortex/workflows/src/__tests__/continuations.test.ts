@@ -114,6 +114,21 @@ describe('resolveWorkflowContinuation', () => {
     expect(result.waitState?.kind).toBe('async_batch');
   });
 
+  it('keeps resuming continuations waiting until readiness completes', () => {
+    const result = resolveWorkflowContinuation(
+      createInput({
+        request: {
+          ...createInput().request,
+          controlState: 'resuming',
+        },
+      }),
+    );
+
+    expect(result.outcome).toBe('waiting');
+    expect(result.reasonCode).toBe('workflow_wait_resuming');
+    expect(result.waitState?.kind).toBe('async_batch');
+  });
+
   it('maps rejected human decisions to rollback blocking', () => {
     const result = resolveWorkflowContinuation(
       createInput({

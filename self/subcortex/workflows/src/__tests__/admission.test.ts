@@ -38,6 +38,17 @@ describe('evaluateWorkflowAdmission', () => {
     });
   });
 
+  it('blocks resuming projects until readiness passes', () => {
+    const result = evaluateWorkflowAdmission({
+      ...baseRequest(),
+      controlState: 'resuming',
+    });
+    expect(result).toMatchObject({
+      allowed: false,
+      reasonCode: 'OPCTL-INVALID-STATE',
+    });
+  });
+
   it('blocks worker-sourced admission', () => {
     const result = evaluateWorkflowAdmission({
       ...baseRequest(),

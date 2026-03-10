@@ -5,6 +5,7 @@ import {
   InMemoryReplayStore,
   InMemoryStartLockStore,
   InMemoryScopeLockStore,
+  InMemoryProjectControlStateStore,
 } from '../index.js';
 import type {
   ControlCommandEnvelope,
@@ -138,5 +139,41 @@ describe('OpctlService', () => {
     expect(await svc.hasStartLock(PROJECT_ID)).toBe(true);
     await svc.setStartLock(PROJECT_ID, false, 'principal');
     expect(await svc.hasStartLock(PROJECT_ID)).toBe(false);
+  });
+
+  it('resume command clears hard stop lock and moves project into resuming', async () => {
+    const startLockStore = new InMemoryStartLockStore();
+    const projectControlStateStore = new InMemoryProjectControlStateStore();
+    const svc = new OpctlService({
+      replayStore: new InMemoryReplayStore(),
+      startLockStore,
+      scopeLockStore: new InMemoryScopeLockStore(),
+      projectControlStateStore,
+      witnessService: mockWitnessService(),
+    });
+
+    const hardStopEnvelope = createEnvelope({ action: 'hard_stop' });
+    const hardStopProof = await svc.requestConfirmationProof({
+      scope: hardStopEnvelope.scope,
+      action: 'hard_stop',
+      tier: 'T3',
+      reason: 'Hard stop for investigation',
+    });
+    const hardStopResult = await svc.submitCommand(hardStopEnvelope, hardStopProof);
+    expect(hardStopResult.status).toBe('applied');
+    expect(await svc.hasStartLock(PROJECT_ID)).toBe(true);
+    expect(await svc.getProjectControlState(PROJECT_ID)).toBe('hard_stopped');
+
+    const resumeEnvelope = createEnvelope({ action: 'resume', actor_seq: 2 });
+    const resumeProof = await svc.requestConfirmationProof({
+      scope: resumeEnvelope.scope,
+      action: 'resume',
+      tier: 'T3',
+      reason: 'Resume after review',
+    });
+    const resumeResult = await svc.submitCommand(resumeEnvelope, resumeProof);
+    expect(resumeResult.status).toBe('applied');
+    expect(await svc.hasStartLock(PROJECT_ID)).toBe(false);
+    expect(await svc.getProjectControlState(PROJECT_ID)).toBe('resuming');
   });
 });
