@@ -71,6 +71,28 @@ It only records the acknowledgement on the canonical escalation record. If the u
 
 Project control state may still block configuration or schedule edits elsewhere, but escalation acknowledgement remains available so operators can record awareness even while the project is paused or hard stopped.
 
+## MAO Reasoning Handoff (Phase 9.7)
+
+Phase 9.7 extends chat with MAO-origin continuity instead of a second reasoning transcript model.
+
+When chat is opened from an MAO inspect view, the page now preserves:
+
+- The linked project, run, and node context
+- The reasoning-preview reference and primary evidence ref passed from MAO
+- A return path back to the originating MAO context
+
+The chat page can show the handoff and the shared escalation queue, but it still does not own private chain-of-thought or a chat-local recovery state.
+
+### Reasoning Preview Boundary
+
+MAO reasoning previews are evidence-derived summaries. Chat may receive:
+
+- The preview evidence reference
+- The redaction-aware summary context
+- Linked workflow scope for the affected run or node
+
+Chat must not receive or display hidden private reasoning beyond that redaction-aware preview contract.
+
 ## Via CLI
 
 ```bash

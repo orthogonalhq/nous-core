@@ -122,6 +122,30 @@ Acknowledgement is shared across surfaces. If you acknowledge an escalation in P
 
 The Projects surface can configure schedules and inspect dashboard truth, but the web process is not the canonical autonomous scheduler executor. Actual due-schedule dispatch remains outside the web bootstrap seam and still flows through the canonical ingress and workflow-admission path.
 
+## MAO Continuity and Project-Scope Controls (Phase 9.7)
+
+Phase 9.7 keeps the Projects surface as a governed continuation surface for MAO rather than turning Projects into a second observability backend.
+
+When you arrive from MAO, the Projects page now preserves:
+
+- The linked project, run, and node context
+- Evidence and reasoning continuity through an MAO handoff banner
+- A direct return path back to the originating MAO context
+
+The dashboard and workflow monitor still read canonical server projections. MAO is allowed to hand off context into Projects, but Projects does not create its own copy of MAO state.
+
+### What the Projects Surface Shows from MAO
+
+- The current project control posture, including `running`, `paused_review`, `hard_stopped`, and `resuming`
+- Workflow evidence continuity for the linked run and node
+- A canonical route back into the MAO surface for deeper density-grid or run-graph inspection
+
+### What It Does Not Do
+
+- It does not resume or override project control state by itself
+- It does not duplicate reasoning-log preview storage
+- It does not invent a second project-health model separate from the dashboard and workflow projections returned by the server
+
 ## Workflow Run State
 
 Before a workflow run starts, the runtime:

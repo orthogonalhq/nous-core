@@ -1,6 +1,6 @@
 ---
 title: Interaction Surfaces
-description: The three primary user interfaces for interacting with Nous
+description: The primary user interfaces for interacting with Nous
 ---
 
 # Interaction Surfaces
@@ -122,6 +122,36 @@ All complexity levels use the same editor. The interface scales with the project
 
 ---
 
+## Surface 4 — MAO Operator Surface
+
+The dense observability and project-control surface.
+
+### Purpose
+
+Monitoring multi-agent workflow posture at a glance, inspecting blocked or failed agents, tracing corrective arcs, and applying governed project-scope controls from canonical runtime truth.
+
+### Characteristics
+
+- Density-aware D0-D4 agent projections
+- Inspect-first behavior at higher densities
+- Canonical run-graph lineage and corrective-arc visibility
+- Urgent and blocked overlays derived from runtime/control truth
+- Evidence-derived reasoning-log previews with redaction posture
+- Governed project-scope `Pause Project`, `Resume Project`, and `Hard Stop Project` controls
+
+### Cross-Surface Role
+
+MAO is not a separate control plane. It is a projection and control surface over:
+
+- Workflow runtime truth
+- Operator-control truth
+- Escalation truth
+- Evidence and reasoning-preview truth
+
+It can deep-link into Projects, Chat, and Traces while preserving project, run, node, and evidence continuity.
+
+---
+
 ## Automation Gateway (Phase 5.3)
 
 The programmatic trigger surface for scheduled runs, internal hooks, and external webhooks.
@@ -148,7 +178,7 @@ Triggering Nous workflows without user interaction. Cron jobs, CI/CD hooks, and 
 
 ## Surface Continuity
 
-The three surfaces are not isolated applications. They are windows into the same system.
+The surfaces are not isolated applications. They are windows into the same system.
 
 ### Shared State
 
@@ -166,8 +196,9 @@ A typical cross-surface flow:
 
 1. Nous escalates via **Secure Messaging**: "Persona Engine — identity grid failed validation"
 2. User taps through to the **Chat Interface** for that project to ask follow-up questions
-3. User opens the **Projects UI** to inspect the failed node, adjust the governance threshold, and approve a retry
-4. Nous resumes execution
+3. User opens the **MAO operator surface** to identify the blocked agent and inspect its reasoning preview
+4. User follows into the **Projects UI** to inspect the same run and node context, or into **Chat** for escalation follow-up
+5. Nous resumes execution only through the governed control path
 
 The user moves between surfaces fluidly. Nous maintains continuity.
 
