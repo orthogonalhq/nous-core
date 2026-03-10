@@ -73,8 +73,15 @@ import type {
   ControlActorType,
   ProjectControlState,
   MaoAgentProjection,
+  MaoAgentInspectInput,
+  MaoAgentInspectProjection,
+  MaoProjectControlRequest,
+  MaoProjectControlResult,
   MaoProjectControlProjection,
+  MaoProjectSnapshot,
+  MaoProjectSnapshotInput,
   MaoEventType,
+  MaoRunGraphSnapshot,
   GtmGateReportInput,
   GtmGateReport,
   GtmStageLabel,
@@ -478,6 +485,27 @@ export interface IMaoProjectionService {
   getProjectControlProjection(
     projectId: ProjectId,
   ): Promise<MaoProjectControlProjection | null>;
+
+  /** Derive the full MAO operating-surface snapshot for a project. */
+  getProjectSnapshot(
+    input: MaoProjectSnapshotInput,
+  ): Promise<MaoProjectSnapshot>;
+
+  /** Derive inspect data for a selected MAO agent projection. */
+  getAgentInspectProjection(
+    input: MaoAgentInspectInput,
+  ): Promise<MaoAgentInspectProjection | null>;
+
+  /** Derive the canonical run-graph snapshot used by MAO graph views. */
+  getRunGraphSnapshot(
+    input: MaoProjectSnapshotInput,
+  ): Promise<MaoRunGraphSnapshot>;
+
+  /** Submit a project-scope control request from the MAO surface. */
+  requestProjectControl(
+    input: MaoProjectControlRequest,
+    confirmationProof?: ConfirmationProof,
+  ): Promise<MaoProjectControlResult>;
 
   /** Emit MAO projection event (witness-linked). */
   emitProjectionEvent(
