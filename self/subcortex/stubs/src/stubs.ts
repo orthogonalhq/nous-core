@@ -74,6 +74,22 @@ import type {
   RegistryAppealSubmissionInput,
   RegistryAppealResolutionInput,
   RegistryAppealRecord,
+  INudgeDiscoveryService,
+  NudgeSignalRecordInput,
+  NudgeSignalRecord,
+  NudgeCandidateGenerationInput,
+  NudgeCandidateGenerationResult,
+  NudgeRankingRequest,
+  NudgeRankingResult,
+  NudgeSuppressionCheckRequest,
+  NudgeSuppressionCheckResult,
+  NudgeDeliveryRecordInput,
+  NudgeDeliveryRecord,
+  NudgeFeedbackRecordInput,
+  NudgeFeedbackRecord,
+  NudgeAcceptanceRouteRequest,
+  NudgeAcceptanceRouteResult,
+  NudgeRankingPolicy,
   SandboxPayload,
   SandboxResult,
   MemoryScope,
@@ -317,6 +333,62 @@ export class StubRegistryService implements IRegistryService {
     _input: RegistryAppealResolutionInput,
   ): Promise<RegistryAppealRecord> {
     return stubNotImpl('IRegistryService', 'resolveAppeal', 'Phase 10.1');
+  }
+}
+
+export class StubNudgeDiscoveryService implements INudgeDiscoveryService {
+  async recordSignal(
+    _input: NudgeSignalRecordInput,
+  ): Promise<NudgeSignalRecord> {
+    return stubNotImpl('INudgeDiscoveryService', 'recordSignal', 'Phase 10.2');
+  }
+
+  async generateCandidates(
+    _input: NudgeCandidateGenerationInput,
+  ): Promise<NudgeCandidateGenerationResult> {
+    return stubNotImpl(
+      'INudgeDiscoveryService',
+      'generateCandidates',
+      'Phase 10.2',
+    );
+  }
+
+  async rankCandidates(
+    _input: NudgeRankingRequest,
+  ): Promise<NudgeRankingResult> {
+    return stubNotImpl('INudgeDiscoveryService', 'rankCandidates', 'Phase 10.2');
+  }
+
+  async evaluateSuppression(
+    _input: NudgeSuppressionCheckRequest,
+  ): Promise<NudgeSuppressionCheckResult> {
+    return stubNotImpl(
+      'INudgeDiscoveryService',
+      'evaluateSuppression',
+      'Phase 10.2',
+    );
+  }
+
+  async recordDelivery(
+    _input: NudgeDeliveryRecordInput,
+  ): Promise<NudgeDeliveryRecord> {
+    return stubNotImpl('INudgeDiscoveryService', 'recordDelivery', 'Phase 10.2');
+  }
+
+  async recordFeedback(
+    _input: NudgeFeedbackRecordInput,
+  ): Promise<NudgeFeedbackRecord> {
+    return stubNotImpl('INudgeDiscoveryService', 'recordFeedback', 'Phase 10.2');
+  }
+
+  async routeAcceptance(
+    _input: NudgeAcceptanceRouteRequest,
+  ): Promise<NudgeAcceptanceRouteResult> {
+    return stubNotImpl('INudgeDiscoveryService', 'routeAcceptance', 'Phase 10.2');
+  }
+
+  async getRankingPolicy(_policyVersion?: string): Promise<NudgeRankingPolicy> {
+    return stubNotImpl('INudgeDiscoveryService', 'getRankingPolicy', 'Phase 10.2');
   }
 }
 

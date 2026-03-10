@@ -6,6 +6,7 @@ export {
   StubArtifactStore,
   StubScheduler,
   StubEscalationService,
+  StubNudgeDiscoveryService,
   StubSandbox,
   type StubSandboxOptions,
   StubProjectApi,
