@@ -1,5 +1,10 @@
 import { describe, expect, it, vi } from 'vitest';
-import type { IIngressGateway, IProjectStore, ProjectConfig } from '@nous/shared';
+import {
+  ProjectConfigSchema,
+  type IIngressGateway,
+  type IProjectStore,
+  type ProjectConfig,
+} from '@nous/shared';
 import { DocumentScheduleStore } from '../document-schedule-store.js';
 import { IngressEnvelopeBuilder } from '../ingress-envelope-builder.js';
 import { SchedulerService } from '../scheduler-service.js';
@@ -45,7 +50,7 @@ function createProjectStore(projectConfig: ProjectConfig): IProjectStore {
   };
 }
 
-const projectConfig = {
+const projectConfig = ProjectConfigSchema.parse({
   id: PROJECT_ID,
   name: 'Scheduler Project',
   type: 'hybrid' as const,
@@ -87,7 +92,7 @@ const projectConfig = {
   retrievalBudgetTokens: 500,
   createdAt: '2026-03-08T00:00:00.000Z',
   updatedAt: '2026-03-08T00:00:00.000Z',
-} as const;
+});
 
 function createSchedule(overrides: Record<string, unknown> = {}) {
   return {
@@ -213,5 +218,55 @@ describe('SchedulerService', () => {
     expect(vi.mocked(ingressGateway.submit).mock.calls[1]?.[0]?.trigger_type).toBe(
       'system_event',
     );
+  });
+
+  it('upserts schedules without delete/recreate churn', async () => {
+    const ingressGateway: IIngressGateway = {
+      submit: vi.fn(async () => ({
+        outcome: 'accepted_dispatched' as const,
+        run_id: '550e8400-e29b-41d4-a716-446655441108' as any,
+        dispatch_ref: 'dispatch:upsert',
+        workflow_ref: WORKFLOW_ID,
+        policy_ref: 'policy:workflow',
+        evidence_ref: 'evidence:workflow',
+      })),
+    };
+    const scheduleStore = new DocumentScheduleStore(createMemoryDocumentStore() as any);
+    const service = new SchedulerService({
+      scheduleStore,
+      projectStore: createProjectStore(projectConfig as any),
+      ingressGateway,
+      now: () => new Date('2026-03-08T00:00:00.000Z'),
+    });
+
+    const created = await service.upsert({
+      projectId: PROJECT_ID as any,
+      workflowDefinitionId: WORKFLOW_ID as any,
+      workmodeId: 'system:implementation',
+      trigger: {
+        kind: 'cron',
+        cron: '0 * * * *',
+      },
+      enabled: true,
+      requestedDeliveryMode: 'none',
+    });
+    const updated = await service.upsert({
+      id: created.id,
+      projectId: PROJECT_ID as any,
+      workflowDefinitionId: WORKFLOW_ID as any,
+      workmodeId: 'system:implementation',
+      trigger: {
+        kind: 'cron',
+        cron: '30 * * * *',
+      },
+      enabled: true,
+      requestedDeliveryMode: 'none',
+    });
+
+    expect(updated.id).toBe(created.id);
+    expect(updated.trigger).toEqual({
+      kind: 'cron',
+      cron: '30 * * * *',
+    });
   });
 });

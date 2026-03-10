@@ -1,5 +1,10 @@
 import { describe, expect, it, vi } from 'vitest';
-import type { IIngressGateway, IProjectStore, ProjectConfig } from '@nous/shared';
+import {
+  ProjectConfigSchema,
+  type IIngressGateway,
+  type IProjectStore,
+  type ProjectConfig,
+} from '@nous/shared';
 import { DocumentScheduleStore } from '../document-schedule-store.js';
 import { SchedulerService } from '../scheduler-service.js';
 
@@ -47,7 +52,7 @@ function createProjectStore(projects: ProjectConfig[]): IProjectStore {
 }
 
 function createProjectConfig(id: string, workflowId: string): ProjectConfig {
-  return {
+  return ProjectConfigSchema.parse({
     id: id as any,
     name: `Project ${id.slice(-4)}`,
     type: 'hybrid',
@@ -89,7 +94,7 @@ function createProjectConfig(id: string, workflowId: string): ProjectConfig {
     retrievalBudgetTokens: 500,
     createdAt: '2026-03-08T00:00:00.000Z',
     updatedAt: '2026-03-08T00:00:00.000Z',
-  };
+  });
 }
 
 describe('scheduler discovery refresh integration', () => {

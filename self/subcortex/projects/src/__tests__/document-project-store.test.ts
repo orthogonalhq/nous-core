@@ -79,6 +79,8 @@ describe('DocumentProjectStore', () => {
     expect(got).not.toBeNull();
     expect(got?.name).toBe('Test Project');
     expect(got?.workflow?.defaultWorkflowDefinitionId).toBe(WORKFLOW_ID);
+    expect(got?.governanceDefaults.defaultNodeGovernance).toBe('must');
+    expect(got?.escalationPreferences.mirrorToChat).toBe(true);
   });
 
   it('get() returns null for non-existent project', async () => {
@@ -109,11 +111,24 @@ describe('DocumentProjectStore', () => {
 
   it('update() merges changes', async () => {
     await store.create(createProjectConfig());
-    await store.update(PROJECT_ID, { name: 'Updated Name' });
+    await store.update(PROJECT_ID, {
+      name: 'Updated Name',
+      escalationPreferences: {
+        routeByPriority: {
+          low: ['projects'],
+          medium: ['projects'],
+          high: ['projects', 'chat'],
+          critical: ['projects', 'chat', 'mao'],
+        },
+        acknowledgementSurfaces: ['projects', 'chat'],
+        mirrorToChat: false,
+      },
+    } as any);
 
     const got = await store.get(PROJECT_ID);
     expect(got?.name).toBe('Updated Name');
     expect(got?.workflow?.definitions).toHaveLength(1);
+    expect(got?.escalationPreferences.mirrorToChat).toBe(false);
   });
 
   it('update() preserves workflow definitions when updating workflow', async () => {
