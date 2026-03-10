@@ -24,7 +24,7 @@ export const validateTransitionRoute = (
 export const evaluateTransitionGuards = (
   request: PackageLifecycleTransitionRequest,
 ): PackageLifecycleReasonCode | null => {
-  const { admission, compatibility, capability } = request;
+  const { admission, compatibility, capability, registry_eligibility } = request;
 
   if (admission) {
     if (!admission.signature_valid) {
@@ -57,6 +57,24 @@ export const evaluateTransitionGuards = (
     !capability.reapproval_granted
   ) {
     return 'PKG-002-CAP_EXPANSION_PENDING';
+  }
+
+  if (registry_eligibility) {
+    if (registry_eligibility.requires_principal_override) {
+      return 'MKT-004-PRINCIPAL_OVERRIDE_REQUIRED';
+    }
+
+    if (registry_eligibility.block_reason_codes.length > 0) {
+      return registry_eligibility.block_reason_codes[0] as PackageLifecycleReasonCode;
+    }
+
+    if (!registry_eligibility.metadata_valid) {
+      return 'MKT-008-METADATA_DIGEST_MISMATCH';
+    }
+
+    if (registry_eligibility.compatibility_state === 'blocked_incompatible') {
+      return 'MKT-007-COMPATIBILITY_BLOCKED';
+    }
   }
 
   return null;

@@ -3,6 +3,7 @@
  */
 import { z } from 'zod';
 import { OriginClassSchema } from './package-manifest.js';
+import { RegistryInstallEligibilitySnapshotSchema } from './registry.js';
 
 export const PACKAGE_LIFECYCLE_EVENT_TYPES = [
   'pkg_ingest_received',
@@ -71,13 +72,35 @@ export const PACKAGE_LIFECYCLE_REASON_CODES = {
     'self_created_local package imported across instances requires re-trust.',
   'PKG-008-IMPORT_VERIFICATION_PENDING':
     'Import remains blocked until receiving instance re-verifies package.',
+  'MKT-002-UNREGISTERED_EXTERNAL':
+    'Registry eligibility blocked an unregistered external package.',
+  'MKT-004-PRINCIPAL_OVERRIDE_REQUIRED':
+    'Registry eligibility requires explicit Principal override approval.',
+  'MKT-006-DISTRIBUTION_BLOCKED':
+    'Registry distribution or moderation posture blocks installation.',
+  'MKT-007-COMPATIBILITY_BLOCKED':
+    'Registry compatibility evaluation blocks installation or update.',
+  'MKT-008-METADATA_STALE':
+    'Registry metadata is stale and no longer trusted.',
+  'MKT-008-METADATA_REPLAYED':
+    'Registry metadata replay was detected.',
+  'MKT-008-METADATA_DOWNGRADED':
+    'Registry metadata version downgrade was detected.',
+  'MKT-008-METADATA_EXPIRED':
+    'Registry metadata expired before validation completed.',
+  'MKT-008-METADATA_DIGEST_MISMATCH':
+    'Registry metadata or artifact digest mismatch was detected.',
+  'MKT-008-SIGNER_REVOKED':
+    'Registry signer key is revoked.',
+  'MKT-008-SIGNER_UNKNOWN':
+    'Registry signer key is not trusted.',
   'API-003-PKG_TYPE_INVALID':
     'Manifest package_type is malformed, ambiguous, or unsupported.',
 } as const;
 
 export const PackageLifecycleReasonCodeSchema = z
   .string()
-  .regex(/^(PKG-00[1-8]|API-003)-[A-Z0-9][A-Z0-9_-]*$/);
+  .regex(/^(PKG-00[1-8]|MKT-00[1-9]|API-003)-[A-Z0-9][A-Z0-9_-]*$/);
 export type PackageLifecycleReasonCode = z.infer<
   typeof PackageLifecycleReasonCodeSchema
 >;
@@ -235,6 +258,7 @@ export const PackageLifecycleTransitionRequestSchema = z.object({
   admission: PackageLifecycleAdmissionInputSchema.optional(),
   compatibility: PackageLifecycleCompatibilityInputSchema.optional(),
   capability: PackageLifecycleCapabilityInputSchema.optional(),
+  registry_eligibility: RegistryInstallEligibilitySnapshotSchema.optional(),
   update_checks: PackageLifecycleUpdateChecksSchema.optional(),
   rollback: PackageLifecycleRollbackInputSchema.optional(),
   checkpoint_ref: z.string().min(1).optional(),

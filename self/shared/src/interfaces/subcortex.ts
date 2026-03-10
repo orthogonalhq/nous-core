@@ -98,6 +98,18 @@ import type {
   SkillBenchEvaluationResult,
   SkillContractValidationRequest,
   SkillContractValidationResult,
+  RegistryReleaseSubmissionInput,
+  RegistryReleaseSubmissionResult,
+  RegistryMetadataValidationInput,
+  RegistryMetadataValidationResult,
+  RegistryEligibilityRequest,
+  RegistryInstallEligibilitySnapshot,
+  RegistryGovernanceActionInput,
+  RegistryGovernanceAction,
+  MaintainerIdentity,
+  RegistryAppealSubmissionInput,
+  RegistryAppealResolutionInput,
+  RegistryAppealRecord,
 } from '../types/index.js';
 import type { NousEvent } from '../events/index.js';
 
@@ -265,6 +277,50 @@ export interface IEscalationService {
   acknowledge(
     input: AcknowledgeInAppEscalationInput,
   ): Promise<InAppEscalationRecord | null>;
+}
+
+export interface IRegistryService {
+  /** Submit a release into the registry intake pipeline. */
+  submitRelease(
+    input: RegistryReleaseSubmissionInput,
+  ): Promise<RegistryReleaseSubmissionResult>;
+
+  /** Retrieve a registry package by canonical package identity. */
+  getPackage(packageId: string): Promise<import('../types/index.js').RegistryPackage | null>;
+
+  /** Retrieve a registry release by canonical release identity. */
+  getRelease(releaseId: string): Promise<import('../types/index.js').RegistryRelease | null>;
+
+  /** List all known releases for a package, newest first. */
+  listReleases(packageId: string): Promise<import('../types/index.js').RegistryRelease[]>;
+
+  /** Validate signed metadata-chain state against pinned-root expectations. */
+  validateMetadataChain(
+    input: RegistryMetadataValidationInput,
+  ): Promise<RegistryMetadataValidationResult>;
+
+  /** Compute the canonical read-only eligibility snapshot for install/update gates. */
+  evaluateInstallEligibility(
+    input: RegistryEligibilityRequest,
+  ): Promise<RegistryInstallEligibilitySnapshot>;
+
+  /** Apply a governance or moderation action to canonical registry state. */
+  applyGovernanceAction(
+    input: RegistryGovernanceActionInput,
+  ): Promise<RegistryGovernanceAction>;
+
+  /** Retrieve a maintainer identity record. */
+  getMaintainer(maintainerId: string): Promise<MaintainerIdentity | null>;
+
+  /** Submit a moderation or governance appeal. */
+  submitAppeal(
+    input: RegistryAppealSubmissionInput,
+  ): Promise<RegistryAppealRecord>;
+
+  /** Resolve a previously submitted appeal. */
+  resolveAppeal(
+    input: RegistryAppealResolutionInput,
+  ): Promise<RegistryAppealRecord>;
 }
 
 export interface ISandbox {
