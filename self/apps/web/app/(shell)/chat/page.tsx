@@ -1,29 +1,34 @@
 'use client';
 
-import { Suspense, useState } from 'react';
+import * as React from 'react';
 import { useSearchParams } from 'next/navigation';
 import { trpc } from '@/lib/trpc';
 import { useProject } from '@/lib/project-context';
+import { EscalationInbox } from '@/components/chat/escalation-inbox';
 import { MessageList } from '@/components/chat/message-list';
 import { ChatInput } from '@/components/chat/chat-input';
 
 export default function ChatPage() {
   return (
-    <Suspense fallback={<div className="flex h-full flex-col" />}>
+    <React.Suspense fallback={<div className="flex h-full flex-col" />}>
       <ChatPageContent />
-    </Suspense>
+    </React.Suspense>
   );
 }
 
 function ChatPageContent() {
   const { projectId } = useProject();
   const searchParams = useSearchParams();
-  const [optimisticMessages, setOptimisticMessages] = useState<
+  const [optimisticMessages, setOptimisticMessages] = React.useState<
     Array<{ role: 'user' | 'assistant'; content: string }>
   >([]);
 
   const { data: history } = trpc.chat.getHistory.useQuery(
     { projectId: projectId ?? undefined },
+    { enabled: !!projectId },
+  );
+  const { data: escalationQueue } = trpc.escalations.listProjectQueue.useQuery(
+    { projectId: projectId ?? undefined as any },
     { enabled: !!projectId },
   );
 
@@ -82,6 +87,7 @@ function ChatPageContent() {
 
   return (
     <div className="flex h-full flex-col">
+      {escalationQueue ? <EscalationInbox queue={escalationQueue} /> : null}
       {linkedRunId || linkedNodeId ? (
         <div className="border-b border-border bg-muted/20 px-6 py-3 text-sm text-muted-foreground">
           Linked workflow context

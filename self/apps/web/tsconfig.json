@@ -53,6 +53,12 @@
       "@nous/cortex-pfc": [
         "../../cortex/pfc/src/index.ts"
       ],
+      "@nous/subcortex-scheduler": [
+        "../../subcortex/scheduler/src/index.ts"
+      ],
+      "@nous/subcortex-escalation": [
+        "../../subcortex/escalation/src/index.ts"
+      ],
       "@nous/subcortex-witnessd": [
         "../../subcortex/witnessd/src/index.ts"
       ],

@@ -55,9 +55,12 @@ import type {
   ArtifactWriteRequest,
   ArtifactWriteResult,
   ScheduleDefinition,
+  ScheduleUpsertInput,
   EscalationId,
   EscalationContract,
   EscalationResponse,
+  InAppEscalationRecord,
+  AcknowledgeInAppEscalationInput,
   SandboxPayload,
   SandboxResult,
   MemoryScope,
@@ -179,6 +182,14 @@ export class StubScheduler implements IScheduler {
     return stubNotImpl('IScheduler', 'register', 'Phase 5');
   }
 
+  async upsert(_input: ScheduleUpsertInput): Promise<ScheduleDefinition> {
+    return stubNotImpl('IScheduler', 'upsert', 'Phase 9.6');
+  }
+
+  async get(_scheduleId: string): Promise<ScheduleDefinition | null> {
+    return stubNotImpl('IScheduler', 'get', 'Phase 9.6');
+  }
+
   async cancel(_scheduleId: string): Promise<boolean> {
     return stubNotImpl('IScheduler', 'cancel', 'Phase 5');
   }
@@ -197,6 +208,24 @@ export class StubEscalationService implements IEscalationService {
     _escalationId: EscalationId,
   ): Promise<EscalationResponse | null> {
     return stubNotImpl('IEscalationService', 'checkResponse', 'Phase 5');
+  }
+
+  async get(
+    _escalationId: EscalationId,
+  ): Promise<InAppEscalationRecord | null> {
+    return stubNotImpl('IEscalationService', 'get', 'Phase 9.6');
+  }
+
+  async listProjectQueue(
+    _projectId: ProjectId,
+  ): Promise<InAppEscalationRecord[]> {
+    return stubNotImpl('IEscalationService', 'listProjectQueue', 'Phase 9.6');
+  }
+
+  async acknowledge(
+    _input: AcknowledgeInAppEscalationInput,
+  ): Promise<InAppEscalationRecord | null> {
+    return stubNotImpl('IEscalationService', 'acknowledge', 'Phase 9.6');
   }
 }
 

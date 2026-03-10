@@ -65,7 +65,7 @@ describe('bootstrap config validation', () => {
     );
   });
 
-  it('wires workflow and artifact services into the web context', () => {
+  it('wires workflow, artifact, scheduler, and escalation services into the web context', () => {
     const dataDir = join(tmpdir(), `nous-web-context-${randomUUID()}`);
     mkdirSync(dataDir, { recursive: true });
 
@@ -76,5 +76,7 @@ describe('bootstrap config validation', () => {
     const ctx = createNousContext();
     expect(ctx.workflowEngine).toBeDefined();
     expect(ctx.artifactStore).toBeDefined();
+    expect(ctx.schedulerService).toBeDefined();
+    expect(ctx.escalationService).toBeDefined();
   });
 });

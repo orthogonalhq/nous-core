@@ -65,6 +65,63 @@ From the Projects page you can now:
 
 Inspect-first behavior still applies. If a project has no canonical workflow definition yet, the Projects surface shows an authoring-first empty state instead of inventing runtime data.
 
+## Project Operating Surface (Phase 9.6)
+
+Phase 9.6 expands the Projects page from a workflow-only surface into a broader project operating surface. The page now renders canonical dashboard, configuration, schedule, and escalation projections from the server layer instead of inventing a client-owned project status model.
+
+### Health and Control Posture
+
+The dashboard now combines:
+
+- Workflow runtime availability
+- Project control posture
+- Enabled schedule count
+- Open escalation count
+- Package-default intake visibility
+
+Blocked actions are derived on the server from canonical control state. That means the Projects page can tell you when configuration edits or schedule changes are blocked under states such as `hard_stopped`, `paused_review`, or `resuming`, while still allowing safe read-only inspection.
+
+### Governed Project Configuration
+
+The configuration panel now covers:
+
+- Project type
+- Governance defaults
+- Model-role assignments
+- Memory access policy
+- Retrieval budget
+- Escalation preferences
+- Schedule settings
+
+Two rules matter:
+
+1. Project configuration is still canonical project truth. The UI is a projection and mutation surface over that truth, not a second config store.
+2. Schedule records remain canonical scheduler truth. The configuration panel can inspect and update schedule settings, but schedule runtime state is not duplicated into project config.
+
+If another operator updates project configuration first, the save is rejected as a conflict. Refresh the project surface and reapply your change against the newest snapshot instead of retrying blindly.
+
+### Package Default Provenance
+
+Projects can now show package-derived defaults and whether a field is still coming from package intake or has been overridden at the project level.
+
+Phase 9.6 currently records this at the package-section level, not as a per-field override ledger. The surface can still show where defaults came from, which package applied them, and when that intake happened.
+
+### In-App Escalation Queue
+
+The Projects page now includes a project-scoped escalation queue. It shows the same canonical escalation records used by other surfaces.
+
+From the queue you can:
+
+- Inspect severity and current delivery status
+- Review required action and linked evidence context
+- Acknowledge the escalation from the Projects surface
+
+Acknowledgement is shared across surfaces. If you acknowledge an escalation in Projects, the chat inbox reflects that same canonical acknowledgement record on the next fetch. The queue is not a workflow-recovery engine by itself; acknowledging an escalation records operator awareness, but it does not bypass workflow or control-plane rules.
+
+### Current Boundary
+
+The Projects surface can configure schedules and inspect dashboard truth, but the web process is not the canonical autonomous scheduler executor. Actual due-schedule dispatch remains outside the web bootstrap seam and still flows through the canonical ingress and workflow-admission path.
+
 ## Workflow Run State
 
 Before a workflow run starts, the runtime:
@@ -159,4 +216,4 @@ Phase 9.3 adds two downstream runtime services that still derive from project an
 
 ## Current Scope
 
-Phase 9.1 through Phase 9.5 now cover the canonical workflow foundation, ingress-backed scheduler dispatch, integrity-verified artifact persistence, and the first Projects UI monitoring/editor surface with linked Chat, Traces, and MAO projections. Later phases can refine authoring ergonomics and richer MAO/runtime supervision without changing the canonical truth model described here.
+Phase 9.1 through Phase 9.6 now cover the canonical workflow foundation, ingress-backed scheduler dispatch, integrity-verified artifact persistence, the Projects workflow surface, governed project configuration, schedule settings, and the first in-app escalation acknowledgement flow shared between Projects and chat. Later phases can refine authoring ergonomics, richer provenance, and deeper MAO/runtime supervision without changing the canonical truth model described here.

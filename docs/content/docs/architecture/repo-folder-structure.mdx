@@ -69,9 +69,10 @@ CLI depends only on public interfaces from `shared/`.
 Web application containing integrated operator surfaces:
 
 * Chat interface — conversational interaction with project-scoped context
-* Projects UI — workflow monitoring plus basic canonical-definition editing
+* Projects UI — workflow monitoring, canonical project dashboard, governed configuration, schedule settings, and project-scoped escalation queue acknowledgement
 * Dashboard — system health, project status, memory inspection, and discovery projection
 * MAO projection — forward-linked project control and agent visibility from workflow surfaces
+* Chat escalation inbox — acknowledgement of the same canonical in-app escalation queue used by Projects
 
 Primary interface for most users.
 
@@ -453,6 +454,8 @@ Responsibilities:
 * Response tracking across surfaces
 * Priority mapping per project and per channel
 
+Phase 9.6 implements the first canonical in-app escalation runtime here as `@nous/subcortex-escalation`. The package owns the document-backed escalation queue, acknowledgement records, project-scoped list/get behavior, and the shared truth consumed by both Projects and chat.
+
 ### sandbox/
 
 Execution isolation.
@@ -670,6 +673,13 @@ Phase 9.4 and Phase 9.5 add:
 - `knowledge-index.ts` — canonical project discovery, refresh, taxonomy, and relationship-runtime contracts
 - `workflow-monitoring.ts` — workflow-surface snapshot, node projection, diagnostics, validation, and save-input schemas used by the Projects UI and web server
 
+Phase 9.6 adds:
+
+- `project-surface.ts` — canonical project dashboard, configuration snapshot, blocked-action, health-summary, and field-provenance schemas
+- `project.ts` expansions for governance defaults, escalation preferences, and package-default intake provenance
+- `escalation.ts` in-app escalation queue, acknowledgement, and queue snapshot contracts
+- `scheduler.ts` schedule upsert inputs used by the Projects operating surface
+
 ### interfaces/
 
 Cross-layer contracts. When the cortex calls the subcortex, or memory calls storage, the contract is defined here. No layer imports directly from another layer's implementation.
@@ -693,6 +703,10 @@ Phase 9.3 further expands:
 Phase 9.5 further expands:
 
 - `subcortex.ts` — workflow-runtime list/graph retrieval surfaces used by the Projects monitoring projection
+
+Phase 9.6 further expands:
+
+- `subcortex.ts` — scheduler `upsert/get` and escalation `get/listProjectQueue/acknowledge` interfaces used by the Projects and chat operating surfaces
 
 ### events/
 

@@ -7,6 +7,7 @@ import { tmpdir } from 'node:os';
 import { randomUUID } from 'node:crypto';
 import { createNousContext } from '../bootstrap';
 import { appRouter } from '../trpc/root';
+import { createProjectConfig } from '../../test-support/project-fixtures';
 
 describe('tRPC procedures', () => {
   beforeAll(async () => {
@@ -17,17 +18,10 @@ describe('tRPC procedures', () => {
 
   it('projects.create and list returns new project', async () => {
     const ctx = createNousContext();
-    const projectId = await ctx.projectStore.create({
+    const projectId = await ctx.projectStore.create(createProjectConfig({
       id: randomUUID() as import('@nous/shared').ProjectId,
       name: 'Test Project',
-      type: 'hybrid',
-      pfcTier: 3,
-      memoryAccessPolicy: { canReadFrom: 'all', canBeReadBy: 'all', inheritsGlobal: true },
-      escalationChannels: ['in-app'],
-      retrievalBudgetTokens: 500,
-      createdAt: new Date().toISOString(),
-      updatedAt: new Date().toISOString(),
-    });
+    }));
 
     const list = await ctx.projectStore.list();
     expect(list.some((p) => p.id === projectId)).toBe(true);
@@ -49,21 +43,10 @@ describe('tRPC procedures', () => {
   it('chat.sendMessage stores STM history without duplicate router appends', async () => {
     const ctx = createNousContext();
     const caller = appRouter.createCaller(ctx);
-    const projectId = await ctx.projectStore.create({
+    const projectId = await ctx.projectStore.create(createProjectConfig({
       id: randomUUID() as import('@nous/shared').ProjectId,
       name: 'Chat History Project',
-      type: 'hybrid',
-      pfcTier: 3,
-      memoryAccessPolicy: {
-        canReadFrom: 'all',
-        canBeReadBy: 'all',
-        inheritsGlobal: true,
-      },
-      escalationChannels: ['in-app'],
-      retrievalBudgetTokens: 500,
-      createdAt: new Date().toISOString(),
-      updatedAt: new Date().toISOString(),
-    });
+    }));
 
     const response = await caller.chat.sendMessage({
       message: 'Hello project chat',
@@ -115,17 +98,10 @@ describe('tRPC procedures', () => {
     const ctx = createNousContext();
     const caller = appRouter.createCaller(ctx);
 
-    const projectId = await ctx.projectStore.create({
+    const projectId = await ctx.projectStore.create(createProjectConfig({
       id: randomUUID() as import('@nous/shared').ProjectId,
       name: 'Memory Export Project',
-      type: 'hybrid',
-      pfcTier: 3,
-      memoryAccessPolicy: { canReadFrom: 'all', canBeReadBy: 'all', inheritsGlobal: true },
-      escalationChannels: ['in-app'],
-      retrievalBudgetTokens: 500,
-      createdAt: new Date().toISOString(),
-      updatedAt: new Date().toISOString(),
-    });
+    }));
     const entryId = await ctx.mwcPipeline.submit(
       {
         content: 'export payload',
@@ -159,17 +135,10 @@ describe('tRPC procedures', () => {
     const ctx = createNousContext();
     const caller = appRouter.createCaller(ctx);
 
-    const projectId = await ctx.projectStore.create({
+    const projectId = await ctx.projectStore.create(createProjectConfig({
       id: randomUUID() as import('@nous/shared').ProjectId,
       name: 'Discovery Procedure Project',
-      type: 'hybrid',
-      pfcTier: 3,
-      memoryAccessPolicy: { canReadFrom: 'all', canBeReadBy: 'all', inheritsGlobal: true },
-      escalationChannels: ['in-app'],
-      retrievalBudgetTokens: 500,
-      createdAt: new Date().toISOString(),
-      updatedAt: new Date().toISOString(),
-    });
+    }));
 
     await ctx.documentStore.put('memory_entries', `${projectId}:pattern`, {
       id: `${projectId}:pattern`,
@@ -207,17 +176,9 @@ describe('tRPC procedures', () => {
     const ctx = createNousContext();
     const caller = appRouter.createCaller(ctx);
     const projectId = randomUUID() as import('@nous/shared').ProjectId;
-    await ctx.projectStore.create({
+    await ctx.projectStore.create(createProjectConfig({
       id: projectId,
       name: 'Projects Workflow Procedure Project',
-      type: 'hybrid',
-      pfcTier: 3,
-      memoryAccessPolicy: {
-        canReadFrom: 'all',
-        canBeReadBy: 'all',
-        inheritsGlobal: true,
-      },
-      escalationChannels: ['in-app'],
       workflow: {
         defaultWorkflowDefinitionId: '550e8400-e29b-41d4-a716-446655442002' as any,
         definitions: [
@@ -246,10 +207,7 @@ describe('tRPC procedures', () => {
           } as any,
         ],
       },
-      retrievalBudgetTokens: 500,
-      createdAt: new Date().toISOString(),
-      updatedAt: new Date().toISOString(),
-    });
+    }));
 
     const validDefinition = {
       id: '550e8400-e29b-41d4-a716-446655442002',

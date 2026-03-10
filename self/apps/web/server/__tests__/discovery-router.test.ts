@@ -4,6 +4,7 @@ import { randomUUID } from 'node:crypto';
 import { tmpdir } from 'node:os';
 import { appRouter } from '../trpc/root';
 import { clearNousContextCache, createNousContext } from '../bootstrap';
+import { createProjectConfig } from '../../test-support/project-fixtures';
 
 describe('discovery router', () => {
   beforeAll(() => {
@@ -14,36 +15,19 @@ describe('discovery router', () => {
   it('returns policy-safe discovery results and snapshots from the knowledge index runtime', async () => {
     const ctx = createNousContext();
     const caller = appRouter.createCaller(ctx);
-    const projectA = await ctx.projectStore.create({
+    const projectA = await ctx.projectStore.create(createProjectConfig({
       id: randomUUID() as any,
       name: 'Project A',
-      type: 'hybrid',
-      pfcTier: 3,
-      memoryAccessPolicy: {
-        canReadFrom: 'all',
-        canBeReadBy: 'all',
-        inheritsGlobal: true,
-      },
-      escalationChannels: ['in-app'],
-      retrievalBudgetTokens: 500,
-      createdAt: new Date().toISOString(),
-      updatedAt: new Date().toISOString(),
-    });
-    const projectB = await ctx.projectStore.create({
+    }));
+    const projectB = await ctx.projectStore.create(createProjectConfig({
       id: randomUUID() as any,
       name: 'Project B',
-      type: 'hybrid',
-      pfcTier: 3,
       memoryAccessPolicy: {
         canReadFrom: 'all',
         canBeReadBy: 'none',
         inheritsGlobal: true,
       },
-      escalationChannels: ['in-app'],
-      retrievalBudgetTokens: 500,
-      createdAt: new Date().toISOString(),
-      updatedAt: new Date().toISOString(),
-    });
+    }));
 
     await ctx.documentStore.put('memory_entries', `${projectA}:pattern`, {
       id: `${projectA}:pattern`,

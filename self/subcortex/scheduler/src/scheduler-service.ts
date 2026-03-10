@@ -1,3 +1,4 @@
+import { randomUUID } from 'node:crypto';
 import type {
   IIngressGateway,
   IProjectStore,
@@ -5,9 +6,10 @@ import type {
   ProjectConfig,
   ProjectId,
   ScheduleDefinition,
+  ScheduleUpsertInput,
   WorkflowDefinitionId,
 } from '@nous/shared';
-import { ScheduleDefinitionSchema } from '@nous/shared';
+import { ScheduleDefinitionSchema, ScheduleUpsertInputSchema } from '@nous/shared';
 import { DocumentScheduleStore } from './document-schedule-store.js';
 import {
   IngressEnvelopeBuilder,
@@ -325,6 +327,61 @@ export class SchedulerService {
 
     await this.options.scheduleStore.save(normalized);
     return normalized.id;
+  }
+
+  async upsert(input: ScheduleUpsertInput): Promise<ScheduleDefinition> {
+    const normalizedInput = ScheduleUpsertInputSchema.parse(input);
+    const timestamp = this.nowIso();
+    const scheduleId = normalizedInput.id ?? randomUUID();
+    const existing = normalizedInput.id
+      ? await this.options.scheduleStore.get(normalizedInput.id)
+      : null;
+    const project = await this.loadProject(normalizedInput.projectId);
+    const workflowDefinitionId = this.resolveWorkflowDefinitionId(
+      project,
+      normalizedInput.workflowDefinitionId ?? existing?.workflowDefinitionId,
+    );
+
+    const merged = ScheduleDefinitionSchema.parse({
+      id: scheduleId,
+      projectId: normalizedInput.projectId,
+      workflowDefinitionId,
+      workmodeId:
+        normalizedInput.workmodeId ??
+        existing?.workmodeId ??
+        ('system:implementation' as ScheduleDefinition['workmodeId']),
+      trigger: normalizedInput.trigger,
+      enabled: normalizedInput.enabled,
+      requestedDeliveryMode:
+        normalizedInput.requestedDeliveryMode ?? existing?.requestedDeliveryMode,
+      payloadTemplateRef:
+        normalizedInput.payloadTemplateRef ?? existing?.payloadTemplateRef,
+      createdAt: existing?.createdAt ?? timestamp,
+      updatedAt: timestamp,
+      lastDispatchedAt: existing?.lastDispatchedAt,
+      nextDueAt: this.computeInitialNextDueAt(
+        {
+          ...existing,
+          ...normalizedInput,
+          id: scheduleId,
+          workflowDefinitionId,
+          workmodeId:
+            normalizedInput.workmodeId ??
+            existing?.workmodeId ??
+            ('system:implementation' as ScheduleDefinition['workmodeId']),
+          createdAt: existing?.createdAt ?? timestamp,
+          updatedAt: timestamp,
+        } as ScheduleDefinition,
+        existing?.lastDispatchedAt ?? timestamp,
+      ),
+    });
+
+    await this.options.scheduleStore.save(merged);
+    return merged;
+  }
+
+  async get(scheduleId: string): Promise<ScheduleDefinition | null> {
+    return this.options.scheduleStore.get(scheduleId);
   }
 
   async cancel(scheduleId: string): Promise<boolean> {

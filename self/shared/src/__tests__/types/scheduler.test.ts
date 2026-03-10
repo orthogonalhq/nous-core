@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest';
 import {
   ScheduleDefinitionSchema,
   ScheduleTriggerSpecSchema,
+  ScheduleUpsertInputSchema,
 } from '../../types/scheduler.js';
 
 const PROJECT_ID = '550e8400-e29b-41d4-a716-446655440110';
@@ -99,5 +100,32 @@ describe('ScheduleDefinitionSchema', () => {
         },
       }).success,
     ).toBe(false);
+  });
+});
+
+describe('ScheduleUpsertInputSchema', () => {
+  it('accepts new or existing schedule upserts', () => {
+    expect(
+      ScheduleUpsertInputSchema.safeParse({
+        projectId: PROJECT_ID,
+        workflowDefinitionId: WORKFLOW_ID,
+        workmodeId: 'system:implementation',
+        trigger: {
+          kind: 'cron',
+          cron: '0 * * * *',
+        },
+      }).success,
+    ).toBe(true);
+
+    expect(
+      ScheduleUpsertInputSchema.safeParse({
+        id: SCHEDULE_ID,
+        projectId: PROJECT_ID,
+        trigger: {
+          kind: 'system_event',
+          event_name: 'runtime.resume',
+        },
+      }).success,
+    ).toBe(true);
   });
 });

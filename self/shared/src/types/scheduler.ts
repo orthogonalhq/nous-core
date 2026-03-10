@@ -45,3 +45,15 @@ export const ScheduleDefinitionSchema = z.object({
   updatedAt: z.string().datetime(),
 });
 export type ScheduleDefinition = z.infer<typeof ScheduleDefinitionSchema>;
+
+export const ScheduleUpsertInputSchema = z.object({
+  id: z.string().uuid().optional(),
+  projectId: ProjectIdSchema,
+  workflowDefinitionId: WorkflowDefinitionIdSchema.optional(),
+  workmodeId: WorkmodeIdSchema.optional(),
+  trigger: ScheduleTriggerSpecSchema,
+  enabled: z.boolean().default(true),
+  requestedDeliveryMode: IngressDeliveryModeSchema.default('none'),
+  payloadTemplateRef: z.string().min(1).optional(),
+});
+export type ScheduleUpsertInput = z.infer<typeof ScheduleUpsertInputSchema>;

@@ -14,8 +14,8 @@
     "build": "next build",
     "start": "next start",
     "typecheck": "tsc --noEmit",
-    "test": "vitest run",
-    "test:watch": "vitest"
+    "test": "vitest run --config vitest.config.ts",
+    "test:watch": "vitest --config vitest.config.ts"
   },
   "dependencies": {
     "@nous/autonomic-config": "workspace:*",
@@ -39,6 +39,8 @@
     "@nous/subcortex-mao": "workspace:*",
     "@nous/subcortex-gtm": "workspace:*",
     "@nous/subcortex-artifacts": "workspace:*",
+    "@nous/subcortex-scheduler": "workspace:*",
+    "@nous/subcortex-escalation": "workspace:*",
     "@nous/subcortex-workflows": "workspace:*",
     "@tanstack/react-query": "^5.62.0",
     "@trpc/client": "^11.0.0-rc.0",

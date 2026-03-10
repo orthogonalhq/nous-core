@@ -49,6 +49,28 @@ Conversation history is stored in short-term memory (STM) and persists across se
 
 When a conversation grows beyond the configured STM pressure threshold, Nous compacts older turns into a generated summary and keeps the newest turns verbatim. This keeps long-running project chats usable without dropping project context. The retained turns stay in chronological order, and the current STM state is visible through history and memory export surfaces.
 
+## Escalation Inbox (Phase 9.6)
+
+Phase 9.6 adds a chat-side escalation inbox. This inbox reads the same canonical in-app escalation queue used by the Projects surface.
+
+That means:
+
+- The inbox is project-scoped
+- Acknowledging an escalation in chat updates the same canonical record that Projects reads
+- Chat does not maintain a separate acknowledgement state
+
+Use the inbox when you want to confirm receipt of an escalation without leaving the conversation flow. This is especially useful when the escalation is mirrored into chat for urgent project attention.
+
+Acknowledging an escalation in chat does **not**:
+
+- Resume a blocked workflow automatically
+- Clear project control-state restrictions
+- Bypass operator-control or confidence-governance rules
+
+It only records the acknowledgement on the canonical escalation record. If the underlying issue still requires review, reconfiguration, or workflow intervention, handle that through the appropriate governed surface afterward.
+
+Project control state may still block configuration or schedule edits elsewhere, but escalation acknowledgement remains available so operators can record awareness even while the project is paused or hard stopped.
+
 ## Via CLI
 
 ```bash
