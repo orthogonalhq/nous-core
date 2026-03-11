@@ -107,4 +107,72 @@ describe('CLI E2E', () => {
     expect(exitCode).toBe(0);
     expect(out).toContain('Verification report');
   });
+
+  it('CLI pkg discover prints advisory suggestions from the marketplace router', async () => {
+    const ctx = createNousContext();
+    await ctx.registryService.applyGovernanceAction({
+      action_type: 'verify_maintainer',
+      maintainer_id: 'maintainer:1',
+      actor_id: 'principal',
+      reason_code: 'MKT-006-DISTRIBUTION_BLOCKED',
+      target_verification_state: 'verified_individual',
+      approval_evidence_ref: 'approval:1',
+      evidence_refs: ['approval:1'],
+    });
+    await ctx.registryService.submitRelease({
+      package_id: 'pkg.persona-engine',
+      package_type: 'project',
+      display_name: 'Persona Engine',
+      package_version: '1.0.0',
+      origin_class: 'third_party_external',
+      registered: true,
+      signing_key_id: 'key-1',
+      signature_set_ref: 'sigset-1',
+      source_hash: 'sha256:abc123',
+      compatibility: {
+        api_contract_range: '^1.0.0',
+        capability_manifest: ['model.invoke'],
+        migration_contract_version: '1',
+        data_schema_versions: ['1'],
+        policy_profile_defaults: [],
+      },
+      metadata_chain: {
+        root_version: 1,
+        timestamp_version: 1,
+        snapshot_version: 1,
+        targets_version: 1,
+        trusted_root_key_ids: ['root-a'],
+        delegated_key_ids: [],
+        metadata_expires_at: '2026-03-12T00:00:00.000Z',
+        artifact_digest: 'sha256:abc123',
+        metadata_digest: 'sha256:def456',
+      },
+      maintainer_ids: ['maintainer:1'],
+      published_at: new Date().toISOString(),
+    });
+    await ctx.nudgeDiscoveryService.recordSignal({
+      signal_type: 'workflow_friction',
+      target_scope: 'project',
+      source_refs: ['persona'],
+      evidence_refs: [{ actionCategory: 'trace-persist' }],
+    });
+
+    const cliPath = join(__dirname, '../../dist/cli.js');
+    const proc = spawn('node', [cliPath, 'pkg', 'discover', '--signal', 'persona', '--api-url', baseUrl], {
+      env: { ...process.env },
+      stdio: ['ignore', 'pipe', 'pipe'],
+    });
+
+    const stdout: Buffer[] = [];
+    proc.stdout?.on('data', (d) => stdout.push(d));
+
+    const exitCode = await new Promise<number>((resolve) => {
+      proc.on('close', (code) => resolve(code ?? 0));
+    });
+
+    const out = Buffer.concat(stdout).toString('utf-8');
+    expect(exitCode).toBe(0);
+    expect(out).toContain('pkg.persona-engine');
+    expect(out).toContain('dismiss_once');
+  });
 });
