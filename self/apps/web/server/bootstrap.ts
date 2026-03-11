@@ -49,6 +49,8 @@ import { DeterministicWorkflowEngine } from '@nous/subcortex-workflows';
 import { WitnessService } from '@nous/subcortex-witnessd';
 import { DocumentRegistryStore, RegistryService } from '@nous/subcortex-registry';
 import { DocumentNudgeStore, NudgeDiscoveryService } from '@nous/subcortex-nudges';
+import { CommunicationGatewayService } from '@nous/subcortex-communication-gateway';
+import { EndpointTrustService } from '@nous/subcortex-endpoint-trust';
 import {
   OpctlService,
   InMemoryReplayStore,
@@ -58,6 +60,7 @@ import {
 } from '@nous/subcortex-opctl';
 import { MaoProjectionService } from '@nous/subcortex-mao';
 import { GtmGateCalculator } from '@nous/subcortex-gtm';
+import { VoiceControlService } from '@nous/subcortex-voice-control';
 import { MemoryAccessPolicyEngine } from '@nous/memory-access';
 import type { NousContext } from './context';
 
@@ -257,11 +260,34 @@ export function createNousContext(): NousContext {
     store: nudgeStore,
     registryService,
   });
+  const communicationGatewayService = new CommunicationGatewayService({
+    documentStore,
+    escalationService,
+    nudgeDiscoveryService,
+    witnessService,
+  });
+  const endpointTrustService = new EndpointTrustService({
+    documentStore,
+    registryService,
+    opctlService,
+    escalationService,
+    witnessService,
+  });
+  const voiceControlService = new VoiceControlService({
+    documentStore,
+    pfcEngine: Cortex,
+    opctlService,
+    endpointTrustService,
+    communicationGatewayService,
+    escalationService,
+    witnessService,
+  });
   const maoProjectionService = new MaoProjectionService({
     opctlService,
     workflowEngine,
     escalationService,
     schedulerService,
+    voiceControlService,
     witnessService,
   });
 
@@ -314,6 +340,7 @@ export function createNousContext(): NousContext {
     escalationService,
     registryService,
     nudgeDiscoveryService,
+    voiceControlService,
     dataDir,
   };
 
