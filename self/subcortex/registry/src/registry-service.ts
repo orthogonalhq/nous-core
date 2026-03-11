@@ -6,10 +6,16 @@ import type {
   IWitnessService,
   MaintainerIdentity,
   ProjectId,
+  RegistryAppealQuery,
+  RegistryAppealQueryResult,
   RegistryAppealRecord,
   RegistryAppealResolutionInput,
   RegistryAppealSubmissionInput,
+  RegistryBrowseRequest,
+  RegistryBrowseResult,
   RegistryCompatibilityState,
+  RegistryGovernanceTimelineRequest,
+  RegistryGovernanceTimelineResult,
   RegistryGovernanceAction,
   RegistryGovernanceActionInput,
   RegistryInstallEligibilitySnapshot,
@@ -28,12 +34,19 @@ import {
   RegistryAppealResolutionInputSchema,
   RegistryAppealSubmissionInputSchema,
   RegistryDistributionStatusSchema,
+  RegistryAppealQueryResultSchema,
+  RegistryAppealQuerySchema,
+  RegistryBrowseRequestSchema,
+  RegistryBrowseResultSchema,
   RegistryEligibilityRequestSchema,
+  RegistryGovernanceTimelineRequestSchema,
+  RegistryGovernanceTimelineResultSchema,
   RegistryGovernanceActionInputSchema,
   RegistryGovernanceActionSchema,
   RegistryInstallEligibilitySnapshotSchema,
   RegistryMetadataValidationInputSchema,
   RegistryPackageSchema,
+  MarketplaceSurfaceLink,
   RegistryReleaseSchema,
   RegistryReleaseSubmissionInputSchema,
   RegistryReleaseSubmissionResultSchema,
@@ -330,6 +343,148 @@ export class RegistryService implements IRegistryService {
     return this.options.registryStore.getMaintainer(maintainerId);
   }
 
+  async listPackages(input: RegistryBrowseRequest): Promise<RegistryBrowseResult> {
+    const parsed = RegistryBrowseRequestSchema.parse(input);
+    const query = parsed.query.trim().toLowerCase();
+    const allPackages = await this.options.registryStore.listPackages();
+    const filtered = allPackages.filter((record) => {
+      if (
+        query &&
+        !record.package_id.toLowerCase().includes(query) &&
+        !record.display_name.toLowerCase().includes(query)
+      ) {
+        return false;
+      }
+      if (parsed.trustTiers.length > 0 && !parsed.trustTiers.includes(record.trust_tier)) {
+        return false;
+      }
+      if (
+        parsed.distributionStatuses.length > 0 &&
+        !parsed.distributionStatuses.includes(record.distribution_status)
+      ) {
+        return false;
+      }
+      if (
+        parsed.compatibilityStates.length > 0 &&
+        !parsed.compatibilityStates.includes(record.compatibility_state)
+      ) {
+        return false;
+      }
+      return true;
+    });
+
+    const start = (parsed.page - 1) * parsed.pageSize;
+    const selected = filtered.slice(start, start + parsed.pageSize);
+    const items = await Promise.all(
+      selected.map(async (record) => {
+        const latestRelease = record.latest_release_id
+          ? await this.options.registryStore.getRelease(record.latest_release_id)
+          : null;
+        const maintainers = await this.options.registryStore.listMaintainersByIds(
+          record.maintainer_ids,
+        );
+        const trustEligibility =
+          parsed.projectId && latestRelease
+            ? await this.evaluateInstallEligibility({
+                project_id: parsed.projectId,
+                package_id: record.package_id,
+                release_id: latestRelease.release_id,
+                principal_override_requested: false,
+                principal_override_approved: false,
+              })
+            : null;
+
+        return {
+          package: record,
+          latestRelease,
+          maintainers,
+          trustEligibility,
+          deepLinks: this.buildPackageDeepLinks({
+            packageId: record.package_id,
+            projectId: parsed.projectId,
+            releaseId: latestRelease?.release_id,
+          }),
+        };
+      }),
+    );
+
+    return RegistryBrowseResultSchema.parse({
+      query: parsed,
+      items,
+      totalCount: filtered.length,
+      generatedAt: this.now(),
+    });
+  }
+
+  async getPackageMaintainers(packageId: string): Promise<MaintainerIdentity[]> {
+    const packageRecord = await this.options.registryStore.getPackage(packageId);
+    if (!packageRecord) {
+      return [];
+    }
+    return this.options.registryStore.listMaintainersByIds(packageRecord.maintainer_ids);
+  }
+
+  async listGovernanceActions(
+    input: RegistryGovernanceTimelineRequest,
+  ): Promise<RegistryGovernanceTimelineResult> {
+    const parsed = RegistryGovernanceTimelineRequestSchema.parse(input);
+    const actions = (await this.options.registryStore.listGovernanceActions())
+      .filter((action) => {
+        if (parsed.packageId && action.package_id !== parsed.packageId) {
+          return false;
+        }
+        if (parsed.releaseId && action.release_id !== parsed.releaseId) {
+          return false;
+        }
+        if (parsed.maintainerId && action.maintainer_id !== parsed.maintainerId) {
+          return false;
+        }
+        if (
+          parsed.actionTypes.length > 0 &&
+          !parsed.actionTypes.includes(action.action_type)
+        ) {
+          return false;
+        }
+        return true;
+      })
+      .slice(0, parsed.limit);
+
+    return RegistryGovernanceTimelineResultSchema.parse({
+      actions,
+      generatedAt: this.now(),
+    });
+  }
+
+  async listAppeals(input: RegistryAppealQuery): Promise<RegistryAppealQueryResult> {
+    const parsed = RegistryAppealQuerySchema.parse(input);
+    const appeals = (await this.options.registryStore.listAppeals())
+      .filter((appeal) => {
+        if (parsed.packageId && appeal.package_id !== parsed.packageId) {
+          return false;
+        }
+        if (parsed.maintainerId && appeal.maintainer_id !== parsed.maintainerId) {
+          return false;
+        }
+        if (
+          !parsed.includeResolved &&
+          (appeal.status === 'resolved_upheld' ||
+            appeal.status === 'resolved_reinstated')
+        ) {
+          return false;
+        }
+        if (parsed.statuses.length > 0 && !parsed.statuses.includes(appeal.status)) {
+          return false;
+        }
+        return true;
+      })
+      .slice(0, parsed.limit);
+
+    return RegistryAppealQueryResultSchema.parse({
+      appeals,
+      generatedAt: this.now(),
+    });
+  }
+
   async submitAppeal(
     input: RegistryAppealSubmissionInput,
   ): Promise<RegistryAppealRecord> {
@@ -576,5 +731,37 @@ export class RegistryService implements IRegistryService {
 
   private nextId(): string {
     return this.options.idFactory?.() ?? randomUUID();
+  }
+
+  private buildPackageDeepLinks(input: {
+    packageId: string;
+    projectId?: ProjectId;
+    releaseId?: string;
+  }): MarketplaceSurfaceLink[] {
+    const links: MarketplaceSurfaceLink[] = [
+      {
+        target: 'artifact',
+        packageId: input.packageId,
+        projectId: input.projectId,
+        releaseId: input.releaseId,
+      },
+    ];
+
+    if (input.projectId) {
+      links.push({
+        target: 'projects',
+        packageId: input.packageId,
+        projectId: input.projectId,
+        releaseId: input.releaseId,
+      });
+      links.push({
+        target: 'mao',
+        packageId: input.packageId,
+        projectId: input.projectId,
+        releaseId: input.releaseId,
+      });
+    }
+
+    return links;
   }
 }

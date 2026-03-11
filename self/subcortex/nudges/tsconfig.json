@@ -5,11 +5,13 @@
     "outDir": "dist",
     "composite": true,
     "paths": {
-      "@nous/shared": ["../../shared/src/index.ts"]
+      "@nous/shared": ["../../shared/src/index.ts"],
+      "@nous/subcortex-registry": ["../registry/src/index.ts"]
     }
   },
   "include": ["src"],
   "references": [
-    { "path": "../../shared" }
+    { "path": "../../shared" },
+    { "path": "../registry" }
   ]
 }

@@ -102,6 +102,46 @@ Model role assignments can be modified via the web UI Configuration panel.
 
 ---
 
+## pkg
+
+Inspect advisory marketplace suggestions.
+
+### pkg discover
+
+Fetch the canonical marketplace discovery feed for the current project or an explicitly selected project.
+
+```bash
+pnpm dev:cli -- pkg discover
+pnpm dev:cli -- pkg discover --project <id> --limit 10
+pnpm dev:cli -- pkg discover --project <id> --dismiss <candidate-id>
+pnpm dev:cli -- pkg discover --project <id> --snooze <candidate-id>
+pnpm dev:cli -- pkg discover --project <id> --mute-category <candidate-id>
+pnpm dev:cli -- pkg discover --project <id> --mute-project <candidate-id>
+pnpm dev:cli -- pkg discover --mute-global <candidate-id>
+```
+
+**Options:**
+- `-p, --project <id>` — Project ID for trust-eligibility and project-scoped suppression (optional unless using `--mute-project`)
+- `--limit <n>` — Maximum number of suggestion cards to return (default: `5`)
+- `--signal <ref>` — Append an evidence or signal reference used to contextualize the feed request (repeatable)
+- `--dismiss <candidate-id>` — Apply `dismiss_once` suppression to one candidate in the current feed
+- `--snooze <candidate-id>` — Apply a 30-minute snooze to one candidate in the current feed
+- `--mute-category <candidate-id>` — Mute the candidate's source category across enabled surfaces
+- `--mute-project <candidate-id>` — Mute nudges for the selected project across enabled surfaces; requires `--project`
+- `--mute-global <candidate-id>` — Mute nudges globally across enabled surfaces
+
+**Output:**
+- Default output prints one line per candidate: `candidate_id`, `source_ref`, origin trust tier, and the current `distribution_status/compatibility_state` trust-eligibility posture
+- Follow-up lines include "why this" reasoning and the available suppression actions for that card
+- With `--json`, returns `{ feed, suppression }`
+
+**Important behavior:**
+- `pkg discover` is advisory only. It does not install, enable, or execute packages.
+- The CLI consumes the same canonical marketplace discovery feed used by the web marketplace surface.
+- Feedback for opened cards and any applied suppression action is written back through the canonical marketplace runtime.
+
+---
+
 ## opctl
 
 Operator control commands.

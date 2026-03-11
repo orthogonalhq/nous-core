@@ -15,6 +15,7 @@ import {
   runWitnessList,
   runWitnessVerify,
 } from '../commands/witness.js';
+import { runPkgDiscover } from '../commands/pkg.js';
 import type { CliTrpcClient } from '../trpc-client.js';
 
 function createMockClient(): CliTrpcClient {
@@ -38,6 +39,12 @@ function createMockClient(): CliTrpcClient {
       listReports: { query: vi.fn() },
       getReport: { query: vi.fn() },
       latestCheckpoint: { query: vi.fn() },
+    },
+    marketplace: {
+      getDiscoveryFeed: { query: vi.fn() },
+      applyNudgeSuppression: { mutate: vi.fn() },
+      recordNudgeFeedback: { mutate: vi.fn() },
+      routeNudgeAcceptance: { mutate: vi.fn() },
     },
   } as unknown as CliTrpcClient;
 }
@@ -236,5 +243,172 @@ describe('CLI commands', () => {
     expect(consoleSpy.error).toHaveBeenCalledWith(
       expect.stringContaining('Witness report not found'),
     );
+  });
+
+  it('pkg discover prints trust-eligibility-backed suggestions and suppression actions', async () => {
+    vi.mocked(mockClient.marketplace.getDiscoveryFeed.query).mockResolvedValue({
+      projectId: '550e8400-e29b-41d4-a716-446655445401' as import('@nous/shared').ProjectId,
+      surface: 'cli_suggestion',
+      cards: [
+        {
+          candidate: {
+            candidate_id: 'candidate-1',
+            source_type: 'marketplace_package',
+            source_ref: 'pkg.persona-engine',
+            origin_trust_tier: 'verified_maintainer',
+            compatibility_state: 'compatible',
+            target_scope: 'project',
+            reason_codes: ['NDG-CANDIDATE-ELIGIBLE'],
+            created_at: new Date().toISOString(),
+          },
+          decision: {
+            decision_id: 'decision-1',
+            candidate_id: 'candidate-1',
+            rank_score: 0.8,
+            rank_components_ref: 'rank:1',
+            suppression_state: 'eligible',
+            delivery_surface_set: ['cli_suggestion'],
+            expires_at: new Date().toISOString(),
+          },
+          delivery: {
+            delivery_id: '550e8400-e29b-41d4-a716-446655445402',
+            candidate_id: 'candidate-1',
+            decision_id: 'decision-1',
+            surface: 'cli_suggestion',
+            outcome: 'delivered',
+            reason_codes: ['NDG-DELIVERY-ALLOWED'],
+            evidence_refs: [{ actionCategory: 'trace-persist' }],
+            delivered_at: new Date().toISOString(),
+          },
+          trustEligibility: {
+            project_id: '550e8400-e29b-41d4-a716-446655445401' as import('@nous/shared').ProjectId,
+            package_id: 'pkg.persona-engine',
+            release_id: 'release-1',
+            package_version: '1.0.0',
+            trust_tier: 'verified_maintainer',
+            distribution_status: 'active',
+            compatibility_state: 'compatible',
+            metadata_valid: true,
+            signer_valid: true,
+            requires_principal_override: false,
+            block_reason_codes: [],
+            evidence_refs: ['witness:evt-1'],
+            evaluated_at: new Date().toISOString(),
+          },
+          whyThis: ['Persona Engine matches workflow friction'],
+          availableSuppressionActions: [
+            'dismiss_once',
+            'snooze',
+            'mute_category',
+            'mute_project',
+            'mute_global',
+          ],
+          activeSuppressions: [],
+          deepLinks: [],
+        },
+      ],
+      blockedDeliveries: [],
+      generatedAt: new Date().toISOString(),
+    });
+    vi.mocked(mockClient.marketplace.recordNudgeFeedback.mutate).mockResolvedValue({
+      feedback_id: 'feedback-1',
+      candidate_id: 'candidate-1',
+      event_type: 'opened',
+      surface: 'cli_suggestion',
+      occurred_at: new Date().toISOString(),
+      evidence_refs: [{ actionCategory: 'trace-persist' }],
+    } as any);
+
+    const code = await runPkgDiscover(mockClient, {
+      projectId: '550e8400-e29b-41d4-a716-446655445401',
+    });
+
+    expect(code).toBe(0);
+    expect(consoleSpy.log).toHaveBeenCalledWith(
+      expect.stringContaining('pkg.persona-engine'),
+    );
+    expect(consoleSpy.log).toHaveBeenCalledWith(
+      expect.stringContaining('dismiss_once'),
+    );
+  });
+
+  it('pkg discover routes suppression mutations through the marketplace client', async () => {
+    vi.mocked(mockClient.marketplace.getDiscoveryFeed.query).mockResolvedValue({
+      projectId: '550e8400-e29b-41d4-a716-446655445401' as import('@nous/shared').ProjectId,
+      surface: 'cli_suggestion',
+      cards: [
+        {
+          candidate: {
+            candidate_id: 'candidate-1',
+            source_type: 'marketplace_package',
+            source_ref: 'pkg.persona-engine',
+            origin_trust_tier: 'verified_maintainer',
+            compatibility_state: 'compatible',
+            target_scope: 'project',
+            reason_codes: ['NDG-CANDIDATE-ELIGIBLE'],
+            created_at: new Date().toISOString(),
+          },
+          decision: {
+            decision_id: 'decision-1',
+            candidate_id: 'candidate-1',
+            rank_score: 0.8,
+            rank_components_ref: 'rank:1',
+            suppression_state: 'eligible',
+            delivery_surface_set: ['cli_suggestion'],
+            expires_at: new Date().toISOString(),
+          },
+          delivery: {
+            delivery_id: '550e8400-e29b-41d4-a716-446655445402',
+            candidate_id: 'candidate-1',
+            decision_id: 'decision-1',
+            surface: 'cli_suggestion',
+            outcome: 'delivered',
+            reason_codes: ['NDG-DELIVERY-ALLOWED'],
+            evidence_refs: [{ actionCategory: 'trace-persist' }],
+            delivered_at: new Date().toISOString(),
+          },
+          trustEligibility: null,
+          whyThis: ['Persona Engine matches workflow friction'],
+          availableSuppressionActions: [
+            'dismiss_once',
+            'snooze',
+            'mute_category',
+            'mute_project',
+            'mute_global',
+          ],
+          activeSuppressions: [],
+          deepLinks: [],
+        },
+      ],
+      blockedDeliveries: [],
+      generatedAt: new Date().toISOString(),
+    });
+    vi.mocked(mockClient.marketplace.recordNudgeFeedback.mutate).mockResolvedValue({
+      feedback_id: 'feedback-1',
+      candidate_id: 'candidate-1',
+      event_type: 'opened',
+      surface: 'cli_suggestion',
+      occurred_at: new Date().toISOString(),
+      evidence_refs: [{ actionCategory: 'trace-persist' }],
+    } as any);
+    vi.mocked(mockClient.marketplace.applyNudgeSuppression.mutate).mockResolvedValue({
+      suppression_id: '550e8400-e29b-41d4-a716-446655445403',
+      action: 'snooze',
+      scope: 'candidate',
+      target_ref: 'candidate-1',
+      surface_set: ['cli_suggestion'],
+      reason_codes: ['NDG-SUPPRESSION-SNOOZE-ACTIVE'],
+      evidence_refs: [{ actionCategory: 'trace-persist' }],
+      created_at: new Date().toISOString(),
+      expires_at: new Date().toISOString(),
+    } as any);
+
+    const code = await runPkgDiscover(mockClient, {
+      projectId: '550e8400-e29b-41d4-a716-446655445401',
+      snoozeCandidateId: 'candidate-1',
+    });
+
+    expect(code).toBe(0);
+    expect(mockClient.marketplace.applyNudgeSuppression.mutate).toHaveBeenCalled();
   });
 });

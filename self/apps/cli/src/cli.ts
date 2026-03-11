@@ -6,6 +6,7 @@ import { Command } from 'commander';
 import { createCliTrpcClient } from './trpc-client.js';
 import { runSend } from './commands/send.js';
 import { runProjectsList, runProjectsCreate, runProjectsSwitch } from './commands/projects.js';
+import { runPkgDiscover } from './commands/pkg.js';
 import { runConfigGet, runConfigSet } from './commands/config.js';
 import { runWitnessGet, runWitnessList, runWitnessVerify } from './commands/witness.js';
 import { runOpctlRequestProof } from './commands/opctl.js';
@@ -72,6 +73,63 @@ async function main(): Promise<number> {
     console.error(`[nous:cli] command=projects`);
     const client = createCliTrpcClient(program.opts().apiUrl);
     const code = await runProjectsList(client);
+    process.exit(code);
+  });
+
+  const pkgCmd = program
+    .command('pkg')
+    .description('Discover advisory marketplace package suggestions.');
+  pkgCmd
+    .command('discover')
+    .description('Show advisory marketplace suggestions for the current project context')
+    .option('--limit <n>', 'Max suggestions to return', (v) => parseInt(v, 10))
+    .option(
+      '--signal <ref>',
+      'Signal reference to use when preparing the feed',
+      (value, previous: string[] = []) => {
+        previous.push(value);
+        return previous;
+      },
+      [],
+    )
+    .option('--dismiss <candidateId>', 'Dismiss one candidate once')
+    .option('--snooze <candidateId>', 'Snooze one candidate for 30 minutes')
+    .option('--mute-category <candidateId>', 'Mute the candidate category')
+    .option('--mute-project <candidateId>', 'Mute suggestions for the current project')
+    .option('--mute-global <candidateId>', 'Mute suggestions globally')
+    .action(async (cmdOpts: {
+      limit?: number;
+      signal?: string[];
+      dismiss?: string;
+      snooze?: string;
+      muteCategory?: string;
+      muteProject?: string;
+      muteGlobal?: string;
+    }) => {
+      console.error(`[nous:cli] command=pkg-discover`);
+      const opts = program.opts();
+      const client = createCliTrpcClient(opts.apiUrl);
+      const code = await runPkgDiscover(client, {
+        projectId: opts.project,
+        limit: cmdOpts.limit,
+        signalRefs: cmdOpts.signal ?? [],
+        json: opts.json ?? false,
+        dismissCandidateId: cmdOpts.dismiss,
+        snoozeCandidateId: cmdOpts.snooze,
+        muteCategoryCandidateId: cmdOpts.muteCategory,
+        muteProjectCandidateId: cmdOpts.muteProject,
+        muteGlobalCandidateId: cmdOpts.muteGlobal,
+      });
+      process.exit(code);
+    });
+  pkgCmd.action(async () => {
+    console.error(`[nous:cli] command=pkg`);
+    const opts = program.opts();
+    const client = createCliTrpcClient(opts.apiUrl);
+    const code = await runPkgDiscover(client, {
+      projectId: opts.project,
+      json: opts.json ?? false,
+    });
     process.exit(code);
   });
 

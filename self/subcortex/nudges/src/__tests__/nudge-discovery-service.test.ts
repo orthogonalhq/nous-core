@@ -1,5 +1,7 @@
 import type { NudgeRankingRequest, TraceEvidenceReference } from '@nous/shared';
 import { describe, expect, it } from 'vitest';
+import { DocumentRegistryStore } from '@nous/subcortex-registry';
+import { RegistryService } from '@nous/subcortex-registry';
 import { DocumentNudgeStore } from '../document-nudge-store.js';
 import { NudgeDiscoveryService } from '../nudge-discovery-service.js';
 import { RankingPolicyStore } from '../ranking-policy-store.js';
@@ -12,8 +14,53 @@ const EVIDENCE_REF = {
 } as unknown as TraceEvidenceReference;
 
 async function createService() {
-  const store = new DocumentNudgeStore(createMemoryDocumentStore());
+  const documentStore = createMemoryDocumentStore();
+  const store = new DocumentNudgeStore(documentStore);
   const rankingPolicyStore = new RankingPolicyStore(store, { now: () => NOW });
+  const registryService = new RegistryService({
+    registryStore: new DocumentRegistryStore(documentStore),
+    now: () => NOW,
+    idFactory: (() => {
+      const ids = [
+        'release-1',
+        'release-2',
+        'release-3',
+      ];
+      let sequence = 0;
+      return () => ids[sequence++] ?? `release-${sequence}`;
+    })(),
+  });
+  await registryService.submitRelease({
+    package_id: 'pkg.persona-engine',
+    package_type: 'project',
+    display_name: 'Persona Engine',
+    package_version: '1.0.0',
+    origin_class: 'third_party_external',
+    registered: true,
+    signing_key_id: 'key-1',
+    signature_set_ref: 'sigset-1',
+    source_hash: 'sha256:abc123',
+    compatibility: {
+      api_contract_range: '^1.0.0',
+      capability_manifest: ['model.invoke'],
+      migration_contract_version: '1',
+      data_schema_versions: ['1'],
+      policy_profile_defaults: [],
+    },
+    metadata_chain: {
+      root_version: 1,
+      timestamp_version: 1,
+      snapshot_version: 1,
+      targets_version: 1,
+      trusted_root_key_ids: ['root-a'],
+      delegated_key_ids: [],
+      metadata_expires_at: '2026-03-12T00:00:00.000Z',
+      artifact_digest: 'sha256:abc123',
+      metadata_digest: 'sha256:def456',
+    },
+    maintainer_ids: ['maintainer:1'],
+    published_at: NOW,
+  });
   await rankingPolicyStore.save({
     policy_id: '550e8400-e29b-41d4-a716-446655440201',
     version: '2026.03.10',
@@ -33,6 +80,7 @@ async function createService() {
 
   return new NudgeDiscoveryService({
     store,
+    registryService,
     rankingPolicyStore,
     now: () => NOW,
     idFactory: (() => {
@@ -160,5 +208,57 @@ describe('NudgeDiscoveryService', () => {
     expect(delivery.delivery_id).toBe('550e8400-e29b-41d4-a716-446655440203');
     expect(feedback.feedback_id).toBe('550e8400-e29b-41d4-a716-446655440204');
     expect(acceptance.route).toBe('runtime_authorization_required');
+  });
+
+  it('prepares a canonical feed and persists suppression plus matching feedback', async () => {
+    const service = await createService();
+
+    await service.recordSignal({
+      signal_type: 'workflow_friction',
+      target_scope: 'project',
+      source_refs: ['persona'],
+      evidence_refs: [EVIDENCE_REF],
+    });
+
+    const feed = await service.prepareSurfaceFeed({
+      projectId: '550e8400-e29b-41d4-a716-446655440301' as any,
+      surface: 'cli_suggestion',
+      signalRefs: ['persona'],
+      limit: 3,
+    });
+
+    expect(feed.cards).toHaveLength(1);
+    expect(feed.cards[0].trustEligibility?.project_id).toBe(
+      '550e8400-e29b-41d4-a716-446655440301',
+    );
+
+    const suppression = await service.applySuppression({
+      candidateId: feed.cards[0].candidate.candidate_id,
+      decisionId: feed.cards[0].decision.decision_id,
+      action: 'snooze',
+      scope: 'candidate',
+      targetRef: feed.cards[0].candidate.candidate_id,
+      projectId: '550e8400-e29b-41d4-a716-446655440301' as any,
+      surface: 'cli_suggestion',
+      durationMinutes: 30,
+      evidenceRefs: [EVIDENCE_REF],
+      occurredAt: NOW,
+    });
+    const suppressions = await service.listSuppressions({
+      projectId: '550e8400-e29b-41d4-a716-446655440301' as any,
+      surface: 'cli_suggestion',
+      candidateId: feed.cards[0].candidate.candidate_id,
+    });
+    const blockedFeed = await service.prepareSurfaceFeed({
+      projectId: '550e8400-e29b-41d4-a716-446655440301' as any,
+      surface: 'cli_suggestion',
+      signalRefs: ['persona'],
+      limit: 3,
+    });
+
+    expect(suppression.action).toBe('snooze');
+    expect(suppressions.suppressions).toHaveLength(1);
+    expect(blockedFeed.cards).toHaveLength(0);
+    expect(blockedFeed.blockedDeliveries.length).toBeGreaterThan(0);
   });
 });

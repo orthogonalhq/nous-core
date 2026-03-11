@@ -40,6 +40,11 @@ function parseAppeal(value: unknown): RegistryAppealRecord | null {
   return parsed.success ? parsed.data : null;
 }
 
+function parseGovernanceAction(value: unknown): RegistryGovernanceAction | null {
+  const parsed = RegistryGovernanceActionSchema.safeParse(value);
+  return parsed.success ? parsed.data : null;
+}
+
 export class DocumentRegistryStore {
   constructor(private readonly documentStore: IDocumentStore) {}
 
@@ -59,6 +64,17 @@ export class DocumentRegistryStore {
       packageId,
     );
     return parsePackage(raw);
+  }
+
+  async listPackages(): Promise<RegistryPackage[]> {
+    const raw = await this.documentStore.query<unknown>(REGISTRY_PACKAGE_COLLECTION, {
+      orderBy: 'updated_at',
+      orderDirection: 'desc',
+    });
+
+    return raw
+      .map(parsePackage)
+      .filter((record): record is RegistryPackage => record !== null);
   }
 
   async saveRelease(record: RegistryRelease): Promise<RegistryRelease> {
@@ -109,6 +125,17 @@ export class DocumentRegistryStore {
     return parseMaintainer(raw);
   }
 
+  async listMaintainersByIds(
+    maintainerIds: readonly string[],
+  ): Promise<MaintainerIdentity[]> {
+    const maintainers = await Promise.all(
+      maintainerIds.map((maintainerId) => this.getMaintainer(maintainerId)),
+    );
+    return maintainers.filter(
+      (maintainer): maintainer is MaintainerIdentity => maintainer !== null,
+    );
+  }
+
   async saveGovernanceAction(
     record: RegistryGovernanceAction,
   ): Promise<RegistryGovernanceAction> {
@@ -119,6 +146,19 @@ export class DocumentRegistryStore {
       validated,
     );
     return validated;
+  }
+
+  async listGovernanceActions(): Promise<RegistryGovernanceAction[]> {
+    const raw = await this.documentStore.query<unknown>(REGISTRY_GOVERNANCE_COLLECTION, {
+      orderBy: 'created_at',
+      orderDirection: 'desc',
+    });
+
+    return raw
+      .map(parseGovernanceAction)
+      .filter(
+        (record): record is RegistryGovernanceAction => record !== null,
+      );
   }
 
   async saveAppeal(record: RegistryAppealRecord): Promise<RegistryAppealRecord> {
@@ -137,5 +177,16 @@ export class DocumentRegistryStore {
       appealId,
     );
     return parseAppeal(raw);
+  }
+
+  async listAppeals(): Promise<RegistryAppealRecord[]> {
+    const raw = await this.documentStore.query<unknown>(REGISTRY_APPEAL_COLLECTION, {
+      orderBy: 'updated_at',
+      orderDirection: 'desc',
+    });
+
+    return raw
+      .map(parseAppeal)
+      .filter((record): record is RegistryAppealRecord => record !== null);
   }
 }

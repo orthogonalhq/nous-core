@@ -152,6 +152,43 @@ It can deep-link into Projects, Chat, and Traces while preserving project, run, 
 
 ---
 
+## Surface 5 — Marketplace Governance Surface
+
+The governed package-discovery and moderation surface.
+
+### Purpose
+
+Browsing registry packages, inspecting provenance and moderation posture, reviewing advisory discovery suggestions, and following trust-preserving handoffs into Projects and MAO.
+
+### Characteristics
+
+- Canonical projection over registry governance truth and discovery runtime truth
+- Trust tier, distribution status, compatibility posture, provenance, and release history surfaced directly from registry state
+- Moderation dashboard for holds, delistings, appeals, and escalation continuity
+- Advisory-only discovery feed with mandatory suppression controls
+- Deep links into Projects and MAO preserve project, package, release, candidate, and evidence continuity
+- No surface-owned governance, moderation, or suppression state
+
+### Companion CLI Seam
+
+`nous pkg discover` is the terminal projection of this same surface family.
+
+- It consumes the same marketplace router outputs as the web surface
+- It remains advisory-only
+- It displays trust eligibility and available suppression actions
+- It writes feedback and suppression choices back through canonical runtime services
+
+### Cross-Surface Role
+
+Marketplace is not a separate policy engine. It is a governed projection over:
+
+- Registry trust and compatibility truth
+- Governance action and appeal truth
+- Advisory discovery feed truth
+- Escalation continuity truth
+
+---
+
 ## Automation Gateway (Phase 5.3)
 
 The programmatic trigger surface for scheduled runs, internal hooks, and external webhooks.
@@ -197,8 +234,9 @@ A typical cross-surface flow:
 1. Nous escalates via **Secure Messaging**: "Persona Engine — identity grid failed validation"
 2. User taps through to the **Chat Interface** for that project to ask follow-up questions
 3. User opens the **MAO operator surface** to identify the blocked agent and inspect its reasoning preview
-4. User follows into the **Projects UI** to inspect the same run and node context, or into **Chat** for escalation follow-up
-5. Nous resumes execution only through the governed control path
+4. User opens the **Marketplace Governance Surface** to inspect package trust posture, moderation status, or advisory suggestions
+5. User follows into the **Projects UI** or **MAO** with preserved marketplace context, or into **Chat** for escalation follow-up
+6. Nous resumes execution only through the governed control path
 
 The user moves between surfaces fluidly. Nous maintains continuity.
 

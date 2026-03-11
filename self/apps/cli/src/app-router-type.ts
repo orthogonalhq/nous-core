@@ -4,6 +4,19 @@
  * TODO: Import from shared package when router is extracted.
  */
 import type {
+  MarketplaceModerationDashboardRequest,
+  MarketplaceModerationDashboardSnapshot,
+  MarketplaceNudgeFeedbackInput,
+  MarketplaceNudgeFeedRequest,
+  MarketplaceNudgeFeedSnapshot,
+  NudgeAcceptanceRouteRequest,
+  NudgeAcceptanceRouteResult,
+  NudgeFeedbackRecord,
+  NudgeSuppressionMutationInput,
+  NudgeSuppressionRecord,
+  RegistryBrowseRequest,
+  RegistryBrowseResult,
+  RegistryPackageDetailSnapshot,
   ConfirmationProof,
   ConfirmationProofRequest,
   ControlCommandEnvelope,
@@ -62,6 +75,42 @@ export type AppRouter = {
     };
     hasStartLock: {
       query: (input: { projectId: string }) => Promise<boolean>;
+    };
+  };
+  marketplace: {
+    browsePackages: {
+      query: (input: RegistryBrowseRequest) => Promise<RegistryBrowseResult>;
+    };
+    getPackageDetail: {
+      query: (input: {
+        packageId: string;
+        projectId?: ProjectId;
+      }) => Promise<RegistryPackageDetailSnapshot>;
+    };
+    getModerationDashboard: {
+      query: (
+        input: MarketplaceModerationDashboardRequest,
+      ) => Promise<MarketplaceModerationDashboardSnapshot>;
+    };
+    getDiscoveryFeed: {
+      query: (
+        input: MarketplaceNudgeFeedRequest,
+      ) => Promise<MarketplaceNudgeFeedSnapshot>;
+    };
+    applyNudgeSuppression: {
+      mutate: (
+        input: NudgeSuppressionMutationInput,
+      ) => Promise<NudgeSuppressionRecord>;
+    };
+    recordNudgeFeedback: {
+      mutate: (
+        input: MarketplaceNudgeFeedbackInput,
+      ) => Promise<NudgeFeedbackRecord>;
+    };
+    routeNudgeAcceptance: {
+      mutate: (
+        input: NudgeAcceptanceRouteRequest,
+      ) => Promise<NudgeAcceptanceRouteResult>;
     };
   };
 };

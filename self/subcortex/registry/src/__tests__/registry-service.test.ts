@@ -276,4 +276,86 @@ describe('RegistryService', () => {
     expect(resolved.status).toBe('resolved_reinstated');
     expect(resolved.resolution_action_id).toBeTruthy();
   });
+
+  it('lists canonical browse, governance, and appeal projections', async () => {
+    const { service } = createService();
+
+    await service.applyGovernanceAction({
+      action_type: 'verify_maintainer',
+      maintainer_id: 'maintainer:1',
+      actor_id: 'principal',
+      reason_code: 'MKT-006-DISTRIBUTION_BLOCKED',
+      target_verification_state: 'verified_individual',
+      approval_evidence_ref: 'approval-1',
+      evidence_refs: ['approval:1'],
+    });
+
+    const submission = await service.submitRelease({
+      project_id: PROJECT_ID,
+      package_id: 'pkg.persona-engine',
+      package_type: 'project',
+      display_name: 'Persona Engine',
+      package_version: '1.0.0',
+      origin_class: 'third_party_external',
+      registered: true,
+      signing_key_id: 'key-1',
+      signature_set_ref: 'sigset-1',
+      source_hash: 'sha256:abc123',
+      compatibility: {
+        api_contract_range: '^1.0.0',
+        capability_manifest: ['model.invoke'],
+        migration_contract_version: '1',
+        data_schema_versions: ['1'],
+        policy_profile_defaults: [],
+      },
+      metadata_chain: {
+        root_version: 1,
+        timestamp_version: 1,
+        snapshot_version: 1,
+        targets_version: 1,
+        trusted_root_key_ids: ['root-a'],
+        delegated_key_ids: [],
+        metadata_expires_at: '2026-03-12T00:00:00.000Z',
+        artifact_digest: 'sha256:abc123',
+        metadata_digest: 'sha256:def456',
+      },
+      maintainer_ids: ['maintainer:1'],
+      published_at: NOW,
+    });
+    await service.submitAppeal({
+      package_id: submission.package.package_id,
+      release_id: submission.release.release_id,
+      maintainer_id: 'maintainer:1',
+      submitted_reason: 'Review requested',
+      submitted_evidence_refs: ['appeal:1'],
+    });
+
+    const browse = await service.listPackages({
+      query: 'persona',
+      trustTiers: [],
+      distributionStatuses: [],
+      compatibilityStates: [],
+      page: 1,
+      pageSize: 10,
+      projectId: PROJECT_ID,
+    });
+    const governance = await service.listGovernanceActions({
+      maintainerId: 'maintainer:1',
+      limit: 10,
+      actionTypes: [],
+    });
+    const appeals = await service.listAppeals({
+      packageId: 'pkg.persona-engine',
+      statuses: [],
+      includeResolved: true,
+      limit: 10,
+    });
+    const maintainers = await service.getPackageMaintainers('pkg.persona-engine');
+
+    expect(browse.items).toHaveLength(1);
+    expect(browse.items[0].trustEligibility?.project_id).toBe(PROJECT_ID);
+    expect(governance.actions[0]?.action_type).toBe('verify_maintainer');
+    expect(appeals.appeals).toHaveLength(1);
+    expect(maintainers[0]?.maintainer_id).toBe('maintainer:1');
+  });
 });

@@ -65,7 +65,7 @@ describe('bootstrap config validation', () => {
     );
   });
 
-  it('wires workflow, artifact, mao, scheduler, and escalation services into the web context', () => {
+  it('wires workflow, artifact, mao, scheduler, escalation, registry, and nudge services into the web context', () => {
     const dataDir = join(tmpdir(), `nous-web-context-${randomUUID()}`);
     mkdirSync(dataDir, { recursive: true });
 
@@ -79,5 +79,7 @@ describe('bootstrap config validation', () => {
     expect(ctx.maoProjectionService).toBeDefined();
     expect(ctx.schedulerService).toBeDefined();
     expect(ctx.escalationService).toBeDefined();
+    expect(ctx.registryService).toBeDefined();
+    expect(ctx.nudgeDiscoveryService).toBeDefined();
   });
 });
