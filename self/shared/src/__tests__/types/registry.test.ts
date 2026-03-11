@@ -6,6 +6,12 @@ import {
   RegistryMetadataValidationResultSchema,
   RegistryReleaseSubmissionInputSchema,
 } from '../../types/registry.js';
+import {
+  RegistryAppealQueryResultSchema,
+  RegistryBrowseResultSchema,
+  RegistryGovernanceTimelineResultSchema,
+  RegistryPackageDetailSnapshotSchema,
+} from '../../types/marketplace-surface.js';
 
 const PROJECT_ID = '550e8400-e29b-41d4-a716-446655440300';
 const NOW = '2026-03-10T00:00:00.000Z';
@@ -126,5 +132,63 @@ describe('RegistryAppealRecordSchema', () => {
     });
 
     expect(result.success).toBe(true);
+  });
+});
+
+describe('Registry browse/detail projection schemas', () => {
+  it('parses browse and detail wrappers over canonical registry truth', () => {
+    const browse = RegistryBrowseResultSchema.safeParse({
+      query: {
+        query: '',
+        trustTiers: [],
+        distributionStatuses: [],
+        compatibilityStates: [],
+        page: 1,
+        pageSize: 20,
+      },
+      items: [],
+      totalCount: 0,
+      generatedAt: NOW,
+    });
+    const detail = RegistryPackageDetailSnapshotSchema.safeParse({
+      package: {
+        package_id: 'pkg.persona-engine',
+        package_type: 'project',
+        display_name: 'Persona Engine',
+        latest_release_id: 'release-1',
+        trust_tier: 'verified_maintainer',
+        distribution_status: 'active',
+        compatibility_state: 'compatible',
+        maintainer_ids: ['maintainer:1'],
+        evidence_refs: [],
+        created_at: NOW,
+        updated_at: NOW,
+      },
+      latestRelease: null,
+      releases: [],
+      maintainers: [],
+      governanceTimeline: [],
+      appeals: [],
+      trustEligibility: null,
+      deepLinks: [],
+      generatedAt: NOW,
+    });
+
+    expect(browse.success).toBe(true);
+    expect(detail.success).toBe(true);
+  });
+
+  it('parses governance and appeal query result wrappers', () => {
+    const governance = RegistryGovernanceTimelineResultSchema.safeParse({
+      actions: [],
+      generatedAt: NOW,
+    });
+    const appeals = RegistryAppealQueryResultSchema.safeParse({
+      appeals: [],
+      generatedAt: NOW,
+    });
+
+    expect(governance.success).toBe(true);
+    expect(appeals.success).toBe(true);
   });
 });

@@ -12,6 +12,11 @@ import {
   NudgeSuppressionCheckResultSchema,
   NudgeSuppressionRecordSchema,
 } from '../../types/nudge.js';
+import {
+  MarketplaceNudgeFeedSnapshotSchema,
+  NudgeSuppressionMutationInputSchema,
+  NudgeSuppressionQueryResultSchema,
+} from '../../types/marketplace-surface.js';
 
 const NOW = '2026-03-10T00:00:00.000Z';
 const EVIDENCE_REF = {
@@ -212,5 +217,39 @@ describe('NudgeAcceptanceRouteResultSchema', () => {
     });
 
     expect(result.success).toBe(true);
+  });
+});
+
+describe('Marketplace nudge feed and suppression schemas', () => {
+  it('parses active suppression query results', () => {
+    const result = NudgeSuppressionQueryResultSchema.safeParse({
+      suppressions: [],
+      generatedAt: NOW,
+    });
+
+    expect(result.success).toBe(true);
+  });
+
+  it('parses marketplace feed wrappers and suppression mutations', () => {
+    const feed = MarketplaceNudgeFeedSnapshotSchema.safeParse({
+      surface: 'discovery_card',
+      cards: [],
+      blockedDeliveries: [],
+      generatedAt: NOW,
+    });
+    const mutation = NudgeSuppressionMutationInputSchema.safeParse({
+      candidateId: 'candidate-1',
+      decisionId: 'decision-1',
+      action: 'snooze',
+      scope: 'candidate',
+      targetRef: 'candidate-1',
+      surface: 'discovery_card',
+      durationMinutes: 30,
+      evidenceRefs: [EVIDENCE_REF],
+      occurredAt: NOW,
+    });
+
+    expect(feed.success).toBe(true);
+    expect(mutation.success).toBe(true);
   });
 });
