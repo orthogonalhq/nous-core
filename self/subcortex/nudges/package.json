@@ -20,6 +20,7 @@
     "@nous/shared": "workspace:*"
   },
   "devDependencies": {
+    "@nous/subcortex-registry": "workspace:*",
     "vitest": "^2.1.0"
   }
 }

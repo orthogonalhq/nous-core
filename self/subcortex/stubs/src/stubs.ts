@@ -71,6 +71,12 @@ import type {
   RegistryGovernanceActionInput,
   RegistryGovernanceAction,
   MaintainerIdentity,
+  RegistryBrowseRequest,
+  RegistryBrowseResult,
+  RegistryGovernanceTimelineRequest,
+  RegistryGovernanceTimelineResult,
+  RegistryAppealQuery,
+  RegistryAppealQueryResult,
   RegistryAppealSubmissionInput,
   RegistryAppealResolutionInput,
   RegistryAppealRecord,
@@ -90,6 +96,11 @@ import type {
   NudgeAcceptanceRouteRequest,
   NudgeAcceptanceRouteResult,
   NudgeRankingPolicy,
+  MarketplaceNudgeFeedRequest,
+  MarketplaceNudgeFeedSnapshot,
+  NudgeSuppressionMutationInput,
+  NudgeSuppressionQuery,
+  NudgeSuppressionQueryResult,
   SandboxPayload,
   SandboxResult,
   MemoryScope,
@@ -323,6 +334,30 @@ export class StubRegistryService implements IRegistryService {
     return stubNotImpl('IRegistryService', 'getMaintainer', 'Phase 10.1');
   }
 
+  async listPackages(
+    _input: RegistryBrowseRequest,
+  ): Promise<RegistryBrowseResult> {
+    return stubNotImpl('IRegistryService', 'listPackages', 'Phase 10.3');
+  }
+
+  async getPackageMaintainers(
+    _packageId: string,
+  ): Promise<MaintainerIdentity[]> {
+    return stubNotImpl('IRegistryService', 'getPackageMaintainers', 'Phase 10.3');
+  }
+
+  async listGovernanceActions(
+    _input: RegistryGovernanceTimelineRequest,
+  ): Promise<RegistryGovernanceTimelineResult> {
+    return stubNotImpl('IRegistryService', 'listGovernanceActions', 'Phase 10.3');
+  }
+
+  async listAppeals(
+    _input: RegistryAppealQuery,
+  ): Promise<RegistryAppealQueryResult> {
+    return stubNotImpl('IRegistryService', 'listAppeals', 'Phase 10.3');
+  }
+
   async submitAppeal(
     _input: RegistryAppealSubmissionInput,
   ): Promise<RegistryAppealRecord> {
@@ -385,6 +420,24 @@ export class StubNudgeDiscoveryService implements INudgeDiscoveryService {
     _input: NudgeAcceptanceRouteRequest,
   ): Promise<NudgeAcceptanceRouteResult> {
     return stubNotImpl('INudgeDiscoveryService', 'routeAcceptance', 'Phase 10.2');
+  }
+
+  async prepareSurfaceFeed(
+    _input: MarketplaceNudgeFeedRequest,
+  ): Promise<MarketplaceNudgeFeedSnapshot> {
+    return stubNotImpl('INudgeDiscoveryService', 'prepareSurfaceFeed', 'Phase 10.3');
+  }
+
+  async applySuppression(
+    _input: NudgeSuppressionMutationInput,
+  ): Promise<import('@nous/shared').NudgeSuppressionRecord> {
+    return stubNotImpl('INudgeDiscoveryService', 'applySuppression', 'Phase 10.3');
+  }
+
+  async listSuppressions(
+    _input: NudgeSuppressionQuery,
+  ): Promise<NudgeSuppressionQueryResult> {
+    return stubNotImpl('INudgeDiscoveryService', 'listSuppressions', 'Phase 10.3');
   }
 
   async getRankingPolicy(_policyVersion?: string): Promise<NudgeRankingPolicy> {
