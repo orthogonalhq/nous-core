@@ -59,6 +59,12 @@
       "@nous/subcortex-escalation": [
         "../../subcortex/escalation/src/index.ts"
       ],
+      "@nous/subcortex-registry": [
+        "../../subcortex/registry/src/index.ts"
+      ],
+      "@nous/subcortex-nudges": [
+        "../../subcortex/nudges/src/index.ts"
+      ],
       "@nous/subcortex-witnessd": [
         "../../subcortex/witnessd/src/index.ts"
       ],

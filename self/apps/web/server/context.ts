@@ -16,6 +16,8 @@ import type {
   IMaoProjectionService,
   IGtmGateCalculator,
   IEscalationService,
+  IRegistryService,
+  INudgeDiscoveryService,
 } from '@nous/shared';
 import type { MwcPipeline } from '@nous/memory-mwc';
 import type { IDocumentStore } from '@nous/shared';
@@ -42,5 +44,7 @@ export interface NousContext {
   artifactStore: IArtifactStore;
   schedulerService: IScheduler;
   escalationService: IEscalationService;
+  registryService: IRegistryService;
+  nudgeDiscoveryService: INudgeDiscoveryService;
   dataDir: string;
 }

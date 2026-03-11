@@ -31,6 +31,14 @@ export default defineConfig({
         __dirname,
         '../../subcortex/tools/src/index.ts',
       ),
+      '@nous/subcortex-registry': resolve(
+        __dirname,
+        '../../subcortex/registry/src/index.ts',
+      ),
+      '@nous/subcortex-nudges': resolve(
+        __dirname,
+        '../../subcortex/nudges/src/index.ts',
+      ),
       '@nous/subcortex-witnessd': resolve(
         __dirname,
         '../../subcortex/witnessd/src/index.ts',

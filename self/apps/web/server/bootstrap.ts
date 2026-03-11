@@ -47,6 +47,8 @@ import {
 import { DocumentScheduleStore, SchedulerService } from '@nous/subcortex-scheduler';
 import { DeterministicWorkflowEngine } from '@nous/subcortex-workflows';
 import { WitnessService } from '@nous/subcortex-witnessd';
+import { DocumentRegistryStore, RegistryService } from '@nous/subcortex-registry';
+import { DocumentNudgeStore, NudgeDiscoveryService } from '@nous/subcortex-nudges';
 import {
   OpctlService,
   InMemoryReplayStore,
@@ -176,6 +178,8 @@ export function createNousContext(): NousContext {
   const artifactStore = new DocumentArtifactStore(documentStore);
   const scheduleStore = new DocumentScheduleStore(documentStore);
   const escalationStore = new DocumentEscalationStore(documentStore);
+  const registryStore = new DocumentRegistryStore(documentStore);
+  const nudgeStore = new DocumentNudgeStore(documentStore);
   const witnessService = new WitnessService(documentStore);
   const opctlService = new OpctlService({
     replayStore: new InMemoryReplayStore(),
@@ -244,6 +248,15 @@ export function createNousContext(): NousContext {
     escalationStore,
     projectStore,
   });
+  const registryService = new RegistryService({
+    registryStore,
+    escalationService,
+    witnessService,
+  });
+  const nudgeDiscoveryService = new NudgeDiscoveryService({
+    store: nudgeStore,
+    registryService,
+  });
   const maoProjectionService = new MaoProjectionService({
     opctlService,
     workflowEngine,
@@ -299,6 +312,8 @@ export function createNousContext(): NousContext {
     artifactStore,
     schedulerService,
     escalationService,
+    registryService,
+    nudgeDiscoveryService,
     dataDir,
   };
 

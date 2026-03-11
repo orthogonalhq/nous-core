@@ -21,6 +21,8 @@ export type {
   IArtifactStore,
   IScheduler,
   IEscalationService,
+  IRegistryService,
+  INudgeDiscoveryService,
   ISandbox,
   IPackageLifecycleOrchestrator,
   ISkillAdmissionOrchestrator,

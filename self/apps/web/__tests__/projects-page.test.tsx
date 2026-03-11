@@ -230,6 +230,29 @@ describe('ProjectsPage', () => {
     expect(screen.getAllByText(/Return to MAO/i).length).toBeGreaterThan(0);
     expect(screen.getByText(/MAO-origin monitoring context is active/i)).toBeTruthy();
   });
+
+  it('preserves marketplace handoff context in the project surface', () => {
+    mocks.useSearchParams.mockReturnValue({
+      get: vi.fn((key: string) => {
+        const values: Record<string, string | null> = {
+          source: 'marketplace',
+          projectId: '550e8400-e29b-41d4-a716-446655443001',
+          packageId: 'pkg.persona-engine',
+          releaseId: 'release-1',
+          candidateId: 'candidate-1',
+        };
+        return values[key] ?? null;
+      }),
+    });
+
+    render(<ProjectsPage />);
+
+    expect(screen.getByText(/Marketplace handoff active/i)).toBeTruthy();
+    expect(screen.getAllByText(/Return to marketplace/i).length).toBeGreaterThan(0);
+    expect(
+      screen.getByText(/Marketplace-origin package context is active/i),
+    ).toBeTruthy();
+  });
 });
 
 function createWorkflowSnapshot(overrides: Record<string, unknown> = {}) {

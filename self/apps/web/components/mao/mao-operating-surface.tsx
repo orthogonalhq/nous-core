@@ -39,6 +39,10 @@ export function MaoOperatingSurface() {
   const linkedNodeId = searchParams.get('nodeId');
   const linkedAgentId = searchParams.get('agentId');
   const linkedEvidenceRef = searchParams.get('evidenceRef');
+  const linkedPackageId = searchParams.get('packageId');
+  const linkedReleaseId = searchParams.get('releaseId');
+  const linkedCandidateId = searchParams.get('candidateId');
+  const linkedSource = searchParams.get('source');
   const maoContext = readMaoNavigationContext(searchParams);
 
   const [densityMode, setDensityMode] = React.useState<MaoDensityMode>('D2');
@@ -245,12 +249,15 @@ export function MaoOperatingSurface() {
         </div>
       </div>
 
-      {linkedRunId || linkedNodeId || linkedAgentId || maoContext ? (
+      {linkedRunId || linkedNodeId || linkedAgentId || maoContext || linkedSource === 'marketplace' ? (
         <div className="rounded-md border border-border bg-muted/20 px-4 py-3 text-sm text-muted-foreground">
           {maoContext ? 'MAO return context is active.' : 'Linked runtime context is active.'}
           {linkedRunId ? ` run ${formatShortId(linkedRunId)}` : ''}
           {linkedNodeId ? ` node ${formatShortId(linkedNodeId)}` : ''}
           {linkedAgentId ? ` agent ${formatShortId(linkedAgentId)}` : ''}
+          {linkedPackageId ? ` package ${linkedPackageId}` : ''}
+          {linkedReleaseId ? ` release ${linkedReleaseId}` : ''}
+          {linkedCandidateId ? ` candidate ${linkedCandidateId}` : ''}
           {linkedEvidenceRef ? ` evidence ${linkedEvidenceRef}` : ''}
           {maoContext ? (
             <Link

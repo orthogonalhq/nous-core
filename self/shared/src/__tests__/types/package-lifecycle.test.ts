@@ -73,6 +73,20 @@ describe('PackageLifecycleTransitionRequestSchema', () => {
         expansion_requested: false,
         reapproval_granted: false,
       },
+      registry_eligibility: {
+        package_id: 'skill:image-quality-assessment',
+        release_id: 'release-1',
+        package_version: '1.2.0',
+        trust_tier: 'verified_maintainer',
+        distribution_status: 'active',
+        compatibility_state: 'compatible',
+        metadata_valid: true,
+        signer_valid: true,
+        requires_principal_override: false,
+        block_reason_codes: [],
+        evidence_refs: ['witness:evt_123'],
+        evaluated_at: new Date().toISOString(),
+      },
     });
 
     expect(result.success).toBe(true);
@@ -101,6 +115,19 @@ describe('PackageLifecycleTransitionResultSchema', () => {
       reason_code: 'PKG-002-CAP_EXPANSION_PENDING',
       witness_ref: 'evt_123',
       evidence_refs: ['event:pkg_capability_blocked'],
+    });
+    expect(result.success).toBe(true);
+  });
+
+  it('accepts registry-coded blocked transition results', () => {
+    const result = PackageLifecycleTransitionResultSchema.safeParse({
+      decision: 'blocked',
+      transition: 'install',
+      from_state: 'ingested',
+      to_state: 'ingested',
+      reason_code: 'MKT-002-UNREGISTERED_EXTERNAL',
+      witness_ref: 'evt_123',
+      evidence_refs: ['event:pkg_runtime_action_decided'],
     });
     expect(result.success).toBe(true);
   });

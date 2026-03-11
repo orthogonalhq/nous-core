@@ -15,6 +15,7 @@ import { maoRouter } from './routers/mao';
 import { gtmRouter } from './routers/gtm';
 import { discoveryRouter } from './routers/discovery';
 import { escalationsRouter } from './routers/escalations';
+import { marketplaceRouter } from './routers/marketplace';
 
 export const appRouter = router({
   projects: projectsRouter,
@@ -30,6 +31,7 @@ export const appRouter = router({
   mao: maoRouter,
   gtm: gtmRouter,
   discovery: discoveryRouter,
+  marketplace: marketplaceRouter,
 });
 
 export type AppRouter = typeof appRouter;
