@@ -63,4 +63,5 @@ export * from './package-lifecycle.js';
 export * from './package-compatibility.js';
 export * from './registry.js';
 export * from './nudge.js';
+export * from './marketplace-surface.js';
 export * from './skill-admission.js';

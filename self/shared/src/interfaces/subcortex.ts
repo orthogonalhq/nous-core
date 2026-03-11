@@ -110,6 +110,12 @@ import type {
   RegistryAppealSubmissionInput,
   RegistryAppealResolutionInput,
   RegistryAppealRecord,
+  RegistryBrowseRequest,
+  RegistryBrowseResult,
+  RegistryGovernanceTimelineRequest,
+  RegistryGovernanceTimelineResult,
+  RegistryAppealQuery,
+  RegistryAppealQueryResult,
   NudgeSignalRecordInput,
   NudgeSignalRecord,
   NudgeCandidateGenerationInput,
@@ -125,6 +131,11 @@ import type {
   NudgeAcceptanceRouteRequest,
   NudgeAcceptanceRouteResult,
   NudgeRankingPolicy,
+  MarketplaceNudgeFeedRequest,
+  MarketplaceNudgeFeedSnapshot,
+  NudgeSuppressionMutationInput,
+  NudgeSuppressionQuery,
+  NudgeSuppressionQueryResult,
 } from '../types/index.js';
 import type { NousEvent } from '../events/index.js';
 
@@ -327,6 +338,20 @@ export interface IRegistryService {
   /** Retrieve a maintainer identity record. */
   getMaintainer(maintainerId: string): Promise<MaintainerIdentity | null>;
 
+  /** Browse canonical registry package projections for marketplace surfaces. */
+  listPackages(input: RegistryBrowseRequest): Promise<RegistryBrowseResult>;
+
+  /** Resolve maintainers for a canonical registry package. */
+  getPackageMaintainers(packageId: string): Promise<MaintainerIdentity[]>;
+
+  /** List governance actions for a registry package/release/maintainer view. */
+  listGovernanceActions(
+    input: RegistryGovernanceTimelineRequest,
+  ): Promise<RegistryGovernanceTimelineResult>;
+
+  /** List appeals for a registry package or maintainer view. */
+  listAppeals(input: RegistryAppealQuery): Promise<RegistryAppealQueryResult>;
+
   /** Submit a moderation or governance appeal. */
   submitAppeal(
     input: RegistryAppealSubmissionInput,
@@ -365,6 +390,21 @@ export interface INudgeDiscoveryService {
   routeAcceptance(
     input: NudgeAcceptanceRouteRequest,
   ): Promise<NudgeAcceptanceRouteResult>;
+
+  /** Prepare a canonical marketplace/web/CLI surface feed from approved runtime truth. */
+  prepareSurfaceFeed(
+    input: MarketplaceNudgeFeedRequest,
+  ): Promise<MarketplaceNudgeFeedSnapshot>;
+
+  /** Persist a suppression mutation and its matching explicit feedback event. */
+  applySuppression(
+    input: NudgeSuppressionMutationInput,
+  ): Promise<import('../types/index.js').NudgeSuppressionRecord>;
+
+  /** List active or historical suppressions for a surface/query scope. */
+  listSuppressions(
+    input: NudgeSuppressionQuery,
+  ): Promise<NudgeSuppressionQueryResult>;
 
   /** Retrieve the current or explicitly selected ranking policy. */
   getRankingPolicy(policyVersion?: string): Promise<NudgeRankingPolicy>;
