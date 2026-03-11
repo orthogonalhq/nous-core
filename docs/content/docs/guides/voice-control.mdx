@@ -1,0 +1,109 @@
+---
+title: Voice Control
+description: Voice turn safety, degraded mode, barge-in handling, and confirmation rules
+---
+
+# Voice Control
+
+Phase 11.3 adds the canonical voice-control runtime for safe voice escalation and control handling.
+
+Voice is a control-intent surface, not a shortcut around governance. The runtime preserves the same canonical route, escalation, endpoint-trust, operator-control, and MAO truth already used by chat, Projects, and other in-app surfaces.
+
+## What Voice Control Does
+
+- Tracks canonical turn state for a voice session
+- Evaluates whether a turn is ready for handoff using combined signals
+- Defers risky actions to clarification, text confirmation, or dual-channel confirmation when required
+- Stops assistant output immediately on barge-in and records interruption timing
+- Keeps degraded-mode status visible across operator surfaces
+
+## End-of-Turn Safety
+
+Voice actions do not execute on silence alone.
+
+The runtime evaluates all of the following together:
+
+- semantic completion
+- silence-window timing
+- explicit handoff support
+
+If those signals do not line up, the system continues listening, asks for clarification, or blocks the action instead of guessing.
+
+## Confirmation Rules
+
+Voice can request an action, but it cannot bypass canonical confirmation policy.
+
+- Low-confidence risky actions can require explicit text confirmation
+- Destructive, critical, or `T3` actions require dual-channel confirmation from the active Principal session
+- Voice alone cannot authorize those actions
+
+When confirmation is required, the runtime preserves that posture in canonical session state so MAO and other in-app surfaces can show the same pending confirmation status.
+
+## Barge-In and Continuation
+
+If you interrupt assistant speech:
+
+- assistant output stops immediately
+- interruption timing is recorded
+- the session moves into continuation-required posture
+
+The assistant does not automatically resume after interruption. Continuation must be explicit.
+
+## Degraded Mode
+
+The runtime can enter degraded mode when voice handling is unsafe for risky controls.
+
+Common reasons:
+
+- low ASR confidence
+- low intent confidence
+- handoff instability
+- transport degradation
+- interruption-recovery posture after barge-in
+
+While degraded mode is active:
+
+- risky controls shift to text-first behavior
+- operator surfaces keep showing current voice posture
+- a single improved turn is not enough to clear degraded mode
+
+This is a safety mechanism, not a cosmetic warning.
+
+## Privacy and Evidence
+
+Phase 11.3 uses a metadata-first posture for voice control events.
+
+By default, the runtime keeps:
+
+- transcript hashes
+- confidence and handoff signals
+- decision refs
+- route and escalation refs
+- witness-linked evidence
+
+Raw audio is not retained by default.
+
+## Current Scope
+
+Phase 11.3 ships the canonical runtime and web/API composition seam.
+
+Included now:
+
+- canonical voice turn evaluation
+- interruption and continuation handling
+- degraded-mode projection
+- text-first and dual-channel confirmation posture
+
+Not included yet:
+
+- connector-native voice call UX
+- mobile continuity UX
+- wake-word or ASR model tuning
+- voice-only authorization for dangerous actions
+
+## Related
+
+- [Secure Messaging (Telegram)](/docs/guides/messaging)
+- [Device Trust](/docs/guides/device-trust)
+- [Interaction Surfaces](/docs/architecture/interaction-surfaces)
+- [Security Baseline](/docs/architecture/security-baseline)

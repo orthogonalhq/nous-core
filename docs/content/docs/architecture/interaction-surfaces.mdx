@@ -23,9 +23,12 @@ Interaction with Nous when away from a workstation. Quick decisions, approvals, 
 
 - Nous reaches the user here for escalations and notifications
 - User can give quick natural language instructions
-- Supports text in Phase 11.1; voice remains a later-phase escalation surface
+- Supports text through the Phase 11.1 communication-gateway baseline
+- Phase 11.3 adds the canonical voice-control runtime for safe turn handling, interruption, degraded-mode visibility, and confirmation posture
 - Always scoped to a project context (Nous states which project it is referencing)
 - Minimal UI — the conversation is the interface
+- High-risk voice actions can require text or dual-channel confirmation instead of voice-only execution
+- Barge-in stops assistant output immediately and requires explicit continuation
 
 ### Channel
 
@@ -39,13 +42,14 @@ Requirements:
 - Manual pairing and endpoint trust approval before any privileged device capability becomes active
 - Message integrity and authenticated connector context
 - Channel routing through the canonical communication-gateway runtime
+- Voice turn evaluation through the canonical voice-control runtime when a surface supplies normalized voice signals
 - Signed endpoint transport validated by the canonical endpoint-trust runtime
 - No connector-owned routing, acknowledgement, suppression, trust, or project state
 - No dependency on a specific vendor over the long term (channel remains replaceable)
 
 ### Runtime Boundary
 
-This surface is not a second control plane. The bridge app normalizes connector-native messages into canonical communication-gateway envelopes, then hands them to `ICommunicationGatewayService` inside the same app-hosted runtime graph. Device identity, manual pairing, immutable endpoint direction, capability grants, signed transport validation, and incident containment flow through `IEndpointTrustService`; the bridge adapter stays thin and does not own trust state.
+This surface is not a second control plane. The bridge app normalizes connector-native messages into canonical communication-gateway envelopes and normalized voice-turn signals, then hands them to `ICommunicationGatewayService` and `IVoiceControlService` inside the same app-hosted runtime graph. Device identity, manual pairing, immutable endpoint direction, capability grants, signed transport validation, and incident containment flow through `IEndpointTrustService`; turn completion, degraded mode, interruption state, and text-first recovery flow through the voice-control runtime. The bridge adapter stays thin and does not own trust, route, or voice-policy state.
 
 ### Interaction Examples
 
@@ -53,6 +57,7 @@ This surface is not a second control plane. The bridge app normalizes connector-
 - User responds: "Approve retry"
 - Nous sends: "Inbox Manager — flagged an email from [sender] marked urgent. Subject: [subject]. Forward, reply, or ignore?"
 - User responds via voice call for complex decisions
+- Nous responds to a risky voice request with: "I understood a project-control action, but this requires text confirmation in your active session."
 
 ---
 
@@ -146,6 +151,7 @@ Monitoring multi-agent workflow posture at a glance, inspecting blocked or faile
 - Urgent and blocked overlays derived from runtime/control truth
 - Evidence-derived reasoning-log previews with redaction posture
 - Governed project-scope `Pause Project`, `Resume Project`, and `Hard Stop Project` controls
+- Additive `voice_projection` visibility for current turn state, degraded mode, pending confirmation, and continuation-required posture
 
 ### Cross-Surface Role
 
@@ -234,6 +240,7 @@ All surfaces read from and write to the same project state:
 - Same artifact store
 - Same execution traces
 - Same governance configuration
+- Same canonical voice session and confirmation state projected into web, messaging, Projects, and MAO surfaces
 
 ### Cross-Surface Flows
 
@@ -253,6 +260,7 @@ The user moves between surfaces fluidly. Nous maintains continuity.
 - Escalations originate from the Cortex based on governance rules
 - Delivery channel is configurable per project and per priority level
 - Communication-gateway acknowledgements resolve the same canonical escalation record used by in-app surfaces
+- Voice degraded-mode and pending-confirmation posture resolve against the same canonical session projection used by MAO and other in-app surfaces
 - The same escalation can appear across multiple surfaces (e.g., a push notification and a chat message)
 - Acknowledgment on any surface resolves the escalation on all surfaces
 
