@@ -67,3 +67,4 @@ export * from './marketplace-surface.js';
 export * from './communication-gateway.js';
 export * from './skill-admission.js';
 export * from './endpoint-trust.js';
+export * from './voice-control.js';

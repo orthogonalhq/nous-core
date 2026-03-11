@@ -194,9 +194,29 @@ describe('MaoProjectControlProjectionSchema', () => {
   };
 
   it('parses valid project control projection', () => {
-    const result = MaoProjectControlProjectionSchema.parse(valid);
+    const result = MaoProjectControlProjectionSchema.parse({
+      ...valid,
+      voice_projection: {
+        current_turn_state: 'listening',
+        assistant_output_state: 'idle',
+        degraded_mode: {
+          session_id: '77777777-7777-7777-7777-777777777777',
+          project_id: PROJECT_ID,
+          active: false,
+          evidence_refs: [],
+        },
+        pending_confirmation: {
+          required: false,
+          dual_channel_required: false,
+          text_surface_targets: [],
+        },
+        continuation_required: false,
+        updated_at: '2026-03-10T01:00:00.000Z',
+      },
+    });
     expect(result.project_control_state).toBe('running');
     expect(result.active_agent_count).toBe(2);
+    expect(result.voice_projection?.current_turn_state).toBe('listening');
   });
 
   it('rejects invalid project_control_state', () => {
