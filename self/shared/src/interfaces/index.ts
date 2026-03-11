@@ -23,6 +23,7 @@ export type {
   IEscalationService,
   IRegistryService,
   INudgeDiscoveryService,
+  ICommunicationGatewayService,
   ISandbox,
   IPackageLifecycleOrchestrator,
   ISkillAdmissionOrchestrator,

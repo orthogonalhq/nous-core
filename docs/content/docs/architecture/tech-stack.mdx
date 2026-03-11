@@ -30,13 +30,13 @@ TypeScript is the primary language across all layers — cortex, memory, subcort
 | **Package Manager** | pnpm |
 | **Monorepo** | pnpm workspaces |
 | **Build — type packages** | tsc (see ADR-001) |
-| **Build — application packages** | Next.js (`next build`) for web; tsc for CLI. tsdown re-evaluated for future app packages. |
+| **Build — application packages** | Next.js (`next build`) for web; tsc for CLI and bridge app packages. tsdown re-evaluated for future app packages. |
 | **Linter** | oxlint (Rust-based) |
 | **Formatter** | oxfmt (Rust-based) |
 
 pnpm workspaces provide lightweight monorepo management. Each package in `self/` (cortex/Cortex, memory/stm, autonomic/storage, etc.) is a workspace. Dependencies are shared where appropriate, isolated where needed.
 
-Type-definition-heavy packages (shared types, interfaces, schemas, error classes) are built with **tsc**. The web app uses Next.js build; the CLI uses tsc. tsdown was deferred due to pnpm/Windows compatibility; it may be re-evaluated for future application packages. See ADR-001 for the rationale.
+Type-definition-heavy packages (shared types, interfaces, schemas, error classes) are built with **tsc**. The web app uses Next.js build; the CLI and the Phase 11.1 bridge app use `tsc --build`. tsdown was deferred due to pnpm/Windows compatibility; it may be re-evaluated for future application packages. See ADR-001 for the rationale.
 
 oxlint and oxfmt are Rust-based alternatives to ESLint and Prettier — significantly faster for large codebases, with lower configuration overhead.
 
@@ -195,7 +195,7 @@ tRPC integrates natively with:
 - **Next.js App Router** — first-class support for server components and client components
 - **WebSocket** — subscriptions for real-time streaming
 
-The headless API principle still holds. tRPC defines the contract. The Next.js web UI and the CLI are both consumers. Future consumers (cloud frontend, mobile app, messaging bridge) can use the same tRPC client or consume the underlying HTTP/WebSocket endpoints directly.
+The headless API principle still holds. tRPC defines the contract. The Next.js web UI and the CLI are both consumers. The Phase 11.1 bridge app adds a second app-hosted ingress path for human messaging, but it still hands canonical work to shared/subcortex seams rather than creating a parallel API or state model. Future consumers (cloud frontend, mobile app, later messaging bridges) can use the same tRPC client or consume the underlying HTTP/WebSocket endpoints directly where appropriate.
 
 When WebTransport matures in the Node.js ecosystem, tRPC's transport layer can be swapped underneath without changing any application code. The API contract remains stable regardless of transport.
 
@@ -243,7 +243,7 @@ The decision to use a non-TypeScript implementation is made per-component based 
 ```
 Language:        TypeScript 5.9+ on Node ≥22
 Monorepo:        pnpm workspaces
-Build:           tsc (type packages, CLI) / Next.js (web app)
+Build:           tsc (type packages, CLI, bridge) / Next.js (web app)
 Lint/Format:     oxlint + oxfmt
 Test:            Vitest + Playwright
 Validation:      Zod
