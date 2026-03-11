@@ -449,6 +449,68 @@ export interface ICommunicationGatewayService {
   getRouteDecision(routeId: string): Promise<CommunicationRouteDecision | null>;
 }
 
+export interface IEndpointTrustService {
+  /** Create or refresh a manual pairing request for a peripheral identity. */
+  requestPairing(
+    input: import('../types/index.js').EndpointPairingRequestInput,
+  ): Promise<import('../types/index.js').EndpointPairingRecord>;
+
+  /** Apply the principal-approved outcome of a pairing review. */
+  reviewPairing(
+    input: import('../types/index.js').EndpointPairingReviewInput,
+  ): Promise<import('../types/index.js').EndpointPairingRecord>;
+
+  /** Register a concrete endpoint under a paired peripheral with immutable direction. */
+  registerEndpoint(
+    input: import('../types/index.js').EndpointRegistrationInput,
+  ): Promise<import('../types/index.js').EndpointTrustEndpoint>;
+
+  /** Grant a specific sensory or action capability to a trusted endpoint. */
+  grantCapability(
+    input: import('../types/index.js').EndpointCapabilityGrantInput,
+  ): Promise<import('../types/index.js').EndpointCapabilityGrantRecord>;
+
+  /** Revoke a previously granted endpoint capability. */
+  revokeCapability(
+    input: import('../types/index.js').EndpointCapabilityRevocationInput,
+  ): Promise<import('../types/index.js').EndpointCapabilityGrantRecord>;
+
+  /** Establish a transport session for a trusted endpoint. */
+  establishSession(
+    input: import('../types/index.js').EndpointSessionStartInput,
+  ): Promise<import('../types/index.js').EndpointSessionRecord>;
+
+  /** Rotate an active endpoint transport session. */
+  rotateSession(
+    input: import('../types/index.js').EndpointSessionRotateInput,
+  ): Promise<import('../types/index.js').EndpointSessionRecord>;
+
+  /** Validate a signed endpoint transport envelope against current session state. */
+  validateTransport(
+    input: import('../types/index.js').EndpointTransportValidationRequest,
+  ): Promise<import('../types/index.js').EndpointTransportValidationResult>;
+
+  /** Evaluate capability access against trust, direction, grant, and confirmation posture. */
+  authorize(
+    input: import('../types/index.js').EndpointAuthorizationRequest,
+  ): Promise<import('../types/index.js').EndpointAuthorizationResult>;
+
+  /** Record an endpoint trust incident and apply deterministic containment. */
+  reportIncident(
+    input: import('../types/index.js').EndpointIncidentReportInput,
+  ): Promise<import('../types/index.js').EndpointIncidentRecord>;
+
+  /** Retrieve the current peripheral trust record. */
+  getPeripheral(
+    peripheralId: string,
+  ): Promise<import('../types/index.js').EndpointTrustPeripheral | null>;
+
+  /** Retrieve the current endpoint trust record. */
+  getEndpoint(
+    endpointId: string,
+  ): Promise<import('../types/index.js').EndpointTrustEndpoint | null>;
+}
+
 export interface ISandbox {
   /** Execute package runtime request through governed membrane sandbox. */
   execute(request: SandboxPayload): Promise<SandboxResult>;

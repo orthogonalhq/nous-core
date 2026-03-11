@@ -8,6 +8,7 @@ export {
   StubEscalationService,
   StubNudgeDiscoveryService,
   StubCommunicationGatewayService,
+  StubEndpointTrustService,
   StubSandbox,
   type StubSandboxOptions,
   StubProjectApi,

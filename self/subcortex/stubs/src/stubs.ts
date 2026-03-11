@@ -36,6 +36,7 @@ import type {
   IScheduler,
   IEscalationService,
   ICommunicationGatewayService,
+  IEndpointTrustService,
   IRegistryService,
   ISandbox,
   IProjectApi,
@@ -514,6 +515,80 @@ export class StubCommunicationGatewayService implements ICommunicationGatewaySer
       'getRouteDecision',
       'Phase 11.1',
     );
+  }
+}
+
+export class StubEndpointTrustService implements IEndpointTrustService {
+  async requestPairing(
+    _input: import('@nous/shared').EndpointPairingRequestInput,
+  ): Promise<import('@nous/shared').EndpointPairingRecord> {
+    return stubNotImpl('IEndpointTrustService', 'requestPairing', 'Phase 11.2');
+  }
+
+  async reviewPairing(
+    _input: import('@nous/shared').EndpointPairingReviewInput,
+  ): Promise<import('@nous/shared').EndpointPairingRecord> {
+    return stubNotImpl('IEndpointTrustService', 'reviewPairing', 'Phase 11.2');
+  }
+
+  async registerEndpoint(
+    _input: import('@nous/shared').EndpointRegistrationInput,
+  ): Promise<import('@nous/shared').EndpointTrustEndpoint> {
+    return stubNotImpl('IEndpointTrustService', 'registerEndpoint', 'Phase 11.2');
+  }
+
+  async grantCapability(
+    _input: import('@nous/shared').EndpointCapabilityGrantInput,
+  ): Promise<import('@nous/shared').EndpointCapabilityGrantRecord> {
+    return stubNotImpl('IEndpointTrustService', 'grantCapability', 'Phase 11.2');
+  }
+
+  async revokeCapability(
+    _input: import('@nous/shared').EndpointCapabilityRevocationInput,
+  ): Promise<import('@nous/shared').EndpointCapabilityGrantRecord> {
+    return stubNotImpl('IEndpointTrustService', 'revokeCapability', 'Phase 11.2');
+  }
+
+  async establishSession(
+    _input: import('@nous/shared').EndpointSessionStartInput,
+  ): Promise<import('@nous/shared').EndpointSessionRecord> {
+    return stubNotImpl('IEndpointTrustService', 'establishSession', 'Phase 11.2');
+  }
+
+  async rotateSession(
+    _input: import('@nous/shared').EndpointSessionRotateInput,
+  ): Promise<import('@nous/shared').EndpointSessionRecord> {
+    return stubNotImpl('IEndpointTrustService', 'rotateSession', 'Phase 11.2');
+  }
+
+  async validateTransport(
+    _input: import('@nous/shared').EndpointTransportValidationRequest,
+  ): Promise<import('@nous/shared').EndpointTransportValidationResult> {
+    return stubNotImpl('IEndpointTrustService', 'validateTransport', 'Phase 11.2');
+  }
+
+  async authorize(
+    _input: import('@nous/shared').EndpointAuthorizationRequest,
+  ): Promise<import('@nous/shared').EndpointAuthorizationResult> {
+    return stubNotImpl('IEndpointTrustService', 'authorize', 'Phase 11.2');
+  }
+
+  async reportIncident(
+    _input: import('@nous/shared').EndpointIncidentReportInput,
+  ): Promise<import('@nous/shared').EndpointIncidentRecord> {
+    return stubNotImpl('IEndpointTrustService', 'reportIncident', 'Phase 11.2');
+  }
+
+  async getPeripheral(
+    _peripheralId: string,
+  ): Promise<import('@nous/shared').EndpointTrustPeripheral | null> {
+    return stubNotImpl('IEndpointTrustService', 'getPeripheral', 'Phase 11.2');
+  }
+
+  async getEndpoint(
+    _endpointId: string,
+  ): Promise<import('@nous/shared').EndpointTrustEndpoint | null> {
+    return stubNotImpl('IEndpointTrustService', 'getEndpoint', 'Phase 11.2');
   }
 }
 
