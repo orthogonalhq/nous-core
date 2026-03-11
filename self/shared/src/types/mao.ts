@@ -185,6 +185,53 @@ export type MaoResumeReadinessStatus = z.infer<
   typeof MaoResumeReadinessStatusSchema
 >;
 
+const MaoVoiceTurnStateSchema = z.enum([
+  'listening',
+  'evaluating',
+  'awaiting_text_confirmation',
+  'continuation_required',
+  'completed',
+  'blocked',
+]);
+
+const MaoVoiceAssistantOutputStateSchema = z.enum([
+  'idle',
+  'speaking',
+  'interrupted_by_user',
+  'awaiting_continuation',
+  'completed',
+]);
+
+const MaoVoiceDegradedModeStateSchema = z.object({
+  session_id: z.string().uuid(),
+  project_id: ProjectIdSchema,
+  active: z.boolean(),
+  reason: z
+    .enum([
+      'low_asr_confidence',
+      'low_intent_confidence',
+      'handoff_instability',
+      'transport_degraded',
+      'barge_in_recovery_required',
+    ])
+    .optional(),
+  entered_at: z.string().datetime().optional(),
+  recovery_window_started_at: z.string().datetime().optional(),
+  last_recovered_at: z.string().datetime().optional(),
+  evidence_refs: z.array(z.string().min(1)).default([]),
+});
+
+const MaoVoiceConfirmationRequirementSchema = z.object({
+  required: z.boolean(),
+  confirmation_tier: z.enum(['T0', 'T1', 'T2', 'T3']).optional(),
+  dual_channel_required: z.boolean(),
+  active_principal_session_ref: z.string().min(1).optional(),
+  text_surface_targets: z
+    .array(z.enum(['chat', 'projects', 'mao']))
+    .default([]),
+  reason_code: z.string().min(1).optional(),
+});
+
 export const MaoProjectControlProjectionSchema = z.object({
   project_id: ProjectIdSchema,
   project_control_state: ProjectControlStateSchema,
@@ -208,6 +255,16 @@ export const MaoProjectControlProjectionSchema = z.object({
     'hard_stop',
     'resume_with_constraints',
   ]),
+  voice_projection: z
+    .object({
+      current_turn_state: MaoVoiceTurnStateSchema,
+      assistant_output_state: MaoVoiceAssistantOutputStateSchema,
+      degraded_mode: MaoVoiceDegradedModeStateSchema,
+      pending_confirmation: MaoVoiceConfirmationRequirementSchema,
+      continuation_required: z.boolean(),
+      updated_at: z.string().datetime(),
+    })
+    .optional(),
 });
 export type MaoProjectControlProjection = z.infer<
   typeof MaoProjectControlProjectionSchema

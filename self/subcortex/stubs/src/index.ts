@@ -9,6 +9,7 @@ export {
   StubNudgeDiscoveryService,
   StubCommunicationGatewayService,
   StubEndpointTrustService,
+  StubVoiceControlService,
   StubSandbox,
   type StubSandboxOptions,
   StubProjectApi,

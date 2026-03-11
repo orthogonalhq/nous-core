@@ -25,6 +25,7 @@ export type {
   INudgeDiscoveryService,
   ICommunicationGatewayService,
   IEndpointTrustService,
+  IVoiceControlService,
   ISandbox,
   IPackageLifecycleOrchestrator,
   ISkillAdmissionOrchestrator,

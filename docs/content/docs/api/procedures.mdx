@@ -153,7 +153,25 @@ description: Reference for all tRPC procedures
 | `mao.getProjectControlProjection` | query | `{ projectId }` | `MaoProjectControlProjection \| null` |
 
 - `getAgentProjections` — Agent projections for a project (derived from canonical event/state truth).
-- `getProjectControlProjection` — Project control projection (pause/resume/hard-stop status, Cortex review).
+- `getProjectControlProjection` — Project control projection (pause/resume/hard-stop status, Cortex review, and optional `voice_projection` for current turn state, degraded mode, pending confirmation, and continuation posture).
+
+## voice
+
+| Procedure | Type | Input | Output |
+|----------|------|-------|--------|
+| `voice.beginTurn` | mutation | `VoiceTurnStartInput` | `VoiceTurnStateRecord` |
+| `voice.evaluateTurn` | mutation | `VoiceTurnEvaluationInput` | `VoiceTurnDecisionRecord` |
+| `voice.registerAssistantOutput` | mutation | `VoiceAssistantOutputInput` | `VoiceAssistantOutputStateRecord` |
+| `voice.handleBargeIn` | mutation | `VoiceBargeInInput` | `VoiceBargeInRecord` |
+| `voice.resolveContinuation` | mutation | `VoiceContinuationInput` | `VoiceContinuationRecord` |
+| `voice.getSessionProjection` | query | `VoiceSessionProjectionInput` | `VoiceSessionProjection` |
+
+- `voice.beginTurn` — Creates canonical turn state for a voice session and initializes session projection posture.
+- `voice.evaluateTurn` — Evaluates combined handoff signals, risky intent posture, degraded mode, and confirmation requirements through the canonical runtime.
+- `voice.registerAssistantOutput` — Registers assistant speech state so later interruption and continuation behavior stays canonical.
+- `voice.handleBargeIn` — Stops active output, records interruption latency, and forces continuation-required posture.
+- `voice.resolveContinuation` — Records explicit continuation outcome after interruption; does not auto-resume.
+- `voice.getSessionProjection` — Returns canonical voice session state for web, MAO, and later mobile consumers.
 
 ## gtm
 

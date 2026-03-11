@@ -37,6 +37,7 @@ import type {
   IEscalationService,
   ICommunicationGatewayService,
   IEndpointTrustService,
+  IVoiceControlService,
   IRegistryService,
   ISandbox,
   IProjectApi,
@@ -112,6 +113,18 @@ import type {
   CommunicationIngressOutcome,
   CommunicationEgressOutcome,
   CommunicationRouteDecision,
+  VoiceAssistantOutputInput,
+  VoiceAssistantOutputStateRecord,
+  VoiceBargeInInput,
+  VoiceBargeInRecord,
+  VoiceContinuationInput,
+  VoiceContinuationRecord,
+  VoiceSessionProjection,
+  VoiceSessionProjectionInput,
+  VoiceTurnDecisionRecord,
+  VoiceTurnEvaluationInput,
+  VoiceTurnStartInput,
+  VoiceTurnStateRecord,
   SandboxPayload,
   SandboxResult,
   MemoryScope,
@@ -589,6 +602,56 @@ export class StubEndpointTrustService implements IEndpointTrustService {
     _endpointId: string,
   ): Promise<import('@nous/shared').EndpointTrustEndpoint | null> {
     return stubNotImpl('IEndpointTrustService', 'getEndpoint', 'Phase 11.2');
+  }
+}
+
+export class StubVoiceControlService implements IVoiceControlService {
+  async beginTurn(
+    _input: VoiceTurnStartInput,
+  ): Promise<VoiceTurnStateRecord> {
+    return stubNotImpl('IVoiceControlService', 'beginTurn', 'Phase 11.3');
+  }
+
+  async evaluateTurn(
+    _input: VoiceTurnEvaluationInput,
+  ): Promise<VoiceTurnDecisionRecord> {
+    return stubNotImpl('IVoiceControlService', 'evaluateTurn', 'Phase 11.3');
+  }
+
+  async registerAssistantOutput(
+    _input: VoiceAssistantOutputInput,
+  ): Promise<VoiceAssistantOutputStateRecord> {
+    return stubNotImpl(
+      'IVoiceControlService',
+      'registerAssistantOutput',
+      'Phase 11.3',
+    );
+  }
+
+  async handleBargeIn(
+    _input: VoiceBargeInInput,
+  ): Promise<VoiceBargeInRecord> {
+    return stubNotImpl('IVoiceControlService', 'handleBargeIn', 'Phase 11.3');
+  }
+
+  async resolveContinuation(
+    _input: VoiceContinuationInput,
+  ): Promise<VoiceContinuationRecord> {
+    return stubNotImpl(
+      'IVoiceControlService',
+      'resolveContinuation',
+      'Phase 11.3',
+    );
+  }
+
+  async getSessionProjection(
+    _input: VoiceSessionProjectionInput,
+  ): Promise<VoiceSessionProjection> {
+    return stubNotImpl(
+      'IVoiceControlService',
+      'getSessionProjection',
+      'Phase 11.3',
+    );
   }
 }
 

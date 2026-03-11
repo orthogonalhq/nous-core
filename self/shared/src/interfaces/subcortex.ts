@@ -145,6 +145,18 @@ import type {
   CommunicationIngressOutcome,
   CommunicationEgressOutcome,
   CommunicationRouteDecision,
+  VoiceAssistantOutputInput,
+  VoiceAssistantOutputStateRecord,
+  VoiceBargeInInput,
+  VoiceBargeInRecord,
+  VoiceContinuationInput,
+  VoiceContinuationRecord,
+  VoiceSessionProjection,
+  VoiceSessionProjectionInput,
+  VoiceTurnDecisionRecord,
+  VoiceTurnEvaluationInput,
+  VoiceTurnStartInput,
+  VoiceTurnStateRecord,
 } from '../types/index.js';
 import type { NousEvent } from '../events/index.js';
 
@@ -509,6 +521,32 @@ export interface IEndpointTrustService {
   getEndpoint(
     endpointId: string,
   ): Promise<import('../types/index.js').EndpointTrustEndpoint | null>;
+}
+
+export interface IVoiceControlService {
+  /** Create a canonical voice turn record for a session. */
+  beginTurn(input: VoiceTurnStartInput): Promise<VoiceTurnStateRecord>;
+
+  /** Evaluate combined end-of-turn signals, confidence, confirmation, and control posture. */
+  evaluateTurn(input: VoiceTurnEvaluationInput): Promise<VoiceTurnDecisionRecord>;
+
+  /** Track assistant output state for barge-in and continuation safety. */
+  registerAssistantOutput(
+    input: VoiceAssistantOutputInput,
+  ): Promise<VoiceAssistantOutputStateRecord>;
+
+  /** Record user interruption and transition the session into continuation posture. */
+  handleBargeIn(input: VoiceBargeInInput): Promise<VoiceBargeInRecord>;
+
+  /** Resolve an interrupted assistant output or text-first fallback continuation. */
+  resolveContinuation(
+    input: VoiceContinuationInput,
+  ): Promise<VoiceContinuationRecord>;
+
+  /** Read the canonical voice session projection for downstream consumers. */
+  getSessionProjection(
+    input: VoiceSessionProjectionInput,
+  ): Promise<VoiceSessionProjection>;
 }
 
 export interface ISandbox {

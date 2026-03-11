@@ -55,6 +55,30 @@ ollama pull llama3.2:3b
 - Ensure required fields are present: `profile`, `pfcTier`, `providers`, `storage`, etc.
 - Remove the config file to regenerate defaults, or fix the reported fields
 
+## Voice Request Stays in Text Confirmation or Blocked State
+
+**Symptom:** A voice-originated action does not execute even though the requested intent seems clear.
+
+**Meaning:** Phase 11.3 keeps risky voice actions behind canonical confidence-governance and confirmation checks. The runtime can return clarification, text confirmation, dual-channel confirmation, or blocked posture instead of executing directly.
+
+**Fix:**
+- Check whether the request is high-risk, destructive, or `T3`; those actions require text or dual-channel confirmation.
+- If the response mentions low confidence, repeat the request more explicitly or continue in text.
+- If the active Principal session is missing or stale, complete confirmation from a current trusted session instead of retrying voice-only.
+- Treat the returned reason code and confirmation posture as canonical runtime truth.
+
+## Voice Degraded Mode Remains Active
+
+**Symptom:** Voice responses keep directing you to continue in text, or MAO/other surfaces show voice degraded mode even after one successful turn.
+
+**Meaning:** Degraded mode is a safety posture. Phase 11.3 keeps risky controls text-first until recovery is sustained; a single improved turn does not automatically clear the degraded state.
+
+**Fix:**
+- Continue risky control actions in text while degraded mode is active.
+- Check whether recent turns included low ASR confidence, low intent confidence, handoff instability, transport degradation, or interruption recovery.
+- After conditions stabilize, start a fresh voice turn and let the runtime clear degraded mode through the sustained recovery path.
+- If degraded mode persists unexpectedly, inspect the voice session projection and witness-linked evidence rather than forcing execution.
+
 ## First-Run Loop
 
 **Symptom:** First-run flow keeps appearing.

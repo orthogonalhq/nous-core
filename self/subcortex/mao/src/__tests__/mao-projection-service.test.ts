@@ -359,6 +359,29 @@ function createService(runState: WorkflowRunState) {
       workflowEngine: createWorkflowEngine(runState),
       escalationService: createEscalationService(),
       schedulerService: createSchedulerService(),
+      voiceControlService: {
+        getSessionProjection: async () => ({
+          session_id: 'aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa',
+          project_id: PROJECT_ID,
+          principal_id: 'principal',
+          current_turn_state: 'listening',
+          assistant_output_state: 'idle',
+          degraded_mode: {
+            session_id: 'aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa',
+            project_id: PROJECT_ID,
+            active: false,
+            evidence_refs: [],
+          },
+          pending_confirmation: {
+            required: false,
+            dual_channel_required: false,
+            text_surface_targets: [],
+          },
+          continuation_required: false,
+          evidence_refs: [],
+          updated_at: NOW,
+        }),
+      } as any,
       witnessService: mockWitnessService(),
     }),
     opctlService,
@@ -398,6 +421,7 @@ describe('MaoProjectionService', () => {
     ).toBe(true);
     expect(snapshot.urgentOverlay.blockedAgentIds.length).toBeGreaterThan(0);
     expect(snapshot.controlProjection.project_control_state).toBe('paused_review');
+    expect(snapshot.controlProjection.voice_projection?.current_turn_state).toBe('listening');
   });
 
   it('processes resume_project through opctl and records readiness outcomes', async () => {

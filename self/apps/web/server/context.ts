@@ -18,6 +18,7 @@ import type {
   IEscalationService,
   IRegistryService,
   INudgeDiscoveryService,
+  IVoiceControlService,
 } from '@nous/shared';
 import type { MwcPipeline } from '@nous/memory-mwc';
 import type { IDocumentStore } from '@nous/shared';
@@ -46,5 +47,6 @@ export interface NousContext {
   escalationService: IEscalationService;
   registryService: IRegistryService;
   nudgeDiscoveryService: INudgeDiscoveryService;
+  voiceControlService: IVoiceControlService;
   dataDir: string;
 }

@@ -1,11 +1,11 @@
 ---
 title: Secure Messaging (Telegram)
-description: User and operator guidance for Phase 11.1 secure-messaging behavior
+description: User and operator guidance for secure-messaging behavior and Phase 11.3 voice continuity
 ---
 
 # Secure Messaging (Telegram)
 
-Phase 11.1 introduces the first production secure-messaging connector for Nous: Telegram, routed through the canonical communication-gateway runtime.
+Phase 11.1 introduces the first production secure-messaging connector for Nous: Telegram, routed through the canonical communication-gateway runtime. Phase 11.3 adds the canonical voice-control runtime that later messaging and mobile surfaces can consume without creating a connector-owned voice policy path.
 
 This guide explains what operators can expect from messaging behavior, what is required for trusted actions, and what remains out of scope in this phase.
 
@@ -45,6 +45,20 @@ What this means:
 - Messaging does not re-rank recommendations locally
 - Blocked advisory delivery remains reason-coded and evidence-linked
 
+## Voice Continuity (Phase 11.3)
+
+Voice safety now has a canonical runtime even though connector-native call UX and mobile continuity are still later-phase work.
+
+What this means:
+
+- Voice turn completion requires combined semantic, silence-window, and explicit handoff signals
+- Risky voice actions can be deferred to text confirmation instead of executing from voice alone
+- `T3` and destructive voice actions require dual-channel confirmation from the active Principal session
+- Barge-in stops assistant output immediately and requires explicit continuation
+- Degraded mode pushes risky control handling to text-first behavior while keeping voice state visible to other surfaces
+
+The connector remains thin. When a messaging or bridge surface eventually supplies normalized voice signals, canonical voice turn state still lives in `IVoiceControlService`, not in the connector.
+
 ## Operator Examples
 
 ### Example: unbound identity
@@ -62,14 +76,15 @@ What this means:
 ## Out-of-Scope Boundaries for Phase 11.1
 
 - Signal connector support
-- Voice interaction runtime behavior
 - Endpoint trust and device pairing workflows
 - Mobile app-specific runtime surfaces
+- Connector-native voice call UX and mobile continuity behavior
 
 These are handled in later Phase 11 sub-phases and are intentionally not part of Phase 11.1 delivery.
 
 ## Related
 
 - [Chat](/docs/guides/chat)
+- [Voice Control](/docs/guides/voice-control)
 - [Projects](/docs/guides/projects)
 - [Interaction Surfaces](/docs/architecture/interaction-surfaces)

@@ -59,6 +59,15 @@
       "@nous/subcortex-escalation": [
         "../../subcortex/escalation/src/index.ts"
       ],
+      "@nous/subcortex-communication-gateway": [
+        "../../subcortex/communication-gateway/src/index.ts"
+      ],
+      "@nous/subcortex-endpoint-trust": [
+        "../../subcortex/endpoint-trust/src/index.ts"
+      ],
+      "@nous/subcortex-voice-control": [
+        "../../subcortex/voice-control/src/index.ts"
+      ],
       "@nous/subcortex-registry": [
         "../../subcortex/registry/src/index.ts"
       ],

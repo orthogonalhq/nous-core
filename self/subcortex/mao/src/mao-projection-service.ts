@@ -5,6 +5,7 @@ import type {
   IEscalationService,
   IOpctlService,
   IScheduler,
+  IVoiceControlService,
   IWorkflowEngine,
   IWitnessService,
   MaoAgentInspectInput,
@@ -61,6 +62,7 @@ type ProjectionContext = {
   urgentAgentIds: string[];
   blockedAgentIds: string[];
   degradedReasonCode?: string;
+  voiceProjection?: NonNullable<MaoProjectControlProjection['voice_projection']>;
 };
 
 const ACTIVE_RUN_STATUSES = new Set([
@@ -487,6 +489,7 @@ export interface MaoProjectionServiceDeps {
   workflowEngine: IWorkflowEngine;
   escalationService: IEscalationService;
   schedulerService: IScheduler;
+  voiceControlService?: IVoiceControlService;
   witnessService?: IWitnessService;
 }
 
@@ -814,6 +817,25 @@ export class MaoProjectionService {
       .filter((agent) => ['blocked', 'waiting_pfc', 'failed'].includes(agent.state))
       .map((agent) => agent.agent_id);
 
+    let voiceProjection: ProjectionContext['voiceProjection'];
+    if (this.deps.voiceControlService) {
+      try {
+        const voice = await this.deps.voiceControlService.getSessionProjection({
+          project_id: input.projectId,
+        });
+        voiceProjection = {
+          current_turn_state: voice.current_turn_state,
+          assistant_output_state: voice.assistant_output_state,
+          degraded_mode: voice.degraded_mode,
+          pending_confirmation: voice.pending_confirmation,
+          continuation_required: voice.continuation_required,
+          updated_at: voice.updated_at,
+        };
+      } catch {
+        voiceProjection = undefined;
+      }
+    }
+
     return {
       projectId: input.projectId,
       densityMode: input.densityMode,
@@ -829,13 +851,15 @@ export class MaoProjectionService {
         selectedRun,
         agentProjections,
         controlState,
-      ),
+        ),
       urgentAgentIds,
       blockedAgentIds,
+      voiceProjection,
       degradedReasonCode:
-        selectedRun != null && selectedGraph == null
+        voiceProjection?.degraded_mode.reason ??
+        (selectedRun != null && selectedGraph == null
           ? 'workflow_run_graph_unavailable'
-          : undefined,
+          : undefined),
     };
   }
 
@@ -965,6 +989,7 @@ export class MaoProjectionService {
             : summary.blockedAgentCount > 0 || pfcReviewActive
               ? 'pause'
               : 'continue',
+      voice_projection: context.voiceProjection,
     });
   }
 

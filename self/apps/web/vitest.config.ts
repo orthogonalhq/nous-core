@@ -25,6 +25,18 @@ export default defineConfig({
         __dirname,
         '../../subcortex/escalation/src/index.ts',
       ),
+      '@nous/subcortex-communication-gateway': path.resolve(
+        __dirname,
+        '../../subcortex/communication-gateway/src/index.ts',
+      ),
+      '@nous/subcortex-endpoint-trust': path.resolve(
+        __dirname,
+        '../../subcortex/endpoint-trust/src/index.ts',
+      ),
+      '@nous/subcortex-voice-control': path.resolve(
+        __dirname,
+        '../../subcortex/voice-control/src/index.ts',
+      ),
     },
   },
   test: {
