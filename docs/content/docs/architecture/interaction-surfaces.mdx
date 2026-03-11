@@ -36,14 +36,16 @@ Future preferred secure-messaging posture remains Signal or an equivalent end-to
 Requirements:
 
 - Authorized identity binding before privileged actions
+- Manual pairing and endpoint trust approval before any privileged device capability becomes active
 - Message integrity and authenticated connector context
 - Channel routing through the canonical communication-gateway runtime
+- Signed endpoint transport validated by the canonical endpoint-trust runtime
 - No connector-owned routing, acknowledgement, suppression, trust, or project state
 - No dependency on a specific vendor over the long term (channel remains replaceable)
 
 ### Runtime Boundary
 
-This surface is not a second control plane. The bridge app normalizes connector-native messages into canonical communication-gateway envelopes, then hands them to `ICommunicationGatewayService` inside the same app-hosted runtime graph. The bridge adapter stays thin; routing, binding, acknowledgement, delivery truth, and advisory continuity remain canonical runtime concerns.
+This surface is not a second control plane. The bridge app normalizes connector-native messages into canonical communication-gateway envelopes, then hands them to `ICommunicationGatewayService` inside the same app-hosted runtime graph. Device identity, manual pairing, immutable endpoint direction, capability grants, signed transport validation, and incident containment flow through `IEndpointTrustService`; the bridge adapter stays thin and does not own trust state.
 
 ### Interaction Examples
 

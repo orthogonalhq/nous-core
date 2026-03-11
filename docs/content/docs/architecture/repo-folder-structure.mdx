@@ -302,6 +302,7 @@ self/subcortex/
 ├── workflows/                        # Workflow graph engine
 ├── projects/                         # Project container and lifecycle
 ├── communication-gateway/            # Human messaging ingress/egress control plane
+├── endpoint-trust/                   # Peripheral pairing, trust, capability, and transport runtime
 ├── registry/                         # Registry governance, moderation, and compatibility runtime
 ├── nudges/                           # Advisory discovery runtime and ranking
 ├── artifacts/                        # Versioned binary asset management
@@ -427,6 +428,22 @@ Responsibilities:
 * Resolve canonical routes for approval intake, project messaging, escalation acknowledgement, advisory delivery, and system notices
 * Persist delivery attempts with idempotent egress identity, bounded retry, failover controls, and fail-closed `unknown_external_effect` handling
 * Bridge escalation acknowledgement and advisory delivery through the existing escalation and nudge runtimes instead of creating local truth
+* Defer endpoint identity, pairing, capability, and signed-envelope authority to the endpoint-trust runtime instead of connector-owned state
+
+### endpoint-trust/
+
+Canonical endpoint trust, pairing, capability-governance, and signed-transport runtime. Implemented in Phase 11.2 as `@nous/subcortex-endpoint-trust`.
+
+Responsibilities:
+
+* Persist manual peripheral pairing state and Principal approval evidence before any endpoint becomes trusted
+* Register endpoints with immutable `sensory` or `action` direction and explicit capability manifests
+* Enforce capability grants and revocations as canonical runtime truth rather than adapter-local flags
+* Validate signed endpoint transport envelopes with nonce, TTL, session, and monotonic-sequence checks
+* Require operator-control-compatible confirmation posture for high-risk action commands
+* Revoke sessions and trust state immediately on lost-device, compromised-device, or MITM incidents
+* Consume registry install-eligibility posture so untrusted or blocked connector and device packages cannot become active trusted endpoints
+* Emit witness-linked evidence and route incident escalation through existing canonical seams
 
 ### registry/
 

@@ -1,0 +1,72 @@
+---
+title: Device Trust
+description: Pairing, endpoint direction, capability grants, and incident handling for trusted peripherals
+---
+
+# Device Trust
+
+Phase 11.2 adds the canonical runtime for trusted peripherals and controlled device capabilities.
+
+Use this model whenever a connector, bridge, or future device surface wants to expose a real endpoint into Nous. Trust is not inferred from channel presence. It is established explicitly and can be revoked immediately.
+
+## Trust Model
+
+1. A peripheral requests pairing.
+2. The Principal approves or denies the pairing.
+3. Approved peripherals can register endpoints.
+4. Each endpoint declares immutable direction: `sensory` or `action`.
+5. Capabilities are granted explicitly per endpoint.
+6. Signed transport and session state are validated on every request.
+
+## Endpoint Direction
+
+- `sensory`: capture or observe only
+- `action`: command or actuate only
+
+An endpoint cannot be both in Phase 11.2. If you need both behaviors, model them as separate endpoints with separate grants.
+
+## Capability Grants
+
+Capabilities are fail-closed.
+
+- No capability grant: request is blocked
+- Capability class does not match endpoint direction: request is blocked
+- High-risk action capability without confirmation proof: request is blocked
+- Suspended or revoked trust state: request is blocked
+
+## Transport Rules
+
+Trusted endpoint envelopes must include:
+
+- session id
+- nonce
+- monotonic sequence
+- issued and expiry timestamps
+- payload hash
+- signature
+
+Replay, expiry, sequence regression, and revoked-session reuse are blocked at the runtime boundary.
+
+## Registry Gating
+
+If a connector or device package is blocked by registry install-eligibility, its endpoint cannot become an active trusted endpoint. This prevents package trust bypass through a bridge or adapter path.
+
+## Incident Handling
+
+The runtime supports immediate containment for:
+
+- lost device
+- compromised device
+- man-in-the-middle detection
+- manual suspend
+- manual revoke
+
+Containment revokes trusted runtime posture, invalidates sessions, and routes incident escalation through canonical services.
+
+## Operator Guidance
+
+- Pair only peripherals you can re-identify operationally
+- Keep sensory and action endpoints split
+- Grant the narrowest capability set that satisfies the task
+- Treat repeated transport failures as a trust signal, not a transient nuisance
+- Re-pair after compromise; do not reuse the old trust state
