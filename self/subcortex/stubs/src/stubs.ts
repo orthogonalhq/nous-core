@@ -35,6 +35,7 @@ import type {
   IArtifactStore,
   IScheduler,
   IEscalationService,
+  ICommunicationGatewayService,
   IRegistryService,
   ISandbox,
   IProjectApi,
@@ -101,6 +102,15 @@ import type {
   NudgeSuppressionMutationInput,
   NudgeSuppressionQuery,
   NudgeSuppressionQueryResult,
+  ChannelIngressEnvelope,
+  ChannelEgressEnvelope,
+  CommunicationIdentityBindingUpsertInput,
+  CommunicationIdentityBindingRecord,
+  CommunicationApprovalIntakeRecord,
+  CommunicationEscalationAcknowledgementInput,
+  CommunicationIngressOutcome,
+  CommunicationEgressOutcome,
+  CommunicationRouteDecision,
   SandboxPayload,
   SandboxResult,
   MemoryScope,
@@ -442,6 +452,68 @@ export class StubNudgeDiscoveryService implements INudgeDiscoveryService {
 
   async getRankingPolicy(_policyVersion?: string): Promise<NudgeRankingPolicy> {
     return stubNotImpl('INudgeDiscoveryService', 'getRankingPolicy', 'Phase 10.2');
+  }
+}
+
+export class StubCommunicationGatewayService implements ICommunicationGatewayService {
+  async receiveIngress(
+    _envelope: ChannelIngressEnvelope,
+  ): Promise<CommunicationIngressOutcome> {
+    return stubNotImpl(
+      'ICommunicationGatewayService',
+      'receiveIngress',
+      'Phase 11.1',
+    );
+  }
+
+  async dispatchEgress(
+    _envelope: ChannelEgressEnvelope,
+  ): Promise<CommunicationEgressOutcome> {
+    return stubNotImpl(
+      'ICommunicationGatewayService',
+      'dispatchEgress',
+      'Phase 11.1',
+    );
+  }
+
+  async upsertBinding(
+    _input: CommunicationIdentityBindingUpsertInput,
+  ): Promise<CommunicationIdentityBindingRecord> {
+    return stubNotImpl(
+      'ICommunicationGatewayService',
+      'upsertBinding',
+      'Phase 11.1',
+    );
+  }
+
+  async listApprovalIntake(
+    _projectId?: ProjectId,
+  ): Promise<CommunicationApprovalIntakeRecord[]> {
+    return stubNotImpl(
+      'ICommunicationGatewayService',
+      'listApprovalIntake',
+      'Phase 11.1',
+    );
+  }
+
+  async acknowledgeEscalation(
+    _input: CommunicationEscalationAcknowledgementInput,
+  ): Promise<InAppEscalationRecord | null> {
+    return stubNotImpl(
+      'ICommunicationGatewayService',
+      'acknowledgeEscalation',
+      'Phase 11.1',
+    );
+  }
+
+  async getRouteDecision(
+    _routeId: string,
+  ): Promise<CommunicationRouteDecision | null> {
+    return stubNotImpl(
+      'ICommunicationGatewayService',
+      'getRouteDecision',
+      'Phase 11.1',
+    );
   }
 }
 

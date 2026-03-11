@@ -261,4 +261,27 @@ describe('NudgeDiscoveryService', () => {
     expect(blockedFeed.cards).toHaveLength(0);
     expect(blockedFeed.blockedDeliveries.length).toBeGreaterThan(0);
   });
+
+  it('prepares deliverable feed cards for the communication gateway surface', async () => {
+    const service = await createService();
+
+    await service.recordSignal({
+      signal_type: 'workflow_friction',
+      target_scope: 'project',
+      source_refs: ['persona'],
+      evidence_refs: [EVIDENCE_REF],
+    });
+
+    const feed = await service.prepareSurfaceFeed({
+      projectId: '550e8400-e29b-41d4-a716-446655440302' as any,
+      surface: 'communication_gateway',
+      signalRefs: ['persona'],
+      limit: 1,
+    });
+
+    expect(feed.surface).toBe('communication_gateway');
+    expect(feed.cards).toHaveLength(1);
+    expect(feed.cards[0]?.delivery.surface).toBe('communication_gateway');
+    expect(feed.blockedDeliveries).toHaveLength(0);
+  });
 });

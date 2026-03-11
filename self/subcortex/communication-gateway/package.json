@@ -1,0 +1,29 @@
+{
+  "name": "@nous/subcortex-communication-gateway",
+  "version": "0.0.1",
+  "private": true,
+  "description": "Canonical communication gateway runtime for Nous-OSS",
+  "type": "module",
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "import": "./dist/index.js"
+    }
+  },
+  "scripts": {
+    "build": "tsc --build",
+    "typecheck": "tsc --noEmit",
+    "test": "vitest run --config vitest.config.ts",
+    "clean": "rm -rf dist"
+  },
+  "dependencies": {
+    "@nous/shared": "workspace:*"
+  },
+  "devDependencies": {
+    "@nous/subcortex-escalation": "workspace:*",
+    "@nous/subcortex-nudges": "workspace:*",
+    "@nous/subcortex-registry": "workspace:*",
+    "@nous/subcortex-witnessd": "workspace:*",
+    "vitest": "^2.1.0"
+  }
+}

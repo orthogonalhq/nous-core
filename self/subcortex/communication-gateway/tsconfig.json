@@ -1,0 +1,23 @@
+{
+  "extends": "../../../tsconfig.json",
+  "compilerOptions": {
+    "rootDir": "src",
+    "outDir": "dist",
+    "composite": true,
+    "paths": {
+      "@nous/shared": ["../../shared/src/index.ts"],
+      "@nous/subcortex-escalation": ["../escalation/src/index.ts"],
+      "@nous/subcortex-nudges": ["../nudges/src/index.ts"],
+      "@nous/subcortex-registry": ["../registry/src/index.ts"],
+      "@nous/subcortex-witnessd": ["../witnessd/src/index.ts"]
+    }
+  },
+  "include": ["src"],
+  "references": [
+    { "path": "../../shared" },
+    { "path": "../escalation" },
+    { "path": "../nudges" },
+    { "path": "../registry" },
+    { "path": "../witnessd" }
+  ]
+}

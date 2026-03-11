@@ -136,6 +136,15 @@ import type {
   NudgeSuppressionMutationInput,
   NudgeSuppressionQuery,
   NudgeSuppressionQueryResult,
+  ChannelIngressEnvelope,
+  ChannelEgressEnvelope,
+  CommunicationIdentityBindingUpsertInput,
+  CommunicationIdentityBindingRecord,
+  CommunicationApprovalIntakeRecord,
+  CommunicationEscalationAcknowledgementInput,
+  CommunicationIngressOutcome,
+  CommunicationEgressOutcome,
+  CommunicationRouteDecision,
 } from '../types/index.js';
 import type { NousEvent } from '../events/index.js';
 
@@ -408,6 +417,36 @@ export interface INudgeDiscoveryService {
 
   /** Retrieve the current or explicitly selected ranking policy. */
   getRankingPolicy(policyVersion?: string): Promise<NudgeRankingPolicy>;
+}
+
+export interface ICommunicationGatewayService {
+  /** Receive normalized connector ingress and produce a canonical route or reject outcome. */
+  receiveIngress(
+    envelope: ChannelIngressEnvelope,
+  ): Promise<CommunicationIngressOutcome>;
+
+  /** Dispatch canonical egress over an approved bridge connector. */
+  dispatchEgress(
+    envelope: ChannelEgressEnvelope,
+  ): Promise<CommunicationEgressOutcome>;
+
+  /** Create or update a Principal-approved identity binding record. */
+  upsertBinding(
+    input: CommunicationIdentityBindingUpsertInput,
+  ): Promise<CommunicationIdentityBindingRecord>;
+
+  /** List pending or resolved approval-intake records, optionally filtered to a project scope. */
+  listApprovalIntake(
+    projectId?: ProjectId,
+  ): Promise<CommunicationApprovalIntakeRecord[]>;
+
+  /** Bridge a communication acknowledgement into the canonical escalation service. */
+  acknowledgeEscalation(
+    input: CommunicationEscalationAcknowledgementInput,
+  ): Promise<InAppEscalationRecord | null>;
+
+  /** Retrieve a previously created canonical route decision. */
+  getRouteDecision(routeId: string): Promise<CommunicationRouteDecision | null>;
 }
 
 export interface ISandbox {

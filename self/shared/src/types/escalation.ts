@@ -58,8 +58,18 @@ export type InAppEscalationSource = z.infer<
   typeof InAppEscalationSourceSchema
 >;
 
+export const EscalationAcknowledgementSurfaceSchema = z.enum([
+  'projects',
+  'chat',
+  'mao',
+  'communication_gateway',
+]);
+export type EscalationAcknowledgementSurface = z.infer<
+  typeof EscalationAcknowledgementSurfaceSchema
+>;
+
 export const InAppEscalationAcknowledgementSchema = z.object({
-  surface: InAppEscalationSurfaceSchema,
+  surface: EscalationAcknowledgementSurfaceSchema,
   actorType: z.enum(['principal', 'system']),
   acknowledgedAt: z.string().datetime(),
   note: z.string().min(1).optional(),
@@ -105,7 +115,7 @@ export type ProjectEscalationQueueSnapshot = z.infer<
 
 export const AcknowledgeInAppEscalationInputSchema = z.object({
   escalationId: EscalationIdSchema,
-  surface: InAppEscalationSurfaceSchema,
+  surface: EscalationAcknowledgementSurfaceSchema,
   actorType: z.enum(['principal', 'system']),
   note: z.string().min(1).optional(),
 });

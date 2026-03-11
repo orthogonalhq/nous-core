@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import {
   AcknowledgeInAppEscalationInputSchema,
+  EscalationAcknowledgementSurfaceSchema,
   InAppEscalationAcknowledgementSchema,
   InAppEscalationRecordSchema,
   ProjectEscalationQueueSnapshotSchema,
@@ -75,6 +76,16 @@ describe('AcknowledgeInAppEscalationInputSchema', () => {
       actorType: 'principal',
       note: 'Handled from chat',
     });
+
+    expect(result.success).toBe(true);
+  });
+});
+
+describe('EscalationAcknowledgementSurfaceSchema', () => {
+  it('allows communication-gateway acknowledgements as a canonical origin', () => {
+    const result = EscalationAcknowledgementSurfaceSchema.safeParse(
+      'communication_gateway',
+    );
 
     expect(result.success).toBe(true);
   });

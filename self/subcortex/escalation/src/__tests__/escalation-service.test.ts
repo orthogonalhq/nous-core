@@ -158,4 +158,36 @@ describe('EscalationService', () => {
     expect(response?.action).toBe('acknowledged');
     expect(response?.channel).toBe('in-app');
   });
+
+  it('records communication-gateway acknowledgements on the canonical escalation record', async () => {
+    const escalationStore = new DocumentEscalationStore(createMemoryDocumentStore() as any);
+    const service = new EscalationService({
+      escalationStore,
+      projectStore: createProjectStore(),
+      now: () => new Date('2026-03-09T00:00:00.000Z'),
+    });
+
+    const escalationId = await service.notify({
+      context: 'Bridge acknowledgement required',
+      triggerReason: 'review_required',
+      requiredAction: 'Confirm escalation outcome',
+      channel: 'in-app',
+      projectId: PROJECT_ID as any,
+      priority: 'high',
+      timestamp: '2026-03-09T00:00:00.000Z',
+    });
+
+    const acknowledged = await service.acknowledge({
+      escalationId,
+      surface: 'communication_gateway',
+      actorType: 'principal',
+      note: 'Handled from Telegram bridge',
+    });
+
+    expect(acknowledged?.status).toBe('acknowledged');
+    expect(acknowledged?.acknowledgements).toHaveLength(1);
+    expect(acknowledged?.acknowledgements[0]?.surface).toBe(
+      'communication_gateway',
+    );
+  });
 });

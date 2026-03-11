@@ -7,6 +7,7 @@ export {
   StubScheduler,
   StubEscalationService,
   StubNudgeDiscoveryService,
+  StubCommunicationGatewayService,
   StubSandbox,
   type StubSandboxOptions,
   StubProjectApi,
