@@ -1,0 +1,75 @@
+---
+title: Secure Messaging (Telegram)
+description: User and operator guidance for Phase 11.1 secure-messaging behavior
+---
+
+# Secure Messaging (Telegram)
+
+Phase 11.1 introduces the first production secure-messaging connector for Nous: Telegram, routed through the canonical communication-gateway runtime.
+
+This guide explains what operators can expect from messaging behavior, what is required for trusted actions, and what remains out of scope in this phase.
+
+## Current Connector Posture
+
+- **Production connector in this phase:** Telegram
+- **Runtime boundary:** Telegram adapter traffic is normalized and routed through `ICommunicationGatewayService`
+- **Control-plane rule:** Connector code does not become the source of truth for routing, escalation status, advisory status, trust, or project state
+
+## Identity-Binding Expectations
+
+Messaging identities are explicit and fail closed:
+
+- `unbound` identities are routed to approval intake only
+- `active` identities can participate in trusted messaging actions allowed by policy
+- `revoked` identities are treated as untrusted for privileged behavior
+
+If an identity is not actively bound, privileged actions are blocked rather than inferred.
+
+## Escalation Acknowledgement Continuity
+
+Escalation acknowledgement from messaging updates the **same canonical escalation record** used by in-app surfaces.
+
+What this means:
+
+- Acknowledging from messaging does not create a parallel escalation state
+- Acknowledgement status remains consistent across Projects, Chat, and messaging routes
+- Acknowledgement records awareness; it does not bypass project control-state or other governance rules
+
+## Advisory-Delivery Continuity
+
+Messaging advisory delivery uses the existing `communication_gateway` advisory surface and canonical nudge/runtime seams.
+
+What this means:
+
+- Trust, suppression, compatibility, and ranking posture are reused from existing runtime services
+- Messaging does not re-rank recommendations locally
+- Blocked advisory delivery remains reason-coded and evidence-linked
+
+## Operator Examples
+
+### Example: unbound identity
+
+1. Message arrives from an identity without active binding.
+2. Nous records approval intake.
+3. Privileged project actions are not executed from that message.
+
+### Example: escalation acknowledgement from messaging
+
+1. A user acknowledges an escalation from Telegram.
+2. The canonical escalation record is updated.
+3. Projects/Chat reflect the same acknowledgement state.
+
+## Out-of-Scope Boundaries for Phase 11.1
+
+- Signal connector support
+- Voice interaction runtime behavior
+- Endpoint trust and device pairing workflows
+- Mobile app-specific runtime surfaces
+
+These are handled in later Phase 11 sub-phases and are intentionally not part of Phase 11.1 delivery.
+
+## Related
+
+- [Chat](/docs/guides/chat)
+- [Projects](/docs/guides/projects)
+- [Interaction Surfaces](/docs/architecture/interaction-surfaces)
