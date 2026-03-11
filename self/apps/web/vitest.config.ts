@@ -9,6 +9,14 @@ export default defineConfig({
     alias: {
       '@': path.resolve(__dirname),
       '@nous/shared': path.resolve(__dirname, '../../shared/src/index.ts'),
+      '@nous/subcortex-registry': path.resolve(
+        __dirname,
+        '../../subcortex/registry/src/index.ts',
+      ),
+      '@nous/subcortex-nudges': path.resolve(
+        __dirname,
+        '../../subcortex/nudges/src/index.ts',
+      ),
       '@nous/subcortex-scheduler': path.resolve(
         __dirname,
         '../../subcortex/scheduler/src/index.ts',

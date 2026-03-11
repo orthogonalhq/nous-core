@@ -11,11 +11,17 @@ import { buildMaoReturnHref } from '@/lib/mao-links';
 interface ProjectDashboardProps {
   snapshot: ProjectDashboardSnapshot;
   maoContext?: MaoNavigationContext | null;
+  marketplaceContext?: {
+    packageId?: string | null;
+    releaseId?: string | null;
+    candidateId?: string | null;
+  } | null;
 }
 
 export function ProjectDashboard({
   snapshot,
   maoContext,
+  marketplaceContext,
 }: ProjectDashboardProps) {
   return (
     <Card>
@@ -95,6 +101,22 @@ export function ProjectDashboard({
               >
                 Return to MAO
               </Link>
+            </div>
+          ) : null}
+          {marketplaceContext ? (
+            <div className="mt-3 rounded-md border border-border bg-muted/20 px-3 py-2 text-sm text-muted-foreground">
+              Marketplace-origin package context is active.
+              {marketplaceContext.packageId ? ` ${marketplaceContext.packageId}` : ''}
+              {marketplaceContext.releaseId ? ` release ${marketplaceContext.releaseId}` : ''}
+              {marketplaceContext.candidateId ? ` candidate ${marketplaceContext.candidateId}` : ''}
+              {marketplaceContext.packageId ? (
+                <Link
+                  href={`/marketplace/${marketplaceContext.packageId}?projectId=${snapshot.project.id}`}
+                  className="ml-2 underline underline-offset-4"
+                >
+                  Return to marketplace
+                </Link>
+              ) : null}
             </div>
           ) : null}
           <div className="mt-3 grid gap-2 md:grid-cols-2">

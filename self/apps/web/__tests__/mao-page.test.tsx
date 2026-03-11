@@ -124,6 +124,28 @@ describe('MaoPage', () => {
     expect(mutate.mock.calls[0]?.[0]?.request.reason).toBe('Resume after review');
     expect(mutate.mock.calls[0]?.[0]?.request.impactSummary.blockedAgentCount).toBe(1);
   });
+
+  it('preserves marketplace handoff context in the MAO surface', () => {
+    mocks.useSearchParams.mockReturnValue({
+      get: vi.fn((key: string) => {
+        const values: Record<string, string | null> = {
+          source: 'marketplace',
+          projectId: '550e8400-e29b-41d4-a716-446655445001',
+          packageId: 'pkg.persona-engine',
+          releaseId: 'release-1',
+          candidateId: 'candidate-1',
+          evidenceRef: 'evidence://marketplace',
+        };
+        return values[key] ?? null;
+      }),
+    });
+
+    render(<MaoPage />);
+
+    expect(screen.getByText(/Linked runtime context is active/i)).toBeTruthy();
+    expect(screen.getByText(/package pkg.persona-engine/i)).toBeTruthy();
+    expect(screen.getByText(/candidate candidate-1/i)).toBeTruthy();
+  });
 });
 
 function createSnapshot() {
