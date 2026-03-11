@@ -92,6 +92,38 @@ description: Reference for all tRPC procedures
   - `reasonCode` defaults to `operator_manual_refresh`.
   - Output `outcome` is one of `updated`, `cleared`, `skipped_no_change`, or `failed`.
 
+## marketplace
+
+| Procedure | Type | Input | Output |
+|----------|------|-------|--------|
+| `marketplace.browsePackages` | query | `RegistryBrowseRequest` | `RegistryBrowseResult` |
+| `marketplace.getPackageDetail` | query | `{ packageId, projectId? }` | `RegistryPackageDetailSnapshot` |
+| `marketplace.getModerationDashboard` | query | `MarketplaceModerationDashboardRequest` | `MarketplaceModerationDashboardSnapshot` |
+| `marketplace.getDiscoveryFeed` | query | `MarketplaceNudgeFeedRequest` | `MarketplaceNudgeFeedSnapshot` |
+| `marketplace.applyNudgeSuppression` | mutation | `NudgeSuppressionMutationInput` | `NudgeSuppressionRecord` |
+| `marketplace.recordNudgeFeedback` | mutation | `MarketplaceNudgeFeedbackInput` | `NudgeFeedbackRecord` |
+| `marketplace.routeNudgeAcceptance` | mutation | `NudgeAcceptanceRouteRequest` | `NudgeAcceptanceRouteResult` |
+
+- `marketplace.browsePackages` — Returns governed registry browse results for the marketplace surface.
+  - Filters support query text, trust tiers, distribution statuses, compatibility states, and pagination.
+  - Each item includes package projection data, latest release metadata, optional project-scoped `trustEligibility`, and deep links for artifact, Projects, and MAO continuity.
+- `marketplace.getPackageDetail` — Returns a package detail snapshot for one package.
+  - Response includes package metadata, latest release, release history, maintainer records, governance timeline, appeals, deep links, and optional project-scoped trust-eligibility posture.
+  - Throws `NOT_FOUND` when the package does not exist.
+- `marketplace.getModerationDashboard` — Returns the inspect-first moderation dashboard projection.
+  - Input supports free-text query, moderation-status filters, and whether resolved appeals are included.
+  - Response includes package rows plus aggregate counts for pending appeals, active holds, and delisted packages.
+- `marketplace.getDiscoveryFeed` — Returns the advisory marketplace nudge feed for one surface.
+  - Input identifies the target surface, optional `projectId`, optional `signalRefs`, and a `limit`.
+  - Output includes suggestion cards, reasoning, suppression affordances, and trust-eligibility posture derived from canonical registry and nudge-runtime truth.
+- `marketplace.applyNudgeSuppression` — Applies canonical suppression state for a marketplace nudge.
+  - Supports candidate, category, project, and global scopes.
+  - Returns the persisted suppression record; surfaces should treat this as shared runtime truth rather than as a local preference write.
+- `marketplace.recordNudgeFeedback` — Persists marketplace feed interaction events such as `opened`, `dismissed`, or similar feedback signals.
+  - The server supplies `occurredAt` when the caller omits it.
+- `marketplace.routeNudgeAcceptance` — Records acceptance feedback and returns the governed acceptance route.
+  - Marketplace-package acceptance currently resolves to `runtime_authorization_required`, not direct installation.
+
 ## config
 
 | Procedure | Type | Input | Output |

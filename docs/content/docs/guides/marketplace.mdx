@@ -1,0 +1,110 @@
+---
+title: Marketplace
+description: Browse governed packages, inspect moderation posture, and act on advisory discovery suggestions
+---
+
+# Marketplace
+
+Phase 10.3 adds a dedicated marketplace governance surface in the web app plus a companion `nous pkg discover` CLI seam.
+
+These surfaces are projections over canonical registry and nudge-runtime truth. They do not own separate package governance, moderation, or suppression state.
+
+## What the Marketplace Surface Covers
+
+The marketplace surface lets you:
+
+- Browse governed registry packages with trust tier, distribution status, and compatibility posture
+- Open package detail views for provenance, release history, maintainer verification, governance actions, and appeals
+- Review moderation dashboard posture for holds, delistings, pending appeals, and escalation continuity
+- Inspect advisory discovery suggestions with mandatory suppression controls
+- Follow trust-preserving deep links into Projects and MAO
+
+## Browse and Detail Views
+
+The browse page is the main entry point for package discovery. It shows canonical registry projections, including:
+
+- Trust tier
+- Distribution status
+- Compatibility state
+- Current release metadata
+- Links into related package detail views
+
+Package detail views extend that with:
+
+- Provenance and maintainer records
+- Release history
+- Governance timeline
+- Appeal history
+- Project-scoped trust-eligibility posture when you open the page with a project context
+
+If a package is blocked for a project, treat that trust-eligibility result as authoritative runtime truth rather than as a UI hint.
+
+## Moderation Dashboard
+
+The moderation dashboard is an inspect-first projection over package governance state. Use it to review:
+
+- Packages on distribution hold
+- Delisted packages
+- Packages with recent governance actions
+- Packages with pending or resolved appeals
+- Escalation IDs linked from package, governance, or appeal evidence
+
+This surface does not resolve appeals or invent moderation state locally. It shows canonical registry projections so the same posture remains visible across surfaces.
+
+## Advisory Discovery Feed
+
+Discovery suggestions are advisory only.
+
+Each suggestion card can include:
+
+- Why the suggestion appeared
+- Source trust posture
+- Project-specific trust eligibility
+- Available suppression controls
+
+Available suppression actions are:
+
+- `dismiss_once`
+- `snooze`
+- `mute_category`
+- `mute_project`
+- `mute_global`
+
+Suppression is canonical runtime truth and applies across enabled delivery surfaces, not only where the action was taken.
+
+## Acceptance and Execution Boundary
+
+Accepting a marketplace package suggestion does not install the package directly.
+
+Marketplace-package acceptance currently routes to `runtime_authorization_required`, which records lifecycle authorization intent and then stops at the existing runtime membrane. Install and enable flows still belong to the governed lifecycle path.
+
+## Cross-Surface Continuity
+
+Marketplace links can preserve context into other surfaces instead of rebuilding it locally.
+
+- **Projects** can receive project, package, release, and evidence continuity when you follow a marketplace handoff
+- **MAO** can receive the same context for operator inspection and escalation follow-up
+- **CLI** can project the same advisory feed through `nous pkg discover`
+
+That continuity is read-side only. Projects and MAO do not become secondary stores for marketplace governance or suppression state.
+
+## CLI Companion: `nous pkg discover`
+
+Use the CLI when you want the same advisory feed in a terminal workflow.
+
+```bash
+pnpm dev:cli -- pkg discover --project <id>
+```
+
+The command:
+
+- Reads the same canonical discovery feed used by the web marketplace surface
+- Prints trust-eligibility posture directly from runtime truth
+- Records card-open feedback automatically
+- Can apply suppression actions back through the canonical marketplace runtime
+
+## Current Boundary
+
+Phase 10.3 ships marketplace browse, detail, moderation, and advisory discovery surfaces plus the CLI projection seam.
+
+It does not ship direct package installation from the discovery feed. If you need to act on an accepted package suggestion, continue through the existing lifecycle authorization flow.
