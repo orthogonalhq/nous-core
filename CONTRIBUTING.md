@@ -1,0 +1,373 @@
+# Contributing to Nous
+
+Nous has a deliberate trust gradient that mirrors its own architecture. Contributions at the edges of the system are open to newcomers. Contributions at the core require earned context. This is explicit, not gatekeeping.
+
+---
+
+## Prerequisites
+
+- **Node.js 22+**
+- **pnpm 10+** (`corepack enable && corepack prepare pnpm@latest --activate`)
+
+```bash
+git clone https://github.com/orthogonal-research/nous-core.git
+cd nous-core
+pnpm install
+pnpm build
+pnpm test
+```
+
+If Electron's binary doesn't download during install, run `node node_modules/electron/install.js` manually — pnpm v10's build-script allowlisting can block it.
+
+All code lives under `self/`. Shared types and interface contracts live in `self/shared/`. Architecture docs live in `.architecture/`.
+
+---
+
+## Contribution Tiers
+
+The tiers are a ladder, not a taxonomy. Start at the edges — build an adapter, learn the contracts, understand how information flows between layers. The deeper tiers open naturally from there.
+
+### Tier 1: Integrations (Edges)
+
+**Communication adapters, model provider adapters, MCP tool integrations.**
+
+You need to know the external tool and the interface contract. You don't need to understand the Cortex or the memory system.
+
+#### Communication Adapters
+
+The communication bridge (`self/apps/bridge/`) connects external messaging platforms to Nous. The adapter contract:
+
+```typescript
+// self/subcortex/communication-gateway/src/delivery-orchestrator.ts
+export interface CommunicationDeliveryProvider {
+  send(envelope: ChannelEgressEnvelope): Promise<CommunicationProviderSendResult>;
+}
+```
+
+An adapter normalizes incoming messages into `ChannelIngressEnvelope` and delivers outgoing messages from `ChannelEgressEnvelope`. Both types are in `self/shared/src/types/`.
+
+**Reference implementation**: `self/apps/bridge/src/connectors/telegram-bot-adapter.ts` — ingress normalization, egress delivery, mention detection, message type inference. Tests at `self/apps/bridge/src/__tests__/telegram-bot-adapter.test.ts`.
+
+**What it looks like**: implement `CommunicationDeliveryProvider` for a new platform (Discord, Signal, Matrix, Slack, email, SMS, webhooks), add ingress normalization, register the connector in the bridge runtime, write tests.
+
+#### Model Provider Adapters
+
+```typescript
+// self/shared/src/interfaces/subcortex.ts
+export interface IModelProvider {
+  invoke(request: ModelRequest): Promise<ModelResponse>;
+  stream(request: ModelRequest): AsyncIterable<ModelStreamChunk>;
+  getConfig(): ModelProviderConfig;
+}
+```
+
+**Reference implementations**: `self/subcortex/providers/src/ollama-provider.ts` (local Ollama) and `openai-provider.ts` (OpenAI-compatible).
+
+**What it looks like**: implement `IModelProvider` for a new backend (Anthropic, Gemini, Mistral, local GGUF), validate inputs against `TextModelInputSchema`, export from the providers package.
+
+#### MCP Tool Surface Extensions
+
+The internal MCP tool surface (`self/cortex/core/src/internal-mcp/`) exposes capability tools to agents through a scoped, authorization-gated catalog. The current 14 tools cover memory, artifacts, tool execution, witness, escalation, scheduling, and lifecycle operations.
+
+```typescript
+// self/cortex/core/src/internal-mcp/types.ts
+export type InternalMcpCapabilityHandler = (
+  params: unknown,
+  execution?: GatewayExecutionContext,
+) => Promise<ToolResult>;
+```
+
+Each tool is a handler function registered in the catalog (`catalog.ts`) and gated by an authorization matrix (`authorization-matrix.ts`) that controls which agent classes can access which tools.
+
+**What it looks like**: propose and implement a new capability tool — define the handler, add its catalog entry and Zod input schema, wire it into the authorization matrix, write tests.
+
+---
+
+### Tier 2: Skill System Refinement
+
+**Tightening skill definitions, improving the prose type system, refining validation.**
+
+The skill system has admission, contract validation, and benchmark evaluation:
+
+```typescript
+// self/shared/src/interfaces/subcortex.ts
+export interface ISkillAdmissionOrchestrator {
+  validateSkillContract(input: SkillContractValidationRequest): Promise<SkillContractValidationResult>;
+  evaluateSkillBench(input: SkillBenchEvaluationRequest): Promise<SkillBenchEvaluationResult>;
+  evaluateAttributionThesis(input: SkillAttributionThesisRequest): Promise<SkillAttributionThesisResult>;
+  requestAdmission(input: SkillAdmissionRequest): Promise<SkillAdmissionResult>;
+  // ...
+}
+```
+
+Skill types live in `self/shared/src/types/`. The engineering SOP and process models live in `.skills/`.
+
+This tier is for someone who's been using Nous, has built skills, and has noticed friction. Contributions are still task-shaped but require system familiarity.
+
+---
+
+### Tier 3: UI and Projection Interfaces
+
+**Skill builder, workflow projection, MAO dashboard, themes.**
+
+The desktop app: `self/apps/desktop/` (Electron 34 + React 19 + dockview-react v4). Shared UI: `self/ui/` (stub — not yet populated). Web: `self/apps/web/` (Next.js 14+ with tRPC).
+
+Key projection interfaces that drive the UI:
+
+```typescript
+// self/shared/src/interfaces/subcortex.ts
+export interface IMaoProjectionService {
+  getAgentProjections(projectId: ProjectId): Promise<MaoAgentProjection[]>;
+  getProjectSnapshot(input: MaoProjectSnapshotInput): Promise<MaoProjectSnapshot>;
+  getRunGraphSnapshot(input: MaoProjectSnapshotInput): Promise<MaoRunGraphSnapshot>;
+  requestProjectControl(input: MaoProjectControlRequest, ...): Promise<MaoProjectControlResult>;
+}
+```
+
+This tier requires understanding both what the system does underneath and how to represent it visually.
+
+**Stack notes**: dockview-react v4 does not accept a `style` prop — wrap in a div. electron-store must be v8 (CJS; v9+ is ESM-only and incompatible with electron-vite). electron-vite v2 requires Vite 5 (not 6).
+
+---
+
+### Tier 4: Contextual Memory Streaming Harness
+
+**How context flows through the system in real time. What gets retained. How retrieval works during active operation.**
+
+The memory system spans 8 packages under `self/memory/`:
+
+- **STM** (`IStmStore`) — working context, append/compact/clear
+- **LTM** (`ILtmStore`) — structured facts, write/query/export/supersede
+- **Distillation** (`IDistillationEngine`) — cluster identification, pattern compression, confidence decay/refresh, supersession reversal
+- **Retrieval** (`IRetrievalEngine`) — sentiment-weighted, budget-constrained, context-shaped
+- **Access** (`IMemoryAccessPolicyEngine`) — cross-project access policies, deterministic evaluation
+- **Knowledge Index** (`IKnowledgeIndex`) — project meta-vectors, taxonomy, discovery
+
+All interfaces: `self/shared/src/interfaces/memory.ts`.
+
+No good-first-issues here. Work at this depth means proposing, not picking up tasks — it requires the kind of context that comes from time in the codebase.
+
+---
+
+### Tier 5: Core Agent Orchestration Loop
+
+**The Cortex execution loop. Decision-making architecture. The coordination layer that composes everything.**
+
+```typescript
+// self/shared/src/interfaces/cortex.ts
+export interface ICoreExecutor {
+  executeTurn(input: TurnInput): Promise<TurnResult>;
+  superviseProject(projectId: ProjectId): Promise<void>;
+  getTrace(traceId: TraceId): Promise<ExecutionTrace | null>;
+}
+
+export interface IPfcEngine {
+  evaluateConfidenceGovernance(input: ConfidenceGovernanceEvaluationInput): Promise<ConfidenceGovernanceEvaluationResult>;
+  evaluateMemoryWrite(candidate: MemoryWriteCandidate, projectId?: ProjectId): Promise<PfcDecision>;
+  evaluateToolExecution(toolName: string, params: unknown, projectId?: ProjectId): Promise<PfcDecision>;
+  reflect(output: unknown, context: ReflectionContext): Promise<ReflectionResult>;
+  evaluateEscalation(situation: EscalationSituation): Promise<EscalationDecision>;
+}
+```
+
+The AgentGateway (`self/shared/src/interfaces/agent-gateway.ts`) implements a deterministic 6-step turn loop with hard budget ceilings, correlation chains, and mandatory witness linkage.
+
+The core orchestration loop and memory architecture are not open for drive-by contributions — not because we're gatekeeping, but because a change at that depth requires context that only comes from time in the system. If you've been contributing at Tiers 1-3 and you're starting to see how the deeper layers connect, open a Discussion. That's how the deeper work starts.
+
+---
+
+## Contribution Map
+
+| If you're interested in... | Look at | Start with | Tier |
+|---|---|---|---|
+| Chat platform adapters (Discord, Matrix, etc.) | `self/apps/bridge/src/connectors/` | `telegram-bot-adapter.ts` as reference | 1 |
+| Model provider adapters (Anthropic, Gemini, etc.) | `self/subcortex/providers/src/` | `ollama-provider.ts` as reference | 1 |
+| MCP tool extensions | `self/cortex/core/src/internal-mcp/` | `catalog.ts` and `capability-handlers.ts` | 1 |
+| Communication gateway runtime | `self/subcortex/communication-gateway/src/` | `delivery-orchestrator.ts` | 1 |
+| Skill contracts and validation | `self/shared/src/types/` (skill types) | Existing type definitions | 2 |
+| Desktop UI panels and layout | `self/apps/desktop/` | dockview panel registration | 3 |
+| Web interface | `self/apps/web/` | tRPC routes and pages | 3 |
+| MAO dashboard | `self/subcortex/mao/` | `MaoAgentProjection` types | 3 |
+| Memory distillation | `self/memory/distillation/` | Read the interface first | 4 |
+| Retrieval engine | `self/memory/retrieval/` | Read the interface first | 4 |
+| Execution loop | `self/cortex/core/` | Read `the-mind-model.md` first | 5 |
+| Witness chain | `self/subcortex/witnessd/` | Read `IWitnessService` interface | 5 |
+
+---
+
+## Code Conventions
+
+**Types and interfaces**: Strongly typed interface contracts, compiler-enforced. Every layer boundary has an explicit interface in `self/shared/src/interfaces/`. Changes to public interfaces will get scrutiny.
+
+**Validation**: Zod schemas are the single source of truth for runtime validation. Types are inferred from schemas where possible.
+
+**Naming**: camelCase for variables/functions, PascalCase for types/classes, kebab-case for file names. Interface names prefixed with `I` (e.g., `IModelProvider`).
+
+**Linting**: `pnpm lint` runs oxlint across `self/`. No eslint.
+
+**Testing**: vitest. Tests live alongside source in `__tests__/` directories. `pnpm test` from root.
+
+**Module format**: ESM everywhere. No CJS except where forced by dependencies (better-sqlite3, electron-store v8).
+
+---
+
+## PR Process
+
+We're opinionated about interface contracts and typed boundaries. If your PR changes a public interface, expect discussion. If it adds a well-scoped feature within existing contracts, expect a fast merge.
+
+**Before submitting**:
+1. `pnpm typecheck` passes
+2. `pnpm lint` passes
+3. `pnpm test` passes
+4. `pnpm build` succeeds
+
+**Commit format** (conventional commits):
+```
+feat(subcortex-providers): add Anthropic model provider
+fix(memory-retrieval): correct sentiment weight decay calculation
+docs(architecture): update mind model diagram
+chore(deps): bump vitest to 4.x
+```
+
+Scope is the package name or system area. Check `git log --oneline -20` for recent examples.
+
+---
+
+## What's Not Ready Yet
+
+Honesty over polish:
+
+- **No LICENSE file yet.** This is a blocker for external contributions. Must be resolved before public launch.
+- **No Discord or community channel.** Discussions happen through GitHub Issues and Discussions for now.
+- **`self/ui/` is a stub.** The desktop app works, but the shared component library is not yet populated.
+- **No automated release pipeline.** CI is functional (typecheck, lint, test, benchmark, build across 3 OSes) but there's no publish/release automation.
+- **Docs site not deployed.** `docs/` exists as a Next.js app but isn't live yet.
+
+---
+
+## Good First Issues
+
+Concrete, useful, self-contained contributions implementable by someone who's read this document. All Tier 1 unless noted.
+
+---
+
+### 1. Discord Communication Adapter
+
+Implement a Discord bot adapter for the communication bridge.
+
+**Create**: `self/apps/bridge/src/connectors/discord-bot-adapter.ts`
+**Reference**: `self/apps/bridge/src/connectors/telegram-bot-adapter.ts`
+
+**Acceptance criteria**:
+- Implements `CommunicationDeliveryProvider`
+- Normalizes Discord messages into `ChannelIngressEnvelope`
+- Handles DMs, server messages, and thread messages
+- Infers mention state (direct, explicit, none)
+- Tests in `self/apps/bridge/src/__tests__/discord-bot-adapter.test.ts`
+
+**Scope boundary**: Don't modify `CommunicationDeliveryProvider` or the bridge runtime. The adapter is a leaf.
+
+---
+
+### 2. Matrix Communication Adapter
+
+Implement a Matrix adapter using the Matrix client-server API.
+
+**Create**: `self/apps/bridge/src/connectors/matrix-adapter.ts`
+
+**Acceptance criteria**: Same shape as Discord. Matrix has rooms, threads, and mentions — map them to the envelope types. Tests included.
+
+---
+
+### 3. Webhook Communication Adapter
+
+A generic webhook adapter that receives HTTP POST payloads and delivers outbound messages via configurable webhook URLs.
+
+**Create**: `self/apps/bridge/src/connectors/webhook-adapter.ts`
+
+**Acceptance criteria**: Normalizes arbitrary webhook payloads into `ChannelIngressEnvelope` using a configurable mapping. Delivers egress via HTTP POST. Tests included.
+
+---
+
+### 4. Anthropic Model Provider
+
+Implement `IModelProvider` for Anthropic's Messages API.
+
+**Create**: `self/subcortex/providers/src/anthropic-provider.ts`
+**Reference**: `ollama-provider.ts` and `openai-provider.ts` in the same directory
+
+**Acceptance criteria**:
+- Implements `IModelProvider` (invoke, stream, getConfig)
+- Validates input against `TextModelInputSchema`
+- Handles streaming via Anthropic's SSE format
+- Exported from `self/subcortex/providers/src/index.ts`
+- Tests in `self/subcortex/providers/src/__tests__/`
+
+**Scope boundary**: Don't modify `IModelProvider` or `TextModelInputSchema`.
+
+---
+
+### 5. Google Gemini Model Provider
+
+Same as Anthropic, for Google's Gemini API.
+
+**Create**: `self/subcortex/providers/src/gemini-provider.ts`
+
+**Acceptance criteria**: Same shape as Anthropic provider.
+
+---
+
+### 6. MCP Capability Tool: `workflow_list`
+
+Add an internal MCP capability tool that lists active workflow runs for the current project. The `IWorkflowEngine.listProjectRuns()` method already exists — this tool exposes it through the MCP surface.
+
+**Location**: `self/cortex/core/src/internal-mcp/`
+**Reference**: Existing capability handlers in `capability-handlers.ts`, catalog entries in `catalog.ts`
+
+**Acceptance criteria**:
+- Handler calls `deps.workflowEngine.listProjectRuns(projectId)` with proper null-guarding
+- Catalog entry with Zod input schema (projectId required)
+- Added to authorization matrix for `Cortex::System`, `Orchestrator`, and `Worker` agent classes
+- Added to `INTERNAL_MCP_TOOL_NAMES` in `types.ts`
+- Tests following existing patterns in `self/cortex/core/src/__tests__/`
+
+**Scope boundary**: Don't modify `IWorkflowEngine`. Implement the tool as a leaf handler that calls the existing interface.
+
+---
+
+### 7. MCP Capability Tool: `project_list`
+
+Add an internal MCP capability tool that lists all projects. The `IProjectStore.list()` method exists — this tool surfaces it.
+
+**Location**: Same as above.
+
+**Acceptance criteria**:
+- Handler calls `deps.projectStore.list()` with null-guarding
+- Catalog entry, authorization matrix entry, tool name registration
+- Tests
+
+---
+
+### 8. Email Communication Adapter (Tier 1-2)
+
+IMAP/SMTP adapter for email ingress and egress.
+
+**Create**: `self/apps/bridge/src/connectors/email-adapter.ts`
+
+**Acceptance criteria**: Polls or connects via IMAP for incoming mail, normalizes to `ChannelIngressEnvelope`. Sends via SMTP for egress. Handles subject line threading. Tests included.
+
+**Note**: More complex than chat adapters due to the threading model and polling semantics — straddles Tier 1 and 2.
+
+---
+
+### 9. CLI Output Formatting (Tier 2)
+
+The CLI (`self/apps/cli/`) has basic output. Improve formatting for common operations — project listings, memory queries, workflow status.
+
+**Location**: `self/apps/cli/src/`
+
+**Acceptance criteria**: Structured, readable terminal output for at least 3 command categories. No external dependency additions beyond what's in the package.
+
+---
+
+These issues are ready to be created in the GitHub issue tracker with the `good-first-issue` label.
