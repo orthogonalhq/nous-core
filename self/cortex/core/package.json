@@ -17,7 +17,8 @@
   },
   "dependencies": {
     "@nous/memory-access": "workspace:*",
-    "@nous/shared": "workspace:*"
+    "@nous/shared": "workspace:*",
+    "zod": "^4.0.17"
   },
   "devDependencies": {
     "@nous/autonomic-storage": "workspace:*",
