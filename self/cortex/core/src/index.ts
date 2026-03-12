@@ -51,6 +51,26 @@ export {
   estimateUsageUnits,
 } from './agent-gateway/index.js';
 export {
+  ScopedMcpToolSurface,
+  PassthroughOutputSchemaValidator,
+  createCapabilityHandlers,
+  createInternalMcpSurfaceBundle,
+  createLifecycleHandlers,
+  createScopedMcpToolSurface,
+  getAuthorizedInternalMcpTools,
+  getInternalMcpCatalogEntry,
+  getVisibleInternalMcpTools,
+  INTERNAL_MCP_CATALOG,
+} from './internal-mcp/index.js';
+export type {
+  InternalMcpDispatchChildArgs,
+  InternalMcpDispatchRuntime,
+  InternalMcpOutputSchemaValidator,
+  InternalMcpRuntimeDeps,
+  InternalMcpSurfaceBundle,
+  InternalMcpToolName,
+} from './internal-mcp/index.js';
+export {
   WORKFLOW_ROUTER_SYSTEM_PROMPT,
   ORCHESTRATOR_SYSTEM_PROMPT,
 } from './prompts/index.js';

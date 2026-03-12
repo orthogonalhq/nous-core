@@ -2,10 +2,17 @@ import { vi } from 'vitest';
 import type {
   AgentGatewayConfig,
   AgentInput,
+  DerivedWorkflowGraph,
+  IProjectApi,
+  IWorkflowEngine,
+  IWorkmodeAdmissionGuard,
   GatewayContextFrame,
   IDocumentStore,
   IModelProvider,
+  IPfcEngine,
   IScopedMcpToolSurface,
+  ProjectConfig,
+  ProjectState,
   ToolDefinition,
   ToolResult,
 } from '@nous/shared';
@@ -44,6 +51,152 @@ export function createDocumentStore(): IDocumentStore {
     get: vi.fn().mockImplementation(async (_collection, id) => rows.get(id) ?? null),
     query: vi.fn().mockResolvedValue([]),
     delete: vi.fn().mockResolvedValue(true),
+  };
+}
+
+export function createProjectApi(overrides?: Partial<IProjectApi>): IProjectApi {
+  const config: ProjectConfig = {
+    id: PROJECT_ID,
+    name: 'Test Project',
+    type: 'software_project',
+    pfcTier: 'standard',
+    governanceDefaults: {
+      defaultNodeGovernance: 'must',
+      requireExplicitReviewForShouldDeviation: true,
+      blockedActionFeedbackMode: 'reason_coded',
+    },
+    modelAssignments: undefined,
+    memoryAccessPolicy: {
+      globalRead: [],
+      globalWrite: [],
+      projectPolicies: [],
+      defaultPolicy: {
+        canReadFrom: ['self'],
+        canBeReadBy: ['self'],
+        inheritsGlobal: true,
+      },
+    },
+    escalationChannels: ['in_app'],
+    escalationPreferences: {
+      routeByPriority: {
+        low: ['projects'],
+        medium: ['projects'],
+        high: ['projects', 'chat', 'mobile'],
+        critical: ['projects', 'chat', 'mao', 'mobile'],
+      },
+      acknowledgementSurfaces: ['projects', 'chat', 'mobile'],
+      mirrorToChat: true,
+    },
+    workflow: {
+      definitions: [],
+    },
+    packageDefaultIntake: [],
+    retrievalBudgetTokens: 500,
+    createdAt: NOW,
+    updatedAt: NOW,
+  };
+  const state: ProjectState = {
+    status: 'active',
+    activeWorkflows: 0,
+    lastActivityAt: NOW,
+  };
+
+  return {
+    memory: {
+      read: vi.fn().mockResolvedValue([]),
+      write: vi.fn().mockResolvedValue('memory-entry-1'),
+      retrieve: vi.fn().mockResolvedValue([]),
+    },
+    model: {
+      invoke: vi.fn(),
+      stream: vi.fn(),
+    },
+    tool: {
+      execute: vi.fn().mockResolvedValue({
+        success: true,
+        output: { executed: true },
+        durationMs: 5,
+      }),
+      list: vi.fn().mockResolvedValue(DEFAULT_TOOLS),
+    },
+    artifact: {
+      store: vi.fn().mockResolvedValue({
+        artifactId: '550e8400-e29b-41d4-a716-446655440150',
+        version: 1,
+        artifactRef: 'artifact://550e8400-e29b-41d4-a716-446655440150/v1',
+        integrityRef:
+          'sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa',
+        committed: true,
+      }),
+      retrieve: vi.fn().mockResolvedValue(null),
+      list: vi.fn().mockResolvedValue([]),
+      delete: vi.fn().mockResolvedValue(true),
+    },
+    escalation: {
+      notify: vi.fn().mockResolvedValue('escalation-1'),
+      request: vi.fn(),
+    },
+    scheduler: {
+      register: vi.fn().mockResolvedValue('schedule-1'),
+      cancel: vi.fn().mockResolvedValue(true),
+    },
+    project: {
+      config: vi.fn().mockReturnValue(config),
+      state: vi.fn().mockReturnValue(state),
+      log: vi.fn(),
+    },
+    ...overrides,
+  };
+}
+
+export function createPfcEngine(overrides?: Partial<IPfcEngine>): IPfcEngine {
+  return {
+    evaluateConfidenceGovernance: vi.fn(),
+    evaluateMemoryWrite: vi.fn().mockResolvedValue({
+      approved: true,
+      reason: 'allowed',
+      confidence: 1,
+    }),
+    evaluateMemoryMutation: vi.fn(),
+    evaluateToolExecution: vi.fn().mockResolvedValue({
+      approved: true,
+      reason: 'allowed',
+      confidence: 1,
+    }),
+    reflect: vi.fn(),
+    evaluateEscalation: vi.fn(),
+    getTier: vi.fn().mockReturnValue('standard'),
+    ...overrides,
+  };
+}
+
+export function createWorkflowEngine(
+  overrides?: Partial<IWorkflowEngine>,
+): IWorkflowEngine {
+  return {
+    resolveDefinition: vi.fn(),
+    deriveGraph: vi.fn(),
+    evaluateAdmission: vi.fn(),
+    start: vi.fn(),
+    resume: vi.fn(),
+    pause: vi.fn(),
+    completeNode: vi.fn().mockResolvedValue({}),
+    executeReadyNode: vi.fn(),
+    continueNode: vi.fn(),
+    getState: vi.fn(),
+    listProjectRuns: vi.fn().mockResolvedValue([]),
+    getRunGraph: vi.fn().mockResolvedValue(null as DerivedWorkflowGraph | null),
+    ...overrides,
+  };
+}
+
+export function createWorkmodeAdmissionGuard(
+  overrides?: Partial<IWorkmodeAdmissionGuard>,
+): IWorkmodeAdmissionGuard {
+  return {
+    evaluateDispatchAdmission: vi.fn().mockReturnValue({ allowed: true }),
+    evaluateLifecycleAdmission: vi.fn().mockReturnValue({ allowed: true }),
+    ...overrides,
   };
 }
 

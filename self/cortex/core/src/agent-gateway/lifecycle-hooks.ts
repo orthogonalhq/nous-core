@@ -1,13 +1,15 @@
 import {
-  GatewayDispatchRequestSchema,
-  GatewayEscalationRequestSchema,
-  GatewayObservationSchema,
-  GatewayTaskCompletionRequestSchema,
   type GatewayDispatchRequest,
   type GatewayEscalationRequest,
   type GatewayObservation,
   type GatewayTaskCompletionRequest,
 } from '@nous/shared';
+import {
+  normalizeDispatchParams,
+  normalizeEscalationParams,
+  normalizeObservationParams,
+  normalizeTaskCompletionParams,
+} from '../internal-mcp/request-normalizers.js';
 
 export const DISPATCH_AGENT_TOOL_NAME = 'dispatch_agent';
 export const TASK_COMPLETE_TOOL_NAME = 'task_complete';
@@ -30,41 +32,23 @@ export function isLifecycleToolName(name: string): name is LifecycleToolName {
 }
 
 export function parseDispatchRequest(params: unknown): GatewayDispatchRequest {
-  return GatewayDispatchRequestSchema.parse(params ?? {});
+  return normalizeDispatchParams(params);
 }
 
 export function parseTaskCompletionRequest(
   params: unknown,
 ): GatewayTaskCompletionRequest {
-  return GatewayTaskCompletionRequestSchema.parse(params ?? {});
+  return normalizeTaskCompletionParams(params);
 }
 
 export function parseEscalationRequest(
   params: unknown,
 ): GatewayEscalationRequest {
-  return GatewayEscalationRequestSchema.parse(params ?? {});
+  return normalizeEscalationParams(params);
 }
 
 export function parseObservation(params: unknown): GatewayObservation {
-  if (
-    params &&
-    typeof params === 'object' &&
-    'observation_type' in params &&
-    !('observationType' in params)
-  ) {
-    const raw = params as {
-      observation_type: unknown;
-      content: unknown;
-      detail?: unknown;
-    };
-    return GatewayObservationSchema.parse({
-      observationType: raw.observation_type,
-      content: raw.content,
-      detail: raw.detail,
-    });
-  }
-
-  return GatewayObservationSchema.parse(params ?? {});
+  return normalizeObservationParams(params);
 }
 
 export function getLifecycleUnavailableMessage(name: LifecycleToolName): string {

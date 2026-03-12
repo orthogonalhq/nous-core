@@ -69,6 +69,10 @@ interface ToolHandlingResult {
   contextFrame?: GatewayContextFrame;
 }
 
+interface PreparedDispatchCall {
+  request: GatewayDispatchRequest;
+}
+
 function defaultNow(): string {
   return new Date().toISOString();
 }
@@ -175,28 +179,21 @@ export class AgentGateway implements IAgentGateway {
           );
         }
 
-        let terminalResult: AgentResult | undefined;
-        for (const toolCall of parsedOutput.toolCalls) {
-          const handled = await this.handleToolCall({
-            input: validInput,
-            toolName: toolCall.name,
-            params: toolCall.params,
-            budgetTracker,
-            sequencer,
-            traceId,
-            projectId,
-            evidenceRefs,
-            context,
-            startedAt,
-          });
+        const handledTurn = await this.handleToolCalls({
+          input: validInput,
+          toolCalls: parsedOutput.toolCalls,
+          budgetTracker,
+          sequencer,
+          traceId,
+          projectId,
+          evidenceRefs,
+          context,
+          startedAt,
+        });
+        let terminalResult = handledTurn.terminalResult;
 
-          if (handled.contextFrame) {
-            context.push(handled.contextFrame);
-          }
-          if (handled.terminalResult) {
-            terminalResult = handled.terminalResult;
-            break;
-          }
+        for (const frame of handledTurn.contextFrames) {
+          context.push(frame);
         }
 
         await this.emitTurnAck(sequencer, budgetTracker, traceId, projectId, evidenceRefs);
@@ -300,6 +297,135 @@ export class AgentGateway implements IAgentGateway {
     }
   }
 
+  private async handleToolCalls(args: {
+    input: AgentInput;
+    toolCalls: Array<{ name: string; params: unknown }>;
+    budgetTracker: BudgetTracker;
+    sequencer: CorrelationSequencer;
+    traceId: TraceId;
+    projectId?: ProjectId;
+    evidenceRefs: TraceEvidenceReference[];
+    context: GatewayContextFrame[];
+    startedAt: string;
+  }): Promise<{ contextFrames: GatewayContextFrame[]; terminalResult?: AgentResult }> {
+    const contextFrames: GatewayContextFrame[] = [];
+    const terminalByIndex = new Map<number, AgentResult>();
+    const frameByIndex = new Map<number, GatewayContextFrame>();
+    const dispatchIndexes = args.toolCalls
+      .map((toolCall, index) =>
+        toolCall.name === DISPATCH_AGENT_TOOL_NAME ? index : -1,
+      )
+      .filter((index) => index >= 0);
+
+    const dispatchResults =
+      dispatchIndexes.length > 1
+        ? await this.handleDispatchBatch(args, dispatchIndexes)
+        : new Map<number, ToolHandlingResult>();
+
+    for (let index = 0; index < args.toolCalls.length; index += 1) {
+      const toolCall = args.toolCalls[index];
+      const handled =
+        dispatchResults.get(index) ??
+        (await this.handleToolCall({
+          ...args,
+          toolName: toolCall.name,
+          params: toolCall.params,
+        }));
+
+      if (handled.contextFrame) {
+        frameByIndex.set(index, handled.contextFrame);
+      }
+      if (handled.terminalResult) {
+        terminalByIndex.set(index, handled.terminalResult);
+      }
+      if (handled.terminalResult) {
+        break;
+      }
+    }
+
+    for (let index = 0; index < args.toolCalls.length; index += 1) {
+      const frame = frameByIndex.get(index);
+      if (frame) {
+        contextFrames.push(frame);
+      }
+      if (terminalByIndex.has(index)) {
+        return {
+          contextFrames,
+          terminalResult: terminalByIndex.get(index),
+        };
+      }
+    }
+
+    return { contextFrames };
+  }
+
+  private async handleDispatchBatch(
+    args: {
+      input: AgentInput;
+      toolCalls: Array<{ name: string; params: unknown }>;
+      budgetTracker: BudgetTracker;
+      sequencer: CorrelationSequencer;
+      traceId: TraceId;
+      projectId?: ProjectId;
+      evidenceRefs: TraceEvidenceReference[];
+      context: GatewayContextFrame[];
+      startedAt: string;
+    },
+    indexes: number[],
+  ): Promise<Map<number, ToolHandlingResult>> {
+    const immediate = new Map<number, ToolHandlingResult>();
+    const pending: Array<{ index: number; prepared: PreparedDispatchCall }> = [];
+
+    for (const index of indexes) {
+      const prepared = this.prepareDispatchTool(
+        {
+          ...args,
+          toolName: DISPATCH_AGENT_TOOL_NAME,
+          params: args.toolCalls[index]!.params,
+        },
+        true,
+      );
+
+      if ('immediate' in prepared) {
+        immediate.set(index, prepared.immediate);
+      } else {
+        pending.push({ index, prepared: prepared.prepared });
+      }
+    }
+
+    const settled = await Promise.allSettled(
+      pending.map(({ prepared }) =>
+        this.executePreparedDispatch(
+          {
+            ...args,
+            toolName: DISPATCH_AGENT_TOOL_NAME,
+            params: args.toolCalls[0]?.params,
+          },
+          prepared,
+        ),
+      ),
+    );
+
+    settled.forEach((result, offset) => {
+      const index = pending[offset]!.index;
+      if (result.status === 'fulfilled') {
+        immediate.set(index, result.value);
+        return;
+      }
+
+      immediate.set(index, {
+        contextFrame: this.createContextFrame(
+          'tool',
+          'tool_error',
+          normalizeToolError(DISPATCH_AGENT_TOOL_NAME, result.reason),
+          DISPATCH_AGENT_TOOL_NAME,
+        ),
+      });
+    });
+
+    return immediate;
+  }
+
   private async handleStandardTool(args: {
     input: AgentInput;
     toolName: string;
@@ -313,23 +439,11 @@ export class AgentGateway implements IAgentGateway {
     startedAt: string;
   }): Promise<ToolHandlingResult> {
     try {
-      const { value, evidenceRef } = await this.executeWithWitness(
-        'tool-execute',
+      const value = await this.config.toolSurface.executeTool(
         args.toolName,
-        args.traceId,
-        args.projectId,
-        { gatewayAgentId: this.agentId },
-        async () =>
-          this.config.toolSurface.executeTool(
-            args.toolName,
-            args.params,
-            args.input.execution,
-          ),
+        args.params,
+        args.input.execution,
       );
-
-      if (evidenceRef) {
-        args.evidenceRefs.push(evidenceRef);
-      }
 
       return {
         contextFrame: this.createContextFrame(
@@ -363,26 +477,31 @@ export class AgentGateway implements IAgentGateway {
     }
   }
 
-  private async handleDispatchTool(args: {
-    input: AgentInput;
-    toolName: string;
-    params: unknown;
-    budgetTracker: BudgetTracker;
-    sequencer: CorrelationSequencer;
-    traceId: TraceId;
-    projectId?: ProjectId;
-    evidenceRefs: TraceEvidenceReference[];
-    context: GatewayContextFrame[];
-    startedAt: string;
-  }): Promise<ToolHandlingResult> {
+  private prepareDispatchTool(
+    args: {
+      input: AgentInput;
+      toolName: string;
+      params: unknown;
+      budgetTracker: BudgetTracker;
+      sequencer: CorrelationSequencer;
+      traceId: TraceId;
+      projectId?: ProjectId;
+      evidenceRefs: TraceEvidenceReference[];
+      context: GatewayContextFrame[];
+      startedAt: string;
+    },
+    batchMode: boolean,
+  ): { prepared: PreparedDispatchCall } | { immediate: ToolHandlingResult } {
     if (!this.config.lifecycleHooks?.dispatchAgent) {
       return {
-        contextFrame: this.createContextFrame(
-          'tool',
-          'tool_error',
-          getLifecycleUnavailableMessage(DISPATCH_AGENT_TOOL_NAME),
-          DISPATCH_AGENT_TOOL_NAME,
-        ),
+        immediate: {
+          contextFrame: this.createContextFrame(
+            'tool',
+            'tool_error',
+            getLifecycleUnavailableMessage(DISPATCH_AGENT_TOOL_NAME),
+            DISPATCH_AGENT_TOOL_NAME,
+          ),
+        },
       };
     }
 
@@ -391,52 +510,76 @@ export class AgentGateway implements IAgentGateway {
       request = parseDispatchRequest(args.params);
     } catch (error) {
       return {
-        contextFrame: this.createContextFrame(
-          'tool',
-          'tool_error',
-          normalizeToolError(DISPATCH_AGENT_TOOL_NAME, error),
-          DISPATCH_AGENT_TOOL_NAME,
-        ),
+        immediate: {
+          contextFrame: this.createContextFrame(
+            'tool',
+            'tool_error',
+            normalizeToolError(DISPATCH_AGENT_TOOL_NAME, error),
+            DISPATCH_AGENT_TOOL_NAME,
+          ),
+        },
       };
     }
 
     if (!args.budgetTracker.requestSpawn(estimateBudgetUnits(request.budget))) {
+      if (batchMode) {
+        return {
+          immediate: {
+            contextFrame: this.createContextFrame(
+              'tool',
+              'tool_error',
+              'Tool dispatch_agent failed: spawn budget exceeded',
+              DISPATCH_AGENT_TOOL_NAME,
+            ),
+          },
+        };
+      }
+
       return {
-        terminalResult: this.buildBudgetExhaustedResult(
-          'spawn_budget',
+        immediate: {
+          terminalResult: this.buildBudgetExhaustedResult(
+            'spawn_budget',
+            args.sequencer.snapshot(),
+            args.budgetTracker,
+            args.evidenceRefs,
+            args.input,
+            args.context.length,
+            args.startedAt,
+          ),
+        },
+      };
+    }
+
+    return { prepared: { request } };
+  }
+
+  private async executePreparedDispatch(
+    args: {
+      input: AgentInput;
+      toolName: string;
+      params: unknown;
+      budgetTracker: BudgetTracker;
+      sequencer: CorrelationSequencer;
+      traceId: TraceId;
+      projectId?: ProjectId;
+      evidenceRefs: TraceEvidenceReference[];
+      context: GatewayContextFrame[];
+      startedAt: string;
+    },
+    prepared: PreparedDispatchCall,
+  ): Promise<ToolHandlingResult> {
+    try {
+      const value = await this.config.lifecycleHooks!.dispatchAgent!(
+        prepared.request,
+        this.buildLifecycleContext(
           args.sequencer.snapshot(),
           args.budgetTracker,
-          args.evidenceRefs,
           args.input,
           args.context.length,
           args.startedAt,
         ),
-      };
-    }
-
-    try {
-      const { value, evidenceRef } = await this.executeWithWitness(
-        'trace-persist',
-        DISPATCH_AGENT_TOOL_NAME,
-        args.traceId,
-        args.projectId,
-        { targetClass: request.targetClass, requestedBudget: request.budget ?? {} },
-        async () =>
-          this.config.lifecycleHooks!.dispatchAgent!(
-            request,
-            this.buildLifecycleContext(
-              args.sequencer.snapshot(),
-              args.budgetTracker,
-              args.input,
-              args.context.length,
-              args.startedAt,
-            ),
-          ),
       );
 
-      if (evidenceRef) {
-        args.evidenceRefs.push(evidenceRef);
-      }
       args.budgetTracker.consumeSpawnUnits(estimateUsageUnits(value.usage));
 
       return {
@@ -469,6 +612,26 @@ export class AgentGateway implements IAgentGateway {
         ),
       };
     }
+  }
+
+  private async handleDispatchTool(args: {
+    input: AgentInput;
+    toolName: string;
+    params: unknown;
+    budgetTracker: BudgetTracker;
+    sequencer: CorrelationSequencer;
+    traceId: TraceId;
+    projectId?: ProjectId;
+    evidenceRefs: TraceEvidenceReference[];
+    context: GatewayContextFrame[];
+    startedAt: string;
+  }): Promise<ToolHandlingResult> {
+    const prepared = this.prepareDispatchTool(args, false);
+    if ('immediate' in prepared) {
+      return prepared.immediate;
+    }
+
+    return this.executePreparedDispatch(args, prepared.prepared);
   }
 
   private async handleTaskCompleteTool(args: {
@@ -509,23 +672,15 @@ export class AgentGateway implements IAgentGateway {
     }
 
     try {
-      const { value, evidenceRef } = await this.executeWithWitness(
-        'trace-persist',
-        TASK_COMPLETE_TOOL_NAME,
-        args.traceId,
-        args.projectId,
-        { summary: request.summary, artifactRefs: request.artifactRefs },
-        async () =>
-          this.config.lifecycleHooks!.taskComplete!(
-            request,
-            this.buildLifecycleContext(
-              args.sequencer.snapshot(),
-              args.budgetTracker,
-              args.input,
-              args.context.length,
-              args.startedAt,
-            ),
-          ),
+      const value = await this.config.lifecycleHooks!.taskComplete!(
+        request,
+        this.buildLifecycleContext(
+          args.sequencer.snapshot(),
+          args.budgetTracker,
+          args.input,
+          args.context.length,
+          args.startedAt,
+        ),
       );
 
       return {
@@ -539,7 +694,6 @@ export class AgentGateway implements IAgentGateway {
           usage: args.budgetTracker.getUsage(),
           evidenceRefs: [
             ...args.evidenceRefs,
-            ...(evidenceRef ? [evidenceRef] : []),
             ...(value.evidenceRefs ?? []),
           ],
         }),
@@ -580,43 +734,42 @@ export class AgentGateway implements IAgentGateway {
     context: GatewayContextFrame[];
     startedAt: string;
   }): Promise<ToolHandlingResult> {
-    const request = parseEscalationRequest(args.params);
+    let request;
+    try {
+      request = parseEscalationRequest(args.params);
+    } catch (error) {
+      return {
+        contextFrame: this.createContextFrame(
+          'tool',
+          'tool_error',
+          normalizeToolError(REQUEST_ESCALATION_TOOL_NAME, error),
+          REQUEST_ESCALATION_TOOL_NAME,
+        ),
+      };
+    }
 
     if (this.config.lifecycleHooks?.requestEscalation) {
       try {
-        const { evidenceRef } = await this.executeWithWitness(
-          'trace-persist',
-          REQUEST_ESCALATION_TOOL_NAME,
-          args.traceId,
-          args.projectId,
-          { severity: request.severity },
-          async () =>
-            this.config.lifecycleHooks!.requestEscalation!(
-              request,
-              this.buildLifecycleContext(
-                args.sequencer.snapshot(),
-                args.budgetTracker,
-                args.input,
-                args.context.length,
-                args.startedAt,
-              ),
-            ),
+        await this.config.lifecycleHooks.requestEscalation(
+          request,
+          this.buildLifecycleContext(
+            args.sequencer.snapshot(),
+            args.budgetTracker,
+            args.input,
+            args.context.length,
+            args.startedAt,
+          ),
         );
-        if (evidenceRef) {
-          args.evidenceRefs.push(evidenceRef);
-        }
       } catch (error) {
-        if (isWitnessFailure(error)) {
-          return {
-            terminalResult: this.buildErrorResult(
-              error instanceof Error ? error.message : String(error),
-              args.sequencer.snapshot(),
-              args.budgetTracker,
-              args.evidenceRefs,
-              { toolName: REQUEST_ESCALATION_TOOL_NAME },
-            ),
-          };
-        }
+        return {
+          terminalResult: this.buildErrorResult(
+            error instanceof Error ? error.message : String(error),
+            args.sequencer.snapshot(),
+            args.budgetTracker,
+            args.evidenceRefs,
+            { toolName: REQUEST_ESCALATION_TOOL_NAME },
+          ),
+        };
       }
     }
 
@@ -662,39 +815,26 @@ export class AgentGateway implements IAgentGateway {
 
     try {
       const correlation = args.sequencer.next();
-      const { evidenceRef } = await this.executeWithWitness(
-        'trace-persist',
-        FLAG_OBSERVATION_TOOL_NAME,
-        args.traceId,
-        args.projectId,
-        { observationType: observation.observationType },
-        async () => {
-          await this.outbox.emit({
-            type: 'observation',
-            eventId: this.nextMessageId(),
-            observation,
+      await this.outbox.emit({
+        type: 'observation',
+        eventId: this.nextMessageId(),
+        observation,
+        correlation,
+        usage: args.budgetTracker.getUsage(),
+        emittedAt: this.now(),
+      });
+
+      if (this.config.lifecycleHooks?.flagObservation) {
+        await this.config.lifecycleHooks.flagObservation(
+          observation,
+          this.buildLifecycleContext(
             correlation,
-            usage: args.budgetTracker.getUsage(),
-            emittedAt: this.now(),
-          });
-
-          if (this.config.lifecycleHooks?.flagObservation) {
-            await this.config.lifecycleHooks.flagObservation(
-              observation,
-              this.buildLifecycleContext(
-                correlation,
-                args.budgetTracker,
-                args.input,
-                args.context.length,
-                args.startedAt,
-              ),
-            );
-          }
-        },
-      );
-
-      if (evidenceRef) {
-        args.evidenceRefs.push(evidenceRef);
+            args.budgetTracker,
+            args.input,
+            args.context.length,
+            args.startedAt,
+          ),
+        );
       }
 
       return {
