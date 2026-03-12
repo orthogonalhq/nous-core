@@ -314,6 +314,8 @@ The Cortex's role extends beyond per-turn evaluation. In the project model, the 
 - Propose protocol formalizations in intent projects
 - Learn from outcomes to improve future decisions within the project
 
+Phase 12.1 adds the internal `AgentGateway` harness beneath this supervisor posture. It provides deterministic multi-turn execution, typed parent-child inbox/outbox messaging, auditable correlation state, and hard budget ceilings for recursive internal agent work, but it does not change which layer owns workflow truth or governance authority.
+
 The Cortex tier determines how much autonomous reasoning the supervisor applies. Protocol projects with explicit graphs may run at lower tiers. Intent projects with emergent workflows require higher tiers.
 
 ---
@@ -452,6 +454,7 @@ This project model extends existing Nous concepts:
 
 - **ProjectStore** → Becomes the container for project type, workflow graph, governance configuration, artifact references, and Phase 9.1 canonical workflow definitions/default workflow references — not just namespace and config
 - **Cortex Engine** → Gains a per-project supervisor mode in addition to per-turn evaluation
+- **Cortex Core Runtime** → Phase 12.1 now hosts the additive `AgentGateway` execution harness beside `CoreExecutor`, giving internal agent work a deterministic multi-turn runtime without moving workflow run-state authority out of the Phase 9 workflow engine
 - **ModelRouter** → Must route heterogeneous provider types, not just text model roles
 - **Tool Interface** → Nodes in the workflow are a superset of tools — they include model calls, quality gates, Principal decisions, and transforms alongside tool executions
 - **MemoryStore** → Remains responsible for text and embedding memory. Artifact storage is a separate concern.
@@ -460,6 +463,7 @@ This project model extends existing Nous concepts:
 New architectural components implied:
 
 - **Workflow Engine** — Phase 9.1 establishes deterministic graph derivation, admission, and explicit run/node/dispatch lineage state. Phase 9.2 adds governed node execution, append-only attempts, wait/correction state, checkpointed continuation, and activated-branch tracking; later phases add broader scheduler integration and artifact persistence
+- **AgentGateway Runtime Harness** — Phase 12.1 adds the deterministic internal agent loop, result-only child returns, typed inbox/outbox messaging, and budget/correlation control surface that later lifecycle-tool and migration work build on
 - **Artifact Store** — versioned binary asset management, project-scoped
 - **Scheduler** — time-triggered execution for recurring and monitoring workflows
 - **Escalation Service** — multi-channel Principal notification with response tracking
