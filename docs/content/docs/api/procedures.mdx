@@ -13,6 +13,31 @@ description: Reference for all tRPC procedures
 | `projects.create` | mutation | `{ name, type? }` | `ProjectConfig` |
 | `projects.get` | query | `{ id: ProjectId }` | `ProjectConfig \| null` |
 | `projects.update` | mutation | `{ id, updates: { name?, pfcTier?, modelAssignments? } }` | — |
+| `projects.workflowSnapshot` | query | `{ projectId, runId? }` | `ProjectWorkflowSurfaceSnapshot` |
+| `projects.workflowVisualDebugSnapshot` | query | `{ projectId, runId? }` | `WorkflowVisualDebugSnapshot` |
+| `projects.workflowNodeInspect` | query | `{ projectId, runId?, nodeDefinitionId }` | `WorkflowNodeInspectProjection` |
+| `projects.dashboardSnapshot` | query | `{ projectId }` | `ProjectDashboardSnapshot` |
+| `projects.configurationSnapshot` | query | `{ projectId }` | `ProjectConfigurationSnapshot` |
+| `projects.updateConfiguration` | mutation | `ProjectConfigurationUpdateInput` | `ProjectConfigurationSnapshot` |
+| `projects.upsertSchedule` | mutation | `ScheduleUpsertInput` | `ScheduleDefinition` |
+| `projects.validateWorkflowDefinition` | mutation | `{ projectId, workflowDefinition }` | `WorkflowDefinitionValidationResult` |
+| `projects.saveWorkflowDefinition` | mutation | `{ projectId, workflowDefinition, setAsDefault? }` | `{ project, validation }` |
+
+- `projects.workflowSnapshot` — Baseline workflow authoring and monitoring projection for the Projects surface.
+  - Response includes canonical workflow definition, derived graph, recent runs, node projections, recent artifacts, recent traces, and surface diagnostics.
+- `projects.workflowVisualDebugSnapshot` — Advanced staged visual-debug projection for the Projects surface.
+  - Response adds deterministic stage grouping, canvas node and edge overlays, MAO graph parity, checkpoint summary, and scheduler summary over canonical truth.
+- `projects.workflowNodeInspect` — Returns rich node inspection for one project/run/node selection.
+  - Response embeds the shared monitor projection plus reused MAO inspect truth, checkpoint posture, artifact lineage references, trace IDs, and policy-reason context.
+- `projects.dashboardSnapshot` — Returns project health, blocked actions, schedules, escalation queue posture, package-default intake visibility, and linked workflow snapshot data.
+- `projects.configurationSnapshot` — Returns the current project configuration, schedule records, blocked actions, and field provenance.
+- `projects.updateConfiguration` — Applies governed project-configuration changes.
+  - Rejects stale writes with `CONFLICT` when `expectedUpdatedAt` no longer matches the stored project.
+- `projects.upsertSchedule` — Creates or updates a schedule bound to canonical workflow and workmode truth.
+  - Returns `BAD_REQUEST` when the project has no canonical workflow definition and the caller does not supply `workflowDefinitionId`.
+- `projects.validateWorkflowDefinition` — Validates a workflow draft on the server without persisting it.
+- `projects.saveWorkflowDefinition` — Persists a validated canonical workflow definition and optionally sets it as the default.
+  - Projection-only visual-debug fields are never accepted as canonical workflow-definition truth.
 
 ## chat
 

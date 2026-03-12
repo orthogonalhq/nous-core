@@ -69,7 +69,7 @@ CLI depends only on public interfaces from `shared/`.
 Web application containing integrated operator surfaces:
 
 * Chat interface — conversational interaction with project-scoped context
-* Projects UI — workflow monitoring, canonical project dashboard, governed configuration, schedule settings, and project-scoped escalation queue acknowledgement
+* Projects UI — advanced workflow authoring, staged visual debugging, canonical project dashboard, governed configuration, schedule settings, and project-scoped escalation queue acknowledgement
 * Dashboard — system health, project status, memory inspection, and discovery projection
 * MAO operator surface — density-grid observability, run-graph inspection, reasoning-preview handoff, and governed project control
 * Chat escalation inbox — acknowledgement of the same canonical in-app escalation queue used by Projects
@@ -759,6 +759,10 @@ Phase 9.4 and Phase 9.5 add:
 
 - `knowledge-index.ts` — canonical project discovery, refresh, taxonomy, and relationship-runtime contracts
 - `workflow-monitoring.ts` — workflow-surface snapshot, node projection, diagnostics, validation, and save-input schemas used by the Projects UI and web server
+
+Phase 11.4 expands:
+
+- `workflow-monitoring.ts` — stage projections, canvas-node and canvas-edge overlays, checkpoint and scheduler debug summaries, node inspect payloads, and visual-debug snapshots used by the advanced Projects surface
 
 Phase 9.7 adds:
 
