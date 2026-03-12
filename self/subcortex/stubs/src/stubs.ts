@@ -603,6 +603,16 @@ export class StubEndpointTrustService implements IEndpointTrustService {
   ): Promise<import('@nous/shared').EndpointTrustEndpoint | null> {
     return stubNotImpl('IEndpointTrustService', 'getEndpoint', 'Phase 11.2');
   }
+
+  async getProjectSurfaceSummary(
+    _projectId: ProjectId,
+  ): Promise<import('@nous/shared').EndpointTrustSurfaceSummary> {
+    return stubNotImpl(
+      'IEndpointTrustService',
+      'getProjectSurfaceSummary',
+      'Phase 11.5',
+    );
+  }
 }
 
 export class StubVoiceControlService implements IVoiceControlService {

@@ -18,6 +18,7 @@ import type {
   EndpointTransportValidationResult,
   EndpointTrustEndpoint,
   EndpointTrustPeripheral,
+  EndpointTrustSurfaceSummary,
   IDocumentStore,
   IEndpointTrustService,
   IEscalationService,
@@ -301,6 +302,45 @@ export class EndpointTrustService implements IEndpointTrustService {
 
   async getEndpoint(endpointId: string): Promise<EndpointTrustEndpoint | null> {
     return this.store.getEndpoint(endpointId);
+  }
+
+  async getProjectSurfaceSummary(
+    projectId: EndpointTrustPeripheral['project_id'],
+  ): Promise<EndpointTrustSurfaceSummary> {
+    const [peripherals, endpoints, sessions, incidents] = await Promise.all([
+      this.store.listPeripheralsByProject(projectId),
+      this.store.listEndpointsByProject(projectId),
+      this.store.listSessionsByProject(projectId),
+      this.store.listIncidentsByProject(projectId),
+    ]);
+
+    const now = Date.parse(this.now());
+    const expiringWindowMs = 24 * 60 * 60 * 1000;
+    const latestIncident = incidents[0];
+
+    return {
+      projectId,
+      peripheralCount: peripherals.length,
+      trustedPeripheralCount: peripherals.filter((record) => record.trust_state === 'trusted').length,
+      suspendedPeripheralCount: peripherals.filter((record) => record.trust_state === 'suspended').length,
+      revokedPeripheralCount: peripherals.filter((record) => record.trust_state === 'revoked').length,
+      sensoryEndpointCount: endpoints.filter((record) => record.direction === 'sensory').length,
+      actionEndpointCount: endpoints.filter((record) => record.direction === 'action').length,
+      activeSessionCount: sessions.filter((record) => record.status === 'active').length,
+      expiringSessionCount: sessions.filter((record) => {
+        if (record.status !== 'active' || !record.expires_at) {
+          return false;
+        }
+        const expiresAt = Date.parse(record.expires_at);
+        return Number.isFinite(expiresAt) && expiresAt >= now && expiresAt - now <= expiringWindowMs;
+      }).length,
+      latestIncidentSeverity: latestIncident?.severity,
+      latestIncidentReasonCode: latestIncident?.reason_code,
+      registryBlockedEndpointCount: endpoints.filter(
+        (record) => (record.registry_eligibility?.block_reason_codes.length ?? 0) > 0,
+      ).length,
+      diagnostics: {},
+    };
   }
 
   private async requirePeripheral(peripheralId: string): Promise<EndpointTrustPeripheral> {

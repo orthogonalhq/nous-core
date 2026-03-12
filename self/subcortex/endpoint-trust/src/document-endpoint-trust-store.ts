@@ -74,6 +74,20 @@ export class DocumentEndpointTrustStore {
     return parsePeripheral(raw);
   }
 
+  async listPeripheralsByProject(projectId: string): Promise<EndpointTrustPeripheral[]> {
+    const raw = await this.documentStore.query<unknown>(
+      ENDPOINT_TRUST_PERIPHERAL_COLLECTION,
+      {
+        where: { project_id: projectId },
+        orderBy: 'created_at',
+        orderDirection: 'asc',
+      },
+    );
+    return raw
+      .map(parsePeripheral)
+      .filter((record): record is EndpointTrustPeripheral => record !== null);
+  }
+
   async savePairing(record: EndpointPairingRecord): Promise<EndpointPairingRecord> {
     const validated = EndpointPairingRecordSchema.parse(record);
     await this.documentStore.put(
@@ -122,6 +136,20 @@ export class DocumentEndpointTrustStore {
       endpointId,
     );
     return parseEndpoint(raw);
+  }
+
+  async listEndpointsByProject(projectId: string): Promise<EndpointTrustEndpoint[]> {
+    const raw = await this.documentStore.query<unknown>(
+      ENDPOINT_TRUST_ENDPOINT_COLLECTION,
+      {
+        where: { project_id: projectId },
+        orderBy: 'created_at',
+        orderDirection: 'asc',
+      },
+    );
+    return raw
+      .map(parseEndpoint)
+      .filter((record): record is EndpointTrustEndpoint => record !== null);
   }
 
   async listEndpointsByPeripheral(peripheralId: string): Promise<EndpointTrustEndpoint[]> {
@@ -190,6 +218,20 @@ export class DocumentEndpointTrustStore {
     return parseSession(raw);
   }
 
+  async listSessionsByProject(projectId: string): Promise<EndpointSessionRecord[]> {
+    const raw = await this.documentStore.query<unknown>(
+      ENDPOINT_TRUST_SESSION_COLLECTION,
+      {
+        where: { project_id: projectId },
+        orderBy: 'established_at',
+        orderDirection: 'desc',
+      },
+    );
+    return raw
+      .map(parseSession)
+      .filter((record): record is EndpointSessionRecord => record !== null);
+  }
+
   async listSessionsByPeripheral(peripheralId: string): Promise<EndpointSessionRecord[]> {
     const raw = await this.documentStore.query<unknown>(
       ENDPOINT_TRUST_SESSION_COLLECTION,
@@ -219,6 +261,20 @@ export class DocumentEndpointTrustStore {
       ENDPOINT_TRUST_INCIDENT_COLLECTION,
       {
         where: { peripheral_id: peripheralId },
+        orderBy: 'reported_at',
+        orderDirection: 'desc',
+      },
+    );
+    return raw
+      .map(parseIncident)
+      .filter((record): record is EndpointIncidentRecord => record !== null);
+  }
+
+  async listIncidentsByProject(projectId: string): Promise<EndpointIncidentRecord[]> {
+    const raw = await this.documentStore.query<unknown>(
+      ENDPOINT_TRUST_INCIDENT_COLLECTION,
+      {
+        where: { project_id: projectId },
         orderBy: 'reported_at',
         orderDirection: 'desc',
       },
