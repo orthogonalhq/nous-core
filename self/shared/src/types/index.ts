@@ -68,3 +68,4 @@ export * from './communication-gateway.js';
 export * from './skill-admission.js';
 export * from './endpoint-trust.js';
 export * from './voice-control.js';
+export * from './agent-gateway.js';
