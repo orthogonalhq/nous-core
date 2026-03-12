@@ -263,8 +263,18 @@ describe('ProjectGovernanceDefaultsSchema', () => {
 describe('ProjectEscalationPreferencesSchema', () => {
   it('applies default in-app routing preferences', () => {
     const result = ProjectEscalationPreferencesSchema.parse({});
-    expect(result.routeByPriority.critical).toEqual(['projects', 'chat', 'mao']);
-    expect(result.acknowledgementSurfaces).toEqual(['projects', 'chat']);
+    expect(result.routeByPriority.high).toEqual(['projects', 'chat', 'mobile']);
+    expect(result.routeByPriority.critical).toEqual([
+      'projects',
+      'chat',
+      'mao',
+      'mobile',
+    ]);
+    expect(result.acknowledgementSurfaces).toEqual([
+      'projects',
+      'chat',
+      'mobile',
+    ]);
     expect(result.mirrorToChat).toBe(true);
   });
 });

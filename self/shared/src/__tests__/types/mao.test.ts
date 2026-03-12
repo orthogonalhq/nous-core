@@ -208,7 +208,7 @@ describe('MaoProjectControlProjectionSchema', () => {
         pending_confirmation: {
           required: false,
           dual_channel_required: false,
-          text_surface_targets: [],
+          text_surface_targets: ['mobile'],
         },
         continuation_required: false,
         updated_at: '2026-03-10T01:00:00.000Z',

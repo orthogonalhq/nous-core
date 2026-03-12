@@ -203,7 +203,7 @@ export const VoiceConfirmationRequirementSchema = z.object({
   dual_channel_required: z.boolean(),
   active_principal_session_ref: z.string().min(1).optional(),
   text_surface_targets: z
-    .array(z.enum(['chat', 'projects', 'mao']))
+    .array(z.enum(['chat', 'projects', 'mao', 'mobile']))
     .default([]),
   reason_code: z.string().min(1).optional(),
 });

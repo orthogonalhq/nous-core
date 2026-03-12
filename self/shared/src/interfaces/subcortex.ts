@@ -157,6 +157,7 @@ import type {
   VoiceTurnEvaluationInput,
   VoiceTurnStartInput,
   VoiceTurnStateRecord,
+  EndpointTrustSurfaceSummary,
 } from '../types/index.js';
 import type { NousEvent } from '../events/index.js';
 
@@ -521,6 +522,11 @@ export interface IEndpointTrustService {
   getEndpoint(
     endpointId: string,
   ): Promise<import('../types/index.js').EndpointTrustEndpoint | null>;
+
+  /** Build a project-scoped trust summary for projection surfaces. */
+  getProjectSurfaceSummary(
+    projectId: ProjectId,
+  ): Promise<EndpointTrustSurfaceSummary>;
 }
 
 export interface IVoiceControlService {

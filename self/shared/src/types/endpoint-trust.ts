@@ -381,3 +381,24 @@ export const EndpointIncidentRecordSchema = z.object({
   reported_at: z.string().datetime(),
 });
 export type EndpointIncidentRecord = z.infer<typeof EndpointIncidentRecordSchema>;
+
+export const EndpointTrustSurfaceSummarySchema = z.object({
+  projectId: ProjectIdSchema,
+  peripheralCount: z.number().int().min(0),
+  trustedPeripheralCount: z.number().int().min(0),
+  suspendedPeripheralCount: z.number().int().min(0),
+  revokedPeripheralCount: z.number().int().min(0),
+  sensoryEndpointCount: z.number().int().min(0),
+  actionEndpointCount: z.number().int().min(0),
+  activeSessionCount: z.number().int().min(0),
+  expiringSessionCount: z.number().int().min(0),
+  latestIncidentSeverity: EndpointIncidentSeveritySchema.optional(),
+  latestIncidentReasonCode: EndpointTrustReasonCodeSchema.optional(),
+  registryBlockedEndpointCount: z.number().int().min(0),
+  diagnostics: z.object({
+    degradedReasonCode: z.string().min(1).optional(),
+  }),
+});
+export type EndpointTrustSurfaceSummary = z.infer<
+  typeof EndpointTrustSurfaceSummarySchema
+>;
