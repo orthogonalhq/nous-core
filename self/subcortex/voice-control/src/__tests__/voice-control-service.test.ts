@@ -98,6 +98,21 @@ class FakeEndpointTrustService implements IEndpointTrustService {
   async reportIncident(): Promise<any> { throw new Error('unused'); }
   async getPeripheral(): Promise<any> { return null; }
   async getEndpoint(): Promise<any> { return null; }
+  async getProjectSurfaceSummary(): Promise<any> {
+    return {
+      projectId: PROJECT_ID,
+      peripheralCount: 0,
+      trustedPeripheralCount: 0,
+      suspendedPeripheralCount: 0,
+      revokedPeripheralCount: 0,
+      sensoryEndpointCount: 0,
+      actionEndpointCount: 0,
+      activeSessionCount: 0,
+      expiringSessionCount: 0,
+      registryBlockedEndpointCount: 0,
+      diagnostics: {},
+    };
+  }
 }
 
 class FakeWitnessService implements IWitnessService {

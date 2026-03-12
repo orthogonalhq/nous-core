@@ -275,7 +275,7 @@ function determineConfirmationRequirement(
       : undefined,
     dual_channel_required: required && dualChannelRequired,
     active_principal_session_ref: input.active_principal_session_ref,
-    text_surface_targets: required ? ['chat', 'projects', 'mao'] : [],
+    text_surface_targets: required ? ['chat', 'projects', 'mao', 'mobile'] : [],
     reason_code: required
       ? degradedModeActive
         ? 'voice_degraded_mode_active'

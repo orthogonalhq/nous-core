@@ -51,10 +51,10 @@ function createProjectStore(): IProjectStore {
           routeByPriority: {
             low: ['projects'],
             medium: ['projects'],
-            high: ['projects', 'chat'],
-            critical: ['projects', 'chat', 'mao'],
+            high: ['projects', 'chat', 'mobile'],
+            critical: ['projects', 'chat', 'mao', 'mobile'],
           },
-          acknowledgementSurfaces: ['projects', 'chat'],
+          acknowledgementSurfaces: ['projects', 'chat', 'mobile'],
           mirrorToChat: true,
         },
         retrievalBudgetTokens: 500,
@@ -90,7 +90,7 @@ describe('EscalationService', () => {
     });
 
     const record = await service.get(escalationId);
-    expect(record?.routeTargets).toEqual(['projects', 'chat', 'mao']);
+    expect(record?.routeTargets).toEqual(['projects', 'chat', 'mao', 'mobile']);
     expect(record?.status).toBe('visible');
   });
 
