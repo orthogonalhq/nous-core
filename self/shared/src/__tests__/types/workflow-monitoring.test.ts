@@ -3,8 +3,11 @@ import {
   ProjectWorkflowSurfaceSnapshotSchema,
   SaveWorkflowDefinitionInputSchema,
   WorkflowDefinitionValidationResultSchema,
+  WorkflowNodeInspectProjectionSchema,
   WorkflowNodeMonitorProjectionSchema,
+  WorkflowStageProjectionSchema,
   WorkflowRuntimeAvailabilitySchema,
+  WorkflowVisualDebugSnapshotSchema,
   WorkflowSurfaceLinkSchema,
   WorkflowTraceSummarySchema,
 } from '../../types/workflow-monitoring.js';
@@ -163,6 +166,20 @@ describe('WorkflowNodeMonitorProjectionSchema', () => {
   });
 });
 
+describe('WorkflowStageProjectionSchema', () => {
+  it('accepts deterministic stage projections', () => {
+    const parsed = WorkflowStageProjectionSchema.parse({
+      id: 'stage-0',
+      index: 0,
+      label: 'Entry',
+      nodeDefinitionIds: [NODE_ID],
+      kind: 'entry',
+    });
+
+    expect(parsed.kind).toBe('entry');
+  });
+});
+
 describe('ProjectWorkflowSurfaceSnapshotSchema', () => {
   it('accepts workflow surface snapshots with explicit degraded diagnostics', () => {
     const parsed = ProjectWorkflowSurfaceSnapshotSchema.parse({
@@ -200,6 +217,118 @@ describe('ProjectWorkflowSurfaceSnapshotSchema', () => {
 
     expect(parsed.runtimeAvailability).toBe('live');
     expect(parsed.diagnostics.runtimePosture).toBe('single_process_local');
+  });
+});
+
+describe('WorkflowVisualDebugSnapshotSchema', () => {
+  it('accepts advanced visual-debug snapshots with parity diagnostics', () => {
+    const parsed = WorkflowVisualDebugSnapshotSchema.parse({
+      project: {
+        id: PROJECT_ID,
+        name: 'Projects UI Project',
+        type: 'hybrid',
+      },
+      workflowDefinition: definition,
+      graph,
+      runtimeAvailability: 'live',
+      selectedRunId: RUN_ID,
+      activeRunState: runState,
+      recentRuns: [runState],
+      nodeProjections: [
+        {
+          nodeDefinitionId: NODE_ID,
+          definition: definition.nodes[0],
+          nodeState: runState.nodeStates[NODE_ID],
+          status: 'ready',
+          groupKey: 'status:ready',
+          artifactRefs: [],
+          traceIds: [],
+          deepLinks: [],
+        },
+      ],
+      stages: [
+        {
+          id: 'stage-0',
+          index: 0,
+          label: 'Entry',
+          nodeDefinitionIds: [NODE_ID],
+          kind: 'entry',
+        },
+      ],
+      canvasNodes: [
+        {
+          nodeDefinitionId: NODE_ID,
+          definition: definition.nodes[0],
+          stageId: 'stage-0',
+          column: 0,
+          row: 0,
+          status: 'ready',
+          isEntry: true,
+          isActive: true,
+          latestAttemptStatus: 'ready',
+          latestReasonCode: 'workflow_ready',
+          artifactCount: 0,
+          traceCount: 0,
+          deepLinks: [],
+        },
+      ],
+      canvasEdges: [],
+      maoRunGraph: {
+        projectId: PROJECT_ID,
+        workflowRunId: RUN_ID,
+        nodes: [],
+        edges: [],
+        generatedAt: NOW,
+      },
+      controlProjection: null,
+      checkpointSummary: {
+        runCheckpointState: 'idle',
+      },
+      schedulerSummary: {
+        triggerContext: null,
+        enabledScheduleCount: 1,
+        overdueScheduleCount: 0,
+        evidenceRefs: ['schedule:primary'],
+      },
+      recentArtifacts: [],
+      recentTraces: [],
+      diagnostics: {
+        runtimePosture: 'single_process_local',
+        inspectFirstMode: 'hybrid',
+        graphProjectionParity: 'aligned',
+      },
+    });
+
+    expect(parsed.diagnostics.graphProjectionParity).toBe('aligned');
+    expect(parsed.stages).toHaveLength(1);
+  });
+});
+
+describe('WorkflowNodeInspectProjectionSchema', () => {
+  it('accepts node inspect projections with MAO reuse and checkpoint summaries', () => {
+    const parsed = WorkflowNodeInspectProjectionSchema.parse({
+      nodeDefinitionId: NODE_ID,
+      monitor: {
+        nodeDefinitionId: NODE_ID,
+        definition: definition.nodes[0],
+        nodeState: runState.nodeStates[NODE_ID],
+        status: 'ready',
+        groupKey: 'status:ready',
+        artifactRefs: ['artifact://draft/v1'],
+        traceIds: [TRACE_ID],
+        deepLinks: [],
+      },
+      maoInspect: null,
+      checkpointSummary: {
+        runCheckpointState: 'idle',
+      },
+      artifactRefs: ['artifact://draft/v1'],
+      traceIds: [TRACE_ID],
+      policyReasonCode: 'workflow_admitted',
+    });
+
+    expect(parsed.policyReasonCode).toBe('workflow_admitted');
+    expect(parsed.traceIds[0]).toBe(TRACE_ID);
   });
 });
 
