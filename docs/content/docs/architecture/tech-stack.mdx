@@ -67,6 +67,8 @@ Zod provides runtime validation and static TypeScript types from a single schema
 
 Used for: configuration validation, MemoryWriteCandidate validation, API request/response validation, tool input/output validation, package manifest validation.
 
+Phase 12.2 extends this posture into `@nous/cortex-core`: the Internal MCP runtime in `self/cortex/core/src/internal-mcp/` now uses core-local Zod validators for capability-tool request parsing, ratified lifecycle payload normalization, and the task-completion output-validation seam. Core packages that introduce local runtime validators declare `zod` directly rather than depending on transitive workspace dependencies.
+
 ---
 
 ## Web UI
