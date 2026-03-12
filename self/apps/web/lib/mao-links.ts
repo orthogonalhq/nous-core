@@ -115,6 +115,8 @@ export function buildMaoSurfaceHref(
       return `/chat?${params.toString()}`;
     case 'projects':
       return `/projects?${params.toString()}`;
+    case 'mobile':
+      return `/mobile?${params.toString()}`;
     case 'traces':
       return `/traces?${params.toString()}`;
     case 'mao':

@@ -12,16 +12,20 @@ export function Sidebar({
   projectId,
   onProjectSelect,
   onNewProject,
+  onNavigate,
+  className,
 }: {
   projectId: string | null;
   onProjectSelect: (id: string) => void;
   onNewProject: () => void;
+  onNavigate?: () => void;
+  className?: string;
 }) {
   const pathname = usePathname();
   const { data: projects, isLoading } = trpc.projects.list.useQuery();
 
   return (
-    <aside className="flex h-full w-56 flex-col border-r border-border bg-muted/30">
+    <aside className={`flex h-full w-56 flex-col border-r border-border bg-muted/30 ${className ?? ''}`}>
       <div className="flex items-center justify-between border-b border-border p-2">
         <span className="font-semibold">Nous</span>
         <ThemeToggle />
@@ -43,7 +47,10 @@ export function Sidebar({
                   <button
                     key={p.id}
                     type="button"
-                    onClick={() => onProjectSelect(p.id)}
+                    onClick={() => {
+                      onProjectSelect(p.id);
+                      onNavigate?.();
+                    }}
                     className={`block w-full rounded px-2 py-1.5 text-left text-sm ${
                       projectId === p.id
                         ? 'bg-primary text-primary-foreground'
@@ -65,6 +72,7 @@ export function Sidebar({
                     href={item.href}
                     target="_blank"
                     rel="noopener noreferrer"
+                    onClick={() => onNavigate?.()}
                     className="block rounded px-2 py-1.5 text-sm hover:bg-muted"
                   >
                     {item.label}
@@ -73,6 +81,7 @@ export function Sidebar({
                   <Link
                     key={item.href}
                     href={item.href}
+                    onClick={() => onNavigate?.()}
                     className={`block rounded px-2 py-1.5 text-sm ${
                       pathname === item.href ? 'bg-muted font-medium' : 'hover:bg-muted'
                     }`}
