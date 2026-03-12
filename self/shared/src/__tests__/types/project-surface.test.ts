@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import {
+  MobileOperationsSnapshotSchema,
   ProjectBlockedActionSchema,
   ProjectConfigurationSnapshotSchema,
   ProjectConfigurationUpdateInputSchema,
@@ -172,5 +173,91 @@ describe('ProjectConfigurationUpdateInputSchema', () => {
         updates: {},
       }).success,
     ).toBe(false);
+  });
+});
+
+describe('MobileOperationsSnapshotSchema', () => {
+  it('parses mobile operating snapshots that compose canonical dashboard, queue, voice, and trust truth', () => {
+    const result = MobileOperationsSnapshotSchema.safeParse({
+      project: {
+        id: PROJECT_ID,
+        name: 'Dashboard Test',
+        type: 'hybrid',
+      },
+      dashboard: {
+        project: {
+          id: PROJECT_ID,
+          name: 'Dashboard Test',
+          type: 'hybrid',
+        },
+        health: {
+          overallStatus: 'attention_required',
+          runtimeAvailability: 'live',
+          activeRunStatus: 'waiting',
+          blockedNodeCount: 0,
+          waitingNodeCount: 1,
+          enabledScheduleCount: 2,
+          overdueScheduleCount: 0,
+          openEscalationCount: 1,
+          urgentEscalationCount: 1,
+        },
+        controlProjection: null,
+        workflowSnapshot: null,
+        schedules: [],
+        openEscalations: [],
+        blockedActions: [],
+        packageDefaultIntake: [],
+        diagnostics: {
+          runtimePosture: 'single_process_local',
+        },
+      },
+      escalationQueue: {
+        projectId: PROJECT_ID,
+        items: [],
+        openCount: 1,
+        acknowledgedCount: 0,
+        urgentCount: 1,
+      },
+      voiceSession: {
+        session_id: '550e8400-e29b-41d4-a716-446655440399',
+        project_id: PROJECT_ID,
+        principal_id: 'principal',
+        current_turn_state: 'awaiting_text_confirmation',
+        assistant_output_state: 'idle',
+        degraded_mode: {
+          session_id: '550e8400-e29b-41d4-a716-446655440399',
+          project_id: PROJECT_ID,
+          active: false,
+          evidence_refs: [],
+        },
+        pending_confirmation: {
+          required: true,
+          dual_channel_required: false,
+          text_surface_targets: ['mobile'],
+        },
+        continuation_required: false,
+        evidence_refs: [],
+        updated_at: NOW,
+      },
+      endpointTrust: {
+        projectId: PROJECT_ID,
+        peripheralCount: 1,
+        trustedPeripheralCount: 1,
+        suspendedPeripheralCount: 0,
+        revokedPeripheralCount: 0,
+        sensoryEndpointCount: 1,
+        actionEndpointCount: 0,
+        activeSessionCount: 1,
+        expiringSessionCount: 0,
+        registryBlockedEndpointCount: 0,
+        diagnostics: {},
+      },
+      diagnostics: {
+        runtimePosture: 'single_process_local',
+      },
+      generatedAt: NOW,
+    });
+
+    expect(result.success).toBe(true);
   });
 });

@@ -139,20 +139,20 @@ export const ProjectEscalationPreferencesSchema = z.object({
       medium: z.array(InAppEscalationSurfaceSchema).default(['projects']),
       high: z
         .array(InAppEscalationSurfaceSchema)
-        .default(['projects', 'chat']),
+        .default(['projects', 'chat', 'mobile']),
       critical: z
         .array(InAppEscalationSurfaceSchema)
-        .default(['projects', 'chat', 'mao']),
+        .default(['projects', 'chat', 'mao', 'mobile']),
     })
     .default({
       low: ['projects'],
       medium: ['projects'],
-      high: ['projects', 'chat'],
-      critical: ['projects', 'chat', 'mao'],
+      high: ['projects', 'chat', 'mobile'],
+      critical: ['projects', 'chat', 'mao', 'mobile'],
     }),
   acknowledgementSurfaces: z
     .array(InAppEscalationSurfaceSchema)
-    .default(['projects', 'chat']),
+    .default(['projects', 'chat', 'mobile']),
   mirrorToChat: z.boolean().default(true),
 });
 export type ProjectEscalationPreferences = z.infer<

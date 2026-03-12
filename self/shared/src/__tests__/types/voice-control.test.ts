@@ -124,10 +124,38 @@ describe('VoiceSessionProjectionSchema', () => {
         required: true,
         confirmation_tier: 'T3',
         dual_channel_required: true,
-        text_surface_targets: ['chat', 'projects', 'mao'],
+        text_surface_targets: ['chat', 'projects', 'mao', 'mobile'],
       },
       continuation_required: true,
       evidence_refs: ['voice:projection'],
+      updated_at: '2026-03-11T00:00:00.150Z',
+    });
+
+    expect(result.success).toBe(true);
+  });
+});
+
+describe('Voice confirmation targets', () => {
+  it('accept mobile as a text confirmation target', () => {
+    const result = VoiceSessionProjectionSchema.safeParse({
+      session_id: SESSION_ID,
+      project_id: PROJECT_ID,
+      principal_id: 'principal',
+      current_turn_state: 'awaiting_text_confirmation',
+      assistant_output_state: 'idle',
+      degraded_mode: {
+        session_id: SESSION_ID,
+        project_id: PROJECT_ID,
+        active: false,
+        evidence_refs: [],
+      },
+      pending_confirmation: {
+        required: true,
+        dual_channel_required: false,
+        text_surface_targets: ['mobile'],
+      },
+      continuation_required: false,
+      evidence_refs: [],
       updated_at: '2026-03-11T00:00:00.150Z',
     });
 

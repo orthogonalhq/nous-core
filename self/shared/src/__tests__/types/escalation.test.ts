@@ -52,6 +52,25 @@ describe('InAppEscalationRecordSchema', () => {
 
     expect(result.success).toBe(true);
   });
+
+  it('accepts mobile as a routed in-app escalation surface', () => {
+    const result = InAppEscalationRecordSchema.safeParse({
+      escalationId: ESCALATION_ID,
+      projectId: PROJECT_ID,
+      source: 'workflow',
+      severity: 'critical',
+      title: 'Mobile escalation required',
+      message: 'A critical escalation is visible on mobile.',
+      status: 'visible',
+      routeTargets: ['projects', 'chat', 'mobile'],
+      acknowledgements: [],
+      evidenceRefs: [],
+      createdAt: NOW,
+      updatedAt: NOW,
+    });
+
+    expect(result.success).toBe(true);
+  });
 });
 
 describe('ProjectEscalationQueueSnapshotSchema', () => {
@@ -86,6 +105,12 @@ describe('EscalationAcknowledgementSurfaceSchema', () => {
     const result = EscalationAcknowledgementSurfaceSchema.safeParse(
       'communication_gateway',
     );
+
+    expect(result.success).toBe(true);
+  });
+
+  it('allows mobile acknowledgements as a canonical origin', () => {
+    const result = EscalationAcknowledgementSurfaceSchema.safeParse('mobile');
 
     expect(result.success).toBe(true);
   });

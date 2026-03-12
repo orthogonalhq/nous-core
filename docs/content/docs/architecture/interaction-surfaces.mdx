@@ -214,6 +214,30 @@ Marketplace is not a separate policy engine. It is a governed projection over:
 
 ---
 
+## Surface 6 — Mobile Operations Surface
+
+The quick-review mobile web surface.
+
+### Purpose
+
+Reviewing project posture, recording escalation awareness, and checking cross-surface follow-up context from a phone-sized interface without opening the full desktop workspace.
+
+### Characteristics
+
+- Web-hosted mobile route inside `self/apps/web/`, not a separate native runtime
+- Aggregated project snapshot composed from canonical project, escalation, voice, and endpoint-trust projections
+- Read-optimized layout for status review, escalation acknowledgement, and follow-up prompts
+- Shared acknowledgement continuity with Chat and Projects
+- Shared voice continuation and degraded-mode posture with MAO and other web surfaces
+- Shared device-trust summary posture without exposing pairing or grant authority
+- No surface-owned project control, trust, or recovery state
+
+### Runtime Boundary
+
+The mobile operations surface is not a second dashboard or a second control plane. It consumes a server-side aggregation seam so mobile clients do not stitch together their own authority model. If upstream runtime inputs disagree or are incomplete, the surface shows degraded or partial posture instead of inventing reconciled truth.
+
+---
+
 ## Automation Gateway (Phase 5.3)
 
 The programmatic trigger surface for scheduled runs, internal hooks, and external webhooks.
@@ -252,6 +276,7 @@ All surfaces read from and write to the same project state:
 - Same execution traces
 - Same governance configuration
 - Same canonical voice session and confirmation state projected into web, messaging, Projects, and MAO surfaces
+- Same canonical escalation acknowledgement and mobile operations snapshot posture projected into Chat, Projects, and the mobile surface
 
 ### Cross-Surface Flows
 
@@ -261,9 +286,10 @@ A typical cross-surface flow:
 2. User taps through to the **Chat Interface** for that project to ask follow-up questions
 3. User opens the **MAO operator surface** to identify the blocked agent and inspect its reasoning preview
 4. User opens the **Projects UI** visual-debug surface to inspect the staged workflow canvas, checkpoint posture, and linked artifacts for the same run
-5. User opens the **Marketplace Governance Surface** to inspect package trust posture, moderation status, or advisory suggestions
-6. User follows into **Chat**, **Traces**, **Projects**, or **MAO** with preserved continuity context
-7. Nous resumes execution only through the governed control path
+5. User checks the **Mobile Operations Surface** to acknowledge the escalation and confirm whether voice or trust follow-up is still pending
+6. User opens the **Marketplace Governance Surface** to inspect package trust posture, moderation status, or advisory suggestions
+7. User follows into **Chat**, **Traces**, **Projects**, or **MAO** with preserved continuity context
+8. Nous resumes execution only through the governed control path
 
 The user moves between surfaces fluidly. Nous maintains continuity.
 
@@ -273,6 +299,7 @@ The user moves between surfaces fluidly. Nous maintains continuity.
 - Delivery channel is configurable per project and per priority level
 - Communication-gateway acknowledgements resolve the same canonical escalation record used by in-app surfaces
 - Voice degraded-mode and pending-confirmation posture resolve against the same canonical session projection used by MAO and other in-app surfaces
+- Mobile operations snapshots are aggregated from canonical server projections rather than client-owned reconciliation
 - The same escalation can appear across multiple surfaces (e.g., a push notification and a chat message)
 - Acknowledgment on any surface resolves the escalation on all surfaces
 

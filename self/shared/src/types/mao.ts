@@ -60,6 +60,7 @@ export const MaoSurfaceLinkTargetSchema = z.enum([
   'traces',
   'artifact',
   'mao',
+  'mobile',
 ]);
 export type MaoSurfaceLinkTarget = z.infer<typeof MaoSurfaceLinkTargetSchema>;
 
@@ -227,7 +228,7 @@ const MaoVoiceConfirmationRequirementSchema = z.object({
   dual_channel_required: z.boolean(),
   active_principal_session_ref: z.string().min(1).optional(),
   text_surface_targets: z
-    .array(z.enum(['chat', 'projects', 'mao']))
+    .array(z.enum(['chat', 'projects', 'mao', 'mobile']))
     .default([]),
   reason_code: z.string().min(1).optional(),
 });

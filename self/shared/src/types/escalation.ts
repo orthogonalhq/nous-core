@@ -32,6 +32,7 @@ export const InAppEscalationSurfaceSchema = z.enum([
   'projects',
   'chat',
   'mao',
+  'mobile',
 ]);
 export type InAppEscalationSurface = z.infer<
   typeof InAppEscalationSurfaceSchema
@@ -63,6 +64,7 @@ export const EscalationAcknowledgementSurfaceSchema = z.enum([
   'chat',
   'mao',
   'communication_gateway',
+  'mobile',
 ]);
 export type EscalationAcknowledgementSurface = z.infer<
   typeof EscalationAcknowledgementSurfaceSchema

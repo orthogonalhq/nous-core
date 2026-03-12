@@ -338,6 +338,7 @@ export function createNousContext(): NousContext {
     artifactStore,
     schedulerService,
     escalationService,
+    endpointTrustService,
     registryService,
     nudgeDiscoveryService,
     voiceControlService,

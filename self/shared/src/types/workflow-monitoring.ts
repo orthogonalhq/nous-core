@@ -46,6 +46,7 @@ export const WorkflowSurfaceLinkTargetSchema = z.enum([
   'traces',
   'artifact',
   'mao',
+  'mobile',
 ]);
 export type WorkflowSurfaceLinkTarget = z.infer<
   typeof WorkflowSurfaceLinkTargetSchema

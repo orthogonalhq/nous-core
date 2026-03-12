@@ -430,4 +430,65 @@ describe('EndpointTrustService', () => {
     });
     expect(authorization.decision).toBe('blocked');
   });
+
+  it('builds a project-scoped trust summary for projection surfaces', async () => {
+    const service = createService();
+
+    await pairAndApprove(service, { packageId: 'pkg.audio', releaseId: 'release.audio' });
+
+    const sensoryEndpoint = await service.registerEndpoint({
+      endpoint_id: SENSOR_ENDPOINT_ID,
+      peripheral_id: PERIPHERAL_ID,
+      project_id: PROJECT_ID,
+      display_name: 'Capture',
+      direction: 'sensory',
+      capability_keys: ['audio.capture'],
+      connector_package_id: 'pkg.audio',
+      connector_release_id: 'release.audio',
+      metadata: {},
+      evidence_refs: [],
+    });
+    const actionEndpoint = await service.registerEndpoint({
+      endpoint_id: ACTION_ENDPOINT_ID,
+      peripheral_id: PERIPHERAL_ID,
+      project_id: PROJECT_ID,
+      display_name: 'Action',
+      direction: 'action',
+      capability_keys: ['device.toggle'],
+      connector_package_id: 'pkg.audio',
+      connector_release_id: 'release.audio',
+      metadata: {},
+      evidence_refs: [],
+    });
+    await service.establishSession({
+      endpoint_id: sensoryEndpoint.endpoint_id,
+      peripheral_id: PERIPHERAL_ID,
+      project_id: PROJECT_ID,
+      established_by: 'principal',
+      evidence_refs: [],
+      expires_at: '2026-03-11T12:00:00.000Z',
+    });
+    await service.reportIncident({
+      peripheral_id: PERIPHERAL_ID,
+      endpoint_id: actionEndpoint.endpoint_id,
+      project_id: PROJECT_ID,
+      incident_type: 'mitm_detected',
+      reported_by: 'runtime',
+      severity: 'critical',
+      reason_code: 'NDT-901-MITM_DETECTED',
+      metadata: {},
+      evidence_refs: ['incident:mitm'],
+    });
+
+    const summary = await service.getProjectSurfaceSummary(PROJECT_ID);
+
+    expect(summary.projectId).toBe(PROJECT_ID);
+    expect(summary.peripheralCount).toBeGreaterThan(0);
+    expect(summary.sensoryEndpointCount).toBe(1);
+    expect(summary.actionEndpointCount).toBe(1);
+    expect(summary.activeSessionCount).toBe(0);
+    expect(summary.expiringSessionCount).toBe(0);
+    expect(summary.latestIncidentSeverity).toBe('critical');
+    expect(summary.latestIncidentReasonCode).toBe('NDT-901-MITM_DETECTED');
+  });
 });

@@ -77,5 +77,9 @@ describe('DocumentEndpointTrustStore', () => {
     expect((await store.listGrantsByEndpoint(ENDPOINT_ID))).toHaveLength(1);
     expect((await store.listSessionsByPeripheral(PERIPHERAL_ID))).toHaveLength(1);
     expect((await store.listIncidentsByPeripheral(PERIPHERAL_ID))).toHaveLength(1);
+    expect((await store.listPeripheralsByProject(PROJECT_ID))).toHaveLength(1);
+    expect((await store.listEndpointsByProject(PROJECT_ID))).toHaveLength(1);
+    expect((await store.listSessionsByProject(PROJECT_ID))).toHaveLength(1);
+    expect((await store.listIncidentsByProject(PROJECT_ID))).toHaveLength(1);
   });
 });

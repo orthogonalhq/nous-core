@@ -4,6 +4,7 @@ import {
   EndpointAuthorizationResultSchema,
   EndpointCapabilityGrantRecordSchema,
   EndpointIncidentRecordSchema,
+  EndpointTrustSurfaceSummarySchema,
   EndpointPairingRecordSchema,
   EndpointSessionRecordSchema,
   EndpointTransportEnvelopeSchema,
@@ -220,6 +221,30 @@ describe('EndpointIncidentRecordSchema', () => {
       action_taken: ['revoke_peripheral', 'revoke_endpoints', 'revoke_sessions', 'escalate'],
       evidence_refs: ['incident:mitm'],
       reported_at: NOW,
+    });
+
+    expect(result.success).toBe(true);
+  });
+});
+
+describe('EndpointTrustSurfaceSummarySchema', () => {
+  it('parses project-scoped trust summaries for projection surfaces', () => {
+    const result = EndpointTrustSurfaceSummarySchema.safeParse({
+      projectId: PROJECT_ID,
+      peripheralCount: 2,
+      trustedPeripheralCount: 1,
+      suspendedPeripheralCount: 1,
+      revokedPeripheralCount: 0,
+      sensoryEndpointCount: 1,
+      actionEndpointCount: 1,
+      activeSessionCount: 1,
+      expiringSessionCount: 1,
+      latestIncidentSeverity: 'critical',
+      latestIncidentReasonCode: 'NDT-901-MITM_DETECTED',
+      registryBlockedEndpointCount: 1,
+      diagnostics: {
+        degradedReasonCode: 'endpoint_summary_partial',
+      },
     });
 
     expect(result.success).toBe(true);

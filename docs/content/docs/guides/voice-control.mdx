@@ -85,7 +85,7 @@ Raw audio is not retained by default.
 
 ## Current Scope
 
-Phase 11.3 ships the canonical runtime and web/API composition seam.
+Phase 11.3 ships the canonical runtime and web/API composition seam. Phase 11.5 extends that runtime into the mobile operations surface as a projection-only follow-up view.
 
 Included now:
 
@@ -93,13 +93,15 @@ Included now:
 - interruption and continuation handling
 - degraded-mode projection
 - text-first and dual-channel confirmation posture
+- mobile operations visibility for continuation-required and degraded-mode follow-up posture
 
 Not included yet:
 
 - connector-native voice call UX
-- mobile continuity UX
 - wake-word or ASR model tuning
 - voice-only authorization for dangerous actions
+
+The mobile surface does not evaluate turns locally. It reads the same canonical session projection already used by MAO and other web surfaces, so interruption and confirmation posture stays consistent across surfaces.
 
 ## Related
 
