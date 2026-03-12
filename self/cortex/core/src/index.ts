@@ -38,6 +38,19 @@ export type { CoreExecutorDeps, MwcPipelineLike } from './core-executor.js';
 export { parseModelOutput } from './output-parser.js';
 export type { ParsedModelOutput } from './output-parser.js';
 export {
+  AgentGateway,
+  AgentGatewayFactory,
+  BudgetTracker,
+  CorrelationSequencer,
+  GatewayInbox,
+  GatewayOutbox,
+  InMemoryGatewayOutboxSink,
+  composeSystemPrompt,
+  createInboxFrame,
+  estimateBudgetUnits,
+  estimateUsageUnits,
+} from './agent-gateway/index.js';
+export {
   WORKFLOW_ROUTER_SYSTEM_PROMPT,
   ORCHESTRATOR_SYSTEM_PROMPT,
 } from './prompts/index.js';
