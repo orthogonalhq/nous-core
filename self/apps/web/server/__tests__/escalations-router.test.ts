@@ -53,6 +53,32 @@ describe('escalations router', () => {
     expect(fetched?.acknowledgements).toHaveLength(1);
   });
 
+  it('records mobile acknowledgements on the same canonical escalation record', async () => {
+    const ctx = createNousContext();
+    const caller = appRouter.createCaller(ctx);
+    const projectId = await createProject(ctx);
+
+    const escalationId = await ctx.escalationService.notify({
+      context: 'Mobile acknowledgement test',
+      triggerReason: 'test',
+      requiredAction: 'Confirm from mobile',
+      channel: 'in-app',
+      projectId,
+      priority: 'high',
+      timestamp: '2026-03-09T20:10:00.000Z',
+    });
+
+    const acknowledged = await caller.escalations.acknowledge({
+      escalationId,
+      surface: 'mobile',
+      actorType: 'principal',
+      note: 'Handled from mobile',
+    });
+
+    expect(acknowledged.status).toBe('acknowledged');
+    expect(acknowledged.acknowledgements[0]?.surface).toBe('mobile');
+  });
+
   it('returns only project-scoped queue items', async () => {
     const ctx = createNousContext();
     const caller = appRouter.createCaller(ctx);

@@ -170,7 +170,7 @@ function validateDraftDefinition(projectId: ProjectId, workflowDefinition: unkno
   });
 }
 
-async function getProjectOrThrow(
+export async function getProjectOrThrow(
   ctx: import('../../context').NousContext,
   projectId: ProjectId,
 ) {
@@ -239,6 +239,14 @@ function buildNodeDeepLinks(input: {
     },
     {
       target: 'mao' as const,
+      projectId: input.projectId,
+      workflowRunId: input.runId,
+      nodeDefinitionId: input.nodeDefinitionId,
+      dispatchLineageId: input.dispatchLineageId as any,
+      evidenceRef: input.evidenceRef,
+    },
+    {
+      target: 'mobile' as const,
       projectId: input.projectId,
       workflowRunId: input.runId,
       nodeDefinitionId: input.nodeDefinitionId,
@@ -1000,6 +1008,38 @@ async function buildConfigurationSnapshot(
   });
 }
 
+export async function buildProjectDashboardSnapshot(
+  ctx: import('../../context').NousContext,
+  project: ProjectConfig,
+) {
+  const workflowSnapshot = await buildWorkflowSnapshot(ctx, project);
+  const schedules = await ctx.schedulerService.list(project.id);
+  const openEscalations = await ctx.escalationService.listProjectQueue(project.id);
+  const controlState = await getProjectControlState(ctx, project.id);
+  const blockedActions = deriveBlockedActions(controlState);
+  const health = deriveHealthSummary(
+    workflowSnapshot,
+    schedules,
+    openEscalations,
+    controlState,
+  );
+
+  return ProjectDashboardSnapshotSchema.parse({
+    project: getProjectIdentity(project),
+    health,
+    controlProjection: workflowSnapshot.controlProjection,
+    workflowSnapshot,
+    schedules,
+    openEscalations,
+    blockedActions,
+    packageDefaultIntake: project.packageDefaultIntake,
+    diagnostics: {
+      runtimePosture: 'single_process_local',
+      degradedReasonCode: workflowSnapshot.diagnostics.degradedReasonCode,
+    },
+  });
+}
+
 function ensureActionAllowed(
   blockedActions: ProjectBlockedAction[],
   action: ProjectBlockedAction['action'],
@@ -1131,32 +1171,7 @@ export const projectsRouter = router({
     .input(z.object({ projectId: ProjectIdSchema }))
     .query(async ({ ctx, input }) => {
       const project = await getProjectOrThrow(ctx, input.projectId);
-      const workflowSnapshot = await buildWorkflowSnapshot(ctx, project);
-      const schedules = await ctx.schedulerService.list(project.id);
-      const openEscalations = await ctx.escalationService.listProjectQueue(project.id);
-      const controlState = await getProjectControlState(ctx, project.id);
-      const blockedActions = deriveBlockedActions(controlState);
-      const health = deriveHealthSummary(
-        workflowSnapshot,
-        schedules,
-        openEscalations,
-        controlState,
-      );
-
-      return ProjectDashboardSnapshotSchema.parse({
-        project: getProjectIdentity(project),
-        health,
-        controlProjection: workflowSnapshot.controlProjection,
-        workflowSnapshot,
-        schedules,
-        openEscalations,
-        blockedActions,
-        packageDefaultIntake: project.packageDefaultIntake,
-        diagnostics: {
-          runtimePosture: 'single_process_local',
-          degradedReasonCode: workflowSnapshot.diagnostics.degradedReasonCode,
-        },
-      });
+      return buildProjectDashboardSnapshot(ctx, project);
     }),
 
   configurationSnapshot: publicProcedure

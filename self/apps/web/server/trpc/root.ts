@@ -17,6 +17,7 @@ import { discoveryRouter } from './routers/discovery';
 import { escalationsRouter } from './routers/escalations';
 import { marketplaceRouter } from './routers/marketplace';
 import { voiceRouter } from './routers/voice';
+import { mobileRouter } from './routers/mobile';
 
 export const appRouter = router({
   projects: projectsRouter,
@@ -34,6 +35,7 @@ export const appRouter = router({
   discovery: discoveryRouter,
   marketplace: marketplaceRouter,
   voice: voiceRouter,
+  mobile: mobileRouter,
 });
 
 export type AppRouter = typeof appRouter;

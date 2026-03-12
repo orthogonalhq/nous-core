@@ -16,6 +16,7 @@ import type {
   IMaoProjectionService,
   IGtmGateCalculator,
   IEscalationService,
+  IEndpointTrustService,
   IRegistryService,
   INudgeDiscoveryService,
   IVoiceControlService,
@@ -45,6 +46,7 @@ export interface NousContext {
   artifactStore: IArtifactStore;
   schedulerService: IScheduler;
   escalationService: IEscalationService;
+  endpointTrustService: IEndpointTrustService;
   registryService: IRegistryService;
   nudgeDiscoveryService: INudgeDiscoveryService;
   voiceControlService: IVoiceControlService;
