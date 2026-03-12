@@ -8,6 +8,8 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 const mocks = vi.hoisted(() => ({
   workflowSnapshotUseQuery: vi.fn(),
+  workflowVisualDebugSnapshotUseQuery: vi.fn(),
+  workflowNodeInspectUseQuery: vi.fn(),
   dashboardSnapshotUseQuery: vi.fn(),
   configurationSnapshotUseQuery: vi.fn(),
   listProjectQueueUseQuery: vi.fn(),
@@ -25,6 +27,8 @@ vi.mock('@/lib/trpc', () => ({
   trpc: {
     projects: {
       workflowSnapshot: { useQuery: mocks.workflowSnapshotUseQuery },
+      workflowVisualDebugSnapshot: { useQuery: mocks.workflowVisualDebugSnapshotUseQuery },
+      workflowNodeInspect: { useQuery: mocks.workflowNodeInspectUseQuery },
       dashboardSnapshot: { useQuery: mocks.dashboardSnapshotUseQuery },
       configurationSnapshot: { useQuery: mocks.configurationSnapshotUseQuery },
       validateWorkflowDefinition: { useMutation: mocks.validateWorkflowDefinitionUseMutation },
@@ -57,6 +61,7 @@ describe('ProjectsPage', () => {
   const upsertScheduleMutate = vi.fn();
   const acknowledgeMutate = vi.fn();
   const workflowInvalidate = vi.fn();
+  const visualDebugInvalidate = vi.fn();
   const dashboardInvalidate = vi.fn();
   const configurationInvalidate = vi.fn();
   const queueInvalidate = vi.fn();
@@ -72,6 +77,14 @@ describe('ProjectsPage', () => {
     });
     mocks.workflowSnapshotUseQuery.mockReturnValue({
       data: createWorkflowSnapshot(),
+      isLoading: false,
+    });
+    mocks.workflowVisualDebugSnapshotUseQuery.mockReturnValue({
+      data: createWorkflowVisualDebugSnapshot(),
+      isLoading: false,
+    });
+    mocks.workflowNodeInspectUseQuery.mockReturnValue({
+      data: createWorkflowNodeInspect(),
       isLoading: false,
     });
     mocks.dashboardSnapshotUseQuery.mockReturnValue({
@@ -111,6 +124,9 @@ describe('ProjectsPage', () => {
         workflowSnapshot: {
           invalidate: workflowInvalidate,
         },
+        workflowVisualDebugSnapshot: {
+          invalidate: visualDebugInvalidate,
+        },
         dashboardSnapshot: {
           invalidate: dashboardInvalidate,
         },
@@ -148,7 +164,8 @@ describe('ProjectsPage', () => {
     expect(screen.getByText('Configuration surface')).toBeTruthy();
     expect(screen.getByText('Escalation queue')).toBeTruthy();
     expect(screen.getByText('Run monitor')).toBeTruthy();
-    expect(screen.getByText('Basic editor')).toBeTruthy();
+    expect(screen.getByText('Visual workflow canvas')).toBeTruthy();
+    expect(screen.getByText('Advanced editor')).toBeTruthy();
   });
 
   it('validates and saves the workflow draft through the server mutations', async () => {
@@ -168,6 +185,7 @@ describe('ProjectsPage', () => {
     });
     expect(await screen.findByText('Workflow definition saved.')).toBeTruthy();
     expect(workflowInvalidate).toHaveBeenCalled();
+    expect(visualDebugInvalidate).toHaveBeenCalled();
   });
 
   it('submits configuration and escalation actions through canonical mutations', async () => {
@@ -201,6 +219,27 @@ describe('ProjectsPage', () => {
       }),
       isLoading: false,
     });
+    mocks.workflowVisualDebugSnapshotUseQuery.mockReturnValue({
+      data: createWorkflowVisualDebugSnapshot({
+        workflowDefinition: null,
+        graph: null,
+        stages: [],
+        canvasNodes: [],
+        canvasEdges: [],
+        nodeProjections: [],
+        project: {
+          ...createWorkflowVisualDebugSnapshot().project,
+          type: 'intent',
+        },
+        runtimeAvailability: 'no_active_run',
+        diagnostics: {
+          runtimePosture: 'single_process_local',
+          inspectFirstMode: 'no-definition',
+          graphProjectionParity: 'aligned',
+        },
+      }),
+      isLoading: false,
+    });
 
     render(<ProjectsPage />);
 
@@ -228,7 +267,9 @@ describe('ProjectsPage', () => {
 
     expect(screen.getByText(/MAO handoff active/i)).toBeTruthy();
     expect(screen.getAllByText(/Return to MAO/i).length).toBeGreaterThan(0);
-    expect(screen.getByText(/MAO-origin monitoring context is active/i)).toBeTruthy();
+    expect(
+      screen.getAllByText(/MAO-origin monitoring context is active/i).length,
+    ).toBeGreaterThan(0);
   });
 
   it('preserves marketplace handoff context in the project surface', () => {
@@ -459,6 +500,121 @@ function createWorkflowSnapshot(overrides: Record<string, unknown> = {}) {
       runtimePosture: 'single_process_local',
       inspectFirstMode: 'hybrid',
     },
+    ...overrides,
+  };
+}
+
+function createWorkflowVisualDebugSnapshot(overrides: Record<string, unknown> = {}) {
+  const base = createWorkflowSnapshot();
+  return {
+    ...base,
+    stages: [
+      {
+        id: 'stage-0',
+        index: 0,
+        label: 'Entry',
+        nodeDefinitionIds: ['550e8400-e29b-41d4-a716-446655443003'],
+        kind: 'entry',
+      },
+    ],
+    canvasNodes: [
+      {
+        nodeDefinitionId: '550e8400-e29b-41d4-a716-446655443003',
+        definition: base.workflowDefinition.nodes[0],
+        stageId: 'stage-0',
+        column: 0,
+        row: 0,
+        status: 'running',
+        isEntry: true,
+        isActive: true,
+        latestAttemptStatus: 'running',
+        latestReasonCode: 'workflow_running',
+        artifactCount: 1,
+        traceCount: 0,
+        deepLinks: base.nodeProjections[0].deepLinks,
+      },
+    ],
+    canvasEdges: [],
+    maoRunGraph: {
+      projectId: base.project.id,
+      workflowRunId: base.selectedRunId,
+      nodes: [],
+      edges: [],
+      generatedAt: '2026-03-09T19:00:00.000Z',
+    },
+    checkpointSummary: {
+      runCheckpointState: 'idle',
+    },
+    schedulerSummary: {
+      triggerContext: null,
+      enabledScheduleCount: 1,
+      overdueScheduleCount: 0,
+      evidenceRefs: ['schedule:primary'],
+    },
+    diagnostics: {
+      ...base.diagnostics,
+      graphProjectionParity: 'aligned',
+    },
+    ...overrides,
+  };
+}
+
+function createWorkflowNodeInspect(overrides: Record<string, unknown> = {}) {
+  const base = createWorkflowSnapshot();
+  return {
+    nodeDefinitionId: '550e8400-e29b-41d4-a716-446655443003',
+    monitor: {
+      ...base.nodeProjections[0],
+      nodeState: base.activeRunState.nodeStates['550e8400-e29b-41d4-a716-446655443003'],
+    },
+    maoInspect: {
+      projectId: base.project.id,
+      workflowRunId: base.selectedRunId,
+      workflowNodeDefinitionId: '550e8400-e29b-41d4-a716-446655443003',
+      agent: {
+        agent_id: '550e8400-e29b-41d4-a716-446655443005',
+        project_id: base.project.id,
+        workflow_run_id: base.selectedRunId,
+        workflow_node_definition_id: '550e8400-e29b-41d4-a716-446655443003',
+        dispatching_task_agent_id: null,
+        dispatch_origin_ref: 'workflow://draft',
+        state: 'running',
+        current_step: 'Draft',
+        progress_percent: 50,
+        risk_level: 'medium',
+        urgency_level: 'normal',
+        attention_level: 'low',
+        pfc_alert_status: 'none',
+        pfc_mitigation_status: 'none',
+        dispatch_state: 'running',
+        reflection_cycle_count: 0,
+        last_update_at: '2026-03-09T19:00:00.000Z',
+        reasoning_log_preview: null,
+        reasoning_log_last_entry_class: null,
+        reasoning_log_last_entry_at: null,
+        reasoning_log_redaction_state: 'none',
+        deepLinks: base.nodeProjections[0].deepLinks,
+        evidenceRefs: ['workflow:run'],
+      },
+      projectControlState: 'running',
+      runStatus: 'running',
+      latestAttempt: {
+        attempt: 1,
+        status: 'running',
+        reasonCode: 'workflow_running',
+        evidenceRefs: ['workflow:run'],
+        startedAt: '2026-03-09T19:00:00.000Z',
+      },
+      correctionArcs: [],
+      evidenceRefs: ['workflow:run'],
+      generatedAt: '2026-03-09T19:00:00.000Z',
+    },
+    checkpointSummary: {
+      runCheckpointState: 'idle',
+    },
+    artifactRefs: ['artifact://draft/v1'],
+    traceIds: [],
+    policyReasonCode: 'workflow_running',
     ...overrides,
   };
 }

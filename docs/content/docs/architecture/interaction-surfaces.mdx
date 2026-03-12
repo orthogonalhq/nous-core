@@ -110,6 +110,7 @@ Designing, building, monitoring, and tuning project workflows. This is the engin
 - Supports project creation, configuration, and lifecycle management
 - Workflow design for protocol projects
 - Live monitoring for intent and hybrid projects
+- Phase 11.4 adds a staged visual-debug canvas, checkpoint and scheduler summaries, parity diagnostics, and richer node inspection over canonical runtime truth
 - Node-level governance configuration (MUST / SHOULD / MAY)
 - Model assignment per node
 - Artifact browsing and versioning
@@ -126,6 +127,16 @@ The Projects UI supports the full spectrum:
 - **Ultra-high complexity** — full operational protocols with dozens of nodes, multiple model types, artifact pipelines, and continuous monitoring loops
 
 All complexity levels use the same editor. The interface scales with the project, not the other way around.
+
+### Visual-Debug Boundary
+
+The advanced Projects surface is still a projection and control surface, not a second workflow runtime.
+
+- Stage grouping is derived from canonical topology, not saved as workflow semantics
+- Node and edge states project canonical run, checkpoint, branch, artifact, scheduler, and MAO truth
+- Degraded parity is surfaced explicitly when the selected workflow graph and MAO graph cannot align
+- Deep links into Chat, Traces, and MAO preserve project, run, node, and evidence continuity
+- Save and validation still flow through the canonical workflow-definition seam
 
 ### Project Type Support
 
@@ -249,9 +260,10 @@ A typical cross-surface flow:
 1. Nous escalates via **Secure Messaging**: "Persona Engine — identity grid failed validation"
 2. User taps through to the **Chat Interface** for that project to ask follow-up questions
 3. User opens the **MAO operator surface** to identify the blocked agent and inspect its reasoning preview
-4. User opens the **Marketplace Governance Surface** to inspect package trust posture, moderation status, or advisory suggestions
-5. User follows into the **Projects UI** or **MAO** with preserved marketplace context, or into **Chat** for escalation follow-up
-6. Nous resumes execution only through the governed control path
+4. User opens the **Projects UI** visual-debug surface to inspect the staged workflow canvas, checkpoint posture, and linked artifacts for the same run
+5. User opens the **Marketplace Governance Surface** to inspect package trust posture, moderation status, or advisory suggestions
+6. User follows into **Chat**, **Traces**, **Projects**, or **MAO** with preserved continuity context
+7. Nous resumes execution only through the governed control path
 
 The user moves between surfaces fluidly. Nous maintains continuity.
 

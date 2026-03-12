@@ -4,7 +4,7 @@ import * as React from 'react';
 import Link from 'next/link';
 import type {
   ArtifactVersionRecord,
-  WorkflowNodeMonitorProjection,
+  WorkflowNodeInspectProjection,
   WorkflowSurfaceLink,
   WorkflowTraceSummary,
 } from '@nous/shared';
@@ -23,6 +23,9 @@ function buildHref(link: WorkflowSurfaceLink): string | null {
   if (link.traceId) {
     params.set('traceId', link.traceId);
   }
+  if (link.evidenceRef) {
+    params.set('evidenceRef', link.evidenceRef);
+  }
 
   switch (link.target) {
     case 'chat':
@@ -30,6 +33,7 @@ function buildHref(link: WorkflowSurfaceLink): string | null {
     case 'traces':
       return `/traces?${params.toString()}`;
     case 'mao':
+      params.set('source', 'mao');
       return `/mao?${params.toString()}`;
     case 'artifact':
     default:
@@ -38,65 +42,84 @@ function buildHref(link: WorkflowSurfaceLink): string | null {
 }
 
 interface WorkflowNodeDetailProps {
-  node: WorkflowNodeMonitorProjection | null;
+  inspect: WorkflowNodeInspectProjection | null;
   recentArtifacts: ArtifactVersionRecord[];
   recentTraces: WorkflowTraceSummary[];
 }
 
 export function WorkflowNodeDetail({
-  node,
+  inspect,
   recentArtifacts,
   recentTraces,
 }: WorkflowNodeDetailProps) {
-  if (!node) {
+  if (!inspect) {
     return (
       <Card>
         <CardHeader className="border-b border-border">
           <CardTitle className="text-base">Node detail</CardTitle>
         </CardHeader>
         <CardContent className="pt-4 text-sm text-muted-foreground">
-          Select a node to inspect runtime, artifacts, and shared-reference links.
+          Select a node to inspect checkpoint posture, correction arcs, artifacts,
+          and linked surfaces.
         </CardContent>
       </Card>
     );
   }
 
+  const { monitor, maoInspect } = inspect;
   const matchingArtifacts = recentArtifacts.filter((artifact) =>
-    node.artifactRefs.includes(artifact.artifactRef),
+    inspect.artifactRefs.includes(artifact.artifactRef),
   );
 
   return (
     <Card>
       <CardHeader className="border-b border-border">
         <CardTitle className="flex items-center justify-between gap-3 text-base">
-          <span>{node.definition.name}</span>
-          <Badge variant="outline">{node.status}</Badge>
+          <span>{monitor.definition.name}</span>
+          <Badge variant="outline">{monitor.status}</Badge>
         </CardTitle>
       </CardHeader>
       <CardContent className="space-y-4 pt-4 text-sm">
         <div className="grid gap-2 md:grid-cols-2">
           <div>
             <div className="text-muted-foreground">Node type</div>
-            <div>{node.definition.type}</div>
+            <div>{monitor.definition.type}</div>
           </div>
           <div>
             <div className="text-muted-foreground">Governance</div>
-            <div>{node.definition.governance}</div>
+            <div>{monitor.definition.governance}</div>
           </div>
           <div>
             <div className="text-muted-foreground">Execution model</div>
-            <div>{node.definition.executionModel}</div>
+            <div>{monitor.definition.executionModel}</div>
           </div>
           <div>
-            <div className="text-muted-foreground">Attempts</div>
-            <div>{node.nodeState?.attempts.length ?? 0}</div>
+            <div className="text-muted-foreground">Policy reason</div>
+            <div>{inspect.policyReasonCode ?? 'n/a'}</div>
           </div>
         </div>
 
-        {node.nodeState?.attempts.length ? (
+        <div className="rounded-md border border-border p-3">
+          <div className="font-medium">Checkpoint posture</div>
+          <div className="mt-2 text-xs text-muted-foreground">
+            state {inspect.checkpointSummary.runCheckpointState}
+          </div>
+          {inspect.checkpointSummary.lastPreparedCheckpointId ? (
+            <div className="text-xs text-muted-foreground">
+              prepared {inspect.checkpointSummary.lastPreparedCheckpointId.slice(0, 8)}...
+            </div>
+          ) : null}
+          {inspect.checkpointSummary.lastCommittedCheckpointId ? (
+            <div className="text-xs text-muted-foreground">
+              committed {inspect.checkpointSummary.lastCommittedCheckpointId.slice(0, 8)}...
+            </div>
+          ) : null}
+        </div>
+
+        {monitor.nodeState?.attempts.length ? (
           <div className="space-y-2">
             <div className="font-medium">Attempts</div>
-            {node.nodeState.attempts.map((attempt) => (
+            {monitor.nodeState.attempts.map((attempt) => (
               <div
                 key={attempt.attempt}
                 className="rounded-md border border-border px-3 py-2"
@@ -108,9 +131,9 @@ export function WorkflowNodeDetail({
                 <div className="mt-1 text-xs text-muted-foreground">
                   {attempt.reasonCode}
                 </div>
-                {attempt.outputRef ? (
+                {attempt.waitState ? (
                   <div className="mt-1 text-xs text-muted-foreground">
-                    output {attempt.outputRef}
+                    wait {attempt.waitState.kind}
                   </div>
                 ) : null}
               </div>
@@ -118,10 +141,38 @@ export function WorkflowNodeDetail({
           </div>
         ) : null}
 
+        {maoInspect ? (
+          <div className="space-y-2 rounded-md border border-border p-3">
+            <div className="font-medium">MAO inspect reuse</div>
+            <div className="text-xs text-muted-foreground">
+              run status {maoInspect.runStatus ?? 'n/a'}
+              {maoInspect.waitKind ? ` • wait ${maoInspect.waitKind}` : ''}
+            </div>
+            {maoInspect.latestAttempt ? (
+              <div className="text-xs text-muted-foreground">
+                latest attempt {maoInspect.latestAttempt.attempt} •{' '}
+                {maoInspect.latestAttempt.status} • {maoInspect.latestAttempt.reasonCode}
+              </div>
+            ) : null}
+            {maoInspect.correctionArcs.length ? (
+              <div className="space-y-2">
+                {maoInspect.correctionArcs.map((arc) => (
+                  <div
+                    key={arc.id}
+                    className="rounded-md border border-border px-3 py-2 text-xs text-muted-foreground"
+                  >
+                    {arc.type} • {arc.reasonCode}
+                  </div>
+                ))}
+              </div>
+            ) : null}
+          </div>
+        ) : null}
+
         <div className="space-y-2">
           <div className="font-medium">Linked surfaces</div>
           <div className="flex flex-wrap gap-2">
-            {node.deepLinks.map((link, index) => {
+            {monitor.deepLinks.map((link, index) => {
               const href = buildHref(link);
               const label = link.target === 'artifact'
                 ? link.artifactRef ?? 'artifact'
@@ -176,7 +227,7 @@ export function WorkflowNodeDetail({
               {recentTraces.slice(0, 3).map((trace) => (
                 <Link
                   key={trace.traceId}
-                  href={`/traces?projectId=${node.deepLinks[0]?.projectId ?? ''}&traceId=${trace.traceId}`}
+                  href={`/traces?projectId=${monitor.deepLinks[0]?.projectId ?? ''}&traceId=${trace.traceId}`}
                   className="block rounded-md border border-border px-3 py-2 hover:bg-muted/20"
                 >
                   <div className="font-medium">{trace.traceId.slice(0, 8)}...</div>

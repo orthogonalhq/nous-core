@@ -69,6 +69,15 @@ function ProjectsPageContent() {
       enabled: projectId != null,
     },
   );
+  const visualDebugQuery = trpc.projects.workflowVisualDebugSnapshot.useQuery(
+    {
+      projectId: projectId as any,
+      runId: selectedRunId ?? undefined,
+    },
+    {
+      enabled: projectId != null,
+    },
+  );
   const dashboardQuery = trpc.projects.dashboardSnapshot.useQuery(
     {
       projectId: projectId as any,
@@ -106,10 +115,12 @@ function ProjectsPageContent() {
 
   if (
     snapshotQuery.isLoading ||
+    visualDebugQuery.isLoading ||
     dashboardQuery.isLoading ||
     configurationQuery.isLoading ||
     escalationQueueQuery.isLoading ||
     !snapshotQuery.data ||
+    !visualDebugQuery.data ||
     !dashboardQuery.data ||
     !configurationQuery.data ||
     !escalationQueueQuery.data
@@ -122,6 +133,7 @@ function ProjectsPageContent() {
   }
 
   const snapshot = snapshotQuery.data;
+  const visualDebugSnapshot = visualDebugQuery.data;
   const dashboard = dashboardQuery.data;
   const configuration = configurationQuery.data;
   const escalationQueue = escalationQueueQuery.data;
@@ -204,7 +216,7 @@ function ProjectsPageContent() {
       </div>
 
       <WorkflowMonitor
-        snapshot={snapshot}
+        snapshot={visualDebugSnapshot}
         selectedRunId={selectedRunId}
         linkedNodeId={linkedNodeId}
         maoContext={maoContext}

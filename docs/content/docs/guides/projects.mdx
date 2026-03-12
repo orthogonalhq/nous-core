@@ -146,6 +146,66 @@ The dashboard and workflow monitor still read canonical server projections. MAO 
 - It does not duplicate reasoning-log preview storage
 - It does not invent a second project-health model separate from the dashboard and workflow projections returned by the server
 
+## Advanced Workflow Editor and Visual Debugging (Phase 11.4)
+
+Phase 11.4 upgrades the Projects surface from a monitor-first list view into an advanced authoring and visual-debugging workspace. The rule from earlier phases still holds: the Projects page is a projection and editing surface over canonical workflow, MAO, scheduler, artifact, and escalation truth. It does not become a second workflow runtime or a second debug store.
+
+### What the advanced surface adds
+
+- A staged visual workflow canvas that groups canonical nodes into deterministic stage columns
+- Edge-state overlays that show activated, candidate, inactive, and blocked-path branches from canonical run truth
+- A visual-debug summary for checkpoint posture, scheduler linkage, parity diagnostics, artifacts, and traces
+- Richer node inspection that reuses MAO inspect posture for waits, correction arcs, policy reasons, and latest-attempt context
+- Additive editor improvements for dependency inspection, node counts, edge counts, and draft-level dependency summaries
+
+### Stage and canvas behavior
+
+Stage grouping is derived from canonical graph topology and node kinds. It is not saved as workflow-definition metadata. If the stored workflow changes, the Projects surface recomputes stage layout from the canonical graph instead of reusing client-owned layout truth.
+
+Canvas node badges and edge states come from canonical runtime fields such as:
+
+- `activeNodeIds`
+- `activatedEdgeIds`
+- `selectedBranchKey`
+- `checkpointState`
+- `lastPreparedCheckpointId`
+- `lastCommittedCheckpointId`
+
+If those runtime inputs are missing or the MAO graph cannot reconcile with the selected run, the surface marks parity as degraded instead of inventing local status.
+
+### Visual-debug inspect flow
+
+Select a node on the visual canvas to inspect:
+
+- Attempt history
+- Wait kind and checkpoint posture
+- Correction arcs from canonical runtime state
+- Artifact lineage and recent trace links
+- MAO inspect reuse for the same project, run, and node
+
+This is how you inspect blocked, failed, paused, resumed, retried, reprompted, rolled-back, and escalated paths without reconstructing them from UI-only heuristics.
+
+### Save and validation rules
+
+The advanced editor still saves only through the canonical workflow-definition seam:
+
+1. Edit the workflow draft
+2. Validate the draft on the server
+3. Save the validated canonical workflow definition
+4. Refresh the workflow and visual-debug snapshots
+
+Projection-only fields from the visual canvas are never persisted as workflow-definition truth.
+
+### Deep-link continuity
+
+The advanced Projects surface preserves project, run, node, and evidence continuity when you jump into:
+
+- Chat
+- Traces
+- MAO
+
+Use those links when you need to move from the Projects canvas into conversation, trace evidence, or dense MAO inspection without losing scope.
+
 ## Workflow Run State
 
 Before a workflow run starts, the runtime:

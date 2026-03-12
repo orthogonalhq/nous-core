@@ -93,6 +93,27 @@ MAO reasoning previews are evidence-derived summaries. Chat may receive:
 
 Chat must not receive or display hidden private reasoning beyond that redaction-aware preview contract.
 
+## Projects Visual-Debug Handoff (Phase 11.4)
+
+Phase 11.4 adds a second continuity entry path into chat: the advanced Projects visual-debug surface.
+
+When chat is opened from a Projects canvas node or node-inspect panel, the route preserves:
+
+- `projectId`
+- `runId`
+- `nodeId`
+- `evidenceRef` when available
+
+That means chat can continue the same project-scoped debugging conversation that started in the Projects surface without inventing a separate workflow-state model.
+
+Use this handoff when you want to:
+
+- ask follow-up questions about a specific blocked or failed workflow node
+- continue investigation on the same run while keeping project and node scope intact
+- move from visual debugging into conversational reasoning without losing canonical evidence references
+
+The chat page still does not own workflow control truth. It receives continuity context and shared escalation state, but the authoritative workflow and debug posture stays in the canonical runtime and the projection surfaces built on top of it.
+
 ## Via CLI
 
 ```bash

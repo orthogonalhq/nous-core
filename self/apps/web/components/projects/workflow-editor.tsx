@@ -200,14 +200,15 @@ export function WorkflowEditor({
       setAsDefault: true,
     });
     await utils.projects.workflowSnapshot.invalidate();
+    await utils.projects.workflowVisualDebugSnapshot.invalidate();
     setMessage('Workflow definition saved.');
   }
 
   return (
-    <Card>
+      <Card>
       <CardHeader className="border-b border-border">
         <CardTitle className="flex items-center justify-between gap-3 text-base">
-          <span>Basic editor</span>
+          <span>Advanced editor</span>
           <div className="flex gap-2">
             {!draft ? (
               <Button onClick={() => setDraft(createStarterDefinition(projectId, projectType))}>
@@ -234,6 +235,25 @@ export function WorkflowEditor({
           </p>
         ) : (
           <>
+            <div className="grid gap-4 md:grid-cols-4">
+              <div className="rounded-md border border-border p-3 text-sm">
+                <div className="text-muted-foreground">Stages</div>
+                <div className="font-medium">{Math.max(1, draft.nodes.length)}</div>
+              </div>
+              <div className="rounded-md border border-border p-3 text-sm">
+                <div className="text-muted-foreground">Nodes</div>
+                <div className="font-medium">{draft.nodes.length}</div>
+              </div>
+              <div className="rounded-md border border-border p-3 text-sm">
+                <div className="text-muted-foreground">Edges</div>
+                <div className="font-medium">{draft.edges.length}</div>
+              </div>
+              <div className="rounded-md border border-border p-3 text-sm">
+                <div className="text-muted-foreground">Entry nodes</div>
+                <div className="font-medium">{draft.entryNodeIds.length}</div>
+              </div>
+            </div>
+
             <div className="grid gap-3 md:grid-cols-3">
               <label className="space-y-1 text-sm">
                 <span className="text-muted-foreground">Workflow name</span>
@@ -319,7 +339,7 @@ export function WorkflowEditor({
 
                 <div className="rounded-md border border-border p-3">
                   <div className="mb-2 flex items-center justify-between">
-                    <h3 className="font-medium">Edges</h3>
+                    <h3 className="font-medium">Dependencies</h3>
                     <Button
                       size="sm"
                       variant="outline"
@@ -349,6 +369,10 @@ export function WorkflowEditor({
                     {draft.edges.map((edge) => (
                       <div key={edge.id} className="rounded border border-border px-2 py-2 text-xs">
                         <div>{edge.from.slice(0, 8)}... → {edge.to.slice(0, 8)}...</div>
+                        <div className="mt-1 text-muted-foreground">
+                          priority {edge.priority}
+                          {edge.branchKey ? ` • branch ${edge.branchKey}` : ''}
+                        </div>
                         <div className="mt-2 grid gap-2 md:grid-cols-2">
                           <Input
                             aria-label={`Edge ${edge.id} from`}
@@ -381,6 +405,11 @@ export function WorkflowEditor({
                         </div>
                       </div>
                     ))}
+                    {!draft.edges.length ? (
+                      <p className="text-muted-foreground">
+                        Add edges to model multi-stage dependency flow.
+                      </p>
+                    ) : null}
                   </div>
                 </div>
               </div>
@@ -525,6 +554,21 @@ export function WorkflowEditor({
                         </label>
                       </div>
                     ) : null}
+
+                    <div className="rounded-md border border-border p-3 text-sm">
+                      <div className="font-medium">Node dependency summary</div>
+                      <div className="mt-2 text-muted-foreground">
+                        inbound{' '}
+                        {
+                          draft.edges.filter((edge) => edge.to === selectedNode.id).length
+                        }
+                        {' • '}
+                        outbound{' '}
+                        {
+                          draft.edges.filter((edge) => edge.from === selectedNode.id).length
+                        }
+                      </div>
+                    </div>
 
                     {selectedNode.config.type === 'tool-execution' ? (
                       <div className="grid gap-3 md:grid-cols-2">
