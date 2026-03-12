@@ -206,6 +206,35 @@ The advanced Projects surface preserves project, run, node, and evidence continu
 
 Use those links when you need to move from the Projects canvas into conversation, trace evidence, or dense MAO inspection without losing scope.
 
+## Mobile Operations Surface and Continuity (Phase 11.5)
+
+Phase 11.5 adds a mobile-first operations route in the web app. This surface is optimized for quick project review when you need the same canonical project posture away from the full desktop workspace.
+
+The mobile surface reads a single aggregated snapshot for the selected project. That snapshot combines:
+
+- project dashboard posture and recent activity
+- escalation queue acknowledgement state
+- voice session follow-up posture such as degraded mode or continuation required
+- endpoint-trust summary posture for linked device context
+
+This is still projection-only UI. The mobile view does not become a second dashboard, a second escalation queue, or a second device-trust authority model.
+
+### What the mobile surface is for
+
+- quick project status review on a phone-sized screen
+- acknowledging escalations without losing continuity with Chat or Projects
+- checking whether a recent voice interaction requires text follow-up
+- confirming whether device trust posture is healthy before returning to a deeper surface
+
+### What it does not do
+
+- it does not edit workflow definitions
+- it does not expose project control mutations beyond the same governed acknowledgement path already used elsewhere
+- it does not perform pairing, capability-grant, or session-transport administration
+- it does not invent local summaries when canonical sources disagree
+
+If canonical sources are incomplete or degraded, the surface shows that degraded posture instead of filling gaps with client-owned heuristics.
+
 ## Workflow Run State
 
 Before a workflow run starts, the runtime:

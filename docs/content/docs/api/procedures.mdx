@@ -196,7 +196,15 @@ description: Reference for all tRPC procedures
 - `voice.registerAssistantOutput` — Registers assistant speech state so later interruption and continuation behavior stays canonical.
 - `voice.handleBargeIn` — Stops active output, records interruption latency, and forces continuation-required posture.
 - `voice.resolveContinuation` — Records explicit continuation outcome after interruption; does not auto-resume.
-- `voice.getSessionProjection` — Returns canonical voice session state for web, MAO, and later mobile consumers.
+- `voice.getSessionProjection` — Returns canonical voice session state for web, MAO, and mobile consumers.
+
+## mobile
+
+| Procedure | Type | Input | Output |
+|----------|------|-------|--------|
+| `mobile.operationsSnapshot` | query | `{ projectId }` | `MobileOperationsSnapshot` |
+
+- `operationsSnapshot` — Returns the aggregated mobile operations projection for a project. This combines canonical project, escalation, voice, and endpoint-trust summaries for the mobile web surface without creating a second authority model.
 
 ## gtm
 

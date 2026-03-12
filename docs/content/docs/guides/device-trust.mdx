@@ -70,3 +70,22 @@ Containment revokes trusted runtime posture, invalidates sessions, and routes in
 - Grant the narrowest capability set that satisfies the task
 - Treat repeated transport failures as a trust signal, not a transient nuisance
 - Re-pair after compromise; do not reuse the old trust state
+
+## Mobile Operations Surface Boundary (Phase 11.5)
+
+Phase 11.5 exposes read-only endpoint-trust summary posture in the mobile operations surface.
+
+That mobile summary is intended for continuity only:
+
+- whether the current project context references a trusted device posture
+- whether the trust state is healthy, degraded, suspended, or revoked
+- whether follow-up should return to a fuller operator surface
+
+The mobile surface does not allow:
+
+- pairing approval
+- capability grant changes
+- transport-session management
+- endpoint-direction changes
+
+Those actions remain governed by the canonical endpoint-trust runtime and the higher-authority surfaces built on top of it.

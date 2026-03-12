@@ -52,7 +52,7 @@ How Nous perceives the world and communicates with the user. These are part of t
 ```
 self/apps/
 ├── cli/                              # Terminal interface
-├── web/                              # Chat UI + Projects UI + Dashboard + MAO projection
+├── web/                              # Chat UI + Projects UI + Dashboard + MAO + mobile operations projection
 └── bridge/                           # Approved messaging bridge app and connector adapters
 ```
 
@@ -72,8 +72,9 @@ Web application containing integrated operator surfaces:
 * Projects UI — advanced workflow authoring, staged visual debugging, canonical project dashboard, governed configuration, schedule settings, and project-scoped escalation queue acknowledgement
 * Dashboard — system health, project status, memory inspection, and discovery projection
 * MAO operator surface — density-grid observability, run-graph inspection, reasoning-preview handoff, and governed project control
+* Mobile operations surface — phone-sized project status, escalation acknowledgement, voice follow-up posture, and read-only trust summaries
 * Chat escalation inbox — acknowledgement of the same canonical in-app escalation queue used by Projects
-* Voice-control server surface — in-process tRPC composition over the canonical voice runtime for turn state, degraded-mode visibility, interruption handling, and text-first recovery flows
+* Voice-control server surface — in-process tRPC composition over the canonical voice runtime for turn state, degraded-mode visibility, interruption handling, text-first recovery flows, and mobile continuity projection
 
 Primary interface for most users.
 
@@ -763,6 +764,14 @@ Phase 9.4 and Phase 9.5 add:
 Phase 11.4 expands:
 
 - `workflow-monitoring.ts` — stage projections, canvas-node and canvas-edge overlays, checkpoint and scheduler debug summaries, node inspect payloads, and visual-debug snapshots used by the advanced Projects surface
+
+Phase 11.5 expands:
+
+- `project-surface.ts` — mobile operations snapshot, aggregated continuity, and phone-sized projection contracts
+- `escalation.ts` — acknowledgement summaries reused across Chat, Projects, and mobile operations
+- `voice-control.ts` — additive mobile follow-up projection reuse over canonical continuation and degraded-mode posture
+- `endpoint-trust.ts` — project-level trust summary projections surfaced into mobile continuity views
+- `mao.ts` — continuity link metadata reused by cross-surface handoff helpers
 
 Phase 9.7 adds:
 
