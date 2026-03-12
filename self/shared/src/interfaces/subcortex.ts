@@ -136,6 +136,28 @@ import type {
   NudgeSuppressionMutationInput,
   NudgeSuppressionQuery,
   NudgeSuppressionQueryResult,
+  ChannelIngressEnvelope,
+  ChannelEgressEnvelope,
+  CommunicationIdentityBindingUpsertInput,
+  CommunicationIdentityBindingRecord,
+  CommunicationApprovalIntakeRecord,
+  CommunicationEscalationAcknowledgementInput,
+  CommunicationIngressOutcome,
+  CommunicationEgressOutcome,
+  CommunicationRouteDecision,
+  VoiceAssistantOutputInput,
+  VoiceAssistantOutputStateRecord,
+  VoiceBargeInInput,
+  VoiceBargeInRecord,
+  VoiceContinuationInput,
+  VoiceContinuationRecord,
+  VoiceSessionProjection,
+  VoiceSessionProjectionInput,
+  VoiceTurnDecisionRecord,
+  VoiceTurnEvaluationInput,
+  VoiceTurnStartInput,
+  VoiceTurnStateRecord,
+  EndpointTrustSurfaceSummary,
 } from '../types/index.js';
 import type { NousEvent } from '../events/index.js';
 
@@ -408,6 +430,129 @@ export interface INudgeDiscoveryService {
 
   /** Retrieve the current or explicitly selected ranking policy. */
   getRankingPolicy(policyVersion?: string): Promise<NudgeRankingPolicy>;
+}
+
+export interface ICommunicationGatewayService {
+  /** Receive normalized connector ingress and produce a canonical route or reject outcome. */
+  receiveIngress(
+    envelope: ChannelIngressEnvelope,
+  ): Promise<CommunicationIngressOutcome>;
+
+  /** Dispatch canonical egress over an approved bridge connector. */
+  dispatchEgress(
+    envelope: ChannelEgressEnvelope,
+  ): Promise<CommunicationEgressOutcome>;
+
+  /** Create or update a Principal-approved identity binding record. */
+  upsertBinding(
+    input: CommunicationIdentityBindingUpsertInput,
+  ): Promise<CommunicationIdentityBindingRecord>;
+
+  /** List pending or resolved approval-intake records, optionally filtered to a project scope. */
+  listApprovalIntake(
+    projectId?: ProjectId,
+  ): Promise<CommunicationApprovalIntakeRecord[]>;
+
+  /** Bridge a communication acknowledgement into the canonical escalation service. */
+  acknowledgeEscalation(
+    input: CommunicationEscalationAcknowledgementInput,
+  ): Promise<InAppEscalationRecord | null>;
+
+  /** Retrieve a previously created canonical route decision. */
+  getRouteDecision(routeId: string): Promise<CommunicationRouteDecision | null>;
+}
+
+export interface IEndpointTrustService {
+  /** Create or refresh a manual pairing request for a peripheral identity. */
+  requestPairing(
+    input: import('../types/index.js').EndpointPairingRequestInput,
+  ): Promise<import('../types/index.js').EndpointPairingRecord>;
+
+  /** Apply the principal-approved outcome of a pairing review. */
+  reviewPairing(
+    input: import('../types/index.js').EndpointPairingReviewInput,
+  ): Promise<import('../types/index.js').EndpointPairingRecord>;
+
+  /** Register a concrete endpoint under a paired peripheral with immutable direction. */
+  registerEndpoint(
+    input: import('../types/index.js').EndpointRegistrationInput,
+  ): Promise<import('../types/index.js').EndpointTrustEndpoint>;
+
+  /** Grant a specific sensory or action capability to a trusted endpoint. */
+  grantCapability(
+    input: import('../types/index.js').EndpointCapabilityGrantInput,
+  ): Promise<import('../types/index.js').EndpointCapabilityGrantRecord>;
+
+  /** Revoke a previously granted endpoint capability. */
+  revokeCapability(
+    input: import('../types/index.js').EndpointCapabilityRevocationInput,
+  ): Promise<import('../types/index.js').EndpointCapabilityGrantRecord>;
+
+  /** Establish a transport session for a trusted endpoint. */
+  establishSession(
+    input: import('../types/index.js').EndpointSessionStartInput,
+  ): Promise<import('../types/index.js').EndpointSessionRecord>;
+
+  /** Rotate an active endpoint transport session. */
+  rotateSession(
+    input: import('../types/index.js').EndpointSessionRotateInput,
+  ): Promise<import('../types/index.js').EndpointSessionRecord>;
+
+  /** Validate a signed endpoint transport envelope against current session state. */
+  validateTransport(
+    input: import('../types/index.js').EndpointTransportValidationRequest,
+  ): Promise<import('../types/index.js').EndpointTransportValidationResult>;
+
+  /** Evaluate capability access against trust, direction, grant, and confirmation posture. */
+  authorize(
+    input: import('../types/index.js').EndpointAuthorizationRequest,
+  ): Promise<import('../types/index.js').EndpointAuthorizationResult>;
+
+  /** Record an endpoint trust incident and apply deterministic containment. */
+  reportIncident(
+    input: import('../types/index.js').EndpointIncidentReportInput,
+  ): Promise<import('../types/index.js').EndpointIncidentRecord>;
+
+  /** Retrieve the current peripheral trust record. */
+  getPeripheral(
+    peripheralId: string,
+  ): Promise<import('../types/index.js').EndpointTrustPeripheral | null>;
+
+  /** Retrieve the current endpoint trust record. */
+  getEndpoint(
+    endpointId: string,
+  ): Promise<import('../types/index.js').EndpointTrustEndpoint | null>;
+
+  /** Build a project-scoped trust summary for projection surfaces. */
+  getProjectSurfaceSummary(
+    projectId: ProjectId,
+  ): Promise<EndpointTrustSurfaceSummary>;
+}
+
+export interface IVoiceControlService {
+  /** Create a canonical voice turn record for a session. */
+  beginTurn(input: VoiceTurnStartInput): Promise<VoiceTurnStateRecord>;
+
+  /** Evaluate combined end-of-turn signals, confidence, confirmation, and control posture. */
+  evaluateTurn(input: VoiceTurnEvaluationInput): Promise<VoiceTurnDecisionRecord>;
+
+  /** Track assistant output state for barge-in and continuation safety. */
+  registerAssistantOutput(
+    input: VoiceAssistantOutputInput,
+  ): Promise<VoiceAssistantOutputStateRecord>;
+
+  /** Record user interruption and transition the session into continuation posture. */
+  handleBargeIn(input: VoiceBargeInInput): Promise<VoiceBargeInRecord>;
+
+  /** Resolve an interrupted assistant output or text-first fallback continuation. */
+  resolveContinuation(
+    input: VoiceContinuationInput,
+  ): Promise<VoiceContinuationRecord>;
+
+  /** Read the canonical voice session projection for downstream consumers. */
+  getSessionProjection(
+    input: VoiceSessionProjectionInput,
+  ): Promise<VoiceSessionProjection>;
 }
 
 export interface ISandbox {

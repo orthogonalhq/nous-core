@@ -6,14 +6,19 @@
  */
 import { z } from 'zod';
 import { MaoProjectControlProjectionSchema } from './mao.js';
+import { EndpointTrustSurfaceSummarySchema } from './endpoint-trust.js';
 import { ProjectIdSchema } from './ids.js';
 import {
   ProjectConfigSchema,
   ProjectIdentityContractSchema,
   ProjectPackageDefaultIntakeSchema,
 } from './project.js';
-import { InAppEscalationRecordSchema } from './escalation.js';
+import {
+  InAppEscalationRecordSchema,
+  ProjectEscalationQueueSnapshotSchema,
+} from './escalation.js';
 import { ScheduleDefinitionSchema } from './scheduler.js';
+import { VoiceSessionProjectionSchema } from './voice-control.js';
 import {
   ProjectWorkflowSurfaceSnapshotSchema,
   WorkflowRuntimeAvailabilitySchema,
@@ -119,4 +124,20 @@ export const ProjectConfigurationUpdateInputSchema = z.object({
 });
 export type ProjectConfigurationUpdateInput = z.infer<
   typeof ProjectConfigurationUpdateInputSchema
+>;
+
+export const MobileOperationsSnapshotSchema = z.object({
+  project: ProjectIdentityContractSchema,
+  dashboard: ProjectDashboardSnapshotSchema,
+  escalationQueue: ProjectEscalationQueueSnapshotSchema,
+  voiceSession: VoiceSessionProjectionSchema.nullable(),
+  endpointTrust: EndpointTrustSurfaceSummarySchema.nullable(),
+  diagnostics: z.object({
+    runtimePosture: z.literal('single_process_local'),
+    degradedReasonCode: z.string().min(1).optional(),
+  }),
+  generatedAt: z.string().datetime(),
+});
+export type MobileOperationsSnapshot = z.infer<
+  typeof MobileOperationsSnapshotSchema
 >;

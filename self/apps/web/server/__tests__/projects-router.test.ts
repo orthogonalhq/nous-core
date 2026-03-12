@@ -170,12 +170,24 @@ describe('projects router', () => {
     });
 
     const dashboard = await caller.projects.dashboardSnapshot({ projectId });
+    const visualDebug = await caller.projects.workflowVisualDebugSnapshot({ projectId });
+    const nodeInspect = await caller.projects.workflowNodeInspect({
+      projectId,
+      runId: started.runState.runId,
+      nodeDefinitionId: NODE_A,
+    });
 
     expect(dashboard.workflowSnapshot?.runtimeAvailability).toBe('live');
     expect(dashboard.schedules).toHaveLength(1);
     expect(dashboard.openEscalations).toHaveLength(1);
     expect(dashboard.health.enabledScheduleCount).toBe(1);
     expect(dashboard.controlProjection?.project_id).toBe(projectId);
+    expect(visualDebug.stages.length).toBeGreaterThan(0);
+    expect(visualDebug.canvasNodes.some((node) => node.nodeDefinitionId === NODE_A)).toBe(true);
+    expect(visualDebug.schedulerSummary.enabledScheduleCount).toBe(1);
+    expect(visualDebug.diagnostics.graphProjectionParity).toBe('aligned');
+    expect(nodeInspect.monitor.nodeDefinitionId).toBe(NODE_A);
+    expect(nodeInspect.artifactRefs[0]).toMatch(/^artifact:\/\//);
   });
 
   it('returns configuration snapshots and persists governed configuration and schedule updates', async () => {
@@ -264,5 +276,31 @@ describe('projects router', () => {
     expect(snapshot.graph).toBeNull();
     expect(snapshot.runtimeAvailability).toBe('no_active_run');
     expect(snapshot.diagnostics.inspectFirstMode).toBe('no-definition');
+  });
+
+  it('marks visual-debug parity degraded when the run graph is unavailable', async () => {
+    const ctx = createNousContext();
+    const caller = appRouter.createCaller(ctx);
+    const projectId = await createProjectWithWorkflow(ctx);
+
+    const started = await ctx.workflowEngine.start({
+      projectConfig: (await ctx.projectStore.get(projectId))!,
+      runId: randomUUID() as any,
+      workmodeId: 'system:implementation',
+      sourceActor: 'orchestration_agent',
+      controlState: 'running',
+      startedAt: '2026-03-09T19:00:00.000Z',
+    });
+    expect(started.status).toBe('started');
+    if (started.status !== 'started') {
+      return;
+    }
+
+    ctx.workflowEngine.getRunGraph = async () => null;
+
+    const visualDebug = await caller.projects.workflowVisualDebugSnapshot({ projectId });
+
+    expect(visualDebug.runtimeAvailability).toBe('degraded_runtime_unavailable');
+    expect(visualDebug.diagnostics.graphProjectionParity).toBe('degraded');
   });
 });

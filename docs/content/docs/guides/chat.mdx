@@ -93,9 +93,48 @@ MAO reasoning previews are evidence-derived summaries. Chat may receive:
 
 Chat must not receive or display hidden private reasoning beyond that redaction-aware preview contract.
 
+## Projects Visual-Debug Handoff (Phase 11.4)
+
+Phase 11.4 adds a second continuity entry path into chat: the advanced Projects visual-debug surface.
+
+When chat is opened from a Projects canvas node or node-inspect panel, the route preserves:
+
+- `projectId`
+- `runId`
+- `nodeId`
+- `evidenceRef` when available
+
+That means chat can continue the same project-scoped debugging conversation that started in the Projects surface without inventing a separate workflow-state model.
+
+Use this handoff when you want to:
+
+- ask follow-up questions about a specific blocked or failed workflow node
+- continue investigation on the same run while keeping project and node scope intact
+- move from visual debugging into conversational reasoning without losing canonical evidence references
+
+The chat page still does not own workflow control truth. It receives continuity context and shared escalation state, but the authoritative workflow and debug posture stays in the canonical runtime and the projection surfaces built on top of it.
+
+## Mobile Continuity (Phase 11.5)
+
+Phase 11.5 extends that same continuity model to the mobile operations surface.
+
+If you acknowledge a project escalation from the mobile surface, chat reflects the same canonical acknowledgement state. Chat does not reconcile a second inbox, and the mobile surface does not create a chat-local follow-up model.
+
+Use this when you need to:
+
+- acknowledge an escalation on mobile and continue the investigation in chat later
+- move from mobile project review into a fuller project-scoped conversation
+- preserve shared voice follow-up posture across mobile, chat, MAO, and Projects
+
+The rule remains the same: continuity context can move between surfaces, but authority stays with the canonical escalation, voice, workflow, and project runtimes.
+
 ## Via CLI
 
 ```bash
 pnpm dev:cli -- send "Your message here"
 pnpm dev:cli -- -p <project-id> send "Project-scoped message"
 ```
+
+## Related
+
+- [Secure Messaging (Telegram)](/docs/guides/messaging)

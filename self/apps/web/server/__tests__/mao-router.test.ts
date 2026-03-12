@@ -87,6 +87,15 @@ describe('mao router', () => {
     const ctx = createNousContext();
     const caller = appRouter.createCaller(ctx);
     const projectId = await createProjectWithWorkflow(ctx);
+    const sessionId = randomUUID();
+    await caller.voice.beginTurn({
+      turn_id: randomUUID(),
+      session_id: sessionId,
+      project_id: projectId,
+      principal_id: 'principal',
+      channel: 'web',
+      evidence_refs: ['voice:turn'],
+    });
 
     const started = await ctx.workflowEngine.start({
       projectConfig: (await ctx.projectStore.get(projectId))!,
@@ -137,6 +146,16 @@ describe('mao router', () => {
     const ctx = createNousContext();
     const caller = appRouter.createCaller(ctx);
     const projectId = await createProjectWithWorkflow(ctx);
+    const sessionId = randomUUID();
+
+    await caller.voice.beginTurn({
+      turn_id: randomUUID(),
+      session_id: sessionId,
+      project_id: projectId,
+      principal_id: 'principal',
+      channel: 'web',
+      evidence_refs: ['voice:turn'],
+    });
 
     const pause = await caller.mao.requestProjectControl({
       request: {
@@ -188,5 +207,6 @@ describe('mao router', () => {
     });
     expect(controlProjection?.project_last_control_action).toBe('resume_project');
     expect(controlProjection?.resume_readiness_status).toBe('passed');
+    expect(controlProjection?.voice_projection?.current_turn_state).toBe('listening');
   });
 });

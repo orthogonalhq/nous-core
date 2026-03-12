@@ -52,8 +52,8 @@ How Nous perceives the world and communicates with the user. These are part of t
 ```
 self/apps/
 ├── cli/                              # Terminal interface
-├── web/                              # Chat UI + Projects UI + Dashboard + MAO projection
-└── bridge/                           # Messaging integrations (Signal, Slack, etc.)
+├── web/                              # Chat UI + Projects UI + Dashboard + MAO + mobile operations projection
+└── bridge/                           # Approved messaging bridge app and connector adapters
 ```
 
 ### cli/
@@ -69,10 +69,12 @@ CLI depends only on public interfaces from `shared/`.
 Web application containing integrated operator surfaces:
 
 * Chat interface — conversational interaction with project-scoped context
-* Projects UI — workflow monitoring, canonical project dashboard, governed configuration, schedule settings, and project-scoped escalation queue acknowledgement
+* Projects UI — advanced workflow authoring, staged visual debugging, canonical project dashboard, governed configuration, schedule settings, and project-scoped escalation queue acknowledgement
 * Dashboard — system health, project status, memory inspection, and discovery projection
 * MAO operator surface — density-grid observability, run-graph inspection, reasoning-preview handoff, and governed project control
+* Mobile operations surface — phone-sized project status, escalation acknowledgement, voice follow-up posture, and read-only trust summaries
 * Chat escalation inbox — acknowledgement of the same canonical in-app escalation queue used by Projects
+* Voice-control server surface — in-process tRPC composition over the canonical voice runtime for turn state, degraded-mode visibility, interruption handling, text-first recovery flows, and mobile continuity projection
 
 Primary interface for most users.
 
@@ -80,15 +82,15 @@ Primary interface for most users.
 
 Messaging integrations for mobile-first and asynchronous interaction.
 
-* Signal adapter
-* Slack adapter
-* SMS adapter
-* Email adapter
-* Voice call adapter (for high-priority escalations)
+Phase 11.1 ships the first production bridge app here.
 
-Each adapter implements a common interface. New channels are added by implementing the adapter contract.
+* Telegram adapter (current production connector)
+* Bridge runtime that composes `ICommunicationGatewayService` in process
+* Future adapters for Matrix / Slack and later messaging surfaces
 
-All apps communicate with the system through the cortex. No app reaches into the subcortex or autonomic layer directly.
+Connector-native parsing and outbound transport stay app-local in this package. Canonical routing, identity-binding, acknowledgement, suppression, trust, and delivery truth remain in the communication-gateway runtime below.
+
+Apps continue to follow the same app-hosted composition rule used elsewhere in the repo: the bridge process wires its runtime graph at bootstrap, hosts the canonical gateway seam in process, and never invents a second control plane or connector-owned state model.
 
 ---
 
@@ -301,6 +303,9 @@ self/subcortex/
 ├── tools/                            # Tool execution and capability gating
 ├── workflows/                        # Workflow graph engine
 ├── projects/                         # Project container and lifecycle
+├── communication-gateway/            # Human messaging ingress/egress control plane
+├── endpoint-trust/                   # Peripheral pairing, trust, capability, and transport runtime
+├── voice-control/                    # Canonical voice turn safety, interruption, and continuation runtime
 ├── registry/                         # Registry governance, moderation, and compatibility runtime
 ├── nudges/                           # Advisory discovery runtime and ranking
 ├── artifacts/                        # Versioned binary asset management
@@ -414,6 +419,48 @@ Responsibilities:
 * Project lifecycle (create, configure, execute, evolve, archive)
 
 Projects are first-class isolation boundaries.
+
+### communication-gateway/
+
+Canonical human messaging ingress and egress runtime. Implemented in Phase 11.1 as `@nous/subcortex-communication-gateway`.
+
+Responsibilities:
+
+* Validate normalized channel ingress before any privileged route or delivery action
+* Enforce explicit identity-binding posture (`unbound`, `active`, `revoked`)
+* Resolve canonical routes for approval intake, project messaging, escalation acknowledgement, advisory delivery, and system notices
+* Persist delivery attempts with idempotent egress identity, bounded retry, failover controls, and fail-closed `unknown_external_effect` handling
+* Bridge escalation acknowledgement and advisory delivery through the existing escalation and nudge runtimes instead of creating local truth
+* Defer endpoint identity, pairing, capability, and signed-envelope authority to the endpoint-trust runtime instead of connector-owned state
+
+### endpoint-trust/
+
+Canonical endpoint trust, pairing, capability-governance, and signed-transport runtime. Implemented in Phase 11.2 as `@nous/subcortex-endpoint-trust`.
+
+Responsibilities:
+
+* Persist manual peripheral pairing state and Principal approval evidence before any endpoint becomes trusted
+* Register endpoints with immutable `sensory` or `action` direction and explicit capability manifests
+* Enforce capability grants and revocations as canonical runtime truth rather than adapter-local flags
+* Validate signed endpoint transport envelopes with nonce, TTL, session, and monotonic-sequence checks
+* Require operator-control-compatible confirmation posture for high-risk action commands
+* Revoke sessions and trust state immediately on lost-device, compromised-device, or MITM incidents
+* Consume registry install-eligibility posture so untrusted or blocked connector and device packages cannot become active trusted endpoints
+* Emit witness-linked evidence and route incident escalation through existing canonical seams
+
+### voice-control/
+
+Canonical voice turn-taking, interruption, degraded-mode, and confirmation runtime. Implemented in Phase 11.3 as `@nous/subcortex-voice-control`.
+
+Responsibilities:
+
+* Persist canonical voice turn, decision, assistant-output, barge-in, continuation, degraded-mode, and session-projection state
+* Require combined semantic, silence-window, and explicit-handoff signals before a turn can become execution-ready
+* Reuse the shared confidence-governance runtime for clarify, block, and text-confirm decisions instead of creating voice-local policy
+* Force dual-channel confirmation for destructive or `T3` voice actions and block voice-only authorization paths
+* Stop assistant output immediately on barge-in, record timing evidence, and require explicit continuation rather than automatic resume
+* Push risky controls into text-first degraded mode when confidence, handoff stability, or interruption recovery posture is unsafe
+* Preserve route, escalation, endpoint-trust, and witness continuity so chat, Projects, MAO, and later mobile surfaces read the same canonical truth
 
 ### registry/
 
@@ -714,9 +761,26 @@ Phase 9.4 and Phase 9.5 add:
 - `knowledge-index.ts` — canonical project discovery, refresh, taxonomy, and relationship-runtime contracts
 - `workflow-monitoring.ts` — workflow-surface snapshot, node projection, diagnostics, validation, and save-input schemas used by the Projects UI and web server
 
+Phase 11.4 expands:
+
+- `workflow-monitoring.ts` — stage projections, canvas-node and canvas-edge overlays, checkpoint and scheduler debug summaries, node inspect payloads, and visual-debug snapshots used by the advanced Projects surface
+
+Phase 11.5 expands:
+
+- `project-surface.ts` — mobile operations snapshot, aggregated continuity, and phone-sized projection contracts
+- `escalation.ts` — acknowledgement summaries reused across Chat, Projects, and mobile operations
+- `voice-control.ts` — additive mobile follow-up projection reuse over canonical continuation and degraded-mode posture
+- `endpoint-trust.ts` — project-level trust summary projections surfaced into mobile continuity views
+- `mao.ts` — continuity link metadata reused by cross-surface handoff helpers
+
 Phase 9.7 adds:
 
 - `mao.ts` — density-grid, run-graph, inspect, urgent-overlay, reasoning-preview, and project-control contracts used by MAO and linked surfaces
+
+Phase 11.3 adds:
+
+- `voice-control.ts` — canonical voice turn, signal-bundle, interruption, continuation, degraded-mode, confirmation, and session-projection contracts
+- additive `voice_projection` support in `mao.ts` so operator surfaces can read canonical voice session posture without inventing local state
 
 Phase 10.1 adds:
 
@@ -765,6 +829,10 @@ Phase 9.6 further expands:
 Phase 9.7 further expands:
 
 - `subcortex.ts` — `IMaoProjectionService` snapshot, inspect, graph, and project-control methods used by the MAO surface and web server
+
+Phase 11.3 further expands:
+
+- `subcortex.ts` — `IVoiceControlService` methods for turn start, evaluation, assistant-output registration, barge-in handling, continuation resolution, and session projection reads
 
 Phase 10.1 further expands:
 

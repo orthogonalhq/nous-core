@@ -35,6 +35,9 @@ import type {
   IArtifactStore,
   IScheduler,
   IEscalationService,
+  ICommunicationGatewayService,
+  IEndpointTrustService,
+  IVoiceControlService,
   IRegistryService,
   ISandbox,
   IProjectApi,
@@ -101,6 +104,27 @@ import type {
   NudgeSuppressionMutationInput,
   NudgeSuppressionQuery,
   NudgeSuppressionQueryResult,
+  ChannelIngressEnvelope,
+  ChannelEgressEnvelope,
+  CommunicationIdentityBindingUpsertInput,
+  CommunicationIdentityBindingRecord,
+  CommunicationApprovalIntakeRecord,
+  CommunicationEscalationAcknowledgementInput,
+  CommunicationIngressOutcome,
+  CommunicationEgressOutcome,
+  CommunicationRouteDecision,
+  VoiceAssistantOutputInput,
+  VoiceAssistantOutputStateRecord,
+  VoiceBargeInInput,
+  VoiceBargeInRecord,
+  VoiceContinuationInput,
+  VoiceContinuationRecord,
+  VoiceSessionProjection,
+  VoiceSessionProjectionInput,
+  VoiceTurnDecisionRecord,
+  VoiceTurnEvaluationInput,
+  VoiceTurnStartInput,
+  VoiceTurnStateRecord,
   SandboxPayload,
   SandboxResult,
   MemoryScope,
@@ -442,6 +466,202 @@ export class StubNudgeDiscoveryService implements INudgeDiscoveryService {
 
   async getRankingPolicy(_policyVersion?: string): Promise<NudgeRankingPolicy> {
     return stubNotImpl('INudgeDiscoveryService', 'getRankingPolicy', 'Phase 10.2');
+  }
+}
+
+export class StubCommunicationGatewayService implements ICommunicationGatewayService {
+  async receiveIngress(
+    _envelope: ChannelIngressEnvelope,
+  ): Promise<CommunicationIngressOutcome> {
+    return stubNotImpl(
+      'ICommunicationGatewayService',
+      'receiveIngress',
+      'Phase 11.1',
+    );
+  }
+
+  async dispatchEgress(
+    _envelope: ChannelEgressEnvelope,
+  ): Promise<CommunicationEgressOutcome> {
+    return stubNotImpl(
+      'ICommunicationGatewayService',
+      'dispatchEgress',
+      'Phase 11.1',
+    );
+  }
+
+  async upsertBinding(
+    _input: CommunicationIdentityBindingUpsertInput,
+  ): Promise<CommunicationIdentityBindingRecord> {
+    return stubNotImpl(
+      'ICommunicationGatewayService',
+      'upsertBinding',
+      'Phase 11.1',
+    );
+  }
+
+  async listApprovalIntake(
+    _projectId?: ProjectId,
+  ): Promise<CommunicationApprovalIntakeRecord[]> {
+    return stubNotImpl(
+      'ICommunicationGatewayService',
+      'listApprovalIntake',
+      'Phase 11.1',
+    );
+  }
+
+  async acknowledgeEscalation(
+    _input: CommunicationEscalationAcknowledgementInput,
+  ): Promise<InAppEscalationRecord | null> {
+    return stubNotImpl(
+      'ICommunicationGatewayService',
+      'acknowledgeEscalation',
+      'Phase 11.1',
+    );
+  }
+
+  async getRouteDecision(
+    _routeId: string,
+  ): Promise<CommunicationRouteDecision | null> {
+    return stubNotImpl(
+      'ICommunicationGatewayService',
+      'getRouteDecision',
+      'Phase 11.1',
+    );
+  }
+}
+
+export class StubEndpointTrustService implements IEndpointTrustService {
+  async requestPairing(
+    _input: import('@nous/shared').EndpointPairingRequestInput,
+  ): Promise<import('@nous/shared').EndpointPairingRecord> {
+    return stubNotImpl('IEndpointTrustService', 'requestPairing', 'Phase 11.2');
+  }
+
+  async reviewPairing(
+    _input: import('@nous/shared').EndpointPairingReviewInput,
+  ): Promise<import('@nous/shared').EndpointPairingRecord> {
+    return stubNotImpl('IEndpointTrustService', 'reviewPairing', 'Phase 11.2');
+  }
+
+  async registerEndpoint(
+    _input: import('@nous/shared').EndpointRegistrationInput,
+  ): Promise<import('@nous/shared').EndpointTrustEndpoint> {
+    return stubNotImpl('IEndpointTrustService', 'registerEndpoint', 'Phase 11.2');
+  }
+
+  async grantCapability(
+    _input: import('@nous/shared').EndpointCapabilityGrantInput,
+  ): Promise<import('@nous/shared').EndpointCapabilityGrantRecord> {
+    return stubNotImpl('IEndpointTrustService', 'grantCapability', 'Phase 11.2');
+  }
+
+  async revokeCapability(
+    _input: import('@nous/shared').EndpointCapabilityRevocationInput,
+  ): Promise<import('@nous/shared').EndpointCapabilityGrantRecord> {
+    return stubNotImpl('IEndpointTrustService', 'revokeCapability', 'Phase 11.2');
+  }
+
+  async establishSession(
+    _input: import('@nous/shared').EndpointSessionStartInput,
+  ): Promise<import('@nous/shared').EndpointSessionRecord> {
+    return stubNotImpl('IEndpointTrustService', 'establishSession', 'Phase 11.2');
+  }
+
+  async rotateSession(
+    _input: import('@nous/shared').EndpointSessionRotateInput,
+  ): Promise<import('@nous/shared').EndpointSessionRecord> {
+    return stubNotImpl('IEndpointTrustService', 'rotateSession', 'Phase 11.2');
+  }
+
+  async validateTransport(
+    _input: import('@nous/shared').EndpointTransportValidationRequest,
+  ): Promise<import('@nous/shared').EndpointTransportValidationResult> {
+    return stubNotImpl('IEndpointTrustService', 'validateTransport', 'Phase 11.2');
+  }
+
+  async authorize(
+    _input: import('@nous/shared').EndpointAuthorizationRequest,
+  ): Promise<import('@nous/shared').EndpointAuthorizationResult> {
+    return stubNotImpl('IEndpointTrustService', 'authorize', 'Phase 11.2');
+  }
+
+  async reportIncident(
+    _input: import('@nous/shared').EndpointIncidentReportInput,
+  ): Promise<import('@nous/shared').EndpointIncidentRecord> {
+    return stubNotImpl('IEndpointTrustService', 'reportIncident', 'Phase 11.2');
+  }
+
+  async getPeripheral(
+    _peripheralId: string,
+  ): Promise<import('@nous/shared').EndpointTrustPeripheral | null> {
+    return stubNotImpl('IEndpointTrustService', 'getPeripheral', 'Phase 11.2');
+  }
+
+  async getEndpoint(
+    _endpointId: string,
+  ): Promise<import('@nous/shared').EndpointTrustEndpoint | null> {
+    return stubNotImpl('IEndpointTrustService', 'getEndpoint', 'Phase 11.2');
+  }
+
+  async getProjectSurfaceSummary(
+    _projectId: ProjectId,
+  ): Promise<import('@nous/shared').EndpointTrustSurfaceSummary> {
+    return stubNotImpl(
+      'IEndpointTrustService',
+      'getProjectSurfaceSummary',
+      'Phase 11.5',
+    );
+  }
+}
+
+export class StubVoiceControlService implements IVoiceControlService {
+  async beginTurn(
+    _input: VoiceTurnStartInput,
+  ): Promise<VoiceTurnStateRecord> {
+    return stubNotImpl('IVoiceControlService', 'beginTurn', 'Phase 11.3');
+  }
+
+  async evaluateTurn(
+    _input: VoiceTurnEvaluationInput,
+  ): Promise<VoiceTurnDecisionRecord> {
+    return stubNotImpl('IVoiceControlService', 'evaluateTurn', 'Phase 11.3');
+  }
+
+  async registerAssistantOutput(
+    _input: VoiceAssistantOutputInput,
+  ): Promise<VoiceAssistantOutputStateRecord> {
+    return stubNotImpl(
+      'IVoiceControlService',
+      'registerAssistantOutput',
+      'Phase 11.3',
+    );
+  }
+
+  async handleBargeIn(
+    _input: VoiceBargeInInput,
+  ): Promise<VoiceBargeInRecord> {
+    return stubNotImpl('IVoiceControlService', 'handleBargeIn', 'Phase 11.3');
+  }
+
+  async resolveContinuation(
+    _input: VoiceContinuationInput,
+  ): Promise<VoiceContinuationRecord> {
+    return stubNotImpl(
+      'IVoiceControlService',
+      'resolveContinuation',
+      'Phase 11.3',
+    );
+  }
+
+  async getSessionProjection(
+    _input: VoiceSessionProjectionInput,
+  ): Promise<VoiceSessionProjection> {
+    return stubNotImpl(
+      'IVoiceControlService',
+      'getSessionProjection',
+      'Phase 11.3',
+    );
   }
 }
 

@@ -13,6 +13,31 @@ description: Reference for all tRPC procedures
 | `projects.create` | mutation | `{ name, type? }` | `ProjectConfig` |
 | `projects.get` | query | `{ id: ProjectId }` | `ProjectConfig \| null` |
 | `projects.update` | mutation | `{ id, updates: { name?, pfcTier?, modelAssignments? } }` | — |
+| `projects.workflowSnapshot` | query | `{ projectId, runId? }` | `ProjectWorkflowSurfaceSnapshot` |
+| `projects.workflowVisualDebugSnapshot` | query | `{ projectId, runId? }` | `WorkflowVisualDebugSnapshot` |
+| `projects.workflowNodeInspect` | query | `{ projectId, runId?, nodeDefinitionId }` | `WorkflowNodeInspectProjection` |
+| `projects.dashboardSnapshot` | query | `{ projectId }` | `ProjectDashboardSnapshot` |
+| `projects.configurationSnapshot` | query | `{ projectId }` | `ProjectConfigurationSnapshot` |
+| `projects.updateConfiguration` | mutation | `ProjectConfigurationUpdateInput` | `ProjectConfigurationSnapshot` |
+| `projects.upsertSchedule` | mutation | `ScheduleUpsertInput` | `ScheduleDefinition` |
+| `projects.validateWorkflowDefinition` | mutation | `{ projectId, workflowDefinition }` | `WorkflowDefinitionValidationResult` |
+| `projects.saveWorkflowDefinition` | mutation | `{ projectId, workflowDefinition, setAsDefault? }` | `{ project, validation }` |
+
+- `projects.workflowSnapshot` — Baseline workflow authoring and monitoring projection for the Projects surface.
+  - Response includes canonical workflow definition, derived graph, recent runs, node projections, recent artifacts, recent traces, and surface diagnostics.
+- `projects.workflowVisualDebugSnapshot` — Advanced staged visual-debug projection for the Projects surface.
+  - Response adds deterministic stage grouping, canvas node and edge overlays, MAO graph parity, checkpoint summary, and scheduler summary over canonical truth.
+- `projects.workflowNodeInspect` — Returns rich node inspection for one project/run/node selection.
+  - Response embeds the shared monitor projection plus reused MAO inspect truth, checkpoint posture, artifact lineage references, trace IDs, and policy-reason context.
+- `projects.dashboardSnapshot` — Returns project health, blocked actions, schedules, escalation queue posture, package-default intake visibility, and linked workflow snapshot data.
+- `projects.configurationSnapshot` — Returns the current project configuration, schedule records, blocked actions, and field provenance.
+- `projects.updateConfiguration` — Applies governed project-configuration changes.
+  - Rejects stale writes with `CONFLICT` when `expectedUpdatedAt` no longer matches the stored project.
+- `projects.upsertSchedule` — Creates or updates a schedule bound to canonical workflow and workmode truth.
+  - Returns `BAD_REQUEST` when the project has no canonical workflow definition and the caller does not supply `workflowDefinitionId`.
+- `projects.validateWorkflowDefinition` — Validates a workflow draft on the server without persisting it.
+- `projects.saveWorkflowDefinition` — Persists a validated canonical workflow definition and optionally sets it as the default.
+  - Projection-only visual-debug fields are never accepted as canonical workflow-definition truth.
 
 ## chat
 
@@ -153,7 +178,33 @@ description: Reference for all tRPC procedures
 | `mao.getProjectControlProjection` | query | `{ projectId }` | `MaoProjectControlProjection \| null` |
 
 - `getAgentProjections` — Agent projections for a project (derived from canonical event/state truth).
-- `getProjectControlProjection` — Project control projection (pause/resume/hard-stop status, Cortex review).
+- `getProjectControlProjection` — Project control projection (pause/resume/hard-stop status, Cortex review, and optional `voice_projection` for current turn state, degraded mode, pending confirmation, and continuation posture).
+
+## voice
+
+| Procedure | Type | Input | Output |
+|----------|------|-------|--------|
+| `voice.beginTurn` | mutation | `VoiceTurnStartInput` | `VoiceTurnStateRecord` |
+| `voice.evaluateTurn` | mutation | `VoiceTurnEvaluationInput` | `VoiceTurnDecisionRecord` |
+| `voice.registerAssistantOutput` | mutation | `VoiceAssistantOutputInput` | `VoiceAssistantOutputStateRecord` |
+| `voice.handleBargeIn` | mutation | `VoiceBargeInInput` | `VoiceBargeInRecord` |
+| `voice.resolveContinuation` | mutation | `VoiceContinuationInput` | `VoiceContinuationRecord` |
+| `voice.getSessionProjection` | query | `VoiceSessionProjectionInput` | `VoiceSessionProjection` |
+
+- `voice.beginTurn` — Creates canonical turn state for a voice session and initializes session projection posture.
+- `voice.evaluateTurn` — Evaluates combined handoff signals, risky intent posture, degraded mode, and confirmation requirements through the canonical runtime.
+- `voice.registerAssistantOutput` — Registers assistant speech state so later interruption and continuation behavior stays canonical.
+- `voice.handleBargeIn` — Stops active output, records interruption latency, and forces continuation-required posture.
+- `voice.resolveContinuation` — Records explicit continuation outcome after interruption; does not auto-resume.
+- `voice.getSessionProjection` — Returns canonical voice session state for web, MAO, and mobile consumers.
+
+## mobile
+
+| Procedure | Type | Input | Output |
+|----------|------|-------|--------|
+| `mobile.operationsSnapshot` | query | `{ projectId }` | `MobileOperationsSnapshot` |
+
+- `operationsSnapshot` — Returns the aggregated mobile operations projection for a project. This combines canonical project, escalation, voice, and endpoint-trust summaries for the mobile web surface without creating a second authority model.
 
 ## gtm
 

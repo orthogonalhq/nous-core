@@ -163,6 +163,68 @@ Phase 7.2 defines the shared contract layer that Phase 7.3 and Phase 7.4 enforce
 
 These contracts are shared definitions only (no runtime bypass). Runtime admission and lifecycle transitions remain fail-closed and are enforced by subsequent Phase 7 implementation slices.
 
+## Endpoint Trust Baseline (Phase 11.2)
+
+Phase 11.2 extends the baseline for human messaging and device-adjacent connectors with canonical endpoint trust controls.
+
+### Manual Pairing and Immutable Direction
+
+- Every peripheral begins `pending` until Principal-approved pairing evidence is recorded
+- Endpoints register with immutable direction: `sensory` or `action`
+- Bidirectional endpoint objects are not accepted in this phase
+
+### Capability Governance
+
+- Sensor and action capabilities are granted explicitly per endpoint
+- Direction-capability mismatches are blocked and evidence-linked
+- High-risk action commands require operator-control-compatible confirmation proof before authorization
+
+### Transport Integrity
+
+- Trusted sessions track nonce and highest accepted sequence
+- Replayed, expired, mismatched, or out-of-order envelopes are blocked
+- Session rotation, suspension, and revocation invalidate continued trusted use
+
+### Incident and Registry Gating
+
+- Lost-device, compromised-device, MITM, suspend, and revoke incidents fail closed and revoke trusted runtime posture immediately
+- Connector and device packages must pass registry install-eligibility before their endpoints can become active trusted endpoints
+- Endpoint trust decisions emit witness-linked evidence and incident escalation through existing canonical services
+
+## Voice Control Safety Baseline (Phase 11.3)
+
+Phase 11.3 extends the baseline for voice-originated escalation and control intent without creating a voice-only authority path.
+
+### Combined End-of-Turn Gating
+
+- Silence alone is never enough to authorize execution
+- Voice handoff requires combined semantic completion, silence-window timing, and explicit handoff support
+- Ambiguous or low-confidence turns fail closed into continue-listening, clarification, blocked, or text-confirm posture
+
+### Dual-Channel and Text-First Protection
+
+- Destructive, critical, or `T3` voice actions require dual-channel confirmation from the active Principal session
+- Voice alone cannot authorize those actions
+- Low-confidence risky intents are routed to explicit text/UI confirmation rather than silently retried
+
+### Barge-In and Continuation Safety
+
+- Assistant speech interruption is recorded as canonical runtime state
+- Barge-in emits timing evidence and forces explicit continuation-required posture
+- Automatic resume after interruption is not allowed
+
+### Metadata-First Privacy Posture
+
+- Voice control records persist transcript hashes, signal scores, decision refs, route refs, escalation refs, and witness linkage
+- Raw audio is not retained by default
+- The system must be able to reconstruct control-affecting turns from metadata and witness-linked evidence alone
+
+### Degraded Mode
+
+- Low ASR confidence, low intent confidence, handoff instability, transport degradation, or interruption-recovery posture can activate degraded mode
+- In degraded mode, risky controls switch to text-first behavior until recovery is sustained
+- Degraded-mode status remains visible to operator surfaces through canonical projection data
+
 ---
 
 ## Runbook Summary

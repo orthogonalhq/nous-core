@@ -1,0 +1,23 @@
+import path from 'node:path';
+import { fileURLToPath } from 'node:url';
+import { defineConfig } from 'vitest/config';
+
+const __dirname = path.dirname(fileURLToPath(import.meta.url));
+
+export default defineConfig({
+  root: path.resolve(__dirname),
+  resolve: {
+    alias: {
+      '@nous/shared': path.resolve(__dirname, '../../shared/src/index.ts'),
+      '@nous/subcortex-escalation': path.resolve(__dirname, '../escalation/src/index.ts'),
+      '@nous/subcortex-nudges': path.resolve(__dirname, '../nudges/src/index.ts'),
+      '@nous/subcortex-registry': path.resolve(__dirname, '../registry/src/index.ts'),
+      '@nous/subcortex-witnessd': path.resolve(__dirname, '../witnessd/src/index.ts')
+    }
+  },
+  test: {
+    globals: true,
+    include: ['src/**/__tests__/**/*.test.ts'],
+    exclude: ['**/dist/**', '**/node_modules/**']
+  }
+});

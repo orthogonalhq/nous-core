@@ -5,18 +5,23 @@ import { randomUUID } from 'node:crypto';
 import { TRPCError } from '@trpc/server';
 import { z } from 'zod';
 import type {
+  ArtifactVersionRecord,
   ExecutionTrace,
   InAppEscalationRecord,
   ProjectBlockedAction,
   ProjectConfig,
   ProjectConfigFieldProvenance,
+  ProjectWorkflowSurfaceSnapshot,
   ProjectId,
   ProjectPackageDefaultSection,
   ScheduleDefinition,
   WorkflowDefinition,
   WorkflowEditorValidationIssue,
+  WorkflowNodeInspectProjection,
+  WorkflowNodeMonitorProjection,
   WorkflowNodeProjectionStatus,
   WorkflowRunState,
+  WorkflowVisualDebugSnapshot,
 } from '@nous/shared';
 import {
   ExecutionTraceSchema,
@@ -32,6 +37,9 @@ import {
   WorkflowDefinitionSchema,
   WorkflowDefinitionValidationResultSchema,
   WorkflowExecutionIdSchema,
+  WorkflowNodeDefinitionIdSchema,
+  WorkflowNodeInspectProjectionSchema,
+  WorkflowVisualDebugSnapshotSchema,
 } from '@nous/shared';
 import {
   buildDerivedWorkflowGraph,
@@ -162,7 +170,7 @@ function validateDraftDefinition(projectId: ProjectId, workflowDefinition: unkno
   });
 }
 
-async function getProjectOrThrow(
+export async function getProjectOrThrow(
   ctx: import('../../context').NousContext,
   projectId: ProjectId,
 ) {
@@ -204,11 +212,263 @@ function deriveNodeStatus(
   return nodeState?.status ?? 'pending';
 }
 
+function buildNodeDeepLinks(input: {
+  projectId: ProjectId;
+  runId?: WorkflowRunState['runId'];
+  nodeDefinitionId: WorkflowDefinition['nodes'][number]['id'];
+  dispatchLineageId?: string;
+  artifactRefs: string[];
+  evidenceRef?: string;
+}) {
+  return [
+    {
+      target: 'chat' as const,
+      projectId: input.projectId,
+      workflowRunId: input.runId,
+      nodeDefinitionId: input.nodeDefinitionId,
+      dispatchLineageId: input.dispatchLineageId as any,
+      evidenceRef: input.evidenceRef,
+    },
+    {
+      target: 'traces' as const,
+      projectId: input.projectId,
+      workflowRunId: input.runId,
+      nodeDefinitionId: input.nodeDefinitionId,
+      dispatchLineageId: input.dispatchLineageId as any,
+      evidenceRef: input.evidenceRef,
+    },
+    {
+      target: 'mao' as const,
+      projectId: input.projectId,
+      workflowRunId: input.runId,
+      nodeDefinitionId: input.nodeDefinitionId,
+      dispatchLineageId: input.dispatchLineageId as any,
+      evidenceRef: input.evidenceRef,
+    },
+    {
+      target: 'mobile' as const,
+      projectId: input.projectId,
+      workflowRunId: input.runId,
+      nodeDefinitionId: input.nodeDefinitionId,
+      dispatchLineageId: input.dispatchLineageId as any,
+      evidenceRef: input.evidenceRef,
+    },
+    ...input.artifactRefs.map((artifactRef) => ({
+      target: 'artifact' as const,
+      projectId: input.projectId,
+      workflowRunId: input.runId,
+      nodeDefinitionId: input.nodeDefinitionId,
+      artifactRef,
+      dispatchLineageId: input.dispatchLineageId as any,
+      evidenceRef: input.evidenceRef,
+    })),
+  ];
+}
+
+function buildNodeProjections(input: {
+  graph: NonNullable<ProjectWorkflowSurfaceSnapshot['graph']>;
+  projectId: ProjectId;
+  selectedRun: WorkflowRunState | null;
+  runtimeAvailability: 'live' | 'no_active_run' | 'degraded_runtime_unavailable';
+  recentArtifacts: ArtifactVersionRecord[];
+}): WorkflowNodeMonitorProjection[] {
+  return input.graph.topologicalOrder.map((nodeDefinitionId: WorkflowDefinition['nodes'][number]['id']) => {
+    const definition = input.graph.nodes[nodeDefinitionId]!.definition;
+    const nodeState = input.selectedRun?.nodeStates[nodeDefinitionId] ?? null;
+    const artifactRefs = input.recentArtifacts
+      .filter((record) => record.lineage?.workflowNodeDefinitionId === nodeDefinitionId)
+      .map((record) => record.artifactRef);
+    const evidenceRef =
+      nodeState?.evidenceRefs[0] ??
+      nodeState?.attempts[nodeState.attempts.length - 1]?.evidenceRefs[0];
+
+    return {
+      nodeDefinitionId,
+      definition,
+      nodeState,
+      status: deriveNodeStatus(nodeState, input.runtimeAvailability),
+      groupKey: `status:${deriveNodeStatus(nodeState, input.runtimeAvailability)}`,
+      artifactRefs,
+      traceIds: [],
+      deepLinks: buildNodeDeepLinks({
+        projectId: input.projectId,
+        runId: input.selectedRun?.runId,
+        nodeDefinitionId,
+        dispatchLineageId: nodeState?.lastDispatchLineageId,
+        artifactRefs,
+        evidenceRef,
+      }),
+    } satisfies WorkflowNodeMonitorProjection;
+  });
+}
+
+function buildCheckpointSummary(runState: WorkflowRunState | null) {
+  return {
+    runCheckpointState: runState?.checkpointState ?? 'idle',
+    lastPreparedCheckpointId: runState?.lastPreparedCheckpointId,
+    lastCommittedCheckpointId: runState?.lastCommittedCheckpointId,
+  };
+}
+
+function buildSchedulerDebugSummary(
+  schedules: ScheduleDefinition[],
+  runState: WorkflowRunState | null,
+) {
+  const now = Date.now();
+  const enabledSchedules = schedules.filter((schedule) => schedule.enabled);
+  return {
+    triggerContext: runState?.triggerContext ?? null,
+    enabledScheduleCount: enabledSchedules.length,
+    overdueScheduleCount: enabledSchedules.filter(
+      (schedule) =>
+        schedule.nextDueAt != null && Date.parse(schedule.nextDueAt) <= now,
+    ).length,
+    evidenceRefs: enabledSchedules.map((schedule) => `schedule:${schedule.id}`),
+  };
+}
+
+function deriveStageKind(input: {
+  isEntry: boolean;
+  hasOutbound: boolean;
+  definitions: WorkflowDefinition['nodes'];
+}) {
+  if (input.isEntry) {
+    return 'entry' as const;
+  }
+  if (!input.hasOutbound) {
+    return 'terminal' as const;
+  }
+  if (input.definitions.some((definition) => definition.type === 'condition')) {
+    return 'decision' as const;
+  }
+  if (
+    input.definitions.some((definition) =>
+      ['quality-gate', 'human-decision'].includes(definition.type),
+    )
+  ) {
+    return 'review' as const;
+  }
+  return 'execution' as const;
+}
+
+function deriveStageProjections(
+  graph: NonNullable<ProjectWorkflowSurfaceSnapshot['graph']>,
+) {
+  const stageByNode = new Map<WorkflowDefinition['nodes'][number]['id'], number>();
+  for (const nodeId of graph.topologicalOrder) {
+    const inboundStageIndexes = graph.nodes[nodeId]!.inboundEdgeIds
+      .map((edgeId: WorkflowDefinition['edges'][number]['id']) => graph.edges[edgeId]!)
+      .map((edge: WorkflowDefinition['edges'][number]) => stageByNode.get(edge.from) ?? 0);
+    const index =
+      inboundStageIndexes.length > 0 ? Math.max(...inboundStageIndexes) + 1 : 0;
+    stageByNode.set(nodeId, index);
+  }
+
+  const grouped = new Map<number, WorkflowDefinition['nodes']>();
+  for (const nodeId of graph.topologicalOrder) {
+    const stageIndex = stageByNode.get(nodeId) ?? 0;
+    const definition = graph.nodes[nodeId]!.definition;
+    grouped.set(stageIndex, [...(grouped.get(stageIndex) ?? []), definition]);
+  }
+
+  const stages = [...grouped.entries()]
+    .sort(([left], [right]) => left - right)
+    .map(([index, definitions]) => {
+      const stageId = `stage-${index}`;
+      const isEntry = definitions.some((definition) =>
+        graph.entryNodeIds.includes(definition.id),
+      );
+      const hasOutbound = definitions.some(
+        (definition) => graph.nodes[definition.id]!.outboundEdgeIds.length > 0,
+      );
+      const kind = deriveStageKind({ isEntry, hasOutbound, definitions });
+      return {
+        id: stageId,
+        index,
+        label:
+          kind === 'entry'
+            ? 'Entry'
+            : kind === 'terminal'
+              ? 'Terminal'
+              : `${kind[0]!.toUpperCase()}${kind.slice(1)} ${index + 1}`,
+        nodeDefinitionIds: definitions.map((definition) => definition.id),
+        kind,
+      };
+    });
+
+  return { stages, stageByNode };
+}
+
+function deriveCanvasEdgeState(
+  edge: WorkflowDefinition['edges'][number],
+  runState: WorkflowRunState | null,
+) {
+  if (!runState) {
+    return {
+      state: 'inactive' as const,
+      reasonCode: undefined,
+    };
+  }
+
+  if (runState.activatedEdgeIds.includes(edge.id)) {
+    return {
+      state: 'activated' as const,
+      reasonCode: undefined,
+    };
+  }
+
+  const sourceState = runState.nodeStates[edge.from];
+  if (
+    edge.branchKey &&
+    sourceState?.selectedBranchKey &&
+    sourceState.selectedBranchKey !== edge.branchKey
+  ) {
+    return {
+      state: 'blocked_path' as const,
+      reasonCode: sourceState.reasonCode ?? 'workflow_branch_not_selected',
+    };
+  }
+
+  if (
+    sourceState &&
+    ['running', 'waiting', 'blocked', 'completed', 'failed'].includes(
+      sourceState.status,
+    )
+  ) {
+    return {
+      state: 'candidate' as const,
+      reasonCode: sourceState.reasonCode,
+    };
+  }
+
+  return {
+    state: 'inactive' as const,
+    reasonCode: sourceState?.reasonCode,
+  };
+}
+
+function deriveGraphProjectionParity(input: {
+  selectedRun: WorkflowRunState | null;
+  maoRunGraph: Awaited<ReturnType<import('../../context').NousContext['maoProjectionService']['getRunGraphSnapshot']>> | null;
+  graph: ProjectWorkflowSurfaceSnapshot['graph'];
+}) {
+  if (!input.selectedRun) {
+    return 'aligned' as const;
+  }
+  if (!input.graph || !input.maoRunGraph) {
+    return 'degraded' as const;
+  }
+
+  const workflowNodeCount = Object.keys(input.selectedRun.nodeStates).length;
+  const maoNodeCount = input.maoRunGraph.nodes.filter((node) => node.kind === 'agent').length;
+  return workflowNodeCount === maoNodeCount ? 'aligned' : 'degraded';
+}
+
 async function buildWorkflowSnapshot(
   ctx: import('../../context').NousContext,
   project: ProjectConfig,
   runId?: WorkflowRunState['runId'],
-) {
+): Promise<ProjectWorkflowSurfaceSnapshot> {
   const recentRuns = await ctx.workflowEngine.listProjectRuns(project.id);
   const selectedRun =
     (runId
@@ -254,56 +514,12 @@ async function buildWorkflowSnapshot(
   );
 
   const nodeProjections = graph
-    ? graph.topologicalOrder.map((nodeDefinitionId) => {
-        const definition = graph.nodes[nodeDefinitionId]!.definition;
-        const nodeState = selectedRun?.nodeStates[nodeDefinitionId] ?? null;
-        const artifactRefs = recentArtifacts
-          .filter(
-            (record) => record.lineage?.workflowNodeDefinitionId === nodeDefinitionId,
-          )
-          .map((record) => record.artifactRef);
-        const deepLinks = [
-          {
-            target: 'chat' as const,
-            projectId: project.id,
-            workflowRunId: selectedRun?.runId,
-            nodeDefinitionId,
-            dispatchLineageId: nodeState?.lastDispatchLineageId,
-          },
-          {
-            target: 'traces' as const,
-            projectId: project.id,
-            workflowRunId: selectedRun?.runId,
-            nodeDefinitionId,
-            dispatchLineageId: nodeState?.lastDispatchLineageId,
-          },
-          {
-            target: 'mao' as const,
-            projectId: project.id,
-            workflowRunId: selectedRun?.runId,
-            nodeDefinitionId,
-            dispatchLineageId: nodeState?.lastDispatchLineageId,
-          },
-          ...artifactRefs.map((artifactRef) => ({
-            target: 'artifact' as const,
-            projectId: project.id,
-            workflowRunId: selectedRun?.runId,
-            nodeDefinitionId,
-            artifactRef,
-            dispatchLineageId: nodeState?.lastDispatchLineageId,
-          })),
-        ];
-
-        return {
-          nodeDefinitionId,
-          definition,
-          nodeState,
-          status: deriveNodeStatus(nodeState, runtimeAvailability),
-          groupKey: `status:${deriveNodeStatus(nodeState, runtimeAvailability)}`,
-          artifactRefs,
-          traceIds: [],
-          deepLinks,
-        };
+    ? buildNodeProjections({
+        graph,
+        projectId: project.id,
+        selectedRun,
+        runtimeAvailability,
+        recentArtifacts,
       })
     : [];
 
@@ -329,6 +545,131 @@ async function buildWorkflowSnapshot(
       degradedReasonCode,
       inspectFirstMode: workflowDefinition ? project.type : 'no-definition',
     },
+  });
+}
+
+async function buildWorkflowVisualDebugSnapshot(
+  ctx: import('../../context').NousContext,
+  project: ProjectConfig,
+  runId?: WorkflowRunState['runId'],
+): Promise<WorkflowVisualDebugSnapshot> {
+  const snapshot = await buildWorkflowSnapshot(ctx, project, runId);
+  const schedules = await ctx.schedulerService.list(project.id);
+  const maoRunGraph = snapshot.selectedRunId
+    ? await ctx.maoProjectionService.getRunGraphSnapshot({
+        projectId: project.id,
+        densityMode: 'D2',
+        workflowRunId: snapshot.selectedRunId,
+      })
+    : null;
+
+  const { stages, stageByNode } = snapshot.graph
+    ? deriveStageProjections(snapshot.graph)
+    : { stages: [], stageByNode: new Map<WorkflowDefinition['nodes'][number]['id'], number>() };
+
+  const rowByNode = new Map<WorkflowDefinition['nodes'][number]['id'], number>();
+  for (const stage of stages) {
+    stage.nodeDefinitionIds.forEach((nodeDefinitionId, index) => {
+      rowByNode.set(nodeDefinitionId, index);
+    });
+  }
+
+  const canvasNodes = snapshot.nodeProjections.map((projection: WorkflowNodeMonitorProjection) => {
+    const stageIndex = stageByNode.get(projection.nodeDefinitionId) ?? 0;
+    return {
+      nodeDefinitionId: projection.nodeDefinitionId,
+      definition: projection.definition,
+      stageId: `stage-${stageIndex}`,
+      column: stageIndex,
+      row: rowByNode.get(projection.nodeDefinitionId) ?? 0,
+      status: projection.status,
+      isEntry: snapshot.graph?.entryNodeIds.includes(projection.nodeDefinitionId) ?? false,
+      isActive:
+        snapshot.activeRunState?.activeNodeIds.includes(projection.nodeDefinitionId) ?? false,
+      latestAttemptStatus:
+        projection.nodeState?.attempts[projection.nodeState.attempts.length - 1]?.status ??
+        projection.nodeState?.status,
+      latestReasonCode:
+        projection.nodeState?.reasonCode ??
+        projection.nodeState?.attempts[projection.nodeState.attempts.length - 1]?.reasonCode,
+      artifactCount: projection.artifactRefs.length,
+      traceCount: projection.traceIds.length,
+      deepLinks: projection.deepLinks,
+    };
+  });
+
+  const canvasEdges = snapshot.workflowDefinition?.edges.map((edge: WorkflowDefinition['edges'][number]) => {
+    const state = deriveCanvasEdgeState(edge, snapshot.activeRunState);
+    return {
+      edge,
+      state: state.state,
+      isBranchEdge: edge.branchKey != null,
+      branchKey: edge.branchKey,
+      reasonCode: state.reasonCode,
+    };
+  }) ?? [];
+
+  const graphProjectionParity = deriveGraphProjectionParity({
+    selectedRun: snapshot.activeRunState,
+    maoRunGraph,
+    graph: snapshot.graph,
+  });
+
+  return WorkflowVisualDebugSnapshotSchema.parse({
+    ...snapshot,
+    stages,
+    canvasNodes,
+    canvasEdges,
+    maoRunGraph,
+    checkpointSummary: buildCheckpointSummary(snapshot.activeRunState),
+    schedulerSummary: buildSchedulerDebugSummary(schedules, snapshot.activeRunState),
+    diagnostics: {
+      ...snapshot.diagnostics,
+      graphProjectionParity,
+    },
+  });
+}
+
+async function buildNodeInspectProjection(
+  ctx: import('../../context').NousContext,
+  project: ProjectConfig,
+  input: {
+    nodeDefinitionId: WorkflowDefinition['nodes'][number]['id'];
+    runId?: WorkflowRunState['runId'];
+  },
+): Promise<WorkflowNodeInspectProjection> {
+  const snapshot = await buildWorkflowSnapshot(ctx, project, input.runId);
+  const monitor = snapshot.nodeProjections.find(
+    (projection: WorkflowNodeMonitorProjection) => projection.nodeDefinitionId === input.nodeDefinitionId,
+  );
+  if (!monitor) {
+    throw new TRPCError({
+      code: 'NOT_FOUND',
+      message: `Workflow node ${input.nodeDefinitionId} not found in the selected workflow snapshot`,
+    });
+  }
+
+  const maoInspect = await ctx.maoProjectionService.getAgentInspectProjection({
+    projectId: project.id,
+    workflowRunId: snapshot.selectedRunId,
+    nodeDefinitionId: input.nodeDefinitionId as any,
+  });
+
+  const nodeArtifacts = snapshot.recentArtifacts
+    .filter((artifact: ArtifactVersionRecord) => artifact.lineage?.workflowNodeDefinitionId === input.nodeDefinitionId)
+    .map((artifact: ArtifactVersionRecord) => artifact.artifactRef);
+
+  return WorkflowNodeInspectProjectionSchema.parse({
+    nodeDefinitionId: input.nodeDefinitionId,
+    monitor,
+    maoInspect,
+    checkpointSummary: buildCheckpointSummary(snapshot.activeRunState),
+    artifactRefs: nodeArtifacts,
+    traceIds: monitor.traceIds,
+    policyReasonCode:
+      maoInspect?.latestAttempt?.reasonCode ??
+      monitor.nodeState?.latestGovernanceDecision?.reasonCode ??
+      monitor.nodeState?.reasonCode,
   });
 }
 
@@ -667,6 +1008,38 @@ async function buildConfigurationSnapshot(
   });
 }
 
+export async function buildProjectDashboardSnapshot(
+  ctx: import('../../context').NousContext,
+  project: ProjectConfig,
+) {
+  const workflowSnapshot = await buildWorkflowSnapshot(ctx, project);
+  const schedules = await ctx.schedulerService.list(project.id);
+  const openEscalations = await ctx.escalationService.listProjectQueue(project.id);
+  const controlState = await getProjectControlState(ctx, project.id);
+  const blockedActions = deriveBlockedActions(controlState);
+  const health = deriveHealthSummary(
+    workflowSnapshot,
+    schedules,
+    openEscalations,
+    controlState,
+  );
+
+  return ProjectDashboardSnapshotSchema.parse({
+    project: getProjectIdentity(project),
+    health,
+    controlProjection: workflowSnapshot.controlProjection,
+    workflowSnapshot,
+    schedules,
+    openEscalations,
+    blockedActions,
+    packageDefaultIntake: project.packageDefaultIntake,
+    diagnostics: {
+      runtimePosture: 'single_process_local',
+      degradedReasonCode: workflowSnapshot.diagnostics.degradedReasonCode,
+    },
+  });
+}
+
 function ensureActionAllowed(
   blockedActions: ProjectBlockedAction[],
   action: ProjectBlockedAction['action'],
@@ -766,36 +1139,39 @@ export const projectsRouter = router({
       return buildWorkflowSnapshot(ctx, project, input.runId);
     }),
 
+  workflowVisualDebugSnapshot: publicProcedure
+    .input(
+      z.object({
+        projectId: ProjectIdSchema,
+        runId: WorkflowExecutionIdSchema.optional(),
+      }),
+    )
+    .query(async ({ ctx, input }) => {
+      const project = await getProjectOrThrow(ctx, input.projectId);
+      return buildWorkflowVisualDebugSnapshot(ctx, project, input.runId);
+    }),
+
+  workflowNodeInspect: publicProcedure
+    .input(
+      z.object({
+        projectId: ProjectIdSchema,
+        runId: WorkflowExecutionIdSchema.optional(),
+        nodeDefinitionId: WorkflowNodeDefinitionIdSchema,
+      }),
+    )
+    .query(async ({ ctx, input }) => {
+      const project = await getProjectOrThrow(ctx, input.projectId);
+      return buildNodeInspectProjection(ctx, project, {
+        nodeDefinitionId: input.nodeDefinitionId,
+        runId: input.runId,
+      });
+    }),
+
   dashboardSnapshot: publicProcedure
     .input(z.object({ projectId: ProjectIdSchema }))
     .query(async ({ ctx, input }) => {
       const project = await getProjectOrThrow(ctx, input.projectId);
-      const workflowSnapshot = await buildWorkflowSnapshot(ctx, project);
-      const schedules = await ctx.schedulerService.list(project.id);
-      const openEscalations = await ctx.escalationService.listProjectQueue(project.id);
-      const controlState = await getProjectControlState(ctx, project.id);
-      const blockedActions = deriveBlockedActions(controlState);
-      const health = deriveHealthSummary(
-        workflowSnapshot,
-        schedules,
-        openEscalations,
-        controlState,
-      );
-
-      return ProjectDashboardSnapshotSchema.parse({
-        project: getProjectIdentity(project),
-        health,
-        controlProjection: workflowSnapshot.controlProjection,
-        workflowSnapshot,
-        schedules,
-        openEscalations,
-        blockedActions,
-        packageDefaultIntake: project.packageDefaultIntake,
-        diagnostics: {
-          runtimePosture: 'single_process_local',
-          degradedReasonCode: workflowSnapshot.diagnostics.degradedReasonCode,
-        },
-      });
+      return buildProjectDashboardSnapshot(ctx, project);
     }),
 
   configurationSnapshot: publicProcedure

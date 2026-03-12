@@ -11,6 +11,10 @@ export default defineConfig({
       '@nous/web/server/bootstrap': resolve(__dirname, '../web/server/bootstrap.ts'),
       '@nous/web/server/trpc/root': resolve(__dirname, '../web/server/trpc/root.ts'),
       '@nous/shared': resolve(__dirname, '../../shared/src/index.ts'),
+      '@nous/autonomic-config': resolve(
+        __dirname,
+        '../../autonomic/config/src/index.ts',
+      ),
       '@nous/autonomic-storage': resolve(
         __dirname,
         '../../autonomic/storage/src/index.ts',
@@ -30,6 +34,14 @@ export default defineConfig({
       '@nous/subcortex-tools': resolve(
         __dirname,
         '../../subcortex/tools/src/index.ts',
+      ),
+      '@nous/subcortex-artifacts': resolve(
+        __dirname,
+        '../../subcortex/artifacts/src/index.ts',
+      ),
+      '@nous/subcortex-escalation': resolve(
+        __dirname,
+        '../../subcortex/escalation/src/index.ts',
       ),
       '@nous/subcortex-registry': resolve(
         __dirname,
@@ -51,6 +63,10 @@ export default defineConfig({
         __dirname,
         '../../subcortex/projects/src/index.ts',
       ),
+      '@nous/subcortex-scheduler': resolve(
+        __dirname,
+        '../../subcortex/scheduler/src/index.ts',
+      ),
       '@nous/subcortex-router': resolve(
         __dirname,
         '../../subcortex/router/src/index.ts',
@@ -61,6 +77,22 @@ export default defineConfig({
       ),
       '@nous/subcortex-mao': resolve(__dirname, '../../subcortex/mao/src/index.ts'),
       '@nous/subcortex-gtm': resolve(__dirname, '../../subcortex/gtm/src/index.ts'),
+      '@nous/subcortex-workflows': resolve(
+        __dirname,
+        '../../subcortex/workflows/src/index.ts',
+      ),
+      '@nous/subcortex-communication-gateway': resolve(
+        __dirname,
+        '../../subcortex/communication-gateway/src/index.ts',
+      ),
+      '@nous/subcortex-endpoint-trust': resolve(
+        __dirname,
+        '../../subcortex/endpoint-trust/src/index.ts',
+      ),
+      '@nous/subcortex-voice-control': resolve(
+        __dirname,
+        '../../subcortex/voice-control/src/index.ts',
+      ),
       '@nous/cortex-pfc': resolve(__dirname, '../../cortex/pfc/src/index.ts'),
       '@nous/cortex-core': resolve(__dirname, '../../cortex/core/src/index.ts'),
     },

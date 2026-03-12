@@ -43,7 +43,7 @@ describe('RegistryReleaseSubmissionInputSchema', () => {
         targets_version: 1,
         trusted_root_key_ids: ['root-a'],
         delegated_key_ids: [],
-        metadata_expires_at: '2026-03-12T00:00:00.000Z',
+        metadata_expires_at: '2027-03-12T00:00:00.000Z',
         artifact_digest: 'sha256:abc123',
         metadata_digest: 'sha256:def456',
       },

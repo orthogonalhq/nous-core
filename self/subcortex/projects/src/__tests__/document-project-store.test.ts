@@ -117,10 +117,10 @@ describe('DocumentProjectStore', () => {
         routeByPriority: {
           low: ['projects'],
           medium: ['projects'],
-          high: ['projects', 'chat'],
-          critical: ['projects', 'chat', 'mao'],
+          high: ['projects', 'chat', 'mobile'],
+          critical: ['projects', 'chat', 'mao', 'mobile'],
         },
-        acknowledgementSurfaces: ['projects', 'chat'],
+        acknowledgementSurfaces: ['projects', 'chat', 'mobile'],
         mirrorToChat: false,
       },
     } as any);

@@ -22,7 +22,7 @@ const MODEL_ROLES = [
   'vision',
 ] as const;
 
-const ESCALATION_SURFACES = ['projects', 'chat', 'mao'] as const;
+const ESCALATION_SURFACES = ['projects', 'chat', 'mao', 'mobile'] as const;
 
 function serializeSurfaces(values: readonly InAppEscalationSurface[]): string {
   return values.join(', ');
