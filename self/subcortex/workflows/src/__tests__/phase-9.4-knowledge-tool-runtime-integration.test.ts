@@ -37,6 +37,7 @@ const projectConfig = {
               type: 'tool-execution' as const,
               toolName: 'refresh_project_knowledge',
               inputMappingRef: 'mapping://refresh',
+              resultSchemaRef: 'schema://node-output/refresh',
             },
           },
         ],
