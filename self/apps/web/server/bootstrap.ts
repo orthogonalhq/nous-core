@@ -32,7 +32,12 @@ import {
   createPfcEvaluator,
   createPfcMutationEvaluator,
 } from '@nous/cortex-pfc';
-import { CoreExecutor } from '@nous/cortex-core';
+import {
+  CoreExecutor,
+  GatewayRuntimeIngressAdapter,
+  PassthroughOutputSchemaValidator,
+  createPrincipalSystemGatewayRuntime,
+} from '@nous/cortex-core';
 import { DocumentProjectStore } from '@nous/subcortex-projects';
 import { DocumentArtifactStore } from '@nous/subcortex-artifacts';
 import { DocumentEscalationStore, EscalationService } from '@nous/subcortex-escalation';
@@ -63,6 +68,7 @@ import { GtmGateCalculator } from '@nous/subcortex-gtm';
 import { VoiceControlService } from '@nous/subcortex-voice-control';
 import { MemoryAccessPolicyEngine } from '@nous/memory-access';
 import type { NousContext } from './context';
+import type { IIngressGateway, IProjectApi, ModelRole } from '@nous/shared';
 
 const MOCK_PROVIDER_ID = '00000000-0000-0000-0000-000000000001' as ProviderId;
 
@@ -152,6 +158,18 @@ function resolveStmCompactionPolicy(config: unknown): StmCompactionPolicy {
   });
 }
 
+function createBootstrapIngressShim(): IIngressGateway {
+  return {
+    submit: async (envelope) => ({
+      outcome: 'rejected',
+      reason: 'workflow_admission_blocked',
+      reason_code: 'web_bootstrap_ingress_unwired',
+      evidence_ref: `ingress:${envelope.trigger_id}`,
+      evidence_refs: ['web bootstrap does not wire ingress dispatch'],
+    }),
+  };
+}
+
 let cachedContext: NousContext | null = null;
 
 export function clearNousContextCache(): void {
@@ -234,17 +252,12 @@ export function createNousContext(): NousContext {
     modelRouter: router,
     toolExecutor,
   });
+  let schedulerIngressGateway = createBootstrapIngressShim();
   const schedulerService = new SchedulerService({
     scheduleStore,
     projectStore,
     ingressGateway: {
-      submit: async (envelope) => ({
-        outcome: 'rejected',
-        reason: 'workflow_admission_blocked',
-        reason_code: 'web_bootstrap_ingress_unwired',
-        evidence_ref: `ingress:${envelope.trigger_id}`,
-        evidence_refs: ['web bootstrap does not wire ingress dispatch'],
-      }),
+      submit: async (envelope) => schedulerIngressGateway.submit(envelope),
     },
   });
   const escalationService = new EscalationService({
@@ -305,6 +318,142 @@ export function createNousContext(): NousContext {
   };
   const traceSensitiveData = cfg.security?.traceSensitiveData ?? false;
 
+  const createGatewayProjectApi = (projectId: ProjectId): IProjectApi => ({
+    memory: {
+      read: async () => [],
+      write: async (candidate) => mwcPipeline.submit(candidate, projectId),
+      retrieve: async () => [],
+    },
+    model: {
+      invoke: async (role: ModelRole, input: unknown) => {
+        const traceId = randomUUID() as TraceId;
+        const route = await router.routeWithEvidence(role, {
+          projectId,
+          traceId,
+          modelRequirements: {
+            profile: 'review-standard',
+            fallbackPolicy: 'block_if_unmet',
+          },
+        });
+        const provider = getProvider(route.providerId);
+        if (!provider) {
+          throw new Error(`Provider ${route.providerId} not found`);
+        }
+        return provider.invoke({ role, input, projectId, traceId });
+      },
+      stream: async function* (role: ModelRole, input: unknown) {
+        const traceId = randomUUID() as TraceId;
+        const route = await router.routeWithEvidence(role, {
+          projectId,
+          traceId,
+          modelRequirements: {
+            profile: 'review-standard',
+            fallbackPolicy: 'block_if_unmet',
+          },
+        });
+        const provider = getProvider(route.providerId);
+        if (!provider) {
+          throw new Error(`Provider ${route.providerId} not found`);
+        }
+        yield* provider.stream({ role, input, projectId, traceId });
+      },
+    },
+    tool: {
+      execute: async (name, params) => toolExecutor.execute(name, params, projectId),
+      list: async (capabilities) => {
+        const tools = await toolExecutor.listTools();
+        if (!capabilities || capabilities.length === 0) {
+          return tools;
+        }
+        return tools.filter((tool) =>
+          capabilities.every((capability) => tool.capabilities.includes(capability)),
+        );
+      },
+    },
+    artifact: {
+      store: async (data) => artifactStore.store({ ...data, projectId }),
+      retrieve: async (request) => artifactStore.retrieve({ ...request, projectId }),
+      list: async (filters) => artifactStore.list(projectId, filters),
+      delete: async (request) => artifactStore.delete({ ...request, projectId }),
+    },
+    escalation: {
+      notify: async (channel, message) =>
+        escalationService.notify({
+          projectId,
+          channel,
+          priority: 'medium',
+          timestamp: new Date().toISOString(),
+          triggerReason: 'gateway_runtime_notify',
+          requiredAction: 'Gateway runtime escalation',
+          context: message,
+        }),
+      request: async (decision) => {
+        const escalationId = await escalationService.notify(decision);
+        return {
+          escalationId,
+          action: 'notified',
+          message: decision.context,
+          respondedAt: new Date().toISOString(),
+          channel: decision.channel,
+        };
+      },
+    },
+    scheduler: {
+      register: async (schedule) => schedulerService.register({ ...schedule, projectId }),
+      cancel: async (id) => schedulerService.cancel(id),
+    },
+    project: {
+      config: () =>
+        ({
+          id: projectId,
+          name: `Project ${projectId}`,
+          type: 'software_project',
+          pfcTier: 'standard',
+          governanceDefaults: {
+            defaultNodeGovernance: 'must',
+            requireExplicitReviewForShouldDeviation: true,
+            blockedActionFeedbackMode: 'reason_coded',
+          },
+          modelAssignments: undefined,
+          memoryAccessPolicy: {
+            globalRead: [],
+            globalWrite: [],
+            projectPolicies: [],
+            defaultPolicy: {
+              canReadFrom: ['self'],
+              canBeReadBy: ['self'],
+              inheritsGlobal: true,
+            },
+          },
+          escalationChannels: ['in_app'],
+          escalationPreferences: {
+            routeByPriority: {
+              low: ['projects'],
+              medium: ['projects'],
+              high: ['projects', 'chat', 'mobile'],
+              critical: ['projects', 'chat', 'mao', 'mobile'],
+            },
+            acknowledgementSurfaces: ['projects', 'chat', 'mobile'],
+            mirrorToChat: true,
+          },
+          workflow: {
+            definitions: [],
+          },
+          packageDefaultIntake: [],
+          retrievalBudgetTokens: 500,
+          createdAt: new Date().toISOString(),
+          updatedAt: new Date().toISOString(),
+        }) as any,
+      state: () =>
+        ({
+          status: 'active',
+          activeWorkflows: 0,
+          lastActivityAt: new Date().toISOString(),
+        }) as any,
+      log: () => undefined,
+    },
+  });
+
   const coreExecutor = new CoreExecutor({
     Cortex,
     router,
@@ -320,8 +469,24 @@ export function createNousContext(): NousContext {
     traceSensitiveData,
   });
 
+  const gatewayRuntime = createPrincipalSystemGatewayRuntime({
+    modelRouter: router,
+    getProvider: (providerId) => getProvider(providerId as ProviderId),
+    getProjectApi: (projectId: ProjectId) => createGatewayProjectApi(projectId),
+    toolExecutor,
+    pfc: Cortex,
+    workflowEngine,
+    projectStore,
+    scheduler: schedulerService,
+    escalationService,
+    witnessService,
+    outputSchemaValidator: new PassthroughOutputSchemaValidator(),
+  });
+  schedulerIngressGateway = new GatewayRuntimeIngressAdapter(gatewayRuntime);
+
   cachedContext = {
     coreExecutor,
+    gatewayRuntime,
     projectStore,
     stmStore,
     mwcPipeline,
