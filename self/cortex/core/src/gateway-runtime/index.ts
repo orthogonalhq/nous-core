@@ -1,5 +1,16 @@
 export { createPrincipalSystemGatewayRuntime, PrincipalSystemGatewayRuntime } from './principal-system-runtime.js';
 export { GatewayRuntimeIngressAdapter } from './ingress-adapter.js';
+export { DocumentBacklogStore } from './backlog-store.js';
+export { SystemBacklogQueue } from './backlog-queue.js';
+export {
+  BacklogAnalyticsSchema,
+  BacklogEntrySchema,
+  BacklogEntryStatusSchema,
+  BacklogPressureTrendSchema,
+  BacklogPrioritySchema,
+  BacklogQueueConfigSchema,
+  GATEWAY_RUNTIME_BACKLOG_COLLECTION,
+} from './backlog-types.js';
 export {
   GATEWAY_CHAT_COMPLETION_SCHEMA_REF,
   GatewayBackedTurnExecutor,
@@ -27,5 +38,14 @@ export type {
   SystemSubmissionReceipt,
   SystemTaskSubmission,
 } from './types.js';
+export type {
+  BacklogAnalytics,
+  BacklogEntry,
+  BacklogEntryStatus,
+  BacklogPriority,
+  BacklogPressureTrend,
+  BacklogQueueConfig,
+} from './backlog-types.js';
+export type { SystemBacklogQueueDeps, SystemBacklogSubmission } from './backlog-queue.js';
 export type { GatewayRuntimeProjectApiDeps } from './project-api.js';
 export type { GatewayBackedTurnExecutorDeps } from './gateway-turn-executor.js';

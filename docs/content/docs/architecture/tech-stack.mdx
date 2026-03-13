@@ -123,6 +123,10 @@ SQLite via better-sqlite3. Handles STM, project metadata, execution traces, conf
 
 As of Phase 8.2, the local document-store path backs the production `@nous/memory-ltm` runtime over canonical collections such as `memory_entries`, `memory_mutation_audit`, and `memory_tombstones`.
 
+Phase 12.5 extends the same local-first document-store posture into `@nous/cortex-core` for the durable System backlog queue. Backlog entries are persisted through the existing `IDocumentStore` seam before execution, restart recovery resets stranded `active` entries to `queued`, and queue analytics remain canonical runtime truth instead of introducing a separate broker or service.
+
+The companion per-endpoint inference lanes in `@nous/subcortex-providers` remain in-process scheduler infrastructure at the provider boundary. They use shared request metadata (`agentClass`, optional external `abortSignal`) plus local lane analytics and exclusive-lease control, but they do not replace routing, failover, or the local-first storage posture.
+
 SQLite remains the document store for local deployments through all phases. For cloud deployments, PostgreSQL fulfills the same interface.
 
 ### Vector Storage (IVectorStore)

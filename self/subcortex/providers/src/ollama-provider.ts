@@ -44,6 +44,7 @@ export class OllamaProvider implements IModelProvider {
     const response = await this.fetchWithTimeout(url, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
+      signal: request.abortSignal,
       body: JSON.stringify({ ...body, stream: false }),
     });
 
@@ -70,6 +71,7 @@ export class OllamaProvider implements IModelProvider {
     const response = await this.fetchWithTimeout(url, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
+      signal: request.abortSignal,
       body: JSON.stringify({ ...body, stream: true }),
     });
 
@@ -151,22 +153,31 @@ export class OllamaProvider implements IModelProvider {
     url: string,
     init: RequestInit,
   ): Promise<Response> {
-    const controller = new AbortController();
-    const timeout = setTimeout(() => controller.abort(), this.timeoutMs);
+    const timeoutController = new AbortController();
+    const timeout = setTimeout(
+      () => timeoutController.abort('provider_timeout'),
+      this.timeoutMs,
+    );
+    const signal = init.signal
+      ? AbortSignal.any([init.signal, timeoutController.signal])
+      : timeoutController.signal;
 
     try {
       const response = await fetch(url, {
         ...init,
-        signal: controller.signal,
+        signal,
       });
       return response;
     } catch (e) {
       if ((e as Error).name === 'AbortError') {
-        throw new NousError(
-          `Ollama request timed out after ${this.timeoutMs}ms`,
-          'PROVIDER_UNAVAILABLE',
-          { failoverReasonCode: 'PRV-PROVIDER-UNAVAILABLE' },
-        );
+        if (timeoutController.signal.aborted) {
+          throw new NousError(
+            `Ollama request timed out after ${this.timeoutMs}ms`,
+            'PROVIDER_UNAVAILABLE',
+            { failoverReasonCode: 'PRV-PROVIDER-UNAVAILABLE' },
+          );
+        }
+        throw new NousError('Ollama request aborted.', 'ABORTED');
       }
       throw new NousError(
         `Ollama not available at ${this.endpoint}: ${(e as Error).message}`,

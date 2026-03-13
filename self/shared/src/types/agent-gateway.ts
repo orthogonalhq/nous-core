@@ -395,11 +395,20 @@ export const AgentErrorResultSchema = AgentResultBaseSchema.extend({
 }).strict();
 export type AgentErrorResult = z.infer<typeof AgentErrorResultSchema>;
 
+export const AgentSuspendedResultSchema = AgentResultBaseSchema.extend({
+  status: z.literal('suspended'),
+  reason: z.string().min(1),
+  resumeWhen: z.literal('lease_release'),
+  detail: z.record(z.unknown()).optional(),
+}).strict();
+export type AgentSuspendedResult = z.infer<typeof AgentSuspendedResultSchema>;
+
 export const AgentResultSchema = z.discriminatedUnion('status', [
   AgentCompletedResultSchema,
   AgentEscalatedResultSchema,
   AgentAbortedResultSchema,
   AgentBudgetExhaustedResultSchema,
   AgentErrorResultSchema,
+  AgentSuspendedResultSchema,
 ]);
 export type AgentResult = z.infer<typeof AgentResultSchema>;

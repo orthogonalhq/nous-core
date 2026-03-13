@@ -75,7 +75,9 @@ export {
 } from './prompts/index.js';
 export {
   createPrincipalSystemGatewayRuntime,
+  DocumentBacklogStore,
   GatewayRuntimeIngressAdapter,
+  SystemBacklogQueue,
   GatewayBackedTurnExecutor,
   GatewayTraceRecorder,
   GATEWAY_CHAT_COMPLETION_SCHEMA_REF,
@@ -92,6 +94,10 @@ export type {
   GatewayBootStatus,
   GatewayBootStep,
   GatewayHealthSnapshot,
+  BacklogAnalytics,
+  BacklogEntry,
+  BacklogPriority,
+  BacklogQueueConfig,
   GatewaySubmissionSource,
   GatewayBackedTurnExecutorDeps,
   GatewayRuntimeProjectApiDeps,

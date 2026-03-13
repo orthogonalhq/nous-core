@@ -343,6 +343,7 @@ export function createNousContext(): NousContext {
   });
 
   const gatewayRuntime = createPrincipalSystemGatewayRuntime({
+    documentStore,
     modelRouter: router,
     getProvider: (providerId) => getProvider(providerId as ProviderId),
     getProjectApi: (projectId: ProjectId) => createRuntimeProjectApi(projectId),
@@ -354,6 +355,12 @@ export function createNousContext(): NousContext {
     escalationService,
     witnessService,
     outputSchemaValidator: new DefaultSchemaRefValidator(),
+  });
+  providerRegistry.onLeaseReleased((event) => {
+    void gatewayRuntime.notifyLeaseReleased({
+      laneKey: event.laneKey,
+      leaseId: event.leaseId,
+    });
   });
   schedulerIngressGateway = new GatewayRuntimeIngressAdapter(gatewayRuntime);
 

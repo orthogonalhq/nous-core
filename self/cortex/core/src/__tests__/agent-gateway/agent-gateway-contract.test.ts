@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { AgentResultSchema } from '@nous/shared';
-import { createBaseInput, createGatewayHarness } from './helpers.js';
+import { createBaseInput, createGatewayHarness, createStampedPacket } from './helpers.js';
 
 describe('AgentGateway contract', () => {
   it('emits a valid completed result through the shared union', async () => {
@@ -26,11 +26,7 @@ describe('AgentGateway contract', () => {
           output: request.output,
           summary: request.summary,
           artifactRefs: ['artifact-1'],
-          v3Packet: {
-            nous: {
-              v: 3,
-            },
-          },
+          v3Packet: createStampedPacket(),
         }),
       },
     });

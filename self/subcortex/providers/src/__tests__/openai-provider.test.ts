@@ -111,4 +111,30 @@ describe('OpenAiCompatibleProvider', () => {
       expect((e as NousError).code).toBe('PROVIDER_AUTH_FAILED');
     }
   });
+
+  it('invoke() surfaces external abort as ABORTED', async () => {
+    const provider = new OpenAiCompatibleProvider(MOCK_CONFIG, {
+      apiKey: 'test-key',
+    });
+    vi.mocked(fetch).mockImplementation(async (_url, init) => {
+      if ((init as RequestInit).signal?.aborted) {
+        const error = new Error('aborted');
+        error.name = 'AbortError';
+        throw error;
+      }
+      throw new Error('expected aborted signal');
+    });
+
+    const controller = new AbortController();
+    controller.abort();
+
+    await expect(
+      provider.invoke({
+        role: 'reasoner',
+        input: { prompt: 'hi' },
+        traceId: '00000000-0000-0000-0000-000000000002' as any,
+        abortSignal: controller.signal,
+      }),
+    ).rejects.toMatchObject({ code: 'ABORTED' });
+  });
 });

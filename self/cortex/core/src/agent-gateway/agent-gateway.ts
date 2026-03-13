@@ -169,6 +169,7 @@ export class AgentGateway implements IAgentGateway {
           input: { systemPrompt, context, tools },
           projectId,
           traceId,
+          agentClass: this.agentClass,
         });
 
         budgetTracker.recordModelUsage(modelResponse.usage);
@@ -235,13 +236,25 @@ export class AgentGateway implements IAgentGateway {
         }
       }
     } catch (error) {
-      const result = this.buildErrorResult(
-        error instanceof Error ? error.message : String(error),
-        sequencer.snapshot(),
-        budgetTracker,
-        evidenceRefs,
-        { traceId },
-      );
+      const result =
+        error instanceof NousError && error.code === 'LEASE_HELD'
+          ? this.buildSuspendedResult(
+            error.message,
+            sequencer.snapshot(),
+            budgetTracker,
+            evidenceRefs,
+            {
+              traceId,
+              ...error.context,
+            },
+          )
+          : this.buildErrorResult(
+            error instanceof Error ? error.message : String(error),
+            sequencer.snapshot(),
+            budgetTracker,
+            evidenceRefs,
+            { traceId },
+          );
       return this.finalizeTerminalResult(result, 'gateway:error', traceId, projectId);
     }
   }
@@ -980,6 +993,24 @@ export class AgentGateway implements IAgentGateway {
     });
   }
 
+  private buildSuspendedResult(
+    reason: string,
+    correlation: ReturnType<CorrelationSequencer['snapshot']>,
+    budgetTracker: BudgetTracker,
+    evidenceRefs: TraceEvidenceReference[],
+    detail?: Record<string, unknown>,
+  ): AgentResult {
+    return AgentResultSchema.parse({
+      status: 'suspended',
+      reason,
+      resumeWhen: 'lease_release',
+      detail,
+      correlation,
+      usage: budgetTracker.getUsage(),
+      evidenceRefs: [...evidenceRefs],
+    });
+  }
+
   private refreshTerminalResult(
     result: AgentResult,
     correlation: ReturnType<CorrelationSequencer['snapshot']>,
@@ -993,6 +1024,7 @@ export class AgentGateway implements IAgentGateway {
       case 'escalated':
       case 'aborted':
       case 'error':
+      case 'suspended':
         return AgentResultSchema.parse({
           ...result,
           correlation,
@@ -1008,6 +1040,8 @@ export class AgentGateway implements IAgentGateway {
           contextFrameCount,
           startedAt,
         );
+      default:
+        return result;
     }
   }
 
@@ -1257,6 +1291,15 @@ function projectChildResult(result: AgentResult): Record<string, unknown> {
       return {
         status: result.status,
         reason: result.reason,
+        detail: result.detail,
+        correlation: result.correlation,
+        usage: result.usage,
+      };
+    case 'suspended':
+      return {
+        status: result.status,
+        reason: result.reason,
+        resumeWhen: result.resumeWhen,
         detail: result.detail,
         correlation: result.correlation,
         usage: result.usage,

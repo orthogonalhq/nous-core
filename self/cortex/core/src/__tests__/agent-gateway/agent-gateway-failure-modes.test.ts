@@ -1,5 +1,5 @@
 import { describe, expect, it, vi } from 'vitest';
-import { ValidationError } from '@nous/shared';
+import { NousError, ValidationError } from '@nous/shared';
 import { createBaseInput, createGatewayHarness } from './helpers.js';
 
 describe('AgentGateway failure modes', () => {
@@ -35,5 +35,40 @@ describe('AgentGateway failure modes', () => {
     );
 
     expect(result.status).toBe('error');
+  });
+
+  it('returns suspended when the provider lane lease is held', async () => {
+    const { gateway } = createGatewayHarness({
+      modelProvider: {
+        invoke: vi.fn().mockRejectedValue(
+          new NousError('Lane lease held.', 'LEASE_HELD', {
+            laneKey: 'lane:test',
+            leaseId: 'lease-1',
+          }),
+        ),
+        stream: vi.fn(),
+        getConfig: vi.fn().mockReturnValue({
+          id: '550e8400-e29b-41d4-a716-446655440105',
+          name: 'test-provider',
+          type: 'text',
+          modelId: 'test-model',
+          isLocal: true,
+          capabilities: ['reasoning'],
+        }),
+      } as never,
+    });
+
+    const result = await gateway.run(
+      createBaseInput({
+        budget: {
+          maxTurns: 1,
+          maxTokens: 200,
+          timeoutMs: 1000,
+        },
+      }),
+    );
+
+    expect(result.status).toBe('suspended');
+    expect(result.reason).toContain('Lane lease held');
   });
 });

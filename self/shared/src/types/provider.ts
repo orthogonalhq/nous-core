@@ -27,12 +27,27 @@ export const ModelProviderConfigSchema = z.object({
 });
 export type ModelProviderConfig = z.infer<typeof ModelProviderConfigSchema>;
 
+export const ModelRequestAgentClassSchema = z.enum([
+  'Cortex::Principal',
+  'Cortex::System',
+  'Orchestrator',
+  'Worker',
+]);
+export type ModelRequestAgentClass = z.infer<typeof ModelRequestAgentClassSchema>;
+
+const AbortSignalSchema = z.custom<AbortSignal>(
+  (value) => typeof AbortSignal !== 'undefined' && value instanceof AbortSignal,
+  'Expected AbortSignal',
+);
+
 // --- Model Request ---
 export const ModelRequestSchema = z.object({
   role: ModelRoleSchema,
   input: z.unknown(),
   projectId: ProjectIdSchema.optional(),
   traceId: TraceIdSchema,
+  agentClass: ModelRequestAgentClassSchema.optional(),
+  abortSignal: AbortSignalSchema.optional(),
 });
 export type ModelRequest = z.infer<typeof ModelRequestSchema>;
 
