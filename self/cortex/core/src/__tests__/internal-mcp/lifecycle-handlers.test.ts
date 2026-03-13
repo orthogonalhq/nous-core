@@ -195,6 +195,11 @@ describe('Internal MCP lifecycle handlers', () => {
 
     expect(result.output).toEqual({ done: true });
     expect(result.v3Packet.nous.v).toBe(3);
+    expect(result.v3Packet.payload).toMatchObject({
+      schema: 'schema://completion',
+      artifact_type: 'model-call',
+      data: { done: true },
+    });
     expect(completeNode).toHaveBeenCalledOnce();
   });
 
