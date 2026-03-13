@@ -5,6 +5,7 @@ import type {
   GatewayBudget,
   GatewayOutboxEvent,
   IAgentGateway,
+  IDocumentStore,
   IGatewayOutboxSink,
   IngressDispatchOutcome,
   IngressTriggerEnvelope,
@@ -18,6 +19,8 @@ import {
 } from '../internal-mcp/index.js';
 import { ORCHESTRATOR_SYSTEM_PROMPT } from '../prompts/index.js';
 import { WorkmodeAdmissionGuard } from '../workmode/admission-guard.js';
+import type { BacklogPriority, BacklogEntry } from './backlog-types.js';
+import { SystemBacklogQueue } from './backlog-queue.js';
 import { GatewayRuntimeHealthSink } from './runtime-health.js';
 import { SystemContextReplicaProvider } from './system-context-replica.js';
 import {
@@ -89,6 +92,50 @@ function mapSubmissionSource(
   return 'hook';
 }
 
+function createInMemoryDocumentStore(): IDocumentStore {
+  const rows = new Map<string, Map<string, unknown>>();
+  return {
+    async put<T>(collection: string, id: string, document: T): Promise<void> {
+      const bucket = rows.get(collection) ?? new Map<string, unknown>();
+      bucket.set(id, document);
+      rows.set(collection, bucket);
+    },
+    async get<T>(collection: string, id: string): Promise<T | null> {
+      return (rows.get(collection)?.get(id) as T | undefined) ?? null;
+    },
+    async query<T>(
+      collection: string,
+      filter: {
+        where?: Record<string, unknown>;
+        orderBy?: string;
+        orderDirection?: 'asc' | 'desc';
+      },
+    ): Promise<T[]> {
+      let values = Array.from(rows.get(collection)?.values() ?? []) as Array<Record<string, unknown>>;
+      if (filter.where) {
+        values = values.filter((value) =>
+          Object.entries(filter.where ?? {}).every(([key, expected]) => value[key] === expected),
+        );
+      }
+      if (filter.orderBy) {
+        const direction = filter.orderDirection === 'desc' ? -1 : 1;
+        values = [...values].sort((left, right) => {
+          const leftValue = left[filter.orderBy!] as string | number | undefined;
+          const rightValue = right[filter.orderBy!] as string | number | undefined;
+          if (leftValue === rightValue) {
+            return 0;
+          }
+          return leftValue! > rightValue! ? direction : -direction;
+        });
+      }
+      return values as T[];
+    },
+    async delete(collection: string, id: string): Promise<boolean> {
+      return rows.get(collection)?.delete(id) ?? false;
+    },
+  };
+}
+
 export class PrincipalSystemGatewayRuntime
 implements IPrincipalSystemGatewayRuntime, ISystemInboxSubmissionService {
   private readonly healthSink = new GatewayRuntimeHealthSink();
@@ -102,7 +149,7 @@ implements IPrincipalSystemGatewayRuntime, ISystemInboxSubmissionService {
   private readonly systemGateway: IAgentGateway;
   private readonly principalTools: ToolDefinition[];
   private readonly systemTools: ToolDefinition[];
-  private systemQueue: Promise<void> = Promise.resolve();
+  private readonly systemBacklogQueue: SystemBacklogQueue;
 
   constructor(private readonly deps: PrincipalSystemGatewayRuntimeDeps = {}) {
     this.gatewayFactory = (deps.agentGatewayFactory ?? new AgentGatewayFactory()) as AgentGatewayFactory;
@@ -178,6 +225,13 @@ implements IPrincipalSystemGatewayRuntime, ISystemInboxSubmissionService {
       createInboxFrame('Principal/System inbox exchange ready.', this.now),
     );
     this.healthSink.markInboxReady(this.now());
+    this.systemBacklogQueue = new SystemBacklogQueue({
+      documentStore: this.deps.documentStore ?? createInMemoryDocumentStore(),
+      healthSink: this.healthSink,
+      now: this.now,
+      config: this.deps.backlogConfig,
+      executeEntry: async (entry) => this.executeSystemEntry(entry),
+    });
   }
 
   getPrincipalGateway(): IAgentGateway {
@@ -215,6 +269,7 @@ implements IPrincipalSystemGatewayRuntime, ISystemInboxSubmissionService {
   async submitTaskToSystem(input: SystemTaskSubmission): Promise<SystemSubmissionReceipt> {
     return this.enqueueSystemSubmission({
       source: 'principal_tool',
+      priority: 'high',
       instructions: input.task,
       payload: {
         detail: input.detail,
@@ -237,6 +292,7 @@ implements IPrincipalSystemGatewayRuntime, ISystemInboxSubmissionService {
   ): Promise<SystemSubmissionReceipt> {
     return this.enqueueSystemSubmission({
       source: 'principal_tool',
+      priority: this.mapDirectivePriority(input.priority),
       instructions: input.directive,
       payload: {
         detail: input.detail,
@@ -256,6 +312,12 @@ implements IPrincipalSystemGatewayRuntime, ISystemInboxSubmissionService {
   ): Promise<IngressDispatchOutcome> {
     const receipt = await this.enqueueSystemSubmission({
       source: mapSubmissionSource(envelope.trigger_type),
+      priority:
+        envelope.trigger_type === 'scheduler'
+          ? 'low'
+          : envelope.trigger_type === 'system_event'
+            ? 'normal'
+            : 'normal',
       instructions: `Process ${envelope.trigger_type} event ${envelope.event_name}.`,
       payload: {
         envelope,
@@ -279,11 +341,16 @@ implements IPrincipalSystemGatewayRuntime, ISystemInboxSubmissionService {
   }
 
   async whenIdle(): Promise<void> {
-    await this.systemQueue;
+    await this.systemBacklogQueue.whenIdle();
+  }
+
+  async notifyLeaseReleased(event: { laneKey: string; leaseId?: string }): Promise<void> {
+    await this.systemBacklogQueue.notifyLeaseReleased(event);
   }
 
   private async enqueueSystemSubmission(args: {
     source: GatewaySubmissionSource;
+    priority: BacklogPriority;
     instructions: string;
     payload: Record<string, unknown>;
     projectId?: string;
@@ -292,44 +359,19 @@ implements IPrincipalSystemGatewayRuntime, ISystemInboxSubmissionService {
     const acceptedAt = this.now();
     const runId = this.nextRunId();
     const dispatchRef = `gateway-runtime:dispatch:${runId}`;
-    this.healthSink.recordSubmission(args.source, acceptedAt);
-    await this.systemGateway.getInboxHandle().injectContext(args.inboxFrame);
-
-    const queued = this.systemQueue.then(async () => {
-      const traceId = this.nextRunId();
-      const result = await this.systemGateway.run({
-        taskInstructions: args.instructions,
-        payload: args.payload,
-        context: [],
-        budget: DEFAULT_TOP_LEVEL_BUDGET,
-        spawnBudgetCeiling: 12,
-        correlation: {
-          runId: runId as never,
-          parentId: this.systemGateway.agentId,
-          sequence: 0,
-        },
-        execution: {
-          projectId: args.projectId as never,
-          traceId: traceId as never,
-          workmodeId: 'system:implementation',
-        },
-        modelRequirements: this.deps.defaultModelRequirements,
-      });
-
-      this.healthSink.completeSubmission(result);
-      if (result.status === 'escalated') {
-        await this.principalGateway.getInboxHandle().injectContext(
-          createInboxFrame(
-            `System escalation routed to Principal: ${result.reason}`,
-            this.now,
-          ),
-        );
-        this.healthSink.recordEscalationRoutedToPrincipal(this.now());
-      }
-    });
-
-    this.systemQueue = queued.catch(() => {
-      this.healthSink.addIssue('system_submission_queue_failed', 'Cortex::System');
+    await this.systemBacklogQueue.enqueue({
+      id: dispatchRef,
+      runId,
+      dispatchRef,
+      source: args.source,
+      priority: args.priority,
+      instructions: args.instructions,
+      payload: {
+        ...args.payload,
+        inboxFrame: args.inboxFrame,
+      },
+      projectId: args.projectId,
+      acceptedAt,
     });
 
     return {
@@ -338,6 +380,46 @@ implements IPrincipalSystemGatewayRuntime, ISystemInboxSubmissionService {
       acceptedAt,
       source: args.source,
     };
+  }
+
+  private async executeSystemEntry(entry: BacklogEntry) {
+    const traceId = this.nextRunId();
+    const inboxFrame = entry.payload.inboxFrame as ReturnType<typeof createInboxFrame> | undefined;
+    if (inboxFrame) {
+      await this.systemGateway.getInboxHandle().injectContext(inboxFrame);
+    }
+
+    const { inboxFrame: _ignored, ...payload } = entry.payload;
+    const result = await this.systemGateway.run({
+      taskInstructions: entry.instructions,
+      payload,
+      context: [],
+      budget: DEFAULT_TOP_LEVEL_BUDGET,
+      spawnBudgetCeiling: 12,
+      correlation: {
+        runId: entry.runId as never,
+        parentId: this.systemGateway.agentId,
+        sequence: 0,
+      },
+      execution: {
+        projectId: entry.projectId as never,
+        traceId: traceId as never,
+        workmodeId: 'system:implementation',
+      },
+      modelRequirements: this.deps.defaultModelRequirements,
+    });
+
+    if (result.status === 'escalated') {
+      await this.principalGateway.getInboxHandle().injectContext(
+        createInboxFrame(
+          `System escalation routed to Principal: ${result.reason}`,
+          this.now,
+        ),
+      );
+      this.healthSink.recordEscalationRoutedToPrincipal(this.now());
+    }
+
+    return result;
   }
 
   private createGatewayConfig(args: {
@@ -469,6 +551,21 @@ implements IPrincipalSystemGatewayRuntime, ISystemInboxSubmissionService {
 
   private nextRunId(): string {
     return this.idFactory();
+  }
+
+  private mapDirectivePriority(
+    priority: SystemDirectiveInjection['priority'],
+  ): BacklogPriority {
+    switch (priority) {
+      case 'low':
+        return 'low';
+      case 'high':
+        return 'high';
+      case 'critical':
+        return 'critical';
+      default:
+        return 'normal';
+    }
   }
 }
 

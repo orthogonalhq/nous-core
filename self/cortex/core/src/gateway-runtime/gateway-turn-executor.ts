@@ -326,6 +326,9 @@ export class GatewayBackedTurnExecutor implements ICoreExecutor {
     if (result.status === 'aborted') {
       return `[aborted: ${result.reason}]`;
     }
+    if (result.status === 'suspended') {
+      return `[suspended: ${result.reason}]`;
+    }
     return `[error: ${result.reason}]`;
   }
 

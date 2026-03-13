@@ -2,6 +2,7 @@ import { describe, expect, it, vi } from 'vitest';
 import { createPrincipalSystemGatewayRuntime } from '../../gateway-runtime/index.js';
 import {
   AGENT_ID,
+  createDocumentStore,
   createModelProvider,
   createPfcEngine,
   createProjectApi,
@@ -14,6 +15,7 @@ function createRuntime(args?: {
   workerOutputs?: unknown[];
 }) {
   return createPrincipalSystemGatewayRuntime({
+    documentStore: createDocumentStore(),
     modelProviderByClass: {
       'Cortex::Principal': createModelProvider(
         args?.principalOutputs ?? ['{"response":"idle","toolCalls":[]}'],
@@ -100,6 +102,8 @@ describe('PrincipalSystemGatewayRuntime', () => {
     );
     expect(runtime.getSystemContextReplica().inboxReady).toBe(true);
     expect(runtime.getSystemContextReplica().pendingSystemRuns).toBe(0);
+    expect(runtime.getSystemContextReplica().backlogAnalytics.queuedCount).toBe(0);
+    expect(runtime.getSystemContextReplica().backlogAnalytics.completedInWindow).toBe(1);
   });
 
   it('routes unresolved System escalations back to Principal continuity state', async () => {

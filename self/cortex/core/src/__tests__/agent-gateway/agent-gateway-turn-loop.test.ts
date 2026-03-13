@@ -3,6 +3,7 @@ import {
   createBaseInput,
   createGatewayHarness,
   createInjectedFrame,
+  createStampedPacket,
   createToolSurface,
 } from './helpers.js';
 
@@ -32,11 +33,7 @@ describe('AgentGateway turn loop', () => {
       lifecycleHooks: {
         taskComplete: async (request) => ({
           output: request.output,
-          v3Packet: {
-            nous: {
-              v: 3,
-            },
-          },
+          v3Packet: createStampedPacket(),
         }),
       },
     });

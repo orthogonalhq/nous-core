@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { createBaseInput, createGatewayHarness } from './helpers.js';
+import { createBaseInput, createGatewayHarness, createStampedPacket } from './helpers.js';
 
 describe('AgentGateway messaging', () => {
   it('returns aborted when the inbox contains an abort signal before the next model call', async () => {
@@ -43,11 +43,7 @@ describe('AgentGateway messaging', () => {
         dispatchAgent: async () => ({
           status: 'completed',
           output: { child: 'done' },
-          v3Packet: {
-            nous: {
-              v: 3,
-            },
-          },
+          v3Packet: createStampedPacket(),
           summary: 'child finished',
           artifactRefs: [],
           correlation: {
@@ -65,11 +61,7 @@ describe('AgentGateway messaging', () => {
         }),
         taskComplete: async (request) => ({
           output: request.output,
-          v3Packet: {
-            nous: {
-              v: 3,
-            },
-          },
+          v3Packet: createStampedPacket(),
         }),
       },
     });

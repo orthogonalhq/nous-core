@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { createBaseInput, createGatewayHarness } from './helpers.js';
+import { createBaseInput, createGatewayHarness, createStampedPacket } from './helpers.js';
 
 describe('AgentGateway budgets', () => {
   it('returns budget_exhausted when max turns are reached without completion', async () => {
@@ -50,11 +50,7 @@ describe('AgentGateway budgets', () => {
         dispatchAgent: async () => ({
           status: 'completed',
           output: { done: true },
-          v3Packet: {
-            nous: {
-              v: 3,
-            },
-          },
+          v3Packet: createStampedPacket(),
           correlation: {
             runId: createBaseInput().correlation.runId,
             parentId: createBaseInput().correlation.parentId,

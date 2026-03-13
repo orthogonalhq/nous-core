@@ -13,6 +13,10 @@ import {
   type GatewaySubmissionSource,
   type SystemContextReplica,
 } from './types.js';
+import {
+  BacklogAnalyticsSchema,
+  type BacklogAnalytics,
+} from './backlog-types.js';
 
 const TRACKED_AGENT_CLASSES = [
   'Cortex::Principal',
@@ -31,6 +35,7 @@ interface MutableGatewayHealth {
   lastSubmissionAt?: string;
   lastSubmissionSource?: GatewaySubmissionSource;
   lastResultStatus?: AgentResult['status'];
+  backlogAnalytics: BacklogAnalytics;
   issueCodes: string[];
 }
 
@@ -41,12 +46,29 @@ export class GatewayRuntimeHealthSink {
   private pendingSystemRuns = 0;
 
   constructor() {
+    const emptyAnalytics = BacklogAnalyticsSchema.parse({
+      queuedCount: 0,
+      activeCount: 0,
+      suspendedCount: 0,
+      activeCapacity: 1,
+      windowStart: new Date(0).toISOString(),
+      windowEnd: new Date(0).toISOString(),
+      completedInWindow: 0,
+      failedInWindow: 0,
+      avgWaitMs: 0,
+      avgExecutionMs: 0,
+      p95WaitMs: 0,
+      peakQueueDepth: 0,
+      pressureTrend: 'idle',
+    });
+
     for (const agentClass of TRACKED_AGENT_CLASSES) {
       this.gatewayHealth.set(agentClass, {
         agentClass,
         agentId: '00000000-0000-0000-0000-000000000000',
         visibleTools: [],
         inboxReady: false,
+        backlogAnalytics: emptyAnalytics,
         issueCodes: [],
       });
     }
@@ -92,13 +114,11 @@ export class GatewayRuntimeHealthSink {
     const gateway = this.requireGateway('Cortex::System');
     gateway.lastSubmissionAt = timestamp;
     gateway.lastSubmissionSource = source;
-    this.pendingSystemRuns += 1;
   }
 
-  completeSubmission(result: AgentResult): void {
+  completeSubmission(result: Pick<AgentResult, 'status'>): void {
     const gateway = this.requireGateway('Cortex::System');
     gateway.lastResultStatus = result.status;
-    this.pendingSystemRuns = Math.max(0, this.pendingSystemRuns - 1);
 
     if (result.status === 'error') {
       this.addIssue('system_runtime_error');
@@ -126,6 +146,13 @@ export class GatewayRuntimeHealthSink {
     }
   }
 
+  updateBacklogAnalytics(analytics: BacklogAnalytics): void {
+    const gateway = this.requireGateway('Cortex::System');
+    gateway.backlogAnalytics = BacklogAnalyticsSchema.parse(analytics);
+    this.pendingSystemRuns =
+      analytics.queuedCount + analytics.activeCount + analytics.suspendedCount;
+  }
+
   getBootSnapshot(): GatewayBootSnapshot {
     return GatewayBootSnapshotSchema.parse({
       status: this.resolveBootStatus(),
@@ -139,6 +166,7 @@ export class GatewayRuntimeHealthSink {
     const gateway = this.requireGateway(agentClass);
     return GatewayHealthSnapshotSchema.parse({
       ...gateway,
+      backlogAnalytics: gateway.backlogAnalytics,
       issueCodes: [...gateway.issueCodes],
       visibleTools: [...gateway.visibleTools],
     });
@@ -153,6 +181,7 @@ export class GatewayRuntimeHealthSink {
       lastSubmissionSource: gateway.lastSubmissionSource,
       lastSystemResultStatus: gateway.lastResultStatus,
       pendingSystemRuns: this.pendingSystemRuns,
+      backlogAnalytics: gateway.backlogAnalytics,
       issueCodes: [...new Set([...this.issueCodes, ...gateway.issueCodes])],
       visibleTools: [...gateway.visibleTools],
     });

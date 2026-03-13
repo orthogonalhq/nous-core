@@ -1,6 +1,7 @@
 import { z } from 'zod';
 import type {
   AgentClass,
+  IDocumentStore,
   IAgentGateway,
   IAgentGatewayFactory,
   IModelProvider,
@@ -21,6 +22,10 @@ import type {
   ToolDefinition,
 } from '@nous/shared';
 import type { InternalMcpOutputSchemaValidator } from '../internal-mcp/types.js';
+import {
+  BacklogAnalyticsSchema,
+  type BacklogQueueConfig,
+} from './backlog-types.js';
 
 export const GatewayBootStepSchema = z.enum([
   'subcortex_initialized',
@@ -53,8 +58,16 @@ export const GatewayHealthSnapshotSchema = z
     lastSubmissionAt: z.string().datetime().optional(),
     lastSubmissionSource: GatewaySubmissionSourceSchema.optional(),
     lastResultStatus: z
-      .enum(['completed', 'escalated', 'aborted', 'budget_exhausted', 'error'])
+      .enum([
+        'completed',
+        'escalated',
+        'aborted',
+        'budget_exhausted',
+        'error',
+        'suspended',
+      ])
       .optional(),
+    backlogAnalytics: BacklogAnalyticsSchema,
     issueCodes: z.array(z.string().min(1)),
   })
   .strict();
@@ -96,9 +109,17 @@ export const SystemContextReplicaSchema = z
     lastSubmissionAt: z.string().datetime().optional(),
     lastSubmissionSource: GatewaySubmissionSourceSchema.optional(),
     lastSystemResultStatus: z
-      .enum(['completed', 'escalated', 'aborted', 'budget_exhausted', 'error'])
+      .enum([
+        'completed',
+        'escalated',
+        'aborted',
+        'budget_exhausted',
+        'error',
+        'suspended',
+      ])
       .optional(),
     pendingSystemRuns: z.number().int().nonnegative(),
+    backlogAnalytics: BacklogAnalyticsSchema,
     issueCodes: z.array(z.string().min(1)),
     visibleTools: z.array(z.string().min(1)),
   })
@@ -113,6 +134,7 @@ export interface SystemSubmissionReceipt {
 }
 
 export interface PrincipalSystemGatewayRuntimeDeps {
+  documentStore?: IDocumentStore;
   agentGatewayFactory?: IAgentGatewayFactory;
   modelRouter?: IModelRouter;
   getProvider?: (providerId: string) => IModelProvider | null;
@@ -132,9 +154,15 @@ export interface PrincipalSystemGatewayRuntimeDeps {
   orchestratorBaseSystemPrompt?: string;
   workerBaseSystemPrompt?: string;
   defaultModelRequirements?: ModelRequirements;
+  backlogConfig?: Partial<BacklogQueueConfig>;
   now?: () => string;
   nowMs?: () => number;
   idFactory?: () => string;
+}
+
+export interface LaneLeaseReleasedEvent {
+  laneKey: string;
+  leaseId?: string;
 }
 
 export interface IPrincipalSystemGatewayRuntime {
@@ -148,5 +176,6 @@ export interface IPrincipalSystemGatewayRuntime {
   submitTaskToSystem(input: SystemTaskSubmission): Promise<SystemSubmissionReceipt>;
   injectDirectiveToSystem(input: SystemDirectiveInjection): Promise<SystemSubmissionReceipt>;
   submitIngressEnvelope(envelope: IngressTriggerEnvelope): Promise<IngressDispatchOutcome>;
+  notifyLeaseReleased(event: LaneLeaseReleasedEvent): Promise<void>;
   whenIdle(): Promise<void>;
 }

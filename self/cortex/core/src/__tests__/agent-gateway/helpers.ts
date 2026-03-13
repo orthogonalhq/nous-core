@@ -9,6 +9,7 @@ import type {
   GatewayContextFrame,
   IDocumentStore,
   IModelProvider,
+  GatewayStampedPacket,
   IPfcEngine,
   IScopedMcpToolSurface,
   ProjectConfig,
@@ -43,14 +44,52 @@ export const DEFAULT_TOOLS: ToolDefinition[] = [
 ];
 
 export function createDocumentStore(): IDocumentStore {
-  const rows = new Map<string, unknown>();
+  const rows = new Map<string, Map<string, unknown>>();
   return {
-    put: vi.fn().mockImplementation(async (_collection, id, value) => {
-      rows.set(id, value);
+    put: vi.fn().mockImplementation(async (collection, id, value) => {
+      const bucket = rows.get(collection) ?? new Map<string, unknown>();
+      bucket.set(id, value);
+      rows.set(collection, bucket);
     }),
-    get: vi.fn().mockImplementation(async (_collection, id) => rows.get(id) ?? null),
-    query: vi.fn().mockResolvedValue([]),
-    delete: vi.fn().mockResolvedValue(true),
+    get: vi.fn().mockImplementation(async (collection, id) => {
+      const bucket = rows.get(collection);
+      return bucket?.get(id) ?? null;
+    }),
+    query: vi.fn().mockImplementation(async (collection, filter) => {
+      const bucket = rows.get(collection) ?? new Map<string, unknown>();
+      let values = Array.from(bucket.values()) as Array<Record<string, unknown>>;
+
+      if (filter?.where) {
+        values = values.filter((value) =>
+          Object.entries(filter.where ?? {}).every(([key, expected]) => value[key] === expected),
+        );
+      }
+
+      if (filter?.orderBy) {
+        const direction = filter.orderDirection === 'desc' ? -1 : 1;
+        values = [...values].sort((left, right) => {
+          const leftValue = left[filter.orderBy!] as string | number | undefined;
+          const rightValue = right[filter.orderBy!] as string | number | undefined;
+          if (leftValue === rightValue) {
+            return 0;
+          }
+          return leftValue! > rightValue! ? direction : -direction;
+        });
+      }
+
+      if (typeof filter?.offset === 'number') {
+        values = values.slice(filter.offset);
+      }
+      if (typeof filter?.limit === 'number') {
+        values = values.slice(0, filter.limit);
+      }
+
+      return values;
+    }),
+    delete: vi.fn().mockImplementation(async (collection, id) => {
+      const bucket = rows.get(collection);
+      return bucket?.delete(id) ?? false;
+    }),
   };
 }
 
@@ -293,6 +332,54 @@ export function createInjectedFrame(content: string): GatewayContextFrame {
   };
 }
 
+export function createStampedPacket(): GatewayStampedPacket {
+  return {
+    nous: { v: 3 },
+    route: {
+      emitter: { id: 'internal-mcp::worker::node-test::task-complete' },
+      target: { id: 'internal-mcp::parent::run-test::receive-task-complete' },
+    },
+    envelope: {
+      direction: 'internal',
+      type: 'response_packet',
+    },
+    correlation: {
+      handoff_id: 'handoff-1',
+      correlation_id: RUN_ID,
+      cycle: 'n/a',
+      emitted_at_utc: NOW,
+      emitted_at_unix_ms: '1773342000000',
+      emitted_at_unix_us: '1773342000000000',
+      sequence_in_run: '1',
+    },
+    payload: {
+      schema: 'n/a',
+      artifact_type: 'n/a',
+      data: { done: true },
+    },
+    retry: {
+      policy: 'value-proportional',
+      depth: 'lightweight',
+      importance_tier: 'standard',
+      expected_quality_gain: 'n/a',
+      estimated_tokens: 'n/a',
+      estimated_compute_minutes: 'n/a',
+      token_price_ref: 'runtime:gateway',
+      compute_price_ref: 'runtime:gateway',
+      decision: 'accept',
+      decision_log_ref: 'runtime:gateway/task-complete',
+      benchmark_tier: 'n/a',
+      self_repair: {
+        required_on_fail_close: true,
+        orchestration_state: 'deferred',
+        approval_role: 'Cortex:System',
+        implementation_mode: 'direct',
+        plan_ref: 'runtime:gateway/self-repair',
+      },
+    },
+  };
+}
+
 export function createGatewayHarness(options?: {
   outputs?: unknown[];
   toolSurface?: IScopedMcpToolSurface;
@@ -302,6 +389,7 @@ export function createGatewayHarness(options?: {
   nowMs?: () => number;
   outbox?: InMemoryGatewayOutboxSink;
   agentClass?: AgentGatewayConfig['agentClass'];
+  modelProvider?: IModelProvider;
 }): {
   gateway: AgentGateway;
   outbox: InMemoryGatewayOutboxSink;
@@ -311,7 +399,8 @@ export function createGatewayHarness(options?: {
   const outbox = options?.outbox ?? new InMemoryGatewayOutboxSink();
   const toolSurface = options?.toolSurface ?? createToolSurface();
   const modelProvider =
-    options?.outputs ? createModelProvider(options.outputs) : createModelProvider(['']);
+    options?.modelProvider ??
+    (options?.outputs ? createModelProvider(options.outputs) : createModelProvider(['']));
   const gateway = new AgentGateway({
     agentClass: options?.agentClass ?? 'Worker',
     agentId: AGENT_ID,
