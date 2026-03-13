@@ -60,6 +60,17 @@ export type {
   IChatThreadBindGuard,
 } from './chat.js';
 export type {
+  IAgentGateway,
+  IAgentGatewayFactory,
+  IGatewayInboxHandle,
+  IGatewayLifecycleHooks,
+  IGatewayOutboxSink,
+  IScopedMcpToolSurface,
+  AgentGatewayConfig,
+  GatewayLifecycleContext,
+  GatewayTaskCompletionHookResult,
+} from './agent-gateway.js';
+export type {
   IIngressTriggerValidator,
   IIngressAuthnVerifier,
   IIngressAuthzEvaluator,

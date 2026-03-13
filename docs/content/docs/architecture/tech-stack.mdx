@@ -67,6 +67,8 @@ Zod provides runtime validation and static TypeScript types from a single schema
 
 Used for: configuration validation, MemoryWriteCandidate validation, API request/response validation, tool input/output validation, package manifest validation.
 
+Phase 12.2 extends this posture into `@nous/cortex-core`: the Internal MCP runtime in `self/cortex/core/src/internal-mcp/` now uses core-local Zod validators for capability-tool request parsing, ratified lifecycle payload normalization, and the task-completion output-validation seam. Phase 12.4 extends the same validation posture to dispatch payloads, canonical node I/O schema refs, and full gateway-stamped `nous.v: 3` completion packets. Core packages that introduce local runtime validators declare `zod` directly rather than depending on transitive workspace dependencies.
+
 ---
 
 ## Web UI
@@ -120,6 +122,10 @@ Storage is not one database. It is three separate interfaces, each backed by the
 SQLite via better-sqlite3. Handles STM, project metadata, execution traces, configuration state, and the current structured LTM runtime. Local-first, zero-infrastructure, file-based, portable across platforms. Synchronous access simplifies the execution model.
 
 As of Phase 8.2, the local document-store path backs the production `@nous/memory-ltm` runtime over canonical collections such as `memory_entries`, `memory_mutation_audit`, and `memory_tombstones`.
+
+Phase 12.5 extends the same local-first document-store posture into `@nous/cortex-core` for the durable System backlog queue. Backlog entries are persisted through the existing `IDocumentStore` seam before execution, restart recovery resets stranded `active` entries to `queued`, and queue analytics remain canonical runtime truth instead of introducing a separate broker or service.
+
+The companion per-endpoint inference lanes in `@nous/subcortex-providers` remain in-process scheduler infrastructure at the provider boundary. They use shared request metadata (`agentClass`, optional external `abortSignal`) plus local lane analytics and exclusive-lease control, but they do not replace routing, failover, or the local-first storage posture.
 
 SQLite remains the document store for local deployments through all phases. For cloud deployments, PostgreSQL fulfills the same interface.
 

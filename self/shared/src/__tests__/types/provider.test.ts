@@ -50,6 +50,18 @@ describe('ModelRequestSchema', () => {
     expect(result.success).toBe(true);
   });
 
+  it('accepts optional agentClass and abortSignal fields', () => {
+    const controller = new AbortController();
+    const result = ModelRequestSchema.safeParse({
+      role: 'reasoner',
+      input: { prompt: 'Analyze this deal' },
+      traceId: VALID_UUID,
+      agentClass: 'Worker',
+      abortSignal: controller.signal,
+    });
+    expect(result.success).toBe(true);
+  });
+
   it('rejects invalid role', () => {
     const result = ModelRequestSchema.safeParse({
       role: 'invalid',

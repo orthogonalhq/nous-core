@@ -69,6 +69,7 @@ const linearGraph = buildDerivedWorkflowGraph({
         type: 'model-call',
         modelRole: 'reasoner',
         promptRef: 'prompt://draft',
+        outputSchemaRef: 'schema://node-output/draft',
       },
     },
     {

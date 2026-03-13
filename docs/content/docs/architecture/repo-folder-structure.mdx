@@ -101,7 +101,7 @@ The thinnest layer. The highest authority. Decides, reflects, inhibits, authoriz
 ```
 self/cortex/
 ├── Cortex/                              # Prefrontal Cortex engine
-└── core/                             # Central executive loop
+└── core/                                # Central executive loop + AgentGateway runtime harness
 ```
 
 ### Cortex/
@@ -127,12 +127,22 @@ The central executive loop. The spine that connects consciousness to everything 
 
 Responsibilities:
 
-* Orchestrates the runtime flow for single agent cycles
+* Orchestrates the runtime flow for single agent cycles and the deterministic `AgentGateway` turn loop
 * Orchestrates long-running project supervision loops
 * Calls the Cortex engine
 * Coordinates the subcortex through interfaces
 * Coordinates memory through interfaces
-* Persists execution traces
+* Persists execution traces and gateway-linked runtime evidence
+
+Phase 12.1 adds `self/cortex/core/src/agent-gateway/` as the canonical internal agent execution harness. Workflow run-state authority remains in the Phase 9 workflow runtime throughout the migration.
+
+Phase 12.2 adds `self/cortex/core/src/internal-mcp/` as the scoped Internal MCP composition layer for the gateway runtime. This folder owns the internal tool catalog, authorization matrix, request normalization, capability handlers, lifecycle handlers, and output-schema validation seam used by `AgentGateway`. These handlers wrap canonical subcortex and memory interfaces; they do not replace the underlying workflow, witness, scheduler, escalation, or memory authorities.
+
+Phase 12.3 adds `self/cortex/core/src/gateway-runtime/` as the boot assembly for the long-lived Principal/System pair. Phase 12.4 completes that assembly by adding the gateway-backed turn executor, trace recorder, and runtime-owned project API composition so active runtime callers, canonical packet stamping, and trace continuity all converge under the gateway-managed path.
+
+Phase 12.5 extends `self/cortex/core/src/gateway-runtime/` with the durable System backlog queue (`backlog-types.ts`, `backlog-store.ts`, `backlog-queue.ts`) and canonical backlog analytics publication through the existing runtime-health and replica seams. Queue pressure remains runtime truth inside core rather than app-local telemetry or a second scheduler.
+
+The legacy `CoreExecutor` implementation is retired in Phase 12.4 after caller cutover and parity verification. Gateway-managed execution now completes only through `task_complete()`, which validates canonical node output schemas and stamps the final `nous.v: 3` packet.
 
 Core is the bridge between consciousness and the layers below. It does not make decisions — it coordinates the flow that allows the Cortex to make decisions.
 
@@ -351,6 +361,8 @@ Responsibilities:
 * Provide streaming support for text models
 * Report token/compute usage
 * Abstract provider-specific differences
+
+Phase 12.5 adds in-process per-endpoint inference lanes in `self/subcortex/providers/src/inference-lane.ts`, `inference-lane-registry.ts`, and `lane-aware-provider.ts`. These files own bounded concurrency, agent-class priority ordering, Principal-only preemption, exclusive voice-call lease handling, wait-estimate analytics, and the narrow lease-release notification seam while preserving existing routing and failover authority above the concrete providers.
 
 No orchestration logic lives here.
 
@@ -773,6 +785,10 @@ Phase 11.5 expands:
 - `endpoint-trust.ts` — project-level trust summary projections surfaced into mobile continuity views
 - `mao.ts` — continuity link metadata reused by cross-surface handoff helpers
 
+Phase 12.1 adds:
+
+- `agent-gateway.ts` — canonical `AgentInput` / `AgentResult` contracts, gateway budgets, correlation snapshots, typed inbox/outbox payloads, lifecycle-hook request shapes, and summary-oriented run snapshots for the internal runtime harness
+
 Phase 9.7 adds:
 
 - `mao.ts` — density-grid, run-graph, inspect, urgent-overlay, reasoning-preview, and project-control contracts used by MAO and linked surfaces
@@ -829,6 +845,10 @@ Phase 9.6 further expands:
 Phase 9.7 further expands:
 
 - `subcortex.ts` — `IMaoProjectionService` snapshot, inspect, graph, and project-control methods used by the MAO surface and web server
+
+Phase 12.1 further expands:
+
+- `agent-gateway.ts` — `IAgentGateway`, `IAgentGatewayFactory`, `IScopedMcpToolSurface`, lifecycle-hook seams, write-only inbox handles, and emit-only outbox sinks used by the new internal runtime harness
 
 Phase 11.3 further expands:
 

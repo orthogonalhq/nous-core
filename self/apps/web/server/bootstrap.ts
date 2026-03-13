@@ -32,7 +32,13 @@ import {
   createPfcEvaluator,
   createPfcMutationEvaluator,
 } from '@nous/cortex-pfc';
-import { CoreExecutor } from '@nous/cortex-core';
+import {
+  DefaultSchemaRefValidator,
+  GatewayBackedTurnExecutor,
+  GatewayRuntimeIngressAdapter,
+  createGatewayProjectApi,
+  createPrincipalSystemGatewayRuntime,
+} from '@nous/cortex-core';
 import { DocumentProjectStore } from '@nous/subcortex-projects';
 import { DocumentArtifactStore } from '@nous/subcortex-artifacts';
 import { DocumentEscalationStore, EscalationService } from '@nous/subcortex-escalation';
@@ -63,6 +69,7 @@ import { GtmGateCalculator } from '@nous/subcortex-gtm';
 import { VoiceControlService } from '@nous/subcortex-voice-control';
 import { MemoryAccessPolicyEngine } from '@nous/memory-access';
 import type { NousContext } from './context';
+import type { IIngressGateway } from '@nous/shared';
 
 const MOCK_PROVIDER_ID = '00000000-0000-0000-0000-000000000001' as ProviderId;
 
@@ -152,6 +159,18 @@ function resolveStmCompactionPolicy(config: unknown): StmCompactionPolicy {
   });
 }
 
+function createBootstrapIngressShim(): IIngressGateway {
+  return {
+    submit: async (envelope) => ({
+      outcome: 'rejected',
+      reason: 'workflow_admission_blocked',
+      reason_code: 'web_bootstrap_ingress_unwired',
+      evidence_ref: `ingress:${envelope.trigger_id}`,
+      evidence_refs: ['web bootstrap does not wire ingress dispatch'],
+    }),
+  };
+}
+
 let cachedContext: NousContext | null = null;
 
 export function clearNousContextCache(): void {
@@ -234,17 +253,12 @@ export function createNousContext(): NousContext {
     modelRouter: router,
     toolExecutor,
   });
+  let schedulerIngressGateway = createBootstrapIngressShim();
   const schedulerService = new SchedulerService({
     scheduleStore,
     projectStore,
     ingressGateway: {
-      submit: async (envelope) => ({
-        outcome: 'rejected',
-        reason: 'workflow_admission_blocked',
-        reason_code: 'web_bootstrap_ingress_unwired',
-        evidence_ref: `ingress:${envelope.trigger_id}`,
-        evidence_refs: ['web bootstrap does not wire ingress dispatch'],
-      }),
+      submit: async (envelope) => schedulerIngressGateway.submit(envelope),
     },
   });
   const escalationService = new EscalationService({
@@ -300,28 +314,59 @@ export function createNousContext(): NousContext {
     return providerRegistry.getProvider(id);
   };
 
-  const cfg = resolvedConfig as {
-    security?: { traceSensitiveData?: boolean };
-  };
-  const traceSensitiveData = cfg.security?.traceSensitiveData ?? false;
+  const createRuntimeProjectApi = (projectId: ProjectId) =>
+    createGatewayProjectApi(projectId, {
+      mwcPipeline,
+      artifactStore,
+      escalationService,
+      schedulerService,
+      toolExecutor,
+      router,
+      getProvider,
+    });
 
-  const coreExecutor = new CoreExecutor({
-    Cortex,
-    router,
+  const coreExecutor = new GatewayBackedTurnExecutor({
+    modelRouter: router,
     getProvider,
-    toolExecutor,
     stmStore,
     mwcPipeline,
-    projectStore,
     documentStore,
     witnessService,
     opctlService,
-    policyEngine,
-    traceSensitiveData,
+    getProjectApi: createRuntimeProjectApi,
+    toolExecutor,
+    workflowEngine,
+    projectStore,
+    scheduler: schedulerService,
+    escalationService,
+    outputSchemaValidator: new DefaultSchemaRefValidator(),
   });
+
+  const gatewayRuntime = createPrincipalSystemGatewayRuntime({
+    documentStore,
+    modelRouter: router,
+    getProvider: (providerId) => getProvider(providerId as ProviderId),
+    getProjectApi: (projectId: ProjectId) => createRuntimeProjectApi(projectId),
+    toolExecutor,
+    pfc: Cortex,
+    workflowEngine,
+    projectStore,
+    scheduler: schedulerService,
+    escalationService,
+    witnessService,
+    outputSchemaValidator: new DefaultSchemaRefValidator(),
+  });
+  providerRegistry.onLeaseReleased((event) => {
+    void gatewayRuntime.notifyLeaseReleased({
+      laneKey: event.laneKey,
+      leaseId: event.leaseId,
+    });
+  });
+  schedulerIngressGateway = new GatewayRuntimeIngressAdapter(gatewayRuntime);
 
   cachedContext = {
     coreExecutor,
+    gatewayRuntime,
     projectStore,
     stmStore,
     mwcPipeline,

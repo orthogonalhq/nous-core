@@ -50,6 +50,9 @@
       "@nous/memory-distillation": [
         "../../memory/distillation/src/index.ts"
       ],
+      "@nous/cortex-core": [
+        "../../cortex/core/src/index.ts"
+      ],
       "@nous/cortex-pfc": [
         "../../cortex/pfc/src/index.ts"
       ],
