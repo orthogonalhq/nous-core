@@ -16,6 +16,54 @@ const EXECUTION_ID = '550e8400-e29b-41d4-a716-446655440005';
 const NODE_ID = '550e8400-e29b-41d4-a716-446655440006';
 const NOW = new Date().toISOString();
 
+function createStampedPacket() {
+  return {
+    nous: { v: 3 },
+    route: {
+      emitter: { id: 'internal-mcp::worker::node-test::task-complete' },
+      target: { id: 'internal-mcp::parent::run-test::receive-task-complete' },
+    },
+    envelope: {
+      direction: 'internal' as const,
+      type: 'response_packet' as const,
+    },
+    correlation: {
+      handoff_id: 'handoff-1',
+      correlation_id: RUN_ID,
+      cycle: 'n/a',
+      emitted_at_utc: NOW,
+      emitted_at_unix_ms: '1773342000000',
+      sequence_in_run: '1',
+      emitted_at_unix_us: '1773342000000000',
+    },
+    payload: {
+      schema: 'n/a',
+      artifact_type: 'n/a',
+      data: { done: true },
+    },
+    retry: {
+      policy: 'value-proportional' as const,
+      depth: 'lightweight' as const,
+      importance_tier: 'standard' as const,
+      expected_quality_gain: 'n/a',
+      estimated_tokens: 'n/a',
+      estimated_compute_minutes: 'n/a',
+      token_price_ref: 'runtime:gateway',
+      compute_price_ref: 'runtime:gateway',
+      decision: 'accept' as const,
+      decision_log_ref: 'runtime:gateway/task-complete',
+      benchmark_tier: 'n/a' as const,
+      self_repair: {
+        required_on_fail_close: true as const,
+        orchestration_state: 'deferred' as const,
+        approval_role: 'Cortex:System',
+        implementation_mode: 'direct' as const,
+        plan_ref: 'runtime:gateway/self-repair',
+      },
+    },
+  };
+}
+
 describe('AgentClassSchema', () => {
   it('accepts all canonical agent classes', () => {
     expect(AgentClassSchema.safeParse('Cortex::Principal').success).toBe(true);
@@ -142,11 +190,7 @@ describe('AgentResultSchema', () => {
     const completed = AgentResultSchema.safeParse({
       status: 'completed',
       output: { summary: 'done' },
-      v3Packet: {
-        nous: {
-          v: 3,
-        },
-      },
+      v3Packet: createStampedPacket(),
       correlation: {
         runId: RUN_ID,
         parentId: GATEWAY_ID,
@@ -253,23 +297,40 @@ describe('AgentResultSchema', () => {
       },
       evidenceRefs: [],
     });
+    const suspended = AgentResultSchema.safeParse({
+      status: 'suspended',
+      reason: 'Lane lease held.',
+      resumeWhen: 'lease_release',
+      detail: {
+        laneKey: 'provider:test',
+      },
+      correlation: {
+        runId: RUN_ID,
+        parentId: GATEWAY_ID,
+        sequence: 4,
+      },
+      usage: {
+        turnsUsed: 1,
+        tokensUsed: 10,
+        elapsedMs: 80,
+        spawnUnitsUsed: 0,
+      },
+      evidenceRefs: [],
+    });
 
     expect(completed.success).toBe(true);
     expect(escalated.success).toBe(true);
     expect(aborted.success).toBe(true);
     expect(exhausted.success).toBe(true);
     expect(errored.success).toBe(true);
+    expect(suspended.success).toBe(true);
   });
 
   it('rejects undeclared extra fields on strict results', () => {
     const result = AgentResultSchema.safeParse({
       status: 'completed',
       output: { summary: 'done' },
-      v3Packet: {
-        nous: {
-          v: 3,
-        },
-      },
+      v3Packet: createStampedPacket(),
       correlation: {
         runId: RUN_ID,
         parentId: GATEWAY_ID,
@@ -292,11 +353,7 @@ describe('AgentResultSchema', () => {
     const result = AgentResultSchema.safeParse({
       status: 'completed',
       output: { summary: 'done' },
-      v3Packet: {
-        nous: {
-          v: 3,
-        },
-      },
+      v3Packet: createStampedPacket(),
       correlation: {
         runId: RUN_ID,
         parentId: GATEWAY_ID,
