@@ -39,6 +39,7 @@ const projectConfig = {
               type: 'model-call' as const,
               modelRole: 'reasoner' as const,
               promptRef: 'prompt://draft',
+              outputSchemaRef: 'schema://node-output/draft',
             },
           },
           {

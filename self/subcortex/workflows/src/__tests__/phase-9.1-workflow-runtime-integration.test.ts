@@ -60,6 +60,7 @@ describe('Phase 9.1 workflow runtime integration', () => {
                   type: 'model-call',
                   modelRole: 'reasoner',
                   promptRef: 'prompt://draft',
+                  outputSchemaRef: 'schema://node-output/draft',
                 },
               },
               {

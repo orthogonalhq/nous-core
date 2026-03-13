@@ -45,6 +45,7 @@ const projectConfig = {
               type: 'model-call' as const,
               modelRole: 'reasoner' as const,
               promptRef: 'prompt://draft',
+              outputSchemaRef: 'schema://node-output/draft',
             },
           },
           {
@@ -70,6 +71,7 @@ const projectConfig = {
               type: 'tool-execution' as const,
               toolName: 'publish',
               inputMappingRef: 'mapping://publish',
+              resultSchemaRef: 'schema://node-output/publish',
             },
           },
           {
