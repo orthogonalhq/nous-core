@@ -400,15 +400,21 @@ Same pattern as Claude Code, for OpenAI's Codex CLI agent.
 
 ---
 
-### 10. Email Communication Adapter (Tier 1-2)
+### 10. Signal Communication Adapter
 
-IMAP/SMTP adapter for email ingress and egress.
+Implement a Signal adapter using the signal-cli REST API or libsignal bindings.
 
-**Create**: `self/apps/bridge/src/connectors/email-adapter.ts`
+**Create**: `self/apps/bridge/src/connectors/signal-adapter.ts`
+**Reference**: `self/apps/bridge/src/connectors/telegram-bot-adapter.ts`
 
-**Acceptance criteria**: Polls or connects via IMAP for incoming mail, normalizes to `ChannelIngressEnvelope`. Sends via SMTP for egress. Handles subject line threading. Tests included.
+**Acceptance criteria**:
+- Implements `CommunicationDeliveryProvider`
+- Normalizes Signal messages into `ChannelIngressEnvelope`
+- Handles DMs and group messages
+- Infers mention state
+- Tests in `self/apps/bridge/src/__tests__/signal-adapter.test.ts`
 
-**Note**: More complex than chat adapters due to the threading model and polling semantics — straddles Tier 1 and 2.
+**Scope boundary**: Don't modify `CommunicationDeliveryProvider` or the bridge runtime. The adapter is a leaf.
 
 ---
 
@@ -423,3 +429,17 @@ The CLI (`self/apps/cli/`) has basic output. Improve formatting for common opera
 ---
 
 These issues are ready to be created in the GitHub issue tracker with the `good-first-issue` label.
+
+---
+
+## Larger Initiatives
+
+These are roadmap-level efforts that go beyond a single PR. They're listed here because they represent real directions the project is heading — if one of these resonates, open a Discussion.
+
+### Headless Email Client
+
+A fully headless, agent-operated email surface built into Nous. Not an adapter to a specific email service — a complete email client that connects to any account via IMAP/SMTP and gives the agent native email capabilities: search, live feed (IMAP IDLE), compose, reply, thread management, label/archive operations.
+
+The governance layer is what makes this meaningful. Outgoing mail routes through the escalation service. The confidence-governance system determines autonomy — high-confidence replies auto-send, low-confidence ones escalate to the Principal. The witness chain audits everything. The memory system learns communication patterns over time.
+
+This is a Phase 11 (Extended Senses) candidate. It touches the communication gateway, escalation, witness chain, and would likely introduce email-specific MCP capability tools (search, draft, send, archive). It's not a contribution you pick up — it's one you propose and design collaboratively.
