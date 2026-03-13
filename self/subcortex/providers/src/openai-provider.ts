@@ -59,6 +59,7 @@ export class OpenAiCompatibleProvider implements IModelProvider {
         'Content-Type': 'application/json',
         Authorization: `Bearer ${this.apiKey}`,
       },
+      signal: request.abortSignal,
       body: JSON.stringify({
         model: this.config.modelId,
         messages,
@@ -120,6 +121,7 @@ export class OpenAiCompatibleProvider implements IModelProvider {
         'Content-Type': 'application/json',
         Authorization: `Bearer ${this.apiKey}`,
       },
+      signal: request.abortSignal,
       body: JSON.stringify({
         model: this.config.modelId,
         messages,
@@ -228,21 +230,30 @@ export class OpenAiCompatibleProvider implements IModelProvider {
     url: string,
     init: RequestInit,
   ): Promise<Response> {
-    const controller = new AbortController();
-    const timeout = setTimeout(() => controller.abort(), this.timeoutMs);
+    const timeoutController = new AbortController();
+    const timeout = setTimeout(
+      () => timeoutController.abort('provider_timeout'),
+      this.timeoutMs,
+    );
+    const signal = init.signal
+      ? AbortSignal.any([init.signal, timeoutController.signal])
+      : timeoutController.signal;
 
     try {
       return await fetch(url, {
         ...init,
-        signal: controller.signal,
+        signal,
       });
     } catch (e) {
       if ((e as Error).name === 'AbortError') {
-        throw new NousError(
-          `OpenAI request timed out after ${this.timeoutMs}ms`,
-          'PROVIDER_UNAVAILABLE',
-          { failoverReasonCode: 'PRV-PROVIDER-UNAVAILABLE' },
-        );
+        if (timeoutController.signal.aborted) {
+          throw new NousError(
+            `OpenAI request timed out after ${this.timeoutMs}ms`,
+            'PROVIDER_UNAVAILABLE',
+            { failoverReasonCode: 'PRV-PROVIDER-UNAVAILABLE' },
+          );
+        }
+        throw new NousError('OpenAI request aborted.', 'ABORTED');
       }
       throw new NousError(
         `OpenAI endpoint unreachable: ${(e as Error).message}`,

@@ -16,13 +16,18 @@ import {
   ModelProviderConfigSchema,
 } from '@nous/shared';
 import type { ProviderConfigEntry } from '@nous/autonomic-config';
+import type { LaneLeaseReleasedEvent } from './inference-lane-registry.js';
+import { InferenceLaneRegistry } from './inference-lane-registry.js';
+import { LaneAwareProvider } from './lane-aware-provider.js';
 import { OllamaProvider } from './ollama-provider.js';
 import { OpenAiCompatibleProvider } from './openai-provider.js';
 
 export class ProviderRegistry {
   private readonly providers = new Map<string, IModelProvider>();
+  readonly laneRegistry: InferenceLaneRegistry;
 
-  constructor(config: IConfig) {
+  constructor(config: IConfig, options?: { laneRegistry?: InferenceLaneRegistry }) {
+    this.laneRegistry = options?.laneRegistry ?? new InferenceLaneRegistry();
     const configObj = config.get() as { providers?: ProviderConfigEntry[] };
     const entries = Array.isArray(configObj.providers) ? configObj.providers : [];
 
@@ -76,10 +81,14 @@ export class ProviderRegistry {
     return Array.from(this.providers.values()).map((p) => p.getConfig());
   }
 
+  onLeaseReleased(listener: (event: LaneLeaseReleasedEvent) => void): () => void {
+    return this.laneRegistry.onLeaseReleased(listener);
+  }
+
   private createProvider(config: ModelProviderConfig): IModelProvider {
-    if (config.isLocal) {
-      return new OllamaProvider(config);
-    }
-    return new OpenAiCompatibleProvider(config);
+    const provider = config.isLocal
+      ? new OllamaProvider(config)
+      : new OpenAiCompatibleProvider(config);
+    return new LaneAwareProvider(provider, this.laneRegistry.getOrCreate(config));
   }
 }
