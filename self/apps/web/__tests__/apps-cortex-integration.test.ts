@@ -21,6 +21,7 @@ describe('apps → cortex integration', () => {
 
   it('projects list → create → chat sendMessage → config get', async () => {
     const ctx = createNousContext();
+    expect(ctx.gatewayRuntime.getBootSnapshot().status).toBe('ready');
     const caller = appRouter.createCaller(ctx);
 
     // projects.list

@@ -138,6 +138,8 @@ Phase 12.1 adds `self/cortex/core/src/agent-gateway/` as the canonical internal 
 
 Phase 12.2 adds `self/cortex/core/src/internal-mcp/` as the scoped Internal MCP composition layer for the gateway runtime. This folder owns the internal tool catalog, authorization matrix, request normalization, capability handlers, lifecycle handlers, and output-schema validation seam used by `AgentGateway`. These handlers wrap canonical subcortex and memory interfaces; they do not replace the underlying workflow, witness, scheduler, escalation, or memory authorities.
 
+Phase 12.3 adds `self/cortex/core/src/gateway-runtime/` as the boot assembly for the long-lived Principal/System pair. This folder owns deterministic boot sequencing, the Principal communication-tool overlay, the read-only System-context replica, runtime health snapshots, and the gateway-backed ingress adapter that forwards accepted work into System ownership. `CoreExecutor` still remains the active caller path during this migration step.
+
 Core is the bridge between consciousness and the layers below. It does not make decisions — it coordinates the flow that allows the Cortex to make decisions.
 
 ---

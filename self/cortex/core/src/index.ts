@@ -74,3 +74,26 @@ export {
   WORKFLOW_ROUTER_SYSTEM_PROMPT,
   ORCHESTRATOR_SYSTEM_PROMPT,
 } from './prompts/index.js';
+export {
+  createPrincipalSystemGatewayRuntime,
+  GatewayRuntimeIngressAdapter,
+  createPrincipalCommunicationToolSurface,
+  getPrincipalCommunicationToolDefinitions,
+  INJECT_DIRECTIVE_TO_SYSTEM_TOOL_NAME,
+  SUBMIT_TASK_TO_SYSTEM_TOOL_NAME,
+  SystemContextReplicaProvider,
+  GatewayRuntimeHealthSink,
+} from './gateway-runtime/index.js';
+export type {
+  GatewayBootSnapshot,
+  GatewayBootStatus,
+  GatewayBootStep,
+  GatewayHealthSnapshot,
+  GatewaySubmissionSource,
+  IPrincipalSystemGatewayRuntime,
+  PrincipalSystemGatewayRuntimeDeps,
+  SystemContextReplica,
+  SystemDirectiveInjection,
+  SystemSubmissionReceipt,
+  SystemTaskSubmission,
+} from './gateway-runtime/index.js';

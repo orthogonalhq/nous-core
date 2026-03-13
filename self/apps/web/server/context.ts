@@ -21,6 +21,7 @@ import type {
   INudgeDiscoveryService,
   IVoiceControlService,
 } from '@nous/shared';
+import type { IPrincipalSystemGatewayRuntime } from '@nous/cortex-core';
 import type { MwcPipeline } from '@nous/memory-mwc';
 import type { IDocumentStore } from '@nous/shared';
 import type { IModelRouter } from '@nous/shared';
@@ -30,6 +31,7 @@ import type { IModelProvider } from '@nous/shared';
 
 export interface NousContext {
   coreExecutor: ICoreExecutor;
+  gatewayRuntime: IPrincipalSystemGatewayRuntime;
   projectStore: IProjectStore;
   stmStore: IStmStore;
   mwcPipeline: MwcPipeline;
