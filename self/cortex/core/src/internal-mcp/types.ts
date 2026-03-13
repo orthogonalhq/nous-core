@@ -10,6 +10,7 @@ import type {
   GatewayTaskCompletionRequest,
   IProjectApi,
   IProjectStore,
+  IToolExecutor,
   IWorkflowEngine,
   IWorkmodeAdmissionGuard,
   IPfcEngine,
@@ -76,6 +77,7 @@ export interface InternalMcpDispatchRuntime {
 export interface InternalMcpRuntimeDeps {
   getProjectApi?: (projectId: ProjectId) => IProjectApi | null;
   projectStore?: IProjectStore;
+  toolExecutor?: IToolExecutor;
   pfc?: IPfcEngine;
   workflowEngine?: IWorkflowEngine;
   workmodeAdmissionGuard?: IWorkmodeAdmissionGuard;
@@ -100,6 +102,8 @@ export interface InternalMcpTaskCompletionPacketArgs {
   agentId: AgentGatewayConfig['agentId'];
   context: GatewayLifecycleContext;
   request: GatewayTaskCompletionRequest;
+  payloadSchemaRef: string;
+  artifactType: string;
   emittedAt: string;
   emittedAtMs: number;
   handoffId: string;

@@ -33,8 +33,6 @@ export {
   RollbackPolicyEvaluator,
   RecoveryOrchestrator,
 } from './recovery/index.js';
-export { CoreExecutor } from './core-executor.js';
-export type { CoreExecutorDeps, MwcPipelineLike } from './core-executor.js';
 export { parseModelOutput } from './output-parser.js';
 export type { ParsedModelOutput } from './output-parser.js';
 export {
@@ -51,6 +49,7 @@ export {
   estimateUsageUnits,
 } from './agent-gateway/index.js';
 export {
+  DefaultSchemaRefValidator,
   ScopedMcpToolSurface,
   PassthroughOutputSchemaValidator,
   createCapabilityHandlers,
@@ -77,6 +76,10 @@ export {
 export {
   createPrincipalSystemGatewayRuntime,
   GatewayRuntimeIngressAdapter,
+  GatewayBackedTurnExecutor,
+  GatewayTraceRecorder,
+  GATEWAY_CHAT_COMPLETION_SCHEMA_REF,
+  createGatewayProjectApi,
   createPrincipalCommunicationToolSurface,
   getPrincipalCommunicationToolDefinitions,
   INJECT_DIRECTIVE_TO_SYSTEM_TOOL_NAME,
@@ -90,6 +93,8 @@ export type {
   GatewayBootStep,
   GatewayHealthSnapshot,
   GatewaySubmissionSource,
+  GatewayBackedTurnExecutorDeps,
+  GatewayRuntimeProjectApiDeps,
   IPrincipalSystemGatewayRuntime,
   PrincipalSystemGatewayRuntimeDeps,
   SystemContextReplica,

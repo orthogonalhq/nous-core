@@ -2,6 +2,7 @@ import { randomUUID } from 'node:crypto';
 import {
   NousError,
   ValidationError,
+  GatewayStampedPacketSchema,
   type AgentClass,
   type AgentGatewayConfig,
   type GatewayBudget,
@@ -145,15 +146,14 @@ function buildTaskCompletionPacket(
   const agentScope = args.agentClass.replaceAll('::', '-').toLowerCase();
   const nodeScope = args.context.execution?.nodeDefinitionId ?? 'standalone';
   const parentScope = args.context.correlation.parentId ?? 'terminal';
-
-  return {
+  const packet = {
     nous: { v: 3 },
     route: {
       emitter: {
-        id: `internal-mcp::${agentScope}::${nodeScope}::task-complete`,
+        id: `internal-mcp::${agentScope}::node-${nodeScope}::task-complete`,
       },
       target: {
-        id: `internal-mcp::parent::${parentScope}::receive-task-complete`,
+        id: `internal-mcp::parent::run-${parentScope}::receive-task-complete`,
       },
     },
     envelope: {
@@ -163,25 +163,62 @@ function buildTaskCompletionPacket(
     correlation: {
       handoff_id: args.handoffId,
       correlation_id: args.context.correlation.runId,
+      cycle: 'n/a',
       sequence_in_run: String(args.context.correlation.sequence + 1),
       emitted_at_utc: args.emittedAt,
       emitted_at_unix_ms: String(args.emittedAtMs),
       emitted_at_unix_us: String(args.emittedAtMs * 1000),
     },
-    payload: args.request.output,
+    payload: {
+      schema: args.payloadSchemaRef,
+      artifact_type: args.artifactType,
+      data: args.request.output,
+    },
+    retry: {
+      policy: 'value-proportional',
+      depth: 'lightweight',
+      importance_tier: 'standard',
+      expected_quality_gain: 'n/a',
+      estimated_tokens: 'n/a',
+      estimated_compute_minutes: 'n/a',
+      token_price_ref: 'runtime:gateway',
+      compute_price_ref: 'runtime:gateway',
+      decision: 'accept',
+      decision_log_ref: 'runtime:gateway/task-complete',
+      benchmark_tier: 'n/a',
+      self_repair: {
+        required_on_fail_close: true,
+        orchestration_state: 'deferred',
+        approval_role: 'Cortex:System',
+        implementation_mode: 'direct',
+        plan_ref: 'runtime:gateway/self-repair',
+      },
+    },
     artifact_refs: args.request.artifactRefs ?? [],
     summary: args.request.summary,
+  };
+
+  return GatewayStampedPacketSchema.parse(packet);
+}
+
+function resolveNodeIoContract(node: WorkflowNodeDefinition): {
+  inputSchemaRef?: string;
+  outputSchemaRef?: string;
+} {
+  return {
+    inputSchemaRef: node.inputSchemaRef,
+    outputSchemaRef:
+      node.outputSchemaRef ??
+      (node.config.type === 'model-call'
+        ? node.config.outputSchemaRef
+        : node.config.type === 'tool-execution'
+          ? node.config.resultSchemaRef
+          : undefined),
   };
 }
 
 function resolveNodeSchemaRef(node: WorkflowNodeDefinition): string | null {
-  if (node.config.type === 'model-call') {
-    return node.config.outputSchemaRef ?? null;
-  }
-  if (node.config.type === 'tool-execution') {
-    return node.config.resultSchemaRef ?? null;
-  }
-  return null;
+  return resolveNodeIoContract(node).outputSchemaRef ?? null;
 }
 
 async function resolveGraphSchemaRef(args: {
@@ -240,36 +277,92 @@ async function resolveGraphSchemaRef(args: {
   };
 }
 
+async function resolveDispatchTargetNode(args: {
+  deps: InternalMcpRuntimeDeps;
+  lifecycleContext: GatewayLifecycleContext;
+  nodeDefinitionId?: string;
+}): Promise<WorkflowNodeDefinition | null> {
+  const executionId = args.lifecycleContext.execution?.executionId;
+  if (!executionId && !args.nodeDefinitionId) {
+    return null;
+  }
+
+  if (!executionId || !args.nodeDefinitionId) {
+    throw new ValidationError('Partial workflow execution context is invalid', [
+      {
+        path: 'execution',
+        message: 'executionId and nodeDefinitionId must both be present',
+      },
+    ]);
+  }
+
+  const graph = await args.deps.workflowEngine?.getRunGraph(executionId);
+  if (!graph) {
+    throw new ValidationError('Workflow graph is unavailable for dispatch_agent', [
+      {
+        path: 'execution.executionId',
+        message: 'workflow graph not found',
+      },
+    ]);
+  }
+
+  const node = graph.nodes[args.nodeDefinitionId]?.definition;
+  if (!node) {
+    throw new ValidationError('Workflow node is unavailable for dispatch_agent', [
+      {
+        path: 'request.nodeDefinitionId',
+        message: 'workflow node not found',
+      },
+    ]);
+  }
+
+  return node;
+}
+
+async function validateNodeSchemaValue(args: {
+  deps: InternalMcpRuntimeDeps;
+  projectId?: ProjectId;
+  schemaRef: string;
+  value: unknown;
+  path: string;
+  message: string;
+}) {
+  const validator = args.deps.outputSchemaValidator;
+  if (!validator) {
+    throw new ValidationError('Output schema validator is not configured', [
+      {
+        path: args.path,
+        message: `validator missing for schema ${args.schemaRef}`,
+      },
+    ]);
+  }
+
+  const result = await validator.validate(args.schemaRef, args.value, args.projectId);
+  if (!result.success) {
+    throw new ValidationError(
+      args.message,
+      result.issues.map((issue, index) => ({
+        path: `${args.path}.${index}`,
+        message: issue,
+      })),
+    );
+  }
+}
+
 async function validateTaskCompletionOutput(args: {
   deps: InternalMcpRuntimeDeps;
   projectId?: ProjectId;
   schemaRef: string;
   output: unknown;
 }) {
-  const validator = args.deps.outputSchemaValidator;
-  if (!validator) {
-    throw new ValidationError('Output schema validator is not configured', [
-      {
-        path: 'output',
-        message: `validator missing for schema ${args.schemaRef}`,
-      },
-    ]);
-  }
-
-  const result = await validator.validate(
-    args.schemaRef,
-    args.output,
-    args.projectId,
-  );
-  if (!result.success) {
-    throw new ValidationError(
-      'Task completion output failed schema validation',
-      result.issues.map((issue, index) => ({
-        path: `output.${index}`,
-        message: issue,
-      })),
-    );
-  }
+  await validateNodeSchemaValue({
+    deps: args.deps,
+    projectId: args.projectId,
+    schemaRef: args.schemaRef,
+    value: args.output,
+    path: 'output',
+    message: 'Task completion output failed schema validation',
+  });
 }
 
 export function createLifecycleHandlers(options: {
@@ -309,6 +402,23 @@ export function createLifecycleHandlers(options: {
               'DISPATCH_ADMISSION_DENIED',
               { evidenceRefs: admission.evidenceRefs },
             );
+          }
+
+          const targetNode = await resolveDispatchTargetNode({
+            deps: options.deps,
+            lifecycleContext,
+            nodeDefinitionId: request.nodeDefinitionId,
+          });
+          const targetIo = targetNode ? resolveNodeIoContract(targetNode) : null;
+          if (targetIo?.inputSchemaRef) {
+            await validateNodeSchemaValue({
+              deps: options.deps,
+              projectId: lifecycleContext.execution?.projectId,
+              schemaRef: targetIo.inputSchemaRef,
+              value: request.payload,
+              path: 'payload',
+              message: 'Dispatch payload failed schema validation',
+            });
           }
 
           const childBudget = buildChildBudget(options.deps, request);
@@ -362,6 +472,8 @@ export function createLifecycleHandlers(options: {
             agentId: options.agentId,
             context: lifecycleContext,
             request,
+            payloadSchemaRef: graphResolution?.schemaRef ?? 'n/a',
+            artifactType: graphResolution?.nodeDefinition.type ?? 'n/a',
             emittedAt,
             emittedAtMs,
             handoffId: (options.deps.idFactory ?? randomUUID)(),

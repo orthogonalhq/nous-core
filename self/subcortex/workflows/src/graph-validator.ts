@@ -1,6 +1,7 @@
 import type {
   WorkflowDefinition,
   WorkflowEdgeDefinition,
+  WorkflowNodeDefinition,
   WorkflowNodeDefinitionId,
 } from '@nous/shared';
 import { WorkflowDefinitionSchema } from '@nous/shared';
@@ -52,6 +53,26 @@ const pushIssue = (
 ): void => {
   issues.push({ code, message, evidenceRefs });
 };
+
+function isResolvableSchemaRef(ref: string): boolean {
+  return ref.startsWith('schema://');
+}
+
+function resolveNodeIoContract(node: WorkflowNodeDefinition): {
+  inputSchemaRef?: string;
+  outputSchemaRef?: string;
+} {
+  return {
+    inputSchemaRef: node.inputSchemaRef,
+    outputSchemaRef:
+      node.outputSchemaRef ??
+      (node.config.type === 'model-call'
+        ? node.config.outputSchemaRef
+        : node.config.type === 'tool-execution'
+          ? node.config.resultSchemaRef
+          : undefined),
+  };
+}
 
 export function validateWorkflowDefinition(
   definition: WorkflowDefinition,
@@ -189,8 +210,41 @@ export function validateWorkflowDefinition(
   }
 
   for (const node of normalizedDefinition.nodes) {
+    const ioContract = resolveNodeIoContract(node);
     const outbound = sortEdges(outgoingEdges.get(node.id) ?? []);
     const outboundBranchEdges = outbound.filter((edge) => edge.branchKey != null);
+
+    if (ioContract.inputSchemaRef && !isResolvableSchemaRef(ioContract.inputSchemaRef)) {
+      pushIssue(
+        issues,
+        'workflow_schema_ref_unresolvable',
+        `Node ${node.id} declares an unresolvable input schema ref ${ioContract.inputSchemaRef}`,
+        `node_id=${node.id}`,
+        `input_schema_ref=${ioContract.inputSchemaRef}`,
+      );
+    }
+
+    if (ioContract.outputSchemaRef && !isResolvableSchemaRef(ioContract.outputSchemaRef)) {
+      pushIssue(
+        issues,
+        'workflow_schema_ref_unresolvable',
+        `Node ${node.id} declares an unresolvable output schema ref ${ioContract.outputSchemaRef}`,
+        `node_id=${node.id}`,
+        `output_schema_ref=${ioContract.outputSchemaRef}`,
+      );
+    }
+
+    if (
+      (node.type === 'model-call' || node.type === 'tool-execution') &&
+      !ioContract.outputSchemaRef
+    ) {
+      pushIssue(
+        issues,
+        'workflow_node_output_schema_missing',
+        `Gateway-managed node ${node.id} must declare an output schema ref`,
+        `node_id=${node.id}`,
+      );
+    }
 
     if (node.type === 'condition') {
       if (node.config.type !== 'condition') {
@@ -257,6 +311,30 @@ export function validateWorkflowDefinition(
           `node_id=${node.id}`,
           `edge_id=${edge.id}`,
           `branch_key=${edge.branchKey}`,
+        );
+      }
+    }
+
+    for (const edge of outbound) {
+      const targetNode = nodesById.get(edge.to);
+      if (!targetNode) {
+        continue;
+      }
+
+      const sourceIo = resolveNodeIoContract(node);
+      const targetIo = resolveNodeIoContract(targetNode);
+      if (
+        sourceIo.outputSchemaRef &&
+        targetIo.inputSchemaRef &&
+        sourceIo.outputSchemaRef !== targetIo.inputSchemaRef
+      ) {
+        pushIssue(
+          issues,
+          'workflow_edge_schema_incompatible',
+          `Edge ${edge.id} connects incompatible node schemas (${sourceIo.outputSchemaRef} -> ${targetIo.inputSchemaRef})`,
+          `edge_id=${edge.id}`,
+          `from=${node.id}`,
+          `to=${targetNode.id}`,
         );
       }
     }

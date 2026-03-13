@@ -31,6 +31,30 @@ import {
 } from './confidence-governance.js';
 import type { ProjectConfig } from './project.js';
 
+export const WorkflowSchemaRefSchema = z.string().min(1);
+export type WorkflowSchemaRef = z.infer<typeof WorkflowSchemaRefSchema>;
+
+export const WorkflowNodeIoLegacySourceSchema = z.enum([
+  'top_level',
+  'model_call_config',
+  'tool_execution_config',
+  'none',
+]);
+export type WorkflowNodeIoLegacySource = z.infer<
+  typeof WorkflowNodeIoLegacySourceSchema
+>;
+
+export const NormalizedWorkflowNodeIoContractSchema = z
+  .object({
+    inputSchemaRef: WorkflowSchemaRefSchema.optional(),
+    outputSchemaRef: WorkflowSchemaRefSchema.optional(),
+    legacySource: WorkflowNodeIoLegacySourceSchema,
+  })
+  .strict();
+export type NormalizedWorkflowNodeIoContract = z.infer<
+  typeof NormalizedWorkflowNodeIoContractSchema
+>;
+
 export const WorkflowDefinitionModeSchema = z.enum(['protocol', 'hybrid']);
 export type WorkflowDefinitionMode = z.infer<
   typeof WorkflowDefinitionModeSchema
@@ -55,7 +79,7 @@ export const WorkflowModelCallNodeConfigSchema = z.object({
   type: z.literal('model-call'),
   modelRole: ModelRoleSchema,
   promptRef: z.string().min(1),
-  outputSchemaRef: z.string().min(1).optional(),
+  outputSchemaRef: WorkflowSchemaRefSchema.optional(),
 });
 export type WorkflowModelCallNodeConfig = z.infer<
   typeof WorkflowModelCallNodeConfigSchema
@@ -65,7 +89,7 @@ export const WorkflowToolExecutionNodeConfigSchema = z.object({
   type: z.literal('tool-execution'),
   toolName: z.string().min(1),
   inputMappingRef: z.string().min(1),
-  resultSchemaRef: z.string().min(1).optional(),
+  resultSchemaRef: WorkflowSchemaRefSchema.optional(),
 });
 export type WorkflowToolExecutionNodeConfig = z.infer<
   typeof WorkflowToolExecutionNodeConfigSchema
@@ -151,6 +175,8 @@ export const WorkflowNodeDefinitionSchema = z
     description: z.string().min(1).optional(),
     governance: GovernanceLevelSchema,
     executionModel: ExecutionModelSchema,
+    inputSchemaRef: WorkflowSchemaRefSchema.optional(),
+    outputSchemaRef: WorkflowSchemaRefSchema.optional(),
     config: WorkflowNodeConfigSchema,
   })
   .superRefine((value, ctx) => {
@@ -176,6 +202,36 @@ export const WorkflowNodeDefinitionSchema = z
 export type WorkflowNodeDefinition = z.infer<
   typeof WorkflowNodeDefinitionSchema
 >;
+
+export function resolveWorkflowNodeIoContract(
+  node: WorkflowNodeDefinition,
+): NormalizedWorkflowNodeIoContract {
+  if (node.inputSchemaRef || node.outputSchemaRef) {
+    return NormalizedWorkflowNodeIoContractSchema.parse({
+      inputSchemaRef: node.inputSchemaRef,
+      outputSchemaRef: node.outputSchemaRef,
+      legacySource: 'top_level',
+    });
+  }
+
+  if (node.config.type === 'model-call' && node.config.outputSchemaRef) {
+    return NormalizedWorkflowNodeIoContractSchema.parse({
+      outputSchemaRef: node.config.outputSchemaRef,
+      legacySource: 'model_call_config',
+    });
+  }
+
+  if (node.config.type === 'tool-execution' && node.config.resultSchemaRef) {
+    return NormalizedWorkflowNodeIoContractSchema.parse({
+      outputSchemaRef: node.config.resultSchemaRef,
+      legacySource: 'tool_execution_config',
+    });
+  }
+
+  return NormalizedWorkflowNodeIoContractSchema.parse({
+    legacySource: 'none',
+  });
+}
 
 export const WorkflowEdgeDefinitionSchema = z.object({
   id: WorkflowEdgeIdSchema,
