@@ -8,7 +8,10 @@ export {
   createInternalMcpSurfaceBundle,
   createLifecycleHandlers,
 } from './lifecycle-handlers.js';
-export { PassthroughOutputSchemaValidator } from './output-schema-validator.js';
+export {
+  DefaultSchemaRefValidator,
+  PassthroughOutputSchemaValidator,
+} from './output-schema-validator.js';
 export {
   getAuthorizedInternalMcpTools,
   isInternalMcpToolAuthorized,

@@ -1,6 +1,11 @@
 export { createPrincipalSystemGatewayRuntime, PrincipalSystemGatewayRuntime } from './principal-system-runtime.js';
 export { GatewayRuntimeIngressAdapter } from './ingress-adapter.js';
 export {
+  GATEWAY_CHAT_COMPLETION_SCHEMA_REF,
+  GatewayBackedTurnExecutor,
+} from './gateway-turn-executor.js';
+export { createGatewayProjectApi } from './project-api.js';
+export {
   createPrincipalCommunicationToolSurface,
   getPrincipalCommunicationToolDefinitions,
   INJECT_DIRECTIVE_TO_SYSTEM_TOOL_NAME,
@@ -8,6 +13,7 @@ export {
 } from './system-inbox-tools.js';
 export { SystemContextReplicaProvider } from './system-context-replica.js';
 export { GatewayRuntimeHealthSink } from './runtime-health.js';
+export { GatewayTraceRecorder } from './trace-recorder.js';
 export type {
   GatewayBootSnapshot,
   GatewayBootStatus,
@@ -21,3 +27,5 @@ export type {
   SystemSubmissionReceipt,
   SystemTaskSubmission,
 } from './types.js';
+export type { GatewayRuntimeProjectApiDeps } from './project-api.js';
+export type { GatewayBackedTurnExecutorDeps } from './gateway-turn-executor.js';

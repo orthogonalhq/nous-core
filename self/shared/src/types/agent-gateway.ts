@@ -252,15 +252,82 @@ export type GatewayEscalationRequest = z.infer<
   typeof GatewayEscalationRequestSchema
 >;
 
+const GatewayPacketEndpointSchema = z
+  .object({
+    id: z.string().regex(/^[^:]+::[^:]+::[^:]+::[^:]+$/),
+    instance_id: z.string().uuid().optional(),
+  })
+  .strict();
+
+const GatewayPacketPayloadSchema = z
+  .object({
+    schema: z.string().min(1),
+    artifact_type: z.string().min(1),
+    data: z.unknown().optional(),
+  })
+  .strict();
+
+const GatewayPacketRetrySchema = z
+  .object({
+    policy: z.literal('value-proportional'),
+    depth: z.enum(['lightweight', 'iterative']),
+    importance_tier: z.enum(['standard', 'high', 'critical']),
+    expected_quality_gain: z.union([z.number().min(0).max(1), z.string().min(1)]),
+    estimated_tokens: z.union([z.number().int().nonnegative(), z.string().min(1)]),
+    estimated_compute_minutes: z.union([z.number().nonnegative(), z.string().min(1)]),
+    token_price_ref: z.string().min(1),
+    compute_price_ref: z.string().min(1),
+    decision: z.enum(['continue', 'accept', 'escalate', 'abort']),
+    decision_log_ref: z.string().min(1),
+    benchmark_tier: z.enum(['nightly', 'weekly', 'monthly', 'n/a']),
+    self_repair: z
+      .object({
+        required_on_fail_close: z.literal(true),
+        orchestration_state: z.literal('deferred'),
+        approval_role: z.string().min(1),
+        implementation_mode: z.enum(['direct', 'dispatch-team']),
+        plan_ref: z.string().min(1),
+      })
+      .strict(),
+  })
+  .strict();
+
 export const GatewayStampedPacketSchema = z
   .object({
     nous: z
       .object({
         v: z.literal(3),
       })
-      .passthrough(),
+      .strict(),
+    route: z
+      .object({
+        emitter: GatewayPacketEndpointSchema,
+        target: GatewayPacketEndpointSchema,
+      })
+      .strict(),
+    envelope: z
+      .object({
+        direction: z.enum(['egress', 'ingress', 'internal']),
+        type: z.enum(['dispatch', 'handoff', 'response_packet']),
+      })
+      .strict(),
+    correlation: z
+      .object({
+        handoff_id: z.string().min(1),
+        correlation_id: z.string().min(1),
+        cycle: z.union([z.string().min(1), z.number().int().nonnegative()]),
+        emitted_at_utc: z.string().datetime(),
+        emitted_at_unix_ms: z.string().regex(/^\d+$/),
+        sequence_in_run: z.string().regex(/^\d+$/),
+        emitted_at_unix_us: z.string().regex(/^\d+$/).optional(),
+      })
+      .strict(),
+    payload: GatewayPacketPayloadSchema,
+    retry: GatewayPacketRetrySchema,
+    artifact_refs: z.array(z.string().min(1)).optional(),
+    summary: z.string().min(1).optional(),
   })
-  .passthrough();
+  .strict();
 export type GatewayStampedPacket = z.infer<typeof GatewayStampedPacketSchema>;
 
 export const GatewayRunSnapshotSchema = z

@@ -17,7 +17,7 @@ describe('bootstrap gateway runtime', () => {
     clearNousContextCache();
   });
 
-  it('boots the Principal/System runtime alongside CoreExecutor', () => {
+  it('boots the Principal/System runtime alongside the gateway-backed turn executor', () => {
     const dataDir = join(tmpdir(), `nous-web-gateway-runtime-${randomUUID()}`);
     mkdirSync(dataDir, { recursive: true });
 

@@ -47,6 +47,8 @@ function createNode(
     case 'tool-execution':
       return {
         ...base,
+        inputSchemaRef: 'schema://tool-input',
+        outputSchemaRef: 'schema://tool-result',
         config: {
           type,
           toolName: 'echo',
@@ -104,6 +106,7 @@ function createNode(
       return {
         ...base,
         type: 'model-call' as const,
+        outputSchemaRef: 'schema://completion',
         config: {
           type: 'model-call' as const,
           modelRole: 'reasoner' as const,
@@ -512,6 +515,37 @@ export function WorkflowEditor({
                       />
                       <span>Entry node</span>
                     </label>
+
+                    <div className="grid gap-3 md:grid-cols-2">
+                      <label className="space-y-1 text-sm">
+                        <span className="text-muted-foreground">Input schema ref</span>
+                        <Input
+                          aria-label="Input schema ref"
+                          value={selectedNode.inputSchemaRef ?? ''}
+                          placeholder="schema://input"
+                          onChange={(event) =>
+                            setDraft(replaceNode(draft, selectedNode.id, (node) => ({
+                              ...node,
+                              inputSchemaRef: event.target.value || undefined,
+                            })))
+                          }
+                        />
+                      </label>
+                      <label className="space-y-1 text-sm">
+                        <span className="text-muted-foreground">Output schema ref</span>
+                        <Input
+                          aria-label="Output schema ref"
+                          value={selectedNode.outputSchemaRef ?? ''}
+                          placeholder="schema://output"
+                          onChange={(event) =>
+                            setDraft(replaceNode(draft, selectedNode.id, (node) => ({
+                              ...node,
+                              outputSchemaRef: event.target.value || undefined,
+                            })))
+                          }
+                        />
+                      </label>
+                    </div>
 
                     {selectedNode.config.type === 'model-call' ? (
                       <div className="grid gap-3 md:grid-cols-2">

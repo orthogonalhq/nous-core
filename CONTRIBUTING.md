@@ -29,7 +29,7 @@ The tiers are a ladder, not a taxonomy. Start at the edges — build an adapter,
 
 ### Tier 1: Integrations (Edges)
 
-**Communication adapters, model provider adapters, MCP tool integrations.**
+**Communication adapters, model provider adapters, agent adapters, MCP tool integrations.**
 
 You need to know the external tool and the interface contract. You don't need to understand the Cortex or the memory system.
 
@@ -80,6 +80,27 @@ export type InternalMcpCapabilityHandler = (
 Each tool is a handler function registered in the catalog (`catalog.ts`) and gated by an authorization matrix (`authorization-matrix.ts`) that controls which agent classes can access which tools.
 
 **What it looks like**: propose and implement a new capability tool — define the handler, add its catalog entry and Zod input schema, wire it into the authorization matrix, write tests.
+
+#### Agent Adapters
+
+The `AgentAdapter` interface (`self/shared/src/types/adapter.ts`) wraps external AI agents so Nous can orchestrate and benchmark them:
+
+```typescript
+// self/shared/src/types/adapter.ts
+export interface AgentAdapter {
+  readonly metadata: AdapterMetadata;
+  prepare(input: PrepareInput): Promise<PrepareOutput>;
+  execute(input: ExecuteInput): Promise<ExecuteOutput>;
+  captureTrace(input: CaptureInput): Promise<TraceBundle>;
+  captureSideEffects(input: CaptureInput): Promise<SideEffectBundle>;
+  collectArtifacts(input: CaptureInput): Promise<ArtifactBundle>;
+  cleanup(input: CleanupInput): Promise<CleanupOutput>;
+}
+```
+
+This is the contract for wrapping any external agent — Claude Code, Codex, Devin, custom agents — so Nous can dispatch tasks to them and capture structured results. All input/output types have Zod schemas for runtime validation.
+
+**What it looks like**: implement `AgentAdapter` for an external agent, mapping its CLI or API into the prepare/execute/capture/cleanup lifecycle. Write tests against the Zod schemas.
 
 ---
 
@@ -182,6 +203,7 @@ The core orchestration loop and memory architecture are not open for drive-by co
 |---|---|---|---|
 | Chat platform adapters (Discord, Matrix, etc.) | `self/apps/bridge/src/connectors/` | `telegram-bot-adapter.ts` as reference | 1 |
 | Model provider adapters (Anthropic, Gemini, etc.) | `self/subcortex/providers/src/` | `ollama-provider.ts` as reference | 1 |
+| Agent adapters (Claude Code, Codex, etc.) | `self/shared/src/types/adapter.ts` | `AgentAdapter` interface and Zod schemas | 1 |
 | MCP tool extensions | `self/cortex/core/src/internal-mcp/` | `catalog.ts` and `capability-handlers.ts` | 1 |
 | Communication gateway runtime | `self/subcortex/communication-gateway/src/` | `delivery-orchestrator.ts` | 1 |
 | Skill contracts and validation | `self/shared/src/types/` (skill types) | Existing type definitions | 2 |
@@ -348,7 +370,37 @@ Add an internal MCP capability tool that lists all projects. The `IProjectStore.
 
 ---
 
-### 8. Email Communication Adapter (Tier 1-2)
+### 8. Claude Code Agent Adapter
+
+Implement `AgentAdapter` for Claude Code, allowing Nous to dispatch coding tasks to Claude Code and capture structured results.
+
+**Create**: `self/subcortex/stubs/src/adapters/claude-code-adapter.ts` (or a new `agent-adapters` package)
+**Reference**: `self/shared/src/types/adapter.ts` — the `AgentAdapter` interface and all Zod schemas
+
+**Acceptance criteria**:
+- Implements `AgentAdapter` (metadata, prepare, execute, captureTrace, captureSideEffects, collectArtifacts, cleanup)
+- `prepare` sets up the working directory and task context
+- `execute` invokes Claude Code's CLI with the task payload and captures completion status
+- `captureTrace` extracts the conversation/tool-use trace
+- All inputs/outputs validate against the existing Zod schemas
+- Tests against schema validation, mock CLI invocations
+
+**Scope boundary**: Don't modify the `AgentAdapter` interface or the Zod schemas. The adapter is a leaf implementation.
+
+---
+
+### 9. OpenAI Codex Agent Adapter
+
+Same pattern as Claude Code, for OpenAI's Codex CLI agent.
+
+**Create**: `self/subcortex/stubs/src/adapters/codex-adapter.ts`
+**Reference**: Same as above
+
+**Acceptance criteria**: Same shape — implements `AgentAdapter`, maps Codex CLI invocations into the prepare/execute/capture/cleanup lifecycle. Tests included.
+
+---
+
+### 10. Email Communication Adapter (Tier 1-2)
 
 IMAP/SMTP adapter for email ingress and egress.
 
@@ -360,7 +412,7 @@ IMAP/SMTP adapter for email ingress and egress.
 
 ---
 
-### 9. CLI Output Formatting (Tier 2)
+### 11. CLI Output Formatting (Tier 2)
 
 The CLI (`self/apps/cli/`) has basic output. Improve formatting for common operations — project listings, memory queries, workflow status.
 

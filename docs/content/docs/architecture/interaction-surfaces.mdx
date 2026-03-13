@@ -276,7 +276,7 @@ All surfaces read from and write to the same project state:
 - Same artifact store
 - Same execution traces
 - Same governance configuration
-- Same long-lived Principal/System gateway runtime, booted once by the app host and shared across chat, automation ingress, and other server-hosted surfaces while `CoreExecutor` remains the active caller path during migration
+- Same long-lived Principal/System gateway runtime, booted once by the app host and shared across chat, automation ingress, and other server-hosted surfaces, with direct turn execution now satisfied by the gateway-backed compatibility executor rather than the retired `CoreExecutor` class
 - Same canonical voice session and confirmation state projected into web, messaging, Projects, and MAO surfaces
 - Same canonical escalation acknowledgement and mobile operations snapshot posture projected into Chat, Projects, and the mobile surface
 
