@@ -81,5 +81,6 @@ describe('bootstrap config validation', () => {
     expect(ctx.escalationService).toBeDefined();
     expect(ctx.registryService).toBeDefined();
     expect(ctx.nudgeDiscoveryService).toBeDefined();
+    expect(ctx.gatewayRuntime).toBeDefined();
   });
 });
