@@ -1,6 +1,7 @@
 import { z } from 'zod';
 import { ToolDefinitionSchema } from './tools.js';
 import { WitnessEventIdSchema } from './ids.js';
+import { ConfidenceGovernanceEvaluationResultSchema } from './confidence-governance.js';
 
 export const PublicMcpScopeSchema = z.enum([
   'ortho.memory.stm.read',
@@ -389,6 +390,156 @@ export const ExternalSourceCompactionResultSchema = z.object({
 }).strict();
 export type ExternalSourceCompactionResult = z.infer<
   typeof ExternalSourceCompactionResultSchema
+>;
+
+export const PromotedMemoryLifecycleStatusSchema = z.enum([
+  'active',
+  'demoted',
+]);
+export type PromotedMemoryLifecycleStatus = z.infer<
+  typeof PromotedMemoryLifecycleStatusSchema
+>;
+
+export const PromotedMemoryKindSchema = z.enum([
+  'document',
+  'fact',
+  'summary',
+]);
+export type PromotedMemoryKind = z.infer<typeof PromotedMemoryKindSchema>;
+
+export const PromotedMemoryMutationActionSchema = z.enum([
+  'promote',
+  'demote',
+]);
+export type PromotedMemoryMutationAction = z.infer<
+  typeof PromotedMemoryMutationActionSchema
+>;
+
+export const PromotedMemoryMutationOutcomeSchema = z.enum([
+  'completed',
+  'rejected',
+  'failed',
+]);
+export type PromotedMemoryMutationOutcome = z.infer<
+  typeof PromotedMemoryMutationOutcomeSchema
+>;
+
+export const PromotedSourceProvenanceSchema = z.object({
+  sourceNamespace: PublicMcpNamespaceSchema,
+  sourceRecordId: ExternalMemoryEntryIdSchema,
+  sourceRecordKey: z.string().min(1),
+  sourceTier: PublicMcpMemoryTierSchema,
+  sourceCollection: z.string().min(1),
+  sourceLifecycleStatus: ExternalSourceLifecycleStatusSchema,
+  sourceOperation: ExternalSourceOperationSchema,
+  sourceCreatedAt: z.string().datetime(),
+  sourceUpdatedAt: z.string().datetime(),
+  sourceDeletedAt: z.string().datetime().optional(),
+  sourceSupersedesRecordId: ExternalMemoryEntryIdSchema.optional(),
+  sourceSupersededByRecordId: ExternalMemoryEntryIdSchema.optional(),
+  promotedAt: z.string().datetime(),
+  promotedBySubject: z.literal('Cortex::System'),
+}).strict();
+export type PromotedSourceProvenance = z.infer<typeof PromotedSourceProvenanceSchema>;
+
+export const PromotedMemoryRecordSchema = z.object({
+  id: z.string().min(1),
+  sourceRecordKey: z.string().min(1),
+  content: z.string().min(1),
+  kind: PromotedMemoryKindSchema.default('document'),
+  tags: z.array(z.string().min(1)).max(16).default([]),
+  metadata: z.record(z.string(), z.string()).default({}),
+  lifecycleStatus: PromotedMemoryLifecycleStatusSchema.default('active'),
+  provenance: PromotedSourceProvenanceSchema,
+  confidenceGovernance: ConfidenceGovernanceEvaluationResultSchema,
+  promotionRationale: z.string().min(1),
+  createdAt: z.string().datetime(),
+  updatedAt: z.string().datetime(),
+  deletedAt: z.string().datetime().optional(),
+  tombstoneId: z.string().min(1).optional(),
+}).strict();
+export type PromotedMemoryRecord = z.infer<typeof PromotedMemoryRecordSchema>;
+
+export const PromoteExternalRecordCommandSchema = z.object({
+  requestId: z.string().min(1).optional(),
+  requestedAt: z.string().datetime().optional(),
+  sourceNamespace: PublicMcpNamespaceSchema,
+  sourceRecordId: ExternalMemoryEntryIdSchema,
+  expectedTier: PublicMcpMemoryTierSchema.optional(),
+  rationale: z.string().min(1),
+}).strict();
+export type PromoteExternalRecordCommand = z.infer<
+  typeof PromoteExternalRecordCommandSchema
+>;
+
+export const DemotePromotedRecordCommandSchema = z.object({
+  requestId: z.string().min(1).optional(),
+  requestedAt: z.string().datetime().optional(),
+  promotedId: z.string().min(1),
+  rationale: z.string().min(1),
+}).strict();
+export type DemotePromotedRecordCommand = z.infer<
+  typeof DemotePromotedRecordCommandSchema
+>;
+
+export const PromotedMemoryGetQuerySchema = z.object({
+  promotedId: z.string().min(1),
+  includeDemoted: z.boolean().default(false),
+}).strict();
+export type PromotedMemoryGetQuery = z.infer<typeof PromotedMemoryGetQuerySchema>;
+
+export const PromotedMemorySearchQuerySchema = z.object({
+  text: z.string().min(1),
+  topK: z.number().int().min(1).max(50).default(10),
+  includeDemoted: z.boolean().default(false),
+  sourceNamespace: PublicMcpNamespaceSchema.optional(),
+}).strict();
+export type PromotedMemorySearchQuery = z.infer<
+  typeof PromotedMemorySearchQuerySchema
+>;
+
+export const PromotedMemorySearchResultItemSchema = z.object({
+  record: PromotedMemoryRecordSchema,
+  score: z.number().min(0),
+}).strict();
+export type PromotedMemorySearchResultItem = z.infer<
+  typeof PromotedMemorySearchResultItemSchema
+>;
+
+export const PromotedMemorySearchResultSchema = z.object({
+  entries: z.array(PromotedMemorySearchResultItemSchema),
+}).strict();
+export type PromotedMemorySearchResult = z.infer<
+  typeof PromotedMemorySearchResultSchema
+>;
+
+export const PromotedMemoryTombstoneSchema = z.object({
+  id: z.string().min(1),
+  promotedId: z.string().min(1),
+  sourceRecordKey: z.string().min(1),
+  reason: z.string().min(1),
+  createdAt: z.string().datetime(),
+}).strict();
+export type PromotedMemoryTombstone = z.infer<typeof PromotedMemoryTombstoneSchema>;
+
+export const PromotedMemoryAuditRecordSchema = z.object({
+  id: z.string().min(1),
+  requestId: z.string().min(1),
+  action: PromotedMemoryMutationActionSchema,
+  outcome: PromotedMemoryMutationOutcomeSchema,
+  promotedId: z.string().min(1).optional(),
+  sourceNamespace: PublicMcpNamespaceSchema.optional(),
+  sourceRecordId: ExternalMemoryEntryIdSchema.optional(),
+  sourceRecordKey: z.string().min(1).optional(),
+  rationale: z.string().min(1).optional(),
+  reason: z.string().min(1).optional(),
+  authorizationEventId: WitnessEventIdSchema.optional(),
+  completionEventId: WitnessEventIdSchema.optional(),
+  tombstoneId: z.string().min(1).optional(),
+  createdAt: z.string().datetime(),
+}).strict();
+export type PromotedMemoryAuditRecord = z.infer<
+  typeof PromotedMemoryAuditRecordSchema
 >;
 
 export const PublicMcpNamespaceRecordSchema = z.object({

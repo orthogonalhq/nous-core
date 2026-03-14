@@ -11,6 +11,10 @@ import {
   PublicMcpTaskProjectionSchema,
   PublicMcpTaskResultSchema,
   PublicMcpToolMappingEntrySchema,
+  PromoteExternalRecordCommandSchema,
+  PromotedMemoryAuditRecordSchema,
+  PromotedMemoryRecordSchema,
+  PromotedMemorySearchResultSchema,
 } from '../../types/public-mcp.js';
 
 describe('public MCP shared types', () => {
@@ -132,7 +136,7 @@ describe('public MCP shared types', () => {
     const systemInfo = PublicMcpSystemInfoSchema.parse({
       server: {
         name: 'Nous Public MCP',
-        phase: 'phase-13.3',
+        phase: 'phase-13.4',
         backendMode: 'development',
         protocolVersion: '2025-11-25',
       },
@@ -196,5 +200,82 @@ describe('public MCP shared types', () => {
     });
 
     expect(audit.namespace).toBe(namespace.namespace);
+  });
+
+  it('parses promoted-tier commands, records, audit rows, and search payloads', () => {
+    const promote = PromoteExternalRecordCommandSchema.parse({
+      sourceNamespace: 'app:0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef',
+      sourceRecordId: 'entry-1',
+      rationale: 'promote for internal retrieval',
+    });
+    const record = PromotedMemoryRecordSchema.parse({
+      id: 'promoted-1',
+      sourceRecordKey:
+        'app:0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef:entry-1',
+      content: 'promoted fact',
+      kind: 'fact',
+      tags: ['fact'],
+      metadata: { source: 'external' },
+      lifecycleStatus: 'active',
+      provenance: {
+        sourceNamespace:
+          'app:0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef',
+        sourceRecordId: 'entry-1',
+        sourceRecordKey:
+          'app:0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef:entry-1',
+        sourceTier: 'ltm',
+        sourceCollection:
+          'external:ltm:0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef:default',
+        sourceLifecycleStatus: 'active',
+        sourceOperation: 'put',
+        sourceCreatedAt: '2026-03-14T00:00:00.000Z',
+        sourceUpdatedAt: '2026-03-14T00:00:00.000Z',
+        promotedAt: '2026-03-14T00:01:00.000Z',
+        promotedBySubject: 'Cortex::System',
+      },
+      confidenceGovernance: {
+        outcome: 'allow_with_flag',
+        reasonCode: 'CGR-ALLOW-WITH-FLAG',
+        governance: 'should',
+        actionCategory: 'memory-write',
+        patternId: '550e8400-e29b-41d4-a716-446655440010',
+        confidence: 0.76,
+        confidenceTier: 'medium',
+        supportingSignals: 5,
+        autonomyAllowed: false,
+        requiresConfirmation: false,
+        highRiskOverrideApplied: false,
+        evidenceRefs: [{ actionCategory: 'memory-write' }],
+        explanation: {
+          patternId: '550e8400-e29b-41d4-a716-446655440010',
+          outcomeRef: 'promoted:promoted-1',
+          evidenceRefs: [{ actionCategory: 'memory-write' }],
+        },
+      },
+      promotionRationale: promote.rationale,
+      createdAt: '2026-03-14T00:01:00.000Z',
+      updatedAt: '2026-03-14T00:01:00.000Z',
+    });
+    const audit = PromotedMemoryAuditRecordSchema.parse({
+      id: 'audit-1',
+      requestId: 'audit-1',
+      action: 'promote',
+      outcome: 'completed',
+      promotedId: record.id,
+      sourceNamespace: record.provenance.sourceNamespace,
+      sourceRecordId: record.provenance.sourceRecordId,
+      sourceRecordKey: record.sourceRecordKey,
+      rationale: promote.rationale,
+      authorizationEventId: '550e8400-e29b-41d4-a716-446655440001' as any,
+      completionEventId: '550e8400-e29b-41d4-a716-446655440002' as any,
+      createdAt: '2026-03-14T00:01:00.000Z',
+    });
+    const search = PromotedMemorySearchResultSchema.parse({
+      entries: [{ record, score: 0.9 }],
+    });
+
+    expect(record.provenance.sourceRecordId).toBe(promote.sourceRecordId);
+    expect(audit.action).toBe('promote');
+    expect(search.entries[0]?.record.id).toBe(record.id);
   });
 });

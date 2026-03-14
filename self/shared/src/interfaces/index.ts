@@ -31,6 +31,7 @@ export type {
   ExternalSourcePutCommand,
   ExternalSourceSearchQuery,
   IExternalSourceMemoryService,
+  IPromotedMemoryBridgeService,
   IPublicMcpGatewayService,
   IPublicMcpSurfaceService,
   IEndpointTrustService,
