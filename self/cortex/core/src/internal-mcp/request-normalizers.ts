@@ -15,6 +15,7 @@ import {
   MemoryWriteCandidateSchema,
   PublicMcpCompactArgumentsSchema,
   PublicMcpDeleteArgumentsSchema,
+  PublicMcpAgentInvokeArgumentsSchema,
   PublicMcpExecutionRequestSchema,
   PublicMcpGetArgumentsSchema,
   PublicMcpPutArgumentsSchema,
@@ -25,6 +26,8 @@ import {
   type ArtifactReadRequest,
   type ArtifactWriteRequest,
   type EscalationContract,
+  type PublicMcpAgentInvokeArguments,
+  type PublicMcpExecutionRequest,
   type GatewayDispatchRequest,
   type GatewayEscalationRequest,
   type GatewayObservation,
@@ -111,9 +114,22 @@ export const SchedulerRegisterRequestSchema = ScheduleDefinitionSchema.omit({
   projectId: true,
 });
 export type SchedulerRegisterRequest = Omit<ScheduleDefinition, 'projectId'>;
+export type { PublicMcpAgentInvokeArguments, PublicMcpExecutionRequest };
 
 function parseExternalExecutionRequest(params: unknown) {
   return PublicMcpExecutionRequestSchema.parse(params ?? {});
+}
+
+export function parsePublicMcpExecutionRequest(
+  params: unknown,
+): PublicMcpExecutionRequest {
+  return PublicMcpExecutionRequestSchema.parse(params ?? {});
+}
+
+export function parsePublicMcpAgentInvokeArguments(
+  params: unknown,
+): PublicMcpAgentInvokeArguments {
+  return PublicMcpAgentInvokeArgumentsSchema.parse(params ?? {});
 }
 
 export function normalizeDispatchParams(params: unknown): GatewayDispatchRequest {
@@ -298,7 +314,7 @@ export function toValidationError(message: string, error: unknown): ValidationEr
   if (error instanceof z.ZodError) {
     return new ValidationError(
       message,
-      error.errors.map((issue) => ({
+      error.issues.map((issue) => ({
         path: issue.path.join('.'),
         message: issue.message,
       })),

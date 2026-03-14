@@ -3,6 +3,7 @@ import {
   type AgentClass,
   type CriticalActionCategory,
   type GatewayExecutionContext,
+  type IPublicMcpSurfaceService,
   type ProjectId,
   type ToolResult,
   type TraceEvidenceReference,
@@ -20,6 +21,8 @@ import {
   parseExternalMemorySearchQuery,
   parseMemorySearchRequest,
   parseMemoryWriteRequest,
+  parsePublicMcpAgentInvokeArguments,
+  parsePublicMcpExecutionRequest,
   parseProjectDiscoverRequest,
   parseSchedulerRegisterRequest,
   parseToolExecuteRequest,
@@ -53,6 +56,19 @@ function requireExternalSourceMemoryService(context: InternalMcpHandlerContext) 
   }
 
   return context.deps.externalSourceMemoryService;
+}
+
+function requirePublicMcpSurfaceService(
+  context: InternalMcpHandlerContext,
+): IPublicMcpSurfaceService {
+  if (!context.deps.publicMcpSurfaceService) {
+    throw new NousError(
+      'Public MCP surface service is unavailable',
+      'SERVICE_UNAVAILABLE',
+    );
+  }
+
+  return context.deps.publicMcpSurfaceService;
 }
 
 function requireProjectId(
@@ -212,7 +228,7 @@ export function createCapabilityHandlers(
         );
       }
 
-      return success(await api.memory.read(request.query, request.scope), 0);
+      return success(await api.memory.read(request.query, request.scope as 'global' | 'project'), 0);
     },
     memory_write: async (params, execution) => {
       const projectId = requireProjectId('memory_write', execution);
@@ -268,6 +284,45 @@ export function createCapabilityHandlers(
     external_memory_compact: async (params) => {
       const service = requireExternalSourceMemoryService(context);
       return success(await service.compact(parseExternalMemoryCompactCommand(params)), 0);
+    },
+    public_agent_list: async (params) => {
+      const service = requirePublicMcpSurfaceService(context);
+      const request = parsePublicMcpExecutionRequest(params);
+      return success(
+        {
+          agents: await service.listAgents({
+            requestId: request.requestId,
+            subject: request.subject,
+            requestedAt: request.requestedAt,
+          }),
+        },
+        0,
+      );
+    },
+    public_agent_invoke: async (params) => {
+      const service = requirePublicMcpSurfaceService(context);
+      const request = parsePublicMcpExecutionRequest(params);
+      return success(
+        await service.invokeAgent({
+          requestId: request.requestId,
+          subject: request.subject,
+          requestedAt: request.requestedAt,
+          arguments: parsePublicMcpAgentInvokeArguments(request.arguments),
+        }),
+        0,
+      );
+    },
+    public_system_info: async (params) => {
+      const service = requirePublicMcpSurfaceService(context);
+      const request = parsePublicMcpExecutionRequest(params);
+      return success(
+        await service.getSystemInfo({
+          requestId: request.requestId,
+          subject: request.subject,
+          requestedAt: request.requestedAt,
+        }),
+        0,
+      );
     },
     project_discover: async (params, execution) => {
       const projectId = requireProjectId('project_discover', execution);
@@ -374,7 +429,7 @@ export function createCapabilityHandlers(
         projectId: execution?.projectId,
         traceId: execution?.traceId,
         detail: { reason: request.reason },
-        operation: () => service.createCheckpoint(request.reason),
+        operation: () => service.createCheckpoint(request.reason as 'interval' | 'manual' | 'rotation' | undefined),
       });
 
       return success(

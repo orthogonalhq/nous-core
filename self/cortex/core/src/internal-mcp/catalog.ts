@@ -112,6 +112,42 @@ export const INTERNAL_MCP_CATALOG: readonly InternalMcpCatalogEntry[] = [
     ),
   },
   {
+    name: 'public_agent_list',
+    kind: 'capability',
+    definition: defineTool(
+      'public_agent_list',
+      'List externally visible public agents.',
+      { request: 'PublicMcpExecutionRequest' },
+      { agents: 'PublicMcpAgentCatalogEntry[]' },
+      ['read'],
+      'runtime',
+    ),
+  },
+  {
+    name: 'public_agent_invoke',
+    kind: 'capability',
+    definition: defineTool(
+      'public_agent_invoke',
+      'Invoke a public agent through the canonical AgentGateway seam.',
+      { request: 'PublicMcpExecutionRequest' },
+      { result: 'PublicMcpAgentInvokeResult' },
+      ['execute'],
+      'runtime',
+    ),
+  },
+  {
+    name: 'public_system_info',
+    kind: 'capability',
+    definition: defineTool(
+      'public_system_info',
+      'Project public-safe system and task-support metadata.',
+      { request: 'PublicMcpExecutionRequest' },
+      { info: 'PublicMcpSystemInfo' },
+      ['read'],
+      'runtime',
+    ),
+  },
+  {
     name: 'project_discover',
     kind: 'capability',
     definition: defineTool(
