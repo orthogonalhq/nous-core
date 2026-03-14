@@ -238,6 +238,30 @@ The mobile operations surface is not a second dashboard or a second control plan
 
 ---
 
+## Surface 7 — Public MCP Edge
+
+The machine-to-machine integration surface.
+
+### Purpose
+
+Allowing approved external clients to discover and call the ratified public MCP surface without exposing internal-only tools, namespaces, or authority classes.
+
+### Characteristics
+
+- Streamable HTTP at `/mcp` with JSON-RPC framing
+- Discovery metadata at `/.well-known/oauth-protected-resource/mcp` and `/.well-known/oauth-authorization-server/mcp`
+- OAuth bearer, audience, origin, and scope checks before tool mapping, bootstrap, or handler execution
+- Boundary-local `ExternalClient` subject posture; internal Worker, Orchestrator, Cortex:System, and Cortex:Principal classes remain unchanged
+- Public `ortho.*` tool names mapped once onto the canonical flat internal catalog
+- External-only namespace bootstrap and witness-linked audit evidence for durable admits and security-sensitive rejects
+- Phase 13.1 intentionally exposes no current-phase-enabled public tools until later public capability phases land
+
+### Runtime Boundary
+
+The public MCP edge is not a second API stack. The web host parses HTTP and discovery traffic, then composes `IPublicMcpGatewayService` with the core public execution bridge. Admitted traffic still flows through the existing AgentGateway, Internal MCP, and backpressure seams, and rejected traffic records the same witness and audit posture as other authority-sensitive ingress paths.
+
+---
+
 ## Automation Gateway (Phase 5.3)
 
 The programmatic trigger surface for scheduled runs, internal hooks, and external webhooks.
@@ -276,7 +300,7 @@ All surfaces read from and write to the same project state:
 - Same artifact store
 - Same execution traces
 - Same governance configuration
-- Same long-lived Principal/System gateway runtime, booted once by the app host and shared across chat, automation ingress, and other server-hosted surfaces, with direct turn execution now satisfied by the gateway-backed compatibility executor rather than the retired `CoreExecutor` class
+- Same long-lived Principal/System gateway runtime, booted once by the app host and shared across chat, automation ingress, public MCP ingress, and other server-hosted surfaces, with direct turn execution now satisfied by the gateway-backed compatibility executor rather than the retired `CoreExecutor` class
 - Same canonical voice session and confirmation state projected into web, messaging, Projects, and MAO surfaces
 - Same canonical escalation acknowledgement and mobile operations snapshot posture projected into Chat, Projects, and the mobile surface
 
