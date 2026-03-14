@@ -142,7 +142,7 @@ export class PublicMcpSurfaceService implements IPublicMcpSurfaceService {
     return PublicMcpSystemInfoSchema.parse({
       server: {
         name: this.options.serverName ?? 'Nous Public MCP',
-        phase: this.options.phase ?? 'phase-13.3',
+        phase: this.options.phase ?? 'phase-13.4',
         backendMode: this.options.backendMode ?? 'development',
         protocolVersion: '2025-11-25',
       },

@@ -135,7 +135,7 @@ describe('Internal MCP capability handlers', () => {
       getSystemInfo: vi.fn().mockResolvedValue({
         server: {
           name: 'Nous Public MCP',
-          phase: 'phase-13.3',
+          phase: 'phase-13.4',
           backendMode: 'development',
           protocolVersion: '2025-11-25',
         },
@@ -188,5 +188,51 @@ describe('Internal MCP capability handlers', () => {
 
     expect(listResult.success).toBe(true);
     expect(publicMcpSurfaceService.listAgents).toHaveBeenCalled();
+  });
+
+  it('restricts promoted memory capabilities to Cortex::System', async () => {
+    const promotedMemoryBridgeService = {
+      promote: vi.fn().mockResolvedValue({ id: 'promoted-1' }),
+      demote: vi.fn(),
+      get: vi.fn(),
+      search: vi.fn(),
+    };
+    const workerHandlers = createCapabilityHandlers({
+      agentClass: 'Worker',
+      agentId: AGENT_ID as any,
+      deps: {
+        promotedMemoryBridgeService: promotedMemoryBridgeService as any,
+      },
+    });
+    const systemHandlers = createCapabilityHandlers({
+      agentClass: 'Cortex::System',
+      agentId: AGENT_ID as any,
+      deps: {
+        promotedMemoryBridgeService: promotedMemoryBridgeService as any,
+      },
+    });
+
+    await expect(
+      workerHandlers.promoted_memory_promote({
+        sourceNamespace:
+          'app:0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef',
+        sourceRecordId: 'entry-1',
+        rationale: 'promote',
+      }),
+    ).rejects.toThrow('restricted to Cortex::System');
+
+    const result = await systemHandlers.promoted_memory_promote({
+      sourceNamespace:
+        'app:0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef',
+      sourceRecordId: 'entry-1',
+      rationale: 'promote',
+    });
+
+    expect(result.success).toBe(true);
+    expect(promotedMemoryBridgeService.promote).toHaveBeenCalledWith(
+      expect.objectContaining({
+        sourceRecordId: 'entry-1',
+      }),
+    );
   });
 });

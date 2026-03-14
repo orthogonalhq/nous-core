@@ -148,6 +148,54 @@ export const INTERNAL_MCP_CATALOG: readonly InternalMcpCatalogEntry[] = [
     ),
   },
   {
+    name: 'promoted_memory_promote',
+    kind: 'capability',
+    definition: defineTool(
+      'promoted_memory_promote',
+      'Promote one external source record into the internal promoted tier.',
+      { command: 'PromoteExternalRecordCommand' },
+      { record: 'PromotedMemoryRecord' },
+      ['write'],
+      'runtime',
+    ),
+  },
+  {
+    name: 'promoted_memory_demote',
+    kind: 'capability',
+    definition: defineTool(
+      'promoted_memory_demote',
+      'Soft-delete one promoted-tier record while preserving audit lineage.',
+      { command: 'DemotePromotedRecordCommand' },
+      { record: 'PromotedMemoryRecord' },
+      ['write'],
+      'runtime',
+    ),
+  },
+  {
+    name: 'promoted_memory_get',
+    kind: 'capability',
+    definition: defineTool(
+      'promoted_memory_get',
+      'Read one promoted-tier record by promoted ID.',
+      { query: 'PromotedMemoryGetQuery' },
+      { record: 'PromotedMemoryRecord | null' },
+      ['read'],
+      'runtime',
+    ),
+  },
+  {
+    name: 'promoted_memory_search',
+    kind: 'capability',
+    definition: defineTool(
+      'promoted_memory_search',
+      'Search promoted-tier records without querying external source tables.',
+      { query: 'PromotedMemorySearchQuery' },
+      { entries: 'PromotedMemorySearchResult' },
+      ['read'],
+      'runtime',
+    ),
+  },
+  {
     name: 'project_discover',
     kind: 'capability',
     definition: defineTool(

@@ -37,11 +37,13 @@ describe('ScopedMcpToolSurface', () => {
     expect(workerTools).toContain('tool_execute');
     expect(workerTools).not.toContain('dispatch_agent');
     expect(workerTools).not.toContain('memory_write');
+    expect(workerTools).not.toContain('promoted_memory_promote');
 
     expect(principalTools).toContain('memory_search');
     expect(principalTools).toContain('artifact_retrieve');
     expect(principalTools).not.toContain('task_complete');
     expect(principalTools).not.toContain('dispatch_agent');
+    expect(principalTools).not.toContain('promoted_memory_promote');
   });
 
   it('keeps unauthorized and lifecycle-only tools unavailable at execution time', async () => {
@@ -64,5 +66,7 @@ describe('ScopedMcpToolSurface', () => {
   it('exposes the same visible catalog through the helper projection', () => {
     expect(getVisibleInternalMcpTools('Orchestrator')).toContain('dispatch_agent');
     expect(getVisibleInternalMcpTools('Worker')).not.toContain('dispatch_agent');
+    expect(getVisibleInternalMcpTools('Cortex::System')).toContain('promoted_memory_promote');
+    expect(getVisibleInternalMcpTools('Worker')).not.toContain('promoted_memory_promote');
   });
 });

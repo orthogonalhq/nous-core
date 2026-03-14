@@ -454,6 +454,7 @@ implements IPrincipalSystemGatewayRuntime, ISystemInboxSubmissionService {
       getProjectApi: this.deps.getProjectApi,
       toolExecutor: this.deps.toolExecutor,
       pfc: this.deps.pfc,
+      promotedMemoryBridgeService: this.deps.promotedMemoryBridgeService,
       workflowEngine: this.deps.workflowEngine,
       projectStore: this.deps.projectStore,
       scheduler: this.deps.scheduler,

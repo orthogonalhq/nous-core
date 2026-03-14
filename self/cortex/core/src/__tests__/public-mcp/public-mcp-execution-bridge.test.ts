@@ -118,4 +118,18 @@ describe('PublicMcpExecutionBridge executeMappedTool', () => {
     expect(result.rejectReason).toBe('scope_insufficient');
     expect(executor.execute).not.toHaveBeenCalled();
   });
+
+  it('never exposes promoted-tier internal tools through public execution', async () => {
+    const executor = {
+      execute: vi.fn(),
+    };
+    const bridge = new PublicMcpExecutionBridge({
+      executor,
+    });
+
+    const result = await bridge.executeMappedTool(createRequest('ortho.promoted.v1.promote'));
+
+    expect(result.rejectReason).toBe('tool_not_available');
+    expect(executor.execute).not.toHaveBeenCalled();
+  });
 });

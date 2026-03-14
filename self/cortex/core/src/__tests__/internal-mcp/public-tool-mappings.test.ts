@@ -31,6 +31,9 @@ describe('public tool mappings', () => {
         execution: { taskSupport: 'optional' },
       }),
     );
+    expect(
+      PUBLIC_MCP_TOOL_MAPPINGS.some((entry) => entry.internalName.startsWith('promoted_memory_')),
+    ).toBe(false);
   });
 
   it('looks up mappings by public tool name', () => {

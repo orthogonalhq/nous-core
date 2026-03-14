@@ -20,12 +20,20 @@ import {
   PublicMcpGetArgumentsSchema,
   PublicMcpPutArgumentsSchema,
   PublicMcpSearchArgumentsSchema,
+  PromoteExternalRecordCommandSchema,
+  DemotePromotedRecordCommandSchema,
+  PromotedMemoryGetQuerySchema,
+  PromotedMemorySearchQuerySchema,
   ValidationError,
   WitnessCheckpointReasonSchema,
   ScheduleDefinitionSchema,
   type ArtifactReadRequest,
   type ArtifactWriteRequest,
+  type DemotePromotedRecordCommand,
   type EscalationContract,
+  type PromoteExternalRecordCommand,
+  type PromotedMemoryGetQuery,
+  type PromotedMemorySearchQuery,
   type PublicMcpAgentInvokeArguments,
   type PublicMcpExecutionRequest,
   type GatewayDispatchRequest,
@@ -115,6 +123,30 @@ export const SchedulerRegisterRequestSchema = ScheduleDefinitionSchema.omit({
 });
 export type SchedulerRegisterRequest = Omit<ScheduleDefinition, 'projectId'>;
 export type { PublicMcpAgentInvokeArguments, PublicMcpExecutionRequest };
+
+export function parsePromotedMemoryPromoteCommand(
+  params: unknown,
+): PromoteExternalRecordCommand {
+  return PromoteExternalRecordCommandSchema.parse(params ?? {});
+}
+
+export function parsePromotedMemoryDemoteCommand(
+  params: unknown,
+): DemotePromotedRecordCommand {
+  return DemotePromotedRecordCommandSchema.parse(params ?? {});
+}
+
+export function parsePromotedMemoryGetQuery(
+  params: unknown,
+): PromotedMemoryGetQuery {
+  return PromotedMemoryGetQuerySchema.parse(params ?? {});
+}
+
+export function parsePromotedMemorySearchQuery(
+  params: unknown,
+): PromotedMemorySearchQuery {
+  return PromotedMemorySearchQuerySchema.parse(params ?? {});
+}
 
 function parseExternalExecutionRequest(params: unknown) {
   return PublicMcpExecutionRequestSchema.parse(params ?? {});

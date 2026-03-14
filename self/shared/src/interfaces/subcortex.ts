@@ -180,6 +180,12 @@ import type {
   PublicMcpTaskProjection,
   PublicMcpTaskResult,
   PublicMcpToolDefinition,
+  PromoteExternalRecordCommand,
+  DemotePromotedRecordCommand,
+  PromotedMemoryGetQuery,
+  PromotedMemoryRecord,
+  PromotedMemorySearchQuery,
+  PromotedMemorySearchResult,
 } from '../types/index.js';
 import type { NousEvent } from '../events/index.js';
 
@@ -573,6 +579,20 @@ export interface IExternalSourceMemoryService {
 
   /** Compact source-local external STM into allowed public compaction outputs. */
   compact(request: ExternalSourceCompactCommand): Promise<ExternalSourceCompactionResult>;
+}
+
+export interface IPromotedMemoryBridgeService {
+  /** Promote one external source record into the internal promoted tier. */
+  promote(command: PromoteExternalRecordCommand): Promise<PromotedMemoryRecord>;
+
+  /** Soft-delete one promoted-tier record while preserving audit lineage. */
+  demote(command: DemotePromotedRecordCommand): Promise<PromotedMemoryRecord>;
+
+  /** Read one promoted-tier record by promoted ID. */
+  get(query: PromotedMemoryGetQuery): Promise<PromotedMemoryRecord | null>;
+
+  /** Search promoted-tier records without querying external source tables live. */
+  search(query: PromotedMemorySearchQuery): Promise<PromotedMemorySearchResult>;
 }
 
 export interface IEndpointTrustService {

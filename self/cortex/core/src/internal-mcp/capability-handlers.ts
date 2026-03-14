@@ -3,6 +3,7 @@ import {
   type AgentClass,
   type CriticalActionCategory,
   type GatewayExecutionContext,
+  type IPromotedMemoryBridgeService,
   type IPublicMcpSurfaceService,
   type ProjectId,
   type ToolResult,
@@ -21,6 +22,10 @@ import {
   parseExternalMemorySearchQuery,
   parseMemorySearchRequest,
   parseMemoryWriteRequest,
+  parsePromotedMemoryDemoteCommand,
+  parsePromotedMemoryGetQuery,
+  parsePromotedMemoryPromoteCommand,
+  parsePromotedMemorySearchQuery,
   parsePublicMcpAgentInvokeArguments,
   parsePublicMcpExecutionRequest,
   parseProjectDiscoverRequest,
@@ -69,6 +74,41 @@ function requirePublicMcpSurfaceService(
   }
 
   return context.deps.publicMcpSurfaceService;
+}
+
+function requirePromotedMemoryBridgeService(
+  context: InternalMcpHandlerContext,
+): IPromotedMemoryBridgeService {
+  if (!context.deps.promotedMemoryBridgeService) {
+    throw new NousError(
+      'Promoted memory bridge service is unavailable',
+      'SERVICE_UNAVAILABLE',
+    );
+  }
+
+  return context.deps.promotedMemoryBridgeService;
+}
+
+async function requireSystemAgent(
+  context: InternalMcpHandlerContext,
+  toolName: string,
+  execution?: GatewayExecutionContext,
+): Promise<void> {
+  if (context.agentClass === 'Cortex::System') {
+    return;
+  }
+
+  return denyWithWitness({
+    context,
+    actionCategory:
+      toolName === 'promoted_memory_get' || toolName === 'promoted_memory_search'
+        ? 'tool-execute'
+        : 'memory-write',
+    actionRef: toolName,
+    projectId: execution?.projectId,
+    traceId: execution?.traceId,
+    reason: `${toolName} is restricted to Cortex::System`,
+  });
 }
 
 function requireProjectId(
@@ -321,6 +361,38 @@ export function createCapabilityHandlers(
           subject: request.subject,
           requestedAt: request.requestedAt,
         }),
+        0,
+      );
+    },
+    promoted_memory_promote: async (params, execution) => {
+      await requireSystemAgent(context, 'promoted_memory_promote', execution);
+      const service = requirePromotedMemoryBridgeService(context);
+      return success(
+        await service.promote(parsePromotedMemoryPromoteCommand(params)),
+        0,
+      );
+    },
+    promoted_memory_demote: async (params, execution) => {
+      await requireSystemAgent(context, 'promoted_memory_demote', execution);
+      const service = requirePromotedMemoryBridgeService(context);
+      return success(
+        await service.demote(parsePromotedMemoryDemoteCommand(params)),
+        0,
+      );
+    },
+    promoted_memory_get: async (params, execution) => {
+      await requireSystemAgent(context, 'promoted_memory_get', execution);
+      const service = requirePromotedMemoryBridgeService(context);
+      return success(
+        await service.get(parsePromotedMemoryGetQuery(params)),
+        0,
+      );
+    },
+    promoted_memory_search: async (params, execution) => {
+      await requireSystemAgent(context, 'promoted_memory_search', execution);
+      const service = requirePromotedMemoryBridgeService(context);
+      return success(
+        await service.search(parsePromotedMemorySearchQuery(params)),
         0,
       );
     },
