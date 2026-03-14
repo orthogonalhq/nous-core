@@ -1,5 +1,6 @@
 import type {
   IDocumentStore,
+  IPublicMcpSurfaceService,
   IPublicMcpGatewayService,
   IWitnessService,
   PublicMcpAdmissionDecision,
@@ -44,6 +45,11 @@ export interface PublicMcpGatewayServiceOptions {
   tokenVerifier?: PublicMcpTokenVerifier;
   clientMetadataResolver?: (clientId: string) => Promise<PublicMcpClientMetadata | null>;
   toolMappingLookup?: (externalName: string) => PublicMcpToolMappingEntry | null;
+  requiredScopeResolver?: (
+    toolName: string,
+    args?: Record<string, unknown>,
+  ) => PublicMcpScope[];
+  surfaceService?: IPublicMcpSurfaceService;
   now?: () => string;
 }
 
@@ -75,6 +81,7 @@ export class PublicMcpGatewayService implements IPublicMcpGatewayService {
       tokenVerifier: options.tokenVerifier,
       clientMetadataResolver: options.clientMetadataResolver,
       toolMappingLookup: options.toolMappingLookup,
+      requiredScopeResolver: options.requiredScopeResolver,
       now: this.now,
     });
   }
@@ -157,6 +164,7 @@ export class PublicMcpGatewayService implements IPublicMcpGatewayService {
               tools: {
                 listChanged: false,
               },
+              tasks: {},
             },
           },
         },
@@ -173,6 +181,58 @@ export class PublicMcpGatewayService implements IPublicMcpGatewayService {
           httpStatus: 200,
           rpcId: request.rpcId,
           result: { tools },
+        },
+        startedAt,
+      );
+    }
+
+    if (request.method === 'tasks/get') {
+      const task = await this.options.surfaceService?.getTask({
+        requestId: request.requestId,
+        subject: request.subject,
+        taskId: String(request.arguments?.taskId ?? ''),
+        requestedAt: request.requestedAt,
+      });
+      return this.finalizeExecution(
+        request,
+        {
+          requestId: request.requestId,
+          httpStatus: task ? 200 : 404,
+          rpcId: request.rpcId,
+          result: task ?? undefined,
+          rejectReason: task ? undefined : 'task_not_found',
+          error: task
+            ? undefined
+            : {
+                code: -32010,
+                message: 'Task not found.',
+              },
+        },
+        startedAt,
+      );
+    }
+
+    if (request.method === 'tasks/result') {
+      const taskResult = await this.options.surfaceService?.getTaskResult({
+        requestId: request.requestId,
+        subject: request.subject,
+        taskId: String(request.arguments?.taskId ?? ''),
+        requestedAt: request.requestedAt,
+      });
+      return this.finalizeExecution(
+        request,
+        {
+          requestId: request.requestId,
+          httpStatus: taskResult ? 200 : 404,
+          rpcId: request.rpcId,
+          result: taskResult ?? undefined,
+          rejectReason: taskResult ? undefined : 'task_not_ready',
+          error: taskResult
+            ? undefined
+            : {
+                code: -32011,
+                message: 'Task result is not available.',
+              },
         },
         startedAt,
       );

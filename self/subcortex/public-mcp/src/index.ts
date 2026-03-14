@@ -34,6 +34,19 @@ export {
   type PublicMcpGatewayServiceOptions,
 } from './public-mcp-gateway-service.js';
 export {
+  PUBLIC_MCP_TASK_PROJECTION_COLLECTION,
+  PublicMcpTaskProjectionStore,
+  type CreatePublicTaskInput,
+} from './public-mcp-task-projection-store.js';
+export {
+  PublicMcpSurfaceService,
+  type PublicMcpRuntimeAdapterLike,
+  type PublicMcpRuntimeAgentDefinition,
+  type PublicMcpRuntimeInvocationLike,
+  type PublicMcpRuntimeInvocationResultLike,
+  type PublicMcpSurfaceServiceOptions,
+} from './public-mcp-surface-service.js';
+export {
   PUBLIC_MCP_QUOTA_USAGE_COLLECTION,
   QuotaUsageStore,
   type ConsumeQuotaInput,
