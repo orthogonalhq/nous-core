@@ -44,9 +44,9 @@ A channel integration App:
 - Implements ingress normalization: maps platform events into `ChannelIngressEnvelope`
 - Delivers egress messages from `ChannelEgressEnvelope`
 
-**App Framework ADR**: `.architecture/.decisions/2026-03-13-app-framework/` — read `app-manifest-and-lifecycle-v1.md`, `credential-vault-v1.md`, and `app-runtime-and-sandbox-v1.md` before starting.
+**Dependency**: Building channel Apps requires the Nous App SDK — dev docs and SDK coming. Watch this repo for the release.
 
-**Reference** (pre-framework, normalization pattern): `self/apps/bridge/src/connectors/telegram-bot-adapter.ts` — ingress normalization, egress delivery, mention detection, message type inference.
+**Reference** (normalization pattern): `self/apps/bridge/src/connectors/telegram-bot-adapter.ts` — ingress normalization, egress delivery, mention detection, message type inference.
 
 **What it looks like**: scaffold a new App (`self/apps/<platform>/`), declare its manifest with credential vault entries and tool declarations, implement ingress/egress normalization, write tests.
 
