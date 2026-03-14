@@ -62,6 +62,7 @@ jobs:
         run: pnpm run lint
 
       - name: Test
+        if: matrix.os != 'ubuntu-latest'
         run: pnpm run test
 
       - name: Test (with coverage)

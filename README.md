@@ -10,12 +10,7 @@ Foundation models are commodity inputs. The architecture is the value layer.
 
 [![CI](https://img.shields.io/github/actions/workflow/status/orthogonalhq/nous-core/ci.yml?branch=main&style=for-the-badge&label=CI)](https://github.com/orthogonalhq/nous-core/actions/workflows/ci.yml)
 [![Coverage](https://img.shields.io/codecov/c/github/orthogonalhq/nous-core?style=for-the-badge&label=COVERAGE)](https://codecov.io/gh/orthogonalhq/nous-core)
-[![Stars](https://img.shields.io/github/stars/orthogonalhq/nous-core?style=for-the-badge&color=gold)](https://github.com/orthogonalhq/nous-core/stargazers)
-[![Open Issues](https://img.shields.io/github/issues/orthogonalhq/nous-core?style=for-the-badge)](https://github.com/orthogonalhq/nous-core/issues)
 [![Last Commit](https://img.shields.io/github/last-commit/orthogonalhq/nous-core?style=for-the-badge)](https://github.com/orthogonalhq/nous-core/commits/main)
-[![Node](https://img.shields.io/badge/node-%3E%3D22-brightgreen?style=for-the-badge)](https://nodejs.org)
-[![pnpm](https://img.shields.io/badge/pnpm-10-orange?style=for-the-badge)](https://pnpm.io)
-[![TypeScript](https://img.shields.io/badge/typescript-strict-blue?style=for-the-badge)](https://www.typescriptlang.org)
 
 > **Status**: Active development. The architecture is stable. The runtime is functional. Edges are sharp. Contributions welcome at the right layer — see [CONTRIBUTING.md](CONTRIBUTING.md).
 
