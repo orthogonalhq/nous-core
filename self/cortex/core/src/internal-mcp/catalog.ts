@@ -52,6 +52,66 @@ export const INTERNAL_MCP_CATALOG: readonly InternalMcpCatalogEntry[] = [
     ),
   },
   {
+    name: 'external_memory_put',
+    kind: 'capability',
+    definition: defineTool(
+      'external_memory_put',
+      'Execute a public external-memory append or supersede write.',
+      { request: 'PublicMcpExecutionRequest' },
+      { entry: 'ExternalSourceMutationResult' },
+      ['write'],
+      'runtime',
+    ),
+  },
+  {
+    name: 'external_memory_get',
+    kind: 'capability',
+    definition: defineTool(
+      'external_memory_get',
+      'Read one public external-memory entry.',
+      { request: 'PublicMcpExecutionRequest' },
+      { entry: 'ExternalSourceMemoryEntry | null' },
+      ['read'],
+      'runtime',
+    ),
+  },
+  {
+    name: 'external_memory_search',
+    kind: 'capability',
+    definition: defineTool(
+      'external_memory_search',
+      'Search public external-memory entries.',
+      { request: 'PublicMcpExecutionRequest' },
+      { entries: 'ExternalSourceSearchResult' },
+      ['read'],
+      'runtime',
+    ),
+  },
+  {
+    name: 'external_memory_delete',
+    kind: 'capability',
+    definition: defineTool(
+      'external_memory_delete',
+      'Soft-delete one public external-memory entry.',
+      { request: 'PublicMcpExecutionRequest' },
+      { entry: 'ExternalSourceMutationResult' },
+      ['write'],
+      'runtime',
+    ),
+  },
+  {
+    name: 'external_memory_compact',
+    kind: 'capability',
+    definition: defineTool(
+      'external_memory_compact',
+      'Compact source-local public external memory.',
+      { request: 'PublicMcpExecutionRequest' },
+      { result: 'ExternalSourceCompactionResult' },
+      ['write'],
+      'runtime',
+    ),
+  },
+  {
     name: 'project_discover',
     kind: 'capability',
     definition: defineTool(

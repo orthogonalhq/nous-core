@@ -13,6 +13,11 @@ import {
   parseArtifactRetrieveRequest,
   parseArtifactStoreRequest,
   parseEscalationNotifyRequest,
+  parseExternalMemoryCompactCommand,
+  parseExternalMemoryDeleteCommand,
+  parseExternalMemoryGetQuery,
+  parseExternalMemoryPutCommand,
+  parseExternalMemorySearchQuery,
   parseMemorySearchRequest,
   parseMemoryWriteRequest,
   parseProjectDiscoverRequest,
@@ -38,6 +43,17 @@ type CapabilityToolName = Exclude<
   InternalMcpToolName,
   'dispatch_agent' | 'task_complete' | 'request_escalation' | 'flag_observation'
 >;
+
+function requireExternalSourceMemoryService(context: InternalMcpHandlerContext) {
+  if (!context.deps.externalSourceMemoryService) {
+    throw new NousError(
+      'Public external memory service is unavailable',
+      'SERVICE_UNAVAILABLE',
+    );
+  }
+
+  return context.deps.externalSourceMemoryService;
+}
 
 function requireProjectId(
   toolName: string,
@@ -232,6 +248,26 @@ export function createCapabilityHandlers(
         },
         0,
       );
+    },
+    external_memory_put: async (params) => {
+      const service = requireExternalSourceMemoryService(context);
+      return success(await service.put(parseExternalMemoryPutCommand(params)), 0);
+    },
+    external_memory_get: async (params) => {
+      const service = requireExternalSourceMemoryService(context);
+      return success(await service.get(parseExternalMemoryGetQuery(params)), 0);
+    },
+    external_memory_search: async (params) => {
+      const service = requireExternalSourceMemoryService(context);
+      return success(await service.search(parseExternalMemorySearchQuery(params)), 0);
+    },
+    external_memory_delete: async (params) => {
+      const service = requireExternalSourceMemoryService(context);
+      return success(await service.delete(parseExternalMemoryDeleteCommand(params)), 0);
+    },
+    external_memory_compact: async (params) => {
+      const service = requireExternalSourceMemoryService(context);
+      return success(await service.compact(parseExternalMemoryCompactCommand(params)), 0);
     },
     project_discover: async (params, execution) => {
       const projectId = requireProjectId('project_discover', execution);
