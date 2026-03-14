@@ -78,6 +78,7 @@ import {
   ExternalSourceMemoryService,
   ExternalSourceStorageAdapter,
   NamespaceRegistryStore,
+  PromotedMemoryBridgeService,
   PublicMcpGatewayService,
   PublicMcpSurfaceService,
   PublicMcpTaskProjectionStore,
@@ -338,6 +339,15 @@ export function createNousContext(): NousContext {
     rateLimitStore: publicMcpRateLimitStore,
     witnessService,
   });
+  const promotedMemoryBridgeService = new PromotedMemoryBridgeService({
+    documentStore,
+    namespaceStore: publicMcpNamespaceStore,
+    storageAdapter: externalSourceStorageAdapter,
+    pfc: Cortex,
+    witnessService,
+    vectorStore,
+    embedder,
+  });
 
   const getProvider = (id: ProviderId) => {
     // Explicitly route the synthetic fallback provider to the in-process mock.
@@ -372,6 +382,7 @@ export function createNousContext(): NousContext {
     escalationService,
     witnessService,
     outputSchemaValidator: new DefaultSchemaRefValidator(),
+    promotedMemoryBridgeService,
   });
   const publicMcpSurfaceService = new PublicMcpSurfaceService({
     runtimeAdapter: publicMcpRuntimeAdapter,
@@ -419,7 +430,7 @@ export function createNousContext(): NousContext {
       },
     ],
     serverName: 'Nous Public MCP',
-    phase: 'phase-13.3',
+    phase: 'phase-13.4',
     backendMode: 'development',
   });
   const publicCapabilityHandlers = createCapabilityHandlers({

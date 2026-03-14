@@ -50,6 +50,9 @@ describe('bootstrap gateway runtime', () => {
     expect(ctx.publicMcpExecutionBridge).toBeDefined();
     expect(ctx.gatewayRuntime.getBootSnapshot().status).toBe('ready');
     expect(ctx.gatewayRuntime.getSystemContextReplica().inboxReady).toBe(true);
+    expect(
+      ctx.gatewayRuntime.listSystemTools().map((tool) => tool.name),
+    ).toContain('promoted_memory_promote');
   });
 
   it('wires provider lane lease releases back into the gateway runtime', async () => {
