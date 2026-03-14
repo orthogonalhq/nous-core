@@ -43,7 +43,7 @@ export const BacklogPressureTrendSchema = z.enum([
 ]);
 export type BacklogPressureTrend = z.infer<typeof BacklogPressureTrendSchema>;
 
-export const BacklogSuspensionDetailSchema = z.record(z.unknown());
+export const BacklogSuspensionDetailSchema = z.record(z.string(), z.unknown());
 export type BacklogSuspensionDetail = z.infer<typeof BacklogSuspensionDetailSchema>;
 
 export const BacklogEntrySchema = z
@@ -54,7 +54,7 @@ export const BacklogEntrySchema = z
     priority: BacklogPrioritySchema,
     priorityRank: z.number().int().nonnegative(),
     instructions: z.string().min(1),
-    payload: z.record(z.unknown()),
+    payload: z.record(z.string(), z.unknown()),
     projectId: z.string().uuid().optional(),
     dispatchRef: z.string().min(1),
     runId: z.string().min(1),

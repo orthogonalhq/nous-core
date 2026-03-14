@@ -12,6 +12,7 @@ import {
   PublicMcpExecutionResultSchema,
   PublicMcpToolDefinitionSchema,
 } from '@nous/shared';
+import { ZodError } from 'zod';
 import {
   getPublicToolMapping,
   getVisiblePublicToolMappings,
@@ -51,6 +52,7 @@ export class PublicMcpExecutionBridge implements IPublicMcpExecutionBridge {
         outputSchema: {},
         capabilities: ['external'],
         permissionScope: 'external',
+        execution: mapping.execution,
       }),
     );
   }
@@ -63,7 +65,7 @@ export class PublicMcpExecutionBridge implements IPublicMcpExecutionBridge {
       return this.block(request, 'tool_not_available', 404, undefined, -32601, 'Tool not available.');
     }
 
-    if (!hasRequiredPublicMcpScopes(request.subject, mapping)) {
+    if (!hasRequiredPublicMcpScopes(request.subject, mapping, request)) {
       const requiredScopes = resolvePublicMcpRequiredScopes(mapping, request);
       return this.block(
         request,
@@ -178,6 +180,21 @@ function mapExecutionError(error: unknown): {
   message: string;
   data?: Record<string, unknown>;
 } {
+  if (error instanceof ZodError) {
+    return {
+      rejectReason: 'request_schema_invalid',
+      httpStatus: 400,
+      code: -32600,
+      message: 'Request arguments failed schema validation.',
+      data: {
+        issues: error.issues.map((issue) => ({
+          path: issue.path.join('.'),
+          message: issue.message,
+        })),
+      },
+    };
+  }
+
   const nousError = error as NousError | undefined;
   switch (nousError?.code) {
     case 'VALIDATION_ERROR':
@@ -193,6 +210,21 @@ function mapExecutionError(error: unknown): {
         rejectReason: 'namespace_unauthorized',
         httpStatus: 403,
         code: -32003,
+        message: nousError.message,
+      };
+    case 'MEMORY_BINDING_FORBIDDEN':
+      return {
+        rejectReason: 'memory_binding_forbidden',
+        httpStatus: 403,
+        code: -32009,
+        message: nousError.message,
+        data: nousError.context,
+      };
+    case 'AGENT_NOT_AVAILABLE':
+      return {
+        rejectReason: 'agent_not_available',
+        httpStatus: 404,
+        code: -32601,
         message: nousError.message,
       };
     case 'SOURCE_QUARANTINED':

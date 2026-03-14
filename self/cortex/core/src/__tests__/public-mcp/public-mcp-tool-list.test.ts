@@ -6,9 +6,19 @@ describe('PublicMcpExecutionBridge listTools', () => {
     const bridge = new PublicMcpExecutionBridge({
       mappings: [
         {
+          externalName: 'ortho.agents.v1.list',
+          internalName: 'public_agent_list',
+          requiredScopes: ['ortho.system.read'],
+          scopeStrategy: 'static',
+          phaseAvailability: '13.3',
+          enabledInCurrentPhase: true,
+          bootstrapMode: 'none',
+        },
+        {
           externalName: 'ortho.system.v1.info',
           internalName: 'public_system_info',
           requiredScopes: ['ortho.system.read'],
+          scopeStrategy: 'static',
           phaseAvailability: '13.1',
           enabledInCurrentPhase: true,
           bootstrapMode: 'none',
@@ -17,14 +27,19 @@ describe('PublicMcpExecutionBridge listTools', () => {
           externalName: 'ortho.agents.v1.invoke',
           internalName: 'public_agent_invoke',
           requiredScopes: ['ortho.agents.invoke'],
+          scopeStrategy: 'agent_invoke_with_bindings',
           phaseAvailability: '13.3',
-          enabledInCurrentPhase: false,
+          enabledInCurrentPhase: true,
           bootstrapMode: 'none',
+          execution: {
+            taskSupport: 'optional',
+          },
         },
         {
           externalName: 'ortho.system.v1.admin',
           internalName: 'public_system_admin',
           requiredScopes: ['ortho.admin'],
+          scopeStrategy: 'static',
           phaseAvailability: '13.1',
           enabledInCurrentPhase: true,
           bootstrapMode: 'none',
@@ -41,6 +56,9 @@ describe('PublicMcpExecutionBridge listTools', () => {
       audience: 'urn:nous:ortho:mcp',
     });
 
-    expect(tools.map((tool) => tool.name)).toEqual(['ortho.system.v1.info']);
+    expect(tools.map((tool) => tool.name)).toEqual([
+      'ortho.agents.v1.list',
+      'ortho.system.v1.info',
+    ]);
   });
 });
