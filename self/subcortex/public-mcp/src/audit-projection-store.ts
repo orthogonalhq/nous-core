@@ -25,4 +25,20 @@ export class AuditProjectionStore {
     }
     return PublicMcpAuditRecordSchema.parse(raw);
   }
+
+  async listByNamespace(namespace: string): Promise<PublicMcpAuditRecord[]> {
+    const rows = await this.documentStore.query<unknown>(
+      PUBLIC_MCP_AUDIT_COLLECTION,
+      {
+        where: { namespace },
+        orderBy: 'createdAt',
+        orderDirection: 'desc',
+      },
+    );
+    return rows.map((row) => PublicMcpAuditRecordSchema.parse(row));
+  }
+
+  async countByNamespace(namespace: string): Promise<number> {
+    return (await this.listByNamespace(namespace)).length;
+  }
 }

@@ -31,6 +31,12 @@ function mapRejectCode(reason?: PublicMcpRejectReason): number {
       return -32601;
     case 'phase_not_enabled':
       return -32004;
+    case 'source_quarantined':
+      return -32006;
+    case 'quota_exceeded':
+      return -32007;
+    case 'rate_limited':
+      return -32008;
     case 'missing_bearer':
     case 'invalid_token':
     case 'expired_token':

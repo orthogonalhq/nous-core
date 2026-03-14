@@ -8,6 +8,7 @@ import type {
   GatewayLifecycleContext,
   GatewayStampedPacket,
   GatewayTaskCompletionRequest,
+  IExternalSourceMemoryService,
   IProjectApi,
   IProjectStore,
   IToolExecutor,
@@ -28,6 +29,11 @@ import type {
 export const INTERNAL_MCP_TOOL_NAMES = [
   'memory_search',
   'memory_write',
+  'external_memory_put',
+  'external_memory_get',
+  'external_memory_search',
+  'external_memory_delete',
+  'external_memory_compact',
   'project_discover',
   'artifact_store',
   'artifact_retrieve',
@@ -76,6 +82,7 @@ export interface InternalMcpDispatchRuntime {
 
 export interface InternalMcpRuntimeDeps {
   getProjectApi?: (projectId: ProjectId) => IProjectApi | null;
+  externalSourceMemoryService?: IExternalSourceMemoryService;
   projectStore?: IProjectStore;
   toolExecutor?: IToolExecutor;
   pfc?: IPfcEngine;

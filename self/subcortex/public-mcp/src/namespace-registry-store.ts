@@ -17,6 +17,7 @@ export interface EnsureNamespaceInput {
   clientIdHash: string;
   subspace?: string;
   bootstrapState?: 'reserved' | 'ready' | 'blocked';
+  quotaProfileId?: string;
 }
 
 export function deriveExternalCollectionNames(
@@ -60,16 +61,10 @@ export class NamespaceRegistryStore {
     const now = this.now();
     const existing = await this.get(input.namespace);
     if (existing) {
-      const updated = PublicMcpNamespaceRecordSchema.parse({
+      return this.save({
         ...existing,
         lastSeenAt: now,
       });
-      await this.documentStore.put(
-        PUBLIC_MCP_NAMESPACE_COLLECTION,
-        updated.namespace,
-        updated,
-      );
-      return updated;
     }
 
     const collections = deriveExternalCollectionNames(
@@ -83,14 +78,105 @@ export class NamespaceRegistryStore {
       subspace: input.subspace,
       ...collections,
       bootstrapState: input.bootstrapState ?? 'ready',
+      lifecycleState: 'active',
+      quotaProfileId: input.quotaProfileId,
       createdAt: now,
       lastSeenAt: now,
     });
+    return this.save(record);
+  }
+
+  async save(record: PublicMcpNamespaceRecord): Promise<PublicMcpNamespaceRecord> {
+    const parsed = PublicMcpNamespaceRecordSchema.parse(record);
     await this.documentStore.put(
       PUBLIC_MCP_NAMESPACE_COLLECTION,
-      record.namespace,
-      record,
+      parsed.namespace,
+      parsed,
     );
-    return record;
+    return parsed;
+  }
+
+  async markMutation(
+    namespace: string,
+    updatedAt = this.now(),
+  ): Promise<PublicMcpNamespaceRecord> {
+    const existing = await this.require(namespace);
+    return this.save({
+      ...existing,
+      lastSeenAt: updatedAt,
+      lastMutationAt: updatedAt,
+    });
+  }
+
+  async markCompaction(
+    namespace: string,
+    updatedAt = this.now(),
+  ): Promise<PublicMcpNamespaceRecord> {
+    const existing = await this.require(namespace);
+    return this.save({
+      ...existing,
+      lastSeenAt: updatedAt,
+      lastCompactedAt: updatedAt,
+      lastMutationAt: updatedAt,
+    });
+  }
+
+  async quarantine(
+    namespace: string,
+    reason: string,
+    updatedAt = this.now(),
+  ): Promise<PublicMcpNamespaceRecord> {
+    const existing = await this.require(namespace);
+    return this.save({
+      ...existing,
+      lifecycleState: 'quarantined',
+      quarantineReason: reason,
+      quarantinedAt: updatedAt,
+      lastSeenAt: updatedAt,
+    });
+  }
+
+  async restore(namespace: string, updatedAt = this.now()): Promise<PublicMcpNamespaceRecord> {
+    const existing = await this.require(namespace);
+    return this.save({
+      ...existing,
+      lifecycleState: 'active',
+      quarantineReason: undefined,
+      quarantinedAt: undefined,
+      lastSeenAt: updatedAt,
+    });
+  }
+
+  async markPurging(
+    namespace: string,
+    updatedAt = this.now(),
+  ): Promise<PublicMcpNamespaceRecord> {
+    const existing = await this.require(namespace);
+    return this.save({
+      ...existing,
+      lifecycleState: 'purging',
+      lastSeenAt: updatedAt,
+    });
+  }
+
+  async markPurged(
+    namespace: string,
+    updatedAt = this.now(),
+  ): Promise<PublicMcpNamespaceRecord> {
+    const existing = await this.require(namespace);
+    return this.save({
+      ...existing,
+      lifecycleState: 'purged',
+      purgedAt: updatedAt,
+      lastSeenAt: updatedAt,
+    });
+  }
+
+  private async require(namespace: string): Promise<PublicMcpNamespaceRecord> {
+    const existing = await this.get(namespace);
+    if (!existing) {
+      throw new Error(`Unknown public MCP namespace: ${namespace}`);
+    }
+    return existing;
   }
 }

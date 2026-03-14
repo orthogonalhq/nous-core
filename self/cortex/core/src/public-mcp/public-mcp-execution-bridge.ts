@@ -1,4 +1,5 @@
 import type {
+  NousError,
   PublicMcpExecutionRequest,
   PublicMcpExecutionResult,
   PublicMcpRejectReason,
@@ -16,6 +17,7 @@ import {
   getVisiblePublicToolMappings,
   hasRequiredPublicMcpScopes,
   PUBLIC_MCP_TOOL_MAPPINGS,
+  resolvePublicMcpRequiredScopes,
 } from '../internal-mcp/public-tool-mappings.js';
 
 export interface PublicMcpInternalExecutor {
@@ -62,6 +64,7 @@ export class PublicMcpExecutionBridge implements IPublicMcpExecutionBridge {
     }
 
     if (!hasRequiredPublicMcpScopes(request.subject, mapping)) {
+      const requiredScopes = resolvePublicMcpRequiredScopes(mapping, request);
       return this.block(
         request,
         'scope_insufficient',
@@ -69,6 +72,7 @@ export class PublicMcpExecutionBridge implements IPublicMcpExecutionBridge {
         mapping.internalName,
         -32003,
         'Scope insufficient for requested tool.',
+        { requiredScopes },
       );
     }
 
@@ -94,7 +98,22 @@ export class PublicMcpExecutionBridge implements IPublicMcpExecutionBridge {
       );
     }
 
-    const result = await this.options.executor.execute(mapping.internalName, request);
+    let result: ToolResult;
+    try {
+      result = await this.options.executor.execute(mapping.internalName, request);
+    } catch (error) {
+      const mapped = mapExecutionError(error);
+      return this.block(
+        request,
+        mapped.rejectReason,
+        mapped.httpStatus,
+        mapping.internalName,
+        mapped.code,
+        mapped.message,
+        mapped.data,
+      );
+    }
+
     if (!result.success) {
       return this.block(
         request,
@@ -133,6 +152,7 @@ export class PublicMcpExecutionBridge implements IPublicMcpExecutionBridge {
     internalToolName: string | undefined,
     code: number,
     message: string,
+    extraData?: Record<string, unknown>,
   ): PublicMcpExecutionResult {
     return PublicMcpExecutionResultSchema.parse({
       requestId: request.requestId,
@@ -143,8 +163,65 @@ export class PublicMcpExecutionBridge implements IPublicMcpExecutionBridge {
       error: {
         code,
         message,
-        data: internalToolName ? { internalToolName, rejectReason } : { rejectReason },
+        data: internalToolName
+          ? { internalToolName, rejectReason, ...extraData }
+          : { rejectReason, ...extraData },
       },
     });
+  }
+}
+
+function mapExecutionError(error: unknown): {
+  rejectReason: PublicMcpRejectReason;
+  httpStatus: number;
+  code: number;
+  message: string;
+  data?: Record<string, unknown>;
+} {
+  const nousError = error as NousError | undefined;
+  switch (nousError?.code) {
+    case 'VALIDATION_ERROR':
+      return {
+        rejectReason: 'request_schema_invalid',
+        httpStatus: 400,
+        code: -32600,
+        message: nousError.message,
+        data: nousError.context,
+      };
+    case 'NAMESPACE_UNAUTHORIZED':
+      return {
+        rejectReason: 'namespace_unauthorized',
+        httpStatus: 403,
+        code: -32003,
+        message: nousError.message,
+      };
+    case 'SOURCE_QUARANTINED':
+      return {
+        rejectReason: 'source_quarantined',
+        httpStatus: 409,
+        code: -32006,
+        message: nousError.message,
+      };
+    case 'QUOTA_EXCEEDED':
+      return {
+        rejectReason: 'quota_exceeded',
+        httpStatus: 429,
+        code: -32007,
+        message: nousError.message,
+      };
+    case 'RATE_LIMITED':
+      return {
+        rejectReason: 'rate_limited',
+        httpStatus: 429,
+        code: -32008,
+        message: nousError.message,
+      };
+    default:
+      return {
+        rejectReason: 'tool_not_available',
+        httpStatus: 502,
+        code: -32005,
+        message: error instanceof Error ? error.message : 'Tool execution failed.',
+      };
   }
 }
