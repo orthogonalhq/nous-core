@@ -1,0 +1,39 @@
+---
+title: Public MCP Edge
+description: Reference for the public machine-to-machine MCP surface
+---
+
+# Public MCP Edge
+
+Phase 13.1 adds the public MCP edge for approved external clients. This surface is hosted by the web app, but it remains a thin adapter over the canonical gateway runtime and internal MCP catalog.
+
+## Endpoints
+
+| Endpoint | Method | Purpose |
+|---|---|---|
+| `/mcp` | `POST` | Streamable HTTP MCP transport with JSON-RPC framing for `initialize`, `tools/list`, and `tools/call` |
+| `/.well-known/oauth-protected-resource/mcp` | `GET` | Protected Resource Metadata for the public MCP resource |
+| `/.well-known/oauth-authorization-server/mcp` | `GET` | Authorization Server Metadata for the public MCP resource |
+
+## Admission posture
+
+- `/mcp` requires OAuth bearer posture before any tool mapping, namespace bootstrap, or shared handler execution.
+- Admission validates request schema, bearer presence, token validity, audience, origin, and scopes at the edge.
+- External callers are represented as `ExternalClient` subjects at the public boundary; the internal Worker, Orchestrator, Cortex:System, and Cortex:Principal classes are unchanged.
+- Public tool names stay namespaced as `ortho.*` and are mapped once onto the canonical flat internal handler catalog.
+
+## Phase 13.1 availability
+
+- `tools/list` returns only the intersection of caller scopes and current-phase-enabled public mappings.
+- In Phase 13.1 the shipped public mapping set intentionally exposes no enabled tools yet, so an authenticated caller receives an empty `tools` array.
+- Future public tool names that are already reserved in the mapping table fail closed with reason-coded `phase_not_enabled` responses until their owning phases land.
+
+## Namespace and audit behavior
+
+- Namespace identity is derived from validated client identity rather than caller-supplied storage coordinates.
+- First-write bootstrap creates only `external:*` collections and records the manifest in `public_mcp_namespace_registry`.
+- Durable admits and security-sensitive rejects emit witness-linked audit projections in `public_mcp_audit_projection`.
+
+## Runtime boundary
+
+The public MCP edge is not a parallel runtime or a public-only business-logic stack. The web host parses HTTP and discovery traffic, `IPublicMcpGatewayService` owns admission and audit posture, and `PublicMcpExecutionBridge` hands admitted calls into the same AgentGateway, Internal MCP, and backpressure path used elsewhere in the system.

@@ -20,8 +20,12 @@ import type {
   IRegistryService,
   INudgeDiscoveryService,
   IVoiceControlService,
+  IPublicMcpGatewayService,
 } from '@nous/shared';
-import type { IPrincipalSystemGatewayRuntime } from '@nous/cortex-core';
+import type {
+  IPrincipalSystemGatewayRuntime,
+  IPublicMcpExecutionBridge,
+} from '@nous/cortex-core';
 import type { MwcPipeline } from '@nous/memory-mwc';
 import type { IDocumentStore } from '@nous/shared';
 import type { IModelRouter } from '@nous/shared';
@@ -52,5 +56,7 @@ export interface NousContext {
   registryService: IRegistryService;
   nudgeDiscoveryService: INudgeDiscoveryService;
   voiceControlService: IVoiceControlService;
+  publicMcpGatewayService: IPublicMcpGatewayService;
+  publicMcpExecutionBridge: IPublicMcpExecutionBridge;
   dataDir: string;
 }

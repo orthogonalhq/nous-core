@@ -8,6 +8,7 @@ import { join, isAbsolute } from 'node:path';
 import { randomUUID } from 'node:crypto';
 import {
   DEFAULT_STM_COMPACTION_POLICY,
+  PublicMcpScopeSchema,
   StmCompactionPolicySchema,
 } from '@nous/shared';
 import type {
@@ -36,6 +37,7 @@ import {
   DefaultSchemaRefValidator,
   GatewayBackedTurnExecutor,
   GatewayRuntimeIngressAdapter,
+  PublicMcpExecutionBridge,
   createGatewayProjectApi,
   createPrincipalSystemGatewayRuntime,
 } from '@nous/cortex-core';
@@ -67,6 +69,7 @@ import {
 import { MaoProjectionService } from '@nous/subcortex-mao';
 import { GtmGateCalculator } from '@nous/subcortex-gtm';
 import { VoiceControlService } from '@nous/subcortex-voice-control';
+import { PublicMcpGatewayService } from '@nous/subcortex-public-mcp';
 import { MemoryAccessPolicyEngine } from '@nous/memory-access';
 import type { NousContext } from './context';
 import type { IIngressGateway } from '@nous/shared';
@@ -304,6 +307,14 @@ export function createNousContext(): NousContext {
     voiceControlService,
     witnessService,
   });
+  const publicMcpExecutionBridge = new PublicMcpExecutionBridge();
+  const publicMcpGatewayService = new PublicMcpGatewayService({
+    documentStore,
+    witnessService,
+    executionBridge: publicMcpExecutionBridge,
+    baseUrl: process.env.NOUS_PUBLIC_BASE_URL ?? 'http://localhost:3000',
+    supportedScopes: PublicMcpScopeSchema.options,
+  });
 
   const getProvider = (id: ProviderId) => {
     // Explicitly route the synthetic fallback provider to the in-process mock.
@@ -387,6 +398,8 @@ export function createNousContext(): NousContext {
     registryService,
     nudgeDiscoveryService,
     voiceControlService,
+    publicMcpGatewayService,
+    publicMcpExecutionBridge,
     dataDir,
   };
 

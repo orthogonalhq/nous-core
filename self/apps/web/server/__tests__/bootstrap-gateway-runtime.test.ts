@@ -46,6 +46,8 @@ describe('bootstrap gateway runtime', () => {
 
     expect(ctx.coreExecutor).toBeDefined();
     expect(ctx.gatewayRuntime).toBeDefined();
+    expect(ctx.publicMcpGatewayService).toBeDefined();
+    expect(ctx.publicMcpExecutionBridge).toBeDefined();
     expect(ctx.gatewayRuntime.getBootSnapshot().status).toBe('ready');
     expect(ctx.gatewayRuntime.getSystemContextReplica().inboxReady).toBe(true);
   });

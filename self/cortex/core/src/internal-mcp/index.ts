@@ -21,6 +21,12 @@ export {
   INTERNAL_MCP_CATALOG,
 } from './catalog.js';
 export {
+  getPublicToolMapping,
+  getVisiblePublicToolMappings,
+  hasRequiredPublicMcpScopes,
+  PUBLIC_MCP_TOOL_MAPPINGS,
+} from './public-tool-mappings.js';
+export {
   normalizeDispatchParams,
   normalizeEscalationParams,
   normalizeObservationParams,
