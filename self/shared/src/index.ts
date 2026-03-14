@@ -20,5 +20,6 @@ export type {
   CommunicationRouteDecision,
 } from './types/communication-gateway.js';
 export type { ICommunicationGatewayService } from './interfaces/subcortex.js';
+export type { IPublicMcpGatewayService } from './interfaces/subcortex.js';
 export type { IVoiceControlService } from './interfaces/subcortex.js';
 export type { EndpointTrustSurfaceSummary } from './types/endpoint-trust.js';

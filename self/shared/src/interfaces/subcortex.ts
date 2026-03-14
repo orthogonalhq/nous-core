@@ -158,6 +158,13 @@ import type {
   VoiceTurnStartInput,
   VoiceTurnStateRecord,
   EndpointTrustSurfaceSummary,
+  PublicMcpAdmissionDecision,
+  PublicMcpDiscoveryBundle,
+  PublicMcpExecutionRequest,
+  PublicMcpExecutionResult,
+  PublicMcpHttpRequest,
+  PublicMcpSubject,
+  PublicMcpToolDefinition,
 } from '../types/index.js';
 import type { NousEvent } from '../events/index.js';
 
@@ -460,6 +467,20 @@ export interface ICommunicationGatewayService {
 
   /** Retrieve a previously created canonical route decision. */
   getRouteDecision(routeId: string): Promise<CommunicationRouteDecision | null>;
+}
+
+export interface IPublicMcpGatewayService {
+  /** Build the public OAuth discovery documents for the MCP edge. */
+  getDiscoveryDocuments(): Promise<PublicMcpDiscoveryBundle>;
+
+  /** Evaluate bearer, audience, origin, scope, namespace, and schema posture. */
+  authorize(request: PublicMcpHttpRequest): Promise<PublicMcpAdmissionDecision>;
+
+  /** List the tools visible to an already authorized external client subject. */
+  listVisibleTools(subject: PublicMcpSubject): Promise<PublicMcpToolDefinition[]>;
+
+  /** Execute an authorized public MCP request over the canonical bridge surface. */
+  execute(request: PublicMcpExecutionRequest): Promise<PublicMcpExecutionResult>;
 }
 
 export interface IEndpointTrustService {
