@@ -71,6 +71,9 @@
       "@nous/subcortex-voice-control": [
         "../../subcortex/voice-control/src/index.ts"
       ],
+      "@nous/subcortex-public-mcp": [
+        "../../subcortex/public-mcp/src/index.ts"
+      ],
       "@nous/subcortex-registry": [
         "../../subcortex/registry/src/index.ts"
       ],
