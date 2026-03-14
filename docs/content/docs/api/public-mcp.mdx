@@ -5,7 +5,8 @@ description: Reference for the public machine-to-machine MCP surface
 
 # Public MCP Edge
 
-Phase 13.3 turns the public MCP edge into a real public execution surface. External clients can now:
+Phase 13.4 keeps the public MCP edge as a real public execution surface while the promoted-tier
+bridge remains internal-only. External clients can:
 
 - discover public-safe agent entries with `ortho.agents.v1.list`
 - invoke approved public agents with `ortho.agents.v1.invoke`
@@ -30,7 +31,7 @@ The web host remains transport-thin. It authenticates, validates, and delegates 
 - Public tool names stay namespaced as `ortho.*` and map once onto the canonical flat internal capability surface.
 - Agent invoke scopes are binding-aware: `ortho.agents.v1.invoke` always requires `ortho.agents.invoke`, plus any requested memory-tier scopes derived from the binding payload.
 
-## Phase 13.3 availability
+## Phase 13.4 availability
 
 `tools/list` returns only the intersection of caller scopes and current-phase-enabled public mappings.
 
@@ -49,7 +50,7 @@ The web host remains transport-thin. It authenticates, validates, and delegates 
 
 ## Public agents
 
-Phase 13.3 exposes public-safe agent aliases instead of leaking internal runtime IDs.
+Phase 13.4 continues to expose public-safe agent aliases instead of leaking internal runtime IDs.
 
 Current catalog entries:
 
@@ -288,6 +289,25 @@ Async acceptance example:
 }
 ```
 
+Synchronous completion example for `executionMode: "sync"` when the run finishes within the sync threshold:
+
+```json
+{
+  "jsonrpc": "2.0",
+  "id": "rpc-invoke-2",
+  "result": {
+    "mode": "completed",
+    "runId": "550e8400-e29b-41d4-a716-446655440102",
+    "outputs": [
+      {
+        "type": "text",
+        "text": "Public agents can return inline results when the request completes within the sync threshold."
+      }
+    ]
+  }
+}
+```
+
 ### `ortho.system.v1.info`
 
 ```json
@@ -309,7 +329,7 @@ Async acceptance example:
   "result": {
     "server": {
       "name": "Nous Public MCP",
-      "phase": "phase-13.3",
+      "phase": "phase-13.4",
       "backendMode": "development",
       "protocolVersion": "2025-11-25"
     },
@@ -392,7 +412,7 @@ Use `mode: "supersede"` when the new record replaces an existing one. The gatewa
 
 ## Error behavior
 
-Common public reject reasons in Phase 13.3:
+Common public reject reasons in Phase 13.4:
 
 | Reject reason | Meaning |
 |---|---|
@@ -409,8 +429,8 @@ Common public reject reasons in Phase 13.3:
 
 ## Operator configuration
 
-Phase 13.3 introduces no additional public-edge environment variables. `NOUS_PUBLIC_BASE_URL` remains the public MCP edge override used by the OAuth discovery documents.
+Phase 13.4 introduces no additional public-edge environment variables. `NOUS_PUBLIC_BASE_URL` remains the public MCP edge override used by the OAuth discovery documents.
 
 ## Runtime boundary
 
-The public MCP edge is not a public-only business-logic stack. The host accepts HTTP and JSON-RPC traffic, the public gateway owns admission and audit posture, and admitted calls flow into the canonical gateway/runtime seam. Long-running public work is projected through subject-scoped task records rather than a second status model.
+The public MCP edge is not a public-only business-logic stack. The host accepts HTTP and JSON-RPC traffic, the public gateway owns admission and audit posture, and admitted calls flow into the canonical gateway/runtime seam. Long-running public work is projected through subject-scoped task records rather than a second status model. Phase 13.4 does not add any public promoted-tier tool or public path into internal-only promoted storage.
