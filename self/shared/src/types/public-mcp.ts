@@ -38,13 +38,24 @@ export const PublicMcpRejectReasonSchema = z.enum([
   'source_quarantined',
   'quota_exceeded',
   'rate_limited',
+  'agent_not_available',
+  'memory_binding_forbidden',
+  'task_not_found',
+  'task_not_ready',
+  'task_not_owned',
 ]);
 export type PublicMcpRejectReason = z.infer<typeof PublicMcpRejectReasonSchema>;
 
 export const PublicMcpProtocolVersionSchema = z.literal('2025-11-25');
 export type PublicMcpProtocolVersion = z.infer<typeof PublicMcpProtocolVersionSchema>;
 
-export const PublicMcpMethodSchema = z.enum(['initialize', 'tools/list', 'tools/call']);
+export const PublicMcpMethodSchema = z.enum([
+  'initialize',
+  'tools/list',
+  'tools/call',
+  'tasks/get',
+  'tasks/result',
+]);
 export type PublicMcpMethod = z.infer<typeof PublicMcpMethodSchema>;
 
 export const PublicMcpRpcIdSchema = z.union([z.string().min(1), z.number(), z.null()]);
@@ -67,8 +78,17 @@ export const PublicMcpScopeStrategySchema = z.enum([
   'memory_write_by_tier',
   'memory_delete_by_tier',
   'memory_compact_external',
+  'agent_invoke_with_bindings',
 ]);
 export type PublicMcpScopeStrategy = z.infer<typeof PublicMcpScopeStrategySchema>;
+
+export const PublicMcpTaskSupportSchema = z.enum(['none', 'optional', 'required']);
+export type PublicMcpTaskSupport = z.infer<typeof PublicMcpTaskSupportSchema>;
+
+export const PublicMcpToolExecutionSchema = z.object({
+  taskSupport: PublicMcpTaskSupportSchema.default('none'),
+}).strict();
+export type PublicMcpToolExecution = z.infer<typeof PublicMcpToolExecutionSchema>;
 
 export const PublicMcpSourceLifecycleStateSchema = z.enum([
   'active',
@@ -115,6 +135,7 @@ export type PublicMcpSubject = z.infer<typeof PublicMcpSubjectSchema>;
 export const PublicMcpToolDefinitionSchema = ToolDefinitionSchema.extend({
   name: z.string().regex(/^ortho\.[a-z0-9.]+$/),
   permissionScope: z.literal('external'),
+  execution: PublicMcpToolExecutionSchema.optional(),
 }).strict();
 export type PublicMcpToolDefinition = z.infer<typeof PublicMcpToolDefinitionSchema>;
 
@@ -126,8 +147,181 @@ export const PublicMcpToolMappingEntrySchema = z.object({
   phaseAvailability: z.enum(['13.1', '13.2', '13.3']),
   enabledInCurrentPhase: z.boolean(),
   bootstrapMode: z.enum(['none', 'first_write']).default('none'),
+  execution: PublicMcpToolExecutionSchema.optional(),
 }).strict();
 export type PublicMcpToolMappingEntry = z.infer<typeof PublicMcpToolMappingEntrySchema>;
+
+export const PublicMcpAgentInputModeSchema = z.enum(['text', 'packet', 'json']);
+export type PublicMcpAgentInputMode = z.infer<typeof PublicMcpAgentInputModeSchema>;
+
+export const PublicMcpAsyncThresholdSchema = z.enum([
+  'never',
+  'long_running_only',
+  'always_async',
+]);
+export type PublicMcpAsyncThreshold = z.infer<typeof PublicMcpAsyncThresholdSchema>;
+
+export const PublicMcpAgentCatalogEntrySchema = z.object({
+  agentId: z.string().regex(/^[a-z0-9._:-]+$/),
+  title: z.string().min(1),
+  description: z.string().min(1),
+  inputModes: z.array(PublicMcpAgentInputModeSchema).min(1),
+  memoryBinding: z.object({
+    supported: z.boolean(),
+    readTiers: z.array(PublicMcpMemoryTierSchema).default([]),
+    writeTiers: z.array(PublicMcpMemoryTierSchema).default([]),
+  }).strict(),
+  execution: z.object({
+    taskSupport: PublicMcpTaskSupportSchema,
+    asyncThreshold: PublicMcpAsyncThresholdSchema,
+  }).strict(),
+  featureFlag: z.string().min(1).optional(),
+}).strict();
+export type PublicMcpAgentCatalogEntry = z.infer<typeof PublicMcpAgentCatalogEntrySchema>;
+
+export const PublicMcpAgentMemoryBindingSchema = z.object({
+  namespace: PublicMcpNamespaceSchema.optional(),
+  readTiers: z.array(PublicMcpMemoryTierSchema).default([]),
+  writeTiers: z.array(PublicMcpMemoryTierSchema).default([]),
+}).strict();
+export type PublicMcpAgentMemoryBinding = z.infer<typeof PublicMcpAgentMemoryBindingSchema>;
+
+export const PublicMcpAgentInvokeInputSchema = z.discriminatedUnion('type', [
+  z.object({
+    type: z.literal('text'),
+    text: z.string().min(1),
+  }).strict(),
+  z.object({
+    type: z.literal('packet'),
+    text: z.string().min(1),
+  }).strict(),
+  z.object({
+    type: z.literal('json'),
+    payload: z.record(z.unknown()),
+  }).strict(),
+]);
+export type PublicMcpAgentInvokeInput = z.infer<typeof PublicMcpAgentInvokeInputSchema>;
+
+export const PublicMcpAgentOutputItemSchema = z.discriminatedUnion('type', [
+  z.object({
+    type: z.literal('text'),
+    text: z.string().min(1),
+  }).strict(),
+  z.object({
+    type: z.literal('packet'),
+    text: z.string().min(1),
+  }).strict(),
+  z.object({
+    type: z.literal('json'),
+    payload: z.record(z.unknown()),
+  }).strict(),
+]);
+export type PublicMcpAgentOutputItem = z.infer<typeof PublicMcpAgentOutputItemSchema>;
+
+export const PublicMcpAgentInvokeArgumentsSchema = z.object({
+  agentId: z.string().regex(/^[a-z0-9._:-]+$/),
+  input: PublicMcpAgentInvokeInputSchema,
+  memory: PublicMcpAgentMemoryBindingSchema.optional(),
+  executionMode: z.enum(['auto', 'sync', 'async']).default('auto'),
+  idempotencyKey: z.string().min(1).optional(),
+}).strict();
+export type PublicMcpAgentInvokeArguments = z.infer<typeof PublicMcpAgentInvokeArgumentsSchema>;
+
+export const PublicMcpAgentInvokeCompletedSchema = z.object({
+  mode: z.literal('completed'),
+  runId: z.string().min(1),
+  outputs: z.array(PublicMcpAgentOutputItemSchema),
+}).strict();
+export type PublicMcpAgentInvokeCompleted = z.infer<typeof PublicMcpAgentInvokeCompletedSchema>;
+
+export const PublicMcpTaskStatusSchema = z.enum([
+  'queued',
+  'running',
+  'waiting',
+  'completed',
+  'failed',
+  'blocked',
+  'canceled',
+]);
+export type PublicMcpTaskStatus = z.infer<typeof PublicMcpTaskStatusSchema>;
+
+export const PublicMcpTaskWaitReasonSchema = z.enum([
+  'human_decision',
+  'retry_backoff',
+  'checkpoint_commit',
+  'async_batch',
+]);
+export type PublicMcpTaskWaitReason = z.infer<typeof PublicMcpTaskWaitReasonSchema>;
+
+export const PublicMcpAgentInvokeTaskAcceptedSchema = z.object({
+  mode: z.literal('task'),
+  task: z.object({
+    taskId: z.string().min(1),
+    status: z.enum(['queued', 'running', 'waiting']),
+    runId: z.string().min(1),
+  }).strict(),
+}).strict();
+export type PublicMcpAgentInvokeTaskAccepted = z.infer<typeof PublicMcpAgentInvokeTaskAcceptedSchema>;
+
+export const PublicMcpAgentInvokeResultSchema = z.union([
+  PublicMcpAgentInvokeCompletedSchema,
+  PublicMcpAgentInvokeTaskAcceptedSchema,
+]);
+export type PublicMcpAgentInvokeResult = z.infer<typeof PublicMcpAgentInvokeResultSchema>;
+
+export const PublicMcpTaskProjectionSchema = z.object({
+  taskId: z.string().min(1),
+  toolName: z.string().regex(/^ortho\.[a-z0-9.]+$/),
+  subjectNamespace: PublicMcpNamespaceSchema,
+  canonicalRunId: z.string().min(1),
+  status: PublicMcpTaskStatusSchema,
+  waitReason: PublicMcpTaskWaitReasonSchema.optional(),
+  submittedAt: z.string().datetime(),
+  updatedAt: z.string().datetime(),
+  completedAt: z.string().datetime().optional(),
+  errorCode: z.string().min(1).optional(),
+}).strict();
+export type PublicMcpTaskProjection = z.infer<typeof PublicMcpTaskProjectionSchema>;
+
+export const PublicMcpTaskResultSchema = z.object({
+  taskId: z.string().min(1),
+  status: z.enum(['completed', 'failed', 'blocked', 'canceled']),
+  result: z.unknown().optional(),
+  error: z.object({
+    code: z.number().int(),
+    message: z.string().min(1),
+  }).strict().optional(),
+}).strict();
+export type PublicMcpTaskResult = z.infer<typeof PublicMcpTaskResultSchema>;
+
+export const PublicMcpSystemInfoSchema = z.object({
+  server: z.object({
+    name: z.string().min(1),
+    phase: z.string().min(1),
+    backendMode: z.enum(['local_tunnel', 'hosted', 'development']),
+    protocolVersion: PublicMcpProtocolVersionSchema,
+  }).strict(),
+  features: z.object({
+    publicAgents: z.boolean(),
+    publicSystemInfo: z.boolean(),
+    publicTasks: z.boolean(),
+    publicCompactAsync: z.boolean(),
+  }).strict(),
+  limits: z.object({
+    maxInvokeInputBytes: z.number().int().positive(),
+    maxSearchTopK: z.number().int().positive().optional(),
+    maxTaskPollWindowSeconds: z.number().int().positive(),
+  }).strict(),
+  quotas: z.object({
+    invokePerMinute: z.number().int().positive(),
+    compactPerMinute: z.number().int().positive().optional(),
+  }).strict(),
+  tasks: z.object({
+    supportedMethods: z.array(z.enum(['tasks/get', 'tasks/result'])).default([]),
+    toolSupport: z.record(PublicMcpTaskSupportSchema),
+  }).strict(),
+}).strict();
+export type PublicMcpSystemInfo = z.infer<typeof PublicMcpSystemInfoSchema>;
 
 export const ExternalMemoryEntryIdSchema = z.string().min(1).max(128);
 export type ExternalMemoryEntryId = z.infer<typeof ExternalMemoryEntryIdSchema>;
@@ -347,6 +541,16 @@ export const PublicMcpToolCallParamsSchema = z.object({
 }).passthrough();
 export type PublicMcpToolCallParams = z.infer<typeof PublicMcpToolCallParamsSchema>;
 
+export const PublicMcpTaskGetParamsSchema = z.object({
+  taskId: z.string().min(1),
+}).strict();
+export type PublicMcpTaskGetParams = z.infer<typeof PublicMcpTaskGetParamsSchema>;
+
+export const PublicMcpTaskResultParamsSchema = z.object({
+  taskId: z.string().min(1),
+}).strict();
+export type PublicMcpTaskResultParams = z.infer<typeof PublicMcpTaskResultParamsSchema>;
+
 export const PublicMcpRpcRequestSchema = z.discriminatedUnion('method', [
   z.object({
     jsonrpc: z.literal('2.0'),
@@ -365,6 +569,18 @@ export const PublicMcpRpcRequestSchema = z.discriminatedUnion('method', [
     id: PublicMcpRpcIdSchema.optional(),
     method: z.literal('tools/call'),
     params: PublicMcpToolCallParamsSchema,
+  }).strict(),
+  z.object({
+    jsonrpc: z.literal('2.0'),
+    id: PublicMcpRpcIdSchema.optional(),
+    method: z.literal('tasks/get'),
+    params: PublicMcpTaskGetParamsSchema,
+  }).strict(),
+  z.object({
+    jsonrpc: z.literal('2.0'),
+    id: PublicMcpRpcIdSchema.optional(),
+    method: z.literal('tasks/result'),
+    params: PublicMcpTaskResultParamsSchema,
   }).strict(),
 ]);
 export type PublicMcpRpcRequest = z.infer<typeof PublicMcpRpcRequestSchema>;

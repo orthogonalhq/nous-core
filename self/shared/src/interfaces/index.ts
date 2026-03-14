@@ -32,6 +32,7 @@ export type {
   ExternalSourceSearchQuery,
   IExternalSourceMemoryService,
   IPublicMcpGatewayService,
+  IPublicMcpSurfaceService,
   IEndpointTrustService,
   IVoiceControlService,
   ISandbox,
@@ -41,6 +42,10 @@ export type {
   IOpctlService,
   IMaoProjectionService,
   IGtmGateCalculator,
+  PublicMcpAgentInvokeCommand,
+  PublicMcpAgentListQuery,
+  PublicMcpSystemInfoQuery,
+  PublicMcpTaskQuery,
 } from './subcortex.js';
 export type {
   IProjectApiMemory,

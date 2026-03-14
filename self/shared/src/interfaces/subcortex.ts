@@ -159,6 +159,9 @@ import type {
   VoiceTurnStateRecord,
   EndpointTrustSurfaceSummary,
   PublicMcpAdmissionDecision,
+  PublicMcpAgentCatalogEntry,
+  PublicMcpAgentInvokeArguments,
+  PublicMcpAgentInvokeResult,
   PublicMcpCompactArguments,
   PublicMcpDiscoveryBundle,
   PublicMcpDeleteArguments,
@@ -172,7 +175,10 @@ import type {
   PublicMcpHttpRequest,
   PublicMcpPutArguments,
   PublicMcpSearchArguments,
+  PublicMcpSystemInfo,
   PublicMcpSubject,
+  PublicMcpTaskProjection,
+  PublicMcpTaskResult,
   PublicMcpToolDefinition,
 } from '../types/index.js';
 import type { NousEvent } from '../events/index.js';
@@ -490,6 +496,39 @@ export interface IPublicMcpGatewayService {
 
   /** Execute an authorized public MCP request over the canonical bridge surface. */
   execute(request: PublicMcpExecutionRequest): Promise<PublicMcpExecutionResult>;
+}
+
+export interface PublicMcpAgentListQuery {
+  requestId: string;
+  subject: PublicMcpSubject;
+  requestedAt: string;
+}
+
+export interface PublicMcpAgentInvokeCommand extends PublicMcpAgentListQuery {
+  arguments: PublicMcpAgentInvokeArguments;
+}
+
+export interface PublicMcpTaskQuery extends PublicMcpAgentListQuery {
+  taskId: string;
+}
+
+export interface PublicMcpSystemInfoQuery extends PublicMcpAgentListQuery {}
+
+export interface IPublicMcpSurfaceService {
+  /** List externally visible public agents for the authenticated subject. */
+  listAgents(request: PublicMcpAgentListQuery): Promise<PublicMcpAgentCatalogEntry[]>;
+
+  /** Invoke a public agent through the canonical public runtime. */
+  invokeAgent(request: PublicMcpAgentInvokeCommand): Promise<PublicMcpAgentInvokeResult>;
+
+  /** Retrieve the current subject-scoped task projection. */
+  getTask(request: PublicMcpTaskQuery): Promise<PublicMcpTaskProjection | null>;
+
+  /** Retrieve the terminal result for a subject-scoped task. */
+  getTaskResult(request: PublicMcpTaskQuery): Promise<PublicMcpTaskResult | null>;
+
+  /** Project public-safe server and task-support metadata. */
+  getSystemInfo(request: PublicMcpSystemInfoQuery): Promise<PublicMcpSystemInfo>;
 }
 
 export interface ExternalSourceCommandContext {
