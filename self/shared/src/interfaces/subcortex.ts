@@ -159,10 +159,19 @@ import type {
   VoiceTurnStateRecord,
   EndpointTrustSurfaceSummary,
   PublicMcpAdmissionDecision,
+  PublicMcpCompactArguments,
   PublicMcpDiscoveryBundle,
+  PublicMcpDeleteArguments,
+  ExternalSourceCompactionResult,
+  ExternalSourceMemoryEntry,
+  ExternalSourceMutationResult,
+  ExternalSourceSearchResult,
   PublicMcpExecutionRequest,
   PublicMcpExecutionResult,
+  PublicMcpGetArguments,
   PublicMcpHttpRequest,
+  PublicMcpPutArguments,
+  PublicMcpSearchArguments,
   PublicMcpSubject,
   PublicMcpToolDefinition,
 } from '../types/index.js';
@@ -481,6 +490,50 @@ export interface IPublicMcpGatewayService {
 
   /** Execute an authorized public MCP request over the canonical bridge surface. */
   execute(request: PublicMcpExecutionRequest): Promise<PublicMcpExecutionResult>;
+}
+
+export interface ExternalSourceCommandContext {
+  requestId: string;
+  subject: PublicMcpSubject;
+  requestedAt: string;
+  idempotencyKey?: string;
+}
+
+export interface ExternalSourcePutCommand extends ExternalSourceCommandContext {
+  arguments: PublicMcpPutArguments;
+}
+
+export interface ExternalSourceGetQuery extends ExternalSourceCommandContext {
+  arguments: PublicMcpGetArguments;
+}
+
+export interface ExternalSourceSearchQuery extends ExternalSourceCommandContext {
+  arguments: PublicMcpSearchArguments;
+}
+
+export interface ExternalSourceDeleteCommand extends ExternalSourceCommandContext {
+  arguments: PublicMcpDeleteArguments;
+}
+
+export interface ExternalSourceCompactCommand extends ExternalSourceCommandContext {
+  arguments: PublicMcpCompactArguments;
+}
+
+export interface IExternalSourceMemoryService {
+  /** Execute a source-local append or supersede write. */
+  put(request: ExternalSourcePutCommand): Promise<ExternalSourceMutationResult>;
+
+  /** Read one source-local external-memory entry. */
+  get(request: ExternalSourceGetQuery): Promise<ExternalSourceMemoryEntry | null>;
+
+  /** Search source-local external-memory entries using canonical public-memory semantics. */
+  search(request: ExternalSourceSearchQuery): Promise<ExternalSourceSearchResult>;
+
+  /** Soft-delete one source-local external-memory entry. */
+  delete(request: ExternalSourceDeleteCommand): Promise<ExternalSourceMutationResult>;
+
+  /** Compact source-local external STM into allowed public compaction outputs. */
+  compact(request: ExternalSourceCompactCommand): Promise<ExternalSourceCompactionResult>;
 }
 
 export interface IEndpointTrustService {
