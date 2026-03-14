@@ -8,9 +8,14 @@ Foundation models are commodity inputs. The architecture is the value layer.
 
 ![Demo](docs/assets/demo.gif)
 
-<!--
-[![CI](https://github.com/orthogonal-research/nous-core/actions/workflows/ci.yml/badge.svg)](https://github.com/orthogonal-research/nous-core/actions)
--->
+[![CI](https://github.com/orthogonalhq/nous-core/actions/workflows/ci.yml/badge.svg)](https://github.com/orthogonalhq/nous-core/actions/workflows/ci.yml)
+[![Stars](https://img.shields.io/github/stars/orthogonalhq/nous-core?style=flat&color=gold)](https://github.com/orthogonalhq/nous-core/stargazers)
+[![Open Issues](https://img.shields.io/github/issues/orthogonalhq/nous-core?style=flat)](https://github.com/orthogonalhq/nous-core/issues)
+[![Last Commit](https://img.shields.io/github/last-commit/orthogonalhq/nous-core?style=flat)](https://github.com/orthogonalhq/nous-core/commits/main)
+[![Node](https://img.shields.io/badge/node-%3E%3D22-brightgreen?style=flat)](https://nodejs.org)
+[![pnpm](https://img.shields.io/badge/pnpm-10-orange?style=flat)](https://pnpm.io)
+[![TypeScript](https://img.shields.io/badge/typescript-strict-blue?style=flat)](https://www.typescriptlang.org)
+[![Coverage](https://codecov.io/gh/orthogonalhq/nous-core/branch/main/graph/badge.svg)](https://codecov.io/gh/orthogonalhq/nous-core)
 
 > **Status**: Active development. The architecture is stable. The runtime is functional. Edges are sharp. Contributions welcome at the right layer — see [CONTRIBUTING.md](CONTRIBUTING.md).
 

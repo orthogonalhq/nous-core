@@ -64,6 +64,18 @@ jobs:
       - name: Test
         run: pnpm run test
 
+      - name: Test (with coverage)
+        if: matrix.os == 'ubuntu-latest'
+        run: pnpm run test --coverage
+
+      - name: Upload coverage to Codecov
+        if: matrix.os == 'ubuntu-latest'
+        uses: codecov/codecov-action@v4
+        with:
+          files: ./coverage/lcov.info
+          fail_ci_if_error: false
+          token: ${{ secrets.CODECOV_TOKEN }}
+
       - name: Benchmark Tier 0
         run: pnpm run benchmark:tier0
 
