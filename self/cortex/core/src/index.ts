@@ -58,8 +58,12 @@ export {
   createScopedMcpToolSurface,
   getAuthorizedInternalMcpTools,
   getInternalMcpCatalogEntry,
+  getPublicToolMapping,
+  getVisiblePublicToolMappings,
+  hasRequiredPublicMcpScopes,
   getVisibleInternalMcpTools,
   INTERNAL_MCP_CATALOG,
+  PUBLIC_MCP_TOOL_MAPPINGS,
 } from './internal-mcp/index.js';
 export type {
   InternalMcpDispatchChildArgs,
@@ -69,6 +73,14 @@ export type {
   InternalMcpSurfaceBundle,
   InternalMcpToolName,
 } from './internal-mcp/index.js';
+export {
+  PublicMcpExecutionBridge,
+} from './public-mcp/index.js';
+export type {
+  IPublicMcpExecutionBridge,
+  PublicMcpExecutionBridgeOptions,
+  PublicMcpInternalExecutor,
+} from './public-mcp/index.js';
 export {
   WORKFLOW_ROUTER_SYSTEM_PROMPT,
   ORCHESTRATOR_SYSTEM_PROMPT,
