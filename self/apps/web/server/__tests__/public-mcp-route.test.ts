@@ -72,7 +72,7 @@ describe('public MCP route', () => {
     expect(audit).not.toBeNull();
   });
 
-  it('blocks phase-disabled tool calls before any internal execution path', async () => {
+  it('blocks later-phase tool calls before any internal execution path', async () => {
     process.env.NOUS_DATA_DIR = join(tmpdir(), `nous-web-public-mcp-${randomUUID()}`);
     clearNousContextCache();
 
@@ -83,7 +83,7 @@ describe('public MCP route', () => {
         authorization: `Bearer ${encodeClaims({
           clientId: 'client-1',
           audience: 'urn:nous:ortho:mcp',
-          scopes: ['ortho.memory.stm.write'],
+          scopes: ['ortho.agents.invoke'],
           expiresAt: '2030-01-01T00:00:00.000Z',
         })}`,
       },
@@ -92,7 +92,7 @@ describe('public MCP route', () => {
         id: 'rpc-1',
         method: 'tools/call',
         params: {
-          name: 'ortho.memory.v1.put',
+          name: 'ortho.agents.v1.invoke',
           arguments: {},
         },
       }),

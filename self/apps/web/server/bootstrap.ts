@@ -38,6 +38,8 @@ import {
   GatewayBackedTurnExecutor,
   GatewayRuntimeIngressAdapter,
   PublicMcpExecutionBridge,
+  createCapabilityHandlers,
+  getPublicToolMapping,
   createGatewayProjectApi,
   createPrincipalSystemGatewayRuntime,
 } from '@nous/cortex-core';
@@ -69,7 +71,15 @@ import {
 import { MaoProjectionService } from '@nous/subcortex-mao';
 import { GtmGateCalculator } from '@nous/subcortex-gtm';
 import { VoiceControlService } from '@nous/subcortex-voice-control';
-import { PublicMcpGatewayService } from '@nous/subcortex-public-mcp';
+import {
+  AuditProjectionStore,
+  ExternalSourceMemoryService,
+  ExternalSourceStorageAdapter,
+  NamespaceRegistryStore,
+  PublicMcpGatewayService,
+  QuotaUsageStore,
+  RateLimitBucketStore,
+} from '@nous/subcortex-public-mcp';
 import { MemoryAccessPolicyEngine } from '@nous/memory-access';
 import type { NousContext } from './context';
 import type { IIngressGateway } from '@nous/shared';
@@ -307,13 +317,51 @@ export function createNousContext(): NousContext {
     voiceControlService,
     witnessService,
   });
-  const publicMcpExecutionBridge = new PublicMcpExecutionBridge();
+  const publicMcpNamespaceStore = new NamespaceRegistryStore(documentStore);
+  const publicMcpAuditStore = new AuditProjectionStore(documentStore);
+  const publicMcpQuotaUsageStore = new QuotaUsageStore(documentStore);
+  const publicMcpRateLimitStore = new RateLimitBucketStore(documentStore);
+  const externalSourceStorageAdapter = new ExternalSourceStorageAdapter(documentStore, {
+    vectorStore,
+    embedder,
+  });
+  const externalSourceMemoryService = new ExternalSourceMemoryService({
+    documentStore,
+    namespaceStore: publicMcpNamespaceStore,
+    auditStore: publicMcpAuditStore,
+    storageAdapter: externalSourceStorageAdapter,
+    quotaStore: publicMcpQuotaUsageStore,
+    rateLimitStore: publicMcpRateLimitStore,
+    witnessService,
+  });
+  const publicCapabilityHandlers = createCapabilityHandlers({
+    agentClass: 'Worker',
+    agentId: 'public-mcp-runtime' as any,
+    deps: {
+      externalSourceMemoryService,
+    },
+  });
+  const publicMcpExecutionBridge = new PublicMcpExecutionBridge({
+    executor: {
+      execute: async (internalName, request) => {
+        const handler =
+          publicCapabilityHandlers[internalName as keyof typeof publicCapabilityHandlers];
+        if (!handler) {
+          throw new Error(`Public MCP handler ${internalName} is unavailable`);
+        }
+        return handler(request);
+      },
+    },
+  });
   const publicMcpGatewayService = new PublicMcpGatewayService({
     documentStore,
+    namespaceStore: publicMcpNamespaceStore,
+    auditStore: publicMcpAuditStore,
     witnessService,
     executionBridge: publicMcpExecutionBridge,
     baseUrl: process.env.NOUS_PUBLIC_BASE_URL ?? 'http://localhost:3000',
     supportedScopes: PublicMcpScopeSchema.options,
+    toolMappingLookup: getPublicToolMapping,
   });
 
   const getProvider = (id: ProviderId) => {
