@@ -207,7 +207,8 @@ export class PublicMcpGatewayService implements IPublicMcpGatewayService {
     result: PublicMcpExecutionResult,
     startedAtMs: number,
   ): Promise<PublicMcpExecutionResult> {
-    const outcome = result.error ? 'blocked' : 'admitted';
+    const outcome = result.error ? 'blocked' : 'completed';
+    const auditDetail = buildAuditDetail(request, result);
     const detail = {
       ...this.buildWitnessDetail(
         request.requestId,
@@ -221,13 +222,14 @@ export class PublicMcpGatewayService implements IPublicMcpGatewayService {
       toolName: request.toolName,
       internalToolName: result.internalToolName,
       rejectReason: result.rejectReason,
+      ...auditDetail,
     };
 
     const authorizationEventId = await this.appendAuthorization(detail);
     const completionEventId = await this.appendCompletion(
       request.requestId,
       authorizationEventId,
-      outcome === 'admitted' ? 'succeeded' : 'blocked',
+      result.error ? 'blocked' : 'succeeded',
       detail,
     );
 
@@ -238,8 +240,14 @@ export class PublicMcpGatewayService implements IPublicMcpGatewayService {
       namespace: request.subject.namespace,
       toolName: request.toolName,
       internalToolName: result.internalToolName,
+      tier: auditDetail.tier,
+      entryId: auditDetail.entryId,
+      lifecycleAction: auditDetail.lifecycleAction,
       outcome,
       rejectReason: result.rejectReason,
+      lifecycleState: auditDetail.lifecycleState,
+      quotaDecision: auditDetail.quotaDecision,
+      rateLimitDecision: auditDetail.rateLimitDecision,
       latencyMs: Math.max(0, Date.now() - startedAtMs),
       idempotencyKey: request.idempotencyKey,
       authorizationEventId: authorizationEventId as any,
@@ -353,4 +361,105 @@ export class PublicMcpGatewayService implements IPublicMcpGatewayService {
     });
     return event.id;
   }
+}
+
+function buildAuditDetail(
+  request: PublicMcpExecutionRequest,
+  result: PublicMcpExecutionResult,
+): {
+  tier?: 'stm' | 'ltm';
+  entryId?: string;
+  lifecycleAction?: 'quarantine' | 'purge';
+  lifecycleState?: 'active' | 'quarantined' | 'purging' | 'purged';
+  quotaDecision?: 'allow' | 'reject';
+  rateLimitDecision?: 'allow' | 'reject';
+} {
+  const args =
+    request.method === 'tools/call' && request.arguments
+      ? (request.arguments as Record<string, unknown>)
+      : {};
+  const resultData = result.error?.data ?? {};
+  const resultValue =
+    result.result && typeof result.result === 'object'
+      ? (result.result as Record<string, unknown>)
+      : {};
+  const entry =
+    resultValue.entry && typeof resultValue.entry === 'object'
+      ? (resultValue.entry as Record<string, unknown>)
+      : {};
+
+  const tier = pickTier(args, resultValue, entry, resultData);
+  const lifecycleState = pickLifecycleState(resultData);
+
+  return {
+    tier,
+    entryId: pickString(resultValue.entryId) ?? pickString(entry.id) ?? pickString(resultData.entryId),
+    lifecycleAction: pickLifecycleAction(resultValue, resultData),
+    lifecycleState,
+    quotaDecision:
+      result.rejectReason === 'quota_exceeded'
+        ? 'reject'
+        : request.method === 'tools/call'
+          ? 'allow'
+          : undefined,
+    rateLimitDecision:
+      result.rejectReason === 'rate_limited'
+        ? 'reject'
+        : request.method === 'tools/call'
+          ? 'allow'
+          : undefined,
+  };
+}
+
+function pickTier(
+  args: Record<string, unknown>,
+  resultValue: Record<string, unknown>,
+  entry: Record<string, unknown>,
+  resultData: Record<string, unknown>,
+): 'stm' | 'ltm' | undefined {
+  const direct =
+    pickMemoryTier(args.tier) ??
+    pickMemoryTier(args.sourceTier) ??
+    pickMemoryTier(entry.tier) ??
+    pickMemoryTier(resultData.tier);
+  if (direct) {
+    return direct;
+  }
+
+  const strategy = pickString(args.strategy) ?? pickString(resultValue.strategy);
+  if (strategy === 'summarize') {
+    return 'stm';
+  }
+  if (strategy === 'extract_facts') {
+    return 'ltm';
+  }
+  return undefined;
+}
+
+function pickLifecycleAction(
+  resultValue: Record<string, unknown>,
+  resultData: Record<string, unknown>,
+): 'quarantine' | 'purge' | undefined {
+  const value = pickString(resultValue.lifecycleAction) ?? pickString(resultData.lifecycleAction);
+  return value === 'quarantine' || value === 'purge' ? value : undefined;
+}
+
+function pickLifecycleState(
+  resultData: Record<string, unknown>,
+): 'active' | 'quarantined' | 'purging' | 'purged' | undefined {
+  const value = pickString(resultData.lifecycleState);
+  return value === 'active' ||
+    value === 'quarantined' ||
+    value === 'purging' ||
+    value === 'purged'
+    ? value
+    : undefined;
+}
+
+function pickMemoryTier(value: unknown): 'stm' | 'ltm' | undefined {
+  return value === 'stm' || value === 'ltm' ? value : undefined;
+}
+
+function pickString(value: unknown): string | undefined {
+  return typeof value === 'string' ? value : undefined;
 }

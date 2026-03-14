@@ -81,10 +81,11 @@ export class PublicMcpAuthAdmission {
     if (!authHeader?.startsWith('Bearer ')) {
       return this.reject(parsedRequest, 'missing_bearer', parsedRpc.data);
     }
+    const bearerToken = authHeader.slice('Bearer '.length);
 
     let claims: PublicMcpTokenClaims;
     try {
-      claims = await this.tokenVerifier.verifyBearer(authHeader.slice('Bearer '.length));
+      claims = await this.tokenVerifier.verifyBearer(bearerToken);
     } catch {
       return this.reject(parsedRequest, 'invalid_token', parsedRpc.data);
     }
@@ -118,7 +119,11 @@ export class PublicMcpAuthAdmission {
       return this.reject(parsedRequest, 'scope_insufficient', parsedRpc.data);
     }
 
-    const subject = this.buildSubject(claims, origin ?? undefined);
+    const subject = this.buildSubject(
+      claims,
+      createHash('sha256').update(bearerToken).digest('hex'),
+      origin ?? undefined,
+    );
     const requestedNamespace = extractRequestedNamespace(parsedRpc.data);
     if (requestedNamespace) {
       const namespaceCheck = PublicMcpNamespaceSchema.safeParse(requestedNamespace);
@@ -182,6 +187,7 @@ export class PublicMcpAuthAdmission {
 
   private buildSubject(
     claims: PublicMcpTokenClaims,
+    tokenFingerprint: string,
     origin?: string,
   ): PublicMcpSubject {
     const clientIdHash = createHash('sha256').update(claims.clientId).digest('hex');
@@ -194,6 +200,7 @@ export class PublicMcpAuthAdmission {
       class: 'ExternalClient',
       clientId: claims.clientId,
       clientIdHash,
+      tokenFingerprint,
       namespace,
       scopes: claims.scopes,
       audience: claims.audience,

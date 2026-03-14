@@ -9,7 +9,7 @@ function encodeClaims(claims: Record<string, unknown>): string {
 }
 
 describe('Public MCP audit projection', () => {
-  it('records witness-linked audit rows for admitted initialize requests', async () => {
+  it('records witness-linked audit rows for completed initialize requests', async () => {
     const documentStore = createMemoryDocumentStore();
     const witnessService = new WitnessService(documentStore);
     const auditStore = new AuditProjectionStore(documentStore);
@@ -63,7 +63,7 @@ describe('Public MCP audit projection', () => {
     expect(result.authorizationEventId).toBeTruthy();
     expect(result.completionEventId).toBeTruthy();
     expect(audit?.oauthClientId).toBe('client-1');
-    expect(audit?.outcome).toBe('admitted');
+    expect(audit?.outcome).toBe('completed');
     expect(audit?.authorizationEventId).toBe(result.authorizationEventId);
   });
 
