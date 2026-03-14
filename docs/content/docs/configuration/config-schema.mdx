@@ -170,3 +170,5 @@ These apply to newly created projects.
 | `NOUS_CONFIG_PATH` | Config file path |
 | `NOUS_BASIC_AUTH` | Basic auth for tRPC (format: `user:password`) |
 | `NOUS_PUBLIC_BASE_URL` | Base URL used in OAuth discovery documents for the public MCP edge (default: `http://localhost:3000`). Set this when deploying behind a non-localhost public endpoint. |
+
+Phase 13.2 config audit result: the public memory tool rollout introduced no additional operator-facing environment variables. `NOUS_PUBLIC_BASE_URL` remains the only public MCP edge override required for OAuth metadata and discovery URLs.
