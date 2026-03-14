@@ -10,6 +10,10 @@ const MATRIX: Record<AgentClass, readonly InternalMcpToolName[]> = {
   'Cortex::System': [
     'memory_search',
     'memory_write',
+    'promoted_memory_promote',
+    'promoted_memory_demote',
+    'promoted_memory_get',
+    'promoted_memory_search',
     'project_discover',
     'artifact_store',
     'artifact_retrieve',

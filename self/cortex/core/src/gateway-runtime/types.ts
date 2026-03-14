@@ -6,6 +6,7 @@ import type {
   IAgentGatewayFactory,
   IModelProvider,
   IModelRouter,
+  IPromotedMemoryBridgeService,
   IProjectApi,
   IProjectStore,
   IToolExecutor,
@@ -142,6 +143,7 @@ export interface PrincipalSystemGatewayRuntimeDeps {
   getProjectApi?: (projectId: ProjectId) => IProjectApi | null;
   toolExecutor?: IToolExecutor;
   pfc?: IPfcEngine;
+  promotedMemoryBridgeService?: IPromotedMemoryBridgeService;
   workflowEngine?: IWorkflowEngine;
   projectStore?: IProjectStore;
   scheduler?: IScheduler;

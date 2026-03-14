@@ -60,5 +60,6 @@ describe('PublicMcpExecutionBridge listTools', () => {
       'ortho.agents.v1.list',
       'ortho.system.v1.info',
     ]);
+    expect(tools.some((tool) => tool.name.includes('promoted'))).toBe(false);
   });
 });
