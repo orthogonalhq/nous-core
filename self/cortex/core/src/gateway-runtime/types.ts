@@ -77,7 +77,7 @@ export const GatewayBootSnapshotSchema = z
   .object({
     status: GatewayBootStatusSchema,
     completedSteps: z.array(GatewayBootStepSchema),
-    stepTimestamps: z.record(z.string().datetime()),
+    stepTimestamps: z.record(z.string(), z.string().datetime()),
     issueCodes: z.array(z.string().min(1)),
   })
   .strict();
@@ -87,7 +87,7 @@ export const SystemTaskSubmissionSchema = z
   .object({
     task: z.string().min(1),
     projectId: z.string().uuid().optional(),
-    detail: z.record(z.unknown()).default({}),
+    detail: z.record(z.string(), z.unknown()).default({}),
   })
   .strict();
 export type SystemTaskSubmission = z.infer<typeof SystemTaskSubmissionSchema>;
@@ -97,7 +97,7 @@ export const SystemDirectiveInjectionSchema = z
     directive: z.string().min(1),
     priority: z.enum(['low', 'medium', 'high', 'critical']).default('medium'),
     projectId: z.string().uuid().optional(),
-    detail: z.record(z.unknown()).default({}),
+    detail: z.record(z.string(), z.unknown()).default({}),
   })
   .strict();
 export type SystemDirectiveInjection = z.infer<typeof SystemDirectiveInjectionSchema>;

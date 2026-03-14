@@ -12,5 +12,16 @@ export default defineConfig({
       'self/**/vitest.config.ts',
       'scripts/**/vitest.config.ts',
     ],
+    coverage: {
+      provider: 'v8',
+      reporter: ['text', 'lcov'],
+      exclude: [
+        '**/node_modules/**',
+        '**/*.d.ts',
+        '**/__tests__/**',
+        '**/stubs/**',
+        '**/scripts/**',
+      ],
+    },
   },
 });

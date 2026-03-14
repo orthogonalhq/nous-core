@@ -77,4 +77,45 @@ describe('PublicMcpExecutionBridge executeMappedTool', () => {
       expect.objectContaining({ toolName: 'ortho.system.v1.info' }),
     );
   });
+
+  it('rejects binding-derived invoke scopes before executor handoff', async () => {
+    const executor = {
+      execute: vi.fn(),
+    };
+    const bridge = new PublicMcpExecutionBridge({
+      mappings: [
+        {
+          externalName: 'ortho.agents.v1.invoke',
+          internalName: 'public_agent_invoke',
+          requiredScopes: ['ortho.agents.invoke'],
+          scopeStrategy: 'agent_invoke_with_bindings',
+          phaseAvailability: '13.3',
+          enabledInCurrentPhase: true,
+          bootstrapMode: 'none',
+        },
+      ],
+      executor,
+    });
+
+    const result = await bridge.executeMappedTool({
+      ...createRequest('ortho.agents.v1.invoke'),
+      subject: {
+        ...createRequest('ortho.agents.v1.invoke').subject,
+        scopes: ['ortho.agents.invoke'],
+      },
+      arguments: {
+        agentId: 'engineering.workflow',
+        input: {
+          type: 'text',
+          text: 'hello',
+        },
+        memory: {
+          readTiers: ['ltm'],
+        },
+      },
+    });
+
+    expect(result.rejectReason).toBe('scope_insufficient');
+    expect(executor.execute).not.toHaveBeenCalled();
+  });
 });

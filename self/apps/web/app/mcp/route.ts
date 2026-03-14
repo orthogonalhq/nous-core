@@ -103,7 +103,12 @@ export async function POST(request: Request): Promise<Response> {
           : '2025-11-25',
       method: rpcRequest.method,
       toolName: rpcRequest.method === 'tools/call' ? rpcRequest.params.name : undefined,
-      arguments: rpcRequest.method === 'tools/call' ? rpcRequest.params.arguments : undefined,
+      arguments:
+        rpcRequest.method === 'tools/call'
+          ? rpcRequest.params.arguments
+          : rpcRequest.method === 'tasks/get' || rpcRequest.method === 'tasks/result'
+            ? rpcRequest.params
+            : undefined,
       subject: admission.subject!,
       idempotencyKey: request.headers.get('idempotency-key') ?? undefined,
       requestedAt: new Date().toISOString(),

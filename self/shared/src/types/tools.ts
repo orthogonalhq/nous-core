@@ -15,6 +15,12 @@ export const ToolDefinitionSchema = z.object({
   outputSchema: z.record(z.unknown()),
   capabilities: z.array(z.string()),
   permissionScope: z.string(),
+  execution: z
+    .object({
+      taskSupport: z.enum(['none', 'optional', 'required']).default('none'),
+    })
+    .strict()
+    .optional(),
 });
 export type ToolDefinition = z.infer<typeof ToolDefinitionSchema>;
 

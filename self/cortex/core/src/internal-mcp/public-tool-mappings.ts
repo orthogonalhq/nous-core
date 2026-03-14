@@ -53,24 +53,30 @@ export const PUBLIC_MCP_TOOL_MAPPINGS: readonly PublicMcpToolMappingEntry[] = [
     phaseAvailability: '13.2',
     enabledInCurrentPhase: true,
     bootstrapMode: 'none',
+    execution: {
+      taskSupport: 'optional',
+    },
   },
   {
     externalName: 'ortho.agents.v1.list',
     internalName: 'public_agent_list',
-    requiredScopes: ['ortho.agents.invoke'],
+    requiredScopes: ['ortho.system.read'],
     scopeStrategy: 'static',
     phaseAvailability: '13.3',
-    enabledInCurrentPhase: false,
+    enabledInCurrentPhase: true,
     bootstrapMode: 'none',
   },
   {
     externalName: 'ortho.agents.v1.invoke',
     internalName: 'public_agent_invoke',
     requiredScopes: ['ortho.agents.invoke'],
-    scopeStrategy: 'static',
+    scopeStrategy: 'agent_invoke_with_bindings',
     phaseAvailability: '13.3',
-    enabledInCurrentPhase: false,
+    enabledInCurrentPhase: true,
     bootstrapMode: 'none',
+    execution: {
+      taskSupport: 'optional',
+    },
   },
   {
     externalName: 'ortho.system.v1.info',
@@ -78,7 +84,7 @@ export const PUBLIC_MCP_TOOL_MAPPINGS: readonly PublicMcpToolMappingEntry[] = [
     requiredScopes: ['ortho.system.read'],
     scopeStrategy: 'static',
     phaseAvailability: '13.3',
-    enabledInCurrentPhase: false,
+    enabledInCurrentPhase: true,
     bootstrapMode: 'none',
   },
 ].map((entry) => PublicMcpToolMappingEntrySchema.parse(entry)) as readonly PublicMcpToolMappingEntry[];
@@ -144,6 +150,39 @@ export function resolvePublicMcpRequiredScopes(
       const strategy = (args as { strategy?: unknown }).strategy;
       return resolveCompactScopes(
         strategy === 'extract_facts' ? 'extract_facts' : 'summarize',
+      );
+    }
+    case 'agent_invoke_with_bindings': {
+      const memory = (args as {
+        memory?: {
+          readTiers?: unknown;
+          writeTiers?: unknown;
+        };
+      }).memory;
+      const readScopes: PublicMcpScope[] = Array.isArray(memory?.readTiers)
+        ? memory.readTiers.flatMap((tier) =>
+            tier === 'ltm'
+              ? ['ortho.memory.ltm.read']
+              : tier === 'stm'
+                ? ['ortho.memory.stm.read']
+                : [],
+          )
+        : [];
+      const writeScopes: PublicMcpScope[] = Array.isArray(memory?.writeTiers)
+        ? memory.writeTiers.flatMap((tier) =>
+            tier === 'ltm'
+              ? ['ortho.memory.ltm.write']
+              : tier === 'stm'
+                ? ['ortho.memory.stm.write']
+                : [],
+          )
+        : [];
+      return Array.from(
+        new Set<PublicMcpScope>([
+          'ortho.agents.invoke',
+          ...readScopes,
+          ...writeScopes,
+        ]),
       );
     }
     case 'static':

@@ -38,8 +38,10 @@ import {
   GatewayBackedTurnExecutor,
   GatewayRuntimeIngressAdapter,
   PublicMcpExecutionBridge,
+  PublicMcpRuntimeAdapter,
   createCapabilityHandlers,
   getPublicToolMapping,
+  resolvePublicMcpRequiredScopes,
   createGatewayProjectApi,
   createPrincipalSystemGatewayRuntime,
 } from '@nous/cortex-core';
@@ -77,6 +79,8 @@ import {
   ExternalSourceStorageAdapter,
   NamespaceRegistryStore,
   PublicMcpGatewayService,
+  PublicMcpSurfaceService,
+  PublicMcpTaskProjectionStore,
   QuotaUsageStore,
   RateLimitBucketStore,
 } from '@nous/subcortex-public-mcp';
@@ -334,11 +338,96 @@ export function createNousContext(): NousContext {
     rateLimitStore: publicMcpRateLimitStore,
     witnessService,
   });
+
+  const getProvider = (id: ProviderId) => {
+    // Explicitly route the synthetic fallback provider to the in-process mock.
+    // This prevents accidental Ollama resolution for the mock config path.
+    if (id === MOCK_PROVIDER_ID) {
+      return createMockProvider(id) as ReturnType<typeof providerRegistry.getProvider>;
+    }
+    return providerRegistry.getProvider(id);
+  };
+
+  const createRuntimeProjectApi = (projectId: ProjectId) =>
+    createGatewayProjectApi(projectId, {
+      mwcPipeline,
+      artifactStore,
+      escalationService,
+      schedulerService,
+      toolExecutor,
+      router,
+      getProvider,
+    });
+
+  const publicMcpTaskStore = new PublicMcpTaskProjectionStore(documentStore);
+  const publicMcpRuntimeAdapter = new PublicMcpRuntimeAdapter({
+    modelRouter: router,
+    getProvider,
+    getProjectApi: createRuntimeProjectApi,
+    toolExecutor,
+    pfc: Cortex,
+    workflowEngine,
+    projectStore,
+    scheduler: schedulerService,
+    escalationService,
+    witnessService,
+    outputSchemaValidator: new DefaultSchemaRefValidator(),
+  });
+  const publicMcpSurfaceService = new PublicMcpSurfaceService({
+    runtimeAdapter: publicMcpRuntimeAdapter,
+    taskStore: publicMcpTaskStore,
+    auditStore: publicMcpAuditStore,
+    publicAgents: [
+      {
+        catalog: {
+          agentId: 'engineering.workflow',
+          title: 'Engineering Workflow',
+          description:
+            'A public-safe orchestration agent for structured engineering tasks.',
+          inputModes: ['text', 'packet', 'json'],
+          memoryBinding: {
+            supported: true,
+            readTiers: ['stm', 'ltm'],
+            writeTiers: ['stm'],
+          },
+          execution: {
+            taskSupport: 'optional',
+            asyncThreshold: 'long_running_only',
+          },
+        },
+        targetClass: 'Orchestrator',
+        buildTaskInstructions: (request) =>
+          [
+            'Process the authenticated public engineering workflow request.',
+            'Preserve the canonical AgentGateway and lifecycle-tool execution posture.',
+            'Return a concise, public-safe result.',
+            `Requested agent: ${request.arguments.agentId}`,
+            request.arguments.input.type === 'json'
+              ? 'Input payload is attached as structured JSON.'
+              : `Input: ${
+                  request.arguments.input.text
+                }`,
+          ].join('\n'),
+        buildPayload: (request) => ({
+          subject: {
+            clientId: request.subject.clientId,
+            namespace: request.subject.namespace,
+          },
+          input: request.arguments.input,
+          memory: request.arguments.memory,
+        }),
+      },
+    ],
+    serverName: 'Nous Public MCP',
+    phase: 'phase-13.3',
+    backendMode: 'development',
+  });
   const publicCapabilityHandlers = createCapabilityHandlers({
     agentClass: 'Worker',
     agentId: 'public-mcp-runtime' as any,
     deps: {
       externalSourceMemoryService,
+      publicMcpSurfaceService,
     },
   });
   const publicMcpExecutionBridge = new PublicMcpExecutionBridge({
@@ -362,27 +451,12 @@ export function createNousContext(): NousContext {
     baseUrl: process.env.NOUS_PUBLIC_BASE_URL ?? 'http://localhost:3000',
     supportedScopes: PublicMcpScopeSchema.options,
     toolMappingLookup: getPublicToolMapping,
+    requiredScopeResolver: (toolName, args) => {
+      const mapping = getPublicToolMapping(toolName);
+      return mapping ? resolvePublicMcpRequiredScopes(mapping, args) : [];
+    },
+    surfaceService: publicMcpSurfaceService,
   });
-
-  const getProvider = (id: ProviderId) => {
-    // Explicitly route the synthetic fallback provider to the in-process mock.
-    // This prevents accidental Ollama resolution for the mock config path.
-    if (id === MOCK_PROVIDER_ID) {
-      return createMockProvider(id) as ReturnType<typeof providerRegistry.getProvider>;
-    }
-    return providerRegistry.getProvider(id);
-  };
-
-  const createRuntimeProjectApi = (projectId: ProjectId) =>
-    createGatewayProjectApi(projectId, {
-      mwcPipeline,
-      artifactStore,
-      escalationService,
-      schedulerService,
-      toolExecutor,
-      router,
-      getProvider,
-    });
 
   const coreExecutor = new GatewayBackedTurnExecutor({
     modelRouter: router,

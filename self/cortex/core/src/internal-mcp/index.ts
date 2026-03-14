@@ -25,6 +25,7 @@ export {
   getVisiblePublicToolMappings,
   hasRequiredPublicMcpScopes,
   PUBLIC_MCP_TOOL_MAPPINGS,
+  resolvePublicMcpRequiredScopes,
 } from './public-tool-mappings.js';
 export {
   normalizeDispatchParams,
@@ -41,6 +42,8 @@ export {
   parseExternalMemorySearchQuery,
   parseMemorySearchRequest,
   parseMemoryWriteRequest,
+  parsePublicMcpAgentInvokeArguments,
+  parsePublicMcpExecutionRequest,
   parseProjectDiscoverRequest,
   parseSchedulerRegisterRequest,
   parseToolExecuteRequest,
@@ -52,6 +55,7 @@ export {
   type EscalationNotifyRequest,
   type MemorySearchRequest,
   type ProjectDiscoverRequest,
+  type PublicMcpExecutionRequest,
   type SchedulerRegisterRequest,
   type ToolExecuteRequest,
   type ToolListRequest,

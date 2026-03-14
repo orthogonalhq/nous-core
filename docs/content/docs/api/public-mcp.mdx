@@ -5,67 +5,153 @@ description: Reference for the public machine-to-machine MCP surface
 
 # Public MCP Edge
 
-Phase 13.2 enables the first public memory-operation floor for approved external clients. This surface is hosted by the web app, but it remains a thin adapter over the canonical gateway runtime and internal MCP catalog.
+Phase 13.3 turns the public MCP edge into a real public execution surface. External clients can now:
+
+- discover public-safe agent entries with `ortho.agents.v1.list`
+- invoke approved public agents with `ortho.agents.v1.invoke`
+- read public-safe runtime posture with `ortho.system.v1.info`
+- poll long-running public work with `tasks/get` and `tasks/result`
+
+The web host remains transport-thin. It authenticates, validates, and delegates into the canonical public runtime rather than acting as a second execution harness.
 
 ## Endpoints
 
 | Endpoint | Method | Purpose |
 |---|---|---|
-| `/mcp` | `POST` | Streamable HTTP MCP transport with JSON-RPC framing for `initialize`, `tools/list`, and `tools/call` |
+| `/mcp` | `POST` | Streamable HTTP MCP transport with JSON-RPC framing for `initialize`, `tools/list`, `tools/call`, `tasks/get`, and `tasks/result` |
 | `/.well-known/oauth-protected-resource/mcp` | `GET` | Protected Resource Metadata for the public MCP resource |
 | `/.well-known/oauth-authorization-server/mcp` | `GET` | Authorization Server Metadata for the public MCP resource |
 
 ## Admission posture
 
-- `/mcp` requires OAuth bearer posture before any tool mapping, namespace bootstrap, or shared handler execution.
-- Admission validates request schema, bearer presence, token validity, audience, origin, and scopes at the edge.
-- External callers are represented as `ExternalClient` subjects at the public boundary; the internal Worker, Orchestrator, Cortex:System, and Cortex:Principal classes are unchanged.
-- Public tool names stay namespaced as `ortho.*` and are mapped once onto the canonical flat internal handler catalog.
+- `/mcp` requires OAuth bearer posture before any tool mapping, task lookup, or runtime dispatch.
+- Admission validates request schema, bearer presence, token validity, audience, origin, and scopes.
+- External callers are represented as `ExternalClient` subjects at the boundary.
+- Public tool names stay namespaced as `ortho.*` and map once onto the canonical flat internal capability surface.
+- Agent invoke scopes are binding-aware: `ortho.agents.v1.invoke` always requires `ortho.agents.invoke`, plus any requested memory-tier scopes derived from the binding payload.
 
-## Phase 13.2 availability
+## Phase 13.3 availability
 
 `tools/list` returns only the intersection of caller scopes and current-phase-enabled public mappings.
 
 ### Enabled tools
 
-| Public name | Purpose | Required scope |
-|---|---|---|
-| `ortho.memory.v1.put` | Append or supersede one source-local STM/LTM entry | `ortho.memory.stm.write` or `ortho.memory.ltm.write` |
-| `ortho.memory.v1.get` | Fetch one source-local STM/LTM entry | `ortho.memory.stm.read` or `ortho.memory.ltm.read` |
-| `ortho.memory.v1.search` | Search source-local STM/LTM entries | `ortho.memory.stm.read`, `ortho.memory.ltm.read`, or both |
-| `ortho.memory.v1.delete` | Soft-delete one source-local STM/LTM entry | `ortho.memory.stm.delete` or `ortho.memory.ltm.delete` |
-| `ortho.memory.v1.compact` | Run external-only `summarize` or `extract_facts` compaction | `ortho.memory.stm.write` for `summarize`, `ortho.memory.ltm.write` for `extract_facts` |
+| Public name | Purpose | Required scope | Task support |
+|---|---|---|---|
+| `ortho.memory.v1.put` | Append or supersede one source-local STM/LTM entry | tier-specific write scope | none |
+| `ortho.memory.v1.get` | Fetch one source-local STM/LTM entry | tier-specific read scope | none |
+| `ortho.memory.v1.search` | Search source-local STM/LTM entries | tier-specific read scope | none |
+| `ortho.memory.v1.delete` | Soft-delete one source-local STM/LTM entry | tier-specific delete scope | none |
+| `ortho.memory.v1.compact` | Run external-only `summarize` or `extract_facts` compaction | strategy-derived write scope | optional |
+| `ortho.agents.v1.list` | Discover public-safe agent catalog entries | `ortho.system.read` | none |
+| `ortho.agents.v1.invoke` | Invoke an approved public agent | `ortho.agents.invoke` plus any binding-derived memory scopes | optional |
+| `ortho.system.v1.info` | Read public-safe runtime metadata | `ortho.system.read` | none |
 
-Future public tool names that are already reserved in the mapping table still fail closed with reason-coded `phase_not_enabled` responses until their owning phases land.
+## Public agents
 
-## Namespace and audit behavior
+Phase 13.3 exposes public-safe agent aliases instead of leaking internal runtime IDs.
 
-- Namespace identity is derived from validated client identity rather than caller-supplied storage coordinates.
-- First-write bootstrap creates only `external:*` collections and records the manifest in `public_mcp_namespace_registry`.
-- Durable admits and security-sensitive rejects emit witness-linked audit projections in `public_mcp_audit_projection`.
-- Quota and rate-limit enforcement are keyed by the derived external namespace plus a server-generated token fingerprint. Clients do not send the fingerprint; the edge derives it from the validated bearer token and never stores the raw token.
+Current catalog entries:
 
-## OAuth example
+| Agent ID | Purpose | Input modes | Memory binding |
+|---|---|---|---|
+| `engineering.workflow` | Structured engineering-orchestration requests | `text`, `packet`, `json` | supported (`ltm` read, `stm` write) |
 
-Use your OAuth authorization server's client-credentials flow to request the scopes you need. The discovery documents served from the `/.well-known/.../mcp` endpoints tell clients which authorization server and resource identifier to use.
-
-```bash
-curl -X POST https://auth.example.com/oauth/token \
-  -H "content-type: application/x-www-form-urlencoded" \
-  -u "client-123:client-secret" \
-  --data-urlencode "grant_type=client_credentials" \
-  --data-urlencode "audience=urn:nous:ortho:mcp" \
-  --data-urlencode "scope=ortho.memory.stm.read ortho.memory.stm.write ortho.memory.stm.delete"
-```
-
-Example response:
+Example `ortho.agents.v1.list` response:
 
 ```json
 {
-  "access_token": "eyJhbGciOi...",
-  "token_type": "Bearer",
-  "expires_in": 3600,
-  "scope": "ortho.memory.stm.read ortho.memory.stm.write ortho.memory.stm.delete"
+  "jsonrpc": "2.0",
+  "id": "rpc-list-agents-1",
+  "result": {
+    "agents": [
+      {
+        "agentId": "engineering.workflow",
+        "title": "Engineering Workflow",
+        "description": "A public-safe orchestration agent for structured engineering tasks.",
+        "inputModes": ["text", "packet", "json"],
+        "memoryBinding": {
+          "supported": true,
+          "readTiers": ["stm", "ltm"],
+          "writeTiers": ["stm"]
+        },
+        "execution": {
+          "taskSupport": "optional",
+          "asyncThreshold": "long_running_only"
+        }
+      }
+    ]
+  }
+}
+```
+
+## Task methods
+
+When a public invoke is accepted into the async path, the edge returns a task handle and clients poll via the MCP task methods.
+
+### `tasks/get`
+
+```json
+{
+  "jsonrpc": "2.0",
+  "id": "rpc-task-get-1",
+  "method": "tasks/get",
+  "params": {
+    "taskId": "550e8400-e29b-41d4-a716-446655440100"
+  }
+}
+```
+
+Example result:
+
+```json
+{
+  "jsonrpc": "2.0",
+  "id": "rpc-task-get-1",
+  "result": {
+    "taskId": "550e8400-e29b-41d4-a716-446655440100",
+    "toolName": "ortho.agents.v1.invoke",
+    "subjectNamespace": "app:0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef",
+    "canonicalRunId": "550e8400-e29b-41d4-a716-446655440101",
+    "status": "running",
+    "submittedAt": "2026-03-14T00:00:00.000Z",
+    "updatedAt": "2026-03-14T00:00:01.000Z"
+  }
+}
+```
+
+### `tasks/result`
+
+```json
+{
+  "jsonrpc": "2.0",
+  "id": "rpc-task-result-1",
+  "method": "tasks/result",
+  "params": {
+    "taskId": "550e8400-e29b-41d4-a716-446655440100"
+  }
+}
+```
+
+Example terminal result:
+
+```json
+{
+  "jsonrpc": "2.0",
+  "id": "rpc-task-result-1",
+  "result": {
+    "taskId": "550e8400-e29b-41d4-a716-446655440100",
+    "status": "completed",
+    "result": {
+      "runId": "550e8400-e29b-41d4-a716-446655440101",
+      "outputs": [
+        {
+          "type": "text",
+          "text": "Structured public result..."
+        }
+      ]
+    }
+  }
 }
 ```
 
@@ -109,7 +195,8 @@ Endpoint: POST /mcp
     "capabilities": {
       "tools": {
         "listChanged": false
-      }
+      },
+      "tasks": {}
     }
   }
 }
@@ -120,58 +207,33 @@ Endpoint: POST /mcp
 ```json
 {
   "jsonrpc": "2.0",
-  "id": "rpc-list-1",
+  "id": "rpc-tools-1",
   "method": "tools/list",
   "params": {}
 }
 ```
 
+Example result for a token with `ortho.system.read` but not `ortho.agents.invoke`:
+
 ```json
 {
   "jsonrpc": "2.0",
-  "id": "rpc-list-1",
+  "id": "rpc-tools-1",
   "result": {
     "tools": [
       {
-        "name": "ortho.memory.v1.put",
+        "name": "ortho.agents.v1.list",
         "version": "1.0.0",
-        "description": "Public MCP tool ortho.memory.v1.put.",
+        "description": "Public MCP tool ortho.agents.v1.list.",
         "capabilities": ["external"],
         "permissionScope": "external",
         "inputSchema": {},
         "outputSchema": {}
       },
       {
-        "name": "ortho.memory.v1.get",
+        "name": "ortho.system.v1.info",
         "version": "1.0.0",
-        "description": "Public MCP tool ortho.memory.v1.get.",
-        "capabilities": ["external"],
-        "permissionScope": "external",
-        "inputSchema": {},
-        "outputSchema": {}
-      },
-      {
-        "name": "ortho.memory.v1.search",
-        "version": "1.0.0",
-        "description": "Public MCP tool ortho.memory.v1.search.",
-        "capabilities": ["external"],
-        "permissionScope": "external",
-        "inputSchema": {},
-        "outputSchema": {}
-      },
-      {
-        "name": "ortho.memory.v1.delete",
-        "version": "1.0.0",
-        "description": "Public MCP tool ortho.memory.v1.delete.",
-        "capabilities": ["external"],
-        "permissionScope": "external",
-        "inputSchema": {},
-        "outputSchema": {}
-      },
-      {
-        "name": "ortho.memory.v1.compact",
-        "version": "1.0.0",
-        "description": "Public MCP tool ortho.memory.v1.compact.",
+        "description": "Public MCP tool ortho.system.v1.info.",
         "capabilities": ["external"],
         "permissionScope": "external",
         "inputSchema": {},
@@ -182,9 +244,106 @@ Endpoint: POST /mcp
 }
 ```
 
-The visible list still depends on the caller's granted scopes. A token that cannot satisfy a tool's tier-specific scope strategy simply will not see that tool in `tools/list`.
+### `ortho.agents.v1.invoke`
 
-### `ortho.memory.v1.put`
+```json
+{
+  "jsonrpc": "2.0",
+  "id": "rpc-invoke-1",
+  "method": "tools/call",
+  "params": {
+    "name": "ortho.agents.v1.invoke",
+    "arguments": {
+      "agentId": "engineering.workflow",
+      "input": {
+        "type": "text",
+        "text": "Summarize the current public invoke contract."
+      },
+      "memory": {
+        "namespace": "app:0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef",
+        "readTiers": ["ltm"],
+        "writeTiers": ["stm"]
+      },
+      "executionMode": "async",
+      "idempotencyKey": "invoke-engineering-workflow-001"
+    }
+  }
+}
+```
+
+Async acceptance example:
+
+```json
+{
+  "jsonrpc": "2.0",
+  "id": "rpc-invoke-1",
+  "result": {
+    "mode": "task",
+    "task": {
+      "taskId": "550e8400-e29b-41d4-a716-446655440100",
+      "status": "queued",
+      "runId": "550e8400-e29b-41d4-a716-446655440101"
+    }
+  }
+}
+```
+
+### `ortho.system.v1.info`
+
+```json
+{
+  "jsonrpc": "2.0",
+  "id": "rpc-system-1",
+  "method": "tools/call",
+  "params": {
+    "name": "ortho.system.v1.info",
+    "arguments": {}
+  }
+}
+```
+
+```json
+{
+  "jsonrpc": "2.0",
+  "id": "rpc-system-1",
+  "result": {
+    "server": {
+      "name": "Nous Public MCP",
+      "phase": "phase-13.3",
+      "backendMode": "development",
+      "protocolVersion": "2025-11-25"
+    },
+    "features": {
+      "publicAgents": true,
+      "publicSystemInfo": true,
+      "publicTasks": true,
+      "publicCompactAsync": true
+    },
+    "limits": {
+      "maxInvokeInputBytes": 8192,
+      "maxSearchTopK": 50,
+      "maxTaskPollWindowSeconds": 300
+    },
+    "quotas": {
+      "invokePerMinute": 10,
+      "compactPerMinute": 10
+    },
+    "tasks": {
+      "supportedMethods": ["tasks/get", "tasks/result"],
+      "toolSupport": {
+        "ortho.agents.v1.invoke": "optional",
+        "ortho.memory.v1.compact": "optional"
+      }
+    }
+  }
+}
+```
+
+## Carried-forward memory examples
+
+### `ortho.memory.v1.put` supersede with `idempotencyKey`
+
+Use `mode: "supersede"` when the new record replaces an existing one. The gateway writes the new record, marks the predecessor as superseded, and treats the `idempotencyKey` as the replay key for safe retries.
 
 ```json
 {
@@ -196,191 +355,22 @@ The visible list still depends on the caller's granted scopes. A token that cann
     "arguments": {
       "namespace": "app:0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef",
       "tier": "stm",
-      "content": "Remember that customer ACME prefers Tuesday morning follow-ups.",
-      "mode": "append",
+      "content": "Use Tuesday morning for supplier follow-up.",
+      "mode": "supersede",
+      "supersedesEntryId": "entry-previous",
       "tags": ["crm", "follow-up"],
       "metadata": {
         "source": "public-mcp-example"
       },
-      "idempotencyKey": "put-crm-001"
+      "idempotencyKey": "put-follow-up-002"
     }
   }
 }
 ```
 
-```json
-{
-  "jsonrpc": "2.0",
-  "id": "rpc-put-1",
-  "result": {
-    "entry": {
-      "id": "entry-1",
-      "namespace": "app:0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef",
-      "tier": "stm",
-      "content": "Remember that customer ACME prefers Tuesday morning follow-ups.",
-      "tags": ["crm", "follow-up"],
-      "metadata": {
-        "source": "public-mcp-example"
-      },
-      "lifecycleStatus": "active",
-      "createdAt": "2026-03-14T00:00:00.000Z",
-      "updatedAt": "2026-03-14T00:00:00.000Z",
-      "sourceOperation": "put",
-      "idempotencyKey": "put-crm-001"
-    },
-    "entryId": "entry-1",
-    "alreadyApplied": false
-  }
-}
-```
+### `ortho.memory.v1.compact` with `extract_facts`
 
-### `ortho.memory.v1.get`
-
-```json
-{
-  "jsonrpc": "2.0",
-  "id": "rpc-get-1",
-  "method": "tools/call",
-  "params": {
-    "name": "ortho.memory.v1.get",
-    "arguments": {
-      "namespace": "app:0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef",
-      "tier": "stm",
-      "entryId": "entry-1",
-      "includeDeleted": false
-    }
-  }
-}
-```
-
-```json
-{
-  "jsonrpc": "2.0",
-  "id": "rpc-get-1",
-  "result": {
-    "id": "entry-1",
-    "namespace": "app:0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef",
-    "tier": "stm",
-    "content": "Remember that customer ACME prefers Tuesday morning follow-ups.",
-    "tags": ["crm", "follow-up"],
-    "metadata": {
-      "source": "public-mcp-example"
-    },
-    "lifecycleStatus": "active",
-    "createdAt": "2026-03-14T00:00:00.000Z",
-    "updatedAt": "2026-03-14T00:00:00.000Z",
-    "sourceOperation": "put",
-    "idempotencyKey": "put-crm-001"
-  }
-}
-```
-
-### `ortho.memory.v1.search`
-
-```json
-{
-  "jsonrpc": "2.0",
-  "id": "rpc-search-1",
-  "method": "tools/call",
-  "params": {
-    "name": "ortho.memory.v1.search",
-    "arguments": {
-      "namespace": "app:0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef",
-      "tier": "both",
-      "query": "Tuesday follow-ups",
-      "limit": 5,
-      "includeDeleted": false,
-      "tags": ["crm"]
-    }
-  }
-}
-```
-
-```json
-{
-  "jsonrpc": "2.0",
-  "id": "rpc-search-1",
-  "result": {
-    "entries": [
-      {
-        "entry": {
-          "id": "entry-1",
-          "namespace": "app:0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef",
-          "tier": "stm",
-          "content": "Remember that customer ACME prefers Tuesday morning follow-ups.",
-          "tags": ["crm", "follow-up"],
-          "metadata": {
-            "source": "public-mcp-example"
-          },
-          "lifecycleStatus": "active",
-          "createdAt": "2026-03-14T00:00:00.000Z",
-          "updatedAt": "2026-03-14T00:00:00.000Z",
-          "sourceOperation": "put",
-          "idempotencyKey": "put-crm-001"
-        },
-        "score": 1
-      }
-    ]
-  }
-}
-```
-
-### `ortho.memory.v1.delete`
-
-```json
-{
-  "jsonrpc": "2.0",
-  "id": "rpc-delete-1",
-  "method": "tools/call",
-  "params": {
-    "name": "ortho.memory.v1.delete",
-    "arguments": {
-      "namespace": "app:0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef",
-      "tier": "stm",
-      "entryId": "entry-1",
-      "mode": "soft",
-      "reason": "No longer relevant",
-      "idempotencyKey": "delete-crm-001"
-    }
-  }
-}
-```
-
-```json
-{
-  "jsonrpc": "2.0",
-  "id": "rpc-delete-1",
-  "result": {
-    "entry": {
-      "id": "entry-1",
-      "namespace": "app:0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef",
-      "tier": "stm",
-      "content": "Remember that customer ACME prefers Tuesday morning follow-ups.",
-      "tags": ["crm", "follow-up"],
-      "metadata": {
-        "source": "public-mcp-example"
-      },
-      "lifecycleStatus": "soft-deleted",
-      "deletedAt": "2026-03-14T00:01:00.000Z",
-      "createdAt": "2026-03-14T00:00:00.000Z",
-      "updatedAt": "2026-03-14T00:01:00.000Z",
-      "sourceOperation": "put",
-      "idempotencyKey": "delete-crm-001"
-    },
-    "entryId": "entry-1",
-    "alreadyApplied": false
-  }
-}
-```
-
-### `ortho.memory.v1.compact`
-
-`compact` is external-only and supports exactly two strategies in Phase 13.2:
-
-- `summarize` writes a derived STM summary entry and requires `ortho.memory.stm.write`
-- `extract_facts` writes derived LTM fact entries and requires `ortho.memory.ltm.write`
-
-Example `summarize` request:
+`extract_facts` is the carried-forward fact-extraction strategy. It derives durable LTM facts from the selected STM window while preserving the source-local public-memory boundary.
 
 ```json
 {
@@ -392,45 +382,35 @@ Example `summarize` request:
     "arguments": {
       "namespace": "app:0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef",
       "sourceTier": "stm",
-      "strategy": "summarize",
+      "strategy": "extract_facts",
       "maxEntries": 10,
-      "idempotencyKey": "compact-summary-001"
+      "idempotencyKey": "compact-facts-001"
     }
-  }
-}
-```
-
-```json
-{
-  "jsonrpc": "2.0",
-  "id": "rpc-compact-1",
-  "result": {
-    "strategy": "summarize",
-    "sourceTier": "stm",
-    "sourceEntryCount": 4,
-    "derivedEntryIds": ["cmp-1"]
   }
 }
 ```
 
 ## Error behavior
 
-Common public reject reasons in Phase 13.2:
+Common public reject reasons in Phase 13.3:
 
 | Reject reason | Meaning |
 |---|---|
-| `scope_insufficient` | The bearer token does not include the tier/operation-specific scope required by the request. |
-| `namespace_unauthorized` | The request namespace does not match the namespace derived from the validated client identity. |
+| `scope_insufficient` | The bearer token does not include the scope required by the request or its memory binding posture. |
+| `namespace_unauthorized` | The request namespace or memory binding namespace does not match the namespace derived from the validated client identity. |
+| `memory_binding_forbidden` | The requested binding tiers are not allowed for the selected public agent. |
+| `agent_not_available` | The requested public agent alias is not allowlisted for this surface. |
+| `task_not_found` | The task does not exist for the requesting subject. |
+| `task_not_ready` | The task exists but its terminal result is not available yet. |
 | `request_schema_invalid` | The JSON-RPC request or tool arguments failed schema validation. |
 | `source_quarantined` | The source is quarantined or purged for durable mutation paths. |
 | `quota_exceeded` | The request exceeds the namespace + token quota window. |
 | `rate_limited` | The namespace + token has exceeded the allowed request rate for the tool. |
-| `phase_not_enabled` | The tool is reserved for a later public phase. |
 
 ## Operator configuration
 
-Phase 13.2 introduces no new public-memory-specific environment variables. The existing `NOUS_PUBLIC_BASE_URL` setting remains the only public MCP edge environment override and continues to control the base URL emitted in the OAuth discovery documents.
+Phase 13.3 introduces no additional public-edge environment variables. `NOUS_PUBLIC_BASE_URL` remains the public MCP edge override used by the OAuth discovery documents.
 
 ## Runtime boundary
 
-The public MCP edge is not a parallel runtime or a public-only business-logic stack. The web host parses HTTP and discovery traffic, `IPublicMcpGatewayService` owns admission and audit posture, and `PublicMcpExecutionBridge` hands admitted calls into the same AgentGateway, Internal MCP, and backpressure path used elsewhere in the system.
+The public MCP edge is not a public-only business-logic stack. The host accepts HTTP and JSON-RPC traffic, the public gateway owns admission and audit posture, and admitted calls flow into the canonical gateway/runtime seam. Long-running public work is projected through subject-scoped task records rather than a second status model.

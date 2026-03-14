@@ -38,6 +38,10 @@ export interface PublicMcpAuthAdmissionOptions {
   tokenVerifier?: PublicMcpTokenVerifier;
   clientMetadataResolver?: (clientId: string) => Promise<PublicMcpClientMetadata | null>;
   toolMappingLookup?: (externalName: string) => PublicMcpToolMappingEntry | null;
+  requiredScopeResolver?: (
+    toolName: string,
+    args?: Record<string, unknown>,
+  ) => PublicMcpScope[];
   now?: () => string;
   idFactory?: () => string;
 }
@@ -61,11 +65,16 @@ export class PublicMcpAuthAdmission {
     this.tokenVerifier = options.tokenVerifier ?? new DefaultPublicMcpTokenVerifier();
   }
 
-  resolveRequiredScopes(toolName?: string): PublicMcpScope[] {
+  resolveRequiredScopes(
+    toolName?: string,
+    args?: Record<string, unknown>,
+  ): PublicMcpScope[] {
     if (!toolName) {
       return [];
     }
-    return [...(this.options.toolMappingLookup?.(toolName)?.requiredScopes ?? [])];
+    return this.options.requiredScopeResolver
+      ? [...this.options.requiredScopeResolver(toolName, args)]
+      : [...(this.options.toolMappingLookup?.(toolName)?.requiredScopes ?? [])];
   }
 
   async evaluate(
@@ -113,7 +122,10 @@ export class PublicMcpAuthAdmission {
 
     const requiredScopes =
       parsedRpc.data.method === 'tools/call'
-        ? this.resolveRequiredScopes(parsedRpc.data.params.name)
+        ? this.resolveRequiredScopes(
+            parsedRpc.data.params.name,
+            parsedRpc.data.params.arguments,
+          )
         : [];
     if (requiredScopes.length > 0 && !requiredScopes.every((scope) => claims.scopes.includes(scope))) {
       return this.reject(parsedRequest, 'scope_insufficient', parsedRpc.data);
@@ -172,7 +184,12 @@ export class PublicMcpAuthAdmission {
           : '2025-11-25',
       method: rpcRequest.method,
       toolName: rpcRequest.method === 'tools/call' ? rpcRequest.params.name : undefined,
-      arguments: rpcRequest.method === 'tools/call' ? rpcRequest.params.arguments : undefined,
+      arguments:
+        rpcRequest.method === 'tools/call'
+          ? rpcRequest.params.arguments
+          : rpcRequest.method === 'tasks/get' || rpcRequest.method === 'tasks/result'
+            ? rpcRequest.params
+            : undefined,
       subject,
       idempotencyKey,
       requestedAt: this.now(),
@@ -226,7 +243,7 @@ export class PublicMcpAuthAdmission {
       rpcRequest,
       requiredScopes:
         rpcRequest?.method === 'tools/call'
-          ? this.resolveRequiredScopes(rpcRequest.params.name)
+          ? this.resolveRequiredScopes(rpcRequest.params.name, rpcRequest.params.arguments)
           : [],
       validatedAudience: this.options.expectedAudience,
       origin: request.origin ?? getHeader(request.headers, 'origin') ?? undefined,
