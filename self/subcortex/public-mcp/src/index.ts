@@ -18,6 +18,14 @@ export {
   type ExternalSourceMemoryServiceOptions,
 } from './external-source-memory-service.js';
 export {
+  PROMOTED_MEMORY_AUDIT_COLLECTION,
+  PROMOTED_MEMORY_COLLECTION,
+  PROMOTED_MEMORY_TOMBSTONE_COLLECTION,
+  PROMOTED_MEMORY_VECTOR_COLLECTION,
+  PromotedMemoryBridgeService,
+  type PromotedMemoryBridgeServiceOptions,
+} from './promoted-memory-bridge-service.js';
+export {
   ExternalSourceStorageAdapter,
   type ExternalSourceStorageAdapterOptions,
 } from './external-source-storage-adapter.js';

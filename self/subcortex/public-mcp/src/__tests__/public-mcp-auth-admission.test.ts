@@ -101,4 +101,55 @@ describe('PublicMcpGatewayService authorize', () => {
     expect(decision.rejectReason).toBe('scope_insufficient');
     expect(executionBridge.executeMappedTool).not.toHaveBeenCalled();
   });
+
+  it('rejects requests that target promoted storage tiers at the public boundary', async () => {
+    const documentStore = createMemoryDocumentStore();
+    const executionBridge = {
+      listTools: vi.fn().mockResolvedValue([]),
+      executeMappedTool: vi.fn(),
+    };
+    const service = new PublicMcpGatewayService({
+      documentStore,
+      executionBridge,
+      witnessService: new WitnessService(documentStore),
+      toolMappingLookup: () => ({
+        externalName: 'ortho.memory.v1.search',
+        internalName: 'external_memory_search',
+        requiredScopes: ['ortho.memory.ltm.read'],
+        scopeStrategy: 'memory_read_by_tier',
+        phaseAvailability: '13.2',
+        enabledInCurrentPhase: true,
+        bootstrapMode: 'none',
+      }),
+    });
+
+    const decision = await service.authorize({
+      requestId: '550e8400-e29b-41d4-a716-446655440100',
+      method: 'POST',
+      url: 'http://localhost:3000/mcp',
+      headers: {
+        authorization: `Bearer ${encodeClaims({
+          clientId: 'client-1',
+          audience: 'urn:nous:ortho:mcp',
+          scopes: ['ortho.memory.ltm.read'],
+          expiresAt: '2030-01-01T00:00:00.000Z',
+        })}`,
+      },
+      body: {
+        jsonrpc: '2.0',
+        id: 'rpc-1',
+        method: 'tools/call',
+        params: {
+          name: 'ortho.memory.v1.search',
+          arguments: {
+            storageTier: 'promoted',
+            targetCollection: 'promoted:ltm',
+          },
+        },
+      },
+    });
+
+    expect(decision.rejectReason).toBe('sensitivity_ceiling_exceeded');
+    expect(executionBridge.executeMappedTool).not.toHaveBeenCalled();
+  });
 });
