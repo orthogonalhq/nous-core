@@ -30,7 +30,7 @@ async function createService() {
       return () => ids[sequence++] ?? `release-${sequence}`;
     })(),
   });
-  await registryService.submitRelease({
+  const submission = await registryService.submitRelease({
     package_id: 'pkg.persona-engine',
     package_type: 'project',
     display_name: 'Persona Engine',
@@ -78,22 +78,25 @@ async function createService() {
     effective_at: NOW,
   });
 
-  return new NudgeDiscoveryService({
-    store,
-    registryService,
-    rankingPolicyStore,
-    now: () => NOW,
-    idFactory: (() => {
-      const ids = [
-        '550e8400-e29b-41d4-a716-446655440201',
-        '550e8400-e29b-41d4-a716-446655440202',
-        '550e8400-e29b-41d4-a716-446655440203',
-        '550e8400-e29b-41d4-a716-446655440204',
-      ];
-      let sequence = 0;
-      return () => ids[sequence++] ?? '550e8400-e29b-41d4-a716-446655440299';
-    })(),
-  });
+  return {
+    canonicalPackageType: submission.package.package_type,
+    service: new NudgeDiscoveryService({
+      store,
+      registryService,
+      rankingPolicyStore,
+      now: () => NOW,
+      idFactory: (() => {
+        const ids = [
+          '550e8400-e29b-41d4-a716-446655440201',
+          '550e8400-e29b-41d4-a716-446655440202',
+          '550e8400-e29b-41d4-a716-446655440203',
+          '550e8400-e29b-41d4-a716-446655440204',
+        ];
+        let sequence = 0;
+        return () => ids[sequence++] ?? '550e8400-e29b-41d4-a716-446655440299';
+      })(),
+    }),
+  };
 }
 
 function buildRankingRequest(): NudgeRankingRequest {
@@ -134,7 +137,7 @@ function buildRankingRequest(): NudgeRankingRequest {
 
 describe('NudgeDiscoveryService', () => {
   it('records signal, generates candidates, ranks, records delivery/feedback, and routes acceptance', async () => {
-    const service = await createService();
+    const { canonicalPackageType, service } = await createService();
 
     const signal = await service.recordSignal({
       signal_type: 'workflow_friction',
@@ -202,6 +205,7 @@ describe('NudgeDiscoveryService', () => {
       evidence_refs: [EVIDENCE_REF],
     });
 
+    expect(canonicalPackageType).toBe('workflow');
     expect(signal.signal_id).toBe('550e8400-e29b-41d4-a716-446655440201');
     expect(candidates.candidates[0].blocked).toBe(false);
     expect(ranked.decisions[0].deliverable).toBe(true);
@@ -211,7 +215,7 @@ describe('NudgeDiscoveryService', () => {
   });
 
   it('prepares a canonical feed and persists suppression plus matching feedback', async () => {
-    const service = await createService();
+    const { service } = await createService();
 
     await service.recordSignal({
       signal_type: 'workflow_friction',
@@ -263,7 +267,7 @@ describe('NudgeDiscoveryService', () => {
   });
 
   it('prepares deliverable feed cards for the communication gateway surface', async () => {
-    const service = await createService();
+    const { service } = await createService();
 
     await service.recordSignal({
       signal_type: 'workflow_friction',

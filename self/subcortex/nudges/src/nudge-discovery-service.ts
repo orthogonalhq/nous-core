@@ -326,7 +326,7 @@ export class NudgeDiscoveryService implements INudgeDiscoveryService {
         envelope,
         features: {
           relevance: signals.length > 0 ? 0.85 : 0.55,
-          expected_outcome_gain: item.package.package_type === 'project' ? 0.75 : 0.6,
+          expected_outcome_gain: item.package.package_type === 'workflow' ? 0.75 : 0.6,
           trust_confidence: trustScore(item.package.trust_tier),
           compatibility_confidence: compatibilityScore(
             item.package.compatibility_state,
