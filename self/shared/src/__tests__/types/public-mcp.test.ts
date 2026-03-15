@@ -3,13 +3,18 @@ import {
   PublicMcpAgentCatalogEntrySchema,
   PublicMcpAgentInvokeResultSchema,
   PublicMcpAuditRecordSchema,
+  PublicMcpDeploymentModeSchema,
+  PublicMcpDeploymentResolutionSchema,
   PublicMcpDiscoveryBundleSchema,
   PublicMcpExecutionRequestSchema,
+  PublicMcpHostedTenantBindingRecordSchema,
   PublicMcpNamespaceRecordSchema,
   PublicMcpRpcRequestSchema,
   PublicMcpSystemInfoSchema,
   PublicMcpTaskProjectionSchema,
   PublicMcpTaskResultSchema,
+  PublicMcpTunnelForwardEnvelopeSchema,
+  PublicMcpTunnelSessionRecordSchema,
   PublicMcpToolMappingEntrySchema,
   PromoteExternalRecordCommandSchema,
   PromotedMemoryAuditRecordSchema,
@@ -86,6 +91,7 @@ describe('public MCP shared types', () => {
         scopes: ['ortho.agents.invoke', 'ortho.memory.ltm.read'],
         audience: 'urn:nous:ortho:mcp',
       },
+      requestUrl: 'https://andre.nous.run/mcp',
       requestedAt: '2026-03-14T00:00:00.000Z',
     });
 
@@ -168,6 +174,77 @@ describe('public MCP shared types', () => {
     expect(task.status).toBe('running');
     expect(taskResult.status).toBe('completed');
     expect(systemInfo.tasks.supportedMethods).toContain('tasks/result');
+  });
+
+  it('parses deployment mode, hosted binding, tunnel session, and tunnel envelope payloads', () => {
+    const mode = PublicMcpDeploymentModeSchema.parse('hosted');
+    const binding = PublicMcpHostedTenantBindingRecordSchema.parse({
+      bindingId: 'binding-1',
+      tenantId: 'tenant-1',
+      userHandle: 'andre',
+      host: 'andre.nous.run',
+      storePrefix: 'tenant-andre',
+      serverName: 'Andre Hosted Nous',
+      phase: 'phase-13.5',
+      status: 'active',
+      createdAt: '2026-03-14T00:00:00.000Z',
+      updatedAt: '2026-03-14T00:00:00.000Z',
+    });
+    const session = PublicMcpTunnelSessionRecordSchema.parse({
+      sessionId: 'session-1',
+      userHandle: 'andre',
+      host: 'andre.tunnel.nous.run',
+      sharedSecret: '0123456789abcdef0123456789abcdef',
+      status: 'active',
+      createdAt: '2026-03-14T00:00:00.000Z',
+      updatedAt: '2026-03-14T00:00:00.000Z',
+    });
+    const resolution = PublicMcpDeploymentResolutionSchema.parse({
+      mode,
+      requestHost: binding.host,
+      userHandle: binding.userHandle,
+      bindingId: binding.bindingId,
+      tenantId: binding.tenantId,
+      storePrefix: binding.storePrefix,
+      serverName: binding.serverName,
+      phase: binding.phase,
+    });
+    const envelope = PublicMcpTunnelForwardEnvelopeSchema.parse({
+      envelopeId: 'envelope-1',
+      requestId: '550e8400-e29b-41d4-a716-446655440000',
+      sessionId: session.sessionId,
+      userHandle: session.userHandle,
+      nonce: 'nonce-1',
+      issuedAt: '2026-03-14T00:00:00.000Z',
+      expiresAt: '2026-03-14T00:01:00.000Z',
+      request: {
+        requestId: '550e8400-e29b-41d4-a716-446655440000',
+        jsonrpc: '2.0',
+        rpcId: 'rpc-1',
+        protocolVersion: '2025-11-25',
+        method: 'tools/call',
+        toolName: 'ortho.system.v1.info',
+        arguments: {},
+        subject: {
+          class: 'ExternalClient',
+          clientId: 'client-1',
+          clientIdHash:
+            '0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef',
+          namespace:
+            'app:0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef',
+          scopes: ['ortho.system.read'],
+          audience: 'urn:nous:ortho:mcp',
+        },
+        requestUrl: 'https://andre.tunnel.nous.run/mcp',
+        requestedAt: '2026-03-14T00:00:00.000Z',
+      },
+      signature: 'signature-1',
+    });
+
+    expect(binding.host).toBe('andre.nous.run');
+    expect(session.userHandle).toBe('andre');
+    expect(resolution.tenantId).toBe('tenant-1');
+    expect(envelope.request.requestUrl).toBe('https://andre.tunnel.nous.run/mcp');
   });
 
   it('requires external-only namespace records and audit fields', () => {
