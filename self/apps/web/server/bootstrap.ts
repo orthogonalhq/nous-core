@@ -8,7 +8,9 @@ import { join, isAbsolute } from 'node:path';
 import { randomUUID } from 'node:crypto';
 import {
   DEFAULT_STM_COMPACTION_POLICY,
+  PublicMcpHostedTenantBindingRecordSchema,
   PublicMcpScopeSchema,
+  PublicMcpTunnelSessionRecordSchema,
   StmCompactionPolicySchema,
 } from '@nous/shared';
 import type {
@@ -75,19 +77,25 @@ import { GtmGateCalculator } from '@nous/subcortex-gtm';
 import { VoiceControlService } from '@nous/subcortex-voice-control';
 import {
   AuditProjectionStore,
+  DeploymentRouterService,
   ExternalSourceMemoryService,
   ExternalSourceStorageAdapter,
+  HostedTenantBindingStore,
+  HostedTenantRuntimeFactory,
   NamespaceRegistryStore,
   PromotedMemoryBridgeService,
   PublicMcpGatewayService,
+  type PublicMcpRuntimeAgentDefinition,
   PublicMcpSurfaceService,
   PublicMcpTaskProjectionStore,
   QuotaUsageStore,
   RateLimitBucketStore,
+  TunnelForwarder,
+  TunnelSessionStore,
 } from '@nous/subcortex-public-mcp';
 import { MemoryAccessPolicyEngine } from '@nous/memory-access';
 import type { NousContext } from './context';
-import type { IIngressGateway } from '@nous/shared';
+import type { IDocumentStore, IIngressGateway, IVectorStore } from '@nous/shared';
 
 const MOCK_PROVIDER_ID = '00000000-0000-0000-0000-000000000001' as ProviderId;
 
@@ -187,6 +195,28 @@ function createBootstrapIngressShim(): IIngressGateway {
       evidence_refs: ['web bootstrap does not wire ingress dispatch'],
     }),
   };
+}
+
+interface PublicMcpRuntimeBundle {
+  executionBridge: PublicMcpExecutionBridge;
+  surfaceService: PublicMcpSurfaceService;
+}
+
+function parseJsonArrayEnv(value: string | undefined): unknown[] {
+  if (!value) {
+    return [];
+  }
+
+  const parsed = JSON.parse(value);
+  return Array.isArray(parsed) ? parsed : [parsed];
+}
+
+function parsePublicBaseHost(baseUrl: string): string | null {
+  try {
+    return new URL(baseUrl).host.toLowerCase();
+  } catch {
+    return null;
+  }
 }
 
 let cachedContext: NousContext | null = null;
@@ -330,15 +360,6 @@ export function createNousContext(): NousContext {
     vectorStore,
     embedder,
   });
-  const externalSourceMemoryService = new ExternalSourceMemoryService({
-    documentStore,
-    namespaceStore: publicMcpNamespaceStore,
-    auditStore: publicMcpAuditStore,
-    storageAdapter: externalSourceStorageAdapter,
-    quotaStore: publicMcpQuotaUsageStore,
-    rateLimitStore: publicMcpRateLimitStore,
-    witnessService,
-  });
   const promotedMemoryBridgeService = new PromotedMemoryBridgeService({
     documentStore,
     namespaceStore: publicMcpNamespaceStore,
@@ -369,104 +390,271 @@ export function createNousContext(): NousContext {
       getProvider,
     });
 
-  const publicMcpTaskStore = new PublicMcpTaskProjectionStore(documentStore);
-  const publicMcpRuntimeAdapter = new PublicMcpRuntimeAdapter({
-    modelRouter: router,
-    getProvider,
-    getProjectApi: createRuntimeProjectApi,
-    toolExecutor,
-    pfc: Cortex,
-    workflowEngine,
-    projectStore,
-    scheduler: schedulerService,
-    escalationService,
-    witnessService,
-    outputSchemaValidator: new DefaultSchemaRefValidator(),
-    promotedMemoryBridgeService,
-  });
-  const publicMcpSurfaceService = new PublicMcpSurfaceService({
-    runtimeAdapter: publicMcpRuntimeAdapter,
-    taskStore: publicMcpTaskStore,
-    auditStore: publicMcpAuditStore,
-    publicAgents: [
-      {
-        catalog: {
-          agentId: 'engineering.workflow',
-          title: 'Engineering Workflow',
-          description:
-            'A public-safe orchestration agent for structured engineering tasks.',
-          inputModes: ['text', 'packet', 'json'],
-          memoryBinding: {
-            supported: true,
-            readTiers: ['stm', 'ltm'],
-            writeTiers: ['stm'],
-          },
-          execution: {
-            taskSupport: 'optional',
-            asyncThreshold: 'long_running_only',
+  const buildPublicAgents = (): readonly PublicMcpRuntimeAgentDefinition[] => [
+    {
+      catalog: {
+        agentId: 'engineering.workflow',
+        title: 'Engineering Workflow',
+        description:
+          'A public-safe orchestration agent for structured engineering tasks.',
+        inputModes: ['text', 'packet', 'json'],
+        memoryBinding: {
+          supported: true,
+          readTiers: ['stm', 'ltm'],
+          writeTiers: ['stm'],
+        },
+        execution: {
+          taskSupport: 'optional',
+          asyncThreshold: 'long_running_only',
+        },
+      },
+      targetClass: 'Orchestrator',
+      buildTaskInstructions: (request) =>
+        [
+          'Process the authenticated public engineering workflow request.',
+          'Preserve the canonical AgentGateway and lifecycle-tool execution posture.',
+          'Return a concise, public-safe result.',
+          `Requested agent: ${request.arguments.agentId}`,
+          request.arguments.input.type === 'json'
+            ? 'Input payload is attached as structured JSON.'
+            : `Input: ${request.arguments.input.text}`,
+        ].join('\n'),
+      buildPayload: (request) => ({
+        subject: {
+          clientId: request.subject.clientId,
+          namespace: request.subject.namespace,
+        },
+        input: request.arguments.input,
+        memory: request.arguments.memory,
+      }),
+    },
+  ];
+
+  const buildPublicMcpRuntimeBundle = (args: {
+    backendMode: 'development' | 'local_tunnel' | 'hosted';
+    serverName?: string;
+    phase?: string;
+    documentStore: IDocumentStore;
+    vectorStore?: IVectorStore;
+    namespaceStore: NamespaceRegistryStore;
+    auditStore: AuditProjectionStore;
+    taskStore: PublicMcpTaskProjectionStore;
+    quotaStore: QuotaUsageStore;
+    rateLimitStore: RateLimitBucketStore;
+    witnessService: WitnessService;
+    pfcEngine: PfcEngine;
+    publicWorkflowEngine: DeterministicWorkflowEngine;
+    runtimeContext?: {
+      deploymentMode?: 'development' | 'local_tunnel' | 'hosted';
+      tenantId?: string;
+      userHandle?: string;
+    };
+    storageAdapter?: ExternalSourceStorageAdapter;
+    promotedBridgeService?: PromotedMemoryBridgeService;
+  }): PublicMcpRuntimeBundle => {
+    const storageAdapter =
+      args.storageAdapter ??
+      new ExternalSourceStorageAdapter(args.documentStore, {
+        vectorStore: args.vectorStore,
+        embedder,
+      });
+    const publicPromotedBridgeService =
+      args.promotedBridgeService ??
+      new PromotedMemoryBridgeService({
+        documentStore: args.documentStore,
+        namespaceStore: args.namespaceStore,
+        storageAdapter,
+        pfc: args.pfcEngine,
+        witnessService: args.witnessService,
+        vectorStore: args.vectorStore,
+        embedder,
+      });
+    const externalSourceMemoryService = new ExternalSourceMemoryService({
+      documentStore: args.documentStore,
+      namespaceStore: args.namespaceStore,
+      auditStore: args.auditStore,
+      storageAdapter,
+      quotaStore: args.quotaStore,
+      rateLimitStore: args.rateLimitStore,
+      witnessService: args.witnessService,
+    });
+    const runtimeAdapter = new PublicMcpRuntimeAdapter({
+      modelRouter: router,
+      getProvider,
+      getProjectApi: createRuntimeProjectApi,
+      toolExecutor,
+      pfc: args.pfcEngine,
+      workflowEngine: args.publicWorkflowEngine,
+      projectStore,
+      scheduler: schedulerService,
+      escalationService,
+      witnessService: args.witnessService,
+      outputSchemaValidator: new DefaultSchemaRefValidator(),
+      promotedMemoryBridgeService: publicPromotedBridgeService,
+    });
+    const surfaceService = new PublicMcpSurfaceService({
+      runtimeAdapter,
+      taskStore: args.taskStore,
+      auditStore: args.auditStore,
+      publicAgents: buildPublicAgents(),
+      serverName: args.serverName ?? 'Nous Public MCP',
+      phase: args.phase ?? 'phase-13.5',
+      backendMode: args.backendMode,
+      runtimeContext: args.runtimeContext,
+    });
+    const publicCapabilityHandlers = createCapabilityHandlers({
+      agentClass: 'Worker',
+      agentId: 'public-mcp-runtime' as any,
+      deps: {
+        externalSourceMemoryService,
+        publicMcpSurfaceService: surfaceService,
+      },
+    });
+
+    return {
+      surfaceService,
+      executionBridge: new PublicMcpExecutionBridge({
+        executor: {
+          execute: async (internalName, request) => {
+            const handler =
+              publicCapabilityHandlers[internalName as keyof typeof publicCapabilityHandlers];
+            if (!handler) {
+              throw new Error(`Public MCP handler ${internalName} is unavailable`);
+            }
+            return handler(request);
           },
         },
-        targetClass: 'Orchestrator',
-        buildTaskInstructions: (request) =>
-          [
-            'Process the authenticated public engineering workflow request.',
-            'Preserve the canonical AgentGateway and lifecycle-tool execution posture.',
-            'Return a concise, public-safe result.',
-            `Requested agent: ${request.arguments.agentId}`,
-            request.arguments.input.type === 'json'
-              ? 'Input payload is attached as structured JSON.'
-              : `Input: ${
-                  request.arguments.input.text
-                }`,
-          ].join('\n'),
-        buildPayload: (request) => ({
-          subject: {
-            clientId: request.subject.clientId,
-            namespace: request.subject.namespace,
-          },
-          input: request.arguments.input,
-          memory: request.arguments.memory,
-        }),
-      },
+      }),
+    };
+  };
+
+  const publicBaseUrl = process.env.NOUS_PUBLIC_BASE_URL ?? 'http://localhost:3000';
+  const publicMcpTaskStore = new PublicMcpTaskProjectionStore(documentStore);
+  const hostedBindingSeeds = parseJsonArrayEnv(
+    process.env.NOUS_PUBLIC_MCP_HOSTED_BINDINGS_JSON,
+  ).map((record) => PublicMcpHostedTenantBindingRecordSchema.parse(record));
+  const tunnelSessionSeeds = parseJsonArrayEnv(
+    process.env.NOUS_PUBLIC_MCP_TUNNEL_SESSIONS_JSON,
+  ).map((record) => PublicMcpTunnelSessionRecordSchema.parse(record));
+  const publicMcpHostedBindingStore = new HostedTenantBindingStore(documentStore, {
+    seedRecords: hostedBindingSeeds,
+  });
+  const publicMcpTunnelSessionStore = new TunnelSessionStore(documentStore, {
+    seedRecords: tunnelSessionSeeds,
+  });
+  const publicMcpDeploymentRouter = new DeploymentRouterService({
+    hostedTenantBindingStore: publicMcpHostedBindingStore,
+    tunnelSessionStore: publicMcpTunnelSessionStore,
+    developmentHosts: [
+      'localhost:3000',
+      '127.0.0.1:3000',
+      ...(parsePublicBaseHost(publicBaseUrl) ? [parsePublicBaseHost(publicBaseUrl)!] : []),
     ],
-    serverName: 'Nous Public MCP',
-    phase: 'phase-13.4',
+  });
+  const publicMcpTunnelForwarder = new TunnelForwarder({
+    sessionStore: publicMcpTunnelSessionStore,
+  });
+  const developmentPublicMcpBundle = buildPublicMcpRuntimeBundle({
     backendMode: 'development',
+    documentStore,
+    vectorStore,
+    namespaceStore: publicMcpNamespaceStore,
+    auditStore: publicMcpAuditStore,
+    taskStore: publicMcpTaskStore,
+    quotaStore: publicMcpQuotaUsageStore,
+    rateLimitStore: publicMcpRateLimitStore,
+    witnessService,
+    pfcEngine: Cortex,
+    publicWorkflowEngine: workflowEngine,
+    storageAdapter: externalSourceStorageAdapter,
+    promotedBridgeService: promotedMemoryBridgeService,
   });
-  const publicCapabilityHandlers = createCapabilityHandlers({
-    agentClass: 'Worker',
-    agentId: 'public-mcp-runtime' as any,
-    deps: {
-      externalSourceMemoryService,
-      publicMcpSurfaceService,
+  const tunnelPublicMcpBundle = buildPublicMcpRuntimeBundle({
+    backendMode: 'local_tunnel',
+    documentStore,
+    vectorStore,
+    namespaceStore: publicMcpNamespaceStore,
+    auditStore: publicMcpAuditStore,
+    taskStore: publicMcpTaskStore,
+    quotaStore: publicMcpQuotaUsageStore,
+    rateLimitStore: publicMcpRateLimitStore,
+    witnessService,
+    pfcEngine: Cortex,
+    publicWorkflowEngine: workflowEngine,
+    runtimeContext: {
+      deploymentMode: 'local_tunnel',
+    },
+    storageAdapter: externalSourceStorageAdapter,
+    promotedBridgeService: promotedMemoryBridgeService,
+  });
+  const hostedTenantRuntimeFactory = new HostedTenantRuntimeFactory<PublicMcpRuntimeBundle>({
+    documentStore,
+    vectorStore,
+    build: ({ binding, documentStore: tenantDocumentStore, vectorStore: tenantVectorStore }) => {
+      const tenantPfc = new PfcEngine(config, toolExecutor);
+      const tenantWorkflowEngine = new DeterministicWorkflowEngine({
+        pfcEngine: tenantPfc,
+        modelRouter: router,
+        toolExecutor,
+      });
+      const tenantWitnessService = new WitnessService(tenantDocumentStore);
+
+      return buildPublicMcpRuntimeBundle({
+        backendMode: 'hosted',
+        serverName: binding.serverName,
+        phase: binding.phase,
+        documentStore: tenantDocumentStore,
+        vectorStore: tenantVectorStore,
+        namespaceStore: new NamespaceRegistryStore(tenantDocumentStore),
+        auditStore: new AuditProjectionStore(tenantDocumentStore),
+        taskStore: new PublicMcpTaskProjectionStore(tenantDocumentStore),
+        quotaStore: new QuotaUsageStore(tenantDocumentStore),
+        rateLimitStore: new RateLimitBucketStore(tenantDocumentStore),
+        witnessService: tenantWitnessService,
+        pfcEngine: tenantPfc,
+        publicWorkflowEngine: tenantWorkflowEngine,
+        runtimeContext: {
+          deploymentMode: 'hosted',
+          tenantId: binding.tenantId,
+          userHandle: binding.userHandle,
+        },
+      });
     },
   });
-  const publicMcpExecutionBridge = new PublicMcpExecutionBridge({
-    executor: {
-      execute: async (internalName, request) => {
-        const handler =
-          publicCapabilityHandlers[internalName as keyof typeof publicCapabilityHandlers];
-        if (!handler) {
-          throw new Error(`Public MCP handler ${internalName} is unavailable`);
-        }
-        return handler(request);
-      },
-    },
-  });
+  const publicMcpExecutionBridge = developmentPublicMcpBundle.executionBridge;
   const publicMcpGatewayService = new PublicMcpGatewayService({
     documentStore,
     namespaceStore: publicMcpNamespaceStore,
     auditStore: publicMcpAuditStore,
     witnessService,
     executionBridge: publicMcpExecutionBridge,
-    baseUrl: process.env.NOUS_PUBLIC_BASE_URL ?? 'http://localhost:3000',
+    baseUrl: publicBaseUrl,
     supportedScopes: PublicMcpScopeSchema.options,
     toolMappingLookup: getPublicToolMapping,
     requiredScopeResolver: (toolName, args) => {
       const mapping = getPublicToolMapping(toolName);
       return mapping ? resolvePublicMcpRequiredScopes(mapping, args) : [];
     },
-    surfaceService: publicMcpSurfaceService,
+    surfaceService: developmentPublicMcpBundle.surfaceService,
+    deploymentRouter: publicMcpDeploymentRouter,
+    deploymentBundleResolver: async (resolution) => {
+      if (resolution.mode === 'local_tunnel') {
+        return tunnelPublicMcpBundle;
+      }
+      if (resolution.mode === 'hosted') {
+        const binding = resolution.bindingId
+          ? await publicMcpHostedBindingStore.get(resolution.bindingId)
+          : resolution.userHandle
+            ? await publicMcpHostedBindingStore.getByUserHandle(resolution.userHandle)
+            : null;
+        if (!binding) {
+          throw new Error(`Hosted public MCP binding is unavailable for ${resolution.requestHost}`);
+        }
+        return hostedTenantRuntimeFactory.getOrCreate(binding);
+      }
+      return developmentPublicMcpBundle;
+    },
+    tunnelForwarder: publicMcpTunnelForwarder,
   });
 
   const coreExecutor = new GatewayBackedTurnExecutor({

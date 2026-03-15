@@ -110,6 +110,7 @@ export async function POST(request: Request): Promise<Response> {
             ? rpcRequest.params
             : undefined,
       subject: admission.subject!,
+      requestUrl: request.url,
       idempotencyKey: request.headers.get('idempotency-key') ?? undefined,
       requestedAt: new Date().toISOString(),
     }),
