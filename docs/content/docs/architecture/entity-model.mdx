@@ -1,0 +1,86 @@
+---
+title: Entity Model
+description: "Apps, Skills, Projects, and Workflows — how the four entity types in Nous are organized and interconnect."
+---
+
+# Entity Model
+
+## Entity Map
+
+```
+Nous Instance
+│
+├── Apps (system-wide, always available when active)
+│   ├── com.acme.email
+│   ├── com.acme.trading
+│   └── com.acme.calendar
+│
+├── Skills (system-wide, but loadable per-context)
+│   ├── conservative-trading (atomic)
+│   ├── email-triage (atomic)
+│   ├── writing-style-formal (atomic)
+│   └── swe-project-management (composite → deps on atomic skills)
+│
+└── Projects (organizational containers)
+    ├── "Personal Finance"
+    │   ├── uses: com.acme.trading, com.acme.email
+    │   ├── loads: conservative-trading
+    │   └── workflows:
+    │       ├── morning-portfolio-review
+    │       └── monthly-tax-summary
+    │
+    └── "Startup"
+        ├── uses: com.acme.email, com.acme.calendar
+        ├── loads: email-triage, writing-style-formal
+        └── workflows:
+            ├── daily-inbox-zero
+            └── weekly-investor-update
+```
+
+## The Hierarchy
+
+| Entity | Scope | Lives Where | Owned By |
+|---|---|---|---|
+| **App** | System-wide | Installed on the Nous instance | User installs, Nous governs |
+| **Skill** | System-wide, but context-loadable | Installed on the Nous instance | User installs or agent generates |
+| **Project** | Organizational container | Memory namespace with isolation policies | User creates |
+| **Workflow** | Scoped to a Project (instance) | Definition installed system-wide; instance lives inside a Project | User or agent creates |
+
+## How They Interconnect
+
+**Apps are infrastructure.** They exist at the system level. They don't know about Projects, Skills, or Workflows. They just expose tools. Any Project can use any active App's tools.
+
+**Skills are judgment.** They exist at the system level but are **contextually loaded** — a Project can declare which Skills are active within it. A Workflow can declare which Skills guide its execution. Skills not loaded into a context aren't consulted. System-wide Skills (always active) are also possible.
+
+**Projects are containers.** They group conversations, workflows, memory, and context. They declare which Apps they use and which Skills they load. Projects are the **user's organizational unit** — "Personal Finance," "Startup," "PhD Research."
+
+**Workflows are automation within a Project.** They compose App tools + Skill guidance into executable sequences. A workflow has two levels: the **definition** (an installable package, system-wide, like a class) and the **instance** (scoped to a Project, like an object). Multiple Projects can instantiate the same workflow definition simultaneously, each with its own memory context, skill loadout, and app bindings. Workflow instances belong to a Project — they can't execute outside one.
+
+## Skills: Atomic and Composite
+
+Skills exist in two tiers:
+
+- **Atomic skills** are self-contained, single-concern judgment units. They follow the [agentskills.io](https://agentskills.io) open standard and are portable across any compatible agent.
+- **Composite skills** orchestrate multiple atomic skills into coherent domain expertise. They declare dependencies on constituent skills and guide which to load and when.
+
+**The workflow says what to do. The composite skill says what judgment to apply and how to compose it. The atomic skills are the actual judgment units.**
+
+```
+Workflow graph node (e.g., "code review step")
+  → loads composite skill (e.g., "code-review")
+    → loads atomic skills (e.g., "variable-scoping", "testing-patterns", "error-handling")
+```
+
+## The Key UX Distinctions
+
+1. **Installing an App** is like installing an app on your phone. System-wide. Available to everything. Not project-specific.
+
+2. **Installing a Skill** is like acquiring expertise. System-wide. But you choose when to apply it — some Projects load it, others don't.
+
+3. **Creating a Project** is like opening a workspace. It's where you organize your work, conversations, and automation around a purpose.
+
+4. **Creating a Workflow** is like setting up a recurring routine within a workspace. It only makes sense within the context of a Project. Installing a workflow definition is like downloading a recipe; binding it to a Project is like cooking it in your kitchen.
+
+## The One Sentence Version
+
+**Apps give Nous hands. Skills give Nous judgment. Projects give the user organization. Workflows give Projects automation.**
