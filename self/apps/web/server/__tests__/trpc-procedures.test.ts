@@ -196,6 +196,7 @@ describe('tRPC procedures', () => {
                 type: 'model-call',
                 governance: 'must',
                 executionModel: 'synchronous',
+                outputSchemaRef: 'schema://projects-procedure/draft-output',
                 config: {
                   type: 'model-call',
                   modelRole: 'reasoner',
@@ -223,6 +224,7 @@ describe('tRPC procedures', () => {
           type: 'model-call' as const,
           governance: 'must' as const,
           executionModel: 'synchronous' as const,
+          outputSchemaRef: 'schema://projects-procedure/draft-output',
           config: {
             type: 'model-call' as const,
             modelRole: 'reasoner' as const,

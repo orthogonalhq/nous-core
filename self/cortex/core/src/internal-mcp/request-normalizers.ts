@@ -2,18 +2,40 @@ import {
   ArtifactReadRequestSchema,
   ArtifactWriteRequestSchema,
   EscalationContractSchema,
+  type ExternalSourceCompactCommand,
+  type ExternalSourceDeleteCommand,
+  type ExternalSourceGetQuery,
+  type ExternalSourcePutCommand,
+  type ExternalSourceSearchQuery,
   GatewayDispatchRequestSchema,
   GatewayEscalationRequestSchema,
   GatewayObservationSchema,
   GatewayTaskCompletionRequestSchema,
   MemoryScopeSchema,
   MemoryWriteCandidateSchema,
+  PublicMcpCompactArgumentsSchema,
+  PublicMcpDeleteArgumentsSchema,
+  PublicMcpAgentInvokeArgumentsSchema,
+  PublicMcpExecutionRequestSchema,
+  PublicMcpGetArgumentsSchema,
+  PublicMcpPutArgumentsSchema,
+  PublicMcpSearchArgumentsSchema,
+  PromoteExternalRecordCommandSchema,
+  DemotePromotedRecordCommandSchema,
+  PromotedMemoryGetQuerySchema,
+  PromotedMemorySearchQuerySchema,
   ValidationError,
   WitnessCheckpointReasonSchema,
   ScheduleDefinitionSchema,
   type ArtifactReadRequest,
   type ArtifactWriteRequest,
+  type DemotePromotedRecordCommand,
   type EscalationContract,
+  type PromoteExternalRecordCommand,
+  type PromotedMemoryGetQuery,
+  type PromotedMemorySearchQuery,
+  type PublicMcpAgentInvokeArguments,
+  type PublicMcpExecutionRequest,
   type GatewayDispatchRequest,
   type GatewayEscalationRequest,
   type GatewayObservation,
@@ -100,6 +122,47 @@ export const SchedulerRegisterRequestSchema = ScheduleDefinitionSchema.omit({
   projectId: true,
 });
 export type SchedulerRegisterRequest = Omit<ScheduleDefinition, 'projectId'>;
+export type { PublicMcpAgentInvokeArguments, PublicMcpExecutionRequest };
+
+export function parsePromotedMemoryPromoteCommand(
+  params: unknown,
+): PromoteExternalRecordCommand {
+  return PromoteExternalRecordCommandSchema.parse(params ?? {});
+}
+
+export function parsePromotedMemoryDemoteCommand(
+  params: unknown,
+): DemotePromotedRecordCommand {
+  return DemotePromotedRecordCommandSchema.parse(params ?? {});
+}
+
+export function parsePromotedMemoryGetQuery(
+  params: unknown,
+): PromotedMemoryGetQuery {
+  return PromotedMemoryGetQuerySchema.parse(params ?? {});
+}
+
+export function parsePromotedMemorySearchQuery(
+  params: unknown,
+): PromotedMemorySearchQuery {
+  return PromotedMemorySearchQuerySchema.parse(params ?? {});
+}
+
+function parseExternalExecutionRequest(params: unknown) {
+  return PublicMcpExecutionRequestSchema.parse(params ?? {});
+}
+
+export function parsePublicMcpExecutionRequest(
+  params: unknown,
+): PublicMcpExecutionRequest {
+  return PublicMcpExecutionRequestSchema.parse(params ?? {});
+}
+
+export function parsePublicMcpAgentInvokeArguments(
+  params: unknown,
+): PublicMcpAgentInvokeArguments {
+  return PublicMcpAgentInvokeArgumentsSchema.parse(params ?? {});
+}
 
 export function normalizeDispatchParams(params: unknown): GatewayDispatchRequest {
   if (params && typeof params === 'object') {
@@ -210,6 +273,71 @@ export function parseSchedulerRegisterRequest(
   return SchedulerRegisterRequestSchema.parse(params ?? {});
 }
 
+export function parseExternalMemoryPutCommand(
+  params: unknown,
+): ExternalSourcePutCommand {
+  const request = parseExternalExecutionRequest(params);
+  return {
+    requestId: request.requestId,
+    subject: request.subject,
+    requestedAt: request.requestedAt,
+    idempotencyKey: request.idempotencyKey,
+    arguments: PublicMcpPutArgumentsSchema.parse(request.arguments ?? {}),
+  };
+}
+
+export function parseExternalMemoryGetQuery(
+  params: unknown,
+): ExternalSourceGetQuery {
+  const request = parseExternalExecutionRequest(params);
+  return {
+    requestId: request.requestId,
+    subject: request.subject,
+    requestedAt: request.requestedAt,
+    idempotencyKey: request.idempotencyKey,
+    arguments: PublicMcpGetArgumentsSchema.parse(request.arguments ?? {}),
+  };
+}
+
+export function parseExternalMemorySearchQuery(
+  params: unknown,
+): ExternalSourceSearchQuery {
+  const request = parseExternalExecutionRequest(params);
+  return {
+    requestId: request.requestId,
+    subject: request.subject,
+    requestedAt: request.requestedAt,
+    idempotencyKey: request.idempotencyKey,
+    arguments: PublicMcpSearchArgumentsSchema.parse(request.arguments ?? {}),
+  };
+}
+
+export function parseExternalMemoryDeleteCommand(
+  params: unknown,
+): ExternalSourceDeleteCommand {
+  const request = parseExternalExecutionRequest(params);
+  return {
+    requestId: request.requestId,
+    subject: request.subject,
+    requestedAt: request.requestedAt,
+    idempotencyKey: request.idempotencyKey,
+    arguments: PublicMcpDeleteArgumentsSchema.parse(request.arguments ?? {}),
+  };
+}
+
+export function parseExternalMemoryCompactCommand(
+  params: unknown,
+): ExternalSourceCompactCommand {
+  const request = parseExternalExecutionRequest(params);
+  return {
+    requestId: request.requestId,
+    subject: request.subject,
+    requestedAt: request.requestedAt,
+    idempotencyKey: request.idempotencyKey,
+    arguments: PublicMcpCompactArgumentsSchema.parse(request.arguments ?? {}),
+  };
+}
+
 export function toValidationError(message: string, error: unknown): ValidationError {
   if (error instanceof ValidationError) {
     return error;
@@ -218,7 +346,7 @@ export function toValidationError(message: string, error: unknown): ValidationEr
   if (error instanceof z.ZodError) {
     return new ValidationError(
       message,
-      error.errors.map((issue) => ({
+      error.issues.map((issue) => ({
         path: issue.path.join('.'),
         message: issue.message,
       })),

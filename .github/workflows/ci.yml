@@ -55,6 +55,9 @@ jobs:
       - name: Install dependencies
         run: pnpm install
 
+      - name: Build
+        run: pnpm run build
+
       - name: Typecheck
         run: pnpm run typecheck
 
@@ -62,10 +65,19 @@ jobs:
         run: pnpm run lint
 
       - name: Test
+        if: matrix.os != 'ubuntu-latest'
         run: pnpm run test
+
+      - name: Test (with coverage)
+        if: matrix.os == 'ubuntu-latest'
+        run: pnpm run test --coverage
+
+      - name: Upload coverage to Codecov
+        if: matrix.os == 'ubuntu-latest'
+        uses: codecov/codecov-action@v4
+        with:
+          files: ./coverage/lcov.info
+          fail_ci_if_error: false
 
       - name: Benchmark Tier 0
         run: pnpm run benchmark:tier0
-
-      - name: Build
-        run: pnpm run build

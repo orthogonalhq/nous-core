@@ -1,0 +1,26 @@
+{
+  "name": "@nous/subcortex-public-mcp",
+  "version": "0.0.1",
+  "private": true,
+  "description": "Canonical public MCP auth and discovery boundary for Nous-OSS",
+  "type": "module",
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "import": "./dist/index.js"
+    }
+  },
+  "scripts": {
+    "build": "tsc --build",
+    "typecheck": "tsc --noEmit",
+    "test": "vitest run --config vitest.config.ts",
+    "clean": "rm -rf dist"
+  },
+  "dependencies": {
+    "@nous/shared": "workspace:*"
+  },
+  "devDependencies": {
+    "@nous/subcortex-witnessd": "workspace:*",
+    "vitest": "^4.0.18"
+  }
+}

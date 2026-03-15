@@ -38,6 +38,7 @@ function createWorkflow(projectId: ProjectId, version = '1.0.0'): WorkflowDefini
         type: 'model-call' as const,
         governance: 'must' as const,
         executionModel: 'synchronous' as const,
+        outputSchemaRef: 'schema://projects-workflow/draft-output',
         config: {
           type: 'model-call' as const,
           modelRole: 'reasoner' as const,

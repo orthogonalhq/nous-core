@@ -158,6 +158,35 @@ import type {
   VoiceTurnStartInput,
   VoiceTurnStateRecord,
   EndpointTrustSurfaceSummary,
+  PublicMcpAdmissionDecision,
+  PublicMcpAgentCatalogEntry,
+  PublicMcpAgentInvokeArguments,
+  PublicMcpAgentInvokeResult,
+  PublicMcpCompactArguments,
+  PublicMcpDiscoveryBundle,
+  PublicMcpDeleteArguments,
+  PublicMcpDeploymentResolution,
+  ExternalSourceCompactionResult,
+  ExternalSourceMemoryEntry,
+  ExternalSourceMutationResult,
+  ExternalSourceSearchResult,
+  PublicMcpExecutionRequest,
+  PublicMcpExecutionResult,
+  PublicMcpGetArguments,
+  PublicMcpHttpRequest,
+  PublicMcpPutArguments,
+  PublicMcpSearchArguments,
+  PublicMcpSystemInfo,
+  PublicMcpSubject,
+  PublicMcpTaskProjection,
+  PublicMcpTaskResult,
+  PublicMcpToolDefinition,
+  PromoteExternalRecordCommand,
+  DemotePromotedRecordCommand,
+  PromotedMemoryGetQuery,
+  PromotedMemoryRecord,
+  PromotedMemorySearchQuery,
+  PromotedMemorySearchResult,
 } from '../types/index.js';
 import type { NousEvent } from '../events/index.js';
 
@@ -460,6 +489,116 @@ export interface ICommunicationGatewayService {
 
   /** Retrieve a previously created canonical route decision. */
   getRouteDecision(routeId: string): Promise<CommunicationRouteDecision | null>;
+}
+
+export interface IPublicMcpGatewayService {
+  /** Build the public OAuth discovery documents for the MCP edge. */
+  getDiscoveryDocuments(): Promise<PublicMcpDiscoveryBundle>;
+
+  /** Evaluate bearer, audience, origin, scope, namespace, and schema posture. */
+  authorize(request: PublicMcpHttpRequest): Promise<PublicMcpAdmissionDecision>;
+
+  /** List the tools visible to an already authorized external client subject. */
+  listVisibleTools(subject: PublicMcpSubject): Promise<PublicMcpToolDefinition[]>;
+
+  /** Execute an authorized public MCP request over the canonical bridge surface. */
+  execute(request: PublicMcpExecutionRequest): Promise<PublicMcpExecutionResult>;
+}
+
+export interface IPublicMcpDeploymentRouterService {
+  /** Resolve the active backend mode and deployment binding for a public MCP request. */
+  resolve(request: PublicMcpExecutionRequest): Promise<PublicMcpDeploymentResolution>;
+}
+
+export interface PublicMcpAgentListQuery {
+  requestId: string;
+  subject: PublicMcpSubject;
+  requestedAt: string;
+}
+
+export interface PublicMcpAgentInvokeCommand extends PublicMcpAgentListQuery {
+  arguments: PublicMcpAgentInvokeArguments;
+}
+
+export interface PublicMcpTaskQuery extends PublicMcpAgentListQuery {
+  taskId: string;
+}
+
+export interface PublicMcpSystemInfoQuery extends PublicMcpAgentListQuery {}
+
+export interface IPublicMcpSurfaceService {
+  /** List externally visible public agents for the authenticated subject. */
+  listAgents(request: PublicMcpAgentListQuery): Promise<PublicMcpAgentCatalogEntry[]>;
+
+  /** Invoke a public agent through the canonical public runtime. */
+  invokeAgent(request: PublicMcpAgentInvokeCommand): Promise<PublicMcpAgentInvokeResult>;
+
+  /** Retrieve the current subject-scoped task projection. */
+  getTask(request: PublicMcpTaskQuery): Promise<PublicMcpTaskProjection | null>;
+
+  /** Retrieve the terminal result for a subject-scoped task. */
+  getTaskResult(request: PublicMcpTaskQuery): Promise<PublicMcpTaskResult | null>;
+
+  /** Project public-safe server and task-support metadata. */
+  getSystemInfo(request: PublicMcpSystemInfoQuery): Promise<PublicMcpSystemInfo>;
+}
+
+export interface ExternalSourceCommandContext {
+  requestId: string;
+  subject: PublicMcpSubject;
+  requestedAt: string;
+  idempotencyKey?: string;
+}
+
+export interface ExternalSourcePutCommand extends ExternalSourceCommandContext {
+  arguments: PublicMcpPutArguments;
+}
+
+export interface ExternalSourceGetQuery extends ExternalSourceCommandContext {
+  arguments: PublicMcpGetArguments;
+}
+
+export interface ExternalSourceSearchQuery extends ExternalSourceCommandContext {
+  arguments: PublicMcpSearchArguments;
+}
+
+export interface ExternalSourceDeleteCommand extends ExternalSourceCommandContext {
+  arguments: PublicMcpDeleteArguments;
+}
+
+export interface ExternalSourceCompactCommand extends ExternalSourceCommandContext {
+  arguments: PublicMcpCompactArguments;
+}
+
+export interface IExternalSourceMemoryService {
+  /** Execute a source-local append or supersede write. */
+  put(request: ExternalSourcePutCommand): Promise<ExternalSourceMutationResult>;
+
+  /** Read one source-local external-memory entry. */
+  get(request: ExternalSourceGetQuery): Promise<ExternalSourceMemoryEntry | null>;
+
+  /** Search source-local external-memory entries using canonical public-memory semantics. */
+  search(request: ExternalSourceSearchQuery): Promise<ExternalSourceSearchResult>;
+
+  /** Soft-delete one source-local external-memory entry. */
+  delete(request: ExternalSourceDeleteCommand): Promise<ExternalSourceMutationResult>;
+
+  /** Compact source-local external STM into allowed public compaction outputs. */
+  compact(request: ExternalSourceCompactCommand): Promise<ExternalSourceCompactionResult>;
+}
+
+export interface IPromotedMemoryBridgeService {
+  /** Promote one external source record into the internal promoted tier. */
+  promote(command: PromoteExternalRecordCommand): Promise<PromotedMemoryRecord>;
+
+  /** Soft-delete one promoted-tier record while preserving audit lineage. */
+  demote(command: DemotePromotedRecordCommand): Promise<PromotedMemoryRecord>;
+
+  /** Read one promoted-tier record by promoted ID. */
+  get(query: PromotedMemoryGetQuery): Promise<PromotedMemoryRecord | null>;
+
+  /** Search promoted-tier records without querying external source tables live. */
+  search(query: PromotedMemorySearchQuery): Promise<PromotedMemorySearchResult>;
 }
 
 export interface IEndpointTrustService {

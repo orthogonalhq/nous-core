@@ -169,3 +169,69 @@ These apply to newly created projects.
 | `NOUS_DATA_DIR` | `storage.dataDir` |
 | `NOUS_CONFIG_PATH` | Config file path |
 | `NOUS_BASIC_AUTH` | Basic auth for tRPC (format: `user:password`) |
+| `NOUS_PUBLIC_BASE_URL` | Base URL used in OAuth discovery documents for the public MCP edge (default: `http://localhost:3000`). Set this when deploying behind a non-localhost public endpoint. |
+| `NOUS_PUBLIC_MCP_HOSTED_BINDINGS_JSON` | Seeded hosted public-MCP binding records used to map a public host or user handle onto a hosted tenant runtime. Accepts a JSON object or JSON array of binding records. |
+| `NOUS_PUBLIC_MCP_TUNNEL_SESSIONS_JSON` | Seeded public-MCP tunnel session records used to map a public host or user handle onto a local tunnel runtime. Accepts a JSON object or JSON array of session records. |
+
+Phase 13.5 config audit result: public MCP deployment routing adds two operator-facing seed
+variables for hosted and local-tunnel routing. `NOUS_PUBLIC_BASE_URL` remains the public MCP edge
+override for OAuth metadata and discovery URLs.
+
+### `NOUS_PUBLIC_MCP_HOSTED_BINDINGS_JSON`
+
+Use this variable to seed hosted tenant routing records during web bootstrap. Each record must
+match the hosted-binding schema used by the public gateway:
+
+```json
+[
+  {
+    "bindingId": "binding-1",
+    "tenantId": "tenant-1",
+    "userHandle": "andre",
+    "host": "andre.nous.run",
+    "storePrefix": "tenant-andre",
+    "serverName": "Andre Hosted Nous",
+    "phase": "phase-13.5",
+    "status": "active",
+    "createdAt": "2026-03-14T00:00:00.000Z",
+    "updatedAt": "2026-03-14T00:00:00.000Z"
+  }
+]
+```
+
+- `bindingId` — stable binding record identifier
+- `tenantId` — tenant-scoped runtime identity
+- `userHandle` — public handle used for hosted routing
+- `host` — public host that resolves to the hosted tenant runtime
+- `storePrefix` — tenant-local storage prefix used for document/vector/task/audit isolation
+- `serverName` — public-safe `ortho.system.v1.info` server name override
+- `phase` — public-safe phase label surfaced in `ortho.system.v1.info`
+- `status` — current binding state (`active` or `disabled`)
+
+### `NOUS_PUBLIC_MCP_TUNNEL_SESSIONS_JSON`
+
+Use this variable to seed local-tunnel routing records during web bootstrap. Each record must match
+the tunnel-session schema used by the public gateway:
+
+```json
+[
+  {
+    "sessionId": "session-1",
+    "userHandle": "casey",
+    "host": "casey.tunnel.nous.run",
+    "sharedSecret": "0123456789abcdef0123456789abcdef",
+    "status": "active",
+    "createdAt": "2026-03-14T00:00:00.000Z",
+    "updatedAt": "2026-03-14T00:00:00.000Z"
+  }
+]
+```
+
+- `sessionId` — stable tunnel session identifier
+- `userHandle` — public handle associated with the tunnel session
+- `host` — public host that resolves to the tunnel backend
+- `sharedSecret` — shared secret used to validate edge-issued tunnel envelopes
+- `status` — current session state (`active` or `disabled`)
+
+These variables affect deployment routing only. They do not change the public MCP tool catalog,
+OAuth posture, or JSON-RPC request and response shapes seen by external clients.

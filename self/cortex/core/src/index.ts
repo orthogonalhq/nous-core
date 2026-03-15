@@ -58,8 +58,13 @@ export {
   createScopedMcpToolSurface,
   getAuthorizedInternalMcpTools,
   getInternalMcpCatalogEntry,
+  getPublicToolMapping,
+  resolvePublicMcpRequiredScopes,
+  getVisiblePublicToolMappings,
+  hasRequiredPublicMcpScopes,
   getVisibleInternalMcpTools,
   INTERNAL_MCP_CATALOG,
+  PUBLIC_MCP_TOOL_MAPPINGS,
 } from './internal-mcp/index.js';
 export type {
   InternalMcpDispatchChildArgs,
@@ -70,6 +75,14 @@ export type {
   InternalMcpToolName,
 } from './internal-mcp/index.js';
 export {
+  PublicMcpExecutionBridge,
+} from './public-mcp/index.js';
+export type {
+  IPublicMcpExecutionBridge,
+  PublicMcpExecutionBridgeOptions,
+  PublicMcpInternalExecutor,
+} from './public-mcp/index.js';
+export {
   WORKFLOW_ROUTER_SYSTEM_PROMPT,
   ORCHESTRATOR_SYSTEM_PROMPT,
 } from './prompts/index.js';
@@ -79,6 +92,7 @@ export {
   GatewayRuntimeIngressAdapter,
   SystemBacklogQueue,
   GatewayBackedTurnExecutor,
+  PublicMcpRuntimeAdapter,
   GatewayTraceRecorder,
   GATEWAY_CHAT_COMPLETION_SCHEMA_REF,
   createGatewayProjectApi,
@@ -100,6 +114,9 @@ export type {
   BacklogQueueConfig,
   GatewaySubmissionSource,
   GatewayBackedTurnExecutorDeps,
+  PublicMcpRuntimeAdapterDeps,
+  PublicMcpRuntimeInvocation,
+  PublicMcpRuntimeInvocationResult,
   GatewayRuntimeProjectApiDeps,
   IPrincipalSystemGatewayRuntime,
   PrincipalSystemGatewayRuntimeDeps,
