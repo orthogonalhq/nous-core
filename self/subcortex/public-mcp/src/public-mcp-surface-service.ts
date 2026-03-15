@@ -27,6 +27,11 @@ export interface PublicMcpRuntimeInvocationLike {
   targetClass: 'Worker' | 'Orchestrator';
   taskInstructions: string;
   payload?: unknown;
+  runtimeContext?: {
+    deploymentMode?: 'local_tunnel' | 'hosted' | 'development';
+    tenantId?: string;
+    userHandle?: string;
+  };
   context?: Array<{
     role: 'system' | 'user';
     content: string;
@@ -64,6 +69,9 @@ export interface PublicMcpSurfaceServiceOptions {
   serverName?: string;
   phase?: string;
   backendMode?: 'local_tunnel' | 'hosted' | 'development';
+  featureOverrides?: Partial<PublicMcpSystemInfo['features']>;
+  taskToolSupport?: PublicMcpSystemInfo['tasks']['toolSupport'];
+  runtimeContext?: PublicMcpRuntimeInvocationLike['runtimeContext'];
   maxInvokeInputBytes?: number;
   maxSearchTopK?: number;
   maxTaskPollWindowSeconds?: number;
@@ -108,6 +116,7 @@ export class PublicMcpSurfaceService implements IPublicMcpSurfaceService {
       targetClass: agent.targetClass,
       taskInstructions: agent.buildTaskInstructions(request),
       payload: agent.buildPayload?.(request),
+      runtimeContext: this.options.runtimeContext,
       context: buildRuntimeContext(request),
     });
 
@@ -142,15 +151,15 @@ export class PublicMcpSurfaceService implements IPublicMcpSurfaceService {
     return PublicMcpSystemInfoSchema.parse({
       server: {
         name: this.options.serverName ?? 'Nous Public MCP',
-        phase: this.options.phase ?? 'phase-13.4',
+        phase: this.options.phase ?? 'phase-13.5',
         backendMode: this.options.backendMode ?? 'development',
         protocolVersion: '2025-11-25',
       },
       features: {
-        publicAgents: true,
-        publicSystemInfo: true,
-        publicTasks: true,
-        publicCompactAsync: true,
+        publicAgents: this.options.featureOverrides?.publicAgents ?? true,
+        publicSystemInfo: this.options.featureOverrides?.publicSystemInfo ?? true,
+        publicTasks: this.options.featureOverrides?.publicTasks ?? true,
+        publicCompactAsync: this.options.featureOverrides?.publicCompactAsync ?? true,
       },
       limits: {
         maxInvokeInputBytes: this.options.maxInvokeInputBytes ?? 8192,
@@ -163,7 +172,7 @@ export class PublicMcpSurfaceService implements IPublicMcpSurfaceService {
       },
       tasks: {
         supportedMethods: ['tasks/get', 'tasks/result'],
-        toolSupport: {
+        toolSupport: this.options.taskToolSupport ?? {
           'ortho.agents.v1.invoke': 'optional',
           'ortho.memory.v1.compact': 'optional',
         },
@@ -225,6 +234,7 @@ export class PublicMcpSurfaceService implements IPublicMcpSurfaceService {
       targetClass: agent.targetClass,
       taskInstructions: agent.buildTaskInstructions(request),
       payload: agent.buildPayload?.(request),
+      runtimeContext: this.options.runtimeContext,
       context: buildRuntimeContext(request),
     });
 

@@ -1,10 +1,12 @@
 import type {
   IDocumentStore,
+  IPublicMcpDeploymentRouterService,
   IPublicMcpSurfaceService,
   IPublicMcpGatewayService,
   IWitnessService,
   PublicMcpAdmissionDecision,
   PublicMcpClientMetadata,
+  PublicMcpDeploymentResolution,
   PublicMcpDiscoveryBundle,
   PublicMcpExecutionRequest,
   PublicMcpExecutionResult,
@@ -29,6 +31,19 @@ export interface PublicMcpExecutionBridgeLike {
   executeMappedTool(request: PublicMcpExecutionRequest): Promise<PublicMcpExecutionResult>;
 }
 
+export interface PublicMcpDeploymentBundle {
+  executionBridge?: PublicMcpExecutionBridgeLike;
+  surfaceService?: IPublicMcpSurfaceService;
+}
+
+export interface PublicMcpTunnelForwarderLike {
+  forward(
+    request: PublicMcpExecutionRequest,
+    resolution: PublicMcpDeploymentResolution,
+    targets: PublicMcpDeploymentBundle,
+  ): Promise<PublicMcpExecutionResult>;
+}
+
 export interface PublicMcpGatewayServiceOptions {
   documentStore?: IDocumentStore;
   namespaceStore?: NamespaceRegistryStore;
@@ -49,6 +64,11 @@ export interface PublicMcpGatewayServiceOptions {
     toolName: string,
     args?: Record<string, unknown>,
   ) => PublicMcpScope[];
+  deploymentRouter?: IPublicMcpDeploymentRouterService;
+  deploymentBundleResolver?: (
+    resolution: PublicMcpDeploymentResolution,
+  ) => Promise<PublicMcpDeploymentBundle> | PublicMcpDeploymentBundle;
+  tunnelForwarder?: PublicMcpTunnelForwarderLike;
   surfaceService?: IPublicMcpSurfaceService;
   now?: () => string;
 }
@@ -146,6 +166,33 @@ export class PublicMcpGatewayService implements IPublicMcpGatewayService {
     request: PublicMcpExecutionRequest,
   ): Promise<PublicMcpExecutionResult> {
     const startedAt = Date.now();
+    let resolution: PublicMcpDeploymentResolution | undefined;
+    if (request.method !== 'initialize' && request.method !== 'tools/list') {
+      try {
+        resolution = await this.resolveDeployment(request);
+      } catch (error) {
+        return this.finalizeExecution(
+          request,
+          PublicMcpExecutionResultSchema.parse({
+            requestId: request.requestId,
+            httpStatus: 404,
+            rpcId: request.rpcId,
+            rejectReason: 'deployment_not_resolved',
+            error: {
+              code: -32012,
+              message: error instanceof Error ? error.message : 'Public MCP deployment could not be resolved.',
+            },
+          }),
+          startedAt,
+        );
+      }
+    }
+    const bundle = resolution
+      ? await this.resolveDeploymentBundle(resolution)
+      : {
+          executionBridge: this.options.executionBridge,
+          surfaceService: this.options.surfaceService,
+        };
 
     if (request.method === 'initialize') {
       return this.finalizeExecution(
@@ -187,71 +234,44 @@ export class PublicMcpGatewayService implements IPublicMcpGatewayService {
     }
 
     if (request.method === 'tasks/get') {
-      const task = await this.options.surfaceService?.getTask({
-        requestId: request.requestId,
-        subject: request.subject,
-        taskId: String(request.arguments?.taskId ?? ''),
-        requestedAt: request.requestedAt,
-      });
       return this.finalizeExecution(
         request,
-        {
-          requestId: request.requestId,
-          httpStatus: task ? 200 : 404,
-          rpcId: request.rpcId,
-          result: task ?? undefined,
-          rejectReason: task ? undefined : 'task_not_found',
-          error: task
-            ? undefined
-            : {
-                code: -32010,
-                message: 'Task not found.',
-              },
-        },
+        resolution?.mode === 'local_tunnel' && this.options.tunnelForwarder
+          ? await this.options.tunnelForwarder.forward(request, resolution, bundle)
+          : await this.executeTaskGet(request, bundle.surfaceService),
         startedAt,
+        resolution,
       );
     }
 
     if (request.method === 'tasks/result') {
-      const taskResult = await this.options.surfaceService?.getTaskResult({
-        requestId: request.requestId,
-        subject: request.subject,
-        taskId: String(request.arguments?.taskId ?? ''),
-        requestedAt: request.requestedAt,
-      });
       return this.finalizeExecution(
         request,
-        {
-          requestId: request.requestId,
-          httpStatus: taskResult ? 200 : 404,
-          rpcId: request.rpcId,
-          result: taskResult ?? undefined,
-          rejectReason: taskResult ? undefined : 'task_not_ready',
-          error: taskResult
-            ? undefined
-            : {
-                code: -32011,
-                message: 'Task result is not available.',
-              },
-        },
+        resolution?.mode === 'local_tunnel' && this.options.tunnelForwarder
+          ? await this.options.tunnelForwarder.forward(request, resolution, bundle)
+          : await this.executeTaskResult(request, bundle.surfaceService),
         startedAt,
+        resolution,
       );
     }
 
-    const bridgeResult = this.options.executionBridge
-      ? await this.options.executionBridge.executeMappedTool(request)
-      : PublicMcpExecutionResultSchema.parse({
-          requestId: request.requestId,
-          httpStatus: 404,
-          rpcId: request.rpcId,
-          rejectReason: 'tool_not_available',
-          error: {
-            code: -32601,
-            message: 'Tool not available.',
-          },
-        });
+    const bridgeResult =
+      resolution?.mode === 'local_tunnel' && this.options.tunnelForwarder
+        ? await this.options.tunnelForwarder.forward(request, resolution, bundle)
+        : bundle.executionBridge
+          ? await bundle.executionBridge.executeMappedTool(request)
+          : PublicMcpExecutionResultSchema.parse({
+              requestId: request.requestId,
+              httpStatus: 404,
+              rpcId: request.rpcId,
+              rejectReason: 'tool_not_available',
+              error: {
+                code: -32601,
+                message: 'Tool not available.',
+              },
+            });
 
-    return this.finalizeExecution(request, bridgeResult, startedAt);
+    return this.finalizeExecution(request, bridgeResult, startedAt, resolution);
   }
 
   getNamespaceStore(): NamespaceRegistryStore {
@@ -266,9 +286,10 @@ export class PublicMcpGatewayService implements IPublicMcpGatewayService {
     request: PublicMcpExecutionRequest,
     result: PublicMcpExecutionResult,
     startedAtMs: number,
+    resolution?: PublicMcpDeploymentResolution,
   ): Promise<PublicMcpExecutionResult> {
     const outcome = result.error ? 'blocked' : 'completed';
-    const auditDetail = buildAuditDetail(request, result);
+    const auditDetail = buildAuditDetail(request, result, resolution);
     const detail = {
       ...this.buildWitnessDetail(
         request.requestId,
@@ -421,11 +442,84 @@ export class PublicMcpGatewayService implements IPublicMcpGatewayService {
     });
     return event.id;
   }
+
+  private async resolveDeployment(
+    request: PublicMcpExecutionRequest,
+  ): Promise<PublicMcpDeploymentResolution | undefined> {
+    if (!this.options.deploymentRouter) {
+      return undefined;
+    }
+
+    return this.options.deploymentRouter.resolve(request);
+  }
+
+  private async resolveDeploymentBundle(
+    resolution: PublicMcpDeploymentResolution,
+  ): Promise<PublicMcpDeploymentBundle> {
+    const resolved = this.options.deploymentBundleResolver
+      ? await this.options.deploymentBundleResolver(resolution)
+      : {};
+    return {
+      executionBridge: resolved.executionBridge ?? this.options.executionBridge,
+      surfaceService: resolved.surfaceService ?? this.options.surfaceService,
+    };
+  }
+
+  private async executeTaskGet(
+    request: PublicMcpExecutionRequest,
+    surfaceService?: IPublicMcpSurfaceService,
+  ): Promise<PublicMcpExecutionResult> {
+    const task = await surfaceService?.getTask({
+      requestId: request.requestId,
+      subject: request.subject,
+      taskId: String(request.arguments?.taskId ?? ''),
+      requestedAt: request.requestedAt,
+    });
+    return PublicMcpExecutionResultSchema.parse({
+      requestId: request.requestId,
+      httpStatus: task ? 200 : 404,
+      rpcId: request.rpcId,
+      result: task ?? undefined,
+      rejectReason: task ? undefined : 'task_not_found',
+      error: task
+        ? undefined
+        : {
+            code: -32010,
+            message: 'Task not found.',
+          },
+    });
+  }
+
+  private async executeTaskResult(
+    request: PublicMcpExecutionRequest,
+    surfaceService?: IPublicMcpSurfaceService,
+  ): Promise<PublicMcpExecutionResult> {
+    const taskResult = await surfaceService?.getTaskResult({
+      requestId: request.requestId,
+      subject: request.subject,
+      taskId: String(request.arguments?.taskId ?? ''),
+      requestedAt: request.requestedAt,
+    });
+    return PublicMcpExecutionResultSchema.parse({
+      requestId: request.requestId,
+      httpStatus: taskResult ? 200 : 404,
+      rpcId: request.rpcId,
+      result: taskResult ?? undefined,
+      rejectReason: taskResult ? undefined : 'task_not_ready',
+      error: taskResult
+        ? undefined
+        : {
+            code: -32011,
+            message: 'Task result is not available.',
+          },
+    });
+  }
 }
 
 function buildAuditDetail(
   request: PublicMcpExecutionRequest,
   result: PublicMcpExecutionResult,
+  resolution?: PublicMcpDeploymentResolution,
 ): {
   tier?: 'stm' | 'ltm';
   entryId?: string;
@@ -433,6 +527,7 @@ function buildAuditDetail(
   lifecycleState?: 'active' | 'quarantined' | 'purging' | 'purged';
   quotaDecision?: 'allow' | 'reject';
   rateLimitDecision?: 'allow' | 'reject';
+  deployment?: PublicMcpDeploymentResolution;
 } {
   const args =
     request.method === 'tools/call' && request.arguments
@@ -468,6 +563,7 @@ function buildAuditDetail(
         : request.method === 'tools/call'
           ? 'allow'
           : undefined,
+    deployment: resolution,
   };
 }
 

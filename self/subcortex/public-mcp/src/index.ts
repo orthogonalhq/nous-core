@@ -14,6 +14,10 @@ export {
   PUBLIC_MCP_AUDIT_COLLECTION,
 } from './audit-projection-store.js';
 export {
+  DeploymentRouterService,
+  type DeploymentRouterServiceOptions,
+} from './deployment-router-service.js';
+export {
   ExternalSourceMemoryService,
   type ExternalSourceMemoryServiceOptions,
 } from './external-source-memory-service.js';
@@ -29,6 +33,17 @@ export {
   ExternalSourceStorageAdapter,
   type ExternalSourceStorageAdapterOptions,
 } from './external-source-storage-adapter.js';
+export {
+  HostedTenantBindingStore,
+  PUBLIC_MCP_HOSTED_TENANT_BINDING_COLLECTION,
+} from './hosted-tenant-binding-store.js';
+export {
+  HostedTenantRuntimeFactory,
+  createPrefixedDocumentStore,
+  createPrefixedVectorStore,
+  type HostedTenantRuntimeFactoryContext,
+  type HostedTenantRuntimeFactoryOptions,
+} from './hosted-tenant-runtime-factory.js';
 export {
   DefaultPublicMcpTokenVerifier,
   PublicMcpAuthAdmission,
@@ -67,3 +82,13 @@ export {
   type ConsumeRateLimitInput,
   type RateLimitConsumptionResult,
 } from './rate-limit-bucket-store.js';
+export {
+  TunnelForwarder,
+  type TunnelForwardTargetBundle,
+  type TunnelForwarderOptions,
+} from './tunnel-forwarder.js';
+export {
+  PUBLIC_MCP_TUNNEL_NONCE_COLLECTION,
+  PUBLIC_MCP_TUNNEL_SESSION_COLLECTION,
+  TunnelSessionStore,
+} from './tunnel-session-store.js';
