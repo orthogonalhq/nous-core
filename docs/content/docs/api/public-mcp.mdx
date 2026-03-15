@@ -5,15 +5,16 @@ description: Reference for the public machine-to-machine MCP surface
 
 # Public MCP Edge
 
-Phase 13.4 keeps the public MCP edge as a real public execution surface while the promoted-tier
-bridge remains internal-only. External clients can:
+Phase 13.5 keeps the public MCP edge as a real public execution surface while adding deployment
+parity across development, hosted, and local-tunnel backends. External clients can:
 
 - discover public-safe agent entries with `ortho.agents.v1.list`
 - invoke approved public agents with `ortho.agents.v1.invoke`
 - read public-safe runtime posture with `ortho.system.v1.info`
 - poll long-running public work with `tasks/get` and `tasks/result`
 
-The web host remains transport-thin. It authenticates, validates, and delegates into the canonical public runtime rather than acting as a second execution harness.
+The web host remains transport-thin. It authenticates, validates, and delegates into the canonical
+public runtime rather than acting as a second execution harness.
 
 ## Endpoints
 
@@ -23,6 +24,18 @@ The web host remains transport-thin. It authenticates, validates, and delegates 
 | `/.well-known/oauth-protected-resource/mcp` | `GET` | Protected Resource Metadata for the public MCP resource |
 | `/.well-known/oauth-authorization-server/mcp` | `GET` | Authorization Server Metadata for the public MCP resource |
 
+## Deployment parity
+
+Phase 13.5 preserves one public MCP contract across all supported deployment backends:
+
+- `development` uses the app-hosted runtime directly
+- `local_tunnel` forwards only already-admitted public calls into the local runtime
+- `hosted` resolves the request into a tenant-local hosted runtime
+
+Clients do not switch endpoints, tools, auth posture, or task semantics when the backend changes.
+The only public-safe deployment distinction surfaced to callers is `server.backendMode` in
+`ortho.system.v1.info`, which can be `development`, `local_tunnel`, or `hosted`.
+
 ## Admission posture
 
 - `/mcp` requires OAuth bearer posture before any tool mapping, task lookup, or runtime dispatch.
@@ -30,8 +43,10 @@ The web host remains transport-thin. It authenticates, validates, and delegates 
 - External callers are represented as `ExternalClient` subjects at the boundary.
 - Public tool names stay namespaced as `ortho.*` and map once onto the canonical flat internal capability surface.
 - Agent invoke scopes are binding-aware: `ortho.agents.v1.invoke` always requires `ortho.agents.invoke`, plus any requested memory-tier scopes derived from the binding payload.
+- The public edge remains the only authority for auth, quota, rate-limit, and audit posture even
+  when the selected backend is `local_tunnel` or `hosted`.
 
-## Phase 13.4 availability
+## Phase 13.5 availability
 
 `tools/list` returns only the intersection of caller scopes and current-phase-enabled public mappings.
 
@@ -47,6 +62,9 @@ The web host remains transport-thin. It authenticates, validates, and delegates 
 | `ortho.agents.v1.list` | Discover public-safe agent catalog entries | `ortho.system.read` | none |
 | `ortho.agents.v1.invoke` | Invoke an approved public agent | `ortho.agents.invoke` plus any binding-derived memory scopes | optional |
 | `ortho.system.v1.info` | Read public-safe runtime metadata | `ortho.system.read` | none |
+
+The tool list and request/response shapes remain the same across `development`, `local_tunnel`, and
+`hosted` backends.
 
 ## Public agents
 
@@ -328,9 +346,9 @@ Synchronous completion example for `executionMode: "sync"` when the run finishes
   "id": "rpc-system-1",
   "result": {
     "server": {
-      "name": "Nous Public MCP",
-      "phase": "phase-13.4",
-      "backendMode": "development",
+      "name": "Andre Hosted Nous",
+      "phase": "phase-13.5",
+      "backendMode": "hosted",
       "protocolVersion": "2025-11-25"
     },
     "features": {
@@ -358,6 +376,9 @@ Synchronous completion example for `executionMode: "sync"` when the run finishes
   }
 }
 ```
+
+The response shape stays the same across backends. Only public-safe deployment details such as
+`server.name`, `server.phase`, and `server.backendMode` vary.
 
 ## Carried-forward memory examples
 
@@ -412,7 +433,7 @@ Use `mode: "supersede"` when the new record replaces an existing one. The gatewa
 
 ## Error behavior
 
-Common public reject reasons in Phase 13.4:
+Common public reject reasons in Phase 13.5:
 
 | Reject reason | Meaning |
 |---|---|
@@ -426,11 +447,33 @@ Common public reject reasons in Phase 13.4:
 | `source_quarantined` | The source is quarantined or purged for durable mutation paths. |
 | `quota_exceeded` | The request exceeds the namespace + token quota window. |
 | `rate_limited` | The namespace + token has exceeded the allowed request rate for the tool. |
+| `deployment_not_resolved` | The public host did not map to a known development, hosted, or tunnel deployment target. |
+| `tunnel_envelope_invalid` | The forwarded tunnel request failed signature, binding, or expiry validation. |
+| `tunnel_replay_detected` | A tunnel nonce was already consumed and the request was rejected as a replay. |
 
 ## Operator configuration
 
-Phase 13.4 introduces no additional public-edge environment variables. `NOUS_PUBLIC_BASE_URL` remains the public MCP edge override used by the OAuth discovery documents.
+Phase 13.5 adds deployment-seeding environment variables for hosted and local-tunnel routing:
+
+| Variable | Purpose |
+|---|---|
+| `NOUS_PUBLIC_BASE_URL` | Base URL used by the OAuth discovery documents for the public MCP edge. |
+| `NOUS_PUBLIC_MCP_HOSTED_BINDINGS_JSON` | Seeded hosted tenant bindings used to map a public host or user handle to a hosted backend. |
+| `NOUS_PUBLIC_MCP_TUNNEL_SESSIONS_JSON` | Seeded tunnel sessions used to map a public host or user handle to a local-tunnel backend. |
+
+See [Configuration Schema](/docs/configuration/config-schema) for the accepted JSON shapes.
 
 ## Runtime boundary
 
-The public MCP edge is not a public-only business-logic stack. The host accepts HTTP and JSON-RPC traffic, the public gateway owns admission and audit posture, and admitted calls flow into the canonical gateway/runtime seam. Long-running public work is projected through subject-scoped task records rather than a second status model. Phase 13.4 does not add any public promoted-tier tool or public path into internal-only promoted storage.
+The public MCP edge is not a public-only business-logic stack. The host accepts HTTP and JSON-RPC
+traffic, the public gateway owns admission and audit posture, and admitted calls flow into the
+canonical gateway/runtime seam.
+
+- `local_tunnel` does not expose a raw local MCP server; it forwards only already-admitted public
+  calls into the local runtime.
+- `hosted` resolves requests into tenant-local runtime state rather than proxying through shared
+  mutable storage.
+- Long-running public work is projected through subject-scoped task records rather than a second
+  status model.
+- Phase 13.5 still does not add any public promoted-tier tool or public path into internal-only
+  promoted storage.

@@ -254,11 +254,24 @@ Allowing approved external clients to discover and call the ratified public MCP 
 - Boundary-local `ExternalClient` subject posture; internal Worker, Orchestrator, Cortex:System, and Cortex:Principal classes remain unchanged
 - Public `ortho.*` tool names mapped once onto the canonical flat internal catalog
 - External-only namespace bootstrap and witness-linked audit evidence for durable admits and security-sensitive rejects
-- Phase 13.1 intentionally exposes no current-phase-enabled public tools until later public capability phases land
+- Same public contract across `development`, `local_tunnel`, and `hosted` backends
+- Public-safe system info can expose deployment mode, phase, and server name without revealing internal-only topology
+- Backend selection is internal to the edge and does not create a second public API surface
 
 ### Runtime Boundary
 
-The public MCP edge is not a second API stack. The web host parses HTTP and discovery traffic, then composes `IPublicMcpGatewayService` with the core public execution bridge. Admitted traffic still flows through the existing AgentGateway, Internal MCP, and backpressure seams, and rejected traffic records the same witness and audit posture as other authority-sensitive ingress paths.
+The public MCP edge is not a second API stack. The web host parses HTTP and discovery traffic, then
+composes `IPublicMcpGatewayService` with the core public execution bridge.
+
+- Admitted traffic still flows through the existing AgentGateway, Internal MCP, and backpressure
+  seams, and rejected traffic records the same witness and audit posture as other
+  authority-sensitive ingress paths.
+- The public edge remains the only admission authority for auth, quotas, rate limits, and audit
+  posture even when execution is routed to a tunnel or hosted backend.
+- Tunnel mode does not expose a raw local MCP server publicly; it forwards only already-admitted
+  public calls into the local runtime.
+- Hosted mode resolves requests into tenant-local runtime state rather than a shared thin proxy
+  over shared mutable storage.
 
 ---
 

@@ -62,6 +62,35 @@ describe('PublicMcpSurfaceService', () => {
     expect(systemInfo.tasks.supportedMethods).toEqual(['tasks/get', 'tasks/result']);
   });
 
+  it('projects backend-aware system info from deployment-specific options', async () => {
+    const documentStore = createMemoryDocumentStore();
+    const service = new PublicMcpSurfaceService({
+      runtimeAdapter: {
+        runAgent: vi.fn(),
+      },
+      taskStore: new PublicMcpTaskProjectionStore(documentStore),
+      auditStore: new AuditProjectionStore(documentStore),
+      publicAgents: [],
+      backendMode: 'hosted',
+      featureOverrides: {
+        publicCompactAsync: false,
+      },
+      taskToolSupport: {
+        'ortho.agents.v1.invoke': 'required',
+      },
+    });
+
+    const systemInfo = await service.getSystemInfo({
+      requestId: '550e8400-e29b-41d4-a716-446655440010',
+      subject: SUBJECT,
+      requestedAt: '2026-03-14T00:00:00.000Z',
+    });
+
+    expect(systemInfo.server.backendMode).toBe('hosted');
+    expect(systemInfo.features.publicCompactAsync).toBe(false);
+    expect(systemInfo.tasks.toolSupport['ortho.agents.v1.invoke']).toBe('required');
+  });
+
   it('creates async public invoke tasks and serves the completed result', async () => {
     const documentStore = createMemoryDocumentStore();
     const service = new PublicMcpSurfaceService({

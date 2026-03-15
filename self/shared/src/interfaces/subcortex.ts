@@ -165,6 +165,7 @@ import type {
   PublicMcpCompactArguments,
   PublicMcpDiscoveryBundle,
   PublicMcpDeleteArguments,
+  PublicMcpDeploymentResolution,
   ExternalSourceCompactionResult,
   ExternalSourceMemoryEntry,
   ExternalSourceMutationResult,
@@ -502,6 +503,11 @@ export interface IPublicMcpGatewayService {
 
   /** Execute an authorized public MCP request over the canonical bridge surface. */
   execute(request: PublicMcpExecutionRequest): Promise<PublicMcpExecutionResult>;
+}
+
+export interface IPublicMcpDeploymentRouterService {
+  /** Resolve the active backend mode and deployment binding for a public MCP request. */
+  resolve(request: PublicMcpExecutionRequest): Promise<PublicMcpDeploymentResolution>;
 }
 
 export interface PublicMcpAgentListQuery {

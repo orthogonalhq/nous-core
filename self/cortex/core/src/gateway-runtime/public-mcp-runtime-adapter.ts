@@ -6,6 +6,7 @@ import type {
   IAgentGatewayFactory,
   IModelProvider,
   IModelRouter,
+  PublicMcpDeploymentMode,
   ModelRequirements,
   ProjectId,
   ProviderId,
@@ -41,6 +42,11 @@ export interface PublicMcpRuntimeInvocation {
     role: 'system' | 'user';
     content: string;
   }>;
+  runtimeContext?: {
+    deploymentMode?: PublicMcpDeploymentMode;
+    tenantId?: string;
+    userHandle?: string;
+  };
   modelRequirements?: ModelRequirements;
 }
 
@@ -111,12 +117,15 @@ export class PublicMcpRuntimeAdapter {
     const result = await gateway.run({
       taskInstructions: request.taskInstructions,
       payload: request.payload,
-      context: (request.context ?? []).map((frame) => ({
-        role: frame.role,
-        source: 'initial_context' as const,
-        content: frame.content,
-        createdAt: this.now(),
-      })),
+      context: [
+        ...buildRuntimeContextPrelude(request.runtimeContext),
+        ...(request.context ?? []).map((frame) => ({
+          role: frame.role,
+          source: 'initial_context' as const,
+          content: frame.content,
+          createdAt: this.now(),
+        })),
+      ],
       budget: DEFAULT_PUBLIC_AGENT_BUDGET,
       spawnBudgetCeiling: request.targetClass === 'Orchestrator' ? 8 : 0,
       correlation: {
@@ -201,4 +210,37 @@ export class PublicMcpRuntimeAdapter {
       evidenceRefs: result.evidenceRefs,
     };
   }
+}
+
+function buildRuntimeContextPrelude(
+  runtimeContext?: PublicMcpRuntimeInvocation['runtimeContext'],
+) {
+  if (!runtimeContext) {
+    return [];
+  }
+
+  const lines = [
+    runtimeContext.deploymentMode
+      ? `Public deployment mode: ${runtimeContext.deploymentMode}`
+      : undefined,
+    runtimeContext.tenantId
+      ? `Hosted tenant: ${runtimeContext.tenantId}`
+      : undefined,
+    runtimeContext.userHandle
+      ? `Resolved user handle: ${runtimeContext.userHandle}`
+      : undefined,
+  ].filter((value): value is string => Boolean(value));
+
+  if (lines.length === 0) {
+    return [];
+  }
+
+  return [
+    {
+      role: 'system' as const,
+      source: 'initial_context' as const,
+      content: lines.join('\n'),
+      createdAt: new Date().toISOString(),
+    },
+  ];
 }

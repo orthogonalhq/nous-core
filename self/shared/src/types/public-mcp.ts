@@ -44,6 +44,9 @@ export const PublicMcpRejectReasonSchema = z.enum([
   'task_not_found',
   'task_not_ready',
   'task_not_owned',
+  'deployment_not_resolved',
+  'tunnel_envelope_invalid',
+  'tunnel_replay_detected',
 ]);
 export type PublicMcpRejectReason = z.infer<typeof PublicMcpRejectReasonSchema>;
 
@@ -323,6 +326,70 @@ export const PublicMcpSystemInfoSchema = z.object({
   }).strict(),
 }).strict();
 export type PublicMcpSystemInfo = z.infer<typeof PublicMcpSystemInfoSchema>;
+
+export const PublicMcpDeploymentModeSchema = z.enum([
+  'local_tunnel',
+  'hosted',
+  'development',
+]);
+export type PublicMcpDeploymentMode = z.infer<typeof PublicMcpDeploymentModeSchema>;
+
+export const PublicMcpUserHandleSchema = z
+  .string()
+  .regex(/^[a-z0-9](?:[a-z0-9_-]{1,30}[a-z0-9])?$/);
+export type PublicMcpUserHandle = z.infer<typeof PublicMcpUserHandleSchema>;
+
+export const PublicMcpTunnelSessionRecordSchema = z.object({
+  sessionId: z.string().min(1),
+  userHandle: PublicMcpUserHandleSchema,
+  host: z.string().min(1),
+  sharedSecret: z.string().min(32),
+  status: z.enum(['active', 'revoked']).default('active'),
+  createdAt: z.string().datetime(),
+  updatedAt: z.string().datetime(),
+  expiresAt: z.string().datetime().optional(),
+  lastSeenAt: z.string().datetime().optional(),
+}).strict();
+export type PublicMcpTunnelSessionRecord = z.infer<
+  typeof PublicMcpTunnelSessionRecordSchema
+>;
+
+export const PublicMcpHostedTenantBindingRecordSchema = z.object({
+  bindingId: z.string().min(1),
+  tenantId: z.string().min(1),
+  userHandle: PublicMcpUserHandleSchema,
+  host: z.string().min(1),
+  storePrefix: z.string().min(1),
+  serverName: z.string().min(1).default('Nous Public MCP'),
+  phase: z.string().min(1).default('phase-13.5'),
+  status: z.enum(['active', 'disabled']).default('active'),
+  createdAt: z.string().datetime(),
+  updatedAt: z.string().datetime(),
+}).strict();
+export type PublicMcpHostedTenantBindingRecord = z.infer<
+  typeof PublicMcpHostedTenantBindingRecordSchema
+>;
+
+export const PublicMcpDeploymentAuditDetailSchema = z.object({
+  mode: PublicMcpDeploymentModeSchema,
+  requestHost: z.string().min(1),
+  userHandle: PublicMcpUserHandleSchema.optional(),
+  sessionId: z.string().min(1).optional(),
+  bindingId: z.string().min(1).optional(),
+  tenantId: z.string().min(1).optional(),
+  storePrefix: z.string().min(1).optional(),
+}).strict();
+export type PublicMcpDeploymentAuditDetail = z.infer<
+  typeof PublicMcpDeploymentAuditDetailSchema
+>;
+
+export const PublicMcpDeploymentResolutionSchema = PublicMcpDeploymentAuditDetailSchema.extend({
+  serverName: z.string().min(1).optional(),
+  phase: z.string().min(1).optional(),
+}).strict();
+export type PublicMcpDeploymentResolution = z.infer<
+  typeof PublicMcpDeploymentResolutionSchema
+>;
 
 export const ExternalMemoryEntryIdSchema = z.string().min(1).max(128);
 export type ExternalMemoryEntryId = z.infer<typeof ExternalMemoryEntryIdSchema>;
@@ -794,6 +861,7 @@ export const PublicMcpExecutionRequestSchema = z.object({
   toolName: z.string().regex(/^ortho\.[a-z0-9.]+$/).optional(),
   arguments: z.record(z.unknown()).optional(),
   subject: PublicMcpSubjectSchema,
+  requestUrl: z.string().url().optional(),
   idempotencyKey: z.string().min(1).optional(),
   requestedAt: z.string().datetime(),
 }).strict();
@@ -819,3 +887,18 @@ export const PublicMcpExecutionResultSchema = z.object({
   auditRecordId: z.string().min(1).optional(),
 }).strict();
 export type PublicMcpExecutionResult = z.infer<typeof PublicMcpExecutionResultSchema>;
+
+export const PublicMcpTunnelForwardEnvelopeSchema = z.object({
+  envelopeId: z.string().min(1),
+  requestId: z.string().uuid(),
+  sessionId: z.string().min(1),
+  userHandle: PublicMcpUserHandleSchema,
+  nonce: z.string().min(1),
+  issuedAt: z.string().datetime(),
+  expiresAt: z.string().datetime(),
+  request: PublicMcpExecutionRequestSchema,
+  signature: z.string().min(1),
+}).strict();
+export type PublicMcpTunnelForwardEnvelope = z.infer<
+  typeof PublicMcpTunnelForwardEnvelopeSchema
+>;

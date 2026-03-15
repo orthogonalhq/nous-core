@@ -16,6 +16,8 @@ function wait(ms: number) {
 
 describe('public MCP route', () => {
   afterEach(() => {
+    delete process.env.NOUS_PUBLIC_MCP_HOSTED_BINDINGS_JSON;
+    delete process.env.NOUS_PUBLIC_MCP_TUNNEL_SESSIONS_JSON;
     clearNousContextCache();
   });
 
@@ -144,5 +146,93 @@ describe('public MCP route', () => {
     expect(taskResultResponse.status).toBe(200);
     expect(taskResultBody.result.status).toBe('completed');
     expect(taskResultBody.result.result.outputs[0].type).toBe('text');
+  });
+
+  it('keeps one public route while selecting the hosted backend from the request host', async () => {
+    process.env.NOUS_DATA_DIR = join(tmpdir(), `nous-web-public-mcp-${randomUUID()}`);
+    process.env.NOUS_PUBLIC_MCP_HOSTED_BINDINGS_JSON = JSON.stringify([
+      {
+        bindingId: 'binding-1',
+        tenantId: 'tenant-1',
+        userHandle: 'andre',
+        host: 'andre.nous.run',
+        storePrefix: 'tenant-andre',
+        serverName: 'Andre Hosted Nous',
+        phase: 'phase-13.5',
+        status: 'active',
+        createdAt: '2026-03-14T00:00:00.000Z',
+        updatedAt: '2026-03-14T00:00:00.000Z',
+      },
+    ]);
+    clearNousContextCache();
+
+    const response = await POST(new Request('https://andre.nous.run/mcp', {
+      method: 'POST',
+      headers: {
+        'content-type': 'application/json',
+        authorization: `Bearer ${encodeClaims({
+          clientId: 'client-1',
+          audience: 'urn:nous:ortho:mcp',
+          scopes: ['ortho.system.read'],
+          expiresAt: '2030-01-01T00:00:00.000Z',
+        })}`,
+      },
+      body: JSON.stringify({
+        jsonrpc: '2.0',
+        id: 'rpc-1',
+        method: 'tools/call',
+        params: {
+          name: 'ortho.system.v1.info',
+          arguments: {},
+        },
+      }),
+    }));
+    const body = await response.json();
+
+    expect(response.status).toBe(200);
+    expect(body.result.server.backendMode).toBe('hosted');
+    expect(body.result.server.name).toBe('Andre Hosted Nous');
+  });
+
+  it('keeps one public route while selecting the tunnel backend from the request host', async () => {
+    process.env.NOUS_DATA_DIR = join(tmpdir(), `nous-web-public-mcp-${randomUUID()}`);
+    process.env.NOUS_PUBLIC_MCP_TUNNEL_SESSIONS_JSON = JSON.stringify([
+      {
+        sessionId: 'session-1',
+        userHandle: 'casey',
+        host: 'casey.tunnel.nous.run',
+        sharedSecret: '0123456789abcdef0123456789abcdef',
+        status: 'active',
+        createdAt: '2026-03-14T00:00:00.000Z',
+        updatedAt: '2026-03-14T00:00:00.000Z',
+      },
+    ]);
+    clearNousContextCache();
+
+    const response = await POST(new Request('https://casey.tunnel.nous.run/mcp', {
+      method: 'POST',
+      headers: {
+        'content-type': 'application/json',
+        authorization: `Bearer ${encodeClaims({
+          clientId: 'client-1',
+          audience: 'urn:nous:ortho:mcp',
+          scopes: ['ortho.system.read'],
+          expiresAt: '2030-01-01T00:00:00.000Z',
+        })}`,
+      },
+      body: JSON.stringify({
+        jsonrpc: '2.0',
+        id: 'rpc-1',
+        method: 'tools/call',
+        params: {
+          name: 'ortho.system.v1.info',
+          arguments: {},
+        },
+      }),
+    }));
+    const body = await response.json();
+
+    expect(response.status).toBe(200);
+    expect(body.result.server.backendMode).toBe('local_tunnel');
   });
 });

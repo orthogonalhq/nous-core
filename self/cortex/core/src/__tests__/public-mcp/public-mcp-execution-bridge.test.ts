@@ -18,6 +18,7 @@ function createRequest(toolName: string) {
       scopes: ['ortho.system.read'],
       audience: 'urn:nous:ortho:mcp',
     },
+    requestUrl: 'https://andre.nous.run/mcp',
     requestedAt: '2026-03-14T00:00:00.000Z',
   };
 }
@@ -74,7 +75,10 @@ describe('PublicMcpExecutionBridge executeMappedTool', () => {
     expect(result.result).toEqual({ ok: true });
     expect(executor.execute).toHaveBeenCalledWith(
       'public_system_info',
-      expect.objectContaining({ toolName: 'ortho.system.v1.info' }),
+      expect.objectContaining({
+        toolName: 'ortho.system.v1.info',
+        requestUrl: 'https://andre.nous.run/mcp',
+      }),
     );
   });
 
