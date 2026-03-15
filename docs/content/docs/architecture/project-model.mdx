@@ -131,6 +131,17 @@ Project identity is deterministic across all surfaces (chat, runtime, MAO/UI):
 
 These fields resolve identically regardless of which interface is used.
 
+### Installed Packages vs. Live Projects
+
+Phase 14.1 separates installable package stores from live workspace state:
+
+- Installable workflow packages live in `.workflows/`
+- Installable skill packages live in `.skills/`
+- Installable app packages live in `.apps/`
+- Active local project instances live in `.projects/`
+
+This matters because a live project is not itself the installable package. A project may be created from a workflow package, reference multiple skills, and interact with installed app surfaces, but its runtime state, local configuration, and accumulated work remain project-scoped workspace data. Legacy manifests that still use `package_type: project` are accepted at ingress and normalized to the canonical `workflow` package type before they become stored runtime or registry truth.
+
 ### Memory Access Policy
 
 Each project declares a memory access policy with three fields:
@@ -453,6 +464,7 @@ The workflow engine must support all four patterns within a single project graph
 This project model extends existing Nous concepts:
 
 - **ProjectStore** → Becomes the container for project type, workflow graph, governance configuration, artifact references, and Phase 9.1 canonical workflow definitions/default workflow references — not just namespace and config
+- **Canonical Root Stores** → Phase 14.1 separates installable `.workflows/`, `.skills/`, and `.apps/` stores from live `.projects/` workspace state so runtime truth does not confuse package inventory with active project instances
 - **Cortex Engine** → Gains a per-project supervisor mode in addition to per-turn evaluation
 - **Cortex Core Runtime** → Phase 12.1 now hosts the additive `AgentGateway` execution harness beside `CoreExecutor`, giving internal agent work a deterministic multi-turn runtime without moving workflow run-state authority out of the Phase 9 workflow engine
 - **ModelRouter** → Must route heterogeneous provider types, not just text model roles

@@ -18,6 +18,11 @@ Everything that IS Nous lives inside `self/`. Everything else — documentation,
 ```
 nous-core/
 │
+├── .apps/                            # Installable app packages
+├── .skills/                          # Installable skill packages + .system process infrastructure
+├── .workflows/                       # Installable workflow packages
+├── .projects/                        # Local workspace state and project instances
+├── .contracts/                       # Shared contract bundles and contract-local assets
 ├── self/                             # The being
 │   ├── apps/                         # Senses — interaction surfaces
 │   ├── cortex/                       # Layer 1 — Consciousness
@@ -25,15 +30,13 @@ nous-core/
 │   ├── subcortex/                    # Layer 3 — Subconscious Processing
 │   ├── autonomic/                    # Layer 4 — Infrastructure
 │   └── shared/                       # Cross-layer nervous system
-│
-├── packages/                         # Acquired knowledge and workflows (not part of the being)
-│   ├── skills/                       #   Knowledge packages — makes Nous smarter
-│   └── projects/                     #   Workflow packages — makes Nous productive
 ├── docs/                             # Written about the being
 ├── examples/                         # Demonstrations of the being
 ├── scripts/                          # Tools used during development
 └── package.json
 ```
+
+The hidden root directories are the canonical package and workspace stores. Installable packages live in `.apps/`, `.skills/`, and `.workflows/`; active local project state lives in `.projects/`; shared contracts live in `.contracts/`.
 
 ---
 
@@ -608,26 +611,39 @@ See Packages and Plugins (architecture reference) for the full design.
 
 ---
 
-## packages/ — Acquired Knowledge and Workflows
+## Canonical Root Stores Outside `self/`
 
-Lives outside `self/`. Packages are things the being has acquired — education and plans — not organs the being grew.
+The package and workspace stores live outside `self/`. They are things the being has acquired or is actively working on, not organs the being grew.
 
 ```
-packages/
-├── skills/                           # Knowledge packages
-│   ├── image-quality-assessment/
-│   ├── react-best-practices/
-│   ├── real-estate-fundamentals/
-│   ├── social-media-strategy/
-│   └── ...
-└── projects/                         # Workflow packages
-    ├── persona-engine/
-    ├── deal-scout/
-    ├── inbox-manager/
-    └── ...
+.apps/                                # Installable app packages
+├── approved-connector/
+├── dashboard-extension/
+└── ...
+
+.skills/                              # Installable skill packages
+├── .system/                          # System-owned process infrastructure
+├── image-quality-assessment/
+├── react-best-practices/
+└── ...
+
+.workflows/                           # Installable workflow packages
+├── persona-engine/
+├── deal-scout/
+└── ...
+
+.projects/                            # Local workspace state, not an install target
+├── principal-inbox/
+├── synthetic-persona-lab/
+└── ...
+
+.contracts/                           # Shared contract store
+├── packets/
+├── schemas/
+└── ...
 ```
 
-### packages/skills/ — Knowledge
+### `.skills/` and `.skills/.system/` — Knowledge
 
 Skills are educational packages. They teach Nous how to think about a domain.
 
@@ -638,15 +654,13 @@ A skill contains:
 * Reference material and documentation
 * Scripts for validation or analysis (optional)
 
-Skills get absorbed into Nous's knowledge base and inform reasoning across any project that touches that domain. They don't execute workflows. They make Nous smarter.
+Skills inform reasoning across any project or workflow that touches that domain. They do not execute work directly. `.skills/.system/` remains reserved for system-owned process infrastructure and follows the same discovery path under the canonical root layout.
 
-A skill is education. Books read, courses taken, expertise accumulated.
+### `.workflows/` — Workflow Packages
 
-### packages/projects/ — Workflows
+Workflow packages are executable packages. They give Nous a specific plan to execute.
 
-Projects are executable workflow packages. They give Nous a specific plan to execute.
-
-A project contains:
+A workflow package contains:
 
 * Workflow graph definitions (nodes, connections, governance levels)
 * Custom node logic (validation, transformation, integration)
@@ -656,13 +670,32 @@ A project contains:
 * Memory access policy defaults
 * Scheduling and escalation configurations
 
-Projects produce artifacts and outcomes. All execution is sandboxed. All interaction with Nous goes through the Project API.
+Workflow packages produce artifacts and outcomes. All execution is sandboxed. All interaction with Nous goes through the Project API. The canonical package type is `workflow`; legacy manifest inputs that still say `project` are normalized at validation ingress so stored runtime state and registry records stay canonical.
 
-A project is a job. Specific work being executed, informed by the skills Nous has absorbed.
+### `.apps/` — Installable Apps
+
+App packages add installable operator surfaces and runtime extensions outside the built-in `self/apps/` senses.
+
+An app package can declare:
+
+* Required permissions and tool declarations
+* Optional panels and entrypoints
+* App-scoped configuration fields
+* Optional adapters and lifecycle hooks
+
+This keeps the distinction clear: `self/apps/` contains first-party senses that are part of the being, while `.apps/` stores installable packages that can extend the operator experience.
+
+### `.projects/` — Workspace State
+
+`.projects/` stores active local project instances, project configuration, and user workspace state. Discovery classifies it as workspace state rather than as a package store, so it is not treated as an install target alongside `.apps/`, `.skills/`, or `.workflows/`.
+
+### `.contracts/` — Shared Contracts
+
+`.contracts/` is reserved for shared packet, schema, and contract assets that need a canonical root outside `self/`. Discovery classifies it as `shared_contracts`, not as an installable package store.
 
 ### Composition
 
-Projects reference skills. The Persona Engine project uses the "image quality assessment" skill and the "social media strategy" skill. The project defines what to do. The skills inform how to think about it while doing it.
+Workflow packages reference skills. App packages expose additional tools, panels, or adapters. Local project instances in `.projects/` compose the installed packages into active runtime work without collapsing workspace state into the installable package stores.
 
 ---
 
@@ -828,6 +861,12 @@ Phase 10.1 adds:
 Phase 10.2 expands:
 
 - `nudge.ts` — ranking-policy, suppression, delivery, feedback-record, and acceptance-routing contracts used by the advisory discovery runtime and later delivery surfaces
+
+Phase 14.1 adds:
+
+- `package-manifest.ts` — canonical package-type normalization, including legacy `project` to canonical `workflow` ingress compatibility
+- `app-permissions.ts` / `app-manifest.ts` — shared app permissions, tools, panels, adapters, lifecycle, and install-validation contracts
+- `package-store.ts` — canonical five-root store layout and discovery snapshot contracts for `.apps/`, `.skills/`, `.workflows/`, `.projects/`, and `.contracts/`
 
 Phase 9.6 adds:
 
