@@ -3,6 +3,7 @@ import {
   RegistryAppealRecordSchema,
   RegistryGovernanceActionSchema,
   RegistryInstallEligibilitySnapshotSchema,
+  RegistryPackageSchema,
   RegistryMetadataValidationResultSchema,
   RegistryReleaseSubmissionInputSchema,
 } from '../../types/registry.js';
@@ -52,6 +53,25 @@ describe('RegistryReleaseSubmissionInputSchema', () => {
     });
 
     expect(result.success).toBe(true);
+  });
+});
+
+describe('RegistryPackageSchema', () => {
+  it('requires canonical package types for stored package records', () => {
+    const result = RegistryPackageSchema.safeParse({
+      package_id: 'pkg.persona-engine',
+      package_type: 'project',
+      display_name: 'Persona Engine',
+      trust_tier: 'verified_maintainer',
+      distribution_status: 'active',
+      compatibility_state: 'compatible',
+      maintainer_ids: ['maintainer:1'],
+      evidence_refs: [],
+      created_at: NOW,
+      updated_at: NOW,
+    });
+
+    expect(result.success).toBe(false);
   });
 });
 
@@ -153,7 +173,7 @@ describe('Registry browse/detail projection schemas', () => {
     const detail = RegistryPackageDetailSnapshotSchema.safeParse({
       package: {
         package_id: 'pkg.persona-engine',
-        package_type: 'project',
+        package_type: 'workflow',
         display_name: 'Persona Engine',
         latest_release_id: 'release-1',
         trust_tier: 'verified_maintainer',
