@@ -50,6 +50,7 @@ import {
   RegistryReleaseSchema,
   RegistryReleaseSubmissionInputSchema,
   RegistryReleaseSubmissionResultSchema,
+  normalizePackageType,
 } from '@nous/shared';
 import { evaluateRegistryEligibility } from './eligibility-evaluator.js';
 import { validateRegistryMetadataChain } from './metadata-validator.js';
@@ -88,6 +89,7 @@ export class RegistryService implements IRegistryService {
     input: RegistryReleaseSubmissionInput,
   ): Promise<RegistryReleaseSubmissionResult> {
     const parsed = RegistryReleaseSubmissionInputSchema.parse(input);
+    const canonicalPackageType = normalizePackageType(parsed.package_type);
     const timestamp = parsed.published_at ?? this.now();
     const releaseId = this.nextId();
     const maintainers = await this.ensureMaintainers(
@@ -130,7 +132,7 @@ export class RegistryService implements IRegistryService {
     const evidenceRefs = [`witness:${witnessRef}`];
     const packageRecord = RegistryPackageSchema.parse({
       package_id: parsed.package_id,
-      package_type: parsed.package_type,
+      package_type: canonicalPackageType,
       display_name: parsed.display_name,
       latest_release_id: releaseId,
       trust_tier: trustTier,

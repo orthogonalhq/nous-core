@@ -10,7 +10,7 @@ describe('DocumentRegistryStore', () => {
 
     await store.savePackage({
       package_id: 'pkg.persona-engine',
-      package_type: 'project',
+      package_type: 'workflow',
       display_name: 'Persona Engine',
       latest_release_id: 'release-1',
       trust_tier: 'verified_maintainer',

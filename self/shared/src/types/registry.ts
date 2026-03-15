@@ -1,6 +1,10 @@
 import { z } from 'zod';
 import { EscalationIdSchema, ProjectIdSchema } from './ids.js';
-import { ManifestPackageTypeSchema, OriginClassSchema } from './package-manifest.js';
+import {
+  CanonicalPackageTypeSchema,
+  ManifestPackageTypeSchema,
+  OriginClassSchema,
+} from './package-manifest.js';
 
 export const RegistryReasonCodeSchema = z
   .string()
@@ -106,7 +110,7 @@ export type SignedMetadataChain = z.infer<typeof SignedMetadataChainSchema>;
 
 export const RegistryPackageSchema = z.object({
   package_id: z.string().min(1),
-  package_type: ManifestPackageTypeSchema,
+  package_type: CanonicalPackageTypeSchema,
   display_name: z.string().min(1),
   latest_release_id: z.string().min(1).optional(),
   trust_tier: RegistryTrustTierSchema,

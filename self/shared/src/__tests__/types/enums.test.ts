@@ -135,8 +135,12 @@ describe('EscalationChannelSchema', () => {
 });
 
 describe('PackageTypeSchema', () => {
-  it.each(['skill', 'project'])('accepts "%s"', (type) => {
+  it.each(['skill', 'project', 'app', 'workflow'])('accepts "%s"', (type) => {
     expect(PackageTypeSchema.safeParse(type).success).toBe(true);
+  });
+
+  it('rejects unsupported package types', () => {
+    expect(PackageTypeSchema.safeParse('plugin').success).toBe(false);
   });
 });
 

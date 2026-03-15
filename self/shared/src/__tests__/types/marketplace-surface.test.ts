@@ -33,7 +33,7 @@ describe('RegistryBrowseResultSchema', () => {
         {
           package: {
             package_id: 'pkg.persona-engine',
-            package_type: 'project',
+            package_type: 'workflow',
             display_name: 'Persona Engine',
             latest_release_id: 'release-1',
             trust_tier: 'verified_maintainer',
@@ -126,7 +126,7 @@ describe('RegistryPackageDetailSnapshotSchema', () => {
     const result = RegistryPackageDetailSnapshotSchema.safeParse({
       package: {
         package_id: 'pkg.persona-engine',
-        package_type: 'project',
+        package_type: 'workflow',
         display_name: 'Persona Engine',
         latest_release_id: 'release-1',
         trust_tier: 'verified_maintainer',
@@ -181,7 +181,7 @@ describe('MarketplaceModerationDashboardSnapshotSchema', () => {
         {
           package: {
             package_id: 'pkg.persona-engine',
-            package_type: 'project',
+            package_type: 'workflow',
             display_name: 'Persona Engine',
             latest_release_id: 'release-1',
             trust_tier: 'verified_maintainer',

@@ -5,9 +5,9 @@
  */
 import { z } from 'zod';
 import {
+  CanonicalPackageTypeSchema,
   OriginClassSchema,
 } from './package-manifest.js';
-import { PackageTypeSchema } from './enums.js';
 import { PackageLifecycleReasonCodeSchema } from './package-lifecycle.js';
 
 export const SandboxAdmissionSchema = z.object({
@@ -63,7 +63,7 @@ export const SandboxPayloadSchema = z.object({
   source: z.string().min(1),
   package_id: z.string().min(1),
   package_version: z.string().min(1),
-  package_type: PackageTypeSchema,
+  package_type: CanonicalPackageTypeSchema,
   origin_class: OriginClassSchema,
   declared_capabilities: z.array(z.string().min(1)).min(1),
   admission: SandboxAdmissionSchema,
