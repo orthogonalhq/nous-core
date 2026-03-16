@@ -29,6 +29,9 @@
       "@nous/shared": [
         "../../shared/src/index.ts"
       ],
+      "@nous/autonomic-runtime": [
+        "../../autonomic/runtime/src/index.ts"
+      ],
       "@nous/autonomic-storage": [
         "../../autonomic/storage/src/index.ts"
       ],
@@ -59,6 +62,9 @@
       "@nous/subcortex-scheduler": [
         "../../subcortex/scheduler/src/index.ts"
       ],
+      "@nous/subcortex-projects": [
+        "../../subcortex/projects/src/index.ts"
+      ],
       "@nous/subcortex-escalation": [
         "../../subcortex/escalation/src/index.ts"
       ],
@@ -67,6 +73,9 @@
       ],
       "@nous/subcortex-endpoint-trust": [
         "../../subcortex/endpoint-trust/src/index.ts"
+      ],
+      "@nous/subcortex-workflows": [
+        "../../subcortex/workflows/src/index.ts"
       ],
       "@nous/subcortex-voice-control": [
         "../../subcortex/voice-control/src/index.ts"
