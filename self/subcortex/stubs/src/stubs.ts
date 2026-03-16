@@ -163,6 +163,13 @@ export class StubWorkflowEngine implements IWorkflowEngine {
     return stubNotImpl('IWorkflowEngine', 'resolveDefinition', 'Phase 9.1');
   }
 
+  async resolveDefinitionSource(
+    _projectConfig: ProjectConfig,
+    _workflowDefinitionId?: import('@nous/shared').WorkflowDefinitionId,
+  ): Promise<import('@nous/shared').ResolvedWorkflowDefinitionSource | null> {
+    return stubNotImpl('IWorkflowEngine', 'resolveDefinitionSource', 'Phase 14.3');
+  }
+
   async deriveGraph(
     _definition: WorkflowDefinition,
   ): Promise<DerivedWorkflowGraph> {
