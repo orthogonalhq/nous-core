@@ -70,6 +70,25 @@ describe('NousPackageManifestSchema', () => {
     expect(result.success).toBe(true);
   });
 
+  it('accepts dependency declarations and preserves tool requirements', () => {
+    const result = NousPackageManifestSchema.safeParse({
+      ...BASE_MANIFEST,
+      dependencies: {
+        packages: [
+          {
+            package_id: 'pkg.shared-runtime',
+            package_type: 'skill',
+            version_range: '^2.0.0',
+            required: true,
+          },
+        ],
+        tool_requirements: ['tool.persona'],
+      },
+    });
+
+    expect(result.success).toBe(true);
+  });
+
   it('rejects invalid package_type values', () => {
     const result = NousPackageManifestSchema.safeParse({
       ...BASE_MANIFEST,

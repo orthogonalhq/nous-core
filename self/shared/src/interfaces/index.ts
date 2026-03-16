@@ -39,6 +39,7 @@ export type {
   IVoiceControlService,
   ISandbox,
   IPackageLifecycleOrchestrator,
+  IPackageInstallService,
   ISkillAdmissionOrchestrator,
   IWitnessService,
   IOpctlService,

@@ -4,10 +4,9 @@
  * Handles platform-specific data directories, path resolution,
  * and environment detection for macOS, Linux, and Windows.
  */
-import { resolve } from 'node:path';
-import { join } from 'node:path';
+import { dirname, join, resolve } from 'node:path';
 import { homedir, platform, arch } from 'node:os';
-import { access } from 'node:fs/promises';
+import { access, cp, mkdir, readdir, rm, writeFile } from 'node:fs/promises';
 import type { IRuntime } from '@nous/shared';
 import type { PlatformInfo } from '@nous/shared';
 
@@ -66,6 +65,27 @@ export class NodeRuntime implements IRuntime {
     } catch {
       return false;
     }
+  }
+
+  async ensureDir(path: string): Promise<void> {
+    await mkdir(path, { recursive: true });
+  }
+
+  async writeFile(path: string, content: string | Uint8Array): Promise<void> {
+    await mkdir(dirname(path), { recursive: true });
+    await writeFile(path, content);
+  }
+
+  async copyDirectory(from: string, to: string): Promise<void> {
+    await cp(from, to, { recursive: true, force: true });
+  }
+
+  async removePath(path: string): Promise<void> {
+    await rm(path, { recursive: true, force: true });
+  }
+
+  async listDirectory(path: string): Promise<string[]> {
+    return readdir(path);
   }
 
   getPlatform(): PlatformInfo {

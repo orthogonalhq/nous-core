@@ -88,6 +88,8 @@ import type {
   PackageLifecycleTransitionRequest,
   PackageLifecycleTransitionResult,
   PackageLifecycleStateRecord,
+  PackageInstallRequest,
+  PackageInstallResult,
   SkillAdmissionDecisionInput,
   SkillAdmissionDecisionRecord,
   SkillAdmissionRequest,
@@ -753,6 +755,11 @@ export interface IPackageLifecycleOrchestrator {
     projectId: ProjectId,
     packageId: string,
   ): Promise<PackageLifecycleStateRecord | null>;
+}
+
+export interface IPackageInstallService {
+  /** Resolve, authorize, materialize, and record one package install or update. */
+  installPackage(request: PackageInstallRequest): Promise<PackageInstallResult>;
 }
 
 export interface ISkillAdmissionOrchestrator {

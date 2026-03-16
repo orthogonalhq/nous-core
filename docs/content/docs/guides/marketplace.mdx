@@ -5,7 +5,7 @@ description: Browse governed packages, inspect moderation posture, and act on ad
 
 # Marketplace
 
-Phase 10.3 adds a dedicated marketplace governance surface in the web app plus a companion `nous pkg discover` CLI seam.
+The marketplace governance surface in the web app and the companion `nous pkg discover` CLI seam expose the same canonical browse, moderation, and advisory discovery truth.
 
 These surfaces are projections over canonical registry and nudge-runtime truth. They do not own separate package governance, moderation, or suppression state.
 
@@ -78,6 +78,31 @@ Accepting a marketplace package suggestion does not install the package directly
 
 Marketplace-package acceptance currently routes to `runtime_authorization_required`, which records lifecycle authorization intent and then stops at the existing runtime membrane. Install and enable flows still belong to the governed lifecycle path.
 
+## From Discovery to Install
+
+Discovery stays advisory. Installation happens through the canonical package install path once you decide to proceed.
+
+Use the CLI when you want to move from a reviewed suggestion into an actual project-scoped install:
+
+```bash
+pnpm dev:cli -- pkg discover --project <id>
+pnpm dev:cli -- pkg install <package-id> --project <id>
+```
+
+You can also target a specific release or constrain the version range:
+
+```bash
+pnpm dev:cli -- pkg install <package-id> --project <id> --release rel_123
+pnpm dev:cli -- pkg install <package-id> --project <id> --version ^2.0.0
+```
+
+That install path:
+
+- Resolves dependencies through the shared canonical resolver
+- Applies the same lifecycle and trust gates used by first-party surfaces
+- Writes packages only into canonical package-store roots
+- Returns explicit `installed`, `blocked`, or `rolled_back` status with reason-coded failures
+
 ## Cross-Surface Continuity
 
 Marketplace links can preserve context into other surfaces instead of rebuilding it locally.
@@ -105,6 +130,6 @@ The command:
 
 ## Current Boundary
 
-Phase 10.3 ships marketplace browse, detail, moderation, and advisory discovery surfaces plus the CLI projection seam.
+Marketplace does not install packages directly from the discovery feed itself.
 
-It does not ship direct package installation from the discovery feed. If you need to act on an accepted package suggestion, continue through the existing lifecycle authorization flow.
+If you need to act on an accepted package suggestion, continue through the governed install path such as `nous pkg install`, which keeps dependency resolution, lifecycle enforcement, and package-store writes inside the canonical runtime membrane.

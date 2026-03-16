@@ -131,6 +131,20 @@ describe('PackageLifecycleTransitionResultSchema', () => {
     });
     expect(result.success).toBe(true);
   });
+
+  it('accepts package-resolution reason codes in blocked transition results', () => {
+    const result = PackageLifecycleTransitionResultSchema.safeParse({
+      decision: 'blocked',
+      transition: 'install',
+      from_state: 'ingested',
+      to_state: 'ingested',
+      reason_code: 'PKG-009-DEPENDENCY_RANGE_CONFLICT',
+      witness_ref: 'evt_123',
+      evidence_refs: ['event:pkg_runtime_action_decided'],
+    });
+
+    expect(result.success).toBe(true);
+  });
 });
 
 describe('PackageLifecycleStateRecordSchema', () => {

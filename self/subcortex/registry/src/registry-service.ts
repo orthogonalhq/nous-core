@@ -148,6 +148,7 @@ export class RegistryService implements IRegistryService {
     const releaseRecord = RegistryReleaseSchema.parse({
       release_id: releaseId,
       package_id: parsed.package_id,
+      package_type: canonicalPackageType,
       package_version: parsed.package_version,
       origin_class: parsed.origin_class,
       signing_key_id: parsed.signing_key_id,
@@ -155,6 +156,11 @@ export class RegistryService implements IRegistryService {
       source_hash: parsed.source_hash,
       compatibility: parsed.compatibility,
       metadata_chain: parsed.metadata_chain,
+      dependencies: parsed.dependencies ?? {
+        packages: [],
+        tool_requirements: [],
+      },
+      install_source_path: parsed.install_source_path,
       distribution_status: normalizeDistributionStatus(initiallyAccepted),
       compatibility_state: compatibilityState,
       evidence_refs: evidenceRefs,

@@ -5,6 +5,7 @@ import {
   RegistryInstallEligibilitySnapshotSchema,
   RegistryPackageSchema,
   RegistryMetadataValidationResultSchema,
+  RegistryReleaseSchema,
   RegistryReleaseSubmissionInputSchema,
 } from '../../types/registry.js';
 import {
@@ -72,6 +73,57 @@ describe('RegistryPackageSchema', () => {
     });
 
     expect(result.success).toBe(false);
+  });
+});
+
+describe('RegistryReleaseSchema', () => {
+  it('stores canonical package type plus dependency metadata on releases', () => {
+    const result = RegistryReleaseSchema.safeParse({
+      release_id: 'release-1',
+      package_id: 'pkg.persona-engine',
+      package_type: 'workflow',
+      package_version: '1.0.0',
+      origin_class: 'third_party_external',
+      signing_key_id: 'key-1',
+      signature_set_ref: 'sigset-1',
+      source_hash: 'sha256:abc123',
+      compatibility: {
+        api_contract_range: '^1.0.0',
+        capability_manifest: ['model.invoke'],
+        migration_contract_version: '1',
+        data_schema_versions: ['1'],
+        policy_profile_defaults: [],
+      },
+      metadata_chain: {
+        root_version: 1,
+        timestamp_version: 1,
+        snapshot_version: 1,
+        targets_version: 1,
+        trusted_root_key_ids: ['root-a'],
+        delegated_key_ids: [],
+        metadata_expires_at: '2027-03-12T00:00:00.000Z',
+        artifact_digest: 'sha256:abc123',
+        metadata_digest: 'sha256:def456',
+      },
+      dependencies: {
+        packages: [
+          {
+            package_id: 'pkg.shared',
+            package_type: 'skill',
+            version_range: '^2.0.0',
+            required: true,
+          },
+        ],
+        tool_requirements: ['tool.persona'],
+      },
+      install_source_path: '/tmp/pkg.persona-engine',
+      distribution_status: 'active',
+      compatibility_state: 'compatible',
+      evidence_refs: [],
+      published_at: NOW,
+    });
+
+    expect(result.success).toBe(true);
   });
 });
 

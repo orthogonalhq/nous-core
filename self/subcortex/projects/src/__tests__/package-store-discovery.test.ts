@@ -17,6 +17,18 @@ class FakeRuntime implements IRuntime {
     return this.existingPaths.has(path);
   }
 
+  async ensureDir(_path: string): Promise<void> {}
+
+  async writeFile(_path: string, _content: string | Uint8Array): Promise<void> {}
+
+  async copyDirectory(_from: string, _to: string): Promise<void> {}
+
+  async removePath(_path: string): Promise<void> {}
+
+  async listDirectory(_path: string): Promise<string[]> {
+    return [];
+  }
+
   getPlatform(): PlatformInfo {
     return {
       os: 'linux',

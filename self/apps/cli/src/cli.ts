@@ -6,7 +6,7 @@ import { Command } from 'commander';
 import { createCliTrpcClient } from './trpc-client.js';
 import { runSend } from './commands/send.js';
 import { runProjectsList, runProjectsCreate, runProjectsSwitch } from './commands/projects.js';
-import { runPkgDiscover } from './commands/pkg.js';
+import { runPkgDiscover, runPkgInstall } from './commands/pkg.js';
 import { runConfigGet, runConfigSet } from './commands/config.js';
 import { runWitnessGet, runWitnessList, runWitnessVerify } from './commands/witness.js';
 import { runOpctlRequestProof } from './commands/opctl.js';
@@ -79,6 +79,27 @@ async function main(): Promise<number> {
   const pkgCmd = program
     .command('pkg')
     .description('Discover advisory marketplace package suggestions.');
+  pkgCmd
+    .command('install <packageId>')
+    .description('Install or update a package through the canonical package install pipeline')
+    .option('--release <id>', 'Install a specific registry release id')
+    .option('--version <range>', 'Install the newest release satisfying this semver range')
+    .action(async (packageId: string, cmdOpts: { release?: string; version?: string }) => {
+      console.error(`[nous:cli] command=pkg-install`);
+      const opts = program.opts();
+      if (!opts.project) {
+        console.error('`pkg install` requires `--project`.');
+        process.exit(1);
+      }
+      const client = createCliTrpcClient(opts.apiUrl);
+      const code = await runPkgInstall(client, packageId, {
+        projectId: opts.project,
+        releaseId: cmdOpts.release,
+        versionRange: cmdOpts.version,
+        json: opts.json ?? false,
+      });
+      process.exit(code);
+    });
   pkgCmd
     .command('discover')
     .description('Show advisory marketplace suggestions for the current project context')

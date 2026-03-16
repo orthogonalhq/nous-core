@@ -12,7 +12,7 @@ export const ALLOWED_TRANSITIONS_BY_STATE: Record<
   readonly PackageLifecycleTransition[]
 > = {
   ingested: ['install', 'disable'],
-  installed: ['enable', 'remove', 'disable'],
+  installed: ['enable', 'stage_update', 'remove', 'disable'],
   enabled: ['run', 'stage_update', 'export', 'remove', 'disable'],
   running: ['stage_update', 'export', 'remove', 'disable'],
   update_staged: ['commit_update', 'rollback_update', 'disable'],

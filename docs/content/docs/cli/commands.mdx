@@ -104,7 +104,37 @@ Model role assignments can be modified via the web UI Configuration panel.
 
 ## pkg
 
-Inspect advisory marketplace suggestions.
+Inspect advisory marketplace suggestions and install governed packages through the canonical install pipeline.
+
+### pkg install
+
+Install or update a package for a project through the canonical package install pipeline.
+
+```bash
+pnpm dev:cli -- pkg install <package-id> --project <id>
+pnpm dev:cli -- pkg install <package-id> --project <id> --version ^2.0.0
+pnpm dev:cli -- pkg install <package-id> --project <id> --release rel_123
+pnpm dev:cli -- --api-url http://localhost:4317 pkg install <package-id> --project <id>
+```
+
+**Arguments:**
+- `package-id` — Registry package ID to install
+
+**Options:**
+- `-p, --project <id>` — Project ID that owns the install (required)
+- `--version <range>` — Install the newest release satisfying this semver range
+- `--release <id>` — Install one specific registry release ID
+- `--api-url <url>` — Override the API base URL for the current invocation
+
+**Output:**
+- Default output prints `Installed <package-id>` followed by the canonical install order when the install succeeds
+- Failure output prints the install status (`blocked` or `rolled_back`) plus the canonical reason code, and exits non-zero
+- With `--json`, returns the full `PackageInstallResult`
+
+**Important behavior:**
+- `pkg install` routes through the same canonical resolver, planner, lifecycle gates, and materialization pipeline used by first-party surfaces.
+- `--release` and `--version` are mutually exclusive.
+- Installs fail closed when dependency ranges conflict, trust/lifecycle gates block the request, or a write must be rolled back.
 
 ### pkg discover
 
@@ -139,6 +169,7 @@ pnpm dev:cli -- pkg discover --mute-global <candidate-id>
 - `pkg discover` is advisory only. It does not install, enable, or execute packages.
 - The CLI consumes the same canonical marketplace discovery feed used by the web marketplace surface.
 - Feedback for opened cards and any applied suppression action is written back through the canonical marketplace runtime.
+- Use `pkg install` after review when you want to install a governed package for a project.
 
 ---
 

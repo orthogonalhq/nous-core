@@ -149,6 +149,18 @@ description: Reference for all tRPC procedures
 - `marketplace.routeNudgeAcceptance` — Records acceptance feedback and returns the governed acceptance route.
   - Marketplace-package acceptance currently resolves to `runtime_authorization_required`, not direct installation.
 
+## packages
+
+| Procedure | Type | Input | Output |
+|----------|------|-------|--------|
+| `packages.install` | mutation | `PackageInstallRequest` | `PackageInstallResult` |
+
+- `packages.install` — Runs the canonical package install pipeline for one project-scoped package request.
+  - Input fields: `project_id`, `package_id`, optional `requested_version_range`, optional `release_id`, `actor_id`, optional `instance_root`, and optional `evidence_refs`.
+  - `release_id` and `requested_version_range` are mutually exclusive.
+  - Output shape includes the shared resolution result, install journal writes, lifecycle transition results, final `status` (`installed`, `blocked`, or `rolled_back`), and optional failure details.
+  - Canonical installs materialize only into governed package-store roots and fail closed with explicit reason-coded output when dependency resolution, lifecycle gating, or write/rollback handling blocks completion.
+
 ## config
 
 | Procedure | Type | Input | Output |

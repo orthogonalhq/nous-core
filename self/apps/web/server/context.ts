@@ -19,6 +19,7 @@ import type {
   IEndpointTrustService,
   IRegistryService,
   INudgeDiscoveryService,
+  IPackageInstallService,
   IVoiceControlService,
   IPublicMcpGatewayService,
 } from '@nous/shared';
@@ -54,6 +55,7 @@ export interface NousContext {
   escalationService: IEscalationService;
   endpointTrustService: IEndpointTrustService;
   registryService: IRegistryService;
+  packageInstallService: IPackageInstallService;
   nudgeDiscoveryService: INudgeDiscoveryService;
   voiceControlService: IVoiceControlService;
   publicMcpGatewayService: IPublicMcpGatewayService;
