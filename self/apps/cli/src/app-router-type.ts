@@ -14,6 +14,8 @@ import type {
   NudgeFeedbackRecord,
   NudgeSuppressionMutationInput,
   NudgeSuppressionRecord,
+  PackageInstallRequest,
+  PackageInstallResult,
   RegistryBrowseRequest,
   RegistryBrowseResult,
   RegistryPackageDetailSnapshot,
@@ -111,6 +113,11 @@ export type AppRouter = {
       mutate: (
         input: NudgeAcceptanceRouteRequest,
       ) => Promise<NudgeAcceptanceRouteResult>;
+    };
+  };
+  packages: {
+    install: {
+      mutate: (input: PackageInstallRequest) => Promise<PackageInstallResult>;
     };
   };
 };
