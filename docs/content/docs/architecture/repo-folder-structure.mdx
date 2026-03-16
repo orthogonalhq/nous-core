@@ -424,6 +424,12 @@ This is the engine that makes protocol projects operational.
 
 Current Phase 9.3 modules in this package include graph builder, graph validator, traversal, admission, governed node execution, checkpoint/runtime continuation handling, run-state, workflow-engine foundations, and canonical trigger provenance persistence.
 
+Phase 14.3 extends the workflow engine with installed-package binding resolution:
+
+- Projects can reference installed workflow packages through `packageBindings` in project workflow configuration. The engine resolves the definition through the matching binding at runtime and falls back to inline project-authored definitions when no binding applies.
+- `resolveDefinitionSource` exposes the resolved source as `ResolvedWorkflowDefinitionSourceSchema` metadata so monitoring and debug surfaces can distinguish installed package definitions from inline definitions without re-deriving source from project config.
+- All ADR-007 and ADR-008 runtime contracts — deterministic DAG traversal, centralized admission, evidence-linked run state, governed node execution, wait states, correction arcs, and committed-checkpoint continuation — remain unchanged by binding resolution.
+
 ### projects/
 
 Project container and lifecycle management.
@@ -440,6 +446,11 @@ Responsibilities:
 * Project lifecycle (create, configure, execute, evolve, archive)
 
 Projects are first-class isolation boundaries.
+
+Phase 14.3 adds document-loading modules to `self/subcortex/projects/src/package-store/`:
+
+- `document-loader.ts` — parses and normalizes installed skill and workflow package documents. Classifies skill packages as `atomic`, `composite`, or `legacy_hybrid`, loads composite constituent skills through the shared dependency resolver with deterministic DAG cycle rejection, and loads workflow packages by parsing `WORKFLOW.md`, `nous.flow.yaml`, and `steps/*.md` with `nous.kind: workflow_step` step admission.
+- `legacy-hybrid-bridge.ts` — provides explicit compatibility normalization for legacy hybrid skill packages, keeping them callable during the migration period without silent behavior divergence from decomposed loading paths.
 
 ### communication-gateway/
 
@@ -654,6 +665,12 @@ A skill contains:
 * Reference material and documentation
 * Scripts for validation or analysis (optional)
 
+Each skill package is identified by a canonical `SKILL.md` manifest. The manifest root conforms to the agentskills.io baseline shape; Nous-specific metadata is namespaced under `metadata.nous.*` rather than mixed into the shared frontmatter root. Skill packages are classified into one of three tiers:
+
+- **Atomic** — a standalone skill with a single `SKILL.md` and no constituent dependencies.
+- **Composite** — a skill that declares constituent skill dependencies through `dependencies.skills`. Constituent skills are loaded on demand through the shared dependency resolver rather than eagerly — progressive disclosure keeps the initial load surface minimal and DAG cycles are rejected deterministically.
+- **Legacy hybrid** — a package that predates the decomposed skill/workflow model. It remains callable during the transition period and is explicitly tagged `legacy_hybrid` so loading paths apply compatibility normalization without silent divergence from decomposed loading behavior.
+
 Skills inform reasoning across any project or workflow that touches that domain. They do not execute work directly. `.skills/.system/` remains reserved for system-owned process infrastructure and follows the same discovery path under the canonical root layout.
 
 ### `.workflows/` — Workflow Packages
@@ -669,6 +686,14 @@ A workflow package contains:
 * Artifact schemas and storage definitions
 * Memory access policy defaults
 * Scheduling and escalation configurations
+
+The canonical source of truth for a workflow package is structured across three files inside the package directory:
+
+- **`WORKFLOW.md`** — the top-level workflow manifest and authoritative identity/metadata source for the package.
+- **`nous.flow.yaml`** — graph topology owned by the workflow package. Declares the node graph, edges, and entry points.
+- **`steps/*.md`** — individual step files. Step frontmatter must declare `nous.kind: workflow_step` for the step to be recognized during package loading.
+
+Installed workflow definitions are distinct from project-scoped bindings and runtime instances. A project can reference an installed workflow package through a `packageBindings` entry without duplicating the definition into project-local configuration or run state. The workflow engine resolves the definition through this binding at runtime, and the resolved source is recorded as `workflowDefinitionSource` so debug and monitoring surfaces can distinguish an installed package definition from a project-authored inline definition.
 
 Workflow packages produce artifacts and outcomes. All execution is sandboxed. All interaction with Nous goes through the Project API. The canonical package type is `workflow`; legacy manifest inputs that still say `project` are normalized at validation ingress so stored runtime state and registry records stay canonical.
 
@@ -868,6 +893,10 @@ Phase 14.1 adds:
 - `app-permissions.ts` / `app-manifest.ts` — shared app permissions, tools, panels, adapters, lifecycle, and install-validation contracts
 - `package-store.ts` — canonical five-root store layout and discovery snapshot contracts for `.apps/`, `.skills/`, `.workflows/`, `.projects/`, and `.contracts/`
 
+Phase 14.3 adds:
+
+- `package-documents.ts` — canonical schemas for atomic and composite skill package documents, workflow package documents (manifest, flow graph, and step files), loaded package views, project workflow package bindings (`ProjectWorkflowPackageBindingSchema`), and resolved workflow-definition source metadata (`ResolvedWorkflowDefinitionSourceSchema`) for debug and monitoring surfaces.
+
 Phase 9.6 adds:
 
 - `project-surface.ts` — canonical project dashboard, configuration snapshot, blocked-action, health-summary, and field-provenance schemas
@@ -926,6 +955,10 @@ Phase 10.1 further expands:
 Phase 10.2 further expands:
 
 - `subcortex.ts` — `INudgeDiscoveryService` signal intake, candidate generation, ranking, suppression, delivery, feedback, and advisory acceptance-routing interfaces used by the nudge runtime and later surface projections
+
+Phase 14.3 further expands:
+
+- `subcortex.ts` — `resolveDefinitionSource` on `IWorkflowEngine` for resolving whether a project's active workflow definition originates from an inline project-authored source or an installed workflow package binding, returning `ResolvedWorkflowDefinitionSourceSchema` metadata for monitoring surfaces.
 
 ### events/
 

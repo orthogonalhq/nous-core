@@ -142,6 +142,8 @@ Phase 14.1 separates installable package stores from live workspace state:
 
 This matters because a live project is not itself the installable package. A project may be created from a workflow package, reference multiple skills, and interact with installed app surfaces, but its runtime state, local configuration, and accumulated work remain project-scoped workspace data. Legacy manifests that still use `package_type: project` are accepted at ingress and normalized to the canonical `workflow` package type before they become stored runtime or registry truth.
 
+A project can bind to an installed workflow package through `packageBindings` in its workflow configuration. When a binding is present, the workflow engine resolves the active definition from the installed package at runtime without copying the installed definition into project-local config or run state. The resolved source is exposed as `workflowDefinitionSource` in workflow snapshots and monitoring projections so operators can distinguish an installed package definition from a project-authored inline workflow. Inline project-authored definitions remain the fallback when no binding applies.
+
 ### Memory Access Policy
 
 Each project declares a memory access policy with three fields:
@@ -170,7 +172,7 @@ Phase 9.1 adds the first canonical workflow-runtime contract layer for protocol 
 
 ### Canonical Workflow Definition
 
-Workflow truth is project-scoped. A project can store one or more workflow definitions plus a default workflow reference inside project configuration.
+Workflow truth is project-scoped. A project can store one or more inline workflow definitions plus a default workflow reference inside project configuration. A project can also bind to an installed workflow package through `packageBindings`; when a binding resolves, the installed definition serves as the active graph source without becoming project-local configuration truth.
 
 The canonical definition carries:
 
