@@ -189,6 +189,10 @@ describe('ProjectWorkflowSurfaceSnapshotSchema', () => {
         type: 'hybrid',
       },
       workflowDefinition: definition,
+      workflowDefinitionSource: {
+        workflowDefinitionId: WORKFLOW_ID,
+        sourceKind: 'project_inline',
+      },
       graph,
       runtimeAvailability: 'live',
       selectedRunId: RUN_ID,
@@ -229,6 +233,12 @@ describe('WorkflowVisualDebugSnapshotSchema', () => {
         type: 'hybrid',
       },
       workflowDefinition: definition,
+      workflowDefinitionSource: {
+        workflowDefinitionId: WORKFLOW_ID,
+        sourceKind: 'installed_package',
+        packageId: 'workflow.research',
+        manifestRef: '.workflows/workflow__research/WORKFLOW.md',
+      },
       graph,
       runtimeAvailability: 'live',
       selectedRunId: RUN_ID,

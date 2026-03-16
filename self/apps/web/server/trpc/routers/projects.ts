@@ -72,32 +72,48 @@ function getWorkflowDefinitions(project: ProjectConfig): WorkflowDefinition[] {
   return project.workflow?.definitions ?? [];
 }
 
-function selectWorkflowDefinition(
+function getWorkflowBindings(
+  project: ProjectConfig,
+): NonNullable<ProjectConfig['workflow']>['packageBindings'] {
+  return project.workflow?.packageBindings ?? [];
+}
+
+async function selectWorkflowDefinitionState(
+  ctx: import('../../context').NousContext,
   project: ProjectConfig,
   preferredDefinitionId?: WorkflowDefinition['id'],
-): WorkflowDefinition | null {
+) {
   const definitions = getWorkflowDefinitions(project);
-  if (definitions.length === 0) {
-    return null;
+  const bindings = getWorkflowBindings(project);
+  if (definitions.length === 0 && bindings.length === 0) {
+    return {
+      workflowDefinition: null,
+      workflowDefinitionSource: null,
+      degradedReasonCode: undefined,
+    };
   }
 
-  if (preferredDefinitionId) {
-    const preferred = definitions.find((definition) => definition.id === preferredDefinitionId);
-    if (preferred) {
-      return preferred;
-    }
-  }
-
-  if (project.workflow?.defaultWorkflowDefinitionId) {
-    const configuredDefault = definitions.find(
-      (definition) => definition.id === project.workflow?.defaultWorkflowDefinitionId,
+  try {
+    const workflowDefinition = await ctx.workflowEngine.resolveDefinition(
+      project,
+      preferredDefinitionId,
     );
-    if (configuredDefault) {
-      return configuredDefault;
-    }
+    const workflowDefinitionSource = await ctx.workflowEngine.resolveDefinitionSource(
+      project,
+      preferredDefinitionId,
+    );
+    return {
+      workflowDefinition,
+      workflowDefinitionSource,
+      degradedReasonCode: undefined,
+    };
+  } catch {
+    return {
+      workflowDefinition: null,
+      workflowDefinitionSource: null,
+      degradedReasonCode: 'workflow_definition_unavailable',
+    };
   }
-
-  return definitions[0] ?? null;
 }
 
 function activeRunStatus(run: WorkflowRunState): boolean {
@@ -477,13 +493,15 @@ async function buildWorkflowSnapshot(
   const selectedRunGraph = selectedRun
     ? await ctx.workflowEngine.getRunGraph(selectedRun.runId)
     : null;
-  const workflowDefinition = selectWorkflowDefinition(
+  const workflowSelection = await selectWorkflowDefinitionState(
+    ctx,
     project,
     selectedRun?.workflowDefinitionId,
   );
+  const workflowDefinition = workflowSelection.workflowDefinition;
 
   let fallbackGraph = null;
-  let degradedReasonCode: string | undefined;
+  let degradedReasonCode: string | undefined = workflowSelection.degradedReasonCode;
   if (workflowDefinition) {
     try {
       fallbackGraph = buildDerivedWorkflowGraph(workflowDefinition);
@@ -526,6 +544,7 @@ async function buildWorkflowSnapshot(
   return ProjectWorkflowSurfaceSnapshotSchema.parse({
     project: getProjectIdentity(project),
     workflowDefinition,
+    workflowDefinitionSource: workflowSelection.workflowDefinitionSource,
     graph,
     runtimeAvailability,
     selectedRunId: selectedRun?.runId,
@@ -1210,10 +1229,15 @@ export const projectsRouter = router({
       ensureActionAllowed(blockedActions, 'update_schedule');
 
       if (!project.workflow?.definitions.length && !input.workflowDefinitionId) {
-        throw new TRPCError({
-          code: 'BAD_REQUEST',
-          message: 'schedule_requires_workflow_definition: project has no canonical workflow definition',
-        });
+        const hasBoundDefinitions =
+          (project.workflow?.packageBindings?.length ?? 0) > 0;
+        if (!hasBoundDefinitions) {
+          throw new TRPCError({
+            code: 'BAD_REQUEST',
+            message:
+              'schedule_requires_workflow_definition: project has no canonical workflow definition',
+          });
+        }
       }
 
       return ScheduleDefinitionSchema.parse(
@@ -1271,6 +1295,7 @@ export const projectsRouter = router({
       await ctx.projectStore.update(input.projectId, {
         workflow: {
           definitions: nextDefinitions,
+          packageBindings: project.workflow?.packageBindings ?? [],
           defaultWorkflowDefinitionId: saveInput.setAsDefault
             ? saveInput.workflowDefinition.id
             : project.workflow?.defaultWorkflowDefinitionId ??

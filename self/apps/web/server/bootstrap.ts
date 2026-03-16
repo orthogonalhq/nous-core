@@ -310,6 +310,8 @@ export function createNousContext(): NousContext {
     pfcEngine: Cortex,
     modelRouter: router,
     toolExecutor,
+    runtime,
+    instanceRoot,
   });
   let schedulerIngressGateway = createBootstrapIngressShim();
   const schedulerService = new SchedulerService({
@@ -613,6 +615,8 @@ export function createNousContext(): NousContext {
         pfcEngine: tenantPfc,
         modelRouter: router,
         toolExecutor,
+        runtime,
+        instanceRoot,
       });
       const tenantWitnessService = new WitnessService(tenantDocumentStore);
 
@@ -713,7 +717,7 @@ export function createNousContext(): NousContext {
   });
   schedulerIngressGateway = new GatewayRuntimeIngressAdapter(gatewayRuntime);
 
-  cachedContext = {
+  const context: NousContext = {
     coreExecutor,
     gatewayRuntime,
     projectStore,
@@ -741,7 +745,8 @@ export function createNousContext(): NousContext {
     publicMcpExecutionBridge,
     dataDir,
   };
+  cachedContext = context;
 
   console.log('[nous:web] bootstrap complete');
-  return cachedContext;
+  return context;
 }

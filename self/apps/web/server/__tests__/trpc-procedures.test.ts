@@ -207,6 +207,7 @@ describe('tRPC procedures', () => {
             edges: [],
           } as any,
         ],
+        packageBindings: [],
       },
     }));
 

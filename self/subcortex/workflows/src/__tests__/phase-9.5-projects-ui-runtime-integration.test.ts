@@ -66,6 +66,7 @@ const projectConfig = {
         ],
       },
     ],
+    packageBindings: [],
   },
   retrievalBudgetTokens: 500,
   createdAt: '2026-03-09T00:00:00.000Z',

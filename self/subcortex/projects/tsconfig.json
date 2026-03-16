@@ -6,12 +6,14 @@
     "composite": true,
     "paths": {
       "@nous/shared": ["../../shared/src/index.ts"],
+      "@nous/autonomic-runtime": ["../../autonomic/runtime/src/index.ts"],
       "@nous/autonomic-storage": ["../../autonomic/storage/src/index.ts"]
     }
   },
   "include": ["src"],
   "references": [
     { "path": "../../shared" },
+    { "path": "../../autonomic/runtime" },
     { "path": "../../autonomic/storage" }
   ]
 }

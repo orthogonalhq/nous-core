@@ -36,10 +36,26 @@ describe('SkillRuntimeArtifactSchema', () => {
       revision_id: 'rev-001',
       skill_root_ref: '.skills/engineer-workflow-sop',
       has_skill_md: true,
-      has_flow_yaml: false,
-      step_refs: [],
+      manifest_ref: '.skills/engineer-workflow-sop/SKILL.md',
+      skill_package_kind: 'atomic',
     });
     expect(parsed.skill_id).toBe('skill:engineer-workflow-sop');
+  });
+
+  it('accepts explicit legacy hybrid compatibility refs', () => {
+    const parsed = SkillRuntimeArtifactSchema.parse({
+      skill_id: 'skill:a-soul-is-born',
+      revision_id: 'rev-legacy',
+      skill_root_ref: '.skills/.system/a-soul-is-born',
+      has_skill_md: true,
+      skill_package_kind: 'legacy_hybrid',
+      legacy_workflow_refs: {
+        flowRef: '.skills/.system/a-soul-is-born/nous.flow.yaml',
+        stepRefs: ['steps/start.md'],
+      },
+    });
+
+    expect(parsed.legacy_workflow_refs?.stepRefs).toHaveLength(1);
   });
 });
 

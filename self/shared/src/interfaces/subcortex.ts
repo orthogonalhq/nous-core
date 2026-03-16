@@ -189,6 +189,7 @@ import type {
   PromotedMemoryRecord,
   PromotedMemorySearchQuery,
   PromotedMemorySearchResult,
+  ResolvedWorkflowDefinitionSource,
 } from '../types/index.js';
 import type { NousEvent } from '../events/index.js';
 
@@ -241,6 +242,12 @@ export interface IWorkflowEngine {
     projectConfig: ProjectConfig,
     workflowDefinitionId?: WorkflowDefinitionId,
   ): Promise<WorkflowDefinition>;
+
+  /** Resolve where the selected workflow definition came from for projection/debug surfaces */
+  resolveDefinitionSource(
+    projectConfig: ProjectConfig,
+    workflowDefinitionId?: WorkflowDefinitionId,
+  ): Promise<ResolvedWorkflowDefinitionSource | null>;
 
   /** Derive deterministic executable graph from canonical definition */
   deriveGraph(definition: WorkflowDefinition): Promise<DerivedWorkflowGraph>;
