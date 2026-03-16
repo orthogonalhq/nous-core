@@ -5,6 +5,7 @@ import {
   ManifestPackageTypeSchema,
   OriginClassSchema,
 } from './package-manifest.js';
+import { PackageDependencySetSchema } from './package-resolution.js';
 
 export const RegistryReasonCodeSchema = z
   .string()
@@ -128,6 +129,7 @@ export type RegistryPackage = z.infer<typeof RegistryPackageSchema>;
 export const RegistryReleaseSchema = z.object({
   release_id: z.string().min(1),
   package_id: z.string().min(1),
+  package_type: CanonicalPackageTypeSchema,
   package_version: z.string().min(1),
   origin_class: OriginClassSchema,
   signing_key_id: z.string().min(1),
@@ -135,6 +137,13 @@ export const RegistryReleaseSchema = z.object({
   source_hash: z.string().min(1),
   compatibility: RegistryReleaseCompatibilitySchema,
   metadata_chain: SignedMetadataChainSchema,
+  dependencies: z
+    .lazy(() => PackageDependencySetSchema)
+    .default({
+      packages: [],
+      tool_requirements: [],
+    }),
+  install_source_path: z.string().min(1).optional(),
   distribution_status: RegistryDistributionStatusSchema,
   compatibility_state: RegistryCompatibilityStateSchema,
   evidence_refs: z.array(z.string().min(1)).default([]),
@@ -287,6 +296,14 @@ export const RegistryReleaseSubmissionInputSchema = z.object({
   source_hash: z.string().min(1),
   compatibility: RegistryReleaseCompatibilitySchema,
   metadata_chain: SignedMetadataChainSchema,
+  dependencies: z
+    .lazy(() => PackageDependencySetSchema)
+    .default({
+      packages: [],
+      tool_requirements: [],
+    })
+    .optional(),
+  install_source_path: z.string().min(1).optional(),
   maintainer_ids: z.array(z.string().min(1)).min(1),
   policy_profile_ref: z.string().min(1).optional(),
   published_at: z.string().datetime().optional(),

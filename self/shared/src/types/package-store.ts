@@ -20,7 +20,7 @@ export type CanonicalRootSurface = z.infer<typeof CanonicalRootSurfaceSchema>;
 export const CanonicalStoreDescriptorSchema = z.object({
   rootDir: CanonicalRootDirectorySchema,
   surface: CanonicalRootSurfaceSchema,
-  canonicalPackageType: CanonicalPackageTypeSchema.optional(),
+  canonicalPackageType: z.lazy(() => CanonicalPackageTypeSchema).optional(),
   supportsSystemPackages: z.boolean(),
   systemDir: z.string().min(1).optional(),
   exists: z.boolean(),
@@ -36,6 +36,12 @@ export const CanonicalStoreDiscoverySnapshotSchema = z.object({
 export type CanonicalStoreDiscoverySnapshot = z.infer<
   typeof CanonicalStoreDiscoverySnapshotSchema
 >;
+
+export const CANONICAL_PACKAGE_ROOT_BY_TYPE = {
+  app: '.apps',
+  skill: '.skills',
+  workflow: '.workflows',
+} as const;
 
 export interface CanonicalStoreLayoutEntry {
   rootDir: CanonicalRootDirectory;
@@ -74,3 +80,7 @@ export const CANONICAL_STORE_LAYOUT = [
     supportsSystemPackages: false,
   },
 ] as const satisfies readonly CanonicalStoreLayoutEntry[];
+
+export const resolveCanonicalRootDirectory = (
+  packageType: keyof typeof CANONICAL_PACKAGE_ROOT_BY_TYPE,
+): CanonicalRootDirectory => CANONICAL_PACKAGE_ROOT_BY_TYPE[packageType];

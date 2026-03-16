@@ -104,6 +104,21 @@ export interface IRuntime {
   /** Check if a path exists */
   exists(path: string): Promise<boolean>;
 
+  /** Create a directory tree if it does not already exist */
+  ensureDir(path: string): Promise<void>;
+
+  /** Write a text or binary file */
+  writeFile(path: string, content: string | Uint8Array): Promise<void>;
+
+  /** Copy one directory tree recursively */
+  copyDirectory(from: string, to: string): Promise<void>;
+
+  /** Remove a file or directory tree if it exists */
+  removePath(path: string): Promise<void>;
+
+  /** List the direct entries within a directory */
+  listDirectory(path: string): Promise<string[]>;
+
   /** Get platform information */
   getPlatform(): PlatformInfo;
 }

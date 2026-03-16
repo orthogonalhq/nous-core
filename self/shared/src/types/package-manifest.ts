@@ -3,6 +3,7 @@
  */
 import { z } from 'zod';
 import { PackageTypeSchema, type PackageType } from './enums.js';
+import { PackageDependencySetSchema } from './package-resolution.js';
 
 export const ManifestPackageTypeSchema = PackageTypeSchema;
 export type ManifestPackageType = z.infer<typeof ManifestPackageTypeSchema>;
@@ -39,6 +40,7 @@ const BaseNousPackageManifestSchema = z.object({
   trust_policy_profile: z.string().min(1).optional(),
   api_contract_range: z.string().min(1),
   capabilities: z.array(z.string().min(1)).min(1),
+  dependencies: z.lazy(() => PackageDependencySetSchema).optional(),
   migration_contract: MigrationContractSchema.optional(),
   display_name: z.string().min(1).optional(),
   description: z.string().min(1).optional(),

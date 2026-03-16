@@ -72,6 +72,18 @@ export const PACKAGE_LIFECYCLE_REASON_CODES = {
     'self_created_local package imported across instances requires re-trust.',
   'PKG-008-IMPORT_VERIFICATION_PENDING':
     'Import remains blocked until receiving instance re-verifies package.',
+  'PKG-009-DEPENDENCY_CYCLE':
+    'Dependency resolution detected a cycle and blocked installation.',
+  'PKG-009-DEPENDENCY_UNRESOLVED':
+    'Dependency resolution could not find a required package or release.',
+  'PKG-009-DEPENDENCY_RANGE_CONFLICT':
+    'Dependency resolution could not satisfy all requested version ranges.',
+  'PKG-009-STORE_TARGET_INVALID':
+    'Resolved package target is not a canonical install store.',
+  'PKG-009-SYSTEM_BOUNDARY_VIOLATION':
+    'Resolved package target crosses the protected .system boundary.',
+  'PKG-009-INSTALL_WRITE_FAILED':
+    'Package installation write failed and rollback was required.',
   'MKT-002-UNREGISTERED_EXTERNAL':
     'Registry eligibility blocked an unregistered external package.',
   'MKT-004-PRINCIPAL_OVERRIDE_REQUIRED':
@@ -100,7 +112,7 @@ export const PACKAGE_LIFECYCLE_REASON_CODES = {
 
 export const PackageLifecycleReasonCodeSchema = z
   .string()
-  .regex(/^(PKG-00[1-8]|MKT-00[1-9]|API-003)-[A-Z0-9][A-Z0-9_-]*$/);
+  .regex(/^(PKG-00[1-9]|MKT-00[1-9]|API-003)-[A-Z0-9][A-Z0-9_-]*$/);
 export type PackageLifecycleReasonCode = z.infer<
   typeof PackageLifecycleReasonCodeSchema
 >;
@@ -109,7 +121,7 @@ export const PackageLifecycleEventBaseSchema = z.object({
   event_type: PackageLifecycleEventTypeSchema,
   package_id: z.string().min(1),
   package_version: z.string().min(1),
-  origin_class: OriginClassSchema,
+  origin_class: z.lazy(() => OriginClassSchema),
   reason_code: PackageLifecycleReasonCodeSchema.optional(),
   witness_ref: z.string().min(1),
 });
@@ -249,7 +261,7 @@ export const PackageLifecycleTransitionRequestSchema = z.object({
   project_id: z.string().min(1),
   package_id: z.string().min(1),
   package_version: z.string().min(1),
-  origin_class: OriginClassSchema,
+  origin_class: z.lazy(() => OriginClassSchema),
   target_transition: PackageLifecycleTransitionSchema,
   target_version: z.string().min(1).optional(),
   actor_id: z.string().min(1),
@@ -258,7 +270,9 @@ export const PackageLifecycleTransitionRequestSchema = z.object({
   admission: PackageLifecycleAdmissionInputSchema.optional(),
   compatibility: PackageLifecycleCompatibilityInputSchema.optional(),
   capability: PackageLifecycleCapabilityInputSchema.optional(),
-  registry_eligibility: RegistryInstallEligibilitySnapshotSchema.optional(),
+  registry_eligibility: z
+    .lazy(() => RegistryInstallEligibilitySnapshotSchema)
+    .optional(),
   update_checks: PackageLifecycleUpdateChecksSchema.optional(),
   rollback: PackageLifecycleRollbackInputSchema.optional(),
   checkpoint_ref: z.string().min(1).optional(),
@@ -271,7 +285,7 @@ export const PackageLifecycleStateRecordSchema = z.object({
   project_id: z.string().min(1),
   package_id: z.string().min(1),
   package_version: z.string().min(1),
-  origin_class: OriginClassSchema,
+  origin_class: z.lazy(() => OriginClassSchema),
   current_state: PackageLifecycleStateSchema,
   previous_safe_version: z.string().min(1).optional(),
   trust_scope: z.enum([
