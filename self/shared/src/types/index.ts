@@ -61,6 +61,7 @@ export * from './vector-index.js';
 export * from './app-permissions.js';
 export * from './app-manifest.js';
 export * from './package-manifest.js';
+export * from './package-documents.js';
 export * from './package-resolution.js';
 export * from './package-store.js';
 export * from './package-lifecycle.js';

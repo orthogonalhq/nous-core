@@ -4,6 +4,7 @@ declare module 'semver' {
   }
 
   interface SemverModule {
+    rcompare(versionA: string, versionB: string): number;
     valid(version: string): string | null;
     validRange(range: string): string | null;
     satisfies(
