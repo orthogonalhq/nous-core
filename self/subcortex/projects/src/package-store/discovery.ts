@@ -2,6 +2,7 @@ import {
   CANONICAL_STORE_LAYOUT,
   CanonicalStoreDescriptorSchema,
   CanonicalStoreDiscoverySnapshotSchema,
+  type CanonicalRootDirectory,
   type CanonicalStoreDiscoverySnapshot,
   type IRuntime,
 } from '@nous/shared';
@@ -42,3 +43,8 @@ export const discoverCanonicalPackageStores = async (
       .map((entry) => entry.rootDir),
   });
 };
+
+export const getCanonicalStoreEntry = (
+  snapshot: CanonicalStoreDiscoverySnapshot,
+  rootDir: CanonicalRootDirectory,
+) => snapshot.entries.find((entry) => entry.rootDir === rootDir) ?? null;
