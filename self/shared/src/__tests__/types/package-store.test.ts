@@ -3,6 +3,7 @@ import {
   CANONICAL_STORE_LAYOUT,
   CanonicalStoreDescriptorSchema,
   CanonicalStoreDiscoverySnapshotSchema,
+  resolveCanonicalRootDirectory,
 } from '../../types/package-store.js';
 
 describe('CANONICAL_STORE_LAYOUT', () => {
@@ -14,6 +15,12 @@ describe('CANONICAL_STORE_LAYOUT', () => {
       '.projects',
       '.contracts',
     ]);
+  });
+
+  it('maps canonical package types to canonical store roots', () => {
+    expect(resolveCanonicalRootDirectory('app')).toBe('.apps');
+    expect(resolveCanonicalRootDirectory('skill')).toBe('.skills');
+    expect(resolveCanonicalRootDirectory('workflow')).toBe('.workflows');
   });
 });
 
