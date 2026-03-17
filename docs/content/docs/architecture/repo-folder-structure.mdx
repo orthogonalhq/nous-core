@@ -144,6 +144,8 @@ Phase 12.1 adds `self/cortex/core/src/agent-gateway/` as the canonical internal 
 
 Phase 12.2 adds `self/cortex/core/src/internal-mcp/` as the scoped Internal MCP composition layer for the gateway runtime. This folder owns the internal tool catalog, authorization matrix, request normalization, capability handlers, lifecycle handlers, and output-schema validation seam used by `AgentGateway`. These handlers wrap canonical subcortex and memory interfaces; they do not replace the underlying workflow, witness, scheduler, escalation, or memory authorities.
 
+Phase 14.4 extends the same Internal MCP lane with the canonical workflow lifecycle tool family: `workflow_list`, `workflow_inspect`, `workflow_start`, `workflow_status`, `workflow_pause`, `workflow_resume`, and `workflow_cancel`. Read projections remain available only on the ratified internal lanes, while mutations stay `Cortex::System`-only and execute with witness-linked runtime evidence instead of introducing an app-local control seam.
+
 Phase 12.3 adds `self/cortex/core/src/gateway-runtime/` as the boot assembly for the long-lived Principal/System pair. Phase 12.4 completes that assembly by adding the gateway-backed turn executor, trace recorder, and runtime-owned project API composition so active runtime callers, canonical packet stamping, and trace continuity all converge under the gateway-managed path.
 
 Phase 12.5 extends `self/cortex/core/src/gateway-runtime/` with the durable System backlog queue (`backlog-types.ts`, `backlog-store.ts`, `backlog-queue.ts`) and canonical backlog analytics publication through the existing runtime-health and replica seams. Queue pressure remains runtime truth inside core rather than app-local telemetry or a second scheduler.
@@ -452,6 +454,10 @@ Phase 14.3 adds document-loading modules to `self/subcortex/projects/src/package
 - `document-loader.ts` — parses and normalizes installed skill and workflow package documents. Classifies skill packages as `atomic`, `composite`, or `legacy_hybrid`, loads composite constituent skills through the shared dependency resolver with deterministic DAG cycle rejection, and loads workflow packages by parsing `WORKFLOW.md`, `nous.flow.yaml`, and `steps/*.md` with `nous.kind: workflow_step` step admission.
 - `legacy-hybrid-bridge.ts` — provides explicit compatibility normalization for legacy hybrid skill packages, keeping them callable during the migration period without silent behavior divergence from decomposed loading paths.
 
+Phase 14.4 extends the same package-store lane with canonical installed-workflow read helpers:
+
+- `document-loader.ts` / `index.ts` — add deterministic `listInstalledWorkflowPackages(...)` and `inspectInstalledWorkflowPackage(...)` helpers over `.workflows/`, keeping legacy hybrids out of canonical installed-workflow discovery while preserving compatibility-only loading paths.
+
 ### communication-gateway/
 
 Canonical human messaging ingress and egress runtime. Implemented in Phase 11.1 as `@nous/subcortex-communication-gateway`.
@@ -673,6 +679,8 @@ Each skill package is identified by a canonical `SKILL.md` manifest. The manifes
 
 Skills inform reasoning across any project or workflow that touches that domain. They do not execute work directly. `.skills/.system/` remains reserved for system-owned process infrastructure and follows the same discovery path under the canonical root layout.
 
+Phase 14.4 proves the additive fork-and-swap migration path by introducing `.skills/.system/identity-alignment/` as a decomposed system skill while keeping the legacy `.skills/.system/a-soul-is-born/` package intact for compatibility.
+
 ### `.workflows/` — Workflow Packages
 
 Workflow packages are executable packages. They give Nous a specific plan to execute.
@@ -696,6 +704,8 @@ The canonical source of truth for a workflow package is structured across three 
 Installed workflow definitions are distinct from project-scoped bindings and runtime instances. A project can reference an installed workflow package through a `packageBindings` entry without duplicating the definition into project-local configuration or run state. The workflow engine resolves the definition through this binding at runtime, and the resolved source is recorded as `workflowDefinitionSource` so debug and monitoring surfaces can distinguish an installed package definition from a project-authored inline definition.
 
 Workflow packages produce artifacts and outcomes. All execution is sandboxed. All interaction with Nous goes through the Project API. The canonical package type is `workflow`; legacy manifest inputs that still say `project` are normalized at validation ingress so stored runtime state and registry records stay canonical.
+
+Phase 14.4 adds `.workflows/.system/a-soul-is-born/` as the first decomposed hybrid-migration pilot in the canonical workflow store. The package depends on the new `identity-alignment` skill and coexists with the untouched legacy hybrid path instead of replacing it in place.
 
 ### `.apps/` — Installable Apps
 
@@ -897,6 +907,10 @@ Phase 14.3 adds:
 
 - `package-documents.ts` — canonical schemas for atomic and composite skill package documents, workflow package documents (manifest, flow graph, and step files), loaded package views, project workflow package bindings (`ProjectWorkflowPackageBindingSchema`), and resolved workflow-definition source metadata (`ResolvedWorkflowDefinitionSourceSchema`) for debug and monitoring surfaces.
 
+Phase 14.4 adds:
+
+- `workflow-lifecycle.ts` — canonical request/response schemas for Internal MCP workflow lifecycle list, inspect, start, status, pause, resume, and cancel operations, including mutation-result evidence and warning projections.
+
 Phase 9.6 adds:
 
 - `project-surface.ts` — canonical project dashboard, configuration snapshot, blocked-action, health-summary, and field-provenance schemas
@@ -959,6 +973,10 @@ Phase 10.2 further expands:
 Phase 14.3 further expands:
 
 - `subcortex.ts` — `resolveDefinitionSource` on `IWorkflowEngine` for resolving whether a project's active workflow definition originates from an inline project-authored source or an installed workflow package binding, returning `ResolvedWorkflowDefinitionSourceSchema` metadata for monitoring surfaces.
+
+Phase 14.4 further expands:
+
+- `subcortex.ts` — `IWorkflowEngine.cancel(...)` so the Internal MCP workflow control surface can perform additive cancel transitions without moving workflow truth out of the canonical runtime.
 
 ### events/
 
