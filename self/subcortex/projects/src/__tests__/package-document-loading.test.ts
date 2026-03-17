@@ -5,6 +5,8 @@ import { afterEach, describe, expect, it } from 'vitest';
 import { NodeRuntime } from '@nous/autonomic-runtime';
 import { ProjectConfigSchema } from '@nous/shared';
 import {
+  inspectInstalledWorkflowPackage,
+  listInstalledWorkflowPackages,
   loadCompositeSkillDependencyGraph,
   loadInstalledSkillPackage,
   loadInstalledWorkflowPackage,
@@ -39,6 +41,7 @@ async function writeInstalledSkill(options: {
   instanceRoot: string;
   packageId: string;
   skillMd: string;
+  system?: boolean;
   flowYaml?: string;
   steps?: Record<string, string>;
   refs?: Record<string, string>;
@@ -47,6 +50,7 @@ async function writeInstalledSkill(options: {
   const root = join(
     options.instanceRoot,
     '.skills',
+    ...(options.system ? ['.system'] : []),
     sanitizePackageId(options.packageId),
   );
   await mkdir(root, { recursive: true });
@@ -80,11 +84,13 @@ async function writeInstalledWorkflow(options: {
   workflowMd: string;
   flowYaml: string;
   steps: Record<string, string>;
+  system?: boolean;
   packageVersion?: string;
 }) {
   const root = join(
     options.instanceRoot,
     '.workflows',
+    ...(options.system ? ['.system'] : []),
     sanitizePackageId(options.packageId),
   );
   await mkdir(root, { recursive: true });
@@ -345,6 +351,100 @@ config:
       /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i,
     );
     expect(resolved.source.sourceKind).toBe('installed_package');
+  });
+
+  it('lists and inspects canonical installed workflow packages from the system workflow store', async () => {
+    const instanceRoot = await createInstanceRoot();
+    await writeInstalledWorkflow({
+      instanceRoot,
+      packageId: 'a-soul-is-born',
+      system: true,
+      packageVersion: '1.0.0',
+      workflowMd: `---
+name: a-soul-is-born
+description: Identity onboarding workflow.
+entrypoint: start
+dependencies:
+  skills:
+    - name: identity-alignment
+---
+`,
+      flowYaml: `nous:
+  v: 1
+flow:
+  id: a-soul-is-born
+  mode: graph
+  entry_step: start
+  steps:
+    - id: start
+      file: steps/start.md
+      next: []
+`,
+      steps: {
+        'start.md': `---
+nous:
+  v: 1
+  kind: workflow_step
+  id: start
+name: Start
+type: model-call
+governance: must
+executionModel: synchronous
+config:
+  type: model-call
+  modelRole: reasoner
+  promptRef: workflow://a-soul-is-born/start
+---
+`,
+      },
+    });
+    await writeInstalledSkill({
+      instanceRoot,
+      packageId: 'legacy-onboarding',
+      skillMd: `---
+name: legacy-onboarding
+description: Legacy hybrid skill.
+skill_slug: legacy-onboarding
+entrypoint_mode_slug: default
+---
+`,
+      flowYaml: `nous:
+  v: 1
+flow:
+  id: legacy-onboarding
+  mode: graph
+  entry_step: start
+  steps:
+    - id: start
+      file: steps/start.md
+      next: []
+`,
+      steps: {
+        'start.md': `---
+nous:
+  v: 1
+  kind: skill_step
+  id: start
+---
+`,
+      },
+    });
+
+    const listed = await listInstalledWorkflowPackages({
+      instanceRoot,
+      runtime,
+    });
+    const inspected = await inspectInstalledWorkflowPackage({
+      instanceRoot,
+      runtime,
+      packageId: 'a-soul-is-born',
+    });
+
+    expect(listed).toHaveLength(1);
+    expect(listed[0]?.packageId).toBe('a-soul-is-born');
+    expect(listed[0]?.skillDependencies[0]?.name).toBe('identity-alignment');
+    expect(inspected.packageId).toBe('a-soul-is-born');
+    expect(inspected.steps[0]?.stepId).toBe('start');
   });
 
   it('rejects workflow packages whose step frontmatter ids do not match flow ids', async () => {
