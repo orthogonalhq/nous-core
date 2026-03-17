@@ -12,6 +12,7 @@ import type {
   IPromotedMemoryBridgeService,
   IPublicMcpSurfaceService,
   IRuntime,
+  IAppRuntimeService,
   IOpctlService,
   IProjectApi,
   IProjectStore,
@@ -28,6 +29,8 @@ import type {
   ToolResult,
   TraceEvidenceReference,
   WorkflowNodeDefinition,
+  AppHealthSnapshot,
+  AppHeartbeatSignal,
 } from '@nous/shared';
 
 export const INTERNAL_MCP_TOOL_NAMES = [
@@ -60,6 +63,8 @@ export const INTERNAL_MCP_TOOL_NAMES = [
   'workflow_pause',
   'workflow_resume',
   'workflow_cancel',
+  'health_report',
+  'health_heartbeat',
   'dispatch_agent',
   'task_complete',
   'request_escalation',
@@ -114,6 +119,7 @@ export interface InternalMcpRuntimeDeps {
   witnessService?: IWitnessService;
   escalationService?: IEscalationService;
   scheduler?: IScheduler;
+  appRuntimeService?: IAppRuntimeService;
   outputSchemaValidator?: InternalMcpOutputSchemaValidator;
   dispatchRuntime?: InternalMcpDispatchRuntime;
   now?: () => string;
@@ -152,6 +158,26 @@ export interface InternalMcpCatalogEntry {
   kind: InternalMcpToolKind;
   definition: ToolDefinition;
 }
+
+export interface DynamicInternalMcpToolEntry {
+  name: string;
+  kind: 'capability';
+  definition: ToolDefinition;
+  execute: InternalMcpCapabilityHandler;
+  sessionId: string;
+  appId: string;
+  visibleTo: readonly AgentClass[];
+}
+
+export type AppHealthReportRequest = Pick<
+  AppHealthSnapshot,
+  'session_id' | 'status' | 'reported_at' | 'details'
+>;
+
+export type AppHeartbeatRequest = Pick<
+  AppHeartbeatSignal,
+  'session_id' | 'reported_at' | 'sequence' | 'status_hint'
+>;
 
 export interface InternalMcpGraphResolution {
   schemaRef: string;

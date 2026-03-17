@@ -16,6 +16,8 @@ import {
   type ProjectConfig,
   type ProjectControlState,
   type ProjectId,
+  type AppHealthSnapshot,
+  type AppHeartbeatSignal,
   type ResolvedWorkflowDefinitionSource,
   type ToolResult,
   type TraceEvidenceReference,
@@ -41,6 +43,8 @@ import {
   parseExternalMemoryGetQuery,
   parseExternalMemoryPutCommand,
   parseExternalMemorySearchQuery,
+  parseHealthHeartbeatRequest,
+  parseHealthReportRequest,
   parseMemorySearchRequest,
   parseMemoryWriteRequest,
   parsePromotedMemoryDemoteCommand,
@@ -950,6 +954,44 @@ export function createCapabilityHandlers(
         {
           scheduleId: result.value,
           evidenceRef: result.evidenceRef,
+        },
+        0,
+      );
+    },
+    health_report: async (params) => {
+      const request = parseHealthReportRequest(params) as AppHealthSnapshot;
+      const appRuntimeService = context.deps.appRuntimeService;
+      if (!appRuntimeService) {
+        throw new NousError(
+          'App runtime service is unavailable',
+          'SERVICE_UNAVAILABLE',
+        );
+      }
+
+      const health = await appRuntimeService.updateHealth(request);
+      return success(
+        {
+          accepted: true,
+          health,
+        },
+        0,
+      );
+    },
+    health_heartbeat: async (params) => {
+      const request = parseHealthHeartbeatRequest(params) as AppHeartbeatSignal;
+      const appRuntimeService = context.deps.appRuntimeService;
+      if (!appRuntimeService) {
+        throw new NousError(
+          'App runtime service is unavailable',
+          'SERVICE_UNAVAILABLE',
+        );
+      }
+
+      await appRuntimeService.recordHeartbeat(request);
+      return success(
+        {
+          accepted: true,
+          heartbeat: request,
         },
         0,
       );
