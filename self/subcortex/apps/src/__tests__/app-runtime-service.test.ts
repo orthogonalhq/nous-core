@@ -129,6 +129,80 @@ describe('AppRuntimeService', () => {
     expect(unregister).toHaveBeenCalledWith('app:weather.get_forecast');
   });
 
+  it('rolls back cleanly on spawn failure before session publication', async () => {
+    const service = new AppRuntimeService({
+      lifecycleOrchestrator: {
+        run: vi.fn().mockResolvedValue({}),
+        disable: vi.fn().mockResolvedValue({}),
+      } as any,
+      spawner: new DenoSpawner({
+        spawnProcess: () => {
+          throw new Error('spawn failed');
+        },
+      }),
+      bridge: new McpIpcBridge(),
+      toolRegistry: new AppToolRegistry({
+        register: vi.fn(),
+        unregister: vi.fn(),
+      }),
+    });
+
+    await expect(service.activate(activationInput as any)).rejects.toThrow('spawn failed');
+    expect(await service.listSessions()).toEqual([]);
+  });
+
+  it('rolls back tool, panel, and session state when the activation handshake fails', async () => {
+    const unregister = vi.fn().mockResolvedValue(undefined);
+    const service = new AppRuntimeService({
+      lifecycleOrchestrator: {
+        run: vi.fn().mockResolvedValue({}),
+        disable: vi.fn().mockResolvedValue({}),
+      } as any,
+      spawner: new DenoSpawner({
+        sessionIdFactory: () => 'session-1',
+        spawnProcess: () => ({
+          pid: 123,
+          kill: vi.fn().mockReturnValue(true),
+        }),
+      }),
+      bridge: new McpIpcBridge({
+        sendHandshake: vi.fn().mockRejectedValue(new Error('handshake failed')),
+      }),
+      toolRegistry: new AppToolRegistry({
+        register: vi.fn().mockResolvedValue({ witnessRef: 'evt-1' }),
+        unregister,
+      }),
+    });
+
+    await expect(service.activate(activationInput as any)).rejects.toThrow('handshake failed');
+    expect(unregister).toHaveBeenCalledWith('app:weather.get_forecast');
+    expect(await service.getSession('session-1')).toBeNull();
+  });
+
+  it('rolls back after tool-registration failure', async () => {
+    const service = new AppRuntimeService({
+      lifecycleOrchestrator: {
+        run: vi.fn().mockResolvedValue({}),
+        disable: vi.fn().mockResolvedValue({}),
+      } as any,
+      spawner: new DenoSpawner({
+        sessionIdFactory: () => 'session-1',
+        spawnProcess: () => ({
+          pid: 123,
+          kill: vi.fn().mockReturnValue(true),
+        }),
+      }),
+      bridge: new McpIpcBridge(),
+      toolRegistry: new AppToolRegistry({
+        register: vi.fn().mockRejectedValue(new Error('registration failed')),
+        unregister: vi.fn().mockResolvedValue(undefined),
+      }),
+    });
+
+    await expect(service.activate(activationInput as any)).rejects.toThrow('registration failed');
+    expect(await service.getSession('session-1')).toBeNull();
+  });
+
   it('updates health state from heartbeats and process exits', async () => {
     const service = new AppRuntimeService({
       lifecycleOrchestrator: {
