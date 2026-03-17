@@ -4,6 +4,7 @@ export {
   type PackageStoreDiscoveryOptions,
 } from './discovery.js';
 export {
+  loadInstalledAppPackage,
   loadCompositeSkillDependencyGraph,
   inspectInstalledWorkflowPackage,
   loadInstalledSkillPackage,
@@ -12,6 +13,7 @@ export {
   resolveInstalledWorkflowDefinition,
   type LoadedCompositeSkillDependencyGraph,
   type InspectInstalledWorkflowPackageOptions,
+  type LoadInstalledAppPackageOptions,
   type LoadInstalledSkillPackageOptions,
   type LoadInstalledWorkflowPackageOptions,
   type ListInstalledWorkflowPackagesOptions,

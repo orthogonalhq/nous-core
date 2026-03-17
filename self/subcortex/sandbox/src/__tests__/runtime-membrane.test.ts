@@ -1,4 +1,4 @@
-import { describe, it, expect } from 'vitest';
+import { describe, it, expect, vi } from 'vitest';
 import { RuntimeMembrane } from '../runtime-membrane.js';
 import type { SandboxPayload } from '@nous/shared';
 
@@ -98,5 +98,25 @@ describe('RuntimeMembrane', () => {
 
     expect(resultA.decision.decision).toBe(resultB.decision.decision);
     expect(resultA.decision.reason_code).toBe(resultB.decision.reason_code);
+  });
+
+  it('uses onAllow as the only allow-path execution seam and does not invoke it on deny', async () => {
+    const onAllow = vi.fn().mockResolvedValue({ status: 'spawned' });
+    const membrane = new RuntimeMembrane({
+      now: () => new Date('2026-03-01T00:30:00.000Z'),
+      onAllow,
+    });
+
+    const allowed = await membrane.execute(BASE_PAYLOAD);
+    const denied = await membrane.execute({
+      ...BASE_PAYLOAD,
+      declared_capabilities: ['tool.execute'],
+    });
+
+    expect(allowed.success).toBe(true);
+    expect(allowed.output).toEqual({ status: 'spawned' });
+    expect(denied.success).toBe(false);
+    expect(onAllow).toHaveBeenCalledTimes(1);
+    expect(onAllow).toHaveBeenCalledWith(BASE_PAYLOAD);
   });
 });

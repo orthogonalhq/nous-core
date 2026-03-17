@@ -55,6 +55,10 @@ const resolveAllowedEventType = (
       return 'pkg_compatibility_evaluated';
     case 'enable':
       return 'pkg_enabled';
+    case 'run':
+      return 'pkg_running';
+    case 'disable':
+      return 'pkg_disabled';
     case 'stage_update':
       return 'pkg_update_staged';
     case 'commit_update':
@@ -67,10 +71,6 @@ const resolveAllowedEventType = (
       return 'pkg_import_verified';
     case 'remove':
       return 'pkg_removed';
-    case 'run':
-      return 'pkg_runtime_action_decided';
-    case 'disable':
-      return 'pkg_enable_blocked';
     default: {
       const exhaustiveCheck: never = transition;
       throw new Error(`Unhandled transition for event mapping: ${exhaustiveCheck}`);
@@ -182,6 +182,17 @@ export class PackageLifecycleOrchestrator implements IPackageLifecycleOrchestrat
         packageVersion: context.request.package_version,
       };
     });
+  }
+
+  async run(
+    request: PackageLifecycleTransitionRequest,
+  ): Promise<PackageLifecycleTransitionResult> {
+    return this.executeTransition('run', request, async (context) => ({
+      ...handleSimpleAllowedTransition('running'),
+      packageVersion:
+        context.current?.package_version ?? context.request.package_version,
+      previousSafeVersion: context.current?.previous_safe_version,
+    }));
   }
 
   async stageUpdate(
@@ -313,6 +324,17 @@ export class PackageLifecycleOrchestrator implements IPackageLifecycleOrchestrat
         previousSafeVersion: context.current?.previous_safe_version,
       };
     });
+  }
+
+  async disable(
+    request: PackageLifecycleTransitionRequest,
+  ): Promise<PackageLifecycleTransitionResult> {
+    return this.executeTransition('disable', request, async (context) => ({
+      ...handleSimpleAllowedTransition('disabled'),
+      packageVersion:
+        context.current?.package_version ?? context.request.package_version,
+      previousSafeVersion: context.current?.previous_safe_version,
+    }));
   }
 
   async getState(

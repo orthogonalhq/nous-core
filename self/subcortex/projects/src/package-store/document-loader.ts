@@ -2,7 +2,9 @@ import { createHash } from 'node:crypto';
 import { readFile } from 'node:fs/promises';
 import { relative, resolve } from 'node:path';
 import type {
+  AppPackageManifest,
   IRuntime,
+  LoadedAppPackage,
   LoadedSkillPackage,
   LoadedWorkflowPackage,
   ProjectConfig,
@@ -15,8 +17,10 @@ import type {
   WorkflowNodeDefinition,
 } from '@nous/shared';
 import {
+  AppPackageManifestSchema,
   AtomicSkillFrontmatterSchema,
   CompositeSkillFrontmatterSchema,
+  LoadedAppPackageSchema,
   LoadedSkillPackageSchema,
   LoadedWorkflowPackageSchema,
   ProjectWorkflowPackageBindingSchema,
@@ -426,7 +430,7 @@ const classifySkillPackageKind = async (input: {
 const resolvePackagePath = async (input: {
   instanceRoot: string;
   runtime: IRuntime;
-  rootDir: '.skills' | '.workflows';
+  rootDir: '.apps' | '.skills' | '.workflows';
   packageId: string;
 }): Promise<string> => {
   const snapshot = await discoverCanonicalPackageStores({
@@ -457,7 +461,7 @@ const resolvePackagePath = async (input: {
 const listInstalledPackageRoots = async (input: {
   instanceRoot: string;
   runtime: IRuntime;
-  rootDir: '.skills' | '.workflows';
+  rootDir: '.apps' | '.skills' | '.workflows';
 }): Promise<Array<{ packageId: string; rootPath: string }>> => {
   const snapshot = await discoverCanonicalPackageStores({
     instanceRoot: input.instanceRoot,
@@ -619,6 +623,12 @@ export interface LoadInstalledWorkflowPackageOptions {
   packageId: string;
 }
 
+export interface LoadInstalledAppPackageOptions {
+  instanceRoot: string;
+  runtime: IRuntime;
+  packageId: string;
+}
+
 const normalizeWorkflowManifest = (
   rawFrontmatter: Record<string, unknown>,
 ) => {
@@ -703,6 +713,43 @@ export const loadInstalledWorkflowPackage = async (
     manifest: normalizedManifest,
     flow: parsedFlow,
     steps,
+    ...(await loadResourceRefs(options.runtime, rootPath)),
+  });
+};
+
+const parseAppManifest = (source: string): AppPackageManifest =>
+  AppPackageManifestSchema.parse(JSON.parse(source));
+
+export const loadInstalledAppPackage = async (
+  options: LoadInstalledAppPackageOptions,
+): Promise<LoadedAppPackage> => {
+  const rootPath = await resolvePackagePath({
+    instanceRoot: options.instanceRoot,
+    runtime: options.runtime,
+    rootDir: '.apps',
+    packageId: options.packageId,
+  });
+  const manifestPath = options.runtime.resolvePath(rootPath, 'manifest.json');
+  const entrypointPath = options.runtime.resolvePath(rootPath, 'main.ts');
+  const lockfilePath = options.runtime.resolvePath(rootPath, 'deno.lock');
+
+  if (!(await options.runtime.exists(manifestPath))) {
+    throw new Error(`Installed app package is missing manifest.json: ${options.packageId}`);
+  }
+  if (!(await options.runtime.exists(entrypointPath))) {
+    throw new Error(`Installed app package is missing main.ts: ${options.packageId}`);
+  }
+
+  return LoadedAppPackageSchema.parse({
+    packageId: options.packageId,
+    packageVersion: await readInstalledPackageVersion(options.runtime, rootPath),
+    rootRef: rootPath,
+    manifestRef: manifestPath,
+    manifest: parseAppManifest(await readText(manifestPath)),
+    entrypointRef: entrypointPath,
+    ...(await options.runtime.exists(lockfilePath)
+      ? { lockfileRef: lockfilePath }
+      : {}),
     ...(await loadResourceRefs(options.runtime, rootPath)),
   });
 };
