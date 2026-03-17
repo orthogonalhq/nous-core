@@ -508,6 +508,9 @@ export function createNousContext(): NousContext {
       scheduler: schedulerService,
       escalationService,
       witnessService: args.witnessService,
+      opctlService,
+      runtime,
+      instanceRoot,
       outputSchemaValidator: new DefaultSchemaRefValidator(),
       promotedMemoryBridgeService: publicPromotedBridgeService,
     });
@@ -692,6 +695,8 @@ export function createNousContext(): NousContext {
     projectStore,
     scheduler: schedulerService,
     escalationService,
+    runtime,
+    instanceRoot,
     outputSchemaValidator: new DefaultSchemaRefValidator(),
   });
 
@@ -707,6 +712,9 @@ export function createNousContext(): NousContext {
     scheduler: schedulerService,
     escalationService,
     witnessService,
+    opctlService,
+    runtime,
+    instanceRoot,
     outputSchemaValidator: new DefaultSchemaRefValidator(),
   });
   providerRegistry.onLeaseReleased((event) => {

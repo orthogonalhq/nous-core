@@ -42,6 +42,20 @@ import {
   type GatewayTaskCompletionRequest,
   type MemoryWriteCandidate,
   type ScheduleDefinition,
+  type WorkflowLifecycleCancelCommand,
+  type WorkflowLifecycleInspectQuery,
+  type WorkflowLifecycleListQuery,
+  type WorkflowLifecyclePauseCommand,
+  type WorkflowLifecycleResumeCommand,
+  type WorkflowLifecycleStartCommand,
+  type WorkflowLifecycleStatusQuery,
+  WorkflowLifecycleCancelCommandSchema,
+  WorkflowLifecycleInspectQuerySchema,
+  WorkflowLifecycleListQuerySchema,
+  WorkflowLifecyclePauseCommandSchema,
+  WorkflowLifecycleResumeCommandSchema,
+  WorkflowLifecycleStartCommandSchema,
+  WorkflowLifecycleStatusQuerySchema,
 } from '@nous/shared';
 import { z } from 'zod';
 
@@ -122,6 +136,13 @@ export const SchedulerRegisterRequestSchema = ScheduleDefinitionSchema.omit({
   projectId: true,
 });
 export type SchedulerRegisterRequest = Omit<ScheduleDefinition, 'projectId'>;
+export type WorkflowListRequest = WorkflowLifecycleListQuery;
+export type WorkflowInspectRequest = WorkflowLifecycleInspectQuery;
+export type WorkflowStartRequest = WorkflowLifecycleStartCommand;
+export type WorkflowStatusRequest = WorkflowLifecycleStatusQuery;
+export type WorkflowPauseRequest = WorkflowLifecyclePauseCommand;
+export type WorkflowResumeRequest = WorkflowLifecycleResumeCommand;
+export type WorkflowCancelRequest = WorkflowLifecycleCancelCommand;
 export type { PublicMcpAgentInvokeArguments, PublicMcpExecutionRequest };
 
 export function parsePromotedMemoryPromoteCommand(
@@ -271,6 +292,42 @@ export function parseSchedulerRegisterRequest(
   params: unknown,
 ): SchedulerRegisterRequest {
   return SchedulerRegisterRequestSchema.parse(params ?? {});
+}
+
+export function parseWorkflowListRequest(params: unknown): WorkflowListRequest {
+  return WorkflowLifecycleListQuerySchema.parse(params ?? {});
+}
+
+export function parseWorkflowInspectRequest(
+  params: unknown,
+): WorkflowInspectRequest {
+  return WorkflowLifecycleInspectQuerySchema.parse(params ?? {});
+}
+
+export function parseWorkflowStartRequest(params: unknown): WorkflowStartRequest {
+  return WorkflowLifecycleStartCommandSchema.parse(params ?? {});
+}
+
+export function parseWorkflowStatusRequest(
+  params: unknown,
+): WorkflowStatusRequest {
+  return WorkflowLifecycleStatusQuerySchema.parse(params ?? {});
+}
+
+export function parseWorkflowPauseRequest(params: unknown): WorkflowPauseRequest {
+  return WorkflowLifecyclePauseCommandSchema.parse(params ?? {});
+}
+
+export function parseWorkflowResumeRequest(
+  params: unknown,
+): WorkflowResumeRequest {
+  return WorkflowLifecycleResumeCommandSchema.parse(params ?? {});
+}
+
+export function parseWorkflowCancelRequest(
+  params: unknown,
+): WorkflowCancelRequest {
+  return WorkflowLifecycleCancelCommandSchema.parse(params ?? {});
 }
 
 export function parseExternalMemoryPutCommand(

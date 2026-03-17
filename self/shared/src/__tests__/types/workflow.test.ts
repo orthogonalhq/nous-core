@@ -12,6 +12,7 @@ import {
   WorkflowNodeAttemptSchema,
   WorkflowNodeRunStateSchema,
   WorkflowNodeWaitStateSchema,
+  WorkflowRunStatusSchema,
   WorkflowRunTriggerContextSchema,
   WorkflowRunStateSchema,
   WorkflowStartResultSchema,
@@ -338,6 +339,10 @@ describe('Workflow admission schemas', () => {
 });
 
 describe('Workflow runtime schemas', () => {
+  it('accepts the additive canceled workflow run status', () => {
+    expect(WorkflowRunStatusSchema.parse('canceled')).toBe('canceled');
+  });
+
   it('accepts wait states, correction arcs, attempts, and node run state', () => {
     expect(WorkflowDispatchLineageSchema.safeParse(dispatchLineage).success).toBe(
       true,

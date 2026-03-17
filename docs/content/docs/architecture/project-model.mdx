@@ -205,6 +205,17 @@ Phase 9.1 makes workflow execution state explicit rather than leaving later surf
 
 This gives scheduler, chat, Projects UI, and MAO consumers a canonical runtime truth to project from without re-deriving execution history locally.
 
+Phase 14.4 extends that same runtime truth with an additive terminal `canceled` posture so operators can distinguish intentional cancellation from failure or normal completion without inventing surface-local state.
+
+### Canonical Lifecycle Control Boundary (Phase 14.4)
+
+Workflow lifecycle control remains an internal runtime boundary, not a new app-owned control plane.
+
+- `workflow_list`, `workflow_inspect`, and `workflow_status` are canonical read projections exposed through the Internal MCP surface for the approved internal lanes.
+- `workflow_start`, `workflow_pause`, `workflow_resume`, and `workflow_cancel` are `Cortex::System`-only lifecycle mutations. They remain authority-bound control actions rather than browser, app, or public-edge operations.
+- Lifecycle mutations emit witness-linked evidence and preserve the existing workflow-runtime truth, checkpoint posture, wait states, and correction semantics rather than creating a second state store.
+- Apps and the public MCP edge remain outside workflow mutation authority. They can project workflow state through approved runtime surfaces, but they do not become the source of lifecycle truth.
+
 ### Typed Node Contracts and Governed Execution (Phase 9.2)
 
 Phase 9.2 hardens the execution layer in three ways:

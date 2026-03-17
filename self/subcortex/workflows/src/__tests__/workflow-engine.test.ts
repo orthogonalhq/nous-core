@@ -297,6 +297,37 @@ describe('DeterministicWorkflowEngine', () => {
     expect(current?.triggerContext?.dispatchRef).toBe(`dispatch:${RUN_ID}`);
   });
 
+  it('cancels active workflow runs and rejects repeat terminal cancellation', async () => {
+    const engine = new DeterministicWorkflowEngine();
+    const started = await engine.start({
+      projectConfig: projectConfig as any,
+      runId: RUN_ID as any,
+      workmodeId: 'system:implementation',
+      sourceActor: 'orchestration_agent',
+      controlState: 'running',
+    });
+
+    expect(started.status).toBe('started');
+    if (started.status !== 'started') {
+      return;
+    }
+
+    const canceled = await engine.cancel(started.runState.runId, {
+      reasonCode: 'workflow_canceled',
+      evidenceRefs: ['workflow:cancel'],
+    });
+    expect(canceled.status).toBe('canceled');
+    expect(canceled.activeNodeIds).toEqual([]);
+    expect(canceled.readyNodeIds).toEqual([]);
+
+    await expect(
+      engine.cancel(started.runState.runId, {
+        reasonCode: 'workflow_canceled',
+        evidenceRefs: ['workflow:cancel'],
+      }),
+    ).rejects.toThrow(/cannot be canceled/i);
+  });
+
   it('executes ready nodes through governance and handler dispatch', async () => {
     const pfcEngine = {
       evaluateConfidenceGovernance: vi.fn(

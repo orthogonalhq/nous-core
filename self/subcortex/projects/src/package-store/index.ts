@@ -5,12 +5,16 @@ export {
 } from './discovery.js';
 export {
   loadCompositeSkillDependencyGraph,
+  inspectInstalledWorkflowPackage,
   loadInstalledSkillPackage,
   loadInstalledWorkflowPackage,
+  listInstalledWorkflowPackages,
   resolveInstalledWorkflowDefinition,
   type LoadedCompositeSkillDependencyGraph,
+  type InspectInstalledWorkflowPackageOptions,
   type LoadInstalledSkillPackageOptions,
   type LoadInstalledWorkflowPackageOptions,
+  type ListInstalledWorkflowPackagesOptions,
   type ResolveInstalledWorkflowDefinitionOptions,
 } from './document-loader.js';
 export {

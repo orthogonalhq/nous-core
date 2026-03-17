@@ -3,6 +3,7 @@ import type {
   AgentGatewayConfig,
   AgentInput,
   DerivedWorkflowGraph,
+  IOpctlService,
   IProjectApi,
   IWorkflowEngine,
   IWorkmodeAdmissionGuard,
@@ -209,16 +210,33 @@ export function createPfcEngine(overrides?: Partial<IPfcEngine>): IPfcEngine {
   };
 }
 
+export function createOpctlService(
+  overrides?: Partial<IOpctlService>,
+): IOpctlService {
+  return {
+    submitCommand: vi.fn(),
+    requestConfirmationProof: vi.fn(),
+    validateConfirmationProof: vi.fn(),
+    resolveScope: vi.fn(),
+    hasStartLock: vi.fn().mockResolvedValue(false),
+    setStartLock: vi.fn(),
+    getProjectControlState: vi.fn().mockResolvedValue('running'),
+    ...overrides,
+  };
+}
+
 export function createWorkflowEngine(
   overrides?: Partial<IWorkflowEngine>,
 ): IWorkflowEngine {
   return {
     resolveDefinition: vi.fn(),
+    resolveDefinitionSource: vi.fn().mockResolvedValue(null),
     deriveGraph: vi.fn(),
     evaluateAdmission: vi.fn(),
     start: vi.fn(),
     resume: vi.fn(),
     pause: vi.fn(),
+    cancel: vi.fn(),
     completeNode: vi.fn().mockResolvedValue({}),
     executeReadyNode: vi.fn(),
     continueNode: vi.fn(),

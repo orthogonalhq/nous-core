@@ -8,6 +8,8 @@ import type {
   ProjectConfig,
   ProjectWorkflowPackageBinding,
   ResolvedWorkflowDefinitionSource,
+  WorkflowLifecycleDefinitionSummary,
+  WorkflowLifecycleInspectResult,
   WorkflowDefinition,
   WorkflowFlowDocument,
   WorkflowNodeDefinition,
@@ -21,6 +23,8 @@ import {
   ResolvedWorkflowDefinitionSourceSchema,
   SkillFrontmatterBaseSchema,
   SkillPackageKindSchema,
+  WorkflowLifecycleDefinitionSummarySchema,
+  WorkflowLifecycleInspectResultSchema,
   WorkflowDefinitionSchema,
   WorkflowFlowDocumentSchema,
   WorkflowManifestFrontmatterSchema,
@@ -434,9 +438,70 @@ const resolvePackagePath = async (input: {
     throw new Error(`Canonical store ${input.rootDir} is unavailable`);
   }
 
-  return input.runtime.resolvePath(
-    store.absolutePath,
-    sanitizePackageId(input.packageId),
+  const packageDirName = sanitizePackageId(input.packageId);
+  const primaryPath = input.runtime.resolvePath(store.absolutePath, packageDirName);
+  if (await input.runtime.exists(primaryPath)) {
+    return primaryPath;
+  }
+
+  if (store.systemDir) {
+    const systemPath = input.runtime.resolvePath(store.systemDir, packageDirName);
+    if (await input.runtime.exists(systemPath)) {
+      return systemPath;
+    }
+  }
+
+  return primaryPath;
+};
+
+const listInstalledPackageRoots = async (input: {
+  instanceRoot: string;
+  runtime: IRuntime;
+  rootDir: '.skills' | '.workflows';
+}): Promise<Array<{ packageId: string; rootPath: string }>> => {
+  const snapshot = await discoverCanonicalPackageStores({
+    instanceRoot: input.instanceRoot,
+    runtime: input.runtime,
+  });
+  const store = getCanonicalStoreEntry(snapshot, input.rootDir);
+  if (!store || store.surface !== 'package_store') {
+    throw new Error(`Canonical store ${input.rootDir} is unavailable`);
+  }
+
+  const entries: Array<{ packageId: string; rootPath: string }> = [];
+  const readEntries = async (basePath: string) => {
+    if (!(await input.runtime.exists(basePath))) {
+      return;
+    }
+
+    const names = (await input.runtime.listDirectory(basePath)).sort((left, right) =>
+      left.localeCompare(right),
+    );
+    for (const name of names) {
+      if (name.startsWith('.')) {
+        continue;
+      }
+      entries.push({
+        packageId: name,
+        rootPath: input.runtime.resolvePath(basePath, name),
+      });
+    }
+  };
+
+  await readEntries(store.absolutePath);
+  if (store.systemDir) {
+    await readEntries(store.systemDir);
+  }
+
+  const deduped = new Map<string, { packageId: string; rootPath: string }>();
+  for (const entry of entries) {
+    if (!deduped.has(entry.packageId)) {
+      deduped.set(entry.packageId, entry);
+    }
+  }
+
+  return [...deduped.values()].sort((left, right) =>
+    left.packageId.localeCompare(right.packageId),
   );
 };
 
@@ -639,6 +704,85 @@ export const loadInstalledWorkflowPackage = async (
     flow: parsedFlow,
     steps,
     ...(await loadResourceRefs(options.runtime, rootPath)),
+  });
+};
+
+export interface ListInstalledWorkflowPackagesOptions {
+  instanceRoot: string;
+  runtime: IRuntime;
+}
+
+export const listInstalledWorkflowPackages = async (
+  options: ListInstalledWorkflowPackagesOptions,
+): Promise<WorkflowLifecycleDefinitionSummary[]> => {
+  const packageRoots = await listInstalledPackageRoots({
+    instanceRoot: options.instanceRoot,
+    runtime: options.runtime,
+    rootDir: '.workflows',
+  });
+
+  const loadedPackages = await Promise.all(
+    packageRoots.map(async (entry) =>
+      loadInstalledWorkflowPackage({
+        instanceRoot: options.instanceRoot,
+        runtime: options.runtime,
+        packageId: entry.packageId,
+      }),
+    ),
+  );
+
+  return loadedPackages.map((loadedPackage) =>
+    WorkflowLifecycleDefinitionSummarySchema.parse({
+      packageId: loadedPackage.packageId,
+      packageVersion: loadedPackage.packageVersion,
+      name: loadedPackage.manifest.name,
+      description: loadedPackage.manifest.description,
+      entrypoint: loadedPackage.manifest.entrypoint,
+      entrypoints:
+        loadedPackage.manifest.entrypoints ?? [loadedPackage.manifest.entrypoint],
+      skillDependencies: loadedPackage.manifest.dependencies?.skills ?? [],
+      toolDependencies: loadedPackage.manifest.dependencies?.tools ?? [],
+      rootRef: loadedPackage.rootRef,
+      manifestRef: loadedPackage.manifestRef,
+      flowRef: loadedPackage.flowRef,
+    }),
+  );
+};
+
+export interface InspectInstalledWorkflowPackageOptions {
+  instanceRoot: string;
+  runtime: IRuntime;
+  packageId: string;
+}
+
+export const inspectInstalledWorkflowPackage = async (
+  options: InspectInstalledWorkflowPackageOptions,
+): Promise<WorkflowLifecycleInspectResult> => {
+  const loadedPackage = await loadInstalledWorkflowPackage({
+    instanceRoot: options.instanceRoot,
+    runtime: options.runtime,
+    packageId: options.packageId,
+  });
+
+  return WorkflowLifecycleInspectResultSchema.parse({
+    packageId: loadedPackage.packageId,
+    packageVersion: loadedPackage.packageVersion,
+    manifest: loadedPackage.manifest,
+    flow: loadedPackage.flow,
+    steps: loadedPackage.steps.map((step) => ({
+      stepId: step.stepId,
+      fileRef: step.fileRef,
+      name: step.frontmatter.name,
+      description: step.frontmatter.description,
+      type: step.frontmatter.type,
+      governance: step.frontmatter.governance,
+      executionModel: step.frontmatter.executionModel,
+    })),
+    resourceRefs: {
+      references: loadedPackage.references,
+      scripts: loadedPackage.scripts,
+      assets: loadedPackage.assets,
+    },
   });
 };
 

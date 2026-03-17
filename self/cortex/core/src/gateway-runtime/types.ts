@@ -16,6 +16,8 @@ import type {
   IEscalationService,
   IWorkflowEngine,
   IWitnessService,
+  IRuntime,
+  IOpctlService,
   IngressDispatchOutcome,
   IngressTriggerEnvelope,
   ModelRequirements,
@@ -149,6 +151,9 @@ export interface PrincipalSystemGatewayRuntimeDeps {
   scheduler?: IScheduler;
   escalationService?: IEscalationService;
   witnessService?: IWitnessService;
+  opctlService?: IOpctlService;
+  runtime?: IRuntime;
+  instanceRoot?: string;
   workmodeAdmissionGuard?: IWorkmodeAdmissionGuard;
   outputSchemaValidator?: InternalMcpOutputSchemaValidator;
   principalBaseSystemPrompt?: string;

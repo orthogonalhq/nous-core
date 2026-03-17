@@ -111,6 +111,7 @@ Designing, building, monitoring, and tuning project workflows. This is the engin
 - Workflow design for protocol projects
 - Live monitoring for intent and hybrid projects
 - Phase 11.4 adds a staged visual-debug canvas, checkpoint and scheduler summaries, parity diagnostics, and richer node inspection over canonical runtime truth
+- Workflow lifecycle state is projected from canonical runtime truth, while lifecycle mutations remain governed Internal MCP actions rather than browser-owned controls
 - Node-level governance configuration (MUST / SHOULD / MAY)
 - Model assignment per node
 - Artifact browsing and versioning
@@ -137,6 +138,7 @@ The advanced Projects surface is still a projection and control surface, not a s
 - Degraded parity is surfaced explicitly when the selected workflow graph and MAO graph cannot align
 - Deep links into Chat, Traces, and MAO preserve project, run, node, and evidence continuity
 - Save and validation still flow through the canonical workflow-definition seam
+- Workflow start, pause, resume, and cancel remain authority-bound runtime operations routed through the canonical Internal MCP seam instead of a Projects-local control plane
 
 ### Project Type Support
 
@@ -257,6 +259,7 @@ Allowing approved external clients to discover and call the ratified public MCP 
 - Same public contract across `development`, `local_tunnel`, and `hosted` backends
 - Public-safe system info can expose deployment mode, phase, and server name without revealing internal-only topology
 - Backend selection is internal to the edge and does not create a second public API surface
+- Internal workflow lifecycle tools (`workflow_*`) remain out of scope for the public edge, so external clients do not inherit internal workflow visibility or mutation authority
 
 ### Runtime Boundary
 

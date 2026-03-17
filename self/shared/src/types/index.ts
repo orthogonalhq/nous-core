@@ -10,6 +10,7 @@ export * from './distillation.js';
 export * from './confidence-governance.js';
 export * from './sentiment.js';
 export * from './workflow.js';
+export * from './workflow-lifecycle.js';
 export * from './workflow-monitoring.js';
 export * from './project-surface.js';
 export * from './project.js';
