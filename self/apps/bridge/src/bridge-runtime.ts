@@ -28,8 +28,10 @@ export interface BridgeRuntimeOptions {
 
 export class BridgeRuntime {
   readonly gatewayService: ICommunicationGatewayService;
+  readonly connectorId: string;
 
   constructor(private readonly options: BridgeRuntimeOptions) {
+    this.connectorId = `connector:telegram:${options.adapter.accountId}`;
     this.gatewayService = options.gatewayService ??
       new CommunicationGatewayService({
         documentStore: options.documentStore,
@@ -45,6 +47,13 @@ export class BridgeRuntime {
         now: options.now,
         idFactory: options.idFactory,
       });
+    if (this.gatewayService instanceof CommunicationGatewayService) {
+      this.gatewayService.registerConnector({
+        connector_id: this.connectorId,
+        kind: 'telegram',
+        account_id: options.adapter.accountId,
+      });
+    }
   }
 
   async handleTelegramUpdate(

@@ -11,6 +11,7 @@ import {
   type AgentClass,
   type CriticalActionCategory,
   type GatewayExecutionContext,
+  type AppPermissions,
   type IPromotedMemoryBridgeService,
   type IPublicMcpSurfaceService,
   type ProjectConfig,
@@ -37,6 +38,9 @@ import {
 import {
   parseArtifactRetrieveRequest,
   parseArtifactStoreRequest,
+  parseCredentialInjectRequest,
+  parseCredentialRevokeRequest,
+  parseCredentialStoreRequest,
   parseEscalationNotifyRequest,
   parseExternalMemoryCompactCommand,
   parseExternalMemoryDeleteCommand,
@@ -190,6 +194,44 @@ function requireProjectId(
   }
 
   return execution.projectId;
+}
+
+function requireAppExecutionContext(
+  toolName: string,
+  execution?: GatewayExecutionContext,
+): { appId: string; projectId?: ProjectId } {
+  if (!execution?.appId) {
+    throw new NousError(
+      `Tool ${toolName} requires execution.appId`,
+      'PROJECT_SCOPE_REQUIRED',
+    );
+  }
+
+  return {
+    appId: execution.appId,
+    projectId: execution.projectId,
+  };
+}
+
+function requireAppCredentialPolicy(
+  context: InternalMcpHandlerContext,
+  appId: string,
+  projectId?: ProjectId,
+): Pick<AppPermissions, 'credentials' | 'network'> {
+  const policy = context.deps.getAppPermissions?.(appId, projectId);
+  if (!policy) {
+    throw new NousError(
+      `App credential policy is unavailable for ${appId}`,
+      'SERVICE_UNAVAILABLE',
+    );
+  }
+  if (!policy.credentials) {
+    throw new NousError(
+      `Credential access is not granted for ${appId}`,
+      'TOOL_DENIED',
+    );
+  }
+  return policy;
 }
 
 function requireProjectApi(
@@ -973,6 +1015,124 @@ export function createCapabilityHandlers(
         {
           accepted: true,
           health,
+        },
+        0,
+      );
+    },
+    credentials_store: async (params, execution) => {
+      const { appId, projectId } = requireAppExecutionContext(
+        'credentials_store',
+        execution,
+      );
+      const policy = requireAppCredentialPolicy(context, appId, projectId);
+      const request = parseCredentialStoreRequest(params);
+      const vaultService = context.deps.credentialVaultService;
+      if (!vaultService) {
+        throw new NousError(
+          'Credential vault service is unavailable',
+          'SERVICE_UNAVAILABLE',
+        );
+      }
+
+      const result = await executeWithWitness({
+        context,
+        actionCategory: 'trace-persist',
+        actionRef: 'credentials_store',
+        projectId,
+        traceId: execution?.traceId,
+        detail: {
+          appId,
+          key: request.key,
+          targetHost: request.target_host,
+          credentialType: request.credential_type,
+          credentialPermission: policy.credentials,
+        },
+        operation: () => vaultService.store(appId, request),
+      });
+
+      return success(
+        {
+          ...result.value,
+          evidenceRef: result.evidenceRef,
+        },
+        0,
+      );
+    },
+    credentials_inject: async (params, execution) => {
+      const { appId, projectId } = requireAppExecutionContext(
+        'credentials_inject',
+        execution,
+      );
+      const policy = requireAppCredentialPolicy(context, appId, projectId);
+      const request = parseCredentialInjectRequest(params);
+      const credentialInjector = context.deps.credentialInjector;
+      if (!credentialInjector) {
+        throw new NousError(
+          'Credential injector is unavailable',
+          'SERVICE_UNAVAILABLE',
+        );
+      }
+
+      const result = await executeWithWitness({
+        context,
+        actionCategory: 'tool-execute',
+        actionRef: 'credentials_inject',
+        projectId,
+        traceId: execution?.traceId,
+        detail: {
+          appId,
+          key: request.key,
+          url: request.request_descriptor.url,
+        },
+        operation: () =>
+          credentialInjector.executeInjectedRequest({
+            appId,
+            request,
+            manifestNetworkPermissions: policy.network,
+          }),
+      });
+
+      return success(
+        {
+          ...result.value,
+          evidenceRef: result.evidenceRef,
+        },
+        0,
+      );
+    },
+    credentials_revoke: async (params, execution) => {
+      const { appId, projectId } = requireAppExecutionContext(
+        'credentials_revoke',
+        execution,
+      );
+      requireAppCredentialPolicy(context, appId, projectId);
+      const request = parseCredentialRevokeRequest(params);
+      const vaultService = context.deps.credentialVaultService;
+      if (!vaultService) {
+        throw new NousError(
+          'Credential vault service is unavailable',
+          'SERVICE_UNAVAILABLE',
+        );
+      }
+
+      const result = await executeWithWitness({
+        context,
+        actionCategory: 'trace-persist',
+        actionRef: 'credentials_revoke',
+        projectId,
+        traceId: execution?.traceId,
+        detail: {
+          appId,
+          key: request.key,
+          reason: request.reason,
+        },
+        operation: () => vaultService.revoke(appId, request),
+      });
+
+      return success(
+        {
+          ...result.value,
+          evidenceRef: result.evidenceRef,
         },
         0,
       );

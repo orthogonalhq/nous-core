@@ -2,7 +2,7 @@ import { mkdtempSync, readFileSync, writeFileSync } from 'node:fs';
 import { access, mkdir, rm } from 'node:fs/promises';
 import { dirname, join } from 'node:path';
 import { tmpdir } from 'node:os';
-import { afterEach, beforeEach, describe, expect, it } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import type {
   IRegistryService,
   IRuntime,
@@ -523,5 +523,141 @@ describe('PackageInstallService', () => {
         'utf-8',
       ),
     ).toBe('workflow-new');
+  });
+
+  it('stores install-time secrets and OAuth credentials for app packages through the credential install seam', async () => {
+    const appSource = join(instanceRoot, 'src-app');
+    await mkdir(appSource, { recursive: true });
+    writeFileSync(join(appSource, 'payload.txt'), 'app-v1', 'utf-8');
+
+    const pkg = createPackage('app:weather', 'app');
+    const release = createRelease({
+      releaseId: 'release-app-1',
+      packageId: pkg.package_id,
+      packageType: 'app',
+      version: '1.0.0',
+      sourcePath: appSource,
+    });
+    pkg.latest_release_id = release.release_id;
+
+    const appCredentialInstallService = {
+      storeSecretField: vi.fn().mockResolvedValue({
+        credential_ref: 'credential:app:weather:weather_api',
+      }),
+      openOAuthFlow: vi.fn().mockResolvedValue({
+        status: 'success',
+        credentialRef: 'credential:app:weather:weather_oauth',
+        grantedScopes: ['weather.read'],
+      }),
+      revokeCredential: vi.fn(),
+    };
+    const service = new PackageInstallService({
+      registryService: new FakeRegistryService(
+        new Map([[pkg.package_id, pkg]]),
+        new Map([[release.release_id, release]]),
+      ),
+      lifecycleOrchestrator: new PackageLifecycleOrchestrator(),
+      appCredentialInstallService: appCredentialInstallService as any,
+      runtime,
+      instanceRoot,
+    });
+
+    const result = await service.installPackage({
+      project_id: '550e8400-e29b-41d4-a716-446655440504' as any,
+      package_id: pkg.package_id,
+      actor_id: 'cli',
+      credential_setup: {
+        secrets: [
+          {
+            key: 'weather_api',
+            value: 'secret-token',
+            credential_type: 'bearer_token',
+            target_host: 'api.weather.example',
+            injection_location: 'header',
+            injection_key: 'Authorization',
+          },
+        ],
+        oauth: [
+          {
+            app_id: pkg.package_id,
+            key: 'weather_oauth',
+            provider: 'weather',
+            scopes: ['weather.read'],
+            target_host: 'api.weather.example',
+            injection_location: 'header',
+            injection_key: 'Authorization',
+            metadata: {},
+          },
+        ],
+      },
+      evidence_refs: [],
+    });
+
+    expect(result.status).toBe('installed');
+    expect(appCredentialInstallService.storeSecretField).toHaveBeenCalledTimes(1);
+    expect(appCredentialInstallService.openOAuthFlow).toHaveBeenCalledTimes(1);
+  });
+
+  it('rolls back app installation when OAuth setup fails', async () => {
+    const appSource = join(instanceRoot, 'src-app-oauth-fail');
+    await mkdir(appSource, { recursive: true });
+    writeFileSync(join(appSource, 'payload.txt'), 'app-v1', 'utf-8');
+
+    const pkg = createPackage('app:weather', 'app');
+    const release = createRelease({
+      releaseId: 'release-app-2',
+      packageId: pkg.package_id,
+      packageType: 'app',
+      version: '1.0.0',
+      sourcePath: appSource,
+    });
+    pkg.latest_release_id = release.release_id;
+
+    const service = new PackageInstallService({
+      registryService: new FakeRegistryService(
+        new Map([[pkg.package_id, pkg]]),
+        new Map([[release.release_id, release]]),
+      ),
+      lifecycleOrchestrator: new PackageLifecycleOrchestrator(),
+      appCredentialInstallService: {
+        storeSecretField: vi.fn().mockResolvedValue({
+          credential_ref: 'credential:app:weather:weather_api',
+        }),
+        openOAuthFlow: vi.fn().mockResolvedValue({
+          status: 'failed',
+          reason: 'PKG-010-OAUTH_FLOW_FAILED',
+          grantedScopes: [],
+        }),
+        revokeCredential: vi.fn(),
+      } as any,
+      runtime,
+      instanceRoot,
+    });
+
+    const result = await service.installPackage({
+      project_id: '550e8400-e29b-41d4-a716-446655440505' as any,
+      package_id: pkg.package_id,
+      actor_id: 'cli',
+      credential_setup: {
+        secrets: [],
+        oauth: [
+          {
+            app_id: pkg.package_id,
+            key: 'weather_oauth',
+            provider: 'weather',
+            scopes: ['weather.read'],
+            target_host: 'api.weather.example',
+            injection_location: 'header',
+            injection_key: 'Authorization',
+            metadata: {},
+          },
+        ],
+      },
+      evidence_refs: [],
+    });
+
+    expect(result.status).toBe('rolled_back');
+    expect(result.failure?.reason_code).toBe('PKG-010-OAUTH_FLOW_FAILED');
+    expect(await runtime.exists(join(instanceRoot, '.apps', 'app:weather'))).toBe(false);
   });
 });

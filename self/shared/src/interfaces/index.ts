@@ -38,6 +38,7 @@ export type {
   IEndpointTrustService,
   IVoiceControlService,
   ISandbox,
+  IAppCredentialInstallService,
   IAppRuntimeService,
   IPackageLifecycleOrchestrator,
   IPackageInstallService,
@@ -127,5 +128,7 @@ export type {
   IRuntime,
   IConfig,
   IHealthMonitor,
+  ICredentialVaultService,
+  ICredentialInjector,
   SystemConfig,
 } from './autonomic.js';

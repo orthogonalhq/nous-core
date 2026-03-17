@@ -45,34 +45,37 @@ export class AppRuntimeService implements IAppRuntimeService {
 
   async activate(input: AppRuntimeActivationInput): Promise<AppRuntimeSession> {
     const parsed = AppRuntimeActivationInputSchema.parse(input);
-    const receipt = this.spawner.spawn(parsed.launch_spec);
-    const toolDefinitions: AppToolRegistryDefinition[] = parsed.manifest.tools.map((tool: AppRuntimeActivationInput['manifest']['tools'][number]) => ({
-      tool_name: tool.name,
-      description: tool.description,
-      input_schema: tool.inputSchema,
-      output_schema: tool.outputSchema,
-    }));
-
-    const session = AppRuntimeSessionSchema.parse({
-      session_id: receipt.sessionId,
-      app_id: parsed.launch_spec.app_id,
-      package_id: parsed.launch_spec.package_id,
-      package_version: parsed.launch_spec.package_version,
-      project_id: parsed.project_id,
-      pid: Math.max(receipt.pid, 1),
-      status: 'starting',
-      started_at: receipt.startedAt,
-      registered_tool_ids: [],
-      panel_ids: [],
-      health_status: 'healthy',
-      config_version: parsed.launch_spec.config_version,
-    });
-
-    this.sessions.set(session.session_id, session);
-    this.receipts.set(session.session_id, receipt);
-    this.healthRegistry.initializeSession(session.session_id);
+    let session: AppRuntimeSession | null = null;
+    let receipt: DenoSpawnReceipt | null = null;
 
     try {
+      receipt = this.spawner.spawn(parsed.launch_spec);
+      const toolDefinitions: AppToolRegistryDefinition[] = parsed.manifest.tools.map((tool: AppRuntimeActivationInput['manifest']['tools'][number]) => ({
+        tool_name: tool.name,
+        description: tool.description,
+        input_schema: tool.inputSchema,
+        output_schema: tool.outputSchema,
+      }));
+
+      session = AppRuntimeSessionSchema.parse({
+        session_id: receipt.sessionId,
+        app_id: parsed.launch_spec.app_id,
+        package_id: parsed.launch_spec.package_id,
+        package_version: parsed.launch_spec.package_version,
+        project_id: parsed.project_id,
+        pid: Math.max(receipt.pid, 1),
+        status: 'starting',
+        started_at: receipt.startedAt,
+        registered_tool_ids: [],
+        panel_ids: [],
+        health_status: 'healthy',
+        config_version: parsed.launch_spec.config_version,
+      });
+
+      this.sessions.set(session.session_id, session);
+      this.receipts.set(session.session_id, receipt);
+      this.healthRegistry.initializeSession(session.session_id);
+
       const toolRecords = await this.options.toolRegistry.registerSessionTools({
         appId: session.app_id,
         sessionId: session.session_id,
@@ -90,12 +93,16 @@ export class AppRuntimeService implements IAppRuntimeService {
       await this.runLifecycleTransition(parsed, 'run');
       return activeSession;
     } catch (error) {
-      await this.options.toolRegistry.deregisterSessionTools(session.session_id);
-      this.panelRegistry.unregisterSession(session.session_id);
-      this.healthRegistry.removeSession(session.session_id);
-      this.receipts.get(session.session_id)?.handle.kill();
-      this.receipts.delete(session.session_id);
-      this.sessions.delete(session.session_id);
+      if (session) {
+        await this.options.toolRegistry.deregisterSessionTools(session.session_id);
+        this.panelRegistry.unregisterSession(session.session_id);
+        this.healthRegistry.removeSession(session.session_id);
+        this.receipts.get(session.session_id)?.handle.kill();
+        this.receipts.delete(session.session_id);
+        this.sessions.delete(session.session_id);
+      } else {
+        receipt?.handle.kill();
+      }
       throw error;
     }
   }

@@ -72,6 +72,9 @@ const MATRIX: Record<AgentClass, readonly InternalMcpToolName[]> = {
 const APP_MATRIX: readonly InternalMcpToolName[] = [
   'health_report',
   'health_heartbeat',
+  'credentials_store',
+  'credentials_inject',
+  'credentials_revoke',
   'memory_write',
   'project_discover',
   'artifact_store',

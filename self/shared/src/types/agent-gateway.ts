@@ -85,6 +85,8 @@ export const GatewayExecutionContextSchema = z
     projectId: ProjectIdSchema.optional(),
     executionId: WorkflowExecutionIdSchema.optional(),
     nodeDefinitionId: WorkflowNodeDefinitionIdSchema.optional(),
+    appId: z.string().min(1).optional(),
+    appSessionId: z.string().min(1).optional(),
     traceId: TraceIdSchema.optional(),
     workmodeId: WorkmodeIdSchema.optional(),
   })

@@ -91,6 +91,12 @@ import type {
   AppRuntimeSession,
   AppHealthSnapshot,
   AppHeartbeatSignal,
+  CredentialOAuthFlowRequest,
+  CredentialOAuthFlowResult,
+  CredentialRevokeRequest,
+  CredentialRevokeResult,
+  CredentialStoreRequest,
+  CredentialStoreResult,
   PackageLifecycleTransitionRequest,
   PackageLifecycleTransitionResult,
   PackageLifecycleStateRecord,
@@ -510,6 +516,25 @@ export interface ICommunicationGatewayService {
 
   /** Retrieve a previously created canonical route decision. */
   getRouteDecision(routeId: string): Promise<CommunicationRouteDecision | null>;
+}
+
+export interface IAppCredentialInstallService {
+  /** Store one app install/config secret directly into the vault. */
+  storeSecretField(
+    appId: string,
+    request: CredentialStoreRequest,
+  ): Promise<CredentialStoreResult>;
+
+  /** Run one install-hook scoped OAuth flow and store tokens directly in the vault. */
+  openOAuthFlow(
+    request: CredentialOAuthFlowRequest,
+  ): Promise<CredentialOAuthFlowResult>;
+
+  /** Revoke one install-time credential by key. */
+  revokeCredential(
+    appId: string,
+    request: CredentialRevokeRequest,
+  ): Promise<CredentialRevokeResult>;
 }
 
 export interface IPublicMcpGatewayService {

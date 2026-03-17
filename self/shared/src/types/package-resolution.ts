@@ -1,5 +1,6 @@
 import { z } from 'zod';
 import { ProjectIdSchema } from './ids.js';
+import { CredentialInstallSetupSchema } from './app-credentials.js';
 import {
   PackageLifecycleReasonCodeSchema,
   PackageLifecycleTransitionResultSchema,
@@ -165,6 +166,7 @@ export const PackageInstallRequestSchema = z
     release_id: z.string().min(1).optional(),
     actor_id: z.string().min(1),
     instance_root: z.string().min(1).optional(),
+    credential_setup: CredentialInstallSetupSchema.optional(),
     evidence_refs: z.array(z.string().min(1)).default([]),
   })
   .superRefine((value, ctx) => {

@@ -417,6 +417,53 @@ export const INTERNAL_MCP_CATALOG: readonly InternalMcpCatalogEntry[] = [
     ),
   },
   {
+    name: 'credentials_store',
+    kind: 'capability',
+    definition: defineTool(
+      'credentials_store',
+      'Store one app-scoped credential without exposing it back to the app.',
+      {
+        key: 'string',
+        value: 'string',
+        credential_type: 'api_key | bearer_token | basic_auth | oauth2 | custom',
+        target_host: 'string',
+        injection_location: 'header | query | body',
+        injection_key: 'string',
+        expires_at: 'ISO datetime?',
+      },
+      { credential_ref: 'string', metadata: 'CredentialMetadata' },
+      ['write'],
+      'runtime',
+    ),
+  },
+  {
+    name: 'credentials_inject',
+    kind: 'capability',
+    definition: defineTool(
+      'credentials_inject',
+      'Execute one outbound request with a credential injected by infrastructure.',
+      {
+        key: 'string',
+        request_descriptor: 'AppCredentialRequestDescriptor',
+      },
+      { status: 'number', headers: 'Record<string, string>', body: 'unknown' },
+      ['execute'],
+      'runtime',
+    ),
+  },
+  {
+    name: 'credentials_revoke',
+    kind: 'capability',
+    definition: defineTool(
+      'credentials_revoke',
+      'Revoke one app-scoped credential and remove it from the vault.',
+      { key: 'string', reason: 'string?' },
+      { revoked: 'boolean', credential_ref: 'string?' },
+      ['write'],
+      'runtime',
+    ),
+  },
+  {
     name: DISPATCH_AGENT_TOOL_NAME,
     kind: 'lifecycle',
     definition: defineTool(

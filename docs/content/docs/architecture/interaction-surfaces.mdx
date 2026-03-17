@@ -25,6 +25,7 @@ Interaction with Nous when away from a workstation. Quick decisions, approvals, 
 - User can give quick natural language instructions
 - Supports text through the Phase 11.1 communication-gateway baseline
 - Phase 11.3 adds the canonical voice-control runtime for safe turn handling, interruption, degraded-mode visibility, and confirmation posture
+- Phase 14.6 moves connector registration and session lifecycle ownership fully into the canonical communication-gateway runtime; the bridge app remains adapter-local transport scaffolding only
 - Always scoped to a project context (Nous states which project it is referencing)
 - Minimal UI — the conversation is the interface
 - High-risk voice actions can require text or dual-channel confirmation instead of voice-only execution
@@ -50,6 +51,7 @@ Requirements:
 ### Runtime Boundary
 
 This surface is not a second control plane. The bridge app normalizes connector-native messages into canonical communication-gateway envelopes and normalized voice-turn signals, then hands them to `ICommunicationGatewayService` and `IVoiceControlService` inside the same app-hosted runtime graph. Device identity, manual pairing, immutable endpoint direction, capability grants, signed transport validation, and incident containment flow through `IEndpointTrustService`; turn completion, degraded mode, interruption state, and text-first recovery flow through the voice-control runtime. The bridge adapter stays thin and does not own trust, route, or voice-policy state.
+Phase 14.6 extends that boundary by making connector registration and last-seen session projection part of the canonical communication-gateway service rather than bridge-local runtime state.
 
 ### Interaction Examples
 

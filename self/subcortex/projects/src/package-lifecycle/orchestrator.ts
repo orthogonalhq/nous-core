@@ -1,4 +1,5 @@
 import {
+  type ICredentialVaultService,
   PackageLifecycleTransitionRequestSchema,
   type IPackageLifecycleOrchestrator,
   type PackageLifecycleDecisionEvent,
@@ -101,6 +102,7 @@ export interface PackageLifecycleOrchestratorOptions {
   stateStore?: InMemoryPackageLifecycleStateStore;
   evidenceEmitter?: PackageLifecycleEvidenceEmitter;
   updateController?: PackageUpdateController;
+  credentialVaultService?: Pick<ICredentialVaultService, 'purgeNamespace'>;
   now?: () => Date;
 }
 
@@ -123,6 +125,10 @@ export class PackageLifecycleOrchestrator implements IPackageLifecycleOrchestrat
   private readonly stateStore: InMemoryPackageLifecycleStateStore;
   private readonly evidenceEmitter: PackageLifecycleEvidenceEmitter;
   private readonly updateController: PackageUpdateController;
+  private readonly credentialVaultService?: Pick<
+    ICredentialVaultService,
+    'purgeNamespace'
+  >;
   private readonly now: () => Date;
 
   constructor(options: PackageLifecycleOrchestratorOptions = {}) {
@@ -130,6 +136,7 @@ export class PackageLifecycleOrchestrator implements IPackageLifecycleOrchestrat
     this.evidenceEmitter =
       options.evidenceEmitter ?? new InMemoryPackageLifecycleEvidenceEmitter();
     this.updateController = options.updateController ?? new PackageUpdateController();
+    this.credentialVaultService = options.credentialVaultService;
     this.now = options.now ?? defaultNow;
   }
 
@@ -315,6 +322,25 @@ export class PackageLifecycleOrchestrator implements IPackageLifecycleOrchestrat
           packageVersion:
             context.current?.package_version ?? context.request.package_version,
         };
+      }
+
+      if (this.credentialVaultService) {
+        try {
+          await this.credentialVaultService.purgeNamespace(
+            context.request.package_id,
+          );
+        } catch {
+          return {
+            decision: 'blocked',
+            toState: resolveBlockedState(
+              context.fromState,
+              'PKG-010-CREDENTIAL_PURGE_FAILED',
+            ),
+            reasonCode: 'PKG-010-CREDENTIAL_PURGE_FAILED',
+            packageVersion:
+              context.current?.package_version ?? context.request.package_version,
+          };
+        }
       }
 
       return {
