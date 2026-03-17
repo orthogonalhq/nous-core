@@ -1,7 +1,12 @@
 import type {
   AgentClass,
   AgentGatewayConfig,
+  AppCredentialRequestDescriptor as SharedAppCredentialRequestDescriptor,
   AgentResult,
+  AppPermissions,
+  CredentialInjectRequest,
+  CredentialRevokeRequest,
+  CredentialStoreRequest,
   GatewayBudget,
   GatewayDispatchRequest,
   GatewayExecutionContext,
@@ -9,10 +14,13 @@ import type {
   GatewayStampedPacket,
   GatewayTaskCompletionRequest,
   IExternalSourceMemoryService,
+  ICredentialInjector,
+  ICredentialVaultService,
   IPromotedMemoryBridgeService,
   IPublicMcpSurfaceService,
   IRuntime,
   IAppRuntimeService,
+  IAppCredentialInstallService,
   IOpctlService,
   IProjectApi,
   IProjectStore,
@@ -65,6 +73,9 @@ export const INTERNAL_MCP_TOOL_NAMES = [
   'workflow_cancel',
   'health_report',
   'health_heartbeat',
+  'credentials_store',
+  'credentials_inject',
+  'credentials_revoke',
   'dispatch_agent',
   'task_complete',
   'request_escalation',
@@ -105,7 +116,14 @@ export interface InternalMcpDispatchRuntime {
 
 export interface InternalMcpRuntimeDeps {
   getProjectApi?: (projectId: ProjectId) => IProjectApi | null;
+  getAppPermissions?: (
+    appId: string,
+    projectId?: ProjectId,
+  ) => Pick<AppPermissions, 'credentials' | 'network'> | null;
   externalSourceMemoryService?: IExternalSourceMemoryService;
+  credentialVaultService?: ICredentialVaultService;
+  credentialInjector?: ICredentialInjector;
+  appCredentialInstallService?: IAppCredentialInstallService;
   promotedMemoryBridgeService?: IPromotedMemoryBridgeService;
   publicMcpSurfaceService?: IPublicMcpSurfaceService;
   projectStore?: IProjectStore;
@@ -178,6 +196,11 @@ export type AppHeartbeatRequest = Pick<
   AppHeartbeatSignal,
   'session_id' | 'reported_at' | 'sequence' | 'status_hint'
 >;
+
+export type AppCredentialStoreRequest = CredentialStoreRequest;
+export type AppCredentialInjectRequest = CredentialInjectRequest;
+export type AppCredentialRevokeRequest = CredentialRevokeRequest;
+export type AppCredentialRequestDescriptor = SharedAppCredentialRequestDescriptor;
 
 export interface InternalMcpGraphResolution {
   schemaRef: string;

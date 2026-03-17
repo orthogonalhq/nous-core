@@ -58,6 +58,12 @@ import {
   WorkflowLifecycleStatusQuerySchema,
   AppHealthSnapshotSchema,
   AppHeartbeatSignalSchema,
+  CredentialInjectRequestSchema,
+  CredentialRevokeRequestSchema,
+  CredentialStoreRequestSchema,
+  type CredentialInjectRequest,
+  type CredentialRevokeRequest,
+  type CredentialStoreRequest,
 } from '@nous/shared';
 import { z } from 'zod';
 
@@ -147,10 +153,16 @@ export type WorkflowResumeRequest = WorkflowLifecycleResumeCommand;
 export type WorkflowCancelRequest = WorkflowLifecycleCancelCommand;
 export type AppHealthReportRequest = z.infer<typeof AppHealthReportRequestSchema>;
 export type AppHeartbeatRequest = z.infer<typeof AppHeartbeatRequestSchema>;
+export type AppCredentialStoreRequest = CredentialStoreRequest;
+export type AppCredentialInjectRequest = CredentialInjectRequest;
+export type AppCredentialRevokeRequest = CredentialRevokeRequest;
 export type { PublicMcpAgentInvokeArguments, PublicMcpExecutionRequest };
 
 export const AppHealthReportRequestSchema = AppHealthSnapshotSchema.strict();
 export const AppHeartbeatRequestSchema = AppHeartbeatSignalSchema.strict();
+export const AppCredentialStoreRequestSchema = CredentialStoreRequestSchema.strict();
+export const AppCredentialInjectRequestSchema = CredentialInjectRequestSchema.strict();
+export const AppCredentialRevokeRequestSchema = CredentialRevokeRequestSchema.strict();
 
 export function parsePromotedMemoryPromoteCommand(
   params: unknown,
@@ -347,6 +359,24 @@ export function parseHealthHeartbeatRequest(
   params: unknown,
 ): AppHeartbeatRequest {
   return AppHeartbeatRequestSchema.parse(params ?? {});
+}
+
+export function parseCredentialStoreRequest(
+  params: unknown,
+): AppCredentialStoreRequest {
+  return AppCredentialStoreRequestSchema.parse(params ?? {});
+}
+
+export function parseCredentialInjectRequest(
+  params: unknown,
+): AppCredentialInjectRequest {
+  return AppCredentialInjectRequestSchema.parse(params ?? {});
+}
+
+export function parseCredentialRevokeRequest(
+  params: unknown,
+): AppCredentialRevokeRequest {
+  return AppCredentialRevokeRequestSchema.parse(params ?? {});
 }
 
 export function parseExternalMemoryPutCommand(

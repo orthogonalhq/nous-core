@@ -524,6 +524,9 @@ describe('Internal MCP capability handlers', () => {
   it('authorizes the ratified app-only health tools and denies workflow control tools', () => {
     expect(isAppInternalMcpToolAuthorized('health_report')).toBe(true);
     expect(isAppInternalMcpToolAuthorized('health_heartbeat')).toBe(true);
+    expect(isAppInternalMcpToolAuthorized('credentials_store')).toBe(true);
+    expect(isAppInternalMcpToolAuthorized('credentials_inject')).toBe(true);
+    expect(isAppInternalMcpToolAuthorized('credentials_revoke')).toBe(true);
     expect(isAppInternalMcpToolAuthorized('workflow_start')).toBe(false);
   });
 
@@ -571,5 +574,140 @@ describe('Internal MCP capability handlers', () => {
     expect((heartbeat.output as any).heartbeat.sequence).toBe(1);
     expect(appRuntimeService.updateHealth).toHaveBeenCalledTimes(1);
     expect(appRuntimeService.recordHeartbeat).toHaveBeenCalledTimes(1);
+  });
+
+  it('stores, injects, and revokes credentials through the app-only governed surface', async () => {
+    const credentialVaultService = {
+      store: vi.fn().mockResolvedValue({
+        credential_ref: 'credential:app:weather:weather_api',
+        metadata: {
+          app_id: 'app:weather',
+          user_key: 'weather_api',
+          credential_ref: 'credential:app:weather:weather_api',
+          credential_type: 'bearer_token',
+          target_host: 'api.weather.example',
+          injection_location: 'header',
+          injection_key: 'Authorization',
+          created_at: '2026-03-17T06:10:00.000Z',
+          updated_at: '2026-03-17T06:10:00.000Z',
+        },
+      }),
+      revoke: vi.fn().mockResolvedValue({
+        revoked: true,
+        credential_ref: 'credential:app:weather:weather_api',
+      }),
+    };
+    const credentialInjector = {
+      executeInjectedRequest: vi.fn().mockResolvedValue({
+        status: 200,
+        headers: {
+          'content-type': 'application/json',
+        },
+        body: {
+          ok: true,
+        },
+        credential_ref: 'credential:app:weather:weather_api',
+        target_host: 'api.weather.example',
+        executed_at: '2026-03-17T06:10:05.000Z',
+      }),
+    };
+    const witnessService = {
+      appendAuthorization: vi.fn().mockResolvedValue({ id: 'auth-1' }),
+      appendCompletion: vi.fn().mockResolvedValue({ id: 'completion-1' }),
+    };
+    const handlers = createCapabilityHandlers({
+      agentClass: 'Worker',
+      agentId: AGENT_ID as any,
+      deps: {
+        credentialVaultService: credentialVaultService as any,
+        credentialInjector: credentialInjector as any,
+        getAppPermissions: () => ({
+          credentials: true,
+          network: ['api.weather.example'],
+        }),
+        witnessService: witnessService as any,
+      },
+    });
+
+    const store = await handlers.credentials_store(
+      {
+        key: 'weather_api',
+        value: 'secret-token',
+        credential_type: 'bearer_token',
+        target_host: 'api.weather.example',
+        injection_location: 'header',
+        injection_key: 'Authorization',
+      },
+      {
+        appId: 'app:weather',
+        projectId: PROJECT_ID,
+        traceId: TRACE_ID,
+      } as any,
+    );
+    const inject = await handlers.credentials_inject(
+      {
+        key: 'weather_api',
+        request_descriptor: {
+          method: 'GET',
+          url: 'https://api.weather.example/forecast',
+        },
+      },
+      {
+        appId: 'app:weather',
+        projectId: PROJECT_ID,
+        traceId: TRACE_ID,
+      } as any,
+    );
+    const revoke = await handlers.credentials_revoke(
+      {
+        key: 'weather_api',
+        reason: 'rotate',
+      },
+      {
+        appId: 'app:weather',
+        projectId: PROJECT_ID,
+        traceId: TRACE_ID,
+      } as any,
+    );
+
+    expect(store.success).toBe(true);
+    expect((store.output as any).credential_ref).toContain('weather_api');
+    expect(JSON.stringify(store.output)).not.toContain('secret-token');
+    expect(inject.success).toBe(true);
+    expect((inject.output as any).status).toBe(200);
+    expect(revoke.success).toBe(true);
+    expect((revoke.output as any).revoked).toBe(true);
+    expect(witnessService.appendAuthorization).toHaveBeenCalledTimes(3);
+    expect(witnessService.appendCompletion).toHaveBeenCalledTimes(3);
+  });
+
+  it('denies credential operations when app permissions do not grant them', async () => {
+    const handlers = createCapabilityHandlers({
+      agentClass: 'Worker',
+      agentId: AGENT_ID as any,
+      deps: {
+        getAppPermissions: () => ({
+          credentials: false,
+          network: ['api.weather.example'],
+        }),
+      },
+    });
+
+    await expect(
+      handlers.credentials_store(
+        {
+          key: 'weather_api',
+          value: 'secret-token',
+          credential_type: 'bearer_token',
+          target_host: 'api.weather.example',
+          injection_location: 'header',
+          injection_key: 'Authorization',
+        },
+        {
+          appId: 'app:weather',
+          projectId: PROJECT_ID,
+        } as any,
+      ),
+    ).rejects.toThrow('Credential access is not granted');
   });
 });
