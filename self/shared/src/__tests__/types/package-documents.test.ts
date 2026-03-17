@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest';
 import {
   AtomicSkillFrontmatterSchema,
   CompositeSkillFrontmatterSchema,
+  LoadedAppPackageSchema,
   LoadedWorkflowPackageSchema,
   ProjectWorkflowPackageBindingSchema,
   ResolvedWorkflowDefinitionSourceSchema,
@@ -224,5 +225,51 @@ describe('LoadedWorkflowPackageSchema', () => {
     });
 
     expect(parsed.steps[0]?.stepId).toBe('draft');
+  });
+});
+
+describe('LoadedAppPackageSchema', () => {
+  it('accepts fully loaded app packages', () => {
+    const parsed = LoadedAppPackageSchema.parse({
+      packageId: 'app.weather',
+      packageVersion: '1.2.3',
+      rootRef: '.apps/app__weather',
+      manifestRef: '.apps/app__weather/manifest.json',
+      entrypointRef: '.apps/app__weather/main.ts',
+      lockfileRef: '.apps/app__weather/deno.lock',
+      manifest: {
+        id: 'app.weather',
+        name: 'weather',
+        version: '1.2.3',
+        package_type: 'app',
+        origin_class: 'nous_first_party',
+        api_contract_range: '^1.0.0',
+        capabilities: ['tool.execute'],
+        permissions: {
+          network: ['api.example.com'],
+          credentials: false,
+          witnessLevel: 'session',
+          systemNotify: true,
+          memoryContribute: false,
+        },
+        tools: [
+          {
+            name: 'get_forecast',
+            description: 'Fetch weather',
+            inputSchema: {},
+            outputSchema: {},
+            riskLevel: 'low',
+            idempotent: true,
+            sideEffects: [],
+            memoryRelevance: 'low',
+          },
+        ],
+      },
+      references: [],
+      scripts: [],
+      assets: [],
+    });
+
+    expect(parsed.entrypointRef).toContain('main.ts');
   });
 });
