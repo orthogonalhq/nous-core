@@ -1,4 +1,5 @@
 import { z } from 'zod';
+import { AppPackageManifestSchema } from './app-manifest.js';
 import {
   ExecutionModelSchema,
   GovernanceLevelSchema,
@@ -216,6 +217,20 @@ export const LoadedWorkflowPackageSchema = z.object({
   assets: z.array(z.string().min(1)).default([]),
 });
 export type LoadedWorkflowPackage = z.infer<typeof LoadedWorkflowPackageSchema>;
+
+export const LoadedAppPackageSchema = z.object({
+  packageId: z.string().min(1),
+  packageVersion: z.string().min(1).optional(),
+  rootRef: z.string().min(1),
+  manifestRef: z.string().min(1),
+  manifest: AppPackageManifestSchema,
+  entrypointRef: z.string().min(1),
+  lockfileRef: z.string().min(1).optional(),
+  references: z.array(z.string().min(1)).default([]),
+  scripts: z.array(z.string().min(1)).default([]),
+  assets: z.array(z.string().min(1)).default([]),
+});
+export type LoadedAppPackage = z.infer<typeof LoadedAppPackageSchema>;
 
 export const ProjectWorkflowPackageBindingSchema = z.object({
   workflowDefinitionId: WorkflowDefinitionIdSchema,

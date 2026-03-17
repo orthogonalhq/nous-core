@@ -14,11 +14,17 @@ export {
 } from './output-schema-validator.js';
 export {
   getAuthorizedInternalMcpTools,
+  getAuthorizedAppInternalMcpTools,
+  isAppInternalMcpToolAuthorized,
   isInternalMcpToolAuthorized,
 } from './authorization-matrix.js';
 export {
+  getDynamicInternalMcpToolEntry,
   getInternalMcpCatalogEntry,
   INTERNAL_MCP_CATALOG,
+  listDynamicInternalMcpToolEntries,
+  registerDynamicInternalMcpTool,
+  unregisterDynamicInternalMcpTool,
 } from './catalog.js';
 export {
   getPublicToolMapping,
@@ -40,6 +46,8 @@ export {
   parseExternalMemoryGetQuery,
   parseExternalMemoryPutCommand,
   parseExternalMemorySearchQuery,
+  parseHealthHeartbeatRequest,
+  parseHealthReportRequest,
   parsePromotedMemoryDemoteCommand,
   parsePromotedMemoryGetQuery,
   parsePromotedMemoryPromoteCommand,
@@ -64,6 +72,8 @@ export {
   type ArtifactRetrieveRequest,
   type ArtifactStoreRequest,
   type EscalationNotifyRequest,
+  type AppHeartbeatRequest,
+  type AppHealthReportRequest,
   type MemorySearchRequest,
   type ProjectDiscoverRequest,
   type PublicMcpExecutionRequest,
@@ -82,6 +92,7 @@ export {
 export type {
   InternalMcpCatalogEntry,
   InternalMcpCapabilityHandler,
+  DynamicInternalMcpToolEntry,
   InternalMcpDispatchChildArgs,
   InternalMcpDispatchRuntime,
   InternalMcpGraphResolution,

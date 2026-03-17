@@ -145,6 +145,20 @@ describe('PackageLifecycleTransitionResultSchema', () => {
 
     expect(result.success).toBe(true);
   });
+
+  it('accepts runtime reason codes in blocked transition results', () => {
+    const result = PackageLifecycleTransitionResultSchema.safeParse({
+      decision: 'blocked',
+      transition: 'run',
+      from_state: 'enabled',
+      to_state: 'enabled',
+      reason_code: 'PKG-010-HANDSHAKE_TIMEOUT',
+      witness_ref: 'evt_123',
+      evidence_refs: ['event:pkg_runtime_action_decided'],
+    });
+
+    expect(result.success).toBe(true);
+  });
 });
 
 describe('PackageLifecycleStateRecordSchema', () => {

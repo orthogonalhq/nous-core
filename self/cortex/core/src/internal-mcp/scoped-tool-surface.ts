@@ -2,7 +2,12 @@ import { NousError, type AgentClass, type IScopedMcpToolSurface } from '@nous/sh
 import { getLifecycleUnavailableMessage } from '../agent-gateway/lifecycle-hooks.js';
 import { getAuthorizedInternalMcpTools } from './authorization-matrix.js';
 import { createCapabilityHandlers } from './capability-handlers.js';
-import { getInternalMcpCatalogEntry, INTERNAL_MCP_CATALOG } from './catalog.js';
+import {
+  getDynamicInternalMcpToolEntry,
+  getInternalMcpCatalogEntry,
+  INTERNAL_MCP_CATALOG,
+  listDynamicInternalMcpToolEntries,
+} from './catalog.js';
 import type { InternalMcpScopedToolSurfaceOptions } from './types.js';
 
 export class ScopedMcpToolSurface implements IScopedMcpToolSurface {
@@ -19,9 +24,14 @@ export class ScopedMcpToolSurface implements IScopedMcpToolSurface {
   }
 
   async listTools() {
-    return INTERNAL_MCP_CATALOG
-      .filter((entry) => this.allowed.has(entry.name))
-      .map((entry) => entry.definition);
+    return [
+      ...INTERNAL_MCP_CATALOG
+        .filter((entry) => this.allowed.has(entry.name))
+        .map((entry) => entry.definition),
+      ...listDynamicInternalMcpToolEntries(this.options.agentClass).map(
+        (entry) => entry.definition,
+      ),
+    ];
   }
 
   async executeTool(
@@ -30,7 +40,32 @@ export class ScopedMcpToolSurface implements IScopedMcpToolSurface {
     execution?: import('@nous/shared').GatewayExecutionContext,
   ) {
     const entry = getInternalMcpCatalogEntry(name);
-    if (!entry || !this.allowed.has(entry.name)) {
+    const dynamicEntry = getDynamicInternalMcpToolEntry(name);
+    if (!entry && !dynamicEntry) {
+      throw new NousError(
+        `Tool ${name} is not available for ${this.options.agentClass}`,
+        'TOOL_NOT_AVAILABLE',
+      );
+    }
+
+    if (dynamicEntry) {
+      if (!dynamicEntry.visibleTo.includes(this.options.agentClass)) {
+        throw new NousError(
+          `Tool ${name} is not available for ${this.options.agentClass}`,
+          'TOOL_NOT_AVAILABLE',
+        );
+      }
+      return dynamicEntry.execute(params, execution);
+    }
+
+    if (!entry) {
+      throw new NousError(
+        `Tool ${name} is not available for ${this.options.agentClass}`,
+        'TOOL_NOT_AVAILABLE',
+      );
+    }
+
+    if (!this.allowed.has(entry.name)) {
       throw new NousError(
         `Tool ${name} is not available for ${this.options.agentClass}`,
         'TOOL_NOT_AVAILABLE',
@@ -58,7 +93,10 @@ export function createScopedMcpToolSurface(
 }
 
 export function getVisibleInternalMcpTools(agentClass: AgentClass) {
-  return INTERNAL_MCP_CATALOG
-    .filter((entry) => getAuthorizedInternalMcpTools(agentClass).has(entry.name))
-    .map((entry) => entry.name);
+  return [
+    ...INTERNAL_MCP_CATALOG
+      .filter((entry) => getAuthorizedInternalMcpTools(agentClass).has(entry.name))
+      .map((entry) => entry.name),
+    ...listDynamicInternalMcpToolEntries(agentClass).map((entry) => entry.name),
+  ];
 }

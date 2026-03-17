@@ -56,6 +56,8 @@ import {
   WorkflowLifecycleResumeCommandSchema,
   WorkflowLifecycleStartCommandSchema,
   WorkflowLifecycleStatusQuerySchema,
+  AppHealthSnapshotSchema,
+  AppHeartbeatSignalSchema,
 } from '@nous/shared';
 import { z } from 'zod';
 
@@ -143,7 +145,12 @@ export type WorkflowStatusRequest = WorkflowLifecycleStatusQuery;
 export type WorkflowPauseRequest = WorkflowLifecyclePauseCommand;
 export type WorkflowResumeRequest = WorkflowLifecycleResumeCommand;
 export type WorkflowCancelRequest = WorkflowLifecycleCancelCommand;
+export type AppHealthReportRequest = z.infer<typeof AppHealthReportRequestSchema>;
+export type AppHeartbeatRequest = z.infer<typeof AppHeartbeatRequestSchema>;
 export type { PublicMcpAgentInvokeArguments, PublicMcpExecutionRequest };
+
+export const AppHealthReportRequestSchema = AppHealthSnapshotSchema.strict();
+export const AppHeartbeatRequestSchema = AppHeartbeatSignalSchema.strict();
 
 export function parsePromotedMemoryPromoteCommand(
   params: unknown,
@@ -328,6 +335,18 @@ export function parseWorkflowCancelRequest(
   params: unknown,
 ): WorkflowCancelRequest {
   return WorkflowLifecycleCancelCommandSchema.parse(params ?? {});
+}
+
+export function parseHealthReportRequest(
+  params: unknown,
+): AppHealthReportRequest {
+  return AppHealthReportRequestSchema.parse(params ?? {});
+}
+
+export function parseHealthHeartbeatRequest(
+  params: unknown,
+): AppHeartbeatRequest {
+  return AppHeartbeatRequestSchema.parse(params ?? {});
 }
 
 export function parseExternalMemoryPutCommand(

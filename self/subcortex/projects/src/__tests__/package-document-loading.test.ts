@@ -6,6 +6,7 @@ import { NodeRuntime } from '@nous/autonomic-runtime';
 import { ProjectConfigSchema } from '@nous/shared';
 import {
   inspectInstalledWorkflowPackage,
+  loadInstalledAppPackage,
   listInstalledWorkflowPackages,
   loadCompositeSkillDependencyGraph,
   loadInstalledSkillPackage,
@@ -100,6 +101,30 @@ async function writeInstalledWorkflow(options: {
   for (const [name, content] of Object.entries(options.steps)) {
     await writeFile(join(root, 'steps', name), content);
   }
+  if (options.packageVersion) {
+    await writeFile(
+      join(root, '.nous-package.json'),
+      JSON.stringify({ package_version: options.packageVersion }, null, 2),
+    );
+  }
+}
+
+async function writeInstalledApp(options: {
+  instanceRoot: string;
+  packageId: string;
+  manifest: Record<string, unknown>;
+  mainTs?: string;
+  packageVersion?: string;
+}) {
+  const root = join(
+    options.instanceRoot,
+    '.apps',
+    sanitizePackageId(options.packageId),
+  );
+  await mkdir(root, { recursive: true });
+  await writeFile(join(root, 'manifest.json'), JSON.stringify(options.manifest, null, 2));
+  await writeFile(join(root, 'main.ts'), options.mainTs ?? 'export default {};\n');
+  await writeFile(join(root, 'deno.lock'), '{}\n');
   if (options.packageVersion) {
     await writeFile(
       join(root, '.nous-package.json'),
@@ -351,6 +376,53 @@ config:
       /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i,
     );
     expect(resolved.source.sourceKind).toBe('installed_package');
+  });
+
+  it('loads installed app packages from the canonical app store', async () => {
+    const instanceRoot = await createInstanceRoot();
+    await writeInstalledApp({
+      instanceRoot,
+      packageId: 'app.weather',
+      packageVersion: '1.0.0',
+      manifest: {
+        id: 'app.weather',
+        name: 'weather',
+        version: '1.0.0',
+        package_type: 'app',
+        origin_class: 'nous_first_party',
+        api_contract_range: '^1.0.0',
+        capabilities: ['tool.execute'],
+        permissions: {
+          network: ['api.example.com'],
+          credentials: false,
+          witnessLevel: 'session',
+          systemNotify: true,
+          memoryContribute: false,
+        },
+        tools: [
+          {
+            name: 'get_forecast',
+            description: 'Fetch weather',
+            inputSchema: {},
+            outputSchema: {},
+            riskLevel: 'low',
+            idempotent: true,
+            sideEffects: [],
+            memoryRelevance: 'low',
+          },
+        ],
+      },
+    });
+
+    const loaded = await loadInstalledAppPackage({
+      instanceRoot,
+      runtime,
+      packageId: 'app.weather',
+    });
+
+    expect(loaded.packageVersion).toBe('1.0.0');
+    expect(loaded.entrypointRef).toContain('main.ts');
+    expect(loaded.lockfileRef).toContain('deno.lock');
   });
 
   it('lists and inspects canonical installed workflow packages from the system workflow store', async () => {

@@ -1,6 +1,8 @@
 import { z } from 'zod';
 import type {
   AgentClass,
+  AppHealthSnapshot,
+  AppRuntimeSession,
   IDocumentStore,
   IAgentGateway,
   IAgentGatewayFactory,
@@ -17,6 +19,7 @@ import type {
   IWorkflowEngine,
   IWitnessService,
   IRuntime,
+  IAppRuntimeService,
   IOpctlService,
   IngressDispatchOutcome,
   IngressTriggerEnvelope,
@@ -72,9 +75,28 @@ export const GatewayHealthSnapshotSchema = z
       .optional(),
     backlogAnalytics: BacklogAnalyticsSchema,
     issueCodes: z.array(z.string().min(1)),
+    appSessions: z.array(
+      z.object({
+        sessionId: z.string().min(1),
+        appId: z.string().min(1),
+        packageId: z.string().min(1),
+        projectId: z.string().uuid().optional(),
+        status: z.enum(['starting', 'active', 'draining', 'stopped', 'failed']),
+        healthStatus: z.enum(['healthy', 'degraded', 'unhealthy', 'stale']),
+        startedAt: z.string().datetime(),
+        lastHeartbeatAt: z.string().datetime().optional(),
+        stale: z.boolean(),
+      }),
+    ),
   })
   .strict();
 export type GatewayHealthSnapshot = z.infer<typeof GatewayHealthSnapshotSchema>;
+
+export const GatewayAppSessionHealthProjectionSchema = GatewayHealthSnapshotSchema.shape.appSessions
+  .unwrap();
+export type GatewayAppSessionHealthProjection = z.infer<
+  typeof GatewayAppSessionHealthProjectionSchema
+>;
 
 export const GatewayBootSnapshotSchema = z
   .object({
@@ -125,6 +147,7 @@ export const SystemContextReplicaSchema = z
     backlogAnalytics: BacklogAnalyticsSchema,
     issueCodes: z.array(z.string().min(1)),
     visibleTools: z.array(z.string().min(1)),
+    appSessions: z.array(GatewayAppSessionHealthProjectionSchema),
   })
   .strict();
 export type SystemContextReplica = z.infer<typeof SystemContextReplicaSchema>;
@@ -153,6 +176,7 @@ export interface PrincipalSystemGatewayRuntimeDeps {
   witnessService?: IWitnessService;
   opctlService?: IOpctlService;
   runtime?: IRuntime;
+  appRuntimeService?: IAppRuntimeService;
   instanceRoot?: string;
   workmodeAdmissionGuard?: IWorkmodeAdmissionGuard;
   outputSchemaValidator?: InternalMcpOutputSchemaValidator;
@@ -185,4 +209,19 @@ export interface IPrincipalSystemGatewayRuntime {
   submitIngressEnvelope(envelope: IngressTriggerEnvelope): Promise<IngressDispatchOutcome>;
   notifyLeaseReleased(event: LaneLeaseReleasedEvent): Promise<void>;
   whenIdle(): Promise<void>;
+}
+
+export interface GatewayAppSessionProjectionUpdate {
+  session: Pick<
+    AppRuntimeSession,
+    | 'session_id'
+    | 'app_id'
+    | 'package_id'
+    | 'project_id'
+    | 'status'
+    | 'health_status'
+    | 'started_at'
+    | 'last_heartbeat_at'
+  >;
+  health?: Pick<AppHealthSnapshot, 'status' | 'stale'>;
 }

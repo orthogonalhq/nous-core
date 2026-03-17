@@ -323,6 +323,7 @@ self/subcortex/
 ├── tools/                            # Tool execution and capability gating
 ├── workflows/                        # Workflow graph engine
 ├── projects/                         # Project container and lifecycle
+├── apps/                             # Canonical app runtime (Deno subprocess, MCP-over-IPC)
 ├── communication-gateway/            # Human messaging ingress/egress control plane
 ├── public-mcp/                       # Public MCP discovery, admission, bootstrap, and audit runtime
 ├── endpoint-trust/                   # Peripheral pairing, trust, capability, and transport runtime
@@ -457,6 +458,21 @@ Phase 14.3 adds document-loading modules to `self/subcortex/projects/src/package
 Phase 14.4 extends the same package-store lane with canonical installed-workflow read helpers:
 
 - `document-loader.ts` / `index.ts` — add deterministic `listInstalledWorkflowPackages(...)` and `inspectInstalledWorkflowPackage(...)` helpers over `.workflows/`, keeping legacy hybrids out of canonical installed-workflow discovery while preserving compatibility-only loading paths.
+
+### apps/
+
+Canonical app runtime for installed `.apps` packages. Implemented in Phase 14.5 as `@nous/subcortex-apps`.
+
+Responsibilities:
+
+* Activate installed app packages as Deno subprocesses behind the existing `RuntimeMembrane.onAllow` seam
+* Compile manifest permissions into deterministic Deno CLI flags with ratified hard-deny posture (`--deny-env`, `--deny-run`, `--deny-ffi`)
+* Own MCP-over-IPC handshake, activation config delivery, and app-exposed tool registration through the canonical Internal MCP catalog
+* Integrate app lifecycle (activate, deactivate, enable, disable) with the package lifecycle orchestrator and witness-linked evidence
+* Track app health and heartbeat visibility through runtime-owned seams
+* Export only the contract and registration seams Phase 15 needs for panel delivery
+
+Nous core stays on Node.js; apps run as Deno subprocesses. MCP over IPC is the sole app-to-core communication path. The `IAppRuntimeService` interface lives in `@nous/shared` and is consumed by cortex-core and gateway-runtime for health projections and capability-handler integration.
 
 ### communication-gateway/
 

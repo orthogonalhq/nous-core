@@ -56,17 +56,24 @@ export {
   createInternalMcpSurfaceBundle,
   createLifecycleHandlers,
   createScopedMcpToolSurface,
+  getAuthorizedAppInternalMcpTools,
   getAuthorizedInternalMcpTools,
+  getDynamicInternalMcpToolEntry,
   getInternalMcpCatalogEntry,
   getPublicToolMapping,
+  isAppInternalMcpToolAuthorized,
   resolvePublicMcpRequiredScopes,
   getVisiblePublicToolMappings,
   hasRequiredPublicMcpScopes,
   getVisibleInternalMcpTools,
   INTERNAL_MCP_CATALOG,
+  listDynamicInternalMcpToolEntries,
   PUBLIC_MCP_TOOL_MAPPINGS,
+  registerDynamicInternalMcpTool,
+  unregisterDynamicInternalMcpTool,
 } from './internal-mcp/index.js';
 export type {
+  DynamicInternalMcpToolEntry,
   InternalMcpDispatchChildArgs,
   InternalMcpDispatchRuntime,
   InternalMcpOutputSchemaValidator,
@@ -104,6 +111,7 @@ export {
   GatewayRuntimeHealthSink,
 } from './gateway-runtime/index.js';
 export type {
+  GatewayAppSessionHealthProjection,
   GatewayBootSnapshot,
   GatewayBootStatus,
   GatewayBootStep,

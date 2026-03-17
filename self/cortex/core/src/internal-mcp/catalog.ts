@@ -1,11 +1,16 @@
-import type { ToolDefinition } from '@nous/shared';
+import type { AgentClass, ToolDefinition } from '@nous/shared';
 import {
   DISPATCH_AGENT_TOOL_NAME,
   FLAG_OBSERVATION_TOOL_NAME,
   REQUEST_ESCALATION_TOOL_NAME,
   TASK_COMPLETE_TOOL_NAME,
 } from '../agent-gateway/lifecycle-hooks.js';
-import type { InternalMcpCatalogEntry, InternalMcpToolName } from './types.js';
+import type {
+  DynamicInternalMcpToolEntry,
+  InternalMcpCatalogEntry,
+  InternalMcpCapabilityHandler,
+  InternalMcpToolName,
+} from './types.js';
 
 function defineTool(
   name: InternalMcpToolName,
@@ -388,6 +393,30 @@ export const INTERNAL_MCP_CATALOG: readonly InternalMcpCatalogEntry[] = [
     ),
   },
   {
+    name: 'health_report',
+    kind: 'capability',
+    definition: defineTool(
+      'health_report',
+      'Publish a canonical app-runtime health snapshot.',
+      { session_id: 'string', status: 'healthy | degraded | unhealthy | stale', reported_at: 'ISO datetime', details: 'object?' },
+      { accepted: 'boolean', health: 'AppHealthSnapshot' },
+      ['write'],
+      'runtime',
+    ),
+  },
+  {
+    name: 'health_heartbeat',
+    kind: 'capability',
+    definition: defineTool(
+      'health_heartbeat',
+      'Publish an app-runtime heartbeat signal.',
+      { session_id: 'string', reported_at: 'ISO datetime', sequence: 'number', status_hint: 'healthy | degraded | unhealthy | stale?' },
+      { accepted: 'boolean', heartbeat: 'AppHeartbeatSignal' },
+      ['write'],
+      'runtime',
+    ),
+  },
+  {
     name: DISPATCH_AGENT_TOOL_NAME,
     kind: 'lifecycle',
     definition: defineTool(
@@ -440,9 +469,54 @@ export const INTERNAL_MCP_CATALOG: readonly InternalMcpCatalogEntry[] = [
 const ENTRY_BY_NAME = new Map(
   INTERNAL_MCP_CATALOG.map((entry) => [entry.name, entry] as const),
 );
+const DYNAMIC_ENTRY_BY_NAME = new Map<string, DynamicInternalMcpToolEntry>();
 
 export function getInternalMcpCatalogEntry(
   name: string,
 ): InternalMcpCatalogEntry | null {
   return ENTRY_BY_NAME.get(name as InternalMcpToolName) ?? null;
+}
+
+export function registerDynamicInternalMcpTool(input: {
+  name: string;
+  definition: ToolDefinition;
+  execute: InternalMcpCapabilityHandler;
+  sessionId: string;
+  appId: string;
+  visibleTo?: readonly AgentClass[];
+}): DynamicInternalMcpToolEntry {
+  if (ENTRY_BY_NAME.has(input.name as InternalMcpToolName) || DYNAMIC_ENTRY_BY_NAME.has(input.name)) {
+    throw new Error(`Internal MCP tool name is already registered: ${input.name}`);
+  }
+
+  const entry: DynamicInternalMcpToolEntry = {
+    name: input.name,
+    kind: 'capability',
+    definition: input.definition,
+    execute: input.execute,
+    sessionId: input.sessionId,
+    appId: input.appId,
+    visibleTo: input.visibleTo ?? ['Worker', 'Orchestrator', 'Cortex::System'],
+  };
+  DYNAMIC_ENTRY_BY_NAME.set(entry.name, entry);
+  return entry;
+}
+
+export function unregisterDynamicInternalMcpTool(name: string): void {
+  DYNAMIC_ENTRY_BY_NAME.delete(name);
+}
+
+export function getDynamicInternalMcpToolEntry(
+  name: string,
+): DynamicInternalMcpToolEntry | null {
+  return DYNAMIC_ENTRY_BY_NAME.get(name) ?? null;
+}
+
+export function listDynamicInternalMcpToolEntries(
+  agentClass?: AgentClass,
+): DynamicInternalMcpToolEntry[] {
+  const entries = [...DYNAMIC_ENTRY_BY_NAME.values()];
+  return agentClass
+    ? entries.filter((entry) => entry.visibleTo.includes(agentClass))
+    : entries;
 }

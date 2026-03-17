@@ -2,6 +2,7 @@ import { describe, expect, it, vi } from 'vitest';
 import {
   createCapabilityHandlers,
   createScopedMcpToolSurface,
+  isAppInternalMcpToolAuthorized,
 } from '../../internal-mcp/index.js';
 import {
   AGENT_ID,
@@ -518,5 +519,57 @@ describe('Internal MCP capability handlers', () => {
         traceId: TRACE_ID,
       }),
     );
+  });
+
+  it('authorizes the ratified app-only health tools and denies workflow control tools', () => {
+    expect(isAppInternalMcpToolAuthorized('health_report')).toBe(true);
+    expect(isAppInternalMcpToolAuthorized('health_heartbeat')).toBe(true);
+    expect(isAppInternalMcpToolAuthorized('workflow_start')).toBe(false);
+  });
+
+  it('routes app health tools through the app runtime service', async () => {
+    const appRuntimeService = {
+      updateHealth: vi.fn().mockResolvedValue({
+        session_id: 'session-1',
+        status: 'healthy',
+        reported_at: '2026-03-17T06:00:00.000Z',
+        stale: false,
+        details: {},
+      }),
+      recordHeartbeat: vi.fn().mockResolvedValue({
+        session_id: 'session-1',
+        status: 'healthy',
+        reported_at: '2026-03-17T06:00:05.000Z',
+        stale: false,
+        details: {},
+      }),
+    };
+    const handlers = createCapabilityHandlers({
+      agentClass: 'Worker',
+      agentId: AGENT_ID as any,
+      deps: {
+        appRuntimeService: appRuntimeService as any,
+      },
+    });
+
+    const report = await handlers.health_report({
+      session_id: 'session-1',
+      status: 'healthy',
+      reported_at: '2026-03-17T06:00:00.000Z',
+      stale: false,
+      details: {},
+    });
+    const heartbeat = await handlers.health_heartbeat({
+      session_id: 'session-1',
+      reported_at: '2026-03-17T06:00:05.000Z',
+      sequence: 1,
+    });
+
+    expect(report.success).toBe(true);
+    expect((report.output as any).health.status).toBe('healthy');
+    expect(heartbeat.success).toBe(true);
+    expect((heartbeat.output as any).heartbeat.sequence).toBe(1);
+    expect(appRuntimeService.updateHealth).toHaveBeenCalledTimes(1);
+    expect(appRuntimeService.recordHeartbeat).toHaveBeenCalledTimes(1);
   });
 });

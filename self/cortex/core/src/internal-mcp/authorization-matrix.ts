@@ -69,6 +69,19 @@ const MATRIX: Record<AgentClass, readonly InternalMcpToolName[]> = {
   ],
 };
 
+const APP_MATRIX: readonly InternalMcpToolName[] = [
+  'health_report',
+  'health_heartbeat',
+  'memory_write',
+  'project_discover',
+  'artifact_store',
+  'artifact_retrieve',
+  'tool_execute',
+  'tool_list',
+  'escalation_notify',
+  'scheduler_register',
+];
+
 export function getAuthorizedInternalMcpTools(
   agentClass: AgentClass,
 ): ReadonlySet<InternalMcpToolName> {
@@ -80,4 +93,14 @@ export function isInternalMcpToolAuthorized(
   toolName: InternalMcpToolName,
 ): boolean {
   return MATRIX[agentClass].includes(toolName);
+}
+
+export function getAuthorizedAppInternalMcpTools(): ReadonlySet<InternalMcpToolName> {
+  return new Set(APP_MATRIX);
+}
+
+export function isAppInternalMcpToolAuthorized(
+  toolName: InternalMcpToolName,
+): boolean {
+  return APP_MATRIX.includes(toolName);
 }
