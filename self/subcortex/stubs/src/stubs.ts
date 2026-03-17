@@ -200,6 +200,13 @@ export class StubWorkflowEngine implements IWorkflowEngine {
     return stubNotImpl('IWorkflowEngine', 'pause', 'Phase 9.1');
   }
 
+  async cancel(
+    _executionId: WorkflowExecutionId,
+    _transition: WorkflowTransitionInput,
+  ): Promise<WorkflowRunState> {
+    return stubNotImpl('IWorkflowEngine', 'cancel', 'Phase 14.4');
+  }
+
   async completeNode(
     _executionId: WorkflowExecutionId,
     _nodeDefinitionId: WorkflowNodeDefinitionId,
