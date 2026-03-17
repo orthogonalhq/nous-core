@@ -349,6 +349,7 @@ export const WorkflowRunStatusSchema = z.enum([
   'waiting',
   'blocked_review',
   'paused',
+  'canceled',
   'completed',
   'failed',
 ]);

@@ -272,6 +272,12 @@ export interface IWorkflowEngine {
     transition: WorkflowTransitionInput,
   ): Promise<WorkflowRunState>;
 
+  /** Cancel an active or paused workflow without rewriting canonical run history */
+  cancel(
+    executionId: WorkflowExecutionId,
+    transition: WorkflowTransitionInput,
+  ): Promise<WorkflowRunState>;
+
   /** Mark a ready/running node completed and advance deterministic traversal */
   completeNode(
     executionId: WorkflowExecutionId,
