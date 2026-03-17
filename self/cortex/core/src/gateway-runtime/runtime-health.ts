@@ -1,14 +1,18 @@
 import type {
   AgentResult,
+  AppHealthSnapshot,
+  AppRuntimeSession,
   GatewayOutboxEvent,
 } from '@nous/shared';
 import {
+  GatewayAppSessionHealthProjectionSchema,
   GatewayBootSnapshotSchema,
   GatewayHealthSnapshotSchema,
   SystemContextReplicaSchema,
   type GatewayBootSnapshot,
   type GatewayBootStatus,
   type GatewayBootStep,
+  type GatewayAppSessionHealthProjection,
   type GatewayHealthSnapshot,
   type GatewaySubmissionSource,
   type SystemContextReplica,
@@ -43,6 +47,7 @@ export class GatewayRuntimeHealthSink {
   private readonly stepTimestamps = new Map<GatewayBootStep, string>();
   private readonly issueCodes = new Set<string>();
   private readonly gatewayHealth = new Map<TrackedAgentClass, MutableGatewayHealth>();
+  private readonly appSessions = new Map<string, GatewayAppSessionHealthProjection>();
   private pendingSystemRuns = 0;
 
   constructor() {
@@ -153,6 +158,57 @@ export class GatewayRuntimeHealthSink {
       analytics.queuedCount + analytics.activeCount + analytics.suspendedCount;
   }
 
+  upsertAppSession(
+    session: Pick<
+      AppRuntimeSession,
+      | 'session_id'
+      | 'app_id'
+      | 'package_id'
+      | 'project_id'
+      | 'status'
+      | 'health_status'
+      | 'started_at'
+      | 'last_heartbeat_at'
+    >,
+  ): GatewayAppSessionHealthProjection {
+    const current = this.appSessions.get(session.session_id);
+    const projection = GatewayAppSessionHealthProjectionSchema.parse({
+      sessionId: session.session_id,
+      appId: session.app_id,
+      packageId: session.package_id,
+      projectId: session.project_id,
+      status: session.status,
+      healthStatus: session.health_status,
+      startedAt: session.started_at,
+      lastHeartbeatAt: session.last_heartbeat_at,
+      stale:
+        current?.stale ??
+        session.health_status === 'stale',
+    });
+    this.appSessions.set(projection.sessionId, projection);
+    return projection;
+  }
+
+  recordAppHealth(snapshot: Pick<AppHealthSnapshot, 'session_id' | 'status' | 'reported_at' | 'stale'>): GatewayAppSessionHealthProjection | null {
+    const current = this.appSessions.get(snapshot.session_id);
+    if (!current) {
+      return null;
+    }
+
+    const projection = GatewayAppSessionHealthProjectionSchema.parse({
+      ...current,
+      healthStatus: snapshot.status,
+      lastHeartbeatAt: snapshot.reported_at,
+      stale: snapshot.stale,
+    });
+    this.appSessions.set(projection.sessionId, projection);
+    return projection;
+  }
+
+  removeAppSession(sessionId: string): void {
+    this.appSessions.delete(sessionId);
+  }
+
   getBootSnapshot(): GatewayBootSnapshot {
     return GatewayBootSnapshotSchema.parse({
       status: this.resolveBootStatus(),
@@ -169,6 +225,10 @@ export class GatewayRuntimeHealthSink {
       backlogAnalytics: gateway.backlogAnalytics,
       issueCodes: [...gateway.issueCodes],
       visibleTools: [...gateway.visibleTools],
+      appSessions:
+        agentClass === 'Cortex::System'
+          ? [...this.appSessions.values()]
+          : [],
     });
   }
 
@@ -184,6 +244,7 @@ export class GatewayRuntimeHealthSink {
       backlogAnalytics: gateway.backlogAnalytics,
       issueCodes: [...new Set([...this.issueCodes, ...gateway.issueCodes])],
       visibleTools: [...gateway.visibleTools],
+      appSessions: [...this.appSessions.values()],
     });
   }
 
