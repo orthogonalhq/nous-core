@@ -14,6 +14,8 @@ export const PACKAGE_LIFECYCLE_EVENT_TYPES = [
   'pkg_capability_approved',
   'pkg_capability_blocked',
   'pkg_enabled',
+  'pkg_running',
+  'pkg_disabled',
   'pkg_enable_blocked',
   'pkg_update_staged',
   'pkg_update_committed',
@@ -84,6 +86,18 @@ export const PACKAGE_LIFECYCLE_REASON_CODES = {
     'Resolved package target crosses the protected .system boundary.',
   'PKG-009-INSTALL_WRITE_FAILED':
     'Package installation write failed and rollback was required.',
+  'PKG-010-SPAWN_FAILED':
+    'Runtime subprocess spawn failed before activation completed.',
+  'PKG-010-HANDSHAKE_TIMEOUT':
+    'Runtime activation handshake timed out before readiness was proven.',
+  'PKG-010-HANDSHAKE_INVALID':
+    'Runtime activation handshake payload was malformed or invalid.',
+  'PKG-010-TOOL_NAMESPACE_COLLISION':
+    'Runtime tool registration collided with an existing tool namespace.',
+  'PKG-010-HEARTBEAT_STALE':
+    'Runtime heartbeat freshness could no longer be proven.',
+  'PKG-010-HEALTH_PAYLOAD_INVALID':
+    'Runtime health payload was malformed or failed validation.',
   'MKT-002-UNREGISTERED_EXTERNAL':
     'Registry eligibility blocked an unregistered external package.',
   'MKT-004-PRINCIPAL_OVERRIDE_REQUIRED':
@@ -112,7 +126,7 @@ export const PACKAGE_LIFECYCLE_REASON_CODES = {
 
 export const PackageLifecycleReasonCodeSchema = z
   .string()
-  .regex(/^(PKG-00[1-9]|MKT-00[1-9]|API-003)-[A-Z0-9][A-Z0-9_-]*$/);
+  .regex(/^(PKG-0(0[1-9]|1[0-9])|MKT-00[1-9]|API-003)-[A-Z0-9][A-Z0-9_-]*$/);
 export type PackageLifecycleReasonCode = z.infer<
   typeof PackageLifecycleReasonCodeSchema
 >;

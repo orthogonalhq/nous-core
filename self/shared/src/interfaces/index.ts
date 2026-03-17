@@ -38,6 +38,7 @@ export type {
   IEndpointTrustService,
   IVoiceControlService,
   ISandbox,
+  IAppRuntimeService,
   IPackageLifecycleOrchestrator,
   IPackageInstallService,
   ISkillAdmissionOrchestrator,

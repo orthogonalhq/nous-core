@@ -85,6 +85,12 @@ import type {
   GtmGateReportInput,
   GtmGateReport,
   GtmStageLabel,
+  AppProcessExitEvent,
+  AppRuntimeActivationInput,
+  AppRuntimeDeactivationInput,
+  AppRuntimeSession,
+  AppHealthSnapshot,
+  AppHeartbeatSignal,
   PackageLifecycleTransitionRequest,
   PackageLifecycleTransitionResult,
   PackageLifecycleStateRecord,
@@ -733,6 +739,11 @@ export interface IPackageLifecycleOrchestrator {
     request: PackageLifecycleTransitionRequest,
   ): Promise<PackageLifecycleTransitionResult>;
 
+  /** Record canonical transition into runtime-active state. */
+  run(
+    request: PackageLifecycleTransitionRequest,
+  ): Promise<PackageLifecycleTransitionResult>;
+
   /** Stage package update while preserving previous safe version snapshot. */
   stageUpdate(
     request: PackageLifecycleTransitionRequest,
@@ -763,11 +774,43 @@ export interface IPackageLifecycleOrchestrator {
     request: PackageLifecycleTransitionRequest,
   ): Promise<PackageLifecycleTransitionResult>;
 
+  /** Disable package runtime activity while preserving canonical lifecycle truth. */
+  disable(
+    request: PackageLifecycleTransitionRequest,
+  ): Promise<PackageLifecycleTransitionResult>;
+
   /** Retrieve canonical lifecycle state for project/package identity. */
   getState(
     projectId: ProjectId,
     packageId: string,
   ): Promise<PackageLifecycleStateRecord | null>;
+}
+
+export interface IAppRuntimeService {
+  /** Activate one installed app package and publish the runtime session. */
+  activate(input: AppRuntimeActivationInput): Promise<AppRuntimeSession>;
+
+  /** Deactivate one runtime session and clean up runtime-owned registrations. */
+  deactivate(
+    input: AppRuntimeDeactivationInput,
+  ): Promise<AppRuntimeSession | null>;
+
+  /** Reconcile runtime-owned state after a subprocess exit. */
+  handleProcessExit(
+    input: AppProcessExitEvent,
+  ): Promise<AppRuntimeSession | null>;
+
+  /** Lookup one runtime session by session ID. */
+  getSession(sessionId: string): Promise<AppRuntimeSession | null>;
+
+  /** List runtime sessions, optionally filtered by package ID. */
+  listSessions(packageId?: string): Promise<AppRuntimeSession[]>;
+
+  /** Record one heartbeat signal and return the resulting health snapshot. */
+  recordHeartbeat(signal: AppHeartbeatSignal): Promise<AppHealthSnapshot>;
+
+  /** Publish an explicit health snapshot from the runtime. */
+  updateHealth(snapshot: AppHealthSnapshot): Promise<AppHealthSnapshot>;
 }
 
 export interface IPackageInstallService {

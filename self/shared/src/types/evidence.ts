@@ -72,6 +72,7 @@ export const WitnessActorSchema = z.enum([
   'core',
   'pfc',
   'subcortex',
+  'app',
   'principal',
   'system',
   'orchestration_agent',
