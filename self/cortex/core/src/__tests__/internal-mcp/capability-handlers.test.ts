@@ -8,8 +8,10 @@ import {
   DEFAULT_TOOLS,
   PROJECT_ID,
   TRACE_ID,
+  createOpctlService,
   createPfcEngine,
   createProjectApi,
+  createWorkflowEngine,
 } from '../agent-gateway/helpers.js';
 
 describe('Internal MCP capability handlers', () => {
@@ -232,6 +234,288 @@ describe('Internal MCP capability handlers', () => {
     expect(promotedMemoryBridgeService.promote).toHaveBeenCalledWith(
       expect.objectContaining({
         sourceRecordId: 'entry-1',
+      }),
+    );
+  });
+
+  it('starts and inspects workflow lifecycle state through the system tool surface', async () => {
+    const runState = {
+      runId: '550e8400-e29b-41d4-a716-446655440610',
+      workflowDefinitionId: '550e8400-e29b-41d4-a716-446655440611',
+      projectId: PROJECT_ID,
+      workflowVersion: '1.0.0',
+      graphDigest: 'a'.repeat(64),
+      status: 'running',
+      admission: {
+        allowed: true,
+        reasonCode: 'workflow_admitted',
+        evidenceRefs: ['workflow:start'],
+      },
+      activeNodeIds: ['550e8400-e29b-41d4-a716-446655440612'],
+      activatedEdgeIds: [],
+      readyNodeIds: ['550e8400-e29b-41d4-a716-446655440612'],
+      waitingNodeIds: [],
+      blockedNodeIds: [],
+      completedNodeIds: [],
+      checkpointState: 'idle',
+      nodeStates: {},
+      dispatchLineage: [],
+      startedAt: '2026-03-16T20:00:00.000Z',
+      updatedAt: '2026-03-16T20:00:00.000Z',
+    } as any;
+    const workflowEngine = createWorkflowEngine({
+      start: vi.fn().mockResolvedValue({
+        status: 'started',
+        graph: {
+          workflowDefinitionId: runState.workflowDefinitionId,
+          projectId: PROJECT_ID,
+          version: '1.0.0',
+          graphDigest: 'a'.repeat(64),
+          entryNodeIds: [runState.activeNodeIds[0]],
+          topologicalOrder: [runState.activeNodeIds[0]],
+          nodes: {},
+          edges: {},
+        },
+        runState,
+      }),
+      getState: vi.fn().mockResolvedValue(runState),
+      resolveDefinitionSource: vi.fn().mockResolvedValue(null),
+    });
+    const surface = createScopedMcpToolSurface({
+      agentClass: 'Cortex::System',
+      agentId: AGENT_ID,
+      deps: {
+        getProjectApi: () =>
+          createProjectApi({
+            project: {
+              config: vi.fn().mockReturnValue({
+                id: PROJECT_ID,
+                name: 'Workflow Project',
+                type: 'hybrid',
+                pfcTier: 2,
+                governanceDefaults: {
+                  defaultNodeGovernance: 'must',
+                  requireExplicitReviewForShouldDeviation: true,
+                  blockedActionFeedbackMode: 'reason_coded',
+                },
+                memoryAccessPolicy: {
+                  canReadFrom: 'all',
+                  canBeReadBy: 'all',
+                  inheritsGlobal: true,
+                },
+                escalationChannels: ['in-app'],
+                escalationPreferences: {
+                  routeByPriority: {
+                    low: ['projects'],
+                    medium: ['projects'],
+                    high: ['projects', 'chat', 'mobile'],
+                    critical: ['projects', 'chat', 'mao', 'mobile'],
+                  },
+                  acknowledgementSurfaces: ['projects', 'chat', 'mobile'],
+                  mirrorToChat: true,
+                },
+                workflow: {
+                  definitions: [
+                    {
+                      id: runState.workflowDefinitionId,
+                      projectId: PROJECT_ID,
+                      mode: 'hybrid',
+                      version: '1.0.0',
+                      name: 'Onboarding',
+                      entryNodeIds: ['550e8400-e29b-41d4-a716-446655440612'],
+                      nodes: [
+                        {
+                          id: '550e8400-e29b-41d4-a716-446655440612',
+                          name: 'Start',
+                          type: 'model-call',
+                          governance: 'must',
+                          executionModel: 'synchronous',
+                          config: {
+                            type: 'model-call',
+                            modelRole: 'reasoner',
+                            promptRef: 'prompt://start',
+                          },
+                        },
+                      ],
+                      edges: [],
+                    },
+                  ],
+                  packageBindings: [],
+                },
+                packageDefaultIntake: [],
+                retrievalBudgetTokens: 500,
+                createdAt: '2026-03-16T20:00:00.000Z',
+                updatedAt: '2026-03-16T20:00:00.000Z',
+              } as any),
+              state: vi.fn().mockReturnValue({
+                status: 'active',
+                activeWorkflows: 1,
+                lastActivityAt: '2026-03-16T20:00:00.000Z',
+              }),
+              log: vi.fn(),
+            },
+          }),
+        workflowEngine,
+        opctlService: createOpctlService(),
+      },
+    });
+
+    const started = await surface.executeTool('workflow_start', {
+      definition: 'Onboarding',
+      projectId: PROJECT_ID,
+      config: {},
+    });
+    const status = await surface.executeTool('workflow_status', {
+      runId: runState.runId,
+    });
+
+    expect(started.success).toBe(true);
+    expect((started.output as any).run.runId).toBe(runState.runId);
+    expect(status.success).toBe(true);
+    expect((status.output as any).run.status).toBe('running');
+  });
+
+  it('pauses, resumes, and cancels workflow lifecycle runs through system-only tools', async () => {
+    const runId = '550e8400-e29b-41d4-a716-446655440620';
+    const workflowDefinitionId = '550e8400-e29b-41d4-a716-446655440621';
+    const runningState = {
+      runId,
+      workflowDefinitionId,
+      projectId: PROJECT_ID,
+      workflowVersion: '1.0.0',
+      graphDigest: 'b'.repeat(64),
+      status: 'running',
+      admission: {
+        allowed: true,
+        reasonCode: 'workflow_admitted',
+        evidenceRefs: ['workflow:start'],
+      },
+      activeNodeIds: ['550e8400-e29b-41d4-a716-446655440622'],
+      activatedEdgeIds: [],
+      readyNodeIds: ['550e8400-e29b-41d4-a716-446655440622'],
+      waitingNodeIds: [],
+      blockedNodeIds: [],
+      completedNodeIds: [],
+      checkpointState: 'idle',
+      nodeStates: {},
+      dispatchLineage: [],
+      startedAt: '2026-03-16T20:00:00.000Z',
+      updatedAt: '2026-03-16T20:00:00.000Z',
+    } as any;
+    const pausedState = { ...runningState, status: 'paused' } as any;
+    const canceledState = {
+      ...pausedState,
+      status: 'canceled',
+      activeNodeIds: [],
+      readyNodeIds: [],
+    } as any;
+    const workflowEngine = createWorkflowEngine({
+      getState: vi
+        .fn()
+        .mockResolvedValueOnce(runningState)
+        .mockResolvedValueOnce(pausedState)
+        .mockResolvedValueOnce(pausedState),
+      pause: vi.fn().mockResolvedValue(pausedState),
+      resume: vi.fn().mockResolvedValue(runningState),
+      cancel: vi.fn().mockResolvedValue(canceledState),
+    });
+    const surface = createScopedMcpToolSurface({
+      agentClass: 'Cortex::System',
+      agentId: AGENT_ID,
+      deps: {
+        workflowEngine,
+        opctlService: createOpctlService(),
+      },
+    });
+
+    const paused = await surface.executeTool('workflow_pause', { runId });
+    const resumed = await surface.executeTool('workflow_resume', { runId });
+    const canceled = await surface.executeTool('workflow_cancel', { runId });
+
+    expect((paused.output as any).run.status).toBe('paused');
+    expect((resumed.output as any).run.status).toBe('running');
+    expect((canceled.output as any).run.status).toBe('canceled');
+  });
+
+  it('emits witness authorization and completion events for workflow lifecycle mutations', async () => {
+    const runId = '550e8400-e29b-41d4-a716-446655440630';
+    const workflowDefinitionId = '550e8400-e29b-41d4-a716-446655440631';
+    const runningState = {
+      runId,
+      workflowDefinitionId,
+      projectId: PROJECT_ID,
+      workflowVersion: '1.0.0',
+      graphDigest: 'c'.repeat(64),
+      status: 'running',
+      admission: {
+        allowed: true,
+        reasonCode: 'workflow_admitted',
+        evidenceRefs: ['workflow:start'],
+      },
+      activeNodeIds: ['550e8400-e29b-41d4-a716-446655440632'],
+      activatedEdgeIds: [],
+      readyNodeIds: ['550e8400-e29b-41d4-a716-446655440632'],
+      waitingNodeIds: [],
+      blockedNodeIds: [],
+      completedNodeIds: [],
+      checkpointState: 'idle',
+      nodeStates: {},
+      dispatchLineage: [],
+      startedAt: '2026-03-16T20:00:00.000Z',
+      updatedAt: '2026-03-16T20:00:00.000Z',
+    } as any;
+    const pausedState = {
+      ...runningState,
+      status: 'paused',
+      updatedAt: '2026-03-16T20:01:00.000Z',
+    } as any;
+    const witnessService = {
+      appendAuthorization: vi.fn().mockResolvedValue({ id: 'auth-1' }),
+      appendCompletion: vi.fn().mockResolvedValue({ id: 'completion-1' }),
+    };
+    const workflowEngine = createWorkflowEngine({
+      getState: vi.fn().mockResolvedValue(runningState),
+      pause: vi.fn().mockResolvedValue(pausedState),
+    });
+    const surface = createScopedMcpToolSurface({
+      agentClass: 'Cortex::System',
+      agentId: AGENT_ID,
+      deps: {
+        workflowEngine,
+        opctlService: createOpctlService(),
+        witnessService: witnessService as any,
+      },
+    });
+
+    const paused = await surface.executeTool(
+      'workflow_pause',
+      { runId },
+      {
+        projectId: PROJECT_ID,
+        traceId: TRACE_ID,
+      },
+    );
+
+    expect((paused.output as any).run.status).toBe('paused');
+    expect(witnessService.appendAuthorization).toHaveBeenCalledTimes(1);
+    expect(witnessService.appendCompletion).toHaveBeenCalledTimes(1);
+    expect(witnessService.appendAuthorization).toHaveBeenCalledWith(
+      expect.objectContaining({
+        actionCategory: 'opctl-command',
+        actionRef: expect.stringContaining('workflow:'),
+        status: 'approved',
+        projectId: PROJECT_ID,
+        traceId: TRACE_ID,
+      }),
+    );
+    expect(witnessService.appendCompletion).toHaveBeenCalledWith(
+      expect.objectContaining({
+        actionCategory: 'opctl-command',
+        actionRef: expect.stringContaining('workflow:'),
+        authorizationRef: 'auth-1',
+        status: 'succeeded',
+        projectId: PROJECT_ID,
+        traceId: TRACE_ID,
       }),
     );
   });

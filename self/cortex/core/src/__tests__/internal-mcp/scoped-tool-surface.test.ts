@@ -35,12 +35,18 @@ describe('ScopedMcpToolSurface', () => {
 
     expect(workerTools).toContain('task_complete');
     expect(workerTools).toContain('tool_execute');
+    expect(workerTools).toContain('workflow_list');
+    expect(workerTools).toContain('workflow_status');
+    expect(workerTools).not.toContain('workflow_start');
     expect(workerTools).not.toContain('dispatch_agent');
     expect(workerTools).not.toContain('memory_write');
     expect(workerTools).not.toContain('promoted_memory_promote');
 
     expect(principalTools).toContain('memory_search');
     expect(principalTools).toContain('artifact_retrieve');
+    expect(principalTools).toContain('workflow_inspect');
+    expect(principalTools).toContain('workflow_status');
+    expect(principalTools).not.toContain('workflow_start');
     expect(principalTools).not.toContain('task_complete');
     expect(principalTools).not.toContain('dispatch_agent');
     expect(principalTools).not.toContain('promoted_memory_promote');
@@ -65,8 +71,11 @@ describe('ScopedMcpToolSurface', () => {
 
   it('exposes the same visible catalog through the helper projection', () => {
     expect(getVisibleInternalMcpTools('Orchestrator')).toContain('dispatch_agent');
+    expect(getVisibleInternalMcpTools('Orchestrator')).toContain('workflow_list');
+    expect(getVisibleInternalMcpTools('Orchestrator')).not.toContain('workflow_pause');
     expect(getVisibleInternalMcpTools('Worker')).not.toContain('dispatch_agent');
     expect(getVisibleInternalMcpTools('Cortex::System')).toContain('promoted_memory_promote');
+    expect(getVisibleInternalMcpTools('Cortex::System')).toContain('workflow_cancel');
     expect(getVisibleInternalMcpTools('Worker')).not.toContain('promoted_memory_promote');
   });
 });
