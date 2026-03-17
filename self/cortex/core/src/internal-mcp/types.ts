@@ -11,6 +11,8 @@ import type {
   IExternalSourceMemoryService,
   IPromotedMemoryBridgeService,
   IPublicMcpSurfaceService,
+  IRuntime,
+  IOpctlService,
   IProjectApi,
   IProjectStore,
   IToolExecutor,
@@ -51,6 +53,13 @@ export const INTERNAL_MCP_TOOL_NAMES = [
   'witness_checkpoint',
   'escalation_notify',
   'scheduler_register',
+  'workflow_list',
+  'workflow_inspect',
+  'workflow_start',
+  'workflow_status',
+  'workflow_pause',
+  'workflow_resume',
+  'workflow_cancel',
   'dispatch_agent',
   'task_complete',
   'request_escalation',
@@ -98,6 +107,9 @@ export interface InternalMcpRuntimeDeps {
   toolExecutor?: IToolExecutor;
   pfc?: IPfcEngine;
   workflowEngine?: IWorkflowEngine;
+  opctlService?: IOpctlService;
+  runtime?: IRuntime;
+  instanceRoot?: string;
   workmodeAdmissionGuard?: IWorkmodeAdmissionGuard;
   witnessService?: IWitnessService;
   escalationService?: IEscalationService;
