@@ -89,9 +89,10 @@ The same app host also owns the machine-facing `/mcp` route and the `/.well-know
 Messaging integrations for mobile-first and asynchronous interaction.
 
 Phase 11.1 ships the first production bridge app here.
+Phase 14.6 keeps the bridge app as connector-native adapter/runtime compatibility scaffolding while the canonical communication-gateway runtime now owns connector registration and session truth.
 
 * Telegram adapter (current production connector)
-* Bridge runtime that composes `ICommunicationGatewayService` in process
+* Bridge runtime that composes `ICommunicationGatewayService` in process and registers connector identity with the canonical gateway
 * Future adapters for Matrix / Slack and later messaging surfaces
 
 Connector-native parsing and outbound transport stay app-local in this package. Canonical routing, identity-binding, acknowledgement, suppression, trust, and delivery truth remain in the communication-gateway runtime below.
@@ -756,6 +757,7 @@ Invisible infrastructure. The foundational services that keep the organism alive
 
 ```
 self/autonomic/
+├── credentials/                      # Encrypted credential vault, injector, and OAuth brokerage
 ├── storage/                          # Persistence backends
 ├── embeddings/                       # Embedding model abstraction
 ├── runtime/                          # OS and environment abstraction
@@ -786,6 +788,19 @@ Responsibilities:
 * Pure I/O — no knowledge of memory types or business logic
 
 Backends are swappable through interfaces.
+
+### credentials/
+
+Credential infrastructure for installed app packages.
+
+Responsibilities:
+
+* Encrypted app-scoped credential storage
+* Injection-only outbound request execution
+* Direct-to-vault OAuth token brokerage
+* Namespace purge for package removal and lifecycle cleanup
+
+This package stays in the autonomic layer because apps never receive plaintext credential material; higher layers consume the credential seams only through shared interfaces.
 
 ### embeddings/
 
@@ -926,6 +941,12 @@ Phase 14.3 adds:
 Phase 14.4 adds:
 
 - `workflow-lifecycle.ts` — canonical request/response schemas for Internal MCP workflow lifecycle list, inspect, start, status, pause, resume, and cancel operations, including mutation-result evidence and warning projections.
+
+Phase 14.6 adds:
+
+- `app-credentials.ts` — canonical schemas for app-scoped credential storage, injection requests, revoke flows, OAuth brokerage, and purge summaries
+- additive connector registration and session projections in `communication-gateway.ts`
+- additive credential-setup fields in `package-resolution.ts` so install-time vault provisioning stays lifecycle-owned
 
 Phase 9.6 adds:
 
