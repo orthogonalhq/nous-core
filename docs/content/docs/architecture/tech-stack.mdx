@@ -16,10 +16,13 @@ The stack is chosen to support: TypeScript-first full-stack development, interfa
 | Choice | Detail |
 |---|---|
 | **Language** | TypeScript |
-| **Runtime** | Node ≥22 (LTS) |
+| **Core Runtime** | Node ≥22 (LTS) |
+| **App Sandbox Runtime** | Deno (for installed `.apps` packages) |
 | **TypeScript Version** | 5.9+ |
 
 TypeScript is the primary language across all layers — cortex, memory, subcortex, autonomic, shared, and apps. One language for the full stack. The type system maps directly to the interface-first architecture where every component sits behind a contract defined in `self/shared/interfaces/`.
+
+Phase 14.5 establishes the ratified runtime split: **Nous core runs on Node.js**; **installed app packages run as Deno subprocesses**. MCP over IPC is the sole app-to-core communication path. No shared-memory, direct TypeScript interface injection, or alternate app runtime is introduced. App permissions compile deterministically into Deno CLI flags with hard-deny posture (`--deny-env`, `--deny-run`, `--deny-ffi`).
 
 ---
 
