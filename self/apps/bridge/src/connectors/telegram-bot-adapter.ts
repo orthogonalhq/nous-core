@@ -53,10 +53,12 @@ function inferMessageType(
 export class TelegramBotAdapter implements CommunicationDeliveryProvider {
   private readonly now: () => string;
   private readonly idFactory: () => string;
+  readonly accountId: string;
 
   constructor(private readonly options: TelegramBotAdapterOptions) {
     this.now = options.now ?? (() => new Date().toISOString());
     this.idFactory = options.idFactory ?? randomUUID;
+    this.accountId = options.accountId;
   }
 
   normalizeIngress(update: TelegramUpdate): ChannelIngressEnvelope {

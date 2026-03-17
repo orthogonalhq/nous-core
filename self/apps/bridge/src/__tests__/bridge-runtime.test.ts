@@ -50,6 +50,15 @@ describe('BridgeRuntime', () => {
       })(),
     });
 
+    expect(
+      (runtime.gatewayService as any).getConnectorRegistration?.(runtime.connectorId),
+    ).toEqual(
+      expect.objectContaining({
+        connector_id: runtime.connectorId,
+        kind: 'telegram',
+      }),
+    );
+
     await runtime.gatewayService.upsertBinding({
       channel: 'telegram',
       account_id: 'account:telegram',
@@ -79,6 +88,14 @@ describe('BridgeRuntime', () => {
     });
 
     expect(outcome.outcome).toBe('accepted_routed');
+    expect(
+      (runtime.gatewayService as any).getConnectorSession?.(runtime.connectorId),
+    ).toEqual(
+      expect.objectContaining({
+        connector_id: runtime.connectorId,
+        status: 'active',
+      }),
+    );
   });
 
   it('dispatches Telegram messages through the composed gateway runtime', async () => {
