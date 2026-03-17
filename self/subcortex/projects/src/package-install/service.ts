@@ -1,5 +1,7 @@
 import type {
   CanonicalInstallTarget,
+  CredentialInstallSetup,
+  IAppCredentialInstallService,
   IPackageInstallService,
   IPackageLifecycleOrchestrator,
   IRegistryService,
@@ -31,6 +33,7 @@ import { resolveDependencyGraph } from './resolver.js';
 export interface PackageInstallServiceOptions {
   registryService: IRegistryService;
   lifecycleOrchestrator: IPackageLifecycleOrchestrator;
+  appCredentialInstallService?: IAppCredentialInstallService;
   runtime: IRuntime;
   instanceRoot?: string;
   now?: () => string;
@@ -274,6 +277,23 @@ export class PackageInstallService implements IPackageInstallService {
           failure: nodeResult.failure,
         });
       }
+    }
+
+    const credentialSetupResult = await this.applyCredentialSetupIfNeeded({
+      request: parsed,
+      resolution,
+      writes,
+      targets: targets.targets,
+    });
+    if (!credentialSetupResult.ok) {
+      writes.push(...credentialSetupResult.rollbackWrites);
+      return PackageInstallResultSchema.parse({
+        resolution,
+        writes,
+        lifecycle_results: lifecycleResults,
+        status: 'rolled_back',
+        failure: credentialSetupResult.failure,
+      });
     }
 
     return PackageInstallResultSchema.parse({
@@ -548,5 +568,80 @@ export class PackageInstallService implements IPackageInstallService {
     }
 
     return rollbackWrites;
+  }
+
+  private async applyCredentialSetupIfNeeded(input: {
+    request: PackageInstallRequest;
+    resolution: PackageInstallResult['resolution'];
+    writes: PackageInstallResult['writes'];
+    targets: Map<string, CanonicalInstallTarget>;
+  }): Promise<
+    | { ok: true }
+    | {
+        ok: false;
+        failure: PackageInstallResult['failure'];
+        rollbackWrites: PackageInstallResult['writes'];
+      }
+  > {
+    if (
+      !input.request.credential_setup ||
+      !this.options.appCredentialInstallService
+    ) {
+      return { ok: true };
+    }
+
+    const rootNode = input.resolution.nodes.find(
+      (node) => node.package_id === input.resolution.root_package_id,
+    );
+    if (!rootNode || rootNode.package_type !== 'app') {
+      return { ok: true };
+    }
+
+    try {
+      await this.applyCredentialSetup(
+        input.resolution.root_package_id,
+        input.request.credential_setup,
+      );
+      return { ok: true };
+    } catch (error) {
+      return {
+        ok: false,
+        rollbackWrites: await this.rollbackPreviouslyAppliedNodes({
+          writes: input.writes,
+          targets: input.targets,
+        }),
+        failure: PackageResolutionFailureSchema.parse({
+          reason_code:
+            error instanceof Error &&
+            error.message.includes('PKG-010-OAUTH_FLOW_FAILED')
+              ? 'PKG-010-OAUTH_FLOW_FAILED'
+              : 'PKG-010-OAUTH_FLOW_FAILED',
+          package_id: input.resolution.root_package_id,
+          detail: error instanceof Error ? error.message : String(error),
+        }),
+      };
+    }
+  }
+
+  private async applyCredentialSetup(
+    appId: string,
+    credentialSetup: CredentialInstallSetup,
+  ): Promise<void> {
+    for (const request of credentialSetup.secrets) {
+      await this.options.appCredentialInstallService!.storeSecretField(
+        appId,
+        request,
+      );
+    }
+
+    for (const request of credentialSetup.oauth) {
+      const result = await this.options.appCredentialInstallService!.openOAuthFlow({
+        ...request,
+        app_id: appId,
+      });
+      if (result.status !== 'success') {
+        throw new Error(result.reason ?? 'PKG-010-OAUTH_FLOW_FAILED');
+      }
+    }
   }
 }
