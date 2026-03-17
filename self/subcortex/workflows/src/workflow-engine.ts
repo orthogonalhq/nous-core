@@ -44,6 +44,7 @@ import {
 } from './execution-coordinator.js';
 import { resolveWorkflowContinuation } from './continuations.js';
 import {
+  cancelWorkflowRunState,
   completeWorkflowNodeInRunState,
   createInitialWorkflowRunState,
   pauseWorkflowRunState,
@@ -352,6 +353,19 @@ export class DeterministicWorkflowEngine implements IWorkflowEngine {
       throw new Error(`Unknown workflow run id: ${executionId}`);
     }
     const nextState = pauseWorkflowRunState(state, transition);
+    this.states.set(executionId, nextState);
+    return clone(nextState);
+  }
+
+  async cancel(
+    executionId: WorkflowExecutionId,
+    transition: WorkflowTransitionInput,
+  ): Promise<WorkflowRunState> {
+    const state = this.states.get(executionId);
+    if (!state) {
+      throw new Error(`Unknown workflow run id: ${executionId}`);
+    }
+    const nextState = cancelWorkflowRunState(state, transition);
     this.states.set(executionId, nextState);
     return clone(nextState);
   }

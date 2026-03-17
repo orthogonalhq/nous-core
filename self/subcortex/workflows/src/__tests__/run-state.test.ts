@@ -1,8 +1,10 @@
 import { describe, it, expect } from 'vitest';
 import { buildDerivedWorkflowGraph } from '../graph-builder.js';
 import {
+  cancelWorkflowRunState,
   completeWorkflowNodeInRunState,
   createInitialWorkflowRunState,
+  pauseWorkflowRunState,
   recordWorkflowNodeExecution,
   resolveWorkflowNodeContinuation,
 } from '../run-state.js';
@@ -338,5 +340,85 @@ describe('workflow run state helpers', () => {
     expect(completed.nodeStates[NODE_A]?.status).toBe('completed');
     expect(completed.nodeStates[NODE_A]?.correctionArcs).toHaveLength(1);
     expect(completed.nodeStates[NODE_A]?.attempts[0]?.completedAt).toBe(NOW);
+  });
+
+  it('cancels active workflow runs without deleting node-attempt history', () => {
+    const initial = createInitialWorkflowRunState({
+      runId: RUN_ID as any,
+      graph: humanGraph,
+      admission: {
+        allowed: true,
+        reasonCode: 'workflow_admitted',
+        evidenceRefs: ['workflow:admission'],
+      },
+      startedAt: NOW,
+    });
+
+    const waiting = recordWorkflowNodeExecution({
+      state: initial,
+      graph: humanGraph,
+      nodeDefinitionId: NODE_A as any,
+      result: {
+        outcome: 'waiting',
+        governanceDecision: createGovernanceDecision('opctl-command'),
+        waitState: {
+          kind: 'human_decision',
+          reasonCode: 'workflow_waiting_for_human',
+          evidenceRefs: ['workflow:wait'],
+          requestedAt: NOW,
+          resumeToken: 'resume-token',
+        },
+        sideEffectStatus: 'none',
+        reasonCode: 'workflow_waiting_for_human',
+        evidenceRefs: ['workflow:wait'],
+      },
+      transition: {
+        reasonCode: 'node_waiting',
+        evidenceRefs: ['workflow:wait'],
+      },
+    });
+
+    const canceled = cancelWorkflowRunState(waiting, {
+      reasonCode: 'workflow_canceled',
+      evidenceRefs: ['workflow:cancel'],
+    });
+
+    expect(canceled.status).toBe('canceled');
+    expect(canceled.activeNodeIds).toEqual([]);
+    expect(canceled.waitingNodeIds).toEqual([]);
+    expect(canceled.nodeStates[NODE_A]?.attempts).toHaveLength(1);
+    expect(canceled.nodeStates[NODE_A]?.activeAttempt).toBeNull();
+  });
+
+  it('rejects invalid pause transitions from terminal workflow states', () => {
+    const initial = createInitialWorkflowRunState({
+      runId: RUN_ID as any,
+      graph: linearGraph,
+      admission: {
+        allowed: true,
+        reasonCode: 'workflow_admitted',
+        evidenceRefs: ['workflow:admission'],
+      },
+      startedAt: NOW,
+    });
+    const completed = completeWorkflowNodeInRunState(
+      completeWorkflowNodeInRunState(initial, linearGraph, NODE_A as any, {
+        reasonCode: 'node_completed',
+        evidenceRefs: ['workflow:complete:a'],
+      }),
+      linearGraph,
+      NODE_B as any,
+      {
+        reasonCode: 'node_completed',
+        evidenceRefs: ['workflow:complete:b'],
+      },
+    );
+
+    expect(() =>
+      pauseWorkflowRunState(completed, {
+        reasonCode: 'workflow_paused',
+        evidenceRefs: ['workflow:pause'],
+      }),
+    ).toThrow(/cannot be paused/i);
   });
 });
