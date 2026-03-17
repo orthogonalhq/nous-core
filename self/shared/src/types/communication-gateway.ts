@@ -81,6 +81,37 @@ export type CommunicationApprovalIntakeStatus = z.infer<
   typeof CommunicationApprovalIntakeStatusSchema
 >;
 
+export const CommunicationConnectorKindSchema = z.enum(['telegram']);
+export type CommunicationConnectorKind = z.infer<
+  typeof CommunicationConnectorKindSchema
+>;
+
+export const CommunicationConnectorRegistrationSchema = z.object({
+  connector_id: z.string().min(1),
+  kind: CommunicationConnectorKindSchema,
+  account_id: z.string().min(1),
+  project_id: ProjectIdSchema.optional(),
+  binding_ref: z.string().min(1).optional(),
+  status: z.enum(['registered', 'active', 'degraded', 'stopped']),
+  registered_at: z.string().datetime(),
+});
+export type CommunicationConnectorRegistration = z.infer<
+  typeof CommunicationConnectorRegistrationSchema
+>;
+
+export const CommunicationConnectorSessionSchema = z.object({
+  connector_id: z.string().min(1),
+  endpoint_id: z.string().min(1).optional(),
+  peripheral_id: z.string().min(1).optional(),
+  status: z.enum(['active', 'degraded', 'stopped']),
+  last_seen_at: z.string().datetime().optional(),
+  health: z.enum(['healthy', 'degraded', 'unhealthy']).default('healthy'),
+  metadata: z.record(z.unknown()).default({}),
+});
+export type CommunicationConnectorSession = z.infer<
+  typeof CommunicationConnectorSessionSchema
+>;
+
 export const ChannelIngressEnvelopeSchema = z.object({
   ingress_id: z.string().uuid(),
   channel: CommunicationChannelSchema,

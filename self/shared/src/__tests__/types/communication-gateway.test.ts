@@ -2,6 +2,8 @@ import { describe, expect, it } from 'vitest';
 import {
   ChannelEgressEnvelopeSchema,
   ChannelIngressEnvelopeSchema,
+  CommunicationConnectorRegistrationSchema,
+  CommunicationConnectorSessionSchema,
   CommunicationEgressOutcomeSchema,
   CommunicationEscalationAcknowledgementInputSchema,
   CommunicationIdentityBindingUpsertInputSchema,
@@ -136,6 +138,30 @@ describe('CommunicationEscalationAcknowledgementInputSchema', () => {
     });
 
     expect(result.success).toBe(true);
+  });
+});
+
+describe('Communication connector runtime schemas', () => {
+  it('parses canonical connector registrations and sessions', () => {
+    const registration = CommunicationConnectorRegistrationSchema.safeParse({
+      connector_id: 'connector:telegram:account:primary',
+      kind: 'telegram',
+      account_id: 'account:primary',
+      status: 'registered',
+      registered_at: NOW,
+    });
+    const session = CommunicationConnectorSessionSchema.safeParse({
+      connector_id: 'connector:telegram:account:primary',
+      status: 'active',
+      health: 'healthy',
+      last_seen_at: NOW,
+      metadata: {
+        last_ingress_id: '550e8400-e29b-41d4-a716-446655440101',
+      },
+    });
+
+    expect(registration.success).toBe(true);
+    expect(session.success).toBe(true);
   });
 });
 

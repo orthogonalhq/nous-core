@@ -12,6 +12,14 @@ import type {
   PlatformInfo,
   HealthReport,
   SystemMetrics,
+  CredentialInjectRequest,
+  CredentialInjectedResponse,
+  CredentialMetadata,
+  CredentialNamespacePurgeResult,
+  CredentialRevokeRequest,
+  CredentialRevokeResult,
+  CredentialStoreRequest,
+  CredentialStoreResult,
 } from '../types/index.js';
 
 // SystemConfig is defined in @nous/autonomic-config, but the interface
@@ -146,4 +154,33 @@ export interface IHealthMonitor {
 
   /** Get system metrics */
   getMetrics(): Promise<SystemMetrics>;
+}
+
+export interface ICredentialVaultService {
+  /** Store or replace one app-scoped credential. */
+  store(appId: string, request: CredentialStoreRequest): Promise<CredentialStoreResult>;
+
+  /** Retrieve safe metadata for one app-scoped credential. */
+  getMetadata(appId: string, key: string): Promise<CredentialMetadata | null>;
+
+  /** Revoke one app-scoped credential. */
+  revoke(appId: string, request: CredentialRevokeRequest): Promise<CredentialRevokeResult>;
+
+  /** Purge every credential in one app namespace. */
+  purgeNamespace(appId: string): Promise<CredentialNamespacePurgeResult>;
+
+  /** Resolve one credential for the injector path only. */
+  resolveForInjection(appId: string, key: string): Promise<{
+    metadata: CredentialMetadata;
+    secretValue: string;
+  } | null>;
+}
+
+export interface ICredentialInjector {
+  /** Execute one outbound request with a credential injected by infrastructure. */
+  executeInjectedRequest(input: {
+    appId: string;
+    request: CredentialInjectRequest;
+    manifestNetworkPermissions: readonly string[];
+  }): Promise<CredentialInjectedResponse>;
 }

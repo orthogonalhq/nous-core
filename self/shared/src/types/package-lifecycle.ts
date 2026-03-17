@@ -94,6 +94,12 @@ export const PACKAGE_LIFECYCLE_REASON_CODES = {
     'Runtime activation handshake payload was malformed or invalid.',
   'PKG-010-TOOL_NAMESPACE_COLLISION':
     'Runtime tool registration collided with an existing tool namespace.',
+  'PKG-010-CREDENTIAL_PURGE_FAILED':
+    'Credential namespace purge failed before package removal completed.',
+  'PKG-010-OAUTH_FLOW_FAILED':
+    'Install-hook scoped OAuth flow failed before package setup completed.',
+  'PKG-010-CREDENTIAL_TARGET_HOST_BLOCKED':
+    'Credential injection target host did not satisfy stored metadata and manifest policy.',
   'PKG-010-HEARTBEAT_STALE':
     'Runtime heartbeat freshness could no longer be proven.',
   'PKG-010-HEALTH_PAYLOAD_INVALID':
