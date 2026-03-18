@@ -1,25 +1,15 @@
 import {
+  AppPanelBridgeContextSchema,
+  AppPanelSafeConfigSnapshotSchema,
   AppPanelRegistrationProjectionSchema,
+  type AppConfig,
+  type AppHandshakeConfigEntry,
+  type AppPanelBridgeContext,
   type AppPanelRegistrationProjection,
   type AppRuntimeSession,
 } from '@nous/shared';
 
-export interface ResolvedAppPanelDescriptor {
-  session_id: string;
-  app_id: string;
-  package_id: string;
-  package_version: string;
-  project_id?: string;
-  panel_id: string;
-  label: string;
-  entry: string;
-  position?: AppPanelRegistrationProjection['position'];
-  preserve_state: boolean;
-  package_root_ref: string;
-  manifest_ref: string;
-  route_path: string;
-  dockview_panel_id: string;
-}
+export type ResolvedAppPanelDescriptor = AppPanelBridgeContext;
 
 function buildPanelRegistryKey(appId: string, panelId: string): string {
   return `${appId}::${panelId}`;
@@ -45,6 +35,8 @@ export class PanelRegistrationRegistry {
       >;
       package_root_ref: string;
       manifest_ref: string;
+      manifest_config?: AppConfig;
+      config_entries: readonly AppHandshakeConfigEntry[];
       panels: readonly AppPanelRegistrationProjection[];
     },
   ): ResolvedAppPanelDescriptor[] {
@@ -52,6 +44,10 @@ export class PanelRegistrationRegistry {
 
     const parsed = input.panels.map((panel) =>
       AppPanelRegistrationProjectionSchema.parse(panel),
+    );
+    const configSnapshot = buildPanelSafeConfigSnapshot(
+      input.manifest_config,
+      input.config_entries,
     );
     const descriptors = parsed.map((panel) => ({
       session_id: input.session.session_id,
@@ -68,7 +64,8 @@ export class PanelRegistrationRegistry {
       manifest_ref: input.manifest_ref,
       route_path: buildRoutePath(panel.app_id, panel.panel_id),
       dockview_panel_id: buildDockviewPanelId(panel.app_id, panel.panel_id),
-    }));
+      config_snapshot: configSnapshot,
+    })).map((descriptor) => AppPanelBridgeContextSchema.parse(descriptor));
 
     for (const descriptor of descriptors) {
       this.panelsByKey.set(
@@ -106,4 +103,25 @@ export class PanelRegistrationRegistry {
     this.panelsBySession.delete(sessionId);
     return panels;
   }
+}
+
+function buildPanelSafeConfigSnapshot(
+  manifestConfig: AppConfig | undefined,
+  configEntries: readonly AppHandshakeConfigEntry[],
+) {
+  const snapshot: Record<string, { value: unknown; source: AppHandshakeConfigEntry['source'] }> =
+    {};
+
+  for (const entry of configEntries) {
+    if (manifestConfig?.[entry.key]?.type === 'secret') {
+      continue;
+    }
+
+    snapshot[entry.key] = {
+      value: entry.value,
+      source: entry.source,
+    };
+  }
+
+  return AppPanelSafeConfigSnapshotSchema.parse(snapshot);
 }

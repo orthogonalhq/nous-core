@@ -17,6 +17,7 @@ describe('PanelRegistrationRegistry', () => {
       session,
       package_root_ref: '/repo/.apps/weather',
       manifest_ref: '/repo/.apps/weather/manifest.json',
+      config_entries: [],
       panels: [
         {
           app_id: 'app:weather',
@@ -48,6 +49,7 @@ describe('PanelRegistrationRegistry', () => {
       session,
       package_root_ref: '/repo/.apps/weather',
       manifest_ref: '/repo/.apps/weather/manifest.json',
+      config_entries: [],
       panels: [
         {
           app_id: 'app:weather',
@@ -67,6 +69,7 @@ describe('PanelRegistrationRegistry', () => {
       },
       package_root_ref: '/repo/.apps/weather-v2',
       manifest_ref: '/repo/.apps/weather-v2/manifest.json',
+      config_entries: [],
       panels: [
         {
           app_id: 'app:weather',
@@ -102,6 +105,7 @@ describe('PanelRegistrationRegistry', () => {
       session,
       package_root_ref: '/repo/.apps/weather',
       manifest_ref: '/repo/.apps/weather/manifest.json',
+      config_entries: [],
       panels: [
         {
           app_id: 'app:weather',
@@ -119,5 +123,63 @@ describe('PanelRegistrationRegistry', () => {
     expect(removed).toHaveLength(1);
     expect(registry.resolvePanel('app:weather', 'forecast')).toBeNull();
     expect(registry.listPanels()).toEqual([]);
+  });
+
+  it('omits secret config fields from the bridge snapshot', () => {
+    const registry = new PanelRegistrationRegistry();
+
+    registry.registerPanels({
+      session,
+      package_root_ref: '/repo/.apps/weather',
+      manifest_ref: '/repo/.apps/weather/manifest.json',
+      manifest_config: {
+        units: {
+          type: 'string',
+          required: false,
+        },
+        api_key: {
+          type: 'secret',
+          required: false,
+        },
+      },
+      config_entries: [
+        {
+          key: 'units',
+          value: 'metric',
+          source: 'project_config',
+          mutable: false,
+        },
+        {
+          key: 'api_key',
+          value: 'secret-token',
+          source: 'project_config',
+          mutable: false,
+        },
+      ],
+      panels: [
+        {
+          app_id: 'app:weather',
+          session_id: 'session-1',
+          panel_id: 'forecast',
+          label: 'Forecast',
+          entry: 'panels/forecast.tsx',
+          preserve_state: true,
+        },
+      ],
+    });
+
+    expect(registry.resolvePanel('app:weather', 'forecast')).toEqual(
+      expect.objectContaining({
+        config_snapshot: {
+          units: {
+            value: 'metric',
+            source: 'project_config',
+          },
+        },
+      }),
+    );
+    expect(
+      registry.resolvePanel('app:weather', 'forecast')?.config_snapshot.api_key,
+    ).toBeUndefined();
   });
 });

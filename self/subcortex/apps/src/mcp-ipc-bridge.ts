@@ -27,6 +27,7 @@ export interface AppOutboundToolEnvelope {
 
 export interface McpIpcBridgeOptions {
   sendHandshake?: (sessionId: string, handshake: AppActivationHandshake) => Promise<void> | void;
+  invokeTool?: (sessionId: string, envelope: AppOutboundToolEnvelope) => Promise<unknown> | unknown;
   projectScopedTools?: readonly string[];
 }
 
@@ -84,6 +85,18 @@ export class McpIpcBridge {
     }
 
     return parsed;
+  }
+
+  async invokeTool(payload: unknown): Promise<unknown> {
+    const parsed = this.parseOutboundToolEnvelope(payload);
+    if (!this.options.invokeTool) {
+      throw new NousError(
+        'App tool invocation bridge is unavailable',
+        'APP_TOOL_BRIDGE_UNAVAILABLE',
+      );
+    }
+
+    return this.options.invokeTool(parsed.context.session_id, parsed);
   }
 
   parseConnectorIngressIntent(payload: unknown): AppConnectorIngressIntent {
