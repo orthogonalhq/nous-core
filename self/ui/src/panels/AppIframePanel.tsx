@@ -1,12 +1,16 @@
 'use client'
 
+import { useEffect, useRef } from 'react'
 import type { IDockviewPanelProps } from 'dockview-react'
+import type { PanelBridgeConfigSnapshot } from '@nous/shared'
+import { PanelBridgeHost } from './panel-bridge-host'
 
 interface AppIframePanelParams {
   appId: string
   panelId: string
   src: string
   preserveState?: boolean
+  configSnapshot?: PanelBridgeConfigSnapshot
 }
 
 interface AppIframePanelProps extends IDockviewPanelProps {
@@ -14,6 +18,31 @@ interface AppIframePanelProps extends IDockviewPanelProps {
 }
 
 export function AppIframePanel({ params }: AppIframePanelProps) {
+  const iframeRef = useRef<HTMLIFrameElement | null>(null)
+
+  useEffect(() => {
+    if (!params?.src || !iframeRef.current) {
+      return
+    }
+
+    const bridgeHost = new PanelBridgeHost({
+      appId: params.appId,
+      panelId: params.panelId,
+      iframe: iframeRef.current,
+      mcpEndpoint: new URL('/mcp', params.src).toString(),
+      configSnapshot: params.configSnapshot ?? {},
+    })
+
+    return () => {
+      bridgeHost.destroy()
+    }
+  }, [
+    params?.appId,
+    params?.panelId,
+    params?.src,
+    JSON.stringify(params?.configSnapshot ?? {}),
+  ])
+
   if (!params?.src) {
     return (
       <div
@@ -43,6 +72,7 @@ export function AppIframePanel({ params }: AppIframePanelProps) {
       }}
     >
       <iframe
+        ref={iframeRef}
         title={`${params.appId}:${params.panelId}`}
         src={params.src}
         sandbox="allow-scripts"
