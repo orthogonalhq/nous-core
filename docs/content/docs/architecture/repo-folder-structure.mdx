@@ -740,6 +740,11 @@ It proves the canonical Deno app lifecycle, namespaced tool registration, progre
 connector/full-client configuration, and host-owned communication-gateway integration without
 reusing `self/apps/bridge/` as the runtime source of truth.
 
+Phase 15.1 adds the canonical app-panel host seam for installable apps. Manifest-declared app
+panels are served through the existing web host at `/apps/:appId/panels/:panelId` and mounted into
+trusted shell surfaces as sandboxed iframe panels, rather than through an app-owned parallel UI
+runtime or alternate host path.
+
 This keeps the distinction clear: `self/apps/` contains first-party senses that are part of the being, while `.apps/` stores installable packages that can extend the operator experience.
 
 ### `.projects/` — Workspace State
