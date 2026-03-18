@@ -71,9 +71,14 @@ class FakeGatewayService implements ICommunicationGatewayService {
   async upsertBinding(): Promise<any> { throw new Error('unused'); }
   async listApprovalIntake(): Promise<any> { return []; }
   async acknowledgeEscalation(): Promise<any> { return null; }
+  async registerConnector(): Promise<any> { throw new Error('unused'); }
+  async reportConnectorSession(): Promise<any> { throw new Error('unused'); }
+  async unregisterConnector(): Promise<void> {}
   async getRouteDecision(): Promise<any> {
     return this.routeExists ? { route_id: 'route-1' } : null;
   }
+  async getConnectorRegistration(): Promise<any> { return null; }
+  async getConnectorSession(): Promise<any> { return null; }
 }
 
 class FakeEscalationService implements IEscalationService {

@@ -1,7 +1,13 @@
 import {
   AppActivationHandshakeSchema,
+  AppConnectorEgressIntentSchema,
+  AppConnectorIngressIntentSchema,
+  AppConnectorSessionReportSchema,
   AppOutboundToolCallContextSchema,
   type AppActivationHandshake,
+  type AppConnectorEgressIntent,
+  type AppConnectorIngressIntent,
+  type AppConnectorSessionReport,
   type AppOutboundToolCallContext,
   type AppRuntimeActivationInput,
   type AppRuntimeSession,
@@ -78,5 +84,17 @@ export class McpIpcBridge {
     }
 
     return parsed;
+  }
+
+  parseConnectorIngressIntent(payload: unknown): AppConnectorIngressIntent {
+    return AppConnectorIngressIntentSchema.parse(payload);
+  }
+
+  parseConnectorEgressIntent(payload: unknown): AppConnectorEgressIntent {
+    return AppConnectorEgressIntentSchema.parse(payload);
+  }
+
+  parseConnectorSessionReport(payload: unknown): AppConnectorSessionReport {
+    return AppConnectorSessionReportSchema.parse(payload);
   }
 }

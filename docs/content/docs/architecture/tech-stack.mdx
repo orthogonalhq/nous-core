@@ -24,6 +24,10 @@ TypeScript is the primary language across all layers — cortex, memory, subcort
 
 Phase 14.5 establishes the ratified runtime split: **Nous core runs on Node.js**; **installed app packages run as Deno subprocesses**. MCP over IPC is the sole app-to-core communication path. No shared-memory, direct TypeScript interface injection, or alternate app runtime is introduced. App permissions compile deterministically into Deno CLI flags with hard-deny posture (`--deny-env`, `--deny-run`, `--deny-ffi`).
 
+Phase 14.7 adds the Telegram connector reference app on top of this same split. Telegram ingress,
+egress, and connector-session reports cross the app boundary as typed host-owned IPC intents and are
+resolved by the canonical communication gateway rather than by an app-local delivery runtime.
+
 ---
 
 ## Monorepo and Build
