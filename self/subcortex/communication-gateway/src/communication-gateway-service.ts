@@ -398,6 +398,31 @@ export class CommunicationGatewayService implements ICommunicationGatewayService
     return registration;
   }
 
+  reportConnectorSession(
+    input: CommunicationConnectorSession,
+  ): CommunicationConnectorSession {
+    const parsed = CommunicationConnectorSessionSchema.parse(input);
+    const currentRegistration = this.connectorRegistrations.get(parsed.connector_id);
+    if (currentRegistration) {
+      this.connectorRegistrations.set(parsed.connector_id, {
+        ...currentRegistration,
+        status:
+          parsed.status === 'stopped'
+            ? 'stopped'
+            : parsed.health === 'degraded' || parsed.status === 'degraded'
+              ? 'degraded'
+              : 'active',
+      });
+    }
+    this.connectorSessions.set(parsed.connector_id, parsed);
+    return parsed;
+  }
+
+  unregisterConnector(connectorId: string): void {
+    this.connectorRegistrations.delete(connectorId);
+    this.connectorSessions.delete(connectorId);
+  }
+
   getConnectorRegistration(
     connectorId: string,
   ): CommunicationConnectorRegistration | null {
@@ -487,9 +512,7 @@ export class CommunicationGatewayService implements ICommunicationGatewayService
     input: Pick<CommunicationConnectorSession, 'status' | 'health' | 'metadata'>,
   ): void {
     const current = this.connectorSessions.get(connectorId);
-    this.connectorSessions.set(
-      connectorId,
-      CommunicationConnectorSessionSchema.parse({
+    this.reportConnectorSession({
         connector_id: connectorId,
         endpoint_id: current?.endpoint_id,
         peripheral_id: current?.peripheral_id,
@@ -500,8 +523,7 @@ export class CommunicationGatewayService implements ICommunicationGatewayService
           ...current?.metadata,
           ...input.metadata,
         },
-      }),
-    );
+      });
   }
 
   private async recordWitness(
