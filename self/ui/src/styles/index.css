@@ -1,0 +1,10 @@
+/**
+ * @nous/ui — Style entry point
+ *
+ * Import via: import '@nous/ui/styles'
+ *
+ * 1. tokens.css     — design primitives (colours, scales, dimensions)
+ * 2. components.css  — semantic aliases (header, tab, menu, card, …)
+ */
+@import './tokens.css';
+@import './components.css';

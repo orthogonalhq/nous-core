@@ -1,0 +1,323 @@
+/**
+ * Nous Dark Theme — dockview overrides
+ *
+ * Maps ALL dockview --dv-* variables to --nous-* design tokens.
+ * Import alongside tokens.css in any app that uses dockview panels.
+ *
+ * Variable reference: dockview-core/dist/styles/dockview.css
+ * 32 themeable variables (excluding theme-specific palette vars like --dv-color-abyss-*).
+ */
+
+/* ═══════════════════════════════════════════════════════════════════════════ */
+/* Global scrollbar — thin, overlay-style, mobile feel                       */
+/*                                                                           */
+/* At rest: completely invisible (thumb + arrows hidden).                     */
+/* On scroll-area hover: thumb fades in, small arrow chevrons appear at      */
+/* track ends to indicate scroll direction.                                  */
+/* 1px border trick keeps the thumb off the container edge.                  */
+/* ═══════════════════════════════════════════════════════════════════════════ */
+
+/* ── Base rail ──────────────────────────────────────────────────────────── */
+::-webkit-scrollbar {
+  width:  var(--nous-scrollbar-size);
+  height: var(--nous-scrollbar-size);
+}
+::-webkit-scrollbar-track {
+  background: transparent;
+}
+::-webkit-scrollbar-corner {
+  background: transparent;
+}
+
+/* ── Thumb (invisible at rest) ──────────────────────────────────────────── */
+/* 1px transparent border on the outer edge pushes the thumb inward */
+::-webkit-scrollbar-thumb {
+  background: transparent;
+  background-clip: padding-box;
+  border-radius: var(--nous-scrollbar-size);
+  border-right: 1px solid transparent;
+}
+::-webkit-scrollbar-thumb:horizontal {
+  border-right: none;
+  border-bottom: 1px solid transparent;
+}
+
+/* ── Arrow buttons (invisible at rest) ──────────────────────────────────── */
+::-webkit-scrollbar-button {
+  display: block;
+  background: transparent;
+}
+::-webkit-scrollbar-button:vertical   { height: 0; width: var(--nous-scrollbar-size); }
+::-webkit-scrollbar-button:horizontal { width: 0;  height: var(--nous-scrollbar-size); }
+
+/* ── Reveal on scroll-area hover ────────────────────────────────────────── */
+/* Thumb */
+*:hover > ::-webkit-scrollbar-thumb {
+  background: var(--nous-scrollbar-thumb);
+  background-clip: padding-box;
+}
+*:hover > ::-webkit-scrollbar-thumb:hover {
+  background: var(--nous-scrollbar-thumb-hover);
+  background-clip: padding-box;
+}
+
+/* Arrow chevrons — CSS border triangles, sized to the 6px rail */
+*:hover > ::-webkit-scrollbar-button:vertical:decrement {
+  height: 0;
+  border-left:   3px solid transparent;
+  border-right:  3px solid transparent;
+  border-bottom: 4px solid var(--nous-scrollbar-thumb);
+}
+*:hover > ::-webkit-scrollbar-button:vertical:increment {
+  height: 0;
+  border-left:  3px solid transparent;
+  border-right: 3px solid transparent;
+  border-top:   4px solid var(--nous-scrollbar-thumb);
+}
+*:hover > ::-webkit-scrollbar-button:horizontal:decrement {
+  width: 0;
+  border-top:    3px solid transparent;
+  border-bottom: 3px solid transparent;
+  border-right:  4px solid var(--nous-scrollbar-thumb);
+}
+*:hover > ::-webkit-scrollbar-button:horizontal:increment {
+  width: 0;
+  border-top:    3px solid transparent;
+  border-bottom: 3px solid transparent;
+  border-left:   4px solid var(--nous-scrollbar-thumb);
+}
+
+/* ═══════════════════════════════════════════════════════════════════════════ */
+/* Outer panel theme                                                         */
+/* ═══════════════════════════════════════════════════════════════════════════ */
+.dockview-theme-dark {
+  /* ── Shape ────────────────────────────────────────────────────────────── */
+  --dv-border-radius:                                  var(--nous-panel-radius);
+  --dv-tab-margin:                                     0;
+
+  /* ── Backgrounds ──────────────────────────────────────────────────────── */
+  --dv-group-view-background-color:                    var(--nous-panel-surface);
+  --dv-tabs-and-actions-container-background-color:    var(--nous-tab-bar-bg);
+
+  /* ── Tab bar ──────────────────────────────────────────────────────────── */
+  --dv-tabs-and-actions-container-height:              var(--nous-panel-tab-height);
+  --dv-tabs-and-actions-container-font-size:           var(--nous-panel-tab-font);
+  --dv-tab-font-size:                                  inherit;
+  --dv-tab-divider-color:                              var(--nous-tab-bar-border);
+
+  /* ── Tab colors: active group ─────────────────────────────────────────── */
+  --dv-activegroup-visiblepanel-tab-background-color:  var(--nous-tab-active-bg);
+  --dv-activegroup-visiblepanel-tab-color:             var(--nous-tab-active-fg);
+  --dv-activegroup-hiddenpanel-tab-background-color:   var(--nous-tab-bg);
+  --dv-activegroup-hiddenpanel-tab-color:              var(--nous-tab-fg);
+
+  /* ── Tab colors: inactive group ───────────────────────────────────────── */
+  --dv-inactivegroup-visiblepanel-tab-background-color:var(--nous-tab-bg);
+  --dv-inactivegroup-visiblepanel-tab-color:           var(--nous-tab-inactive-fg);
+  --dv-inactivegroup-hiddenpanel-tab-background-color: var(--nous-tab-bg);
+  --dv-inactivegroup-hiddenpanel-tab-color:            var(--nous-tab-dim-fg);
+
+  /* ── Borders & separators ─────────────────────────────────────────────── */
+  --dv-separator-border:                               transparent;
+  --dv-paneview-header-border-color:                   var(--nous-header-border);
+  --dv-paneview-active-outline-color:                  var(--nous-focus-outline);
+
+  /* ── Interaction ──────────────────────────────────────────────────────── */
+  --dv-icon-hover-background-color:                    var(--nous-icon-hover-bg);
+  --dv-drag-over-background-color:                     var(--nous-drag-over);
+  --dv-drag-over-border-color:                         var(--nous-drag-border);
+
+  /* ── Sash (resize handles) — invisible; gaps come from groupview padding  */
+  --dv-sash-color:                                     transparent;
+  --dv-active-sash-color:                              transparent;
+  --dv-active-sash-transition-duration:                var(--nous-duration-micro);
+  --dv-active-sash-transition-delay:                   0.5s;
+
+  /* ── Scrollbar ────────────────────────────────────────────────────────── */
+  --dv-tabs-container-scrollbar-color:                 var(--nous-dv-scrollbar-fg);
+  --dv-scrollbar-background-color:                     var(--nous-dv-scrollbar-bg);
+
+  /* ── Floating & overlay ───────────────────────────────────────────────── */
+  --dv-floating-box-shadow:                            var(--nous-panel-shadow);
+  --dv-overlay-z-index:                                var(--nous-panel-z);
+}
+
+/* ─── Panel cards ─────────────────────────────────────────────────────────── */
+/* The resize wrapper that holds each group gets rounded corners */
+.dockview-theme-dark .dv-resize-container:has(> .dv-groupview) {
+  border-radius: var(--dv-border-radius);
+}
+.dockview-theme-dark .dv-resize-container {
+  border-radius: var(--dv-border-radius) !important;
+  border: none;
+}
+/* Each panel group clips its content to the card shape.
+   padding uses box-sizing:border-box so the total box stays the same
+   size as the resize-container (no JS size mismatch) while the flex content
+   is laid out inside each edge. Gap = padding(A) + sash + padding(B).
+   position:relative is required so ::before is positioned within the card. */
+.dockview-theme-dark .dv-groupview {
+  overflow: hidden;
+  border-radius: var(--dv-border-radius);
+  padding: var(--nous-panel-gap);
+  position: relative;
+  border: none;
+  background-color: var(--nous-panel-surface);
+}
+/* Border lives inside the padding — on the card face, not the gap area.
+   inset matches the padding so it hugs the actual content edge.
+   pointer-events:none lets clicks pass through to tabs/content below. */
+.dockview-theme-dark .dv-groupview::before {
+  content: '';
+  position: absolute;
+  inset: var(--nous-panel-gap);
+  border: 1px solid var(--nous-panel-border-inactive);
+  border-radius: calc(var(--dv-border-radius) - var(--nous-panel-gap));
+  pointer-events: none;
+  z-index: 1;
+}
+.dockview-theme-dark .dv-groupview.dv-active-group::before {
+  border-color: var(--nous-panel-border-active);
+}
+.dockview-theme-dark .dv-groupview.dv-inactive-group::before {
+  border-color: var(--nous-panel-border-inactive);
+}
+/* Tab bar rounds top only; content rounds bottom only; flat join between them */
+.dockview-theme-dark .dv-groupview > * {
+  overflow: hidden;
+}
+.dockview-theme-dark .dv-tabs-and-actions-container {
+  border-radius: calc(var(--dv-border-radius) - var(--nous-panel-gap))
+                 calc(var(--dv-border-radius) - var(--nous-panel-gap))
+                 0 0;
+}
+.dockview-theme-dark .dv-content-container {
+  overflow: hidden;
+  background-color: var(--nous-content-bg);
+  border-radius: 0 0
+                 calc(var(--dv-border-radius) - var(--nous-panel-gap))
+                 calc(var(--dv-border-radius) - var(--nous-panel-gap));
+}
+
+/* Sash is fully invisible — gaps come entirely from the groupview padding */
+.dockview-theme-dark .dv-sash {
+  background-color: transparent !important;
+}
+.dockview-theme-dark .dv-sash::after,
+.dockview-theme-dark .dv-sash::before {
+  display: none;
+}
+
+/* ═══════════════════════════════════════════════════════════════════════════ */
+/* Nested theme (inside dashboard / composite panels)                        */
+/*                                                                           */
+/* Same card-gap pattern as the outer theme but tighter spacing:             */
+/* root padding xs (4px), groupview padding 2xs (2px).                       */
+/* ═══════════════════════════════════════════════════════════════════════════ */
+.dockview-theme-nested {
+  background-color: var(--nous-nested-surface);
+
+  /* ── Shape ────────────────────────────────────────────────────────────── */
+  --dv-border-radius:                                  var(--nous-nested-radius);
+  --dv-tab-margin:                                     0;
+
+  /* ── Backgrounds ──────────────────────────────────────────────────────── */
+  --dv-group-view-background-color:                    var(--nous-nested-panel-surface);
+  --dv-tabs-and-actions-container-background-color:    var(--nous-nested-tab-bar-bg);
+
+  /* ── Tab bar ──────────────────────────────────────────────────────────── */
+  --dv-tabs-and-actions-container-height:              var(--nous-nested-tab-height);
+  --dv-tabs-and-actions-container-font-size:           var(--nous-nested-tab-font);
+  --dv-tab-font-size:                                  inherit;
+  --dv-tab-divider-color:                              var(--nous-nested-tab-bar-border);
+
+  /* ── Tab colors: active group ─────────────────────────────────────────── */
+  --dv-activegroup-visiblepanel-tab-background-color:  var(--nous-nested-tab-active-bg);
+  --dv-activegroup-visiblepanel-tab-color:             var(--nous-nested-tab-active-fg);
+  --dv-activegroup-hiddenpanel-tab-background-color:   var(--nous-nested-tab-bg);
+  --dv-activegroup-hiddenpanel-tab-color:              var(--nous-nested-tab-fg);
+
+  /* ── Tab colors: inactive group ───────────────────────────────────────── */
+  --dv-inactivegroup-visiblepanel-tab-background-color:var(--nous-nested-tab-bg);
+  --dv-inactivegroup-visiblepanel-tab-color:           var(--nous-nested-tab-inactive-fg);
+  --dv-inactivegroup-hiddenpanel-tab-background-color: var(--nous-nested-tab-bg);
+  --dv-inactivegroup-hiddenpanel-tab-color:            var(--nous-nested-tab-dim-fg);
+
+  /* ── Borders & separators ─────────────────────────────────────────────── */
+  --dv-separator-border:                               transparent;
+  --dv-paneview-header-border-color:                   var(--nous-nested-header-border);
+  --dv-paneview-active-outline-color:                  var(--nous-nested-focus-outline);
+
+  /* ── Interaction ──────────────────────────────────────────────────────── */
+  --dv-icon-hover-background-color:                    var(--nous-nested-icon-hover-bg);
+  --dv-drag-over-background-color:                     var(--nous-nested-drag-over);
+  --dv-drag-over-border-color:                         var(--nous-nested-drag-border);
+
+  /* ── Sash — invisible; gaps come from groupview padding ─────────────── */
+  --dv-sash-color:                                     transparent;
+  --dv-active-sash-color:                              transparent;
+  --dv-active-sash-transition-duration:                var(--nous-duration-micro);
+  --dv-active-sash-transition-delay:                   0.5s;
+
+  /* ── Scrollbar ────────────────────────────────────────────────────────── */
+  --dv-tabs-container-scrollbar-color:                 var(--nous-nested-scrollbar-fg);
+  --dv-scrollbar-background-color:                     var(--nous-nested-scrollbar-bg);
+
+  /* ── Floating & overlay ───────────────────────────────────────────────── */
+  --dv-floating-box-shadow:                            var(--nous-nested-shadow);
+  --dv-overlay-z-index:                                var(--nous-nested-z);
+}
+.dockview-theme-nested .dv-resize-container {
+  border-radius: var(--dv-border-radius) !important;
+  border: none;
+}
+.dockview-theme-nested .dv-content-container {
+  box-sizing: border-box;
+}
+
+/* Widget cards — same padding/border pattern as outer panels, tighter spacing */
+.dockview-theme-nested .dv-groupview {
+  overflow: hidden;
+  border-radius: var(--dv-border-radius);
+  padding: var(--nous-nested-gap);
+  position: relative;
+  border: none;
+  background-color: var(--nous-nested-panel-surface);
+}
+.dockview-theme-nested .dv-groupview::before {
+  content: '';
+  position: absolute;
+  inset: var(--nous-nested-gap);
+  border: 1px solid var(--nous-nested-border-inactive);
+  border-radius: calc(var(--dv-border-radius) - var(--nous-nested-gap));
+  pointer-events: none;
+  z-index: 1;
+}
+.dockview-theme-nested .dv-groupview.dv-active-group::before {
+  border-color: var(--nous-nested-border-active);
+}
+.dockview-theme-nested .dv-groupview.dv-inactive-group::before {
+  border-color: var(--nous-nested-border-inactive);
+}
+/* Tab bar rounds top only; content rounds bottom only; flat join between them */
+.dockview-theme-nested .dv-groupview > * {
+  overflow: hidden;
+}
+.dockview-theme-nested .dv-tabs-and-actions-container {
+  border-radius: calc(var(--dv-border-radius) - var(--nous-nested-gap))
+                 calc(var(--dv-border-radius) - var(--nous-nested-gap))
+                 0 0;
+}
+.dockview-theme-nested .dv-content-container {
+  background-color: var(--nous-nested-content-bg);
+  border-radius: 0 0
+                 calc(var(--dv-border-radius) - var(--nous-nested-gap))
+                 calc(var(--dv-border-radius) - var(--nous-nested-gap));
+}
+.dockview-theme-nested .dv-sash {
+  background-color: transparent !important;
+}
+.dockview-theme-nested .dv-sash::after,
+.dockview-theme-nested .dv-sash::before {
+  display: none;
+}
