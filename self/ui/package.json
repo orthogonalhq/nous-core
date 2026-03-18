@@ -16,6 +16,7 @@
     "./lib/cn": "./src/lib/cn.ts"
   },
   "dependencies": {
+    "@nous/shared": "workspace:*",
     "clsx": "^2.1.0",
     "tailwind-merge": "^2.5.0"
   },

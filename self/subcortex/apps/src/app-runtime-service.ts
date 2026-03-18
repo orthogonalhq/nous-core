@@ -22,6 +22,8 @@ import {
   type IAppRuntimeService,
   type ICommunicationGatewayService,
   type IPackageLifecycleOrchestrator,
+  type PanelBridgeToolTransportRequest,
+  PanelBridgeToolTransportRequestSchema,
   type PackageLifecycleTransitionRequest,
 } from '@nous/shared';
 import { AppHealthRegistry } from './app-health-registry.js';
@@ -103,6 +105,8 @@ export class AppRuntimeService implements IAppRuntimeService {
         session,
         package_root_ref: parsed.package_root_ref,
         manifest_ref: parsed.manifest_ref,
+        manifest_config: parsed.manifest.config,
+        config_entries: parsed.config,
         panels: parsed.panels,
       });
       const activeSession = this.updateSession({
@@ -228,6 +232,27 @@ export class AppRuntimeService implements IAppRuntimeService {
 
   async resolvePanel(appId: string, panelId: string) {
     return this.panelRegistry.resolvePanel(appId, panelId);
+  }
+
+  async executePanelTool(input: PanelBridgeToolTransportRequest): Promise<unknown> {
+    const parsed = PanelBridgeToolTransportRequestSchema.parse(input);
+    const panel = this.panelRegistry.resolvePanel(parsed.app_id, parsed.panel_id);
+    if (!panel) {
+      throw new Error('Active app panel not found.');
+    }
+
+    return this.bridge.invokeTool({
+      context: {
+        caller_type: 'app',
+        app_id: panel.app_id,
+        package_id: panel.package_id,
+        session_id: panel.session_id,
+        project_id: panel.project_id,
+        tool_id: `${panel.app_id}.${parsed.tool_name}`,
+        request_id: parsed.request_id,
+      },
+      params: parsed.params,
+    });
   }
 
   async recordHeartbeat(signal: import('@nous/shared').AppHeartbeatSignal): Promise<AppHealthSnapshot> {

@@ -1,7 +1,11 @@
 import { randomUUID } from 'node:crypto';
 import {
+  PANEL_BRIDGE_PROTOCOL_VERSION,
   PublicMcpExecutionRequestSchema,
   PublicMcpRpcRequestSchema,
+  PanelBridgeToolTransportFailureSchema,
+  PanelBridgeToolTransportRequestSchema,
+  PanelBridgeToolTransportSuccessSchema,
   type PublicMcpRejectReason,
 } from '@nous/shared';
 import { createNousContext } from '@/server/bootstrap';
@@ -47,6 +51,70 @@ function mapRejectCode(reason?: PublicMcpRejectReason): number {
   }
 }
 
+function extractPanelBridgeRequestId(body: unknown): string {
+  if (typeof body !== 'object' || body == null) {
+    return randomUUID();
+  }
+
+  const requestId = (body as { request_id?: unknown }).request_id;
+  return typeof requestId === 'string' && requestId.length > 0
+    ? requestId
+    : randomUUID();
+}
+
+async function handlePanelBridgeRequest(
+  body: unknown,
+): Promise<Response | null> {
+  const parsed = PanelBridgeToolTransportRequestSchema.safeParse(body);
+  if (!parsed.success) {
+    return Response.json(
+      PanelBridgeToolTransportFailureSchema.parse({
+        protocol: PANEL_BRIDGE_PROTOCOL_VERSION,
+        request_id: extractPanelBridgeRequestId(body),
+        ok: false,
+        error: {
+          code: 'message_invalid',
+          message: 'Invalid panel bridge tool request.',
+          retryable: false,
+        },
+      }),
+      { status: 400 },
+    );
+  }
+
+  try {
+    const result = await createNousContext().appRuntimeService.executePanelTool(parsed.data);
+    return Response.json(
+      PanelBridgeToolTransportSuccessSchema.parse({
+        protocol: PANEL_BRIDGE_PROTOCOL_VERSION,
+        request_id: parsed.data.request_id,
+        ok: true,
+        result,
+      }),
+      { status: 200 },
+    );
+  } catch (error) {
+    const message =
+      error instanceof Error && error.message.length > 0
+        ? error.message
+        : 'Panel tool execution failed.';
+    const status = message === 'Active app panel not found.' ? 404 : 502;
+    return Response.json(
+      PanelBridgeToolTransportFailureSchema.parse({
+        protocol: PANEL_BRIDGE_PROTOCOL_VERSION,
+        request_id: parsed.data.request_id,
+        ok: false,
+        error: {
+          code: status === 404 ? 'host_unavailable' : 'tool_execution_failed',
+          message,
+          retryable: false,
+        },
+      }),
+      { status },
+    );
+  }
+}
+
 export async function POST(request: Request): Promise<Response> {
   const ctx = createNousContext();
   const requestId = request.headers.get('x-request-id') ?? randomUUID();
@@ -56,6 +124,13 @@ export async function POST(request: Request): Promise<Response> {
     body = await request.json();
   } catch {
     body = null;
+  }
+
+  if (request.headers.get('x-nous-panel-bridge') === '1') {
+    const panelBridgeResponse = await handlePanelBridgeRequest(body);
+    if (panelBridgeResponse) {
+      return panelBridgeResponse;
+    }
   }
 
   const admission = await ctx.publicMcpGatewayService.authorize({

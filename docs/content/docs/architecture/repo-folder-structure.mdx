@@ -54,10 +54,29 @@ How Nous perceives the world and communicates with the user. These are part of t
 
 ```
 self/apps/
+├── app-sdk/                         # Browser-runtime SDK for installable app panels
 ├── cli/                              # Terminal interface
 ├── web/                              # Chat UI + Projects UI + Dashboard + MAO + mobile operations + public MCP edge
 └── bridge/                           # Approved messaging bridge app and connector adapters
 ```
+
+### app-sdk/
+
+Browser-runtime SDK for installable app panels.
+
+Phase 15.2 adds `self/apps/app-sdk/` as the canonical workspace package for the browser-side panel
+SDK consumed by installable apps. The Phase 15.2 in-scope surface is:
+
+* `NousPanel`
+* `useTool`
+* `useConfig`
+* `useTheme`
+* `useNotify`
+
+Panels use this package to speak the canonical versioned `postMessage` bridge to the trusted host.
+The SDK is a bridge client and projection helper only: it lets sandboxed panel code invoke app
+tools and read host-projected config/theme state through the host bridge, while keeping host
+internals, privileged routing, and second-source-of-truth state out of the panel surface.
 
 ### cli/
 

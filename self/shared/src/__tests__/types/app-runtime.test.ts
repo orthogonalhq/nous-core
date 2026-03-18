@@ -1,6 +1,8 @@
 import { describe, expect, it } from 'vitest';
 import {
   AppActivationHandshakeSchema,
+  AppPanelBridgeContextSchema,
+  AppPanelSafeConfigSnapshotSchema,
   AppConnectorEgressIntentSchema,
   AppConnectorIngressIntentSchema,
   AppConnectorSessionReportSchema,
@@ -69,6 +71,34 @@ describe('AppActivationHandshakeSchema', () => {
     });
 
     expect(result.success).toBe(true);
+  });
+});
+
+describe('AppPanel bridge runtime schemas', () => {
+  it('accepts panel-safe config snapshots and bridge contexts', () => {
+    const snapshot = AppPanelSafeConfigSnapshotSchema.parse({
+      units: {
+        value: 'metric',
+        source: 'project_config',
+      },
+    });
+    const context = AppPanelBridgeContextSchema.parse({
+      session_id: 'session-1',
+      app_id: 'app:weather',
+      package_id: 'app:weather',
+      package_version: '1.0.0',
+      panel_id: 'forecast',
+      label: 'Forecast',
+      entry: 'panels/forecast.tsx',
+      preserve_state: true,
+      package_root_ref: '/tmp/.apps/weather',
+      manifest_ref: '/tmp/.apps/weather/manifest.json',
+      route_path: '/apps/app%3Aweather/panels/forecast',
+      dockview_panel_id: 'app:app:weather:forecast',
+      config_snapshot: snapshot,
+    });
+
+    expect(context.config_snapshot.units?.value).toBe('metric');
   });
 });
 

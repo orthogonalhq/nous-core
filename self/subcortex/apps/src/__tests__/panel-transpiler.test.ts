@@ -26,6 +26,7 @@ async function createPanelDescriptor(
     manifest_ref: join(packageRoot, 'manifest.json'),
     route_path: '/apps/app%3Aweather/panels/forecast',
     dockview_panel_id: 'app:app:weather:forecast',
+    config_snapshot: {},
     ...overrides,
   };
 }

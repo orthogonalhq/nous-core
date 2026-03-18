@@ -17,6 +17,6 @@
       "@nous/shared": ["../../shared/src/index.ts"]
     }
   },
-  "include": ["src/renderer/src/**/*.ts", "src/renderer/src/**/*.tsx"],
-  "exclude": ["node_modules", "out"]
+  "include": ["src/**/*.ts", "src/**/*.tsx"],
+  "exclude": ["node_modules", "dist"]
 }

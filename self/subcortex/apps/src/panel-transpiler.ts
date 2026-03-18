@@ -231,7 +231,7 @@ export class PanelTranspiler {
         return null;
       }
 
-      return {
+      const record: PersistedPanelTranspileCacheRecord = {
         cache_key: metadata.cache_key,
         app_id: metadata.app_id,
         panel_id: metadata.panel_id,
@@ -241,6 +241,10 @@ export class PanelTranspiler {
         descriptor_fingerprint: metadata.descriptor_fingerprint,
         source_fingerprint: metadata.source_fingerprint,
         generated_at: metadata.generated_at,
+      };
+
+      return {
+        ...record,
         bundle_js: bundleJs,
         bundle_path: cachePaths.bundlePath,
         metadata_path: cachePaths.metadataPath,

@@ -1,4 +1,5 @@
 import {
+  AppPanelSafeConfigSnapshotSchema,
   PackageInstallRequestSchema,
   PackageInstallResultSchema,
 } from '@nous/shared';
@@ -14,6 +15,7 @@ const AppHostPanelSchema = z.object({
   dockview_panel_id: z.string().min(1),
   preserve_state: z.boolean(),
   position: z.enum(['left', 'right', 'bottom', 'main']).optional(),
+  config_snapshot: AppPanelSafeConfigSnapshotSchema,
 });
 
 export const packagesRouter = router({
@@ -35,6 +37,7 @@ export const packagesRouter = router({
         dockview_panel_id: panel.dockview_panel_id,
         preserve_state: panel.preserve_state,
         position: panel.position,
+        config_snapshot: panel.config_snapshot,
       }));
     }),
 });

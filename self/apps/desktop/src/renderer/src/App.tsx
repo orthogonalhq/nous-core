@@ -53,6 +53,10 @@ interface AppPanelSnapshot {
   dockview_panel_id: string
   preserve_state: boolean
   position?: 'left' | 'right' | 'bottom' | 'main'
+  config_snapshot: Record<string, {
+    value: unknown
+    source: 'manifest_default' | 'project_config' | 'system'
+  }>
   src: string
 }
 
@@ -97,6 +101,7 @@ function toAppPanelDef(panel: AppPanelSnapshot): PanelDef {
       panelId: panel.panel_id,
       src: panel.src,
       preserveState: panel.preserve_state,
+      configSnapshot: panel.config_snapshot,
     }),
     position: panel.position ? APP_PANEL_POSITIONS[panel.position] : undefined,
   }

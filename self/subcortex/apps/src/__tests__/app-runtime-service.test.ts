@@ -1,4 +1,5 @@
 import { describe, expect, it, vi } from 'vitest';
+import { PANEL_BRIDGE_PROTOCOL_VERSION } from '@nous/shared';
 import { AppRuntimeService } from '../app-runtime-service.js';
 import { AppToolRegistry, type AppToolRegistrar } from '../app-tool-registry.js';
 import { DenoSpawner } from '../deno-spawner.js';
@@ -506,5 +507,101 @@ describe('AppRuntimeService', () => {
     expect(stopped?.status).toBe('stopped');
     expect(await service.resolvePanel('app:weather', 'forecast')).toBeNull();
     expect(invalidateSession).toHaveBeenCalledWith('session-1');
+  });
+
+  it('executes active panel tool requests through the runtime bridge with namespaced tool ids', async () => {
+    const invokeTool = vi.fn().mockResolvedValue({
+      forecast: 'rain',
+    });
+    const service = new AppRuntimeService({
+      lifecycleOrchestrator: {
+        run: vi.fn().mockResolvedValue({}),
+        disable: vi.fn().mockResolvedValue({}),
+      } as any,
+      spawner: new DenoSpawner({
+        sessionIdFactory: () => 'session-1',
+        spawnProcess: () => ({
+          pid: 123,
+          kill: vi.fn().mockReturnValue(true),
+        }),
+      }),
+      bridge: new McpIpcBridge({
+        invokeTool,
+      }),
+      toolRegistry: createToolRegistry(),
+    });
+
+    await service.activate({
+      ...(activationInput as any),
+      manifest: {
+        ...(activationInput.manifest as any),
+        config: {
+          units: {
+            type: 'string',
+          },
+          api_key: {
+            type: 'secret',
+          },
+        },
+      },
+      config: [
+        {
+          key: 'units',
+          value: 'metric',
+          source: 'project_config',
+          mutable: false,
+        },
+      ],
+    });
+
+    const result = await service.executePanelTool({
+      protocol: PANEL_BRIDGE_PROTOCOL_VERSION,
+      request_id: 'req-1',
+      app_id: 'app:weather',
+      panel_id: 'forecast',
+      tool_name: 'get_forecast',
+      params: {
+        city: 'Seattle',
+      },
+    });
+
+    expect(result).toEqual({
+      forecast: 'rain',
+    });
+    expect(invokeTool).toHaveBeenCalledWith('session-1', {
+      context: {
+        caller_type: 'app',
+        app_id: 'app:weather',
+        package_id: 'app:weather',
+        session_id: 'session-1',
+        project_id: activationInput.project_id,
+        tool_id: 'app:weather.get_forecast',
+        request_id: 'req-1',
+      },
+      params: {
+        city: 'Seattle',
+      },
+    });
+  });
+
+  it('fails panel tool execution when the target panel is not active', async () => {
+    const service = new AppRuntimeService({
+      lifecycleOrchestrator: {
+        run: vi.fn().mockResolvedValue({}),
+        disable: vi.fn().mockResolvedValue({}),
+      } as any,
+      bridge: new McpIpcBridge(),
+      toolRegistry: createToolRegistry(),
+    });
+
+    await expect(
+      service.executePanelTool({
+        protocol: PANEL_BRIDGE_PROTOCOL_VERSION,
+        request_id: 'req-1',
+        app_id: 'app:weather',
+        panel_id: 'forecast',
+        tool_name: 'get_forecast',
+      }),
+    ).rejects.toThrow('Active app panel not found.');
   });
 });

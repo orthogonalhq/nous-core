@@ -86,6 +86,43 @@ export type AppPanelRegistrationProjection = z.infer<
   typeof AppPanelRegistrationProjectionSchema
 >;
 
+export const AppPanelSafeConfigEntrySchema = z.object({
+  value: z.unknown(),
+  source: AppHandshakeConfigSourceSchema,
+});
+export type AppPanelSafeConfigEntry = z.infer<
+  typeof AppPanelSafeConfigEntrySchema
+>;
+
+export const AppPanelSafeConfigSnapshotSchema = z.record(
+  z.string().min(1),
+  AppPanelSafeConfigEntrySchema,
+);
+export type AppPanelSafeConfigSnapshot = z.infer<
+  typeof AppPanelSafeConfigSnapshotSchema
+>;
+
+export const AppPanelBridgeContextSchema = z.object({
+  session_id: z.string().min(1),
+  app_id: z.string().min(1),
+  package_id: z.string().min(1),
+  package_version: z.string().min(1),
+  project_id: ProjectIdSchema.optional(),
+  panel_id: z.string().min(1),
+  label: z.string().min(1),
+  entry: z.string().min(1),
+  position: z.enum(['left', 'right', 'bottom', 'main']).optional(),
+  preserve_state: z.boolean().default(true),
+  package_root_ref: z.string().min(1),
+  manifest_ref: z.string().min(1),
+  route_path: z.string().min(1),
+  dockview_panel_id: z.string().min(1),
+  config_snapshot: AppPanelSafeConfigSnapshotSchema.default({}),
+});
+export type AppPanelBridgeContext = z.infer<
+  typeof AppPanelBridgeContextSchema
+>;
+
 export const AppActivationHandshakeSchema = z.object({
   session_id: z.string().min(1),
   app_id: z.string().min(1),

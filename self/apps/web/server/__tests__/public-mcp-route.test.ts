@@ -1,7 +1,8 @@
-import { afterEach, describe, expect, it } from 'vitest';
+import { afterEach, describe, expect, it, vi } from 'vitest';
 import { join } from 'node:path';
 import { tmpdir } from 'node:os';
 import { randomUUID } from 'node:crypto';
+import { PANEL_BRIDGE_PROTOCOL_VERSION } from '@nous/shared';
 import { PUBLIC_MCP_AUDIT_COLLECTION } from '@nous/subcortex-public-mcp';
 import { clearNousContextCache, createNousContext } from '../bootstrap';
 import { POST } from '../../app/mcp/route';
@@ -19,6 +20,49 @@ describe('public MCP route', () => {
     delete process.env.NOUS_PUBLIC_MCP_HOSTED_BINDINGS_JSON;
     delete process.env.NOUS_PUBLIC_MCP_TUNNEL_SESSIONS_JSON;
     clearNousContextCache();
+  });
+
+  it('routes trusted panel bridge requests through the MCP endpoint without public bearer auth', async () => {
+    process.env.NOUS_DATA_DIR = join(tmpdir(), `nous-web-public-mcp-${randomUUID()}`);
+    clearNousContextCache();
+    const ctx = createNousContext();
+    const executePanelTool = vi
+      .spyOn(ctx.appRuntimeService, 'executePanelTool')
+      .mockResolvedValue({
+        forecast: 'rain',
+      });
+
+    const response = await POST(
+      new Request('http://localhost:3000/mcp', {
+        method: 'POST',
+        headers: {
+          'content-type': 'application/json',
+          'x-nous-panel-bridge': '1',
+        },
+        body: JSON.stringify({
+          protocol: PANEL_BRIDGE_PROTOCOL_VERSION,
+          request_id: 'req-1',
+          app_id: 'app:weather',
+          panel_id: 'forecast',
+          tool_name: 'get_forecast',
+          params: {
+            city: 'Seattle',
+          },
+        }),
+      }),
+    );
+    const body = await response.json();
+
+    expect(response.status).toBe(200);
+    expect(body.ok).toBe(true);
+    expect(body.result).toEqual({
+      forecast: 'rain',
+    });
+    expect(executePanelTool).toHaveBeenCalledWith(
+      expect.objectContaining({
+        tool_name: 'get_forecast',
+      }),
+    );
   });
 
   it('rejects missing bearer before tool execution', async () => {
