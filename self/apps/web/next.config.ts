@@ -7,6 +7,7 @@ const nextConfig: NextConfig = {
   transpilePackages: [
     '@nous/ui',
     '@nous/shared',
+    '@nous/subcortex-apps',
     '@nous/cortex-core',
     '@nous/cortex-pfc',
     '@nous/memory-access',

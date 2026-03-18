@@ -44,7 +44,9 @@ import {
   PublicMcpRuntimeAdapter,
   createCapabilityHandlers,
   getPublicToolMapping,
+  registerDynamicInternalMcpTool,
   resolvePublicMcpRequiredScopes,
+  unregisterDynamicInternalMcpTool,
   createGatewayProjectApi,
   createPrincipalSystemGatewayRuntime,
 } from '@nous/cortex-core';
@@ -80,6 +82,12 @@ import {
 import { MaoProjectionService } from '@nous/subcortex-mao';
 import { GtmGateCalculator } from '@nous/subcortex-gtm';
 import { VoiceControlService } from '@nous/subcortex-voice-control';
+import {
+  AppRuntimeService,
+  type AppToolRegistrar,
+  AppToolRegistry,
+  PanelTranspiler,
+} from '@nous/subcortex-apps';
 import {
   AuditProjectionStore,
   DeploymentRouterService,
@@ -362,6 +370,45 @@ export function createNousContext(): NousContext {
     communicationGatewayService,
     escalationService,
     witnessService,
+  });
+  const panelTranspiler = new PanelTranspiler();
+  const appToolRegistry = new AppToolRegistry({
+    register: ({
+      toolId,
+      definition,
+      sessionId,
+      appId,
+    }: Parameters<AppToolRegistrar['register']>[0]) => {
+      registerDynamicInternalMcpTool({
+        name: toolId,
+        sessionId,
+        appId,
+        definition: {
+          name: toolId,
+          version: '1.0.0',
+          description: definition.description,
+          inputSchema: definition.input_schema,
+          outputSchema: definition.output_schema ?? {},
+          capabilities: ['execute'],
+          permissionScope: 'project',
+        },
+        execute: async () => {
+          throw new Error(
+            `App tool invocation bridge is unavailable for ${toolId}`,
+          );
+        },
+      });
+      return { witnessRef: `dynamic-tool:${toolId}` };
+    },
+    unregister: (toolId: string) => {
+      unregisterDynamicInternalMcpTool(toolId);
+    },
+  });
+  const appRuntimeService = new AppRuntimeService({
+    lifecycleOrchestrator: packageLifecycleOrchestrator,
+    toolRegistry: appToolRegistry,
+    communicationGatewayService,
+    panelTranspiler,
   });
   const maoProjectionService = new MaoProjectionService({
     opctlService,
@@ -714,6 +761,7 @@ export function createNousContext(): NousContext {
     witnessService,
     opctlService,
     runtime,
+    appRuntimeService,
     instanceRoot,
     outputSchemaValidator: new DefaultSchemaRefValidator(),
   });
@@ -751,6 +799,8 @@ export function createNousContext(): NousContext {
     voiceControlService,
     publicMcpGatewayService,
     publicMcpExecutionBridge,
+    appRuntimeService,
+    panelTranspiler,
     dataDir,
   };
   cachedContext = context;
