@@ -735,6 +735,11 @@ An app package can declare:
 * App-scoped configuration fields
 * Optional adapters and lifecycle hooks
 
+Phase 14.7 adds `.apps/telegram-connector/` as the first first-party reference app in this store.
+It proves the canonical Deno app lifecycle, namespaced tool registration, progressive
+connector/full-client configuration, and host-owned communication-gateway integration without
+reusing `self/apps/bridge/` as the runtime source of truth.
+
 This keeps the distinction clear: `self/apps/` contains first-party senses that are part of the being, while `.apps/` stores installable packages that can extend the operator experience.
 
 ### `.projects/` — Workspace State
