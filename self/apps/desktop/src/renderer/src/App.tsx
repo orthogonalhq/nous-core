@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useRef } from 'react'
 import { DockviewReact } from 'dockview-react'
 import type {
   DockviewApi,
@@ -7,6 +7,7 @@ import type {
   IDockviewHeaderActionsProps,
 } from 'dockview-react'
 import {
+  AppIframePanel,
   PlaceholderPanel,
   ChatPanel,
   FileBrowserPanel,
@@ -25,6 +26,7 @@ import { StatusBar } from './components/StatusBar'
 import 'dockview-react/dist/styles/dockview.css'
 
 const panelComponents = {
+  'app-iframe': AppIframePanel,
   placeholder: PlaceholderPanel,
   chat: ChatPanel,
   'file-browser': FileBrowserPanel,
@@ -40,9 +42,28 @@ export type PanelDef = {
   component: string
   title: string
   params?: () => Record<string, unknown>
+  position?: { direction: string; referencePanel: string }
 }
 
-export const PANEL_DEFS: PanelDef[] = [
+interface AppPanelSnapshot {
+  app_id: string
+  panel_id: string
+  label: string
+  route_path: string
+  dockview_panel_id: string
+  preserve_state: boolean
+  position?: 'left' | 'right' | 'bottom' | 'main'
+  src: string
+}
+
+const APP_PANEL_POSITIONS: Record<NonNullable<AppPanelSnapshot['position']>, { direction: string; referencePanel: string }> = {
+  left: { direction: 'left', referencePanel: 'chat' },
+  right: { direction: 'right', referencePanel: 'chat' },
+  bottom: { direction: 'below', referencePanel: 'chat' },
+  main: { direction: 'within', referencePanel: 'chat' },
+}
+
+export const NATIVE_PANEL_DEFS: PanelDef[] = [
   {
     id: 'chat',
     component: 'chat',
@@ -66,6 +87,21 @@ export const PANEL_DEFS: PanelDef[] = [
   { id: 'dashboard', component: 'dashboard', title: 'Dashboard' },
 ]
 
+function toAppPanelDef(panel: AppPanelSnapshot): PanelDef {
+  return {
+    id: panel.dockview_panel_id,
+    component: 'app-iframe',
+    title: panel.label,
+    params: () => ({
+      appId: panel.app_id,
+      panelId: panel.panel_id,
+      src: panel.src,
+      preserveState: panel.preserve_state,
+    }),
+    position: panel.position ? APP_PANEL_POSITIONS[panel.position] : undefined,
+  }
+}
+
 // Loading state: undefined = not yet fetched; null = fetched, no saved layout
 type LayoutState = SerializedDockview | null | undefined
 
@@ -73,9 +109,11 @@ type LayoutState = SerializedDockview | null | undefined
 function ChromeShell({
   children,
   dockviewApi,
+  panelDefs,
 }: {
   children: React.ReactNode
   dockviewApi: DockviewApi | null
+  panelDefs: PanelDef[]
 }) {
   return (
     <div
@@ -87,7 +125,7 @@ function ChromeShell({
         background: 'var(--nous-bg)',
       }}
     >
-      <TitleBar dockviewApi={dockviewApi} />
+      <TitleBar dockviewApi={dockviewApi} panelDefs={panelDefs} />
       <div style={{ flex: 1, overflow: 'hidden', minHeight: 0 }}>
         {children}
       </div>
@@ -99,6 +137,8 @@ function ChromeShell({
 export function App() {
   const [savedLayout, setSavedLayout] = useState<LayoutState>(undefined)
   const [dockviewApi, setDockviewApi] = useState<DockviewApi | null>(null)
+  const [appPanels, setAppPanels] = useState<AppPanelSnapshot[]>([])
+  const panelDefs = [...NATIVE_PANEL_DEFS, ...appPanels.map(toAppPanelDef)]
 
   useEffect(() => {
     window.electronAPI.layout.get().then((layout) => {
@@ -106,9 +146,30 @@ export function App() {
     })
   }, [])
 
+  useEffect(() => {
+    let cancelled = false
+
+    const syncAppPanels = async () => {
+      const panels = await window.electronAPI.appPanels.list()
+      if (!cancelled) {
+        setAppPanels(panels)
+      }
+    }
+
+    void syncAppPanels()
+    const intervalId = window.setInterval(() => {
+      void syncAppPanels()
+    }, 10000)
+
+    return () => {
+      cancelled = true
+      window.clearInterval(intervalId)
+    }
+  }, [])
+
   if (savedLayout === undefined) {
     return (
-      <ChromeShell dockviewApi={null}>
+      <ChromeShell dockviewApi={null} panelDefs={panelDefs}>
         <div
           style={{
             height: '100%',
@@ -127,8 +188,12 @@ export function App() {
   }
 
   return (
-    <ChromeShell dockviewApi={dockviewApi}>
-      <DockviewShell savedLayout={savedLayout} onApiReady={setDockviewApi} />
+    <ChromeShell dockviewApi={dockviewApi} panelDefs={panelDefs}>
+      <DockviewShell
+        savedLayout={savedLayout}
+        onApiReady={setDockviewApi}
+        activeAppPanelIds={new Set(appPanels.map((panel) => panel.dockview_panel_id))}
+      />
     </ChromeShell>
   )
 }
@@ -156,10 +221,24 @@ function OuterHeaderActions({ activePanel }: IDockviewHeaderActionsProps) {
 function DockviewShell({
   savedLayout,
   onApiReady,
+  activeAppPanelIds,
 }: {
   savedLayout: SerializedDockview | null
   onApiReady: (api: DockviewApi) => void
+  activeAppPanelIds: Set<string>
 }) {
+  const dockviewApiRef = useRef<DockviewApi | null>(null)
+
+  useEffect(() => {
+    if (!dockviewApiRef.current) return
+
+    for (const panel of dockviewApiRef.current.panels) {
+      if (panel.id.startsWith('app:') && !activeAppPanelIds.has(panel.id)) {
+        dockviewApiRef.current.removePanel(panel)
+      }
+    }
+  }, [activeAppPanelIds])
+
   const onReady = (event: DockviewReadyEvent) => {
     if (savedLayout) {
       try {
@@ -176,6 +255,7 @@ function DockviewShell({
       window.electronAPI.layout.set(event.api.toJSON())
     })
 
+    dockviewApiRef.current = event.api
     onApiReady(event.api)
   }
 
@@ -201,7 +281,7 @@ const DEFAULT_POSITIONS: Record<string, { direction: string; referencePanel: str
 }
 
 function initDefaultLayout(event: DockviewReadyEvent) {
-  for (const def of PANEL_DEFS) {
+  for (const def of NATIVE_PANEL_DEFS) {
     event.api.addPanel({
       id: def.id,
       component: def.component,

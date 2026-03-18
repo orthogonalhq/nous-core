@@ -3,7 +3,6 @@ import { useState, useEffect } from 'react'
 import * as Menubar from '@radix-ui/react-menubar'
 import type { CSSProperties } from 'react'
 import type { DockviewApi } from 'dockview-react'
-import { PANEL_DEFS } from '../App'
 import type { PanelDef } from '../App'
 
 // Electron-specific CSS property
@@ -161,6 +160,7 @@ function togglePanel(dockviewApi: DockviewApi | null, def: PanelDef) {
       component: def.component,
       title: def.title,
       params: def.params?.() ?? {},
+      ...(def.position ? { position: def.position } : {}),
     })
   }
 }
@@ -183,7 +183,13 @@ function FileMenu() {
   )
 }
 
-function ViewMenu({ dockviewApi }: { dockviewApi: DockviewApi | null }) {
+function ViewMenu({
+  dockviewApi,
+  panelDefs,
+}: {
+  dockviewApi: DockviewApi | null
+  panelDefs: PanelDef[]
+}) {
   const [openIds, setOpenIds] = useState<Set<string>>(new Set())
 
   useEffect(() => {
@@ -201,7 +207,7 @@ function ViewMenu({ dockviewApi }: { dockviewApi: DockviewApi | null }) {
       <Menubar.Portal>
         <Menubar.Content style={contentStyle} align="start" sideOffset={0}>
           <Menubar.Label style={labelStyle}>Panels</Menubar.Label>
-          {PANEL_DEFS.map((def) => (
+          {panelDefs.map((def) => (
             <Menubar.CheckboxItem
               key={def.id}
               checked={openIds.has(def.id)}
@@ -249,7 +255,13 @@ function HelpMenu() {
 
 // ─── Root MenuBar ─────────────────────────────────────────────────────────────
 
-export function AppMenuBar({ dockviewApi }: { dockviewApi: DockviewApi | null }) {
+export function AppMenuBar({
+  dockviewApi,
+  panelDefs,
+}: {
+  dockviewApi: DockviewApi | null
+  panelDefs: PanelDef[]
+}) {
   // Inject hover CSS once on first render
   injectHoverStyles()
 
@@ -264,7 +276,7 @@ export function AppMenuBar({ dockviewApi }: { dockviewApi: DockviewApi | null })
       } as ElectronStyle}
     >
       <FileMenu />
-      <ViewMenu dockviewApi={dockviewApi} />
+      <ViewMenu dockviewApi={dockviewApi} panelDefs={panelDefs} />
       <HelpMenu />
     </Menubar.Root>
   )

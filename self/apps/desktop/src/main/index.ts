@@ -67,6 +67,20 @@ interface DesktopUsageSnapshot {
   providers: ProviderUsageEntry[]
 }
 
+interface WebHostAppPanel {
+  app_id: string
+  panel_id: string
+  label: string
+  route_path: string
+  dockview_panel_id: string
+  preserve_state: boolean
+  position?: 'left' | 'right' | 'bottom' | 'main'
+}
+
+interface DesktopAppPanel extends WebHostAppPanel {
+  src: string
+}
+
 const PROVIDER_DISPLAY_NAMES: Record<string, string> = {
   codex: 'Codex',
   claude: 'Claude',
@@ -90,6 +104,8 @@ const PROVIDER_DISPLAY_NAMES: Record<string, string> = {
   warp: 'Warp',
   openrouter: 'OpenRouter',
 }
+
+const DEFAULT_WEB_SERVER_BASE_URL = 'http://localhost:3000'
 
 function asRecord(value: unknown): JsonRecord | null {
   if (typeof value !== 'object' || value === null || Array.isArray(value)) return null
@@ -171,6 +187,14 @@ function parseErrors(record: JsonRecord): string[] {
 function providerDisplayName(providerId: string): string {
   const normalized = providerId.toLowerCase()
   return PROVIDER_DISPLAY_NAMES[normalized] ?? providerId
+}
+
+function getWebServerBaseUrl(): string {
+  return process.env['NOUS_WEB_BASE_URL']?.trim() || DEFAULT_WEB_SERVER_BASE_URL
+}
+
+function buildWebServerUrl(pathname: string): string {
+  return new URL(pathname, getWebServerBaseUrl()).toString()
 }
 
 function parseProviderEntry(value: unknown): ProviderUsageEntry | null {
@@ -450,7 +474,7 @@ let trpcClient: ReturnType<typeof createTRPCClient> | null = null
 function getTrpcClient() {
   if (!trpcClient) {
     trpcClient = createTRPCClient({
-      links: [httpBatchLink({ url: 'http://localhost:3000/api/trpc' })],
+      links: [httpBatchLink({ url: buildWebServerUrl('/api/trpc') })],
     })
   }
   return trpcClient
@@ -474,6 +498,19 @@ ipcMain.handle('chat:send', async (_event, message: string) => {
 })
 
 ipcMain.handle('chat:getHistory', () => chatHistory)
+ipcMain.handle('app-panels:list', async (): Promise<DesktopAppPanel[]> => {
+  try {
+    const client = getTrpcClient() as any
+    const panels = await client.packages.listAppPanels.query()
+    if (!Array.isArray(panels)) return []
+    return panels.map((panel: WebHostAppPanel) => ({
+      ...panel,
+      src: buildWebServerUrl(panel.route_path),
+    }))
+  } catch {
+    return []
+  }
+})
 
 function createWindow(): void {
   win = new BrowserWindow({

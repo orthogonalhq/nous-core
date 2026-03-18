@@ -2,14 +2,21 @@
 import { useState, useEffect, useCallback } from 'react'
 import type { CSSProperties } from 'react'
 import type { DockviewApi } from 'dockview-react'
+import type { PanelDef } from '../App'
 import { AppMenuBar } from './MenuBar'
 
 // Electron-specific CSS property not in standard CSSProperties
 type ElectronStyle = CSSProperties & { WebkitAppRegion?: 'drag' | 'no-drag' }
 
-const winAPI = () => (window as any).electronAPI?.win
+const winAPI = () => window.electronAPI?.win
 
-export function TitleBar({ dockviewApi }: { dockviewApi: DockviewApi | null }) {
+export function TitleBar({
+  dockviewApi,
+  panelDefs,
+}: {
+  dockviewApi: DockviewApi | null
+  panelDefs: PanelDef[]
+}) {
   const [isMaximized, setIsMaximized] = useState(false)
   const [btnHover, setBtnHover] = useState<'min' | 'max' | 'close' | null>(null)
 
@@ -72,7 +79,7 @@ export function TitleBar({ dockviewApi }: { dockviewApi: DockviewApi | null }) {
       </div>
 
       {/* Menu bar — File / View / Help */}
-      <AppMenuBar dockviewApi={dockviewApi} />
+      <AppMenuBar dockviewApi={dockviewApi} panelDefs={panelDefs} />
 
       {/* Drag region fills the middle */}
       <div style={{ flex: 1 }} />
