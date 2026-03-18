@@ -40,7 +40,7 @@
 - This is the normal mode for this development repository.
 - Follow `.skills/engineer-workflow-sop/SKILL.md`.
 - Project edits are allowed per the SOP.
-- Mandatory form-factor gate for non-trivial capability changes: classify delivery as `function`, `skill`, or `hybrid`; record rationale; block implementation dispatch until `orchestration_agent` recommendation is ratified by `nous_cortex`.
+- Engineer workflow feature-delivery lanes do not use a form-factor ratification gate. Normal sub-phase execution is assumed to target runtime/package/docs scope only; if requested work needs `.skills/**`, `.skills/.contracts/**`, or `AGENTS.md`, treat it as explicit process-infrastructure maintenance in a dedicated task/change set instead of blocking feature delivery on a `function`/`skill`/`hybrid` dossier.
 - Orchestrator lane invariant: `Orchestrator::engineer-workflow` is dispatch/orchestration-only. It must not perform inline project/governance artifact authoring; artifacts are produced by worker or governance lanes and returned via handoff.
 
 ### Identity and Personalization (Authoritative)
