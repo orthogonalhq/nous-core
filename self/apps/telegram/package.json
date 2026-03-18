@@ -1,0 +1,21 @@
+{
+  "name": "@nous/telegram",
+  "version": "0.0.1",
+  "private": true,
+  "description": "Nous Telegram investor bridge — text and voice note relay to Nous via Telegram Bot API",
+  "type": "module",
+  "main": "src/index.ts",
+  "scripts": {
+    "dev": "tsx watch src/index.ts",
+    "start": "tsx src/index.ts",
+    "typecheck": "tsc --noEmit"
+  },
+  "dependencies": {
+    "grammy": "^1.31.0"
+  },
+  "devDependencies": {
+    "@types/node": "^20",
+    "tsx": "^4.19.2",
+    "typescript": "^5"
+  }
+}

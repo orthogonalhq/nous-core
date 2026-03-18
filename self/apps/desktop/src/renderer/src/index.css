@@ -1,0 +1,36 @@
+/* Design tokens + theme are loaded from @nous/ui/styles (imported in main.tsx). */
+
+*,
+*::before,
+*::after {
+  box-sizing: border-box;
+  margin: 0;
+  padding: 0;
+}
+
+html,
+body,
+#root {
+  height: 100%;
+  width: 100%;
+  overflow: hidden;
+}
+
+body {
+  font-family: var(--nous-font-family);
+  font-size: var(--nous-font-size-base);
+  line-height: var(--nous-line-height-normal);
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+  background: var(--nous-bg);
+  color: var(--nous-fg);
+}
+
+/* Ensure interactive elements inside panel content are never treated as drag regions */
+button,
+input,
+textarea,
+select,
+a {
+  -webkit-app-region: no-drag;
+}

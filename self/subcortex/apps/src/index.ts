@@ -10,5 +10,14 @@ export {
   type AppToolRegistryDefinition,
 } from './app-tool-registry.js';
 export { AppHealthRegistry } from './app-health-registry.js';
-export { PanelRegistrationRegistry } from './panel-registration.js';
+export {
+  PanelRegistrationRegistry,
+  type ResolvedAppPanelDescriptor,
+} from './panel-registration.js';
+export {
+  PanelTranspiler,
+  type PanelTranspileCacheEntry,
+  type PanelTranspileResult,
+  type PanelTranspilerOptions,
+} from './panel-transpiler.js';
 export { AppRuntimeService, type AppRuntimeServiceOptions } from './app-runtime-service.js';
