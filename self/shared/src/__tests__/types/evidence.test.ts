@@ -106,6 +106,26 @@ describe('WitnessEventSchema', () => {
 
     expect(result.success).toBe(true);
   });
+
+  it('accepts app as a witness actor', () => {
+    const result = WitnessEventSchema.safeParse({
+      id: UUID_1,
+      sequence: 2,
+      previousEventHash: HASH,
+      payloadHash: HASH,
+      eventHash: HASH,
+      stage: 'authorization',
+      actionCategory: 'tool-execute',
+      actionRef: 'app:weather.get_forecast',
+      actor: 'app',
+      status: 'approved',
+      detail: {},
+      occurredAt: NOW,
+      recordedAt: NOW,
+    });
+
+    expect(result.success).toBe(true);
+  });
 });
 
 describe('WitnessCheckpointSchema', () => {

@@ -1,12 +1,16 @@
 import { randomUUID } from 'node:crypto';
+import { resolveInstalledWorkflowDefinition } from '@nous/subcortex-projects';
 import type {
   DerivedWorkflowGraph,
   ICheckpointManager,
   IModelRouter,
+  IRuntime,
   IToolExecutor,
   IWorkflowEngine,
   IPfcEngine,
   ProjectConfig,
+  ProjectWorkflowPackageBinding,
+  ResolvedWorkflowDefinitionSource,
   WorkflowAdmissionRequest,
   WorkflowAdmissionResult,
   WorkflowContinueNodeRequest,
@@ -40,6 +44,7 @@ import {
 } from './execution-coordinator.js';
 import { resolveWorkflowContinuation } from './continuations.js';
 import {
+  cancelWorkflowRunState,
   completeWorkflowNodeInRunState,
   createInitialWorkflowRunState,
   pauseWorkflowRunState,
@@ -56,6 +61,8 @@ export interface WorkflowEngineDependencies {
   toolExecutor?: IToolExecutor;
   checkpointManager?: ICheckpointManager;
   observer?: WorkflowRuntimeObserver;
+  runtime?: IRuntime;
+  instanceRoot?: string;
 }
 
 function findNodeDefinition(
@@ -101,47 +108,134 @@ export class DeterministicWorkflowEngine implements IWorkflowEngine {
 
   constructor(private readonly deps: WorkflowEngineDependencies = {}) {}
 
-  async resolveDefinition(
+  private async resolveInstalledBindingSelection(input: {
+    projectConfig: ProjectConfig;
+    binding: ProjectWorkflowPackageBinding;
+  }): Promise<{
+    definition: WorkflowDefinition;
+    source: ResolvedWorkflowDefinitionSource;
+  }> {
+    if (!this.deps.runtime) {
+      throw new Error(
+        'workflow installed definition resolution requires runtime access',
+      );
+    }
+
+    return resolveInstalledWorkflowDefinition({
+      instanceRoot: this.deps.instanceRoot ?? process.cwd(),
+      runtime: this.deps.runtime,
+      projectConfig: input.projectConfig,
+      binding: input.binding,
+    });
+  }
+
+  private async resolveDefinitionSelection(
     projectConfig: WorkflowStartRequest['projectConfig'],
     workflowDefinitionId?: WorkflowStartRequest['workflowDefinitionId'],
-  ): Promise<WorkflowDefinition> {
+  ): Promise<{
+    definition: WorkflowDefinition;
+    source: ResolvedWorkflowDefinitionSource;
+  }> {
     const workflowConfig = projectConfig.workflow;
-    if (!workflowConfig || workflowConfig.definitions.length === 0) {
+    const inlineDefinitions = workflowConfig?.definitions ?? [];
+    const packageBindings = workflowConfig?.packageBindings ?? [];
+
+    if (!workflowConfig || (inlineDefinitions.length === 0 && packageBindings.length === 0)) {
       throw new Error('workflow definition not configured for project');
     }
 
+    const resolveInlineDefinition = (
+      definition: WorkflowDefinition,
+    ) => ({
+      definition,
+      source: {
+        workflowDefinitionId: definition.id,
+        sourceKind: 'project_inline' as const,
+      },
+    });
+
+    const resolveRequestedBinding = async (
+      binding: ProjectWorkflowPackageBinding,
+    ) => this.resolveInstalledBindingSelection({
+      projectConfig,
+      binding,
+    });
+
     if (workflowDefinitionId) {
-      const requested = workflowConfig.definitions.find(
+      const requestedInline = inlineDefinitions.find(
         (definition) => definition.id === workflowDefinitionId,
       );
-      if (!requested) {
-        throw new Error(
-          `workflow definition ${workflowDefinitionId} not found in project config`,
-        );
+      if (requestedInline) {
+        return resolveInlineDefinition(requestedInline);
       }
-      return requested;
+
+      const requestedBinding = packageBindings.find(
+        (binding) => binding.workflowDefinitionId === workflowDefinitionId,
+      );
+      if (requestedBinding) {
+        return resolveRequestedBinding(requestedBinding);
+      }
+
+      throw new Error(
+        `workflow definition ${workflowDefinitionId} not found in project config`,
+      );
     }
 
     if (workflowConfig.defaultWorkflowDefinitionId) {
-      const requested = workflowConfig.definitions.find(
+      const defaultInline = inlineDefinitions.find(
         (definition) =>
           definition.id === workflowConfig.defaultWorkflowDefinitionId,
       );
-      if (!requested) {
-        throw new Error(
-          `default workflow definition ${workflowConfig.defaultWorkflowDefinitionId} not found`,
-        );
+      if (defaultInline) {
+        return resolveInlineDefinition(defaultInline);
       }
-      return requested;
+
+      const defaultBinding = packageBindings.find(
+        (binding) =>
+          binding.workflowDefinitionId === workflowConfig.defaultWorkflowDefinitionId,
+      );
+      if (defaultBinding) {
+        return resolveRequestedBinding(defaultBinding);
+      }
+
+      throw new Error(
+        `default workflow definition ${workflowConfig.defaultWorkflowDefinitionId} not found`,
+      );
     }
 
-    if (workflowConfig.definitions.length === 1) {
-      return workflowConfig.definitions[0];
+    if (inlineDefinitions.length === 1 && packageBindings.length === 0) {
+      return resolveInlineDefinition(inlineDefinitions[0]!);
+    }
+
+    if (packageBindings.length === 1 && inlineDefinitions.length === 0) {
+      return resolveRequestedBinding(packageBindings[0]!);
     }
 
     throw new Error(
       'multiple workflow definitions configured without defaultWorkflowDefinitionId',
     );
+  }
+
+  async resolveDefinition(
+    projectConfig: WorkflowStartRequest['projectConfig'],
+    workflowDefinitionId?: WorkflowStartRequest['workflowDefinitionId'],
+  ): Promise<WorkflowDefinition> {
+    const selection = await this.resolveDefinitionSelection(
+      projectConfig,
+      workflowDefinitionId,
+    );
+    return selection.definition;
+  }
+
+  async resolveDefinitionSource(
+    projectConfig: WorkflowStartRequest['projectConfig'],
+    workflowDefinitionId?: WorkflowStartRequest['workflowDefinitionId'],
+  ): Promise<ResolvedWorkflowDefinitionSource | null> {
+    const selection = await this.resolveDefinitionSelection(
+      projectConfig,
+      workflowDefinitionId,
+    );
+    return selection.source;
   }
 
   async deriveGraph(definition: WorkflowDefinition): Promise<DerivedWorkflowGraph> {
@@ -259,6 +353,19 @@ export class DeterministicWorkflowEngine implements IWorkflowEngine {
       throw new Error(`Unknown workflow run id: ${executionId}`);
     }
     const nextState = pauseWorkflowRunState(state, transition);
+    this.states.set(executionId, nextState);
+    return clone(nextState);
+  }
+
+  async cancel(
+    executionId: WorkflowExecutionId,
+    transition: WorkflowTransitionInput,
+  ): Promise<WorkflowRunState> {
+    const state = this.states.get(executionId);
+    if (!state) {
+      throw new Error(`Unknown workflow run id: ${executionId}`);
+    }
+    const nextState = cancelWorkflowRunState(state, transition);
     this.states.set(executionId, nextState);
     return clone(nextState);
   }

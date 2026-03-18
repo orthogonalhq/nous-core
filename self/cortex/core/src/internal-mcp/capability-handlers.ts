@@ -1,25 +1,54 @@
+import { randomUUID } from 'node:crypto';
 import {
   NousError,
+  ProjectConfigSchema,
+  WorkflowLifecycleDefinitionSummarySchema,
+  WorkflowLifecycleInspectResultSchema,
+  WorkflowLifecycleInstanceSummarySchema,
+  WorkflowLifecycleListResultSchema,
+  WorkflowLifecycleMutationResultSchema,
+  WorkflowLifecycleStatusResultSchema,
   type AgentClass,
   type CriticalActionCategory,
   type GatewayExecutionContext,
+  type AppPermissions,
   type IPromotedMemoryBridgeService,
   type IPublicMcpSurfaceService,
+  type ProjectConfig,
+  type ProjectControlState,
   type ProjectId,
+  type AppHealthSnapshot,
+  type AppHeartbeatSignal,
+  type ResolvedWorkflowDefinitionSource,
   type ToolResult,
   type TraceEvidenceReference,
   type WitnessActor,
   type WitnessEventId,
+  type WorkflowDefinitionId,
+  type WorkflowLifecycleDefinitionSummary,
+  type WorkflowLifecycleInspectResult,
+  type WorkflowLifecycleInstanceSummary,
+  type WorkflowRunState,
 } from '@nous/shared';
+import {
+  inspectInstalledWorkflowPackage,
+  listInstalledWorkflowPackages,
+  loadInstalledSkillPackage,
+} from '@nous/subcortex-projects';
 import {
   parseArtifactRetrieveRequest,
   parseArtifactStoreRequest,
+  parseCredentialInjectRequest,
+  parseCredentialRevokeRequest,
+  parseCredentialStoreRequest,
   parseEscalationNotifyRequest,
   parseExternalMemoryCompactCommand,
   parseExternalMemoryDeleteCommand,
   parseExternalMemoryGetQuery,
   parseExternalMemoryPutCommand,
   parseExternalMemorySearchQuery,
+  parseHealthHeartbeatRequest,
+  parseHealthReportRequest,
   parseMemorySearchRequest,
   parseMemoryWriteRequest,
   parsePromotedMemoryDemoteCommand,
@@ -33,6 +62,13 @@ import {
   parseToolExecuteRequest,
   parseToolListRequest,
   parseWitnessCheckpointRequest,
+  parseWorkflowCancelRequest,
+  parseWorkflowInspectRequest,
+  parseWorkflowListRequest,
+  parseWorkflowPauseRequest,
+  parseWorkflowResumeRequest,
+  parseWorkflowStartRequest,
+  parseWorkflowStatusRequest,
 } from './request-normalizers.js';
 import type {
   InternalMcpCapabilityHandler,
@@ -51,6 +87,15 @@ type CapabilityToolName = Exclude<
   InternalMcpToolName,
   'dispatch_agent' | 'task_complete' | 'request_escalation' | 'flag_observation'
 >;
+
+interface WorkflowSelection {
+  workflowDefinitionId: WorkflowDefinitionId;
+  definitionName: string;
+  projectConfig: ProjectConfig;
+  definitionSource: ResolvedWorkflowDefinitionSource | null;
+  workflowPackageId?: string;
+  workflowInspect?: WorkflowLifecycleInspectResult;
+}
 
 function requireExternalSourceMemoryService(context: InternalMcpHandlerContext) {
   if (!context.deps.externalSourceMemoryService) {
@@ -89,6 +134,31 @@ function requirePromotedMemoryBridgeService(
   return context.deps.promotedMemoryBridgeService;
 }
 
+function requireWorkflowEngine(context: InternalMcpHandlerContext) {
+  if (!context.deps.workflowEngine) {
+    throw new NousError(
+      'Workflow engine is unavailable',
+      'SERVICE_UNAVAILABLE',
+    );
+  }
+
+  return context.deps.workflowEngine;
+}
+
+function requirePackageRuntime(context: InternalMcpHandlerContext) {
+  if (!context.deps.runtime) {
+    throw new NousError(
+      'Workflow package runtime is unavailable',
+      'SERVICE_UNAVAILABLE',
+    );
+  }
+
+  return {
+    runtime: context.deps.runtime,
+    instanceRoot: context.deps.instanceRoot ?? process.cwd(),
+  };
+}
+
 async function requireSystemAgent(
   context: InternalMcpHandlerContext,
   toolName: string,
@@ -100,8 +170,9 @@ async function requireSystemAgent(
 
   return denyWithWitness({
     context,
-    actionCategory:
-      toolName === 'promoted_memory_get' || toolName === 'promoted_memory_search'
+    actionCategory: toolName.startsWith('workflow_')
+      ? 'opctl-command'
+      : toolName === 'promoted_memory_get' || toolName === 'promoted_memory_search'
         ? 'tool-execute'
         : 'memory-write',
     actionRef: toolName,
@@ -125,6 +196,44 @@ function requireProjectId(
   return execution.projectId;
 }
 
+function requireAppExecutionContext(
+  toolName: string,
+  execution?: GatewayExecutionContext,
+): { appId: string; projectId?: ProjectId } {
+  if (!execution?.appId) {
+    throw new NousError(
+      `Tool ${toolName} requires execution.appId`,
+      'PROJECT_SCOPE_REQUIRED',
+    );
+  }
+
+  return {
+    appId: execution.appId,
+    projectId: execution.projectId,
+  };
+}
+
+function requireAppCredentialPolicy(
+  context: InternalMcpHandlerContext,
+  appId: string,
+  projectId?: ProjectId,
+): Pick<AppPermissions, 'credentials' | 'network'> {
+  const policy = context.deps.getAppPermissions?.(appId, projectId);
+  if (!policy) {
+    throw new NousError(
+      `App credential policy is unavailable for ${appId}`,
+      'SERVICE_UNAVAILABLE',
+    );
+  }
+  if (!policy.credentials) {
+    throw new NousError(
+      `Credential access is not granted for ${appId}`,
+      'TOOL_DENIED',
+    );
+  }
+  return policy;
+}
+
 function requireProjectApi(
   context: InternalMcpHandlerContext,
   projectId: ProjectId,
@@ -138,6 +247,20 @@ function requireProjectApi(
   }
 
   return api;
+}
+
+async function requireProjectControlState(
+  context: InternalMcpHandlerContext,
+  projectId: ProjectId,
+): Promise<ProjectControlState> {
+  if (!context.deps.opctlService) {
+    throw new NousError(
+      'Workflow lifecycle mutations require opctlService',
+      'SERVICE_UNAVAILABLE',
+    );
+  }
+
+  return context.deps.opctlService.getProjectControlState(projectId);
 }
 
 async function executeWithWitness<T>(args: {
@@ -252,6 +375,282 @@ function success(output: unknown, durationMs = 0): ToolResult {
   };
 }
 
+function buildLifecycleLane(definitionName: string, runId: string, event: string) {
+  const laneRoot = `workflow:${definitionName}:${runId}`;
+  return {
+    laneRoot,
+    lane: `${laneRoot} > lifecycle:${event}`,
+    laneDepth: 1,
+  };
+}
+
+function toWorkflowInstanceSummary(input: {
+  runState: WorkflowRunState;
+  definitionName: string;
+  definitionSource?: ResolvedWorkflowDefinitionSource | null;
+}): WorkflowLifecycleInstanceSummary {
+  const { runState } = input;
+  return WorkflowLifecycleInstanceSummarySchema.parse({
+    runId: runState.runId,
+    projectId: runState.projectId,
+    workflowDefinitionId: runState.workflowDefinitionId,
+    definitionName: input.definitionName,
+    status: runState.status,
+    reasonCode: runState.reasonCode,
+    activeNodeIds: runState.activeNodeIds,
+    waitingNodeIds: runState.waitingNodeIds,
+    blockedNodeIds: runState.blockedNodeIds,
+    checkpointState: runState.checkpointState,
+    lastCommittedCheckpointId: runState.lastCommittedCheckpointId,
+    startedAt: runState.startedAt,
+    updatedAt: runState.updatedAt,
+    definitionSource: input.definitionSource ?? undefined,
+  });
+}
+
+async function resolveProjectConfig(
+  context: InternalMcpHandlerContext,
+  projectId: ProjectId,
+): Promise<ProjectConfig> {
+  const fromStore = await context.deps.projectStore?.get(projectId);
+  if (fromStore) {
+    return ProjectConfigSchema.parse(fromStore);
+  }
+
+  return ProjectConfigSchema.parse(
+    requireProjectApi(context, projectId).project.config(),
+  );
+}
+
+async function resolveWorkflowSelection(
+  context: InternalMcpHandlerContext,
+  projectConfig: ProjectConfig,
+  definitionRef: string,
+  entrypoint?: string,
+): Promise<WorkflowSelection> {
+  const inlineMatch = projectConfig.workflow?.definitions.filter(
+    (definition) =>
+      definition.id === definitionRef || definition.name === definitionRef,
+  ) ?? [];
+
+  const packageBindings = projectConfig.workflow?.packageBindings ?? [];
+  const packageRuntime = packageBindings.length > 0
+    ? requirePackageRuntime(context)
+    : null;
+  const bindingCandidates: Array<WorkflowSelection | null> = await Promise.all(
+    packageBindings.map(async (binding) => {
+      if (!packageRuntime) {
+        return null;
+      }
+      const workflowInspect = await inspectInstalledWorkflowPackage({
+        instanceRoot: packageRuntime.instanceRoot,
+        runtime: packageRuntime.runtime,
+        packageId: binding.workflowPackageId,
+      });
+      const matches =
+        binding.workflowDefinitionId === definitionRef ||
+        binding.workflowPackageId === definitionRef ||
+        workflowInspect.manifest.name === definitionRef;
+      return matches
+        ? {
+            workflowDefinitionId: binding.workflowDefinitionId,
+            definitionName: workflowInspect.manifest.name,
+            projectConfig:
+              entrypoint && entrypoint !== binding.entrypoint
+                ? ProjectConfigSchema.parse({
+                    ...projectConfig,
+                    workflow: {
+                      ...projectConfig.workflow,
+                      packageBindings: (projectConfig.workflow?.packageBindings ?? []).map(
+                        (candidate) =>
+                          candidate.workflowDefinitionId === binding.workflowDefinitionId
+                            ? { ...candidate, entrypoint }
+                            : candidate,
+                      ),
+                    },
+                  })
+                : projectConfig,
+            definitionSource: null,
+            workflowPackageId: binding.workflowPackageId,
+            workflowInspect,
+          }
+        : null;
+    }),
+  );
+
+  const matches: WorkflowSelection[] = [
+    ...inlineMatch.map((definition) => ({
+      workflowDefinitionId: definition.id,
+      definitionName: definition.name,
+      projectConfig,
+      definitionSource: null,
+    })),
+    ...bindingCandidates.filter((candidate): candidate is WorkflowSelection => candidate != null),
+  ];
+
+  if (matches.length === 0) {
+    throw new NousError(
+      `Workflow definition ${definitionRef} is not configured for project ${projectConfig.id}`,
+      'WORKFLOW_DEFINITION_NOT_FOUND',
+    );
+  }
+
+  if (matches.length > 1) {
+    throw new NousError(
+      `Workflow definition ${definitionRef} is ambiguous for project ${projectConfig.id}`,
+      'WORKFLOW_DEFINITION_AMBIGUOUS',
+      {
+        matches: matches.map((match) => ({
+          workflowDefinitionId: match.workflowDefinitionId,
+          definitionName: match.definitionName,
+          workflowPackageId: match.workflowPackageId,
+        })),
+      },
+    );
+  }
+
+  const selected = matches[0]!;
+  if (
+    selected.workflowInspect &&
+    entrypoint &&
+    !selected.workflowInspect.manifest.entrypoints?.includes(entrypoint) &&
+    selected.workflowInspect.manifest.entrypoint !== entrypoint
+  ) {
+    throw new NousError(
+      `Workflow entrypoint ${entrypoint} is not exported by ${selected.workflowInspect.packageId}`,
+      'WORKFLOW_ENTRYPOINT_NOT_FOUND',
+    );
+  }
+
+  return selected;
+}
+
+async function collectWorkflowDependencyWarnings(input: {
+  context: InternalMcpHandlerContext;
+  projectId: ProjectId;
+  workflowInspect?: WorkflowLifecycleInspectResult;
+}): Promise<string[]> {
+  if (!input.workflowInspect) {
+    return [];
+  }
+
+  const projectApi = requireProjectApi(input.context, input.projectId);
+  const tools = await projectApi.tool.list();
+  const availableToolNames = new Set(tools.map((tool) => tool.name));
+  const missingRequiredTools = input.workflowInspect.manifest.dependencies?.tools
+    ?.filter((dependency) => dependency.required !== false)
+    .map((dependency) => dependency.name)
+    .filter((name) => !availableToolNames.has(name)) ?? [];
+
+  if (missingRequiredTools.length > 0) {
+    throw new NousError(
+      `Workflow is missing required tools: ${missingRequiredTools.join(', ')}`,
+      'WORKFLOW_REQUIRED_TOOL_MISSING',
+      {
+        missingRequiredTools,
+        packageId: input.workflowInspect.packageId,
+      },
+    );
+  }
+
+  const packageRuntime = requirePackageRuntime(input.context);
+  const warnings: string[] = [];
+  for (const dependency of input.workflowInspect.manifest.dependencies?.skills ?? []) {
+    try {
+      await loadInstalledSkillPackage({
+        instanceRoot: packageRuntime.instanceRoot,
+        runtime: packageRuntime.runtime,
+        packageId: dependency.name,
+      });
+    } catch {
+      warnings.push(
+        `Optional skill dependency ${dependency.name} is not installed for workflow ${input.workflowInspect.packageId}`,
+      );
+    }
+  }
+
+  return warnings;
+}
+
+async function resolveRunProjection(
+  context: InternalMcpHandlerContext,
+  runState: WorkflowRunState,
+): Promise<{
+  summary: WorkflowLifecycleInstanceSummary;
+  projectConfig: ProjectConfig | null;
+  definitionSource: ResolvedWorkflowDefinitionSource | null;
+}> {
+  const projectConfig = (await context.deps.projectStore?.get(runState.projectId)) ?? null;
+  const definitionSource = projectConfig
+    ? await requireWorkflowEngine(context).resolveDefinitionSource(
+        projectConfig,
+        runState.workflowDefinitionId,
+      )
+    : null;
+
+  let definitionName: string = runState.workflowDefinitionId;
+  if (projectConfig) {
+    try {
+      const definition = await requireWorkflowEngine(context).resolveDefinition(
+        projectConfig,
+        runState.workflowDefinitionId,
+      );
+      definitionName = definition.name;
+    } catch {
+      definitionName = runState.workflowDefinitionId;
+    }
+  }
+
+  return {
+    summary: toWorkflowInstanceSummary({
+      runState,
+      definitionName,
+      definitionSource,
+    }),
+    projectConfig,
+    definitionSource,
+  };
+}
+
+function collectGovernanceGateHits(runState: WorkflowRunState): string[] {
+  return [...new Set(
+    Object.values(runState.nodeStates)
+      .flatMap((nodeState) => {
+        const hits: string[] = [];
+        if (nodeState.latestGovernanceDecision?.reasonCode) {
+          hits.push(nodeState.latestGovernanceDecision.reasonCode);
+        }
+        if (nodeState.status === 'blocked' && nodeState.reasonCode) {
+          hits.push(nodeState.reasonCode);
+        }
+        return hits;
+      }),
+  )];
+}
+
+async function listWorkflowInstances(
+  context: InternalMcpHandlerContext,
+  projectId?: ProjectId,
+): Promise<WorkflowLifecycleInstanceSummary[]> {
+  const workflowEngine = requireWorkflowEngine(context);
+  const runStates = projectId
+    ? await workflowEngine.listProjectRuns(projectId)
+    : context.deps.projectStore
+      ? (
+          await Promise.all(
+            (await context.deps.projectStore.list()).map((project) =>
+              workflowEngine.listProjectRuns(project.id),
+            ),
+          )
+        ).flat()
+      : [];
+
+  const projections = await Promise.all(
+    runStates.map((runState) => resolveRunProjection(context, runState)),
+  );
+  return projections.map((projection) => projection.summary);
+}
+
 export function createCapabilityHandlers(
   context: InternalMcpHandlerContext,
 ): Record<CapabilityToolName, InternalMcpCapabilityHandler> {
@@ -268,7 +667,10 @@ export function createCapabilityHandlers(
         );
       }
 
-      return success(await api.memory.read(request.query, request.scope as 'global' | 'project'), 0);
+      return success(
+        await api.memory.read(request.query, request.scope as 'global' | 'project'),
+        0,
+      );
     },
     memory_write: async (params, execution) => {
       const projectId = requireProjectId('memory_write', execution);
@@ -501,7 +903,10 @@ export function createCapabilityHandlers(
         projectId: execution?.projectId,
         traceId: execution?.traceId,
         detail: { reason: request.reason },
-        operation: () => service.createCheckpoint(request.reason as 'interval' | 'manual' | 'rotation' | undefined),
+        operation: () =>
+          service.createCheckpoint(
+            request.reason as 'interval' | 'manual' | 'rotation' | undefined,
+          ),
       });
 
       return success(
@@ -592,6 +997,497 @@ export function createCapabilityHandlers(
           scheduleId: result.value,
           evidenceRef: result.evidenceRef,
         },
+        0,
+      );
+    },
+    health_report: async (params) => {
+      const request = parseHealthReportRequest(params) as AppHealthSnapshot;
+      const appRuntimeService = context.deps.appRuntimeService;
+      if (!appRuntimeService) {
+        throw new NousError(
+          'App runtime service is unavailable',
+          'SERVICE_UNAVAILABLE',
+        );
+      }
+
+      const health = await appRuntimeService.updateHealth(request);
+      return success(
+        {
+          accepted: true,
+          health,
+        },
+        0,
+      );
+    },
+    credentials_store: async (params, execution) => {
+      const { appId, projectId } = requireAppExecutionContext(
+        'credentials_store',
+        execution,
+      );
+      const policy = requireAppCredentialPolicy(context, appId, projectId);
+      const request = parseCredentialStoreRequest(params);
+      const vaultService = context.deps.credentialVaultService;
+      if (!vaultService) {
+        throw new NousError(
+          'Credential vault service is unavailable',
+          'SERVICE_UNAVAILABLE',
+        );
+      }
+
+      const result = await executeWithWitness({
+        context,
+        actionCategory: 'trace-persist',
+        actionRef: 'credentials_store',
+        projectId,
+        traceId: execution?.traceId,
+        detail: {
+          appId,
+          key: request.key,
+          targetHost: request.target_host,
+          credentialType: request.credential_type,
+          credentialPermission: policy.credentials,
+        },
+        operation: () => vaultService.store(appId, request),
+      });
+
+      return success(
+        {
+          ...result.value,
+          evidenceRef: result.evidenceRef,
+        },
+        0,
+      );
+    },
+    credentials_inject: async (params, execution) => {
+      const { appId, projectId } = requireAppExecutionContext(
+        'credentials_inject',
+        execution,
+      );
+      const policy = requireAppCredentialPolicy(context, appId, projectId);
+      const request = parseCredentialInjectRequest(params);
+      const credentialInjector = context.deps.credentialInjector;
+      if (!credentialInjector) {
+        throw new NousError(
+          'Credential injector is unavailable',
+          'SERVICE_UNAVAILABLE',
+        );
+      }
+
+      const result = await executeWithWitness({
+        context,
+        actionCategory: 'tool-execute',
+        actionRef: 'credentials_inject',
+        projectId,
+        traceId: execution?.traceId,
+        detail: {
+          appId,
+          key: request.key,
+          url: request.request_descriptor.url,
+        },
+        operation: () =>
+          credentialInjector.executeInjectedRequest({
+            appId,
+            request,
+            manifestNetworkPermissions: policy.network,
+          }),
+      });
+
+      return success(
+        {
+          ...result.value,
+          evidenceRef: result.evidenceRef,
+        },
+        0,
+      );
+    },
+    credentials_revoke: async (params, execution) => {
+      const { appId, projectId } = requireAppExecutionContext(
+        'credentials_revoke',
+        execution,
+      );
+      requireAppCredentialPolicy(context, appId, projectId);
+      const request = parseCredentialRevokeRequest(params);
+      const vaultService = context.deps.credentialVaultService;
+      if (!vaultService) {
+        throw new NousError(
+          'Credential vault service is unavailable',
+          'SERVICE_UNAVAILABLE',
+        );
+      }
+
+      const result = await executeWithWitness({
+        context,
+        actionCategory: 'trace-persist',
+        actionRef: 'credentials_revoke',
+        projectId,
+        traceId: execution?.traceId,
+        detail: {
+          appId,
+          key: request.key,
+          reason: request.reason,
+        },
+        operation: () => vaultService.revoke(appId, request),
+      });
+
+      return success(
+        {
+          ...result.value,
+          evidenceRef: result.evidenceRef,
+        },
+        0,
+      );
+    },
+    health_heartbeat: async (params) => {
+      const request = parseHealthHeartbeatRequest(params) as AppHeartbeatSignal;
+      const appRuntimeService = context.deps.appRuntimeService;
+      if (!appRuntimeService) {
+        throw new NousError(
+          'App runtime service is unavailable',
+          'SERVICE_UNAVAILABLE',
+        );
+      }
+
+      await appRuntimeService.recordHeartbeat(request);
+      return success(
+        {
+          accepted: true,
+          heartbeat: request,
+        },
+        0,
+      );
+    },
+    workflow_list: async (params) => {
+      const request = parseWorkflowListRequest(params);
+      const definitions = request.includeInstalledDefinitions
+        ? await listInstalledWorkflowPackages({
+            ...requirePackageRuntime(context),
+          })
+        : [];
+      const instances = request.includeActiveInstances
+        ? await listWorkflowInstances(context, request.projectId)
+        : [];
+
+      const definitionFilter = request.definition?.toLowerCase();
+      const filteredDefinitions = definitions.filter(
+        (definition: WorkflowLifecycleDefinitionSummary) =>
+        definitionFilter
+          ? definition.name.toLowerCase().includes(definitionFilter) ||
+            definition.packageId.toLowerCase().includes(definitionFilter)
+          : true,
+      );
+      const filteredInstances = instances.filter((instance) => {
+        if (request.status.length > 0 && !request.status.includes(instance.status)) {
+          return false;
+        }
+        if (!definitionFilter) {
+          return true;
+        }
+        return (
+          instance.definitionName.toLowerCase().includes(definitionFilter) ||
+          instance.workflowDefinitionId.toLowerCase().includes(definitionFilter)
+        );
+      });
+
+      return success(
+        WorkflowLifecycleListResultSchema.parse({
+          definitions: filteredDefinitions.map(
+            (definition: WorkflowLifecycleDefinitionSummary) =>
+            WorkflowLifecycleDefinitionSummarySchema.parse(definition),
+          ),
+          instances: filteredInstances,
+        }),
+        0,
+      );
+    },
+    workflow_inspect: async (params) => {
+      const request = parseWorkflowInspectRequest(params);
+      return success(
+        WorkflowLifecycleInspectResultSchema.parse(
+          await inspectInstalledWorkflowPackage({
+            ...requirePackageRuntime(context),
+            packageId: request.packageId,
+          }),
+        ),
+        0,
+      );
+    },
+    workflow_start: async (params, execution) => {
+      await requireSystemAgent(context, 'workflow_start', execution);
+      const request = parseWorkflowStartRequest(params);
+      const workflowEngine = requireWorkflowEngine(context);
+      const projectConfig = await resolveProjectConfig(context, request.projectId);
+      const selection = await resolveWorkflowSelection(
+        context,
+        projectConfig,
+        request.definition,
+        request.entrypoint,
+      );
+      const warnings = await collectWorkflowDependencyWarnings({
+        context,
+        projectId: request.projectId,
+        workflowInspect: selection.workflowInspect,
+      });
+      const controlState = await requireProjectControlState(context, request.projectId);
+      const runId = (context.deps.idFactory ?? randomUUID)() as WorkflowRunState['runId'];
+      const lane = buildLifecycleLane(selection.definitionName, runId, 'started');
+
+      const startedState = await executeWithWitness({
+        context,
+        actionCategory: 'opctl-command',
+        actionRef: lane.lane,
+        projectId: request.projectId,
+        traceId: execution?.traceId,
+        detail: {
+          lane: lane.lane,
+          laneRoot: lane.laneRoot,
+          laneDepth: lane.laneDepth,
+          workflowDefinitionId: selection.workflowDefinitionId,
+          definitionName: selection.definitionName,
+          warnings,
+          configKeys: Object.keys(request.config),
+        },
+        operation: async () => {
+          const started = await workflowEngine.start({
+            projectConfig: selection.projectConfig,
+            workflowDefinitionId: selection.workflowDefinitionId as any,
+            runId,
+            workmodeId: execution?.workmodeId ?? 'system:implementation',
+            sourceActor: 'nous_cortex',
+            targetActor: 'worker_agent',
+            controlState,
+            triggerContext: request.triggerContext,
+          });
+
+          if (started.status !== 'started') {
+            throw new NousError(
+              started.admission.reasonCode,
+              'WORKFLOW_START_BLOCKED',
+              {
+                admission: started.admission,
+              },
+            );
+          }
+
+          return started.runState;
+        },
+      });
+
+      const definitionSource = await workflowEngine.resolveDefinitionSource(
+        selection.projectConfig,
+        selection.workflowDefinitionId as any,
+      );
+
+      return success(
+        WorkflowLifecycleMutationResultSchema.parse({
+          run: toWorkflowInstanceSummary({
+            runState: startedState.value,
+            definitionName: selection.definitionName,
+            definitionSource,
+          }),
+          evidenceRef: startedState.evidenceRef,
+          warnings,
+        }),
+        0,
+      );
+    },
+    workflow_status: async (params) => {
+      const request = parseWorkflowStatusRequest(params);
+      const workflowEngine = requireWorkflowEngine(context);
+      const runState = await workflowEngine.getState(request.runId);
+      if (!runState) {
+        throw new NousError(
+          `Workflow run ${request.runId} was not found`,
+          'WORKFLOW_RUN_NOT_FOUND',
+        );
+      }
+
+      const projection = await resolveRunProjection(context, runState);
+      return success(
+        WorkflowLifecycleStatusResultSchema.parse({
+          run: projection.summary,
+          readyNodeIds: runState.readyNodeIds,
+          completedNodeIds: runState.completedNodeIds,
+          activatedEdgeIds: runState.activatedEdgeIds,
+          checkpointState: runState.checkpointState,
+          lastPreparedCheckpointId: runState.lastPreparedCheckpointId,
+          lastCommittedCheckpointId: runState.lastCommittedCheckpointId,
+          governanceGateHits: collectGovernanceGateHits(runState),
+        }),
+        0,
+      );
+    },
+    workflow_pause: async (params, execution) => {
+      await requireSystemAgent(context, 'workflow_pause', execution);
+      const request = parseWorkflowPauseRequest(params);
+      const workflowEngine = requireWorkflowEngine(context);
+      const current = await workflowEngine.getState(request.runId);
+      if (!current) {
+        throw new NousError(
+          `Workflow run ${request.runId} was not found`,
+          'WORKFLOW_RUN_NOT_FOUND',
+        );
+      }
+      const controlState = await requireProjectControlState(context, current.projectId);
+      if (controlState !== 'running') {
+        throw new NousError(
+          `workflow_pause denied while project control state is ${controlState}`,
+          'WORKFLOW_PAUSE_DENIED',
+          { controlState },
+        );
+      }
+
+      const projection = await resolveRunProjection(context, current);
+      const lane = buildLifecycleLane(projection.summary.definitionName, request.runId, 'paused');
+      const result = await executeWithWitness({
+        context,
+        actionCategory: 'opctl-command',
+        actionRef: lane.lane,
+        projectId: current.projectId,
+        traceId: execution?.traceId,
+        detail: {
+          lane: lane.lane,
+          laneRoot: lane.laneRoot,
+          laneDepth: lane.laneDepth,
+          workflowDefinitionId: current.workflowDefinitionId,
+        },
+        operation: () =>
+          workflowEngine.pause(request.runId, {
+            reasonCode: request.reasonCode,
+            evidenceRefs: [],
+          }),
+      });
+
+      return success(
+        WorkflowLifecycleMutationResultSchema.parse({
+          run: toWorkflowInstanceSummary({
+            runState: result.value,
+            definitionName: projection.summary.definitionName,
+            definitionSource: projection.definitionSource,
+          }),
+          evidenceRef: result.evidenceRef,
+        }),
+        0,
+      );
+    },
+    workflow_resume: async (params, execution) => {
+      await requireSystemAgent(context, 'workflow_resume', execution);
+      const request = parseWorkflowResumeRequest(params);
+      const workflowEngine = requireWorkflowEngine(context);
+      const current = await workflowEngine.getState(request.runId);
+      if (!current) {
+        throw new NousError(
+          `Workflow run ${request.runId} was not found`,
+          'WORKFLOW_RUN_NOT_FOUND',
+        );
+      }
+      const projection = await resolveRunProjection(context, current);
+      const controlState = await requireProjectControlState(context, current.projectId);
+      if (controlState === 'hard_stopped') {
+        throw new NousError(
+          'workflow_resume_denied_hard_stopped',
+          'WORKFLOW_RESUME_DENIED',
+          { controlState },
+        );
+      }
+      if (controlState !== 'running') {
+        throw new NousError(
+          `workflow_resume denied while project control state is ${controlState}`,
+          'WORKFLOW_RESUME_DENIED',
+          { controlState },
+        );
+      }
+
+      const warnings = await collectWorkflowDependencyWarnings({
+        context,
+        projectId: current.projectId,
+        workflowInspect:
+          projection.definitionSource?.sourceKind === 'installed_package' &&
+          projection.definitionSource.packageId
+            ? await inspectInstalledWorkflowPackage({
+                ...requirePackageRuntime(context),
+                packageId: projection.definitionSource.packageId,
+              })
+            : undefined,
+      });
+      const lane = buildLifecycleLane(projection.summary.definitionName, request.runId, 'resumed');
+      const result = await executeWithWitness({
+        context,
+        actionCategory: 'opctl-command',
+        actionRef: lane.lane,
+        projectId: current.projectId,
+        traceId: execution?.traceId,
+        detail: {
+          lane: lane.lane,
+          laneRoot: lane.laneRoot,
+          laneDepth: lane.laneDepth,
+          workflowDefinitionId: current.workflowDefinitionId,
+          warnings,
+        },
+        operation: () =>
+          workflowEngine.resume(request.runId, {
+            reasonCode: request.reasonCode,
+            evidenceRefs: [],
+          }),
+      });
+
+      return success(
+        WorkflowLifecycleMutationResultSchema.parse({
+          run: toWorkflowInstanceSummary({
+            runState: result.value,
+            definitionName: projection.summary.definitionName,
+            definitionSource: projection.definitionSource,
+          }),
+          evidenceRef: result.evidenceRef,
+          warnings,
+        }),
+        0,
+      );
+    },
+    workflow_cancel: async (params, execution) => {
+      await requireSystemAgent(context, 'workflow_cancel', execution);
+      const request = parseWorkflowCancelRequest(params);
+      const workflowEngine = requireWorkflowEngine(context);
+      const current = await workflowEngine.getState(request.runId);
+      if (!current) {
+        throw new NousError(
+          `Workflow run ${request.runId} was not found`,
+          'WORKFLOW_RUN_NOT_FOUND',
+        );
+      }
+      const projection = await resolveRunProjection(context, current);
+      const lane = buildLifecycleLane(
+        projection.summary.definitionName,
+        request.runId,
+        'canceled',
+      );
+      const result = await executeWithWitness({
+        context,
+        actionCategory: 'opctl-command',
+        actionRef: lane.lane,
+        projectId: current.projectId,
+        traceId: execution?.traceId,
+        detail: {
+          lane: lane.lane,
+          laneRoot: lane.laneRoot,
+          laneDepth: lane.laneDepth,
+          workflowDefinitionId: current.workflowDefinitionId,
+        },
+        operation: () =>
+          workflowEngine.cancel(request.runId, {
+            reasonCode: request.reasonCode,
+            evidenceRefs: [],
+          }),
+      });
+
+      return success(
+        WorkflowLifecycleMutationResultSchema.parse({
+          run: toWorkflowInstanceSummary({
+            runState: result.value,
+            definitionName: projection.summary.definitionName,
+            definitionSource: projection.definitionSource,
+          }),
+          evidenceRef: result.evidenceRef,
+        }),
         0,
       );
     },

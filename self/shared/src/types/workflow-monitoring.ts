@@ -6,6 +6,7 @@
  */
 import { z } from 'zod';
 import { ProjectIdentityContractSchema } from './project.js';
+import { ResolvedWorkflowDefinitionSourceSchema } from './package-documents.js';
 import {
   DerivedWorkflowGraphSchema,
   WorkflowCheckpointStateSchema,
@@ -186,6 +187,7 @@ export type WorkflowSurfaceDiagnostics = z.infer<
 export const WorkflowVisualDebugSnapshotSchema = z.object({
   project: ProjectIdentityContractSchema,
   workflowDefinition: WorkflowDefinitionSchema.nullable(),
+  workflowDefinitionSource: ResolvedWorkflowDefinitionSourceSchema.nullable().default(null),
   graph: DerivedWorkflowGraphSchema.nullable(),
   runtimeAvailability: WorkflowRuntimeAvailabilitySchema,
   selectedRunId: WorkflowExecutionIdSchema.optional(),
@@ -212,6 +214,7 @@ export type WorkflowVisualDebugSnapshot = z.infer<
 export const ProjectWorkflowSurfaceSnapshotSchema = z.object({
   project: ProjectIdentityContractSchema,
   workflowDefinition: WorkflowDefinitionSchema.nullable(),
+  workflowDefinitionSource: ResolvedWorkflowDefinitionSourceSchema.nullable().default(null),
   graph: DerivedWorkflowGraphSchema.nullable(),
   runtimeAvailability: WorkflowRuntimeAvailabilitySchema,
   selectedRunId: WorkflowExecutionIdSchema.optional(),

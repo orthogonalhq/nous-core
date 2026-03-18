@@ -106,6 +106,8 @@ import type {
   NudgeSuppressionQueryResult,
   ChannelIngressEnvelope,
   ChannelEgressEnvelope,
+  CommunicationConnectorRegistration,
+  CommunicationConnectorSession,
   CommunicationIdentityBindingUpsertInput,
   CommunicationIdentityBindingRecord,
   CommunicationApprovalIntakeRecord,
@@ -163,6 +165,13 @@ export class StubWorkflowEngine implements IWorkflowEngine {
     return stubNotImpl('IWorkflowEngine', 'resolveDefinition', 'Phase 9.1');
   }
 
+  async resolveDefinitionSource(
+    _projectConfig: ProjectConfig,
+    _workflowDefinitionId?: import('@nous/shared').WorkflowDefinitionId,
+  ): Promise<import('@nous/shared').ResolvedWorkflowDefinitionSource | null> {
+    return stubNotImpl('IWorkflowEngine', 'resolveDefinitionSource', 'Phase 14.3');
+  }
+
   async deriveGraph(
     _definition: WorkflowDefinition,
   ): Promise<DerivedWorkflowGraph> {
@@ -191,6 +200,13 @@ export class StubWorkflowEngine implements IWorkflowEngine {
     _transition: WorkflowTransitionInput,
   ): Promise<WorkflowRunState> {
     return stubNotImpl('IWorkflowEngine', 'pause', 'Phase 9.1');
+  }
+
+  async cancel(
+    _executionId: WorkflowExecutionId,
+    _transition: WorkflowTransitionInput,
+  ): Promise<WorkflowRunState> {
+    return stubNotImpl('IWorkflowEngine', 'cancel', 'Phase 14.4');
   }
 
   async completeNode(
@@ -520,6 +536,38 @@ export class StubCommunicationGatewayService implements ICommunicationGatewaySer
     );
   }
 
+  async registerConnector(_input: {
+    connector_id: string;
+    kind: CommunicationConnectorRegistration['kind'];
+    account_id: string;
+    project_id?: string;
+    binding_ref?: string;
+  }): Promise<CommunicationConnectorRegistration> {
+    return stubNotImpl(
+      'ICommunicationGatewayService',
+      'registerConnector',
+      'Phase 14.7',
+    );
+  }
+
+  async reportConnectorSession(
+    _input: CommunicationConnectorSession,
+  ): Promise<CommunicationConnectorSession> {
+    return stubNotImpl(
+      'ICommunicationGatewayService',
+      'reportConnectorSession',
+      'Phase 14.7',
+    );
+  }
+
+  async unregisterConnector(_connectorId: string): Promise<void> {
+    return stubNotImpl(
+      'ICommunicationGatewayService',
+      'unregisterConnector',
+      'Phase 14.7',
+    );
+  }
+
   async getRouteDecision(
     _routeId: string,
   ): Promise<CommunicationRouteDecision | null> {
@@ -527,6 +575,26 @@ export class StubCommunicationGatewayService implements ICommunicationGatewaySer
       'ICommunicationGatewayService',
       'getRouteDecision',
       'Phase 11.1',
+    );
+  }
+
+  async getConnectorRegistration(
+    _connectorId: string,
+  ): Promise<CommunicationConnectorRegistration | null> {
+    return stubNotImpl(
+      'ICommunicationGatewayService',
+      'getConnectorRegistration',
+      'Phase 14.7',
+    );
+  }
+
+  async getConnectorSession(
+    _connectorId: string,
+  ): Promise<CommunicationConnectorSession | null> {
+    return stubNotImpl(
+      'ICommunicationGatewayService',
+      'getConnectorSession',
+      'Phase 14.7',
     );
   }
 }

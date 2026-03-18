@@ -13,6 +13,7 @@ import {
   type IOpctlService,
   type IProjectApi,
   type IProjectStore,
+  type IRuntime,
   type IScheduler,
   type IStmStore,
   type IToolExecutor,
@@ -67,6 +68,8 @@ export interface GatewayBackedTurnExecutorDeps {
   escalationService?: IEscalationService;
   witnessService?: IWitnessService;
   opctlService?: IOpctlService;
+  runtime?: IRuntime;
+  instanceRoot?: string;
   outputSchemaValidator?: InternalMcpOutputSchemaValidator;
   agentGatewayFactory?: IAgentGatewayFactory;
   now?: () => string;
@@ -205,6 +208,9 @@ export class GatewayBackedTurnExecutor implements ICoreExecutor {
         scheduler: this.deps.scheduler,
         escalationService: this.deps.escalationService,
         witnessService: this.deps.witnessService,
+        opctlService: this.deps.opctlService,
+        runtime: this.deps.runtime,
+        instanceRoot: this.deps.instanceRoot,
         outputSchemaValidator: this.deps.outputSchemaValidator,
         now: this.now,
         idFactory: this.idFactory,

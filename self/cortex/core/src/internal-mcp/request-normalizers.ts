@@ -42,6 +42,28 @@ import {
   type GatewayTaskCompletionRequest,
   type MemoryWriteCandidate,
   type ScheduleDefinition,
+  type WorkflowLifecycleCancelCommand,
+  type WorkflowLifecycleInspectQuery,
+  type WorkflowLifecycleListQuery,
+  type WorkflowLifecyclePauseCommand,
+  type WorkflowLifecycleResumeCommand,
+  type WorkflowLifecycleStartCommand,
+  type WorkflowLifecycleStatusQuery,
+  WorkflowLifecycleCancelCommandSchema,
+  WorkflowLifecycleInspectQuerySchema,
+  WorkflowLifecycleListQuerySchema,
+  WorkflowLifecyclePauseCommandSchema,
+  WorkflowLifecycleResumeCommandSchema,
+  WorkflowLifecycleStartCommandSchema,
+  WorkflowLifecycleStatusQuerySchema,
+  AppHealthSnapshotSchema,
+  AppHeartbeatSignalSchema,
+  CredentialInjectRequestSchema,
+  CredentialRevokeRequestSchema,
+  CredentialStoreRequestSchema,
+  type CredentialInjectRequest,
+  type CredentialRevokeRequest,
+  type CredentialStoreRequest,
 } from '@nous/shared';
 import { z } from 'zod';
 
@@ -122,7 +144,25 @@ export const SchedulerRegisterRequestSchema = ScheduleDefinitionSchema.omit({
   projectId: true,
 });
 export type SchedulerRegisterRequest = Omit<ScheduleDefinition, 'projectId'>;
+export type WorkflowListRequest = WorkflowLifecycleListQuery;
+export type WorkflowInspectRequest = WorkflowLifecycleInspectQuery;
+export type WorkflowStartRequest = WorkflowLifecycleStartCommand;
+export type WorkflowStatusRequest = WorkflowLifecycleStatusQuery;
+export type WorkflowPauseRequest = WorkflowLifecyclePauseCommand;
+export type WorkflowResumeRequest = WorkflowLifecycleResumeCommand;
+export type WorkflowCancelRequest = WorkflowLifecycleCancelCommand;
+export type AppHealthReportRequest = z.infer<typeof AppHealthReportRequestSchema>;
+export type AppHeartbeatRequest = z.infer<typeof AppHeartbeatRequestSchema>;
+export type AppCredentialStoreRequest = CredentialStoreRequest;
+export type AppCredentialInjectRequest = CredentialInjectRequest;
+export type AppCredentialRevokeRequest = CredentialRevokeRequest;
 export type { PublicMcpAgentInvokeArguments, PublicMcpExecutionRequest };
+
+export const AppHealthReportRequestSchema = AppHealthSnapshotSchema.strict();
+export const AppHeartbeatRequestSchema = AppHeartbeatSignalSchema.strict();
+export const AppCredentialStoreRequestSchema = CredentialStoreRequestSchema.strict();
+export const AppCredentialInjectRequestSchema = CredentialInjectRequestSchema.strict();
+export const AppCredentialRevokeRequestSchema = CredentialRevokeRequestSchema.strict();
 
 export function parsePromotedMemoryPromoteCommand(
   params: unknown,
@@ -271,6 +311,72 @@ export function parseSchedulerRegisterRequest(
   params: unknown,
 ): SchedulerRegisterRequest {
   return SchedulerRegisterRequestSchema.parse(params ?? {});
+}
+
+export function parseWorkflowListRequest(params: unknown): WorkflowListRequest {
+  return WorkflowLifecycleListQuerySchema.parse(params ?? {});
+}
+
+export function parseWorkflowInspectRequest(
+  params: unknown,
+): WorkflowInspectRequest {
+  return WorkflowLifecycleInspectQuerySchema.parse(params ?? {});
+}
+
+export function parseWorkflowStartRequest(params: unknown): WorkflowStartRequest {
+  return WorkflowLifecycleStartCommandSchema.parse(params ?? {});
+}
+
+export function parseWorkflowStatusRequest(
+  params: unknown,
+): WorkflowStatusRequest {
+  return WorkflowLifecycleStatusQuerySchema.parse(params ?? {});
+}
+
+export function parseWorkflowPauseRequest(params: unknown): WorkflowPauseRequest {
+  return WorkflowLifecyclePauseCommandSchema.parse(params ?? {});
+}
+
+export function parseWorkflowResumeRequest(
+  params: unknown,
+): WorkflowResumeRequest {
+  return WorkflowLifecycleResumeCommandSchema.parse(params ?? {});
+}
+
+export function parseWorkflowCancelRequest(
+  params: unknown,
+): WorkflowCancelRequest {
+  return WorkflowLifecycleCancelCommandSchema.parse(params ?? {});
+}
+
+export function parseHealthReportRequest(
+  params: unknown,
+): AppHealthReportRequest {
+  return AppHealthReportRequestSchema.parse(params ?? {});
+}
+
+export function parseHealthHeartbeatRequest(
+  params: unknown,
+): AppHeartbeatRequest {
+  return AppHeartbeatRequestSchema.parse(params ?? {});
+}
+
+export function parseCredentialStoreRequest(
+  params: unknown,
+): AppCredentialStoreRequest {
+  return AppCredentialStoreRequestSchema.parse(params ?? {});
+}
+
+export function parseCredentialInjectRequest(
+  params: unknown,
+): AppCredentialInjectRequest {
+  return AppCredentialInjectRequestSchema.parse(params ?? {});
+}
+
+export function parseCredentialRevokeRequest(
+  params: unknown,
+): AppCredentialRevokeRequest {
+  return AppCredentialRevokeRequestSchema.parse(params ?? {});
 }
 
 export function parseExternalMemoryPutCommand(

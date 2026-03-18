@@ -17,6 +17,13 @@ export interface RunPkgDiscoverOptions {
   muteGlobalCandidateId?: string;
 }
 
+export interface RunPkgInstallOptions {
+  projectId: string;
+  releaseId?: string;
+  versionRange?: string;
+  json?: boolean;
+}
+
 function selectedSuppressionAction(options: RunPkgDiscoverOptions) {
   const selected = [
     options.dismissCandidateId
@@ -156,6 +163,45 @@ export async function runPkgDiscover(
     }
 
     return 0;
+  } catch (err) {
+    console.error(err instanceof Error ? err.message : String(err));
+    return 1;
+  }
+}
+
+export async function runPkgInstall(
+  client: CliTrpcClient,
+  packageId: string,
+  options: RunPkgInstallOptions,
+): Promise<number> {
+  try {
+    const result = await client.packages.install.mutate({
+      project_id: options.projectId as ProjectId,
+      package_id: packageId,
+      release_id: options.releaseId,
+      requested_version_range: options.versionRange,
+      actor_id: 'cli',
+      evidence_refs: ['cli:pkg-install'],
+    });
+
+    if (options.json) {
+      console.log(JSON.stringify(result, null, 2));
+      return result.status === 'installed' ? 0 : 1;
+    }
+
+    if (result.status === 'installed') {
+      console.log(`Installed ${packageId}`);
+      console.log(`install order: ${result.resolution.install_order.join(', ')}`);
+      return 0;
+    }
+
+    console.error(
+      `${packageId} install ${result.status}: ${result.failure?.reason_code ?? 'unknown failure'}`,
+    );
+    if (result.failure?.detail) {
+      console.error(result.failure.detail);
+    }
+    return 1;
   } catch (err) {
     console.error(err instanceof Error ? err.message : String(err));
     return 1;

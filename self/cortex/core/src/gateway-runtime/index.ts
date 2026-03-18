@@ -27,6 +27,7 @@ export { SystemContextReplicaProvider } from './system-context-replica.js';
 export { GatewayRuntimeHealthSink } from './runtime-health.js';
 export { GatewayTraceRecorder } from './trace-recorder.js';
 export type {
+  GatewayAppSessionHealthProjection,
   GatewayBootSnapshot,
   GatewayBootStatus,
   GatewayBootStep,

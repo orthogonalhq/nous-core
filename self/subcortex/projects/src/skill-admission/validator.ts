@@ -42,11 +42,15 @@ export const evaluateSkillContract = (
     );
   }
 
-  if (request.artifact.has_flow_yaml && request.artifact.step_refs.length === 0) {
+  if (
+    request.artifact.skill_package_kind === 'legacy_hybrid' &&
+    request.artifact.legacy_workflow_refs?.flowRef &&
+    request.artifact.legacy_workflow_refs.stepRefs.length === 0
+  ) {
     violations.push(
       violation(
         'SCM-007-FLOW-STEPS-MISSING',
-        'Graph mode was declared without any step refs.',
+        'Legacy hybrid graph mode was declared without any step refs.',
         `artifact:${request.artifact.skill_root_ref}/steps`,
       ),
     );

@@ -1,11 +1,16 @@
-import type { ToolDefinition } from '@nous/shared';
+import type { AgentClass, ToolDefinition } from '@nous/shared';
 import {
   DISPATCH_AGENT_TOOL_NAME,
   FLAG_OBSERVATION_TOOL_NAME,
   REQUEST_ESCALATION_TOOL_NAME,
   TASK_COMPLETE_TOOL_NAME,
 } from '../agent-gateway/lifecycle-hooks.js';
-import type { InternalMcpCatalogEntry, InternalMcpToolName } from './types.js';
+import type {
+  DynamicInternalMcpToolEntry,
+  InternalMcpCatalogEntry,
+  InternalMcpCapabilityHandler,
+  InternalMcpToolName,
+} from './types.js';
 
 function defineTool(
   name: InternalMcpToolName,
@@ -292,6 +297,173 @@ export const INTERNAL_MCP_CATALOG: readonly InternalMcpCatalogEntry[] = [
     ),
   },
   {
+    name: 'workflow_list',
+    kind: 'capability',
+    definition: defineTool(
+      'workflow_list',
+      'List installed workflow definitions and known workflow runs.',
+      {
+        projectId: 'ProjectId?',
+        status: 'WorkflowRunStatus[]?',
+        definition: 'string?',
+        includeInstalledDefinitions: 'boolean?',
+        includeActiveInstances: 'boolean?',
+      },
+      { definitions: 'WorkflowLifecycleDefinitionSummary[]', instances: 'WorkflowLifecycleInstanceSummary[]' },
+      ['read'],
+      'runtime',
+    ),
+  },
+  {
+    name: 'workflow_inspect',
+    kind: 'capability',
+    definition: defineTool(
+      'workflow_inspect',
+      'Inspect one installed workflow package manifest, flow, steps, and dependencies.',
+      { packageId: 'string' },
+      { workflow: 'WorkflowLifecycleInspectResult' },
+      ['read'],
+      'runtime',
+    ),
+  },
+  {
+    name: 'workflow_start',
+    kind: 'capability',
+    definition: defineTool(
+      'workflow_start',
+      'Resolve, preflight, and start one workflow run in a project context.',
+      {
+        definition: 'string',
+        projectId: 'ProjectId',
+        entrypoint: 'string?',
+        config: 'Record<string, unknown>?',
+        triggerContext: 'WorkflowRunTriggerContext?',
+      },
+      { result: 'WorkflowLifecycleMutationResult' },
+      ['control'],
+      'runtime',
+    ),
+  },
+  {
+    name: 'workflow_status',
+    kind: 'capability',
+    definition: defineTool(
+      'workflow_status',
+      'Inspect the canonical status projection for one workflow run.',
+      { runId: 'WorkflowExecutionId' },
+      { status: 'WorkflowLifecycleStatusResult' },
+      ['read'],
+      'runtime',
+    ),
+  },
+  {
+    name: 'workflow_pause',
+    kind: 'capability',
+    definition: defineTool(
+      'workflow_pause',
+      'Pause a workflow run while preserving canonical run-state truth.',
+      { runId: 'WorkflowExecutionId', reasonCode: 'string?' },
+      { result: 'WorkflowLifecycleMutationResult' },
+      ['control'],
+      'runtime',
+    ),
+  },
+  {
+    name: 'workflow_resume',
+    kind: 'capability',
+    definition: defineTool(
+      'workflow_resume',
+      'Resume a paused workflow run after canonical dependency preflight.',
+      { runId: 'WorkflowExecutionId', reasonCode: 'string?' },
+      { result: 'WorkflowLifecycleMutationResult' },
+      ['control'],
+      'runtime',
+    ),
+  },
+  {
+    name: 'workflow_cancel',
+    kind: 'capability',
+    definition: defineTool(
+      'workflow_cancel',
+      'Cancel an in-flight workflow run without rewriting history.',
+      { runId: 'WorkflowExecutionId', reasonCode: 'string?' },
+      { result: 'WorkflowLifecycleMutationResult' },
+      ['control'],
+      'runtime',
+    ),
+  },
+  {
+    name: 'health_report',
+    kind: 'capability',
+    definition: defineTool(
+      'health_report',
+      'Publish a canonical app-runtime health snapshot.',
+      { session_id: 'string', status: 'healthy | degraded | unhealthy | stale', reported_at: 'ISO datetime', details: 'object?' },
+      { accepted: 'boolean', health: 'AppHealthSnapshot' },
+      ['write'],
+      'runtime',
+    ),
+  },
+  {
+    name: 'health_heartbeat',
+    kind: 'capability',
+    definition: defineTool(
+      'health_heartbeat',
+      'Publish an app-runtime heartbeat signal.',
+      { session_id: 'string', reported_at: 'ISO datetime', sequence: 'number', status_hint: 'healthy | degraded | unhealthy | stale?' },
+      { accepted: 'boolean', heartbeat: 'AppHeartbeatSignal' },
+      ['write'],
+      'runtime',
+    ),
+  },
+  {
+    name: 'credentials_store',
+    kind: 'capability',
+    definition: defineTool(
+      'credentials_store',
+      'Store one app-scoped credential without exposing it back to the app.',
+      {
+        key: 'string',
+        value: 'string',
+        credential_type: 'api_key | bearer_token | basic_auth | oauth2 | custom',
+        target_host: 'string',
+        injection_location: 'header | query | body',
+        injection_key: 'string',
+        expires_at: 'ISO datetime?',
+      },
+      { credential_ref: 'string', metadata: 'CredentialMetadata' },
+      ['write'],
+      'runtime',
+    ),
+  },
+  {
+    name: 'credentials_inject',
+    kind: 'capability',
+    definition: defineTool(
+      'credentials_inject',
+      'Execute one outbound request with a credential injected by infrastructure.',
+      {
+        key: 'string',
+        request_descriptor: 'AppCredentialRequestDescriptor',
+      },
+      { status: 'number', headers: 'Record<string, string>', body: 'unknown' },
+      ['execute'],
+      'runtime',
+    ),
+  },
+  {
+    name: 'credentials_revoke',
+    kind: 'capability',
+    definition: defineTool(
+      'credentials_revoke',
+      'Revoke one app-scoped credential and remove it from the vault.',
+      { key: 'string', reason: 'string?' },
+      { revoked: 'boolean', credential_ref: 'string?' },
+      ['write'],
+      'runtime',
+    ),
+  },
+  {
     name: DISPATCH_AGENT_TOOL_NAME,
     kind: 'lifecycle',
     definition: defineTool(
@@ -344,9 +516,54 @@ export const INTERNAL_MCP_CATALOG: readonly InternalMcpCatalogEntry[] = [
 const ENTRY_BY_NAME = new Map(
   INTERNAL_MCP_CATALOG.map((entry) => [entry.name, entry] as const),
 );
+const DYNAMIC_ENTRY_BY_NAME = new Map<string, DynamicInternalMcpToolEntry>();
 
 export function getInternalMcpCatalogEntry(
   name: string,
 ): InternalMcpCatalogEntry | null {
   return ENTRY_BY_NAME.get(name as InternalMcpToolName) ?? null;
+}
+
+export function registerDynamicInternalMcpTool(input: {
+  name: string;
+  definition: ToolDefinition;
+  execute: InternalMcpCapabilityHandler;
+  sessionId: string;
+  appId: string;
+  visibleTo?: readonly AgentClass[];
+}): DynamicInternalMcpToolEntry {
+  if (ENTRY_BY_NAME.has(input.name as InternalMcpToolName) || DYNAMIC_ENTRY_BY_NAME.has(input.name)) {
+    throw new Error(`Internal MCP tool name is already registered: ${input.name}`);
+  }
+
+  const entry: DynamicInternalMcpToolEntry = {
+    name: input.name,
+    kind: 'capability',
+    definition: input.definition,
+    execute: input.execute,
+    sessionId: input.sessionId,
+    appId: input.appId,
+    visibleTo: input.visibleTo ?? ['Worker', 'Orchestrator', 'Cortex::System'],
+  };
+  DYNAMIC_ENTRY_BY_NAME.set(entry.name, entry);
+  return entry;
+}
+
+export function unregisterDynamicInternalMcpTool(name: string): void {
+  DYNAMIC_ENTRY_BY_NAME.delete(name);
+}
+
+export function getDynamicInternalMcpToolEntry(
+  name: string,
+): DynamicInternalMcpToolEntry | null {
+  return DYNAMIC_ENTRY_BY_NAME.get(name) ?? null;
+}
+
+export function listDynamicInternalMcpToolEntries(
+  agentClass?: AgentClass,
+): DynamicInternalMcpToolEntry[] {
+  const entries = [...DYNAMIC_ENTRY_BY_NAME.values()];
+  return agentClass
+    ? entries.filter((entry) => entry.visibleTo.includes(agentClass))
+    : entries;
 }

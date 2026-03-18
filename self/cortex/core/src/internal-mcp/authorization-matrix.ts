@@ -6,6 +6,9 @@ const MATRIX: Record<AgentClass, readonly InternalMcpToolName[]> = {
     'memory_search',
     'project_discover',
     'artifact_retrieve',
+    'workflow_list',
+    'workflow_inspect',
+    'workflow_status',
   ],
   'Cortex::System': [
     'memory_search',
@@ -21,6 +24,13 @@ const MATRIX: Record<AgentClass, readonly InternalMcpToolName[]> = {
     'witness_checkpoint',
     'escalation_notify',
     'scheduler_register',
+    'workflow_list',
+    'workflow_inspect',
+    'workflow_start',
+    'workflow_status',
+    'workflow_pause',
+    'workflow_resume',
+    'workflow_cancel',
     'dispatch_agent',
     'task_complete',
     'request_escalation',
@@ -35,6 +45,9 @@ const MATRIX: Record<AgentClass, readonly InternalMcpToolName[]> = {
     'tool_list',
     'witness_checkpoint',
     'escalation_notify',
+    'workflow_list',
+    'workflow_inspect',
+    'workflow_status',
     'dispatch_agent',
     'task_complete',
     'request_escalation',
@@ -47,11 +60,30 @@ const MATRIX: Record<AgentClass, readonly InternalMcpToolName[]> = {
     'artifact_retrieve',
     'tool_execute',
     'tool_list',
+    'workflow_list',
+    'workflow_inspect',
+    'workflow_status',
     'task_complete',
     'request_escalation',
     'flag_observation',
   ],
 };
+
+const APP_MATRIX: readonly InternalMcpToolName[] = [
+  'health_report',
+  'health_heartbeat',
+  'credentials_store',
+  'credentials_inject',
+  'credentials_revoke',
+  'memory_write',
+  'project_discover',
+  'artifact_store',
+  'artifact_retrieve',
+  'tool_execute',
+  'tool_list',
+  'escalation_notify',
+  'scheduler_register',
+];
 
 export function getAuthorizedInternalMcpTools(
   agentClass: AgentClass,
@@ -64,4 +96,14 @@ export function isInternalMcpToolAuthorized(
   toolName: InternalMcpToolName,
 ): boolean {
   return MATRIX[agentClass].includes(toolName);
+}
+
+export function getAuthorizedAppInternalMcpTools(): ReadonlySet<InternalMcpToolName> {
+  return new Set(APP_MATRIX);
+}
+
+export function isAppInternalMcpToolAuthorized(
+  toolName: InternalMcpToolName,
+): boolean {
+  return APP_MATRIX.includes(toolName);
 }

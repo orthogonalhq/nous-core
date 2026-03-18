@@ -131,6 +131,19 @@ Project identity is deterministic across all surfaces (chat, runtime, MAO/UI):
 
 These fields resolve identically regardless of which interface is used.
 
+### Installed Packages vs. Live Projects
+
+Phase 14.1 separates installable package stores from live workspace state:
+
+- Installable workflow packages live in `.workflows/`
+- Installable skill packages live in `.skills/`
+- Installable app packages live in `.apps/`
+- Active local project instances live in `.projects/`
+
+This matters because a live project is not itself the installable package. A project may be created from a workflow package, reference multiple skills, and interact with installed app surfaces, but its runtime state, local configuration, and accumulated work remain project-scoped workspace data. Legacy manifests that still use `package_type: project` are accepted at ingress and normalized to the canonical `workflow` package type before they become stored runtime or registry truth.
+
+A project can bind to an installed workflow package through `packageBindings` in its workflow configuration. When a binding is present, the workflow engine resolves the active definition from the installed package at runtime without copying the installed definition into project-local config or run state. The resolved source is exposed as `workflowDefinitionSource` in workflow snapshots and monitoring projections so operators can distinguish an installed package definition from a project-authored inline workflow. Inline project-authored definitions remain the fallback when no binding applies.
+
 ### Memory Access Policy
 
 Each project declares a memory access policy with three fields:
@@ -159,7 +172,7 @@ Phase 9.1 adds the first canonical workflow-runtime contract layer for protocol 
 
 ### Canonical Workflow Definition
 
-Workflow truth is project-scoped. A project can store one or more workflow definitions plus a default workflow reference inside project configuration.
+Workflow truth is project-scoped. A project can store one or more inline workflow definitions plus a default workflow reference inside project configuration. A project can also bind to an installed workflow package through `packageBindings`; when a binding resolves, the installed definition serves as the active graph source without becoming project-local configuration truth.
 
 The canonical definition carries:
 
@@ -191,6 +204,17 @@ Phase 9.1 makes workflow execution state explicit rather than leaving later surf
 - **Dispatch lineage** records how a node became ready, including parent node, edge linkage, attempt number, and evidence refs
 
 This gives scheduler, chat, Projects UI, and MAO consumers a canonical runtime truth to project from without re-deriving execution history locally.
+
+Phase 14.4 extends that same runtime truth with an additive terminal `canceled` posture so operators can distinguish intentional cancellation from failure or normal completion without inventing surface-local state.
+
+### Canonical Lifecycle Control Boundary (Phase 14.4)
+
+Workflow lifecycle control remains an internal runtime boundary, not a new app-owned control plane.
+
+- `workflow_list`, `workflow_inspect`, and `workflow_status` are canonical read projections exposed through the Internal MCP surface for the approved internal lanes.
+- `workflow_start`, `workflow_pause`, `workflow_resume`, and `workflow_cancel` are `Cortex::System`-only lifecycle mutations. They remain authority-bound control actions rather than browser, app, or public-edge operations.
+- Lifecycle mutations emit witness-linked evidence and preserve the existing workflow-runtime truth, checkpoint posture, wait states, and correction semantics rather than creating a second state store.
+- Apps and the public MCP edge remain outside workflow mutation authority. They can project workflow state through approved runtime surfaces, but they do not become the source of lifecycle truth.
 
 ### Typed Node Contracts and Governed Execution (Phase 9.2)
 
@@ -453,6 +477,7 @@ The workflow engine must support all four patterns within a single project graph
 This project model extends existing Nous concepts:
 
 - **ProjectStore** → Becomes the container for project type, workflow graph, governance configuration, artifact references, and Phase 9.1 canonical workflow definitions/default workflow references — not just namespace and config
+- **Canonical Root Stores** → Phase 14.1 separates installable `.workflows/`, `.skills/`, and `.apps/` stores from live `.projects/` workspace state so runtime truth does not confuse package inventory with active project instances
 - **Cortex Engine** → Gains a per-project supervisor mode in addition to per-turn evaluation
 - **Cortex Core Runtime** → Phase 12.1 now hosts the additive `AgentGateway` execution harness beside `CoreExecutor`, giving internal agent work a deterministic multi-turn runtime without moving workflow run-state authority out of the Phase 9 workflow engine
 - **ModelRouter** → Must route heterogeneous provider types, not just text model roles

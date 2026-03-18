@@ -72,6 +72,7 @@ async function createProjectWithWorkflow(ctx: ReturnType<typeof createNousContex
       workflow: {
         defaultWorkflowDefinitionId: WORKFLOW_ID,
         definitions: [createWorkflow(projectId)],
+        packageBindings: [],
       },
     }),
   );

@@ -337,4 +337,41 @@ describe('CommunicationGatewayService', () => {
       '550e8400-e29b-41d4-a716-446655440805',
     );
   });
+
+  it('tracks host-owned connector registrations and session reports', () => {
+    const service = new CommunicationGatewayService({
+      documentStore: createMemoryDocumentStore(),
+      now: () => NOW,
+    });
+
+    const registration = service.registerConnector({
+      connector_id: 'connector:telegram:account:authorized',
+      kind: 'telegram',
+      account_id: 'account:authorized',
+      project_id: PROJECT_ID,
+    });
+    const session = service.reportConnectorSession({
+      connector_id: 'connector:telegram:account:authorized',
+      status: 'active',
+      health: 'healthy',
+      last_seen_at: NOW,
+      metadata: {
+        session_id: 'session-1',
+        mode: 'connector',
+      },
+    });
+
+    expect(registration.status).toBe('registered');
+    expect(service.getConnectorRegistration(registration.connector_id)?.project_id).toBe(
+      PROJECT_ID,
+    );
+    expect(session.metadata).toMatchObject({
+      session_id: 'session-1',
+      mode: 'connector',
+    });
+
+    service.unregisterConnector(registration.connector_id);
+    expect(service.getConnectorRegistration(registration.connector_id)).toBeNull();
+    expect(service.getConnectorSession(registration.connector_id)).toBeNull();
+  });
 });

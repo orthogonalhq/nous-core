@@ -21,6 +21,7 @@ import type {
 } from '@nous/shared';
 import { ConfigManager } from '@nous/autonomic-config';
 import { InMemoryEmbedder } from '@nous/autonomic-embeddings';
+import { NodeRuntime } from '@nous/autonomic-runtime';
 import { SqliteDocumentStore, SqliteVectorStore } from '@nous/autonomic-storage';
 import { DocumentStmStore } from '@nous/memory-stm';
 import { MwcPipeline } from '@nous/memory-mwc';
@@ -47,7 +48,11 @@ import {
   createGatewayProjectApi,
   createPrincipalSystemGatewayRuntime,
 } from '@nous/cortex-core';
-import { DocumentProjectStore } from '@nous/subcortex-projects';
+import {
+  DocumentProjectStore,
+  PackageInstallService,
+  PackageLifecycleOrchestrator,
+} from '@nous/subcortex-projects';
 import { DocumentArtifactStore } from '@nous/subcortex-artifacts';
 import { DocumentEscalationStore, EscalationService } from '@nous/subcortex-escalation';
 import { ModelRouter } from '@nous/subcortex-router';
@@ -236,10 +241,15 @@ export function createNousContext(): NousContext {
   const resolvedConfig = config.get();
   const dataDirEnv = process.env.NOUS_DATA_DIR ?? './data';
   const dataDir = isAbsolute(dataDirEnv) ? dataDirEnv : join(process.cwd(), dataDirEnv);
+  const instanceRootEnv = process.env.NOUS_INSTANCE_ROOT ?? process.cwd();
+  const instanceRoot = isAbsolute(instanceRootEnv)
+    ? instanceRootEnv
+    : join(process.cwd(), instanceRootEnv);
   const dbPath = join(dataDir, 'nous.sqlite');
 
   const documentStore = new SqliteDocumentStore(dbPath);
   const vectorStore = new SqliteVectorStore(dbPath);
+  const runtime = new NodeRuntime();
   const embedder = new InMemoryEmbedder();
   const stmStore = new DocumentStmStore(documentStore, {
     compactionPolicy: resolveStmCompactionPolicy(resolvedConfig),
@@ -300,6 +310,8 @@ export function createNousContext(): NousContext {
     pfcEngine: Cortex,
     modelRouter: router,
     toolExecutor,
+    runtime,
+    instanceRoot,
   });
   let schedulerIngressGateway = createBootstrapIngressShim();
   const schedulerService = new SchedulerService({
@@ -317,6 +329,13 @@ export function createNousContext(): NousContext {
     registryStore,
     escalationService,
     witnessService,
+  });
+  const packageLifecycleOrchestrator = new PackageLifecycleOrchestrator();
+  const packageInstallService = new PackageInstallService({
+    registryService,
+    lifecycleOrchestrator: packageLifecycleOrchestrator,
+    runtime,
+    instanceRoot,
   });
   const nudgeDiscoveryService = new NudgeDiscoveryService({
     store: nudgeStore,
@@ -489,6 +508,9 @@ export function createNousContext(): NousContext {
       scheduler: schedulerService,
       escalationService,
       witnessService: args.witnessService,
+      opctlService,
+      runtime,
+      instanceRoot,
       outputSchemaValidator: new DefaultSchemaRefValidator(),
       promotedMemoryBridgeService: publicPromotedBridgeService,
     });
@@ -596,6 +618,8 @@ export function createNousContext(): NousContext {
         pfcEngine: tenantPfc,
         modelRouter: router,
         toolExecutor,
+        runtime,
+        instanceRoot,
       });
       const tenantWitnessService = new WitnessService(tenantDocumentStore);
 
@@ -671,6 +695,8 @@ export function createNousContext(): NousContext {
     projectStore,
     scheduler: schedulerService,
     escalationService,
+    runtime,
+    instanceRoot,
     outputSchemaValidator: new DefaultSchemaRefValidator(),
   });
 
@@ -686,6 +712,9 @@ export function createNousContext(): NousContext {
     scheduler: schedulerService,
     escalationService,
     witnessService,
+    opctlService,
+    runtime,
+    instanceRoot,
     outputSchemaValidator: new DefaultSchemaRefValidator(),
   });
   providerRegistry.onLeaseReleased((event) => {
@@ -696,7 +725,7 @@ export function createNousContext(): NousContext {
   });
   schedulerIngressGateway = new GatewayRuntimeIngressAdapter(gatewayRuntime);
 
-  cachedContext = {
+  const context: NousContext = {
     coreExecutor,
     gatewayRuntime,
     projectStore,
@@ -717,13 +746,15 @@ export function createNousContext(): NousContext {
     escalationService,
     endpointTrustService,
     registryService,
+    packageInstallService,
     nudgeDiscoveryService,
     voiceControlService,
     publicMcpGatewayService,
     publicMcpExecutionBridge,
     dataDir,
   };
+  cachedContext = context;
 
   console.log('[nous:web] bootstrap complete');
-  return cachedContext;
+  return context;
 }

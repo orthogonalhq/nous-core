@@ -87,6 +87,7 @@ describe('Phase 9.1 workflow runtime integration', () => {
             ],
           },
         ],
+        packageBindings: [],
       },
       retrievalBudgetTokens: 500,
       createdAt: '2026-03-08T00:00:00.000Z',

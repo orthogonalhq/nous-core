@@ -1,7 +1,12 @@
 import type {
   AgentClass,
   AgentGatewayConfig,
+  AppCredentialRequestDescriptor as SharedAppCredentialRequestDescriptor,
   AgentResult,
+  AppPermissions,
+  CredentialInjectRequest,
+  CredentialRevokeRequest,
+  CredentialStoreRequest,
   GatewayBudget,
   GatewayDispatchRequest,
   GatewayExecutionContext,
@@ -9,8 +14,14 @@ import type {
   GatewayStampedPacket,
   GatewayTaskCompletionRequest,
   IExternalSourceMemoryService,
+  ICredentialInjector,
+  ICredentialVaultService,
   IPromotedMemoryBridgeService,
   IPublicMcpSurfaceService,
+  IRuntime,
+  IAppRuntimeService,
+  IAppCredentialInstallService,
+  IOpctlService,
   IProjectApi,
   IProjectStore,
   IToolExecutor,
@@ -26,6 +37,8 @@ import type {
   ToolResult,
   TraceEvidenceReference,
   WorkflowNodeDefinition,
+  AppHealthSnapshot,
+  AppHeartbeatSignal,
 } from '@nous/shared';
 
 export const INTERNAL_MCP_TOOL_NAMES = [
@@ -51,6 +64,18 @@ export const INTERNAL_MCP_TOOL_NAMES = [
   'witness_checkpoint',
   'escalation_notify',
   'scheduler_register',
+  'workflow_list',
+  'workflow_inspect',
+  'workflow_start',
+  'workflow_status',
+  'workflow_pause',
+  'workflow_resume',
+  'workflow_cancel',
+  'health_report',
+  'health_heartbeat',
+  'credentials_store',
+  'credentials_inject',
+  'credentials_revoke',
   'dispatch_agent',
   'task_complete',
   'request_escalation',
@@ -91,17 +116,28 @@ export interface InternalMcpDispatchRuntime {
 
 export interface InternalMcpRuntimeDeps {
   getProjectApi?: (projectId: ProjectId) => IProjectApi | null;
+  getAppPermissions?: (
+    appId: string,
+    projectId?: ProjectId,
+  ) => Pick<AppPermissions, 'credentials' | 'network'> | null;
   externalSourceMemoryService?: IExternalSourceMemoryService;
+  credentialVaultService?: ICredentialVaultService;
+  credentialInjector?: ICredentialInjector;
+  appCredentialInstallService?: IAppCredentialInstallService;
   promotedMemoryBridgeService?: IPromotedMemoryBridgeService;
   publicMcpSurfaceService?: IPublicMcpSurfaceService;
   projectStore?: IProjectStore;
   toolExecutor?: IToolExecutor;
   pfc?: IPfcEngine;
   workflowEngine?: IWorkflowEngine;
+  opctlService?: IOpctlService;
+  runtime?: IRuntime;
+  instanceRoot?: string;
   workmodeAdmissionGuard?: IWorkmodeAdmissionGuard;
   witnessService?: IWitnessService;
   escalationService?: IEscalationService;
   scheduler?: IScheduler;
+  appRuntimeService?: IAppRuntimeService;
   outputSchemaValidator?: InternalMcpOutputSchemaValidator;
   dispatchRuntime?: InternalMcpDispatchRuntime;
   now?: () => string;
@@ -140,6 +176,31 @@ export interface InternalMcpCatalogEntry {
   kind: InternalMcpToolKind;
   definition: ToolDefinition;
 }
+
+export interface DynamicInternalMcpToolEntry {
+  name: string;
+  kind: 'capability';
+  definition: ToolDefinition;
+  execute: InternalMcpCapabilityHandler;
+  sessionId: string;
+  appId: string;
+  visibleTo: readonly AgentClass[];
+}
+
+export type AppHealthReportRequest = Pick<
+  AppHealthSnapshot,
+  'session_id' | 'status' | 'reported_at' | 'details'
+>;
+
+export type AppHeartbeatRequest = Pick<
+  AppHeartbeatSignal,
+  'session_id' | 'reported_at' | 'sequence' | 'status_hint'
+>;
+
+export type AppCredentialStoreRequest = CredentialStoreRequest;
+export type AppCredentialInjectRequest = CredentialInjectRequest;
+export type AppCredentialRevokeRequest = CredentialRevokeRequest;
+export type AppCredentialRequestDescriptor = SharedAppCredentialRequestDescriptor;
 
 export interface InternalMcpGraphResolution {
   schemaRef: string;

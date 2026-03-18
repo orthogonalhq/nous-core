@@ -85,9 +85,26 @@ import type {
   GtmGateReportInput,
   GtmGateReport,
   GtmStageLabel,
+  AppProcessExitEvent,
+  AppConnectorEgressIntent,
+  AppConnectorIngressIntent,
+  AppConnectorSessionReport,
+  AppRuntimeActivationInput,
+  AppRuntimeDeactivationInput,
+  AppRuntimeSession,
+  AppHealthSnapshot,
+  AppHeartbeatSignal,
+  CredentialOAuthFlowRequest,
+  CredentialOAuthFlowResult,
+  CredentialRevokeRequest,
+  CredentialRevokeResult,
+  CredentialStoreRequest,
+  CredentialStoreResult,
   PackageLifecycleTransitionRequest,
   PackageLifecycleTransitionResult,
   PackageLifecycleStateRecord,
+  PackageInstallRequest,
+  PackageInstallResult,
   SkillAdmissionDecisionInput,
   SkillAdmissionDecisionRecord,
   SkillAdmissionRequest,
@@ -138,6 +155,8 @@ import type {
   NudgeSuppressionQueryResult,
   ChannelIngressEnvelope,
   ChannelEgressEnvelope,
+  CommunicationConnectorRegistration,
+  CommunicationConnectorSession,
   CommunicationIdentityBindingUpsertInput,
   CommunicationIdentityBindingRecord,
   CommunicationApprovalIntakeRecord,
@@ -187,6 +206,7 @@ import type {
   PromotedMemoryRecord,
   PromotedMemorySearchQuery,
   PromotedMemorySearchResult,
+  ResolvedWorkflowDefinitionSource,
 } from '../types/index.js';
 import type { NousEvent } from '../events/index.js';
 
@@ -240,6 +260,12 @@ export interface IWorkflowEngine {
     workflowDefinitionId?: WorkflowDefinitionId,
   ): Promise<WorkflowDefinition>;
 
+  /** Resolve where the selected workflow definition came from for projection/debug surfaces */
+  resolveDefinitionSource(
+    projectConfig: ProjectConfig,
+    workflowDefinitionId?: WorkflowDefinitionId,
+  ): Promise<ResolvedWorkflowDefinitionSource | null>;
+
   /** Derive deterministic executable graph from canonical definition */
   deriveGraph(definition: WorkflowDefinition): Promise<DerivedWorkflowGraph>;
 
@@ -259,6 +285,12 @@ export interface IWorkflowEngine {
 
   /** Pause a running workflow */
   pause(
+    executionId: WorkflowExecutionId,
+    transition: WorkflowTransitionInput,
+  ): Promise<WorkflowRunState>;
+
+  /** Cancel an active or paused workflow without rewriting canonical run history */
+  cancel(
     executionId: WorkflowExecutionId,
     transition: WorkflowTransitionInput,
   ): Promise<WorkflowRunState>;
@@ -487,8 +519,56 @@ export interface ICommunicationGatewayService {
     input: CommunicationEscalationAcknowledgementInput,
   ): Promise<InAppEscalationRecord | null>;
 
+  /** Register one connector runtime identity with the canonical communication gateway. */
+  registerConnector(input: {
+    connector_id: string;
+    kind: CommunicationConnectorRegistration['kind'];
+    account_id: string;
+    project_id?: string;
+    binding_ref?: string;
+  }): Promise<CommunicationConnectorRegistration> | CommunicationConnectorRegistration;
+
+  /** Publish the current canonical connector session projection. */
+  reportConnectorSession(
+    input: CommunicationConnectorSession,
+  ): Promise<CommunicationConnectorSession> | CommunicationConnectorSession;
+
+  /** Remove connector registration/session state during lifecycle cleanup. */
+  unregisterConnector(
+    connectorId: string,
+  ): Promise<void> | void;
+
   /** Retrieve a previously created canonical route decision. */
   getRouteDecision(routeId: string): Promise<CommunicationRouteDecision | null>;
+
+  /** Retrieve canonical connector registration metadata. */
+  getConnectorRegistration(
+    connectorId: string,
+  ): Promise<CommunicationConnectorRegistration | null> | CommunicationConnectorRegistration | null;
+
+  /** Retrieve canonical connector session metadata. */
+  getConnectorSession(
+    connectorId: string,
+  ): Promise<CommunicationConnectorSession | null> | CommunicationConnectorSession | null;
+}
+
+export interface IAppCredentialInstallService {
+  /** Store one app install/config secret directly into the vault. */
+  storeSecretField(
+    appId: string,
+    request: CredentialStoreRequest,
+  ): Promise<CredentialStoreResult>;
+
+  /** Run one install-hook scoped OAuth flow and store tokens directly in the vault. */
+  openOAuthFlow(
+    request: CredentialOAuthFlowRequest,
+  ): Promise<CredentialOAuthFlowResult>;
+
+  /** Revoke one install-time credential by key. */
+  revokeCredential(
+    appId: string,
+    request: CredentialRevokeRequest,
+  ): Promise<CredentialRevokeResult>;
 }
 
 export interface IPublicMcpGatewayService {
@@ -718,6 +798,11 @@ export interface IPackageLifecycleOrchestrator {
     request: PackageLifecycleTransitionRequest,
   ): Promise<PackageLifecycleTransitionResult>;
 
+  /** Record canonical transition into runtime-active state. */
+  run(
+    request: PackageLifecycleTransitionRequest,
+  ): Promise<PackageLifecycleTransitionResult>;
+
   /** Stage package update while preserving previous safe version snapshot. */
   stageUpdate(
     request: PackageLifecycleTransitionRequest,
@@ -748,11 +833,63 @@ export interface IPackageLifecycleOrchestrator {
     request: PackageLifecycleTransitionRequest,
   ): Promise<PackageLifecycleTransitionResult>;
 
+  /** Disable package runtime activity while preserving canonical lifecycle truth. */
+  disable(
+    request: PackageLifecycleTransitionRequest,
+  ): Promise<PackageLifecycleTransitionResult>;
+
   /** Retrieve canonical lifecycle state for project/package identity. */
   getState(
     projectId: ProjectId,
     packageId: string,
   ): Promise<PackageLifecycleStateRecord | null>;
+}
+
+export interface IAppRuntimeService {
+  /** Activate one installed app package and publish the runtime session. */
+  activate(input: AppRuntimeActivationInput): Promise<AppRuntimeSession>;
+
+  /** Deactivate one runtime session and clean up runtime-owned registrations. */
+  deactivate(
+    input: AppRuntimeDeactivationInput,
+  ): Promise<AppRuntimeSession | null>;
+
+  /** Reconcile runtime-owned state after a subprocess exit. */
+  handleProcessExit(
+    input: AppProcessExitEvent,
+  ): Promise<AppRuntimeSession | null>;
+
+  /** Lookup one runtime session by session ID. */
+  getSession(sessionId: string): Promise<AppRuntimeSession | null>;
+
+  /** List runtime sessions, optionally filtered by package ID. */
+  listSessions(packageId?: string): Promise<AppRuntimeSession[]>;
+
+  /** Record one heartbeat signal and return the resulting health snapshot. */
+  recordHeartbeat(signal: AppHeartbeatSignal): Promise<AppHealthSnapshot>;
+
+  /** Publish an explicit health snapshot from the runtime. */
+  updateHealth(snapshot: AppHealthSnapshot): Promise<AppHealthSnapshot>;
+
+  /** Submit normalized connector ingress through the host-owned app runtime bridge. */
+  submitConnectorIngress(
+    input: AppConnectorIngressIntent,
+  ): Promise<CommunicationIngressOutcome>;
+
+  /** Submit canonical connector egress through the host-owned app runtime bridge. */
+  dispatchConnectorEgress(
+    input: AppConnectorEgressIntent,
+  ): Promise<CommunicationEgressOutcome>;
+
+  /** Publish connector session metadata and health through the host-owned bridge. */
+  reportConnectorSession(
+    input: AppConnectorSessionReport,
+  ): Promise<AppHealthSnapshot>;
+}
+
+export interface IPackageInstallService {
+  /** Resolve, authorize, materialize, and record one package install or update. */
+  installPackage(request: PackageInstallRequest): Promise<PackageInstallResult>;
 }
 
 export interface ISkillAdmissionOrchestrator {

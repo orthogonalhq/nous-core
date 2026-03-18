@@ -1,4 +1,4 @@
-import { describe, expect, it } from 'vitest';
+import { describe, expect, it, vi } from 'vitest';
 import type { PackageLifecycleTransitionRequest } from '@nous/shared';
 import { PackageLifecycleOrchestrator } from '../package-lifecycle/orchestrator.js';
 
@@ -216,6 +216,88 @@ describe('PackageLifecycleOrchestrator', () => {
     expect(blockedRemove.reason_code).toBe(
       'PKG-005-REMOVE_RETENTION_DECISION_REQUIRED',
     );
+  });
+
+  it('purges app credentials before package removal completes', async () => {
+    const purgeNamespace = vi.fn().mockResolvedValue({
+      app_id: 'app:weather',
+      purged_count: 2,
+      purged_at: '2026-03-02T00:00:00.000Z',
+    });
+    const orchestrator = new PackageLifecycleOrchestrator({
+      now: () => new Date('2026-03-02T00:00:00.000Z'),
+      credentialVaultService: {
+        purgeNamespace,
+      },
+    });
+
+    await orchestrator.ingest(buildRequest('ingest', { package_id: 'app:weather' }));
+    await orchestrator.install(
+      buildRequest('install', {
+        package_id: 'app:weather',
+        admission: {
+          signature_valid: true,
+          signer_known: true,
+          policy_compatible: true,
+          is_draft_unsigned: false,
+          is_imported: false,
+          reverification_complete: true,
+          reapproval_complete: true,
+        },
+        compatibility: {
+          api_compatible: true,
+        },
+      }),
+    );
+
+    const removed = await orchestrator.removePackage(
+      buildRequest('remove', {
+        package_id: 'app:weather',
+        retention_decision: 'delete_confirmed',
+      }),
+    );
+
+    expect(removed.decision).toBe('allowed');
+    expect(removed.to_state).toBe('removed');
+    expect(purgeNamespace).toHaveBeenCalledWith('app:weather');
+  });
+
+  it('blocks removal when credential purge fails', async () => {
+    const orchestrator = new PackageLifecycleOrchestrator({
+      now: () => new Date('2026-03-02T00:00:00.000Z'),
+      credentialVaultService: {
+        purgeNamespace: vi.fn().mockRejectedValue(new Error('purge failed')),
+      },
+    });
+
+    await orchestrator.ingest(buildRequest('ingest', { package_id: 'app:weather' }));
+    await orchestrator.install(
+      buildRequest('install', {
+        package_id: 'app:weather',
+        admission: {
+          signature_valid: true,
+          signer_known: true,
+          policy_compatible: true,
+          is_draft_unsigned: false,
+          is_imported: false,
+          reverification_complete: true,
+          reapproval_complete: true,
+        },
+        compatibility: {
+          api_compatible: true,
+        },
+      }),
+    );
+
+    const removed = await orchestrator.removePackage(
+      buildRequest('remove', {
+        package_id: 'app:weather',
+        retention_decision: 'delete_confirmed',
+      }),
+    );
+
+    expect(removed.decision).toBe('blocked');
+    expect(removed.reason_code).toBe('PKG-010-CREDENTIAL_PURGE_FAILED');
   });
 
   it('blocks install when registry eligibility requires Principal override', async () => {

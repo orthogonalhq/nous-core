@@ -1,4 +1,9 @@
+import { mkdtemp, mkdir, rm, writeFile } from 'node:fs/promises';
+import { join } from 'node:path';
+import { tmpdir } from 'node:os';
 import { describe, it, expect, vi } from 'vitest';
+import { afterEach } from 'vitest';
+import { NodeRuntime } from '@nous/autonomic-runtime';
 import { DeterministicWorkflowEngine } from '../workflow-engine.js';
 
 const PROJECT_ID = '550e8400-e29b-41d4-a716-446655440501';
@@ -9,6 +14,7 @@ const PATTERN_ID = '550e8400-e29b-41d4-a716-446655440505';
 const EVENT_ID = '550e8400-e29b-41d4-a716-446655440506';
 const RUN_ID = '550e8400-e29b-41d4-a716-446655440508';
 const TRIGGER_ID = '550e8400-e29b-41d4-a716-446655440509';
+const BOUND_WORKFLOW_ID = '550e8400-e29b-41d4-a716-446655440512';
 
 const projectConfig = {
   id: PROJECT_ID,
@@ -70,11 +76,118 @@ const projectConfig = {
         ],
       },
     ],
+    packageBindings: [],
   },
   retrievalBudgetTokens: 500,
   createdAt: '2026-03-08T00:00:00.000Z',
   updatedAt: '2026-03-08T00:00:00.000Z',
 } as const;
+
+const tempRoots: string[] = [];
+
+afterEach(async () => {
+  await Promise.all(
+    tempRoots.splice(0).map((root) => rm(root, { recursive: true, force: true })),
+  );
+});
+
+const sanitizePackageId = (packageId: string): string =>
+  packageId.replace(/[^a-zA-Z0-9._-]+/g, '__');
+
+async function createInstanceRoot(): Promise<string> {
+  const root = await mkdtemp(join(tmpdir(), 'nous-workflow-engine-'));
+  tempRoots.push(root);
+  await Promise.all([
+    mkdir(join(root, '.apps'), { recursive: true }),
+    mkdir(join(root, '.skills'), { recursive: true }),
+    mkdir(join(root, '.workflows'), { recursive: true }),
+    mkdir(join(root, '.projects'), { recursive: true }),
+    mkdir(join(root, '.contracts'), { recursive: true }),
+  ]);
+  return root;
+}
+
+async function writeInstalledWorkflow(instanceRoot: string) {
+  const packageRoot = join(
+    instanceRoot,
+    '.workflows',
+    sanitizePackageId('workflow.engine'),
+  );
+  await mkdir(join(packageRoot, 'steps'), { recursive: true });
+  await writeFile(
+    join(packageRoot, '.nous-package.json'),
+    JSON.stringify({ package_version: '2.0.0' }, null, 2),
+  );
+  await writeFile(
+    join(packageRoot, 'WORKFLOW.md'),
+    `---
+name: engine-workflow
+description: Engine workflow package.
+entrypoint: draft
+---
+
+# Workflow
+`,
+  );
+  await writeFile(
+    join(packageRoot, 'nous.flow.yaml'),
+    `nous:
+  v: 1
+flow:
+  id: engine-workflow
+  mode: graph
+  entry_step: draft
+  steps:
+    - id: draft
+      file: steps/draft.md
+      next: ["review"]
+    - id: review
+      file: steps/review.md
+      next: []
+`,
+  );
+  await writeFile(
+    join(packageRoot, 'steps', 'draft.md'),
+    `---
+nous:
+  v: 1
+  kind: workflow_step
+  id: draft
+name: Draft
+type: model-call
+governance: must
+executionModel: synchronous
+config:
+  type: model-call
+  modelRole: reasoner
+  promptRef: prompt://draft
+---
+
+# Draft
+`,
+  );
+  await writeFile(
+    join(packageRoot, 'steps', 'review.md'),
+    `---
+nous:
+  v: 1
+  kind: workflow_step
+  id: review
+name: Review
+type: quality-gate
+governance: must
+executionModel: synchronous
+config:
+  type: quality-gate
+  evaluatorRef: evaluator://quality
+  passThresholdRef: threshold://default
+  failureAction: block
+---
+
+# Review
+`,
+  );
+}
 
 function createGovernanceDecision(input: {
   actionCategory: 'model-invoke' | 'trace-persist';
@@ -182,6 +295,37 @@ describe('DeterministicWorkflowEngine', () => {
     const current = await engine.getState(runId);
     expect(current?.status).toBe('completed');
     expect(current?.triggerContext?.dispatchRef).toBe(`dispatch:${RUN_ID}`);
+  });
+
+  it('cancels active workflow runs and rejects repeat terminal cancellation', async () => {
+    const engine = new DeterministicWorkflowEngine();
+    const started = await engine.start({
+      projectConfig: projectConfig as any,
+      runId: RUN_ID as any,
+      workmodeId: 'system:implementation',
+      sourceActor: 'orchestration_agent',
+      controlState: 'running',
+    });
+
+    expect(started.status).toBe('started');
+    if (started.status !== 'started') {
+      return;
+    }
+
+    const canceled = await engine.cancel(started.runState.runId, {
+      reasonCode: 'workflow_canceled',
+      evidenceRefs: ['workflow:cancel'],
+    });
+    expect(canceled.status).toBe('canceled');
+    expect(canceled.activeNodeIds).toEqual([]);
+    expect(canceled.readyNodeIds).toEqual([]);
+
+    await expect(
+      engine.cancel(started.runState.runId, {
+        reasonCode: 'workflow_canceled',
+        evidenceRefs: ['workflow:cancel'],
+      }),
+    ).rejects.toThrow(/cannot be canceled/i);
   });
 
   it('executes ready nodes through governance and handler dispatch', async () => {
@@ -342,5 +486,80 @@ describe('DeterministicWorkflowEngine', () => {
         '550e8400-e29b-41d4-a716-446655440598' as any,
       ),
     ).toBeNull();
+  });
+
+  it('resolves installed workflow definitions from project bindings and reports source metadata', async () => {
+    const instanceRoot = await createInstanceRoot();
+    await writeInstalledWorkflow(instanceRoot);
+    const runtime = new NodeRuntime();
+    const engine = new DeterministicWorkflowEngine({
+      runtime,
+      instanceRoot,
+    });
+    const boundProjectConfig = {
+      ...projectConfig,
+      workflow: {
+        definitions: [],
+        packageBindings: [
+          {
+            workflowDefinitionId: BOUND_WORKFLOW_ID,
+            workflowPackageId: 'workflow.engine',
+            workflowPackageVersion: '2.0.0',
+            entrypoint: 'draft',
+            boundAt: '2026-03-16T18:00:00.000Z',
+            manifestRef: '.workflows/workflow__engine/WORKFLOW.md',
+          },
+        ],
+        defaultWorkflowDefinitionId: BOUND_WORKFLOW_ID,
+      },
+    };
+
+    const definition = await engine.resolveDefinition(boundProjectConfig as any);
+    const source = await engine.resolveDefinitionSource(boundProjectConfig as any);
+
+    expect(definition.id).toBe(BOUND_WORKFLOW_ID);
+    expect(definition.entryNodeIds).toHaveLength(1);
+    expect(definition.entryNodeIds[0]).toMatch(
+      /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i,
+    );
+    expect(source?.sourceKind).toBe('installed_package');
+    expect(source?.packageId).toBe('workflow.engine');
+  });
+
+  it('blocks start when a bound installed workflow definition cannot be resolved', async () => {
+    const runtime = new NodeRuntime();
+    const engine = new DeterministicWorkflowEngine({
+      runtime,
+      instanceRoot: process.cwd(),
+    });
+    const boundProjectConfig = {
+      ...projectConfig,
+      workflow: {
+        definitions: [],
+        packageBindings: [
+          {
+            workflowDefinitionId: BOUND_WORKFLOW_ID,
+            workflowPackageId: 'workflow.missing',
+            workflowPackageVersion: '9.9.9',
+            entrypoint: 'draft',
+            boundAt: '2026-03-16T18:00:00.000Z',
+            manifestRef: '.workflows/workflow__missing/WORKFLOW.md',
+          },
+        ],
+        defaultWorkflowDefinitionId: BOUND_WORKFLOW_ID,
+      },
+    };
+
+    const started = await engine.start({
+      projectConfig: boundProjectConfig as any,
+      workmodeId: 'system:implementation',
+      sourceActor: 'orchestration_agent',
+      controlState: 'running',
+    });
+
+    expect(started.status).toBe('admission_blocked');
+    if (started.status === 'admission_blocked') {
+      expect(started.admission.reasonCode).toBe('workflow_definition_unavailable');
+    }
   });
 });

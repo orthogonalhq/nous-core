@@ -5,6 +5,11 @@
  */
 import { z } from 'zod';
 import { WorkmodeIdSchema } from './workmode.js';
+import {
+  LegacyWorkflowRefsSchema,
+  SkillPackageKindSchema,
+  SkillResourceRefsSchema,
+} from './package-documents.js';
 
 export const SKILL_ADMISSION_EVENT_TYPES = [
   'skill_creator_started',
@@ -75,8 +80,14 @@ export const SkillRuntimeArtifactSchema = z.object({
   revision_id: z.string().min(1),
   skill_root_ref: z.string().min(1),
   has_skill_md: z.boolean(),
-  has_flow_yaml: z.boolean().default(false),
-  step_refs: z.array(z.string().min(1)),
+  manifest_ref: z.string().min(1).optional(),
+  skill_package_kind: SkillPackageKindSchema.default('atomic'),
+  resource_refs: SkillResourceRefsSchema.default({
+    references: [],
+    scripts: [],
+    assets: [],
+  }),
+  legacy_workflow_refs: LegacyWorkflowRefsSchema.optional(),
   agents_openai_yaml_ref: z.string().min(1).optional(),
   changelog_ref: z.string().min(1).optional(),
 });

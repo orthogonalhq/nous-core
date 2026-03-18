@@ -3,6 +3,8 @@ import type {
   ChannelEgressEnvelope,
   ChannelIngressEnvelope,
   CommunicationApprovalIntakeRecord,
+  CommunicationConnectorRegistration,
+  CommunicationConnectorSession,
   CommunicationEgressOutcome,
   CommunicationEscalationAcknowledgementInput,
   CommunicationIdentityBindingRecord,
@@ -21,6 +23,8 @@ import type {
 import {
   ChannelEgressEnvelopeSchema,
   ChannelIngressEnvelopeSchema,
+  CommunicationConnectorRegistrationSchema,
+  CommunicationConnectorSessionSchema,
   CommunicationEscalationAcknowledgementInputSchema,
   CommunicationEgressOutcomeSchema,
   CommunicationIdentityBindingUpsertInputSchema,
@@ -65,6 +69,8 @@ export class CommunicationGatewayService implements ICommunicationGatewayService
   private readonly deliveryOrchestrator?: DeliveryOrchestrator;
   private readonly now: () => string;
   private readonly idFactory: () => string;
+  private readonly connectorRegistrations = new Map<string, CommunicationConnectorRegistration>();
+  private readonly connectorSessions = new Map<string, CommunicationConnectorSession>();
 
   constructor(private readonly options: CommunicationGatewayServiceOptions) {
     if (!options.communicationStore && !options.documentStore) {
@@ -122,6 +128,14 @@ export class CommunicationGatewayService implements ICommunicationGatewayService
     envelope: ChannelIngressEnvelope,
   ): Promise<CommunicationIngressOutcome> {
     const parsed = ChannelIngressEnvelopeSchema.parse(envelope);
+    this.touchConnectorSession(`connector:${parsed.channel}:${parsed.account_id}`, {
+      status: 'active',
+      health: 'healthy',
+      metadata: {
+        last_ingress_id: parsed.ingress_id,
+        channel: parsed.channel,
+      },
+    });
     const binding = await this.bindingStore.findByIdentity({
       channel: parsed.channel,
       account_id: parsed.account_id,
@@ -202,6 +216,14 @@ export class CommunicationGatewayService implements ICommunicationGatewayService
     envelope: ChannelEgressEnvelope,
   ): Promise<CommunicationEgressOutcome> {
     const parsed = ChannelEgressEnvelopeSchema.parse(envelope);
+    this.touchConnectorSession(`connector:${parsed.channel}:${parsed.account_id}`, {
+      status: 'active',
+      health: 'healthy',
+      metadata: {
+        last_egress_id: parsed.egress_id,
+        channel: parsed.channel,
+      },
+    });
     if (!this.deliveryOrchestrator) {
       throw new Error('dispatchEgress requires a delivery provider');
     }
@@ -360,6 +382,57 @@ export class CommunicationGatewayService implements ICommunicationGatewayService
     return this.store.getRouteDecision(routeId);
   }
 
+  registerConnector(input: {
+    connector_id: string;
+    kind: CommunicationConnectorRegistration['kind'];
+    account_id: string;
+    project_id?: string;
+    binding_ref?: string;
+  }): CommunicationConnectorRegistration {
+    const registration = CommunicationConnectorRegistrationSchema.parse({
+      ...input,
+      status: 'registered',
+      registered_at: this.now(),
+    });
+    this.connectorRegistrations.set(registration.connector_id, registration);
+    return registration;
+  }
+
+  reportConnectorSession(
+    input: CommunicationConnectorSession,
+  ): CommunicationConnectorSession {
+    const parsed = CommunicationConnectorSessionSchema.parse(input);
+    const currentRegistration = this.connectorRegistrations.get(parsed.connector_id);
+    if (currentRegistration) {
+      this.connectorRegistrations.set(parsed.connector_id, {
+        ...currentRegistration,
+        status:
+          parsed.status === 'stopped'
+            ? 'stopped'
+            : parsed.health === 'degraded' || parsed.status === 'degraded'
+              ? 'degraded'
+              : 'active',
+      });
+    }
+    this.connectorSessions.set(parsed.connector_id, parsed);
+    return parsed;
+  }
+
+  unregisterConnector(connectorId: string): void {
+    this.connectorRegistrations.delete(connectorId);
+    this.connectorSessions.delete(connectorId);
+  }
+
+  getConnectorRegistration(
+    connectorId: string,
+  ): CommunicationConnectorRegistration | null {
+    return this.connectorRegistrations.get(connectorId) ?? null;
+  }
+
+  getConnectorSession(connectorId: string): CommunicationConnectorSession | null {
+    return this.connectorSessions.get(connectorId) ?? null;
+  }
+
   private async maybeBlockAdvisory(
     route: CommunicationRouteDecision,
     egressId: string,
@@ -432,6 +505,25 @@ export class CommunicationGatewayService implements ICommunicationGatewayService
     reasonCodes: readonly CommunicationRejectReason[],
   ): CommunicationRejectReason {
     return reasonCodes[0] ?? 'policy_blocked';
+  }
+
+  private touchConnectorSession(
+    connectorId: string,
+    input: Pick<CommunicationConnectorSession, 'status' | 'health' | 'metadata'>,
+  ): void {
+    const current = this.connectorSessions.get(connectorId);
+    this.reportConnectorSession({
+        connector_id: connectorId,
+        endpoint_id: current?.endpoint_id,
+        peripheral_id: current?.peripheral_id,
+        status: input.status,
+        last_seen_at: this.now(),
+        health: input.health,
+        metadata: {
+          ...current?.metadata,
+          ...input.metadata,
+        },
+      });
   }
 
   private async recordWitness(

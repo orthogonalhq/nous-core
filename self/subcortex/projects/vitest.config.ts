@@ -9,6 +9,10 @@ export default defineConfig({
   resolve: {
     alias: {
       '@nous/shared': path.resolve(__dirname, '../../shared/src/index.ts'),
+      '@nous/autonomic-runtime': path.resolve(
+        __dirname,
+        '../../autonomic/runtime/src/index.ts',
+      ),
       '@nous/autonomic-storage': path.resolve(__dirname, '../../autonomic/storage/src/index.ts'),
     },
   },

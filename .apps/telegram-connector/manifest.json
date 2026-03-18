@@ -1,0 +1,146 @@
+{
+  "id": "telegram",
+  "name": "telegram-connector",
+  "display_name": "Telegram Connector",
+  "description": "First-party Telegram connector reference app for the canonical Deno app framework.",
+  "version": "1.0.0",
+  "package_type": "app",
+  "origin_class": "nous_first_party",
+  "api_contract_range": "^1.0.0",
+  "capabilities": [
+    "tool.execute",
+    "tool.list"
+  ],
+  "permissions": {
+    "network": [
+      "api.telegram.org",
+      "file.telegram.org"
+    ],
+    "credentials": true,
+    "witnessLevel": "session",
+    "systemNotify": false,
+    "memoryContribute": true
+  },
+  "tools": [
+    {
+      "name": "connector_status",
+      "description": "Report connector mode, health, and canonical connector-session posture.",
+      "inputSchema": {
+        "type": "object",
+        "additionalProperties": false
+      },
+      "outputSchema": {
+        "type": "object"
+      },
+      "riskLevel": "low",
+      "idempotent": true,
+      "sideEffects": [],
+      "memoryRelevance": "low"
+    },
+    {
+      "name": "sync_updates",
+      "description": "Normalize Telegram updates and submit them to the canonical communication gateway ingress path.",
+      "inputSchema": {
+        "type": "object"
+      },
+      "outputSchema": {
+        "type": "object"
+      },
+      "riskLevel": "medium",
+      "idempotent": true,
+      "sideEffects": [
+        "gateway_ingress"
+      ],
+      "memoryRelevance": "high"
+    },
+    {
+      "name": "send_message",
+      "description": "Request canonical gateway egress dispatch for one Telegram message.",
+      "inputSchema": {
+        "type": "object"
+      },
+      "outputSchema": {
+        "type": "object"
+      },
+      "riskLevel": "high",
+      "idempotent": false,
+      "sideEffects": [
+        "telegram_delivery"
+      ],
+      "memoryRelevance": "medium"
+    },
+    {
+      "name": "acknowledge_escalation",
+      "description": "Submit a canonical acknowledgement token for escalation continuity.",
+      "inputSchema": {
+        "type": "object"
+      },
+      "outputSchema": {
+        "type": "object"
+      },
+      "riskLevel": "medium",
+      "idempotent": true,
+      "sideEffects": [
+        "gateway_acknowledgement"
+      ],
+      "memoryRelevance": "medium"
+    }
+  ],
+  "config": {
+    "bot_token": {
+      "type": "secret",
+      "required": true,
+      "label": "Bot Token",
+      "description": "Telegram bot token stored in the credential vault.",
+      "group": "connector"
+    },
+    "bot_username": {
+      "type": "string",
+      "required": false,
+      "label": "Bot Username",
+      "description": "Optional Telegram bot username for mention handling.",
+      "group": "connector"
+    },
+    "default_account_id": {
+      "type": "string",
+      "required": false,
+      "label": "Default Account Id",
+      "description": "Canonical account id used for connector registration.",
+      "group": "connector"
+    },
+    "client_api_id": {
+      "type": "string",
+      "required": false,
+      "label": "Client API Id",
+      "description": "Optional Telegram full-client API identifier.",
+      "group": "full_client"
+    },
+    "client_api_hash": {
+      "type": "secret",
+      "required": false,
+      "label": "Client API Hash",
+      "description": "Optional Telegram full-client API hash stored in the vault.",
+      "group": "full_client"
+    },
+    "client_phone_number": {
+      "type": "string",
+      "required": false,
+      "label": "Client Phone Number",
+      "description": "Optional Telegram phone number used for full-client validation.",
+      "group": "full_client"
+    }
+  },
+  "adapters": [
+    {
+      "name": "telegram",
+      "healthCheckRef": "telegram.connector_status",
+      "description": "Telegram connector app runtime metadata."
+    }
+  ],
+  "lifecycle": {
+    "onInstall": "./src/hooks/install.ts",
+    "onActivate": "./src/hooks/activate.ts",
+    "onDeactivate": "./src/hooks/deactivate.ts",
+    "onUninstall": "./src/hooks/uninstall.ts"
+  }
+}

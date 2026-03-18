@@ -78,7 +78,7 @@ Never store credentials in CLI config files. Use environment variables:
 
 ## Package Trust Architecture (Phase 7)
 
-Phase 7 establishes the package trust and lifecycle security baseline. Skills and project packages are verified, signed, and governed before execution. The following applies when package lifecycle features are implemented (Phase 7.2+).
+Phase 7 establishes the package trust and lifecycle security baseline. Skill, workflow, and app packages are verified, signed, and governed before execution. The following applies when package lifecycle features are implemented (Phase 7.2+).
 
 ### Fail-Closed Posture
 
@@ -131,7 +131,7 @@ When an update is rolled back (e.g., migration failure):
 ```json
 {
   "event_type": "pkg_update_rolled_back",
-  "package_id": "project:persona-engine",
+  "package_id": "workflow:persona-engine",
   "package_version": "2.0.0",
   "origin_class": "nous_first_party",
   "reason_code": "PKG-004-MIGRATION_FAILED",

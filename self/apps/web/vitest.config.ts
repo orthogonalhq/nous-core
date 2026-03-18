@@ -9,7 +9,19 @@ export default defineConfig({
     alias: {
       '@': path.resolve(__dirname),
       '@nous/shared': path.resolve(__dirname, '../../shared/src/index.ts'),
+      '@nous/autonomic-runtime': path.resolve(
+        __dirname,
+        '../../autonomic/runtime/src/index.ts',
+      ),
       '@nous/cortex-core': path.resolve(__dirname, '../../cortex/core/src/index.ts'),
+      '@nous/subcortex-projects': path.resolve(
+        __dirname,
+        '../../subcortex/projects/src/index.ts',
+      ),
+      '@nous/subcortex-workflows': path.resolve(
+        __dirname,
+        '../../subcortex/workflows/src/index.ts',
+      ),
       '@nous/subcortex-registry': path.resolve(
         __dirname,
         '../../subcortex/registry/src/index.ts',

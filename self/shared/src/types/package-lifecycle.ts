@@ -3,7 +3,7 @@
  */
 import { z } from 'zod';
 import { OriginClassSchema } from './package-manifest.js';
-import { RegistryInstallEligibilitySnapshotSchema } from './registry.js';
+import { RegistryInstallEligibilitySnapshotSchema } from './registry-eligibility.js';
 
 export const PACKAGE_LIFECYCLE_EVENT_TYPES = [
   'pkg_ingest_received',
@@ -14,6 +14,8 @@ export const PACKAGE_LIFECYCLE_EVENT_TYPES = [
   'pkg_capability_approved',
   'pkg_capability_blocked',
   'pkg_enabled',
+  'pkg_running',
+  'pkg_disabled',
   'pkg_enable_blocked',
   'pkg_update_staged',
   'pkg_update_committed',
@@ -72,6 +74,36 @@ export const PACKAGE_LIFECYCLE_REASON_CODES = {
     'self_created_local package imported across instances requires re-trust.',
   'PKG-008-IMPORT_VERIFICATION_PENDING':
     'Import remains blocked until receiving instance re-verifies package.',
+  'PKG-009-DEPENDENCY_CYCLE':
+    'Dependency resolution detected a cycle and blocked installation.',
+  'PKG-009-DEPENDENCY_UNRESOLVED':
+    'Dependency resolution could not find a required package or release.',
+  'PKG-009-DEPENDENCY_RANGE_CONFLICT':
+    'Dependency resolution could not satisfy all requested version ranges.',
+  'PKG-009-STORE_TARGET_INVALID':
+    'Resolved package target is not a canonical install store.',
+  'PKG-009-SYSTEM_BOUNDARY_VIOLATION':
+    'Resolved package target crosses the protected .system boundary.',
+  'PKG-009-INSTALL_WRITE_FAILED':
+    'Package installation write failed and rollback was required.',
+  'PKG-010-SPAWN_FAILED':
+    'Runtime subprocess spawn failed before activation completed.',
+  'PKG-010-HANDSHAKE_TIMEOUT':
+    'Runtime activation handshake timed out before readiness was proven.',
+  'PKG-010-HANDSHAKE_INVALID':
+    'Runtime activation handshake payload was malformed or invalid.',
+  'PKG-010-TOOL_NAMESPACE_COLLISION':
+    'Runtime tool registration collided with an existing tool namespace.',
+  'PKG-010-CREDENTIAL_PURGE_FAILED':
+    'Credential namespace purge failed before package removal completed.',
+  'PKG-010-OAUTH_FLOW_FAILED':
+    'Install-hook scoped OAuth flow failed before package setup completed.',
+  'PKG-010-CREDENTIAL_TARGET_HOST_BLOCKED':
+    'Credential injection target host did not satisfy stored metadata and manifest policy.',
+  'PKG-010-HEARTBEAT_STALE':
+    'Runtime heartbeat freshness could no longer be proven.',
+  'PKG-010-HEALTH_PAYLOAD_INVALID':
+    'Runtime health payload was malformed or failed validation.',
   'MKT-002-UNREGISTERED_EXTERNAL':
     'Registry eligibility blocked an unregistered external package.',
   'MKT-004-PRINCIPAL_OVERRIDE_REQUIRED':
@@ -100,7 +132,7 @@ export const PACKAGE_LIFECYCLE_REASON_CODES = {
 
 export const PackageLifecycleReasonCodeSchema = z
   .string()
-  .regex(/^(PKG-00[1-8]|MKT-00[1-9]|API-003)-[A-Z0-9][A-Z0-9_-]*$/);
+  .regex(/^(PKG-0(0[1-9]|1[0-9])|MKT-00[1-9]|API-003)-[A-Z0-9][A-Z0-9_-]*$/);
 export type PackageLifecycleReasonCode = z.infer<
   typeof PackageLifecycleReasonCodeSchema
 >;
@@ -109,7 +141,7 @@ export const PackageLifecycleEventBaseSchema = z.object({
   event_type: PackageLifecycleEventTypeSchema,
   package_id: z.string().min(1),
   package_version: z.string().min(1),
-  origin_class: OriginClassSchema,
+  origin_class: z.lazy(() => OriginClassSchema),
   reason_code: PackageLifecycleReasonCodeSchema.optional(),
   witness_ref: z.string().min(1),
 });
@@ -249,7 +281,7 @@ export const PackageLifecycleTransitionRequestSchema = z.object({
   project_id: z.string().min(1),
   package_id: z.string().min(1),
   package_version: z.string().min(1),
-  origin_class: OriginClassSchema,
+  origin_class: z.lazy(() => OriginClassSchema),
   target_transition: PackageLifecycleTransitionSchema,
   target_version: z.string().min(1).optional(),
   actor_id: z.string().min(1),
@@ -258,7 +290,9 @@ export const PackageLifecycleTransitionRequestSchema = z.object({
   admission: PackageLifecycleAdmissionInputSchema.optional(),
   compatibility: PackageLifecycleCompatibilityInputSchema.optional(),
   capability: PackageLifecycleCapabilityInputSchema.optional(),
-  registry_eligibility: RegistryInstallEligibilitySnapshotSchema.optional(),
+  registry_eligibility: z
+    .lazy(() => RegistryInstallEligibilitySnapshotSchema)
+    .optional(),
   update_checks: PackageLifecycleUpdateChecksSchema.optional(),
   rollback: PackageLifecycleRollbackInputSchema.optional(),
   checkpoint_ref: z.string().min(1).optional(),
@@ -271,7 +305,7 @@ export const PackageLifecycleStateRecordSchema = z.object({
   project_id: z.string().min(1),
   package_id: z.string().min(1),
   package_version: z.string().min(1),
-  origin_class: OriginClassSchema,
+  origin_class: z.lazy(() => OriginClassSchema),
   current_state: PackageLifecycleStateSchema,
   previous_safe_version: z.string().min(1).optional(),
   trust_scope: z.enum([

@@ -460,6 +460,10 @@ implements IPrincipalSystemGatewayRuntime, ISystemInboxSubmissionService {
       scheduler: this.deps.scheduler,
       escalationService: this.deps.escalationService,
       witnessService: this.deps.witnessService,
+      opctlService: this.deps.opctlService,
+      runtime: this.deps.runtime,
+      appRuntimeService: this.deps.appRuntimeService,
+      instanceRoot: this.deps.instanceRoot,
       outputSchemaValidator: this.deps.outputSchemaValidator,
       workmodeAdmissionGuard: this.workmodeAdmissionGuard,
       dispatchRuntime: {
