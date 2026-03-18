@@ -153,11 +153,11 @@ description: Reference for all tRPC procedures
 
 | Procedure | Type | Input | Output |
 |----------|------|-------|--------|
-| `packages.listAppPanels` | query | — | `{ app_id, panel_id, label, route_path, dockview_panel_id, preserve_state, position? }[]` |
+| `packages.listAppPanels` | query | — | `{ app_id, panel_id, label, route_path, dockview_panel_id, preserve_state, position?, config_snapshot }[]` |
 | `packages.install` | mutation | `PackageInstallRequest` | `PackageInstallResult` |
 
 - `packages.listAppPanels` — Returns the runtime-owned projection of active manifest-declared app panels for trusted first-party hosts.
-  - Each item includes the canonical `route_path`, host-safe `dockview_panel_id`, panel label, `preserve_state`, and optional dock position.
+  - Each item includes the canonical `route_path`, host-safe `dockview_panel_id`, panel label, `preserve_state`, optional dock position, and the sanitized `config_snapshot` used by trusted hosts during panel bridge bootstrap.
   - Panels appear here only while an app session is active; manifest declarations alone do not make a panel serveable.
 - `packages.install` — Runs the canonical package install pipeline for one project-scoped package request.
   - Input fields: `project_id`, `package_id`, optional `requested_version_range`, optional `release_id`, `actor_id`, optional `instance_root`, and optional `evidence_refs`.
