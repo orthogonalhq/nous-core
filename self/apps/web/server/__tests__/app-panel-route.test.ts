@@ -65,6 +65,7 @@ describe('app panel route', () => {
     );
     expect(response.headers.get('x-nous-panel-cache')).toBe('miss');
     expect(body).toContain('window.__NOUS_MCP_ENDPOINT__="http://localhost:3000/mcp"');
+    expect(body).toContain('window.__NOUS_PANEL_BRIDGE_BOOTSTRAP__=');
     expect(body).toContain('console.log("forecast");');
   });
 

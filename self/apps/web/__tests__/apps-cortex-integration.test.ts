@@ -64,6 +64,12 @@ describe('apps → cortex integration', () => {
         manifest_ref: '/repo/.apps/weather/manifest.json',
         route_path: '/apps/app%3Aweather/panels/forecast',
         dockview_panel_id: 'app:app:weather:forecast',
+        config_snapshot: {
+          units: {
+            value: 'metric',
+            source: 'project_config',
+          },
+        },
       },
     ] as any);
 
@@ -76,6 +82,12 @@ describe('apps → cortex integration', () => {
         route_path: '/apps/app%3Aweather/panels/forecast',
         dockview_panel_id: 'app:app:weather:forecast',
         preserve_state: true,
+        config_snapshot: {
+          units: {
+            value: 'metric',
+            source: 'project_config',
+          },
+        },
       },
     ]);
   });

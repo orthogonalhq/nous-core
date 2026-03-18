@@ -1,4 +1,5 @@
 import { z } from 'zod';
+import { PANEL_BRIDGE_PROTOCOL_VERSION } from '@nous/shared';
 import { createNousContext } from '@/server/bootstrap';
 
 const AppPanelRouteParamsSchema = z.object({
@@ -20,9 +21,18 @@ async function resolveParams(
 }
 
 function buildPanelHtml(input: {
+  appId: string;
+  panelId: string;
   mcpEndpoint: string;
   bundleJs: string;
 }): string {
+  const bootstrap = {
+    protocol: PANEL_BRIDGE_PROTOCOL_VERSION,
+    app_id: input.appId,
+    panel_id: input.panelId,
+    mcp_endpoint: input.mcpEndpoint,
+  };
+
   return [
     '<!DOCTYPE html>',
     '<html lang="en">',
@@ -30,7 +40,7 @@ function buildPanelHtml(input: {
     '  <meta charset="utf-8">',
     '  <meta name="viewport" content="width=device-width, initial-scale=1">',
     '  <style>html,body,#root{height:100%;margin:0;}body{overflow:hidden;}</style>',
-    `  <script>window.__NOUS_MCP_ENDPOINT__=${JSON.stringify(input.mcpEndpoint)};</script>`,
+    `  <script>window.__NOUS_MCP_ENDPOINT__=${JSON.stringify(input.mcpEndpoint)};window.__NOUS_PANEL_BRIDGE_BOOTSTRAP__=${JSON.stringify(bootstrap)};</script>`,
     '</head>',
     '<body>',
     '  <div id="root"></div>',
@@ -77,6 +87,8 @@ export async function GET(
     const transpiled = await ctx.panelTranspiler.getTranspiledPanel(panel);
     const response = new Response(
       buildPanelHtml({
+        appId: panel.app_id,
+        panelId: panel.panel_id,
         mcpEndpoint: new URL('/mcp', request.url).toString(),
         bundleJs: transpiled.entry.bundle_js,
       }),
