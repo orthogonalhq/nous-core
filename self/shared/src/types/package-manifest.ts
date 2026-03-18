@@ -2,14 +2,19 @@
  * Package manifest contracts for Nous package admission.
  */
 import { z } from 'zod';
-import { PackageTypeSchema, type PackageType } from './enums.js';
+import {
+  PackageTypeSchema,
+  type PackageType,
+  CanonicalPackageTypeSchema,
+  type CanonicalPackageType,
+} from './enums.js';
 import { PackageDependencySetSchema } from './package-resolution.js';
 
 export const ManifestPackageTypeSchema = PackageTypeSchema;
 export type ManifestPackageType = z.infer<typeof ManifestPackageTypeSchema>;
 
-export const CanonicalPackageTypeSchema = z.enum(['skill', 'app', 'workflow']);
-export type CanonicalPackageType = z.infer<typeof CanonicalPackageTypeSchema>;
+// Re-export from enums for consumers that import from package-manifest
+export { CanonicalPackageTypeSchema, type CanonicalPackageType };
 
 export const OriginClassSchema = z.enum([
   'nous_first_party',

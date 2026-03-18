@@ -1,5 +1,5 @@
 import { z } from 'zod';
-import { CanonicalPackageTypeSchema } from './package-manifest.js';
+import { CanonicalPackageTypeSchema } from './enums.js';
 
 export const CanonicalRootDirectorySchema = z.enum([
   '.apps',

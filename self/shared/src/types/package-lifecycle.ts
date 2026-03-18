@@ -3,7 +3,7 @@
  */
 import { z } from 'zod';
 import { OriginClassSchema } from './package-manifest.js';
-import { RegistryInstallEligibilitySnapshotSchema } from './registry.js';
+import { RegistryInstallEligibilitySnapshotSchema } from './registry-eligibility.js';
 
 export const PACKAGE_LIFECYCLE_EVENT_TYPES = [
   'pkg_ingest_received',
