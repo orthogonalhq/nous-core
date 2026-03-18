@@ -189,6 +189,7 @@ import type {
   ExternalSourceMemoryEntry,
   ExternalSourceMutationResult,
   ExternalSourceSearchResult,
+  AppPanelBridgeContext,
   PublicMcpExecutionRequest,
   PublicMcpExecutionResult,
   PublicMcpGetArguments,
@@ -200,6 +201,7 @@ import type {
   PublicMcpTaskProjection,
   PublicMcpTaskResult,
   PublicMcpToolDefinition,
+  PanelBridgeToolTransportRequest,
   PromoteExternalRecordCommand,
   DemotePromotedRecordCommand,
   PromotedMemoryGetQuery,
@@ -864,6 +866,15 @@ export interface IAppRuntimeService {
 
   /** List runtime sessions, optionally filtered by package ID. */
   listSessions(packageId?: string): Promise<AppRuntimeSession[]>;
+
+  /** List active app-panel bridge contexts for trusted host surfaces. */
+  listPanels(): Promise<AppPanelBridgeContext[]>;
+
+  /** Resolve one active app-panel bridge context by app and panel identity. */
+  resolvePanel(appId: string, panelId: string): Promise<AppPanelBridgeContext | null>;
+
+  /** Execute one panel tool request through the runtime-owned app bridge. */
+  executePanelTool(input: PanelBridgeToolTransportRequest): Promise<unknown>;
 
   /** Record one heartbeat signal and return the resulting health snapshot. */
   recordHeartbeat(signal: AppHeartbeatSignal): Promise<AppHealthSnapshot>;
