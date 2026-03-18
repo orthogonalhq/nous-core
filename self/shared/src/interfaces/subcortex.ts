@@ -86,6 +86,9 @@ import type {
   GtmGateReport,
   GtmStageLabel,
   AppProcessExitEvent,
+  AppConnectorEgressIntent,
+  AppConnectorIngressIntent,
+  AppConnectorSessionReport,
   AppRuntimeActivationInput,
   AppRuntimeDeactivationInput,
   AppRuntimeSession,
@@ -152,6 +155,8 @@ import type {
   NudgeSuppressionQueryResult,
   ChannelIngressEnvelope,
   ChannelEgressEnvelope,
+  CommunicationConnectorRegistration,
+  CommunicationConnectorSession,
   CommunicationIdentityBindingUpsertInput,
   CommunicationIdentityBindingRecord,
   CommunicationApprovalIntakeRecord,
@@ -514,8 +519,37 @@ export interface ICommunicationGatewayService {
     input: CommunicationEscalationAcknowledgementInput,
   ): Promise<InAppEscalationRecord | null>;
 
+  /** Register one connector runtime identity with the canonical communication gateway. */
+  registerConnector(input: {
+    connector_id: string;
+    kind: CommunicationConnectorRegistration['kind'];
+    account_id: string;
+    project_id?: string;
+    binding_ref?: string;
+  }): Promise<CommunicationConnectorRegistration> | CommunicationConnectorRegistration;
+
+  /** Publish the current canonical connector session projection. */
+  reportConnectorSession(
+    input: CommunicationConnectorSession,
+  ): Promise<CommunicationConnectorSession> | CommunicationConnectorSession;
+
+  /** Remove connector registration/session state during lifecycle cleanup. */
+  unregisterConnector(
+    connectorId: string,
+  ): Promise<void> | void;
+
   /** Retrieve a previously created canonical route decision. */
   getRouteDecision(routeId: string): Promise<CommunicationRouteDecision | null>;
+
+  /** Retrieve canonical connector registration metadata. */
+  getConnectorRegistration(
+    connectorId: string,
+  ): Promise<CommunicationConnectorRegistration | null> | CommunicationConnectorRegistration | null;
+
+  /** Retrieve canonical connector session metadata. */
+  getConnectorSession(
+    connectorId: string,
+  ): Promise<CommunicationConnectorSession | null> | CommunicationConnectorSession | null;
 }
 
 export interface IAppCredentialInstallService {
@@ -836,6 +870,21 @@ export interface IAppRuntimeService {
 
   /** Publish an explicit health snapshot from the runtime. */
   updateHealth(snapshot: AppHealthSnapshot): Promise<AppHealthSnapshot>;
+
+  /** Submit normalized connector ingress through the host-owned app runtime bridge. */
+  submitConnectorIngress(
+    input: AppConnectorIngressIntent,
+  ): Promise<CommunicationIngressOutcome>;
+
+  /** Submit canonical connector egress through the host-owned app runtime bridge. */
+  dispatchConnectorEgress(
+    input: AppConnectorEgressIntent,
+  ): Promise<CommunicationEgressOutcome>;
+
+  /** Publish connector session metadata and health through the host-owned bridge. */
+  reportConnectorSession(
+    input: AppConnectorSessionReport,
+  ): Promise<AppHealthSnapshot>;
 }
 
 export interface IPackageInstallService {

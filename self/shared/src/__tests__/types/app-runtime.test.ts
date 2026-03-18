@@ -1,6 +1,9 @@
 import { describe, expect, it } from 'vitest';
 import {
   AppActivationHandshakeSchema,
+  AppConnectorEgressIntentSchema,
+  AppConnectorIngressIntentSchema,
+  AppConnectorSessionReportSchema,
   AppHeartbeatSignalSchema,
   AppLaunchSpecSchema,
   AppOutboundToolCallContextSchema,
@@ -134,6 +137,75 @@ describe('AppHeartbeatSignalSchema', () => {
     });
 
     expect(result.success).toBe(false);
+  });
+});
+
+describe('Connector runtime bridge schemas', () => {
+  it('accepts normalized connector ingress and egress intents', () => {
+    const ingress = AppConnectorIngressIntentSchema.safeParse({
+      session_id: 'session-1',
+      connector_id: 'connector:telegram:account:primary',
+      envelope: {
+        ingress_id: '550e8400-e29b-41d4-a716-446655440210',
+        channel: 'telegram',
+        channel_id: 'telegram:bot',
+        workspace_id: null,
+        account_id: 'account:primary',
+        conversation_id: 'chat:1',
+        thread_id: null,
+        message_id: 'message:1',
+        sender_channel_identity: '@principal',
+        bound_principal_id: null,
+        mention_state: 'direct',
+        message_type: 'dm',
+        payload_ref: 'payload:1',
+        idempotency_key: 'telegram:1',
+        occurred_at: '2026-03-17T00:00:00.000Z',
+        received_at: '2026-03-17T00:00:01.000Z',
+        auth_context_ref: 'auth:1',
+        trace_parent: null,
+      },
+      source: 'telegram_poller',
+    });
+    const egress = AppConnectorEgressIntentSchema.safeParse({
+      session_id: 'session-1',
+      connector_id: 'connector:telegram:account:primary',
+      envelope: {
+        egress_id: '550e8400-e29b-41d4-a716-446655440211',
+        channel: 'telegram',
+        channel_id: 'telegram:bot',
+        workspace_id: null,
+        account_id: 'account:primary',
+        conversation_id: 'chat:1',
+        thread_id: null,
+        recipient_binding_ref: '550e8400-e29b-41d4-a716-446655440212',
+        message_class: 'response',
+        payload_ref: 'payload:2',
+        delivery_policy_ref: 'delivery:default',
+        retry_policy_ref: 'retry:default',
+        requested_at: '2026-03-17T00:00:01.000Z',
+        trace_parent: null,
+      },
+      requested_by_tool: 'telegram.send_message',
+    });
+
+    expect(ingress.success).toBe(true);
+    expect(egress.success).toBe(true);
+  });
+
+  it('accepts connector session reports with connector and full-client modes', () => {
+    const result = AppConnectorSessionReportSchema.safeParse({
+      session_id: 'session-1',
+      connector_id: 'connector:telegram:account:primary',
+      mode: 'full_client',
+      health: 'healthy',
+      metadata: {
+        account_id: 'account:primary',
+      },
+      reported_at: '2026-03-17T00:00:02.000Z',
+    });
+
+    expect(result.success).toBe(true);
   });
 });
 

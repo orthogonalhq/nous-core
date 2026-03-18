@@ -1,5 +1,9 @@
 import { z } from 'zod';
 import { AppPackageManifestSchema } from './app-manifest.js';
+import {
+  ChannelEgressEnvelopeSchema,
+  ChannelIngressEnvelopeSchema,
+} from './communication-gateway.js';
 import { ProjectIdSchema } from './ids.js';
 import { SandboxPayloadSchema } from './sandbox.js';
 
@@ -159,6 +163,52 @@ export const AppHeartbeatSignalSchema = z.object({
   status_hint: AppHealthStatusSchema.optional(),
 });
 export type AppHeartbeatSignal = z.infer<typeof AppHeartbeatSignalSchema>;
+
+export const AppConnectorModeSchema = z.enum([
+  'connector',
+  'full_client',
+]);
+export type AppConnectorMode = z.infer<typeof AppConnectorModeSchema>;
+
+export const AppConnectorIngressIntentSourceSchema = z.enum([
+  'telegram_app_tool',
+  'telegram_poller',
+]);
+export type AppConnectorIngressIntentSource = z.infer<
+  typeof AppConnectorIngressIntentSourceSchema
+>;
+
+export const AppConnectorIngressIntentSchema = z.object({
+  session_id: z.string().min(1),
+  connector_id: z.string().min(1),
+  envelope: ChannelIngressEnvelopeSchema,
+  source: AppConnectorIngressIntentSourceSchema,
+});
+export type AppConnectorIngressIntent = z.infer<
+  typeof AppConnectorIngressIntentSchema
+>;
+
+export const AppConnectorEgressIntentSchema = z.object({
+  session_id: z.string().min(1),
+  connector_id: z.string().min(1),
+  envelope: ChannelEgressEnvelopeSchema,
+  requested_by_tool: z.string().min(1),
+});
+export type AppConnectorEgressIntent = z.infer<
+  typeof AppConnectorEgressIntentSchema
+>;
+
+export const AppConnectorSessionReportSchema = z.object({
+  session_id: z.string().min(1),
+  connector_id: z.string().min(1),
+  mode: AppConnectorModeSchema,
+  health: AppHealthStatusSchema,
+  metadata: z.record(z.unknown()).default({}),
+  reported_at: z.string().datetime(),
+});
+export type AppConnectorSessionReport = z.infer<
+  typeof AppConnectorSessionReportSchema
+>;
 
 export const AppRuntimeActivationInputSchema = z.object({
   project_id: ProjectIdSchema.optional(),
