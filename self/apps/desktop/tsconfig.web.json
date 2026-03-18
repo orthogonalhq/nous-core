@@ -11,7 +11,11 @@
     "forceConsistentCasingInFileNames": true,
     "resolveJsonModule": true,
     "isolatedModules": true,
-    "noEmit": true
+    "noEmit": true,
+    "baseUrl": ".",
+    "paths": {
+      "@nous/shared": ["../../shared/src/index.ts"]
+    }
   },
   "include": ["src/renderer/src/**/*.ts", "src/renderer/src/**/*.tsx"],
   "exclude": ["node_modules", "out"]

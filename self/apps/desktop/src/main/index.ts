@@ -75,6 +75,10 @@ interface WebHostAppPanel {
   dockview_panel_id: string
   preserve_state: boolean
   position?: 'left' | 'right' | 'bottom' | 'main'
+  config_snapshot: Record<string, {
+    value: unknown
+    source: 'manifest_default' | 'project_config' | 'system'
+  }>
 }
 
 interface DesktopAppPanel extends WebHostAppPanel {
