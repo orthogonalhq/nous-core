@@ -28,6 +28,7 @@ import { AppHealthRegistry } from './app-health-registry.js';
 import { AppToolRegistry, type AppToolRegistryDefinition } from './app-tool-registry.js';
 import { DenoSpawner, type DenoSpawnReceipt } from './deno-spawner.js';
 import { McpIpcBridge } from './mcp-ipc-bridge.js';
+import { PanelTranspiler } from './panel-transpiler.js';
 import { PanelRegistrationRegistry } from './panel-registration.js';
 
 export interface AppRuntimeServiceOptions {
@@ -38,6 +39,7 @@ export interface AppRuntimeServiceOptions {
   communicationGatewayService?: ICommunicationGatewayService;
   healthRegistry?: AppHealthRegistry;
   panelRegistry?: PanelRegistrationRegistry;
+  panelTranspiler?: Pick<PanelTranspiler, 'invalidateSession'>;
 }
 
 export class AppRuntimeService implements IAppRuntimeService {
@@ -45,6 +47,7 @@ export class AppRuntimeService implements IAppRuntimeService {
   private readonly bridge: McpIpcBridge;
   private readonly healthRegistry: AppHealthRegistry;
   private readonly panelRegistry: PanelRegistrationRegistry;
+  private readonly panelTranspiler?: Pick<PanelTranspiler, 'invalidateSession'>;
   private readonly sessions = new Map<string, AppRuntimeSession>();
   private readonly receipts = new Map<string, DenoSpawnReceipt>();
   private readonly connectorIdsBySession = new Map<string, string[]>();
@@ -54,6 +57,7 @@ export class AppRuntimeService implements IAppRuntimeService {
     this.bridge = options.bridge ?? new McpIpcBridge();
     this.healthRegistry = options.healthRegistry ?? new AppHealthRegistry();
     this.panelRegistry = options.panelRegistry ?? new PanelRegistrationRegistry();
+    this.panelTranspiler = options.panelTranspiler;
   }
 
   async activate(input: AppRuntimeActivationInput): Promise<AppRuntimeSession> {
@@ -95,7 +99,12 @@ export class AppRuntimeService implements IAppRuntimeService {
         sessionId: session.session_id,
         definitions: toolDefinitions,
       });
-      const panels = this.panelRegistry.registerPanels(session.session_id, parsed.panels);
+      const panels = this.panelRegistry.registerPanels({
+        session,
+        package_root_ref: parsed.package_root_ref,
+        manifest_ref: parsed.manifest_ref,
+        panels: parsed.panels,
+      });
       const activeSession = this.updateSession({
         ...session,
         status: 'active',
@@ -110,6 +119,7 @@ export class AppRuntimeService implements IAppRuntimeService {
       if (session) {
         await this.options.toolRegistry.deregisterSessionTools(session.session_id);
         this.panelRegistry.unregisterSession(session.session_id);
+        await this.invalidateSessionPanelCache(session.session_id);
         this.healthRegistry.removeSession(session.session_id);
         await this.unregisterConnectorsForSession(session.session_id);
         this.receipts.get(session.session_id)?.handle.kill();
@@ -138,6 +148,7 @@ export class AppRuntimeService implements IAppRuntimeService {
 
     await this.options.toolRegistry.deregisterSessionTools(parsed.session_id);
     this.panelRegistry.unregisterSession(parsed.session_id);
+    await this.invalidateSessionPanelCache(parsed.session_id);
     this.receipts.get(parsed.session_id)?.handle.kill();
     this.receipts.delete(parsed.session_id);
     this.healthRegistry.removeSession(parsed.session_id);
@@ -176,6 +187,7 @@ export class AppRuntimeService implements IAppRuntimeService {
 
     await this.options.toolRegistry.deregisterSessionTools(parsed.session_id);
     this.panelRegistry.unregisterSession(parsed.session_id);
+    await this.invalidateSessionPanelCache(parsed.session_id);
     this.healthRegistry.removeSession(parsed.session_id);
     this.receipts.delete(parsed.session_id);
     await this.reportConnectorStateForSession(parsed.session_id, {
@@ -208,6 +220,14 @@ export class AppRuntimeService implements IAppRuntimeService {
     return packageId
       ? sessions.filter((session) => session.package_id === packageId)
       : sessions;
+  }
+
+  async listPanels() {
+    return this.panelRegistry.listPanels();
+  }
+
+  async resolvePanel(appId: string, panelId: string) {
+    return this.panelRegistry.resolvePanel(appId, panelId);
   }
 
   async recordHeartbeat(signal: import('@nous/shared').AppHeartbeatSignal): Promise<AppHealthSnapshot> {
@@ -428,6 +448,15 @@ export class AppRuntimeService implements IAppRuntimeService {
       await this.options.communicationGatewayService.unregisterConnector(connectorId);
     }
     this.connectorIdsBySession.delete(sessionId);
+  }
+
+  private async invalidateSessionPanelCache(sessionId: string): Promise<void> {
+    try {
+      await this.panelTranspiler?.invalidateSession(sessionId);
+    } catch {
+      // Route resolution already fails closed without an active session, so cache deletion
+      // failures must not block lifecycle cleanup.
+    }
   }
 
   private async runLifecycleTransition(

@@ -12,8 +12,12 @@ export interface AppToolRegistryDefinition {
 
 export interface AppToolRegistrar {
   register(
-    toolId: string,
-    definition: AppToolRegistryDefinition,
+    input: {
+      toolId: string;
+      definition: AppToolRegistryDefinition;
+      sessionId: string;
+      appId: string;
+    },
   ): Promise<{ witnessRef?: string } | void> | { witnessRef?: string } | void;
   unregister(toolId: string): Promise<void> | void;
 }
@@ -32,7 +36,12 @@ export class AppToolRegistry {
 
     for (const definition of input.definitions) {
       const namespacedToolId = `${input.appId}.${definition.tool_name}`;
-      const receipt = await this.registrar.register(namespacedToolId, definition);
+      const receipt = await this.registrar.register({
+        toolId: namespacedToolId,
+        definition,
+        sessionId: input.sessionId,
+        appId: input.appId,
+      });
       const record = AppToolRegistrationRecordSchema.parse({
         app_id: input.appId,
         session_id: input.sessionId,
