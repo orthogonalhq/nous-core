@@ -14,7 +14,7 @@ interface FsAPI {
 }
 
 interface FileBrowserPanelProps extends IDockviewPanelProps {
-  params?: { fsApi?: FsAPI; initialPath?: string }
+  params: { fsApi?: FsAPI; initialPath?: string }
 }
 
 export function FileBrowserPanel({ params }: FileBrowserPanelProps) {

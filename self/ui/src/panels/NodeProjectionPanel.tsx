@@ -47,7 +47,7 @@ const STATE_FILL: Record<NodeState, string> = {
 }
 
 interface NodeProjectionPanelProps extends IDockviewPanelProps {
-  params?: { graph?: SkillGraph }
+  params: { graph?: SkillGraph }
 }
 
 export function NodeProjectionPanel({ params }: NodeProjectionPanelProps) {

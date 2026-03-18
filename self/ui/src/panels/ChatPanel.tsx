@@ -14,8 +14,27 @@ interface ChatAPI {
   getHistory: () => Promise<ChatMessage[]>
 }
 
+interface BrowserSpeechRecognitionResult {
+  transcript: string
+}
+
+interface BrowserSpeechRecognitionEvent {
+  results: ArrayLike<ArrayLike<BrowserSpeechRecognitionResult>>
+}
+
+interface BrowserSpeechRecognition {
+  continuous: boolean
+  interimResults: boolean
+  onresult: ((event: BrowserSpeechRecognitionEvent) => void) | null
+  onend: (() => void) | null
+  start: () => void
+  stop: () => void
+}
+
+type BrowserSpeechRecognitionConstructor = new () => BrowserSpeechRecognition
+
 interface ChatPanelProps extends IDockviewPanelProps {
-  params?: { chatApi?: ChatAPI }
+  params: { chatApi?: ChatAPI }
 }
 
 export function ChatPanel({ params }: ChatPanelProps) {
@@ -24,7 +43,7 @@ export function ChatPanel({ params }: ChatPanelProps) {
   const [sending, setSending] = useState(false)
   const [isListening, setIsListening] = useState(false)
   const messagesEndRef = useRef<HTMLDivElement>(null)
-  const recognitionRef = useRef<SpeechRecognition | null>(null)
+  const recognitionRef = useRef<BrowserSpeechRecognition | null>(null)
 
   const chatApi = params?.chatApi
 
@@ -63,14 +82,20 @@ export function ChatPanel({ params }: ChatPanelProps) {
   }
 
   const toggleVoice = () => {
-    const SpeechRecognition = (window as any).SpeechRecognition || (window as any).webkitSpeechRecognition
-    if (!SpeechRecognition) return
+    const speechRecognitionWindow = window as unknown as {
+      SpeechRecognition?: BrowserSpeechRecognitionConstructor
+      webkitSpeechRecognition?: BrowserSpeechRecognitionConstructor
+    }
+    const speechRecognitionCtor =
+      speechRecognitionWindow.SpeechRecognition ??
+      speechRecognitionWindow.webkitSpeechRecognition
+    if (!speechRecognitionCtor) return
     if (isListening && recognitionRef.current) {
       recognitionRef.current.stop()
       setIsListening(false)
       return
     }
-    const recognition: SpeechRecognition = new SpeechRecognition()
+    const recognition = new speechRecognitionCtor()
     recognition.continuous = false
     recognition.interimResults = false
     recognition.onresult = (event) => {

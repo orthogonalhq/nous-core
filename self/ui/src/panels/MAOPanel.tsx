@@ -33,7 +33,7 @@ const STATE_VAR: Record<string, string> = {
 }
 
 interface MAOPanelProps extends IDockviewPanelProps {
-  params?: { entries?: AgentCycleEntry[] }
+  params: { entries?: AgentCycleEntry[] }
 }
 
 export function MAOPanel({ params }: MAOPanelProps) {

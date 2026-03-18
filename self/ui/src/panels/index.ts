@@ -1,4 +1,5 @@
 export { PlaceholderPanel } from './PlaceholderPanel'
+export { AppIframePanel } from './AppIframePanel'
 export { ChatPanel } from './ChatPanel'
 export { FileBrowserPanel } from './FileBrowserPanel'
 export { NodeProjectionPanel } from './NodeProjectionPanel'
