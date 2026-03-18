@@ -1,15 +1,26 @@
 import {
+  AppConnectorEgressIntentSchema,
+  AppConnectorIngressIntentSchema,
+  AppConnectorSessionReportSchema,
   AppHealthSnapshotSchema,
   AppProcessExitEventSchema,
   AppRuntimeActivationInputSchema,
   AppRuntimeDeactivationInputSchema,
   AppRuntimeSessionSchema,
+  CommunicationConnectorSessionSchema,
+  type AppConnectorEgressIntent,
+  type AppConnectorIngressIntent,
+  type AppConnectorSessionReport,
   type AppHealthSnapshot,
+  type CommunicationConnectorSession,
+  type CommunicationEgressOutcome,
+  type CommunicationIngressOutcome,
   type AppProcessExitEvent,
   type AppRuntimeActivationInput,
   type AppRuntimeDeactivationInput,
   type AppRuntimeSession,
   type IAppRuntimeService,
+  type ICommunicationGatewayService,
   type IPackageLifecycleOrchestrator,
   type PackageLifecycleTransitionRequest,
 } from '@nous/shared';
@@ -24,6 +35,7 @@ export interface AppRuntimeServiceOptions {
   spawner?: DenoSpawner;
   bridge?: McpIpcBridge;
   toolRegistry: AppToolRegistry;
+  communicationGatewayService?: ICommunicationGatewayService;
   healthRegistry?: AppHealthRegistry;
   panelRegistry?: PanelRegistrationRegistry;
 }
@@ -35,6 +47,7 @@ export class AppRuntimeService implements IAppRuntimeService {
   private readonly panelRegistry: PanelRegistrationRegistry;
   private readonly sessions = new Map<string, AppRuntimeSession>();
   private readonly receipts = new Map<string, DenoSpawnReceipt>();
+  private readonly connectorIdsBySession = new Map<string, string[]>();
 
   constructor(private readonly options: AppRuntimeServiceOptions) {
     this.spawner = options.spawner ?? new DenoSpawner();
@@ -75,6 +88,7 @@ export class AppRuntimeService implements IAppRuntimeService {
       this.sessions.set(session.session_id, session);
       this.receipts.set(session.session_id, receipt);
       this.healthRegistry.initializeSession(session.session_id);
+      await this.registerConnectorsForSession(parsed, session);
 
       const toolRecords = await this.options.toolRegistry.registerSessionTools({
         appId: session.app_id,
@@ -97,6 +111,7 @@ export class AppRuntimeService implements IAppRuntimeService {
         await this.options.toolRegistry.deregisterSessionTools(session.session_id);
         this.panelRegistry.unregisterSession(session.session_id);
         this.healthRegistry.removeSession(session.session_id);
+        await this.unregisterConnectorsForSession(session.session_id);
         this.receipts.get(session.session_id)?.handle.kill();
         this.receipts.delete(session.session_id);
         this.sessions.delete(session.session_id);
@@ -126,6 +141,7 @@ export class AppRuntimeService implements IAppRuntimeService {
     this.receipts.get(parsed.session_id)?.handle.kill();
     this.receipts.delete(parsed.session_id);
     this.healthRegistry.removeSession(parsed.session_id);
+    await this.unregisterConnectorsForSession(parsed.session_id);
 
     if (parsed.disable_package) {
       await this.runLifecycleTransition(
@@ -162,6 +178,17 @@ export class AppRuntimeService implements IAppRuntimeService {
     this.panelRegistry.unregisterSession(parsed.session_id);
     this.healthRegistry.removeSession(parsed.session_id);
     this.receipts.delete(parsed.session_id);
+    await this.reportConnectorStateForSession(parsed.session_id, {
+      status: 'degraded',
+      health: 'unhealthy',
+      metadata: {
+        reason: parsed.reason ?? 'process_exit',
+        code: parsed.code,
+        signal: parsed.signal,
+      },
+      last_seen_at: parsed.occurred_at,
+    });
+    await this.unregisterConnectorsForSession(parsed.session_id);
 
     return this.updateSession({
       ...current,
@@ -210,10 +237,197 @@ export class AppRuntimeService implements IAppRuntimeService {
     return parsed;
   }
 
+  async submitConnectorIngress(
+    input: AppConnectorIngressIntent,
+  ): Promise<CommunicationIngressOutcome> {
+    const parsed = AppConnectorIngressIntentSchema.parse(input);
+    this.assertConnectorIntentOwnership(parsed.session_id, parsed.connector_id);
+    const gatewayService = this.requireCommunicationGatewayService();
+    return gatewayService.receiveIngress(parsed.envelope);
+  }
+
+  async dispatchConnectorEgress(
+    input: AppConnectorEgressIntent,
+  ): Promise<CommunicationEgressOutcome> {
+    const parsed = AppConnectorEgressIntentSchema.parse(input);
+    this.assertConnectorIntentOwnership(parsed.session_id, parsed.connector_id);
+    const gatewayService = this.requireCommunicationGatewayService();
+    return gatewayService.dispatchEgress(parsed.envelope);
+  }
+
+  async reportConnectorSession(
+    input: AppConnectorSessionReport,
+  ): Promise<AppHealthSnapshot> {
+    const parsed = AppConnectorSessionReportSchema.parse(input);
+    this.assertConnectorIntentOwnership(parsed.session_id, parsed.connector_id);
+    const current = this.sessions.get(parsed.session_id);
+    const sessionMetadata = CommunicationConnectorSessionSchema.parse({
+      connector_id: parsed.connector_id,
+      status: parsed.health === 'healthy' ? 'active' : 'degraded',
+      health: parsed.health === 'stale' ? 'degraded' : parsed.health,
+      last_seen_at: parsed.reported_at,
+      metadata: {
+        ...parsed.metadata,
+        mode: parsed.mode,
+        session_id: parsed.session_id,
+      },
+    });
+    await this.requireCommunicationGatewayService().reportConnectorSession(sessionMetadata);
+    const snapshot = await this.updateHealth({
+      session_id: parsed.session_id,
+      status: parsed.health,
+      reported_at: parsed.reported_at,
+      details: {
+        connector_id: parsed.connector_id,
+        mode: parsed.mode,
+        ...parsed.metadata,
+      },
+      stale: parsed.health === 'stale',
+    });
+    if (current) {
+      this.updateSession({
+        ...current,
+        health_status: snapshot.status,
+        last_heartbeat_at: snapshot.reported_at,
+      });
+    }
+    return snapshot;
+  }
+
   private updateSession(session: AppRuntimeSession): AppRuntimeSession {
     const parsed = AppRuntimeSessionSchema.parse(session);
     this.sessions.set(parsed.session_id, parsed);
     return parsed;
+  }
+
+  private requireCommunicationGatewayService(): ICommunicationGatewayService {
+    if (!this.options.communicationGatewayService) {
+      throw new Error('Communication gateway service is unavailable');
+    }
+    return this.options.communicationGatewayService;
+  }
+
+  private getConnectorIdsForSession(sessionId: string): string[] {
+    return this.connectorIdsBySession.get(sessionId) ?? [];
+  }
+
+  private assertConnectorIntentOwnership(
+    sessionId: string,
+    connectorId: string,
+  ): void {
+    const current = this.sessions.get(sessionId);
+    if (!current) {
+      throw new Error(`Unknown app runtime session: ${sessionId}`);
+    }
+    if (!this.getConnectorIdsForSession(sessionId).includes(connectorId)) {
+      throw new Error(
+        `Connector ${connectorId} is not registered for session ${sessionId}`,
+      );
+    }
+  }
+
+  private readConfigValue(
+    input: Pick<AppRuntimeActivationInput, 'config'>,
+    key: string,
+  ): string | undefined {
+    const entry = input.config.find((candidate) => candidate.key === key);
+    return typeof entry?.value === 'string' && entry.value.trim() !== ''
+      ? entry.value.trim()
+      : undefined;
+  }
+
+  private buildConnectorRegistrations(
+    input: AppRuntimeActivationInput,
+    session: AppRuntimeSession,
+  ): Array<{
+    connectorId: string;
+    accountId: string;
+    mode: 'connector' | 'full_client';
+  }> {
+    const adapters = input.manifest.adapters ?? [];
+    const clientCredentialsPresent =
+      this.readConfigValue(input, 'client_api_id') &&
+      this.readConfigValue(input, 'client_api_hash') &&
+      this.readConfigValue(input, 'client_phone_number');
+    const accountId =
+      this.readConfigValue(input, 'default_account_id') ??
+      `account:${session.app_id}`;
+
+    return adapters
+      .filter((adapter: AppRuntimeActivationInput['manifest']['adapters'][number]) =>
+        adapter.name === 'telegram')
+      .map(() => ({
+        connectorId: `connector:telegram:${accountId}`,
+        accountId,
+        mode: clientCredentialsPresent ? 'full_client' : 'connector',
+      }));
+  }
+
+  private async registerConnectorsForSession(
+    input: AppRuntimeActivationInput,
+    session: AppRuntimeSession,
+  ): Promise<void> {
+    if (!this.options.communicationGatewayService) {
+      return;
+    }
+
+    const connectors = this.buildConnectorRegistrations(input, session);
+    if (connectors.length === 0) {
+      return;
+    }
+
+    for (const connector of connectors) {
+      await this.options.communicationGatewayService.registerConnector({
+        connector_id: connector.connectorId,
+        kind: 'telegram',
+        account_id: connector.accountId,
+        project_id: session.project_id,
+      });
+      await this.options.communicationGatewayService.reportConnectorSession({
+        connector_id: connector.connectorId,
+        status: 'active',
+        health: 'healthy',
+        last_seen_at: session.started_at,
+        metadata: {
+          app_id: session.app_id,
+          session_id: session.session_id,
+          mode: connector.mode,
+        },
+      });
+    }
+
+    this.connectorIdsBySession.set(
+      session.session_id,
+      connectors.map((connector) => connector.connectorId),
+    );
+  }
+
+  private async reportConnectorStateForSession(
+    sessionId: string,
+    input: Omit<CommunicationConnectorSession, 'connector_id'>,
+  ): Promise<void> {
+    if (!this.options.communicationGatewayService) {
+      return;
+    }
+
+    for (const connectorId of this.getConnectorIdsForSession(sessionId)) {
+      await this.options.communicationGatewayService.reportConnectorSession({
+        connector_id: connectorId,
+        ...input,
+      });
+    }
+  }
+
+  private async unregisterConnectorsForSession(sessionId: string): Promise<void> {
+    if (!this.options.communicationGatewayService) {
+      this.connectorIdsBySession.delete(sessionId);
+      return;
+    }
+
+    for (const connectorId of this.getConnectorIdsForSession(sessionId)) {
+      await this.options.communicationGatewayService.unregisterConnector(connectorId);
+    }
+    this.connectorIdsBySession.delete(sessionId);
   }
 
   private async runLifecycleTransition(

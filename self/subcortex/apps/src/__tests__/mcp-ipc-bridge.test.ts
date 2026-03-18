@@ -105,4 +105,69 @@ describe('McpIpcBridge', () => {
       }),
     ).toThrow('requires explicit project_id');
   });
+
+  it('parses connector ingress, egress, and session-report payloads', () => {
+    const bridge = new McpIpcBridge();
+
+    const ingress = bridge.parseConnectorIngressIntent({
+      session_id: 'session-1',
+      connector_id: 'connector:telegram:account:telegram',
+      envelope: {
+        ingress_id: '550e8400-e29b-41d4-a716-446655440920',
+        channel: 'telegram',
+        channel_id: 'telegram:bot',
+        workspace_id: null,
+        account_id: 'account:telegram',
+        conversation_id: 'chat:1',
+        thread_id: null,
+        message_id: 'message:1',
+        sender_channel_identity: '@principal',
+        bound_principal_id: null,
+        mention_state: 'direct',
+        message_type: 'dm',
+        payload_ref: 'payload:1',
+        idempotency_key: 'telegram:1',
+        occurred_at: '2026-03-17T00:00:00.000Z',
+        received_at: '2026-03-17T00:00:01.000Z',
+        auth_context_ref: 'auth:1',
+        trace_parent: null,
+      },
+      source: 'telegram_poller',
+    });
+    const egress = bridge.parseConnectorEgressIntent({
+      session_id: 'session-1',
+      connector_id: 'connector:telegram:account:telegram',
+      envelope: {
+        egress_id: '550e8400-e29b-41d4-a716-446655440921',
+        channel: 'telegram',
+        channel_id: 'telegram:bot',
+        workspace_id: null,
+        account_id: 'account:telegram',
+        conversation_id: 'chat:1',
+        thread_id: null,
+        recipient_binding_ref: '550e8400-e29b-41d4-a716-446655440922',
+        message_class: 'response',
+        payload_ref: 'hello',
+        delivery_policy_ref: 'delivery:default',
+        retry_policy_ref: 'retry:default',
+        requested_at: '2026-03-17T00:00:01.000Z',
+        trace_parent: null,
+      },
+      requested_by_tool: 'telegram.send_message',
+    });
+    const report = bridge.parseConnectorSessionReport({
+      session_id: 'session-1',
+      connector_id: 'connector:telegram:account:telegram',
+      mode: 'connector',
+      health: 'healthy',
+      metadata: {
+        account_id: 'account:telegram',
+      },
+      reported_at: '2026-03-17T00:00:02.000Z',
+    });
+
+    expect(ingress.source).toBe('telegram_poller');
+    expect(egress.requested_by_tool).toBe('telegram.send_message');
+    expect(report.mode).toBe('connector');
+  });
 });
