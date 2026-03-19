@@ -462,7 +462,14 @@ ipcMain.handle('usage:getSnapshot', async () => loadUsageSnapshot())
 
 // Window control handlers — used by the custom frameless titlebar
 ipcMain.handle('win:minimize',         () => win?.minimize())
-ipcMain.handle('win:maximize',         () => { if (win) win.isMaximized() ? win.unmaximize() : win.maximize() })
+ipcMain.handle('win:maximize',         () => {
+  if (!win) return
+  if (win.isMaximized()) {
+    win.unmaximize()
+    return
+  }
+  win.maximize()
+})
 ipcMain.handle('win:close',            () => win?.close())
 ipcMain.handle('win:isMaximized',      () => win?.isMaximized() ?? false)
 ipcMain.handle('win:toggleDevTools',   () => win?.webContents.toggleDevTools())
@@ -502,6 +509,14 @@ ipcMain.handle('chat:send', async (_event, message: string) => {
 })
 
 ipcMain.handle('chat:getHistory', () => chatHistory)
+ipcMain.handle('app-install:prepare', async (_event, input: unknown) => {
+  const client = getTrpcClient() as any
+  return client.packages.prepareAppInstall.query(input)
+})
+ipcMain.handle('app-install:install', async (_event, input: unknown) => {
+  const client = getTrpcClient() as any
+  return client.packages.installApp.mutate(input)
+})
 ipcMain.handle('app-panels:list', async (): Promise<DesktopAppPanel[]> => {
   try {
     const client = getTrpcClient() as any

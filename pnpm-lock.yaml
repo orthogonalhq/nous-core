@@ -135,6 +135,37 @@ importers:
         specifier: ^4.0.18
         version: 4.0.18(@types/node@20.19.33)(jiti@2.6.1)(jsdom@26.1.0)(lightningcss@1.30.2)(tsx@4.21.0)
 
+  self/apps/app-sdk:
+    dependencies:
+      '@nous/shared':
+        specifier: workspace:*
+        version: link:../../shared
+    devDependencies:
+      '@testing-library/react':
+        specifier: ^16.0.0
+        version: 16.3.2(@testing-library/dom@10.4.1)(@types/react-dom@19.2.3(@types/react@19.2.14))(@types/react@19.2.14)(react-dom@19.2.3(react@19.2.3))(react@19.2.3)
+      '@types/react':
+        specifier: ^19
+        version: 19.2.14
+      '@types/react-dom':
+        specifier: ^19
+        version: 19.2.3(@types/react@19.2.14)
+      jsdom:
+        specifier: ^26.1.0
+        version: 26.1.0
+      react:
+        specifier: ^19.0.0
+        version: 19.2.3
+      react-dom:
+        specifier: ^19.0.0
+        version: 19.2.3(react@19.2.3)
+      typescript:
+        specifier: ^5
+        version: 5.9.3
+      vitest:
+        specifier: ^4.0.18
+        version: 4.0.18(@types/node@20.19.33)(jiti@2.6.1)(jsdom@26.1.0)(lightningcss@1.30.2)(tsx@4.21.0)
+
   self/apps/bridge:
     dependencies:
       '@nous/shared':
@@ -267,6 +298,9 @@ importers:
       '@nous/autonomic-config':
         specifier: workspace:*
         version: link:../../autonomic/config
+      '@nous/autonomic-credentials':
+        specifier: workspace:*
+        version: link:../../autonomic/credentials
       '@nous/autonomic-embeddings':
         specifier: workspace:*
         version: link:../../autonomic/embeddings
@@ -303,6 +337,9 @@ importers:
       '@nous/shared':
         specifier: workspace:*
         version: link:../../shared
+      '@nous/subcortex-apps':
+        specifier: workspace:*
+        version: link:../../subcortex/apps
       '@nous/subcortex-artifacts':
         specifier: workspace:*
         version: link:../../subcortex/artifacts
@@ -802,6 +839,9 @@ importers:
       '@nous/shared':
         specifier: workspace:*
         version: link:../../shared
+      '@nous/subcortex-apps':
+        specifier: workspace:*
+        version: link:../apps
       semver:
         specifier: ^7.6.3
         version: 7.7.4
@@ -934,6 +974,9 @@ importers:
 
   self/ui:
     dependencies:
+      '@nous/shared':
+        specifier: workspace:*
+        version: link:../shared
       clsx:
         specifier: ^2.1.0
         version: 2.1.1

@@ -80,9 +80,25 @@ Marketplace-package acceptance currently routes to `runtime_authorization_requir
 
 ## From Discovery to Install
 
-Discovery stays advisory. Installation happens through the canonical package install path once you decide to proceed.
+Discovery stays advisory until you choose a governed install path for a specific project.
 
-Use the CLI when you want to move from a reviewed suggestion into an actual project-scoped install:
+For installable app packages, the web package detail view can now launch the canonical install
+wizard when you open the package with a project context. That wizard keeps the host in charge of
+the flow:
+
+- **Permission review** — you must explicitly approve the package's declared runtime permissions
+  before install work continues
+- **Configuration** — fields are rendered directly from the package manifest instead of a
+  package-authored custom install UI
+- **Validation and activation** — the runtime reports `success`, `partial`, or `failed` results and
+  returns you to a recoverable configuration state if required input is missing or activation
+  fails
+
+Secrets and OAuth setup stay vault-mediated during this flow. Non-secret configuration remains
+project-scoped runtime truth rather than browser-owned state.
+
+You can still use the CLI when you want to move from a reviewed suggestion into an actual
+project-scoped install:
 
 ```bash
 pnpm dev:cli -- pkg discover --project <id>

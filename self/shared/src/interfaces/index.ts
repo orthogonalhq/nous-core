@@ -39,6 +39,7 @@ export type {
   IVoiceControlService,
   ISandbox,
   IAppCredentialInstallService,
+  IAppInstallService,
   IAppRuntimeService,
   IPackageLifecycleOrchestrator,
   IPackageInstallService,

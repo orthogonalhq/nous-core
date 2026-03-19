@@ -8,6 +8,7 @@
     ".": "./src/index.ts",
     "./panels": "./src/panels/index.ts",
     "./components": "./src/components/index.ts",
+    "./install": "./src/install/index.ts",
     "./tokens": "./src/tokens/index.ts",
     "./styles": "./src/styles/index.css",
     "./styles/tokens": "./src/styles/tokens.css",

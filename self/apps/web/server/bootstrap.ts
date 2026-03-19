@@ -20,6 +20,11 @@ import type {
   StmCompactionPolicy,
 } from '@nous/shared';
 import { ConfigManager } from '@nous/autonomic-config';
+import {
+  AppCredentialInstallService,
+  CredentialOAuthBroker,
+  CredentialVaultService,
+} from '@nous/autonomic-credentials';
 import { InMemoryEmbedder } from '@nous/autonomic-embeddings';
 import { NodeRuntime } from '@nous/autonomic-runtime';
 import { SqliteDocumentStore, SqliteVectorStore } from '@nous/autonomic-storage';
@@ -51,6 +56,8 @@ import {
   createPrincipalSystemGatewayRuntime,
 } from '@nous/cortex-core';
 import {
+  AppInstallService,
+  DocumentAppConfigStore,
   DocumentProjectStore,
   PackageInstallService,
   PackageLifecycleOrchestrator,
@@ -263,6 +270,7 @@ export function createNousContext(): NousContext {
     compactionPolicy: resolveStmCompactionPolicy(resolvedConfig),
   });
   const projectStore = new DocumentProjectStore(documentStore);
+  const appConfigStore = new DocumentAppConfigStore(documentStore);
   const artifactStore = new DocumentArtifactStore(documentStore);
   const scheduleStore = new DocumentScheduleStore(documentStore);
   const escalationStore = new DocumentEscalationStore(documentStore);
@@ -338,10 +346,21 @@ export function createNousContext(): NousContext {
     escalationService,
     witnessService,
   });
+  const credentialVaultService = new CredentialVaultService({
+    documentStore,
+  });
+  const credentialOAuthBroker = new CredentialOAuthBroker({
+    vaultService: credentialVaultService,
+  });
+  const appCredentialInstallService = new AppCredentialInstallService({
+    vaultService: credentialVaultService,
+    oauthBroker: credentialOAuthBroker,
+  });
   const packageLifecycleOrchestrator = new PackageLifecycleOrchestrator();
   const packageInstallService = new PackageInstallService({
     registryService,
     lifecycleOrchestrator: packageLifecycleOrchestrator,
+    appCredentialInstallService,
     runtime,
     instanceRoot,
   });
@@ -409,6 +428,16 @@ export function createNousContext(): NousContext {
     toolRegistry: appToolRegistry,
     communicationGatewayService,
     panelTranspiler,
+  });
+  const appInstallService = new AppInstallService({
+    registryService,
+    packageInstallService,
+    appCredentialInstallService,
+    appRuntimeService,
+    configStore: appConfigStore,
+    runtime,
+    witnessService,
+    instanceRoot,
   });
   const maoProjectionService = new MaoProjectionService({
     opctlService,
@@ -794,6 +823,7 @@ export function createNousContext(): NousContext {
     escalationService,
     endpointTrustService,
     registryService,
+    appInstallService,
     packageInstallService,
     nudgeDiscoveryService,
     voiceControlService,

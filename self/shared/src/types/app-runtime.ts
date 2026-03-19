@@ -1,5 +1,6 @@
 import { z } from 'zod';
 import { AppPackageManifestSchema } from './app-manifest.js';
+import { AppSecretConfigStateSchema } from './app-install.js';
 import {
   ChannelEgressEnvelopeSchema,
   ChannelIngressEnvelopeSchema,
@@ -342,6 +343,7 @@ export const AppRuntimeActivationInputSchema = z.object({
   manifest: AppPackageManifestSchema,
   launch_spec: AppLaunchSpecSchema,
   config: z.array(AppHandshakeConfigEntrySchema).default([]),
+  secret_config: z.record(AppSecretConfigStateSchema).default({}),
   allowed_outbound_tools: z.array(z.string().min(1)).default([]),
   panels: z.array(AppPanelRegistrationProjectionSchema).default([]),
   sandbox_payload: SandboxPayloadSchema.optional(),

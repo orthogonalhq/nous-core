@@ -18,6 +18,7 @@
     "test:watch": "vitest --config vitest.config.ts"
   },
   "dependencies": {
+    "@nous/autonomic-credentials": "workspace:*",
     "@nous/autonomic-config": "workspace:*",
     "@nous/autonomic-embeddings": "workspace:*",
     "@nous/autonomic-runtime": "workspace:*",
