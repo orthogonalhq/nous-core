@@ -1,5 +1,9 @@
 import { z } from 'zod';
-import { AppHandshakeConfigSourceSchema } from './app-runtime.js';
+import {
+  AppHandshakeConfigSourceSchema,
+  AppPanelLifecycleEventSchema,
+  AppPanelLifecycleReasonSchema,
+} from './app-runtime.js';
 
 export const PANEL_BRIDGE_PROTOCOL_VERSION = 1 as const;
 export const PANEL_BRIDGE_SUPPORTED_PROTOCOL_VERSIONS = [
@@ -22,11 +26,16 @@ export const PanelBridgeMessageKindSchema = z.enum([
   'config.get',
   'theme.get',
   'notify.send',
+  'persisted_state.get',
+  'persisted_state.set',
+  'persisted_state.delete',
   'host.bootstrap',
   'tool.result',
   'config.result',
   'theme.result',
   'notify.result',
+  'persisted_state.result',
+  'panel.lifecycle',
   'theme.changed',
   'error',
 ]);
@@ -106,6 +115,8 @@ export const PanelBridgeCapabilitiesSchema = z.object({
   config: z.boolean().default(true),
   theme: z.boolean().default(true),
   notify: z.boolean().default(true),
+  persisted_state: z.boolean().default(true),
+  lifecycle: z.boolean().default(true),
 });
 export type PanelBridgeCapabilities = z.infer<
   typeof PanelBridgeCapabilitiesSchema
@@ -164,12 +175,46 @@ export const PanelNotifyRequestSchema = PanelBridgeEnvelopeSchema.extend({
 });
 export type PanelNotifyRequest = z.infer<typeof PanelNotifyRequestSchema>;
 
+export const PanelPersistedStateGetRequestSchema =
+  PanelBridgeEnvelopeSchema.extend({
+    kind: z.literal('persisted_state.get'),
+    request_id: PanelBridgeRequestIdSchema,
+    key: z.string().min(1),
+  });
+export type PanelPersistedStateGetRequest = z.infer<
+  typeof PanelPersistedStateGetRequestSchema
+>;
+
+export const PanelPersistedStateSetRequestSchema =
+  PanelBridgeEnvelopeSchema.extend({
+    kind: z.literal('persisted_state.set'),
+    request_id: PanelBridgeRequestIdSchema,
+    key: z.string().min(1),
+    value: z.unknown(),
+  });
+export type PanelPersistedStateSetRequest = z.infer<
+  typeof PanelPersistedStateSetRequestSchema
+>;
+
+export const PanelPersistedStateDeleteRequestSchema =
+  PanelBridgeEnvelopeSchema.extend({
+    kind: z.literal('persisted_state.delete'),
+    request_id: PanelBridgeRequestIdSchema,
+    key: z.string().min(1),
+  });
+export type PanelPersistedStateDeleteRequest = z.infer<
+  typeof PanelPersistedStateDeleteRequestSchema
+>;
+
 export const PanelBridgePanelMessageSchema = z.discriminatedUnion('kind', [
   PanelReadyMessageSchema,
   PanelToolInvokeRequestSchema,
   PanelConfigGetRequestSchema,
   PanelThemeGetRequestSchema,
   PanelNotifyRequestSchema,
+  PanelPersistedStateGetRequestSchema,
+  PanelPersistedStateSetRequestSchema,
+  PanelPersistedStateDeleteRequestSchema,
 ]);
 export type PanelBridgePanelMessage = z.infer<
   typeof PanelBridgePanelMessageSchema
@@ -214,6 +259,28 @@ export const PanelNotifyResponseSchema = PanelBridgeEnvelopeSchema.extend({
 });
 export type PanelNotifyResponse = z.infer<typeof PanelNotifyResponseSchema>;
 
+export const PanelPersistedStateResponseSchema =
+  PanelBridgeEnvelopeSchema.extend({
+    kind: z.literal('persisted_state.result'),
+    request_id: PanelBridgeRequestIdSchema,
+    key: z.string().min(1),
+    exists: z.boolean(),
+    value: z.unknown().optional(),
+  });
+export type PanelPersistedStateResponse = z.infer<
+  typeof PanelPersistedStateResponseSchema
+>;
+
+export const PanelLifecycleChangedMessageSchema =
+  PanelBridgeEnvelopeSchema.extend({
+    kind: z.literal('panel.lifecycle'),
+    event: AppPanelLifecycleEventSchema,
+    reason: AppPanelLifecycleReasonSchema,
+  });
+export type PanelLifecycleChangedMessage = z.infer<
+  typeof PanelLifecycleChangedMessageSchema
+>;
+
 export const PanelThemeChangedMessageSchema = PanelBridgeEnvelopeSchema.extend({
   kind: z.literal('theme.changed'),
   theme: PanelBridgeThemeSnapshotSchema,
@@ -237,6 +304,8 @@ export const PanelBridgeHostMessageSchema = z.discriminatedUnion('kind', [
   PanelConfigResponseSchema,
   PanelThemeResponseSchema,
   PanelNotifyResponseSchema,
+  PanelPersistedStateResponseSchema,
+  PanelLifecycleChangedMessageSchema,
   PanelThemeChangedMessageSchema,
   PanelBridgeErrorResponseSchema,
 ]);
@@ -250,11 +319,16 @@ export const PanelBridgeMessageSchema = z.discriminatedUnion('kind', [
   PanelConfigGetRequestSchema,
   PanelThemeGetRequestSchema,
   PanelNotifyRequestSchema,
+  PanelPersistedStateGetRequestSchema,
+  PanelPersistedStateSetRequestSchema,
+  PanelPersistedStateDeleteRequestSchema,
   HostBootstrapMessageSchema,
   PanelToolSuccessResponseSchema,
   PanelConfigResponseSchema,
   PanelThemeResponseSchema,
   PanelNotifyResponseSchema,
+  PanelPersistedStateResponseSchema,
+  PanelLifecycleChangedMessageSchema,
   PanelThemeChangedMessageSchema,
   PanelBridgeErrorResponseSchema,
 ]);
@@ -298,4 +372,41 @@ export const PanelBridgeToolTransportResponseSchema = z.union([
 ]);
 export type PanelBridgeToolTransportResponse = z.infer<
   typeof PanelBridgeToolTransportResponseSchema
+>;
+
+export const PanelPersistedStateTransportGetRequestSchema = z.object({
+  protocol: PanelBridgeProtocolVersionSchema,
+  request_id: PanelBridgeRequestIdSchema,
+  app_id: z.string().min(1),
+  panel_id: z.string().min(1),
+  key: z.string().min(1),
+});
+export type PanelPersistedStateTransportGetRequest = z.infer<
+  typeof PanelPersistedStateTransportGetRequestSchema
+>;
+
+export const PanelPersistedStateTransportSetRequestSchema =
+  PanelPersistedStateTransportGetRequestSchema.extend({
+    value: z.unknown(),
+  });
+export type PanelPersistedStateTransportSetRequest = z.infer<
+  typeof PanelPersistedStateTransportSetRequestSchema
+>;
+
+export const PanelPersistedStateTransportDeleteRequestSchema =
+  PanelPersistedStateTransportGetRequestSchema;
+export type PanelPersistedStateTransportDeleteRequest = z.infer<
+  typeof PanelPersistedStateTransportDeleteRequestSchema
+>;
+
+export const PanelPersistedStateTransportResultSchema = z.object({
+  protocol: PanelBridgeProtocolVersionSchema,
+  request_id: PanelBridgeRequestIdSchema,
+  ok: z.literal(true),
+  key: z.string().min(1),
+  exists: z.boolean(),
+  value: z.unknown().optional(),
+});
+export type PanelPersistedStateTransportResult = z.infer<
+  typeof PanelPersistedStateTransportResultSchema
 >;

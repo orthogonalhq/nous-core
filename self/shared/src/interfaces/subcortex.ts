@@ -201,6 +201,11 @@ import type {
   PublicMcpTaskProjection,
   PublicMcpTaskResult,
   PublicMcpToolDefinition,
+  AppPanelLifecycleUpdate,
+  AppPanelPersistedStateDeleteInput,
+  AppPanelPersistedStateGetInput,
+  AppPanelPersistedStateResult,
+  AppPanelPersistedStateSetInput,
   PanelBridgeToolTransportRequest,
   PromoteExternalRecordCommand,
   DemotePromotedRecordCommand,
@@ -875,6 +880,24 @@ export interface IAppRuntimeService {
 
   /** Execute one panel tool request through the runtime-owned app bridge. */
   executePanelTool(input: PanelBridgeToolTransportRequest): Promise<unknown>;
+
+  /** Reconcile one canonical panel lifecycle event against the active runtime projection. */
+  recordPanelLifecycle(input: AppPanelLifecycleUpdate): Promise<AppPanelBridgeContext | null>;
+
+  /** Read one app-owned persisted panel state value through the runtime seam. */
+  getPersistedPanelState(
+    input: AppPanelPersistedStateGetInput,
+  ): Promise<AppPanelPersistedStateResult>;
+
+  /** Write one app-owned persisted panel state value through the runtime seam. */
+  setPersistedPanelState(
+    input: AppPanelPersistedStateSetInput,
+  ): Promise<AppPanelPersistedStateResult>;
+
+  /** Delete one app-owned persisted panel state value through the runtime seam. */
+  deletePersistedPanelState(
+    input: AppPanelPersistedStateDeleteInput,
+  ): Promise<AppPanelPersistedStateResult>;
 
   /** Record one heartbeat signal and return the resulting health snapshot. */
   recordHeartbeat(signal: AppHeartbeatSignal): Promise<AppHealthSnapshot>;

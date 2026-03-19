@@ -3,6 +3,7 @@ import {
   PANEL_BRIDGE_PROTOCOL_VERSION,
   PanelBridgeHostMessageSchema,
   PanelBridgePanelMessageSchema,
+  PanelPersistedStateTransportResultSchema,
   PanelBridgeToolTransportRequestSchema,
   PanelBridgeToolTransportResponseSchema,
   PanelBridgeWindowBootstrapSchema,
@@ -46,6 +47,8 @@ describe('panel bridge shared protocol types', () => {
         config: true,
         theme: true,
         notify: true,
+        persisted_state: true,
+        lifecycle: true,
       },
     });
 
@@ -89,5 +92,34 @@ describe('panel bridge shared protocol types', () => {
 
     expect(request.tool_name).toBe('get_forecast');
     expect(failure.ok).toBe(false);
+  });
+
+  it('parses persisted-state bridge requests, results, and lifecycle pushes', () => {
+    const getRequest = PanelBridgePanelMessageSchema.parse({
+      protocol: PANEL_BRIDGE_PROTOCOL_VERSION,
+      kind: 'persisted_state.get',
+      request_id: 'req-2',
+      key: 'filters',
+    });
+    const lifecycle = PanelBridgeHostMessageSchema.parse({
+      protocol: PANEL_BRIDGE_PROTOCOL_VERSION,
+      kind: 'panel.lifecycle',
+      event: 'panel_mount',
+      reason: 'activate',
+    });
+    const result = PanelPersistedStateTransportResultSchema.parse({
+      protocol: PANEL_BRIDGE_PROTOCOL_VERSION,
+      request_id: 'req-2',
+      ok: true,
+      key: 'filters',
+      exists: true,
+      value: {
+        city: 'Seattle',
+      },
+    });
+
+    expect(getRequest.kind).toBe('persisted_state.get');
+    expect(lifecycle.kind).toBe('panel.lifecycle');
+    expect(result.exists).toBe(true);
   });
 });
