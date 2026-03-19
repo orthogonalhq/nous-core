@@ -4,8 +4,11 @@ import { afterEach, describe, expect, it, vi } from 'vitest';
 import { PANEL_BRIDGE_PROTOCOL_VERSION } from '@nous/shared';
 import { NousPanel } from '../panel/NousPanel.js';
 import {
+  onActivate,
+  onDeactivate,
   useConfig,
   useNotify,
+  usePersistedState,
   useTheme,
   useTool,
 } from '../panel/hooks.js';
@@ -21,6 +24,8 @@ function installMockParent() {
     postMessage: vi.fn((message: {
       kind: string;
       request_id?: string;
+      key?: string;
+      value?: unknown;
     }) => {
       queueMicrotask(() => {
         switch (message.kind) {
@@ -47,6 +52,8 @@ function installMockParent() {
                 config: true,
                 theme: true,
                 notify: true,
+                persisted_state: true,
+                lifecycle: true,
               },
             });
             return;
@@ -95,6 +102,37 @@ function installMockParent() {
               accepted: true,
             });
             return;
+          case 'persisted_state.get':
+            dispatchFromParent({
+              protocol: PANEL_BRIDGE_PROTOCOL_VERSION,
+              kind: 'persisted_state.result',
+              request_id: message.request_id!,
+              key: message.key!,
+              exists: true,
+              value: {
+                city: 'Seattle',
+              },
+            });
+            return;
+          case 'persisted_state.set':
+            dispatchFromParent({
+              protocol: PANEL_BRIDGE_PROTOCOL_VERSION,
+              kind: 'persisted_state.result',
+              request_id: message.request_id!,
+              key: message.key!,
+              exists: true,
+              value: message.value,
+            });
+            return;
+          case 'persisted_state.delete':
+            dispatchFromParent({
+              protocol: PANEL_BRIDGE_PROTOCOL_VERSION,
+              kind: 'persisted_state.result',
+              request_id: message.request_id!,
+              key: message.key!,
+              exists: false,
+            });
+            return;
         }
       });
     }),
@@ -125,6 +163,7 @@ describe('@nous/app-sdk panel hooks', () => {
 
   it('exposes tool, config, theme, and notify behavior through the bridge', async () => {
     installMockParent();
+    const localStorageSpy = vi.spyOn(Storage.prototype, 'getItem');
     window.__NOUS_PANEL_BRIDGE_BOOTSTRAP__ = {
       protocol: PANEL_BRIDGE_PROTOCOL_VERSION,
       app_id: 'app:weather',
@@ -138,14 +177,26 @@ describe('@nous/app-sdk panel hooks', () => {
           config: ReturnType<typeof useConfig>;
           theme: ReturnType<typeof useTheme>;
           notify: ReturnType<typeof useNotify>;
+          persisted: ReturnType<typeof usePersistedState<{ city: string }>>;
         }
       | undefined;
+    let activationCount = 0;
+    let deactivationCount = 0;
 
     function Harness() {
       const invokeTool = useTool('get_forecast');
       const config = useConfig();
       const theme = useTheme();
       const notify = useNotify();
+      const persisted = usePersistedState('filters', {
+        city: 'Portland',
+      });
+      onActivate(() => {
+        activationCount += 1;
+      });
+      onDeactivate(() => {
+        deactivationCount += 1;
+      });
 
       useEffect(() => {
         latest = {
@@ -153,10 +204,16 @@ describe('@nous/app-sdk panel hooks', () => {
           config,
           theme,
           notify,
+          persisted,
         };
-      }, [invokeTool, config, theme, notify]);
+      }, [invokeTool, config, theme, notify, persisted]);
 
-      return <div data-testid="units">{String(config.config.units?.value ?? '')}</div>;
+      return (
+        <div>
+          <div data-testid="units">{String(config.config.units?.value ?? '')}</div>
+          <div data-testid="persisted-city">{persisted[0].city}</div>
+        </div>
+      );
     }
 
     const screen = render(
@@ -167,6 +224,7 @@ describe('@nous/app-sdk panel hooks', () => {
 
     await waitFor(() => {
       expect(screen.getByTestId('units').textContent).toBe('metric');
+      expect(screen.getByTestId('persisted-city').textContent).toBe('Seattle');
       expect(latest).toBeDefined();
     });
 
@@ -197,5 +255,40 @@ describe('@nous/app-sdk panel hooks', () => {
       });
     });
     expect(notifyAccepted).toBe(true);
+
+    await act(async () => {
+      await latest!.persisted[1]({
+        city: 'Vancouver',
+      });
+    });
+    expect(latest!.persisted[0]).toEqual({
+      city: 'Vancouver',
+    });
+
+    await act(async () => {
+      await latest!.persisted[2].clear();
+    });
+    expect(latest!.persisted[0]).toEqual({
+      city: 'Portland',
+    });
+
+    dispatchFromParent({
+      protocol: PANEL_BRIDGE_PROTOCOL_VERSION,
+      kind: 'panel.lifecycle',
+      event: 'panel_mount',
+      reason: 'activate',
+    });
+    dispatchFromParent({
+      protocol: PANEL_BRIDGE_PROTOCOL_VERSION,
+      kind: 'panel.lifecycle',
+      event: 'panel_unmount',
+      reason: 'deactivate',
+    });
+
+    await waitFor(() => {
+      expect(activationCount).toBe(1);
+      expect(deactivationCount).toBe(1);
+    });
+    expect(localStorageSpy).not.toHaveBeenCalled();
   });
 });
