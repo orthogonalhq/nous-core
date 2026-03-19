@@ -153,9 +153,19 @@ description: Reference for all tRPC procedures
 
 | Procedure | Type | Input | Output |
 |----------|------|-------|--------|
+| `packages.prepareAppInstall` | query | `AppInstallPrepareRequest` | `AppInstallPreparation` |
+| `packages.installApp` | mutation | `AppInstallRequest` | `AppInstallResult` |
 | `packages.listAppPanels` | query | — | `{ app_id, panel_id, label, route_path, dockview_panel_id, preserve_state, position?, config_snapshot }[]` |
 | `packages.install` | mutation | `PackageInstallRequest` | `PackageInstallResult` |
 
+- `packages.prepareAppInstall` — Resolves the canonical install contract for an installable app package in one project context.
+  - Input fields: `project_id`, `package_id`, and optional `release_id`.
+  - Output shape includes package/release identity, declared permissions, grouped config descriptors, supported install stages, and whether an install hook is present.
+  - The response is preparation truth only. It does not persist config, store secrets, or materialize a package.
+- `packages.installApp` — Runs the canonical app-install orchestration for one project-scoped installable app.
+  - Input fields: `project_id`, `package_id`, optional `release_id`, `actor_id`, `permissions_approved`, `config`, `secrets`, `oauth`, and optional `evidence_refs`.
+  - Output shape includes the preparation snapshot, install `status` (`success`, `partial`, or `failed`), phase markers, validation results, optional runtime session/config version metadata, stored-secret metadata, rollback posture, and witness references.
+  - Secret and OAuth values stay on the vault / credential-install path; non-secret config remains host/runtime truth.
 - `packages.listAppPanels` — Returns the runtime-owned projection of active manifest-declared app panels for trusted first-party hosts.
   - Each item includes the canonical `route_path`, host-safe `dockview_panel_id`, panel label, `preserve_state`, optional dock position, and the sanitized `config_snapshot` used by trusted hosts during panel bridge bootstrap.
   - Panels appear here only while an app session is active; manifest declarations alone do not make a panel serveable.
