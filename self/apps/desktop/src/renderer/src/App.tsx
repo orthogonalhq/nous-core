@@ -20,12 +20,14 @@ import {
   DashboardWidgetMenu,
   useDashboardApi,
 } from '@nous/ui/panels'
+import { AppInstallWizardPanel } from './components/AppInstallWizard'
 import { TitleBar } from './components/TitleBar'
 import { StatusBar } from './components/StatusBar'
 
 import 'dockview-react/dist/styles/dockview.css'
 
 const panelComponents = {
+  'app-installer': AppInstallWizardPanel,
   'app-iframe': AppIframePanel,
   placeholder: PlaceholderPanel,
   chat: ChatPanel,
@@ -68,6 +70,12 @@ const APP_PANEL_POSITIONS: Record<NonNullable<AppPanelSnapshot['position']>, { d
 }
 
 export const NATIVE_PANEL_DEFS: PanelDef[] = [
+  {
+    id: 'app-installer',
+    component: 'app-installer',
+    title: 'App Installer',
+    params: () => ({ appInstallApi: (window as any).electronAPI?.appInstall }),
+  },
   {
     id: 'chat',
     component: 'chat',
@@ -146,7 +154,7 @@ export function App() {
   const panelDefs = [...NATIVE_PANEL_DEFS, ...appPanels.map(toAppPanelDef)]
 
   useEffect(() => {
-    window.electronAPI.layout.get().then((layout) => {
+    window.electronAPI.layout.get().then((layout: unknown) => {
       setSavedLayout((layout as SerializedDockview | null) ?? null)
     })
   }, [])
@@ -278,6 +286,7 @@ function DockviewShell({
 
 // Position directives for the default 4-panel layout
 const DEFAULT_POSITIONS: Record<string, { direction: string; referencePanel: string }> = {
+  'app-installer': { direction: 'within', referencePanel: 'chat' },
   files: { direction: 'below', referencePanel: 'chat' },
   'node-projection': { direction: 'right', referencePanel: 'chat' },
   mao: { direction: 'below', referencePanel: 'node-projection' },

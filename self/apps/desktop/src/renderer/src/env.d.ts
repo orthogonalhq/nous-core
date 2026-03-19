@@ -1,5 +1,11 @@
 /// <reference types="vite/client" />
 
+import type {
+  AppInstallPreparation,
+  AppInstallRequest,
+  AppInstallResult,
+} from '@nous/shared'
+
 interface ElectronAPI {
   layout: {
     get: () => Promise<unknown>
@@ -29,6 +35,14 @@ interface ElectronAPI {
     quit: () => Promise<void>
     newWindow: () => Promise<void>
   }
+  appInstall: {
+    prepare: (input: {
+      project_id: string
+      package_id: string
+      release_id?: string
+    }) => Promise<AppInstallPreparation>
+    install: (input: AppInstallRequest) => Promise<AppInstallResult>
+  }
   appPanels: {
     list: () => Promise<{
       app_id: string
@@ -47,6 +61,10 @@ interface ElectronAPI {
   }
 }
 
-interface Window {
-  electronAPI: ElectronAPI
+declare global {
+  interface Window {
+    electronAPI: ElectronAPI
+  }
 }
+
+export {}

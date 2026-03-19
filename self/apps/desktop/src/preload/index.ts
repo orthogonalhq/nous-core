@@ -31,6 +31,10 @@ contextBridge.exposeInMainWorld('electronAPI', {
     quit:      (): Promise<void> => ipcRenderer.invoke('app:quit'),
     newWindow: (): Promise<void> => ipcRenderer.invoke('app:newWindow'),
   },
+  appInstall: {
+    prepare: (input: unknown): Promise<unknown> => ipcRenderer.invoke('app-install:prepare', input),
+    install: (input: unknown): Promise<unknown> => ipcRenderer.invoke('app-install:install', input),
+  },
   appPanels: {
     list: (): Promise<unknown[]> => ipcRenderer.invoke('app-panels:list'),
   },
