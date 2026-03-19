@@ -1,3 +1,7 @@
+import { randomUUID } from 'node:crypto';
+import { mkdtemp, rm } from 'node:fs/promises';
+import { tmpdir } from 'node:os';
+import { join } from 'node:path';
 import { describe, expect, it, vi } from 'vitest';
 import { McpIpcBridge } from '../mcp-ipc-bridge.js';
 
@@ -169,5 +173,47 @@ describe('McpIpcBridge', () => {
     expect(ingress.source).toBe('telegram_poller');
     expect(egress.requested_by_tool).toBe('telegram.send_message');
     expect(report.mode).toBe('connector');
+  });
+
+  it('persists panel state to the app-scoped storage path across bridge instances', async () => {
+    const appDataDir = await mkdtemp(join(tmpdir(), `nous-panel-state-${randomUUID()}-`));
+    const firstBridge = new McpIpcBridge();
+    firstBridge.registerSessionStorage('session-1', appDataDir);
+
+    await firstBridge.setPersistedState('session-1', {
+      app_id: 'app:weather',
+      panel_id: 'forecast',
+      key: 'filters',
+      value: {
+        city: 'Seattle',
+      },
+    });
+
+    const secondBridge = new McpIpcBridge();
+    secondBridge.registerSessionStorage('session-1', appDataDir);
+    const hydrated = await secondBridge.getPersistedState('session-1', {
+      app_id: 'app:weather',
+      panel_id: 'forecast',
+      key: 'filters',
+    });
+
+    expect(hydrated.exists).toBe(true);
+    expect(hydrated.value).toEqual({
+      city: 'Seattle',
+    });
+
+    await secondBridge.deletePersistedState('session-1', {
+      app_id: 'app:weather',
+      panel_id: 'forecast',
+      key: 'filters',
+    });
+    const cleared = await secondBridge.getPersistedState('session-1', {
+      app_id: 'app:weather',
+      panel_id: 'forecast',
+      key: 'filters',
+    });
+
+    expect(cleared.exists).toBe(false);
+    await rm(appDataDir, { recursive: true, force: true });
   });
 });

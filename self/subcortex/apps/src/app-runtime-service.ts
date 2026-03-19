@@ -3,6 +3,11 @@ import {
   AppConnectorIngressIntentSchema,
   AppConnectorSessionReportSchema,
   AppHealthSnapshotSchema,
+  AppPanelLifecycleUpdateSchema,
+  AppPanelPersistedStateDeleteInputSchema,
+  AppPanelPersistedStateGetInputSchema,
+  type AppPanelPersistedStateResult,
+  AppPanelPersistedStateSetInputSchema,
   AppProcessExitEventSchema,
   AppRuntimeActivationInputSchema,
   AppRuntimeDeactivationInputSchema,
@@ -94,6 +99,10 @@ export class AppRuntimeService implements IAppRuntimeService {
       this.sessions.set(session.session_id, session);
       this.receipts.set(session.session_id, receipt);
       this.healthRegistry.initializeSession(session.session_id);
+      this.bridge.registerSessionStorage(
+        session.session_id,
+        parsed.launch_spec.app_data_dir,
+      );
       await this.registerConnectorsForSession(parsed, session);
 
       const toolRecords = await this.options.toolRegistry.registerSessionTools({
@@ -125,6 +134,7 @@ export class AppRuntimeService implements IAppRuntimeService {
         this.panelRegistry.unregisterSession(session.session_id);
         await this.invalidateSessionPanelCache(session.session_id);
         this.healthRegistry.removeSession(session.session_id);
+        this.bridge.unregisterSessionStorage(session.session_id);
         await this.unregisterConnectorsForSession(session.session_id);
         this.receipts.get(session.session_id)?.handle.kill();
         this.receipts.delete(session.session_id);
@@ -156,6 +166,7 @@ export class AppRuntimeService implements IAppRuntimeService {
     this.receipts.get(parsed.session_id)?.handle.kill();
     this.receipts.delete(parsed.session_id);
     this.healthRegistry.removeSession(parsed.session_id);
+    this.bridge.unregisterSessionStorage(parsed.session_id);
     await this.unregisterConnectorsForSession(parsed.session_id);
 
     if (parsed.disable_package) {
@@ -194,6 +205,7 @@ export class AppRuntimeService implements IAppRuntimeService {
     await this.invalidateSessionPanelCache(parsed.session_id);
     this.healthRegistry.removeSession(parsed.session_id);
     this.receipts.delete(parsed.session_id);
+    this.bridge.unregisterSessionStorage(parsed.session_id);
     await this.reportConnectorStateForSession(parsed.session_id, {
       status: 'degraded',
       health: 'unhealthy',
@@ -253,6 +265,49 @@ export class AppRuntimeService implements IAppRuntimeService {
       },
       params: parsed.params,
     });
+  }
+
+  async recordPanelLifecycle(
+    input: import('@nous/shared').AppPanelLifecycleUpdate,
+  ): Promise<import('@nous/shared').AppPanelBridgeContext | null> {
+    const parsed = AppPanelLifecycleUpdateSchema.parse(input);
+    return this.panelRegistry.updateLifecycle(parsed);
+  }
+
+  async getPersistedPanelState(
+    input: import('@nous/shared').AppPanelPersistedStateGetInput,
+  ): Promise<AppPanelPersistedStateResult> {
+    const parsed = AppPanelPersistedStateGetInputSchema.parse(input);
+    const panel = this.panelRegistry.resolvePanel(parsed.app_id, parsed.panel_id);
+    if (!panel) {
+      throw new Error('Active app panel not found.');
+    }
+
+    return this.bridge.getPersistedState(panel.session_id, parsed);
+  }
+
+  async setPersistedPanelState(
+    input: import('@nous/shared').AppPanelPersistedStateSetInput,
+  ): Promise<AppPanelPersistedStateResult> {
+    const parsed = AppPanelPersistedStateSetInputSchema.parse(input);
+    const panel = this.panelRegistry.resolvePanel(parsed.app_id, parsed.panel_id);
+    if (!panel) {
+      throw new Error('Active app panel not found.');
+    }
+
+    return this.bridge.setPersistedState(panel.session_id, parsed);
+  }
+
+  async deletePersistedPanelState(
+    input: import('@nous/shared').AppPanelPersistedStateDeleteInput,
+  ): Promise<AppPanelPersistedStateResult> {
+    const parsed = AppPanelPersistedStateDeleteInputSchema.parse(input);
+    const panel = this.panelRegistry.resolvePanel(parsed.app_id, parsed.panel_id);
+    if (!panel) {
+      throw new Error('Active app panel not found.');
+    }
+
+    return this.bridge.deletePersistedState(panel.session_id, parsed);
   }
 
   async recordHeartbeat(signal: import('@nous/shared').AppHeartbeatSignal): Promise<AppHealthSnapshot> {

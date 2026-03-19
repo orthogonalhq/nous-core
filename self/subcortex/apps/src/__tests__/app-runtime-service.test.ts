@@ -1,3 +1,7 @@
+import { randomUUID } from 'node:crypto';
+import { mkdtemp, rm } from 'node:fs/promises';
+import { tmpdir } from 'node:os';
+import { join } from 'node:path';
 import { describe, expect, it, vi } from 'vitest';
 import { PANEL_BRIDGE_PROTOCOL_VERSION } from '@nous/shared';
 import { AppRuntimeService } from '../app-runtime-service.js';
@@ -603,5 +607,115 @@ describe('AppRuntimeService', () => {
         tool_name: 'get_forecast',
       }),
     ).rejects.toThrow('Active app panel not found.');
+  });
+
+  it('records canonical panel lifecycle events against the active descriptor', async () => {
+    const service = new AppRuntimeService({
+      lifecycleOrchestrator: {
+        run: vi.fn().mockResolvedValue({}),
+        disable: vi.fn().mockResolvedValue({}),
+      } as any,
+      bridge: new McpIpcBridge(),
+      toolRegistry: createToolRegistry(),
+      spawner: new DenoSpawner({
+        sessionIdFactory: () => 'session-1',
+        spawnProcess: () => ({
+          pid: 123,
+          kill: vi.fn().mockReturnValue(true),
+        }),
+      }),
+    });
+
+    await service.activate(activationInput as any);
+    const updated = await service.recordPanelLifecycle({
+      app_id: 'app:weather',
+      panel_id: 'forecast',
+      event: 'panel_mount',
+      reason: 'open',
+      occurred_at: '2026-03-18T00:00:00.000Z',
+    });
+
+    expect(updated?.lifecycle).toEqual({
+      event: 'panel_mount',
+      reason: 'open',
+      updated_at: '2026-03-18T00:00:00.000Z',
+    });
+  });
+
+  it('persists panel state across deactivate and reactivate cycles through the runtime seam', async () => {
+    const appDataDir = await mkdtemp(join(tmpdir(), `nous-panel-runtime-${randomUUID()}-`));
+    const service = new AppRuntimeService({
+      lifecycleOrchestrator: {
+        run: vi.fn().mockResolvedValue({}),
+        disable: vi.fn().mockResolvedValue({}),
+      } as any,
+      bridge: new McpIpcBridge(),
+      toolRegistry: createToolRegistry(),
+      spawner: new DenoSpawner({
+        sessionIdFactory: () => 'session-1',
+        spawnProcess: () => ({
+          pid: 123,
+          kill: vi.fn().mockReturnValue(true),
+        }),
+      }),
+    });
+
+    await service.activate({
+      ...(activationInput as any),
+      launch_spec: {
+        ...(activationInput.launch_spec as any),
+        app_data_dir: appDataDir,
+      },
+    });
+
+    await service.setPersistedPanelState({
+      app_id: 'app:weather',
+      panel_id: 'forecast',
+      key: 'filters',
+      value: {
+        city: 'Seattle',
+      },
+    });
+    await service.deactivate({
+      session_id: 'session-1',
+      reason: 'restart',
+      disable_package: false,
+    });
+
+    const reactivated = new AppRuntimeService({
+      lifecycleOrchestrator: {
+        run: vi.fn().mockResolvedValue({}),
+        disable: vi.fn().mockResolvedValue({}),
+      } as any,
+      bridge: new McpIpcBridge(),
+      toolRegistry: createToolRegistry(),
+      spawner: new DenoSpawner({
+        sessionIdFactory: () => 'session-2',
+        spawnProcess: () => ({
+          pid: 123,
+          kill: vi.fn().mockReturnValue(true),
+        }),
+      }),
+    });
+
+    await reactivated.activate({
+      ...(activationInput as any),
+      launch_spec: {
+        ...(activationInput.launch_spec as any),
+        app_data_dir: appDataDir,
+      },
+    });
+    const hydrated = await reactivated.getPersistedPanelState({
+      app_id: 'app:weather',
+      panel_id: 'forecast',
+      key: 'filters',
+    });
+
+    expect(hydrated.exists).toBe(true);
+    expect(hydrated.value).toEqual({
+      city: 'Seattle',
+    });
+
+    await rm(appDataDir, { recursive: true, force: true });
   });
 });

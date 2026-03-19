@@ -182,4 +182,39 @@ describe('PanelRegistrationRegistry', () => {
       registry.resolvePanel('app:weather', 'forecast')?.config_snapshot.api_key,
     ).toBeUndefined();
   });
+
+  it('updates the canonical lifecycle projection for active panels', () => {
+    const registry = new PanelRegistrationRegistry();
+
+    registry.registerPanels({
+      session,
+      package_root_ref: '/repo/.apps/weather',
+      manifest_ref: '/repo/.apps/weather/manifest.json',
+      config_entries: [],
+      panels: [
+        {
+          app_id: 'app:weather',
+          session_id: 'session-1',
+          panel_id: 'forecast',
+          label: 'Forecast',
+          entry: 'panels/forecast.tsx',
+          preserve_state: true,
+        },
+      ],
+    });
+
+    const updated = registry.updateLifecycle({
+      app_id: 'app:weather',
+      panel_id: 'forecast',
+      event: 'panel_mount',
+      reason: 'activate',
+      occurred_at: '2026-03-18T00:00:00.000Z',
+    });
+
+    expect(updated?.lifecycle).toEqual({
+      event: 'panel_mount',
+      reason: 'activate',
+      updated_at: '2026-03-18T00:00:00.000Z',
+    });
+  });
 });
