@@ -34,6 +34,7 @@ function installMockParent() {
               protocol: PANEL_BRIDGE_PROTOCOL_VERSION,
               kind: 'host.bootstrap',
               message_id: 'msg-1',
+              config_version: 'cfg-1',
               config: {
                 units: {
                   value: 'metric',
@@ -72,6 +73,7 @@ function installMockParent() {
               protocol: PANEL_BRIDGE_PROTOCOL_VERSION,
               kind: 'config.result',
               request_id: message.request_id!,
+              config_version: 'cfg-2',
               config: {
                 units: {
                   value: 'imperial',
@@ -226,6 +228,24 @@ describe('@nous/app-sdk panel hooks', () => {
       expect(screen.getByTestId('units').textContent).toBe('metric');
       expect(screen.getByTestId('persisted-city').textContent).toBe('Seattle');
       expect(latest).toBeDefined();
+    });
+
+    await act(async () => {
+      dispatchFromParent({
+        protocol: PANEL_BRIDGE_PROTOCOL_VERSION,
+        kind: 'config.changed',
+        config_version: 'cfg-live',
+        config: {
+          units: {
+            value: 'scientific',
+            source: 'project_config',
+          },
+        },
+      });
+    });
+
+    await waitFor(() => {
+      expect(screen.getByTestId('units').textContent).toBe('scientific');
     });
 
     const toolResult = await act(async () => {

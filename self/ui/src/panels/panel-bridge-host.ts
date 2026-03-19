@@ -18,6 +18,7 @@ export interface PanelBridgeHostOptions {
   panelId: string;
   iframe: HTMLIFrameElement;
   mcpEndpoint: string;
+  configVersion: string;
   configSnapshot: PanelBridgeConfigSnapshot;
   notifyAdapter?: (notification: PanelBridgeNotification) => Promise<boolean> | boolean;
   lifecycleAdapter?: (input: {
@@ -32,6 +33,8 @@ export interface PanelBridgeHostOptions {
 export class PanelBridgeHost {
   private panelReady = false;
   private lastLifecycleKey?: string;
+  private configVersion: string;
+  private configSnapshot: PanelBridgeConfigSnapshot;
 
   private readonly mediaQuery =
     typeof window.matchMedia === 'function'
@@ -91,6 +94,8 @@ export class PanelBridgeHost {
   };
 
   constructor(private readonly options: PanelBridgeHostOptions) {
+    this.configVersion = options.configVersion;
+    this.configSnapshot = options.configSnapshot;
     window.addEventListener('message', this.handleMessage);
     this.mediaQuery?.addEventListener?.('change', this.handleThemeChange);
   }
@@ -98,6 +103,29 @@ export class PanelBridgeHost {
   destroy(): void {
     window.removeEventListener('message', this.handleMessage);
     this.mediaQuery?.removeEventListener?.('change', this.handleThemeChange);
+  }
+
+  updateConfig(input: {
+    configVersion: string;
+    configSnapshot: PanelBridgeConfigSnapshot;
+  }): void {
+    const changed =
+      input.configVersion !== this.configVersion ||
+      JSON.stringify(input.configSnapshot) !== JSON.stringify(this.configSnapshot);
+
+    this.configVersion = input.configVersion;
+    this.configSnapshot = input.configSnapshot;
+
+    if (!changed || !this.panelReady) {
+      return;
+    }
+
+    this.postToPanel({
+      protocol: PANEL_BRIDGE_PROTOCOL_VERSION,
+      kind: 'config.changed',
+      config_version: this.configVersion,
+      config: this.configSnapshot,
+    });
   }
 
   private async dispatch(message: ReturnType<typeof PanelBridgePanelMessageSchema.parse>) {
@@ -108,7 +136,8 @@ export class PanelBridgeHost {
           protocol: PANEL_BRIDGE_PROTOCOL_VERSION,
           kind: 'host.bootstrap',
           message_id: message.message_id,
-          config: this.options.configSnapshot,
+          config_version: this.configVersion,
+          config: this.configSnapshot,
           theme: this.buildThemeSnapshot(),
           capabilities: {
             tool: true,
@@ -126,7 +155,8 @@ export class PanelBridgeHost {
           protocol: PANEL_BRIDGE_PROTOCOL_VERSION,
           kind: 'config.result',
           request_id: message.request_id,
-          config: this.options.configSnapshot,
+          config_version: this.configVersion,
+          config: this.configSnapshot,
         });
         return;
       case 'theme.get':

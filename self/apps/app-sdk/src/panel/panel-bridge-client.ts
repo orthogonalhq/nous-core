@@ -40,6 +40,9 @@ export class PanelBridgeClient {
   private readonly themeListeners = new Set<
     (theme: PanelBridgeThemeSnapshot) => void
   >();
+  private readonly configListeners = new Set<
+    (config: PanelBridgeConfigSnapshot) => void
+  >();
   private readonly lifecycleListeners = new Set<
     (event: PanelLifecycleChangedMessage) => void
   >();
@@ -72,6 +75,13 @@ export class PanelBridgeClient {
     if (message.kind === 'theme.changed') {
       for (const listener of this.themeListeners) {
         listener(message.theme);
+      }
+      return;
+    }
+
+    if (message.kind === 'config.changed') {
+      for (const listener of this.configListeners) {
+        listener(message.config);
       }
       return;
     }
@@ -144,6 +154,15 @@ export class PanelBridgeClient {
     this.themeListeners.add(listener);
     return () => {
       this.themeListeners.delete(listener);
+    };
+  }
+
+  subscribeConfig(
+    listener: (config: PanelBridgeConfigSnapshot) => void,
+  ): () => void {
+    this.configListeners.add(listener);
+    return () => {
+      this.configListeners.delete(listener);
     };
   }
 

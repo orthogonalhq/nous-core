@@ -28,6 +28,7 @@ describe('panel bridge shared protocol types', () => {
       protocol: PANEL_BRIDGE_PROTOCOL_VERSION,
       kind: 'host.bootstrap',
       message_id: 'msg-1',
+      config_version: 'cfg-1',
       config: {
         units: {
           value: 'metric',
@@ -121,5 +122,21 @@ describe('panel bridge shared protocol types', () => {
     expect(getRequest.kind).toBe('persisted_state.get');
     expect(lifecycle.kind).toBe('panel.lifecycle');
     expect(result.exists).toBe(true);
+  });
+
+  it('parses config push messages with the effective config version', () => {
+    const changed = PanelBridgeHostMessageSchema.parse({
+      protocol: PANEL_BRIDGE_PROTOCOL_VERSION,
+      kind: 'config.changed',
+      config_version: 'cfg-2',
+      config: {
+        units: {
+          value: 'imperial',
+          source: 'project_config',
+        },
+      },
+    });
+
+    expect(changed.kind).toBe('config.changed');
   });
 });

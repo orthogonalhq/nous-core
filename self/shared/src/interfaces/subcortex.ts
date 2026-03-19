@@ -96,12 +96,19 @@ import type {
   AppInstallPreparation,
   AppInstallRequest,
   AppInstallResult,
+  AppSettingsPreparation,
+  AppSettingsPrepareRequest,
+  AppSettingsSaveRequest,
+  AppSettingsSaveResult,
   AppHealthSnapshot,
   AppHeartbeatSignal,
+  CredentialBackupResult,
+  CredentialDiscardBackupResult,
   CredentialOAuthFlowRequest,
   CredentialOAuthFlowResult,
   CredentialRevokeRequest,
   CredentialRevokeResult,
+  CredentialRestoreResult,
   CredentialStoreRequest,
   CredentialStoreResult,
   PackageLifecycleTransitionRequest,
@@ -580,6 +587,24 @@ export interface IAppCredentialInstallService {
     appId: string,
     request: CredentialRevokeRequest,
   ): Promise<CredentialRevokeResult>;
+
+  /** Create an opaque backup handle before a destructive settings mutation. */
+  backupCredential(
+    appId: string,
+    key: string,
+  ): Promise<CredentialBackupResult>;
+
+  /** Restore a previously created opaque backup handle. */
+  restoreCredential(
+    appId: string,
+    backupRef: string,
+  ): Promise<CredentialRestoreResult>;
+
+  /** Discard an unused opaque backup handle. */
+  discardCredentialBackup(
+    appId: string,
+    backupRef: string,
+  ): Promise<CredentialDiscardBackupResult>;
 }
 
 export interface IPublicMcpGatewayService {
@@ -933,6 +958,16 @@ export interface IAppInstallService {
 
   /** Execute approval-gated install, validation, vault storage, and activation. */
   installApp(request: AppInstallRequest): Promise<AppInstallResult>;
+}
+
+export interface IAppSettingsService {
+  /** Resolve the canonical settings contract for one installed app package. */
+  prepareSettings(
+    request: AppSettingsPrepareRequest,
+  ): Promise<AppSettingsPreparation>;
+
+  /** Validate and apply one governed settings save. */
+  saveSettings(request: AppSettingsSaveRequest): Promise<AppSettingsSaveResult>;
 }
 
 export interface IPackageInstallService {

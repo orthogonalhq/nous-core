@@ -10,6 +10,7 @@ interface AppIframePanelParams {
   panelId: string
   src: string
   preserveState?: boolean
+  configVersion?: string
   configSnapshot?: PanelBridgeConfigSnapshot
 }
 
@@ -40,6 +41,7 @@ export function AppIframePanel({ params, api }: AppIframePanelProps) {
       panelId: params.panelId,
       iframe: iframeRef.current,
       mcpEndpoint: new URL('/mcp', params.src).toString(),
+      configVersion: params.configVersion ?? 'cfg-initial',
       configSnapshot: params.configSnapshot ?? {},
       lifecycleAdapter: async (input) => {
         const response = await fetch(new URL('/mcp', params.src).toString(), {
@@ -74,8 +76,37 @@ export function AppIframePanel({ params, api }: AppIframePanelProps) {
     params?.appId,
     params?.panelId,
     params?.src,
-    JSON.stringify(params?.configSnapshot ?? {}),
   ])
+
+  useEffect(() => {
+    bridgeHostRef.current?.updateConfig({
+      configVersion: params?.configVersion ?? 'cfg-initial',
+      configSnapshot: params?.configSnapshot ?? {},
+    })
+  }, [params?.configVersion, JSON.stringify(params?.configSnapshot ?? {})])
+
+  useEffect(() => {
+    const handleSettingsChanged = (event: Event) => {
+      const detail = (event as CustomEvent<{
+        appId?: string
+        configVersion: string
+        configSnapshot: PanelBridgeConfigSnapshot
+      }>).detail
+      if (!detail || detail.appId !== params?.appId) {
+        return
+      }
+
+      bridgeHostRef.current?.updateConfig({
+        configVersion: detail.configVersion,
+        configSnapshot: detail.configSnapshot,
+      })
+    }
+
+    window.addEventListener('nous:app-settings-changed', handleSettingsChanged as EventListener)
+    return () => {
+      window.removeEventListener('nous:app-settings-changed', handleSettingsChanged as EventListener)
+    }
+  }, [params?.appId])
 
   useEffect(() => {
     if (!api) {

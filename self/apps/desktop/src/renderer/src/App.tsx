@@ -53,6 +53,7 @@ interface AppPanelSnapshot {
   label: string
   route_path: string
   dockview_panel_id: string
+  config_version: string
   preserve_state: boolean
   position?: 'left' | 'right' | 'bottom' | 'main'
   config_snapshot: Record<string, {
@@ -74,7 +75,10 @@ export const NATIVE_PANEL_DEFS: PanelDef[] = [
     id: 'app-installer',
     component: 'app-installer',
     title: 'App Installer',
-    params: () => ({ appInstallApi: (window as any).electronAPI?.appInstall }),
+    params: () => ({
+      appInstallApi: (window as any).electronAPI?.appInstall,
+      appSettingsApi: (window as any).electronAPI?.appSettings,
+    }),
   },
   {
     id: 'chat',
@@ -109,6 +113,7 @@ function toAppPanelDef(panel: AppPanelSnapshot): PanelDef {
       panelId: panel.panel_id,
       src: panel.src,
       preserveState: panel.preserve_state,
+      configVersion: panel.config_version,
       configSnapshot: panel.config_snapshot,
     }),
     position: panel.position ? APP_PANEL_POSITIONS[panel.position] : undefined,

@@ -79,6 +79,12 @@ Phase 15.3 extends the same SDK surface with:
 * `onActivate`
 * `onDeactivate`
 
+Phase 15.5 extends the same SDK surface with live config convergence:
+
+* `PanelBridgeClient.subscribeConfig()` for additive host-owned config refreshes
+* `NousPanel` / `useConfig()` subscription-driven updates when trusted hosts push `config.changed`
+* No iframe-local or browser-local settings authority beyond the canonical host bridge snapshot
+
 Panels use this package to speak the canonical versioned `postMessage` bridge to the trusted host.
 The SDK is a bridge client and projection helper only: it lets sandboxed panel code invoke app
 tools and read host-projected config/theme state through the host bridge, while keeping host
@@ -119,6 +125,11 @@ Phase 15.4 extends the same host with canonical app-install preparation and exec
 package-detail surfaces. The host can launch the shared three-stage install wizard, but secret and
 OAuth handling plus persisted config truth remain in the backend install service instead of
 browser-owned state.
+
+Phase 15.5 extends the same host with canonical app-settings preparation and save transport for
+installed app package-detail surfaces. The web package detail view can reuse the shared
+`AppSettingsSurface`, refetch canonical settings truth after save, and push additive config refresh
+events to active app panels without introducing browser-owned settings state.
 
 ### bridge/
 
@@ -502,6 +513,11 @@ Phase 15.4 adds `self/subcortex/projects/src/app-install/` as the project-scoped
 - `service.ts` — prepares install contracts from registry releases, validates required config, delegates vault/OAuth setup, runs install hooks, activates apps, and owns rollback cleanup
 - `index.ts` — exports the install seam for host bootstrap and test consumers
 
+Phase 15.5 adds `self/subcortex/projects/src/app-settings/` as the project-scoped app-settings lane:
+
+- `service.ts` — prepares canonical settings contracts, validates candidate config, stages secret mutation, enforces config-version compare-and-swap, owns `deactivate -> update -> reactivate`, and performs rollback/recovery
+- `index.ts` — exports the settings seam for host bootstrap and test consumers
+
 ### apps/
 
 Canonical app runtime for installed `.apps` packages. Implemented in Phase 14.5 as `@nous/subcortex-apps`.
@@ -791,6 +807,11 @@ Phase 15.4 extends installable apps with a canonical host-owned install flow. Ap
 declare permissions, config fields, and optional lifecycle hooks in the manifest, but hosts now
 prepare a shared install contract and render the same staged install wizard instead of accepting
 package-authored install UIs or storing secrets locally.
+
+Phase 15.5 extends the same posture with a canonical host-owned settings flow after install.
+Installed app packages still declare config in the manifest, but hosts now reuse a shared settings
+surface, save through the project-scoped settings service, and push additive config refreshes to
+active panels without exposing secret values or inventing an app-owned settings UI runtime.
 
 This keeps the distinction clear: `self/apps/` contains first-party senses that are part of the being, while `.apps/` stores installable packages that can extend the operator experience.
 

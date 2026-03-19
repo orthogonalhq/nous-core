@@ -33,7 +33,12 @@ export class PanelRegistrationRegistry {
     input: {
       session: Pick<
         AppRuntimeSession,
-        'session_id' | 'app_id' | 'package_id' | 'package_version' | 'project_id'
+        | 'session_id'
+        | 'app_id'
+        | 'package_id'
+        | 'package_version'
+        | 'project_id'
+        | 'config_version'
       >;
       package_root_ref: string;
       manifest_ref: string;
@@ -56,6 +61,7 @@ export class PanelRegistrationRegistry {
       app_id: panel.app_id,
       package_id: input.session.package_id,
       package_version: input.session.package_version,
+      config_version: input.session.config_version,
       project_id: input.session.project_id,
       panel_id: panel.panel_id,
       label: panel.label,

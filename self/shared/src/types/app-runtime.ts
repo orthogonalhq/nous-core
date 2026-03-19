@@ -139,6 +139,7 @@ export const AppPanelBridgeContextSchema = z.object({
   app_id: z.string().min(1),
   package_id: z.string().min(1),
   package_version: z.string().min(1),
+  config_version: z.string().min(1),
   project_id: ProjectIdSchema.optional(),
   panel_id: z.string().min(1),
   label: z.string().min(1),

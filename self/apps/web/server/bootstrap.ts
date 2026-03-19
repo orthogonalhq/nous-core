@@ -57,6 +57,7 @@ import {
 } from '@nous/cortex-core';
 import {
   AppInstallService,
+  AppSettingsService,
   DocumentAppConfigStore,
   DocumentProjectStore,
   PackageInstallService,
@@ -437,6 +438,13 @@ export function createNousContext(): NousContext {
     configStore: appConfigStore,
     runtime,
     witnessService,
+    instanceRoot,
+  });
+  const appSettingsService = new AppSettingsService({
+    appCredentialInstallService,
+    appRuntimeService,
+    configStore: appConfigStore,
+    runtime,
     instanceRoot,
   });
   const maoProjectionService = new MaoProjectionService({
@@ -824,6 +832,7 @@ export function createNousContext(): NousContext {
     endpointTrustService,
     registryService,
     appInstallService,
+    appSettingsService,
     packageInstallService,
     nudgeDiscoveryService,
     voiceControlService,
