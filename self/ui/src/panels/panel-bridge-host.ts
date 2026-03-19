@@ -1,8 +1,12 @@
 import {
+  type AppPanelLifecycleEvent,
+  type AppPanelLifecycleReason,
   PANEL_BRIDGE_PROTOCOL_VERSION,
   type PanelBridgeConfigSnapshot,
   type PanelBridgeErrorCode,
+  PanelBridgeToolTransportFailureSchema,
   PanelBridgePanelMessageSchema,
+  PanelPersistedStateTransportResultSchema,
   type PanelBridgeThemeSnapshot,
   type PanelBridgeNotification,
   PanelBridgeToolTransportRequestSchema,
@@ -16,9 +20,19 @@ export interface PanelBridgeHostOptions {
   mcpEndpoint: string;
   configSnapshot: PanelBridgeConfigSnapshot;
   notifyAdapter?: (notification: PanelBridgeNotification) => Promise<boolean> | boolean;
+  lifecycleAdapter?: (input: {
+    app_id: string;
+    panel_id: string;
+    event: AppPanelLifecycleEvent;
+    reason: AppPanelLifecycleReason;
+    occurred_at: string;
+  }) => Promise<void> | void;
 }
 
 export class PanelBridgeHost {
+  private panelReady = false;
+  private lastLifecycleKey?: string;
+
   private readonly mediaQuery =
     typeof window.matchMedia === 'function'
       ? window.matchMedia('(prefers-color-scheme: dark)')
@@ -89,6 +103,7 @@ export class PanelBridgeHost {
   private async dispatch(message: ReturnType<typeof PanelBridgePanelMessageSchema.parse>) {
     switch (message.kind) {
       case 'panel.ready':
+        this.panelReady = true;
         this.postToPanel({
           protocol: PANEL_BRIDGE_PROTOCOL_VERSION,
           kind: 'host.bootstrap',
@@ -100,8 +115,11 @@ export class PanelBridgeHost {
             config: true,
             theme: true,
             notify: true,
+            persisted_state: true,
+            lifecycle: true,
           },
         });
+        await this.notifyLifecycle('panel_mount', 'open');
         return;
       case 'config.get':
         this.postToPanel({
@@ -121,6 +139,11 @@ export class PanelBridgeHost {
         return;
       case 'notify.send':
         await this.handleNotify(message.request_id, message.notification);
+        return;
+      case 'persisted_state.get':
+      case 'persisted_state.set':
+      case 'persisted_state.delete':
+        await this.handlePersistedState(message);
         return;
       case 'tool.invoke':
         await this.handleToolInvoke(message);
@@ -205,6 +228,102 @@ export class PanelBridgeHost {
       this.postError({
         code: 'tool_execution_failed',
         message: 'Panel tool invocation failed.',
+        requestId: message.request_id,
+      });
+    }
+  }
+
+  async notifyLifecycle(
+    event: AppPanelLifecycleEvent,
+    reason: AppPanelLifecycleReason,
+  ): Promise<void> {
+    const nextLifecycleKey = `${event}:${reason}`;
+    if (this.lastLifecycleKey === nextLifecycleKey) {
+      return;
+    }
+
+    try {
+      await this.options.lifecycleAdapter?.({
+        app_id: this.options.appId,
+        panel_id: this.options.panelId,
+        event,
+        reason,
+        occurred_at: new Date().toISOString(),
+      });
+
+      if (this.panelReady) {
+        this.postToPanel({
+          protocol: PANEL_BRIDGE_PROTOCOL_VERSION,
+          kind: 'panel.lifecycle',
+          event,
+          reason,
+        });
+      }
+
+      this.lastLifecycleKey = nextLifecycleKey;
+    } catch {
+      // Lifecycle reconciliation is best-effort and must not break the host bridge.
+    }
+  }
+
+  private async handlePersistedState(
+    message: Extract<
+      ReturnType<typeof PanelBridgePanelMessageSchema.parse>,
+      | { kind: 'persisted_state.get' }
+      | { kind: 'persisted_state.set' }
+      | { kind: 'persisted_state.delete' }
+    >,
+  ): Promise<void> {
+    try {
+      const response = await fetch(this.options.mcpEndpoint, {
+        method: 'POST',
+        headers: {
+          'content-type': 'application/json',
+          'x-nous-panel-bridge': '1',
+          'x-nous-panel-bridge-operation': message.kind,
+        },
+        body: JSON.stringify({
+          protocol: PANEL_BRIDGE_PROTOCOL_VERSION,
+          request_id: message.request_id,
+          app_id: this.options.appId,
+          panel_id: this.options.panelId,
+          key: message.key,
+          ...('value' in message ? { value: message.value } : {}),
+        }),
+      });
+
+      const body = await response.json();
+      const failure = PanelBridgeToolTransportFailureSchema.safeParse(body);
+      if (failure.success) {
+        this.postError({
+          ...failure.data.error,
+          requestId: failure.data.request_id,
+        });
+        return;
+      }
+
+      const parsed = PanelPersistedStateTransportResultSchema.safeParse(body);
+      if (!parsed.success) {
+        this.postError({
+          code: 'internal_error',
+          message: 'Invalid persisted-state bridge response.',
+          requestId: message.request_id,
+        });
+        return;
+      }
+
+      this.postToPanel({
+        protocol: PANEL_BRIDGE_PROTOCOL_VERSION,
+        kind: 'persisted_state.result',
+        request_id: parsed.data.request_id,
+        key: parsed.data.key,
+        exists: parsed.data.exists,
+        value: parsed.data.value,
+      });
+    } catch {
+      this.postError({
+        code: 'host_unavailable',
+        message: 'Persisted state bridge is unavailable.',
         requestId: message.request_id,
       });
     }
