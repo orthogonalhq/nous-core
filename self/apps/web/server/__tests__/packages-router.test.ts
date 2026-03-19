@@ -2,8 +2,9 @@ import { mkdir, mkdtemp, writeFile } from 'node:fs/promises';
 import { join } from 'node:path';
 import { randomUUID } from 'node:crypto';
 import { tmpdir } from 'node:os';
-import { beforeAll, describe, expect, it } from 'vitest';
+import { beforeAll, describe, expect, it, vi } from 'vitest';
 import { appRouter } from '../trpc/root';
+import { packagesRouter } from '../trpc/routers/packages';
 import { clearNousContextCache, createNousContext } from '../bootstrap';
 import { createProjectConfig } from '../../test-support/project-fixtures';
 
@@ -130,6 +131,97 @@ describe('packages router', () => {
     expect(installResult.status).toBe('failed');
     expect(installResult.phase).toBe('configuration');
     expect(installResult.validation.results[0]?.field).toBe('bot_token');
+  });
+
+  it('routes canonical app-settings prepare/save calls and panel listings through the shared context seams', async () => {
+    const prepareSettings = vi.fn().mockResolvedValue({
+      project_id: '550e8400-e29b-41d4-a716-446655440803',
+      package_id: 'telegram-connector',
+      release_id: 'release-1',
+      package_version: '1.0.0',
+      app_id: 'telegram',
+      display_name: 'Telegram Connector',
+      config_version: 'cfg-1',
+      runtime: {
+        status: 'active',
+        config_version: 'cfg-1',
+      },
+      config_groups: [],
+      panel_config_snapshot: {},
+    });
+    const saveSettings = vi.fn().mockResolvedValue({
+      status: 'success',
+      apply_status: 'applied',
+      phase: 'completed',
+      validation: {
+        status: 'success',
+        results: [],
+      },
+      effective_config_version: 'cfg-2',
+      runtime: {
+        status: 'active',
+        config_version: 'cfg-2',
+      },
+      stored_secrets: [],
+      rollback_applied: false,
+      recoverable: true,
+      metadata: {},
+    });
+    const listPanels = vi.fn().mockResolvedValue([
+      {
+        session_id: 'session-1',
+        app_id: 'telegram',
+        package_id: 'telegram-connector',
+        package_version: '1.0.0',
+        config_version: 'cfg-2',
+        panel_id: 'main',
+        label: 'Main',
+        entry: 'panels/main.tsx',
+        preserve_state: true,
+        package_root_ref: '/tmp/.apps/telegram-connector',
+        manifest_ref: '/tmp/.apps/telegram-connector/manifest.json',
+        route_path: '/apps/telegram/panels/main',
+        dockview_panel_id: 'app:telegram:main',
+        config_snapshot: {
+          units: {
+            value: 'metric',
+            source: 'project_config',
+          },
+        },
+      },
+    ]);
+
+    const caller = packagesRouter.createCaller({
+      appSettingsService: {
+        prepareSettings,
+        saveSettings,
+      },
+      appRuntimeService: {
+        listPanels,
+      },
+    } as any);
+
+    const preparation = await caller.prepareAppSettings({
+      project_id: '550e8400-e29b-41d4-a716-446655440803' as any,
+      package_id: 'telegram-connector',
+    });
+    const result = await caller.saveAppSettings({
+      project_id: '550e8400-e29b-41d4-a716-446655440803' as any,
+      package_id: 'telegram-connector',
+      actor_id: 'web-test',
+      expected_config_version: 'cfg-1',
+      config: {},
+      secrets: {},
+      evidence_refs: [],
+    });
+    const panels = await caller.listAppPanels();
+
+    expect(preparation.config_version).toBe('cfg-1');
+    expect(result.effective_config_version).toBe('cfg-2');
+    expect(panels[0]?.config_version).toBe('cfg-2');
+    expect(prepareSettings).toHaveBeenCalledTimes(1);
+    expect(saveSettings).toHaveBeenCalledTimes(1);
+    expect(listPanels).toHaveBeenCalledTimes(1);
   });
 });
 

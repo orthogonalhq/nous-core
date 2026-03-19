@@ -3,6 +3,10 @@ import {
   AppInstallPrepareRequestSchema,
   AppInstallRequestSchema,
   AppInstallResultSchema,
+  AppSettingsPreparationSchema,
+  AppSettingsPrepareRequestSchema,
+  AppSettingsSaveRequestSchema,
+  AppSettingsSaveResultSchema,
   AppPanelSafeConfigSnapshotSchema,
   PackageInstallRequestSchema,
   PackageInstallResultSchema,
@@ -17,6 +21,7 @@ const AppHostPanelSchema = z.object({
   label: z.string().min(1),
   route_path: z.string().min(1),
   dockview_panel_id: z.string().min(1),
+  config_version: z.string().min(1),
   preserve_state: z.boolean(),
   position: z.enum(['left', 'right', 'bottom', 'main']).optional(),
   config_snapshot: AppPanelSafeConfigSnapshotSchema,
@@ -35,6 +40,18 @@ export const packagesRouter = router({
     .mutation(async ({ ctx, input }) => {
       return ctx.appInstallService.installApp(input);
     }),
+  prepareAppSettings: publicProcedure
+    .input(AppSettingsPrepareRequestSchema)
+    .output(AppSettingsPreparationSchema)
+    .query(async ({ ctx, input }) => {
+      return ctx.appSettingsService.prepareSettings(input);
+    }),
+  saveAppSettings: publicProcedure
+    .input(AppSettingsSaveRequestSchema)
+    .output(AppSettingsSaveResultSchema)
+    .mutation(async ({ ctx, input }) => {
+      return ctx.appSettingsService.saveSettings(input);
+    }),
   install: publicProcedure
     .input(PackageInstallRequestSchema)
     .output(PackageInstallResultSchema)
@@ -51,6 +68,7 @@ export const packagesRouter = router({
         label: panel.label,
         route_path: panel.route_path,
         dockview_panel_id: panel.dockview_panel_id,
+        config_version: panel.config_version,
         preserve_state: panel.preserve_state,
         position: panel.position,
         config_snapshot: panel.config_snapshot,

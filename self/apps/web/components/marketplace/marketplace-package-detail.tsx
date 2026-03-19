@@ -2,8 +2,11 @@
 
 import * as React from 'react';
 import Link from 'next/link';
-import type { RegistryPackageDetailSnapshot } from '@nous/shared';
-import { InstallWizard } from '@nous/ui';
+import type {
+  AppSettingsPreparation,
+  RegistryPackageDetailSnapshot,
+} from '@nous/shared';
+import { AppSettingsSurface, InstallWizard } from '@nous/ui';
 import { Badge } from '@/components/ui/badge';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { trpc } from '@/lib/trpc';
@@ -29,7 +32,34 @@ export function MarketplacePackageDetail({
       enabled: Boolean(projectId && snapshot.latestRelease?.release_id),
     },
   );
+  const settingsPreparationQuery = trpc.packages.prepareAppSettings.useQuery(
+    {
+      project_id: projectId as any,
+      package_id: snapshot.package.package_id,
+    },
+    {
+      enabled: Boolean(projectId),
+      retry: false,
+    },
+  );
   const installAppMutation = trpc.packages.installApp.useMutation();
+  const saveAppSettingsMutation = trpc.packages.saveAppSettings.useMutation();
+
+  const syncPanels = React.useCallback((preparation?: AppSettingsPreparation | null) => {
+    if (!preparation || typeof window === 'undefined') {
+      return
+    }
+
+    window.dispatchEvent(
+      new CustomEvent('nous:app-settings-changed', {
+        detail: {
+          appId: preparation.app_id,
+          configVersion: preparation.config_version,
+          configSnapshot: preparation.panel_config_snapshot,
+        },
+      }),
+    )
+  }, [])
 
   return (
     <div className="space-y-6">
@@ -38,18 +68,38 @@ export function MarketplacePackageDetail({
           <CardTitle className="text-base">Install Wizard</CardTitle>
         </CardHeader>
         <CardContent className="pt-4">
-          {projectId && installPreparationQuery.data ? (
+          {projectId && settingsPreparationQuery.data ? (
+            <AppSettingsSurface
+              preparation={settingsPreparationQuery.data}
+              actorId="web-marketplace"
+              onSave={(request) => saveAppSettingsMutation.mutateAsync(request)}
+              disabled={settingsPreparationQuery.isLoading || saveAppSettingsMutation.isPending}
+              onSaved={async () => {
+                const refreshed = await settingsPreparationQuery.refetch()
+                syncPanels(refreshed.data)
+              }}
+            />
+          ) : projectId && installPreparationQuery.data ? (
             <InstallWizard
               preparation={installPreparationQuery.data}
               projectId={projectId}
               actorId="web-marketplace"
               onInstall={(request) => installAppMutation.mutateAsync(request)}
+              onResult={async (result) => {
+                if (result.status === 'failed') {
+                  return
+                }
+                const refreshed = await settingsPreparationQuery.refetch()
+                syncPanels(refreshed.data)
+              }}
               disabled={installPreparationQuery.isLoading || installAppMutation.isPending}
             />
           ) : (
             <div className="rounded-md border border-border bg-muted/20 p-4 text-sm text-muted-foreground">
               {projectId
-                ? 'Preparing the canonical install contract...'
+                ? settingsPreparationQuery.error
+                  ? 'Preparing the canonical settings or install contract...'
+                  : 'Preparing the canonical install contract...'
                 : 'Open this package with a project context to run the approval-gated install wizard.'}
             </div>
           )}

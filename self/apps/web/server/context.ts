@@ -20,6 +20,7 @@ import type {
   IRegistryService,
   INudgeDiscoveryService,
   IAppInstallService,
+  IAppSettingsService,
   IPackageInstallService,
   IVoiceControlService,
   IPublicMcpGatewayService,
@@ -59,6 +60,7 @@ export interface NousContext {
   endpointTrustService: IEndpointTrustService;
   registryService: IRegistryService;
   appInstallService: IAppInstallService;
+  appSettingsService: IAppSettingsService;
   packageInstallService: IPackageInstallService;
   nudgeDiscoveryService: INudgeDiscoveryService;
   voiceControlService: IVoiceControlService;

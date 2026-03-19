@@ -57,6 +57,7 @@ describe('AppIframePanel host bridge', () => {
             appId: 'app:weather',
             panelId: 'forecast',
             src: 'http://localhost:3000/apps/app%3Aweather/panels/forecast',
+            configVersion: 'cfg-1',
             configSnapshot: {
               units: {
                 value: 'metric',
@@ -150,6 +151,7 @@ describe('AppIframePanel host bridge', () => {
             appId: 'app:weather',
             panelId: 'forecast',
             src: 'http://localhost:3000/apps/app%3Aweather/panels/forecast',
+            configVersion: 'cfg-1',
             configSnapshot: {},
           },
         } as any)}
@@ -205,6 +207,7 @@ describe('AppIframePanel host bridge', () => {
             panelId: 'forecast',
             src: 'http://localhost:3000/apps/app%3Aweather/panels/forecast',
             preserveState: false,
+            configVersion: 'cfg-1',
             configSnapshot: {},
           },
         } as any)}
@@ -281,6 +284,7 @@ describe('AppIframePanel host bridge', () => {
             appId: 'app:weather',
             panelId: 'forecast',
             src: 'http://localhost:3000/apps/app%3Aweather/panels/forecast',
+            configVersion: 'cfg-1',
             configSnapshot: {},
           },
         } as any)}
@@ -319,5 +323,97 @@ describe('AppIframePanel host bridge', () => {
         body: expect.stringContaining('"reason":"close"'),
       }),
     );
+  });
+
+  it('pushes config updates to the live iframe without remounting it', async () => {
+    const fetchSpy = vi.fn().mockResolvedValue({
+      ok: true,
+      json: async () => ({
+        protocol: PANEL_BRIDGE_PROTOCOL_VERSION,
+        request_id: 'req-4',
+        ok: true,
+        result: {},
+      }),
+    });
+    vi.stubGlobal('fetch', fetchSpy);
+
+    const view = render(
+      <AppIframePanel
+        {...({
+          params: {
+            appId: 'app:weather',
+            panelId: 'forecast',
+            src: 'http://localhost:3000/apps/app%3Aweather/panels/forecast',
+            configVersion: 'cfg-1',
+            configSnapshot: {
+              units: {
+                value: 'metric',
+                source: 'project_config',
+              },
+            },
+          },
+        } as any)}
+      />,
+    );
+
+    const iframe = view.container.querySelector('iframe');
+    const postMessageSpy = vi.spyOn(iframe!.contentWindow!, 'postMessage');
+
+    window.dispatchEvent(
+      new MessageEvent('message', {
+        source: iframe!.contentWindow,
+        data: {
+          protocol: PANEL_BRIDGE_PROTOCOL_VERSION,
+          kind: 'panel.ready',
+          message_id: 'msg-4',
+          app_id: 'app:weather',
+          panel_id: 'forecast',
+        },
+      }),
+    );
+
+    await waitFor(() => {
+      expect(postMessageSpy).toHaveBeenCalledWith(
+        expect.objectContaining({
+          kind: 'host.bootstrap',
+        }),
+        '*',
+      );
+    });
+
+    postMessageSpy.mockClear();
+
+    window.dispatchEvent(
+      new CustomEvent('nous:app-settings-changed', {
+        detail: {
+          appId: 'app:weather',
+          configVersion: 'cfg-2',
+          configSnapshot: {
+            units: {
+              value: 'imperial',
+              source: 'project_config',
+            },
+          },
+        },
+      }),
+    );
+
+    await waitFor(() => {
+      expect(postMessageSpy).toHaveBeenCalledWith(
+        expect.objectContaining({
+          kind: 'config.changed',
+          config_version: 'cfg-2',
+          config: {
+            units: {
+              value: 'imperial',
+              source: 'project_config',
+            },
+          },
+        }),
+        '*',
+      );
+    });
+
+    expect(view.container.querySelector('iframe')).toBe(iframe);
   });
 });
