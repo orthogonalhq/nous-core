@@ -1,6 +1,11 @@
 import { randomUUID } from 'node:crypto';
 import {
+  AppPanelLifecycleUpdateSchema,
   PANEL_BRIDGE_PROTOCOL_VERSION,
+  PanelPersistedStateTransportDeleteRequestSchema,
+  PanelPersistedStateTransportGetRequestSchema,
+  PanelPersistedStateTransportResultSchema,
+  PanelPersistedStateTransportSetRequestSchema,
   PublicMcpExecutionRequestSchema,
   PublicMcpRpcRequestSchema,
   PanelBridgeToolTransportFailureSchema,
@@ -63,8 +68,194 @@ function extractPanelBridgeRequestId(body: unknown): string {
 }
 
 async function handlePanelBridgeRequest(
+  request: Request,
   body: unknown,
 ): Promise<Response | null> {
+  const operation = request.headers.get('x-nous-panel-bridge-operation');
+
+  if (operation === 'panel.lifecycle') {
+    const parsed = AppPanelLifecycleUpdateSchema.safeParse(body);
+    if (!parsed.success) {
+      return new Response('Invalid panel lifecycle update.', { status: 400 });
+    }
+
+    const descriptor = await createNousContext().appRuntimeService.recordPanelLifecycle(
+      parsed.data,
+    );
+    return new Response(null, {
+      status: descriptor ? 204 : 404,
+    });
+  }
+
+  if (operation === 'persisted_state.get') {
+    const parsed = PanelPersistedStateTransportGetRequestSchema.safeParse(body);
+    if (!parsed.success) {
+      return Response.json(
+        PanelBridgeToolTransportFailureSchema.parse({
+          protocol: PANEL_BRIDGE_PROTOCOL_VERSION,
+          request_id: extractPanelBridgeRequestId(body),
+          ok: false,
+          error: {
+            code: 'message_invalid',
+            message: 'Invalid persisted-state get request.',
+            retryable: false,
+          },
+        }),
+        { status: 400 },
+      );
+    }
+
+    try {
+      const result = await createNousContext().appRuntimeService.getPersistedPanelState({
+        app_id: parsed.data.app_id,
+        panel_id: parsed.data.panel_id,
+        key: parsed.data.key,
+      });
+      return Response.json(
+        PanelPersistedStateTransportResultSchema.parse({
+          protocol: PANEL_BRIDGE_PROTOCOL_VERSION,
+          request_id: parsed.data.request_id,
+          ok: true,
+          key: parsed.data.key,
+          exists: result.exists,
+          value: result.value,
+        }),
+        { status: 200 },
+      );
+    } catch (error) {
+      const message =
+        error instanceof Error && error.message.length > 0
+          ? error.message
+          : 'Persisted state read failed.';
+      return Response.json(
+        PanelBridgeToolTransportFailureSchema.parse({
+          protocol: PANEL_BRIDGE_PROTOCOL_VERSION,
+          request_id: parsed.data.request_id,
+          ok: false,
+          error: {
+            code: message === 'Active app panel not found.' ? 'host_unavailable' : 'internal_error',
+            message,
+            retryable: false,
+          },
+        }),
+        { status: message === 'Active app panel not found.' ? 404 : 502 },
+      );
+    }
+  }
+
+  if (operation === 'persisted_state.set') {
+    const parsed = PanelPersistedStateTransportSetRequestSchema.safeParse(body);
+    if (!parsed.success) {
+      return Response.json(
+        PanelBridgeToolTransportFailureSchema.parse({
+          protocol: PANEL_BRIDGE_PROTOCOL_VERSION,
+          request_id: extractPanelBridgeRequestId(body),
+          ok: false,
+          error: {
+            code: 'message_invalid',
+            message: 'Invalid persisted-state set request.',
+            retryable: false,
+          },
+        }),
+        { status: 400 },
+      );
+    }
+
+    try {
+      const result = await createNousContext().appRuntimeService.setPersistedPanelState({
+        app_id: parsed.data.app_id,
+        panel_id: parsed.data.panel_id,
+        key: parsed.data.key,
+        value: parsed.data.value,
+      });
+      return Response.json(
+        PanelPersistedStateTransportResultSchema.parse({
+          protocol: PANEL_BRIDGE_PROTOCOL_VERSION,
+          request_id: parsed.data.request_id,
+          ok: true,
+          key: parsed.data.key,
+          exists: result.exists,
+          value: result.value,
+        }),
+        { status: 200 },
+      );
+    } catch (error) {
+      const message =
+        error instanceof Error && error.message.length > 0
+          ? error.message
+          : 'Persisted state write failed.';
+      return Response.json(
+        PanelBridgeToolTransportFailureSchema.parse({
+          protocol: PANEL_BRIDGE_PROTOCOL_VERSION,
+          request_id: parsed.data.request_id,
+          ok: false,
+          error: {
+            code: message === 'Active app panel not found.' ? 'host_unavailable' : 'internal_error',
+            message,
+            retryable: false,
+          },
+        }),
+        { status: message === 'Active app panel not found.' ? 404 : 502 },
+      );
+    }
+  }
+
+  if (operation === 'persisted_state.delete') {
+    const parsed = PanelPersistedStateTransportDeleteRequestSchema.safeParse(body);
+    if (!parsed.success) {
+      return Response.json(
+        PanelBridgeToolTransportFailureSchema.parse({
+          protocol: PANEL_BRIDGE_PROTOCOL_VERSION,
+          request_id: extractPanelBridgeRequestId(body),
+          ok: false,
+          error: {
+            code: 'message_invalid',
+            message: 'Invalid persisted-state delete request.',
+            retryable: false,
+          },
+        }),
+        { status: 400 },
+      );
+    }
+
+    try {
+      const result = await createNousContext().appRuntimeService.deletePersistedPanelState({
+        app_id: parsed.data.app_id,
+        panel_id: parsed.data.panel_id,
+        key: parsed.data.key,
+      });
+      return Response.json(
+        PanelPersistedStateTransportResultSchema.parse({
+          protocol: PANEL_BRIDGE_PROTOCOL_VERSION,
+          request_id: parsed.data.request_id,
+          ok: true,
+          key: parsed.data.key,
+          exists: result.exists,
+          value: result.value,
+        }),
+        { status: 200 },
+      );
+    } catch (error) {
+      const message =
+        error instanceof Error && error.message.length > 0
+          ? error.message
+          : 'Persisted state delete failed.';
+      return Response.json(
+        PanelBridgeToolTransportFailureSchema.parse({
+          protocol: PANEL_BRIDGE_PROTOCOL_VERSION,
+          request_id: parsed.data.request_id,
+          ok: false,
+          error: {
+            code: message === 'Active app panel not found.' ? 'host_unavailable' : 'internal_error',
+            message,
+            retryable: false,
+          },
+        }),
+        { status: message === 'Active app panel not found.' ? 404 : 502 },
+      );
+    }
+  }
+
   const parsed = PanelBridgeToolTransportRequestSchema.safeParse(body);
   if (!parsed.success) {
     return Response.json(
@@ -127,7 +318,7 @@ export async function POST(request: Request): Promise<Response> {
   }
 
   if (request.headers.get('x-nous-panel-bridge') === '1') {
-    const panelBridgeResponse = await handlePanelBridgeRequest(body);
+    const panelBridgeResponse = await handlePanelBridgeRequest(request, body);
     if (panelBridgeResponse) {
       return panelBridgeResponse;
     }

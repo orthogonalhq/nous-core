@@ -2,7 +2,7 @@
 
 import { useEffect, useRef } from 'react'
 import type { IDockviewPanelProps } from 'dockview-react'
-import type { PanelBridgeConfigSnapshot } from '@nous/shared'
+import type { AppPanelLifecycleReason, PanelBridgeConfigSnapshot } from '@nous/shared'
 import { PanelBridgeHost } from './panel-bridge-host'
 
 interface AppIframePanelParams {
@@ -17,8 +17,18 @@ interface AppIframePanelProps extends IDockviewPanelProps {
   params: AppIframePanelParams
 }
 
-export function AppIframePanel({ params }: AppIframePanelProps) {
+export function AppIframePanel({ params, api }: AppIframePanelProps) {
   const iframeRef = useRef<HTMLIFrameElement | null>(null)
+  const bridgeHostRef = useRef<PanelBridgeHost | null>(null)
+  const teardownReasonRef = useRef<AppPanelLifecycleReason | null>(null)
+
+  useEffect(() => {
+    if (!api) {
+      return
+    }
+
+    api.setRenderer(params?.preserveState === false ? 'onlyWhenVisible' : 'always')
+  }, [api, params?.preserveState])
 
   useEffect(() => {
     if (!params?.src || !iframeRef.current) {
@@ -31,9 +41,33 @@ export function AppIframePanel({ params }: AppIframePanelProps) {
       iframe: iframeRef.current,
       mcpEndpoint: new URL('/mcp', params.src).toString(),
       configSnapshot: params.configSnapshot ?? {},
+      lifecycleAdapter: async (input) => {
+        const response = await fetch(new URL('/mcp', params.src).toString(), {
+          method: 'POST',
+          headers: {
+            'content-type': 'application/json',
+            'x-nous-panel-bridge': '1',
+            'x-nous-panel-bridge-operation': 'panel.lifecycle',
+          },
+          body: JSON.stringify(input),
+        })
+
+        if (!response.ok) {
+          throw new Error('Panel lifecycle reconciliation failed.')
+        }
+      },
     })
+    bridgeHostRef.current = bridgeHost
 
     return () => {
+      if (teardownReasonRef.current !== 'host_reload') {
+        void bridgeHost.notifyLifecycle(
+          'panel_unmount',
+          teardownReasonRef.current ?? 'close',
+        )
+      }
+      bridgeHostRef.current = null
+      teardownReasonRef.current = null
       bridgeHost.destroy()
     }
   }, [
@@ -42,6 +76,35 @@ export function AppIframePanel({ params }: AppIframePanelProps) {
     params?.src,
     JSON.stringify(params?.configSnapshot ?? {}),
   ])
+
+  useEffect(() => {
+    if (!api) {
+      return
+    }
+
+    const disposable = api.onDidActiveChange(({ isActive }) => {
+      void bridgeHostRef.current?.notifyLifecycle(
+        isActive ? 'panel_mount' : 'panel_unmount',
+        isActive ? 'activate' : 'deactivate',
+      )
+    })
+
+    return () => {
+      disposable.dispose()
+    }
+  }, [api])
+
+  useEffect(() => {
+    const handleBeforeUnload = () => {
+      teardownReasonRef.current = 'host_reload'
+      void bridgeHostRef.current?.notifyLifecycle('panel_unmount', 'host_reload')
+    }
+
+    window.addEventListener('beforeunload', handleBeforeUnload)
+    return () => {
+      window.removeEventListener('beforeunload', handleBeforeUnload)
+    }
+  }, [])
 
   if (!params?.src) {
     return (

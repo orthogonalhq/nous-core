@@ -75,6 +75,8 @@ describe('PanelBridgeClient', () => {
         config: true,
         theme: true,
         notify: true,
+        persisted_state: true,
+        lifecycle: true,
       },
     });
 
@@ -110,6 +112,8 @@ describe('PanelBridgeClient', () => {
         config: true,
         theme: true,
         notify: true,
+        persisted_state: true,
+        lifecycle: true,
       },
     });
     await handshake;
@@ -158,6 +162,8 @@ describe('PanelBridgeClient', () => {
         config: true,
         theme: true,
         notify: true,
+        persisted_state: true,
+        lifecycle: true,
       },
     });
     await handshake;
@@ -166,5 +172,79 @@ describe('PanelBridgeClient', () => {
     client.destroy();
 
     await expect(pending).rejects.toThrow('cancelled');
+  });
+
+  it('supports persisted-state requests and lifecycle subscriptions', async () => {
+    const parentWindow = installMockParent();
+    const client = new PanelBridgeClient({
+      protocol: PANEL_BRIDGE_PROTOCOL_VERSION,
+      app_id: 'app:weather',
+      panel_id: 'forecast',
+      mcp_endpoint: 'http://localhost:3000/mcp',
+    });
+
+    const lifecycleSpy = vi.fn();
+    const unsubscribe = client.subscribeLifecycle(lifecycleSpy);
+    const handshake = client.connect();
+    dispatchFromParent({
+      protocol: PANEL_BRIDGE_PROTOCOL_VERSION,
+      kind: 'host.bootstrap',
+      message_id: 'msg-1',
+      config: {},
+      theme: {
+        mode: 'dark',
+        tokens: {},
+        metadata: {},
+      },
+      capabilities: {
+        tool: true,
+        config: true,
+        theme: true,
+        notify: true,
+        persisted_state: true,
+        lifecycle: true,
+      },
+    });
+    await handshake;
+
+    const pending = client.readPersistedState('filters');
+    const request = parentWindow.postMessage.mock.calls.at(-1)?.[0] as {
+      request_id: string;
+      key: string;
+    };
+
+    dispatchFromParent({
+      protocol: PANEL_BRIDGE_PROTOCOL_VERSION,
+      kind: 'persisted_state.result',
+      request_id: request.request_id,
+      key: request.key,
+      exists: true,
+      value: {
+        city: 'Seattle',
+      },
+    });
+    dispatchFromParent({
+      protocol: PANEL_BRIDGE_PROTOCOL_VERSION,
+      kind: 'panel.lifecycle',
+      event: 'panel_mount',
+      reason: 'activate',
+    });
+
+    await expect(pending).resolves.toEqual(
+      expect.objectContaining({
+        exists: true,
+        value: {
+          city: 'Seattle',
+        },
+      }),
+    );
+    expect(lifecycleSpy).toHaveBeenCalledWith(
+      expect.objectContaining({
+        event: 'panel_mount',
+        reason: 'activate',
+      }),
+    );
+
+    unsubscribe();
   });
 });

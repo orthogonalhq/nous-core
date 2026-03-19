@@ -65,6 +65,55 @@ describe('public MCP route', () => {
     );
   });
 
+  it('routes trusted persisted-state bridge requests through the MCP endpoint without public bearer auth', async () => {
+    process.env.NOUS_DATA_DIR = join(tmpdir(), `nous-web-public-mcp-${randomUUID()}`);
+    clearNousContextCache();
+    const ctx = createNousContext();
+    const getPersistedPanelState = vi
+      .spyOn(ctx.appRuntimeService, 'getPersistedPanelState')
+      .mockResolvedValue({
+        app_id: 'app:weather',
+        panel_id: 'forecast',
+        key: 'filters',
+        exists: true,
+        value: {
+          city: 'Seattle',
+        },
+        updated_at: '2026-03-18T00:00:00.000Z',
+      });
+
+    const response = await POST(
+      new Request('http://localhost:3000/mcp', {
+        method: 'POST',
+        headers: {
+          'content-type': 'application/json',
+          'x-nous-panel-bridge': '1',
+          'x-nous-panel-bridge-operation': 'persisted_state.get',
+        },
+        body: JSON.stringify({
+          protocol: PANEL_BRIDGE_PROTOCOL_VERSION,
+          request_id: 'req-2',
+          app_id: 'app:weather',
+          panel_id: 'forecast',
+          key: 'filters',
+        }),
+      }),
+    );
+    const body = await response.json();
+
+    expect(response.status).toBe(200);
+    expect(body.ok).toBe(true);
+    expect(body.exists).toBe(true);
+    expect(body.value).toEqual({
+      city: 'Seattle',
+    });
+    expect(getPersistedPanelState).toHaveBeenCalledWith({
+      app_id: 'app:weather',
+      panel_id: 'forecast',
+      key: 'filters',
+    });
+  });
+
   it('rejects missing bearer before tool execution', async () => {
     process.env.NOUS_DATA_DIR = join(tmpdir(), `nous-web-public-mcp-${randomUUID()}`);
     clearNousContextCache();

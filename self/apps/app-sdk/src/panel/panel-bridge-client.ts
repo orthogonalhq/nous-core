@@ -1,10 +1,12 @@
 import {
+  type PanelLifecycleChangedMessage,
   PANEL_BRIDGE_PROTOCOL_VERSION,
   type HostBootstrapMessage,
   type PanelBridgeConfigSnapshot,
   type PanelBridgeHostMessage,
   PanelBridgeHostMessageSchema,
   type PanelBridgeNotification,
+  type PanelPersistedStateResponse,
   type PanelBridgeThemeSnapshot,
   type PanelBridgeWindowBootstrap,
 } from '@nous/shared';
@@ -38,6 +40,9 @@ export class PanelBridgeClient {
   private readonly themeListeners = new Set<
     (theme: PanelBridgeThemeSnapshot) => void
   >();
+  private readonly lifecycleListeners = new Set<
+    (event: PanelLifecycleChangedMessage) => void
+  >();
 
   private handshakeResolver?: (message: HostBootstrapMessage) => void;
   private handshakeRejector?: (error: Error) => void;
@@ -67,6 +72,13 @@ export class PanelBridgeClient {
     if (message.kind === 'theme.changed') {
       for (const listener of this.themeListeners) {
         listener(message.theme);
+      }
+      return;
+    }
+
+    if (message.kind === 'panel.lifecycle') {
+      for (const listener of this.lifecycleListeners) {
+        listener(message);
       }
       return;
     }
@@ -135,6 +147,15 @@ export class PanelBridgeClient {
     };
   }
 
+  subscribeLifecycle(
+    listener: (event: PanelLifecycleChangedMessage) => void,
+  ): () => void {
+    this.lifecycleListeners.add(listener);
+    return () => {
+      this.lifecycleListeners.delete(listener);
+    };
+  }
+
   async invokeTool(toolName: string, params?: unknown): Promise<unknown> {
     const message = await this.request({
       protocol: this.bootstrap.protocol,
@@ -196,15 +217,75 @@ export class PanelBridgeClient {
     return message.accepted;
   }
 
+  async readPersistedState(key: string): Promise<PanelPersistedStateResponse> {
+    const message = await this.request({
+      protocol: this.bootstrap.protocol,
+      kind: 'persisted_state.get',
+      request_id: createRequestId(),
+      key,
+    });
+
+    if (message.kind !== 'persisted_state.result') {
+      throw new Error('Unexpected persisted-state response.');
+    }
+
+    return message;
+  }
+
+  async writePersistedState(
+    key: string,
+    value: unknown,
+  ): Promise<PanelPersistedStateResponse> {
+    const message = await this.request({
+      protocol: this.bootstrap.protocol,
+      kind: 'persisted_state.set',
+      request_id: createRequestId(),
+      key,
+      value,
+    });
+
+    if (message.kind !== 'persisted_state.result') {
+      throw new Error('Unexpected persisted-state response.');
+    }
+
+    return message;
+  }
+
+  async deletePersistedState(
+    key: string,
+  ): Promise<PanelPersistedStateResponse> {
+    const message = await this.request({
+      protocol: this.bootstrap.protocol,
+      kind: 'persisted_state.delete',
+      request_id: createRequestId(),
+      key,
+    });
+
+    if (message.kind !== 'persisted_state.result') {
+      throw new Error('Unexpected persisted-state response.');
+    }
+
+    return message;
+  }
+
   private request(message: {
     protocol: number;
-    kind: 'tool.invoke' | 'config.get' | 'theme.get' | 'notify.send';
+    kind:
+      | 'tool.invoke'
+      | 'config.get'
+      | 'theme.get'
+      | 'notify.send'
+      | 'persisted_state.get'
+      | 'persisted_state.set'
+      | 'persisted_state.delete';
     request_id: string;
     app_id?: string;
     panel_id?: string;
     tool_name?: string;
     params?: unknown;
     notification?: PanelBridgeNotification;
+    key?: string;
+    value?: unknown;
   }): Promise<PanelBridgeHostMessage> {
     return new Promise((resolve, reject) => {
       const timeoutId = window.setTimeout(() => {

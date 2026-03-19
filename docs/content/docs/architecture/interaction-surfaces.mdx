@@ -148,6 +148,19 @@ The advanced Projects surface is still a projection and control surface, not a s
 - **Intent projects** — objective and constraint configuration, live activity monitoring, protocol emergence proposals
 - **Hybrid projects** — both views coexist within a single project
 
+### Installable App Panels
+
+Installable app panels remain trusted-host extensions inside the web shell rather than a separate
+interaction surface.
+
+- Panels mount as sandboxed iframe projections inside the existing trusted host surfaces
+- `preserveState` keeps an inactive panel hidden for the current session when the manifest requests
+  it, instead of treating hidden browser state as durable storage
+- Cross-session panel continuity flows through the trusted host bridge and runtime-owned persisted
+  state rather than host-local or browser-local storage
+- Panel-facing activation and deactivation helpers remain wrappers over the canonical
+  `panel_mount` / `panel_unmount` lifecycle seam, not a separate panel-local lifecycle model
+
 ---
 
 ## Surface 4 — MAO Operator Surface

@@ -1,10 +1,12 @@
 import {
   AppPanelBridgeContextSchema,
+  AppPanelLifecycleUpdateSchema,
   AppPanelSafeConfigSnapshotSchema,
   AppPanelRegistrationProjectionSchema,
   type AppConfig,
   type AppHandshakeConfigEntry,
   type AppPanelBridgeContext,
+  type AppPanelLifecycleUpdate,
   type AppPanelRegistrationProjection,
   type AppRuntimeSession,
 } from '@nous/shared';
@@ -90,6 +92,38 @@ export class PanelRegistrationRegistry {
 
   resolvePanel(appId: string, panelId: string): ResolvedAppPanelDescriptor | null {
     return this.panelsByKey.get(buildPanelRegistryKey(appId, panelId)) ?? null;
+  }
+
+  updateLifecycle(input: AppPanelLifecycleUpdate): ResolvedAppPanelDescriptor | null {
+    const parsed = AppPanelLifecycleUpdateSchema.parse(input);
+    const current = this.resolvePanel(parsed.app_id, parsed.panel_id);
+    if (!current) {
+      return null;
+    }
+
+    const next = AppPanelBridgeContextSchema.parse({
+      ...current,
+      lifecycle: {
+        event: parsed.event,
+        reason: parsed.reason,
+        updated_at: parsed.occurred_at,
+      },
+    });
+
+    this.panelsByKey.set(
+      buildPanelRegistryKey(next.app_id, next.panel_id),
+      next,
+    );
+    this.panelsBySession.set(
+      next.session_id,
+      (this.panelsBySession.get(next.session_id) ?? []).map((panel) =>
+        panel.app_id === next.app_id && panel.panel_id === next.panel_id
+          ? next
+          : panel,
+      ),
+    );
+
+    return next;
   }
 
   unregisterSession(sessionId: string): ResolvedAppPanelDescriptor[] {

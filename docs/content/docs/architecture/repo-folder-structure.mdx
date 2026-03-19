@@ -73,10 +73,21 @@ SDK consumed by installable apps. The Phase 15.2 in-scope surface is:
 * `useTheme`
 * `useNotify`
 
+Phase 15.3 extends the same SDK surface with:
+
+* `usePersistedState`
+* `onActivate`
+* `onDeactivate`
+
 Panels use this package to speak the canonical versioned `postMessage` bridge to the trusted host.
 The SDK is a bridge client and projection helper only: it lets sandboxed panel code invoke app
 tools and read host-projected config/theme state through the host bridge, while keeping host
 internals, privileged routing, and second-source-of-truth state out of the panel surface.
+
+The lifecycle and persistence split remains explicit. `preserveState` is host-owned in-session DOM
+preservation for iframe panels; it keeps inactive panels hidden without turning the browser into a
+durable state authority. Cross-session panel state flows through `usePersistedState` over the
+trusted host bridge and the canonical `/mcp` handoff into app-scoped runtime-owned state.
 
 ### cli/
 
@@ -101,7 +112,7 @@ Web application containing integrated operator surfaces:
 
 Primary interface for most users.
 
-The same app host also owns the machine-facing `/mcp` route and the `/.well-known/oauth-protected-resource/mcp` plus `/.well-known/oauth-authorization-server/mcp` discovery documents. The host remains transport-thin: it parses HTTP, composes shared services at bootstrap, and hands admitted work into the canonical gateway runtime rather than a web-local shadow API.
+The same app host also owns the machine-facing `/mcp` route and the `/.well-known/oauth-protected-resource/mcp` plus `/.well-known/oauth-authorization-server/mcp` discovery documents. The host remains transport-thin: it parses HTTP, composes shared services at bootstrap, and hands admitted work into the canonical gateway runtime rather than a web-local shadow API. The trusted app-panel host also uses this same `/mcp` boundary adapter for lifecycle reconciliation and persisted-state bridge traffic instead of introducing a second host-local persistence or control seam.
 
 ### bridge/
 
