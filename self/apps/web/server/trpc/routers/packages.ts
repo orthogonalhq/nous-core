@@ -1,4 +1,8 @@
 import {
+  AppInstallPreparationSchema,
+  AppInstallPrepareRequestSchema,
+  AppInstallRequestSchema,
+  AppInstallResultSchema,
   AppPanelSafeConfigSnapshotSchema,
   PackageInstallRequestSchema,
   PackageInstallResultSchema,
@@ -19,6 +23,18 @@ const AppHostPanelSchema = z.object({
 });
 
 export const packagesRouter = router({
+  prepareAppInstall: publicProcedure
+    .input(AppInstallPrepareRequestSchema)
+    .output(AppInstallPreparationSchema)
+    .query(async ({ ctx, input }) => {
+      return ctx.appInstallService.prepareInstall(input);
+    }),
+  installApp: publicProcedure
+    .input(AppInstallRequestSchema)
+    .output(AppInstallResultSchema)
+    .mutation(async ({ ctx, input }) => {
+      return ctx.appInstallService.installApp(input);
+    }),
   install: publicProcedure
     .input(PackageInstallRequestSchema)
     .output(PackageInstallResultSchema)

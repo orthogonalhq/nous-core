@@ -3,21 +3,59 @@
 import * as React from 'react';
 import Link from 'next/link';
 import type { RegistryPackageDetailSnapshot } from '@nous/shared';
+import { InstallWizard } from '@nous/ui';
 import { Badge } from '@/components/ui/badge';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
+import { trpc } from '@/lib/trpc';
 
 interface MarketplacePackageDetailProps {
   snapshot: RegistryPackageDetailSnapshot;
+  projectId?: string;
 }
 
 export function MarketplacePackageDetail({
   snapshot,
+  projectId,
 }: MarketplacePackageDetailProps) {
   const projectsLink = snapshot.deepLinks.find((link) => link.target === 'projects');
   const maoLink = snapshot.deepLinks.find((link) => link.target === 'mao');
+  const installPreparationQuery = trpc.packages.prepareAppInstall.useQuery(
+    {
+      project_id: projectId as any,
+      package_id: snapshot.package.package_id,
+      release_id: snapshot.latestRelease?.release_id,
+    },
+    {
+      enabled: Boolean(projectId && snapshot.latestRelease?.release_id),
+    },
+  );
+  const installAppMutation = trpc.packages.installApp.useMutation();
 
   return (
     <div className="space-y-6">
+      <Card>
+        <CardHeader className="border-b border-border">
+          <CardTitle className="text-base">Install Wizard</CardTitle>
+        </CardHeader>
+        <CardContent className="pt-4">
+          {projectId && installPreparationQuery.data ? (
+            <InstallWizard
+              preparation={installPreparationQuery.data}
+              projectId={projectId}
+              actorId="web-marketplace"
+              onInstall={(request) => installAppMutation.mutateAsync(request)}
+              disabled={installPreparationQuery.isLoading || installAppMutation.isPending}
+            />
+          ) : (
+            <div className="rounded-md border border-border bg-muted/20 p-4 text-sm text-muted-foreground">
+              {projectId
+                ? 'Preparing the canonical install contract...'
+                : 'Open this package with a project context to run the approval-gated install wizard.'}
+            </div>
+          )}
+        </CardContent>
+      </Card>
+
       <Card>
         <CardHeader className="border-b border-border">
           <CardTitle className="flex flex-wrap items-center justify-between gap-3 text-base">

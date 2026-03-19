@@ -38,7 +38,10 @@ function MarketplacePackagePageContent() {
 
   return (
     <div className="p-8">
-      <MarketplacePackageDetail snapshot={detailQuery.data} />
+      <MarketplacePackageDetail
+        snapshot={detailQuery.data}
+        projectId={projectId}
+      />
     </div>
   );
 }
