@@ -207,13 +207,15 @@ Browsing registry packages, inspecting provenance and moderation posture, review
 - Canonical projection over registry governance truth and discovery runtime truth
 - Trust tier, distribution status, compatibility posture, provenance, and release history surfaced directly from registry state
 - Project-scoped package detail views can launch the canonical app install wizard for installable app packages
+- Project-scoped package detail views can reopen installed app packages into the canonical shared settings surface
 - The install wizard uses the same host-owned three-stage sequence on touched hosts: permission review, configuration, then validation/activation
+- The settings surface shows runtime/config-version posture, vault-backed secret state, and explicit save outcomes on the same host-owned contract family
 - Moderation dashboard for holds, delistings, appeals, and escalation continuity
 - Advisory-only discovery feed with mandatory suppression controls
 - Deep links into Projects and MAO preserve project, package, release, candidate, and evidence continuity
 - No surface-owned governance, moderation, suppression, or config-authority state
 
-### Install Boundary
+### Install and Settings Boundary
 
 Marketplace can initiate app installation, but it does not become a second lifecycle engine or a
 second configuration authority.
@@ -222,10 +224,14 @@ second configuration authority.
   wizard renders
 - The shared wizard requires explicit permission approval, renders manifest-defined configuration
   groups, and reports `success`, `partial`, or `failed` validation / activation outcomes
+- Installed apps reopen through the same package detail surface as the shared settings surface,
+  using canonical `prepareAppSettings` / `saveAppSettings` transport rather than a package-local UI
 - Desktop host tooling reuses the same preparation and execution contract plus the same visible
   stage model
 - Secrets and OAuth artifacts go directly to the credential vault, while non-secret config persists
   through the project-scoped install service
+- Successful settings saves refetch canonical settings truth and push additive `config.changed`
+  panel updates without iframe remounts or panel-local config stores
 - Rollback remains service-owned when validation or activation fails
 
 ### Companion CLI Seam
