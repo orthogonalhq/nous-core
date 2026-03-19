@@ -73,6 +73,7 @@ interface WebHostAppPanel {
   label: string
   route_path: string
   dockview_panel_id: string
+  config_version: string
   preserve_state: boolean
   position?: 'left' | 'right' | 'bottom' | 'main'
   config_snapshot: Record<string, {
@@ -516,6 +517,14 @@ ipcMain.handle('app-install:prepare', async (_event, input: unknown) => {
 ipcMain.handle('app-install:install', async (_event, input: unknown) => {
   const client = getTrpcClient() as any
   return client.packages.installApp.mutate(input)
+})
+ipcMain.handle('app-settings:prepare', async (_event, input: unknown) => {
+  const client = getTrpcClient() as any
+  return client.packages.prepareAppSettings.query(input)
+})
+ipcMain.handle('app-settings:save', async (_event, input: unknown) => {
+  const client = getTrpcClient() as any
+  return client.packages.saveAppSettings.mutate(input)
 })
 ipcMain.handle('app-panels:list', async (): Promise<DesktopAppPanel[]> => {
   try {

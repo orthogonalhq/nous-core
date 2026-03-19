@@ -6,8 +6,11 @@ import type {
   AppInstallPreparation,
   AppInstallRequest,
   AppInstallResult,
+  AppSettingsPreparation,
+  AppSettingsSaveRequest,
+  AppSettingsSaveResult,
 } from '@nous/shared'
-import { Button, Input, InstallWizard } from '@nous/ui'
+import { AppSettingsSurface, Button, Input, InstallWizard } from '@nous/ui'
 
 interface DesktopInstallApi {
   prepare: (request: {
@@ -18,17 +21,28 @@ interface DesktopInstallApi {
   install: (request: AppInstallRequest) => Promise<AppInstallResult>
 }
 
+interface DesktopSettingsApi {
+  prepare: (request: {
+    project_id: string
+    package_id: string
+  }) => Promise<AppSettingsPreparation>
+  save: (request: AppSettingsSaveRequest) => Promise<AppSettingsSaveResult>
+}
+
 interface AppInstallWizardPanelProps extends IDockviewPanelProps {
   params: {
     appInstallApi?: DesktopInstallApi
+    appSettingsApi?: DesktopSettingsApi
   }
 }
 
 export function AppInstallWizardPanel({ params }: AppInstallWizardPanelProps) {
   const appInstallApi = params.appInstallApi
+  const appSettingsApi = params.appSettingsApi
   const [projectId, setProjectId] = useState('')
   const [packageId, setPackageId] = useState('telegram-connector')
   const [preparation, setPreparation] = useState<AppInstallPreparation | null>(null)
+  const [settingsPreparation, setSettingsPreparation] = useState<AppSettingsPreparation | null>(null)
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
 
@@ -42,6 +56,18 @@ export function AppInstallWizardPanel({ params }: AppInstallWizardPanelProps) {
         package_id: packageId.trim(),
       })
       setPreparation(next)
+      try {
+        if (appSettingsApi) {
+          setSettingsPreparation(
+            await appSettingsApi.prepare({
+              project_id: projectId.trim(),
+              package_id: packageId.trim(),
+            }),
+          )
+        }
+      } catch {
+        setSettingsPreparation(null)
+      }
     } catch (prepareError) {
       setPreparation(null)
       setError(
@@ -60,8 +86,9 @@ export function AppInstallWizardPanel({ params }: AppInstallWizardPanelProps) {
         <div>
           <h3 className="text-base font-semibold">Desktop App Installer</h3>
           <p className="text-sm text-muted-foreground">
-            Load the canonical install contract from the web backend, then run
-            the shared approval-gated wizard inside the desktop host.
+            Load the canonical install or settings contract from the web
+            backend, then run the shared host-owned surface inside the desktop
+            shell.
           </p>
         </div>
         <div className="grid gap-3 md:grid-cols-2">
@@ -96,14 +123,60 @@ export function AppInstallWizardPanel({ params }: AppInstallWizardPanelProps) {
       ) : null}
 
       {preparation ? (
-        <InstallWizard
-          preparation={preparation}
-          projectId={projectId}
-          actorId="desktop-installer"
-          onInstall={(request) => appInstallApi!.install(request)}
-          disabled={!appInstallApi}
-          disabledReason="Desktop install proxy is unavailable."
-        />
+        settingsPreparation ? (
+          <AppSettingsSurface
+            preparation={settingsPreparation}
+            actorId="desktop-installer"
+            onSave={(request) => appSettingsApi!.save(request)}
+            disabled={!appSettingsApi}
+            disabledReason="Desktop settings proxy is unavailable."
+            onSaved={async () => {
+              if (!appSettingsApi) return
+              const refreshed = await appSettingsApi.prepare({
+                project_id: projectId,
+                package_id: packageId,
+              })
+              setSettingsPreparation(refreshed)
+              window.dispatchEvent(
+                new CustomEvent('nous:app-settings-changed', {
+                  detail: {
+                    appId: refreshed.app_id,
+                    configVersion: refreshed.config_version,
+                    configSnapshot: refreshed.panel_config_snapshot,
+                  },
+                }),
+              )
+            }}
+          />
+        ) : (
+          <InstallWizard
+            preparation={preparation}
+            projectId={projectId}
+            actorId="desktop-installer"
+            onInstall={(request) => appInstallApi!.install(request)}
+            onResult={async (result) => {
+              if (!appSettingsApi || result.status === 'failed') {
+                return
+              }
+              const refreshed = await appSettingsApi.prepare({
+                project_id: projectId,
+                package_id: packageId,
+              })
+              setSettingsPreparation(refreshed)
+              window.dispatchEvent(
+                new CustomEvent('nous:app-settings-changed', {
+                  detail: {
+                    appId: refreshed.app_id,
+                    configVersion: refreshed.config_version,
+                    configSnapshot: refreshed.panel_config_snapshot,
+                  },
+                }),
+              )
+            }}
+            disabled={!appInstallApi}
+            disabledReason="Desktop install proxy is unavailable."
+          />
+        )
       ) : null}
     </div>
   )

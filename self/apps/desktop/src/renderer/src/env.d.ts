@@ -4,6 +4,9 @@ import type {
   AppInstallPreparation,
   AppInstallRequest,
   AppInstallResult,
+  AppSettingsPreparation,
+  AppSettingsSaveRequest,
+  AppSettingsSaveResult,
 } from '@nous/shared'
 
 interface ElectronAPI {
@@ -43,6 +46,13 @@ interface ElectronAPI {
     }) => Promise<AppInstallPreparation>
     install: (input: AppInstallRequest) => Promise<AppInstallResult>
   }
+  appSettings: {
+    prepare: (input: {
+      project_id: string
+      package_id: string
+    }) => Promise<AppSettingsPreparation>
+    save: (input: AppSettingsSaveRequest) => Promise<AppSettingsSaveResult>
+  }
   appPanels: {
     list: () => Promise<{
       app_id: string
@@ -50,6 +60,7 @@ interface ElectronAPI {
       label: string
       route_path: string
       dockview_panel_id: string
+      config_version: string
       preserve_state: boolean
       position?: 'left' | 'right' | 'bottom' | 'main'
       config_snapshot: Record<string, {
