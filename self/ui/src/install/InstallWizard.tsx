@@ -21,6 +21,7 @@ export interface InstallWizardProps {
   projectId: string
   actorId: string
   onInstall: (request: AppInstallRequest) => Promise<AppInstallResult>
+  onResult?: (result: AppInstallResult) => Promise<void> | void
   evidenceRefs?: string[]
   disabled?: boolean
   disabledReason?: string
@@ -72,6 +73,7 @@ export function InstallWizard({
   projectId,
   actorId,
   onInstall,
+  onResult,
   evidenceRefs = [],
   disabled = false,
   disabledReason,
@@ -120,6 +122,7 @@ export function InstallWizard({
         evidence_refs: evidenceRefs,
       })
       setResult(next)
+      await onResult?.(next)
       if (next.status === 'failed') {
         window.setTimeout(() => {
           setStage('configuration')
