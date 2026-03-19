@@ -20,4 +20,8 @@ export {
   type PanelTranspileResult,
   type PanelTranspilerOptions,
 } from './panel-transpiler.js';
+export {
+  InstallHookRunner,
+  type InstallHookRunnerOptions,
+} from './install-hook-runner.js';
 export { AppRuntimeService, type AppRuntimeServiceOptions } from './app-runtime-service.js';

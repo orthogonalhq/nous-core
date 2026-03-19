@@ -436,6 +436,13 @@ export class AppRuntimeService implements IAppRuntimeService {
       : undefined;
   }
 
+  private hasSecretConfig(
+    input: Pick<AppRuntimeActivationInput, 'secret_config'>,
+    key: string,
+  ): boolean {
+    return Boolean(input.secret_config[key]?.configured);
+  }
+
   private buildConnectorRegistrations(
     input: AppRuntimeActivationInput,
     session: AppRuntimeSession,
@@ -447,7 +454,7 @@ export class AppRuntimeService implements IAppRuntimeService {
     const adapters = input.manifest.adapters ?? [];
     const clientCredentialsPresent =
       this.readConfigValue(input, 'client_api_id') &&
-      this.readConfigValue(input, 'client_api_hash') &&
+      this.hasSecretConfig(input, 'client_api_hash') &&
       this.readConfigValue(input, 'client_phone_number');
     const accountId =
       this.readConfigValue(input, 'default_account_id') ??

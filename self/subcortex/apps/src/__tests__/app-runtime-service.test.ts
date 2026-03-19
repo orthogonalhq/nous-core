@@ -379,6 +379,82 @@ describe('AppRuntimeService', () => {
     );
   });
 
+  it('uses secret-config presence rather than plaintext handshake values for full-client connector mode', async () => {
+    const gatewayService = createGatewayService();
+    const service = new AppRuntimeService({
+      lifecycleOrchestrator: {
+        run: vi.fn().mockResolvedValue({}),
+        disable: vi.fn().mockResolvedValue({}),
+      } as any,
+      communicationGatewayService: gatewayService as any,
+      spawner: new DenoSpawner({
+        sessionIdFactory: () => 'session-1',
+        spawnProcess: () => ({
+          pid: 123,
+          kill: vi.fn().mockReturnValue(true),
+        }),
+      }),
+      bridge: new McpIpcBridge(),
+      toolRegistry: createToolRegistry(),
+    });
+
+    await service.activate({
+      ...(activationInput as any),
+      manifest: {
+        ...(activationInput.manifest as any),
+        id: 'telegram',
+        adapters: [{ name: 'telegram' }],
+        config: {
+          client_api_hash: {
+            type: 'secret',
+          },
+        },
+      },
+      launch_spec: {
+        ...(activationInput.launch_spec as any),
+        app_id: 'telegram',
+        package_id: 'telegram-connector',
+      },
+      config: [
+        {
+          key: 'default_account_id',
+          value: 'account:telegram',
+          source: 'project_config',
+          mutable: false,
+        },
+        {
+          key: 'client_api_id',
+          value: '12345',
+          source: 'project_config',
+          mutable: false,
+        },
+        {
+          key: 'client_phone_number',
+          value: '+15555555555',
+          source: 'project_config',
+          mutable: false,
+        },
+      ],
+      secret_config: {
+        client_api_hash: {
+          key: 'client_api_hash',
+          configured: true,
+          credential_ref: 'credential:telegram:client_api_hash',
+          source: 'secret_field',
+        },
+      },
+    });
+
+    expect(gatewayService.reportConnectorSession).toHaveBeenCalledWith(
+      expect.objectContaining({
+        connector_id: 'connector:telegram:account:telegram',
+        metadata: expect.objectContaining({
+          mode: 'full_client',
+        }),
+      }),
+    );
+  });
+
   it('routes connector intents through the host-owned communication gateway', async () => {
     const gatewayService = createGatewayService();
     const service = new AppRuntimeService({
