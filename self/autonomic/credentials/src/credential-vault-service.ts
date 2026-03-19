@@ -1,10 +1,16 @@
 import { createCipheriv, createDecipheriv, createHash, randomBytes } from 'node:crypto';
 import {
+  type CredentialBackupResult,
+  CredentialBackupResultSchema,
+  type CredentialDiscardBackupResult,
+  CredentialDiscardBackupResultSchema,
   type CredentialMetadata,
   type CredentialNamespacePurgeResult,
   CredentialMetadataSchema,
   type CredentialRevokeRequest,
   CredentialRevokeResultSchema,
+  type CredentialRestoreResult,
+  CredentialRestoreResultSchema,
   type CredentialStoreRequest,
   CredentialStoreResultSchema,
   type CredentialVaultEntry,
@@ -16,10 +22,19 @@ import { CredentialKeyResolver, type CredentialKeyResolverOptions } from './cred
 
 export const CREDENTIAL_VAULT_COLLECTION = 'credential_vault_entries';
 export const CREDENTIAL_NAMESPACE_COLLECTION = 'credential_vault_namespaces';
+export const CREDENTIAL_BACKUP_COLLECTION = 'credential_vault_backups';
 
 interface CredentialNamespaceRecord {
   app_id: string;
   keys: string[];
+}
+
+interface CredentialBackupRecord {
+  backup_ref: string;
+  app_id: string;
+  user_key: string;
+  entry: CredentialVaultEntry | null;
+  created_at: string;
 }
 
 export interface CredentialVaultServiceOptions {
@@ -34,6 +49,7 @@ export class CredentialVaultService implements ICredentialVaultService {
   private readonly keyResolver: CredentialKeyResolver;
   private readonly inMemoryEntries = new Map<string, CredentialVaultEntry>();
   private readonly inMemoryNamespaces = new Map<string, CredentialNamespaceRecord>();
+  private readonly inMemoryBackups = new Map<string, CredentialBackupRecord>();
 
   constructor(private readonly options: CredentialVaultServiceOptions = {}) {
     this.now = options.now ?? (() => new Date().toISOString());
@@ -97,6 +113,67 @@ export class CredentialVaultService implements ICredentialVaultService {
       revoked: true,
       credential_ref: entry.credential_ref,
       reason: request.reason,
+    });
+  }
+
+  async backup(appId: string, key: string): Promise<CredentialBackupResult> {
+    const backupRef = `backup:${appId}:${key}:${this.now()}:${randomBytes(4).toString('hex')}`;
+    const entry = await this.getEntry(this.buildVaultKey(appId, key));
+    const record: CredentialBackupRecord = {
+      backup_ref: backupRef,
+      app_id: appId,
+      user_key: key,
+      entry,
+      created_at: this.now(),
+    };
+
+    await this.putBackup(record);
+
+    return CredentialBackupResultSchema.parse({
+      backup_ref: backupRef,
+      existed: Boolean(entry),
+      metadata: entry ? this.toMetadata(entry) : undefined,
+    });
+  }
+
+  async restore(appId: string, backupRef: string): Promise<CredentialRestoreResult> {
+    const backup = await this.getBackup(backupRef);
+    if (!backup || backup.app_id !== appId) {
+      return CredentialRestoreResultSchema.parse({
+        restored: false,
+      });
+    }
+
+    if (backup.entry) {
+      await this.putEntry(backup.entry);
+      await this.addNamespaceKey(appId, backup.entry.user_key);
+      return CredentialRestoreResultSchema.parse({
+        restored: true,
+        metadata: this.toMetadata(backup.entry),
+      });
+    }
+
+    await this.deleteEntry(this.buildVaultKey(appId, backup.user_key));
+    await this.removeNamespaceKey(appId, backup.user_key);
+    return CredentialRestoreResultSchema.parse({
+      restored: true,
+    });
+  }
+
+  async discardBackup(
+    appId: string,
+    backupRef: string,
+  ): Promise<CredentialDiscardBackupResult> {
+    const backup = await this.getBackup(backupRef);
+    if (!backup || backup.app_id !== appId) {
+      return CredentialDiscardBackupResultSchema.parse({
+        discarded: false,
+      });
+    }
+
+    await this.deleteBackup(backupRef);
+    return CredentialDiscardBackupResultSchema.parse({
+      discarded: true,
     });
   }
 
@@ -260,5 +337,38 @@ export class CredentialVaultService implements ICredentialVaultService {
       app_id: appId,
       keys: record.keys.filter((candidate) => candidate !== key),
     });
+  }
+
+  private async putBackup(record: CredentialBackupRecord): Promise<void> {
+    if (this.options.documentStore) {
+      await this.options.documentStore.put(
+        CREDENTIAL_BACKUP_COLLECTION,
+        record.backup_ref,
+        record,
+      );
+      return;
+    }
+    this.inMemoryBackups.set(record.backup_ref, record);
+  }
+
+  private async getBackup(backupRef: string): Promise<CredentialBackupRecord | null> {
+    if (this.options.documentStore) {
+      return (
+        await this.options.documentStore.get<CredentialBackupRecord>(
+          CREDENTIAL_BACKUP_COLLECTION,
+          backupRef,
+        )
+      ) ?? null;
+    }
+
+    return this.inMemoryBackups.get(backupRef) ?? null;
+  }
+
+  private async deleteBackup(backupRef: string): Promise<void> {
+    if (this.options.documentStore) {
+      await this.options.documentStore.delete(CREDENTIAL_BACKUP_COLLECTION, backupRef);
+      return;
+    }
+    this.inMemoryBackups.delete(backupRef);
   }
 }
