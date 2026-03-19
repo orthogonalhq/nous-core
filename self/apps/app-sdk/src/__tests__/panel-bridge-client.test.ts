@@ -56,6 +56,7 @@ describe('PanelBridgeClient', () => {
       protocol: PANEL_BRIDGE_PROTOCOL_VERSION,
       kind: 'host.bootstrap',
       message_id: 'msg-1',
+      config_version: 'cfg-1',
       config: {
         units: {
           value: 'metric',
@@ -101,6 +102,7 @@ describe('PanelBridgeClient', () => {
       protocol: PANEL_BRIDGE_PROTOCOL_VERSION,
       kind: 'host.bootstrap',
       message_id: 'msg-1',
+      config_version: 'cfg-1',
       config: {},
       theme: {
         mode: 'dark',
@@ -151,6 +153,7 @@ describe('PanelBridgeClient', () => {
       protocol: PANEL_BRIDGE_PROTOCOL_VERSION,
       kind: 'host.bootstrap',
       message_id: 'msg-1',
+      config_version: 'cfg-1',
       config: {},
       theme: {
         mode: 'dark',
@@ -190,6 +193,7 @@ describe('PanelBridgeClient', () => {
       protocol: PANEL_BRIDGE_PROTOCOL_VERSION,
       kind: 'host.bootstrap',
       message_id: 'msg-1',
+      config_version: 'cfg-1',
       config: {},
       theme: {
         mode: 'dark',
@@ -244,6 +248,67 @@ describe('PanelBridgeClient', () => {
         reason: 'activate',
       }),
     );
+
+    unsubscribe();
+  });
+
+  it('notifies config subscribers when the host pushes canonical config updates', async () => {
+    installMockParent();
+    const client = new PanelBridgeClient({
+      protocol: PANEL_BRIDGE_PROTOCOL_VERSION,
+      app_id: 'app:weather',
+      panel_id: 'forecast',
+      mcp_endpoint: 'http://localhost:3000/mcp',
+    });
+
+    const configSpy = vi.fn();
+    const unsubscribe = client.subscribeConfig(configSpy);
+    const handshake = client.connect();
+    dispatchFromParent({
+      protocol: PANEL_BRIDGE_PROTOCOL_VERSION,
+      kind: 'host.bootstrap',
+      message_id: 'msg-1',
+      config_version: 'cfg-1',
+      config: {
+        units: {
+          value: 'metric',
+          source: 'project_config',
+        },
+      },
+      theme: {
+        mode: 'dark',
+        tokens: {},
+        metadata: {},
+      },
+      capabilities: {
+        tool: true,
+        config: true,
+        theme: true,
+        notify: true,
+        persisted_state: true,
+        lifecycle: true,
+      },
+    });
+    await handshake;
+
+    dispatchFromParent({
+      protocol: PANEL_BRIDGE_PROTOCOL_VERSION,
+      kind: 'config.changed',
+      config_version: 'cfg-2',
+      config: {
+        units: {
+          value: 'imperial',
+          source: 'project_config',
+        },
+      },
+    });
+
+    expect(configSpy).toHaveBeenCalledWith({
+      units: {
+        value: 'imperial',
+        source: 'project_config',
+      },
+    });
 
     unsubscribe();
   });

@@ -36,6 +36,7 @@ export function NousPanel({ children }: { children: ReactNode }) {
   useEffect(() => {
     let active = true;
     let unsubscribeTheme: (() => void) | undefined;
+    let unsubscribeConfig: (() => void) | undefined;
 
     try {
       const client = new PanelBridgeClient(readBootstrap());
@@ -56,6 +57,9 @@ export function NousPanel({ children }: { children: ReactNode }) {
           unsubscribeTheme = client.subscribeTheme((nextTheme) => {
             setTheme(nextTheme);
           });
+          unsubscribeConfig = client.subscribeConfig((nextConfig) => {
+            setConfig(nextConfig);
+          });
         })
         .catch((nextError) => {
           if (active) {
@@ -66,6 +70,7 @@ export function NousPanel({ children }: { children: ReactNode }) {
       return () => {
         active = false;
         unsubscribeTheme?.();
+        unsubscribeConfig?.();
         client.destroy();
       };
     } catch (nextError) {
