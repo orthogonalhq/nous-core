@@ -153,13 +153,115 @@ description: Reference for all tRPC procedures
 
 | Procedure | Type | Input | Output |
 |----------|------|-------|--------|
+| `packages.prepareAppInstall` | query | `AppInstallPrepareRequest` | `AppInstallPreparation` |
+| `packages.prepareAppSettings` | query | `AppSettingsPrepareRequest` | `AppSettingsPreparation` |
+| `packages.installApp` | mutation | `AppInstallRequest` | `AppInstallResult` |
+| `packages.saveAppSettings` | mutation | `AppSettingsSaveRequest` | `AppSettingsSaveResult` |
+| `packages.listAppPanels` | query | — | `{ app_id, panel_id, label, route_path, dockview_panel_id, config_version, preserve_state, position?, config_snapshot }[]` |
 | `packages.install` | mutation | `PackageInstallRequest` | `PackageInstallResult` |
 
+- `packages.prepareAppInstall` — Resolves the canonical install contract for an installable app package in one project context.
+  - Input fields: `project_id`, `package_id`, and optional `release_id`.
+  - Output shape includes package/release identity, declared permissions, grouped config descriptors, supported install stages, and whether an install hook is present.
+  - The response is preparation truth only. It does not persist config, store secrets, or materialize a package.
+- `packages.prepareAppSettings` — Resolves the canonical settings contract for one already-installed app package in one project context.
+  - Input fields: `project_id` and `package_id`.
+  - Output shape includes grouped settings descriptors, the current `config_version`, runtime summary, current secret-state metadata, and the host-safe panel config snapshot used for live convergence.
+- `packages.installApp` — Runs the canonical app-install orchestration for one project-scoped installable app.
+  - Input fields: `project_id`, `package_id`, optional `release_id`, `actor_id`, `permissions_approved`, `config`, `secrets`, `oauth`, and optional `evidence_refs`.
+  - Output shape includes the preparation snapshot, install `status` (`success`, `partial`, or `failed`), phase markers, validation results, optional runtime session/config version metadata, stored-secret metadata, rollback posture, and witness references.
+  - Secret and OAuth values stay on the vault / credential-install path; non-secret config remains host/runtime truth.
+- `packages.saveAppSettings` — Runs the canonical app-settings orchestration for one installed app package.
+  - Input fields: `project_id`, `package_id`, `actor_id`, `expected_config_version`, non-secret `config`, secret mutation intents in `secrets`, and optional `evidence_refs`.
+  - Output shape includes save `status` (`success`, `partial`, or `failed`), `apply_status` (`applied`, `reverted`, or `blocked`), phase markers, validation results, the effective runtime/config version, stored-secret metadata, rollback posture, and optional activation failure details.
+  - The backend owns the governed `deactivate -> update config -> reactivate -> recover` flow; hosts stay transport-thin and never become a second config authority.
+- `packages.listAppPanels` — Returns the runtime-owned projection of active manifest-declared app panels for trusted first-party hosts.
+  - Each item includes the canonical `route_path`, host-safe `dockview_panel_id`, effective `config_version`, panel label, `preserve_state`, optional dock position, and the sanitized `config_snapshot` used by trusted hosts during panel bridge bootstrap.
+  - Panels appear here only while an app session is active; manifest declarations alone do not make a panel serveable.
 - `packages.install` — Runs the canonical package install pipeline for one project-scoped package request.
   - Input fields: `project_id`, `package_id`, optional `requested_version_range`, optional `release_id`, `actor_id`, optional `instance_root`, and optional `evidence_refs`.
   - `release_id` and `requested_version_range` are mutually exclusive.
   - Output shape includes the shared resolution result, install journal writes, lifecycle transition results, final `status` (`installed`, `blocked`, or `rolled_back`), and optional failure details.
   - Canonical installs materialize only into governed package-store roots and fail closed with explicit reason-coded output when dependency resolution, lifecycle gating, or write/rollback handling blocks completion.
+
+### Settings procedure examples
+
+`packages.prepareAppSettings` request:
+
+```json
+{
+  "project_id": "550e8400-e29b-41d4-a716-446655440802",
+  "package_id": "telegram-connector"
+}
+```
+
+Response excerpt:
+
+```json
+{
+  "package_id": "telegram-connector",
+  "config_version": "cfg-1",
+  "runtime": {
+    "status": "active",
+    "config_version": "cfg-1"
+  },
+  "config_groups": [
+    {
+      "id": "connector",
+      "label": "Connector",
+      "fields": [
+        {
+          "key": "bot_token",
+          "type": "secret",
+          "secret": true,
+          "secret_state": {
+            "key": "bot_token",
+            "configured": true,
+            "source": "secret_field"
+          }
+        }
+      ]
+    }
+  ]
+}
+```
+
+`packages.saveAppSettings` request:
+
+```json
+{
+  "project_id": "550e8400-e29b-41d4-a716-446655440802",
+  "package_id": "telegram-connector",
+  "actor_id": "web-marketplace",
+  "expected_config_version": "cfg-1",
+  "config": {
+    "region": "eu"
+  },
+  "secrets": {
+    "bot_token": {
+      "operation": "replace",
+      "value": "new-token"
+    }
+  },
+  "evidence_refs": []
+}
+```
+
+Response excerpt:
+
+```json
+{
+  "status": "success",
+  "apply_status": "applied",
+  "phase": "completed",
+  "effective_config_version": "cfg-2",
+  "runtime": {
+    "status": "active",
+    "config_version": "cfg-2"
+  },
+  "rollback_applied": false
+}
+```
 
 ## config
 

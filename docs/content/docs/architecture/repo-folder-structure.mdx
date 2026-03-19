@@ -54,10 +54,46 @@ How Nous perceives the world and communicates with the user. These are part of t
 
 ```
 self/apps/
+├── app-sdk/                         # Browser-runtime SDK for installable app panels
 ├── cli/                              # Terminal interface
-├── web/                              # Chat UI + Projects UI + Dashboard + MAO + mobile operations + public MCP edge
+├── web/                              # Chat UI + Projects UI + Dashboard + Marketplace + MAO + mobile operations + public MCP edge
 └── bridge/                           # Approved messaging bridge app and connector adapters
 ```
+
+### app-sdk/
+
+Browser-runtime SDK for installable app panels.
+
+Phase 15.2 adds `self/apps/app-sdk/` as the canonical workspace package for the browser-side panel
+SDK consumed by installable apps. The Phase 15.2 in-scope surface is:
+
+* `NousPanel`
+* `useTool`
+* `useConfig`
+* `useTheme`
+* `useNotify`
+
+Phase 15.3 extends the same SDK surface with:
+
+* `usePersistedState`
+* `onActivate`
+* `onDeactivate`
+
+Phase 15.5 extends the same SDK surface with live config convergence:
+
+* `PanelBridgeClient.subscribeConfig()` for additive host-owned config refreshes
+* `NousPanel` / `useConfig()` subscription-driven updates when trusted hosts push `config.changed`
+* No iframe-local or browser-local settings authority beyond the canonical host bridge snapshot
+
+Panels use this package to speak the canonical versioned `postMessage` bridge to the trusted host.
+The SDK is a bridge client and projection helper only: it lets sandboxed panel code invoke app
+tools and read host-projected config/theme state through the host bridge, while keeping host
+internals, privileged routing, and second-source-of-truth state out of the panel surface.
+
+The lifecycle and persistence split remains explicit. `preserveState` is host-owned in-session DOM
+preservation for iframe panels; it keeps inactive panels hidden without turning the browser into a
+durable state authority. Cross-session panel state flows through `usePersistedState` over the
+trusted host bridge and the canonical `/mcp` handoff into app-scoped runtime-owned state.
 
 ### cli/
 
@@ -74,6 +110,7 @@ Web application containing integrated operator surfaces:
 * Chat interface — conversational interaction with project-scoped context
 * Projects UI — advanced workflow authoring, staged visual debugging, canonical project dashboard, governed configuration, schedule settings, and project-scoped escalation queue acknowledgement
 * Dashboard — system health, project status, memory inspection, and discovery projection
+* Marketplace — governed package browse, package detail, moderation, advisory discovery, and project-scoped app install entry
 * MAO operator surface — density-grid observability, run-graph inspection, reasoning-preview handoff, and governed project control
 * Mobile operations surface — phone-sized project status, escalation acknowledgement, voice follow-up posture, and read-only trust summaries
 * Chat escalation inbox — acknowledgement of the same canonical in-app escalation queue used by Projects
@@ -82,7 +119,17 @@ Web application containing integrated operator surfaces:
 
 Primary interface for most users.
 
-The same app host also owns the machine-facing `/mcp` route and the `/.well-known/oauth-protected-resource/mcp` plus `/.well-known/oauth-authorization-server/mcp` discovery documents. The host remains transport-thin: it parses HTTP, composes shared services at bootstrap, and hands admitted work into the canonical gateway runtime rather than a web-local shadow API.
+The same app host also owns the machine-facing `/mcp` route and the `/.well-known/oauth-protected-resource/mcp` plus `/.well-known/oauth-authorization-server/mcp` discovery documents. The host remains transport-thin: it parses HTTP, composes shared services at bootstrap, and hands admitted work into the canonical gateway runtime rather than a web-local shadow API. The trusted app-panel host also uses this same `/mcp` boundary adapter for lifecycle reconciliation and persisted-state bridge traffic instead of introducing a second host-local persistence or control seam.
+
+Phase 15.4 extends the same host with canonical app-install preparation and execution transport for
+package-detail surfaces. The host can launch the shared three-stage install wizard, but secret and
+OAuth handling plus persisted config truth remain in the backend install service instead of
+browser-owned state.
+
+Phase 15.5 extends the same host with canonical app-settings preparation and save transport for
+installed app package-detail surfaces. The web package detail view can reuse the shared
+`AppSettingsSurface`, refetch canonical settings truth after save, and push additive config refresh
+events to active app panels without introducing browser-owned settings state.
 
 ### bridge/
 
@@ -460,6 +507,17 @@ Phase 14.4 extends the same package-store lane with canonical installed-workflow
 
 - `document-loader.ts` / `index.ts` — add deterministic `listInstalledWorkflowPackages(...)` and `inspectInstalledWorkflowPackage(...)` helpers over `.workflows/`, keeping legacy hybrids out of canonical installed-workflow discovery while preserving compatibility-only loading paths.
 
+Phase 15.4 adds `self/subcortex/projects/src/app-install/` as the project-scoped app-install lane:
+
+- `config-store.ts` — persists non-secret app config plus secret-presence metadata for one project/package pair
+- `service.ts` — prepares install contracts from registry releases, validates required config, delegates vault/OAuth setup, runs install hooks, activates apps, and owns rollback cleanup
+- `index.ts` — exports the install seam for host bootstrap and test consumers
+
+Phase 15.5 adds `self/subcortex/projects/src/app-settings/` as the project-scoped app-settings lane:
+
+- `service.ts` — prepares canonical settings contracts, validates candidate config, stages secret mutation, enforces config-version compare-and-swap, owns `deactivate -> update -> reactivate`, and performs rollback/recovery
+- `index.ts` — exports the settings seam for host bootstrap and test consumers
+
 ### apps/
 
 Canonical app runtime for installed `.apps` packages. Implemented in Phase 14.5 as `@nous/subcortex-apps`.
@@ -739,6 +797,21 @@ Phase 14.7 adds `.apps/telegram-connector/` as the first first-party reference a
 It proves the canonical Deno app lifecycle, namespaced tool registration, progressive
 connector/full-client configuration, and host-owned communication-gateway integration without
 reusing `self/apps/bridge/` as the runtime source of truth.
+
+Phase 15.1 adds the canonical app-panel host seam for installable apps. Manifest-declared app
+panels are served through the existing web host at `/apps/:appId/panels/:panelId` and mounted into
+trusted shell surfaces as sandboxed iframe panels, rather than through an app-owned parallel UI
+runtime or alternate host path.
+
+Phase 15.4 extends installable apps with a canonical host-owned install flow. App packages still
+declare permissions, config fields, and optional lifecycle hooks in the manifest, but hosts now
+prepare a shared install contract and render the same staged install wizard instead of accepting
+package-authored install UIs or storing secrets locally.
+
+Phase 15.5 extends the same posture with a canonical host-owned settings flow after install.
+Installed app packages still declare config in the manifest, but hosts now reuse a shared settings
+surface, save through the project-scoped settings service, and push additive config refreshes to
+active panels without exposing secret values or inventing an app-owned settings UI runtime.
 
 This keeps the distinction clear: `self/apps/` contains first-party senses that are part of the being, while `.apps/` stores installable packages that can extend the operator experience.
 

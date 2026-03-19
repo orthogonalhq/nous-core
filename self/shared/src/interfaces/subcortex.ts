@@ -92,12 +92,23 @@ import type {
   AppRuntimeActivationInput,
   AppRuntimeDeactivationInput,
   AppRuntimeSession,
+  AppInstallPrepareRequest,
+  AppInstallPreparation,
+  AppInstallRequest,
+  AppInstallResult,
+  AppSettingsPreparation,
+  AppSettingsPrepareRequest,
+  AppSettingsSaveRequest,
+  AppSettingsSaveResult,
   AppHealthSnapshot,
   AppHeartbeatSignal,
+  CredentialBackupResult,
+  CredentialDiscardBackupResult,
   CredentialOAuthFlowRequest,
   CredentialOAuthFlowResult,
   CredentialRevokeRequest,
   CredentialRevokeResult,
+  CredentialRestoreResult,
   CredentialStoreRequest,
   CredentialStoreResult,
   PackageLifecycleTransitionRequest,
@@ -189,6 +200,7 @@ import type {
   ExternalSourceMemoryEntry,
   ExternalSourceMutationResult,
   ExternalSourceSearchResult,
+  AppPanelBridgeContext,
   PublicMcpExecutionRequest,
   PublicMcpExecutionResult,
   PublicMcpGetArguments,
@@ -200,6 +212,12 @@ import type {
   PublicMcpTaskProjection,
   PublicMcpTaskResult,
   PublicMcpToolDefinition,
+  AppPanelLifecycleUpdate,
+  AppPanelPersistedStateDeleteInput,
+  AppPanelPersistedStateGetInput,
+  AppPanelPersistedStateResult,
+  AppPanelPersistedStateSetInput,
+  PanelBridgeToolTransportRequest,
   PromoteExternalRecordCommand,
   DemotePromotedRecordCommand,
   PromotedMemoryGetQuery,
@@ -569,6 +587,24 @@ export interface IAppCredentialInstallService {
     appId: string,
     request: CredentialRevokeRequest,
   ): Promise<CredentialRevokeResult>;
+
+  /** Create an opaque backup handle before a destructive settings mutation. */
+  backupCredential(
+    appId: string,
+    key: string,
+  ): Promise<CredentialBackupResult>;
+
+  /** Restore a previously created opaque backup handle. */
+  restoreCredential(
+    appId: string,
+    backupRef: string,
+  ): Promise<CredentialRestoreResult>;
+
+  /** Discard an unused opaque backup handle. */
+  discardCredentialBackup(
+    appId: string,
+    backupRef: string,
+  ): Promise<CredentialDiscardBackupResult>;
 }
 
 export interface IPublicMcpGatewayService {
@@ -865,6 +901,33 @@ export interface IAppRuntimeService {
   /** List runtime sessions, optionally filtered by package ID. */
   listSessions(packageId?: string): Promise<AppRuntimeSession[]>;
 
+  /** List active app-panel bridge contexts for trusted host surfaces. */
+  listPanels(): Promise<AppPanelBridgeContext[]>;
+
+  /** Resolve one active app-panel bridge context by app and panel identity. */
+  resolvePanel(appId: string, panelId: string): Promise<AppPanelBridgeContext | null>;
+
+  /** Execute one panel tool request through the runtime-owned app bridge. */
+  executePanelTool(input: PanelBridgeToolTransportRequest): Promise<unknown>;
+
+  /** Reconcile one canonical panel lifecycle event against the active runtime projection. */
+  recordPanelLifecycle(input: AppPanelLifecycleUpdate): Promise<AppPanelBridgeContext | null>;
+
+  /** Read one app-owned persisted panel state value through the runtime seam. */
+  getPersistedPanelState(
+    input: AppPanelPersistedStateGetInput,
+  ): Promise<AppPanelPersistedStateResult>;
+
+  /** Write one app-owned persisted panel state value through the runtime seam. */
+  setPersistedPanelState(
+    input: AppPanelPersistedStateSetInput,
+  ): Promise<AppPanelPersistedStateResult>;
+
+  /** Delete one app-owned persisted panel state value through the runtime seam. */
+  deletePersistedPanelState(
+    input: AppPanelPersistedStateDeleteInput,
+  ): Promise<AppPanelPersistedStateResult>;
+
   /** Record one heartbeat signal and return the resulting health snapshot. */
   recordHeartbeat(signal: AppHeartbeatSignal): Promise<AppHealthSnapshot>;
 
@@ -885,6 +948,26 @@ export interface IAppRuntimeService {
   reportConnectorSession(
     input: AppConnectorSessionReport,
   ): Promise<AppHealthSnapshot>;
+}
+
+export interface IAppInstallService {
+  /** Resolve the canonical wizard contract for one app package install. */
+  prepareInstall(
+    request: AppInstallPrepareRequest,
+  ): Promise<AppInstallPreparation>;
+
+  /** Execute approval-gated install, validation, vault storage, and activation. */
+  installApp(request: AppInstallRequest): Promise<AppInstallResult>;
+}
+
+export interface IAppSettingsService {
+  /** Resolve the canonical settings contract for one installed app package. */
+  prepareSettings(
+    request: AppSettingsPrepareRequest,
+  ): Promise<AppSettingsPreparation>;
+
+  /** Validate and apply one governed settings save. */
+  saveSettings(request: AppSettingsSaveRequest): Promise<AppSettingsSaveResult>;
 }
 
 export interface IPackageInstallService {

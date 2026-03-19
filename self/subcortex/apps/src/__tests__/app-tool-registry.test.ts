@@ -23,8 +23,12 @@ describe('AppToolRegistry', () => {
 
     expect(records[0]?.namespaced_tool_id).toBe('app:weather.get_forecast');
     expect(registrar.register).toHaveBeenCalledWith(
-      'app:weather.get_forecast',
-      expect.objectContaining({ tool_name: 'get_forecast' }),
+      expect.objectContaining({
+        toolId: 'app:weather.get_forecast',
+        sessionId: 'session-1',
+        appId: 'app:weather',
+        definition: expect.objectContaining({ tool_name: 'get_forecast' }),
+      }),
     );
 
     await registry.deregisterSessionTools('session-1');

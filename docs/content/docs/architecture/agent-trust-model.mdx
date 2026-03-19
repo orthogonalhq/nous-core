@@ -1,0 +1,105 @@
+---
+title: Agent Trust Model
+description: How Nous agents govern each other — zero trust by default, mandatory orchestration, and why security is structural
+---
+
+# Agent Trust Model
+
+Nous treats every agent as an independent, untrusted actor. Every task has an orchestrator that controls what the worker sees, validates what it produces, and enforces boundaries by default — not by configuration. Security is structural, not opt-in.
+
+This page explains the principles behind that design. For infrastructure security (auth, encryption, network binding), see [Security Baseline](/docs/architecture/security-baseline).
+
+## Zero Trust by Default
+
+Every sub-agent in the Nous system is treated as untrusted by default. This is true regardless of:
+
+- Whether the agent was authored internally or externally.
+- Whether the agent has performed correctly in prior executions.
+- Whether the agent is running a simple or complex task.
+- Whether the skill uses one worker or many.
+
+**Trust is not a property of the agent. Trust is a property of the boundary that contains it.** An agent is only as trustworthy as the enforcement around it.
+
+This is a deliberate architectural choice. Language models are non-deterministic — the same prompt can produce different outputs across runs. Prior correct behavior does not guarantee future correct behavior. The system is designed for this reality rather than against it.
+
+## Mandatory Orchestration
+
+Every skill requires an orchestrator between the system coordination layer and any worker agent. There are no exceptions — not for simple tasks, not for single-worker skills, not for knowledge bases.
+
+The orchestrator has four responsibilities:
+
+### Context Control
+
+The orchestrator decides what the worker sees. It reads the skill metadata, evaluates routing logic, selects relevant content through progressive disclosure, and assembles a context bundle. The worker receives only what the orchestrator provides — never more.
+
+This is physical enforcement, not advisory. Content outside the worker's scope is not "forbidden but present" — it is absent from the worker's context entirely.
+
+### Boundary Enforcement
+
+Workers operate within declared read boundaries. In multi-worker skills, each worker is lane-locked to its own entry point and cannot access content designated for other roles. The orchestrator enforces these boundaries by controlling what gets hydrated into each worker's context.
+
+### Output Validation
+
+The orchestrator receives the worker's result before it propagates upstream. It can validate outputs against skill constraints, reject non-conforming results, and trigger revision cycles — all before the coordination layer sees anything.
+
+For a design-system knowledge base, this means the orchestrator can verify that a worker's CSS output actually uses the required design tokens. For an engineering workflow, this means gate reviews happen before artifacts move to the next phase.
+
+### Dispatch Authority
+
+Only orchestrators can dispatch workers. Workers cannot spawn other workers, redirect their own output, or escalate directly past the orchestrator. The orchestrator is the sole routing authority within its skill boundary.
+
+## Fail-Close, Not Fail-Open
+
+When a boundary violation, validation failure, or unrecoverable error occurs, the system fails closed: execution stops, the violation is reported with structured evidence, and no partial result propagates.
+
+The alternative — fail-open — would allow unvalidated results to flow through the system on the assumption that partial progress is better than no progress. Nous rejects this because:
+
+- **An unvalidated result is worse than no result.** A wrong output that reaches the user looks identical to a correct one. The cost of undetected errors compounds downstream. The cost of a stopped execution is bounded and visible.
+- **Partial results create implicit trust.** If a worker fails at step 5 of 8 and its output through step 4 propagates, every downstream consumer implicitly trusts steps 1–4 were correct without verification.
+- **Recovery is cheaper than remediation.** Re-running a failed worker from a clean state is cheaper than tracing how a partial result contaminated downstream artifacts.
+
+## Strict Separation of Concerns
+
+The system enforces strict separation between coordination, orchestration, and execution:
+
+| Tier | Role | Responsibility |
+|------|------|----------------|
+| **Cortex** | System coordination | Routes work to the appropriate skill orchestrator |
+| **Orchestrator** | Skill-level routing | Controls context, enforces boundaries, validates output |
+| **Worker** | Task execution | Performs the actual work within provided context |
+
+No tier can bypass another. Workers cannot address the coordination layer directly. Orchestrators cannot address the user directly. Each tier communicates only with its immediate neighbors.
+
+### Consequences
+
+This strict separation produces three architectural benefits — none of which are the primary motivation, but all of which reinforce the security model:
+
+**Parallelism.** When workers are independent, boundary-locked actors with no shared state, they can execute simultaneously. An orchestrator dispatches multiple workers in parallel, each in isolation, and collects validated results. You cannot safely parallelize agents that share state or self-govern.
+
+**Cost alignment.** Orchestrators are lightweight (small model, routing logic, high-instruct). Workers are heavyweight (large model, creative reasoning, domain knowledge). The cost of running a cheap orchestrator to validate an expensive worker's output is negligible relative to the cost of an undetected error. As smaller models improve and local inference matures, orchestration cost approaches zero.
+
+**Auditability.** Every interaction between tiers produces a structured packet with identity, correlation, and provenance fields. The orchestrator is a natural audit point — it observes every inbound and outbound packet within its skill boundary. Removing the orchestrator eliminates this audit surface.
+
+## How This Applies to Different Skill Types
+
+These principles apply uniformly. The topology varies; the trust model does not.
+
+### Knowledge Bases
+
+A design-system knowledge base uses a single worker. The orchestrator reads the skill metadata, evaluates the current task against the disclosure tree, selects relevant chapters (typography, spacing, tokens), and hydrates the worker with a scoped context bundle. On completion, the orchestrator validates the result against the knowledge base's principles before returning.
+
+### Workflows
+
+An engineering workflow uses multiple workers across gated phases. The orchestrator dispatches each worker to a lane-locked entry point, enforces read boundaries between lanes, manages gate reviews with fresh review agents, and controls artifact flow between phases. Each worker starts fresh with no prior context.
+
+### Actions
+
+A commit action uses a single worker for an atomic operation. The orchestrator loads the full skill context and dispatches the worker. Even for simple operations, the orchestrator validates the result before propagation. The overhead is minimal; the boundary enforcement is non-negotiable.
+
+## Design Philosophy
+
+The agent trust model is not a response to a specific threat. It is a structural decision about how autonomous systems should be built.
+
+Language models will continue to improve. Their outputs will become more reliable. But "more reliable" is not "perfectly reliable," and the gap between those two things is where undetected errors live. The Nous architecture is designed so that reliability improvements make the system better without the system ever depending on them.
+
+When the orchestrator validates a worker's output and finds no issues, that is confirmation. When it finds issues, that is prevention. Both outcomes justify the orchestrator's existence. Neither outcome would occur without it.

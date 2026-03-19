@@ -20,6 +20,11 @@ import type {
   StmCompactionPolicy,
 } from '@nous/shared';
 import { ConfigManager } from '@nous/autonomic-config';
+import {
+  AppCredentialInstallService,
+  CredentialOAuthBroker,
+  CredentialVaultService,
+} from '@nous/autonomic-credentials';
 import { InMemoryEmbedder } from '@nous/autonomic-embeddings';
 import { NodeRuntime } from '@nous/autonomic-runtime';
 import { SqliteDocumentStore, SqliteVectorStore } from '@nous/autonomic-storage';
@@ -44,11 +49,16 @@ import {
   PublicMcpRuntimeAdapter,
   createCapabilityHandlers,
   getPublicToolMapping,
+  registerDynamicInternalMcpTool,
   resolvePublicMcpRequiredScopes,
+  unregisterDynamicInternalMcpTool,
   createGatewayProjectApi,
   createPrincipalSystemGatewayRuntime,
 } from '@nous/cortex-core';
 import {
+  AppInstallService,
+  AppSettingsService,
+  DocumentAppConfigStore,
   DocumentProjectStore,
   PackageInstallService,
   PackageLifecycleOrchestrator,
@@ -80,6 +90,12 @@ import {
 import { MaoProjectionService } from '@nous/subcortex-mao';
 import { GtmGateCalculator } from '@nous/subcortex-gtm';
 import { VoiceControlService } from '@nous/subcortex-voice-control';
+import {
+  AppRuntimeService,
+  type AppToolRegistrar,
+  AppToolRegistry,
+  PanelTranspiler,
+} from '@nous/subcortex-apps';
 import {
   AuditProjectionStore,
   DeploymentRouterService,
@@ -255,6 +271,7 @@ export function createNousContext(): NousContext {
     compactionPolicy: resolveStmCompactionPolicy(resolvedConfig),
   });
   const projectStore = new DocumentProjectStore(documentStore);
+  const appConfigStore = new DocumentAppConfigStore(documentStore);
   const artifactStore = new DocumentArtifactStore(documentStore);
   const scheduleStore = new DocumentScheduleStore(documentStore);
   const escalationStore = new DocumentEscalationStore(documentStore);
@@ -330,10 +347,21 @@ export function createNousContext(): NousContext {
     escalationService,
     witnessService,
   });
+  const credentialVaultService = new CredentialVaultService({
+    documentStore,
+  });
+  const credentialOAuthBroker = new CredentialOAuthBroker({
+    vaultService: credentialVaultService,
+  });
+  const appCredentialInstallService = new AppCredentialInstallService({
+    vaultService: credentialVaultService,
+    oauthBroker: credentialOAuthBroker,
+  });
   const packageLifecycleOrchestrator = new PackageLifecycleOrchestrator();
   const packageInstallService = new PackageInstallService({
     registryService,
     lifecycleOrchestrator: packageLifecycleOrchestrator,
+    appCredentialInstallService,
     runtime,
     instanceRoot,
   });
@@ -362,6 +390,62 @@ export function createNousContext(): NousContext {
     communicationGatewayService,
     escalationService,
     witnessService,
+  });
+  const panelTranspiler = new PanelTranspiler();
+  const appToolRegistry = new AppToolRegistry({
+    register: ({
+      toolId,
+      definition,
+      sessionId,
+      appId,
+    }: Parameters<AppToolRegistrar['register']>[0]) => {
+      registerDynamicInternalMcpTool({
+        name: toolId,
+        sessionId,
+        appId,
+        definition: {
+          name: toolId,
+          version: '1.0.0',
+          description: definition.description,
+          inputSchema: definition.input_schema,
+          outputSchema: definition.output_schema ?? {},
+          capabilities: ['execute'],
+          permissionScope: 'project',
+        },
+        execute: async () => {
+          throw new Error(
+            `App tool invocation bridge is unavailable for ${toolId}`,
+          );
+        },
+      });
+      return { witnessRef: `dynamic-tool:${toolId}` };
+    },
+    unregister: (toolId: string) => {
+      unregisterDynamicInternalMcpTool(toolId);
+    },
+  });
+  const appRuntimeService = new AppRuntimeService({
+    lifecycleOrchestrator: packageLifecycleOrchestrator,
+    toolRegistry: appToolRegistry,
+    communicationGatewayService,
+    panelTranspiler,
+  });
+  const appInstallService = new AppInstallService({
+    registryService,
+    packageInstallService,
+    appCredentialInstallService,
+    appRuntimeService,
+    configStore: appConfigStore,
+    runtime,
+    witnessService,
+    instanceRoot,
+  });
+  const appSettingsService = new AppSettingsService({
+    appCredentialInstallService,
+    appRuntimeService,
+    configStore: appConfigStore,
+    runtime,
+    instanceRoot,
   });
   const maoProjectionService = new MaoProjectionService({
     opctlService,
@@ -714,6 +798,7 @@ export function createNousContext(): NousContext {
     witnessService,
     opctlService,
     runtime,
+    appRuntimeService,
     instanceRoot,
     outputSchemaValidator: new DefaultSchemaRefValidator(),
   });
@@ -746,11 +831,15 @@ export function createNousContext(): NousContext {
     escalationService,
     endpointTrustService,
     registryService,
+    appInstallService,
+    appSettingsService,
     packageInstallService,
     nudgeDiscoveryService,
     voiceControlService,
     publicMcpGatewayService,
     publicMcpExecutionBridge,
+    appRuntimeService,
+    panelTranspiler,
     dataDir,
   };
   cachedContext = context;

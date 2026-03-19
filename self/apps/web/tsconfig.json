@@ -29,6 +29,9 @@
       "@nous/shared": [
         "../../shared/src/index.ts"
       ],
+      "@nous/subcortex-apps": [
+        "../../subcortex/apps/src/index.ts"
+      ],
       "@nous/autonomic-runtime": [
         "../../autonomic/runtime/src/index.ts"
       ],

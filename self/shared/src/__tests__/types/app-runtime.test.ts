@@ -1,6 +1,10 @@
 import { describe, expect, it } from 'vitest';
 import {
   AppActivationHandshakeSchema,
+  AppPanelBridgeContextSchema,
+  AppPanelLifecycleUpdateSchema,
+  AppPanelSafeConfigSnapshotSchema,
+  AppPanelPersistedStateResultSchema,
   AppConnectorEgressIntentSchema,
   AppConnectorIngressIntentSchema,
   AppConnectorSessionReportSchema,
@@ -69,6 +73,78 @@ describe('AppActivationHandshakeSchema', () => {
     });
 
     expect(result.success).toBe(true);
+  });
+});
+
+describe('AppPanel bridge runtime schemas', () => {
+  it('accepts panel-safe config snapshots and bridge contexts', () => {
+    const snapshot = AppPanelSafeConfigSnapshotSchema.parse({
+      units: {
+        value: 'metric',
+        source: 'project_config',
+      },
+    });
+    const context = AppPanelBridgeContextSchema.parse({
+      session_id: 'session-1',
+      app_id: 'app:weather',
+      package_id: 'app:weather',
+      package_version: '1.0.0',
+      config_version: 'cfg-1',
+      panel_id: 'forecast',
+      label: 'Forecast',
+      entry: 'panels/forecast.tsx',
+      preserve_state: true,
+      package_root_ref: '/tmp/.apps/weather',
+      manifest_ref: '/tmp/.apps/weather/manifest.json',
+      route_path: '/apps/app%3Aweather/panels/forecast',
+      dockview_panel_id: 'app:app:weather:forecast',
+      config_snapshot: snapshot,
+      lifecycle: {
+        event: 'panel_mount',
+        reason: 'open',
+        updated_at: '2026-03-18T00:00:00.000Z',
+      },
+    });
+
+    expect(context.config_snapshot.units?.value).toBe('metric');
+    expect(context.lifecycle?.event).toBe('panel_mount');
+  });
+});
+
+describe('App panel lifecycle and persisted-state schemas', () => {
+  it('accepts canonical lifecycle updates', () => {
+    const result = AppPanelLifecycleUpdateSchema.safeParse({
+      app_id: 'app:weather',
+      panel_id: 'forecast',
+      event: 'panel_mount',
+      reason: 'activate',
+      occurred_at: '2026-03-18T00:00:00.000Z',
+    });
+
+    expect(result.success).toBe(true);
+  });
+
+  it('accepts persisted-state results with and without a stored value', () => {
+    const hit = AppPanelPersistedStateResultSchema.safeParse({
+      app_id: 'app:weather',
+      panel_id: 'forecast',
+      key: 'filters',
+      exists: true,
+      value: {
+        city: 'Seattle',
+      },
+      updated_at: '2026-03-18T00:00:00.000Z',
+    });
+    const miss = AppPanelPersistedStateResultSchema.safeParse({
+      app_id: 'app:weather',
+      panel_id: 'forecast',
+      key: 'filters',
+      exists: false,
+      updated_at: '2026-03-18T00:00:00.000Z',
+    });
+
+    expect(hit.success).toBe(true);
+    expect(miss.success).toBe(true);
   });
 });
 

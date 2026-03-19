@@ -1,5 +1,6 @@
 import { z } from 'zod';
 import { AppPackageManifestSchema } from './app-manifest.js';
+import { AppSecretConfigStateSchema } from './app-install.js';
 import {
   ChannelEgressEnvelopeSchema,
   ChannelIngressEnvelopeSchema,
@@ -84,6 +85,132 @@ export const AppPanelRegistrationProjectionSchema = z.object({
 });
 export type AppPanelRegistrationProjection = z.infer<
   typeof AppPanelRegistrationProjectionSchema
+>;
+
+export const AppPanelSafeConfigEntrySchema = z.object({
+  value: z.unknown(),
+  source: AppHandshakeConfigSourceSchema,
+});
+export type AppPanelSafeConfigEntry = z.infer<
+  typeof AppPanelSafeConfigEntrySchema
+>;
+
+export const AppPanelSafeConfigSnapshotSchema = z.record(
+  z.string().min(1),
+  AppPanelSafeConfigEntrySchema,
+);
+export type AppPanelSafeConfigSnapshot = z.infer<
+  typeof AppPanelSafeConfigSnapshotSchema
+>;
+
+export const AppPanelLifecycleEventSchema = z.enum([
+  'panel_mount',
+  'panel_unmount',
+]);
+export type AppPanelLifecycleEvent = z.infer<
+  typeof AppPanelLifecycleEventSchema
+>;
+
+export const AppPanelLifecycleReasonSchema = z.enum([
+  'open',
+  'activate',
+  'deactivate',
+  'close',
+  'remove',
+  'update',
+  'unload',
+  'host_reload',
+]);
+export type AppPanelLifecycleReason = z.infer<
+  typeof AppPanelLifecycleReasonSchema
+>;
+
+export const AppPanelLifecycleProjectionSchema = z.object({
+  event: AppPanelLifecycleEventSchema,
+  reason: AppPanelLifecycleReasonSchema,
+  updated_at: z.string().datetime(),
+});
+export type AppPanelLifecycleProjection = z.infer<
+  typeof AppPanelLifecycleProjectionSchema
+>;
+
+export const AppPanelBridgeContextSchema = z.object({
+  session_id: z.string().min(1),
+  app_id: z.string().min(1),
+  package_id: z.string().min(1),
+  package_version: z.string().min(1),
+  config_version: z.string().min(1),
+  project_id: ProjectIdSchema.optional(),
+  panel_id: z.string().min(1),
+  label: z.string().min(1),
+  entry: z.string().min(1),
+  position: z.enum(['left', 'right', 'bottom', 'main']).optional(),
+  preserve_state: z.boolean().default(true),
+  package_root_ref: z.string().min(1),
+  manifest_ref: z.string().min(1),
+  route_path: z.string().min(1),
+  dockview_panel_id: z.string().min(1),
+  config_snapshot: AppPanelSafeConfigSnapshotSchema.default({}),
+  lifecycle: AppPanelLifecycleProjectionSchema.optional(),
+});
+export type AppPanelBridgeContext = z.infer<
+  typeof AppPanelBridgeContextSchema
+>;
+
+export const AppPanelLifecycleUpdateSchema = z.object({
+  app_id: z.string().min(1),
+  panel_id: z.string().min(1),
+  event: AppPanelLifecycleEventSchema,
+  reason: AppPanelLifecycleReasonSchema,
+  occurred_at: z.string().datetime(),
+});
+export type AppPanelLifecycleUpdate = z.infer<
+  typeof AppPanelLifecycleUpdateSchema
+>;
+
+export const AppPanelPersistedStateKeySchema = z.string().min(1);
+export type AppPanelPersistedStateKey = z.infer<
+  typeof AppPanelPersistedStateKeySchema
+>;
+
+export const AppPanelPersistedStateValueSchema = z.unknown();
+export type AppPanelPersistedStateValue = z.infer<
+  typeof AppPanelPersistedStateValueSchema
+>;
+
+export const AppPanelPersistedStateGetInputSchema = z.object({
+  app_id: z.string().min(1),
+  panel_id: z.string().min(1),
+  key: AppPanelPersistedStateKeySchema,
+});
+export type AppPanelPersistedStateGetInput = z.infer<
+  typeof AppPanelPersistedStateGetInputSchema
+>;
+
+export const AppPanelPersistedStateSetInputSchema =
+  AppPanelPersistedStateGetInputSchema.extend({
+    value: AppPanelPersistedStateValueSchema,
+  });
+export type AppPanelPersistedStateSetInput = z.infer<
+  typeof AppPanelPersistedStateSetInputSchema
+>;
+
+export const AppPanelPersistedStateDeleteInputSchema =
+  AppPanelPersistedStateGetInputSchema;
+export type AppPanelPersistedStateDeleteInput = z.infer<
+  typeof AppPanelPersistedStateDeleteInputSchema
+>;
+
+export const AppPanelPersistedStateResultSchema = z.object({
+  app_id: z.string().min(1),
+  panel_id: z.string().min(1),
+  key: AppPanelPersistedStateKeySchema,
+  exists: z.boolean(),
+  value: AppPanelPersistedStateValueSchema.optional(),
+  updated_at: z.string().datetime(),
+});
+export type AppPanelPersistedStateResult = z.infer<
+  typeof AppPanelPersistedStateResultSchema
 >;
 
 export const AppActivationHandshakeSchema = z.object({
@@ -217,6 +344,7 @@ export const AppRuntimeActivationInputSchema = z.object({
   manifest: AppPackageManifestSchema,
   launch_spec: AppLaunchSpecSchema,
   config: z.array(AppHandshakeConfigEntrySchema).default([]),
+  secret_config: z.record(AppSecretConfigStateSchema).default({}),
   allowed_outbound_tools: z.array(z.string().min(1)).default([]),
   panels: z.array(AppPanelRegistrationProjectionSchema).default([]),
   sandbox_payload: SandboxPayloadSchema.optional(),

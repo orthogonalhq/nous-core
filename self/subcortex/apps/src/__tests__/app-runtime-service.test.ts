@@ -1,6 +1,11 @@
+import { randomUUID } from 'node:crypto';
+import { mkdtemp, rm } from 'node:fs/promises';
+import { tmpdir } from 'node:os';
+import { join } from 'node:path';
 import { describe, expect, it, vi } from 'vitest';
+import { PANEL_BRIDGE_PROTOCOL_VERSION } from '@nous/shared';
 import { AppRuntimeService } from '../app-runtime-service.js';
-import { AppToolRegistry } from '../app-tool-registry.js';
+import { AppToolRegistry, type AppToolRegistrar } from '../app-tool-registry.js';
 import { DenoSpawner } from '../deno-spawner.js';
 import { McpIpcBridge } from '../mcp-ipc-bridge.js';
 
@@ -59,7 +64,17 @@ const activationInput = {
   },
   config: [],
   allowed_outbound_tools: ['health_report'],
-  panels: [],
+  panels: [
+    {
+      app_id: 'app:weather',
+      session_id: 'manifest-session',
+      panel_id: 'forecast',
+      label: 'Forecast',
+      entry: 'panels/forecast.tsx',
+      position: 'main',
+      preserve_state: true,
+    },
+  ],
 } as const;
 
 const createGatewayService = () => ({
@@ -112,16 +127,26 @@ const createGatewayService = () => ({
   }),
 });
 
+function createToolRegistry(args: {
+  register?: AppToolRegistrar['register'];
+  unregister?: AppToolRegistrar['unregister'];
+} = {}) {
+  return new AppToolRegistry({
+    register:
+      args.register ?? vi.fn().mockResolvedValue({ witnessRef: 'evt-1' }),
+    unregister:
+      args.unregister ?? vi.fn().mockResolvedValue(undefined),
+  });
+}
+
 describe('AppRuntimeService', () => {
   it('activates and then deactivates a runtime session', async () => {
     const lifecycleOrchestrator = {
       run: vi.fn().mockResolvedValue({}),
       disable: vi.fn().mockResolvedValue({}),
     };
-    const toolRegistry = new AppToolRegistry({
-      register: vi.fn().mockResolvedValue({ witnessRef: 'evt-1' }),
-      unregister: vi.fn().mockResolvedValue(undefined),
-    });
+    const invalidateSession = vi.fn().mockResolvedValue(undefined);
+    const toolRegistry = createToolRegistry();
     const service = new AppRuntimeService({
       lifecycleOrchestrator: lifecycleOrchestrator as any,
       spawner: new DenoSpawner({
@@ -136,11 +161,18 @@ describe('AppRuntimeService', () => {
         sendHandshake: vi.fn(),
       }),
       toolRegistry,
+      panelTranspiler: { invalidateSession },
     });
 
     const session = await service.activate(activationInput as any);
     expect(session.status).toBe('active');
     expect(session.registered_tool_ids).toEqual(['app:weather.get_forecast']);
+    expect(await service.resolvePanel('app:weather', 'forecast')).toEqual(
+      expect.objectContaining({
+        session_id: 'session-1',
+        route_path: '/apps/app%3Aweather/panels/forecast',
+      }),
+    );
     expect(lifecycleOrchestrator.run).toHaveBeenCalledTimes(1);
 
     const stopped = await service.deactivate({
@@ -150,6 +182,8 @@ describe('AppRuntimeService', () => {
     });
     expect(stopped?.status).toBe('stopped');
     expect(lifecycleOrchestrator.disable).toHaveBeenCalledTimes(1);
+    expect(await service.resolvePanel('app:weather', 'forecast')).toBeNull();
+    expect(invalidateSession).toHaveBeenCalledWith('session-1');
   });
 
   it('rolls back tool registration when lifecycle run fails', async () => {
@@ -158,10 +192,7 @@ describe('AppRuntimeService', () => {
       run: vi.fn().mockRejectedValue(new Error('run failed')),
       disable: vi.fn().mockResolvedValue({}),
     };
-    const toolRegistry = new AppToolRegistry({
-      register: vi.fn().mockResolvedValue({ witnessRef: 'evt-1' }),
-      unregister,
-    });
+    const toolRegistry = createToolRegistry({ unregister });
     const service = new AppRuntimeService({
       lifecycleOrchestrator: lifecycleOrchestrator as any,
       spawner: new DenoSpawner({
@@ -191,7 +222,7 @@ describe('AppRuntimeService', () => {
         },
       }),
       bridge: new McpIpcBridge(),
-      toolRegistry: new AppToolRegistry({
+      toolRegistry: createToolRegistry({
         register: vi.fn(),
         unregister: vi.fn(),
       }),
@@ -203,6 +234,7 @@ describe('AppRuntimeService', () => {
 
   it('rolls back tool, panel, and session state when the activation handshake fails', async () => {
     const unregister = vi.fn().mockResolvedValue(undefined);
+    const invalidateSession = vi.fn().mockResolvedValue(undefined);
     const service = new AppRuntimeService({
       lifecycleOrchestrator: {
         run: vi.fn().mockResolvedValue({}),
@@ -218,15 +250,15 @@ describe('AppRuntimeService', () => {
       bridge: new McpIpcBridge({
         sendHandshake: vi.fn().mockRejectedValue(new Error('handshake failed')),
       }),
-      toolRegistry: new AppToolRegistry({
-        register: vi.fn().mockResolvedValue({ witnessRef: 'evt-1' }),
-        unregister,
-      }),
+      toolRegistry: createToolRegistry({ unregister }),
+      panelTranspiler: { invalidateSession },
     });
 
     await expect(service.activate(activationInput as any)).rejects.toThrow('handshake failed');
     expect(unregister).toHaveBeenCalledWith('app:weather.get_forecast');
     expect(await service.getSession('session-1')).toBeNull();
+    expect(await service.resolvePanel('app:weather', 'forecast')).toBeNull();
+    expect(invalidateSession).toHaveBeenCalledWith('session-1');
   });
 
   it('rolls back after tool-registration failure', async () => {
@@ -243,7 +275,7 @@ describe('AppRuntimeService', () => {
         }),
       }),
       bridge: new McpIpcBridge(),
-      toolRegistry: new AppToolRegistry({
+      toolRegistry: createToolRegistry({
         register: vi.fn().mockRejectedValue(new Error('registration failed')),
         unregister: vi.fn().mockResolvedValue(undefined),
       }),
@@ -267,10 +299,7 @@ describe('AppRuntimeService', () => {
         }),
       }),
       bridge: new McpIpcBridge(),
-      toolRegistry: new AppToolRegistry({
-        register: vi.fn().mockResolvedValue({ witnessRef: 'evt-1' }),
-        unregister: vi.fn().mockResolvedValue(undefined),
-      }),
+      toolRegistry: createToolRegistry(),
     });
 
     await service.activate(activationInput as any);
@@ -288,6 +317,7 @@ describe('AppRuntimeService', () => {
       reason: 'crash',
     });
     expect(exited?.status).toBe('failed');
+    expect(await service.resolvePanel('app:weather', 'forecast')).toBeNull();
   });
 
   it('registers and cleans up connector sessions with the communication gateway', async () => {
@@ -306,10 +336,7 @@ describe('AppRuntimeService', () => {
         }),
       }),
       bridge: new McpIpcBridge(),
-      toolRegistry: new AppToolRegistry({
-        register: vi.fn().mockResolvedValue({ witnessRef: 'evt-1' }),
-        unregister: vi.fn().mockResolvedValue(undefined),
-      }),
+      toolRegistry: createToolRegistry(),
     });
 
     const session = await service.activate({
@@ -352,6 +379,82 @@ describe('AppRuntimeService', () => {
     );
   });
 
+  it('uses secret-config presence rather than plaintext handshake values for full-client connector mode', async () => {
+    const gatewayService = createGatewayService();
+    const service = new AppRuntimeService({
+      lifecycleOrchestrator: {
+        run: vi.fn().mockResolvedValue({}),
+        disable: vi.fn().mockResolvedValue({}),
+      } as any,
+      communicationGatewayService: gatewayService as any,
+      spawner: new DenoSpawner({
+        sessionIdFactory: () => 'session-1',
+        spawnProcess: () => ({
+          pid: 123,
+          kill: vi.fn().mockReturnValue(true),
+        }),
+      }),
+      bridge: new McpIpcBridge(),
+      toolRegistry: createToolRegistry(),
+    });
+
+    await service.activate({
+      ...(activationInput as any),
+      manifest: {
+        ...(activationInput.manifest as any),
+        id: 'telegram',
+        adapters: [{ name: 'telegram' }],
+        config: {
+          client_api_hash: {
+            type: 'secret',
+          },
+        },
+      },
+      launch_spec: {
+        ...(activationInput.launch_spec as any),
+        app_id: 'telegram',
+        package_id: 'telegram-connector',
+      },
+      config: [
+        {
+          key: 'default_account_id',
+          value: 'account:telegram',
+          source: 'project_config',
+          mutable: false,
+        },
+        {
+          key: 'client_api_id',
+          value: '12345',
+          source: 'project_config',
+          mutable: false,
+        },
+        {
+          key: 'client_phone_number',
+          value: '+15555555555',
+          source: 'project_config',
+          mutable: false,
+        },
+      ],
+      secret_config: {
+        client_api_hash: {
+          key: 'client_api_hash',
+          configured: true,
+          credential_ref: 'credential:telegram:client_api_hash',
+          source: 'secret_field',
+        },
+      },
+    });
+
+    expect(gatewayService.reportConnectorSession).toHaveBeenCalledWith(
+      expect.objectContaining({
+        connector_id: 'connector:telegram:account:telegram',
+        metadata: expect.objectContaining({
+          mode: 'full_client',
+        }),
+      }),
+    );
+  });
+
   it('routes connector intents through the host-owned communication gateway', async () => {
     const gatewayService = createGatewayService();
     const service = new AppRuntimeService({
@@ -368,10 +471,7 @@ describe('AppRuntimeService', () => {
         }),
       }),
       bridge: new McpIpcBridge(),
-      toolRegistry: new AppToolRegistry({
-        register: vi.fn().mockResolvedValue({ witnessRef: 'evt-1' }),
-        unregister: vi.fn().mockResolvedValue(undefined),
-      }),
+      toolRegistry: createToolRegistry(),
     });
 
     await service.activate({
@@ -456,5 +556,242 @@ describe('AppRuntimeService', () => {
     expect(gatewayService.receiveIngress).toHaveBeenCalledTimes(1);
     expect(gatewayService.dispatchEgress).toHaveBeenCalledTimes(1);
     expect(gatewayService.reportConnectorSession).toHaveBeenCalled();
+  });
+
+  it('keeps lifecycle cleanup progressing when panel cache invalidation fails during deactivation', async () => {
+    const invalidateSession = vi.fn().mockRejectedValue(new Error('cache delete failed'));
+    const service = new AppRuntimeService({
+      lifecycleOrchestrator: {
+        run: vi.fn().mockResolvedValue({}),
+        disable: vi.fn().mockResolvedValue({}),
+      } as any,
+      spawner: new DenoSpawner({
+        sessionIdFactory: () => 'session-1',
+        spawnProcess: () => ({
+          pid: 123,
+          kill: vi.fn().mockReturnValue(true),
+        }),
+      }),
+      bridge: new McpIpcBridge(),
+      toolRegistry: createToolRegistry(),
+      panelTranspiler: { invalidateSession },
+    });
+
+    await service.activate(activationInput as any);
+    const stopped = await service.deactivate({
+      session_id: 'session-1',
+      reason: 'test shutdown',
+      disable_package: false,
+    });
+
+    expect(stopped?.status).toBe('stopped');
+    expect(await service.resolvePanel('app:weather', 'forecast')).toBeNull();
+    expect(invalidateSession).toHaveBeenCalledWith('session-1');
+  });
+
+  it('executes active panel tool requests through the runtime bridge with namespaced tool ids', async () => {
+    const invokeTool = vi.fn().mockResolvedValue({
+      forecast: 'rain',
+    });
+    const service = new AppRuntimeService({
+      lifecycleOrchestrator: {
+        run: vi.fn().mockResolvedValue({}),
+        disable: vi.fn().mockResolvedValue({}),
+      } as any,
+      spawner: new DenoSpawner({
+        sessionIdFactory: () => 'session-1',
+        spawnProcess: () => ({
+          pid: 123,
+          kill: vi.fn().mockReturnValue(true),
+        }),
+      }),
+      bridge: new McpIpcBridge({
+        invokeTool,
+      }),
+      toolRegistry: createToolRegistry(),
+    });
+
+    await service.activate({
+      ...(activationInput as any),
+      manifest: {
+        ...(activationInput.manifest as any),
+        config: {
+          units: {
+            type: 'string',
+          },
+          api_key: {
+            type: 'secret',
+          },
+        },
+      },
+      config: [
+        {
+          key: 'units',
+          value: 'metric',
+          source: 'project_config',
+          mutable: false,
+        },
+      ],
+    });
+
+    const result = await service.executePanelTool({
+      protocol: PANEL_BRIDGE_PROTOCOL_VERSION,
+      request_id: 'req-1',
+      app_id: 'app:weather',
+      panel_id: 'forecast',
+      tool_name: 'get_forecast',
+      params: {
+        city: 'Seattle',
+      },
+    });
+
+    expect(result).toEqual({
+      forecast: 'rain',
+    });
+    expect(invokeTool).toHaveBeenCalledWith('session-1', {
+      context: {
+        caller_type: 'app',
+        app_id: 'app:weather',
+        package_id: 'app:weather',
+        session_id: 'session-1',
+        project_id: activationInput.project_id,
+        tool_id: 'app:weather.get_forecast',
+        request_id: 'req-1',
+      },
+      params: {
+        city: 'Seattle',
+      },
+    });
+  });
+
+  it('fails panel tool execution when the target panel is not active', async () => {
+    const service = new AppRuntimeService({
+      lifecycleOrchestrator: {
+        run: vi.fn().mockResolvedValue({}),
+        disable: vi.fn().mockResolvedValue({}),
+      } as any,
+      bridge: new McpIpcBridge(),
+      toolRegistry: createToolRegistry(),
+    });
+
+    await expect(
+      service.executePanelTool({
+        protocol: PANEL_BRIDGE_PROTOCOL_VERSION,
+        request_id: 'req-1',
+        app_id: 'app:weather',
+        panel_id: 'forecast',
+        tool_name: 'get_forecast',
+      }),
+    ).rejects.toThrow('Active app panel not found.');
+  });
+
+  it('records canonical panel lifecycle events against the active descriptor', async () => {
+    const service = new AppRuntimeService({
+      lifecycleOrchestrator: {
+        run: vi.fn().mockResolvedValue({}),
+        disable: vi.fn().mockResolvedValue({}),
+      } as any,
+      bridge: new McpIpcBridge(),
+      toolRegistry: createToolRegistry(),
+      spawner: new DenoSpawner({
+        sessionIdFactory: () => 'session-1',
+        spawnProcess: () => ({
+          pid: 123,
+          kill: vi.fn().mockReturnValue(true),
+        }),
+      }),
+    });
+
+    await service.activate(activationInput as any);
+    const updated = await service.recordPanelLifecycle({
+      app_id: 'app:weather',
+      panel_id: 'forecast',
+      event: 'panel_mount',
+      reason: 'open',
+      occurred_at: '2026-03-18T00:00:00.000Z',
+    });
+
+    expect(updated?.lifecycle).toEqual({
+      event: 'panel_mount',
+      reason: 'open',
+      updated_at: '2026-03-18T00:00:00.000Z',
+    });
+  });
+
+  it('persists panel state across deactivate and reactivate cycles through the runtime seam', async () => {
+    const appDataDir = await mkdtemp(join(tmpdir(), `nous-panel-runtime-${randomUUID()}-`));
+    const service = new AppRuntimeService({
+      lifecycleOrchestrator: {
+        run: vi.fn().mockResolvedValue({}),
+        disable: vi.fn().mockResolvedValue({}),
+      } as any,
+      bridge: new McpIpcBridge(),
+      toolRegistry: createToolRegistry(),
+      spawner: new DenoSpawner({
+        sessionIdFactory: () => 'session-1',
+        spawnProcess: () => ({
+          pid: 123,
+          kill: vi.fn().mockReturnValue(true),
+        }),
+      }),
+    });
+
+    await service.activate({
+      ...(activationInput as any),
+      launch_spec: {
+        ...(activationInput.launch_spec as any),
+        app_data_dir: appDataDir,
+      },
+    });
+
+    await service.setPersistedPanelState({
+      app_id: 'app:weather',
+      panel_id: 'forecast',
+      key: 'filters',
+      value: {
+        city: 'Seattle',
+      },
+    });
+    await service.deactivate({
+      session_id: 'session-1',
+      reason: 'restart',
+      disable_package: false,
+    });
+
+    const reactivated = new AppRuntimeService({
+      lifecycleOrchestrator: {
+        run: vi.fn().mockResolvedValue({}),
+        disable: vi.fn().mockResolvedValue({}),
+      } as any,
+      bridge: new McpIpcBridge(),
+      toolRegistry: createToolRegistry(),
+      spawner: new DenoSpawner({
+        sessionIdFactory: () => 'session-2',
+        spawnProcess: () => ({
+          pid: 123,
+          kill: vi.fn().mockReturnValue(true),
+        }),
+      }),
+    });
+
+    await reactivated.activate({
+      ...(activationInput as any),
+      launch_spec: {
+        ...(activationInput.launch_spec as any),
+        app_data_dir: appDataDir,
+      },
+    });
+    const hydrated = await reactivated.getPersistedPanelState({
+      app_id: 'app:weather',
+      panel_id: 'forecast',
+      key: 'filters',
+    });
+
+    expect(hydrated.exists).toBe(true);
+    expect(hydrated.value).toEqual({
+      city: 'Seattle',
+    });
+
+    await rm(appDataDir, { recursive: true, force: true });
   });
 });

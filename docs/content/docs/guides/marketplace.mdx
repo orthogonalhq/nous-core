@@ -78,11 +78,39 @@ Accepting a marketplace package suggestion does not install the package directly
 
 Marketplace-package acceptance currently routes to `runtime_authorization_required`, which records lifecycle authorization intent and then stops at the existing runtime membrane. Install and enable flows still belong to the governed lifecycle path.
 
-## From Discovery to Install
+## From Discovery to Install and Settings
 
-Discovery stays advisory. Installation happens through the canonical package install path once you decide to proceed.
+Discovery stays advisory until you choose a governed install path for a specific project.
 
-Use the CLI when you want to move from a reviewed suggestion into an actual project-scoped install:
+For installable app packages, the web package detail view can now launch the canonical install
+wizard when you open the package with a project context. That wizard keeps the host in charge of
+the flow:
+
+- **Permission review** — you must explicitly approve the package's declared runtime permissions
+  before install work continues
+- **Configuration** — fields are rendered directly from the package manifest instead of a
+  package-authored custom install UI
+- **Validation and activation** — the runtime reports `success`, `partial`, or `failed` results and
+  returns you to a recoverable configuration state if required input is missing or activation
+  fails
+
+Secrets and OAuth setup stay vault-mediated during this flow. Non-secret configuration remains
+project-scoped runtime truth rather than browser-owned state.
+
+If the package is already installed for that project, the same package detail view swaps from the
+install wizard into the shared settings surface instead of inventing a second UI path. That
+settings surface:
+
+- Reuses the same manifest-derived grouped fields, required/optional semantics, and vault-backed
+  secret controls
+- Shows the active runtime/config-version summary before save
+- Runs the governed `deactivate -> update config -> reactivate` flow and reports explicit
+  `applied`, `reverted`, or `blocked` outcomes
+- Pushes host-owned config refreshes to active app panels after a successful save instead of
+  remounting the iframe or storing panel-local settings truth
+
+You can still use the CLI when you want to move from a reviewed suggestion into an actual
+project-scoped install:
 
 ```bash
 pnpm dev:cli -- pkg discover --project <id>

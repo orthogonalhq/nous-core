@@ -26,4 +26,16 @@ export class AppCredentialInstallService implements IAppCredentialInstallService
   async revokeCredential(appId: string, request: CredentialRevokeRequest) {
     return this.options.vaultService.revoke(appId, request);
   }
+
+  async backupCredential(appId: string, key: string) {
+    return this.options.vaultService.backup(appId, key);
+  }
+
+  async restoreCredential(appId: string, backupRef: string) {
+    return this.options.vaultService.restore(appId, backupRef);
+  }
+
+  async discardCredentialBackup(appId: string, backupRef: string) {
+    return this.options.vaultService.discardBackup(appId, backupRef);
+  }
 }
