@@ -92,6 +92,10 @@ import type {
   AppRuntimeActivationInput,
   AppRuntimeDeactivationInput,
   AppRuntimeSession,
+  AppInstallPrepareRequest,
+  AppInstallPreparation,
+  AppInstallRequest,
+  AppInstallResult,
   AppHealthSnapshot,
   AppHeartbeatSignal,
   CredentialOAuthFlowRequest,
@@ -919,6 +923,16 @@ export interface IAppRuntimeService {
   reportConnectorSession(
     input: AppConnectorSessionReport,
   ): Promise<AppHealthSnapshot>;
+}
+
+export interface IAppInstallService {
+  /** Resolve the canonical wizard contract for one app package install. */
+  prepareInstall(
+    request: AppInstallPrepareRequest,
+  ): Promise<AppInstallPreparation>;
+
+  /** Execute approval-gated install, validation, vault storage, and activation. */
+  installApp(request: AppInstallRequest): Promise<AppInstallResult>;
 }
 
 export interface IPackageInstallService {
