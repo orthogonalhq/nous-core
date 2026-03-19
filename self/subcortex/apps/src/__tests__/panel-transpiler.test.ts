@@ -21,6 +21,7 @@ async function createPanelDescriptor(
     panel_id: 'forecast',
     label: 'Forecast',
     entry: 'panels/forecast.tsx',
+    config_version: '1',
     preserve_state: true,
     package_root_ref: packageRoot,
     manifest_ref: join(packageRoot, 'manifest.json'),

@@ -6,6 +6,7 @@ const session = {
   app_id: 'app:weather',
   package_id: 'app:weather',
   package_version: '1.0.0',
+  config_version: '1',
   project_id: '550e8400-e29b-41d4-a716-446655440000',
 } as const as any;
 
