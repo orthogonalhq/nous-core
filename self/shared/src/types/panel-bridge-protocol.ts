@@ -36,6 +36,7 @@ export const PanelBridgeMessageKindSchema = z.enum([
   'notify.result',
   'persisted_state.result',
   'panel.lifecycle',
+  'config.changed',
   'theme.changed',
   'error',
 ]);
@@ -223,6 +224,7 @@ export type PanelBridgePanelMessage = z.infer<
 export const HostBootstrapMessageSchema = PanelBridgeEnvelopeSchema.extend({
   kind: z.literal('host.bootstrap'),
   message_id: PanelBridgeRequestIdSchema,
+  config_version: z.string().min(1),
   config: PanelBridgeConfigSnapshotSchema,
   theme: PanelBridgeThemeSnapshotSchema,
   capabilities: PanelBridgeCapabilitiesSchema,
@@ -241,6 +243,7 @@ export type PanelToolSuccessResponse = z.infer<
 export const PanelConfigResponseSchema = PanelBridgeEnvelopeSchema.extend({
   kind: z.literal('config.result'),
   request_id: PanelBridgeRequestIdSchema,
+  config_version: z.string().min(1),
   config: PanelBridgeConfigSnapshotSchema,
 });
 export type PanelConfigResponse = z.infer<typeof PanelConfigResponseSchema>;
@@ -281,6 +284,15 @@ export type PanelLifecycleChangedMessage = z.infer<
   typeof PanelLifecycleChangedMessageSchema
 >;
 
+export const PanelConfigChangedMessageSchema = PanelBridgeEnvelopeSchema.extend({
+  kind: z.literal('config.changed'),
+  config_version: z.string().min(1),
+  config: PanelBridgeConfigSnapshotSchema,
+});
+export type PanelConfigChangedMessage = z.infer<
+  typeof PanelConfigChangedMessageSchema
+>;
+
 export const PanelThemeChangedMessageSchema = PanelBridgeEnvelopeSchema.extend({
   kind: z.literal('theme.changed'),
   theme: PanelBridgeThemeSnapshotSchema,
@@ -306,6 +318,7 @@ export const PanelBridgeHostMessageSchema = z.discriminatedUnion('kind', [
   PanelNotifyResponseSchema,
   PanelPersistedStateResponseSchema,
   PanelLifecycleChangedMessageSchema,
+  PanelConfigChangedMessageSchema,
   PanelThemeChangedMessageSchema,
   PanelBridgeErrorResponseSchema,
 ]);
@@ -329,6 +342,7 @@ export const PanelBridgeMessageSchema = z.discriminatedUnion('kind', [
   PanelNotifyResponseSchema,
   PanelPersistedStateResponseSchema,
   PanelLifecycleChangedMessageSchema,
+  PanelConfigChangedMessageSchema,
   PanelThemeChangedMessageSchema,
   PanelBridgeErrorResponseSchema,
 ]);

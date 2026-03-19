@@ -63,6 +63,7 @@ export * from './app-permissions.js';
 export * from './app-manifest.js';
 export * from './app-credentials.js';
 export * from './app-install.js';
+export * from './app-settings.js';
 export * from './app-runtime.js';
 export * from './panel-bridge-protocol.js';
 export * from './package-manifest.js';

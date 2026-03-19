@@ -15,9 +15,12 @@ import type {
   CredentialInjectRequest,
   CredentialInjectedResponse,
   CredentialMetadata,
+  CredentialBackupResult,
+  CredentialDiscardBackupResult,
   CredentialNamespacePurgeResult,
   CredentialRevokeRequest,
   CredentialRevokeResult,
+  CredentialRestoreResult,
   CredentialStoreRequest,
   CredentialStoreResult,
 } from '../types/index.js';
@@ -165,6 +168,18 @@ export interface ICredentialVaultService {
 
   /** Revoke one app-scoped credential. */
   revoke(appId: string, request: CredentialRevokeRequest): Promise<CredentialRevokeResult>;
+
+  /** Create an opaque backup handle for one app-scoped credential. */
+  backup(appId: string, key: string): Promise<CredentialBackupResult>;
+
+  /** Restore a previously created opaque backup handle. */
+  restore(appId: string, backupRef: string): Promise<CredentialRestoreResult>;
+
+  /** Discard an unused opaque backup handle. */
+  discardBackup(
+    appId: string,
+    backupRef: string,
+  ): Promise<CredentialDiscardBackupResult>;
 
   /** Purge every credential in one app namespace. */
   purgeNamespace(appId: string): Promise<CredentialNamespacePurgeResult>;

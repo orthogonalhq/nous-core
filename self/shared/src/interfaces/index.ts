@@ -40,6 +40,7 @@ export type {
   ISandbox,
   IAppCredentialInstallService,
   IAppInstallService,
+  IAppSettingsService,
   IAppRuntimeService,
   IPackageLifecycleOrchestrator,
   IPackageInstallService,

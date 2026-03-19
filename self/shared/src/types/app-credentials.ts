@@ -112,6 +112,30 @@ export const CredentialRevokeResultSchema = z.object({
 });
 export type CredentialRevokeResult = z.infer<typeof CredentialRevokeResultSchema>;
 
+export const CredentialBackupResultSchema = z.object({
+  backup_ref: z.string().min(1),
+  existed: z.boolean(),
+  metadata: CredentialMetadataSchema.optional(),
+});
+export type CredentialBackupResult = z.infer<
+  typeof CredentialBackupResultSchema
+>;
+
+export const CredentialRestoreResultSchema = z.object({
+  restored: z.boolean(),
+  metadata: CredentialMetadataSchema.optional(),
+});
+export type CredentialRestoreResult = z.infer<
+  typeof CredentialRestoreResultSchema
+>;
+
+export const CredentialDiscardBackupResultSchema = z.object({
+  discarded: z.boolean(),
+});
+export type CredentialDiscardBackupResult = z.infer<
+  typeof CredentialDiscardBackupResultSchema
+>;
+
 export const CredentialNamespacePurgeResultSchema = z.object({
   app_id: z.string().min(1),
   purged_count: z.number().int().nonnegative(),

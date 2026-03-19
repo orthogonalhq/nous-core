@@ -89,6 +89,7 @@ describe('AppPanel bridge runtime schemas', () => {
       app_id: 'app:weather',
       package_id: 'app:weather',
       package_version: '1.0.0',
+      config_version: 'cfg-1',
       panel_id: 'forecast',
       label: 'Forecast',
       entry: 'panels/forecast.tsx',
