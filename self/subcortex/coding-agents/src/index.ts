@@ -22,3 +22,14 @@ export { runCodexAgent } from './codex-adapter.js';
 // Governance hook factory
 export { createGovernanceHooks } from './governance-hooks.js';
 export type { GovernanceHookDeps } from './governance-hooks.js';
+
+// Workflow node handler
+export {
+  createCodingAgentNodeHandler,
+  registerCodingAgentNodeTypes,
+  CODING_AGENT_NODE_TYPES,
+} from './workflow-node-handler.js';
+export type {
+  CodingAgentNodeHandlerDeps,
+  CodingAgentNodeType,
+} from './workflow-node-handler.js';
