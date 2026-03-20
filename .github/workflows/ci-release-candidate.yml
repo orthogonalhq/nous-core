@@ -1,10 +1,11 @@
-name: CI
+name: CI Release Candidate
+
+# Tier 3: Validates release readiness before promotion to main
+# Full cross-platform matrix, coverage, benchmarks
 
 on:
-  push:
-    branches: [main, 'phase-*/**']
   pull_request:
-    branches: [main]
+    branches: [staging]
 
 jobs:
   scope-guard:
@@ -16,18 +17,10 @@ jobs:
         with:
           fetch-depth: 0
 
-      - name: Mixed-scope fail-close guard (pull_request)
-        if: github.event_name == 'pull_request'
+      - name: Mixed-scope fail-close guard
         run: |
           python scripts/check_mixed_scope.py \
             --base-ref "${{ github.event.pull_request.base.sha }}" \
-            --head-ref "${{ github.sha }}"
-
-      - name: Mixed-scope fail-close guard (push)
-        if: github.event_name == 'push'
-        run: |
-          python scripts/check_mixed_scope.py \
-            --base-ref "${{ github.event.before }}" \
             --head-ref "${{ github.sha }}"
 
   check:
