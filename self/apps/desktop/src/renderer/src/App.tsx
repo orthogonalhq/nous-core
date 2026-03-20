@@ -13,6 +13,7 @@ import {
   FileBrowserPanel,
   NodeProjectionPanel,
   MAOPanel,
+  AgentPanel,
   CodexBarPanel,
   CodexBarHeaderActions,
   useCodexBarApi,
@@ -41,6 +42,7 @@ const panelComponents = {
   'file-browser': FileBrowserPanel,
   'node-projection': NodeProjectionPanel,
   mao: MAOPanel,
+  'coding-agents': AgentPanel,
   codexbar: CodexBarPanel,
   dashboard: DashboardPanel,
 }
@@ -101,6 +103,7 @@ export const NATIVE_PANEL_DEFS: PanelDef[] = [
   },
   { id: 'node-projection', component: 'node-projection', title: 'Skill Projection' },
   { id: 'mao', component: 'mao', title: 'MAO' },
+  { id: 'coding-agents', component: 'coding-agents', title: 'Coding Agents' },
   {
     id: 'codexbar',
     component: 'codexbar',
@@ -375,6 +378,7 @@ const DEFAULT_POSITIONS: Record<string, { direction: string; referencePanel: str
   files: { direction: 'below', referencePanel: 'chat' },
   'node-projection': { direction: 'right', referencePanel: 'chat' },
   mao: { direction: 'below', referencePanel: 'node-projection' },
+  'coding-agents': { direction: 'within', referencePanel: 'mao' },
   codexbar: { direction: 'within', referencePanel: 'chat' },
   dashboard: { direction: 'within', referencePanel: 'chat' },
 }
