@@ -1,10 +1,13 @@
 /**
- * Preferences tRPC router — API key management and system status.
+ * Preferences tRPC router — API key management, system status, and model selection.
  */
 import { z } from 'zod';
 import { router, publicProcedure } from '../trpc';
+import { detectOllama } from '../../ollama-detection';
 
 const SYSTEM_APP_ID = 'nous:system';
+const MODEL_SELECTION_COLLECTION = 'nous:model_selection';
+const MODEL_SELECTION_ID = 'current';
 
 const ProviderSchema = z.enum(['anthropic', 'openai']);
 type Provider = z.infer<typeof ProviderSchema>;
@@ -170,6 +173,112 @@ export const preferencesRouter = router({
         const message = err instanceof Error ? err.message : String(err);
         return { valid: false, error: message };
       }
+    }),
+
+  getAvailableModels: publicProcedure.query(async () => {
+    // Get Ollama models
+    const ollamaStatus = await detectOllama();
+    const ollamaModels = ollamaStatus.models.map((m) => ({
+      id: `ollama:${m}`,
+      name: m,
+      provider: 'ollama' as const,
+      available: ollamaStatus.running,
+    }));
+
+    // Get cloud models (if API keys configured)
+    const cloudModels: Array<{
+      id: string;
+      name: string;
+      provider: string;
+      available: boolean;
+    }> = [];
+
+    if (process.env.ANTHROPIC_API_KEY) {
+      cloudModels.push(
+        {
+          id: 'anthropic:claude-sonnet-4-20250514',
+          name: 'Claude Sonnet 4',
+          provider: 'anthropic',
+          available: true,
+        },
+        {
+          id: 'anthropic:claude-opus-4-20250514',
+          name: 'Claude Opus 4',
+          provider: 'anthropic',
+          available: true,
+        },
+        {
+          id: 'anthropic:claude-haiku-3-5-20241022',
+          name: 'Claude Haiku 3.5',
+          provider: 'anthropic',
+          available: true,
+        },
+      );
+    }
+
+    if (process.env.OPENAI_API_KEY) {
+      cloudModels.push(
+        {
+          id: 'openai:gpt-4o',
+          name: 'GPT-4o',
+          provider: 'openai',
+          available: true,
+        },
+        {
+          id: 'openai:gpt-4o-mini',
+          name: 'GPT-4o Mini',
+          provider: 'openai',
+          available: true,
+        },
+        {
+          id: 'openai:o3',
+          name: 'o3',
+          provider: 'openai',
+          available: true,
+        },
+      );
+    }
+
+    return { models: [...ollamaModels, ...cloudModels] };
+  }),
+
+  getModelSelection: publicProcedure.query(async ({ ctx }) => {
+    const saved = await ctx.documentStore.get<{
+      principal: string | null;
+      system: string | null;
+    }>(MODEL_SELECTION_COLLECTION, MODEL_SELECTION_ID);
+
+    return {
+      principal: saved?.principal ?? null,
+      system: saved?.system ?? null,
+    };
+  }),
+
+  setModelSelection: publicProcedure
+    .input(
+      z.object({
+        principal: z.string().optional(),
+        system: z.string().optional(),
+      }),
+    )
+    .mutation(async ({ ctx, input }) => {
+      const existing = await ctx.documentStore.get<{
+        principal: string | null;
+        system: string | null;
+      }>(MODEL_SELECTION_COLLECTION, MODEL_SELECTION_ID);
+
+      const updated = {
+        principal: input.principal ?? existing?.principal ?? null,
+        system: input.system ?? existing?.system ?? null,
+      };
+
+      await ctx.documentStore.put(
+        MODEL_SELECTION_COLLECTION,
+        MODEL_SELECTION_ID,
+        updated,
+      );
+
+      return { success: true };
     }),
 
   getSystemStatus: publicProcedure.query(async ({ ctx }) => {
