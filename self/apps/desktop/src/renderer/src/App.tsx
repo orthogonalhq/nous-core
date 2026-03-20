@@ -28,13 +28,6 @@ import { StatusBar } from './components/StatusBar'
 
 import 'dockview-react/dist/styles/dockview.css'
 
-export interface OllamaStatusSnapshot {
-  installed: boolean
-  running: boolean
-  models: string[]
-  defaultModel: string | null
-}
-
 const panelComponents = {
   'app-installer': AppInstallWizardPanel,
   'app-iframe': AppIframePanel,
@@ -95,7 +88,7 @@ export const NATIVE_PANEL_DEFS: PanelDef[] = [
     id: 'chat',
     component: 'chat',
     title: 'Principal \u2194 Cortex',
-    params: () => ({ chatApi: (window as any).electronAPI?.chat, ollamaStatus: null }),
+    params: () => ({ chatApi: (window as any).electronAPI?.chat }),
   },
   {
     id: 'files',
@@ -105,7 +98,6 @@ export const NATIVE_PANEL_DEFS: PanelDef[] = [
   },
   { id: 'node-projection', component: 'node-projection', title: 'Skill Projection' },
   { id: 'mao', component: 'mao', title: 'MAO' },
-  { id: 'coding-agents', component: 'coding-agents', title: 'Coding Agents' },
   {
     id: 'codexbar',
     component: 'codexbar',
@@ -113,12 +105,8 @@ export const NATIVE_PANEL_DEFS: PanelDef[] = [
     params: () => ({ usageApi: (window as any).electronAPI?.usage }),
   },
   { id: 'dashboard', component: 'dashboard', title: 'Dashboard' },
-  {
-    id: 'preferences',
-    component: 'preferences',
-    title: 'Preferences',
-    params: () => ({ preferencesApi: (window as any).electronAPI?.preferences }),
-  },
+  { id: 'coding-agents', component: 'coding-agents', title: 'Coding Agents' },
+  { id: 'preferences', component: 'preferences', title: 'Preferences' },
 ]
 
 function toAppPanelDef(panel: AppPanelSnapshot): PanelDef {
@@ -170,71 +158,77 @@ function ChromeShell({
   )
 }
 
+// Create a preferences API bridge from a tRPC base URL
+function createPreferencesApiBridge(baseUrl: string) {
+  const trpcQuery = async (path: string, input?: unknown) => {
+    const url = new URL(`${baseUrl}/${path}`)
+    if (input !== undefined) {
+      url.searchParams.set('input', JSON.stringify({ json: input }))
+    }
+    const res = await fetch(url.toString())
+    const data = await res.json()
+    return data?.result?.data?.json ?? data?.result?.data ?? data
+  }
+  const trpcMutation = async (path: string, input: unknown) => {
+    const res = await fetch(`${baseUrl}/${path}`, {
+      method: 'POST',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({ json: input }),
+    })
+    const data = await res.json()
+    return data?.result?.data?.json ?? data?.result?.data ?? data
+  }
+  return {
+    getApiKeys: () => trpcQuery('preferences.getApiKeys'),
+    setApiKey: (input: { provider: string; key: string }) => trpcMutation('preferences.setApiKey', input),
+    deleteApiKey: (input: { provider: string }) => trpcMutation('preferences.deleteApiKey', input),
+    testApiKey: (input: { provider: string; key: string }) => trpcMutation('preferences.testApiKey', input),
+    getSystemStatus: () => trpcQuery('preferences.getSystemStatus'),
+    getAvailableModels: () => trpcQuery('preferences.getAvailableModels'),
+    getModelSelection: () => trpcQuery('preferences.getModelSelection'),
+    setModelSelection: (input: { principal?: string; system?: string }) => trpcMutation('preferences.setModelSelection', input),
+  }
+}
+
 export function App() {
   const [savedLayout, setSavedLayout] = useState<LayoutState>(undefined)
   const [dockviewApi, setDockviewApi] = useState<DockviewApi | null>(null)
   const [appPanels, setAppPanels] = useState<AppPanelSnapshot[]>([])
-  const [backendReady, setBackendReady] = useState(false)
-  const [ollamaStatus, setOllamaStatus] = useState<OllamaStatusSnapshot | null>(null)
+  const [backendTrpcUrl, setBackendTrpcUrl] = useState<string | null>(null)
   const panelDefs = [...NATIVE_PANEL_DEFS, ...appPanels.map(toAppPanelDef)]
 
-  // Poll for backend readiness until ready
+  // Discover backend URL on startup
   useEffect(() => {
     let cancelled = false
-    let intervalId: ReturnType<typeof setInterval> | null = null
-
-    const checkBackend = async () => {
+    const poll = async () => {
       try {
         const status = await window.electronAPI.backend.getStatus()
-        if (status.ready && !cancelled) {
-          setBackendReady(true)
-          if (intervalId) clearInterval(intervalId)
+        if (status.ready && status.trpcUrl && !cancelled) {
+          setBackendTrpcUrl(status.trpcUrl)
         }
-      } catch {
-        // ignore — backend not ready yet
-      }
+      } catch { /* not ready */ }
     }
-
-    void checkBackend()
-    intervalId = setInterval(checkBackend, 1000)
-
-    return () => {
-      cancelled = true
-      if (intervalId) clearInterval(intervalId)
-    }
+    void poll()
+    const id = setInterval(poll, 1000)
+    return () => { cancelled = true; clearInterval(id) }
   }, [])
 
-  // Once backend is ready, fetch Ollama status and poll periodically
+  // Wire preferences API into panel when backend is available
   useEffect(() => {
-    if (!backendReady) return
-    let cancelled = false
-
-    const fetchOllamaStatus = async () => {
-      try {
-        const status = await window.electronAPI.backend.getOllamaStatus()
-        if (!cancelled) setOllamaStatus(status)
-      } catch {
-        // ignore
-      }
+    if (!backendTrpcUrl || !dockviewApi) return
+    const api = createPreferencesApiBridge(backendTrpcUrl)
+    const prefPanel = dockviewApi.panels.find((p) => p.id === 'preferences')
+    if (prefPanel) {
+      prefPanel.api.updateParameters({ preferencesApi: api })
     }
+  }, [backendTrpcUrl, dockviewApi])
 
-    void fetchOllamaStatus()
-    const intervalId = setInterval(fetchOllamaStatus, 15_000)
-
-    return () => {
-      cancelled = true
-      clearInterval(intervalId)
-    }
-  }, [backendReady])
-
-  // Load saved layout
   useEffect(() => {
     window.electronAPI.layout.get().then((layout: unknown) => {
       setSavedLayout((layout as SerializedDockview | null) ?? null)
     })
   }, [])
 
-  // Sync app panels
   useEffect(() => {
     let cancelled = false
 
@@ -256,29 +250,21 @@ export function App() {
     }
   }, [])
 
-  // Show "Starting Nous..." while backend is booting or layout is loading
-  if (!backendReady || savedLayout === undefined) {
+  if (savedLayout === undefined) {
     return (
       <ChromeShell dockviewApi={null} panelDefs={panelDefs}>
         <div
           style={{
             height: '100%',
             display: 'flex',
-            flexDirection: 'column',
             alignItems: 'center',
             justifyContent: 'center',
             background: 'var(--nous-bg)',
             color: 'var(--nous-fg-subtle)',
             fontSize: 'var(--nous-font-size-base)',
-            gap: 'var(--nous-space-lg)',
           }}
         >
-          <div style={{ fontSize: 'var(--nous-font-size-lg)', fontWeight: 'var(--nous-font-weight-semibold)' as any, color: 'var(--nous-fg-muted)' }}>
-            Starting Nous...
-          </div>
-          <div style={{ color: 'var(--nous-fg-subtle)', fontSize: 'var(--nous-font-size-sm)' }}>
-            {!backendReady ? 'Initializing backend services' : 'Loading layout'}
-          </div>
+          Loading...
         </div>
       </ChromeShell>
     )
@@ -290,7 +276,6 @@ export function App() {
         savedLayout={savedLayout}
         onApiReady={setDockviewApi}
         activeAppPanelIds={new Set(appPanels.map((panel) => panel.dockview_panel_id))}
-        ollamaStatus={ollamaStatus}
       />
     </ChromeShell>
   )
@@ -316,16 +301,43 @@ function OuterHeaderActions({ activePanel }: IDockviewHeaderActionsProps) {
   return null
 }
 
+/** Strip non-serializable values from panel params before IPC transport. */
+function stripNonSerializableParams(layout: SerializedDockview): SerializedDockview {
+  try {
+    // JSON.parse(JSON.stringify(...)) drops functions, undefined, Symbols, etc.
+    return JSON.parse(JSON.stringify(layout)) as SerializedDockview
+  } catch {
+    // If the layout is completely unserializable, return a minimal safe copy
+    // with panel params emptied out.
+    const safe = { ...layout } as any
+    if (safe.panels) {
+      for (const key of Object.keys(safe.panels)) {
+        try {
+          JSON.stringify(safe.panels[key])
+        } catch {
+          safe.panels[key] = { ...safe.panels[key], params: {} }
+        }
+      }
+    }
+    return safe as SerializedDockview
+  }
+}
+
+/** Resolve live params for a panel by its definition. */
+function resolvePanelParams(panelId: string): Record<string, unknown> {
+  const def = NATIVE_PANEL_DEFS.find((d) => d.id === panelId)
+  if (def?.params) return def.params()
+  return {}
+}
+
 function DockviewShell({
   savedLayout,
   onApiReady,
   activeAppPanelIds,
-  ollamaStatus,
 }: {
   savedLayout: SerializedDockview | null
   onApiReady: (api: DockviewApi) => void
   activeAppPanelIds: Set<string>
-  ollamaStatus: OllamaStatusSnapshot | null
 }) {
   const dockviewApiRef = useRef<DockviewApi | null>(null)
 
@@ -339,47 +351,19 @@ function DockviewShell({
     }
   }, [activeAppPanelIds])
 
-  // Ctrl+, keyboard shortcut to open Preferences panel
-  useEffect(() => {
-    const handler = (e: KeyboardEvent) => {
-      if ((e.ctrlKey || e.metaKey) && e.key === ',') {
-        e.preventDefault()
-        const api = dockviewApiRef.current
-        if (!api) return
-        const existing = api.panels.find((p) => p.id === 'preferences')
-        if (existing) {
-          existing.api.setActive()
-        } else {
-          const prefDef = NATIVE_PANEL_DEFS.find((d) => d.id === 'preferences')
-          if (prefDef) {
-            api.addPanel({
-              id: prefDef.id,
-              component: prefDef.component,
-              title: prefDef.title,
-              params: prefDef.params?.() ?? {},
-              position: DEFAULT_POSITIONS[prefDef.id],
-            })
-          }
-        }
-      }
-    }
-    window.addEventListener('keydown', handler)
-    return () => window.removeEventListener('keydown', handler)
-  }, [])
-
-  // Propagate ollamaStatus changes to the chat panel
-  useEffect(() => {
-    if (!dockviewApiRef.current) return
-    const chatPanel = dockviewApiRef.current.panels.find((p) => p.id === 'chat')
-    if (chatPanel) {
-      chatPanel.api.updateParameters({ ollamaStatus })
-    }
-  }, [ollamaStatus])
-
   const onReady = (event: DockviewReadyEvent) => {
     if (savedLayout) {
       try {
         event.api.fromJSON(savedLayout)
+        // Re-inject live API params into restored panels (functions are stripped
+        // during serialization, so params like chatApi, fsApi, etc. are missing
+        // after a layout restore).
+        for (const panel of event.api.panels) {
+          const liveParams = resolvePanelParams(panel.id)
+          if (Object.keys(liveParams).length > 0) {
+            panel.api.updateParameters(liveParams)
+          }
+        }
       } catch {
         initDefaultLayout(event)
       }
@@ -388,8 +372,11 @@ function DockviewShell({
     }
 
     // Persist layout on every change (UI-INV-006)
+    // Strip functions/non-serializable values before sending through IPC.
     event.api.onDidLayoutChange(() => {
-      window.electronAPI.layout.set(event.api.toJSON())
+      const raw = event.api.toJSON()
+      const safe = stripNonSerializableParams(raw)
+      window.electronAPI.layout.set(safe)
     })
 
     dockviewApiRef.current = event.api
@@ -414,20 +401,71 @@ const DEFAULT_POSITIONS: Record<string, { direction: string; referencePanel: str
   files: { direction: 'below', referencePanel: 'chat' },
   'node-projection': { direction: 'right', referencePanel: 'chat' },
   mao: { direction: 'below', referencePanel: 'node-projection' },
-  'coding-agents': { direction: 'within', referencePanel: 'mao' },
   codexbar: { direction: 'within', referencePanel: 'chat' },
   dashboard: { direction: 'within', referencePanel: 'chat' },
+  'coding-agents': { direction: 'within', referencePanel: 'mao' },
   preferences: { direction: 'within', referencePanel: 'chat' },
 }
 
+// Panels ordered so that every referencePanel is already added before it's referenced.
+// 'chat' must come first since most panels reference it; 'node-projection' must precede
+// 'mao' which references it.
+const PANEL_ADD_ORDER: string[] = [
+  'chat',
+  'app-installer',
+  'files',
+  'node-projection',
+  'mao',
+  'codexbar',
+  'dashboard',
+  'coding-agents',
+  'preferences',
+]
+
 function initDefaultLayout(event: DockviewReadyEvent) {
-  for (const def of NATIVE_PANEL_DEFS) {
+  const defById = new Map(NATIVE_PANEL_DEFS.map((d) => [d.id, d]))
+  const addedPanelIds = new Set<string>()
+
+  for (const panelId of PANEL_ADD_ORDER) {
+    const def = defById.get(panelId)
+    if (!def) continue
+
+    // Resolve position — verify the referenced panel actually exists before using it
+    let position = DEFAULT_POSITIONS[def.id]
+    if (position && !addedPanelIds.has(position.referencePanel)) {
+      // Referenced panel hasn't been added yet — fall back to no explicit position
+      // (dockview will add it as a new group)
+      position = undefined as any
+    }
+
     event.api.addPanel({
       id: def.id,
       component: def.component,
       title: def.title,
       params: def.params?.() ?? {},
-      ...(DEFAULT_POSITIONS[def.id] ? { position: DEFAULT_POSITIONS[def.id] } : {}),
+      ...(position ? { position } : {}),
     })
+
+    addedPanelIds.add(def.id)
+  }
+
+  // Add any NATIVE_PANEL_DEFS that weren't in PANEL_ADD_ORDER (future-proofing)
+  for (const def of NATIVE_PANEL_DEFS) {
+    if (addedPanelIds.has(def.id)) continue
+
+    let position = DEFAULT_POSITIONS[def.id]
+    if (position && !addedPanelIds.has(position.referencePanel)) {
+      position = undefined as any
+    }
+
+    event.api.addPanel({
+      id: def.id,
+      component: def.component,
+      title: def.title,
+      params: def.params?.() ?? {},
+      ...(position ? { position } : {}),
+    })
+
+    addedPanelIds.add(def.id)
   }
 }

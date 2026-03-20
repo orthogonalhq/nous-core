@@ -25,7 +25,7 @@ export function FileBrowserPanel({ params }: FileBrowserPanelProps) {
   const [selected, setSelected] = useState<string | null>(null)
 
   useEffect(() => {
-    if (!fsApi) return
+    if (!fsApi?.readDir) return
     setLoading(true)
     fsApi.readDir(currentPath).then(result => {
       setEntries(result.sort((a, b) => {

@@ -56,8 +56,10 @@ export function ChatPanel({ params }: ChatPanelProps) {
   const ollamaStatus = params?.ollamaStatus ?? null
 
   useEffect(() => {
-    if (chatApi) {
-      chatApi.getHistory().then(setMessages)
+    if (chatApi?.getHistory) {
+      chatApi.getHistory().then(setMessages).catch(() => {
+        // API not ready or IPC handler not registered — graceful fallback
+      })
     }
   }, [chatApi])
 
