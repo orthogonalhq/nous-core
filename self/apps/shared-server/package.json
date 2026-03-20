@@ -24,6 +24,7 @@
     "@nous/cortex-pfc": "workspace:*",
     "@nous/memory-access": "workspace:*",
     "@nous/memory-knowledge-index": "workspace:*",
+    "@nous/memory-distillation": "workspace:*",
     "@nous/memory-mwc": "workspace:*",
     "@nous/memory-stm": "workspace:*",
     "@nous/shared": "workspace:*",
@@ -48,7 +49,7 @@
     "@nous/subcortex-workflows": "workspace:*",
     "@trpc/server": "^11.0.0-rc.0",
     "superjson": "^2.2.2",
-    "zod": "^3.24.0"
+    "zod": "^4.0.17"
   },
   "devDependencies": {
     "@types/node": "^20",
