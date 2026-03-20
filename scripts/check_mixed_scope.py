@@ -12,12 +12,22 @@ from typing import Iterable
 PROCESS_PREFIXES = (
     ".skills/",
     ".skills\\",
+    ".architecture/",
+    ".architecture\\",
+    ".worklog/",
+    ".worklog\\",
+    ".github/",
+    ".github\\",
+    "scripts/",
+    "scripts\\",
 )
 
 PROCESS_FILES = {
     ".skills",
+    ".architecture",
+    ".worklog",
     "AGENTS.md",
-    ".github/workflows/ci.yml",
+    "CONTRIBUTING.md",
     "scripts/check_mixed_scope.py",
 }
 
