@@ -917,6 +917,7 @@ export function createNousServices(config?: BootstrapConfig): NousContext {
     publicMcpGatewayService,
     publicMcpExecutionBridge,
     appRuntimeService,
+    credentialVaultService,
     panelTranspiler,
     dataDir,
     codingAgentMaoEvents,
@@ -925,4 +926,32 @@ export function createNousServices(config?: BootstrapConfig): NousContext {
 
   console.log(`[nous:${runtimeLabel}] bootstrap complete`);
   return context;
+}
+
+/**
+ * Loads stored API keys from the credential vault into process.env
+ * so the SDK can use them immediately on restart.
+ * Call this after `createNousServices()`.
+ */
+export async function loadStoredApiKeys(ctx: NousContext): Promise<void> {
+  const SYSTEM_APP_ID = 'nous:system';
+  const keyMap: Array<{ vaultKey: string; envVar: string }> = [
+    { vaultKey: 'api_key_anthropic', envVar: 'ANTHROPIC_API_KEY' },
+    { vaultKey: 'api_key_openai', envVar: 'OPENAI_API_KEY' },
+  ];
+
+  for (const { vaultKey, envVar } of keyMap) {
+    try {
+      const resolved = await ctx.credentialVaultService.resolveForInjection(
+        SYSTEM_APP_ID,
+        vaultKey,
+      );
+      if (resolved) {
+        process.env[envVar] = resolved.secretValue;
+        console.log(`[nous:bootstrap] Loaded stored ${envVar} from credential vault`);
+      }
+    } catch {
+      // Ignore — key may not exist
+    }
+  }
 }

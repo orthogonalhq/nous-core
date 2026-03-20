@@ -20,6 +20,7 @@ import {
   DashboardPanel,
   DashboardWidgetMenu,
   useDashboardApi,
+  PreferencesPanel,
 } from '@nous/ui/panels'
 import { AppInstallWizardPanel } from './components/AppInstallWizard'
 import { TitleBar } from './components/TitleBar'
@@ -45,6 +46,7 @@ const panelComponents = {
   'coding-agents': AgentPanel,
   codexbar: CodexBarPanel,
   dashboard: DashboardPanel,
+  preferences: PreferencesPanel,
 }
 
 // Single source of truth for all panels — used by initDefaultLayout() and View menu toggle
@@ -111,6 +113,12 @@ export const NATIVE_PANEL_DEFS: PanelDef[] = [
     params: () => ({ usageApi: (window as any).electronAPI?.usage }),
   },
   { id: 'dashboard', component: 'dashboard', title: 'Dashboard' },
+  {
+    id: 'preferences',
+    component: 'preferences',
+    title: 'Preferences',
+    params: () => ({ preferencesApi: (window as any).electronAPI?.preferences }),
+  },
 ]
 
 function toAppPanelDef(panel: AppPanelSnapshot): PanelDef {
@@ -331,6 +339,34 @@ function DockviewShell({
     }
   }, [activeAppPanelIds])
 
+  // Ctrl+, keyboard shortcut to open Preferences panel
+  useEffect(() => {
+    const handler = (e: KeyboardEvent) => {
+      if ((e.ctrlKey || e.metaKey) && e.key === ',') {
+        e.preventDefault()
+        const api = dockviewApiRef.current
+        if (!api) return
+        const existing = api.panels.find((p) => p.id === 'preferences')
+        if (existing) {
+          existing.api.setActive()
+        } else {
+          const prefDef = NATIVE_PANEL_DEFS.find((d) => d.id === 'preferences')
+          if (prefDef) {
+            api.addPanel({
+              id: prefDef.id,
+              component: prefDef.component,
+              title: prefDef.title,
+              params: prefDef.params?.() ?? {},
+              position: DEFAULT_POSITIONS[prefDef.id],
+            })
+          }
+        }
+      }
+    }
+    window.addEventListener('keydown', handler)
+    return () => window.removeEventListener('keydown', handler)
+  }, [])
+
   // Propagate ollamaStatus changes to the chat panel
   useEffect(() => {
     if (!dockviewApiRef.current) return
@@ -381,6 +417,7 @@ const DEFAULT_POSITIONS: Record<string, { direction: string; referencePanel: str
   'coding-agents': { direction: 'within', referencePanel: 'mao' },
   codexbar: { direction: 'within', referencePanel: 'chat' },
   dashboard: { direction: 'within', referencePanel: 'chat' },
+  preferences: { direction: 'within', referencePanel: 'chat' },
 }
 
 function initDefaultLayout(event: DockviewReadyEvent) {
