@@ -22,6 +22,7 @@ import type {
 import { ConfigManager } from '@nous/autonomic-config';
 import {
   AppCredentialInstallService,
+  CredentialInjector,
   CredentialOAuthBroker,
   CredentialVaultService,
 } from '@nous/autonomic-credentials';
@@ -351,6 +352,9 @@ export function createNousContext(): NousContext {
     documentStore,
   });
   const credentialOAuthBroker = new CredentialOAuthBroker({
+    vaultService: credentialVaultService,
+  });
+  const credentialInjector = new CredentialInjector({
     vaultService: credentialVaultService,
   });
   const appCredentialInstallService = new AppCredentialInstallService({
@@ -799,6 +803,9 @@ export function createNousContext(): NousContext {
     opctlService,
     runtime,
     appRuntimeService,
+    credentialVaultService,
+    credentialInjector,
+    appCredentialInstallService,
     instanceRoot,
     outputSchemaValidator: new DefaultSchemaRefValidator(),
   });
