@@ -19,6 +19,7 @@ on:
       - '.worklog'
       - '.skills'
       - 'docs/**'
+      - 'LICENSE*'
       - '.github/workflows/ci-release*.yml'
   pull_request:
     branches:
@@ -27,6 +28,15 @@ on:
       - 'fix/**'
       - 'refactor/**'
       - 'chore/**'
+    paths-ignore:
+      - '**.md'
+      - '**.mdx'
+      - '.architecture'
+      - '.worklog'
+      - '.skills'
+      - 'docs/**'
+      - 'LICENSE*'
+      - '.github/workflows/ci-release*.yml'
 
 jobs:
   check:

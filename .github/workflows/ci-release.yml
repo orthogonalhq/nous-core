@@ -4,10 +4,16 @@ name: CI Release
 # Same structure as T3
 
 on:
-  push:
-    branches: [main]
   pull_request:
     branches: [main]
+    paths-ignore:
+      - '**.md'
+      - '**.mdx'
+      - '.architecture'
+      - '.worklog'
+      - '.skills'
+      - 'docs/**'
+      - 'LICENSE*'
 
 jobs:
   check:
