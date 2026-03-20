@@ -40,11 +40,13 @@
     "react-dom": "^19.0.0",
     "tailwind-merge": "^2.5.0",
     "typescript": "^5",
+    "vitest": "^2.1.0",
     "@radix-ui/react-select": "*",
     "@radix-ui/react-scroll-area": "*",
     "@radix-ui/react-collapsible": "*"
   },
   "scripts": {
-    "typecheck": "tsc --noEmit"
+    "typecheck": "tsc --noEmit",
+    "test": "vitest run --config vitest.config.ts"
   }
 }
