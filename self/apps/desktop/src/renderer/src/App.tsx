@@ -97,7 +97,7 @@ export const NATIVE_PANEL_DEFS: PanelDef[] = [
     params: () => ({ fsApi: (window as any).electronAPI?.fs, initialPath: '/' }),
   },
   { id: 'node-projection', component: 'node-projection', title: 'Skill Projection' },
-  { id: 'mao', component: 'mao', title: 'MAO' },
+  { id: 'mao', component: 'mao', title: 'MAO', params: () => ({ maoApi: (window as any).electronAPI?.mao }) },
   {
     id: 'codexbar',
     component: 'codexbar',
@@ -213,14 +213,28 @@ export function App() {
     return () => { cancelled = true; clearInterval(id) }
   }, [])
 
-  // Wire preferences API into panel when backend is available
+  // Wire dynamic APIs into panels when backend is available
+  // Runs on backend discovery AND on dockview ready (whichever comes last)
   useEffect(() => {
     if (!backendTrpcUrl || !dockviewApi) return
-    const api = createPreferencesApiBridge(backendTrpcUrl)
-    const prefPanel = dockviewApi.panels.find((p) => p.id === 'preferences')
-    if (prefPanel) {
-      prefPanel.api.updateParameters({ preferencesApi: api })
+
+    const preferencesApi = createPreferencesApiBridge(backendTrpcUrl)
+
+    // Wire all panels that need the backend
+    for (const panel of dockviewApi.panels) {
+      if (panel.id === 'preferences') {
+        panel.api.updateParameters({ preferencesApi })
+      }
     }
+
+    // Also wire any panels added later (e.g., opened from menu after startup)
+    const disposable = dockviewApi.onDidAddPanel((event) => {
+      if (event.id === 'preferences') {
+        event.api.updateParameters({ preferencesApi })
+      }
+    })
+
+    return () => disposable.dispose()
   }, [backendTrpcUrl, dockviewApi])
 
   useEffect(() => {

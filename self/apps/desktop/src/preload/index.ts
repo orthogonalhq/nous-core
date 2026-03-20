@@ -39,13 +39,17 @@ contextBridge.exposeInMainWorld('electronAPI', {
     prepare: (input: unknown): Promise<unknown> => ipcRenderer.invoke('app-settings:prepare', input),
     save: (input: unknown): Promise<unknown> => ipcRenderer.invoke('app-settings:save', input),
   },
+  mao: {
+    getAgentProjections: (projectId: string): Promise<unknown[]> =>
+      ipcRenderer.invoke('mao:getAgentProjections', projectId),
+    getProjectControlProjection: (projectId: string): Promise<unknown> =>
+      ipcRenderer.invoke('mao:getProjectControlProjection', projectId),
+    getProjectSnapshot: (input: unknown): Promise<unknown> =>
+      ipcRenderer.invoke('mao:getProjectSnapshot', input),
+    requestProjectControl: (input: unknown): Promise<unknown> =>
+      ipcRenderer.invoke('mao:requestProjectControl', input),
+  },
   appPanels: {
     list: (): Promise<unknown[]> => ipcRenderer.invoke('app-panels:list'),
-  },
-  backend: {
-    getStatus: (): Promise<{ ready: boolean; port: number | null; trpcUrl: string | null }> =>
-      ipcRenderer.invoke('backend:getStatus'),
-    getOllamaStatus: (): Promise<{ installed: boolean; running: boolean; models: string[]; defaultModel: string | null }> =>
-      ipcRenderer.invoke('backend:getOllamaStatus'),
   },
 })
