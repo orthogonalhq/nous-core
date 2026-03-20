@@ -1,7 +1,7 @@
 name: CI Release Candidate
 
 # Tier 3: Validates release readiness before promotion to main
-# Full cross-platform matrix, coverage, benchmarks
+# Full cross-platform matrix, coverage, benchmarks, web app smoke
 
 on:
   push:
@@ -61,8 +61,31 @@ jobs:
       - name: Benchmark Tier 0
         run: pnpm run benchmark:tier0
 
-      - name: Web app smoke start
-        if: matrix.os == 'ubuntu-latest'
+  webapp-smoke:
+    name: Web App Smoke
+    needs: check
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Install pnpm
+        uses: pnpm/action-setup@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: 'pnpm'
+
+      - name: Install dependencies
+        run: pnpm install
+
+      - name: Build
+        run: pnpm run build
+
+      - name: Start server and verify
         run: |
           cd self/apps/web
           npx next start -p 3123 &
