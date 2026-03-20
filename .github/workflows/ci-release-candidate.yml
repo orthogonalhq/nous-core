@@ -62,7 +62,7 @@ jobs:
         run: pnpm run benchmark:tier0
 
   webapp-smoke:
-    name: Web App Smoke
+    name: Smoke (web)
     needs: check
     runs-on: ubuntu-latest
 
