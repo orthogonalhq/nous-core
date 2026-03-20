@@ -262,7 +262,7 @@ Honesty over polish:
 - **No LICENSE file yet.** This is a blocker for external contributions. Must be resolved before public launch.
 - **No Discord or community channel.** Discussions happen through GitHub Issues and Discussions for now.
 - **`self/ui/` is a stub.** The desktop app works, but the shared component library is not yet populated.
-- **No automated release pipeline.** CI is functional (typecheck, lint, test, benchmark, build across 3 OSes) but there's no publish/release automation.
+- **No automated release pipeline.** CI is functional (typecheck, lint, test, benchmark, build across 3 OSes) with tiered checks across `dev`, `staging`, and `main`. Release path is `dev → staging → main`, but there's no publish/release automation yet.
 - **Docs site not deployed.** `docs/` exists as a Next.js app but isn't live yet.
 
 ---

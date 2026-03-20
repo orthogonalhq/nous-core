@@ -220,11 +220,13 @@ function createWorkflowEngine(runState: WorkflowRunState): IWorkflowEngine {
 
   return {
     resolveDefinition: async () => ({}) as any,
+    resolveDefinitionSource: async () => ({}) as any,
     deriveGraph: async () => graph,
     evaluateAdmission: async () => ({}) as any,
     start: async () => ({}) as any,
     resume: async () => runState,
     pause: async () => runState,
+    cancel: async () => runState,
     completeNode: async () => runState,
     executeReadyNode: async () => runState,
     continueNode: async () => runState,
