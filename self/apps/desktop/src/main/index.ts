@@ -113,7 +113,7 @@ function spawnBackendServer(port: number): Promise<number> {
         backendPort = (msg as any).port ?? port
         backendReady = true
         console.log(`[nous:desktop] backend server ready on port ${backendPort}`)
-        resolve(backendPort)
+        resolve(backendPort!)
       }
     })
 
@@ -131,10 +131,10 @@ function spawnBackendServer(port: number): Promise<number> {
       backendPort = null
 
       // Auto-restart if the app is still running and it wasn't a clean shutdown
-      if (!app.isQuitting && code !== 0) {
+      if (!isAppQuitting && code !== 0) {
         console.log('[nous:desktop] scheduling backend restart...')
         setTimeout(() => {
-          if (!app.isQuitting) {
+          if (!isAppQuitting) {
             startBackend().catch((err) => {
               console.error('[nous:desktop] backend restart failed:', err)
             })
@@ -763,16 +763,11 @@ function createWindow(): void {
 
 // ─── App lifecycle ────────────────────────────────────────────────────────
 
-// Extend app to track quitting state
-declare module 'electron' {
-  interface App {
-    isQuitting: boolean
-  }
-}
-app.isQuitting = false
+// Track quitting state
+let isAppQuitting = false
 
 app.on('before-quit', () => {
-  app.isQuitting = true
+  isAppQuitting = true
   stopBackend()
 })
 

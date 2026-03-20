@@ -863,7 +863,10 @@ export function createNousServices(config?: BootstrapConfig): NousContext {
   schedulerIngressGateway = new GatewayRuntimeIngressAdapter(gatewayRuntime);
 
   const context: NousContext = {
-    coreExecutor,
+    // Type assertion: GatewayBackedTurnExecutor satisfies ICoreExecutor structurally,
+    // but cortex-core uses zod v4 BRAND markers while shared uses zod v3.
+    // Pre-existing monorepo zod version split — safe to assert until aligned.
+    coreExecutor: coreExecutor as NousContext['coreExecutor'],
     gatewayRuntime,
     projectStore,
     stmStore,

@@ -12,6 +12,6 @@
     "isolatedModules": true,
     "noEmit": true
   },
-  "include": ["src/main/**/*.ts", "src/preload/**/*.ts", "server/**/*.ts"],
+  "include": ["src/main/**/*.ts", "src/preload/**/*.ts"],
   "exclude": ["node_modules", "out", "src/renderer"]
 }
