@@ -1,7 +1,7 @@
 name: CI Release
 
 # Tier 4: Confirms promoted release branch health and preserves release evidence
-# Same checks as T3 — ubuntu-only for Node.js, web smoke, coverage, benchmarks
+# Same structure as T3
 
 on:
   push:
@@ -50,6 +50,34 @@ jobs:
 
       - name: Benchmark Tier 0
         run: pnpm run benchmark:tier0
+
+  desktop:
+    name: Desktop (${{ matrix.os }})
+    needs: check
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, macos-latest, windows-latest]
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Install pnpm
+        uses: pnpm/action-setup@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: 'pnpm'
+
+      - name: Install dependencies
+        run: pnpm install
+
+      - name: Build desktop distributable
+        run: pnpm --filter @nous/desktop run build:dist
 
   webapp-smoke:
     name: Smoke (web)

@@ -7,8 +7,33 @@
   "scripts": {
     "dev": "node scripts/start-dev.mjs",
     "build": "electron-vite build",
+    "build:dist": "electron-vite build && electron-builder --dir",
+    "build:dist:mac": "electron-vite build && electron-builder --mac --dir",
+    "build:dist:linux": "electron-vite build && electron-builder --linux --dir",
+    "build:dist:win": "electron-vite build && electron-builder --win --dir",
     "preview": "electron-vite preview",
     "typecheck": "tsc -p tsconfig.json --noEmit && tsc -p tsconfig.web.json --noEmit"
+  },
+  "build": {
+    "appId": "com.orthogonal.nous",
+    "productName": "Nous",
+    "directories": {
+      "output": "dist",
+      "buildResources": "build"
+    },
+    "files": [
+      "out/**/*",
+      "package.json"
+    ],
+    "mac": {
+      "target": "dir"
+    },
+    "linux": {
+      "target": "dir"
+    },
+    "win": {
+      "target": "dir"
+    }
   },
   "dependencies": {
     "@nous/ui": "workspace:*",
@@ -27,6 +52,7 @@
     "@vitejs/plugin-react": "^4.3.0",
     "autoprefixer": "^10.4.20",
     "electron": "^34.0.0",
+    "electron-builder": "^26.8.1",
     "electron-vite": "^2.3.0",
     "postcss": "^8.4.49",
     "tailwindcss": "^3.4.15",
