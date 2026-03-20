@@ -18,6 +18,7 @@
   "dependencies": {
     "@nous/memory-access": "workspace:*",
     "@nous/shared": "workspace:*",
+    "@nous/subcortex-workflows": "workspace:*",
     "zod": "^4.0.17"
   },
   "devDependencies": {
