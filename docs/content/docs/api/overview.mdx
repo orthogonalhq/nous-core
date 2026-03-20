@@ -1,11 +1,18 @@
 ---
 title: API Overview
-description: tRPC API reference for Nous-OSS
+description: Headless API reference for Nous-OSS
 ---
 
 # API Overview
 
-Nous exposes a headless tRPC API. The web UI and CLI both consume this API. The contract is defined by the tRPC router; no separate REST or GraphQL layer exists.
+Nous exposes two headless API surfaces:
+
+- tRPC for first-party web and CLI clients
+- Public MCP over Streamable HTTP for approved external clients
+
+Both surfaces are thin adapters over the same canonical runtime. tRPC owns first-party procedure routing; the public MCP edge owns machine-to-machine discovery and admission. Neither creates a second business-logic stack.
+
+## tRPC
 
 ## Base URL
 
@@ -29,9 +36,28 @@ When `NOUS_BASIC_AUTH` is set, include the `Authorization: Basic` header. The tR
 | `chat` | Send messages, get history |
 | `traces` | Execution traces |
 | `memory` | Memory entries, export, delete |
+| `packages` | Canonical app-install/settings preparation, governed app install/settings save, and active app-panel projection |
 | `config` | Configuration get/update |
 | `health` | System health check |
 | `firstRun` | First-run flow status and completion |
 | `witness` | Witness verification reports, checkpoints, and key-epoch operations |
 
 See [Procedures](/docs/api/procedures) for the full reference.
+
+## Public MCP
+
+The public MCP edge is hosted by the web app and exposed at the canonical `/mcp` route.
+
+### Endpoints
+
+- **Transport:** `POST /mcp`
+- **Protected Resource Metadata:** `GET /.well-known/oauth-protected-resource/mcp`
+- **Authorization Server Metadata:** `GET /.well-known/oauth-authorization-server/mcp`
+
+### Authentication and admission
+
+- `/mcp` requires OAuth bearer posture before any tool mapping, namespace bootstrap, or shared handler execution
+- Admission validates request schema, token posture, audience, origin, and scopes at the boundary
+- External callers are represented as `ExternalClient` subjects only at the public boundary; internal agent classes are unchanged
+
+See [Public MCP Edge](/docs/api/public-mcp) for the machine-facing reference.

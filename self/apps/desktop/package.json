@@ -1,0 +1,62 @@
+{
+  "name": "@nous/desktop",
+  "version": "0.0.1",
+  "private": true,
+  "description": "Nous desktop application — Electron shell with dockview panel engine",
+  "main": "out/main/index.js",
+  "scripts": {
+    "dev": "node scripts/start-dev.mjs",
+    "build": "electron-vite build",
+    "build:dist": "electron-vite build && electron-builder --dir",
+    "build:dist:mac": "electron-vite build && electron-builder --mac --dir",
+    "build:dist:linux": "electron-vite build && electron-builder --linux --dir",
+    "build:dist:win": "electron-vite build && electron-builder --win --dir",
+    "preview": "electron-vite preview",
+    "typecheck": "tsc -p tsconfig.json --noEmit && tsc -p tsconfig.web.json --noEmit"
+  },
+  "build": {
+    "appId": "com.orthogonal.nous",
+    "productName": "Nous",
+    "directories": {
+      "output": "dist",
+      "buildResources": "build"
+    },
+    "files": [
+      "out/**/*",
+      "package.json"
+    ],
+    "mac": {
+      "target": "dir"
+    },
+    "linux": {
+      "target": "dir"
+    },
+    "win": {
+      "target": "dir"
+    }
+  },
+  "dependencies": {
+    "@nous/ui": "workspace:*",
+    "@radix-ui/react-menubar": "^1.1.7",
+    "@trpc/client": "^11.0.0",
+    "@vscode/codicons": "^0.0.44",
+    "dockview-react": "^4.2.0",
+    "electron-store": "^8.2.0",
+    "react": "^19.0.0",
+    "react-dom": "^19.0.0"
+  },
+  "devDependencies": {
+    "@types/node": "^20",
+    "@types/react": "^19",
+    "@types/react-dom": "^19",
+    "@vitejs/plugin-react": "^4.3.0",
+    "autoprefixer": "^10.4.20",
+    "electron": "34.0.0",
+    "electron-builder": "^26.8.1",
+    "electron-vite": "^2.3.0",
+    "postcss": "^8.4.49",
+    "tailwindcss": "^3.4.15",
+    "typescript": "^5",
+    "vite": "^5.0.0"
+  }
+}

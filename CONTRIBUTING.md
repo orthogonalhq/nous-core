@@ -10,7 +10,7 @@ Nous has a deliberate trust gradient that mirrors its own architecture. Contribu
 - **pnpm 10+** (`corepack enable && corepack prepare pnpm@latest --activate`)
 
 ```bash
-git clone https://github.com/orthogonal-research/nous-core.git
+git clone https://github.com/orthogonalhq/nous-core.git
 cd nous-core
 pnpm install
 pnpm build
@@ -33,22 +33,22 @@ The tiers are a ladder, not a taxonomy. Start at the edges — build an adapter,
 
 You need to know the external tool and the interface contract. You don't need to understand the Cortex or the memory system.
 
-#### Communication Adapters
+#### Communication Channel Apps
 
-The communication bridge (`self/apps/bridge/`) connects external messaging platforms to Nous. The adapter contract:
+Communication channel integrations are **Nous Apps** — sandboxed Deno subprocesses that declare their permissions in a manifest, register namespaced tools into the Internal MCP catalog, and store credentials in the encrypted vault.
 
-```typescript
-// self/subcortex/communication-gateway/src/delivery-orchestrator.ts
-export interface CommunicationDeliveryProvider {
-  send(envelope: ChannelEgressEnvelope): Promise<CommunicationProviderSendResult>;
-}
-```
+A channel integration App:
+- Declares required permissions in its `NousPackageManifest` (`network`, credential vault entries)
+- Stores API keys and bot tokens in the credential vault — credentials are injected at runtime, never exposed directly
+- Registers namespaced tools (e.g., `discord.send`, `discord.list_channels`) into the Internal MCP catalog
+- Implements ingress normalization: maps platform events into `ChannelIngressEnvelope`
+- Delivers egress messages from `ChannelEgressEnvelope`
 
-An adapter normalizes incoming messages into `ChannelIngressEnvelope` and delivers outgoing messages from `ChannelEgressEnvelope`. Both types are in `self/shared/src/types/`.
+**Dependency**: Building channel Apps requires the Nous App SDK — dev docs and SDK coming. Watch this repo for the release.
 
-**Reference implementation**: `self/apps/bridge/src/connectors/telegram-bot-adapter.ts` — ingress normalization, egress delivery, mention detection, message type inference. Tests at `self/apps/bridge/src/__tests__/telegram-bot-adapter.test.ts`.
+**Reference** (normalization pattern): `self/apps/bridge/src/connectors/telegram-bot-adapter.ts` — ingress normalization, egress delivery, mention detection, message type inference.
 
-**What it looks like**: implement `CommunicationDeliveryProvider` for a new platform (Discord, Signal, Matrix, Slack, email, SMS, webhooks), add ingress normalization, register the connector in the bridge runtime, write tests.
+**What it looks like**: scaffold a new App (`self/apps/<platform>/`), declare its manifest with credential vault entries and tool declarations, implement ingress/egress normalization, write tests.
 
 #### Model Provider Adapters
 
@@ -262,173 +262,14 @@ Honesty over polish:
 - **No LICENSE file yet.** This is a blocker for external contributions. Must be resolved before public launch.
 - **No Discord or community channel.** Discussions happen through GitHub Issues and Discussions for now.
 - **`self/ui/` is a stub.** The desktop app works, but the shared component library is not yet populated.
-- **No automated release pipeline.** CI is functional (typecheck, lint, test, benchmark, build across 3 OSes) but there's no publish/release automation.
+- **No automated release pipeline.** CI is functional (typecheck, lint, test, benchmark, build across 3 OSes) with tiered checks across `dev`, `staging`, and `main`. Release path is `dev → staging → main`, but there's no publish/release automation yet.
 - **Docs site not deployed.** `docs/` exists as a Next.js app but isn't live yet.
 
 ---
 
 ## Good First Issues
 
-Concrete, useful, self-contained contributions implementable by someone who's read this document. All Tier 1 unless noted.
-
----
-
-### 1. Discord Communication Adapter
-
-Implement a Discord bot adapter for the communication bridge.
-
-**Create**: `self/apps/bridge/src/connectors/discord-bot-adapter.ts`
-**Reference**: `self/apps/bridge/src/connectors/telegram-bot-adapter.ts`
-
-**Acceptance criteria**:
-- Implements `CommunicationDeliveryProvider`
-- Normalizes Discord messages into `ChannelIngressEnvelope`
-- Handles DMs, server messages, and thread messages
-- Infers mention state (direct, explicit, none)
-- Tests in `self/apps/bridge/src/__tests__/discord-bot-adapter.test.ts`
-
-**Scope boundary**: Don't modify `CommunicationDeliveryProvider` or the bridge runtime. The adapter is a leaf.
-
----
-
-### 2. Matrix Communication Adapter
-
-Implement a Matrix adapter using the Matrix client-server API.
-
-**Create**: `self/apps/bridge/src/connectors/matrix-adapter.ts`
-
-**Acceptance criteria**: Same shape as Discord. Matrix has rooms, threads, and mentions — map them to the envelope types. Tests included.
-
----
-
-### 3. Webhook Communication Adapter
-
-A generic webhook adapter that receives HTTP POST payloads and delivers outbound messages via configurable webhook URLs.
-
-**Create**: `self/apps/bridge/src/connectors/webhook-adapter.ts`
-
-**Acceptance criteria**: Normalizes arbitrary webhook payloads into `ChannelIngressEnvelope` using a configurable mapping. Delivers egress via HTTP POST. Tests included.
-
----
-
-### 4. Anthropic Model Provider
-
-Implement `IModelProvider` for Anthropic's Messages API.
-
-**Create**: `self/subcortex/providers/src/anthropic-provider.ts`
-**Reference**: `ollama-provider.ts` and `openai-provider.ts` in the same directory
-
-**Acceptance criteria**:
-- Implements `IModelProvider` (invoke, stream, getConfig)
-- Validates input against `TextModelInputSchema`
-- Handles streaming via Anthropic's SSE format
-- Exported from `self/subcortex/providers/src/index.ts`
-- Tests in `self/subcortex/providers/src/__tests__/`
-
-**Scope boundary**: Don't modify `IModelProvider` or `TextModelInputSchema`.
-
----
-
-### 5. Google Gemini Model Provider
-
-Same as Anthropic, for Google's Gemini API.
-
-**Create**: `self/subcortex/providers/src/gemini-provider.ts`
-
-**Acceptance criteria**: Same shape as Anthropic provider.
-
----
-
-### 6. MCP Capability Tool: `workflow_list`
-
-Add an internal MCP capability tool that lists active workflow runs for the current project. The `IWorkflowEngine.listProjectRuns()` method already exists — this tool exposes it through the MCP surface.
-
-**Location**: `self/cortex/core/src/internal-mcp/`
-**Reference**: Existing capability handlers in `capability-handlers.ts`, catalog entries in `catalog.ts`
-
-**Acceptance criteria**:
-- Handler calls `deps.workflowEngine.listProjectRuns(projectId)` with proper null-guarding
-- Catalog entry with Zod input schema (projectId required)
-- Added to authorization matrix for `Cortex::System`, `Orchestrator`, and `Worker` agent classes
-- Added to `INTERNAL_MCP_TOOL_NAMES` in `types.ts`
-- Tests following existing patterns in `self/cortex/core/src/__tests__/`
-
-**Scope boundary**: Don't modify `IWorkflowEngine`. Implement the tool as a leaf handler that calls the existing interface.
-
----
-
-### 7. MCP Capability Tool: `project_list`
-
-Add an internal MCP capability tool that lists all projects. The `IProjectStore.list()` method exists — this tool surfaces it.
-
-**Location**: Same as above.
-
-**Acceptance criteria**:
-- Handler calls `deps.projectStore.list()` with null-guarding
-- Catalog entry, authorization matrix entry, tool name registration
-- Tests
-
----
-
-### 8. Claude Code Agent Adapter
-
-Implement `AgentAdapter` for Claude Code, allowing Nous to dispatch coding tasks to Claude Code and capture structured results.
-
-**Create**: `self/subcortex/stubs/src/adapters/claude-code-adapter.ts` (or a new `agent-adapters` package)
-**Reference**: `self/shared/src/types/adapter.ts` — the `AgentAdapter` interface and all Zod schemas
-
-**Acceptance criteria**:
-- Implements `AgentAdapter` (metadata, prepare, execute, captureTrace, captureSideEffects, collectArtifacts, cleanup)
-- `prepare` sets up the working directory and task context
-- `execute` invokes Claude Code's CLI with the task payload and captures completion status
-- `captureTrace` extracts the conversation/tool-use trace
-- All inputs/outputs validate against the existing Zod schemas
-- Tests against schema validation, mock CLI invocations
-
-**Scope boundary**: Don't modify the `AgentAdapter` interface or the Zod schemas. The adapter is a leaf implementation.
-
----
-
-### 9. OpenAI Codex Agent Adapter
-
-Same pattern as Claude Code, for OpenAI's Codex CLI agent.
-
-**Create**: `self/subcortex/stubs/src/adapters/codex-adapter.ts`
-**Reference**: Same as above
-
-**Acceptance criteria**: Same shape — implements `AgentAdapter`, maps Codex CLI invocations into the prepare/execute/capture/cleanup lifecycle. Tests included.
-
----
-
-### 10. Signal Communication Adapter
-
-Implement a Signal adapter using the signal-cli REST API or libsignal bindings.
-
-**Create**: `self/apps/bridge/src/connectors/signal-adapter.ts`
-**Reference**: `self/apps/bridge/src/connectors/telegram-bot-adapter.ts`
-
-**Acceptance criteria**:
-- Implements `CommunicationDeliveryProvider`
-- Normalizes Signal messages into `ChannelIngressEnvelope`
-- Handles DMs and group messages
-- Infers mention state
-- Tests in `self/apps/bridge/src/__tests__/signal-adapter.test.ts`
-
-**Scope boundary**: Don't modify `CommunicationDeliveryProvider` or the bridge runtime. The adapter is a leaf.
-
----
-
-### 11. CLI Output Formatting (Tier 2)
-
-The CLI (`self/apps/cli/`) has basic output. Improve formatting for common operations — project listings, memory queries, workflow status.
-
-**Location**: `self/apps/cli/src/`
-
-**Acceptance criteria**: Structured, readable terminal output for at least 3 command categories. No external dependency additions beyond what's in the package.
-
----
-
-These issues are ready to be created in the GitHub issue tracker with the `good-first-issue` label.
+Browse current good first issues on [GitHub Issues](https://github.com/orthogonalhq/nous-core/issues?q=is%3Aissue+is%3Aopen+label%3A%22good+first+issue%22).
 
 ---
 
@@ -438,8 +279,8 @@ These are roadmap-level efforts that go beyond a single PR. They're listed here 
 
 ### Headless Email Client
 
-A fully headless, agent-operated email surface built into Nous. Not an adapter to a specific email service — a complete email client that connects to any account via IMAP/SMTP and gives the agent native email capabilities: search, live feed (IMAP IDLE), compose, reply, thread management, label/archive operations.
+A fully headless, agent-operated email surface built as a **Nous App** — a sandboxed Deno subprocess with IMAP/SMTP credentials in the credential vault, and namespaced tools (`email.search`, `email.draft`, `email.send`, `email.reply`, `email.archive`) registered into the Internal MCP catalog.
 
-The governance layer is what makes this meaningful. Outgoing mail routes through the escalation service. The confidence-governance system determines autonomy — high-confidence replies auto-send, low-confidence ones escalate to the Principal. The witness chain audits everything. The memory system learns communication patterns over time.
+IMAP IDLE drives a live feed of new messages into the communication gateway ingress. Outgoing mail routes through the escalation service — high-confidence replies auto-send, low-confidence ones escalate to the Principal. The witness chain audits everything. The memory system learns communication patterns over time.
 
-This is a Phase 11 (Extended Senses) candidate. It touches the communication gateway, escalation, witness chain, and would likely introduce email-specific MCP capability tools (search, draft, send, archive). It's not a contribution you pick up — it's one you propose and design collaboratively.
+Not yet tied to a specific phase. It's not a contribution you pick up — it's one you propose and design collaboratively. See [issue #78](https://github.com/orthogonalhq/nous-core/issues/78) for the full design.

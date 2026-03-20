@@ -1,3 +1,4 @@
+import { mkdir, writeFile } from 'node:fs/promises';
 import { beforeAll, describe, expect, it } from 'vitest';
 import { join } from 'node:path';
 import { randomUUID } from 'node:crypto';
@@ -22,6 +23,92 @@ const NODE_A = '550e8400-e29b-41d4-a716-446655441003' as WorkflowNodeDefinitionI
 const NODE_B = '550e8400-e29b-41d4-a716-446655441004' as WorkflowNodeDefinitionId;
 const EDGE_ID = '550e8400-e29b-41d4-a716-446655441006' as WorkflowEdgeId;
 const TRACE_ID = '550e8400-e29b-41d4-a716-446655441005';
+const BOUND_WORKFLOW_ID = '550e8400-e29b-41d4-a716-446655441100' as WorkflowDefinitionId;
+
+const sanitizePackageId = (packageId: string): string =>
+  packageId.replace(/[^a-zA-Z0-9._-]+/g, '__');
+
+async function writeInstalledWorkflowPackage(instanceRoot: string) {
+  const packageRoot = join(
+    instanceRoot,
+    '.workflows',
+    sanitizePackageId('workflow.projects-router'),
+  );
+  await mkdir(join(packageRoot, 'steps'), { recursive: true });
+  await writeFile(
+    join(packageRoot, '.nous-package.json'),
+    JSON.stringify({ package_version: '2.1.0' }, null, 2),
+  );
+  await writeFile(
+    join(packageRoot, 'WORKFLOW.md'),
+    `---
+name: projects-router-workflow
+description: Installed workflow package for router tests.
+entrypoint: draft
+---
+
+# Workflow
+`,
+  );
+  await writeFile(
+    join(packageRoot, 'nous.flow.yaml'),
+    `nous:
+  v: 1
+flow:
+  id: projects-router-workflow
+  mode: graph
+  entry_step: draft
+  steps:
+    - id: draft
+      file: steps/draft.md
+      next: ["review"]
+    - id: review
+      file: steps/review.md
+      next: []
+`,
+  );
+  await writeFile(
+    join(packageRoot, 'steps', 'draft.md'),
+    `---
+nous:
+  v: 1
+  kind: workflow_step
+  id: draft
+name: Draft
+type: model-call
+governance: must
+executionModel: synchronous
+config:
+  type: model-call
+  modelRole: reasoner
+  promptRef: prompt://draft
+---
+
+# Draft
+`,
+  );
+  await writeFile(
+    join(packageRoot, 'steps', 'review.md'),
+    `---
+nous:
+  v: 1
+  kind: workflow_step
+  id: review
+name: Review
+type: quality-gate
+governance: must
+executionModel: synchronous
+config:
+  type: quality-gate
+  evaluatorRef: evaluator://quality
+  passThresholdRef: threshold://default
+  failureAction: block
+---
+
+# Review
+`,
+  );
+}
 
 function createWorkflow(projectId: ProjectId, version = '1.0.0'): WorkflowDefinition {
   return {
@@ -38,6 +125,7 @@ function createWorkflow(projectId: ProjectId, version = '1.0.0'): WorkflowDefini
         type: 'model-call' as const,
         governance: 'must' as const,
         executionModel: 'synchronous' as const,
+        outputSchemaRef: 'schema://projects-workflow/draft-output',
         config: {
           type: 'model-call' as const,
           modelRole: 'reasoner' as const,
@@ -84,6 +172,7 @@ async function createProjectWithWorkflow(
         : {
             defaultWorkflowDefinitionId: WORKFLOW_ID,
             definitions: [createWorkflow(projectId)],
+            packageBindings: [],
           },
   }));
 
@@ -91,8 +180,20 @@ async function createProjectWithWorkflow(
 }
 
 describe('projects router', () => {
-  beforeAll(() => {
+  beforeAll(async () => {
     process.env.NOUS_DATA_DIR = join(tmpdir(), `nous-projects-router-${randomUUID()}`);
+    process.env.NOUS_INSTANCE_ROOT = join(
+      tmpdir(),
+      `nous-projects-router-instance-${randomUUID()}`,
+    );
+    await Promise.all([
+      mkdir(join(process.env.NOUS_INSTANCE_ROOT, '.apps'), { recursive: true }),
+      mkdir(join(process.env.NOUS_INSTANCE_ROOT, '.skills'), { recursive: true }),
+      mkdir(join(process.env.NOUS_INSTANCE_ROOT, '.workflows'), { recursive: true }),
+      mkdir(join(process.env.NOUS_INSTANCE_ROOT, '.projects'), { recursive: true }),
+      mkdir(join(process.env.NOUS_INSTANCE_ROOT, '.contracts'), { recursive: true }),
+    ]);
+    await writeInstalledWorkflowPackage(process.env.NOUS_INSTANCE_ROOT);
     clearNousContextCache();
   });
 
@@ -276,6 +377,46 @@ describe('projects router', () => {
     expect(snapshot.graph).toBeNull();
     expect(snapshot.runtimeAvailability).toBe('no_active_run');
     expect(snapshot.diagnostics.inspectFirstMode).toBe('no-definition');
+  });
+
+  it('surfaces installed workflow binding metadata without copying installed definitions into project config', async () => {
+    const ctx = createNousContext();
+    const caller = appRouter.createCaller(ctx);
+    const projectId = randomUUID() as ProjectId;
+    await ctx.projectStore.create(createProjectConfig({
+      id: projectId,
+      name: 'bound project',
+      workflow: {
+        definitions: [],
+        packageBindings: [
+          {
+            workflowDefinitionId: BOUND_WORKFLOW_ID,
+            workflowPackageId: 'workflow.projects-router',
+            workflowPackageVersion: '2.1.0',
+            entrypoint: 'draft',
+            boundAt: '2026-03-16T18:00:00.000Z',
+            manifestRef: '.workflows/workflow__projects-router/WORKFLOW.md',
+          },
+        ],
+        defaultWorkflowDefinitionId: BOUND_WORKFLOW_ID,
+      },
+    }));
+
+    const snapshot = await caller.projects.workflowSnapshot({ projectId });
+    expect(snapshot.workflowDefinition?.id).toBe(BOUND_WORKFLOW_ID);
+    expect(snapshot.workflowDefinitionSource?.sourceKind).toBe('installed_package');
+
+    const saved = await caller.projects.saveWorkflowDefinition({
+      projectId,
+      workflowDefinition: createWorkflow(projectId, '1.1.0'),
+      setAsDefault: false,
+    });
+
+    expect(saved.project.workflow?.definitions).toHaveLength(1);
+    expect(saved.project.workflow?.packageBindings).toHaveLength(1);
+    expect(saved.project.workflow?.definitions.some((definition) =>
+      definition.id === BOUND_WORKFLOW_ID
+    )).toBe(false);
   });
 
   it('marks visual-debug parity degraded when the run graph is unavailable', async () => {

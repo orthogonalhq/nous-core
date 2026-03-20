@@ -37,6 +37,7 @@ import {
   type WorkflowGraph,
   type WorkflowState,
 } from './workflow.js';
+import { ProjectWorkflowPackageBindingSchema } from './package-documents.js';
 
 // --- Project Identity Contract ---
 // Canonical subset of project fields for deterministic identity across surfaces.
@@ -115,6 +116,7 @@ export type EscalationContract = z.infer<typeof EscalationContractSchema>;
 // --- Project Configuration ---
 export const ProjectWorkflowConfigurationSchema = z.object({
   definitions: z.array(WorkflowDefinitionSchema).default([]),
+  packageBindings: z.array(ProjectWorkflowPackageBindingSchema).default([]),
   defaultWorkflowDefinitionId: WorkflowDefinitionIdSchema.optional(),
 });
 export type ProjectWorkflowConfiguration = z.infer<

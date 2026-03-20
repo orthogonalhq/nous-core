@@ -15,7 +15,7 @@ import {
   runWitnessList,
   runWitnessVerify,
 } from '../commands/witness.js';
-import { runPkgDiscover } from '../commands/pkg.js';
+import { runPkgDiscover, runPkgInstall } from '../commands/pkg.js';
 import type { CliTrpcClient } from '../trpc-client.js';
 
 function createMockClient(): CliTrpcClient {
@@ -45,6 +45,9 @@ function createMockClient(): CliTrpcClient {
       applyNudgeSuppression: { mutate: vi.fn() },
       recordNudgeFeedback: { mutate: vi.fn() },
       routeNudgeAcceptance: { mutate: vi.fn() },
+    },
+    packages: {
+      install: { mutate: vi.fn() },
     },
   } as unknown as CliTrpcClient;
 }
@@ -410,5 +413,33 @@ describe('CLI commands', () => {
 
     expect(code).toBe(0);
     expect(mockClient.marketplace.applyNudgeSuppression.mutate).toHaveBeenCalled();
+  });
+
+  it('pkg install routes canonical install requests through the packages client', async () => {
+    vi.mocked(mockClient.packages.install.mutate).mockResolvedValue({
+      resolution: {
+        root_package_id: 'pkg.persona-engine',
+        nodes: [],
+        install_order: ['pkg.persona-engine'],
+        deduped_package_ids: [],
+        blocked: false,
+      },
+      writes: [],
+      lifecycle_results: [],
+      status: 'installed',
+    } as any);
+
+    const code = await runPkgInstall(mockClient, 'pkg.persona-engine', {
+      projectId: '550e8400-e29b-41d4-a716-446655445401',
+    });
+
+    expect(code).toBe(0);
+    expect(mockClient.packages.install.mutate).toHaveBeenCalledWith(
+      expect.objectContaining({
+        project_id: '550e8400-e29b-41d4-a716-446655445401',
+        package_id: 'pkg.persona-engine',
+        actor_id: 'cli',
+      }),
+    );
   });
 });

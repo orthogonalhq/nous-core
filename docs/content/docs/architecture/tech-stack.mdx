@@ -16,10 +16,17 @@ The stack is chosen to support: TypeScript-first full-stack development, interfa
 | Choice | Detail |
 |---|---|
 | **Language** | TypeScript |
-| **Runtime** | Node ≥22 (LTS) |
+| **Core Runtime** | Node ≥22 (LTS) |
+| **App Sandbox Runtime** | Deno (for installed `.apps` packages) |
 | **TypeScript Version** | 5.9+ |
 
 TypeScript is the primary language across all layers — cortex, memory, subcortex, autonomic, shared, and apps. One language for the full stack. The type system maps directly to the interface-first architecture where every component sits behind a contract defined in `self/shared/interfaces/`.
+
+Phase 14.5 establishes the ratified runtime split: **Nous core runs on Node.js**; **installed app packages run as Deno subprocesses**. MCP over IPC is the sole app-to-core communication path. No shared-memory, direct TypeScript interface injection, or alternate app runtime is introduced. App permissions compile deterministically into Deno CLI flags with hard-deny posture (`--deny-env`, `--deny-run`, `--deny-ffi`).
+
+Phase 14.7 adds the Telegram connector reference app on top of this same split. Telegram ingress,
+egress, and connector-session reports cross the app boundary as typed host-owned IPC intents and are
+resolved by the canonical communication gateway rather than by an app-local delivery runtime.
 
 ---
 
@@ -67,7 +74,7 @@ Zod provides runtime validation and static TypeScript types from a single schema
 
 Used for: configuration validation, MemoryWriteCandidate validation, API request/response validation, tool input/output validation, package manifest validation.
 
-Phase 12.2 extends this posture into `@nous/cortex-core`: the Internal MCP runtime in `self/cortex/core/src/internal-mcp/` now uses core-local Zod validators for capability-tool request parsing, ratified lifecycle payload normalization, and the task-completion output-validation seam. Phase 12.4 extends the same validation posture to dispatch payloads, canonical node I/O schema refs, and full gateway-stamped `nous.v: 3` completion packets. Core packages that introduce local runtime validators declare `zod` directly rather than depending on transitive workspace dependencies.
+Phase 12.2 extends this posture into `@nous/cortex-core`: the Internal MCP runtime in `self/cortex/core/src/internal-mcp/` now uses core-local Zod validators for capability-tool request parsing, ratified lifecycle payload normalization, and the task-completion output-validation seam. Phase 12.4 extends the same validation posture to dispatch payloads, canonical node I/O schema refs, and full gateway-stamped `nous.v: 3` completion packets. Phase 13.1 extends it to the public MCP edge: `@nous/shared` now carries public discovery, admission, JSON-RPC, namespace, mapping, audit, and execution-request schemas, while `@nous/cortex-core` and `@nous/subcortex-public-mcp` reuse Zod validation at the public boundary before any canonical internal handler is reached. Core packages that introduce local runtime validators declare `zod` directly rather than depending on transitive workspace dependencies.
 
 ---
 
@@ -83,6 +90,8 @@ Phase 12.2 extends this posture into `@nous/cortex-core`: the Internal MCP runti
 Next.js provides file-based routing, App Router with layouts, API routes, and server components. These are valuable even for local-first deployment as the UI grows in complexity (chat, projects, traces, memory, config, workflow editor).
 
 The same Next.js codebase serves the local application. A future cloud frontend will share components and contracts but have its own application shell with different routing, authentication, and security boundaries.
+
+Phase 13.1 also uses the Next.js host as the machine-facing public MCP adapter. The app now serves `/mcp` plus the two OAuth discovery documents under `/.well-known/.../mcp`, but the host remains thin and delegates admitted work into the canonical runtime rather than creating a second business-logic stack.
 
 shadcn/ui provides a modern, accessible component library built on Radix primitives and Tailwind CSS. Components are copied into the project (not imported from node_modules), giving full control over customization.
 
@@ -201,7 +210,7 @@ tRPC integrates natively with:
 - **Next.js App Router** — first-class support for server components and client components
 - **WebSocket** — subscriptions for real-time streaming
 
-The headless API principle still holds. tRPC defines the contract. The Next.js web UI and the CLI are both consumers. The Phase 11.1 bridge app adds a second app-hosted ingress path for human messaging, but it still hands canonical work to shared/subcortex seams rather than creating a parallel API or state model. Future consumers (cloud frontend, mobile app, later messaging bridges) can use the same tRPC client or consume the underlying HTTP/WebSocket endpoints directly where appropriate.
+The headless API principle still holds. tRPC defines the first-party app contract. The Next.js web UI and the CLI are both consumers. The Phase 11.1 bridge app adds a second app-hosted ingress path for human messaging, but it still hands canonical work to shared/subcortex seams rather than creating a parallel API or state model. Phase 13.1 adds a separate machine-to-machine ingress form for approved external clients: Streamable HTTP MCP at `/mcp` with OAuth discovery documents. That public edge is still a boundary adapter over the same AgentGateway and Internal MCP runtime rather than a second API-owned business-logic stack. Future consumers (cloud frontend, mobile app, later messaging bridges) can use the same tRPC client or consume the underlying HTTP/WebSocket or MCP endpoints directly where appropriate.
 
 When WebTransport matures in the Node.js ecosystem, tRPC's transport layer can be swapped underneath without changing any application code. The API contract remains stable regardless of transport.
 
@@ -253,8 +262,8 @@ Build:           tsc (type packages, CLI, bridge) / Next.js (web app)
 Lint/Format:     oxlint + oxfmt
 Test:            Vitest + Playwright
 Validation:      Zod
-API Layer:       tRPC (WebSocket subscriptions + HTTP queries/mutations)
-Web UI:          Next.js (App Router) + shadcn/ui + Tailwind
+API Layer:       tRPC (WebSocket subscriptions + HTTP queries/mutations) + Streamable HTTP MCP at /mcp
+Web UI:          Next.js (App Router) + shadcn/ui + Tailwind; same app host also serves public MCP routes
 CLI:             Commander.js
 Storage:         SQLite (documents + current local vectors) → optional specialized vector backend → PostgreSQL (cloud)
 Config:          JSON5

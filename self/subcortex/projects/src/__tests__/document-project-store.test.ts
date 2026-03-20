@@ -47,6 +47,7 @@ const createProjectConfig = () => ({
         edges: [],
       },
     ],
+    packageBindings: [],
   },
   retrievalBudgetTokens: 500,
   createdAt: new Date().toISOString(),
@@ -161,6 +162,7 @@ describe('DocumentProjectStore', () => {
             edges: [],
           },
         ],
+        packageBindings: [],
       },
     } as any);
 

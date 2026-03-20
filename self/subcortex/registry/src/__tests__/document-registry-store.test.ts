@@ -10,7 +10,7 @@ describe('DocumentRegistryStore', () => {
 
     await store.savePackage({
       package_id: 'pkg.persona-engine',
-      package_type: 'project',
+      package_type: 'workflow',
       display_name: 'Persona Engine',
       latest_release_id: 'release-1',
       trust_tier: 'verified_maintainer',
@@ -24,6 +24,7 @@ describe('DocumentRegistryStore', () => {
     await store.saveRelease({
       release_id: 'release-1',
       package_id: 'pkg.persona-engine',
+      package_type: 'workflow',
       package_version: '1.0.0',
       origin_class: 'third_party_external',
       signing_key_id: 'key-1',
@@ -46,6 +47,10 @@ describe('DocumentRegistryStore', () => {
         metadata_expires_at: '2027-03-12T00:00:00.000Z',
         artifact_digest: 'sha256:abc123',
         metadata_digest: 'sha256:def456',
+      },
+      dependencies: {
+        packages: [],
+        tool_requirements: [],
       },
       distribution_status: 'active',
       compatibility_state: 'compatible',

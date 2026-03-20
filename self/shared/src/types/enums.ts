@@ -102,8 +102,12 @@ export const EscalationChannelSchema = z.enum([
 export type EscalationChannel = z.infer<typeof EscalationChannelSchema>;
 
 // --- Package Types — from packages-and-plugins.mdx ---
-export const PackageTypeSchema = z.enum(['skill', 'project']);
+export const PackageTypeSchema = z.enum(['skill', 'project', 'app', 'workflow']);
 export type PackageType = z.infer<typeof PackageTypeSchema>;
+
+// Canonical (non-legacy) package types — excludes the 'project' compatibility alias
+export const CanonicalPackageTypeSchema = z.enum(['skill', 'app', 'workflow']);
+export type CanonicalPackageType = z.infer<typeof CanonicalPackageTypeSchema>;
 
 // --- Retention Policy ---
 export const RetentionPolicySchema = z.enum(['permanent', 'session', 'ttl']);

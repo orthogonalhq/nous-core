@@ -220,6 +220,7 @@ describe('ProjectConfigSchema', () => {
       ...validConfig,
       workflow: {
         defaultWorkflowDefinitionId: '550e8400-e29b-41d4-a716-446655440099',
+        packageBindings: [],
         definitions: [
           {
             id: '550e8400-e29b-41d4-a716-446655440099',
@@ -294,11 +295,30 @@ describe('ProjectPackageDefaultIntakeSchema', () => {
 });
 
 describe('ProjectWorkflowConfigurationSchema', () => {
-  it('defaults definitions to an empty array', () => {
+  it('defaults definitions and packageBindings to empty arrays', () => {
     const result = ProjectWorkflowConfigurationSchema.safeParse({});
     expect(result.success).toBe(true);
     if (result.success) {
       expect(result.data.definitions).toEqual([]);
+      expect(result.data.packageBindings).toEqual([]);
     }
+  });
+
+  it('accepts installed workflow package bindings alongside inline definitions', () => {
+    const result = ProjectWorkflowConfigurationSchema.safeParse({
+      defaultWorkflowDefinitionId: '550e8400-e29b-41d4-a716-446655440099',
+      definitions: [],
+      packageBindings: [
+        {
+          workflowDefinitionId: '550e8400-e29b-41d4-a716-446655440099',
+          workflowPackageId: 'workflow.research',
+          entrypoint: 'draft',
+          boundAt: NOW,
+          manifestRef: '.workflows/workflow__research/WORKFLOW.md',
+        },
+      ],
+    });
+
+    expect(result.success).toBe(true);
   });
 });

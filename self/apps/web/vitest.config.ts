@@ -9,6 +9,29 @@ export default defineConfig({
     alias: {
       '@': path.resolve(__dirname),
       '@nous/shared': path.resolve(__dirname, '../../shared/src/index.ts'),
+      '@nous/autonomic-credentials': path.resolve(
+        __dirname,
+        '../../autonomic/credentials/src/index.ts',
+      ),
+      '@nous/ui/panels': path.resolve(__dirname, '../../ui/src/panels/index.ts'),
+      '@nous/ui': path.resolve(__dirname, '../../ui/src/index.ts'),
+      '@nous/subcortex-apps': path.resolve(
+        __dirname,
+        '../../subcortex/apps/src/index.ts',
+      ),
+      '@nous/autonomic-runtime': path.resolve(
+        __dirname,
+        '../../autonomic/runtime/src/index.ts',
+      ),
+      '@nous/cortex-core': path.resolve(__dirname, '../../cortex/core/src/index.ts'),
+      '@nous/subcortex-projects': path.resolve(
+        __dirname,
+        '../../subcortex/projects/src/index.ts',
+      ),
+      '@nous/subcortex-workflows': path.resolve(
+        __dirname,
+        '../../subcortex/workflows/src/index.ts',
+      ),
       '@nous/subcortex-registry': path.resolve(
         __dirname,
         '../../subcortex/registry/src/index.ts',
@@ -36,6 +59,10 @@ export default defineConfig({
       '@nous/subcortex-voice-control': path.resolve(
         __dirname,
         '../../subcortex/voice-control/src/index.ts',
+      ),
+      '@nous/subcortex-public-mcp': path.resolve(
+        __dirname,
+        '../../subcortex/public-mcp/src/index.ts',
       ),
     },
   },

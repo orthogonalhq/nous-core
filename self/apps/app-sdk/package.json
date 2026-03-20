@@ -1,0 +1,33 @@
+{
+  "name": "@nous/app-sdk",
+  "version": "0.0.1",
+  "private": false,
+  "description": "Nous app panel SDK",
+  "type": "module",
+  "exports": {
+    ".": "./src/index.ts",
+    "./panel": "./src/panel/index.ts"
+  },
+  "dependencies": {
+    "@nous/shared": "workspace:*"
+  },
+  "peerDependencies": {
+    "react": "^19.0.0",
+    "react-dom": "^19.0.0"
+  },
+  "devDependencies": {
+    "@testing-library/react": "^16.0.0",
+    "@types/react": "^19",
+    "@types/react-dom": "^19",
+    "jsdom": "^26.1.0",
+    "react": "^19.0.0",
+    "react-dom": "^19.0.0",
+    "typescript": "^5",
+    "vitest": "^4.0.18"
+  },
+  "scripts": {
+    "typecheck": "tsc --noEmit",
+    "test": "vitest run --config vitest.config.ts",
+    "test:watch": "vitest --config vitest.config.ts"
+  }
+}

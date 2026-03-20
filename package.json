@@ -17,7 +17,10 @@
     "test:watch": "vitest",
     "benchmark:tier0": "pnpm --filter nous-benchmark run test",
     "dev:web": "pnpm --filter @nous/web dev",
+    "dev:desktop": "pnpm --filter @nous/desktop dev",
+    "build:desktop": "pnpm --filter @nous/desktop build",
     "dev:cli": "pnpm --filter @nous/cli run dev --",
+    "dev:telegram": "pnpm --filter @nous/telegram dev",
     "dev:docs": "pnpm --filter docs dev",
     "install:nous": "node scripts/install/run.mjs",
     "clean": "pnpm -r run clean"
@@ -25,15 +28,17 @@
   "devDependencies": {
     "@oxlint/binding-win32-x64-msvc": "^1.47.0",
     "@types/node": "^20",
+    "@vitest/coverage-v8": "^4.1.0",
     "oxlint": "^1.47.0",
     "tsdown": "^0.20.3",
     "typescript": "^5",
-    "vitest": "^4.0.18"
+    "vitest": "^4.1.0"
   },
   "pnpm": {
     "onlyBuiltDependencies": [
       "better-sqlite3",
       "esbuild",
+      "electron",
       "unrs-resolver"
     ]
   }

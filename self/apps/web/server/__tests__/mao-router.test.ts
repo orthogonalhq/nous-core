@@ -33,6 +33,7 @@ function createWorkflow(projectId: ProjectId): WorkflowDefinition {
         type: 'model-call',
         governance: 'must',
         executionModel: 'synchronous',
+        outputSchemaRef: 'schema://mao-router/draft-output',
         config: {
           type: 'model-call',
           modelRole: 'reasoner',
@@ -71,6 +72,7 @@ async function createProjectWithWorkflow(ctx: ReturnType<typeof createNousContex
       workflow: {
         defaultWorkflowDefinitionId: WORKFLOW_ID,
         definitions: [createWorkflow(projectId)],
+        packageBindings: [],
       },
     }),
   );

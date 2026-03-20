@@ -1,0 +1,62 @@
+name: CI Gate
+
+# Tier 1 (PR gate) + Tier 2 (dev integration)
+# T1: Prevents broken work from merging upward (required on PRs)
+# T2: Catches integration regressions after phase merges land on dev (advisory)
+
+on:
+  push:
+    branches:
+      - dev
+      - 'feat/**'
+      - 'fix/**'
+      - 'refactor/**'
+      - 'chore/**'
+    paths-ignore:
+      - '**.md'
+      - '**.mdx'
+      - '.architecture'
+      - '.worklog'
+      - '.skills'
+      - 'docs/**'
+      - '.github/workflows/ci-release*.yml'
+  pull_request:
+    branches:
+      - dev
+      - 'feat/**'
+      - 'fix/**'
+      - 'refactor/**'
+      - 'chore/**'
+
+jobs:
+  check:
+    name: Check
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Install pnpm
+        uses: pnpm/action-setup@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: 'pnpm'
+
+      - name: Install dependencies
+        run: pnpm install
+
+      - name: Build
+        run: pnpm run build
+
+      - name: Typecheck
+        run: pnpm run typecheck
+
+      - name: Lint
+        run: pnpm run lint
+
+      - name: Test
+        run: pnpm run test

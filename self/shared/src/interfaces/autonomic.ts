@@ -12,6 +12,17 @@ import type {
   PlatformInfo,
   HealthReport,
   SystemMetrics,
+  CredentialInjectRequest,
+  CredentialInjectedResponse,
+  CredentialMetadata,
+  CredentialBackupResult,
+  CredentialDiscardBackupResult,
+  CredentialNamespacePurgeResult,
+  CredentialRevokeRequest,
+  CredentialRevokeResult,
+  CredentialRestoreResult,
+  CredentialStoreRequest,
+  CredentialStoreResult,
 } from '../types/index.js';
 
 // SystemConfig is defined in @nous/autonomic-config, but the interface
@@ -104,6 +115,21 @@ export interface IRuntime {
   /** Check if a path exists */
   exists(path: string): Promise<boolean>;
 
+  /** Create a directory tree if it does not already exist */
+  ensureDir(path: string): Promise<void>;
+
+  /** Write a text or binary file */
+  writeFile(path: string, content: string | Uint8Array): Promise<void>;
+
+  /** Copy one directory tree recursively */
+  copyDirectory(from: string, to: string): Promise<void>;
+
+  /** Remove a file or directory tree if it exists */
+  removePath(path: string): Promise<void>;
+
+  /** List the direct entries within a directory */
+  listDirectory(path: string): Promise<string[]>;
+
   /** Get platform information */
   getPlatform(): PlatformInfo;
 }
@@ -131,4 +157,45 @@ export interface IHealthMonitor {
 
   /** Get system metrics */
   getMetrics(): Promise<SystemMetrics>;
+}
+
+export interface ICredentialVaultService {
+  /** Store or replace one app-scoped credential. */
+  store(appId: string, request: CredentialStoreRequest): Promise<CredentialStoreResult>;
+
+  /** Retrieve safe metadata for one app-scoped credential. */
+  getMetadata(appId: string, key: string): Promise<CredentialMetadata | null>;
+
+  /** Revoke one app-scoped credential. */
+  revoke(appId: string, request: CredentialRevokeRequest): Promise<CredentialRevokeResult>;
+
+  /** Create an opaque backup handle for one app-scoped credential. */
+  backup(appId: string, key: string): Promise<CredentialBackupResult>;
+
+  /** Restore a previously created opaque backup handle. */
+  restore(appId: string, backupRef: string): Promise<CredentialRestoreResult>;
+
+  /** Discard an unused opaque backup handle. */
+  discardBackup(
+    appId: string,
+    backupRef: string,
+  ): Promise<CredentialDiscardBackupResult>;
+
+  /** Purge every credential in one app namespace. */
+  purgeNamespace(appId: string): Promise<CredentialNamespacePurgeResult>;
+
+  /** Resolve one credential for the injector path only. */
+  resolveForInjection(appId: string, key: string): Promise<{
+    metadata: CredentialMetadata;
+    secretValue: string;
+  } | null>;
+}
+
+export interface ICredentialInjector {
+  /** Execute one outbound request with a credential injected by infrastructure. */
+  executeInjectedRequest(input: {
+    appId: string;
+    request: CredentialInjectRequest;
+    manifestNetworkPermissions: readonly string[];
+  }): Promise<CredentialInjectedResponse>;
 }

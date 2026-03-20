@@ -25,6 +25,7 @@ Interaction with Nous when away from a workstation. Quick decisions, approvals, 
 - User can give quick natural language instructions
 - Supports text through the Phase 11.1 communication-gateway baseline
 - Phase 11.3 adds the canonical voice-control runtime for safe turn handling, interruption, degraded-mode visibility, and confirmation posture
+- Phase 14.6 moves connector registration and session lifecycle ownership fully into the canonical communication-gateway runtime; the bridge app remains adapter-local transport scaffolding only
 - Always scoped to a project context (Nous states which project it is referencing)
 - Minimal UI — the conversation is the interface
 - High-risk voice actions can require text or dual-channel confirmation instead of voice-only execution
@@ -50,6 +51,7 @@ Requirements:
 ### Runtime Boundary
 
 This surface is not a second control plane. The bridge app normalizes connector-native messages into canonical communication-gateway envelopes and normalized voice-turn signals, then hands them to `ICommunicationGatewayService` and `IVoiceControlService` inside the same app-hosted runtime graph. Device identity, manual pairing, immutable endpoint direction, capability grants, signed transport validation, and incident containment flow through `IEndpointTrustService`; turn completion, degraded mode, interruption state, and text-first recovery flow through the voice-control runtime. The bridge adapter stays thin and does not own trust, route, or voice-policy state.
+Phase 14.6 extends that boundary by making connector registration and last-seen session projection part of the canonical communication-gateway service rather than bridge-local runtime state.
 
 ### Interaction Examples
 
@@ -111,6 +113,7 @@ Designing, building, monitoring, and tuning project workflows. This is the engin
 - Workflow design for protocol projects
 - Live monitoring for intent and hybrid projects
 - Phase 11.4 adds a staged visual-debug canvas, checkpoint and scheduler summaries, parity diagnostics, and richer node inspection over canonical runtime truth
+- Workflow lifecycle state is projected from canonical runtime truth, while lifecycle mutations remain governed Internal MCP actions rather than browser-owned controls
 - Node-level governance configuration (MUST / SHOULD / MAY)
 - Model assignment per node
 - Artifact browsing and versioning
@@ -137,12 +140,26 @@ The advanced Projects surface is still a projection and control surface, not a s
 - Degraded parity is surfaced explicitly when the selected workflow graph and MAO graph cannot align
 - Deep links into Chat, Traces, and MAO preserve project, run, node, and evidence continuity
 - Save and validation still flow through the canonical workflow-definition seam
+- Workflow start, pause, resume, and cancel remain authority-bound runtime operations routed through the canonical Internal MCP seam instead of a Projects-local control plane
 
 ### Project Type Support
 
 - **Protocol projects** — full workflow graph design and monitoring
 - **Intent projects** — objective and constraint configuration, live activity monitoring, protocol emergence proposals
 - **Hybrid projects** — both views coexist within a single project
+
+### Installable App Panels
+
+Installable app panels remain trusted-host extensions inside the web shell rather than a separate
+interaction surface.
+
+- Panels mount as sandboxed iframe projections inside the existing trusted host surfaces
+- `preserveState` keeps an inactive panel hidden for the current session when the manifest requests
+  it, instead of treating hidden browser state as durable storage
+- Cross-session panel continuity flows through the trusted host bridge and runtime-owned persisted
+  state rather than host-local or browser-local storage
+- Panel-facing activation and deactivation helpers remain wrappers over the canonical
+  `panel_mount` / `panel_unmount` lifecycle seam, not a separate panel-local lifecycle model
 
 ---
 
@@ -183,16 +200,39 @@ The governed package-discovery and moderation surface.
 
 ### Purpose
 
-Browsing registry packages, inspecting provenance and moderation posture, reviewing advisory discovery suggestions, and following trust-preserving handoffs into Projects and MAO.
+Browsing registry packages, inspecting provenance and moderation posture, reviewing advisory discovery suggestions, initiating governed app installs from project-scoped package detail views, and following trust-preserving handoffs into Projects and MAO.
 
 ### Characteristics
 
 - Canonical projection over registry governance truth and discovery runtime truth
 - Trust tier, distribution status, compatibility posture, provenance, and release history surfaced directly from registry state
+- Project-scoped package detail views can launch the canonical app install wizard for installable app packages
+- Project-scoped package detail views can reopen installed app packages into the canonical shared settings surface
+- The install wizard uses the same host-owned three-stage sequence on touched hosts: permission review, configuration, then validation/activation
+- The settings surface shows runtime/config-version posture, vault-backed secret state, and explicit save outcomes on the same host-owned contract family
 - Moderation dashboard for holds, delistings, appeals, and escalation continuity
 - Advisory-only discovery feed with mandatory suppression controls
 - Deep links into Projects and MAO preserve project, package, release, candidate, and evidence continuity
-- No surface-owned governance, moderation, or suppression state
+- No surface-owned governance, moderation, suppression, or config-authority state
+
+### Install and Settings Boundary
+
+Marketplace can initiate app installation, but it does not become a second lifecycle engine or a
+second configuration authority.
+
+- The web host prepares install metadata from canonical registry and project context before the
+  wizard renders
+- The shared wizard requires explicit permission approval, renders manifest-defined configuration
+  groups, and reports `success`, `partial`, or `failed` validation / activation outcomes
+- Installed apps reopen through the same package detail surface as the shared settings surface,
+  using canonical `prepareAppSettings` / `saveAppSettings` transport rather than a package-local UI
+- Desktop host tooling reuses the same preparation and execution contract plus the same visible
+  stage model
+- Secrets and OAuth artifacts go directly to the credential vault, while non-secret config persists
+  through the project-scoped install service
+- Successful settings saves refetch canonical settings truth and push additive `config.changed`
+  panel updates without iframe remounts or panel-local config stores
+- Rollback remains service-owned when validation or activation fails
 
 ### Companion CLI Seam
 
@@ -210,6 +250,7 @@ Marketplace is not a separate policy engine. It is a governed projection over:
 - Registry trust and compatibility truth
 - Governance action and appeal truth
 - Advisory discovery feed truth
+- App-install preparation and execution truth
 - Escalation continuity truth
 
 ---
@@ -235,6 +276,44 @@ Reviewing project posture, recording escalation awareness, and checking cross-su
 ### Runtime Boundary
 
 The mobile operations surface is not a second dashboard or a second control plane. It consumes a server-side aggregation seam so mobile clients do not stitch together their own authority model. If upstream runtime inputs disagree or are incomplete, the surface shows degraded or partial posture instead of inventing reconciled truth.
+
+---
+
+## Surface 7 — Public MCP Edge
+
+The machine-to-machine integration surface.
+
+### Purpose
+
+Allowing approved external clients to discover and call the ratified public MCP surface without exposing internal-only tools, namespaces, or authority classes.
+
+### Characteristics
+
+- Streamable HTTP at `/mcp` with JSON-RPC framing
+- Discovery metadata at `/.well-known/oauth-protected-resource/mcp` and `/.well-known/oauth-authorization-server/mcp`
+- OAuth bearer, audience, origin, and scope checks before tool mapping, bootstrap, or handler execution
+- Boundary-local `ExternalClient` subject posture; internal Worker, Orchestrator, Cortex:System, and Cortex:Principal classes remain unchanged
+- Public `ortho.*` tool names mapped once onto the canonical flat internal catalog
+- External-only namespace bootstrap and witness-linked audit evidence for durable admits and security-sensitive rejects
+- Same public contract across `development`, `local_tunnel`, and `hosted` backends
+- Public-safe system info can expose deployment mode, phase, and server name without revealing internal-only topology
+- Backend selection is internal to the edge and does not create a second public API surface
+- Internal workflow lifecycle tools (`workflow_*`) remain out of scope for the public edge, so external clients do not inherit internal workflow visibility or mutation authority
+
+### Runtime Boundary
+
+The public MCP edge is not a second API stack. The web host parses HTTP and discovery traffic, then
+composes `IPublicMcpGatewayService` with the core public execution bridge.
+
+- Admitted traffic still flows through the existing AgentGateway, Internal MCP, and backpressure
+  seams, and rejected traffic records the same witness and audit posture as other
+  authority-sensitive ingress paths.
+- The public edge remains the only admission authority for auth, quotas, rate limits, and audit
+  posture even when execution is routed to a tunnel or hosted backend.
+- Tunnel mode does not expose a raw local MCP server publicly; it forwards only already-admitted
+  public calls into the local runtime.
+- Hosted mode resolves requests into tenant-local runtime state rather than a shared thin proxy
+  over shared mutable storage.
 
 ---
 
@@ -276,7 +355,7 @@ All surfaces read from and write to the same project state:
 - Same artifact store
 - Same execution traces
 - Same governance configuration
-- Same long-lived Principal/System gateway runtime, booted once by the app host and shared across chat, automation ingress, and other server-hosted surfaces, with direct turn execution now satisfied by the gateway-backed compatibility executor rather than the retired `CoreExecutor` class
+- Same long-lived Principal/System gateway runtime, booted once by the app host and shared across chat, automation ingress, public MCP ingress, and other server-hosted surfaces, with direct turn execution now satisfied by the gateway-backed compatibility executor rather than the retired `CoreExecutor` class
 - Same canonical voice session and confirmation state projected into web, messaging, Projects, and MAO surfaces
 - Same canonical escalation acknowledgement and mobile operations snapshot posture projected into Chat, Projects, and the mobile surface
 

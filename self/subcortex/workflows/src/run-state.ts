@@ -380,6 +380,16 @@ export function pauseWorkflowRunState(
   state: WorkflowRunState,
   transition: WorkflowTransitionInput,
 ): WorkflowRunState {
+  if (
+    ['admission_blocked', 'paused', 'completed', 'failed', 'canceled'].includes(
+      state.status,
+    )
+  ) {
+    throw new Error(
+      `Workflow run ${state.runId} cannot be paused from status ${state.status}`,
+    );
+  }
+
   const nextState = clone(state);
   nextState.status = 'paused';
   nextState.reasonCode = transition.reasonCode;
@@ -393,11 +403,59 @@ export function resumeWorkflowRunState(
   transition: WorkflowTransitionInput,
 ): WorkflowRunState {
   const nextState = clone(state);
+  if (nextState.status !== 'paused') {
+    throw new Error(
+      `Workflow run ${nextState.runId} cannot be resumed from status ${nextState.status}`,
+    );
+  }
   nextState.status = 'running';
   nextState.reasonCode = transition.reasonCode;
   nextState.evidenceRefs = transition.evidenceRefs;
   nextState.updatedAt = occurredAt(transition, state.updatedAt);
   nextState.status = resolveRunStatus(nextState);
+  return WorkflowRunStateSchema.parse(nextState);
+}
+
+export function cancelWorkflowRunState(
+  state: WorkflowRunState,
+  transition: WorkflowTransitionInput,
+): WorkflowRunState {
+  if (['completed', 'failed', 'canceled'].includes(state.status)) {
+    throw new Error(
+      `Workflow run ${state.runId} cannot be canceled from status ${state.status}`,
+    );
+  }
+
+  const nextState = clone(state);
+  const timestamp = occurredAt(transition, state.updatedAt);
+  const affectedNodeIds = new Set<WorkflowNodeDefinitionId>([
+    ...nextState.activeNodeIds,
+    ...nextState.readyNodeIds,
+    ...nextState.waitingNodeIds,
+    ...nextState.blockedNodeIds,
+  ]);
+
+  for (const nodeDefinitionId of affectedNodeIds) {
+    const nodeState = nextState.nodeStates[nodeDefinitionId];
+    if (!nodeState) {
+      continue;
+    }
+    nodeState.activeAttempt = null;
+    nodeState.activeWaitState = undefined;
+    nodeState.reasonCode = transition.reasonCode;
+    nodeState.evidenceRefs = transition.evidenceRefs;
+    nodeState.updatedAt = timestamp;
+  }
+
+  nextState.status = 'canceled';
+  nextState.reasonCode = transition.reasonCode;
+  nextState.evidenceRefs = transition.evidenceRefs;
+  nextState.activeNodeIds = [];
+  nextState.readyNodeIds = [];
+  nextState.waitingNodeIds = [];
+  nextState.blockedNodeIds = [];
+  nextState.checkpointState = 'idle';
+  nextState.updatedAt = timestamp;
   return WorkflowRunStateSchema.parse(nextState);
 }
 

@@ -56,12 +56,24 @@ export {
   createInternalMcpSurfaceBundle,
   createLifecycleHandlers,
   createScopedMcpToolSurface,
+  getAuthorizedAppInternalMcpTools,
   getAuthorizedInternalMcpTools,
+  getDynamicInternalMcpToolEntry,
   getInternalMcpCatalogEntry,
+  getPublicToolMapping,
+  isAppInternalMcpToolAuthorized,
+  resolvePublicMcpRequiredScopes,
+  getVisiblePublicToolMappings,
+  hasRequiredPublicMcpScopes,
   getVisibleInternalMcpTools,
   INTERNAL_MCP_CATALOG,
+  listDynamicInternalMcpToolEntries,
+  PUBLIC_MCP_TOOL_MAPPINGS,
+  registerDynamicInternalMcpTool,
+  unregisterDynamicInternalMcpTool,
 } from './internal-mcp/index.js';
 export type {
+  DynamicInternalMcpToolEntry,
   InternalMcpDispatchChildArgs,
   InternalMcpDispatchRuntime,
   InternalMcpOutputSchemaValidator,
@@ -69,6 +81,14 @@ export type {
   InternalMcpSurfaceBundle,
   InternalMcpToolName,
 } from './internal-mcp/index.js';
+export {
+  PublicMcpExecutionBridge,
+} from './public-mcp/index.js';
+export type {
+  IPublicMcpExecutionBridge,
+  PublicMcpExecutionBridgeOptions,
+  PublicMcpInternalExecutor,
+} from './public-mcp/index.js';
 export {
   WORKFLOW_ROUTER_SYSTEM_PROMPT,
   ORCHESTRATOR_SYSTEM_PROMPT,
@@ -79,6 +99,7 @@ export {
   GatewayRuntimeIngressAdapter,
   SystemBacklogQueue,
   GatewayBackedTurnExecutor,
+  PublicMcpRuntimeAdapter,
   GatewayTraceRecorder,
   GATEWAY_CHAT_COMPLETION_SCHEMA_REF,
   createGatewayProjectApi,
@@ -90,6 +111,7 @@ export {
   GatewayRuntimeHealthSink,
 } from './gateway-runtime/index.js';
 export type {
+  GatewayAppSessionHealthProjection,
   GatewayBootSnapshot,
   GatewayBootStatus,
   GatewayBootStep,
@@ -100,6 +122,9 @@ export type {
   BacklogQueueConfig,
   GatewaySubmissionSource,
   GatewayBackedTurnExecutorDeps,
+  PublicMcpRuntimeAdapterDeps,
+  PublicMcpRuntimeInvocation,
+  PublicMcpRuntimeInvocationResult,
   GatewayRuntimeProjectApiDeps,
   IPrincipalSystemGatewayRuntime,
   PrincipalSystemGatewayRuntimeDeps,

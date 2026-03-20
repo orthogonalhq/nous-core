@@ -194,6 +194,7 @@ describe('RegistryService', () => {
     });
 
     expect(result.accepted).toBe(true);
+    expect(result.package.package_type).toBe('workflow');
     expect(result.package.trust_tier).toBe('verified_maintainer');
     expect(result.eligibility.block_reason_codes).toEqual([]);
   });
@@ -353,6 +354,7 @@ describe('RegistryService', () => {
     const maintainers = await service.getPackageMaintainers('pkg.persona-engine');
 
     expect(browse.items).toHaveLength(1);
+    expect(browse.items[0]?.package.package_type).toBe('workflow');
     expect(browse.items[0].trustEligibility?.project_id).toBe(PROJECT_ID);
     expect(governance.actions[0]?.action_type).toBe('verify_maintainer');
     expect(appeals.appeals).toHaveLength(1);

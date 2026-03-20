@@ -18,6 +18,11 @@ Everything that IS Nous lives inside `self/`. Everything else — documentation,
 ```
 nous-core/
 │
+├── .apps/                            # Installable app packages
+├── .skills/                          # Installable skill packages + .system process infrastructure
+├── .workflows/                       # Installable workflow packages
+├── .projects/                        # Local workspace state and project instances
+├── .contracts/                       # Shared contract bundles and contract-local assets
 ├── self/                             # The being
 │   ├── apps/                         # Senses — interaction surfaces
 │   ├── cortex/                       # Layer 1 — Consciousness
@@ -25,15 +30,13 @@ nous-core/
 │   ├── subcortex/                    # Layer 3 — Subconscious Processing
 │   ├── autonomic/                    # Layer 4 — Infrastructure
 │   └── shared/                       # Cross-layer nervous system
-│
-├── packages/                         # Acquired knowledge and workflows (not part of the being)
-│   ├── skills/                       #   Knowledge packages — makes Nous smarter
-│   └── projects/                     #   Workflow packages — makes Nous productive
 ├── docs/                             # Written about the being
 ├── examples/                         # Demonstrations of the being
 ├── scripts/                          # Tools used during development
 └── package.json
 ```
+
+The hidden root directories are the canonical package and workspace stores. Installable packages live in `.apps/`, `.skills/`, and `.workflows/`; active local project state lives in `.projects/`; shared contracts live in `.contracts/`.
 
 ---
 
@@ -51,10 +54,46 @@ How Nous perceives the world and communicates with the user. These are part of t
 
 ```
 self/apps/
+├── app-sdk/                         # Browser-runtime SDK for installable app panels
 ├── cli/                              # Terminal interface
-├── web/                              # Chat UI + Projects UI + Dashboard + MAO + mobile operations projection
+├── web/                              # Chat UI + Projects UI + Dashboard + Marketplace + MAO + mobile operations + public MCP edge
 └── bridge/                           # Approved messaging bridge app and connector adapters
 ```
+
+### app-sdk/
+
+Browser-runtime SDK for installable app panels.
+
+Phase 15.2 adds `self/apps/app-sdk/` as the canonical workspace package for the browser-side panel
+SDK consumed by installable apps. The Phase 15.2 in-scope surface is:
+
+* `NousPanel`
+* `useTool`
+* `useConfig`
+* `useTheme`
+* `useNotify`
+
+Phase 15.3 extends the same SDK surface with:
+
+* `usePersistedState`
+* `onActivate`
+* `onDeactivate`
+
+Phase 15.5 extends the same SDK surface with live config convergence:
+
+* `PanelBridgeClient.subscribeConfig()` for additive host-owned config refreshes
+* `NousPanel` / `useConfig()` subscription-driven updates when trusted hosts push `config.changed`
+* No iframe-local or browser-local settings authority beyond the canonical host bridge snapshot
+
+Panels use this package to speak the canonical versioned `postMessage` bridge to the trusted host.
+The SDK is a bridge client and projection helper only: it lets sandboxed panel code invoke app
+tools and read host-projected config/theme state through the host bridge, while keeping host
+internals, privileged routing, and second-source-of-truth state out of the panel surface.
+
+The lifecycle and persistence split remains explicit. `preserveState` is host-owned in-session DOM
+preservation for iframe panels; it keeps inactive panels hidden without turning the browser into a
+durable state authority. Cross-session panel state flows through `usePersistedState` over the
+trusted host bridge and the canonical `/mcp` handoff into app-scoped runtime-owned state.
 
 ### cli/
 
@@ -71,21 +110,36 @@ Web application containing integrated operator surfaces:
 * Chat interface — conversational interaction with project-scoped context
 * Projects UI — advanced workflow authoring, staged visual debugging, canonical project dashboard, governed configuration, schedule settings, and project-scoped escalation queue acknowledgement
 * Dashboard — system health, project status, memory inspection, and discovery projection
+* Marketplace — governed package browse, package detail, moderation, advisory discovery, and project-scoped app install entry
 * MAO operator surface — density-grid observability, run-graph inspection, reasoning-preview handoff, and governed project control
 * Mobile operations surface — phone-sized project status, escalation acknowledgement, voice follow-up posture, and read-only trust summaries
 * Chat escalation inbox — acknowledgement of the same canonical in-app escalation queue used by Projects
 * Voice-control server surface — in-process tRPC composition over the canonical voice runtime for turn state, degraded-mode visibility, interruption handling, text-first recovery flows, and mobile continuity projection
+* Public MCP edge — Streamable HTTP `/mcp` ingress plus OAuth discovery metadata for approved external clients
 
 Primary interface for most users.
+
+The same app host also owns the machine-facing `/mcp` route and the `/.well-known/oauth-protected-resource/mcp` plus `/.well-known/oauth-authorization-server/mcp` discovery documents. The host remains transport-thin: it parses HTTP, composes shared services at bootstrap, and hands admitted work into the canonical gateway runtime rather than a web-local shadow API. The trusted app-panel host also uses this same `/mcp` boundary adapter for lifecycle reconciliation and persisted-state bridge traffic instead of introducing a second host-local persistence or control seam.
+
+Phase 15.4 extends the same host with canonical app-install preparation and execution transport for
+package-detail surfaces. The host can launch the shared three-stage install wizard, but secret and
+OAuth handling plus persisted config truth remain in the backend install service instead of
+browser-owned state.
+
+Phase 15.5 extends the same host with canonical app-settings preparation and save transport for
+installed app package-detail surfaces. The web package detail view can reuse the shared
+`AppSettingsSurface`, refetch canonical settings truth after save, and push additive config refresh
+events to active app panels without introducing browser-owned settings state.
 
 ### bridge/
 
 Messaging integrations for mobile-first and asynchronous interaction.
 
 Phase 11.1 ships the first production bridge app here.
+Phase 14.6 keeps the bridge app as connector-native adapter/runtime compatibility scaffolding while the canonical communication-gateway runtime now owns connector registration and session truth.
 
 * Telegram adapter (current production connector)
-* Bridge runtime that composes `ICommunicationGatewayService` in process
+* Bridge runtime that composes `ICommunicationGatewayService` in process and registers connector identity with the canonical gateway
 * Future adapters for Matrix / Slack and later messaging surfaces
 
 Connector-native parsing and outbound transport stay app-local in this package. Canonical routing, identity-binding, acknowledgement, suppression, trust, and delivery truth remain in the communication-gateway runtime below.
@@ -138,9 +192,13 @@ Phase 12.1 adds `self/cortex/core/src/agent-gateway/` as the canonical internal 
 
 Phase 12.2 adds `self/cortex/core/src/internal-mcp/` as the scoped Internal MCP composition layer for the gateway runtime. This folder owns the internal tool catalog, authorization matrix, request normalization, capability handlers, lifecycle handlers, and output-schema validation seam used by `AgentGateway`. These handlers wrap canonical subcortex and memory interfaces; they do not replace the underlying workflow, witness, scheduler, escalation, or memory authorities.
 
+Phase 14.4 extends the same Internal MCP lane with the canonical workflow lifecycle tool family: `workflow_list`, `workflow_inspect`, `workflow_start`, `workflow_status`, `workflow_pause`, `workflow_resume`, and `workflow_cancel`. Read projections remain available only on the ratified internal lanes, while mutations stay `Cortex::System`-only and execute with witness-linked runtime evidence instead of introducing an app-local control seam.
+
 Phase 12.3 adds `self/cortex/core/src/gateway-runtime/` as the boot assembly for the long-lived Principal/System pair. Phase 12.4 completes that assembly by adding the gateway-backed turn executor, trace recorder, and runtime-owned project API composition so active runtime callers, canonical packet stamping, and trace continuity all converge under the gateway-managed path.
 
 Phase 12.5 extends `self/cortex/core/src/gateway-runtime/` with the durable System backlog queue (`backlog-types.ts`, `backlog-store.ts`, `backlog-queue.ts`) and canonical backlog analytics publication through the existing runtime-health and replica seams. Queue pressure remains runtime truth inside core rather than app-local telemetry or a second scheduler.
+
+Phase 13.1 adds `self/cortex/core/src/public-mcp/` plus boundary mapping helpers beside `self/cortex/core/src/internal-mcp/`. These files translate external `ortho.*` names onto the canonical flat internal catalog, keep phase gating at the public boundary, and preserve the existing AgentGateway/Internal MCP execution seam.
 
 The legacy `CoreExecutor` implementation is retired in Phase 12.4 after caller cutover and parity verification. Gateway-managed execution now completes only through `task_complete()`, which validates canonical node output schemas and stamps the final `nous.v: 3` packet.
 
@@ -313,7 +371,9 @@ self/subcortex/
 ├── tools/                            # Tool execution and capability gating
 ├── workflows/                        # Workflow graph engine
 ├── projects/                         # Project container and lifecycle
+├── apps/                             # Canonical app runtime (Deno subprocess, MCP-over-IPC)
 ├── communication-gateway/            # Human messaging ingress/egress control plane
+├── public-mcp/                       # Public MCP discovery, admission, bootstrap, and audit runtime
 ├── endpoint-trust/                   # Peripheral pairing, trust, capability, and transport runtime
 ├── voice-control/                    # Canonical voice turn safety, interruption, and continuation runtime
 ├── registry/                         # Registry governance, moderation, and compatibility runtime
@@ -415,6 +475,12 @@ This is the engine that makes protocol projects operational.
 
 Current Phase 9.3 modules in this package include graph builder, graph validator, traversal, admission, governed node execution, checkpoint/runtime continuation handling, run-state, workflow-engine foundations, and canonical trigger provenance persistence.
 
+Phase 14.3 extends the workflow engine with installed-package binding resolution:
+
+- Projects can reference installed workflow packages through `packageBindings` in project workflow configuration. The engine resolves the definition through the matching binding at runtime and falls back to inline project-authored definitions when no binding applies.
+- `resolveDefinitionSource` exposes the resolved source as `ResolvedWorkflowDefinitionSourceSchema` metadata so monitoring and debug surfaces can distinguish installed package definitions from inline definitions without re-deriving source from project config.
+- All ADR-007 and ADR-008 runtime contracts — deterministic DAG traversal, centralized admission, evidence-linked run state, governed node execution, wait states, correction arcs, and committed-checkpoint continuation — remain unchanged by binding resolution.
+
 ### projects/
 
 Project container and lifecycle management.
@@ -432,6 +498,41 @@ Responsibilities:
 
 Projects are first-class isolation boundaries.
 
+Phase 14.3 adds document-loading modules to `self/subcortex/projects/src/package-store/`:
+
+- `document-loader.ts` — parses and normalizes installed skill and workflow package documents. Classifies skill packages as `atomic`, `composite`, or `legacy_hybrid`, loads composite constituent skills through the shared dependency resolver with deterministic DAG cycle rejection, and loads workflow packages by parsing `WORKFLOW.md`, `nous.flow.yaml`, and `steps/*.md` with `nous.kind: workflow_step` step admission.
+- `legacy-hybrid-bridge.ts` — provides explicit compatibility normalization for legacy hybrid skill packages, keeping them callable during the migration period without silent behavior divergence from decomposed loading paths.
+
+Phase 14.4 extends the same package-store lane with canonical installed-workflow read helpers:
+
+- `document-loader.ts` / `index.ts` — add deterministic `listInstalledWorkflowPackages(...)` and `inspectInstalledWorkflowPackage(...)` helpers over `.workflows/`, keeping legacy hybrids out of canonical installed-workflow discovery while preserving compatibility-only loading paths.
+
+Phase 15.4 adds `self/subcortex/projects/src/app-install/` as the project-scoped app-install lane:
+
+- `config-store.ts` — persists non-secret app config plus secret-presence metadata for one project/package pair
+- `service.ts` — prepares install contracts from registry releases, validates required config, delegates vault/OAuth setup, runs install hooks, activates apps, and owns rollback cleanup
+- `index.ts` — exports the install seam for host bootstrap and test consumers
+
+Phase 15.5 adds `self/subcortex/projects/src/app-settings/` as the project-scoped app-settings lane:
+
+- `service.ts` — prepares canonical settings contracts, validates candidate config, stages secret mutation, enforces config-version compare-and-swap, owns `deactivate -> update -> reactivate`, and performs rollback/recovery
+- `index.ts` — exports the settings seam for host bootstrap and test consumers
+
+### apps/
+
+Canonical app runtime for installed `.apps` packages. Implemented in Phase 14.5 as `@nous/subcortex-apps`.
+
+Responsibilities:
+
+* Activate installed app packages as Deno subprocesses behind the existing `RuntimeMembrane.onAllow` seam
+* Compile manifest permissions into deterministic Deno CLI flags with ratified hard-deny posture (`--deny-env`, `--deny-run`, `--deny-ffi`)
+* Own MCP-over-IPC handshake, activation config delivery, and app-exposed tool registration through the canonical Internal MCP catalog
+* Integrate app lifecycle (activate, deactivate, enable, disable) with the package lifecycle orchestrator and witness-linked evidence
+* Track app health and heartbeat visibility through runtime-owned seams
+* Export only the contract and registration seams Phase 15 needs for panel delivery
+
+Nous core stays on Node.js; apps run as Deno subprocesses. MCP over IPC is the sole app-to-core communication path. The `IAppRuntimeService` interface lives in `@nous/shared` and is consumed by cortex-core and gateway-runtime for health projections and capability-handler integration.
+
 ### communication-gateway/
 
 Canonical human messaging ingress and egress runtime. Implemented in Phase 11.1 as `@nous/subcortex-communication-gateway`.
@@ -444,6 +545,18 @@ Responsibilities:
 * Persist delivery attempts with idempotent egress identity, bounded retry, failover controls, and fail-closed `unknown_external_effect` handling
 * Bridge escalation acknowledgement and advisory delivery through the existing escalation and nudge runtimes instead of creating local truth
 * Defer endpoint identity, pairing, capability, and signed-envelope authority to the endpoint-trust runtime instead of connector-owned state
+
+### public-mcp/
+
+Canonical machine-to-machine MCP ingress runtime. Implemented in Phase 13.1 as `@nous/subcortex-public-mcp`.
+
+Responsibilities:
+
+* Serve protected-resource and authorization-server discovery documents through thin host adapters
+* Validate bearer posture, audience, origin, and scopes before any tool mapping or bootstrap action
+* Derive source-local namespaces and persist external-only bootstrap manifests in `public_mcp_namespace_registry`
+* Persist witness-linked admit and reject audit projections in `public_mcp_audit_projection`
+* Hand admitted execution to the core public MCP bridge and existing AgentGateway/Internal MCP seams instead of introducing a second runtime
 
 ### endpoint-trust/
 
@@ -590,26 +703,39 @@ See Packages and Plugins (architecture reference) for the full design.
 
 ---
 
-## packages/ — Acquired Knowledge and Workflows
+## Canonical Root Stores Outside `self/`
 
-Lives outside `self/`. Packages are things the being has acquired — education and plans — not organs the being grew.
+The package and workspace stores live outside `self/`. They are things the being has acquired or is actively working on, not organs the being grew.
 
 ```
-packages/
-├── skills/                           # Knowledge packages
-│   ├── image-quality-assessment/
-│   ├── react-best-practices/
-│   ├── real-estate-fundamentals/
-│   ├── social-media-strategy/
-│   └── ...
-└── projects/                         # Workflow packages
-    ├── persona-engine/
-    ├── deal-scout/
-    ├── inbox-manager/
-    └── ...
+.apps/                                # Installable app packages
+├── approved-connector/
+├── dashboard-extension/
+└── ...
+
+.skills/                              # Installable skill packages
+├── .system/                          # System-owned process infrastructure
+├── image-quality-assessment/
+├── react-best-practices/
+└── ...
+
+.workflows/                           # Installable workflow packages
+├── persona-engine/
+├── deal-scout/
+└── ...
+
+.projects/                            # Local workspace state, not an install target
+├── principal-inbox/
+├── synthetic-persona-lab/
+└── ...
+
+.contracts/                           # Shared contract store
+├── packets/
+├── schemas/
+└── ...
 ```
 
-### packages/skills/ — Knowledge
+### `.skills/` and `.skills/.system/` — Knowledge
 
 Skills are educational packages. They teach Nous how to think about a domain.
 
@@ -620,15 +746,21 @@ A skill contains:
 * Reference material and documentation
 * Scripts for validation or analysis (optional)
 
-Skills get absorbed into Nous's knowledge base and inform reasoning across any project that touches that domain. They don't execute workflows. They make Nous smarter.
+Each skill package is identified by a canonical `SKILL.md` manifest. The manifest root conforms to the agentskills.io baseline shape; Nous-specific metadata is namespaced under `metadata.nous.*` rather than mixed into the shared frontmatter root. Skill packages are classified into one of three tiers:
 
-A skill is education. Books read, courses taken, expertise accumulated.
+- **Atomic** — a standalone skill with a single `SKILL.md` and no constituent dependencies.
+- **Composite** — a skill that declares constituent skill dependencies through `dependencies.skills`. Constituent skills are loaded on demand through the shared dependency resolver rather than eagerly — progressive disclosure keeps the initial load surface minimal and DAG cycles are rejected deterministically.
+- **Legacy hybrid** — a package that predates the decomposed skill/workflow model. It remains callable during the transition period and is explicitly tagged `legacy_hybrid` so loading paths apply compatibility normalization without silent divergence from decomposed loading behavior.
 
-### packages/projects/ — Workflows
+Skills inform reasoning across any project or workflow that touches that domain. They do not execute work directly. `.skills/.system/` remains reserved for system-owned process infrastructure and follows the same discovery path under the canonical root layout.
 
-Projects are executable workflow packages. They give Nous a specific plan to execute.
+Phase 14.4 proves the additive fork-and-swap migration path by introducing `.skills/.system/identity-alignment/` as a decomposed system skill while keeping the legacy `.skills/.system/a-soul-is-born/` package intact for compatibility.
 
-A project contains:
+### `.workflows/` — Workflow Packages
+
+Workflow packages are executable packages. They give Nous a specific plan to execute.
+
+A workflow package contains:
 
 * Workflow graph definitions (nodes, connections, governance levels)
 * Custom node logic (validation, transformation, integration)
@@ -638,13 +770,62 @@ A project contains:
 * Memory access policy defaults
 * Scheduling and escalation configurations
 
-Projects produce artifacts and outcomes. All execution is sandboxed. All interaction with Nous goes through the Project API.
+The canonical source of truth for a workflow package is structured across three files inside the package directory:
 
-A project is a job. Specific work being executed, informed by the skills Nous has absorbed.
+- **`WORKFLOW.md`** — the top-level workflow manifest and authoritative identity/metadata source for the package.
+- **`nous.flow.yaml`** — graph topology owned by the workflow package. Declares the node graph, edges, and entry points.
+- **`steps/*.md`** — individual step files. Step frontmatter must declare `nous.kind: workflow_step` for the step to be recognized during package loading.
+
+Installed workflow definitions are distinct from project-scoped bindings and runtime instances. A project can reference an installed workflow package through a `packageBindings` entry without duplicating the definition into project-local configuration or run state. The workflow engine resolves the definition through this binding at runtime, and the resolved source is recorded as `workflowDefinitionSource` so debug and monitoring surfaces can distinguish an installed package definition from a project-authored inline definition.
+
+Workflow packages produce artifacts and outcomes. All execution is sandboxed. All interaction with Nous goes through the Project API. The canonical package type is `workflow`; legacy manifest inputs that still say `project` are normalized at validation ingress so stored runtime state and registry records stay canonical.
+
+Phase 14.4 adds `.workflows/.system/a-soul-is-born/` as the first decomposed hybrid-migration pilot in the canonical workflow store. The package depends on the new `identity-alignment` skill and coexists with the untouched legacy hybrid path instead of replacing it in place.
+
+### `.apps/` — Installable Apps
+
+App packages add installable operator surfaces and runtime extensions outside the built-in `self/apps/` senses.
+
+An app package can declare:
+
+* Required permissions and tool declarations
+* Optional panels and entrypoints
+* App-scoped configuration fields
+* Optional adapters and lifecycle hooks
+
+Phase 14.7 adds `.apps/telegram-connector/` as the first first-party reference app in this store.
+It proves the canonical Deno app lifecycle, namespaced tool registration, progressive
+connector/full-client configuration, and host-owned communication-gateway integration without
+reusing `self/apps/bridge/` as the runtime source of truth.
+
+Phase 15.1 adds the canonical app-panel host seam for installable apps. Manifest-declared app
+panels are served through the existing web host at `/apps/:appId/panels/:panelId` and mounted into
+trusted shell surfaces as sandboxed iframe panels, rather than through an app-owned parallel UI
+runtime or alternate host path.
+
+Phase 15.4 extends installable apps with a canonical host-owned install flow. App packages still
+declare permissions, config fields, and optional lifecycle hooks in the manifest, but hosts now
+prepare a shared install contract and render the same staged install wizard instead of accepting
+package-authored install UIs or storing secrets locally.
+
+Phase 15.5 extends the same posture with a canonical host-owned settings flow after install.
+Installed app packages still declare config in the manifest, but hosts now reuse a shared settings
+surface, save through the project-scoped settings service, and push additive config refreshes to
+active panels without exposing secret values or inventing an app-owned settings UI runtime.
+
+This keeps the distinction clear: `self/apps/` contains first-party senses that are part of the being, while `.apps/` stores installable packages that can extend the operator experience.
+
+### `.projects/` — Workspace State
+
+`.projects/` stores active local project instances, project configuration, and user workspace state. Discovery classifies it as workspace state rather than as a package store, so it is not treated as an install target alongside `.apps/`, `.skills/`, or `.workflows/`.
+
+### `.contracts/` — Shared Contracts
+
+`.contracts/` is reserved for shared packet, schema, and contract assets that need a canonical root outside `self/`. Discovery classifies it as `shared_contracts`, not as an installable package store.
 
 ### Composition
 
-Projects reference skills. The Persona Engine project uses the "image quality assessment" skill and the "social media strategy" skill. The project defines what to do. The skills inform how to think about it while doing it.
+Workflow packages reference skills. App packages expose additional tools, panels, or adapters. Local project instances in `.projects/` compose the installed packages into active runtime work without collapsing workspace state into the installable package stores.
 
 ---
 
@@ -654,6 +835,7 @@ Invisible infrastructure. The foundational services that keep the organism alive
 
 ```
 self/autonomic/
+├── credentials/                      # Encrypted credential vault, injector, and OAuth brokerage
 ├── storage/                          # Persistence backends
 ├── embeddings/                       # Embedding model abstraction
 ├── runtime/                          # OS and environment abstraction
@@ -684,6 +866,19 @@ Responsibilities:
 * Pure I/O — no knowledge of memory types or business logic
 
 Backends are swappable through interfaces.
+
+### credentials/
+
+Credential infrastructure for installed app packages.
+
+Responsibilities:
+
+* Encrypted app-scoped credential storage
+* Injection-only outbound request execution
+* Direct-to-vault OAuth token brokerage
+* Namespace purge for package removal and lifecycle cleanup
+
+This package stays in the autonomic layer because apps never receive plaintext credential material; higher layers consume the credential seams only through shared interfaces.
 
 ### embeddings/
 
@@ -789,6 +984,10 @@ Phase 12.1 adds:
 
 - `agent-gateway.ts` — canonical `AgentInput` / `AgentResult` contracts, gateway budgets, correlation snapshots, typed inbox/outbox payloads, lifecycle-hook request shapes, and summary-oriented run snapshots for the internal runtime harness
 
+Phase 13.1 adds:
+
+- `public-mcp.ts` — canonical public MCP discovery, admission, JSON-RPC, namespace, mapping, audit, and normalized execution-request contracts used at the machine-facing boundary
+
 Phase 9.7 adds:
 
 - `mao.ts` — density-grid, run-graph, inspect, urgent-overlay, reasoning-preview, and project-control contracts used by MAO and linked surfaces
@@ -806,6 +1005,26 @@ Phase 10.1 adds:
 Phase 10.2 expands:
 
 - `nudge.ts` — ranking-policy, suppression, delivery, feedback-record, and acceptance-routing contracts used by the advisory discovery runtime and later delivery surfaces
+
+Phase 14.1 adds:
+
+- `package-manifest.ts` — canonical package-type normalization, including legacy `project` to canonical `workflow` ingress compatibility
+- `app-permissions.ts` / `app-manifest.ts` — shared app permissions, tools, panels, adapters, lifecycle, and install-validation contracts
+- `package-store.ts` — canonical five-root store layout and discovery snapshot contracts for `.apps/`, `.skills/`, `.workflows/`, `.projects/`, and `.contracts/`
+
+Phase 14.3 adds:
+
+- `package-documents.ts` — canonical schemas for atomic and composite skill package documents, workflow package documents (manifest, flow graph, and step files), loaded package views, project workflow package bindings (`ProjectWorkflowPackageBindingSchema`), and resolved workflow-definition source metadata (`ResolvedWorkflowDefinitionSourceSchema`) for debug and monitoring surfaces.
+
+Phase 14.4 adds:
+
+- `workflow-lifecycle.ts` — canonical request/response schemas for Internal MCP workflow lifecycle list, inspect, start, status, pause, resume, and cancel operations, including mutation-result evidence and warning projections.
+
+Phase 14.6 adds:
+
+- `app-credentials.ts` — canonical schemas for app-scoped credential storage, injection requests, revoke flows, OAuth brokerage, and purge summaries
+- additive connector registration and session projections in `communication-gateway.ts`
+- additive credential-setup fields in `package-resolution.ts` so install-time vault provisioning stays lifecycle-owned
 
 Phase 9.6 adds:
 
@@ -850,6 +1069,10 @@ Phase 12.1 further expands:
 
 - `agent-gateway.ts` — `IAgentGateway`, `IAgentGatewayFactory`, `IScopedMcpToolSurface`, lifecycle-hook seams, write-only inbox handles, and emit-only outbox sinks used by the new internal runtime harness
 
+Phase 13.1 further expands:
+
+- `subcortex.ts` — `IPublicMcpGatewayService` for discovery metadata, admission, visible-tool listing, and guarded execution across the public MCP edge
+
 Phase 11.3 further expands:
 
 - `subcortex.ts` — `IVoiceControlService` methods for turn start, evaluation, assistant-output registration, barge-in handling, continuation resolution, and session projection reads
@@ -861,6 +1084,14 @@ Phase 10.1 further expands:
 Phase 10.2 further expands:
 
 - `subcortex.ts` — `INudgeDiscoveryService` signal intake, candidate generation, ranking, suppression, delivery, feedback, and advisory acceptance-routing interfaces used by the nudge runtime and later surface projections
+
+Phase 14.3 further expands:
+
+- `subcortex.ts` — `resolveDefinitionSource` on `IWorkflowEngine` for resolving whether a project's active workflow definition originates from an inline project-authored source or an installed workflow package binding, returning `ResolvedWorkflowDefinitionSourceSchema` metadata for monitoring surfaces.
+
+Phase 14.4 further expands:
+
+- `subcortex.ts` — `IWorkflowEngine.cancel(...)` so the Internal MCP workflow control surface can perform additive cancel transitions without moving workflow truth out of the canonical runtime.
 
 ### events/
 

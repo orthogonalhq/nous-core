@@ -8,6 +8,9 @@ import { join, isAbsolute } from 'node:path';
 import { randomUUID } from 'node:crypto';
 import {
   DEFAULT_STM_COMPACTION_POLICY,
+  PublicMcpHostedTenantBindingRecordSchema,
+  PublicMcpScopeSchema,
+  PublicMcpTunnelSessionRecordSchema,
   StmCompactionPolicySchema,
 } from '@nous/shared';
 import type {
@@ -17,7 +20,13 @@ import type {
   StmCompactionPolicy,
 } from '@nous/shared';
 import { ConfigManager } from '@nous/autonomic-config';
+import {
+  AppCredentialInstallService,
+  CredentialOAuthBroker,
+  CredentialVaultService,
+} from '@nous/autonomic-credentials';
 import { InMemoryEmbedder } from '@nous/autonomic-embeddings';
+import { NodeRuntime } from '@nous/autonomic-runtime';
 import { SqliteDocumentStore, SqliteVectorStore } from '@nous/autonomic-storage';
 import { DocumentStmStore } from '@nous/memory-stm';
 import { MwcPipeline } from '@nous/memory-mwc';
@@ -36,10 +45,24 @@ import {
   DefaultSchemaRefValidator,
   GatewayBackedTurnExecutor,
   GatewayRuntimeIngressAdapter,
+  PublicMcpExecutionBridge,
+  PublicMcpRuntimeAdapter,
+  createCapabilityHandlers,
+  getPublicToolMapping,
+  registerDynamicInternalMcpTool,
+  resolvePublicMcpRequiredScopes,
+  unregisterDynamicInternalMcpTool,
   createGatewayProjectApi,
   createPrincipalSystemGatewayRuntime,
 } from '@nous/cortex-core';
-import { DocumentProjectStore } from '@nous/subcortex-projects';
+import {
+  AppInstallService,
+  AppSettingsService,
+  DocumentAppConfigStore,
+  DocumentProjectStore,
+  PackageInstallService,
+  PackageLifecycleOrchestrator,
+} from '@nous/subcortex-projects';
 import { DocumentArtifactStore } from '@nous/subcortex-artifacts';
 import { DocumentEscalationStore, EscalationService } from '@nous/subcortex-escalation';
 import { ModelRouter } from '@nous/subcortex-router';
@@ -67,9 +90,33 @@ import {
 import { MaoProjectionService } from '@nous/subcortex-mao';
 import { GtmGateCalculator } from '@nous/subcortex-gtm';
 import { VoiceControlService } from '@nous/subcortex-voice-control';
+import {
+  AppRuntimeService,
+  type AppToolRegistrar,
+  AppToolRegistry,
+  PanelTranspiler,
+} from '@nous/subcortex-apps';
+import {
+  AuditProjectionStore,
+  DeploymentRouterService,
+  ExternalSourceMemoryService,
+  ExternalSourceStorageAdapter,
+  HostedTenantBindingStore,
+  HostedTenantRuntimeFactory,
+  NamespaceRegistryStore,
+  PromotedMemoryBridgeService,
+  PublicMcpGatewayService,
+  type PublicMcpRuntimeAgentDefinition,
+  PublicMcpSurfaceService,
+  PublicMcpTaskProjectionStore,
+  QuotaUsageStore,
+  RateLimitBucketStore,
+  TunnelForwarder,
+  TunnelSessionStore,
+} from '@nous/subcortex-public-mcp';
 import { MemoryAccessPolicyEngine } from '@nous/memory-access';
 import type { NousContext } from './context';
-import type { IIngressGateway } from '@nous/shared';
+import type { IDocumentStore, IIngressGateway, IVectorStore } from '@nous/shared';
 
 const MOCK_PROVIDER_ID = '00000000-0000-0000-0000-000000000001' as ProviderId;
 
@@ -171,6 +218,28 @@ function createBootstrapIngressShim(): IIngressGateway {
   };
 }
 
+interface PublicMcpRuntimeBundle {
+  executionBridge: PublicMcpExecutionBridge;
+  surfaceService: PublicMcpSurfaceService;
+}
+
+function parseJsonArrayEnv(value: string | undefined): unknown[] {
+  if (!value) {
+    return [];
+  }
+
+  const parsed = JSON.parse(value);
+  return Array.isArray(parsed) ? parsed : [parsed];
+}
+
+function parsePublicBaseHost(baseUrl: string): string | null {
+  try {
+    return new URL(baseUrl).host.toLowerCase();
+  } catch {
+    return null;
+  }
+}
+
 let cachedContext: NousContext | null = null;
 
 export function clearNousContextCache(): void {
@@ -188,15 +257,21 @@ export function createNousContext(): NousContext {
   const resolvedConfig = config.get();
   const dataDirEnv = process.env.NOUS_DATA_DIR ?? './data';
   const dataDir = isAbsolute(dataDirEnv) ? dataDirEnv : join(process.cwd(), dataDirEnv);
+  const instanceRootEnv = process.env.NOUS_INSTANCE_ROOT ?? process.cwd();
+  const instanceRoot = isAbsolute(instanceRootEnv)
+    ? instanceRootEnv
+    : join(process.cwd(), instanceRootEnv);
   const dbPath = join(dataDir, 'nous.sqlite');
 
   const documentStore = new SqliteDocumentStore(dbPath);
   const vectorStore = new SqliteVectorStore(dbPath);
+  const runtime = new NodeRuntime();
   const embedder = new InMemoryEmbedder();
   const stmStore = new DocumentStmStore(documentStore, {
     compactionPolicy: resolveStmCompactionPolicy(resolvedConfig),
   });
   const projectStore = new DocumentProjectStore(documentStore);
+  const appConfigStore = new DocumentAppConfigStore(documentStore);
   const artifactStore = new DocumentArtifactStore(documentStore);
   const scheduleStore = new DocumentScheduleStore(documentStore);
   const escalationStore = new DocumentEscalationStore(documentStore);
@@ -252,6 +327,8 @@ export function createNousContext(): NousContext {
     pfcEngine: Cortex,
     modelRouter: router,
     toolExecutor,
+    runtime,
+    instanceRoot,
   });
   let schedulerIngressGateway = createBootstrapIngressShim();
   const schedulerService = new SchedulerService({
@@ -269,6 +346,24 @@ export function createNousContext(): NousContext {
     registryStore,
     escalationService,
     witnessService,
+  });
+  const credentialVaultService = new CredentialVaultService({
+    documentStore,
+  });
+  const credentialOAuthBroker = new CredentialOAuthBroker({
+    vaultService: credentialVaultService,
+  });
+  const appCredentialInstallService = new AppCredentialInstallService({
+    vaultService: credentialVaultService,
+    oauthBroker: credentialOAuthBroker,
+  });
+  const packageLifecycleOrchestrator = new PackageLifecycleOrchestrator();
+  const packageInstallService = new PackageInstallService({
+    registryService,
+    lifecycleOrchestrator: packageLifecycleOrchestrator,
+    appCredentialInstallService,
+    runtime,
+    instanceRoot,
   });
   const nudgeDiscoveryService = new NudgeDiscoveryService({
     store: nudgeStore,
@@ -296,6 +391,62 @@ export function createNousContext(): NousContext {
     escalationService,
     witnessService,
   });
+  const panelTranspiler = new PanelTranspiler();
+  const appToolRegistry = new AppToolRegistry({
+    register: ({
+      toolId,
+      definition,
+      sessionId,
+      appId,
+    }: Parameters<AppToolRegistrar['register']>[0]) => {
+      registerDynamicInternalMcpTool({
+        name: toolId,
+        sessionId,
+        appId,
+        definition: {
+          name: toolId,
+          version: '1.0.0',
+          description: definition.description,
+          inputSchema: definition.input_schema,
+          outputSchema: definition.output_schema ?? {},
+          capabilities: ['execute'],
+          permissionScope: 'project',
+        },
+        execute: async () => {
+          throw new Error(
+            `App tool invocation bridge is unavailable for ${toolId}`,
+          );
+        },
+      });
+      return { witnessRef: `dynamic-tool:${toolId}` };
+    },
+    unregister: (toolId: string) => {
+      unregisterDynamicInternalMcpTool(toolId);
+    },
+  });
+  const appRuntimeService = new AppRuntimeService({
+    lifecycleOrchestrator: packageLifecycleOrchestrator,
+    toolRegistry: appToolRegistry,
+    communicationGatewayService,
+    panelTranspiler,
+  });
+  const appInstallService = new AppInstallService({
+    registryService,
+    packageInstallService,
+    appCredentialInstallService,
+    appRuntimeService,
+    configStore: appConfigStore,
+    runtime,
+    witnessService,
+    instanceRoot,
+  });
+  const appSettingsService = new AppSettingsService({
+    appCredentialInstallService,
+    appRuntimeService,
+    configStore: appConfigStore,
+    runtime,
+    instanceRoot,
+  });
   const maoProjectionService = new MaoProjectionService({
     opctlService,
     workflowEngine,
@@ -303,6 +454,23 @@ export function createNousContext(): NousContext {
     schedulerService,
     voiceControlService,
     witnessService,
+  });
+  const publicMcpNamespaceStore = new NamespaceRegistryStore(documentStore);
+  const publicMcpAuditStore = new AuditProjectionStore(documentStore);
+  const publicMcpQuotaUsageStore = new QuotaUsageStore(documentStore);
+  const publicMcpRateLimitStore = new RateLimitBucketStore(documentStore);
+  const externalSourceStorageAdapter = new ExternalSourceStorageAdapter(documentStore, {
+    vectorStore,
+    embedder,
+  });
+  const promotedMemoryBridgeService = new PromotedMemoryBridgeService({
+    documentStore,
+    namespaceStore: publicMcpNamespaceStore,
+    storageAdapter: externalSourceStorageAdapter,
+    pfc: Cortex,
+    witnessService,
+    vectorStore,
+    embedder,
   });
 
   const getProvider = (id: ProviderId) => {
@@ -325,6 +493,278 @@ export function createNousContext(): NousContext {
       getProvider,
     });
 
+  const buildPublicAgents = (): readonly PublicMcpRuntimeAgentDefinition[] => [
+    {
+      catalog: {
+        agentId: 'engineering.workflow',
+        title: 'Engineering Workflow',
+        description:
+          'A public-safe orchestration agent for structured engineering tasks.',
+        inputModes: ['text', 'packet', 'json'],
+        memoryBinding: {
+          supported: true,
+          readTiers: ['stm', 'ltm'],
+          writeTiers: ['stm'],
+        },
+        execution: {
+          taskSupport: 'optional',
+          asyncThreshold: 'long_running_only',
+        },
+      },
+      targetClass: 'Orchestrator',
+      buildTaskInstructions: (request) =>
+        [
+          'Process the authenticated public engineering workflow request.',
+          'Preserve the canonical AgentGateway and lifecycle-tool execution posture.',
+          'Return a concise, public-safe result.',
+          `Requested agent: ${request.arguments.agentId}`,
+          request.arguments.input.type === 'json'
+            ? 'Input payload is attached as structured JSON.'
+            : `Input: ${request.arguments.input.text}`,
+        ].join('\n'),
+      buildPayload: (request) => ({
+        subject: {
+          clientId: request.subject.clientId,
+          namespace: request.subject.namespace,
+        },
+        input: request.arguments.input,
+        memory: request.arguments.memory,
+      }),
+    },
+  ];
+
+  const buildPublicMcpRuntimeBundle = (args: {
+    backendMode: 'development' | 'local_tunnel' | 'hosted';
+    serverName?: string;
+    phase?: string;
+    documentStore: IDocumentStore;
+    vectorStore?: IVectorStore;
+    namespaceStore: NamespaceRegistryStore;
+    auditStore: AuditProjectionStore;
+    taskStore: PublicMcpTaskProjectionStore;
+    quotaStore: QuotaUsageStore;
+    rateLimitStore: RateLimitBucketStore;
+    witnessService: WitnessService;
+    pfcEngine: PfcEngine;
+    publicWorkflowEngine: DeterministicWorkflowEngine;
+    runtimeContext?: {
+      deploymentMode?: 'development' | 'local_tunnel' | 'hosted';
+      tenantId?: string;
+      userHandle?: string;
+    };
+    storageAdapter?: ExternalSourceStorageAdapter;
+    promotedBridgeService?: PromotedMemoryBridgeService;
+  }): PublicMcpRuntimeBundle => {
+    const storageAdapter =
+      args.storageAdapter ??
+      new ExternalSourceStorageAdapter(args.documentStore, {
+        vectorStore: args.vectorStore,
+        embedder,
+      });
+    const publicPromotedBridgeService =
+      args.promotedBridgeService ??
+      new PromotedMemoryBridgeService({
+        documentStore: args.documentStore,
+        namespaceStore: args.namespaceStore,
+        storageAdapter,
+        pfc: args.pfcEngine,
+        witnessService: args.witnessService,
+        vectorStore: args.vectorStore,
+        embedder,
+      });
+    const externalSourceMemoryService = new ExternalSourceMemoryService({
+      documentStore: args.documentStore,
+      namespaceStore: args.namespaceStore,
+      auditStore: args.auditStore,
+      storageAdapter,
+      quotaStore: args.quotaStore,
+      rateLimitStore: args.rateLimitStore,
+      witnessService: args.witnessService,
+    });
+    const runtimeAdapter = new PublicMcpRuntimeAdapter({
+      modelRouter: router,
+      getProvider,
+      getProjectApi: createRuntimeProjectApi,
+      toolExecutor,
+      pfc: args.pfcEngine,
+      workflowEngine: args.publicWorkflowEngine,
+      projectStore,
+      scheduler: schedulerService,
+      escalationService,
+      witnessService: args.witnessService,
+      opctlService,
+      runtime,
+      instanceRoot,
+      outputSchemaValidator: new DefaultSchemaRefValidator(),
+      promotedMemoryBridgeService: publicPromotedBridgeService,
+    });
+    const surfaceService = new PublicMcpSurfaceService({
+      runtimeAdapter,
+      taskStore: args.taskStore,
+      auditStore: args.auditStore,
+      publicAgents: buildPublicAgents(),
+      serverName: args.serverName ?? 'Nous Public MCP',
+      phase: args.phase ?? 'phase-13.5',
+      backendMode: args.backendMode,
+      runtimeContext: args.runtimeContext,
+    });
+    const publicCapabilityHandlers = createCapabilityHandlers({
+      agentClass: 'Worker',
+      agentId: 'public-mcp-runtime' as any,
+      deps: {
+        externalSourceMemoryService,
+        publicMcpSurfaceService: surfaceService,
+      },
+    });
+
+    return {
+      surfaceService,
+      executionBridge: new PublicMcpExecutionBridge({
+        executor: {
+          execute: async (internalName, request) => {
+            const handler =
+              publicCapabilityHandlers[internalName as keyof typeof publicCapabilityHandlers];
+            if (!handler) {
+              throw new Error(`Public MCP handler ${internalName} is unavailable`);
+            }
+            return handler(request);
+          },
+        },
+      }),
+    };
+  };
+
+  const publicBaseUrl = process.env.NOUS_PUBLIC_BASE_URL ?? 'http://localhost:3000';
+  const publicMcpTaskStore = new PublicMcpTaskProjectionStore(documentStore);
+  const hostedBindingSeeds = parseJsonArrayEnv(
+    process.env.NOUS_PUBLIC_MCP_HOSTED_BINDINGS_JSON,
+  ).map((record) => PublicMcpHostedTenantBindingRecordSchema.parse(record));
+  const tunnelSessionSeeds = parseJsonArrayEnv(
+    process.env.NOUS_PUBLIC_MCP_TUNNEL_SESSIONS_JSON,
+  ).map((record) => PublicMcpTunnelSessionRecordSchema.parse(record));
+  const publicMcpHostedBindingStore = new HostedTenantBindingStore(documentStore, {
+    seedRecords: hostedBindingSeeds,
+  });
+  const publicMcpTunnelSessionStore = new TunnelSessionStore(documentStore, {
+    seedRecords: tunnelSessionSeeds,
+  });
+  const publicMcpDeploymentRouter = new DeploymentRouterService({
+    hostedTenantBindingStore: publicMcpHostedBindingStore,
+    tunnelSessionStore: publicMcpTunnelSessionStore,
+    developmentHosts: [
+      'localhost:3000',
+      '127.0.0.1:3000',
+      ...(parsePublicBaseHost(publicBaseUrl) ? [parsePublicBaseHost(publicBaseUrl)!] : []),
+    ],
+  });
+  const publicMcpTunnelForwarder = new TunnelForwarder({
+    sessionStore: publicMcpTunnelSessionStore,
+  });
+  const developmentPublicMcpBundle = buildPublicMcpRuntimeBundle({
+    backendMode: 'development',
+    documentStore,
+    vectorStore,
+    namespaceStore: publicMcpNamespaceStore,
+    auditStore: publicMcpAuditStore,
+    taskStore: publicMcpTaskStore,
+    quotaStore: publicMcpQuotaUsageStore,
+    rateLimitStore: publicMcpRateLimitStore,
+    witnessService,
+    pfcEngine: Cortex,
+    publicWorkflowEngine: workflowEngine,
+    storageAdapter: externalSourceStorageAdapter,
+    promotedBridgeService: promotedMemoryBridgeService,
+  });
+  const tunnelPublicMcpBundle = buildPublicMcpRuntimeBundle({
+    backendMode: 'local_tunnel',
+    documentStore,
+    vectorStore,
+    namespaceStore: publicMcpNamespaceStore,
+    auditStore: publicMcpAuditStore,
+    taskStore: publicMcpTaskStore,
+    quotaStore: publicMcpQuotaUsageStore,
+    rateLimitStore: publicMcpRateLimitStore,
+    witnessService,
+    pfcEngine: Cortex,
+    publicWorkflowEngine: workflowEngine,
+    runtimeContext: {
+      deploymentMode: 'local_tunnel',
+    },
+    storageAdapter: externalSourceStorageAdapter,
+    promotedBridgeService: promotedMemoryBridgeService,
+  });
+  const hostedTenantRuntimeFactory = new HostedTenantRuntimeFactory<PublicMcpRuntimeBundle>({
+    documentStore,
+    vectorStore,
+    build: ({ binding, documentStore: tenantDocumentStore, vectorStore: tenantVectorStore }) => {
+      const tenantPfc = new PfcEngine(config, toolExecutor);
+      const tenantWorkflowEngine = new DeterministicWorkflowEngine({
+        pfcEngine: tenantPfc,
+        modelRouter: router,
+        toolExecutor,
+        runtime,
+        instanceRoot,
+      });
+      const tenantWitnessService = new WitnessService(tenantDocumentStore);
+
+      return buildPublicMcpRuntimeBundle({
+        backendMode: 'hosted',
+        serverName: binding.serverName,
+        phase: binding.phase,
+        documentStore: tenantDocumentStore,
+        vectorStore: tenantVectorStore,
+        namespaceStore: new NamespaceRegistryStore(tenantDocumentStore),
+        auditStore: new AuditProjectionStore(tenantDocumentStore),
+        taskStore: new PublicMcpTaskProjectionStore(tenantDocumentStore),
+        quotaStore: new QuotaUsageStore(tenantDocumentStore),
+        rateLimitStore: new RateLimitBucketStore(tenantDocumentStore),
+        witnessService: tenantWitnessService,
+        pfcEngine: tenantPfc,
+        publicWorkflowEngine: tenantWorkflowEngine,
+        runtimeContext: {
+          deploymentMode: 'hosted',
+          tenantId: binding.tenantId,
+          userHandle: binding.userHandle,
+        },
+      });
+    },
+  });
+  const publicMcpExecutionBridge = developmentPublicMcpBundle.executionBridge;
+  const publicMcpGatewayService = new PublicMcpGatewayService({
+    documentStore,
+    namespaceStore: publicMcpNamespaceStore,
+    auditStore: publicMcpAuditStore,
+    witnessService,
+    executionBridge: publicMcpExecutionBridge,
+    baseUrl: publicBaseUrl,
+    supportedScopes: PublicMcpScopeSchema.options,
+    toolMappingLookup: getPublicToolMapping,
+    requiredScopeResolver: (toolName, args) => {
+      const mapping = getPublicToolMapping(toolName);
+      return mapping ? resolvePublicMcpRequiredScopes(mapping, args) : [];
+    },
+    surfaceService: developmentPublicMcpBundle.surfaceService,
+    deploymentRouter: publicMcpDeploymentRouter,
+    deploymentBundleResolver: async (resolution) => {
+      if (resolution.mode === 'local_tunnel') {
+        return tunnelPublicMcpBundle;
+      }
+      if (resolution.mode === 'hosted') {
+        const binding = resolution.bindingId
+          ? await publicMcpHostedBindingStore.get(resolution.bindingId)
+          : resolution.userHandle
+            ? await publicMcpHostedBindingStore.getByUserHandle(resolution.userHandle)
+            : null;
+        if (!binding) {
+          throw new Error(`Hosted public MCP binding is unavailable for ${resolution.requestHost}`);
+        }
+        return hostedTenantRuntimeFactory.getOrCreate(binding);
+      }
+      return developmentPublicMcpBundle;
+    },
+    tunnelForwarder: publicMcpTunnelForwarder,
+  });
+
   const coreExecutor = new GatewayBackedTurnExecutor({
     modelRouter: router,
     getProvider,
@@ -339,6 +779,8 @@ export function createNousContext(): NousContext {
     projectStore,
     scheduler: schedulerService,
     escalationService,
+    runtime,
+    instanceRoot,
     outputSchemaValidator: new DefaultSchemaRefValidator(),
   });
 
@@ -354,6 +796,10 @@ export function createNousContext(): NousContext {
     scheduler: schedulerService,
     escalationService,
     witnessService,
+    opctlService,
+    runtime,
+    appRuntimeService,
+    instanceRoot,
     outputSchemaValidator: new DefaultSchemaRefValidator(),
   });
   providerRegistry.onLeaseReleased((event) => {
@@ -364,7 +810,7 @@ export function createNousContext(): NousContext {
   });
   schedulerIngressGateway = new GatewayRuntimeIngressAdapter(gatewayRuntime);
 
-  cachedContext = {
+  const context: NousContext = {
     coreExecutor,
     gatewayRuntime,
     projectStore,
@@ -385,11 +831,19 @@ export function createNousContext(): NousContext {
     escalationService,
     endpointTrustService,
     registryService,
+    appInstallService,
+    appSettingsService,
+    packageInstallService,
     nudgeDiscoveryService,
     voiceControlService,
+    publicMcpGatewayService,
+    publicMcpExecutionBridge,
+    appRuntimeService,
+    panelTranspiler,
     dataDir,
   };
+  cachedContext = context;
 
   console.log('[nous:web] bootstrap complete');
-  return cachedContext;
+  return context;
 }

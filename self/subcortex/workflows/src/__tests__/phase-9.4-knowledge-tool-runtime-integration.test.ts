@@ -44,6 +44,7 @@ const projectConfig = {
         edges: [],
       },
     ],
+    packageBindings: [],
   },
   retrievalBudgetTokens: 500,
   createdAt: '2026-03-09T16:30:00.000Z',

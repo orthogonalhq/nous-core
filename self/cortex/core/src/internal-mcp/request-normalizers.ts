@@ -2,24 +2,68 @@ import {
   ArtifactReadRequestSchema,
   ArtifactWriteRequestSchema,
   EscalationContractSchema,
+  type ExternalSourceCompactCommand,
+  type ExternalSourceDeleteCommand,
+  type ExternalSourceGetQuery,
+  type ExternalSourcePutCommand,
+  type ExternalSourceSearchQuery,
   GatewayDispatchRequestSchema,
   GatewayEscalationRequestSchema,
   GatewayObservationSchema,
   GatewayTaskCompletionRequestSchema,
   MemoryScopeSchema,
   MemoryWriteCandidateSchema,
+  PublicMcpCompactArgumentsSchema,
+  PublicMcpDeleteArgumentsSchema,
+  PublicMcpAgentInvokeArgumentsSchema,
+  PublicMcpExecutionRequestSchema,
+  PublicMcpGetArgumentsSchema,
+  PublicMcpPutArgumentsSchema,
+  PublicMcpSearchArgumentsSchema,
+  PromoteExternalRecordCommandSchema,
+  DemotePromotedRecordCommandSchema,
+  PromotedMemoryGetQuerySchema,
+  PromotedMemorySearchQuerySchema,
   ValidationError,
   WitnessCheckpointReasonSchema,
   ScheduleDefinitionSchema,
   type ArtifactReadRequest,
   type ArtifactWriteRequest,
+  type DemotePromotedRecordCommand,
   type EscalationContract,
+  type PromoteExternalRecordCommand,
+  type PromotedMemoryGetQuery,
+  type PromotedMemorySearchQuery,
+  type PublicMcpAgentInvokeArguments,
+  type PublicMcpExecutionRequest,
   type GatewayDispatchRequest,
   type GatewayEscalationRequest,
   type GatewayObservation,
   type GatewayTaskCompletionRequest,
   type MemoryWriteCandidate,
   type ScheduleDefinition,
+  type WorkflowLifecycleCancelCommand,
+  type WorkflowLifecycleInspectQuery,
+  type WorkflowLifecycleListQuery,
+  type WorkflowLifecyclePauseCommand,
+  type WorkflowLifecycleResumeCommand,
+  type WorkflowLifecycleStartCommand,
+  type WorkflowLifecycleStatusQuery,
+  WorkflowLifecycleCancelCommandSchema,
+  WorkflowLifecycleInspectQuerySchema,
+  WorkflowLifecycleListQuerySchema,
+  WorkflowLifecyclePauseCommandSchema,
+  WorkflowLifecycleResumeCommandSchema,
+  WorkflowLifecycleStartCommandSchema,
+  WorkflowLifecycleStatusQuerySchema,
+  AppHealthSnapshotSchema,
+  AppHeartbeatSignalSchema,
+  CredentialInjectRequestSchema,
+  CredentialRevokeRequestSchema,
+  CredentialStoreRequestSchema,
+  type CredentialInjectRequest,
+  type CredentialRevokeRequest,
+  type CredentialStoreRequest,
 } from '@nous/shared';
 import { z } from 'zod';
 
@@ -100,6 +144,65 @@ export const SchedulerRegisterRequestSchema = ScheduleDefinitionSchema.omit({
   projectId: true,
 });
 export type SchedulerRegisterRequest = Omit<ScheduleDefinition, 'projectId'>;
+export type WorkflowListRequest = WorkflowLifecycleListQuery;
+export type WorkflowInspectRequest = WorkflowLifecycleInspectQuery;
+export type WorkflowStartRequest = WorkflowLifecycleStartCommand;
+export type WorkflowStatusRequest = WorkflowLifecycleStatusQuery;
+export type WorkflowPauseRequest = WorkflowLifecyclePauseCommand;
+export type WorkflowResumeRequest = WorkflowLifecycleResumeCommand;
+export type WorkflowCancelRequest = WorkflowLifecycleCancelCommand;
+export type AppHealthReportRequest = z.infer<typeof AppHealthReportRequestSchema>;
+export type AppHeartbeatRequest = z.infer<typeof AppHeartbeatRequestSchema>;
+export type AppCredentialStoreRequest = CredentialStoreRequest;
+export type AppCredentialInjectRequest = CredentialInjectRequest;
+export type AppCredentialRevokeRequest = CredentialRevokeRequest;
+export type { PublicMcpAgentInvokeArguments, PublicMcpExecutionRequest };
+
+export const AppHealthReportRequestSchema = AppHealthSnapshotSchema.strict();
+export const AppHeartbeatRequestSchema = AppHeartbeatSignalSchema.strict();
+export const AppCredentialStoreRequestSchema = CredentialStoreRequestSchema.strict();
+export const AppCredentialInjectRequestSchema = CredentialInjectRequestSchema.strict();
+export const AppCredentialRevokeRequestSchema = CredentialRevokeRequestSchema.strict();
+
+export function parsePromotedMemoryPromoteCommand(
+  params: unknown,
+): PromoteExternalRecordCommand {
+  return PromoteExternalRecordCommandSchema.parse(params ?? {});
+}
+
+export function parsePromotedMemoryDemoteCommand(
+  params: unknown,
+): DemotePromotedRecordCommand {
+  return DemotePromotedRecordCommandSchema.parse(params ?? {});
+}
+
+export function parsePromotedMemoryGetQuery(
+  params: unknown,
+): PromotedMemoryGetQuery {
+  return PromotedMemoryGetQuerySchema.parse(params ?? {});
+}
+
+export function parsePromotedMemorySearchQuery(
+  params: unknown,
+): PromotedMemorySearchQuery {
+  return PromotedMemorySearchQuerySchema.parse(params ?? {});
+}
+
+function parseExternalExecutionRequest(params: unknown) {
+  return PublicMcpExecutionRequestSchema.parse(params ?? {});
+}
+
+export function parsePublicMcpExecutionRequest(
+  params: unknown,
+): PublicMcpExecutionRequest {
+  return PublicMcpExecutionRequestSchema.parse(params ?? {});
+}
+
+export function parsePublicMcpAgentInvokeArguments(
+  params: unknown,
+): PublicMcpAgentInvokeArguments {
+  return PublicMcpAgentInvokeArgumentsSchema.parse(params ?? {});
+}
 
 export function normalizeDispatchParams(params: unknown): GatewayDispatchRequest {
   if (params && typeof params === 'object') {
@@ -210,6 +313,137 @@ export function parseSchedulerRegisterRequest(
   return SchedulerRegisterRequestSchema.parse(params ?? {});
 }
 
+export function parseWorkflowListRequest(params: unknown): WorkflowListRequest {
+  return WorkflowLifecycleListQuerySchema.parse(params ?? {});
+}
+
+export function parseWorkflowInspectRequest(
+  params: unknown,
+): WorkflowInspectRequest {
+  return WorkflowLifecycleInspectQuerySchema.parse(params ?? {});
+}
+
+export function parseWorkflowStartRequest(params: unknown): WorkflowStartRequest {
+  return WorkflowLifecycleStartCommandSchema.parse(params ?? {});
+}
+
+export function parseWorkflowStatusRequest(
+  params: unknown,
+): WorkflowStatusRequest {
+  return WorkflowLifecycleStatusQuerySchema.parse(params ?? {});
+}
+
+export function parseWorkflowPauseRequest(params: unknown): WorkflowPauseRequest {
+  return WorkflowLifecyclePauseCommandSchema.parse(params ?? {});
+}
+
+export function parseWorkflowResumeRequest(
+  params: unknown,
+): WorkflowResumeRequest {
+  return WorkflowLifecycleResumeCommandSchema.parse(params ?? {});
+}
+
+export function parseWorkflowCancelRequest(
+  params: unknown,
+): WorkflowCancelRequest {
+  return WorkflowLifecycleCancelCommandSchema.parse(params ?? {});
+}
+
+export function parseHealthReportRequest(
+  params: unknown,
+): AppHealthReportRequest {
+  return AppHealthReportRequestSchema.parse(params ?? {});
+}
+
+export function parseHealthHeartbeatRequest(
+  params: unknown,
+): AppHeartbeatRequest {
+  return AppHeartbeatRequestSchema.parse(params ?? {});
+}
+
+export function parseCredentialStoreRequest(
+  params: unknown,
+): AppCredentialStoreRequest {
+  return AppCredentialStoreRequestSchema.parse(params ?? {});
+}
+
+export function parseCredentialInjectRequest(
+  params: unknown,
+): AppCredentialInjectRequest {
+  return AppCredentialInjectRequestSchema.parse(params ?? {});
+}
+
+export function parseCredentialRevokeRequest(
+  params: unknown,
+): AppCredentialRevokeRequest {
+  return AppCredentialRevokeRequestSchema.parse(params ?? {});
+}
+
+export function parseExternalMemoryPutCommand(
+  params: unknown,
+): ExternalSourcePutCommand {
+  const request = parseExternalExecutionRequest(params);
+  return {
+    requestId: request.requestId,
+    subject: request.subject,
+    requestedAt: request.requestedAt,
+    idempotencyKey: request.idempotencyKey,
+    arguments: PublicMcpPutArgumentsSchema.parse(request.arguments ?? {}),
+  };
+}
+
+export function parseExternalMemoryGetQuery(
+  params: unknown,
+): ExternalSourceGetQuery {
+  const request = parseExternalExecutionRequest(params);
+  return {
+    requestId: request.requestId,
+    subject: request.subject,
+    requestedAt: request.requestedAt,
+    idempotencyKey: request.idempotencyKey,
+    arguments: PublicMcpGetArgumentsSchema.parse(request.arguments ?? {}),
+  };
+}
+
+export function parseExternalMemorySearchQuery(
+  params: unknown,
+): ExternalSourceSearchQuery {
+  const request = parseExternalExecutionRequest(params);
+  return {
+    requestId: request.requestId,
+    subject: request.subject,
+    requestedAt: request.requestedAt,
+    idempotencyKey: request.idempotencyKey,
+    arguments: PublicMcpSearchArgumentsSchema.parse(request.arguments ?? {}),
+  };
+}
+
+export function parseExternalMemoryDeleteCommand(
+  params: unknown,
+): ExternalSourceDeleteCommand {
+  const request = parseExternalExecutionRequest(params);
+  return {
+    requestId: request.requestId,
+    subject: request.subject,
+    requestedAt: request.requestedAt,
+    idempotencyKey: request.idempotencyKey,
+    arguments: PublicMcpDeleteArgumentsSchema.parse(request.arguments ?? {}),
+  };
+}
+
+export function parseExternalMemoryCompactCommand(
+  params: unknown,
+): ExternalSourceCompactCommand {
+  const request = parseExternalExecutionRequest(params);
+  return {
+    requestId: request.requestId,
+    subject: request.subject,
+    requestedAt: request.requestedAt,
+    idempotencyKey: request.idempotencyKey,
+    arguments: PublicMcpCompactArgumentsSchema.parse(request.arguments ?? {}),
+  };
+}
+
 export function toValidationError(message: string, error: unknown): ValidationError {
   if (error instanceof ValidationError) {
     return error;
@@ -218,7 +452,7 @@ export function toValidationError(message: string, error: unknown): ValidationEr
   if (error instanceof z.ZodError) {
     return new ValidationError(
       message,
-      error.errors.map((issue) => ({
+      error.issues.map((issue) => ({
         path: issue.path.join('.'),
         message: issue.message,
       })),

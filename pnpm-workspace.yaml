@@ -1,5 +1,6 @@
 packages:
   - self/shared
+  - self/ui
   - self/autonomic/*
   - self/cortex/*
   - self/memory/*

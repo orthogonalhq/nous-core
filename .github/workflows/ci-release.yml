@@ -1,0 +1,125 @@
+name: CI Release
+
+# Tier 4: Confirms promoted release branch health and preserves release evidence
+# Same structure as T3
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+
+jobs:
+  check:
+    name: Check
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Install pnpm
+        uses: pnpm/action-setup@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: 'pnpm'
+
+      - name: Install dependencies
+        run: pnpm install
+
+      - name: Build
+        run: pnpm run build
+
+      - name: Typecheck
+        run: pnpm run typecheck
+
+      - name: Lint
+        run: pnpm run lint
+
+      - name: Test (with coverage)
+        run: pnpm run test --coverage
+
+      - name: Upload coverage to Codecov
+        uses: codecov/codecov-action@v4
+        with:
+          files: ./coverage/lcov.info
+          fail_ci_if_error: false
+
+      - name: Benchmark Tier 0
+        run: pnpm run benchmark:tier0
+
+  desktop:
+    name: Desktop (${{ matrix.os }})
+    needs: check
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, macos-latest, windows-latest]
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Install pnpm
+        uses: pnpm/action-setup@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: 'pnpm'
+
+      - name: Install dependencies
+        run: pnpm install
+
+      - name: Download Electron binary
+        run: node node_modules/electron/install.js
+
+      - name: Build desktop distributable
+        run: pnpm --filter @nous/desktop run build:dist
+
+  webapp-smoke:
+    name: Smoke (web)
+    needs: check
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Install pnpm
+        uses: pnpm/action-setup@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: 'pnpm'
+
+      - name: Install dependencies
+        run: pnpm install
+
+      - name: Build
+        run: pnpm run build
+
+      - name: Start server and verify
+        run: |
+          cd self/apps/web
+          npx next start -p 3123 &
+          SERVER_PID=$!
+          sleep 5
+          STATUS=$(curl -s -o /dev/null -w '%{http_code}' http://localhost:3123/ || echo "000")
+          kill $SERVER_PID 2>/dev/null || true
+          if [ "$STATUS" = "000" ]; then
+            echo "::error::Web app failed to start — no response on localhost:3123"
+            exit 1
+          elif [ "$STATUS" -ge 500 ]; then
+            echo "::error::Web app returned HTTP $STATUS"
+            exit 1
+          else
+            echo "Web app smoke start passed (HTTP $STATUS)"
+          fi

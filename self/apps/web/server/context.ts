@@ -19,9 +19,18 @@ import type {
   IEndpointTrustService,
   IRegistryService,
   INudgeDiscoveryService,
+  IAppInstallService,
+  IAppSettingsService,
+  IPackageInstallService,
   IVoiceControlService,
+  IPublicMcpGatewayService,
+  IAppRuntimeService,
 } from '@nous/shared';
-import type { IPrincipalSystemGatewayRuntime } from '@nous/cortex-core';
+import type { PanelTranspiler } from '@nous/subcortex-apps';
+import type {
+  IPrincipalSystemGatewayRuntime,
+  IPublicMcpExecutionBridge,
+} from '@nous/cortex-core';
 import type { MwcPipeline } from '@nous/memory-mwc';
 import type { IDocumentStore } from '@nous/shared';
 import type { IModelRouter } from '@nous/shared';
@@ -50,7 +59,14 @@ export interface NousContext {
   escalationService: IEscalationService;
   endpointTrustService: IEndpointTrustService;
   registryService: IRegistryService;
+  appInstallService: IAppInstallService;
+  appSettingsService: IAppSettingsService;
+  packageInstallService: IPackageInstallService;
   nudgeDiscoveryService: INudgeDiscoveryService;
   voiceControlService: IVoiceControlService;
+  publicMcpGatewayService: IPublicMcpGatewayService;
+  publicMcpExecutionBridge: IPublicMcpExecutionBridge;
+  appRuntimeService: IAppRuntimeService;
+  panelTranspiler: PanelTranspiler;
   dataDir: string;
 }

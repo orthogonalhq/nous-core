@@ -1,5 +1,5 @@
 import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
-import { writeFileSync, mkdirSync, rmSync } from 'node:fs';
+import { existsSync, readFileSync, writeFileSync, mkdirSync, rmSync } from 'node:fs';
 import { join } from 'node:path';
 import { tmpdir, platform } from 'node:os';
 import { NodeRuntime } from '../runtime.js';
@@ -22,6 +22,11 @@ describe('NodeRuntime', () => {
       expect(typeof runtime.resolvePath).toBe('function');
       expect(typeof runtime.getDataDir).toBe('function');
       expect(typeof runtime.exists).toBe('function');
+      expect(typeof runtime.ensureDir).toBe('function');
+      expect(typeof runtime.writeFile).toBe('function');
+      expect(typeof runtime.copyDirectory).toBe('function');
+      expect(typeof runtime.removePath).toBe('function');
+      expect(typeof runtime.listDirectory).toBe('function');
       expect(typeof runtime.getPlatform).toBe('function');
     });
   });
@@ -75,6 +80,61 @@ describe('NodeRuntime', () => {
     it('returns false for a non-existent path', async () => {
       const runtime = new NodeRuntime();
       expect(await runtime.exists(join(TEST_DIR, 'nope.txt'))).toBe(false);
+    });
+  });
+
+  describe('file operations', () => {
+    it('ensureDir creates nested directories', async () => {
+      const runtime = new NodeRuntime();
+      const nested = join(TEST_DIR, 'nested', 'dir');
+
+      await runtime.ensureDir(nested);
+
+      expect(await runtime.exists(nested)).toBe(true);
+    });
+
+    it('writeFile creates parent directories automatically', async () => {
+      const runtime = new NodeRuntime();
+      const filePath = join(TEST_DIR, 'write', 'hello.txt');
+
+      await runtime.writeFile(filePath, 'hello runtime');
+
+      expect(readFileSync(filePath, 'utf-8')).toBe('hello runtime');
+    });
+
+    it('copyDirectory recursively copies directory contents', async () => {
+      const runtime = new NodeRuntime();
+      const sourceDir = join(TEST_DIR, 'source');
+      const targetDir = join(TEST_DIR, 'target');
+      mkdirSync(sourceDir, { recursive: true });
+      writeFileSync(join(sourceDir, 'payload.txt'), 'copy me', 'utf-8');
+
+      await runtime.copyDirectory(sourceDir, targetDir);
+
+      expect(readFileSync(join(targetDir, 'payload.txt'), 'utf-8')).toBe('copy me');
+    });
+
+    it('removePath deletes file and directory trees', async () => {
+      const runtime = new NodeRuntime();
+      const dirPath = join(TEST_DIR, 'remove-me');
+      mkdirSync(dirPath, { recursive: true });
+      writeFileSync(join(dirPath, 'payload.txt'), 'bye', 'utf-8');
+
+      await runtime.removePath(dirPath);
+
+      expect(existsSync(dirPath)).toBe(false);
+    });
+
+    it('listDirectory returns direct child entries', async () => {
+      const runtime = new NodeRuntime();
+      const dirPath = join(TEST_DIR, 'list-me');
+      mkdirSync(dirPath, { recursive: true });
+      writeFileSync(join(dirPath, 'a.txt'), 'a', 'utf-8');
+      writeFileSync(join(dirPath, 'b.txt'), 'b', 'utf-8');
+
+      const entries = await runtime.listDirectory(dirPath);
+
+      expect(entries.sort()).toEqual(['a.txt', 'b.txt']);
     });
   });
 

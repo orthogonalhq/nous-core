@@ -15,6 +15,7 @@ export {
   GATEWAY_CHAT_COMPLETION_SCHEMA_REF,
   GatewayBackedTurnExecutor,
 } from './gateway-turn-executor.js';
+export { PublicMcpRuntimeAdapter } from './public-mcp-runtime-adapter.js';
 export { createGatewayProjectApi } from './project-api.js';
 export {
   createPrincipalCommunicationToolSurface,
@@ -26,6 +27,7 @@ export { SystemContextReplicaProvider } from './system-context-replica.js';
 export { GatewayRuntimeHealthSink } from './runtime-health.js';
 export { GatewayTraceRecorder } from './trace-recorder.js';
 export type {
+  GatewayAppSessionHealthProjection,
   GatewayBootSnapshot,
   GatewayBootStatus,
   GatewayBootStep,
@@ -49,3 +51,8 @@ export type {
 export type { SystemBacklogQueueDeps, SystemBacklogSubmission } from './backlog-queue.js';
 export type { GatewayRuntimeProjectApiDeps } from './project-api.js';
 export type { GatewayBackedTurnExecutorDeps } from './gateway-turn-executor.js';
+export type {
+  PublicMcpRuntimeAdapterDeps,
+  PublicMcpRuntimeInvocation,
+  PublicMcpRuntimeInvocationResult,
+} from './public-mcp-runtime-adapter.js';

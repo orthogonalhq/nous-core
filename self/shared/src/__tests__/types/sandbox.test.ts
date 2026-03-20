@@ -42,6 +42,14 @@ describe('SandboxPayloadSchema', () => {
     expect(result.success).toBe(true);
   });
 
+  it.each(['app', 'workflow'])('accepts canonical package type "%s"', (packageType) => {
+    const result = SandboxPayloadSchema.safeParse({
+      ...BASE_PAYLOAD,
+      package_type: packageType,
+    });
+    expect(result.success).toBe(true);
+  });
+
   it('rejects payloads missing required package/action fields', () => {
     const result = SandboxPayloadSchema.safeParse({
       ...BASE_PAYLOAD,
@@ -49,6 +57,14 @@ describe('SandboxPayloadSchema', () => {
         ...BASE_PAYLOAD.action,
         requested_capability: '',
       },
+    });
+    expect(result.success).toBe(false);
+  });
+
+  it('rejects the legacy project alias once payloads reach the sandbox seam', () => {
+    const result = SandboxPayloadSchema.safeParse({
+      ...BASE_PAYLOAD,
+      package_type: 'project',
     });
     expect(result.success).toBe(false);
   });

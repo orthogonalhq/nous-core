@@ -3,7 +3,7 @@
  * Proves: procedures (chat, projects, config) → core executor → full cycle.
  * Uses createCaller to invoke procedures server-side without HTTP.
  */
-import { describe, it, expect, beforeAll } from 'vitest';
+import { describe, it, expect, beforeAll, vi } from 'vitest';
 import { join } from 'node:path';
 import { tmpdir } from 'node:os';
 import { randomUUID } from 'node:crypto';
@@ -49,5 +49,48 @@ describe('apps → cortex integration', () => {
     const config = await caller.config.get();
     expect(config).toBeDefined();
     expect(typeof config.pfcTier).toBe('number');
+
+    vi.spyOn(ctx.appRuntimeService, 'listPanels').mockResolvedValue([
+      {
+        session_id: 'session-1',
+        app_id: 'app:weather',
+        package_id: 'app:weather',
+        package_version: '1.0.0',
+        config_version: '1',
+        panel_id: 'forecast',
+        label: 'Forecast',
+        entry: 'panels/forecast.tsx',
+        preserve_state: true,
+        package_root_ref: '/repo/.apps/weather',
+        manifest_ref: '/repo/.apps/weather/manifest.json',
+        route_path: '/apps/app%3Aweather/panels/forecast',
+        dockview_panel_id: 'app:app:weather:forecast',
+        config_snapshot: {
+          units: {
+            value: 'metric',
+            source: 'project_config',
+          },
+        },
+      },
+    ] as any);
+
+    const panels = await caller.packages.listAppPanels();
+    expect(panels).toEqual([
+      {
+        app_id: 'app:weather',
+        panel_id: 'forecast',
+        label: 'Forecast',
+        config_version: '1',
+        route_path: '/apps/app%3Aweather/panels/forecast',
+        dockview_panel_id: 'app:app:weather:forecast',
+        preserve_state: true,
+        config_snapshot: {
+          units: {
+            value: 'metric',
+            source: 'project_config',
+          },
+        },
+      },
+    ]);
   });
 });

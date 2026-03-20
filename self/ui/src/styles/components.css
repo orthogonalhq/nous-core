@@ -1,0 +1,166 @@
+/**
+ * @nous/ui — Component semantic tokens
+ *
+ * Role-based aliases that reference design primitives from tokens.css.
+ * Components consume these; a future nous-light theme overrides them.
+ *
+ * Imported automatically via: import '@nous/ui/styles'
+ */
+
+:root {
+  /* ── Panel header ──────────────────────────────────────────────────── */
+  --nous-header-bg:     var(--nous-surface);
+  --nous-header-fg:     var(--nous-fg-muted);
+  --nous-header-border: var(--nous-border-subtle);
+
+  /* ── Panel footer ──────────────────────────────────────────────────── */
+  --nous-footer-bg:     var(--nous-surface);
+  --nous-footer-fg:     var(--nous-fg-subtle);
+  --nous-footer-border: var(--nous-border-subtle);
+
+  /* ── Panel content ─────────────────────────────────────────────────── */
+  --nous-content-bg:    var(--nous-bg);
+
+  /* ── Tab bar ─────────────────────────────────────────────────────── */
+  --nous-tab-bar-bg:      var(--nous-bg);
+  --nous-tab-bar-border:  transparent;
+  --nous-tab-active-bg:   var(--nous-bg);
+  --nous-tab-active-fg:   var(--nous-fg);
+  --nous-tab-bg:          var(--nous-bg);
+  --nous-tab-fg:          var(--nous-fg-muted);
+  --nous-tab-inactive-fg: var(--nous-fg-muted);   /* selected tab in unfocused group */
+  --nous-tab-dim-fg:      var(--nous-fg-subtle);   /* unselected tab in unfocused group */
+
+  /* ── List / table rows ─────────────────────────────────────────────── */
+  --nous-row-bg:          transparent;
+  --nous-row-bg-hover:    var(--nous-bg-hover);
+  --nous-row-bg-selected: var(--nous-selection);
+  --nous-row-fg:          var(--nous-fg);
+  --nous-row-fg-secondary: var(--nous-fg-muted);
+  --nous-row-border:      var(--nous-border-subtle);
+
+  /* ── Card / elevated surface ───────────────────────────────────────── */
+  --nous-card-bg:       var(--nous-bg-elevated);
+  --nous-card-border:   var(--nous-border-subtle);
+  --nous-card-radius:   var(--nous-radius-md);
+  --nous-card-shadow:   var(--nous-shadow-md);
+
+  /* ── Input / form fields ───────────────────────────────────────────── */
+  --nous-input-bg:            var(--nous-bg-input);
+  --nous-input-fg:            var(--nous-fg);
+  --nous-input-border:        transparent;
+  --nous-input-border-focus:  var(--nous-accent);
+  --nous-input-placeholder:   var(--nous-fg-subtle);
+  --nous-input-radius:        var(--nous-radius-md);
+
+  /* ── Buttons ───────────────────────────────────────────────────────── */
+  --nous-btn-primary-bg:      var(--nous-accent);
+  --nous-btn-primary-fg:      var(--nous-fg-on-color);
+  --nous-btn-primary-hover:   var(--nous-accent-hover);
+  --nous-btn-secondary-bg:    transparent;
+  --nous-btn-secondary-fg:    var(--nous-fg-muted);
+  --nous-btn-secondary-border:var(--nous-border);
+  --nous-btn-disabled-fg:     var(--nous-fg-subtle);
+
+  /* ── Badge / status pill ───────────────────────────────────────────── */
+  --nous-badge-bg:      transparent;
+  --nous-badge-fg:      var(--nous-fg-muted);
+  --nous-badge-border:  var(--nous-border);
+  --nous-badge-radius:  999px;
+
+  /* ── Indicator dot ─────────────────────────────────────────────────── */
+  --nous-indicator-size:   8px;
+
+  /* ── Progress / meter ──────────────────────────────────────────────── */
+  --nous-progress-track:  var(--nous-bg-input);
+  --nous-progress-fill:   var(--nous-accent);
+  --nous-progress-height: 6px;
+  --nous-progress-radius: 999px;
+
+  /* ── Divider / separator ───────────────────────────────────────────── */
+  --nous-divider:        var(--nous-border);
+  --nous-divider-subtle: var(--nous-border-subtle);
+
+  /* ── Panel card (dockview group border) ──────────────────────────── */
+  --nous-panel-border-active:   var(--nous-border);
+  --nous-panel-border-inactive: var(--nous-border-subtle);
+
+  /* ── Dockview panel chrome ─────────────────────────────────────────── */
+  --nous-panel-surface:    var(--nous-surface);
+  --nous-panel-radius:     var(--nous-radius-xl);
+  --nous-panel-tab-height: var(--nous-dv-tab-height);
+  --nous-panel-tab-font:   var(--nous-font-size-base);
+  --nous-panel-gap:        var(--nous-space-xs);
+
+  /* ── Nested dockview chrome ────────────────────────────────────────── */
+  --nous-nested-surface:       var(--nous-surface-nested);  /* root container canvas     */
+  --nous-nested-panel-surface: var(--nous-surface-nested);  /* panel card group bg        */
+  --nous-nested-radius:        var(--nous-radius-lg);
+  --nous-nested-tab-height:    var(--nous-dv-tab-height-nested);
+  --nous-nested-tab-font:      var(--nous-font-size-sm);
+  --nous-nested-gap:           var(--nous-space-xs);
+  --nous-nested-shadow:        var(--nous-shadow-md);
+  --nous-nested-content-bg:    var(--nous-bg-elevated);
+
+  /* ── Nested tab bar ────────────────────────────────────────────────── */
+  --nous-nested-tab-bar-bg:      var(--nous-bg-elevated);
+  --nous-nested-tab-bar-border:  transparent;
+  --nous-nested-tab-active-bg:   var(--nous-bg-elevated);
+  --nous-nested-tab-active-fg:   var(--nous-tab-active-fg);
+  --nous-nested-tab-bg:          var(--nous-bg-elevated);
+  --nous-nested-tab-fg:          var(--nous-tab-fg);
+  --nous-nested-tab-inactive-fg: var(--nous-tab-inactive-fg);
+  --nous-nested-tab-dim-fg:      var(--nous-tab-dim-fg);
+
+  /* ── Nested panel borders ──────────────────────────────────────────── */
+  --nous-nested-border-active:   var(--nous-nested-panel-border);
+  --nous-nested-border-inactive: var(--nous-nested-panel-border);
+  --nous-nested-header-border:   var(--nous-header-border);
+
+  /* ── Nested interaction ────────────────────────────────────────────── */
+  --nous-nested-icon-hover-bg:   var(--nous-icon-hover-bg);
+  --nous-nested-focus-outline:   var(--nous-focus-outline);
+  --nous-nested-drag-over:       var(--nous-drag-over);
+  --nous-nested-drag-border:     var(--nous-drag-border);
+
+  /* ── Nested scrollbar ──────────────────────────────────────────────── */
+  --nous-nested-scrollbar-fg:    var(--nous-border-subtle);
+  --nous-nested-scrollbar-bg:    var(--nous-dv-scrollbar-bg);
+
+  /* ── Nested overlay ────────────────────────────────────────────────── */
+  --nous-nested-z:               var(--nous-panel-z);
+
+  /* ── Icon hover ──────────────────────────────────────────────────── */
+  --nous-icon-hover-bg:         var(--nous-btn-hover);
+
+  /* ── Focus / drag interaction ────────────────────────────────────── */
+  --nous-focus-outline:         var(--nous-accent);
+  --nous-drag-border:           var(--nous-accent);
+  --nous-drag-over:             var(--nous-drag-over-bg);
+
+  /* ── Dockview scrollbar ──────────────────────────────────────────── */
+  --nous-dv-scrollbar-fg:       var(--nous-border);
+  --nous-dv-scrollbar-bg:       var(--nous-border-subtle);
+
+  /* ── Panel floating / overlay ────────────────────────────────────── */
+  --nous-panel-shadow:          var(--nous-shadow-lg);
+  --nous-panel-z:               var(--nous-z-overlay);
+
+  /* ── Menu / dropdown ─────────────────────────────────────────────── */
+  --nous-menu-trigger-fg:       var(--nous-fg);
+  --nous-menu-trigger-hover:    var(--nous-btn-hover);
+  --nous-menu-trigger-radius:   var(--nous-radius-sm);
+  --nous-menu-content-bg:       var(--nous-bg);
+  --nous-menu-content-border:   var(--nous-border);
+  --nous-menu-content-shadow:   var(--nous-shadow-md);
+  --nous-menu-content-radius:   var(--nous-radius-md);
+  --nous-menu-content-z:        var(--nous-z-toast);
+  --nous-menu-item-fg:          var(--nous-fg);
+  --nous-menu-item-radius:      var(--nous-radius-xs);
+  --nous-menu-item-hover-bg:    var(--nous-menu-hover);
+  --nous-menu-item-hover-fg:    var(--nous-fg-on-color);
+  --nous-menu-item-disabled-fg: var(--nous-fg-subtle);
+  --nous-menu-shortcut-fg:      var(--nous-fg-muted);
+  --nous-menu-label-fg:         var(--nous-fg-subtle);
+  --nous-menu-separator:        var(--nous-border);
+}

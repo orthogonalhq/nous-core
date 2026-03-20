@@ -85,9 +85,37 @@ import type {
   GtmGateReportInput,
   GtmGateReport,
   GtmStageLabel,
+  AppProcessExitEvent,
+  AppConnectorEgressIntent,
+  AppConnectorIngressIntent,
+  AppConnectorSessionReport,
+  AppRuntimeActivationInput,
+  AppRuntimeDeactivationInput,
+  AppRuntimeSession,
+  AppInstallPrepareRequest,
+  AppInstallPreparation,
+  AppInstallRequest,
+  AppInstallResult,
+  AppSettingsPreparation,
+  AppSettingsPrepareRequest,
+  AppSettingsSaveRequest,
+  AppSettingsSaveResult,
+  AppHealthSnapshot,
+  AppHeartbeatSignal,
+  CredentialBackupResult,
+  CredentialDiscardBackupResult,
+  CredentialOAuthFlowRequest,
+  CredentialOAuthFlowResult,
+  CredentialRevokeRequest,
+  CredentialRevokeResult,
+  CredentialRestoreResult,
+  CredentialStoreRequest,
+  CredentialStoreResult,
   PackageLifecycleTransitionRequest,
   PackageLifecycleTransitionResult,
   PackageLifecycleStateRecord,
+  PackageInstallRequest,
+  PackageInstallResult,
   SkillAdmissionDecisionInput,
   SkillAdmissionDecisionRecord,
   SkillAdmissionRequest,
@@ -138,6 +166,8 @@ import type {
   NudgeSuppressionQueryResult,
   ChannelIngressEnvelope,
   ChannelEgressEnvelope,
+  CommunicationConnectorRegistration,
+  CommunicationConnectorSession,
   CommunicationIdentityBindingUpsertInput,
   CommunicationIdentityBindingRecord,
   CommunicationApprovalIntakeRecord,
@@ -158,6 +188,43 @@ import type {
   VoiceTurnStartInput,
   VoiceTurnStateRecord,
   EndpointTrustSurfaceSummary,
+  PublicMcpAdmissionDecision,
+  PublicMcpAgentCatalogEntry,
+  PublicMcpAgentInvokeArguments,
+  PublicMcpAgentInvokeResult,
+  PublicMcpCompactArguments,
+  PublicMcpDiscoveryBundle,
+  PublicMcpDeleteArguments,
+  PublicMcpDeploymentResolution,
+  ExternalSourceCompactionResult,
+  ExternalSourceMemoryEntry,
+  ExternalSourceMutationResult,
+  ExternalSourceSearchResult,
+  AppPanelBridgeContext,
+  PublicMcpExecutionRequest,
+  PublicMcpExecutionResult,
+  PublicMcpGetArguments,
+  PublicMcpHttpRequest,
+  PublicMcpPutArguments,
+  PublicMcpSearchArguments,
+  PublicMcpSystemInfo,
+  PublicMcpSubject,
+  PublicMcpTaskProjection,
+  PublicMcpTaskResult,
+  PublicMcpToolDefinition,
+  AppPanelLifecycleUpdate,
+  AppPanelPersistedStateDeleteInput,
+  AppPanelPersistedStateGetInput,
+  AppPanelPersistedStateResult,
+  AppPanelPersistedStateSetInput,
+  PanelBridgeToolTransportRequest,
+  PromoteExternalRecordCommand,
+  DemotePromotedRecordCommand,
+  PromotedMemoryGetQuery,
+  PromotedMemoryRecord,
+  PromotedMemorySearchQuery,
+  PromotedMemorySearchResult,
+  ResolvedWorkflowDefinitionSource,
 } from '../types/index.js';
 import type { NousEvent } from '../events/index.js';
 
@@ -211,6 +278,12 @@ export interface IWorkflowEngine {
     workflowDefinitionId?: WorkflowDefinitionId,
   ): Promise<WorkflowDefinition>;
 
+  /** Resolve where the selected workflow definition came from for projection/debug surfaces */
+  resolveDefinitionSource(
+    projectConfig: ProjectConfig,
+    workflowDefinitionId?: WorkflowDefinitionId,
+  ): Promise<ResolvedWorkflowDefinitionSource | null>;
+
   /** Derive deterministic executable graph from canonical definition */
   deriveGraph(definition: WorkflowDefinition): Promise<DerivedWorkflowGraph>;
 
@@ -230,6 +303,12 @@ export interface IWorkflowEngine {
 
   /** Pause a running workflow */
   pause(
+    executionId: WorkflowExecutionId,
+    transition: WorkflowTransitionInput,
+  ): Promise<WorkflowRunState>;
+
+  /** Cancel an active or paused workflow without rewriting canonical run history */
+  cancel(
     executionId: WorkflowExecutionId,
     transition: WorkflowTransitionInput,
   ): Promise<WorkflowRunState>;
@@ -458,8 +537,184 @@ export interface ICommunicationGatewayService {
     input: CommunicationEscalationAcknowledgementInput,
   ): Promise<InAppEscalationRecord | null>;
 
+  /** Register one connector runtime identity with the canonical communication gateway. */
+  registerConnector(input: {
+    connector_id: string;
+    kind: CommunicationConnectorRegistration['kind'];
+    account_id: string;
+    project_id?: string;
+    binding_ref?: string;
+  }): Promise<CommunicationConnectorRegistration> | CommunicationConnectorRegistration;
+
+  /** Publish the current canonical connector session projection. */
+  reportConnectorSession(
+    input: CommunicationConnectorSession,
+  ): Promise<CommunicationConnectorSession> | CommunicationConnectorSession;
+
+  /** Remove connector registration/session state during lifecycle cleanup. */
+  unregisterConnector(
+    connectorId: string,
+  ): Promise<void> | void;
+
   /** Retrieve a previously created canonical route decision. */
   getRouteDecision(routeId: string): Promise<CommunicationRouteDecision | null>;
+
+  /** Retrieve canonical connector registration metadata. */
+  getConnectorRegistration(
+    connectorId: string,
+  ): Promise<CommunicationConnectorRegistration | null> | CommunicationConnectorRegistration | null;
+
+  /** Retrieve canonical connector session metadata. */
+  getConnectorSession(
+    connectorId: string,
+  ): Promise<CommunicationConnectorSession | null> | CommunicationConnectorSession | null;
+}
+
+export interface IAppCredentialInstallService {
+  /** Store one app install/config secret directly into the vault. */
+  storeSecretField(
+    appId: string,
+    request: CredentialStoreRequest,
+  ): Promise<CredentialStoreResult>;
+
+  /** Run one install-hook scoped OAuth flow and store tokens directly in the vault. */
+  openOAuthFlow(
+    request: CredentialOAuthFlowRequest,
+  ): Promise<CredentialOAuthFlowResult>;
+
+  /** Revoke one install-time credential by key. */
+  revokeCredential(
+    appId: string,
+    request: CredentialRevokeRequest,
+  ): Promise<CredentialRevokeResult>;
+
+  /** Create an opaque backup handle before a destructive settings mutation. */
+  backupCredential(
+    appId: string,
+    key: string,
+  ): Promise<CredentialBackupResult>;
+
+  /** Restore a previously created opaque backup handle. */
+  restoreCredential(
+    appId: string,
+    backupRef: string,
+  ): Promise<CredentialRestoreResult>;
+
+  /** Discard an unused opaque backup handle. */
+  discardCredentialBackup(
+    appId: string,
+    backupRef: string,
+  ): Promise<CredentialDiscardBackupResult>;
+}
+
+export interface IPublicMcpGatewayService {
+  /** Build the public OAuth discovery documents for the MCP edge. */
+  getDiscoveryDocuments(): Promise<PublicMcpDiscoveryBundle>;
+
+  /** Evaluate bearer, audience, origin, scope, namespace, and schema posture. */
+  authorize(request: PublicMcpHttpRequest): Promise<PublicMcpAdmissionDecision>;
+
+  /** List the tools visible to an already authorized external client subject. */
+  listVisibleTools(subject: PublicMcpSubject): Promise<PublicMcpToolDefinition[]>;
+
+  /** Execute an authorized public MCP request over the canonical bridge surface. */
+  execute(request: PublicMcpExecutionRequest): Promise<PublicMcpExecutionResult>;
+}
+
+export interface IPublicMcpDeploymentRouterService {
+  /** Resolve the active backend mode and deployment binding for a public MCP request. */
+  resolve(request: PublicMcpExecutionRequest): Promise<PublicMcpDeploymentResolution>;
+}
+
+export interface PublicMcpAgentListQuery {
+  requestId: string;
+  subject: PublicMcpSubject;
+  requestedAt: string;
+}
+
+export interface PublicMcpAgentInvokeCommand extends PublicMcpAgentListQuery {
+  arguments: PublicMcpAgentInvokeArguments;
+}
+
+export interface PublicMcpTaskQuery extends PublicMcpAgentListQuery {
+  taskId: string;
+}
+
+export interface PublicMcpSystemInfoQuery extends PublicMcpAgentListQuery {}
+
+export interface IPublicMcpSurfaceService {
+  /** List externally visible public agents for the authenticated subject. */
+  listAgents(request: PublicMcpAgentListQuery): Promise<PublicMcpAgentCatalogEntry[]>;
+
+  /** Invoke a public agent through the canonical public runtime. */
+  invokeAgent(request: PublicMcpAgentInvokeCommand): Promise<PublicMcpAgentInvokeResult>;
+
+  /** Retrieve the current subject-scoped task projection. */
+  getTask(request: PublicMcpTaskQuery): Promise<PublicMcpTaskProjection | null>;
+
+  /** Retrieve the terminal result for a subject-scoped task. */
+  getTaskResult(request: PublicMcpTaskQuery): Promise<PublicMcpTaskResult | null>;
+
+  /** Project public-safe server and task-support metadata. */
+  getSystemInfo(request: PublicMcpSystemInfoQuery): Promise<PublicMcpSystemInfo>;
+}
+
+export interface ExternalSourceCommandContext {
+  requestId: string;
+  subject: PublicMcpSubject;
+  requestedAt: string;
+  idempotencyKey?: string;
+}
+
+export interface ExternalSourcePutCommand extends ExternalSourceCommandContext {
+  arguments: PublicMcpPutArguments;
+}
+
+export interface ExternalSourceGetQuery extends ExternalSourceCommandContext {
+  arguments: PublicMcpGetArguments;
+}
+
+export interface ExternalSourceSearchQuery extends ExternalSourceCommandContext {
+  arguments: PublicMcpSearchArguments;
+}
+
+export interface ExternalSourceDeleteCommand extends ExternalSourceCommandContext {
+  arguments: PublicMcpDeleteArguments;
+}
+
+export interface ExternalSourceCompactCommand extends ExternalSourceCommandContext {
+  arguments: PublicMcpCompactArguments;
+}
+
+export interface IExternalSourceMemoryService {
+  /** Execute a source-local append or supersede write. */
+  put(request: ExternalSourcePutCommand): Promise<ExternalSourceMutationResult>;
+
+  /** Read one source-local external-memory entry. */
+  get(request: ExternalSourceGetQuery): Promise<ExternalSourceMemoryEntry | null>;
+
+  /** Search source-local external-memory entries using canonical public-memory semantics. */
+  search(request: ExternalSourceSearchQuery): Promise<ExternalSourceSearchResult>;
+
+  /** Soft-delete one source-local external-memory entry. */
+  delete(request: ExternalSourceDeleteCommand): Promise<ExternalSourceMutationResult>;
+
+  /** Compact source-local external STM into allowed public compaction outputs. */
+  compact(request: ExternalSourceCompactCommand): Promise<ExternalSourceCompactionResult>;
+}
+
+export interface IPromotedMemoryBridgeService {
+  /** Promote one external source record into the internal promoted tier. */
+  promote(command: PromoteExternalRecordCommand): Promise<PromotedMemoryRecord>;
+
+  /** Soft-delete one promoted-tier record while preserving audit lineage. */
+  demote(command: DemotePromotedRecordCommand): Promise<PromotedMemoryRecord>;
+
+  /** Read one promoted-tier record by promoted ID. */
+  get(query: PromotedMemoryGetQuery): Promise<PromotedMemoryRecord | null>;
+
+  /** Search promoted-tier records without querying external source tables live. */
+  search(query: PromotedMemorySearchQuery): Promise<PromotedMemorySearchResult>;
 }
 
 export interface IEndpointTrustService {
@@ -579,6 +834,11 @@ export interface IPackageLifecycleOrchestrator {
     request: PackageLifecycleTransitionRequest,
   ): Promise<PackageLifecycleTransitionResult>;
 
+  /** Record canonical transition into runtime-active state. */
+  run(
+    request: PackageLifecycleTransitionRequest,
+  ): Promise<PackageLifecycleTransitionResult>;
+
   /** Stage package update while preserving previous safe version snapshot. */
   stageUpdate(
     request: PackageLifecycleTransitionRequest,
@@ -609,11 +869,110 @@ export interface IPackageLifecycleOrchestrator {
     request: PackageLifecycleTransitionRequest,
   ): Promise<PackageLifecycleTransitionResult>;
 
+  /** Disable package runtime activity while preserving canonical lifecycle truth. */
+  disable(
+    request: PackageLifecycleTransitionRequest,
+  ): Promise<PackageLifecycleTransitionResult>;
+
   /** Retrieve canonical lifecycle state for project/package identity. */
   getState(
     projectId: ProjectId,
     packageId: string,
   ): Promise<PackageLifecycleStateRecord | null>;
+}
+
+export interface IAppRuntimeService {
+  /** Activate one installed app package and publish the runtime session. */
+  activate(input: AppRuntimeActivationInput): Promise<AppRuntimeSession>;
+
+  /** Deactivate one runtime session and clean up runtime-owned registrations. */
+  deactivate(
+    input: AppRuntimeDeactivationInput,
+  ): Promise<AppRuntimeSession | null>;
+
+  /** Reconcile runtime-owned state after a subprocess exit. */
+  handleProcessExit(
+    input: AppProcessExitEvent,
+  ): Promise<AppRuntimeSession | null>;
+
+  /** Lookup one runtime session by session ID. */
+  getSession(sessionId: string): Promise<AppRuntimeSession | null>;
+
+  /** List runtime sessions, optionally filtered by package ID. */
+  listSessions(packageId?: string): Promise<AppRuntimeSession[]>;
+
+  /** List active app-panel bridge contexts for trusted host surfaces. */
+  listPanels(): Promise<AppPanelBridgeContext[]>;
+
+  /** Resolve one active app-panel bridge context by app and panel identity. */
+  resolvePanel(appId: string, panelId: string): Promise<AppPanelBridgeContext | null>;
+
+  /** Execute one panel tool request through the runtime-owned app bridge. */
+  executePanelTool(input: PanelBridgeToolTransportRequest): Promise<unknown>;
+
+  /** Reconcile one canonical panel lifecycle event against the active runtime projection. */
+  recordPanelLifecycle(input: AppPanelLifecycleUpdate): Promise<AppPanelBridgeContext | null>;
+
+  /** Read one app-owned persisted panel state value through the runtime seam. */
+  getPersistedPanelState(
+    input: AppPanelPersistedStateGetInput,
+  ): Promise<AppPanelPersistedStateResult>;
+
+  /** Write one app-owned persisted panel state value through the runtime seam. */
+  setPersistedPanelState(
+    input: AppPanelPersistedStateSetInput,
+  ): Promise<AppPanelPersistedStateResult>;
+
+  /** Delete one app-owned persisted panel state value through the runtime seam. */
+  deletePersistedPanelState(
+    input: AppPanelPersistedStateDeleteInput,
+  ): Promise<AppPanelPersistedStateResult>;
+
+  /** Record one heartbeat signal and return the resulting health snapshot. */
+  recordHeartbeat(signal: AppHeartbeatSignal): Promise<AppHealthSnapshot>;
+
+  /** Publish an explicit health snapshot from the runtime. */
+  updateHealth(snapshot: AppHealthSnapshot): Promise<AppHealthSnapshot>;
+
+  /** Submit normalized connector ingress through the host-owned app runtime bridge. */
+  submitConnectorIngress(
+    input: AppConnectorIngressIntent,
+  ): Promise<CommunicationIngressOutcome>;
+
+  /** Submit canonical connector egress through the host-owned app runtime bridge. */
+  dispatchConnectorEgress(
+    input: AppConnectorEgressIntent,
+  ): Promise<CommunicationEgressOutcome>;
+
+  /** Publish connector session metadata and health through the host-owned bridge. */
+  reportConnectorSession(
+    input: AppConnectorSessionReport,
+  ): Promise<AppHealthSnapshot>;
+}
+
+export interface IAppInstallService {
+  /** Resolve the canonical wizard contract for one app package install. */
+  prepareInstall(
+    request: AppInstallPrepareRequest,
+  ): Promise<AppInstallPreparation>;
+
+  /** Execute approval-gated install, validation, vault storage, and activation. */
+  installApp(request: AppInstallRequest): Promise<AppInstallResult>;
+}
+
+export interface IAppSettingsService {
+  /** Resolve the canonical settings contract for one installed app package. */
+  prepareSettings(
+    request: AppSettingsPrepareRequest,
+  ): Promise<AppSettingsPreparation>;
+
+  /** Validate and apply one governed settings save. */
+  saveSettings(request: AppSettingsSaveRequest): Promise<AppSettingsSaveResult>;
+}
+
+export interface IPackageInstallService {
+  /** Resolve, authorize, materialize, and record one package install or update. */
+  installPackage(request: PackageInstallRequest): Promise<PackageInstallResult>;
 }
 
 export interface ISkillAdmissionOrchestrator {
