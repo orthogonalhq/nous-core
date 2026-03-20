@@ -12,6 +12,14 @@ on:
       - 'fix/**'
       - 'refactor/**'
       - 'chore/**'
+    paths-ignore:
+      - '**.md'
+      - '**.mdx'
+      - '.architecture'
+      - '.worklog'
+      - '.skills'
+      - 'docs/**'
+      - '.github/workflows/ci-release*.yml'
   pull_request:
     branches:
       - dev
