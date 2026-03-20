@@ -4,6 +4,8 @@ name: CI Release
 # Full cross-platform matrix, coverage, benchmarks
 
 on:
+  push:
+    branches: [main]
   pull_request:
     branches: [main]
 
