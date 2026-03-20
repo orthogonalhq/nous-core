@@ -30,6 +30,18 @@ interface TestResult {
   error: string | null
 }
 
+export interface AvailableModel {
+  id: string
+  name: string
+  provider: string
+  available: boolean
+}
+
+export interface ModelSelection {
+  principal: string | null
+  system: string | null
+}
+
 /** API surface the host must provide via panel params. */
 export interface PreferencesApi {
   getApiKeys: () => Promise<ApiKeyEntry[]>
@@ -37,6 +49,9 @@ export interface PreferencesApi {
   deleteApiKey: (input: { provider: Provider }) => Promise<{ deleted: boolean }>
   testApiKey: (input: { provider: Provider; key: string }) => Promise<TestResult>
   getSystemStatus: () => Promise<SystemStatus>
+  getAvailableModels?: () => Promise<{ models: AvailableModel[] }>
+  getModelSelection?: () => Promise<ModelSelection>
+  setModelSelection?: (input: { principal?: string; system?: string }) => Promise<{ success: boolean }>
 }
 
 interface PreferencesPanelProps extends IDockviewPanelProps {
@@ -157,15 +172,36 @@ export function PreferencesPanel({ params }: PreferencesPanelProps) {
   // Per-provider testing state
   const [testingProvider, setTestingProvider] = useState<Provider | null>(null)
 
+  // Model selection state
+  const [availableModels, setAvailableModels] = useState<AvailableModel[]>([])
+  const [modelSelection, setModelSelection] = useState<ModelSelection>({ principal: null, system: null })
+  const [pendingPrincipal, setPendingPrincipal] = useState<string>('')
+  const [pendingSystem, setPendingSystem] = useState<string>('')
+  const [savingModels, setSavingModels] = useState(false)
+  const [modelFeedback, setModelFeedback] = useState<{ message: string; success: boolean } | null>(null)
+
   const refresh = useCallback(async () => {
     if (!api) return
     try {
-      const [keys, status] = await Promise.all([
+      const promises: [Promise<ApiKeyEntry[]>, Promise<SystemStatus>] = [
         api.getApiKeys(),
         api.getSystemStatus(),
-      ])
+      ]
+      const [keys, status] = await Promise.all(promises)
       setApiKeys(keys)
       setSystemStatus(status)
+
+      // Load model data if API methods available
+      if (api.getAvailableModels && api.getModelSelection) {
+        const [modelsResult, selectionResult] = await Promise.all([
+          api.getAvailableModels(),
+          api.getModelSelection(),
+        ])
+        setAvailableModels(modelsResult.models)
+        setModelSelection(selectionResult)
+        setPendingPrincipal(selectionResult.principal ?? '')
+        setPendingSystem(selectionResult.system ?? '')
+      }
     } catch {
       // ignore
     } finally {
@@ -231,6 +267,40 @@ export function PreferencesPanel({ params }: PreferencesPanelProps) {
       setFeedback({ message: `Error: ${msg}`, success: false })
     }
   }
+
+  const handleSaveModels = async () => {
+    if (!api?.setModelSelection) return
+    setSavingModels(true)
+    setModelFeedback(null)
+    try {
+      await api.setModelSelection({
+        principal: pendingPrincipal || undefined,
+        system: pendingSystem || undefined,
+      })
+      setModelSelection({
+        principal: pendingPrincipal || null,
+        system: pendingSystem || null,
+      })
+      setModelFeedback({ message: 'Model selection saved.', success: true })
+    } catch (err) {
+      const msg = err instanceof Error ? err.message : String(err)
+      setModelFeedback({ message: `Error: ${msg}`, success: false })
+    } finally {
+      setSavingModels(false)
+    }
+  }
+
+  const modelSelectionChanged =
+    pendingPrincipal !== (modelSelection.principal ?? '') ||
+    pendingSystem !== (modelSelection.system ?? '')
+
+  // Group models by provider for the dropdowns
+  const modelsByProvider = availableModels.reduce<Record<string, AvailableModel[]>>((acc, model) => {
+    const group = acc[model.provider] ?? []
+    group.push(model)
+    acc[model.provider] = group
+    return acc
+  }, {})
 
   if (!api) {
     return (
@@ -337,6 +407,105 @@ export function PreferencesPanel({ params }: PreferencesPanelProps) {
           </div>
         )}
       </div>
+
+      {/* ── Model Configuration ─────────────────────────────── */}
+      {api.getAvailableModels && (
+        <div style={sectionStyle}>
+          <div style={sectionTitleStyle}>Model Configuration</div>
+
+          <div style={cardStyle}>
+            <div style={{ marginBottom: 'var(--nous-space-lg)' }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: 'var(--nous-space-sm)', marginBottom: 'var(--nous-space-xs)' }}>
+                <label
+                  htmlFor="principal-model-select"
+                  style={{ fontWeight: 'var(--nous-font-weight-semibold)' as never, fontSize: 'var(--nous-font-size-base)' }}
+                >
+                  Cortex::Principal
+                </label>
+                <span style={badgeStyle(false)}>Thinking &amp; Reasoning</span>
+              </div>
+              <div style={{ fontSize: 'var(--nous-font-size-xs)', color: 'var(--nous-fg-subtle)', marginBottom: 'var(--nous-space-sm)' }}>
+                Powers deep thinking, planning, and complex reasoning. Recommend highest-capability model.
+              </div>
+              <select
+                id="principal-model-select"
+                style={{ ...selectStyle, width: '100%' }}
+                value={pendingPrincipal}
+                onChange={(e) => setPendingPrincipal(e.target.value)}
+              >
+                <option value="">Auto-detect (best available)</option>
+                {Object.entries(modelsByProvider).map(([provider, models]) => (
+                  <optgroup key={provider} label={provider.charAt(0).toUpperCase() + provider.slice(1)}>
+                    {models.filter((m) => m.available).map((m) => (
+                      <option key={m.id} value={m.id}>
+                        {m.name}
+                      </option>
+                    ))}
+                  </optgroup>
+                ))}
+              </select>
+            </div>
+
+            <div style={{ marginBottom: 'var(--nous-space-lg)' }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: 'var(--nous-space-sm)', marginBottom: 'var(--nous-space-xs)' }}>
+                <label
+                  htmlFor="system-model-select"
+                  style={{ fontWeight: 'var(--nous-font-weight-semibold)' as never, fontSize: 'var(--nous-font-size-base)' }}
+                >
+                  Cortex::System
+                </label>
+                <span style={badgeStyle(false)}>Orchestration</span>
+              </div>
+              <div style={{ fontSize: 'var(--nous-font-size-xs)', color: 'var(--nous-fg-subtle)', marginBottom: 'var(--nous-space-sm)' }}>
+                Handles fast orchestration, routing, and coordination tasks. Recommend fastest model.
+              </div>
+              <select
+                id="system-model-select"
+                style={{ ...selectStyle, width: '100%' }}
+                value={pendingSystem}
+                onChange={(e) => setPendingSystem(e.target.value)}
+              >
+                <option value="">Auto-detect (fastest available)</option>
+                {Object.entries(modelsByProvider).map(([provider, models]) => (
+                  <optgroup key={provider} label={provider.charAt(0).toUpperCase() + provider.slice(1)}>
+                    {models.filter((m) => m.available).map((m) => (
+                      <option key={m.id} value={m.id}>
+                        {m.name}
+                      </option>
+                    ))}
+                  </optgroup>
+                ))}
+              </select>
+            </div>
+
+            {availableModels.length === 0 && (
+              <div style={{ fontSize: 'var(--nous-font-size-sm)', color: 'var(--nous-fg-subtle)', marginBottom: 'var(--nous-space-md)' }}>
+                No models available. Start Ollama or configure an API key above.
+              </div>
+            )}
+
+            <div style={{ display: 'flex', gap: 'var(--nous-space-sm)', alignItems: 'center' }}>
+              <button
+                style={{
+                  ...btnStyle('primary'),
+                  opacity: savingModels || !modelSelectionChanged ? 0.5 : 1,
+                  cursor: savingModels || !modelSelectionChanged ? 'not-allowed' : 'pointer',
+                }}
+                onClick={handleSaveModels}
+                disabled={savingModels || !modelSelectionChanged}
+              >
+                {savingModels ? 'Saving...' : 'Save'}
+              </button>
+            </div>
+          </div>
+
+          {modelFeedback && (
+            <div style={feedbackStyle(modelFeedback.success)}>
+              {modelFeedback.message}
+            </div>
+          )}
+        </div>
+      )}
 
       {/* ── System Status ─────────────────────────────────── */}
       <div style={sectionStyle}>
