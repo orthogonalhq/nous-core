@@ -1,5 +1,7 @@
 export { PlaceholderPanel } from './PlaceholderPanel'
 export { AppIframePanel } from './AppIframePanel'
+export { AgentPanel } from './AgentPanel'
+export type { AgentPanelApi, AgentSession, AgentMessage, AgentToolCall, AgentStatus, GovernanceDecision } from './AgentPanel'
 export { ChatPanel } from './ChatPanel'
 export { FileBrowserPanel } from './FileBrowserPanel'
 export { NodeProjectionPanel } from './NodeProjectionPanel'

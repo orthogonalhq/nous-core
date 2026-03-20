@@ -70,6 +70,13 @@ interface ElectronAPI {
       src: string
     }[]>
   }
+  backend: {
+    getStatus: () => Promise<{
+      ready: boolean
+      port: number | null
+      trpcUrl: string | null
+    }>
+  }
 }
 
 declare global {
