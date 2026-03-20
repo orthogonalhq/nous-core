@@ -76,6 +76,12 @@ interface ElectronAPI {
       port: number | null
       trpcUrl: string | null
     }>
+    getOllamaStatus: () => Promise<{
+      installed: boolean
+      running: boolean
+      models: string[]
+      defaultModel: string | null
+    }>
   }
 }
 
