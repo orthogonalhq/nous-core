@@ -60,3 +60,22 @@ jobs:
 
       - name: Benchmark Tier 0
         run: pnpm run benchmark:tier0
+
+      - name: Web app smoke start
+        if: matrix.os == 'ubuntu-latest'
+        run: |
+          cd self/apps/web
+          npx next start -p 3123 &
+          SERVER_PID=$!
+          sleep 5
+          STATUS=$(curl -s -o /dev/null -w '%{http_code}' http://localhost:3123/ || echo "000")
+          kill $SERVER_PID 2>/dev/null || true
+          if [ "$STATUS" = "000" ]; then
+            echo "::error::Web app failed to start — no response on localhost:3123"
+            exit 1
+          elif [ "$STATUS" -ge 500 ]; then
+            echo "::error::Web app returned HTTP $STATUS"
+            exit 1
+          else
+            echo "Web app smoke start passed (HTTP $STATUS)"
+          fi
