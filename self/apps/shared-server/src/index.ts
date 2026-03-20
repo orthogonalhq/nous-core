@@ -7,7 +7,7 @@
  * - `NousContext` — the tRPC context type
  * - `createTRPCContext` — tRPC context factory
  */
-export { createNousServices } from './bootstrap';
+export { createNousServices, loadStoredApiKeys, loadModelSelection } from './bootstrap';
 export type { BootstrapConfig } from './bootstrap';
 export type { NousContext, AgentSessionEntry } from './context';
 export { appRouter } from './trpc/root';

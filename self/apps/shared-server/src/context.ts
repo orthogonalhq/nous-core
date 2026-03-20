@@ -26,6 +26,7 @@ import type {
   IVoiceControlService,
   IPublicMcpGatewayService,
   IAppRuntimeService,
+  ICredentialVaultService,
 } from '@nous/shared';
 import type { PanelTranspiler } from '@nous/subcortex-apps';
 import type {
@@ -92,6 +93,7 @@ export interface NousContext {
   publicMcpExecutionBridge: IPublicMcpExecutionBridge;
   appRuntimeService: IAppRuntimeService;
   panelTranspiler: PanelTranspiler;
+  credentialVaultService: ICredentialVaultService;
   dataDir: string;
   /** MAO events emitted by coding agent runs. */
   codingAgentMaoEvents: Array<{ type: string; data: unknown; timestamp: string }>;

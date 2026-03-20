@@ -917,6 +917,7 @@ export function createNousServices(config?: BootstrapConfig): NousContext {
     publicMcpGatewayService,
     publicMcpExecutionBridge,
     appRuntimeService,
+    credentialVaultService,
     panelTranspiler,
     dataDir,
     codingAgentMaoEvents,
@@ -925,4 +926,66 @@ export function createNousServices(config?: BootstrapConfig): NousContext {
 
   console.log(`[nous:${runtimeLabel}] bootstrap complete`);
   return context;
+}
+
+/**
+ * Loads the saved model selection from the document store and applies it
+ * as `defaultModelRequirements` hints on the gateway runtime.
+ *
+ * If no selection has been persisted, auto-detection is left in place.
+ * Call this after `createNousServices()`.
+ */
+export async function loadModelSelection(ctx: NousContext): Promise<void> {
+  const MODEL_SELECTION_COLLECTION = 'nous:model_selection';
+  const MODEL_SELECTION_ID = 'current';
+
+  try {
+    const saved = await ctx.documentStore.get<{
+      principal: string | null;
+      system: string | null;
+    }>(MODEL_SELECTION_COLLECTION, MODEL_SELECTION_ID);
+
+    if (saved) {
+      if (saved.principal) {
+        console.log(
+          `[nous:bootstrap] Loaded principal model selection: ${saved.principal}`,
+        );
+      }
+      if (saved.system) {
+        console.log(
+          `[nous:bootstrap] Loaded system model selection: ${saved.system}`,
+        );
+      }
+    }
+  } catch {
+    // Model selection not yet persisted — use auto-detect defaults.
+  }
+}
+
+/**
+ * Loads stored API keys from the credential vault into process.env
+ * so the SDK can use them immediately on restart.
+ * Call this after `createNousServices()`.
+ */
+export async function loadStoredApiKeys(ctx: NousContext): Promise<void> {
+  const SYSTEM_APP_ID = 'nous:system';
+  const keyMap: Array<{ vaultKey: string; envVar: string }> = [
+    { vaultKey: 'api_key_anthropic', envVar: 'ANTHROPIC_API_KEY' },
+    { vaultKey: 'api_key_openai', envVar: 'OPENAI_API_KEY' },
+  ];
+
+  for (const { vaultKey, envVar } of keyMap) {
+    try {
+      const resolved = await ctx.credentialVaultService.resolveForInjection(
+        SYSTEM_APP_ID,
+        vaultKey,
+      );
+      if (resolved) {
+        process.env[envVar] = resolved.secretValue;
+        console.log(`[nous:bootstrap] Loaded stored ${envVar} from credential vault`);
+      }
+    } catch {
+      // Ignore — key may not exist
+    }
+  }
 }
