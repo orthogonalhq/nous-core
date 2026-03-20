@@ -393,6 +393,30 @@ export const INTERNAL_MCP_CATALOG: readonly InternalMcpCatalogEntry[] = [
     ),
   },
   {
+    name: 'workflow_validate',
+    kind: 'capability',
+    definition: defineTool(
+      'workflow_validate',
+      'Validate a YAML workflow spec without executing it.',
+      { yamlSpec: 'string' },
+      { valid: 'boolean', errors: 'WorkflowSpecValidationError[]?' },
+      ['read'],
+      'runtime',
+    ),
+  },
+  {
+    name: 'workflow_from_spec',
+    kind: 'capability',
+    definition: defineTool(
+      'workflow_from_spec',
+      'Create a persisted workflow definition from a YAML spec without starting it.',
+      { yamlSpec: 'string', projectId: 'ProjectId' },
+      { workflowDefinitionId: 'string', definitionName: 'string' },
+      ['control'],
+      'runtime',
+    ),
+  },
+  {
     name: 'health_report',
     kind: 'capability',
     definition: defineTool(

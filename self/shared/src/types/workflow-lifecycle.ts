@@ -143,15 +143,21 @@ export type WorkflowLifecycleInspectResult = z.infer<
 
 export const WorkflowLifecycleStartCommandSchema = z
   .object({
-    definition: z.string().min(1),
+    definition: z.string().min(1).optional(),
+    yamlSpec: z.string().min(1).optional(),
     projectId: ProjectIdSchema,
     entrypoint: z.string().min(1).optional(),
     config: z.record(z.unknown()).optional(),
     triggerContext: WorkflowRunTriggerContextSchema.optional(),
   })
   .strict()
+  .refine(
+    (value) => value.definition != null || value.yamlSpec != null,
+    { message: 'Either definition or yamlSpec must be provided' },
+  )
   .transform((value) => ({
     definition: value.definition,
+    yamlSpec: value.yamlSpec,
     projectId: value.projectId,
     entrypoint: value.entrypoint,
     config: value.config ?? {},
@@ -159,6 +165,25 @@ export const WorkflowLifecycleStartCommandSchema = z
   }));
 export type WorkflowLifecycleStartCommand = z.output<
   typeof WorkflowLifecycleStartCommandSchema
+>;
+
+export const WorkflowLifecycleValidateCommandSchema = z
+  .object({
+    yamlSpec: z.string().min(1),
+  })
+  .strict();
+export type WorkflowLifecycleValidateCommand = z.infer<
+  typeof WorkflowLifecycleValidateCommandSchema
+>;
+
+export const WorkflowLifecycleFromSpecCommandSchema = z
+  .object({
+    yamlSpec: z.string().min(1),
+    projectId: ProjectIdSchema,
+  })
+  .strict();
+export type WorkflowLifecycleFromSpecCommand = z.infer<
+  typeof WorkflowLifecycleFromSpecCommandSchema
 >;
 
 export const WorkflowLifecycleStatusQuerySchema = z
