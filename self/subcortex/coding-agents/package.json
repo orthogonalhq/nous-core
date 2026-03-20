@@ -7,7 +7,9 @@
   "exports": {
     ".": {
       "types": "./dist/index.d.ts",
-      "import": "./dist/index.js"
+      "import": "./dist/index.js",
+      "require": "./dist/index.js",
+      "default": "./dist/index.js"
     }
   },
   "scripts": {
@@ -27,7 +29,11 @@
     "@openai/codex-sdk": ">=0.43.0"
   },
   "peerDependenciesMeta": {
-    "@anthropic-ai/claude-agent-sdk": { "optional": true },
-    "@openai/codex-sdk": { "optional": true }
+    "@anthropic-ai/claude-agent-sdk": {
+      "optional": true
+    },
+    "@openai/codex-sdk": {
+      "optional": true
+    }
   }
 }

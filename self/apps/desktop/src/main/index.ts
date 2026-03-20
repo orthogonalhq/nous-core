@@ -1,7 +1,7 @@
 import { app, BrowserWindow, ipcMain } from 'electron'
 import { join } from 'node:path'
 import { createServer } from 'node:net'
-import { fork, type ChildProcess } from 'node:child_process'
+import { fork, spawn, type ChildProcess } from 'node:child_process'
 import { execFile } from 'node:child_process'
 import { promisify } from 'node:util'
 import { readdir, readFile } from 'node:fs/promises'
@@ -78,25 +78,32 @@ function spawnBackendServer(port: number): Promise<number> {
 
     const isDev = process.env['NODE_ENV'] === 'development'
 
-    // In development, use tsx to run TypeScript directly.
-    // In production, use the bundled JS with the same Node.js that runs Electron.
+    // Use system Node.js (not Electron's embedded Node) to avoid native module
+    // version mismatches (better-sqlite3 compiled for system Node, not Electron).
+    // fork() with explicit execPath uses system node while preserving IPC channel.
+    // Use 'node' from PATH — fork with execPath bypasses Electron's embedded Node
+    const systemNode = 'node'
+
     let child: ChildProcess
     if (isDev) {
-      // Use fork with tsx loader for TypeScript support in dev
       child = fork(serverPath, args, {
         stdio: ['pipe', 'inherit', 'inherit', 'ipc'],
+        execPath: systemNode,
         env: {
           ...process.env,
           NODE_ENV: 'development',
+          ELECTRON_RUN_AS_NODE: undefined,
         },
         execArgv: ['--import', 'tsx'],
       })
     } else {
       child = fork(serverPath, args, {
         stdio: ['pipe', 'inherit', 'inherit', 'ipc'],
+        execPath: systemNode,
         env: {
           ...process.env,
           NODE_ENV: 'production',
+          ELECTRON_RUN_AS_NODE: undefined,
         },
       })
     }
