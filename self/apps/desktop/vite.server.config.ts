@@ -20,6 +20,14 @@ export default defineConfig({
     rollupOptions: {
       external: [
         /^node:/,
+        /^@nous\//,
+        /^@trpc\//,
+        /^superjson/,
+        /^better-sqlite3/,
+        /^json5/,
+        /^semver/,
+        /^zod/,
+        /^yaml/,
       ],
     },
     minify: false,
