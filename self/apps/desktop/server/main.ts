@@ -9,7 +9,8 @@
  * Usage: node server/main.ts --port=<port> [--data-dir=<path>]
  */
 import { createServer } from 'node:http';
-import { createNousServices, appRouter, createTRPCContext } from '@nous/shared-server';
+import { createNousServices, appRouter, createTRPCContext, detectOllama } from '@nous/shared-server';
+import type { OllamaStatus } from '@nous/shared-server';
 import { createHTTPHandler } from '@trpc/server/adapters/standalone';
 
 // ─── Parse CLI arguments ────────────────────────────────────────────────────
@@ -72,10 +73,30 @@ async function main() {
       return;
     }
 
-    // Health check endpoint
+    // Health check endpoint — includes Ollama status for renderer awareness
     if (req.url === '/health') {
-      res.writeHead(200, { 'Content-Type': 'application/json' });
-      res.end(JSON.stringify({ status: 'ok', runtime: 'desktop', port: args.port }));
+      detectOllama().then((ollama) => {
+        res.writeHead(200, { 'Content-Type': 'application/json' });
+        res.end(JSON.stringify({ status: 'ok', runtime: 'desktop', port: args.port, ollama }));
+      }).catch(() => {
+        res.writeHead(200, { 'Content-Type': 'application/json' });
+        res.end(JSON.stringify({
+          status: 'ok', runtime: 'desktop', port: args.port,
+          ollama: { installed: false, running: false, models: [], defaultModel: null } satisfies OllamaStatus,
+        }));
+      });
+      return;
+    }
+
+    // Dedicated Ollama status endpoint for polling
+    if (req.url === '/ollama-status') {
+      detectOllama().then((ollama) => {
+        res.writeHead(200, { 'Content-Type': 'application/json' });
+        res.end(JSON.stringify(ollama));
+      }).catch(() => {
+        res.writeHead(200, { 'Content-Type': 'application/json' });
+        res.end(JSON.stringify({ installed: false, running: false, models: [], defaultModel: null } satisfies OllamaStatus));
+      });
       return;
     }
 

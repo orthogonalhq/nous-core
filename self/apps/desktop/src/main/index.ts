@@ -644,6 +644,24 @@ ipcMain.handle('backend:getStatus', () => ({
   trpcUrl: backendPort ? `http://127.0.0.1:${backendPort}/api/trpc` : null,
 }))
 
+// Ollama status — fetched from the backend server's dedicated endpoint
+ipcMain.handle('backend:getOllamaStatus', async () => {
+  if (!backendReady || !backendPort) {
+    return { installed: false, running: false, models: [], defaultModel: null }
+  }
+  try {
+    const res = await fetch(`http://127.0.0.1:${backendPort}/ollama-status`, {
+      signal: AbortSignal.timeout(5000),
+    })
+    if (!res.ok) {
+      return { installed: false, running: false, models: [], defaultModel: null }
+    }
+    return await res.json()
+  } catch {
+    return { installed: false, running: false, models: [], defaultModel: null }
+  }
+})
+
 // Chat handlers — tRPC proxy to the self-hosted backend
 // Lazy tRPC client — created once the backend is ready
 let trpcClient: ReturnType<typeof createTRPCClient> | null = null

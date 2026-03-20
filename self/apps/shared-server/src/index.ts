@@ -13,3 +13,5 @@ export type { NousContext } from './context';
 export { appRouter } from './trpc/root';
 export type { AppRouter } from './trpc/root';
 export { createTRPCContext, router, publicProcedure } from './trpc/trpc';
+export { detectOllama } from './ollama-detection';
+export type { OllamaStatus } from './ollama-detection';
