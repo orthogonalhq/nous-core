@@ -42,4 +42,8 @@ contextBridge.exposeInMainWorld('electronAPI', {
   appPanels: {
     list: (): Promise<unknown[]> => ipcRenderer.invoke('app-panels:list'),
   },
+  backend: {
+    getStatus: (): Promise<{ ready: boolean; port: number | null; trpcUrl: string | null }> =>
+      ipcRenderer.invoke('backend:getStatus'),
+  },
 })
