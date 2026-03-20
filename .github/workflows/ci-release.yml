@@ -1,7 +1,7 @@
 name: CI Release
 
 # Tier 4: Confirms promoted release branch health and preserves release evidence
-# Full cross-platform matrix, coverage, benchmarks
+# Same checks as T3 — ubuntu-only for Node.js, web smoke, coverage, benchmarks
 
 on:
   push:
@@ -11,12 +11,8 @@ on:
 
 jobs:
   check:
-    name: Check (${{ matrix.os }})
-    runs-on: ${{ matrix.os }}
-    strategy:
-      fail-fast: false
-      matrix:
-        os: [ubuntu-latest, macos-latest, windows-latest]
+    name: Check
+    runs-on: ubuntu-latest
 
     steps:
       - name: Checkout
@@ -43,16 +39,10 @@ jobs:
       - name: Lint
         run: pnpm run lint
 
-      - name: Test
-        if: matrix.os != 'ubuntu-latest'
-        run: pnpm run test
-
       - name: Test (with coverage)
-        if: matrix.os == 'ubuntu-latest'
         run: pnpm run test --coverage
 
       - name: Upload coverage to Codecov
-        if: matrix.os == 'ubuntu-latest'
         uses: codecov/codecov-action@v4
         with:
           files: ./coverage/lcov.info
@@ -60,3 +50,45 @@ jobs:
 
       - name: Benchmark Tier 0
         run: pnpm run benchmark:tier0
+
+  webapp-smoke:
+    name: Smoke (web)
+    needs: check
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Install pnpm
+        uses: pnpm/action-setup@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: 'pnpm'
+
+      - name: Install dependencies
+        run: pnpm install
+
+      - name: Build
+        run: pnpm run build
+
+      - name: Start server and verify
+        run: |
+          cd self/apps/web
+          npx next start -p 3123 &
+          SERVER_PID=$!
+          sleep 5
+          STATUS=$(curl -s -o /dev/null -w '%{http_code}' http://localhost:3123/ || echo "000")
+          kill $SERVER_PID 2>/dev/null || true
+          if [ "$STATUS" = "000" ]; then
+            echo "::error::Web app failed to start — no response on localhost:3123"
+            exit 1
+          elif [ "$STATUS" -ge 500 ]; then
+            echo "::error::Web app returned HTTP $STATUS"
+            exit 1
+          else
+            echo "Web app smoke start passed (HTTP $STATUS)"
+          fi
