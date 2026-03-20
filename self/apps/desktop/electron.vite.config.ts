@@ -4,7 +4,9 @@ import react from '@vitejs/plugin-react'
 
 export default defineConfig({
   main: {
-    plugins: [externalizeDepsPlugin()],
+    // No externalizeDepsPlugin — bundle all deps into main process.
+    // pnpm's strict node_modules breaks electron-builder's dependency
+    // resolution, so the main bundle must be self-contained.
   },
   preload: {
     plugins: [externalizeDepsPlugin()],
