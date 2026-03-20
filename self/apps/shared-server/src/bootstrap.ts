@@ -19,6 +19,8 @@ import type {
   ProviderId,
   TraceId,
   StmCompactionPolicy,
+  WorkflowNodeKind,
+  IWorkflowNodeHandler,
 } from '@nous/shared';
 import { ConfigManager } from '@nous/autonomic-config';
 import {
@@ -90,6 +92,7 @@ import {
   InMemoryProjectControlStateStore,
 } from '@nous/subcortex-opctl';
 import { MaoProjectionService } from '@nous/subcortex-mao';
+import { registerCodingAgentNodeTypes } from '@nous/subcortex-coding-agents';
 import { GtmGateCalculator } from '@nous/subcortex-gtm';
 import { VoiceControlService } from '@nous/subcortex-voice-control';
 import {
@@ -372,12 +375,22 @@ export function createNousServices(config?: BootstrapConfig): NousContext {
 
   const router = new ModelRouter(appConfig);
   const providerRegistry = new ProviderRegistry(appConfig);
+  const codingAgentNodeHandlerOverrides = new Map<WorkflowNodeKind, IWorkflowNodeHandler>();
+  const codingAgentMaoEvents: Array<{ type: string; data: unknown; timestamp: string }> = [];
+  registerCodingAgentNodeTypes(codingAgentNodeHandlerOverrides, {
+    pfcEngine: Cortex,
+    witnessService,
+    onMaoEvent: (event) => {
+      codingAgentMaoEvents.push(event);
+    },
+  });
   const workflowEngine = new DeterministicWorkflowEngine({
     pfcEngine: Cortex,
     modelRouter: router,
     toolExecutor,
     runtime,
     instanceRoot,
+    nodeHandlerOverrides: codingAgentNodeHandlerOverrides,
   });
   let schedulerIngressGateway = createBootstrapIngressShim();
   const schedulerService = new SchedulerService({
@@ -853,6 +866,14 @@ export function createNousServices(config?: BootstrapConfig): NousContext {
     appCredentialInstallService,
     instanceRoot,
     outputSchemaValidator: new DefaultSchemaRefValidator(),
+    // Model routing: Principal uses 'thinking' profile (Opus 4.6),
+    // System uses 'fast' profile (Sonnet). The defaultModelRequirements
+    // applies to System gateway execution. Principal gateway uses its own
+    // model provider or the model router with 'thinking' requirements.
+    defaultModelRequirements: {
+      profile: 'fast',
+      fallbackPolicy: 'block_if_unmet',
+    },
   });
   providerRegistry.onLeaseReleased((event) => {
     void gatewayRuntime.notifyLeaseReleased({
@@ -861,6 +882,8 @@ export function createNousServices(config?: BootstrapConfig): NousContext {
     });
   });
   schedulerIngressGateway = new GatewayRuntimeIngressAdapter(gatewayRuntime);
+
+  const agentSessions = new Map<string, import('./context').AgentSessionEntry>();
 
   const context: NousContext = {
     // Type assertion: GatewayBackedTurnExecutor satisfies ICoreExecutor structurally,
@@ -896,6 +919,8 @@ export function createNousServices(config?: BootstrapConfig): NousContext {
     appRuntimeService,
     panelTranspiler,
     dataDir,
+    codingAgentMaoEvents,
+    agentSessions,
   };
 
   console.log(`[nous:${runtimeLabel}] bootstrap complete`);

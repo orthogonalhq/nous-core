@@ -19,6 +19,7 @@ import { marketplaceRouter } from './routers/marketplace';
 import { packagesRouter } from './routers/packages';
 import { voiceRouter } from './routers/voice';
 import { mobileRouter } from './routers/mobile';
+import { codingAgentsRouter } from './routers/coding-agents';
 
 export const appRouter = router({
   projects: projectsRouter,
@@ -38,6 +39,7 @@ export const appRouter = router({
   packages: packagesRouter,
   voice: voiceRouter,
   mobile: mobileRouter,
+  codingAgents: codingAgentsRouter,
 });
 
 export type AppRouter = typeof appRouter;

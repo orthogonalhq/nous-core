@@ -342,6 +342,9 @@ importers:
       '@nous/subcortex-artifacts':
         specifier: workspace:*
         version: link:../../subcortex/artifacts
+      '@nous/subcortex-coding-agents':
+        specifier: workspace:*
+        version: link:../../subcortex/coding-agents
       '@nous/subcortex-communication-gateway':
         specifier: workspace:*
         version: link:../../subcortex/communication-gateway
