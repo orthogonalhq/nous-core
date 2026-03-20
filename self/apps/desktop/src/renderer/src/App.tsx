@@ -13,6 +13,7 @@ import {
   FileBrowserPanel,
   NodeProjectionPanel,
   MAOPanel,
+  AgentPanel,
   CodexBarPanel,
   CodexBarHeaderActions,
   useCodexBarApi,
@@ -26,6 +27,13 @@ import { StatusBar } from './components/StatusBar'
 
 import 'dockview-react/dist/styles/dockview.css'
 
+export interface OllamaStatusSnapshot {
+  installed: boolean
+  running: boolean
+  models: string[]
+  defaultModel: string | null
+}
+
 const panelComponents = {
   'app-installer': AppInstallWizardPanel,
   'app-iframe': AppIframePanel,
@@ -34,6 +42,7 @@ const panelComponents = {
   'file-browser': FileBrowserPanel,
   'node-projection': NodeProjectionPanel,
   mao: MAOPanel,
+  'coding-agents': AgentPanel,
   codexbar: CodexBarPanel,
   dashboard: DashboardPanel,
 }
@@ -84,7 +93,7 @@ export const NATIVE_PANEL_DEFS: PanelDef[] = [
     id: 'chat',
     component: 'chat',
     title: 'Principal \u2194 Cortex',
-    params: () => ({ chatApi: (window as any).electronAPI?.chat }),
+    params: () => ({ chatApi: (window as any).electronAPI?.chat, ollamaStatus: null }),
   },
   {
     id: 'files',
@@ -94,6 +103,7 @@ export const NATIVE_PANEL_DEFS: PanelDef[] = [
   },
   { id: 'node-projection', component: 'node-projection', title: 'Skill Projection' },
   { id: 'mao', component: 'mao', title: 'MAO' },
+  { id: 'coding-agents', component: 'coding-agents', title: 'Coding Agents' },
   {
     id: 'codexbar',
     component: 'codexbar',
@@ -156,14 +166,67 @@ export function App() {
   const [savedLayout, setSavedLayout] = useState<LayoutState>(undefined)
   const [dockviewApi, setDockviewApi] = useState<DockviewApi | null>(null)
   const [appPanels, setAppPanels] = useState<AppPanelSnapshot[]>([])
+  const [backendReady, setBackendReady] = useState(false)
+  const [ollamaStatus, setOllamaStatus] = useState<OllamaStatusSnapshot | null>(null)
   const panelDefs = [...NATIVE_PANEL_DEFS, ...appPanels.map(toAppPanelDef)]
 
+  // Poll for backend readiness until ready
+  useEffect(() => {
+    let cancelled = false
+    let intervalId: ReturnType<typeof setInterval> | null = null
+
+    const checkBackend = async () => {
+      try {
+        const status = await window.electronAPI.backend.getStatus()
+        if (status.ready && !cancelled) {
+          setBackendReady(true)
+          if (intervalId) clearInterval(intervalId)
+        }
+      } catch {
+        // ignore — backend not ready yet
+      }
+    }
+
+    void checkBackend()
+    intervalId = setInterval(checkBackend, 1000)
+
+    return () => {
+      cancelled = true
+      if (intervalId) clearInterval(intervalId)
+    }
+  }, [])
+
+  // Once backend is ready, fetch Ollama status and poll periodically
+  useEffect(() => {
+    if (!backendReady) return
+    let cancelled = false
+
+    const fetchOllamaStatus = async () => {
+      try {
+        const status = await window.electronAPI.backend.getOllamaStatus()
+        if (!cancelled) setOllamaStatus(status)
+      } catch {
+        // ignore
+      }
+    }
+
+    void fetchOllamaStatus()
+    const intervalId = setInterval(fetchOllamaStatus, 15_000)
+
+    return () => {
+      cancelled = true
+      clearInterval(intervalId)
+    }
+  }, [backendReady])
+
+  // Load saved layout
   useEffect(() => {
     window.electronAPI.layout.get().then((layout: unknown) => {
       setSavedLayout((layout as SerializedDockview | null) ?? null)
     })
   }, [])
 
+  // Sync app panels
   useEffect(() => {
     let cancelled = false
 
@@ -185,21 +248,29 @@ export function App() {
     }
   }, [])
 
-  if (savedLayout === undefined) {
+  // Show "Starting Nous..." while backend is booting or layout is loading
+  if (!backendReady || savedLayout === undefined) {
     return (
       <ChromeShell dockviewApi={null} panelDefs={panelDefs}>
         <div
           style={{
             height: '100%',
             display: 'flex',
+            flexDirection: 'column',
             alignItems: 'center',
             justifyContent: 'center',
             background: 'var(--nous-bg)',
             color: 'var(--nous-fg-subtle)',
             fontSize: 'var(--nous-font-size-base)',
+            gap: 'var(--nous-space-lg)',
           }}
         >
-          Loading...
+          <div style={{ fontSize: 'var(--nous-font-size-lg)', fontWeight: 'var(--nous-font-weight-semibold)' as any, color: 'var(--nous-fg-muted)' }}>
+            Starting Nous...
+          </div>
+          <div style={{ color: 'var(--nous-fg-subtle)', fontSize: 'var(--nous-font-size-sm)' }}>
+            {!backendReady ? 'Initializing backend services' : 'Loading layout'}
+          </div>
         </div>
       </ChromeShell>
     )
@@ -211,6 +282,7 @@ export function App() {
         savedLayout={savedLayout}
         onApiReady={setDockviewApi}
         activeAppPanelIds={new Set(appPanels.map((panel) => panel.dockview_panel_id))}
+        ollamaStatus={ollamaStatus}
       />
     </ChromeShell>
   )
@@ -240,10 +312,12 @@ function DockviewShell({
   savedLayout,
   onApiReady,
   activeAppPanelIds,
+  ollamaStatus,
 }: {
   savedLayout: SerializedDockview | null
   onApiReady: (api: DockviewApi) => void
   activeAppPanelIds: Set<string>
+  ollamaStatus: OllamaStatusSnapshot | null
 }) {
   const dockviewApiRef = useRef<DockviewApi | null>(null)
 
@@ -256,6 +330,15 @@ function DockviewShell({
       }
     }
   }, [activeAppPanelIds])
+
+  // Propagate ollamaStatus changes to the chat panel
+  useEffect(() => {
+    if (!dockviewApiRef.current) return
+    const chatPanel = dockviewApiRef.current.panels.find((p) => p.id === 'chat')
+    if (chatPanel) {
+      chatPanel.api.updateParameters({ ollamaStatus })
+    }
+  }, [ollamaStatus])
 
   const onReady = (event: DockviewReadyEvent) => {
     if (savedLayout) {
@@ -295,6 +378,7 @@ const DEFAULT_POSITIONS: Record<string, { direction: string; referencePanel: str
   files: { direction: 'below', referencePanel: 'chat' },
   'node-projection': { direction: 'right', referencePanel: 'chat' },
   mao: { direction: 'below', referencePanel: 'node-projection' },
+  'coding-agents': { direction: 'within', referencePanel: 'mao' },
   codexbar: { direction: 'within', referencePanel: 'chat' },
   dashboard: { direction: 'within', referencePanel: 'chat' },
 }

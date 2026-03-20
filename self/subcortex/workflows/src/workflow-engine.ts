@@ -63,6 +63,8 @@ export interface WorkflowEngineDependencies {
   observer?: WorkflowRuntimeObserver;
   runtime?: IRuntime;
   instanceRoot?: string;
+  /** Override or extend the built-in node handler registry (e.g. coding agent handlers). */
+  nodeHandlerOverrides?: Map<import('@nous/shared').WorkflowNodeKind, import('@nous/shared').IWorkflowNodeHandler>;
 }
 
 function findNodeDefinition(
@@ -423,6 +425,7 @@ export class DeterministicWorkflowEngine implements IWorkflowEngine {
         modelRouter: this.deps.modelRouter,
         toolExecutor: this.deps.toolExecutor,
         observer: this.deps.observer,
+        nodeHandlerOverrides: this.deps.nodeHandlerOverrides,
       } satisfies WorkflowExecutionCoordinatorDependencies,
       {
         projectConfig,

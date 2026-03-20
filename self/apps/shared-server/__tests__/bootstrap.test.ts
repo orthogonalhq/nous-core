@@ -42,7 +42,7 @@ describe('@nous/shared-server package structure', () => {
 
   it('has all expected router files', () => {
     const expectedRouters = [
-      'chat', 'config', 'discovery', 'escalations', 'first-run',
+      'chat', 'coding-agents', 'config', 'discovery', 'escalations', 'first-run',
       'gtm', 'health', 'mao', 'marketplace', 'memory', 'mobile',
       'opctl', 'packages', 'projects', 'traces', 'voice', 'witness',
     ];

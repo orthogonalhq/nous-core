@@ -39,6 +39,29 @@ import type { IConfig } from '@nous/shared';
 import type { ProviderId } from '@nous/shared';
 import type { IModelProvider } from '@nous/shared';
 
+/** Agent session tracking for coding agent pipeline. */
+export interface AgentSessionEntry {
+  id: string;
+  workflowRunId: string;
+  agentName: string;
+  agentType: string;
+  status: 'running' | 'waiting' | 'completed' | 'failed' | 'idle';
+  messages: Array<{
+    id: string;
+    role: 'agent' | 'system' | 'tool';
+    content: string;
+    timestamp: string;
+    toolCall?: {
+      id: string;
+      toolName: string;
+      input: unknown;
+      output?: unknown;
+      governance: 'allowed' | 'denied';
+      timestamp: string;
+    };
+  }>;
+}
+
 export interface NousContext {
   coreExecutor: ICoreExecutor;
   gatewayRuntime: IPrincipalSystemGatewayRuntime;
@@ -70,4 +93,8 @@ export interface NousContext {
   appRuntimeService: IAppRuntimeService;
   panelTranspiler: PanelTranspiler;
   dataDir: string;
+  /** MAO events emitted by coding agent runs. */
+  codingAgentMaoEvents: Array<{ type: string; data: unknown; timestamp: string }>;
+  /** In-memory store for agent sessions (keyed by session ID). */
+  agentSessions: Map<string, AgentSessionEntry>;
 }

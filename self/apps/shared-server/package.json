@@ -30,6 +30,7 @@
     "@nous/shared": "workspace:*",
     "@nous/subcortex-apps": "workspace:*",
     "@nous/subcortex-artifacts": "workspace:*",
+    "@nous/subcortex-coding-agents": "workspace:*",
     "@nous/subcortex-communication-gateway": "workspace:*",
     "@nous/subcortex-endpoint-trust": "workspace:*",
     "@nous/subcortex-escalation": "workspace:*",
