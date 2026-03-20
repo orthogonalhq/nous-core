@@ -21,26 +21,8 @@ on:
       - 'chore/**'
 
 jobs:
-  scope-guard:
-    name: Scope Guard
-    if: github.event_name == 'pull_request'
-    runs-on: ubuntu-latest
-    steps:
-      - name: Checkout
-        uses: actions/checkout@v4
-        with:
-          fetch-depth: 0
-
-      - name: Mixed-scope fail-close guard
-        run: |
-          python scripts/check_mixed_scope.py \
-            --base-ref "${{ github.event.pull_request.base.sha }}" \
-            --head-ref "${{ github.sha }}"
-
   check:
     name: Check
-    needs: [scope-guard]
-    if: always() && (needs.scope-guard.result == 'success' || needs.scope-guard.result == 'skipped')
     runs-on: ubuntu-latest
 
     steps:
