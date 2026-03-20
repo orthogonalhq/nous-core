@@ -6,6 +6,14 @@ name: CI Release
 on:
   pull_request:
     branches: [main]
+    paths-ignore:
+      - '**.md'
+      - '**.mdx'
+      - '.architecture'
+      - '.worklog'
+      - '.skills'
+      - 'docs/**'
+      - 'LICENSE*'
 
 jobs:
   check:

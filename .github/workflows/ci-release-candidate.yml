@@ -9,6 +9,14 @@ name: CI Release Candidate
 on:
   pull_request:
     branches: [staging]
+    paths-ignore:
+      - '**.md'
+      - '**.mdx'
+      - '.architecture'
+      - '.worklog'
+      - '.skills'
+      - 'docs/**'
+      - 'LICENSE*'
 
 jobs:
   check:
