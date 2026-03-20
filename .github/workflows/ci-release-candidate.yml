@@ -79,6 +79,9 @@ jobs:
       - name: Install dependencies
         run: pnpm install
 
+      - name: Download Electron binary
+        run: node node_modules/electron/install.js
+
       - name: Build desktop distributable
         run: pnpm --filter @nous/desktop run build:dist
 
