@@ -1,7 +1,10 @@
 name: CI Release Candidate
 
 # Tier 3: Validates release readiness before promotion to main
-# Full cross-platform matrix, coverage, benchmarks
+# Check: lint/type/build/test on ubuntu (Node.js — platform-independent)
+# Desktop: electron-builder on 3 OSes (platform-specific native builds)
+# Smoke (web): web app start + HTTP check
+# Coverage + benchmarks
 
 on:
   push:
@@ -11,12 +14,8 @@ on:
 
 jobs:
   check:
-    name: Check (${{ matrix.os }})
-    runs-on: ${{ matrix.os }}
-    strategy:
-      fail-fast: false
-      matrix:
-        os: [ubuntu-latest, macos-latest, windows-latest]
+    name: Check
+    runs-on: ubuntu-latest
 
     steps:
       - name: Checkout
@@ -43,16 +42,10 @@ jobs:
       - name: Lint
         run: pnpm run lint
 
-      - name: Test
-        if: matrix.os != 'ubuntu-latest'
-        run: pnpm run test
-
       - name: Test (with coverage)
-        if: matrix.os == 'ubuntu-latest'
         run: pnpm run test --coverage
 
       - name: Upload coverage to Codecov
-        if: matrix.os == 'ubuntu-latest'
         uses: codecov/codecov-action@v4
         with:
           files: ./coverage/lcov.info
@@ -61,8 +54,62 @@ jobs:
       - name: Benchmark Tier 0
         run: pnpm run benchmark:tier0
 
-      - name: Web app smoke start
-        if: matrix.os == 'ubuntu-latest'
+  desktop:
+    name: Desktop (${{ matrix.os }})
+    needs: check
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, macos-latest, windows-latest]
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Install pnpm
+        uses: pnpm/action-setup@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: 'pnpm'
+
+      - name: Install dependencies
+        run: pnpm install
+
+      - name: Download Electron binary
+        run: node node_modules/electron/install.js
+
+      - name: Build desktop distributable
+        run: pnpm --filter @nous/desktop run build:dist
+
+  webapp-smoke:
+    name: Smoke (web)
+    needs: check
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Install pnpm
+        uses: pnpm/action-setup@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: 'pnpm'
+
+      - name: Install dependencies
+        run: pnpm install
+
+      - name: Build
+        run: pnpm run build
+
+      - name: Start server and verify
         run: |
           cd self/apps/web
           npx next start -p 3123 &
