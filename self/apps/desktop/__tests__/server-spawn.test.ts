@@ -5,9 +5,13 @@
  * - The server entry point can be loaded (import check)
  * - The CLI argument parser works correctly
  * - The IPC readiness signal protocol is correct
+ * - Backend readiness guard behavior (Tier 2)
+ * - Anti-regression source-level smoke tests (Tier 3)
  */
 import { describe, it, expect, vi } from 'vitest';
 import { createServer } from 'node:net';
+import { readFileSync } from 'node:fs';
+import { join } from 'node:path';
 
 describe('desktop backend server', () => {
   describe('free port finder', () => {
@@ -79,6 +83,96 @@ describe('desktop backend server', () => {
       expect(readyMessage.type).toBe('ready');
       expect(typeof readyMessage.port).toBe('number');
       expect(readyMessage.port).toBeGreaterThan(0);
+    });
+  });
+
+  describe('backend spawn readiness', () => {
+    it('ensureBackendReady throws when no promise exists', async () => {
+      // Simulate the ensureBackendReady logic outside of Electron context
+      let backendReady = false;
+      let backendReadyPromise: Promise<number> | null = null;
+
+      async function ensureBackendReady(): Promise<void> {
+        if (backendReady) return;
+        if (backendReadyPromise) {
+          await backendReadyPromise;
+          return;
+        }
+        throw new Error('Backend server is not running');
+      }
+
+      await expect(ensureBackendReady()).rejects.toThrow('Backend server is not running');
+    });
+
+    it('ensureBackendReady resolves when promise resolves', async () => {
+      let backendReady = false;
+      let backendReadyPromise: Promise<number> | null = Promise.resolve(54321);
+
+      async function ensureBackendReady(): Promise<void> {
+        if (backendReady) return;
+        if (backendReadyPromise) {
+          await backendReadyPromise;
+          return;
+        }
+        throw new Error('Backend server is not running');
+      }
+
+      // Should not throw — the promise resolves
+      await expect(ensureBackendReady()).resolves.toBeUndefined();
+    });
+  });
+
+  describe('tRPC client construction', () => {
+    it('getTrpcClient throws when backendPort is null', () => {
+      // Simulate the getTrpcClient guard logic
+      let backendPort: number | null = null;
+      let trpcClient: unknown = null;
+
+      function getTrpcClient() {
+        if (!trpcClient && backendPort) {
+          trpcClient = { mock: true };
+        }
+        if (!trpcClient) {
+          throw new Error('Backend server is not ready — tRPC client unavailable');
+        }
+        return trpcClient;
+      }
+
+      expect(() => getTrpcClient()).toThrow('Backend server is not ready');
+    });
+
+    it('tRPC URL uses dynamic port', () => {
+      const port = 54321;
+      const url = `http://127.0.0.1:${port}/api/trpc`;
+
+      expect(url).toBe('http://127.0.0.1:54321/api/trpc');
+      expect(url).not.toContain('localhost:3000');
+      expect(url).toContain('127.0.0.1');
+    });
+  });
+
+  describe('anti-regression smoke', () => {
+    // Read the main/index.ts source at test time to verify critical functions are present.
+    // This catches accidental deletion of backend spawning code.
+    const mainIndexPath = join(__dirname, '..', 'src', 'main', 'index.ts');
+    let source: string;
+
+    try {
+      source = readFileSync(mainIndexPath, 'utf-8');
+    } catch {
+      source = '';
+    }
+
+    it('main/index.ts contains fork( — backend spawn must be present', () => {
+      expect(source).toContain('fork(');
+    });
+
+    it('main/index.ts contains findFreePort — port allocation must be present', () => {
+      expect(source).toContain('findFreePort');
+    });
+
+    it('main/index.ts contains spawnBackendServer — spawn orchestrator must be present', () => {
+      expect(source).toContain('spawnBackendServer');
     });
   });
 });

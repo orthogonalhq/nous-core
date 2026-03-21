@@ -1,10 +1,12 @@
 import { app, BrowserWindow, ipcMain } from 'electron'
 import { join } from 'node:path'
-import { execFile } from 'node:child_process'
+import { createServer } from 'node:net'
+import { execFile, fork, spawn, type ChildProcess } from 'node:child_process'
 import { promisify } from 'node:util'
 import { readdir, readFile } from 'node:fs/promises'
 import Store from 'electron-store'
 import { createTRPCClient, httpBatchLink } from '@trpc/client'
+import superjson from 'superjson'
 
 interface StoredLayout {
   version: 1
@@ -17,6 +19,173 @@ const execFileAsync = promisify(execFile)
 
 // Hoisted window reference — needed by IPC handlers registered before createWindow
 let win: BrowserWindow | null = null
+
+// ━━━ CRITICAL: Backend Child Process ━━━ DO NOT REMOVE — see fix/desktop-backend-wiring
+
+let backendChild: ChildProcess | null = null
+let backendPort: number | null = null
+let backendReady = false
+let backendReadyPromise: Promise<number> | null = null
+let isAppQuitting = false
+
+/**
+ * Find a free port by binding to port 0 and reading the assigned port.
+ * DO NOT REMOVE — see fix/desktop-backend-wiring
+ */
+function findFreePort(): Promise<number> {
+  return new Promise((resolve, reject) => {
+    const srv = createServer()
+    srv.listen(0, '127.0.0.1', () => {
+      const addr = srv.address()
+      if (typeof addr === 'object' && addr !== null) {
+        const port = addr.port
+        srv.close(() => resolve(port))
+      } else {
+        srv.close(() => reject(new Error('Could not determine port')))
+      }
+    })
+    srv.on('error', reject)
+  })
+}
+
+/**
+ * Resolve the path to the desktop backend server entry point.
+ * In development, it's the TypeScript source (run via tsx/ts-node).
+ * In production, it's the bundled JS in the output directory.
+ */
+function resolveServerEntryPath(): string {
+  if (process.env['NODE_ENV'] === 'development') {
+    // In dev, the server source is at desktop/server/main.ts relative to the package
+    return join(__dirname, '../../server/main.ts')
+  }
+  // In production, the server is bundled alongside the main process output
+  return join(__dirname, '../server/main.js')
+}
+
+/**
+ * Spawn the backend server as a child process on the given port.
+ * Returns a promise that resolves when the child signals readiness.
+ * DO NOT REMOVE — see fix/desktop-backend-wiring
+ */
+function spawnBackendServer(port: number): Promise<number> {
+  // Discard stale tRPC client so it gets recreated with the new port
+  trpcClient = null
+
+  return new Promise((resolve, reject) => {
+    const serverPath = resolveServerEntryPath()
+    const args = [`--port=${port}`]
+
+    // Set data dir to app's userData directory for production isolation
+    const dataDir = app.getPath('userData')
+    args.push(`--data-dir=${join(dataDir, 'data')}`)
+
+    console.log(`[nous:desktop] spawning backend server: ${serverPath} ${args.join(' ')}`)
+
+    const isDev = process.env['NODE_ENV'] === 'development'
+
+    // Use system Node.js (not Electron's embedded Node) to avoid native module
+    // version mismatches (better-sqlite3 compiled for system Node, not Electron).
+    // fork() with explicit execPath uses system node while preserving IPC channel.
+    // Use 'node' from PATH — fork with execPath bypasses Electron's embedded Node
+    const systemNode = 'node'
+
+    let child: ChildProcess
+    if (isDev) {
+      child = fork(serverPath, args, {
+        stdio: ['pipe', 'inherit', 'inherit', 'ipc'],
+        execPath: systemNode,
+        env: {
+          ...process.env,
+          NODE_ENV: 'development',
+          ELECTRON_RUN_AS_NODE: undefined,
+        },
+        execArgv: ['--import', 'tsx'],
+      })
+    } else {
+      child = fork(serverPath, args, {
+        stdio: ['pipe', 'inherit', 'inherit', 'ipc'],
+        execPath: systemNode,
+        env: {
+          ...process.env,
+          NODE_ENV: 'production',
+          ELECTRON_RUN_AS_NODE: undefined,
+        },
+      })
+    }
+
+    backendChild = child
+
+    const timeout = setTimeout(() => {
+      reject(new Error('Backend server did not signal readiness within 30 seconds'))
+    }, 30_000)
+
+    child.on('message', (msg: unknown) => {
+      if (typeof msg === 'object' && msg !== null && (msg as any).type === 'ready') {
+        clearTimeout(timeout)
+        backendPort = (msg as any).port ?? port
+        backendReady = true
+        console.log(`[nous:desktop] backend server ready on port ${backendPort}`)
+        resolve(backendPort!)
+      }
+    })
+
+    child.on('error', (err) => {
+      clearTimeout(timeout)
+      console.error('[nous:desktop] backend server error:', err)
+      reject(err)
+    })
+
+    child.on('exit', (code, signal) => {
+      clearTimeout(timeout)
+      console.log(`[nous:desktop] backend server exited (code=${code}, signal=${signal})`)
+      backendChild = null
+      backendReady = false
+      backendPort = null
+
+      // Auto-restart if the app is still running and it wasn't a clean shutdown
+      if (!isAppQuitting && code !== 0) {
+        console.log('[nous:desktop] scheduling backend restart...')
+        setTimeout(() => {
+          if (!isAppQuitting) {
+            startBackend().catch((err) => {
+              console.error('[nous:desktop] backend restart failed:', err)
+            })
+          }
+        }, 2000)
+      }
+    })
+  })
+}
+
+/**
+ * Start the backend: find a port, spawn, wait for ready.
+ * DO NOT REMOVE — see fix/desktop-backend-wiring
+ */
+async function startBackend(): Promise<number> {
+  const port = await findFreePort()
+  backendReadyPromise = spawnBackendServer(port)
+  return backendReadyPromise
+}
+
+/**
+ * Stop the backend child process gracefully.
+ * DO NOT REMOVE — see fix/desktop-backend-wiring
+ */
+function stopBackend(): void {
+  if (backendChild) {
+    console.log('[nous:desktop] stopping backend server...')
+    backendChild.kill('SIGTERM')
+    // Force kill after 5 seconds
+    const forceKillTimer = setTimeout(() => {
+      if (backendChild) {
+        backendChild.kill('SIGKILL')
+      }
+    }, 5000)
+    forceKillTimer.unref()
+  }
+}
+
+// ━━━ Types ━━━
 
 type JsonRecord = Record<string, unknown>
 
@@ -86,6 +255,8 @@ interface DesktopAppPanel extends WebHostAppPanel {
   src: string
 }
 
+// ━━━ Utility Functions ━━━
+
 const PROVIDER_DISPLAY_NAMES: Record<string, string> = {
   codex: 'Codex',
   claude: 'Claude',
@@ -110,7 +281,14 @@ const PROVIDER_DISPLAY_NAMES: Record<string, string> = {
   openrouter: 'OpenRouter',
 }
 
-const DEFAULT_WEB_SERVER_BASE_URL = 'http://localhost:3000'
+function getBackendBaseUrl(): string {
+  if (backendPort) return `http://127.0.0.1:${backendPort}`
+  throw new Error('Backend server is not ready')
+}
+
+function buildBackendUrl(pathname: string): string {
+  return new URL(pathname, getBackendBaseUrl()).toString()
+}
 
 function asRecord(value: unknown): JsonRecord | null {
   if (typeof value !== 'object' || value === null || Array.isArray(value)) return null
@@ -192,14 +370,6 @@ function parseErrors(record: JsonRecord): string[] {
 function providerDisplayName(providerId: string): string {
   const normalized = providerId.toLowerCase()
   return PROVIDER_DISPLAY_NAMES[normalized] ?? providerId
-}
-
-function getWebServerBaseUrl(): string {
-  return process.env['NOUS_WEB_BASE_URL']?.trim() || DEFAULT_WEB_SERVER_BASE_URL
-}
-
-function buildWebServerUrl(pathname: string): string {
-  return new URL(pathname, getWebServerBaseUrl()).toString()
 }
 
 function parseProviderEntry(value: unknown): ProviderUsageEntry | null {
@@ -422,6 +592,8 @@ async function loadUsageSnapshot(): Promise<DesktopUsageSnapshot> {
   )
 }
 
+// ━━━ IPC Handlers ━━━
+
 // IPC handlers registered once — before any window is created
 ipcMain.handle('layout:get', () => {
   const stored = store.get('layoutStore')
@@ -479,17 +651,61 @@ ipcMain.handle('win:isFullScreen',     () => win?.isFullScreen() ?? false)
 ipcMain.handle('app:quit',             () => app.quit())
 ipcMain.handle('app:newWindow',        () => createWindow())
 
-// Chat handlers — tRPC proxy to localhost:3000 with mock fallback
-// Lazy tRPC client — created on first use
+// Backend status — lets the renderer know if the backend is ready
+ipcMain.handle('backend:getStatus', () => ({
+  ready: backendReady,
+  port: backendPort,
+  trpcUrl: backendPort ? `http://127.0.0.1:${backendPort}/api/trpc` : null,
+}))
+
+// Ollama status — fetched from the backend server's dedicated endpoint
+ipcMain.handle('backend:getOllamaStatus', async () => {
+  if (!backendReady || !backendPort) {
+    return { installed: false, running: false, models: [], defaultModel: null }
+  }
+  try {
+    const res = await fetch(`http://127.0.0.1:${backendPort}/ollama-status`, {
+      signal: AbortSignal.timeout(5000),
+    })
+    if (!res.ok) {
+      return { installed: false, running: false, models: [], defaultModel: null }
+    }
+    return await res.json()
+  } catch {
+    return { installed: false, running: false, models: [], defaultModel: null }
+  }
+})
+
+// Chat handlers — tRPC proxy to the self-hosted backend
+// Lazy tRPC client — created once the backend is ready
 let trpcClient: ReturnType<typeof createTRPCClient> | null = null
 
 function getTrpcClient() {
-  if (!trpcClient) {
+  if (!trpcClient && backendPort) {
     trpcClient = createTRPCClient({
-      links: [httpBatchLink({ url: buildWebServerUrl('/api/trpc') })],
+      links: [httpBatchLink({
+        url: `http://127.0.0.1:${backendPort}/api/trpc`,
+        transformer: superjson,
+      })],
     })
   }
+  if (!trpcClient) {
+    throw new Error('Backend server is not ready — tRPC client unavailable')
+  }
   return trpcClient
+}
+
+/**
+ * Ensure the backend is ready before making tRPC calls.
+ * Waits for the backend ready promise if it's still starting.
+ */
+async function ensureBackendReady(): Promise<void> {
+  if (backendReady) return
+  if (backendReadyPromise) {
+    await backendReadyPromise
+    return
+  }
+  throw new Error('Backend server is not running')
 }
 
 const chatHistory: { role: string; content: string; timestamp: string }[] = []
@@ -497,23 +713,25 @@ const chatHistory: { role: string; content: string; timestamp: string }[] = []
 ipcMain.handle('chat:send', async (_event, message: string) => {
   chatHistory.push({ role: 'user', content: message, timestamp: new Date().toISOString() })
   try {
+    await ensureBackendReady()
     const client = getTrpcClient() as any
     const result = await client.chat.sendMessage.mutate({ message })
     chatHistory.push({ role: 'assistant', content: result.response, timestamp: new Date().toISOString() })
     return { response: result.response, traceId: result.traceId }
-  } catch {
-    // Fallback mock response for demo
-    const mockResponse = `[Demo mode] Nous received: "${message}". The tRPC server is not running — start the web app with \`pnpm dev:web\` to enable live responses.`
-    chatHistory.push({ role: 'assistant', content: mockResponse, timestamp: new Date().toISOString() })
-    return { response: mockResponse, traceId: 'demo-' + Date.now() }
+  } catch (err) {
+    const errorMessage = err instanceof Error ? err.message : 'Unknown error'
+    const response = `[Starting...] Nous backend is initializing. Please try again in a moment. (${errorMessage})`
+    chatHistory.push({ role: 'assistant', content: response, timestamp: new Date().toISOString() })
+    return { response, traceId: 'starting-' + Date.now() }
   }
 })
 
 ipcMain.handle('chat:getHistory', () => chatHistory)
 
-// MAO handlers — tRPC proxy to web server with stub fallback
+// MAO handlers — tRPC proxy to backend server with stub fallback
 ipcMain.handle('mao:getAgentProjections', async (_event, projectId: string) => {
   try {
+    await ensureBackendReady()
     const client = getTrpcClient() as any
     return await client.mao.getAgentProjections.query({ projectId })
   } catch {
@@ -523,6 +741,7 @@ ipcMain.handle('mao:getAgentProjections', async (_event, projectId: string) => {
 
 ipcMain.handle('mao:getProjectControlProjection', async (_event, projectId: string) => {
   try {
+    await ensureBackendReady()
     const client = getTrpcClient() as any
     return await client.mao.getProjectControlProjection.query({ projectId })
   } catch {
@@ -532,6 +751,7 @@ ipcMain.handle('mao:getProjectControlProjection', async (_event, projectId: stri
 
 ipcMain.handle('mao:getProjectSnapshot', async (_event, input: unknown) => {
   try {
+    await ensureBackendReady()
     const client = getTrpcClient() as any
     return await client.mao.getProjectSnapshot.query(input)
   } catch {
@@ -541,67 +761,92 @@ ipcMain.handle('mao:getProjectSnapshot', async (_event, input: unknown) => {
 
 ipcMain.handle('mao:requestProjectControl', async (_event, input: unknown) => {
   try {
+    await ensureBackendReady()
     const client = getTrpcClient() as any
     return await client.mao.requestProjectControl.mutate(input)
   } catch {
     return null
   }
 })
+
 // Preferences handlers — tRPC proxy
 ipcMain.handle('preferences:getApiKeys', async () => {
-  try { const c = getTrpcClient() as any; return await c.preferences.getApiKeys.query() } catch { return [] }
+  try { await ensureBackendReady(); const c = getTrpcClient() as any; return await c.preferences.getApiKeys.query() } catch { return [] }
 })
 ipcMain.handle('preferences:setApiKey', async (_event, input: unknown) => {
-  try { const c = getTrpcClient() as any; return await c.preferences.setApiKey.mutate(input) } catch { return { stored: false } }
+  try { await ensureBackendReady(); const c = getTrpcClient() as any; return await c.preferences.setApiKey.mutate(input) } catch { return { stored: false } }
 })
 ipcMain.handle('preferences:deleteApiKey', async (_event, input: unknown) => {
-  try { const c = getTrpcClient() as any; return await c.preferences.deleteApiKey.mutate(input) } catch { return { deleted: false } }
+  try { await ensureBackendReady(); const c = getTrpcClient() as any; return await c.preferences.deleteApiKey.mutate(input) } catch { return { deleted: false } }
 })
 ipcMain.handle('preferences:testApiKey', async (_event, input: unknown) => {
-  try { const c = getTrpcClient() as any; return await c.preferences.testApiKey.mutate(input) } catch { return { valid: false, error: 'Backend unavailable' } }
+  try { await ensureBackendReady(); const c = getTrpcClient() as any; return await c.preferences.testApiKey.mutate(input) } catch { return { valid: false, error: 'Backend unavailable' } }
 })
 ipcMain.handle('preferences:getSystemStatus', async () => {
-  try { const c = getTrpcClient() as any; return await c.preferences.getSystemStatus.query() } catch { return { ollama: { running: false, models: [] }, configuredProviders: [], credentialVaultHealthy: false } }
+  try { await ensureBackendReady(); const c = getTrpcClient() as any; return await c.preferences.getSystemStatus.query() } catch { return { ollama: { running: false, models: [] }, configuredProviders: [], credentialVaultHealthy: false } }
 })
 ipcMain.handle('preferences:getAvailableModels', async () => {
-  try { const c = getTrpcClient() as any; return await c.preferences.getAvailableModels.query() } catch { return { models: [] } }
+  try { await ensureBackendReady(); const c = getTrpcClient() as any; return await c.preferences.getAvailableModels.query() } catch { return { models: [] } }
 })
 ipcMain.handle('preferences:getModelSelection', async () => {
-  try { const c = getTrpcClient() as any; return await c.preferences.getModelSelection.query() } catch { return { principal: null, system: null } }
+  try { await ensureBackendReady(); const c = getTrpcClient() as any; return await c.preferences.getModelSelection.query() } catch { return { principal: null, system: null } }
 })
 ipcMain.handle('preferences:setModelSelection', async (_event, input: unknown) => {
-  try { const c = getTrpcClient() as any; return await c.preferences.setModelSelection.mutate(input) } catch { return { success: false } }
+  try { await ensureBackendReady(); const c = getTrpcClient() as any; return await c.preferences.setModelSelection.mutate(input) } catch { return { success: false } }
 })
 
 ipcMain.handle('app-install:prepare', async (_event, input: unknown) => {
-  const client = getTrpcClient() as any
-  return client.packages.prepareAppInstall.query(input)
+  try {
+    await ensureBackendReady()
+    const client = getTrpcClient() as any
+    return await client.packages.prepareAppInstall.query(input)
+  } catch {
+    return { error: 'Backend unavailable' }
+  }
 })
 ipcMain.handle('app-install:install', async (_event, input: unknown) => {
-  const client = getTrpcClient() as any
-  return client.packages.installApp.mutate(input)
+  try {
+    await ensureBackendReady()
+    const client = getTrpcClient() as any
+    return await client.packages.installApp.mutate(input)
+  } catch {
+    return { error: 'Backend unavailable' }
+  }
 })
 ipcMain.handle('app-settings:prepare', async (_event, input: unknown) => {
-  const client = getTrpcClient() as any
-  return client.packages.prepareAppSettings.query(input)
+  try {
+    await ensureBackendReady()
+    const client = getTrpcClient() as any
+    return await client.packages.prepareAppSettings.query(input)
+  } catch {
+    return { error: 'Backend unavailable' }
+  }
 })
 ipcMain.handle('app-settings:save', async (_event, input: unknown) => {
-  const client = getTrpcClient() as any
-  return client.packages.saveAppSettings.mutate(input)
+  try {
+    await ensureBackendReady()
+    const client = getTrpcClient() as any
+    return await client.packages.saveAppSettings.mutate(input)
+  } catch {
+    return { error: 'Backend unavailable' }
+  }
 })
 ipcMain.handle('app-panels:list', async (): Promise<DesktopAppPanel[]> => {
   try {
+    await ensureBackendReady()
     const client = getTrpcClient() as any
     const panels = await client.packages.listAppPanels.query()
     if (!Array.isArray(panels)) return []
     return panels.map((panel: WebHostAppPanel) => ({
       ...panel,
-      src: buildWebServerUrl(panel.route_path),
+      src: buildBackendUrl(panel.route_path),
     }))
   } catch {
     return []
   }
 })
+
+// ━━━ Window Creation ━━━
 
 function createWindow(): void {
   win = new BrowserWindow({
@@ -632,7 +877,23 @@ function createWindow(): void {
   win.on('closed', () => { win = null })
 }
 
-app.whenReady().then(() => {
+// ━━━ App Lifecycle ━━━
+
+app.on('before-quit', () => {
+  isAppQuitting = true
+  stopBackend()
+})
+
+app.whenReady().then(async () => {
+  // Start the backend server before creating the window
+  try {
+    await startBackend()
+    console.log('[nous:desktop] backend started, creating window...')
+  } catch (err) {
+    console.error('[nous:desktop] failed to start backend:', err)
+    // Still create the window — the UI will show "Starting..." messages
+  }
+
   createWindow()
 
   app.on('activate', () => {
