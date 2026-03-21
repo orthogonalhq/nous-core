@@ -16,13 +16,22 @@ import {
 } from '@nous/shared';
 import type {
   ProjectId,
+  ModelProviderConfig,
   ProviderId,
   TraceId,
   StmCompactionPolicy,
   WorkflowNodeKind,
   IWorkflowNodeHandler,
 } from '@nous/shared';
-import { ConfigManager } from '@nous/autonomic-config';
+import {
+  ConfigManager,
+  DEFAULT_PROFILES,
+} from '@nous/autonomic-config';
+import type {
+  ModelRoleAssignment,
+  Profile,
+  ProviderConfigEntry,
+} from '@nous/autonomic-config';
 import {
   AppCredentialInstallService,
   CredentialInjector,
@@ -124,6 +133,25 @@ import type { NousContext } from './context';
 import type { IDocumentStore, IIngressGateway, IVectorStore } from '@nous/shared';
 
 const MOCK_PROVIDER_ID = '00000000-0000-0000-0000-000000000001' as ProviderId;
+type CloudProviderName = 'anthropic' | 'openai';
+
+const MODEL_SELECTION_COLLECTION = 'nous:model_selection';
+const MODEL_SELECTION_ID = 'current';
+
+const CLOUD_PROVIDER_ENV_VARS: Record<CloudProviderName, string> = {
+  anthropic: 'ANTHROPIC_API_KEY',
+  openai: 'OPENAI_API_KEY',
+};
+
+export const WELL_KNOWN_PROVIDER_IDS: Record<CloudProviderName, ProviderId> = {
+  anthropic: '10000000-0000-0000-0000-000000000001' as ProviderId,
+  openai: '10000000-0000-0000-0000-000000000002' as ProviderId,
+};
+
+const CLOUD_PROVIDER_DEFAULT_MODELS: Record<CloudProviderName, string> = {
+  anthropic: 'claude-sonnet-4-20250514',
+  openai: 'gpt-4o',
+};
 
 // ─── Configuration helpers ─────────────────────────────────────────────────
 
@@ -131,6 +159,217 @@ const MOCK_PROVIDER_ID = '00000000-0000-0000-0000-000000000001' as ProviderId;
  * Config shim that adds a mock provider when config has no providers.
  * Enables the app to run without a config file (development mode).
  */
+function hasConfiguredCloudKey(): boolean {
+  return (Object.values(CLOUD_PROVIDER_ENV_VARS) as string[]).some(
+    (envVar) => !!process.env[envVar],
+  );
+}
+
+function hasConfiguredProviderKey(provider: CloudProviderName): boolean {
+  return !!process.env[CLOUD_PROVIDER_ENV_VARS[provider]];
+}
+
+function currentProviderEntries(ctx: NousContext): ProviderConfigEntry[] {
+  const config = ctx.config.get() as { providers?: ProviderConfigEntry[] };
+  return Array.isArray(config.providers) ? config.providers : [];
+}
+
+function currentReasonerAssignment(
+  ctx: NousContext,
+): ModelRoleAssignment | undefined {
+  const config = ctx.config.get() as {
+    modelRoleAssignments?: ModelRoleAssignment[];
+  };
+  return config.modelRoleAssignments?.find(
+    (assignment) => assignment.role === 'reasoner',
+  );
+}
+
+function sortProvidersForDefault(
+  providers: ProviderConfigEntry[],
+): ProviderConfigEntry[] {
+  return [...providers].sort((a, b) => {
+    if (a.isLocal !== b.isLocal) {
+      return a.isLocal ? 1 : -1;
+    }
+
+    return a.name.localeCompare(b.name);
+  });
+}
+
+async function updateReasonerAssignment(
+  ctx: NousContext,
+  providerId: ProviderId | null,
+  fallbackProviderId?: ProviderId,
+): Promise<void> {
+  const nextAssignments: ModelRoleAssignment[] = providerId
+    ? [
+        {
+          role: 'reasoner',
+          providerId,
+          ...(fallbackProviderId &&
+          fallbackProviderId !== providerId
+            ? { fallbackProviderId }
+            : {}),
+        },
+      ]
+    : [];
+
+  await ctx.config.update(
+    'modelRoleAssignments',
+    // IConfig.update() exposes section values as unknown through the shared
+    // index-signature config contract; ConfigManager.update() runtime-validates
+    // the full config with SystemConfigSchema before committing.
+    nextAssignments as any,
+  );
+}
+
+async function ensureCloudCompatibleProfile(ctx: NousContext): Promise<void> {
+  if (!hasConfiguredCloudKey()) {
+    return;
+  }
+
+  const config = ctx.config.get() as { profile?: Profile };
+  const profileName = config.profile?.name;
+  if (profileName !== 'local-only' && profileName !== 'local_strict') {
+    return;
+  }
+
+  await ctx.config.update('profile', {
+    ...DEFAULT_PROFILES.hybrid,
+    allowSilentLocalToRemoteFailover: true,
+  });
+}
+
+async function ensureLocalCompatibleProfile(ctx: NousContext): Promise<void> {
+  if (hasConfiguredCloudKey()) {
+    return;
+  }
+
+  const providers = currentProviderEntries(ctx);
+  const hasRemoteProviders = providers.some((provider) => !provider.isLocal);
+  if (hasRemoteProviders) {
+    return;
+  }
+
+  const config = ctx.config.get() as { profile?: Profile };
+  const profileName = config.profile?.name;
+  if (profileName === 'local-only' || profileName === 'local_strict') {
+    return;
+  }
+
+  await ctx.config.update('profile', DEFAULT_PROFILES['local-only']);
+}
+
+function parseSelectedModelSpec(
+  spec: string | null | undefined,
+): { provider: CloudProviderName; modelId: string } | null {
+  if (!spec) {
+    return null;
+  }
+
+  const [provider, ...modelParts] = spec.split(':');
+  if (
+    (provider !== 'anthropic' && provider !== 'openai') ||
+    modelParts.length === 0
+  ) {
+    return null;
+  }
+
+  return {
+    provider,
+    modelId: modelParts.join(':'),
+  };
+}
+
+export function buildProviderConfig(
+  provider: CloudProviderName,
+  providerId: ProviderId = WELL_KNOWN_PROVIDER_IDS[provider],
+  modelId: string = CLOUD_PROVIDER_DEFAULT_MODELS[provider],
+): ModelProviderConfig {
+  if (provider === 'anthropic') {
+    return {
+      id: providerId,
+      name: provider,
+      type: 'text',
+      endpoint: 'https://api.anthropic.com',
+      modelId,
+      isLocal: false,
+      capabilities: ['chat', 'streaming'],
+      providerClass: 'remote_text',
+    };
+  }
+
+  return {
+    id: providerId,
+    name: provider,
+    type: 'text',
+    endpoint: 'https://api.openai.com',
+    modelId,
+    isLocal: false,
+    capabilities: ['chat', 'streaming'],
+    providerClass: 'remote_text',
+  };
+}
+
+function toProviderConfigEntry(
+  config: ModelProviderConfig,
+): ProviderConfigEntry {
+  return {
+    id: config.id,
+    name: config.name,
+    type: config.type,
+    endpoint: config.endpoint,
+    modelId: config.modelId,
+    isLocal: config.isLocal,
+    maxTokens: config.maxTokens,
+    capabilities: config.capabilities,
+    providerClass: config.providerClass,
+    meetsProfiles: config.meetsProfiles,
+  };
+}
+
+async function upsertProviderConfig(
+  ctx: NousContext,
+  providerConfig: ModelProviderConfig,
+): Promise<void> {
+  ctx.providerRegistry.registerProvider(providerConfig);
+
+  const existingProviders = currentProviderEntries(ctx);
+  const nextProviders = [
+    ...existingProviders.filter((provider) => provider.id !== providerConfig.id),
+    toProviderConfigEntry(providerConfig),
+  ];
+
+  await ctx.config.update(
+    'providers',
+    // IConfig.update() exposes section values as unknown through the shared
+    // index-signature config contract; ConfigManager.update() runtime-validates
+    // the full config with SystemConfigSchema before committing.
+    nextProviders as any,
+  );
+}
+
+async function removeProviderConfig(
+  ctx: NousContext,
+  providerId: ProviderId,
+): Promise<void> {
+  ctx.providerRegistry.removeProvider(providerId);
+
+  const existingProviders = currentProviderEntries(ctx);
+  const nextProviders = existingProviders.filter(
+    (provider) => provider.id !== providerId,
+  );
+
+  await ctx.config.update(
+    'providers',
+    // IConfig.update() exposes section values as unknown through the shared
+    // index-signature config contract; ConfigManager.update() runtime-validates
+    // the full config with SystemConfigSchema before committing.
+    nextProviders as any,
+  );
+}
+
 function configWithFallback(base: ConfigManager) {
   return {
     get: () => {
@@ -138,6 +377,12 @@ function configWithFallback(base: ConfigManager) {
       const assignments = c.modelRoleAssignments as Array<{ role: string; providerId: string }> | undefined;
       const providers = c.providers as Array<Record<string, unknown>> | undefined;
       if (!assignments?.length || !providers?.length) {
+        if (hasConfiguredCloudKey()) {
+          console.log(
+            '[nous:bootstrap] Mock fallback suppressed — real API keys detected',
+          );
+          return c;
+        }
         return {
           ...c,
           modelRoleAssignments: [{ role: 'reasoner', providerId: MOCK_PROVIDER_ID }],
@@ -918,6 +1163,7 @@ export function createNousServices(config?: BootstrapConfig): NousContext {
     publicMcpExecutionBridge,
     appRuntimeService,
     credentialVaultService,
+    providerRegistry,
     panelTranspiler,
     dataDir,
     codingAgentMaoEvents,
@@ -936,9 +1182,6 @@ export function createNousServices(config?: BootstrapConfig): NousContext {
  * Call this after `createNousServices()`.
  */
 export async function loadModelSelection(ctx: NousContext): Promise<void> {
-  const MODEL_SELECTION_COLLECTION = 'nous:model_selection';
-  const MODEL_SELECTION_ID = 'current';
-
   try {
     const saved = await ctx.documentStore.get<{
       principal: string | null;
@@ -957,8 +1200,73 @@ export async function loadModelSelection(ctx: NousContext): Promise<void> {
         );
       }
     }
+
+    const primarySelection = parseSelectedModelSpec(saved?.principal);
+    const secondarySelection = parseSelectedModelSpec(saved?.system);
+    const primaryProviderId =
+      primarySelection && hasConfiguredProviderKey(primarySelection.provider)
+        ? WELL_KNOWN_PROVIDER_IDS[primarySelection.provider]
+        : null;
+    const secondaryProviderId =
+      secondarySelection && hasConfiguredProviderKey(secondarySelection.provider)
+        ? WELL_KNOWN_PROVIDER_IDS[secondarySelection.provider]
+        : null;
+
+    if (primarySelection && primaryProviderId) {
+      await upsertProviderConfig(
+        ctx,
+        buildProviderConfig(
+          primarySelection.provider,
+          WELL_KNOWN_PROVIDER_IDS[primarySelection.provider],
+          primarySelection.modelId,
+        ),
+      );
+    }
+
+    if (
+      secondarySelection &&
+      secondaryProviderId &&
+      (!primarySelection ||
+        secondarySelection.provider !== primarySelection.provider ||
+        secondarySelection.modelId !== primarySelection.modelId)
+    ) {
+      await upsertProviderConfig(
+        ctx,
+        buildProviderConfig(
+          secondarySelection.provider,
+          WELL_KNOWN_PROVIDER_IDS[secondarySelection.provider],
+          secondarySelection.modelId,
+        ),
+      );
+    }
+
+    if (primaryProviderId) {
+      await updateReasonerAssignment(
+        ctx,
+        primaryProviderId,
+        secondaryProviderId ?? undefined,
+      );
+      return;
+    }
+
+    if (secondaryProviderId) {
+      await updateReasonerAssignment(
+        ctx,
+        secondaryProviderId,
+      );
+      return;
+    }
+
+    const availableProviders = sortProvidersForDefault(currentProviderEntries(ctx));
+    if (availableProviders.length > 0) {
+      await updateReasonerAssignment(ctx, availableProviders[0]!.id);
+    }
   } catch {
     // Model selection not yet persisted — use auto-detect defaults.
+    const availableProviders = sortProvidersForDefault(currentProviderEntries(ctx));
+    if (availableProviders.length > 0) {
+      await updateReasonerAssignment(ctx, availableProviders[0]!.id);
+    }
   }
 }
 
@@ -988,4 +1296,68 @@ export async function loadStoredApiKeys(ctx: NousContext): Promise<void> {
       // Ignore — key may not exist
     }
   }
+}
+
+export async function registerStoredProviders(ctx: NousContext): Promise<void> {
+  await ensureCloudCompatibleProfile(ctx);
+
+  const availableProviders = (
+    Object.keys(WELL_KNOWN_PROVIDER_IDS) as CloudProviderName[]
+  ).filter((provider) => !!process.env[CLOUD_PROVIDER_ENV_VARS[provider]]);
+
+  for (const provider of availableProviders) {
+    await upsertProviderConfig(
+      ctx,
+      buildProviderConfig(provider),
+    );
+  }
+
+  if (!currentReasonerAssignment(ctx) && availableProviders.length > 0) {
+    await updateReasonerAssignment(ctx, WELL_KNOWN_PROVIDER_IDS[availableProviders[0]!]);
+  }
+
+  if (availableProviders.length === 0) {
+    await ensureLocalCompatibleProfile(ctx);
+  }
+}
+
+export async function registerConfiguredProvider(
+  ctx: NousContext,
+  provider: CloudProviderName,
+  modelId: string = CLOUD_PROVIDER_DEFAULT_MODELS[provider],
+): Promise<void> {
+  await ensureCloudCompatibleProfile(ctx);
+  await upsertProviderConfig(
+    ctx,
+    buildProviderConfig(
+      provider,
+      WELL_KNOWN_PROVIDER_IDS[provider],
+      modelId,
+    ),
+  );
+
+  const existingAssignment = currentReasonerAssignment(ctx);
+  await updateReasonerAssignment(
+    ctx,
+    WELL_KNOWN_PROVIDER_IDS[provider],
+    existingAssignment?.providerId &&
+      existingAssignment.providerId !== WELL_KNOWN_PROVIDER_IDS[provider]
+      ? existingAssignment.providerId
+      : undefined,
+  );
+}
+
+export async function removeConfiguredProvider(
+  ctx: NousContext,
+  provider: CloudProviderName,
+): Promise<void> {
+  const providerId = WELL_KNOWN_PROVIDER_IDS[provider];
+  await removeProviderConfig(ctx, providerId);
+
+  const remainingProviders = sortProvidersForDefault(currentProviderEntries(ctx));
+  const nextPrimary = remainingProviders[0]?.id ?? null;
+  const nextFallback = remainingProviders[1]?.id;
+
+  await updateReasonerAssignment(ctx, nextPrimary, nextFallback);
+  await ensureLocalCompatibleProfile(ctx);
 }
