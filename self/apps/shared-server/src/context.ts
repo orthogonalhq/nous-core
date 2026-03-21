@@ -29,6 +29,7 @@ import type {
   ICredentialVaultService,
 } from '@nous/shared';
 import type { PanelTranspiler } from '@nous/subcortex-apps';
+import type { ProviderRegistry } from '@nous/subcortex-providers';
 import type {
   IPrincipalSystemGatewayRuntime,
   IPublicMcpExecutionBridge,
@@ -94,6 +95,7 @@ export interface NousContext {
   appRuntimeService: IAppRuntimeService;
   panelTranspiler: PanelTranspiler;
   credentialVaultService: ICredentialVaultService;
+  providerRegistry: ProviderRegistry;
   dataDir: string;
   /** MAO events emitted by coding agent runs. */
   codingAgentMaoEvents: Array<{ type: string; data: unknown; timestamp: string }>;

@@ -9,7 +9,15 @@
  * Usage: node server/main.ts --port=<port> [--data-dir=<path>]
  */
 import { createServer } from 'node:http';
-import { createNousServices, appRouter, createTRPCContext, detectOllama } from '@nous/shared-server';
+import {
+  createNousServices,
+  appRouter,
+  createTRPCContext,
+  detectOllama,
+  loadStoredApiKeys,
+  loadModelSelection,
+  registerStoredProviders,
+} from '@nous/shared-server';
 import type { OllamaStatus } from '@nous/shared-server';
 import { createHTTPHandler } from '@trpc/server/adapters/standalone';
 
@@ -52,6 +60,9 @@ async function main() {
     runtimeLabel: 'desktop',
     publicBaseUrl: `http://localhost:${args.port}`,
   });
+  await loadStoredApiKeys(context);
+  await registerStoredProviders(context);
+  await loadModelSelection(context);
 
   // Create tRPC HTTP handler with basePath matching the web app's endpoint
   const trpcHandler = createHTTPHandler({

@@ -270,6 +270,29 @@ Response excerpt:
 | `config.get` | query | — | `SystemConfig` |
 | `config.update` | mutation | `{ pfcTier?, modelRoleAssignments? }` | — |
 
+- `config.update` — Applies non-secret system configuration changes. Vault-backed provider credentials, available-model enumeration, and saved model selections are managed through `preferences.*`.
+
+## preferences
+
+| Procedure | Type | Input | Output |
+|----------|------|-------|--------|
+| `preferences.getApiKeys` | query | — | `{ provider, configured, maskedKey, createdAt }[]` |
+| `preferences.setApiKey` | mutation | `{ provider: 'anthropic' \| 'openai', key }` | `{ stored: boolean }` |
+| `preferences.deleteApiKey` | mutation | `{ provider: 'anthropic' \| 'openai' }` | `{ deleted: boolean }` |
+| `preferences.testApiKey` | mutation | `{ provider: 'anthropic' \| 'openai', key? }` | `{ valid: boolean, error: string \| null }` |
+| `preferences.getAvailableModels` | query | — | `{ models: { id, name, provider, available }[] }` |
+| `preferences.getModelSelection` | query | — | `{ principal: string \| null, system: string \| null }` |
+| `preferences.setModelSelection` | mutation | `{ principal?, system? }` | `{ success: boolean }` |
+| `preferences.getSystemStatus` | query | — | `{ ollama, configuredProviders, credentialVaultHealthy }` |
+
+- `preferences.getApiKeys` — Returns masked vault-backed provider-key state. Raw API keys are never returned to the client.
+- `preferences.setApiKey` — Stores the provider key in the credential vault, updates the active runtime immediately, registers the remote provider, and updates provider routing without requiring a restart.
+- `preferences.deleteApiKey` — Revokes the stored provider key, removes the provider from active routing, and cleans the provider/config state. If no cloud providers remain, runtime falls back to local-only routing posture.
+- `preferences.testApiKey` — Validates the supplied `key` when present; otherwise it tests the already-stored vault key. Returns `{ valid: false, error: 'No API key configured for this provider. Store a key first.' }` when nothing is available to test.
+- `preferences.getAvailableModels` — Returns the combined local Ollama model list plus cloud models for any currently configured Anthropic or OpenAI provider.
+- `preferences.getModelSelection` / `preferences.setModelSelection` — Persist the separate Principal and System model selections that Nous restores on startup.
+- `preferences.getSystemStatus` — Returns current Ollama posture, configured cloud providers, and whether the credential-vault surface is healthy.
+
 ## opctl
 
 | Procedure | Type | Input | Output |
