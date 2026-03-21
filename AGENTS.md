@@ -61,6 +61,73 @@
    - Proposed Repository Updates
 4. Identity-affecting repository updates remain proposal-only until explicit Principal approval.
 
+### State Detection and Role Inference (Authoritative)
+
+On conversation start (or context reset), determine your operating state before taking action.
+
+#### Step 1 — Detect branch context
+
+Read the current git branch name.
+
+- `main`, `staging`, `dev`: No active sprint. Route to **sprint-selection-sop**. If prior sprints exist, use `sprint_transition` mode; if no prior sprints exist, use `cold_start` mode. Read `sprint-selection-sop/SKILL.md` and `sprint-selection-sop/orchestrator/ENTRY.md`.
+- `fix/<name>` or `feat/<name>` (phase branch): Active sprint root. Check for sub-phase branches.
+- `fix/<name>.N/<descriptor>` or `feat/<name>.N/<descriptor>` (sub-phase branch): Active sub-phase. Proceed to Step 2.
+
+#### Step 2 — Detect workflow phase
+
+Scan for artifacts to determine where the sprint is in the pipeline:
+
+| Check | Path pattern | If missing | If present |
+|-------|-------------|------------|------------|
+| Phase 0 discovery | `.worklog/sprints/<type>/<name>/discovery/` | → **research-planning-sop**, Orchestrator role, begin Phase 0 | Check review |
+| Phase 0 review | `.worklog/sprints/<type>/<name>/discovery/reviews/discovery-review.mdx` | → **research-planning-sop**, Orchestrator role, dispatch review | Check approval |
+| Phase 0 approval | Discovery review verdict is `Approved` | → **research-planning-sop**, Orchestrator role, present to Principal | Proceed to decomposition check |
+| Decomposition | `.architecture/roadmap/<type>/<name>/<name>.N.md` | → **engineer-workflow-sop**, Orchestrator role, dispatch decomposition | Proceed to sub-phase check |
+| Sub-phase worklog | `.worklog/sprints/<type>/<name>/phase-1/phase-1.N/` | → **engineer-workflow-sop**, Orchestrator role, dispatch prompt gen | Check last artifact |
+
+#### Step 3 — Detect sub-phase gate position
+
+If sub-phase worklog exists, find the latest artifact to determine gate position:
+
+| Last artifact found | Next action |
+|--------------------|-------------|
+| No artifacts | Dispatch Implementation Prompt Gen |
+| Implementation prompt only | Dispatch Implementation Agent |
+| `goals.mdx` | Dispatch Goals Review, then gate approval |
+| `sds.mdx` | Dispatch SDS Review, then gate approval |
+| `implementation-plan.mdx` | Dispatch Implementation Plan Review, then gate approval |
+| `completion-report.mdx` | Dispatch Completion Report Review, then gate approval |
+| `user-documentation.mdx` | Dispatch User Documentation Review, then gate approval |
+| `review.mdx` | Dispatch Sub-phase Close |
+| All artifacts + merged PR | Sub-phase complete. Check for next sub-phase or phase transition. |
+
+#### Step 4 — Load entry point
+
+Once SOP and role are determined:
+
+1. Read the SOP's `SKILL.md` for orientation.
+2. Read the role's `ENTRY.md` for scope guard and execution rules.
+3. Read `shared/dispatch-model.md` (engineer-workflow-sop) or `shared/core-rules.md` (both SOPs) as referenced by your ENTRY.md.
+4. Report current detected state to the Principal before taking action.
+
+#### Role mapping for Claude Code
+
+In Claude Code, the conversation typically operates as the **Orchestrator** role, dispatching sub-agents for worker roles:
+
+| SOP Role | Claude Code mapping |
+|----------|-------------------|
+| Orchestrator | Main conversation thread |
+| Implementation Agent | Sub-agent (Agent tool, fresh context) |
+| Review Agent | Sub-agent (Agent tool, fresh context) |
+| Prompt Gen Agent | Sub-agent (Agent tool, fresh context) |
+| Pre-flight Cleanup Worker | Sub-agent or direct (Bash tool) |
+| Sub-phase Close Worker | Sub-agent or direct (Bash tool) |
+| Principal | The human user |
+
+#### Packet-driven entry
+
+If the conversation starts with a fenced handoff packet (`nous.v: 3`), skip state detection. Parse the packet's `route.target.id`, validate it against your role, load the target ENTRY.md, and execute per scope guard.
+
 ### Workmode `system:architecture`
 
 - Use only when explicitly requested by the user.
