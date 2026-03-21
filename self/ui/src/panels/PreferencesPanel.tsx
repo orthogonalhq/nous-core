@@ -30,6 +30,11 @@ interface TestResult {
   error: string | null
 }
 
+interface FeedbackState {
+  message: string
+  success: boolean
+}
+
 export interface AvailableModel {
   id: string
   name: string
@@ -47,7 +52,7 @@ export interface PreferencesApi {
   getApiKeys: () => Promise<ApiKeyEntry[]>
   setApiKey: (input: { provider: Provider; key: string }) => Promise<{ stored: boolean }>
   deleteApiKey: (input: { provider: Provider }) => Promise<{ deleted: boolean }>
-  testApiKey: (input: { provider: Provider; key: string }) => Promise<TestResult>
+  testApiKey: (input: { provider: Provider; key?: string }) => Promise<TestResult>
   getSystemStatus: () => Promise<SystemStatus>
   getAvailableModels?: () => Promise<{ models: AvailableModel[] }>
   getModelSelection?: () => Promise<ModelSelection>
@@ -154,6 +159,32 @@ const PROVIDER_LABELS: Record<Provider, string> = {
   openai: 'OpenAI',
 }
 
+export async function testStoredProviderKey(
+  api: PreferencesApi,
+  provider: Provider,
+): Promise<FeedbackState> {
+  const result = await api.testApiKey({ provider })
+  if (result.valid) {
+    return {
+      message: `${PROVIDER_LABELS[provider]} API key is valid.`,
+      success: true,
+    }
+  }
+
+  return {
+    message: result.error ?? `${PROVIDER_LABELS[provider]} API key test failed.`,
+    success: false,
+  }
+}
+
+export function formatFeedbackError(error: unknown): FeedbackState {
+  const message = error instanceof Error ? error.message : String(error)
+  return {
+    message: `Error: ${message}`,
+    success: false,
+  }
+}
+
 // ─── Component ────────────────────────────────────────────────────────────────
 
 export function PreferencesPanel({ params }: PreferencesPanelProps) {
@@ -167,7 +198,7 @@ export function PreferencesPanel({ params }: PreferencesPanelProps) {
   const [addProvider, setAddProvider] = useState<Provider>('anthropic')
   const [addKey, setAddKey] = useState('')
   const [saving, setSaving] = useState(false)
-  const [feedback, setFeedback] = useState<{ message: string; success: boolean } | null>(null)
+  const [feedback, setFeedback] = useState<FeedbackState | null>(null)
 
   // Per-provider testing state
   const [testingProvider, setTestingProvider] = useState<Provider | null>(null)
@@ -231,8 +262,7 @@ export function PreferencesPanel({ params }: PreferencesPanelProps) {
       setAddKey('')
       await refresh()
     } catch (err) {
-      const msg = err instanceof Error ? err.message : String(err)
-      setFeedback({ message: `Error: ${msg}`, success: false })
+      setFeedback(formatFeedbackError(err))
     } finally {
       setSaving(false)
     }
@@ -241,16 +271,11 @@ export function PreferencesPanel({ params }: PreferencesPanelProps) {
   const handleTest = async (provider: Provider) => {
     if (!api) return
     setTestingProvider(provider)
+    setFeedback(null)
     try {
-      const resolved = await api.getApiKeys()
-      const entry = resolved.find((e) => e.provider === provider)
-      if (!entry?.configured) {
-        setFeedback({ message: `${PROVIDER_LABELS[provider]} key is not configured.`, success: false })
-        return
-      }
-      // We cannot test without the actual key value (we only have masked).
-      // The test endpoint requires the key. We'll indicate the key is stored.
-      setFeedback({ message: `${PROVIDER_LABELS[provider]} key is stored. Re-enter the key to test.`, success: true })
+      setFeedback(await testStoredProviderKey(api, provider))
+    } catch (err) {
+      setFeedback(formatFeedbackError(err))
     } finally {
       setTestingProvider(null)
     }
@@ -263,8 +288,7 @@ export function PreferencesPanel({ params }: PreferencesPanelProps) {
       setFeedback({ message: `${PROVIDER_LABELS[provider]} API key deleted.`, success: true })
       await refresh()
     } catch (err) {
-      const msg = err instanceof Error ? err.message : String(err)
-      setFeedback({ message: `Error: ${msg}`, success: false })
+      setFeedback(formatFeedbackError(err))
     }
   }
 
@@ -283,8 +307,7 @@ export function PreferencesPanel({ params }: PreferencesPanelProps) {
       })
       setModelFeedback({ message: 'Model selection saved.', success: true })
     } catch (err) {
-      const msg = err instanceof Error ? err.message : String(err)
-      setModelFeedback({ message: `Error: ${msg}`, success: false })
+      setModelFeedback(formatFeedbackError(err))
     } finally {
       setSavingModels(false)
     }
