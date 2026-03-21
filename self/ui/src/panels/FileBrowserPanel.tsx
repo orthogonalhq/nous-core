@@ -28,12 +28,13 @@ export function FileBrowserPanel({ params }: FileBrowserPanelProps) {
     if (!fsApi?.readDir) return
     setLoading(true)
     fsApi.readDir(currentPath).then(result => {
+      if (!Array.isArray(result)) { setLoading(false); return }
       setEntries(result.sort((a, b) => {
         if (a.isDirectory !== b.isDirectory) return a.isDirectory ? -1 : 1
         return a.name.localeCompare(b.name)
       }))
       setLoading(false)
-    }).catch(() => setLoading(false))
+    }).catch(() => { setEntries([]); setLoading(false) })
   }, [currentPath, fsApi])
 
   const goUp = () => {

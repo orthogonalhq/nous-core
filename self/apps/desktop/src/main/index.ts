@@ -547,6 +547,32 @@ ipcMain.handle('mao:requestProjectControl', async (_event, input: unknown) => {
     return null
   }
 })
+// Preferences handlers — tRPC proxy
+ipcMain.handle('preferences:getApiKeys', async () => {
+  try { const c = getTrpcClient() as any; return await c.preferences.getApiKeys.query() } catch { return [] }
+})
+ipcMain.handle('preferences:setApiKey', async (_event, input: unknown) => {
+  try { const c = getTrpcClient() as any; return await c.preferences.setApiKey.mutate(input) } catch { return { stored: false } }
+})
+ipcMain.handle('preferences:deleteApiKey', async (_event, input: unknown) => {
+  try { const c = getTrpcClient() as any; return await c.preferences.deleteApiKey.mutate(input) } catch { return { deleted: false } }
+})
+ipcMain.handle('preferences:testApiKey', async (_event, input: unknown) => {
+  try { const c = getTrpcClient() as any; return await c.preferences.testApiKey.mutate(input) } catch { return { valid: false, error: 'Backend unavailable' } }
+})
+ipcMain.handle('preferences:getSystemStatus', async () => {
+  try { const c = getTrpcClient() as any; return await c.preferences.getSystemStatus.query() } catch { return { ollama: { running: false, models: [] }, configuredProviders: [], credentialVaultHealthy: false } }
+})
+ipcMain.handle('preferences:getAvailableModels', async () => {
+  try { const c = getTrpcClient() as any; return await c.preferences.getAvailableModels.query() } catch { return { models: [] } }
+})
+ipcMain.handle('preferences:getModelSelection', async () => {
+  try { const c = getTrpcClient() as any; return await c.preferences.getModelSelection.query() } catch { return { principal: null, system: null } }
+})
+ipcMain.handle('preferences:setModelSelection', async (_event, input: unknown) => {
+  try { const c = getTrpcClient() as any; return await c.preferences.setModelSelection.mutate(input) } catch { return { success: false } }
+})
+
 ipcMain.handle('app-install:prepare', async (_event, input: unknown) => {
   const client = getTrpcClient() as any
   return client.packages.prepareAppInstall.query(input)
