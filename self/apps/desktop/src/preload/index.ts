@@ -49,6 +49,16 @@ contextBridge.exposeInMainWorld('electronAPI', {
     requestProjectControl: (input: unknown): Promise<unknown> =>
       ipcRenderer.invoke('mao:requestProjectControl', input),
   },
+  preferences: {
+    getApiKeys: (): Promise<unknown[]> => ipcRenderer.invoke('preferences:getApiKeys'),
+    setApiKey: (input: unknown): Promise<unknown> => ipcRenderer.invoke('preferences:setApiKey', input),
+    deleteApiKey: (input: unknown): Promise<unknown> => ipcRenderer.invoke('preferences:deleteApiKey', input),
+    testApiKey: (input: unknown): Promise<unknown> => ipcRenderer.invoke('preferences:testApiKey', input),
+    getSystemStatus: (): Promise<unknown> => ipcRenderer.invoke('preferences:getSystemStatus'),
+    getAvailableModels: (): Promise<unknown> => ipcRenderer.invoke('preferences:getAvailableModels'),
+    getModelSelection: (): Promise<unknown> => ipcRenderer.invoke('preferences:getModelSelection'),
+    setModelSelection: (input: unknown): Promise<unknown> => ipcRenderer.invoke('preferences:setModelSelection', input),
+  },
   appPanels: {
     list: (): Promise<unknown[]> => ipcRenderer.invoke('app-panels:list'),
   },

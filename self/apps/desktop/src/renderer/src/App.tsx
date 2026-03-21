@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef } from 'react'
+import { useState, useEffect, useRef, useCallback } from 'react'
 import { DockviewReact } from 'dockview-react'
 import type {
   DockviewApi,
@@ -13,13 +13,13 @@ import {
   FileBrowserPanel,
   NodeProjectionPanel,
   MAOPanel,
-  AgentPanel,
   CodexBarPanel,
   CodexBarHeaderActions,
   useCodexBarApi,
   DashboardPanel,
   DashboardWidgetMenu,
   useDashboardApi,
+  AgentPanel,
   PreferencesPanel,
 } from '@nous/ui/panels'
 import { AppInstallWizardPanel } from './components/AppInstallWizard'
@@ -36,9 +36,9 @@ const panelComponents = {
   'file-browser': FileBrowserPanel,
   'node-projection': NodeProjectionPanel,
   mao: MAOPanel,
-  'coding-agents': AgentPanel,
   codexbar: CodexBarPanel,
   dashboard: DashboardPanel,
+  'coding-agents': AgentPanel,
   preferences: PreferencesPanel,
 }
 
@@ -74,27 +74,31 @@ const APP_PANEL_POSITIONS: Record<NonNullable<AppPanelSnapshot['position']>, { d
   main: { direction: 'within', referencePanel: 'chat' },
 }
 
+// ─── Panel registry ──────────────────────────────────────────────────────────
+// Panels that resolve live API bridges from window.electronAPI at render time.
+// The params factory is invoked both when adding a panel and after layout restore.
+
 export const NATIVE_PANEL_DEFS: PanelDef[] = [
+  {
+    id: 'chat',
+    component: 'chat',
+    title: 'Principal \u2194 Cortex',
+    params: () => ({ chatApi: window.electronAPI?.chat }),
+  },
   {
     id: 'app-installer',
     component: 'app-installer',
     title: 'App Installer',
     params: () => ({
-      appInstallApi: (window as any).electronAPI?.appInstall,
-      appSettingsApi: (window as any).electronAPI?.appSettings,
+      appInstallApi: window.electronAPI?.appInstall,
+      appSettingsApi: window.electronAPI?.appSettings,
     }),
-  },
-  {
-    id: 'chat',
-    component: 'chat',
-    title: 'Principal \u2194 Cortex',
-    params: () => ({ chatApi: (window as any).electronAPI?.chat }),
   },
   {
     id: 'files',
     component: 'file-browser',
     title: 'Files',
-    params: () => ({ fsApi: (window as any).electronAPI?.fs, initialPath: '/' }),
+    params: () => ({ fsApi: window.electronAPI?.fs, initialPath: '/' }),
   },
   { id: 'node-projection', component: 'node-projection', title: 'Skill Projection' },
   { id: 'mao', component: 'mao', title: 'MAO', params: () => ({ maoApi: (window as any).electronAPI?.mao }) },
@@ -102,11 +106,26 @@ export const NATIVE_PANEL_DEFS: PanelDef[] = [
     id: 'codexbar',
     component: 'codexbar',
     title: 'AI Usage',
-    params: () => ({ usageApi: (window as any).electronAPI?.usage }),
+    params: () => ({ usageApi: window.electronAPI?.usage }),
   },
   { id: 'dashboard', component: 'dashboard', title: 'Dashboard' },
   { id: 'coding-agents', component: 'coding-agents', title: 'Coding Agents' },
-  { id: 'preferences', component: 'preferences', title: 'Preferences' },
+  { id: 'preferences', component: 'preferences', title: 'Preferences', params: () => ({ preferencesApi: (window as any).electronAPI?.preferences }) },
+]
+
+// Order in which panels are added to the default layout.
+// Panels that are referenced by others must appear first.
+// chat is the anchor — everything else positions relative to it.
+const PANEL_ADD_ORDER = [
+  'chat',
+  'files',
+  'node-projection',
+  'mao',
+  'app-installer',
+  'codexbar',
+  'dashboard',
+  'coding-agents',
+  'preferences',
 ]
 
 function toAppPanelDef(panel: AppPanelSnapshot): PanelDef {
@@ -123,6 +142,57 @@ function toAppPanelDef(panel: AppPanelSnapshot): PanelDef {
       configSnapshot: panel.config_snapshot,
     }),
     position: panel.position ? APP_PANEL_POSITIONS[panel.position] : undefined,
+  }
+}
+
+// ─── Layout persistence helpers ──────────────────────────────────────────────
+
+/**
+ * Build a param lookup from NATIVE_PANEL_DEFS keyed by panel id.
+ * Used to re-inject live API bridges after layout restore.
+ */
+function buildParamLookup(): Map<string, () => Record<string, unknown>> {
+  const lookup = new Map<string, () => Record<string, unknown>>()
+  for (const def of NATIVE_PANEL_DEFS) {
+    if (def.params) {
+      lookup.set(def.id, def.params)
+    }
+  }
+  return lookup
+}
+
+/**
+ * After fromJSON() restores a layout, panels have stale/empty params.
+ * Walk every panel and re-inject live params from the registry.
+ */
+function resolvePanelParams(api: DockviewApi): void {
+  const lookup = buildParamLookup()
+  for (const panel of api.panels) {
+    const factory = lookup.get(panel.id)
+    if (factory) {
+      try {
+        panel.api.updateParameters(factory())
+      } catch {
+        // Panel may not support updateParameters — safe to skip
+      }
+    }
+  }
+}
+
+/**
+ * Strip non-serializable values (functions, DOM nodes, etc.) from the
+ * dockview JSON before persisting over IPC.  This prevents structuredClone
+ * errors when electron-store tries to serialize the layout.
+ */
+function stripNonSerializableFromLayout(layout: SerializedDockview): SerializedDockview {
+  try {
+    // JSON.parse(JSON.stringify(…)) is the simplest and most reliable way
+    // to drop functions, undefined, symbols, circular refs, etc.
+    return JSON.parse(JSON.stringify(layout))
+  } catch {
+    // If serialization itself throws, return layout unchanged and let the
+    // IPC layer handle the error gracefully.
+    return layout
   }
 }
 
@@ -158,88 +228,17 @@ function ChromeShell({
   )
 }
 
-// Create a preferences API bridge from a tRPC base URL
-function createPreferencesApiBridge(baseUrl: string) {
-  const trpcQuery = async (path: string, input?: unknown) => {
-    const url = new URL(`${baseUrl}/${path}`)
-    if (input !== undefined) {
-      url.searchParams.set('input', JSON.stringify({ json: input }))
-    }
-    const res = await fetch(url.toString())
-    const data = await res.json()
-    return data?.result?.data?.json ?? data?.result?.data ?? data
-  }
-  const trpcMutation = async (path: string, input: unknown) => {
-    const res = await fetch(`${baseUrl}/${path}`, {
-      method: 'POST',
-      headers: { 'content-type': 'application/json' },
-      body: JSON.stringify({ json: input }),
-    })
-    const data = await res.json()
-    return data?.result?.data?.json ?? data?.result?.data ?? data
-  }
-  return {
-    getApiKeys: () => trpcQuery('preferences.getApiKeys'),
-    setApiKey: (input: { provider: string; key: string }) => trpcMutation('preferences.setApiKey', input),
-    deleteApiKey: (input: { provider: string }) => trpcMutation('preferences.deleteApiKey', input),
-    testApiKey: (input: { provider: string; key: string }) => trpcMutation('preferences.testApiKey', input),
-    getSystemStatus: () => trpcQuery('preferences.getSystemStatus'),
-    getAvailableModels: () => trpcQuery('preferences.getAvailableModels'),
-    getModelSelection: () => trpcQuery('preferences.getModelSelection'),
-    setModelSelection: (input: { principal?: string; system?: string }) => trpcMutation('preferences.setModelSelection', input),
-  }
-}
-
 export function App() {
   const [savedLayout, setSavedLayout] = useState<LayoutState>(undefined)
   const [dockviewApi, setDockviewApi] = useState<DockviewApi | null>(null)
   const [appPanels, setAppPanels] = useState<AppPanelSnapshot[]>([])
-  const [backendTrpcUrl, setBackendTrpcUrl] = useState<string | null>(null)
   const panelDefs = [...NATIVE_PANEL_DEFS, ...appPanels.map(toAppPanelDef)]
-
-  // Discover backend URL on startup
-  useEffect(() => {
-    let cancelled = false
-    const poll = async () => {
-      try {
-        const status = await window.electronAPI.backend.getStatus()
-        if (status.ready && status.trpcUrl && !cancelled) {
-          setBackendTrpcUrl(status.trpcUrl)
-        }
-      } catch { /* not ready */ }
-    }
-    void poll()
-    const id = setInterval(poll, 1000)
-    return () => { cancelled = true; clearInterval(id) }
-  }, [])
-
-  // Wire dynamic APIs into panels when backend is available
-  // Runs on backend discovery AND on dockview ready (whichever comes last)
-  useEffect(() => {
-    if (!backendTrpcUrl || !dockviewApi) return
-
-    const preferencesApi = createPreferencesApiBridge(backendTrpcUrl)
-
-    // Wire all panels that need the backend
-    for (const panel of dockviewApi.panels) {
-      if (panel.id === 'preferences') {
-        panel.api.updateParameters({ preferencesApi })
-      }
-    }
-
-    // Also wire any panels added later (e.g., opened from menu after startup)
-    const disposable = dockviewApi.onDidAddPanel((event) => {
-      if (event.id === 'preferences') {
-        event.api.updateParameters({ preferencesApi })
-      }
-    })
-
-    return () => disposable.dispose()
-  }, [backendTrpcUrl, dockviewApi])
 
   useEffect(() => {
     window.electronAPI.layout.get().then((layout: unknown) => {
       setSavedLayout((layout as SerializedDockview | null) ?? null)
+    }).catch(() => {
+      setSavedLayout(null)
     })
   }, [])
 
@@ -247,9 +246,13 @@ export function App() {
     let cancelled = false
 
     const syncAppPanels = async () => {
-      const panels = await window.electronAPI.appPanels.list()
-      if (!cancelled) {
-        setAppPanels(panels)
+      try {
+        const panels = await window.electronAPI.appPanels.list()
+        if (!cancelled) {
+          setAppPanels(panels)
+        }
+      } catch {
+        // Backend may not be available yet — retry on next interval
       }
     }
 
@@ -315,35 +318,6 @@ function OuterHeaderActions({ activePanel }: IDockviewHeaderActionsProps) {
   return null
 }
 
-/** Strip non-serializable values from panel params before IPC transport. */
-function stripNonSerializableParams(layout: SerializedDockview): SerializedDockview {
-  try {
-    // JSON.parse(JSON.stringify(...)) drops functions, undefined, Symbols, etc.
-    return JSON.parse(JSON.stringify(layout)) as SerializedDockview
-  } catch {
-    // If the layout is completely unserializable, return a minimal safe copy
-    // with panel params emptied out.
-    const safe = { ...layout } as any
-    if (safe.panels) {
-      for (const key of Object.keys(safe.panels)) {
-        try {
-          JSON.stringify(safe.panels[key])
-        } catch {
-          safe.panels[key] = { ...safe.panels[key], params: {} }
-        }
-      }
-    }
-    return safe as SerializedDockview
-  }
-}
-
-/** Resolve live params for a panel by its definition. */
-function resolvePanelParams(panelId: string): Record<string, unknown> {
-  const def = NATIVE_PANEL_DEFS.find((d) => d.id === panelId)
-  if (def?.params) return def.params()
-  return {}
-}
-
 function DockviewShell({
   savedLayout,
   onApiReady,
@@ -365,37 +339,40 @@ function DockviewShell({
     }
   }, [activeAppPanelIds])
 
-  const onReady = (event: DockviewReadyEvent) => {
+  const onReady = useCallback((event: DockviewReadyEvent) => {
+    let layoutRestored = false
+
     if (savedLayout) {
       try {
         event.api.fromJSON(savedLayout)
-        // Re-inject live API params into restored panels (functions are stripped
-        // during serialization, so params like chatApi, fsApi, etc. are missing
-        // after a layout restore).
-        for (const panel of event.api.panels) {
-          const liveParams = resolvePanelParams(panel.id)
-          if (Object.keys(liveParams).length > 0) {
-            panel.api.updateParameters(liveParams)
-          }
-        }
+        layoutRestored = true
       } catch {
-        initDefaultLayout(event)
+        // Saved layout is incompatible — fall through to default
       }
-    } else {
+    }
+
+    if (!layoutRestored) {
       initDefaultLayout(event)
     }
 
-    // Persist layout on every change (UI-INV-006)
-    // Strip functions/non-serializable values before sending through IPC.
+    // After any layout init (restored or default), re-inject live API bridges
+    // so panels have working APIs immediately on first render.
+    resolvePanelParams(event.api)
+
+    // Persist layout on every change (UI-INV-006).
+    // ALWAYS strip non-serializable params before sending over IPC to
+    // prevent structuredClone errors on functions/DOM nodes.
     event.api.onDidLayoutChange(() => {
-      const raw = event.api.toJSON()
-      const safe = stripNonSerializableParams(raw)
-      window.electronAPI.layout.set(safe)
+      const json = event.api.toJSON()
+      const safe = stripNonSerializableFromLayout(json)
+      window.electronAPI.layout.set(safe).catch(() => {
+        // Layout save failed — non-critical, will retry on next change
+      })
     })
 
     dockviewApiRef.current = event.api
     onApiReady(event.api)
-  }
+  }, [savedLayout, onApiReady])
 
   return (
     <div style={{ height: '100%', width: '100%', padding: 'var(--nous-space-sm)', boxSizing: 'border-box', background: 'var(--nous-surface)' }}>
@@ -421,35 +398,32 @@ const DEFAULT_POSITIONS: Record<string, { direction: string; referencePanel: str
   preferences: { direction: 'within', referencePanel: 'chat' },
 }
 
-// Panels ordered so that every referencePanel is already added before it's referenced.
-// 'chat' must come first since most panels reference it; 'node-projection' must precede
-// 'mao' which references it.
-const PANEL_ADD_ORDER: string[] = [
-  'chat',
-  'app-installer',
-  'files',
-  'node-projection',
-  'mao',
-  'codexbar',
-  'dashboard',
-  'coding-agents',
-  'preferences',
-]
-
+/**
+ * Adds panels in dependency-safe order. Panels that reference others
+ * (via position.referencePanel) are added AFTER their reference target.
+ */
 function initDefaultLayout(event: DockviewReadyEvent) {
   const defById = new Map(NATIVE_PANEL_DEFS.map((d) => [d.id, d]))
-  const addedPanelIds = new Set<string>()
 
-  for (const panelId of PANEL_ADD_ORDER) {
-    const def = defById.get(panelId)
+  for (const id of PANEL_ADD_ORDER) {
+    const def = defById.get(id)
     if (!def) continue
 
-    // Resolve position — verify the referenced panel actually exists before using it
-    let position = DEFAULT_POSITIONS[def.id]
-    if (position && !addedPanelIds.has(position.referencePanel)) {
-      // Referenced panel hasn't been added yet — fall back to no explicit position
-      // (dockview will add it as a new group)
-      position = undefined as any
+    const position = DEFAULT_POSITIONS[def.id]
+
+    // Verify reference panel exists before using position directive
+    if (position) {
+      const refExists = event.api.panels.some((p) => p.id === position.referencePanel)
+      if (!refExists) {
+        // Reference panel not added yet — add without position (will go to default area)
+        event.api.addPanel({
+          id: def.id,
+          component: def.component,
+          title: def.title,
+          params: def.params?.() ?? {},
+        })
+        continue
+      }
     }
 
     event.api.addPanel({
@@ -459,27 +433,5 @@ function initDefaultLayout(event: DockviewReadyEvent) {
       params: def.params?.() ?? {},
       ...(position ? { position } : {}),
     })
-
-    addedPanelIds.add(def.id)
-  }
-
-  // Add any NATIVE_PANEL_DEFS that weren't in PANEL_ADD_ORDER (future-proofing)
-  for (const def of NATIVE_PANEL_DEFS) {
-    if (addedPanelIds.has(def.id)) continue
-
-    let position = DEFAULT_POSITIONS[def.id]
-    if (position && !addedPanelIds.has(position.referencePanel)) {
-      position = undefined as any
-    }
-
-    event.api.addPanel({
-      id: def.id,
-      component: def.component,
-      title: def.title,
-      params: def.params?.() ?? {},
-      ...(position ? { position } : {}),
-    })
-
-    addedPanelIds.add(def.id)
   }
 }

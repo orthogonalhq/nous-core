@@ -33,15 +33,8 @@ interface BrowserSpeechRecognition {
 
 type BrowserSpeechRecognitionConstructor = new () => BrowserSpeechRecognition
 
-interface OllamaStatusSnapshot {
-  installed: boolean
-  running: boolean
-  models: string[]
-  defaultModel: string | null
-}
-
 interface ChatPanelProps extends IDockviewPanelProps {
-  params: { chatApi?: ChatAPI; ollamaStatus?: OllamaStatusSnapshot | null }
+  params: { chatApi?: ChatAPI }
 }
 
 export function ChatPanel({ params }: ChatPanelProps) {
@@ -53,12 +46,11 @@ export function ChatPanel({ params }: ChatPanelProps) {
   const recognitionRef = useRef<BrowserSpeechRecognition | null>(null)
 
   const chatApi = params?.chatApi
-  const ollamaStatus = params?.ollamaStatus ?? null
 
   useEffect(() => {
     if (chatApi?.getHistory) {
       chatApi.getHistory().then(setMessages).catch(() => {
-        // API not ready or IPC handler not registered — graceful fallback
+        // History fetch failed — start with empty conversation
       })
     }
   }, [chatApi])
@@ -68,7 +60,7 @@ export function ChatPanel({ params }: ChatPanelProps) {
   }, [messages])
 
   const send = async () => {
-    if (!input.trim() || sending || !chatApi) return
+    if (!input.trim() || sending || !chatApi?.send) return
     const userMsg = input.trim()
     setInput('')
     setSending(true)
@@ -127,33 +119,8 @@ export function ChatPanel({ params }: ChatPanelProps) {
       {/* Messages */}
       <div style={{ flex: 1, overflowY: 'auto', padding: 'var(--nous-space-2xl)', display: 'flex', flexDirection: 'column', gap: 'var(--nous-space-xl)' }}>
         {messages.length === 0 && (
-          <div style={{ textAlign: 'center', color: 'var(--nous-fg-subtle)', fontSize: 'var(--nous-font-size-base)', marginTop: 'var(--nous-space-4xl)', display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 'var(--nous-space-md)' }}>
-            {!chatApi ? (
-              <span>Chat API not connected.</span>
-            ) : ollamaStatus && !ollamaStatus.running ? (
-              <>
-                <span style={{ fontSize: 'var(--nous-font-size-lg)', color: 'var(--nous-fg-muted)' }}>No LLM detected</span>
-                <span>Install and start Ollama to get started.</span>
-                <a
-                  href="https://ollama.com/download"
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  style={{ color: 'var(--nous-btn-primary-bg)', textDecoration: 'underline', cursor: 'pointer' }}
-                >
-                  Download Ollama
-                </a>
-              </>
-            ) : ollamaStatus && ollamaStatus.running && ollamaStatus.models.length === 0 ? (
-              <>
-                <span style={{ fontSize: 'var(--nous-font-size-lg)', color: 'var(--nous-fg-muted)' }}>No models found</span>
-                <span>Ollama is running but no models are downloaded.</span>
-                <span style={{ fontFamily: 'monospace', fontSize: 'var(--nous-font-size-sm)', color: 'var(--nous-fg-muted)' }}>
-                  Run: ollama pull llama3.2:3b
-                </span>
-              </>
-            ) : (
-              <span>Start a conversation with Nous.</span>
-            )}
+          <div style={{ textAlign: 'center', color: 'var(--nous-fg-subtle)', fontSize: 'var(--nous-font-size-base)', marginTop: 'var(--nous-space-4xl)' }}>
+            {chatApi?.send ? 'Start a conversation with Nous.' : 'Chat API not connected. Start the web backend with `pnpm dev:web`.'}
           </div>
         )}
         {messages.map((msg, i) => (
@@ -205,11 +172,11 @@ export function ChatPanel({ params }: ChatPanelProps) {
         </button>
         <button
           onClick={send}
-          disabled={sending || !input.trim() || !chatApi}
+          disabled={sending || !input.trim() || !chatApi?.send}
           style={{
             background: 'var(--nous-btn-primary-bg)', border: 'none', borderRadius: 'var(--nous-radius-md)',
             padding: 'var(--nous-space-md) var(--nous-space-2xl)', color: 'var(--nous-fg-on-color)', cursor: sending ? 'not-allowed' : 'pointer',
-            fontSize: 'var(--nous-font-size-base)', fontWeight: 'var(--nous-font-weight-medium)' as any, opacity: (sending || !input.trim() || !chatApi) ? 0.5 : 1,
+            fontSize: 'var(--nous-font-size-base)', fontWeight: 'var(--nous-font-weight-medium)' as any, opacity: (sending || !input.trim() || !chatApi?.send) ? 0.5 : 1,
           }}
         >
           Send
