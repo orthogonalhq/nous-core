@@ -25,6 +25,7 @@ import { OpenAiCompatibleProvider } from './openai-provider.js';
 export class ProviderRegistry {
   private readonly providers = new Map<string, IModelProvider>();
   readonly laneRegistry: InferenceLaneRegistry;
+  private static readonly ANTHROPIC_ENDPOINT = 'https://api.anthropic.com';
 
   constructor(config: IConfig, options?: { laneRegistry?: InferenceLaneRegistry }) {
     this.laneRegistry = options?.laneRegistry ?? new InferenceLaneRegistry();
@@ -53,23 +54,9 @@ export class ProviderRegistry {
         meetsProfiles: entry.meetsProfiles,
       };
 
-      const validated = ModelProviderConfigSchema.safeParse(providerConfig);
-      if (!validated.success) {
-        throw new ConfigError(
-          `Provider "${entry.name}" has invalid configuration`,
-          {
-            providerName: entry.name,
-            providerId: entry.id,
-            errors: validated.error.issues.map((issue) => ({
-              path: issue.path.join('.'),
-              message: issue.message,
-            })),
-          },
-        );
-      }
-
-      const provider = this.createProvider(validated.data);
-      this.providers.set(validated.data.id, provider);
+      const validated = this.validateProviderConfig(providerConfig);
+      const provider = this.createProvider(validated);
+      this.providers.set(validated.id, provider);
     }
   }
 
@@ -81,14 +68,83 @@ export class ProviderRegistry {
     return Array.from(this.providers.values()).map((p) => p.getConfig());
   }
 
+  registerProvider(config: ModelProviderConfig): void {
+    const validated = this.validateProviderConfig(config);
+    const provider = this.createProvider(validated);
+    this.providers.set(validated.id, provider);
+    console.log(
+      `[nous:providers] registerProvider: registered ${validated.name} (${validated.id})`,
+    );
+  }
+
+  removeProvider(id: ProviderId): boolean {
+    const removed = this.providers.delete(id);
+    if (removed) {
+      console.log(`[nous:providers] removeProvider: removed ${id}`);
+    }
+    return removed;
+  }
+
   onLeaseReleased(listener: (event: LaneLeaseReleasedEvent) => void): () => void {
     return this.laneRegistry.onLeaseReleased(listener);
   }
 
+  private validateProviderConfig(config: ModelProviderConfig): ModelProviderConfig {
+    const validated = ModelProviderConfigSchema.safeParse(config);
+    if (!validated.success) {
+      throw new ConfigError(
+        `Provider "${config.name}" has invalid configuration`,
+        {
+          providerName: config.name,
+          providerId: config.id,
+          errors: validated.error.issues.map((issue) => ({
+            path: issue.path.join('.'),
+            message: issue.message,
+          })),
+        },
+      );
+    }
+
+    return validated.data;
+  }
+
+  private resolveRemoteApiKey(config: ModelProviderConfig): string | undefined {
+    const endpoint = config.endpoint?.toLowerCase() ?? '';
+    const providerName = config.name.toLowerCase();
+
+    if (endpoint.includes('anthropic') || providerName.includes('anthropic')) {
+      return process.env.ANTHROPIC_API_KEY;
+    }
+
+    return process.env.OPENAI_API_KEY;
+  }
+
+  private normalizeRemoteConfig(config: ModelProviderConfig): ModelProviderConfig {
+    const endpoint = config.endpoint?.toLowerCase() ?? '';
+    const providerName = config.name.toLowerCase();
+
+    if (endpoint.includes('anthropic') || providerName.includes('anthropic')) {
+      return {
+        ...config,
+        endpoint: ProviderRegistry.ANTHROPIC_ENDPOINT,
+      };
+    }
+
+    return config;
+  }
+
   private createProvider(config: ModelProviderConfig): IModelProvider {
+    const normalizedConfig = config.isLocal
+      ? config
+      : this.normalizeRemoteConfig(config);
     const provider = config.isLocal
-      ? new OllamaProvider(config)
-      : new OpenAiCompatibleProvider(config);
-    return new LaneAwareProvider(provider, this.laneRegistry.getOrCreate(config));
+      ? new OllamaProvider(normalizedConfig)
+      : new OpenAiCompatibleProvider(normalizedConfig, {
+          apiKey: this.resolveRemoteApiKey(normalizedConfig),
+        });
+    return new LaneAwareProvider(
+      provider,
+      this.laneRegistry.getOrCreate(normalizedConfig),
+    );
   }
 }

@@ -5,15 +5,48 @@ description: Model assignments, Cortex tier, and system health
 
 # Configuration
 
-The Configuration panel in the web UI lets you view and modify key settings.
+The Configuration panel lets you manage Cortex tier, provider credentials, model selections, and runtime health.
+
+Both the web and desktop hosts use the same shared-server bootstrap. When you change provider keys or model selections here, the runtime behavior is the same in both surfaces.
 
 ## Cortex Tier
 
 The Cortex (Prefrontal Cortex) tier controls how much oversight Nous applies. Tiers 0–5; higher tiers enable more reflection, memory gating, and tool authorization. See [Cortex Mode Capability Matrix](/docs/architecture/Cortex-mode-capability-matrix).
 
+## Provider Keys
+
+Nous currently supports vault-backed API-key setup for:
+
+- **Anthropic**
+- **OpenAI**
+
+Saving a key does three things immediately:
+
+- Stores the secret in the credential vault instead of the plain-text config file
+- Registers the matching remote provider in the active runtime
+- Adds that provider's cloud models to the available-model list without requiring a restart
+
+Deleting a key removes that provider from active routing and from the cloud-model list. If no cloud providers remain, Nous falls back to local-only routing behavior.
+
+The key-test action can validate either:
+
+- A newly pasted key
+- The already-stored vault key when you leave the key field empty
+
+## Available Models
+
+The model picker combines:
+
+- Local Ollama models detected from the running Ollama instance
+- Cloud models for any configured Anthropic or OpenAI provider
+
+Saved cloud keys are restored on startup, so configured cloud models should reappear automatically after restart.
+
 ## Model Assignments
 
-Assign model roles to providers. For example, the `reasoner` role might be fulfilled by Ollama or an OpenAI-compatible API. The router uses these assignments to route requests.
+Assign model roles to providers. For example, the `reasoner` role might be fulfilled by Ollama, OpenAI, or Anthropic. The router uses these assignments to route requests.
+
+Principal and System model selections are saved separately and restored on startup. When a saved cloud selection is restored, Nous automatically moves out of a strict local-only profile so the remote provider can be routed without hand-editing config.
 
 ## System Health
 
@@ -21,5 +54,7 @@ The health check shows:
 
 - **Storage** — Document store status
 - **Ollama** — Local model availability (if configured)
+- **Configured providers** — Which cloud providers currently have stored credentials
+- **Credential vault** — Whether vault-backed provider secret lookups are healthy
 
 When Ollama is not running, the Ollama component shows "unhealthy". Start Ollama to resolve.

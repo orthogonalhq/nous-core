@@ -4,15 +4,22 @@
  * Thin adapter over @nous/shared-server. The platform-agnostic service graph
  * lives in shared-server; this file adds web-specific caching and env wiring.
  */
-import { createNousServices } from '@nous/shared-server';
+import {
+  createNousServices,
+  loadStoredApiKeys,
+  loadModelSelection,
+  registerStoredProviders,
+} from '@nous/shared-server';
 import type { NousContext } from '@nous/shared-server';
 
 export type { NousContext };
 
 let cachedContext: NousContext | null = null;
+let initPromise: Promise<NousContext> | null = null;
 
 export function clearNousContextCache(): void {
   cachedContext = null;
+  initPromise = null;
 }
 
 export function createNousContext(): NousContext {
@@ -25,4 +32,20 @@ export function createNousContext(): NousContext {
   });
 
   return cachedContext;
+}
+
+export async function initializeNousContext(): Promise<NousContext> {
+  if (initPromise) {
+    return initPromise;
+  }
+
+  const ctx = createNousContext();
+  initPromise = (async () => {
+    await loadStoredApiKeys(ctx);
+    await registerStoredProviders(ctx);
+    await loadModelSelection(ctx);
+    return ctx;
+  })();
+
+  return initPromise;
 }
