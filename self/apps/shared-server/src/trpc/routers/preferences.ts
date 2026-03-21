@@ -4,6 +4,10 @@
 import { z } from 'zod';
 import { router, publicProcedure } from '../trpc';
 import { detectOllama } from '../../ollama-detection';
+import {
+  registerConfiguredProvider,
+  removeConfiguredProvider,
+} from '../../bootstrap';
 
 const SYSTEM_APP_ID = 'nous:system';
 const MODEL_SELECTION_COLLECTION = 'nous:model_selection';
@@ -106,6 +110,10 @@ export const preferencesRouter = router({
 
       // Set in process environment for immediate SDK access
       process.env[config.envVar] = input.key;
+      await registerConfiguredProvider(ctx, input.provider);
+      console.log(
+        `[nous:preferences] setApiKey: registered provider ${input.provider}`,
+      );
 
       return { stored: true };
     }),
@@ -126,6 +134,10 @@ export const preferencesRouter = router({
 
       // Clear from process environment
       delete process.env[config.envVar];
+      await removeConfiguredProvider(ctx, input.provider);
+      console.log(
+        `[nous:preferences] deleteApiKey: removed provider ${input.provider}`,
+      );
 
       return { deleted: result.revoked };
     }),
@@ -134,16 +146,32 @@ export const preferencesRouter = router({
     .input(
       z.object({
         provider: ProviderSchema,
-        key: z.string().min(1),
+        key: z.string().min(1).optional(),
       }),
     )
-    .mutation(async ({ input }) => {
+    .mutation(async ({ ctx, input }) => {
       try {
+        const resolvedKey =
+          input.key ??
+          (
+            await ctx.credentialVaultService.resolveForInjection(
+              SYSTEM_APP_ID,
+              vaultKey(input.provider),
+            )
+          )?.secretValue;
+
+        if (!resolvedKey) {
+          return {
+            valid: false,
+            error: 'No API key configured for this provider. Store a key first.',
+          };
+        }
+
         if (input.provider === 'anthropic') {
           const response = await fetch('https://api.anthropic.com/v1/models', {
             method: 'GET',
             headers: {
-              'x-api-key': input.key,
+              'x-api-key': resolvedKey,
               'anthropic-version': '2023-06-01',
             },
           });
@@ -158,7 +186,7 @@ export const preferencesRouter = router({
           const response = await fetch('https://api.openai.com/v1/models', {
             method: 'GET',
             headers: {
-              Authorization: `Bearer ${input.key}`,
+              Authorization: `Bearer ${resolvedKey}`,
             },
           });
           if (response.ok) {
