@@ -1,13 +1,17 @@
 # Nous Core
 
-## Bootstrap (Required)
+## Bootstrap (Required — ALWAYS runs first)
 
-Before starting any work, read and follow these files in order:
+**On every conversation start, before doing ANYTHING else:**
 
-1. `AGENTS.md` — Workmode selection, SOP routing, state detection
-2. `SOUL.md` — Identity and collaboration posture
+1. Read `AGENTS.md` — Workmode selection, SOP routing, state detection
+2. Follow `AGENTS.md § State Detection and Role Inference` — detect branch, scan worklog artifacts, determine pipeline position
+3. Read `SOUL.md` — Identity and collaboration posture
+4. Report detected state to the user before taking action
 
-Do not skip this step. Do not begin implementation, review, or orchestration without first completing state detection per AGENTS.md § State Detection and Role Inference.
+**State recovery comes from artifacts, not memory.** Do NOT use memory files, session notes, or conversation history to determine what to work on. The branch name + worklog artifacts + work register (`.architecture/work-register.md`) are the canonical sources. Memory is for user preferences and project context — never for workflow state.
+
+Do not skip this step. Do not begin implementation, review, or orchestration without first completing state detection.
 
 ## Project
 
