@@ -667,7 +667,9 @@ export function createNousServices(config?: BootstrapConfig): NousContext {
     vaultService: credentialVaultService,
     oauthBroker: credentialOAuthBroker,
   });
-  const packageLifecycleOrchestrator = new PackageLifecycleOrchestrator();
+  const packageLifecycleOrchestrator = new PackageLifecycleOrchestrator({
+    credentialVaultService,
+  });
   const packageInstallService = new PackageInstallService({
     registryService,
     lifecycleOrchestrator: packageLifecycleOrchestrator,
