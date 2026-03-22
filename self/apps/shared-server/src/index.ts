@@ -8,12 +8,16 @@
  * - `createTRPCContext` — tRPC context factory
  */
 export {
+  OLLAMA_WELL_KNOWN_PROVIDER_ID,
   createNousServices,
   loadStoredApiKeys,
   loadModelSelection,
   registerStoredProviders,
   WELL_KNOWN_PROVIDER_IDS,
+  buildOllamaProviderConfig,
   buildProviderConfig,
+  currentRoleAssignment,
+  updateRoleAssignment,
 } from './bootstrap';
 export type { BootstrapConfig } from './bootstrap';
 export type { NousContext, AgentSessionEntry } from './context';

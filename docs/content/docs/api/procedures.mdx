@@ -283,6 +283,8 @@ Response excerpt:
 | `preferences.getAvailableModels` | query | — | `{ models: { id, name, provider, available }[] }` |
 | `preferences.getModelSelection` | query | — | `{ principal: string \| null, system: string \| null }` |
 | `preferences.setModelSelection` | mutation | `{ principal?, system? }` | `{ success: boolean }` |
+| `preferences.getRoleAssignments` | query | — | `Record<ModelRole, { providerId, fallbackProviderId? } \| null>` |
+| `preferences.setRoleAssignment` | mutation | `{ role: ModelRole, modelSpec: string }` | `{ success: boolean, error?: string }` |
 | `preferences.getSystemStatus` | query | — | `{ ollama, configuredProviders, credentialVaultHealthy }` |
 
 - `preferences.getApiKeys` — Returns masked vault-backed provider-key state. Raw API keys are never returned to the client.
@@ -290,7 +292,8 @@ Response excerpt:
 - `preferences.deleteApiKey` — Revokes the stored provider key, removes the provider from active routing, and cleans the provider/config state. If no cloud providers remain, runtime falls back to local-only routing posture.
 - `preferences.testApiKey` — Validates the supplied `key` when present; otherwise it tests the already-stored vault key. Returns `{ valid: false, error: 'No API key configured for this provider. Store a key first.' }` when nothing is available to test.
 - `preferences.getAvailableModels` — Returns the combined local Ollama model list plus cloud models discovered dynamically from the Anthropic and OpenAI `/v1/models` APIs. Successful API responses are cached in-memory with a 5-minute TTL. Providers without a stored API key are skipped. When an API call fails, a minimal static fallback list is returned with a staleness indicator.
-- `preferences.getModelSelection` / `preferences.setModelSelection` — Persist the separate Principal and System model selections that Nous restores on startup. `setModelSelection` also updates the in-memory provider config and reasoner assignment immediately, so model changes take effect without a restart. Invalid model specs are rejected gracefully without corrupting provider state.
+- `preferences.getModelSelection` / `preferences.setModelSelection` — Persist the separate Principal and System model selections that Nous restores on startup. `setModelSelection` accepts cloud specs and `ollama:*` specs, then updates the in-memory provider config and reasoner assignment immediately so model changes take effect without a restart. Invalid model specs are rejected gracefully without corrupting provider state.
+- `preferences.getRoleAssignments` / `preferences.setRoleAssignment` — Read and update the runtime provider assignment for every `ModelRole` (`orchestrator`, `reasoner`, `tool-advisor`, `summarizer`, `embedder`, `reranker`, `vision`). `setRoleAssignment` accepts the same `provider:model` spec format as `setModelSelection`, including local Ollama models.
 - `preferences.getSystemStatus` — Returns current Ollama posture, configured cloud providers, and whether the credential-vault surface is healthy.
 
 ## opctl

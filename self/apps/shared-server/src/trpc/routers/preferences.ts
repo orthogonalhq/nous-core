@@ -2,15 +2,20 @@
  * Preferences tRPC router — API key management, system status, and model selection.
  */
 import { z } from 'zod';
+import { ModelRoleSchema, type ModelRole, type ProviderId } from '@nous/shared';
 import type { NousContext } from '../../context';
 import { router, publicProcedure } from '../trpc';
 import { detectOllama } from '../../ollama-detection';
 import {
+  OLLAMA_WELL_KNOWN_PROVIDER_ID,
   WELL_KNOWN_PROVIDER_IDS,
+  buildOllamaProviderConfig,
   buildProviderConfig,
+  currentRoleAssignment,
   parseSelectedModelSpec,
   registerConfiguredProvider,
   removeConfiguredProvider,
+  updateRoleAssignment,
   updateReasonerAssignment,
   upsertProviderConfig,
 } from '../../bootstrap';
@@ -40,8 +45,14 @@ type CloudModelFetchResult = {
 };
 
 const CLOUD_PROVIDERS: Provider[] = ['anthropic', 'openai'];
+const MODEL_ROLES = [...ModelRoleSchema.options] as ModelRole[];
 const MODEL_CACHE_TTL_MS = 5 * 60 * 1000;
 const modelCache = new Map<Provider, CachedModelList>();
+
+type RoleAssignmentSummary = {
+  providerId: ProviderId;
+  fallbackProviderId?: ProviderId;
+};
 
 const AnthropicModelSchema = z.object({
   id: z.string(),
@@ -126,6 +137,30 @@ function maskApiKey(key: string): string {
 
 function cloneModels(models: AvailableModel[]): AvailableModel[] {
   return models.map((model) => ({ ...model }));
+}
+
+function buildProviderSelection(
+  selectedModel: NonNullable<ReturnType<typeof parseSelectedModelSpec>>,
+) {
+  if (selectedModel.provider === 'ollama') {
+    return {
+      providerId: OLLAMA_WELL_KNOWN_PROVIDER_ID,
+      providerConfig: buildOllamaProviderConfig(
+        selectedModel.modelId,
+        OLLAMA_WELL_KNOWN_PROVIDER_ID,
+      ),
+    };
+  }
+
+  const providerId = WELL_KNOWN_PROVIDER_IDS[selectedModel.provider];
+  return {
+    providerId,
+    providerConfig: buildProviderConfig(
+      selectedModel.provider,
+      providerId,
+      selectedModel.modelId,
+    ),
+  };
 }
 
 function isOpenAIChatModel(modelId: string): boolean {
@@ -535,12 +570,7 @@ export const preferencesRouter = router({
       }
 
       try {
-        const providerId = WELL_KNOWN_PROVIDER_IDS[selectedModel.provider];
-        const providerConfig = buildProviderConfig(
-          selectedModel.provider,
-          providerId,
-          selectedModel.modelId,
-        );
+        const { providerId, providerConfig } = buildProviderSelection(selectedModel);
 
         await upsertProviderConfig(ctx, providerConfig);
         await updateReasonerAssignment(ctx, providerId);
@@ -556,6 +586,58 @@ export const preferencesRouter = router({
       }
 
       return { success: true };
+    }),
+
+  getRoleAssignments: publicProcedure.query(async ({ ctx }) => {
+    return Object.fromEntries(
+      MODEL_ROLES.map((role) => {
+        const assignment = currentRoleAssignment(ctx, role);
+        const value: RoleAssignmentSummary | null = assignment
+          ? {
+              providerId: assignment.providerId,
+              ...(assignment.fallbackProviderId
+                ? { fallbackProviderId: assignment.fallbackProviderId }
+                : {}),
+            }
+          : null;
+
+        return [role, value];
+      }),
+    ) as Record<ModelRole, RoleAssignmentSummary | null>;
+  }),
+
+  setRoleAssignment: publicProcedure
+    .input(
+      z.object({
+        role: ModelRoleSchema,
+        modelSpec: z.string(),
+      }),
+    )
+    .mutation(async ({ ctx, input }) => {
+      const selectedModel = parseSelectedModelSpec(input.modelSpec);
+      if (!selectedModel) {
+        const error = `Cannot parse model spec: ${input.modelSpec}`;
+        console.warn(`[nous:preferences] ${error}. Skipping role assignment update.`);
+        return { success: false, error };
+      }
+
+      try {
+        const { providerId, providerConfig } = buildProviderSelection(selectedModel);
+
+        await upsertProviderConfig(ctx, providerConfig);
+        await updateRoleAssignment(ctx, input.role, providerId);
+
+        console.info(
+          `[nous:preferences] Updated ${input.role} assignment to ${input.modelSpec}`,
+        );
+        return { success: true };
+      } catch (err) {
+        const message = err instanceof Error ? err.message : String(err);
+        console.error(
+          `[nous:preferences] Failed to update ${input.role} assignment: ${message}`,
+        );
+        return { success: false, error: message };
+      }
     }),
 
   getSystemStatus: publicProcedure.query(async ({ ctx }) => {
