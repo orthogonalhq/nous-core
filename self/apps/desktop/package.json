@@ -14,6 +14,7 @@
     "build:dist:win": "electron-vite build && electron-builder --win --dir",
     "preview": "electron-vite preview",
     "test": "vitest run --config vitest.config.mts",
+    "test:renderer": "vitest run --config vitest.renderer.config.mts",
     "typecheck": "tsc -p tsconfig.json --noEmit && tsc -p tsconfig.web.json --noEmit"
   },
   "build": {
@@ -51,6 +52,8 @@
     "superjson": "^2.2.2"
   },
   "devDependencies": {
+    "@testing-library/jest-dom": "^6.0.0",
+    "@testing-library/react": "^16.0.0",
     "@types/node": "^20",
     "@types/react": "^19",
     "@types/react-dom": "^19",
@@ -59,6 +62,7 @@
     "electron": "34.0.0",
     "electron-builder": "^26.8.1",
     "electron-vite": "^2.3.0",
+    "jsdom": "^26.0.0",
     "postcss": "^8.4.49",
     "tailwindcss": "^3.4.15",
     "tsx": "^4.19.0",
