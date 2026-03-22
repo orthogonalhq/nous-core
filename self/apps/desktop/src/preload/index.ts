@@ -143,6 +143,8 @@ contextBridge.exposeInMainWorld('electronAPI', {
     getAvailableModels: (): Promise<unknown> => ipcRenderer.invoke('preferences:getAvailableModels'),
     getModelSelection: (): Promise<unknown> => ipcRenderer.invoke('preferences:getModelSelection'),
     setModelSelection: (input: unknown): Promise<unknown> => ipcRenderer.invoke('preferences:setModelSelection', input),
+    getRoleAssignments: (): Promise<unknown> => ipcRenderer.invoke('preferences:getRoleAssignments'),
+    setRoleAssignment: (input: unknown): Promise<unknown> => ipcRenderer.invoke('preferences:setRoleAssignment', input),
   },
   appPanels: {
     list: (): Promise<unknown[]> => ipcRenderer.invoke('app-panels:list'),
