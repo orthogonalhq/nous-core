@@ -197,7 +197,7 @@ function sortProvidersForDefault(
   });
 }
 
-async function updateReasonerAssignment(
+export async function updateReasonerAssignment(
   ctx: NousContext,
   providerId: ProviderId | null,
   fallbackProviderId?: ProviderId,
@@ -261,7 +261,7 @@ async function ensureLocalCompatibleProfile(ctx: NousContext): Promise<void> {
   await ctx.config.update('profile', DEFAULT_PROFILES['local-only']);
 }
 
-function parseSelectedModelSpec(
+export function parseSelectedModelSpec(
   spec: string | null | undefined,
 ): { provider: CloudProviderName; modelId: string } | null {
   if (!spec) {
@@ -329,7 +329,7 @@ function toProviderConfigEntry(
   };
 }
 
-async function upsertProviderConfig(
+export async function upsertProviderConfig(
   ctx: NousContext,
   providerConfig: ModelProviderConfig,
 ): Promise<void> {

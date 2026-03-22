@@ -1,96 +1,241 @@
-/**
- * Tests for the preferences tRPC router.
- *
- * Uses a mock credential vault to verify set/get/delete key flows,
- * masking logic, and environment variable side effects.
- * Also tests model selection persistence and available model discovery.
- *
- * Note: workspace imports (e.g. @nous/autonomic-credentials) are not
- * available in the shared-server test runner. We mock the vault service
- * and document store interfaces directly to keep tests self-contained.
- */
-import { describe, it, expect, beforeEach, afterEach } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 const SYSTEM_APP_ID = 'nous:system';
+const MODEL_SELECTION_COLLECTION = 'nous:model_selection';
+const MODEL_SELECTION_ID = 'current';
 
-function vaultKey(provider: string): string {
+const detectOllamaMock = vi.hoisted(() => vi.fn());
+const bootstrapConstants = vi.hoisted(() => ({
+  WELL_KNOWN_PROVIDER_IDS: {
+    anthropic: '10000000-0000-0000-0000-000000000001',
+    openai: '10000000-0000-0000-0000-000000000002',
+  },
+}));
+const bootstrapMock = vi.hoisted(() => ({
+  buildProviderConfig: vi.fn(),
+  parseSelectedModelSpec: vi.fn(),
+  registerConfiguredProvider: vi.fn(),
+  removeConfiguredProvider: vi.fn(),
+  updateReasonerAssignment: vi.fn(),
+  upsertProviderConfig: vi.fn(),
+}));
+
+vi.mock('../src/ollama-detection', () => ({
+  detectOllama: detectOllamaMock,
+}));
+
+vi.mock('../src/bootstrap', () => ({
+  WELL_KNOWN_PROVIDER_IDS: bootstrapConstants.WELL_KNOWN_PROVIDER_IDS,
+  buildProviderConfig: bootstrapMock.buildProviderConfig,
+  parseSelectedModelSpec: bootstrapMock.parseSelectedModelSpec,
+  registerConfiguredProvider: bootstrapMock.registerConfiguredProvider,
+  removeConfiguredProvider: bootstrapMock.removeConfiguredProvider,
+  updateReasonerAssignment: bootstrapMock.updateReasonerAssignment,
+  upsertProviderConfig: bootstrapMock.upsertProviderConfig,
+}));
+
+function vaultKey(provider: 'anthropic' | 'openai'): string {
   return `api_key_${provider}`;
 }
 
-function maskApiKey(key: string): string {
-  if (key.length <= 11) {
-    return key.slice(0, 3) + '...' + key.slice(-4);
+function parseSelectedModelSpecMock(
+  spec: string | null | undefined,
+): { provider: 'anthropic' | 'openai'; modelId: string } | null {
+  if (!spec) {
+    return null;
   }
-  return key.slice(0, 7) + '...' + key.slice(-4);
+
+  const [provider, ...modelParts] = spec.split(':');
+  if (
+    (provider !== 'anthropic' && provider !== 'openai') ||
+    modelParts.length === 0
+  ) {
+    return null;
+  }
+
+  return {
+    provider,
+    modelId: modelParts.join(':'),
+  };
 }
 
-/**
- * Minimal in-memory mock of the credential vault service interface,
- * matching the ICredentialVaultService contract used by the preferences router.
- */
+function buildProviderConfigMock(
+  provider: 'anthropic' | 'openai',
+  providerId = bootstrapConstants.WELL_KNOWN_PROVIDER_IDS[provider],
+  modelId = provider === 'anthropic' ? 'claude-sonnet-4-20250514' : 'gpt-4o',
+) {
+  return {
+    id: providerId,
+    name: provider,
+    type: 'text' as const,
+    endpoint:
+      provider === 'anthropic'
+        ? 'https://api.anthropic.com'
+        : 'https://api.openai.com',
+    modelId,
+    isLocal: false,
+    capabilities: ['chat', 'streaming'],
+    providerClass: 'remote_text' as const,
+  };
+}
+
 function createMockVault() {
   const entries = new Map<string, { value: string; metadata: Record<string, unknown> }>();
 
   return {
-    store: async (appId: string, request: {
-      key: string;
-      value: string;
-      credential_type: string;
-      target_host: string;
-      injection_location: string;
-      injection_key: string;
-    }) => {
-      const vk = `${appId}:${request.key}`;
-      entries.set(vk, {
+    store: async (
+      appId: string,
+      request: {
+        key: string;
+        value: string;
+        credential_type: string;
+        target_host: string;
+        injection_location: string;
+        injection_key: string;
+      },
+    ) => {
+      const entryKey = `${appId}:${request.key}`;
+      const metadata = {
+        app_id: appId,
+        user_key: request.key,
+        credential_type: request.credential_type,
+        target_host: request.target_host,
+        injection_location: request.injection_location,
+        injection_key: request.injection_key,
+        created_at: new Date().toISOString(),
+        updated_at: new Date().toISOString(),
+      };
+
+      entries.set(entryKey, {
         value: request.value,
-        metadata: {
-          app_id: appId,
-          user_key: request.key,
-          credential_type: request.credential_type,
-          target_host: request.target_host,
-          injection_location: request.injection_location,
-          injection_key: request.injection_key,
-          created_at: new Date().toISOString(),
-          updated_at: new Date().toISOString(),
-        },
+        metadata,
       });
-      return { credential_ref: `credential:${vk}`, metadata: entries.get(vk)!.metadata };
-    },
 
+      return {
+        credential_ref: `credential:${entryKey}`,
+        metadata,
+      };
+    },
     getMetadata: async (appId: string, key: string) => {
-      const vk = `${appId}:${key}`;
-      const entry = entries.get(vk);
-      return entry ? entry.metadata : null;
+      return entries.get(`${appId}:${key}`)?.metadata ?? null;
     },
-
     revoke: async (appId: string, request: { key: string; reason: string }) => {
-      const vk = `${appId}:${request.key}`;
-      const existed = entries.has(vk);
-      entries.delete(vk);
-      return { revoked: existed };
+      return { revoked: entries.delete(`${appId}:${request.key}`) };
     },
-
     resolveForInjection: async (appId: string, key: string) => {
-      const vk = `${appId}:${key}`;
-      const entry = entries.get(vk);
-      return entry ? { metadata: entry.metadata, secretValue: entry.value } : null;
+      const entry = entries.get(`${appId}:${key}`);
+      if (!entry) {
+        return null;
+      }
+
+      return {
+        metadata: entry.metadata,
+        secretValue: entry.value,
+      };
     },
   };
 }
 
-describe('preferences router logic', () => {
-  let vault: ReturnType<typeof createMockVault>;
+function createMockDocumentStore() {
+  const documents = new Map<string, unknown>();
+
+  return {
+    put: async <T>(collection: string, id: string, document: T) => {
+      documents.set(`${collection}:${id}`, document);
+    },
+    get: async <T>(collection: string, id: string): Promise<T | null> => {
+      return (documents.get(`${collection}:${id}`) as T) ?? null;
+    },
+    query: async () => [],
+    delete: async (collection: string, id: string) => {
+      return documents.delete(`${collection}:${id}`);
+    },
+  };
+}
+
+function createMockContext() {
+  const credentialVaultService = createMockVault();
+  const documentStore = createMockDocumentStore();
+
+  return {
+    credentialVaultService,
+    documentStore,
+    ctx: {
+      credentialVaultService,
+      documentStore,
+      config: {
+        get: vi.fn(),
+        update: vi.fn(),
+      },
+      providerRegistry: {
+        registerProvider: vi.fn(),
+        removeProvider: vi.fn(),
+      },
+    } as any,
+  };
+}
+
+function jsonResponse(body: unknown, status = 200): Response {
+  return new Response(JSON.stringify(body), {
+    status,
+    headers: {
+      'Content-Type': 'application/json',
+    },
+  });
+}
+
+async function loadPreferencesRouter() {
+  return (await import('../src/trpc/routers/preferences')).preferencesRouter;
+}
+
+describe('preferences router', () => {
+  const originalFetch = globalThis.fetch;
   const savedEnv: Record<string, string | undefined> = {};
 
   beforeEach(() => {
-    vault = createMockVault();
-    savedEnv['ANTHROPIC_API_KEY'] = process.env.ANTHROPIC_API_KEY;
-    savedEnv['OPENAI_API_KEY'] = process.env.OPENAI_API_KEY;
+    vi.resetModules();
+    vi.useRealTimers();
+
+    savedEnv.ANTHROPIC_API_KEY = process.env.ANTHROPIC_API_KEY;
+    savedEnv.OPENAI_API_KEY = process.env.OPENAI_API_KEY;
     delete process.env.ANTHROPIC_API_KEY;
     delete process.env.OPENAI_API_KEY;
+
+    detectOllamaMock.mockReset();
+    detectOllamaMock.mockResolvedValue({
+      installed: false,
+      running: false,
+      models: [],
+      defaultModel: null,
+    });
+
+    bootstrapMock.buildProviderConfig.mockReset();
+    bootstrapMock.buildProviderConfig.mockImplementation(buildProviderConfigMock);
+    bootstrapMock.parseSelectedModelSpec.mockReset();
+    bootstrapMock.parseSelectedModelSpec.mockImplementation(parseSelectedModelSpecMock);
+    bootstrapMock.registerConfiguredProvider.mockReset();
+    bootstrapMock.registerConfiguredProvider.mockResolvedValue(undefined);
+    bootstrapMock.removeConfiguredProvider.mockReset();
+    bootstrapMock.removeConfiguredProvider.mockResolvedValue(undefined);
+    bootstrapMock.updateReasonerAssignment.mockReset();
+    bootstrapMock.updateReasonerAssignment.mockResolvedValue(undefined);
+    bootstrapMock.upsertProviderConfig.mockReset();
+    bootstrapMock.upsertProviderConfig.mockResolvedValue(undefined);
+
+    globalThis.fetch = vi.fn() as typeof fetch;
+
+    vi.spyOn(console, 'debug').mockImplementation(() => undefined);
+    vi.spyOn(console, 'error').mockImplementation(() => undefined);
+    vi.spyOn(console, 'info').mockImplementation(() => undefined);
+    vi.spyOn(console, 'log').mockImplementation(() => undefined);
+    vi.spyOn(console, 'warn').mockImplementation(() => undefined);
   });
 
   afterEach(() => {
+    vi.useRealTimers();
+    vi.restoreAllMocks();
+    globalThis.fetch = originalFetch;
+
     for (const [key, value] of Object.entries(savedEnv)) {
       if (value === undefined) {
         delete process.env[key];
@@ -100,406 +245,457 @@ describe('preferences router logic', () => {
     }
   });
 
-  describe('setApiKey + getApiKeys', () => {
-    it('stores an Anthropic key and retrieves masked metadata', async () => {
-      const testKey = 'sk-ant-api03-test-value-1234';
+  describe('API key flows', () => {
+    it('stores a key, masks it on read, and registers the provider', async () => {
+      const { ctx } = createMockContext();
+      const preferencesRouter = await loadPreferencesRouter();
+      const caller = preferencesRouter.createCaller(ctx);
 
-      await vault.store(SYSTEM_APP_ID, {
+      const result = await caller.setApiKey({
+        provider: 'anthropic',
+        key: 'sk-ant-api03-test-value-1234',
+      });
+      const apiKeys = await caller.getApiKeys();
+
+      expect(result).toEqual({ stored: true });
+      expect(process.env.ANTHROPIC_API_KEY).toBe('sk-ant-api03-test-value-1234');
+      expect(bootstrapMock.registerConfiguredProvider).toHaveBeenCalledWith(
+        ctx,
+        'anthropic',
+      );
+      expect(apiKeys).toContainEqual(
+        expect.objectContaining({
+          provider: 'anthropic',
+          configured: true,
+          maskedKey: 'sk-ant-...1234',
+        }),
+      );
+    });
+
+    it('deletes a key, clears env state, and removes the provider', async () => {
+      const { ctx } = createMockContext();
+      const preferencesRouter = await loadPreferencesRouter();
+      const caller = preferencesRouter.createCaller(ctx);
+
+      await caller.setApiKey({
+        provider: 'openai',
+        key: 'sk-proj-delete-me',
+      });
+
+      const result = await caller.deleteApiKey({
+        provider: 'openai',
+      });
+      const apiKeys = await caller.getApiKeys();
+
+      expect(result).toEqual({ deleted: true });
+      expect(process.env.OPENAI_API_KEY).toBeUndefined();
+      expect(bootstrapMock.removeConfiguredProvider).toHaveBeenCalledWith(
+        ctx,
+        'openai',
+      );
+      expect(apiKeys).toContainEqual(
+        expect.objectContaining({
+          provider: 'openai',
+          configured: false,
+          maskedKey: null,
+        }),
+      );
+    });
+  });
+
+  describe('setModelSelection', () => {
+    it('persists the selection and applies the runtime provider config immediately', async () => {
+      const { ctx, documentStore } = createMockContext();
+      const preferencesRouter = await loadPreferencesRouter();
+      const caller = preferencesRouter.createCaller(ctx);
+
+      const result = await caller.setModelSelection({
+        principal: 'openai:o3',
+        system: 'anthropic:claude-sonnet-4-20250514',
+      });
+
+      expect(result).toEqual({ success: true });
+      expect(
+        await documentStore.get<{
+          principal: string | null;
+          system: string | null;
+        }>(MODEL_SELECTION_COLLECTION, MODEL_SELECTION_ID),
+      ).toEqual({
+        principal: 'openai:o3',
+        system: 'anthropic:claude-sonnet-4-20250514',
+      });
+      expect(bootstrapMock.parseSelectedModelSpec).toHaveBeenCalledWith('openai:o3');
+      expect(bootstrapMock.buildProviderConfig).toHaveBeenCalledWith(
+        'openai',
+        bootstrapConstants.WELL_KNOWN_PROVIDER_IDS.openai,
+        'o3',
+      );
+      expect(bootstrapMock.upsertProviderConfig).toHaveBeenCalledWith(
+        ctx,
+        expect.objectContaining({
+          id: bootstrapConstants.WELL_KNOWN_PROVIDER_IDS.openai,
+          modelId: 'o3',
+          name: 'openai',
+        }),
+      );
+      expect(bootstrapMock.updateReasonerAssignment).toHaveBeenCalledWith(
+        ctx,
+        bootstrapConstants.WELL_KNOWN_PROVIDER_IDS.openai,
+      );
+    });
+
+    it('preserves existing values on partial updates', async () => {
+      const { ctx, documentStore } = createMockContext();
+      const preferencesRouter = await loadPreferencesRouter();
+      const caller = preferencesRouter.createCaller(ctx);
+
+      await documentStore.put(MODEL_SELECTION_COLLECTION, MODEL_SELECTION_ID, {
+        principal: 'anthropic:claude-opus-4-20250514',
+        system: 'openai:gpt-4o',
+      });
+
+      await caller.setModelSelection({
+        principal: 'anthropic:claude-sonnet-4-20250514',
+      });
+
+      expect(
+        await documentStore.get<{
+          principal: string | null;
+          system: string | null;
+        }>(MODEL_SELECTION_COLLECTION, MODEL_SELECTION_ID),
+      ).toEqual({
+        principal: 'anthropic:claude-sonnet-4-20250514',
+        system: 'openai:gpt-4o',
+      });
+    });
+
+    it('skips runtime updates for invalid model specs while preserving the document write', async () => {
+      const { ctx, documentStore } = createMockContext();
+      const preferencesRouter = await loadPreferencesRouter();
+      const caller = preferencesRouter.createCaller(ctx);
+
+      bootstrapMock.parseSelectedModelSpec.mockReturnValueOnce(null);
+
+      const result = await caller.setModelSelection({
+        principal: 'invalid-model-spec',
+      });
+
+      expect(result).toEqual({ success: true });
+      expect(
+        await documentStore.get<{
+          principal: string | null;
+          system: string | null;
+        }>(MODEL_SELECTION_COLLECTION, MODEL_SELECTION_ID),
+      ).toEqual({
+        principal: 'invalid-model-spec',
+        system: null,
+      });
+      expect(bootstrapMock.buildProviderConfig).not.toHaveBeenCalled();
+      expect(bootstrapMock.upsertProviderConfig).not.toHaveBeenCalled();
+      expect(bootstrapMock.updateReasonerAssignment).not.toHaveBeenCalled();
+    });
+
+    it('catches runtime update failures and still returns success', async () => {
+      const { ctx, documentStore } = createMockContext();
+      const preferencesRouter = await loadPreferencesRouter();
+      const caller = preferencesRouter.createCaller(ctx);
+
+      bootstrapMock.upsertProviderConfig.mockRejectedValueOnce(new Error('boom'));
+
+      const result = await caller.setModelSelection({
+        principal: 'anthropic:claude-opus-4-20250514',
+      });
+
+      expect(result).toEqual({ success: true });
+      expect(
+        await documentStore.get<{
+          principal: string | null;
+          system: string | null;
+        }>(MODEL_SELECTION_COLLECTION, MODEL_SELECTION_ID),
+      ).toEqual({
+        principal: 'anthropic:claude-opus-4-20250514',
+        system: null,
+      });
+      expect(bootstrapMock.updateReasonerAssignment).not.toHaveBeenCalled();
+      expect(console.error).toHaveBeenCalled();
+    });
+  });
+
+  describe('getAvailableModels', () => {
+    it('fetches Anthropic models dynamically and maps display names to the existing shape', async () => {
+      const { ctx, credentialVaultService } = createMockContext();
+      const preferencesRouter = await loadPreferencesRouter();
+      const caller = preferencesRouter.createCaller(ctx);
+      const fetchMock = vi.mocked(globalThis.fetch);
+
+      await credentialVaultService.store(SYSTEM_APP_ID, {
         key: vaultKey('anthropic'),
-        value: testKey,
+        value: 'sk-ant-dynamic',
         credential_type: 'api_key',
         target_host: 'api.anthropic.com',
         injection_location: 'header',
         injection_key: 'x-api-key',
       });
 
-      process.env.ANTHROPIC_API_KEY = testKey;
+      fetchMock.mockImplementationOnce(
+        async (input: RequestInfo | URL, init?: RequestInit) => {
+          expect(input).toBe('https://api.anthropic.com/v1/models');
+          expect(init).toMatchObject({
+            method: 'GET',
+            headers: {
+              'x-api-key': 'sk-ant-dynamic',
+              'anthropic-version': '2023-06-01',
+            },
+          });
 
-      const metadata = await vault.getMetadata(SYSTEM_APP_ID, vaultKey('anthropic'));
-      expect(metadata).not.toBeNull();
-      expect(metadata!.credential_type).toBe('api_key');
-      expect(metadata!.target_host).toBe('api.anthropic.com');
+          return jsonResponse({
+            data: [
+              {
+                id: 'claude-sonnet-4-20250514',
+                display_name: 'Claude Sonnet 4',
+                type: 'model',
+              },
+              {
+                id: 'claude-opus-4-20250514',
+                display_name: 'Claude Opus 4',
+                type: 'model',
+              },
+            ],
+          });
+        },
+      );
 
-      const resolved = await vault.resolveForInjection(SYSTEM_APP_ID, vaultKey('anthropic'));
-      expect(resolved).not.toBeNull();
-      expect(resolved!.secretValue).toBe(testKey);
+      const result = await caller.getAvailableModels();
 
-      const masked = maskApiKey(resolved!.secretValue);
-      expect(masked).toBe('sk-ant-...1234');
-      expect(masked).not.toContain(testKey);
-
-      expect(process.env.ANTHROPIC_API_KEY).toBe(testKey);
+      expect(result.models).toEqual([
+        {
+          id: 'anthropic:claude-sonnet-4-20250514',
+          name: 'Claude Sonnet 4',
+          provider: 'anthropic',
+          available: true,
+        },
+        {
+          id: 'anthropic:claude-opus-4-20250514',
+          name: 'Claude Opus 4',
+          provider: 'anthropic',
+          available: true,
+        },
+      ]);
+      expect(
+        result.models.some(
+          (model) => model.id === 'anthropic:claude-haiku-3-5-20241022',
+        ),
+      ).toBe(false);
     });
 
-    it('stores an OpenAI key and retrieves masked metadata', async () => {
-      const testKey = 'sk-proj-abcdefghijklmnop';
+    it('filters OpenAI /v1/models to chat-capable families', async () => {
+      const { ctx, credentialVaultService } = createMockContext();
+      const preferencesRouter = await loadPreferencesRouter();
+      const caller = preferencesRouter.createCaller(ctx);
+      const fetchMock = vi.mocked(globalThis.fetch);
 
-      await vault.store(SYSTEM_APP_ID, {
+      await credentialVaultService.store(SYSTEM_APP_ID, {
         key: vaultKey('openai'),
-        value: testKey,
+        value: 'sk-openai-dynamic',
         credential_type: 'api_key',
         target_host: 'api.openai.com',
         injection_location: 'header',
         injection_key: 'Authorization',
       });
 
-      process.env.OPENAI_API_KEY = testKey;
+      fetchMock.mockImplementationOnce(
+        async (input: RequestInfo | URL, init?: RequestInit) => {
+          expect(input).toBe('https://api.openai.com/v1/models');
+          expect(init).toMatchObject({
+            method: 'GET',
+            headers: {
+              Authorization: 'Bearer sk-openai-dynamic',
+            },
+          });
 
-      const metadata = await vault.getMetadata(SYSTEM_APP_ID, vaultKey('openai'));
-      expect(metadata).not.toBeNull();
-      expect(metadata!.target_host).toBe('api.openai.com');
+          return jsonResponse({
+            object: 'list',
+            data: [
+              { id: 'gpt-4o', object: 'model', owned_by: 'openai' },
+              { id: 'o3-mini', object: 'model', owned_by: 'openai' },
+              {
+                id: 'text-embedding-3-small',
+                object: 'model',
+                owned_by: 'openai',
+              },
+              { id: 'whisper-1', object: 'model', owned_by: 'openai' },
+            ],
+          });
+        },
+      );
 
-      const resolved = await vault.resolveForInjection(SYSTEM_APP_ID, vaultKey('openai'));
-      expect(resolved).not.toBeNull();
+      const result = await caller.getAvailableModels();
 
-      const masked = maskApiKey(resolved!.secretValue);
-      expect(masked).toBe('sk-proj...mnop');
-
-      expect(process.env.OPENAI_API_KEY).toBe(testKey);
+      expect(result.models).toEqual([
+        {
+          id: 'openai:gpt-4o',
+          name: 'gpt-4o',
+          provider: 'openai',
+          available: true,
+        },
+        {
+          id: 'openai:o3-mini',
+          name: 'o3-mini',
+          provider: 'openai',
+          available: true,
+        },
+      ]);
     });
-  });
 
-  describe('deleteApiKey', () => {
-    it('revokes a stored key and clears env var', async () => {
-      const testKey = 'sk-ant-api03-to-be-deleted';
+    it('skips providers without keys and keeps Ollama detection unchanged', async () => {
+      const { ctx } = createMockContext();
+      const preferencesRouter = await loadPreferencesRouter();
+      const caller = preferencesRouter.createCaller(ctx);
+      const fetchMock = vi.mocked(globalThis.fetch);
 
-      await vault.store(SYSTEM_APP_ID, {
+      detectOllamaMock.mockResolvedValueOnce({
+        installed: true,
+        running: true,
+        models: ['llama3.2:3b'],
+        defaultModel: 'llama3.2:3b',
+      });
+
+      const result = await caller.getAvailableModels();
+
+      expect(fetchMock).not.toHaveBeenCalled();
+      expect(result.models).toEqual([
+        {
+          id: 'ollama:llama3.2:3b',
+          name: 'llama3.2:3b',
+          provider: 'ollama',
+          available: true,
+        },
+      ]);
+    });
+
+    it('returns fallback models when the provider API fails', async () => {
+      const { ctx, credentialVaultService } = createMockContext();
+      const preferencesRouter = await loadPreferencesRouter();
+      const caller = preferencesRouter.createCaller(ctx);
+      const fetchMock = vi.mocked(globalThis.fetch);
+
+      await credentialVaultService.store(SYSTEM_APP_ID, {
         key: vaultKey('anthropic'),
-        value: testKey,
+        value: 'sk-ant-fallback',
         credential_type: 'api_key',
         target_host: 'api.anthropic.com',
         injection_location: 'header',
         injection_key: 'x-api-key',
       });
 
-      process.env.ANTHROPIC_API_KEY = testKey;
+      fetchMock.mockResolvedValueOnce(jsonResponse({ error: 'upstream' }, 503));
 
-      const result = await vault.revoke(SYSTEM_APP_ID, {
-        key: vaultKey('anthropic'),
-        reason: 'user_deleted',
-      });
+      const result = await caller.getAvailableModels();
 
-      delete process.env.ANTHROPIC_API_KEY;
-
-      expect(result.revoked).toBe(true);
-
-      const metadata = await vault.getMetadata(SYSTEM_APP_ID, vaultKey('anthropic'));
-      expect(metadata).toBeNull();
-
-      expect(process.env.ANTHROPIC_API_KEY).toBeUndefined();
+      expect(result.models).toEqual([
+        {
+          id: 'anthropic:claude-sonnet-4-20250514',
+          name: 'Claude Sonnet 4 (cached)',
+          provider: 'anthropic',
+          available: false,
+        },
+        {
+          id: 'anthropic:claude-opus-4-20250514',
+          name: 'Claude Opus 4 (cached)',
+          provider: 'anthropic',
+          available: false,
+        },
+      ]);
     });
 
-    it('handles revoking a non-existent key gracefully', async () => {
-      const result = await vault.revoke(SYSTEM_APP_ID, {
-        key: vaultKey('anthropic'),
-        reason: 'user_deleted',
-      });
+    it('returns fallback models when response parsing fails', async () => {
+      const { ctx, credentialVaultService } = createMockContext();
+      const preferencesRouter = await loadPreferencesRouter();
+      const caller = preferencesRouter.createCaller(ctx);
+      const fetchMock = vi.mocked(globalThis.fetch);
 
-      expect(result.revoked).toBe(false);
-    });
-  });
-
-  describe('getApiKeys for unconfigured providers', () => {
-    it('returns not configured for providers without stored keys', async () => {
-      const metadata = await vault.getMetadata(SYSTEM_APP_ID, vaultKey('anthropic'));
-      expect(metadata).toBeNull();
-
-      const openaiMeta = await vault.getMetadata(SYSTEM_APP_ID, vaultKey('openai'));
-      expect(openaiMeta).toBeNull();
-    });
-  });
-
-  describe('maskApiKey', () => {
-    it('masks long keys correctly (first 7 + last 4)', () => {
-      expect(maskApiKey('sk-ant-api03-abcdefghijklmnop')).toBe('sk-ant-...mnop');
-    });
-
-    it('masks short keys correctly (first 3 + last 4)', () => {
-      expect(maskApiKey('shortkey123')).toBe('sho...y123');
-    });
-
-    it('never returns the full key', () => {
-      const key = 'sk-ant-api03-full-secret-key-value';
-      const masked = maskApiKey(key);
-      expect(masked).not.toBe(key);
-      expect(masked.length).toBeLessThan(key.length);
-    });
-  });
-
-  describe('process.env integration', () => {
-    it('setting a key makes it available via process.env', async () => {
-      const testKey = 'sk-test-env-integration-value';
-
-      await vault.store(SYSTEM_APP_ID, {
-        key: vaultKey('anthropic'),
-        value: testKey,
+      await credentialVaultService.store(SYSTEM_APP_ID, {
+        key: vaultKey('openai'),
+        value: 'sk-openai-invalid',
         credential_type: 'api_key',
-        target_host: 'api.anthropic.com',
+        target_host: 'api.openai.com',
         injection_location: 'header',
-        injection_key: 'x-api-key',
+        injection_key: 'Authorization',
       });
 
-      // Simulate what the router does
-      process.env.ANTHROPIC_API_KEY = testKey;
+      fetchMock.mockResolvedValueOnce(jsonResponse({ nope: true }));
 
-      expect(process.env.ANTHROPIC_API_KEY).toBe(testKey);
+      const result = await caller.getAvailableModels();
 
-      // Simulate delete
-      delete process.env.ANTHROPIC_API_KEY;
-      expect(process.env.ANTHROPIC_API_KEY).toBeUndefined();
-    });
-  });
-});
-
-// ---------------------------------------------------------------------------
-// Model selection logic tests
-// ---------------------------------------------------------------------------
-
-const MODEL_SELECTION_COLLECTION = 'nous:model_selection';
-const MODEL_SELECTION_ID = 'current';
-
-/**
- * Minimal in-memory mock of IDocumentStore for model selection persistence.
- */
-function createMockDocumentStore() {
-  const docs = new Map<string, unknown>();
-
-  function docKey(collection: string, id: string) {
-    return `${collection}:${id}`;
-  }
-
-  return {
-    put: async <T>(collection: string, id: string, document: T) => {
-      docs.set(docKey(collection, id), document);
-    },
-    get: async <T>(collection: string, id: string): Promise<T | null> => {
-      const doc = docs.get(docKey(collection, id));
-      return (doc as T) ?? null;
-    },
-    query: async () => [],
-    delete: async (collection: string, id: string) => {
-      return docs.delete(docKey(collection, id));
-    },
-  };
-}
-
-describe('model selection logic', () => {
-  let docStore: ReturnType<typeof createMockDocumentStore>;
-
-  beforeEach(() => {
-    docStore = createMockDocumentStore();
-  });
-
-  describe('getModelSelection', () => {
-    it('returns null for both roles when nothing is saved', async () => {
-      const saved = await docStore.get<{ principal: string | null; system: string | null }>(
-        MODEL_SELECTION_COLLECTION,
-        MODEL_SELECTION_ID,
-      );
-      expect(saved).toBeNull();
-
-      // Simulate router behavior: default to null
-      const result = {
-        principal: saved?.principal ?? null,
-        system: saved?.system ?? null,
-      };
-      expect(result.principal).toBeNull();
-      expect(result.system).toBeNull();
+      expect(result.models).toEqual([
+        {
+          id: 'openai:gpt-4o',
+          name: 'GPT-4o (cached)',
+          provider: 'openai',
+          available: false,
+        },
+      ]);
     });
 
-    it('returns saved selection when present', async () => {
-      await docStore.put(MODEL_SELECTION_COLLECTION, MODEL_SELECTION_ID, {
-        principal: 'anthropic:claude-opus-4-20250514',
-        system: 'anthropic:claude-sonnet-4-20250514',
+    it('caches successful provider responses until the TTL expires', async () => {
+      vi.useFakeTimers();
+      vi.setSystemTime(new Date('2026-03-21T08:00:00.000Z'));
+
+      const { ctx, credentialVaultService } = createMockContext();
+      const preferencesRouter = await loadPreferencesRouter();
+      const caller = preferencesRouter.createCaller(ctx);
+      const fetchMock = vi.mocked(globalThis.fetch);
+
+      await credentialVaultService.store(SYSTEM_APP_ID, {
+        key: vaultKey('openai'),
+        value: 'sk-openai-cache',
+        credential_type: 'api_key',
+        target_host: 'api.openai.com',
+        injection_location: 'header',
+        injection_key: 'Authorization',
       });
 
-      const saved = await docStore.get<{ principal: string | null; system: string | null }>(
-        MODEL_SELECTION_COLLECTION,
-        MODEL_SELECTION_ID,
-      );
-      expect(saved).not.toBeNull();
-      expect(saved!.principal).toBe('anthropic:claude-opus-4-20250514');
-      expect(saved!.system).toBe('anthropic:claude-sonnet-4-20250514');
-    });
-  });
-
-  describe('setModelSelection', () => {
-    it('persists a full model selection', async () => {
-      const input = {
-        principal: 'anthropic:claude-opus-4-20250514',
-        system: 'openai:gpt-4o-mini',
-      };
-
-      await docStore.put(MODEL_SELECTION_COLLECTION, MODEL_SELECTION_ID, {
-        principal: input.principal,
-        system: input.system,
-      });
-
-      const saved = await docStore.get<{ principal: string; system: string }>(
-        MODEL_SELECTION_COLLECTION,
-        MODEL_SELECTION_ID,
-      );
-      expect(saved!.principal).toBe('anthropic:claude-opus-4-20250514');
-      expect(saved!.system).toBe('openai:gpt-4o-mini');
-    });
-
-    it('allows partial update (only principal)', async () => {
-      // Pre-existing selection
-      await docStore.put(MODEL_SELECTION_COLLECTION, MODEL_SELECTION_ID, {
-        principal: 'anthropic:claude-opus-4-20250514',
-        system: 'anthropic:claude-sonnet-4-20250514',
-      });
-
-      // Partial update: only change principal
-      const existing = await docStore.get<{ principal: string | null; system: string | null }>(
-        MODEL_SELECTION_COLLECTION,
-        MODEL_SELECTION_ID,
-      );
-      const input = { principal: 'openai:o3' };
-      const updated = {
-        principal: input.principal ?? existing?.principal ?? null,
-        system: existing?.system ?? null,
-      };
-      await docStore.put(MODEL_SELECTION_COLLECTION, MODEL_SELECTION_ID, updated);
-
-      const saved = await docStore.get<{ principal: string | null; system: string | null }>(
-        MODEL_SELECTION_COLLECTION,
-        MODEL_SELECTION_ID,
-      );
-      expect(saved!.principal).toBe('openai:o3');
-      expect(saved!.system).toBe('anthropic:claude-sonnet-4-20250514');
-    });
-
-    it('allows partial update (only system)', async () => {
-      await docStore.put(MODEL_SELECTION_COLLECTION, MODEL_SELECTION_ID, {
-        principal: 'anthropic:claude-opus-4-20250514',
-        system: 'anthropic:claude-sonnet-4-20250514',
-      });
-
-      const existing = await docStore.get<{ principal: string | null; system: string | null }>(
-        MODEL_SELECTION_COLLECTION,
-        MODEL_SELECTION_ID,
-      );
-      const input = { system: 'openai:gpt-4o-mini' };
-      const updated = {
-        principal: existing?.principal ?? null,
-        system: input.system ?? existing?.system ?? null,
-      };
-      await docStore.put(MODEL_SELECTION_COLLECTION, MODEL_SELECTION_ID, updated);
-
-      const saved = await docStore.get<{ principal: string | null; system: string | null }>(
-        MODEL_SELECTION_COLLECTION,
-        MODEL_SELECTION_ID,
-      );
-      expect(saved!.principal).toBe('anthropic:claude-opus-4-20250514');
-      expect(saved!.system).toBe('openai:gpt-4o-mini');
-    });
-  });
-
-  describe('getAvailableModels', () => {
-    const savedEnv: Record<string, string | undefined> = {};
-
-    beforeEach(() => {
-      savedEnv['ANTHROPIC_API_KEY'] = process.env.ANTHROPIC_API_KEY;
-      savedEnv['OPENAI_API_KEY'] = process.env.OPENAI_API_KEY;
-      delete process.env.ANTHROPIC_API_KEY;
-      delete process.env.OPENAI_API_KEY;
-    });
-
-    afterEach(() => {
-      for (const [key, value] of Object.entries(savedEnv)) {
-        if (value === undefined) {
-          delete process.env[key];
-        } else {
-          process.env[key] = value;
-        }
-      }
-    });
-
-    it('returns Anthropic cloud models when ANTHROPIC_API_KEY is set', () => {
-      process.env.ANTHROPIC_API_KEY = 'sk-ant-test';
-
-      const cloudModels: Array<{ id: string; name: string; provider: string; available: boolean }> = [];
-      if (process.env.ANTHROPIC_API_KEY) {
-        cloudModels.push(
-          { id: 'anthropic:claude-sonnet-4-20250514', name: 'Claude Sonnet 4', provider: 'anthropic', available: true },
-          { id: 'anthropic:claude-opus-4-20250514', name: 'Claude Opus 4', provider: 'anthropic', available: true },
-          { id: 'anthropic:claude-haiku-3-5-20241022', name: 'Claude Haiku 3.5', provider: 'anthropic', available: true },
+      fetchMock
+        .mockResolvedValueOnce(
+          jsonResponse({
+            object: 'list',
+            data: [{ id: 'gpt-4o', object: 'model', owned_by: 'openai' }],
+          }),
+        )
+        .mockResolvedValueOnce(
+          jsonResponse({
+            object: 'list',
+            data: [{ id: 'o3', object: 'model', owned_by: 'openai' }],
+          }),
         );
-      }
 
-      expect(cloudModels).toHaveLength(3);
-      expect(cloudModels.every((m) => m.provider === 'anthropic')).toBe(true);
-      expect(cloudModels.every((m) => m.available)).toBe(true);
-    });
+      const first = await caller.getAvailableModels();
+      const second = await caller.getAvailableModels();
 
-    it('returns OpenAI cloud models when OPENAI_API_KEY is set', () => {
-      process.env.OPENAI_API_KEY = 'sk-test';
+      expect(fetchMock).toHaveBeenCalledTimes(1);
+      expect(first.models).toEqual([
+        {
+          id: 'openai:gpt-4o',
+          name: 'gpt-4o',
+          provider: 'openai',
+          available: true,
+        },
+      ]);
+      expect(second.models).toEqual(first.models);
 
-      const cloudModels: Array<{ id: string; name: string; provider: string; available: boolean }> = [];
-      if (process.env.OPENAI_API_KEY) {
-        cloudModels.push(
-          { id: 'openai:gpt-4o', name: 'GPT-4o', provider: 'openai', available: true },
-          { id: 'openai:gpt-4o-mini', name: 'GPT-4o Mini', provider: 'openai', available: true },
-          { id: 'openai:o3', name: 'o3', provider: 'openai', available: true },
-        );
-      }
+      vi.advanceTimersByTime(5 * 60 * 1000 + 1);
 
-      expect(cloudModels).toHaveLength(3);
-      expect(cloudModels.every((m) => m.provider === 'openai')).toBe(true);
-    });
+      const third = await caller.getAvailableModels();
 
-    it('returns no cloud models when no API keys are configured', () => {
-      const cloudModels: Array<{ id: string; name: string; provider: string; available: boolean }> = [];
-      if (process.env.ANTHROPIC_API_KEY) {
-        cloudModels.push({ id: 'anthropic:claude-sonnet-4-20250514', name: 'Claude Sonnet 4', provider: 'anthropic', available: true });
-      }
-      if (process.env.OPENAI_API_KEY) {
-        cloudModels.push({ id: 'openai:gpt-4o', name: 'GPT-4o', provider: 'openai', available: true });
-      }
-
-      expect(cloudModels).toHaveLength(0);
-    });
-
-    it('returns both provider models when both keys are set', () => {
-      process.env.ANTHROPIC_API_KEY = 'sk-ant-test';
-      process.env.OPENAI_API_KEY = 'sk-test';
-
-      const cloudModels: Array<{ id: string; name: string; provider: string; available: boolean }> = [];
-      if (process.env.ANTHROPIC_API_KEY) {
-        cloudModels.push(
-          { id: 'anthropic:claude-sonnet-4-20250514', name: 'Claude Sonnet 4', provider: 'anthropic', available: true },
-          { id: 'anthropic:claude-opus-4-20250514', name: 'Claude Opus 4', provider: 'anthropic', available: true },
-          { id: 'anthropic:claude-haiku-3-5-20241022', name: 'Claude Haiku 3.5', provider: 'anthropic', available: true },
-        );
-      }
-      if (process.env.OPENAI_API_KEY) {
-        cloudModels.push(
-          { id: 'openai:gpt-4o', name: 'GPT-4o', provider: 'openai', available: true },
-          { id: 'openai:gpt-4o-mini', name: 'GPT-4o Mini', provider: 'openai', available: true },
-          { id: 'openai:o3', name: 'o3', provider: 'openai', available: true },
-        );
-      }
-
-      expect(cloudModels).toHaveLength(6);
-      const providers = new Set(cloudModels.map((m) => m.provider));
-      expect(providers.size).toBe(2);
-      expect(providers.has('anthropic')).toBe(true);
-      expect(providers.has('openai')).toBe(true);
-    });
-
-    it('formats Ollama model IDs with ollama: prefix', () => {
-      const ollamaModels = ['llama3.2:3b', 'codellama:7b'].map((m) => ({
-        id: `ollama:${m}`,
-        name: m,
-        provider: 'ollama' as const,
-        available: true,
-      }));
-
-      expect(ollamaModels).toHaveLength(2);
-      expect(ollamaModels[0]!.id).toBe('ollama:llama3.2:3b');
-      expect(ollamaModels[0]!.provider).toBe('ollama');
-      expect(ollamaModels[1]!.id).toBe('ollama:codellama:7b');
+      expect(fetchMock).toHaveBeenCalledTimes(2);
+      expect(third.models).toEqual([
+        {
+          id: 'openai:o3',
+          name: 'o3',
+          provider: 'openai',
+          available: true,
+        },
+      ]);
     });
   });
 });

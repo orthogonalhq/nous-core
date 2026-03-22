@@ -38,13 +38,21 @@ The key-test action can validate either:
 The model picker combines:
 
 - Local Ollama models detected from the running Ollama instance
-- Cloud models for any configured Anthropic or OpenAI provider
+- Cloud models discovered dynamically from the Anthropic and OpenAI `/v1/models` APIs
+
+Cloud model lists are fetched live when you open the configuration panel. Successful responses are cached in-memory for 5 minutes to avoid redundant API calls. When a provider API is unreachable or returns an error, the picker falls back to a minimal static model list marked as stale.
+
+Providers without a stored API key are skipped silently — no error is shown and no API call is attempted.
+
+OpenAI models are filtered to chat-capable families (gpt-4, o-series) on a best-effort basis. Anthropic models are returned as-is from the API.
 
 Saved cloud keys are restored on startup, so configured cloud models should reappear automatically after restart.
 
 ## Model Assignments
 
 Assign model roles to providers. For example, the `reasoner` role might be fulfilled by Ollama, OpenAI, or Anthropic. The router uses these assignments to route requests.
+
+When you save a model selection, Nous applies the change immediately — the in-memory provider configuration and reasoner assignment are updated at runtime without requiring a restart. Invalid model specs are rejected gracefully without corrupting the active provider config.
 
 Principal and System model selections are saved separately and restored on startup. When a saved cloud selection is restored, Nous automatically moves out of a strict local-only profile so the remote provider can be routed without hand-editing config.
 

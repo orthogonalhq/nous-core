@@ -1,13 +1,9 @@
-/**
- * PreferencesPanel component tests.
- *
- * Verifies exports, type contracts, and component identity.
- * Full rendering tests require jsdom / @testing-library/react,
- * which will be added in a future phase.
- */
-
-import { describe, it, expect } from 'vitest';
-import { PreferencesPanel } from '../PreferencesPanel.js';
+import { describe, it, expect, vi } from 'vitest';
+import {
+  PreferencesPanel,
+  formatFeedbackError,
+  testStoredProviderKey,
+} from '../PreferencesPanel.js';
 import type { PreferencesApi, AvailableModel, ModelSelection } from '../PreferencesPanel.js';
 
 // ---------------------------------------------------------------------------
@@ -118,7 +114,7 @@ describe('PreferencesApi type contract', () => {
       }),
     };
 
-    const validResult = await api.testApiKey({ provider: 'anthropic', key: 'key' });
+    const validResult = await api.testApiKey({ provider: 'anthropic' });
     expect(validResult.valid).toBe(true);
     expect(validResult.error).toBeNull();
 
@@ -146,6 +142,64 @@ describe('PreferencesApi type contract', () => {
     expect(status.configuredProviders).toContain('anthropic');
     expect(status.configuredProviders).toContain('openai');
     expect(status.credentialVaultHealthy).toBe(true);
+  });
+});
+
+describe('stored provider key testing helpers', () => {
+  function createBaseApi(overrides: Partial<PreferencesApi> = {}): PreferencesApi {
+    return {
+      getApiKeys: async () => [],
+      setApiKey: async () => ({ stored: true }),
+      deleteApiKey: async () => ({ deleted: true }),
+      testApiKey: async () => ({ valid: true, error: null }),
+      getSystemStatus: async () => ({
+        ollama: { running: false, models: [] },
+        configuredProviders: [],
+        credentialVaultHealthy: true,
+      }),
+      ...overrides,
+    };
+  }
+
+  it('calls testApiKey with provider only to use vault fallback', async () => {
+    const testApiKey = vi.fn(async () => ({ valid: true, error: null }));
+    const api = createBaseApi({ testApiKey });
+
+    await testStoredProviderKey(api, 'anthropic');
+
+    expect(testApiKey).toHaveBeenCalledWith({ provider: 'anthropic' });
+  });
+
+  it('returns success feedback when the stored key validates', async () => {
+    const api = createBaseApi({
+      testApiKey: async () => ({ valid: true, error: null }),
+    });
+
+    await expect(testStoredProviderKey(api, 'openai')).resolves.toEqual({
+      message: 'OpenAI API key is valid.',
+      success: true,
+    });
+  });
+
+  it('returns the server error when stored-key validation fails', async () => {
+    const api = createBaseApi({
+      testApiKey: async () => ({
+        valid: false,
+        error: 'No API key configured for this provider. Store a key first.',
+      }),
+    });
+
+    await expect(testStoredProviderKey(api, 'anthropic')).resolves.toEqual({
+      message: 'No API key configured for this provider. Store a key first.',
+      success: false,
+    });
+  });
+
+  it('formats thrown errors into user-facing feedback', () => {
+    expect(formatFeedbackError(new Error('Network offline'))).toEqual({
+      message: 'Error: Network offline',
+      success: false,
+    });
   });
 });
 

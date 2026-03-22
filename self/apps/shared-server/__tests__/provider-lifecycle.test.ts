@@ -201,6 +201,29 @@ describe('provider lifecycle wiring', () => {
       if (url.includes('localhost:11434')) {
         throw { cause: { code: 'ECONNREFUSED' } };
       }
+      if (url === 'https://api.openai.com/v1/models') {
+        return new Response(
+          JSON.stringify({
+            object: 'list',
+            data: [{ id: 'gpt-4o', object: 'model', owned_by: 'openai' }],
+          }),
+          { status: 200 },
+        );
+      }
+      if (url === 'https://api.anthropic.com/v1/models') {
+        return new Response(
+          JSON.stringify({
+            data: [
+              {
+                id: 'claude-sonnet-4-20250514',
+                display_name: 'Claude Sonnet 4',
+                type: 'model',
+              },
+            ],
+          }),
+          { status: 200 },
+        );
+      }
       return new Response(JSON.stringify({ data: [] }), { status: 200 });
     }) as typeof fetch;
   });
