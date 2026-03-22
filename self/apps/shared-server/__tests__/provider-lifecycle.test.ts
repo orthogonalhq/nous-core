@@ -3,9 +3,10 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { randomUUID } from 'node:crypto';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-import type { ProviderId, TraceId } from '@nous/shared';
+import type { ModelRole, ProviderId, TraceId } from '@nous/shared';
 import { DEFAULT_PROFILES } from '@nous/autonomic-config';
 import {
+  OLLAMA_WELL_KNOWN_PROVIDER_ID,
   WELL_KNOWN_PROVIDER_IDS,
   createNousServices,
   loadModelSelection,
@@ -34,7 +35,7 @@ type ConfigState = {
     meetsProfiles?: string[];
   }>;
   modelRoleAssignments: Array<{
-    role: 'reasoner';
+    role: ModelRole;
     providerId: ProviderId;
     fallbackProviderId?: ProviderId;
   }>;
@@ -304,6 +305,33 @@ describe('provider lifecycle wiring', () => {
         role: 'reasoner',
         providerId: WELL_KNOWN_PROVIDER_IDS.openai,
         fallbackProviderId: WELL_KNOWN_PROVIDER_IDS.anthropic,
+      },
+    ]);
+  });
+
+  it('loadModelSelection restores persisted ollama selections without cloud credentials', async () => {
+    const { ctx, state, documentStore } = createLifecycleContext();
+
+    await documentStore.put(MODEL_SELECTION_COLLECTION, MODEL_SELECTION_ID, {
+      principal: 'ollama:llama3.2:3b',
+      system: null,
+    });
+
+    await loadModelSelection(ctx);
+
+    expect(
+      state.providers.find((provider) => provider.id === OLLAMA_WELL_KNOWN_PROVIDER_ID),
+    ).toMatchObject({
+      id: OLLAMA_WELL_KNOWN_PROVIDER_ID,
+      name: 'ollama',
+      modelId: 'llama3.2:3b',
+      isLocal: true,
+      providerClass: 'local_text',
+    });
+    expect(state.modelRoleAssignments).toEqual([
+      {
+        role: 'reasoner',
+        providerId: OLLAMA_WELL_KNOWN_PROVIDER_ID,
       },
     ]);
   });

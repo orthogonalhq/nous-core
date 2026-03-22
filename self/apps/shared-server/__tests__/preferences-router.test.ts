@@ -3,6 +3,16 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 const SYSTEM_APP_ID = 'nous:system';
 const MODEL_SELECTION_COLLECTION = 'nous:model_selection';
 const MODEL_SELECTION_ID = 'current';
+const MODEL_ROLES = [
+  'orchestrator',
+  'reasoner',
+  'tool-advisor',
+  'summarizer',
+  'embedder',
+  'reranker',
+  'vision',
+] as const;
+type ModelRole = (typeof MODEL_ROLES)[number];
 
 const detectOllamaMock = vi.hoisted(() => vi.fn());
 const bootstrapConstants = vi.hoisted(() => ({
@@ -10,12 +20,16 @@ const bootstrapConstants = vi.hoisted(() => ({
     anthropic: '10000000-0000-0000-0000-000000000001',
     openai: '10000000-0000-0000-0000-000000000002',
   },
+  OLLAMA_WELL_KNOWN_PROVIDER_ID: '10000000-0000-0000-0000-000000000003',
 }));
 const bootstrapMock = vi.hoisted(() => ({
+  buildOllamaProviderConfig: vi.fn(),
   buildProviderConfig: vi.fn(),
+  currentRoleAssignment: vi.fn(),
   parseSelectedModelSpec: vi.fn(),
   registerConfiguredProvider: vi.fn(),
   removeConfiguredProvider: vi.fn(),
+  updateRoleAssignment: vi.fn(),
   updateReasonerAssignment: vi.fn(),
   upsertProviderConfig: vi.fn(),
 }));
@@ -25,11 +39,15 @@ vi.mock('../src/ollama-detection', () => ({
 }));
 
 vi.mock('../src/bootstrap', () => ({
+  OLLAMA_WELL_KNOWN_PROVIDER_ID: bootstrapConstants.OLLAMA_WELL_KNOWN_PROVIDER_ID,
   WELL_KNOWN_PROVIDER_IDS: bootstrapConstants.WELL_KNOWN_PROVIDER_IDS,
+  buildOllamaProviderConfig: bootstrapMock.buildOllamaProviderConfig,
   buildProviderConfig: bootstrapMock.buildProviderConfig,
+  currentRoleAssignment: bootstrapMock.currentRoleAssignment,
   parseSelectedModelSpec: bootstrapMock.parseSelectedModelSpec,
   registerConfiguredProvider: bootstrapMock.registerConfiguredProvider,
   removeConfiguredProvider: bootstrapMock.removeConfiguredProvider,
+  updateRoleAssignment: bootstrapMock.updateRoleAssignment,
   updateReasonerAssignment: bootstrapMock.updateReasonerAssignment,
   upsertProviderConfig: bootstrapMock.upsertProviderConfig,
 }));
@@ -40,22 +58,25 @@ function vaultKey(provider: 'anthropic' | 'openai'): string {
 
 function parseSelectedModelSpecMock(
   spec: string | null | undefined,
-): { provider: 'anthropic' | 'openai'; modelId: string } | null {
+): { provider: 'anthropic' | 'openai' | 'ollama'; modelId: string } | null {
   if (!spec) {
     return null;
   }
 
   const [provider, ...modelParts] = spec.split(':');
+  const modelId = modelParts.join(':');
   if (
-    (provider !== 'anthropic' && provider !== 'openai') ||
-    modelParts.length === 0
+    (provider !== 'anthropic' &&
+      provider !== 'openai' &&
+      provider !== 'ollama') ||
+    modelId.length === 0
   ) {
     return null;
   }
 
   return {
     provider,
-    modelId: modelParts.join(':'),
+    modelId,
   };
 }
 
@@ -76,6 +97,22 @@ function buildProviderConfigMock(
     isLocal: false,
     capabilities: ['chat', 'streaming'],
     providerClass: 'remote_text' as const,
+  };
+}
+
+function buildOllamaProviderConfigMock(
+  modelId: string,
+  providerId = bootstrapConstants.OLLAMA_WELL_KNOWN_PROVIDER_ID,
+) {
+  return {
+    id: providerId,
+    name: 'ollama',
+    type: 'text' as const,
+    endpoint: 'http://localhost:11434',
+    modelId,
+    isLocal: true,
+    capabilities: ['chat', 'streaming'],
+    providerClass: 'local_text' as const,
   };
 }
 
@@ -209,14 +246,22 @@ describe('preferences router', () => {
       defaultModel: null,
     });
 
+    bootstrapMock.buildOllamaProviderConfig.mockReset();
+    bootstrapMock.buildOllamaProviderConfig.mockImplementation(
+      buildOllamaProviderConfigMock,
+    );
     bootstrapMock.buildProviderConfig.mockReset();
     bootstrapMock.buildProviderConfig.mockImplementation(buildProviderConfigMock);
+    bootstrapMock.currentRoleAssignment.mockReset();
+    bootstrapMock.currentRoleAssignment.mockReturnValue(undefined);
     bootstrapMock.parseSelectedModelSpec.mockReset();
     bootstrapMock.parseSelectedModelSpec.mockImplementation(parseSelectedModelSpecMock);
     bootstrapMock.registerConfiguredProvider.mockReset();
     bootstrapMock.registerConfiguredProvider.mockResolvedValue(undefined);
     bootstrapMock.removeConfiguredProvider.mockReset();
     bootstrapMock.removeConfiguredProvider.mockResolvedValue(undefined);
+    bootstrapMock.updateRoleAssignment.mockReset();
+    bootstrapMock.updateRoleAssignment.mockResolvedValue(undefined);
     bootstrapMock.updateReasonerAssignment.mockReset();
     bootstrapMock.updateReasonerAssignment.mockResolvedValue(undefined);
     bootstrapMock.upsertProviderConfig.mockReset();
@@ -344,6 +389,49 @@ describe('preferences router', () => {
       );
     });
 
+    it('routes ollama selections through the local provider config builder', async () => {
+      const { ctx, documentStore } = createMockContext();
+      const preferencesRouter = await loadPreferencesRouter();
+      const caller = preferencesRouter.createCaller(ctx);
+
+      const result = await caller.setModelSelection({
+        principal: 'ollama:llama3.2:3b',
+      });
+
+      expect(result).toEqual({ success: true });
+      expect(
+        await documentStore.get<{
+          principal: string | null;
+          system: string | null;
+        }>(MODEL_SELECTION_COLLECTION, MODEL_SELECTION_ID),
+      ).toEqual({
+        principal: 'ollama:llama3.2:3b',
+        system: null,
+      });
+      expect(bootstrapMock.parseSelectedModelSpec).toHaveBeenCalledWith(
+        'ollama:llama3.2:3b',
+      );
+      expect(bootstrapMock.buildOllamaProviderConfig).toHaveBeenCalledWith(
+        'llama3.2:3b',
+        bootstrapConstants.OLLAMA_WELL_KNOWN_PROVIDER_ID,
+      );
+      expect(bootstrapMock.buildProviderConfig).not.toHaveBeenCalled();
+      expect(bootstrapMock.upsertProviderConfig).toHaveBeenCalledWith(
+        ctx,
+        expect.objectContaining({
+          id: bootstrapConstants.OLLAMA_WELL_KNOWN_PROVIDER_ID,
+          modelId: 'llama3.2:3b',
+          name: 'ollama',
+          isLocal: true,
+          providerClass: 'local_text',
+        }),
+      );
+      expect(bootstrapMock.updateReasonerAssignment).toHaveBeenCalledWith(
+        ctx,
+        bootstrapConstants.OLLAMA_WELL_KNOWN_PROVIDER_ID,
+      );
+    });
+
     it('preserves existing values on partial updates', async () => {
       const { ctx, documentStore } = createMockContext();
       const preferencesRouter = await loadPreferencesRouter();
@@ -418,6 +506,144 @@ describe('preferences router', () => {
       });
       expect(bootstrapMock.updateReasonerAssignment).not.toHaveBeenCalled();
       expect(console.error).toHaveBeenCalled();
+    });
+  });
+
+  describe('getRoleAssignments', () => {
+    it('returns all model roles with null when no assignments exist', async () => {
+      const { ctx } = createMockContext();
+      const preferencesRouter = await loadPreferencesRouter();
+      const caller = preferencesRouter.createCaller(ctx);
+
+      const result = await caller.getRoleAssignments();
+
+      expect(result).toEqual(
+        Object.fromEntries(MODEL_ROLES.map((role) => [role, null])),
+      );
+      expect(bootstrapMock.currentRoleAssignment).toHaveBeenCalledTimes(
+        MODEL_ROLES.length,
+      );
+    });
+
+    it('returns configured roles alongside unassigned roles', async () => {
+      const { ctx } = createMockContext();
+      const preferencesRouter = await loadPreferencesRouter();
+      const caller = preferencesRouter.createCaller(ctx);
+
+      bootstrapMock.currentRoleAssignment.mockImplementation(
+        (_ctx: unknown, role: ModelRole) => {
+          if (role === 'orchestrator') {
+            return {
+              role,
+              providerId: bootstrapConstants.OLLAMA_WELL_KNOWN_PROVIDER_ID,
+            };
+          }
+
+          if (role === 'reasoner') {
+            return {
+              role,
+              providerId: bootstrapConstants.WELL_KNOWN_PROVIDER_IDS.openai,
+              fallbackProviderId: bootstrapConstants.WELL_KNOWN_PROVIDER_IDS.anthropic,
+            };
+          }
+
+          return undefined;
+        },
+      );
+
+      const result = await caller.getRoleAssignments();
+
+      expect(result).toEqual({
+        orchestrator: {
+          providerId: bootstrapConstants.OLLAMA_WELL_KNOWN_PROVIDER_ID,
+        },
+        reasoner: {
+          providerId: bootstrapConstants.WELL_KNOWN_PROVIDER_IDS.openai,
+          fallbackProviderId: bootstrapConstants.WELL_KNOWN_PROVIDER_IDS.anthropic,
+        },
+        'tool-advisor': null,
+        summarizer: null,
+        embedder: null,
+        reranker: null,
+        vision: null,
+      });
+    });
+  });
+
+  describe('setRoleAssignment', () => {
+    it('assigns ollama models to non-reasoner roles', async () => {
+      const { ctx } = createMockContext();
+      const preferencesRouter = await loadPreferencesRouter();
+      const caller = preferencesRouter.createCaller(ctx);
+
+      const result = await caller.setRoleAssignment({
+        role: 'orchestrator',
+        modelSpec: 'ollama:llama3.2:3b',
+      });
+
+      expect(result).toEqual({ success: true });
+      expect(bootstrapMock.buildOllamaProviderConfig).toHaveBeenCalledWith(
+        'llama3.2:3b',
+        bootstrapConstants.OLLAMA_WELL_KNOWN_PROVIDER_ID,
+      );
+      expect(bootstrapMock.buildProviderConfig).not.toHaveBeenCalled();
+      expect(bootstrapMock.upsertProviderConfig).toHaveBeenCalledWith(
+        ctx,
+        expect.objectContaining({
+          id: bootstrapConstants.OLLAMA_WELL_KNOWN_PROVIDER_ID,
+          name: 'ollama',
+          modelId: 'llama3.2:3b',
+        }),
+      );
+      expect(bootstrapMock.updateRoleAssignment).toHaveBeenCalledWith(
+        ctx,
+        'orchestrator',
+        bootstrapConstants.OLLAMA_WELL_KNOWN_PROVIDER_ID,
+      );
+    });
+
+    it('assigns cloud models through the existing provider config path', async () => {
+      const { ctx } = createMockContext();
+      const preferencesRouter = await loadPreferencesRouter();
+      const caller = preferencesRouter.createCaller(ctx);
+
+      const result = await caller.setRoleAssignment({
+        role: 'summarizer',
+        modelSpec: 'openai:gpt-4o-mini',
+      });
+
+      expect(result).toEqual({ success: true });
+      expect(bootstrapMock.buildProviderConfig).toHaveBeenCalledWith(
+        'openai',
+        bootstrapConstants.WELL_KNOWN_PROVIDER_IDS.openai,
+        'gpt-4o-mini',
+      );
+      expect(bootstrapMock.buildOllamaProviderConfig).not.toHaveBeenCalled();
+      expect(bootstrapMock.updateRoleAssignment).toHaveBeenCalledWith(
+        ctx,
+        'summarizer',
+        bootstrapConstants.WELL_KNOWN_PROVIDER_IDS.openai,
+      );
+    });
+
+    it('returns an error for invalid model specs', async () => {
+      const { ctx } = createMockContext();
+      const preferencesRouter = await loadPreferencesRouter();
+      const caller = preferencesRouter.createCaller(ctx);
+
+      bootstrapMock.parseSelectedModelSpec.mockReturnValueOnce(null);
+
+      const result = await caller.setRoleAssignment({
+        role: 'vision',
+        modelSpec: 'invalid-model-spec',
+      });
+
+      expect(result).toEqual({
+        success: false,
+        error: 'Cannot parse model spec: invalid-model-spec',
+      });
+      expect(bootstrapMock.upsertProviderConfig).not.toHaveBeenCalled();
+      expect(bootstrapMock.updateRoleAssignment).not.toHaveBeenCalled();
     });
   });
 
