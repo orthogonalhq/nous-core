@@ -8,6 +8,7 @@ type FirstRunPrerequisites = Awaited<ReturnType<ElectronAPI['firstRun']['checkPr
 type FirstRunActionResult = Awaited<ReturnType<ElectronAPI['firstRun']['downloadModel']>>
 type FirstRunRoleAssignmentInput = Parameters<ElectronAPI['firstRun']['assignRoles']>[0]
 type OllamaStatus = Awaited<ReturnType<ElectronAPI['ollama']['getStatus']>>
+type PreferencesSystemStatus = Awaited<ReturnType<ElectronAPI['preferences']['getSystemStatus']>>
 type OllamaModelPullProgress = Parameters<ElectronAPI['ollama']['onPullProgress']>[0] extends (
   progress: infer T,
 ) => void
@@ -95,6 +96,15 @@ export const DEFAULT_PREREQUISITES: FirstRunPrerequisites = {
     profileName: 'local-first',
     advisory: 'Detected a high-spec desktop profile. Larger local reasoning models are viable.',
   },
+}
+
+export const DEFAULT_PREFERENCES_STATUS: PreferencesSystemStatus = {
+  ollama: {
+    running: true,
+    models: ['qwen2.5:7b'],
+  },
+  configuredProviders: ['anthropic'],
+  credentialVaultHealthy: true,
 }
 
 export function createFirstRunState(overrides: Partial<FirstRunState> = {}): FirstRunState {
@@ -230,6 +240,30 @@ export function createElectronAPIMock() {
           ollamaStateListeners.delete(callback)
         }
       }),
+    },
+    preferences: {
+      getApiKeys: vi.fn(async () => []),
+      setApiKey: vi.fn(async () => ({ stored: true })),
+      deleteApiKey: vi.fn(async () => ({ deleted: true })),
+      testApiKey: vi.fn(async () => ({ valid: true, error: null })),
+      getSystemStatus: vi.fn(async () => DEFAULT_PREFERENCES_STATUS),
+      getAvailableModels: vi.fn(async () => ({
+        models: [
+          {
+            id: 'ollama:qwen2.5:7b',
+            name: 'Qwen 2.5 7B',
+            provider: 'ollama',
+            available: true,
+          },
+        ],
+      })),
+      getModelSelection: vi.fn(async () => ({
+        principal: 'ollama:qwen2.5:7b',
+        system: 'ollama:qwen2.5:7b',
+      })),
+      setModelSelection: vi.fn(async () => ({ success: true })),
+      getRoleAssignments: vi.fn(async () => []),
+      setRoleAssignment: vi.fn(async () => ({ success: true })),
     },
     hardware: {
       getSpec: vi.fn(async () => DEFAULT_PREREQUISITES.hardware),

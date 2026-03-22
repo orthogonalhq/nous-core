@@ -112,7 +112,17 @@ export const NATIVE_PANEL_DEFS: PanelDef[] = [
   },
   { id: 'dashboard', component: 'dashboard', title: 'Dashboard' },
   { id: 'coding-agents', component: 'coding-agents', title: 'Coding Agents' },
-  { id: 'preferences', component: 'preferences', title: 'Preferences', params: () => ({ preferencesApi: (window as any).electronAPI?.preferences }) },
+  {
+    id: 'preferences',
+    component: 'preferences',
+    title: 'Preferences',
+    params: () => ({
+      preferencesApi: {
+        ...(window as any).electronAPI?.preferences,
+        getHardwareRecommendations: window.electronAPI?.hardware.getRecommendations,
+      },
+    }),
+  },
 ]
 
 // Order in which panels are added to the default layout.
