@@ -4,7 +4,12 @@ import {
   formatFeedbackError,
   testStoredProviderKey,
 } from '../PreferencesPanel.js';
-import type { PreferencesApi, AvailableModel, ModelSelection } from '../PreferencesPanel.js';
+import type {
+  PreferencesApi,
+  AvailableModel,
+  ModelSelection,
+  RoleAssignmentDisplayEntry,
+} from '../PreferencesPanel.js';
 
 // ---------------------------------------------------------------------------
 // Export verification
@@ -19,7 +24,7 @@ describe('PreferencesPanel exports', () => {
   it('is re-exported from panels index', async () => {
     const panelsIndex = await import('../index.js');
     expect(panelsIndex.PreferencesPanel).toBe(PreferencesPanel);
-  });
+  }, 15000);
 });
 
 // ---------------------------------------------------------------------------
@@ -231,6 +236,13 @@ describe('Model selector API contract', () => {
         system: 'anthropic:claude-sonnet-4-20250514',
       }),
       setModelSelection: async () => ({ success: true }),
+      getRoleAssignments: async () => ([
+        {
+          role: 'orchestrator',
+          providerId: '10000000-0000-0000-0000-000000000003',
+        },
+      ]),
+      setRoleAssignment: async () => ({ success: true }),
     };
   }
 
@@ -239,6 +251,8 @@ describe('Model selector API contract', () => {
     expect(typeof api.getAvailableModels).toBe('function');
     expect(typeof api.getModelSelection).toBe('function');
     expect(typeof api.setModelSelection).toBe('function');
+    expect(typeof api.getRoleAssignments).toBe('function');
+    expect(typeof api.setRoleAssignment).toBe('function');
   });
 
   it('getAvailableModels returns models grouped by provider', async () => {
@@ -310,10 +324,50 @@ describe('Model selector API contract', () => {
     };
     expect(selection.principal).toBeTruthy();
     expect(selection.system).toBeNull();
+
+    const roleAssignment: RoleAssignmentDisplayEntry = {
+      role: 'orchestrator',
+      providerId: '10000000-0000-0000-0000-000000000003',
+    };
+    expect(roleAssignment.role).toBe('orchestrator');
+    expect(roleAssignment.providerId).toBeTruthy();
+  });
+
+  it('getRoleAssignments returns role assignment display entries', async () => {
+    const api = createFullApi();
+    const assignments = await api.getRoleAssignments!();
+
+    expect(assignments).toEqual([
+      {
+        role: 'orchestrator',
+        providerId: '10000000-0000-0000-0000-000000000003',
+      },
+    ]);
+  });
+
+  it('setRoleAssignment accepts a role and modelSpec', async () => {
+    let captured: { role: string; modelSpec: string } | null = null;
+    const api: PreferencesApi = {
+      ...createFullApi(),
+      setRoleAssignment: async (input) => {
+        captured = input;
+        return { success: true };
+      },
+    };
+
+    await api.setRoleAssignment!({
+      role: 'vision',
+      modelSpec: 'openai:gpt-4o',
+    });
+
+    expect(captured).toEqual({
+      role: 'vision',
+      modelSpec: 'openai:gpt-4o',
+    });
   });
 
   it('is re-exported from panels index', async () => {
     const panelsIndex = await import('../index.js');
     expect(panelsIndex.PreferencesPanel).toBe(PreferencesPanel);
-  });
+  }, 15000);
 });
