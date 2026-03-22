@@ -14,6 +14,18 @@ import {
   type OllamaModelPullProgress,
   type OllamaStatus,
 } from '../../../shared-server/src/ollama-detection'
+import {
+  createDefaultFirstRunState,
+  type FirstRunActionResult,
+  type FirstRunPrerequisites,
+  type FirstRunRoleAssignmentInput,
+  type FirstRunState,
+  type FirstRunStep,
+} from '../../../shared-server/src/first-run'
+import type {
+  HardwareSpec,
+  RecommendationResult,
+} from '../../../shared-server/src/hardware-detection'
 import superjson from 'superjson'
 
 interface StoredLayout {
@@ -1240,6 +1252,38 @@ async function ensureBackendReady(): Promise<void> {
   throw new Error('Backend server is not running')
 }
 
+function buildHardwareFallback(): HardwareSpec {
+  return {
+    totalMemoryMB: 0,
+    availableMemoryMB: 0,
+    cpuCores: 0,
+    cpuModel: 'Unknown CPU',
+    platform: process.platform,
+    arch: process.arch,
+    gpu: {
+      detected: false,
+    },
+  }
+}
+
+function buildRecommendationFallback(): RecommendationResult {
+  return {
+    singleModel: null,
+    multiModel: [],
+    hardwareSpec: buildHardwareFallback(),
+    profileName: 'local-only',
+    advisory: 'Hardware recommendations are unavailable while the backend is starting.',
+  }
+}
+
+function buildFirstRunActionFailure(error = 'Backend unavailable'): FirstRunActionResult {
+  return {
+    success: false,
+    state: createDefaultFirstRunState(),
+    error,
+  }
+}
+
 const chatHistory: { role: string; content: string; timestamp: string }[] = []
 
 ipcMain.handle('chat:send', async (_event, message: string) => {
@@ -1325,6 +1369,97 @@ ipcMain.handle('preferences:getModelSelection', async () => {
 })
 ipcMain.handle('preferences:setModelSelection', async (_event, input: unknown) => {
   try { await ensureBackendReady(); const c = getTrpcClient() as any; return await c.preferences.setModelSelection.mutate(input) } catch { return { success: false } }
+})
+ipcMain.handle('hardware:getSpec', async (): Promise<HardwareSpec> => {
+  try {
+    await ensureBackendReady()
+    const client = getTrpcClient() as any
+    return await client.hardware.getSpec.query()
+  } catch {
+    return buildHardwareFallback()
+  }
+})
+ipcMain.handle('hardware:getRecommendations', async (): Promise<RecommendationResult> => {
+  try {
+    await ensureBackendReady()
+    const client = getTrpcClient() as any
+    return await client.hardware.getRecommendations.query()
+  } catch {
+    return buildRecommendationFallback()
+  }
+})
+ipcMain.handle('firstRun:getWizardState', async (): Promise<FirstRunState> => {
+  try {
+    await ensureBackendReady()
+    const client = getTrpcClient() as any
+    return await client.firstRun.getWizardState.query()
+  } catch {
+    return createDefaultFirstRunState()
+  }
+})
+ipcMain.handle('firstRun:checkPrerequisites', async (): Promise<FirstRunPrerequisites> => {
+  try {
+    await ensureBackendReady()
+    const client = getTrpcClient() as any
+    return await client.firstRun.checkPrerequisites.query()
+  } catch {
+    return {
+      ollama: {
+        installed: false,
+        running: false,
+        state: 'not_installed',
+        models: [],
+        defaultModel: null,
+      },
+      hardware: buildHardwareFallback(),
+      recommendations: buildRecommendationFallback(),
+    }
+  }
+})
+ipcMain.handle('firstRun:downloadModel', async (_event, input: { model: string }): Promise<FirstRunActionResult> => {
+  try {
+    await ensureBackendReady()
+    const client = getTrpcClient() as any
+    return await client.firstRun.downloadModel.mutate(input)
+  } catch {
+    return buildFirstRunActionFailure()
+  }
+})
+ipcMain.handle('firstRun:configureProvider', async (_event, input: { modelSpec: string }): Promise<FirstRunActionResult> => {
+  try {
+    await ensureBackendReady()
+    const client = getTrpcClient() as any
+    return await client.firstRun.configureProvider.mutate(input)
+  } catch {
+    return buildFirstRunActionFailure()
+  }
+})
+ipcMain.handle('firstRun:assignRoles', async (_event, input: { assignments: FirstRunRoleAssignmentInput[] }): Promise<FirstRunActionResult> => {
+  try {
+    await ensureBackendReady()
+    const client = getTrpcClient() as any
+    return await client.firstRun.assignRoles.mutate(input)
+  } catch {
+    return buildFirstRunActionFailure()
+  }
+})
+ipcMain.handle('firstRun:completeStep', async (_event, input: { step: FirstRunStep }): Promise<FirstRunState> => {
+  try {
+    await ensureBackendReady()
+    const client = getTrpcClient() as any
+    return await client.firstRun.completeStep.mutate(input)
+  } catch {
+    return createDefaultFirstRunState()
+  }
+})
+ipcMain.handle('firstRun:resetWizard', async (): Promise<FirstRunState> => {
+  try {
+    await ensureBackendReady()
+    const client = getTrpcClient() as any
+    return await client.firstRun.resetWizard.mutate()
+  } catch {
+    return createDefaultFirstRunState()
+  }
 })
 
 ipcMain.handle('app-install:prepare', async (_event, input: unknown) => {

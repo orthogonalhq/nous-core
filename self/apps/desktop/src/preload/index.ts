@@ -103,6 +103,19 @@ contextBridge.exposeInMainWorld('electronAPI', {
       }
     },
   },
+  hardware: {
+    getSpec: (): Promise<unknown> => ipcRenderer.invoke('hardware:getSpec'),
+    getRecommendations: (): Promise<unknown> => ipcRenderer.invoke('hardware:getRecommendations'),
+  },
+  firstRun: {
+    getWizardState: (): Promise<unknown> => ipcRenderer.invoke('firstRun:getWizardState'),
+    checkPrerequisites: (): Promise<unknown> => ipcRenderer.invoke('firstRun:checkPrerequisites'),
+    downloadModel: (model: string): Promise<unknown> => ipcRenderer.invoke('firstRun:downloadModel', { model }),
+    configureProvider: (modelSpec: string): Promise<unknown> => ipcRenderer.invoke('firstRun:configureProvider', { modelSpec }),
+    assignRoles: (assignments: unknown[]): Promise<unknown> => ipcRenderer.invoke('firstRun:assignRoles', { assignments }),
+    completeStep: (step: string): Promise<unknown> => ipcRenderer.invoke('firstRun:completeStep', { step }),
+    resetWizard: (): Promise<unknown> => ipcRenderer.invoke('firstRun:resetWizard'),
+  },
   appInstall: {
     prepare: (input: unknown): Promise<unknown> => ipcRenderer.invoke('app-install:prepare', input),
     install: (input: unknown): Promise<unknown> => ipcRenderer.invoke('app-install:install', input),
