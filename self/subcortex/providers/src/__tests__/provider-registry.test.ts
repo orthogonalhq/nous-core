@@ -1,7 +1,15 @@
 import { ConfigError } from '@nous/shared';
-import { describe, expect, it, vi } from 'vitest';
+import { afterEach, describe, expect, it, vi } from 'vitest';
+import { AnthropicProvider } from '../anthropic-provider.js';
 import { ProviderRegistry } from '../provider-registry.js';
 import { LaneAwareProvider } from '../lane-aware-provider.js';
+import { OllamaProvider } from '../ollama-provider.js';
+import { OpenAiCompatibleProvider } from '../openai-provider.js';
+
+afterEach(() => {
+  delete process.env.ANTHROPIC_API_KEY;
+  delete process.env.OPENAI_API_KEY;
+});
 
 describe('ProviderRegistry', () => {
   it('wraps configured providers with lane-aware behavior', () => {
@@ -145,39 +153,143 @@ describe('ProviderRegistry', () => {
   });
 
   it('normalizes anthropic remote providers to the Anthropic endpoint', () => {
-    const originalKey = process.env.ANTHROPIC_API_KEY;
     process.env.ANTHROPIC_API_KEY = 'test-anthropic-key';
 
-    try {
-      const registry = new ProviderRegistry({
-        get: () => ({ providers: [] }),
-        getSection: vi.fn(),
-        update: vi.fn(),
-        reload: vi.fn(),
-      } as any);
+    const registry = new ProviderRegistry({
+      get: () => ({ providers: [] }),
+      getSection: vi.fn(),
+      update: vi.fn(),
+      reload: vi.fn(),
+    } as any);
 
-      registry.registerProvider({
-        id: '00000000-0000-0000-0000-000000000013' as any,
-        name: 'anthropic',
-        type: 'text',
-        endpoint: 'https://api.openai.com',
-        modelId: 'claude-sonnet-4-20250514',
-        isLocal: false,
-        capabilities: ['chat', 'streaming'],
-        providerClass: 'remote_text',
-      });
+    registry.registerProvider({
+      id: '00000000-0000-0000-0000-000000000013' as any,
+      name: 'anthropic',
+      type: 'text',
+      endpoint: 'https://api.openai.com',
+      modelId: 'claude-sonnet-4-20250514',
+      isLocal: false,
+      capabilities: ['chat', 'streaming'],
+      providerClass: 'remote_text',
+    });
 
-      expect(
-        registry
-          .getProvider('00000000-0000-0000-0000-000000000013' as any)
-          ?.getConfig().endpoint,
-      ).toBe('https://api.anthropic.com');
-    } finally {
-      if (originalKey === undefined) {
-        delete process.env.ANTHROPIC_API_KEY;
-      } else {
-        process.env.ANTHROPIC_API_KEY = originalKey;
-      }
-    }
+    expect(
+      registry
+        .getProvider('00000000-0000-0000-0000-000000000013' as any)
+        ?.getConfig().endpoint,
+    ).toBe('https://api.anthropic.com');
+  });
+
+  it('routes anthropic endpoint configs to AnthropicProvider inside LaneAwareProvider', () => {
+    process.env.ANTHROPIC_API_KEY = 'test-anthropic-key';
+
+    const registry = new ProviderRegistry({
+      get: () => ({ providers: [] }),
+      getSection: vi.fn(),
+      update: vi.fn(),
+      reload: vi.fn(),
+    } as any);
+
+    registry.registerProvider({
+      id: '00000000-0000-0000-0000-000000000014' as any,
+      name: 'remote-openai-looking-name',
+      type: 'text',
+      endpoint: 'https://api.anthropic.com',
+      modelId: 'claude-sonnet-4-20250514',
+      isLocal: false,
+      capabilities: ['chat', 'streaming'],
+      providerClass: 'remote_text',
+    });
+
+    const provider = registry.getProvider(
+      '00000000-0000-0000-0000-000000000014' as any,
+    ) as any;
+
+    expect(provider).toBeInstanceOf(LaneAwareProvider);
+    expect(provider.inner).toBeInstanceOf(AnthropicProvider);
+  });
+
+  it('routes anthropic name configs to AnthropicProvider inside LaneAwareProvider', () => {
+    process.env.ANTHROPIC_API_KEY = 'test-anthropic-key';
+
+    const registry = new ProviderRegistry({
+      get: () => ({ providers: [] }),
+      getSection: vi.fn(),
+      update: vi.fn(),
+      reload: vi.fn(),
+    } as any);
+
+    registry.registerProvider({
+      id: '00000000-0000-0000-0000-000000000015' as any,
+      name: 'Anthropic Claude',
+      type: 'text',
+      endpoint: 'https://example.com/proxy',
+      modelId: 'claude-sonnet-4-20250514',
+      isLocal: false,
+      capabilities: ['chat', 'streaming'],
+      providerClass: 'remote_text',
+    });
+
+    const provider = registry.getProvider(
+      '00000000-0000-0000-0000-000000000015' as any,
+    ) as any;
+
+    expect(provider).toBeInstanceOf(LaneAwareProvider);
+    expect(provider.inner).toBeInstanceOf(AnthropicProvider);
+    expect(provider.getConfig().endpoint).toBe('https://api.anthropic.com');
+  });
+
+  it('routes non-Anthropic remote providers to OpenAiCompatibleProvider inside LaneAwareProvider', () => {
+    process.env.OPENAI_API_KEY = 'test-openai-key';
+
+    const registry = new ProviderRegistry({
+      get: () => ({ providers: [] }),
+      getSection: vi.fn(),
+      update: vi.fn(),
+      reload: vi.fn(),
+    } as any);
+
+    registry.registerProvider({
+      id: '00000000-0000-0000-0000-000000000016' as any,
+      name: 'OpenRouter',
+      type: 'text',
+      endpoint: 'https://openrouter.ai/api',
+      modelId: 'openai/gpt-4o-mini',
+      isLocal: false,
+      capabilities: ['chat'],
+      providerClass: 'remote_text',
+    });
+
+    const provider = registry.getProvider(
+      '00000000-0000-0000-0000-000000000016' as any,
+    ) as any;
+
+    expect(provider).toBeInstanceOf(LaneAwareProvider);
+    expect(provider.inner).toBeInstanceOf(OpenAiCompatibleProvider);
+  });
+
+  it('routes local providers to OllamaProvider inside LaneAwareProvider', () => {
+    const registry = new ProviderRegistry({
+      get: () => ({ providers: [] }),
+      getSection: vi.fn(),
+      update: vi.fn(),
+      reload: vi.fn(),
+    } as any);
+
+    registry.registerProvider({
+      id: '00000000-0000-0000-0000-000000000017' as any,
+      name: 'local-ollama',
+      type: 'text',
+      modelId: 'llama3.2',
+      isLocal: true,
+      capabilities: ['text'],
+    });
+
+    const provider = registry.getProvider(
+      '00000000-0000-0000-0000-000000000017' as any,
+    ) as any;
+
+    expect(provider).toBeInstanceOf(LaneAwareProvider);
+    expect(provider.inner).toBeInstanceOf(OllamaProvider);
   });
 });
