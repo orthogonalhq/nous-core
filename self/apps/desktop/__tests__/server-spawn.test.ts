@@ -8,7 +8,7 @@
  * - Backend readiness guard behavior (Tier 2)
  * - Anti-regression source-level smoke tests (Tier 3)
  */
-import { describe, it, expect, vi } from 'vitest';
+import { describe, it, expect } from 'vitest';
 import { createServer } from 'node:net';
 import { readFileSync } from 'node:fs';
 import { join } from 'node:path';
@@ -173,6 +173,18 @@ describe('desktop backend server', () => {
 
     it('main/index.ts contains spawnBackendServer — spawn orchestrator must be present', () => {
       expect(source).toContain('spawnBackendServer');
+    });
+
+    it('main/index.ts contains startOllama — managed Ollama startup must be present', () => {
+      expect(source).toContain('startOllama');
+    });
+
+    it('main/index.ts contains stopOllama — managed Ollama shutdown must be present', () => {
+      expect(source).toContain('stopOllama');
+    });
+
+    it('main/index.ts contains ollama:getStatus — Ollama IPC status channel must be present', () => {
+      expect(source).toContain('ollama:getStatus');
     });
   });
 });

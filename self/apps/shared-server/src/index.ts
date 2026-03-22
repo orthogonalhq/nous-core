@@ -24,5 +24,18 @@ export type { NousContext, AgentSessionEntry } from './context';
 export { appRouter } from './trpc/root';
 export type { AppRouter } from './trpc/root';
 export { createTRPCContext, router, publicProcedure } from './trpc/trpc';
-export { detectOllama } from './ollama-detection';
-export type { OllamaStatus } from './ollama-detection';
+export {
+  OllamaBinaryResolutionSchema,
+  OllamaLifecycleStateSchema,
+  OllamaModelPullProgressSchema,
+  OllamaStatusSchema,
+  detectOllama,
+  pullOllamaModel,
+  resolveOllamaBinary,
+} from './ollama-detection';
+export type {
+  OllamaBinaryResolution,
+  OllamaLifecycleState,
+  OllamaModelPullProgress,
+  OllamaStatus,
+} from './ollama-detection';

@@ -1,12 +1,40 @@
 /**
  * Tests for the Ollama detection service.
  *
- * Uses mock HTTP responses to verify detection logic without
- * requiring a real Ollama instance.
+ * Uses mock HTTP responses and a mocked CLI probe so the results are
+ * deterministic regardless of the machine running the tests.
  */
-import { describe, it, expect } from 'vitest';
-import { createServer, type Server, type IncomingMessage, type ServerResponse } from 'node:http';
-import { detectOllama } from '../src/ollama-detection';
+import { createServer, type IncomingMessage, type Server, type ServerResponse } from 'node:http';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
+
+const execFileMock = vi.hoisted(() => vi.fn());
+
+vi.mock('node:child_process', () => ({
+  execFile: execFileMock,
+}));
+
+function mockExecFile(found = false): void {
+  execFileMock.mockImplementation(
+    (
+      _command: string,
+      _args: string[],
+      _options: unknown,
+      callback: (error: Error | null, stdout: string, stderr: string) => void,
+    ) => {
+      if (found) {
+        callback(null, 'ollama version 0.6.0', '');
+        return {} as never;
+      }
+
+      callback(Object.assign(new Error('command not found'), { code: 'ENOENT' }), '', '');
+      return {} as never;
+    },
+  );
+}
+
+async function loadModule() {
+  return import('../src/ollama-detection');
+}
 
 function startMockServer(
   handler: (req: IncomingMessage, res: ServerResponse) => void,
@@ -29,7 +57,18 @@ function stopServer(server: Server): Promise<void> {
 }
 
 describe('detectOllama', () => {
-  it('returns running=true with models when Ollama responds with model list', async () => {
+  beforeEach(() => {
+    vi.resetModules();
+    execFileMock.mockReset();
+    mockExecFile(false);
+  });
+
+  afterEach(() => {
+    vi.restoreAllMocks();
+  });
+
+  it('returns running state with models when Ollama responds with a model list', async () => {
+    const { detectOllama } = await loadModule();
     const { server, port } = await startMockServer((_req, res) => {
       res.writeHead(200, { 'Content-Type': 'application/json' });
       res.end(
@@ -46,6 +85,7 @@ describe('detectOllama', () => {
       const status = await detectOllama(`http://127.0.0.1:${port}`);
       expect(status.installed).toBe(true);
       expect(status.running).toBe(true);
+      expect(status.state).toBe('running');
       expect(status.models).toEqual(['llama3.2:3b', 'codellama:7b']);
       expect(status.defaultModel).toBe('llama3.2:3b');
     } finally {
@@ -53,7 +93,8 @@ describe('detectOllama', () => {
     }
   });
 
-  it('returns running=true with empty models when Ollama has no models', async () => {
+  it('returns running state with empty models when Ollama has no models', async () => {
+    const { detectOllama } = await loadModule();
     const { server, port } = await startMockServer((_req, res) => {
       res.writeHead(200, { 'Content-Type': 'application/json' });
       res.end(JSON.stringify({ models: [] }));
@@ -63,6 +104,7 @@ describe('detectOllama', () => {
       const status = await detectOllama(`http://127.0.0.1:${port}`);
       expect(status.installed).toBe(true);
       expect(status.running).toBe(true);
+      expect(status.state).toBe('running');
       expect(status.models).toEqual([]);
       expect(status.defaultModel).toBeNull();
     } finally {
@@ -70,7 +112,8 @@ describe('detectOllama', () => {
     }
   });
 
-  it('returns running=true when Ollama returns non-200 status', async () => {
+  it('returns running state when Ollama responds with a non-200 status', async () => {
+    const { detectOllama } = await loadModule();
     const { server, port } = await startMockServer((_req, res) => {
       res.writeHead(500);
       res.end('Internal Server Error');
@@ -80,6 +123,7 @@ describe('detectOllama', () => {
       const status = await detectOllama(`http://127.0.0.1:${port}`);
       expect(status.installed).toBe(true);
       expect(status.running).toBe(true);
+      expect(status.state).toBe('running');
       expect(status.models).toEqual([]);
       expect(status.defaultModel).toBeNull();
     } finally {
@@ -87,15 +131,31 @@ describe('detectOllama', () => {
     }
   });
 
-  it('returns running=false when connection is refused', async () => {
-    // Use a port that nothing is listening on
+  it('returns not_installed when the API is unreachable and no binary is detected', async () => {
+    const { detectOllama } = await loadModule();
     const status = await detectOllama('http://127.0.0.1:1');
+
+    expect(status.installed).toBe(false);
     expect(status.running).toBe(false);
+    expect(status.state).toBe('not_installed');
+    expect(status.models).toEqual([]);
+    expect(status.defaultModel).toBeNull();
+  });
+
+  it('returns installed_stopped when the API is unreachable but the binary is present', async () => {
+    mockExecFile(true);
+    const { detectOllama } = await loadModule();
+    const status = await detectOllama('http://127.0.0.1:1');
+
+    expect(status.installed).toBe(true);
+    expect(status.running).toBe(false);
+    expect(status.state).toBe('installed_stopped');
     expect(status.models).toEqual([]);
     expect(status.defaultModel).toBeNull();
   });
 
   it('filters out entries with missing or empty names', async () => {
+    const { detectOllama } = await loadModule();
     const { server, port } = await startMockServer((_req, res) => {
       res.writeHead(200, { 'Content-Type': 'application/json' });
       res.end(
@@ -112,6 +172,7 @@ describe('detectOllama', () => {
 
     try {
       const status = await detectOllama(`http://127.0.0.1:${port}`);
+      expect(status.state).toBe('running');
       expect(status.models).toEqual(['llama3.2:3b', 'phi3:mini']);
       expect(status.defaultModel).toBe('llama3.2:3b');
     } finally {
@@ -119,7 +180,8 @@ describe('detectOllama', () => {
     }
   });
 
-  it('handles missing models key in response', async () => {
+  it('handles missing models key in the response', async () => {
+    const { detectOllama } = await loadModule();
     const { server, port } = await startMockServer((_req, res) => {
       res.writeHead(200, { 'Content-Type': 'application/json' });
       res.end(JSON.stringify({}));
@@ -129,6 +191,7 @@ describe('detectOllama', () => {
       const status = await detectOllama(`http://127.0.0.1:${port}`);
       expect(status.installed).toBe(true);
       expect(status.running).toBe(true);
+      expect(status.state).toBe('running');
       expect(status.models).toEqual([]);
       expect(status.defaultModel).toBeNull();
     } finally {
