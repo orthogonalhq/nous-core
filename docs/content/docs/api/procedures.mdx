@@ -289,8 +289,8 @@ Response excerpt:
 - `preferences.setApiKey` — Stores the provider key in the credential vault, updates the active runtime immediately, registers the remote provider, and updates provider routing without requiring a restart.
 - `preferences.deleteApiKey` — Revokes the stored provider key, removes the provider from active routing, and cleans the provider/config state. If no cloud providers remain, runtime falls back to local-only routing posture.
 - `preferences.testApiKey` — Validates the supplied `key` when present; otherwise it tests the already-stored vault key. Returns `{ valid: false, error: 'No API key configured for this provider. Store a key first.' }` when nothing is available to test.
-- `preferences.getAvailableModels` — Returns the combined local Ollama model list plus cloud models for any currently configured Anthropic or OpenAI provider.
-- `preferences.getModelSelection` / `preferences.setModelSelection` — Persist the separate Principal and System model selections that Nous restores on startup.
+- `preferences.getAvailableModels` — Returns the combined local Ollama model list plus cloud models discovered dynamically from the Anthropic and OpenAI `/v1/models` APIs. Successful API responses are cached in-memory with a 5-minute TTL. Providers without a stored API key are skipped. When an API call fails, a minimal static fallback list is returned with a staleness indicator.
+- `preferences.getModelSelection` / `preferences.setModelSelection` — Persist the separate Principal and System model selections that Nous restores on startup. `setModelSelection` also updates the in-memory provider config and reasoner assignment immediately, so model changes take effect without a restart. Invalid model specs are rejected gracefully without corrupting provider state.
 - `preferences.getSystemStatus` — Returns current Ollama posture, configured cloud providers, and whether the credential-vault surface is healthy.
 
 ## opctl

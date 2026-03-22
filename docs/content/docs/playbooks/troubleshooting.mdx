@@ -79,6 +79,27 @@ ollama pull llama3.2:3b
 - After conditions stabilize, start a fresh voice turn and let the runtime clear degraded mode through the sustained recovery path.
 - If degraded mode persists unexpectedly, inspect the voice session projection and witness-linked evidence rather than forcing execution.
 
+## Cloud Model List Shows Stale or Missing Models
+
+**Symptom:** The model picker shows a minimal list with a staleness indicator, or expected cloud models do not appear.
+
+**Meaning:** The dynamic `/v1/models` API call for that provider failed or returned an error. Nous falls back to a minimal static list when the live API is unreachable.
+
+**Fix:**
+- Check that the provider API key is stored (Configuration > Provider Keys). Providers without a stored key are skipped silently.
+- Verify network connectivity to the provider API (`api.anthropic.com` or `api.openai.com`).
+- Reopen the configuration panel to trigger a fresh fetch — cached responses expire after 5 minutes.
+- If the provider API is experiencing an outage, the fallback list is expected behavior until the API recovers.
+
+## Model Selection Does Not Take Effect
+
+**Symptom:** After selecting a new model, chat responses still use the previous model.
+
+**Fix:**
+- Verify the selection was saved successfully (no error banner in the configuration panel).
+- Model selections are applied immediately at runtime. If the selected model spec is invalid or malformed, it is rejected without corrupting provider config — check the configuration panel for error feedback.
+- If the selected model is from a cloud provider, ensure the provider key is still configured and valid.
+
 ## First-Run Loop
 
 **Symptom:** First-run flow keeps appearing.
