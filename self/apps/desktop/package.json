@@ -8,10 +8,10 @@
     "dev": "node scripts/start-dev.mjs",
     "build": "electron-vite build && vite build --config vite.server.config.ts",
     "build:server": "vite build --config vite.server.config.ts",
-    "build:dist": "electron-vite build && electron-builder --dir",
-    "build:dist:mac": "electron-vite build && electron-builder --mac --dir",
-    "build:dist:linux": "electron-vite build && electron-builder --linux --dir",
-    "build:dist:win": "electron-vite build && electron-builder --win --dir",
+    "build:dist": "electron-vite build && vite build --config vite.server.config.ts && electron-builder --dir",
+    "build:dist:mac": "electron-vite build && vite build --config vite.server.config.ts && electron-builder --mac --dir",
+    "build:dist:linux": "electron-vite build && vite build --config vite.server.config.ts && electron-builder --linux --dir",
+    "build:dist:win": "electron-vite build && vite build --config vite.server.config.ts && electron-builder --win --dir",
     "preview": "electron-vite preview",
     "test": "vitest run --config vitest.config.mts",
     "test:renderer": "vitest run --config vitest.renderer.config.mts",
@@ -27,6 +27,12 @@
     "files": [
       "out/**/*",
       "package.json"
+    ],
+    "extraResources": [
+      {
+        "from": "../../../node_modules/better-sqlite3/build/Release/better_sqlite3.node",
+        "to": "app.asar.unpacked/node_modules/better-sqlite3/build/Release"
+      }
     ],
     "mac": {
       "target": "dir"

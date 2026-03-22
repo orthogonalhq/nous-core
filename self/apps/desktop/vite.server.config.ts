@@ -9,26 +9,22 @@ import { defineConfig } from 'vite';
 import path from 'node:path';
 
 export default defineConfig({
+  ssr: {
+    noExternal: true,
+  },
   build: {
     target: 'node22',
     outDir: 'out/server',
-    lib: {
-      entry: path.resolve(__dirname, 'server/main.ts'),
-      formats: ['cjs'],
-      fileName: () => 'main.js',
-    },
+    ssr: path.resolve(__dirname, 'server/main.ts'),
     rollupOptions: {
       external: [
         /^node:/,
-        /^@nous\//,
-        /^@trpc\//,
-        /^superjson/,
         /^better-sqlite3/,
-        /^json5/,
-        /^semver/,
-        /^zod/,
-        /^yaml/,
       ],
+      output: {
+        entryFileNames: 'main.js',
+        format: 'cjs',
+      },
     },
     minify: false,
     sourcemap: true,
