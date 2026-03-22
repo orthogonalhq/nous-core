@@ -31,13 +31,15 @@ Do not skip this step. Do not begin implementation, review, or orchestration wit
 
 **Context:** The SOP assumes a single Implementation Agent produces all six documents and codes. In practice, Opus 4.6 handles planning/review/orchestration and Codex GPT5.4 handles coding. The Principal manually bridges the coding dispatch to Codex. This shim minimizes manual handoffs until the SOP is updated.
 
-**Rule: Opus owns the design gates autonomously.**
+**Rule: Opus owns the design gates autonomously, with investigation rigor.**
 
 When the Orchestrator reaches implementation dispatch, do NOT emit the full implementation prompt as a single packet for the Principal to bridge. Instead:
 
-1. **Opus produces Goals** — dispatch a sub-agent (or produce directly) using the phase spec, then dispatch a review agent. Gate the result. No Principal bridging needed.
-2. **Opus produces SDS** — same pattern. Sub-agent produces, review agent gates. Autonomous.
-3. **Opus produces Implementation Plan** — same pattern. Sub-agent produces, review agent gates. Autonomous.
+1. **Opus produces Goals** — dispatch a **fresh** Design Production Agent (sub-agent) that reads `.skills/engineer-workflow-sop/design-production-agent/ENTRY.md` and follows the Investigation Mandate. Then dispatch a fresh review agent. Gate the result. No Principal bridging needed.
+2. **Opus produces SDS** — **fresh** Design Production Agent dispatch. Same investigation rigor. Fresh review agent gates. Autonomous.
+3. **Opus produces Implementation Plan** — **fresh** Design Production Agent dispatch. Same investigation rigor. Fresh review agent gates. Autonomous.
+
+**Critical:** Each design document gets its own fresh agent with fresh context. Never bundle multiple documents into one agent dispatch. The Design Production Agent ENTRY.md enforces investigation mandates — the agent must read actual source code, search for all instances of the problem pattern, and challenge the sub-phase spec's scope if investigation reveals gaps.
 4. **After all three design gates are approved, commit and push all design artifacts** (worklog submodule: goals, sds, implementation-plan, reviews; parent repo: gitlink refs + any other changes). This ensures the working tree is clean before the coding dispatch reaches the Implementation Agent's preflight check.
 5. **Emit a single coding dispatch** that bundles:
    - The approved Goals, SDS, and Implementation Plan as context
@@ -50,4 +52,4 @@ When the Orchestrator reaches implementation dispatch, do NOT emit the full impl
 
 **Net effect:** ~1-2 manual handoffs instead of ~10+ per sub-phase.
 
-**This shim does NOT modify the SOP.** It changes how the Orchestrator sequences work within the existing role boundaries. The six-document model, gate reviews, and artifact paths remain unchanged. A proper SOP update is tracked separately.
+**This shim extends the SOP** with a new Design Production Agent role (`.skills/engineer-workflow-sop/design-production-agent/ENTRY.md`) that enforces investigation mandates for the Opus/Codex split workflow. The six-document model, gate reviews, and artifact paths remain unchanged.
