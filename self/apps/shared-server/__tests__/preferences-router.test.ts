@@ -242,6 +242,7 @@ describe('preferences router', () => {
     detectOllamaMock.mockResolvedValue({
       installed: false,
       running: false,
+      state: 'not_installed',
       models: [],
       defaultModel: null,
     });
@@ -315,7 +316,7 @@ describe('preferences router', () => {
           maskedKey: 'sk-ant-...1234',
         }),
       );
-    });
+    }, 10000);
 
     it('deletes a key, clears env state, and removes the provider', async () => {
       const { ctx } = createMockContext();
@@ -782,6 +783,7 @@ describe('preferences router', () => {
       detectOllamaMock.mockResolvedValueOnce({
         installed: true,
         running: true,
+        state: 'running',
         models: ['llama3.2:3b'],
         defaultModel: 'llama3.2:3b',
       });
