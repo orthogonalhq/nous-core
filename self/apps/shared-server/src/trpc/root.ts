@@ -21,6 +21,7 @@ import { voiceRouter } from './routers/voice';
 import { mobileRouter } from './routers/mobile';
 import { codingAgentsRouter } from './routers/coding-agents';
 import { preferencesRouter } from './routers/preferences';
+import { hardwareRouter } from './routers/hardware';
 
 export const appRouter = router({
   projects: projectsRouter,
@@ -42,6 +43,7 @@ export const appRouter = router({
   mobile: mobileRouter,
   codingAgents: codingAgentsRouter,
   preferences: preferencesRouter,
+  hardware: hardwareRouter,
 });
 
 export type AppRouter = typeof appRouter;
