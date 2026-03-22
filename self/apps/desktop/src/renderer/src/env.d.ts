@@ -8,6 +8,15 @@ import type {
   AppSettingsSaveRequest,
   AppSettingsSaveResult,
 } from '@nous/shared'
+import type {
+  FirstRunActionResult,
+  FirstRunPrerequisites,
+  FirstRunRoleAssignmentInput,
+  FirstRunState,
+  FirstRunStep,
+  HardwareSpec,
+  RecommendationResult,
+} from '@nous/shared-server'
 
 type OllamaLifecycleState =
   | 'not_installed'
@@ -116,6 +125,19 @@ interface ElectronAPI {
     pullModel: (modelId: string) => Promise<void>
     onPullProgress: (callback: (progress: OllamaModelPullProgress) => void) => () => void
     onStateChange: (callback: (status: OllamaStatus) => void) => () => void
+  }
+  hardware: {
+    getSpec: () => Promise<HardwareSpec>
+    getRecommendations: () => Promise<RecommendationResult>
+  }
+  firstRun: {
+    getWizardState: () => Promise<FirstRunState>
+    checkPrerequisites: () => Promise<FirstRunPrerequisites>
+    downloadModel: (model: string) => Promise<FirstRunActionResult>
+    configureProvider: (modelSpec: string) => Promise<FirstRunActionResult>
+    assignRoles: (assignments: FirstRunRoleAssignmentInput[]) => Promise<FirstRunActionResult>
+    completeStep: (step: FirstRunStep) => Promise<FirstRunState>
+    resetWizard: () => Promise<FirstRunState>
   }
 }
 
