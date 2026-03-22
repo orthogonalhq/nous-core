@@ -31,6 +31,78 @@ contextBridge.exposeInMainWorld('electronAPI', {
     quit:      (): Promise<void> => ipcRenderer.invoke('app:quit'),
     newWindow: (): Promise<void> => ipcRenderer.invoke('app:newWindow'),
   },
+  backend: {
+    getStatus: (): Promise<{
+      ready: boolean
+      port: number | null
+      trpcUrl: string | null
+    }> => ipcRenderer.invoke('backend:getStatus'),
+    getOllamaStatus: (): Promise<{
+      installed: boolean
+      running: boolean
+      state: 'not_installed' | 'installed_stopped' | 'starting' | 'running' | 'stopping' | 'error'
+      models: string[]
+      defaultModel: string | null
+      error?: string
+    }> => ipcRenderer.invoke('backend:getOllamaStatus'),
+  },
+  ollama: {
+    getStatus: (): Promise<{
+      installed: boolean
+      running: boolean
+      state: 'not_installed' | 'installed_stopped' | 'starting' | 'running' | 'stopping' | 'error'
+      models: string[]
+      defaultModel: string | null
+      error?: string
+    }> => ipcRenderer.invoke('ollama:getStatus'),
+    start: (): Promise<{ success: boolean; error?: string }> => ipcRenderer.invoke('ollama:start'),
+    stop: (): Promise<{ success: boolean; error?: string }> => ipcRenderer.invoke('ollama:stop'),
+    pullModel: (modelId: string): Promise<void> => ipcRenderer.invoke('ollama:pullModel', modelId),
+    onPullProgress: (
+      callback: (progress: {
+        status: string
+        digest?: string
+        total?: number
+        completed?: number
+        percent?: number
+      }) => void,
+    ): (() => void) => {
+      const listener = (_event: Electron.IpcRendererEvent, progress: {
+        status: string
+        digest?: string
+        total?: number
+        completed?: number
+        percent?: number
+      }) => callback(progress)
+      ipcRenderer.on('ollama:pullProgress', listener)
+      return () => {
+        ipcRenderer.removeListener('ollama:pullProgress', listener)
+      }
+    },
+    onStateChange: (
+      callback: (status: {
+        installed: boolean
+        running: boolean
+        state: 'not_installed' | 'installed_stopped' | 'starting' | 'running' | 'stopping' | 'error'
+        models: string[]
+        defaultModel: string | null
+        error?: string
+      }) => void,
+    ): (() => void) => {
+      const listener = (_event: Electron.IpcRendererEvent, status: {
+        installed: boolean
+        running: boolean
+        state: 'not_installed' | 'installed_stopped' | 'starting' | 'running' | 'stopping' | 'error'
+        models: string[]
+        defaultModel: string | null
+        error?: string
+      }) => callback(status)
+      ipcRenderer.on('ollama:stateChanged', listener)
+      return () => {
+        ipcRenderer.removeListener('ollama:stateChanged', listener)
+      }
+    },
+  },
   appInstall: {
     prepare: (input: unknown): Promise<unknown> => ipcRenderer.invoke('app-install:prepare', input),
     install: (input: unknown): Promise<unknown> => ipcRenderer.invoke('app-install:install', input),

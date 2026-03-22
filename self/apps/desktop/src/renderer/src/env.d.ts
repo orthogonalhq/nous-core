@@ -9,6 +9,36 @@ import type {
   AppSettingsSaveResult,
 } from '@nous/shared'
 
+type OllamaLifecycleState =
+  | 'not_installed'
+  | 'installed_stopped'
+  | 'starting'
+  | 'running'
+  | 'stopping'
+  | 'error'
+
+type OllamaStatus = {
+  installed: boolean
+  running: boolean
+  state: OllamaLifecycleState
+  models: string[]
+  defaultModel: string | null
+  error?: string
+}
+
+type OllamaModelPullProgress = {
+  status: string
+  digest?: string
+  total?: number
+  completed?: number
+  percent?: number
+}
+
+type OllamaOperationResult = {
+  success: boolean
+  error?: string
+}
+
 interface ElectronAPI {
   layout: {
     get: () => Promise<unknown>
@@ -76,12 +106,16 @@ interface ElectronAPI {
       port: number | null
       trpcUrl: string | null
     }>
-    getOllamaStatus: () => Promise<{
-      installed: boolean
-      running: boolean
-      models: string[]
-      defaultModel: string | null
-    }>
+    /** @deprecated Use `window.electronAPI.ollama.getStatus()` instead. */
+    getOllamaStatus: () => Promise<OllamaStatus>
+  }
+  ollama: {
+    getStatus: () => Promise<OllamaStatus>
+    start: () => Promise<OllamaOperationResult>
+    stop: () => Promise<OllamaOperationResult>
+    pullModel: (modelId: string) => Promise<void>
+    onPullProgress: (callback: (progress: OllamaModelPullProgress) => void) => () => void
+    onStateChange: (callback: (status: OllamaStatus) => void) => () => void
   }
 }
 
