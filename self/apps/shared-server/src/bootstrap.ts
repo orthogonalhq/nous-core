@@ -16,6 +16,7 @@ import {
 } from '@nous/shared';
 import type {
   ProjectId,
+  ModelRole,
   ModelProviderConfig,
   ProviderId,
   TraceId,
@@ -134,6 +135,8 @@ import type { IDocumentStore, IIngressGateway, IVectorStore } from '@nous/shared
 
 const MOCK_PROVIDER_ID = '00000000-0000-0000-0000-000000000001' as ProviderId;
 type CloudProviderName = 'anthropic' | 'openai';
+type ProviderName = CloudProviderName | 'ollama';
+type ParsedModelSpec = { provider: ProviderName; modelId: string };
 
 const MODEL_SELECTION_COLLECTION = 'nous:model_selection';
 const MODEL_SELECTION_ID = 'current';
@@ -147,6 +150,8 @@ export const WELL_KNOWN_PROVIDER_IDS: Record<CloudProviderName, ProviderId> = {
   anthropic: '10000000-0000-0000-0000-000000000001' as ProviderId,
   openai: '10000000-0000-0000-0000-000000000002' as ProviderId,
 };
+export const OLLAMA_WELL_KNOWN_PROVIDER_ID =
+  '10000000-0000-0000-0000-000000000003' as ProviderId;
 
 const CLOUD_PROVIDER_DEFAULT_MODELS: Record<CloudProviderName, string> = {
   anthropic: 'claude-sonnet-4-20250514',
@@ -174,15 +179,32 @@ function currentProviderEntries(ctx: NousContext): ProviderConfigEntry[] {
   return Array.isArray(config.providers) ? config.providers : [];
 }
 
-function currentReasonerAssignment(
+function isProviderName(provider: string): provider is ProviderName {
+  return (
+    provider === 'anthropic' ||
+    provider === 'openai' ||
+    provider === 'ollama'
+  );
+}
+
+function isCloudProvider(provider: ProviderName): provider is CloudProviderName {
+  return provider === 'anthropic' || provider === 'openai';
+}
+
+export function currentRoleAssignment(
   ctx: NousContext,
+  role: ModelRole,
 ): ModelRoleAssignment | undefined {
   const config = ctx.config.get() as {
     modelRoleAssignments?: ModelRoleAssignment[];
   };
-  return config.modelRoleAssignments?.find(
-    (assignment) => assignment.role === 'reasoner',
-  );
+  return config.modelRoleAssignments?.find((assignment) => assignment.role === role);
+}
+
+export function currentReasonerAssignment(
+  ctx: NousContext,
+): ModelRoleAssignment | undefined {
+  return currentRoleAssignment(ctx, 'reasoner');
 }
 
 function sortProvidersForDefault(
@@ -197,23 +219,46 @@ function sortProvidersForDefault(
   });
 }
 
-export async function updateReasonerAssignment(
+export async function updateRoleAssignment(
   ctx: NousContext,
+  role: ModelRole,
   providerId: ProviderId | null,
   fallbackProviderId?: ProviderId,
 ): Promise<void> {
-  const nextAssignments: ModelRoleAssignment[] = providerId
-    ? [
-        {
-          role: 'reasoner',
-          providerId,
-          ...(fallbackProviderId &&
-          fallbackProviderId !== providerId
-            ? { fallbackProviderId }
-            : {}),
-        },
-      ]
+  const config = ctx.config.get() as {
+    modelRoleAssignments?: ModelRoleAssignment[];
+  };
+  const existingAssignments = Array.isArray(config.modelRoleAssignments)
+    ? config.modelRoleAssignments
     : [];
+  const nextAssignment = providerId
+    ? {
+        role,
+        providerId,
+        ...(fallbackProviderId &&
+        fallbackProviderId !== providerId
+          ? { fallbackProviderId }
+          : {}),
+      }
+    : null;
+  const nextAssignments: ModelRoleAssignment[] = [];
+  let replaced = false;
+
+  for (const assignment of existingAssignments) {
+    if (assignment.role !== role) {
+      nextAssignments.push(assignment);
+      continue;
+    }
+
+    replaced = true;
+    if (nextAssignment) {
+      nextAssignments.push(nextAssignment);
+    }
+  }
+
+  if (!replaced && nextAssignment) {
+    nextAssignments.push(nextAssignment);
+  }
 
   await ctx.config.update(
     'modelRoleAssignments',
@@ -222,6 +267,14 @@ export async function updateReasonerAssignment(
     // the full config with SystemConfigSchema before committing.
     nextAssignments as any,
   );
+}
+
+export async function updateReasonerAssignment(
+  ctx: NousContext,
+  providerId: ProviderId | null,
+  fallbackProviderId?: ProviderId,
+): Promise<void> {
+  await updateRoleAssignment(ctx, 'reasoner', providerId, fallbackProviderId);
 }
 
 async function ensureCloudCompatibleProfile(ctx: NousContext): Promise<void> {
@@ -263,22 +316,20 @@ async function ensureLocalCompatibleProfile(ctx: NousContext): Promise<void> {
 
 export function parseSelectedModelSpec(
   spec: string | null | undefined,
-): { provider: CloudProviderName; modelId: string } | null {
+): ParsedModelSpec | null {
   if (!spec) {
     return null;
   }
 
   const [provider, ...modelParts] = spec.split(':');
-  if (
-    (provider !== 'anthropic' && provider !== 'openai') ||
-    modelParts.length === 0
-  ) {
+  const modelId = modelParts.join(':');
+  if (!isProviderName(provider) || modelId.length === 0) {
     return null;
   }
 
   return {
     provider,
-    modelId: modelParts.join(':'),
+    modelId,
   };
 }
 
@@ -310,6 +361,41 @@ export function buildProviderConfig(
     capabilities: ['chat', 'streaming'],
     providerClass: 'remote_text',
   };
+}
+
+export function buildOllamaProviderConfig(
+  modelId: string,
+  providerId: ProviderId = OLLAMA_WELL_KNOWN_PROVIDER_ID,
+): ModelProviderConfig {
+  return {
+    id: providerId,
+    name: 'ollama',
+    type: 'text',
+    endpoint: 'http://localhost:11434',
+    modelId,
+    isLocal: true,
+    capabilities: ['chat', 'streaming'],
+    providerClass: 'local_text',
+  };
+}
+
+function selectedModelProviderId(selection: ParsedModelSpec): ProviderId {
+  return isCloudProvider(selection.provider)
+    ? WELL_KNOWN_PROVIDER_IDS[selection.provider]
+    : OLLAMA_WELL_KNOWN_PROVIDER_ID;
+}
+
+function buildSelectedProviderConfig(
+  selection: ParsedModelSpec,
+  providerId: ProviderId = selectedModelProviderId(selection),
+): ModelProviderConfig {
+  return isCloudProvider(selection.provider)
+    ? buildProviderConfig(selection.provider, providerId, selection.modelId)
+    : buildOllamaProviderConfig(selection.modelId, providerId);
+}
+
+function canApplySelectedModel(selection: ParsedModelSpec): boolean {
+  return !isCloudProvider(selection.provider) || hasConfiguredProviderKey(selection.provider);
 }
 
 function toProviderConfigEntry(
@@ -1206,22 +1292,18 @@ export async function loadModelSelection(ctx: NousContext): Promise<void> {
     const primarySelection = parseSelectedModelSpec(saved?.principal);
     const secondarySelection = parseSelectedModelSpec(saved?.system);
     const primaryProviderId =
-      primarySelection && hasConfiguredProviderKey(primarySelection.provider)
-        ? WELL_KNOWN_PROVIDER_IDS[primarySelection.provider]
+      primarySelection && canApplySelectedModel(primarySelection)
+        ? selectedModelProviderId(primarySelection)
         : null;
     const secondaryProviderId =
-      secondarySelection && hasConfiguredProviderKey(secondarySelection.provider)
-        ? WELL_KNOWN_PROVIDER_IDS[secondarySelection.provider]
+      secondarySelection && canApplySelectedModel(secondarySelection)
+        ? selectedModelProviderId(secondarySelection)
         : null;
 
     if (primarySelection && primaryProviderId) {
       await upsertProviderConfig(
         ctx,
-        buildProviderConfig(
-          primarySelection.provider,
-          WELL_KNOWN_PROVIDER_IDS[primarySelection.provider],
-          primarySelection.modelId,
-        ),
+        buildSelectedProviderConfig(primarySelection, primaryProviderId),
       );
     }
 
@@ -1234,11 +1316,7 @@ export async function loadModelSelection(ctx: NousContext): Promise<void> {
     ) {
       await upsertProviderConfig(
         ctx,
-        buildProviderConfig(
-          secondarySelection.provider,
-          WELL_KNOWN_PROVIDER_IDS[secondarySelection.provider],
-          secondarySelection.modelId,
-        ),
+        buildSelectedProviderConfig(secondarySelection, secondaryProviderId),
       );
     }
 
