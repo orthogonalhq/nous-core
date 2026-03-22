@@ -17,6 +17,7 @@ import {
 } from '@nous/shared';
 import type { ProviderConfigEntry } from '@nous/autonomic-config';
 import type { LaneLeaseReleasedEvent } from './inference-lane-registry.js';
+import { AnthropicProvider } from './anthropic-provider.js';
 import { InferenceLaneRegistry } from './inference-lane-registry.js';
 import { LaneAwareProvider } from './lane-aware-provider.js';
 import { OllamaProvider } from './ollama-provider.js';
@@ -109,10 +110,7 @@ export class ProviderRegistry {
   }
 
   private resolveRemoteApiKey(config: ModelProviderConfig): string | undefined {
-    const endpoint = config.endpoint?.toLowerCase() ?? '';
-    const providerName = config.name.toLowerCase();
-
-    if (endpoint.includes('anthropic') || providerName.includes('anthropic')) {
+    if (this.isAnthropicProvider(config)) {
       return process.env.ANTHROPIC_API_KEY;
     }
 
@@ -120,10 +118,7 @@ export class ProviderRegistry {
   }
 
   private normalizeRemoteConfig(config: ModelProviderConfig): ModelProviderConfig {
-    const endpoint = config.endpoint?.toLowerCase() ?? '';
-    const providerName = config.name.toLowerCase();
-
-    if (endpoint.includes('anthropic') || providerName.includes('anthropic')) {
+    if (this.isAnthropicProvider(config)) {
       return {
         ...config,
         endpoint: ProviderRegistry.ANTHROPIC_ENDPOINT,
@@ -133,15 +128,26 @@ export class ProviderRegistry {
     return config;
   }
 
+  private isAnthropicProvider(config: ModelProviderConfig): boolean {
+    const endpoint = config.endpoint?.toLowerCase() ?? '';
+    const providerName = config.name.toLowerCase();
+
+    return endpoint.includes('anthropic') || providerName.includes('anthropic');
+  }
+
   private createProvider(config: ModelProviderConfig): IModelProvider {
     const normalizedConfig = config.isLocal
       ? config
       : this.normalizeRemoteConfig(config);
     const provider = config.isLocal
       ? new OllamaProvider(normalizedConfig)
-      : new OpenAiCompatibleProvider(normalizedConfig, {
-          apiKey: this.resolveRemoteApiKey(normalizedConfig),
-        });
+      : this.isAnthropicProvider(normalizedConfig)
+        ? new AnthropicProvider(normalizedConfig, {
+            apiKey: this.resolveRemoteApiKey(normalizedConfig),
+          })
+        : new OpenAiCompatibleProvider(normalizedConfig, {
+            apiKey: this.resolveRemoteApiKey(normalizedConfig),
+          });
     return new LaneAwareProvider(
       provider,
       this.laneRegistry.getOrCreate(normalizedConfig),
