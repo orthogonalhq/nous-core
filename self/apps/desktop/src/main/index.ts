@@ -6,6 +6,14 @@ import { promisify } from 'node:util'
 import { readdir, readFile } from 'node:fs/promises'
 import Store from 'electron-store'
 import { createTRPCClient, httpBatchLink } from '@trpc/client'
+import {
+  detectOllama,
+  pullOllamaModel,
+  resolveOllamaBinary,
+  type OllamaLifecycleState,
+  type OllamaModelPullProgress,
+  type OllamaStatus,
+} from '../../../shared-server/src/ollama-detection'
 import superjson from 'superjson'
 
 interface StoredLayout {
@@ -27,6 +35,477 @@ let backendPort: number | null = null
 let backendReady = false
 let backendReadyPromise: Promise<number> | null = null
 let isAppQuitting = false
+
+type BackendOllamaRequestAction = 'getStatus' | 'start' | 'stop'
+
+interface BackendOllamaRequestMessage {
+  type: 'ollama:request'
+  requestId: string
+  action: BackendOllamaRequestAction
+}
+
+interface BackendOllamaResponseMessage {
+  type: 'ollama:response'
+  requestId: string
+  ok: boolean
+  data?: unknown
+  error?: string
+}
+
+const OLLAMA_HEALTH_INTERVAL_MS = 10_000
+const OLLAMA_HEALTH_FAILURE_THRESHOLD = 3
+const OLLAMA_READY_TIMEOUT_MS = 30_000
+const OLLAMA_READY_POLL_INTERVAL_MS = 500
+const OLLAMA_STOP_TIMEOUT_MS = 5000
+const OLLAMA_MAX_RESTARTS = 5
+
+let ollamaChild: ChildProcess | null = null
+let ollamaState: OllamaLifecycleState = 'not_installed'
+let ollamaStatus: OllamaStatus = {
+  installed: false,
+  running: false,
+  state: 'not_installed',
+  models: [],
+  defaultModel: null,
+}
+let isOllamaManaged = false
+let ollamaHealthInterval: ReturnType<typeof setInterval> | null = null
+let ollamaHealthFailures = 0
+let ollamaRestartCount = 0
+let ollamaRestartTimer: ReturnType<typeof setTimeout> | null = null
+let ollamaStartPromise: Promise<OllamaStatus> | null = null
+let ollamaStopPromise: Promise<void> | null = null
+let ollamaSuppressRestartOnExit = false
+let ollamaHealthCheckInFlight = false
+let activeOllamaPull: Promise<void> | null = null
+
+function buildOllamaStatus(
+  state: OllamaLifecycleState,
+  options?: {
+    models?: string[]
+    error?: string
+  },
+): OllamaStatus {
+  const models = options?.models ?? []
+
+  return {
+    installed: state !== 'not_installed',
+    running: state === 'running',
+    state,
+    models,
+    defaultModel: models[0] ?? null,
+    ...(options?.error ? { error: options.error } : {}),
+  }
+}
+
+function clearOllamaRestartTimer(): void {
+  if (ollamaRestartTimer) {
+    clearTimeout(ollamaRestartTimer)
+    ollamaRestartTimer = null
+  }
+}
+
+function clearOllamaHealthMonitor(): void {
+  if (ollamaHealthInterval) {
+    clearInterval(ollamaHealthInterval)
+    ollamaHealthInterval = null
+  }
+  ollamaHealthFailures = 0
+  ollamaHealthCheckInFlight = false
+}
+
+function emitOllamaStateChanged(nextStatus = ollamaStatus): void {
+  win?.webContents.send('ollama:stateChanged', nextStatus)
+}
+
+function setOllamaStatus(nextStatus: OllamaStatus): OllamaStatus {
+  ollamaState = nextStatus.state
+  ollamaStatus = nextStatus
+  emitOllamaStateChanged(nextStatus)
+  return nextStatus
+}
+
+function setOllamaState(
+  state: OllamaLifecycleState,
+  options?: {
+    models?: string[]
+    error?: string
+  },
+): OllamaStatus {
+  return setOllamaStatus(buildOllamaStatus(state, options))
+}
+
+function getOllamaRestartDelay(restartCount: number): number {
+  return Math.min(2000 * 2 ** restartCount, 30_000)
+}
+
+function isBackendOllamaRequestMessage(value: unknown): value is BackendOllamaRequestMessage {
+  return typeof value === 'object' &&
+    value !== null &&
+    (value as { type?: string }).type === 'ollama:request' &&
+    typeof (value as { requestId?: string }).requestId === 'string' &&
+    (
+      (value as { action?: string }).action === 'getStatus' ||
+      (value as { action?: string }).action === 'start' ||
+      (value as { action?: string }).action === 'stop'
+    )
+}
+
+async function refreshOllamaStatus(): Promise<OllamaStatus> {
+  if (ollamaState === 'starting' || ollamaState === 'stopping') {
+    return ollamaStatus
+  }
+
+  if (ollamaState === 'error') {
+    return ollamaStatus
+  }
+
+  const detected = await detectOllama()
+  return setOllamaStatus(detected)
+}
+
+function scheduleOllamaRestart(reason: string): void {
+  if (isAppQuitting || !isOllamaManaged) {
+    return
+  }
+
+  if (ollamaRestartCount >= OLLAMA_MAX_RESTARTS) {
+    setOllamaState('error', {
+      error: `Ollama restart limit reached after ${reason}.`,
+    })
+    return
+  }
+
+  clearOllamaRestartTimer()
+
+  const delay = getOllamaRestartDelay(ollamaRestartCount)
+  const attempt = ollamaRestartCount + 1
+  ollamaRestartCount += 1
+  console.log(`[nous:desktop] ollama restart attempt ${attempt}/${OLLAMA_MAX_RESTARTS} (backoff=${delay}ms)`)
+
+  ollamaRestartTimer = setTimeout(() => {
+    ollamaRestartTimer = null
+    if (!isAppQuitting) {
+      startOllama().catch((err) => {
+        console.error('[nous:desktop] ollama restart failed:', err)
+      })
+    }
+  }, delay)
+  ollamaRestartTimer.unref()
+}
+
+async function waitForOllamaReady(): Promise<OllamaStatus> {
+  const start = Date.now()
+
+  while (Date.now() - start < OLLAMA_READY_TIMEOUT_MS) {
+    const detected = await detectOllama()
+    if (detected.state === 'running') {
+      return detected
+    }
+
+    await new Promise((resolve) => setTimeout(resolve, OLLAMA_READY_POLL_INTERVAL_MS))
+  }
+
+  throw new Error(`Ollama did not become ready within ${OLLAMA_READY_TIMEOUT_MS / 1000}s.`)
+}
+
+function attachOllamaProcessListeners(child: ChildProcess): void {
+  child.on('error', (err) => {
+    console.error('[nous:desktop] ollama process error:', err)
+  })
+
+  child.on('exit', (code, signal) => {
+    console.log(`[nous:desktop] ollama process exited (code=${code}, signal=${signal})`)
+
+    if (ollamaChild === child) {
+      ollamaChild = null
+    }
+
+    clearOllamaHealthMonitor()
+
+    const expectedExit =
+      ollamaSuppressRestartOnExit ||
+      isAppQuitting ||
+      !isOllamaManaged ||
+      ollamaState === 'stopping'
+
+    if (expectedExit) {
+      ollamaSuppressRestartOnExit = false
+      if (ollamaState !== 'error') {
+        setOllamaState('installed_stopped')
+      }
+      return
+    }
+
+    setOllamaState('installed_stopped')
+    scheduleOllamaRestart(`unexpected exit (code=${code}, signal=${signal})`)
+  })
+}
+
+async function terminateManagedOllamaProcess(child: ChildProcess): Promise<void> {
+  const exitPromise = new Promise<void>((resolve) => {
+    child.once('exit', () => resolve())
+  })
+
+  if (process.platform === 'win32') {
+    if (child.pid) {
+      try {
+        await execFileAsync('taskkill', ['/PID', String(child.pid), '/T', '/F'])
+      } catch {
+        try {
+          child.kill('SIGKILL')
+        } catch {
+          // Ignore force-kill failures during shutdown cleanup.
+        }
+      }
+    }
+
+    await exitPromise
+    return
+  }
+
+  try {
+    child.kill('SIGTERM')
+  } catch {
+    return
+  }
+
+  const forceKillTimer = setTimeout(() => {
+    if (ollamaChild === child) {
+      try {
+        child.kill('SIGKILL')
+      } catch {
+        // Ignore force-kill failures during shutdown cleanup.
+      }
+    }
+  }, OLLAMA_STOP_TIMEOUT_MS)
+  forceKillTimer.unref()
+
+  await exitPromise.finally(() => clearTimeout(forceKillTimer))
+}
+
+function startOllamaHealthMonitor(): void {
+  clearOllamaHealthMonitor()
+
+  ollamaHealthInterval = setInterval(() => {
+    if (ollamaHealthCheckInFlight || ollamaState !== 'running') {
+      return
+    }
+
+    ollamaHealthCheckInFlight = true
+    void detectOllama()
+      .then((detected) => {
+        if (detected.state === 'running') {
+          ollamaHealthFailures = 0
+          if (ollamaRestartCount > 0) {
+            ollamaRestartCount = 0
+          }
+          setOllamaStatus(detected)
+          return
+        }
+
+        ollamaHealthFailures += 1
+        console.warn(`[nous:desktop] ollama health check failed (${ollamaHealthFailures}/${OLLAMA_HEALTH_FAILURE_THRESHOLD})`)
+
+        if (ollamaHealthFailures < OLLAMA_HEALTH_FAILURE_THRESHOLD) {
+          return
+        }
+
+        if (!isOllamaManaged) {
+          clearOllamaHealthMonitor()
+          setOllamaStatus(detected)
+          return
+        }
+
+        clearOllamaHealthMonitor()
+        setOllamaState('error', {
+          error: 'Ollama failed three consecutive health checks.',
+        })
+
+        const child = ollamaChild
+        if (child) {
+          ollamaSuppressRestartOnExit = true
+          void terminateManagedOllamaProcess(child).finally(() => {
+            scheduleOllamaRestart('health check failures')
+          })
+          return
+        }
+
+        scheduleOllamaRestart('health check failures')
+      })
+      .catch((err) => {
+        ollamaHealthFailures += 1
+        console.warn(`[nous:desktop] ollama health check error (${ollamaHealthFailures}/${OLLAMA_HEALTH_FAILURE_THRESHOLD}):`, err)
+
+        if (ollamaHealthFailures >= OLLAMA_HEALTH_FAILURE_THRESHOLD) {
+          clearOllamaHealthMonitor()
+          setOllamaState('error', {
+            error: err instanceof Error ? err.message : 'Ollama health check failed.',
+          })
+          scheduleOllamaRestart('health check errors')
+        }
+      })
+      .finally(() => {
+        ollamaHealthCheckInFlight = false
+      })
+  }, OLLAMA_HEALTH_INTERVAL_MS)
+}
+
+async function startOllama(): Promise<OllamaStatus> {
+  if (ollamaStartPromise) {
+    return ollamaStartPromise
+  }
+
+  ollamaStartPromise = (async () => {
+    clearOllamaRestartTimer()
+
+    if (ollamaStopPromise) {
+      await ollamaStopPromise
+    }
+
+    const detected = await detectOllama()
+    if (detected.state === 'running') {
+      isOllamaManaged = false
+      ollamaRestartCount = 0
+      setOllamaStatus(detected)
+      startOllamaHealthMonitor()
+      return detected
+    }
+
+    const binary = await resolveOllamaBinary()
+    if (!binary.found || !binary.command) {
+      isOllamaManaged = false
+      ollamaChild = null
+      return setOllamaState('not_installed')
+    }
+
+    setOllamaState('starting')
+
+    let child: ChildProcess
+    try {
+      child = spawn(binary.command, ['serve'], {
+        shell: false,
+        stdio: 'ignore',
+        detached: false,
+        windowsHide: true,
+        env: {
+          ...process.env,
+          ELECTRON_RUN_AS_NODE: undefined,
+        },
+      })
+    } catch (err) {
+      const error = err instanceof Error ? err.message : String(err)
+      setOllamaState('error', { error })
+      scheduleOllamaRestart('spawn failure')
+      return ollamaStatus
+    }
+
+    console.log(`[nous:desktop] ollama process started (pid=${child.pid ?? 'n/a'})`)
+    ollamaChild = child
+    isOllamaManaged = true
+    ollamaSuppressRestartOnExit = false
+    attachOllamaProcessListeners(child)
+
+    try {
+      const readyStatus = await waitForOllamaReady()
+      ollamaHealthFailures = 0
+      setOllamaStatus(readyStatus)
+      startOllamaHealthMonitor()
+      return readyStatus
+    } catch (err) {
+      const error = err instanceof Error ? err.message : String(err)
+      setOllamaState('error', { error })
+
+      if (ollamaChild === child) {
+        ollamaSuppressRestartOnExit = true
+        await terminateManagedOllamaProcess(child).catch(() => undefined)
+      }
+
+      if (!ollamaRestartTimer) {
+        scheduleOllamaRestart('startup readiness timeout')
+      }
+
+      return ollamaStatus
+    }
+  })().finally(() => {
+    ollamaStartPromise = null
+  })
+
+  return ollamaStartPromise
+}
+
+async function stopOllama(): Promise<void> {
+  if (ollamaStopPromise) {
+    return ollamaStopPromise
+  }
+
+  ollamaStopPromise = (async () => {
+    clearOllamaRestartTimer()
+    clearOllamaHealthMonitor()
+
+    if (!isOllamaManaged || !ollamaChild) {
+      isOllamaManaged = false
+      const detected = await detectOllama()
+      setOllamaStatus(detected)
+      return
+    }
+
+    const child = ollamaChild
+    setOllamaState('stopping')
+    ollamaSuppressRestartOnExit = true
+    await terminateManagedOllamaProcess(child)
+
+    isOllamaManaged = false
+    setOllamaState('installed_stopped')
+  })().finally(() => {
+    ollamaStopPromise = null
+  })
+
+  return ollamaStopPromise
+}
+
+async function handleBackendOllamaRequest(
+  message: BackendOllamaRequestMessage,
+): Promise<BackendOllamaResponseMessage> {
+  try {
+    if (message.action === 'getStatus') {
+      return {
+        type: 'ollama:response',
+        requestId: message.requestId,
+        ok: true,
+        data: await refreshOllamaStatus(),
+      }
+    }
+
+    if (message.action === 'start') {
+      const status = await startOllama()
+      return {
+        type: 'ollama:response',
+        requestId: message.requestId,
+        ok: true,
+        data: {
+          success: status.state === 'running',
+          error: status.state === 'running' ? undefined : status.error ?? `Ollama is ${status.state}.`,
+        },
+      }
+    }
+
+    await stopOllama()
+    return {
+      type: 'ollama:response',
+      requestId: message.requestId,
+      ok: true,
+      data: { success: true },
+    }
+  } catch (err) {
+    return {
+      type: 'ollama:response',
+      requestId: message.requestId,
+      ok: false,
+      error: err instanceof Error ? err.message : 'Unknown Ollama request error.',
+    }
+  }
+}
 
 /**
  * Find a free port by binding to port 0 and reading the assigned port.
@@ -126,6 +605,13 @@ function spawnBackendServer(port: number): Promise<number> {
         backendReady = true
         console.log(`[nous:desktop] backend server ready on port ${backendPort}`)
         resolve(backendPort!)
+        return
+      }
+
+      if (isBackendOllamaRequestMessage(msg)) {
+        void handleBackendOllamaRequest(msg).then((response) => {
+          child.send?.(response)
+        })
       }
     })
 
@@ -658,22 +1144,68 @@ ipcMain.handle('backend:getStatus', () => ({
   trpcUrl: backendPort ? `http://127.0.0.1:${backendPort}/api/trpc` : null,
 }))
 
-// Ollama status — fetched from the backend server's dedicated endpoint
+// Ollama status — retained for backward compatibility with older renderer code.
+/** @deprecated Use ollama:getStatus instead. */
 ipcMain.handle('backend:getOllamaStatus', async () => {
-  if (!backendReady || !backendPort) {
-    return { installed: false, running: false, models: [], defaultModel: null }
-  }
   try {
-    const res = await fetch(`http://127.0.0.1:${backendPort}/ollama-status`, {
-      signal: AbortSignal.timeout(5000),
-    })
-    if (!res.ok) {
-      return { installed: false, running: false, models: [], defaultModel: null }
-    }
-    return await res.json()
+    return await refreshOllamaStatus()
   } catch {
-    return { installed: false, running: false, models: [], defaultModel: null }
+    return ollamaStatus
   }
+})
+
+ipcMain.handle('ollama:getStatus', async () => {
+  try {
+    return await refreshOllamaStatus()
+  } catch {
+    return ollamaStatus
+  }
+})
+
+ipcMain.handle('ollama:start', async () => {
+  const status = await startOllama()
+  if (status.state === 'running') {
+    return { success: true }
+  }
+
+  return {
+    success: false,
+    error: status.error ?? `Ollama is ${status.state}.`,
+  }
+})
+
+ipcMain.handle('ollama:stop', async () => {
+  if (ollamaState === 'running' && !isOllamaManaged) {
+    return {
+      success: false,
+      error: 'Ollama is already running under an external process and will not be stopped by the desktop app.',
+    }
+  }
+
+  await stopOllama()
+  return { success: true }
+})
+
+ipcMain.handle('ollama:pullModel', async (_event, modelId: string) => {
+  if (activeOllamaPull) {
+    throw new Error('An Ollama model pull is already in progress.')
+  }
+
+  activeOllamaPull = pullOllamaModel(modelId, {
+    onProgress: (progress: OllamaModelPullProgress) => {
+      win?.webContents.send('ollama:pullProgress', progress)
+    },
+  })
+    .then(async () => {
+      await refreshOllamaStatus().catch(() => undefined)
+    })
+    .catch((err) => {
+      const message = err instanceof Error ? err.message : 'Ollama model pull failed.'
+      win?.webContents.send('ollama:pullProgress', { status: message })
+    })
+    .finally(() => {
+      activeOllamaPull = null
+    })
 })
 
 // Chat handlers — tRPC proxy to the self-hosted backend
@@ -874,6 +1406,7 @@ function createWindow(): void {
     win.loadFile(join(__dirname, '../renderer/index.html'))
   }
 
+  emitOllamaStateChanged()
   win.on('closed', () => { win = null })
 }
 
@@ -881,6 +1414,9 @@ function createWindow(): void {
 
 app.on('before-quit', () => {
   isAppQuitting = true
+  void stopOllama().catch((err) => {
+    console.error('[nous:desktop] failed to stop ollama during shutdown:', err)
+  })
   stopBackend()
 })
 
@@ -894,6 +1430,9 @@ app.whenReady().then(async () => {
     // Still create the window — the UI will show "Starting..." messages
   }
 
+  void startOllama().catch((err) => {
+    console.error('[nous:desktop] failed to start ollama:', err)
+  })
   createWindow()
 
   app.on('activate', () => {
