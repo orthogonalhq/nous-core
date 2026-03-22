@@ -693,6 +693,53 @@ interface UsageWindowSnapshot {
   resetsAt: string | null
 }
 
+interface DesktopProviderConfigEntry {
+  id: string
+  name?: string
+  modelId?: string
+}
+
+interface RoleAssignmentDisplayEntry {
+  role: string
+  providerId: string | null
+  displayName?: string | null
+  modelSpec?: string | null
+}
+
+function isDesktopProviderConfigEntry(value: unknown): value is DesktopProviderConfigEntry {
+  return typeof value === 'object' &&
+    value !== null &&
+    typeof (value as { id?: unknown }).id === 'string'
+}
+
+function buildRoleAssignmentDisplayEntries(
+  assignments: Record<string, { providerId: string } | null>,
+  providers: unknown,
+): RoleAssignmentDisplayEntry[] {
+  const providersById = new Map(
+    Array.isArray(providers)
+      ? providers
+          .filter(isDesktopProviderConfigEntry)
+          .map((provider) => [provider.id, provider] as const)
+      : [],
+  )
+
+  return Object.entries(assignments).map(([role, assignment]) => {
+    const providerId = assignment?.providerId ?? null
+    const provider = providerId ? providersById.get(providerId) : undefined
+    const modelSpec = provider?.name && provider?.modelId
+      ? `${provider.name}:${provider.modelId}`
+      : null
+
+    return {
+      role,
+      providerId,
+      ...(provider?.modelId ? { displayName: provider.modelId } : {}),
+      ...(modelSpec ? { modelSpec } : {}),
+    }
+  })
+}
+
 interface ProviderUsageSnapshot {
   primary: UsageWindowSnapshot | null
   secondary: UsageWindowSnapshot | null
@@ -1369,6 +1416,32 @@ ipcMain.handle('preferences:getModelSelection', async () => {
 })
 ipcMain.handle('preferences:setModelSelection', async (_event, input: unknown) => {
   try { await ensureBackendReady(); const c = getTrpcClient() as any; return await c.preferences.setModelSelection.mutate(input) } catch { return { success: false } }
+})
+ipcMain.handle('preferences:getRoleAssignments', async (): Promise<RoleAssignmentDisplayEntry[]> => {
+  try {
+    await ensureBackendReady()
+    const client = getTrpcClient() as any
+    const [assignments, config] = await Promise.all([
+      client.preferences.getRoleAssignments.query(),
+      client.config.get.query(),
+    ])
+
+    return buildRoleAssignmentDisplayEntries(
+      assignments as Record<string, { providerId: string } | null>,
+      (config as JsonRecord | null | undefined)?.['providers'],
+    )
+  } catch {
+    return []
+  }
+})
+ipcMain.handle('preferences:setRoleAssignment', async (_event, input: unknown) => {
+  try {
+    await ensureBackendReady()
+    const client = getTrpcClient() as any
+    return await client.preferences.setRoleAssignment.mutate(input)
+  } catch {
+    return { success: false, error: 'Backend unavailable' }
+  }
 })
 ipcMain.handle('hardware:getSpec', async (): Promise<HardwareSpec> => {
   try {

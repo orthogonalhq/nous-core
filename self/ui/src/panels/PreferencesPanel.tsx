@@ -6,6 +6,7 @@ import type { IDockviewPanelProps } from 'dockview-react'
 // ─── Types ────────────────────────────────────────────────────────────────────
 
 type Provider = 'anthropic' | 'openai'
+type ModelRole = typeof MODEL_ROLES[number]
 
 interface ApiKeyEntry {
   provider: Provider
@@ -47,6 +48,36 @@ export interface ModelSelection {
   system: string | null
 }
 
+export interface RoleAssignmentDisplayEntry {
+  role: string
+  providerId: string | null
+}
+
+interface HydratedRoleAssignmentDisplayEntry extends RoleAssignmentDisplayEntry {
+  displayName?: string | null
+  modelSpec?: string | null
+}
+
+type RoleAssignmentState = Record<ModelRole, HydratedRoleAssignmentDisplayEntry>
+type PendingRoleAssignments = Record<ModelRole, string>
+
+interface RecommendedModel {
+  modelSpec: string
+  displayName: string
+  reason: string
+}
+
+interface RoleModelRecommendation {
+  role: ModelRole
+  recommendation: RecommendedModel
+}
+
+interface HardwareRecommendations {
+  singleModel: RecommendedModel | null
+  multiModel: RoleModelRecommendation[]
+  advisory: string
+}
+
 /** API surface the host must provide via panel params. */
 export interface PreferencesApi {
   getApiKeys: () => Promise<ApiKeyEntry[]>
@@ -57,12 +88,47 @@ export interface PreferencesApi {
   getAvailableModels?: () => Promise<{ models: AvailableModel[] }>
   getModelSelection?: () => Promise<ModelSelection>
   setModelSelection?: (input: { principal?: string; system?: string }) => Promise<{ success: boolean }>
+  getRoleAssignments?: () => Promise<RoleAssignmentDisplayEntry[]>
+  getHardwareRecommendations?: () => Promise<HardwareRecommendations>
+  setRoleAssignment?: (
+    input: { role: string; modelSpec: string },
+  ) => Promise<{ success: boolean; error?: string }>
 }
 
 interface PreferencesPanelProps extends IDockviewPanelProps {
   params: {
     preferencesApi?: PreferencesApi
   }
+}
+
+const MODEL_ROLES = [
+  'orchestrator',
+  'reasoner',
+  'tool-advisor',
+  'summarizer',
+  'embedder',
+  'reranker',
+  'vision',
+] as const
+
+const MODEL_ROLE_LABELS: Record<ModelRole, string> = {
+  orchestrator: 'Orchestrator',
+  reasoner: 'Reasoner',
+  'tool-advisor': 'Tool Advisor',
+  summarizer: 'Summarizer',
+  embedder: 'Embedder',
+  reranker: 'Reranker',
+  vision: 'Vision',
+}
+
+const MODEL_ROLE_HINTS: Record<ModelRole, string> = {
+  orchestrator: 'Prefer the fastest model available for low-latency coordination.',
+  reasoner: 'Prefer the strongest model your current setup can comfortably sustain.',
+  'tool-advisor': 'Use a balanced model that stays responsive while calling tools.',
+  summarizer: 'A fast mid-tier model is usually enough for condensation passes.',
+  embedder: 'A lightweight local model keeps indexing and retrieval work snappy.',
+  reranker: 'Favor the quickest model that still preserves useful ranking quality.',
+  vision: 'Choose a multimodal-capable model when one is available.',
 }
 
 // ─── Styles ───────────────────────────────────────────────────────────────────
@@ -154,6 +220,55 @@ const feedbackStyle = (success: boolean): React.CSSProperties => ({
   marginTop: 'var(--nous-space-sm)',
 })
 
+const helperTextStyle: React.CSSProperties = {
+  fontSize: 'var(--nous-font-size-xs)',
+  color: 'var(--nous-fg-subtle)',
+}
+
+const roleGridStyle: React.CSSProperties = {
+  display: 'grid',
+  gridTemplateColumns: 'repeat(auto-fit, minmax(260px, 1fr))',
+  gap: 'var(--nous-space-md)',
+  marginTop: 'var(--nous-space-lg)',
+}
+
+const roleCardStyle: React.CSSProperties = {
+  background: 'var(--nous-surface)',
+  borderRadius: 'var(--nous-radius-md)',
+  border: '1px solid var(--nous-header-border)',
+  padding: 'var(--nous-space-lg)',
+  display: 'grid',
+  gap: 'var(--nous-space-sm)',
+}
+
+const roleCurrentLabelStyle: React.CSSProperties = {
+  fontSize: 'var(--nous-font-size-xs)',
+  textTransform: 'uppercase',
+  letterSpacing: '0.04em',
+  color: 'var(--nous-fg-subtle)',
+}
+
+const roleCurrentValueStyle: React.CSSProperties = {
+  fontSize: 'var(--nous-font-size-sm)',
+  color: 'var(--nous-fg)',
+  fontWeight: 'var(--nous-font-weight-medium)' as never,
+}
+
+const applyAllRowStyle: React.CSSProperties = {
+  display: 'flex',
+  flexWrap: 'wrap',
+  gap: 'var(--nous-space-sm)',
+  alignItems: 'center',
+  marginTop: 'var(--nous-space-md)',
+}
+
+const actionRowStyle: React.CSSProperties = {
+  display: 'flex',
+  justifyContent: 'flex-end',
+  gap: 'var(--nous-space-sm)',
+  marginTop: 'var(--nous-space-lg)',
+}
+
 const PROVIDER_LABELS: Record<Provider, string> = {
   anthropic: 'Anthropic',
   openai: 'OpenAI',
@@ -185,6 +300,103 @@ export function formatFeedbackError(error: unknown): FeedbackState {
   }
 }
 
+function isModelRole(role: string): role is ModelRole {
+  return MODEL_ROLES.some((value) => value === role)
+}
+
+function buildEmptyRoleAssignments(): RoleAssignmentState {
+  return MODEL_ROLES.reduce<RoleAssignmentState>((result, role) => {
+    result[role] = {
+      role,
+      providerId: null,
+      displayName: null,
+      modelSpec: null,
+    }
+    return result
+  }, {} as RoleAssignmentState)
+}
+
+function buildPendingRoleAssignments(
+  roleAssignments: RoleAssignmentState,
+): PendingRoleAssignments {
+  return MODEL_ROLES.reduce<PendingRoleAssignments>((result, role) => {
+    result[role] = roleAssignments[role].modelSpec ?? ''
+    return result
+  }, {} as PendingRoleAssignments)
+}
+
+function normalizeRoleAssignmentEntries(
+  entries: RoleAssignmentDisplayEntry[],
+): RoleAssignmentState {
+  const next = buildEmptyRoleAssignments()
+
+  for (const entry of entries as HydratedRoleAssignmentDisplayEntry[]) {
+    if (!isModelRole(entry.role)) {
+      continue
+    }
+
+    next[entry.role] = {
+      role: entry.role,
+      providerId: entry.providerId ?? null,
+      displayName: entry.displayName ?? null,
+      modelSpec: entry.modelSpec ?? null,
+    }
+  }
+
+  return next
+}
+
+function buildModelsByProvider(
+  models: AvailableModel[],
+): Record<string, AvailableModel[]> {
+  return models.reduce<Record<string, AvailableModel[]>>((result, model) => {
+    const group = result[model.provider] ?? []
+    group.push(model)
+    result[model.provider] = group
+    return result
+  }, {})
+}
+
+function getModelOptionLabel(model: AvailableModel): string {
+  return model.available ? model.name : `${model.name} (cached)`
+}
+
+function getRoleAssignmentDisplay(
+  entry: HydratedRoleAssignmentDisplayEntry,
+  models: AvailableModel[],
+): string {
+  if (entry.modelSpec) {
+    const matchingModel = models.find((model) => model.id === entry.modelSpec)
+    return matchingModel?.name ?? entry.displayName ?? entry.modelSpec
+  }
+
+  if (entry.displayName) {
+    return entry.displayName
+  }
+
+  if (entry.providerId) {
+    return entry.providerId
+  }
+
+  return 'Not assigned'
+}
+
+function buildChangedRoleAssignments(
+  roleAssignments: RoleAssignmentState,
+  pendingRoleAssignments: PendingRoleAssignments,
+): Array<{ role: ModelRole; modelSpec: string }> {
+  return MODEL_ROLES.flatMap((role) => {
+    const currentModelSpec = roleAssignments[role].modelSpec ?? ''
+    const nextModelSpec = pendingRoleAssignments[role]
+
+    if (!nextModelSpec || nextModelSpec === currentModelSpec) {
+      return []
+    }
+
+    return [{ role, modelSpec: nextModelSpec }]
+  })
+}
+
 // ─── Component ────────────────────────────────────────────────────────────────
 
 export function PreferencesPanel({ params }: PreferencesPanelProps) {
@@ -209,29 +421,53 @@ export function PreferencesPanel({ params }: PreferencesPanelProps) {
   const [pendingPrincipal, setPendingPrincipal] = useState<string>('')
   const [pendingSystem, setPendingSystem] = useState<string>('')
   const [savingModels, setSavingModels] = useState(false)
-  const [modelFeedback, setModelFeedback] = useState<{ message: string; success: boolean } | null>(null)
+  const [modelFeedback, setModelFeedback] = useState<FeedbackState | null>(null)
+  const [hardwareRecommendations, setHardwareRecommendations] =
+    useState<HardwareRecommendations | null>(null)
+
+  // Role assignment state
+  const [roleAssignments, setRoleAssignments] = useState<RoleAssignmentState>(
+    () => buildEmptyRoleAssignments(),
+  )
+  const [pendingRoleAssignments, setPendingRoleAssignments] = useState<PendingRoleAssignments>(
+    () => buildPendingRoleAssignments(buildEmptyRoleAssignments()),
+  )
+  const [applyAllRoleModel, setApplyAllRoleModel] = useState('')
+  const [savingRoleAssignments, setSavingRoleAssignments] = useState(false)
+  const [roleAssignmentFeedback, setRoleAssignmentFeedback] = useState<FeedbackState | null>(null)
 
   const refresh = useCallback(async () => {
     if (!api) return
     try {
-      const promises: [Promise<ApiKeyEntry[]>, Promise<SystemStatus>] = [
+      const [keys, status, modelsResult, selectionResult, roleEntries, recommendationResult] = await Promise.all([
         api.getApiKeys(),
         api.getSystemStatus(),
-      ]
-      const [keys, status] = await Promise.all(promises)
+        api.getAvailableModels ? api.getAvailableModels() : Promise.resolve(null),
+        api.getModelSelection ? api.getModelSelection() : Promise.resolve(null),
+        api.getRoleAssignments ? api.getRoleAssignments() : Promise.resolve(null),
+        api.getHardwareRecommendations ? api.getHardwareRecommendations() : Promise.resolve(null),
+      ])
       setApiKeys(keys)
       setSystemStatus(status)
 
-      // Load model data if API methods available
-      if (api.getAvailableModels && api.getModelSelection) {
-        const [modelsResult, selectionResult] = await Promise.all([
-          api.getAvailableModels(),
-          api.getModelSelection(),
-        ])
+      if (modelsResult) {
         setAvailableModels(modelsResult.models)
+      }
+
+      if (selectionResult) {
         setModelSelection(selectionResult)
         setPendingPrincipal(selectionResult.principal ?? '')
         setPendingSystem(selectionResult.system ?? '')
+      }
+
+      if (roleEntries) {
+        const normalizedAssignments = normalizeRoleAssignmentEntries(roleEntries)
+        setRoleAssignments(normalizedAssignments)
+        setPendingRoleAssignments(buildPendingRoleAssignments(normalizedAssignments))
+      }
+
+      if (recommendationResult) {
+        setHardwareRecommendations(recommendationResult)
       }
     } catch {
       // ignore
@@ -313,17 +549,85 @@ export function PreferencesPanel({ params }: PreferencesPanelProps) {
     }
   }
 
+  const handleSaveRoleAssignments = async () => {
+    if (!api?.setRoleAssignment) return
+
+    const updates = buildChangedRoleAssignments(roleAssignments, pendingRoleAssignments)
+    if (updates.length === 0) {
+      return
+    }
+
+    setSavingRoleAssignments(true)
+    setRoleAssignmentFeedback(null)
+
+    try {
+      const results = await Promise.all(
+        updates.map((update) => api.setRoleAssignment!({
+          role: update.role,
+          modelSpec: update.modelSpec,
+        })),
+      )
+      const failure = results.find((result) => !result.success)
+
+      if (failure) {
+        throw new Error(failure.error ?? 'Role assignment update failed.')
+      }
+
+      await refresh()
+      setRoleAssignmentFeedback({
+        message:
+          updates.length === 1
+            ? `${MODEL_ROLE_LABELS[updates[0]!.role]} assignment saved.`
+            : `Saved ${updates.length} role assignments.`,
+        success: true,
+      })
+    } catch (err) {
+      setRoleAssignmentFeedback(formatFeedbackError(err))
+    } finally {
+      setSavingRoleAssignments(false)
+    }
+  }
+
+  const handleApplyToAllRoles = async () => {
+    if (!api?.setRoleAssignment || !applyAllRoleModel) return
+
+    setSavingRoleAssignments(true)
+    setRoleAssignmentFeedback(null)
+
+    try {
+      const results = await Promise.all(
+        MODEL_ROLES.map((role) => api.setRoleAssignment!({
+          role,
+          modelSpec: applyAllRoleModel,
+        })),
+      )
+      const failure = results.find((result) => !result.success)
+
+      if (failure) {
+        throw new Error(failure.error ?? 'Bulk role assignment failed.')
+      }
+
+      await refresh()
+      setRoleAssignmentFeedback({
+        message: 'Applied the selected model to all seven roles.',
+        success: true,
+      })
+    } catch (err) {
+      setRoleAssignmentFeedback(formatFeedbackError(err))
+    } finally {
+      setSavingRoleAssignments(false)
+    }
+  }
+
   const modelSelectionChanged =
     pendingPrincipal !== (modelSelection.principal ?? '') ||
     pendingSystem !== (modelSelection.system ?? '')
 
-  // Group models by provider for the dropdowns
-  const modelsByProvider = availableModels.reduce<Record<string, AvailableModel[]>>((acc, model) => {
-    const group = acc[model.provider] ?? []
-    group.push(model)
-    acc[model.provider] = group
-    return acc
-  }, {})
+  const modelsByProvider = buildModelsByProvider(availableModels)
+  const changedRoleAssignments = buildChangedRoleAssignments(
+    roleAssignments,
+    pendingRoleAssignments,
+  )
 
   if (!api) {
     return (
@@ -525,6 +829,202 @@ export function PreferencesPanel({ params }: PreferencesPanelProps) {
           {modelFeedback && (
             <div style={feedbackStyle(modelFeedback.success)}>
               {modelFeedback.message}
+            </div>
+          )}
+        </div>
+      )}
+
+      {/* ── Role Assignments ─────────────────────────────── */}
+      {api.getRoleAssignments && (
+        <div style={sectionStyle}>
+          <div style={sectionTitleStyle}>Role Assignments</div>
+
+          <div style={cardStyle}>
+            <div
+              style={{
+                fontSize: 'var(--nous-font-size-base)',
+                fontWeight: 'var(--nous-font-weight-semibold)' as never,
+                color: 'var(--nous-fg)',
+              }}
+            >
+              Ongoing 7-role routing
+            </div>
+            <div style={{ ...helperTextStyle, marginTop: 'var(--nous-space-xs)' }}>
+              Adjust the model used by each cortex role after onboarding. Use the shortcut below
+              when you want to standardize on one model across the entire runtime.
+            </div>
+            {hardwareRecommendations?.advisory && (
+              <div style={{ ...helperTextStyle, marginTop: 'var(--nous-space-sm)' }}>
+                {hardwareRecommendations.advisory}
+              </div>
+            )}
+
+            <div style={applyAllRowStyle}>
+              <select
+                id="apply-all-roles-select"
+                aria-label="Apply one model to every role"
+                style={{ ...selectStyle, minWidth: '260px', flex: '1 1 260px' }}
+                value={applyAllRoleModel}
+                onChange={(event) => {
+                  setApplyAllRoleModel(event.target.value)
+                  setRoleAssignmentFeedback(null)
+                }}
+              >
+                <option value="">Choose a model for all roles</option>
+                {Object.entries(modelsByProvider).map(([provider, models]) => (
+                  <optgroup
+                    key={`apply-all-${provider}`}
+                    label={provider.charAt(0).toUpperCase() + provider.slice(1)}
+                  >
+                    {models.map((model) => (
+                      <option key={`apply-all-${model.id}`} value={model.id}>
+                        {getModelOptionLabel(model)}
+                      </option>
+                    ))}
+                  </optgroup>
+                ))}
+              </select>
+              <button
+                style={{
+                  ...btnStyle('ghost'),
+                  opacity:
+                    savingRoleAssignments || !applyAllRoleModel || availableModels.length === 0
+                      ? 0.5
+                      : 1,
+                  cursor:
+                    savingRoleAssignments || !applyAllRoleModel || availableModels.length === 0
+                      ? 'not-allowed'
+                      : 'pointer',
+                }}
+                onClick={handleApplyToAllRoles}
+                disabled={savingRoleAssignments || !applyAllRoleModel || availableModels.length === 0}
+              >
+                Apply to All Roles
+              </button>
+            </div>
+
+            {hardwareRecommendations?.singleModel && (
+              <div style={{ ...helperTextStyle, marginTop: 'var(--nous-space-sm)' }}>
+                Machine recommendation: {hardwareRecommendations.singleModel.displayName} — {hardwareRecommendations.singleModel.reason}
+              </div>
+            )}
+
+            {availableModels.length === 0 && (
+              <div style={{ ...helperTextStyle, marginTop: 'var(--nous-space-md)' }}>
+                No models are available yet. Start Ollama or configure a provider to update role
+                assignments.
+              </div>
+            )}
+
+            <div style={roleGridStyle}>
+              {MODEL_ROLES.map((role) => {
+                const roleRecommendation = hardwareRecommendations?.multiModel.find(
+                  (recommendation) => recommendation.role === role,
+                )
+
+                return (
+                  <div key={role} style={roleCardStyle}>
+                    <div style={rowStyle}>
+                      <div>
+                        <div
+                          style={{
+                            fontSize: 'var(--nous-font-size-base)',
+                            fontWeight: 'var(--nous-font-weight-semibold)' as never,
+                            color: 'var(--nous-fg)',
+                          }}
+                        >
+                          {MODEL_ROLE_LABELS[role]}
+                        </div>
+                        <div style={{ ...helperTextStyle, marginTop: 'var(--nous-space-xs)' }}>
+                          {roleRecommendation
+                            ? `Recommended: ${roleRecommendation.recommendation.displayName} — ${roleRecommendation.recommendation.reason}`
+                            : MODEL_ROLE_HINTS[role]}
+                        </div>
+                      </div>
+                      <span style={badgeStyle(Boolean(roleAssignments[role].providerId))}>
+                        {roleAssignments[role].providerId ? 'Assigned' : 'Not assigned'}
+                      </span>
+                    </div>
+
+                    <div style={roleCurrentLabelStyle}>Current model</div>
+                    <div style={roleCurrentValueStyle}>
+                      {getRoleAssignmentDisplay(roleAssignments[role], availableModels)}
+                    </div>
+
+                    <label
+                      htmlFor={`role-assignment-${role}`}
+                      style={{ ...helperTextStyle, color: 'var(--nous-fg-muted)' }}
+                    >
+                      Next assignment
+                    </label>
+                    <select
+                      id={`role-assignment-${role}`}
+                      aria-label={`${MODEL_ROLE_LABELS[role]} assignment`}
+                      style={{ ...selectStyle, width: '100%' }}
+                      value={pendingRoleAssignments[role]}
+                      disabled={availableModels.length === 0 || savingRoleAssignments}
+                      onChange={(event) => {
+                        const nextValue = event.target.value
+                        setPendingRoleAssignments((current) => ({
+                          ...current,
+                          [role]: nextValue,
+                        }))
+                        setRoleAssignmentFeedback(null)
+                      }}
+                    >
+                      <option value="">
+                        {roleAssignments[role].modelSpec ? 'Select a replacement model' : 'Select a model'}
+                      </option>
+                      {Object.entries(modelsByProvider).map(([provider, models]) => (
+                        <optgroup
+                          key={`${role}-${provider}`}
+                          label={provider.charAt(0).toUpperCase() + provider.slice(1)}
+                        >
+                          {models.map((model) => (
+                            <option key={`${role}-${model.id}`} value={model.id}>
+                              {getModelOptionLabel(model)}
+                            </option>
+                          ))}
+                        </optgroup>
+                      ))}
+                    </select>
+                  </div>
+                )
+              })}
+            </div>
+
+            <div style={actionRowStyle}>
+              <button
+                style={{
+                  ...btnStyle('primary'),
+                  opacity:
+                    savingRoleAssignments ||
+                    changedRoleAssignments.length === 0 ||
+                    !api.setRoleAssignment
+                      ? 0.5
+                      : 1,
+                  cursor:
+                    savingRoleAssignments ||
+                    changedRoleAssignments.length === 0 ||
+                    !api.setRoleAssignment
+                      ? 'not-allowed'
+                      : 'pointer',
+                }}
+                onClick={handleSaveRoleAssignments}
+                disabled={
+                  savingRoleAssignments ||
+                  changedRoleAssignments.length === 0 ||
+                  !api.setRoleAssignment
+                }
+              >
+                {savingRoleAssignments ? 'Saving...' : 'Save Role Assignments'}
+              </button>
+            </div>
+          </div>
+
+          {roleAssignmentFeedback && (
+            <div style={feedbackStyle(roleAssignmentFeedback.success)}>
+              {roleAssignmentFeedback.message}
             </div>
           )}
         </div>
