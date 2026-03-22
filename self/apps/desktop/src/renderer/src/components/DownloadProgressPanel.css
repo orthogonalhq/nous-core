@@ -1,0 +1,105 @@
+.nous-progress-panel {
+  display: grid;
+  gap: var(--nous-space-xl);
+  margin-top: var(--nous-space-2xl);
+  padding: var(--nous-space-2xl);
+  border-radius: var(--nous-card-radius);
+  border: 1px solid var(--nous-card-border);
+  background: color-mix(in srgb, var(--nous-card-bg) 92%, transparent);
+}
+
+.nous-progress-panel__header {
+  display: flex;
+  justify-content: space-between;
+  gap: var(--nous-space-lg);
+  align-items: flex-start;
+}
+
+.nous-progress-panel__title {
+  font-size: var(--nous-font-size-md);
+  font-weight: var(--nous-font-weight-semibold);
+  color: var(--nous-fg);
+}
+
+.nous-progress-panel__subtitle {
+  margin-top: var(--nous-space-sm);
+  color: var(--nous-fg-muted);
+}
+
+.nous-progress-panel__percent {
+  color: var(--nous-fg);
+  font-size: 20px;
+  font-weight: var(--nous-font-weight-semibold);
+}
+
+.nous-progress-panel__track {
+  position: relative;
+  overflow: hidden;
+  width: 100%;
+  height: var(--nous-progress-height);
+  border-radius: var(--nous-progress-radius);
+  background: var(--nous-progress-track);
+}
+
+.nous-progress-panel__fill {
+  height: 100%;
+  border-radius: inherit;
+  background: var(--nous-progress-fill);
+  transition: width var(--nous-duration-fast) var(--nous-ease-in-out);
+}
+
+.nous-progress-panel__fill--indeterminate {
+  width: 35%;
+  animation: nous-progress-indeterminate 1.35s linear infinite;
+}
+
+.nous-progress-panel__meta {
+  display: grid;
+  gap: var(--nous-space-lg);
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+}
+
+.nous-progress-panel__meta-label {
+  color: var(--nous-fg-subtle);
+  font-size: var(--nous-font-size-xs);
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+}
+
+.nous-progress-panel__meta-value {
+  margin-top: var(--nous-space-sm);
+  color: var(--nous-fg);
+}
+
+.nous-progress-panel__status {
+  color: var(--nous-fg-muted);
+}
+
+.nous-progress-panel__status--success {
+  color: var(--nous-state-complete);
+}
+
+.nous-progress-panel__status--error {
+  color: var(--nous-state-blocked);
+}
+
+@keyframes nous-progress-indeterminate {
+  0% {
+    transform: translateX(-140%);
+  }
+
+  100% {
+    transform: translateX(320%);
+  }
+}
+
+@media (max-width: 720px) {
+  .nous-progress-panel__header,
+  .nous-progress-panel__meta {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .nous-progress-panel__header {
+    display: grid;
+  }
+}

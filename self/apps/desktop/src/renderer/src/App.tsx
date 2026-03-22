@@ -23,8 +23,10 @@ import {
   PreferencesPanel,
 } from '@nous/ui/panels'
 import { AppInstallWizardPanel } from './components/AppInstallWizard'
+import { FirstRunWizard } from './components/FirstRunWizard'
 import { TitleBar } from './components/TitleBar'
 import { StatusBar } from './components/StatusBar'
+import type { FirstRunState } from './components/wizard/types'
 
 import 'dockview-react/dist/styles/dockview.css'
 
@@ -198,6 +200,13 @@ function stripNonSerializableFromLayout(layout: SerializedDockview): SerializedD
 
 // Loading state: undefined = not yet fetched; null = fetched, no saved layout
 type LayoutState = SerializedDockview | null | undefined
+type AppPhase = 'loading' | 'wizard' | 'main'
+
+function wait(delayMs: number): Promise<void> {
+  return new Promise((resolve) => {
+    window.setTimeout(resolve, delayMs)
+  })
+}
 
 // Outer chrome shell — titlebar + content area + statusbar
 function ChromeShell({
@@ -229,20 +238,130 @@ function ChromeShell({
 }
 
 export function App() {
+  const bootstrapRunRef = useRef(0)
+  const [phase, setPhase] = useState<AppPhase>('loading')
+  const [loadingMessage, setLoadingMessage] = useState('Connecting to backend…')
+  const [bootError, setBootError] = useState<string | null>(null)
+  const [firstRunState, setFirstRunState] = useState<FirstRunState | null>(null)
   const [savedLayout, setSavedLayout] = useState<LayoutState>(undefined)
   const [dockviewApi, setDockviewApi] = useState<DockviewApi | null>(null)
   const [appPanels, setAppPanels] = useState<AppPanelSnapshot[]>([])
   const panelDefs = [...NATIVE_PANEL_DEFS, ...appPanels.map(toAppPanelDef)]
 
-  useEffect(() => {
-    window.electronAPI.layout.get().then((layout: unknown) => {
-      setSavedLayout((layout as SerializedDockview | null) ?? null)
-    }).catch(() => {
-      setSavedLayout(null)
-    })
+  const initializeApp = useCallback(async () => {
+    const runId = ++bootstrapRunRef.current
+    const isStale = () => bootstrapRunRef.current !== runId
+
+    setBootError(null)
+    setLoadingMessage('Connecting to backend…')
+    setPhase('loading')
+    setFirstRunState(null)
+    setSavedLayout(undefined)
+    setDockviewApi(null)
+    setAppPanels([])
+
+    const startedAt = Date.now()
+    let backendReady = false
+    let delayMs = 500
+
+    while (!backendReady && Date.now() - startedAt < 30000) {
+      try {
+        const status = await window.electronAPI.backend.getStatus()
+        if (status.ready) {
+          backendReady = true
+          break
+        }
+      } catch {
+        // Keep waiting until timeout or successful readiness.
+      }
+
+      if (isStale()) {
+        return
+      }
+
+      const elapsedMs = Date.now() - startedAt
+      console.log(`[nous:wizard] Backend readiness wait: ${elapsedMs}ms`)
+      setLoadingMessage(`Connecting to backend… (${Math.max(1, Math.ceil(elapsedMs / 1000))}s)`)
+      await wait(delayMs)
+      delayMs = Math.min(delayMs * 2, 4000)
+    }
+
+    if (isStale()) {
+      return
+    }
+
+    if (!backendReady) {
+      setBootError('The desktop backend did not become ready within 30 seconds.')
+      return
+    }
+
+    setLoadingMessage('Loading first-run state…')
+
+    try {
+      const nextFirstRunState = await window.electronAPI.firstRun.getWizardState()
+      if (isStale()) {
+        return
+      }
+
+      setFirstRunState(nextFirstRunState)
+      if (nextFirstRunState.complete) {
+        console.log('[nous:wizard] Phase: loading → main')
+        setPhase('main')
+      } else {
+        console.log('[nous:wizard] Phase: loading → wizard')
+        setPhase('wizard')
+      }
+    } catch (error) {
+      if (isStale()) {
+        return
+      }
+
+      const message = error instanceof Error ? error.message : String(error)
+      setBootError(message)
+    }
   }, [])
 
   useEffect(() => {
+    void initializeApp()
+
+    return () => {
+      bootstrapRunRef.current += 1
+    }
+  }, [initializeApp])
+
+  useEffect(() => {
+    if (phase !== 'main') {
+      return
+    }
+
+    let cancelled = false
+    setLoadingMessage('Loading workspace layout…')
+
+    window.electronAPI.layout.get().then((layout: unknown) => {
+      if (cancelled) {
+        return
+      }
+
+      setSavedLayout((layout as SerializedDockview | null) ?? null)
+    }).catch(() => {
+      if (cancelled) {
+        return
+      }
+
+      setSavedLayout(null)
+    })
+
+    return () => {
+      cancelled = true
+    }
+  }, [phase])
+
+  useEffect(() => {
+    if (phase !== 'main') {
+      setAppPanels([])
+      return
+    }
+
     let cancelled = false
 
     const syncAppPanels = async () => {
@@ -265,26 +384,79 @@ export function App() {
       cancelled = true
       window.clearInterval(intervalId)
     }
+  }, [phase])
+
+  const handleWizardComplete = useCallback(() => {
+    console.log('[nous:wizard] Phase: wizard → main')
+    setSavedLayout(undefined)
+    setDockviewApi(null)
+    setPhase('main')
   }, [])
 
-  if (savedLayout === undefined) {
+  const loadingShell = (
+    <ChromeShell dockviewApi={null} panelDefs={panelDefs}>
+      <div
+        style={{
+          height: '100%',
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'center',
+          background: 'var(--nous-bg)',
+          color: 'var(--nous-fg-subtle)',
+          fontSize: 'var(--nous-font-size-base)',
+          padding: 'var(--nous-space-3xl)',
+          textAlign: 'center',
+        }}
+      >
+        <div style={{ display: 'grid', gap: 'var(--nous-space-lg)' }}>
+          {bootError ? (
+            <>
+              <div>{bootError}</div>
+              <div>
+                <button
+                  type="button"
+                  onClick={() => {
+                    void initializeApp()
+                  }}
+                  style={{
+                    minHeight: '40px',
+                    padding: '0 var(--nous-space-3xl)',
+                    border: '1px solid var(--nous-btn-secondary-border)',
+                    borderRadius: 'var(--nous-input-radius)',
+                    background: 'var(--nous-btn-secondary-bg)',
+                    color: 'var(--nous-btn-secondary-fg)',
+                    cursor: 'pointer',
+                  }}
+                >
+                  Retry
+                </button>
+              </div>
+            </>
+          ) : (
+            <div>{loadingMessage}</div>
+          )}
+        </div>
+      </div>
+    </ChromeShell>
+  )
+
+  if (phase === 'loading' || bootError) {
+    return loadingShell
+  }
+
+  if (phase === 'wizard' && firstRunState) {
     return (
       <ChromeShell dockviewApi={null} panelDefs={panelDefs}>
-        <div
-          style={{
-            height: '100%',
-            display: 'flex',
-            alignItems: 'center',
-            justifyContent: 'center',
-            background: 'var(--nous-bg)',
-            color: 'var(--nous-fg-subtle)',
-            fontSize: 'var(--nous-font-size-base)',
-          }}
-        >
-          Loading...
-        </div>
+        <FirstRunWizard
+          initialState={firstRunState}
+          onComplete={handleWizardComplete}
+        />
       </ChromeShell>
     )
+  }
+
+  if (savedLayout === undefined) {
+    return loadingShell
   }
 
   return (
