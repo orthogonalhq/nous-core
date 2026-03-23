@@ -9,7 +9,7 @@ const dockviewApiMock = vi.hoisted(() => ({
   panels: [] as never[],
   fromJSON: vi.fn(),
   onDidLayoutChange: vi.fn(),
-  toJSON: vi.fn(() => null),
+  toJSON: vi.fn((): unknown => null),
   addPanel: vi.fn(),
   removePanel: vi.fn(),
 }))
@@ -111,6 +111,82 @@ describe('App', () => {
     dockviewApiMock.addPanel.mockClear()
     dockviewApiMock.removePanel.mockClear()
     dockviewApiMock.panels.length = 0
+  })
+
+  it('skips persisting the layout when serialization fails', async () => {
+    const mock = installMock()
+    const warnSpy = vi.spyOn(console, 'warn').mockImplementation(() => {})
+    const circularLayout: Record<string, unknown> = {}
+    circularLayout.self = circularLayout
+
+    mock.firstRun.getWizardState.mockResolvedValue(
+      createFirstRunState({
+        currentStep: 'complete',
+        complete: true,
+      }),
+    )
+    dockviewApiMock.toJSON.mockReturnValue(circularLayout)
+
+    render(<App />)
+
+    expect(await screen.findByText('Dockview shell')).toBeInTheDocument()
+    await waitFor(() => {
+      expect(dockviewApiMock.onDidLayoutChange).toHaveBeenCalled()
+    })
+
+    try {
+      const onDidLayoutChange = dockviewApiMock.onDidLayoutChange.mock.calls[0]?.[0] as
+        | (() => void)
+        | undefined
+      expect(onDidLayoutChange).toBeTruthy()
+
+      onDidLayoutChange?.()
+
+      expect(mock.layout.set).not.toHaveBeenCalled()
+      expect(warnSpy).toHaveBeenCalledWith(
+        'Layout serialization failed, skipping save',
+        expect.any(TypeError),
+      )
+    } finally {
+      warnSpy.mockRestore()
+    }
+  })
+
+  it('catches synchronous layout persistence errors without crashing', async () => {
+    const mock = installMock()
+    const errorSpy = vi.spyOn(console, 'error').mockImplementation(() => {})
+    const syncError = new Error('An object could not be cloned')
+
+    mock.firstRun.getWizardState.mockResolvedValue(
+      createFirstRunState({
+        currentStep: 'complete',
+        complete: true,
+      }),
+    )
+    dockviewApiMock.toJSON.mockReturnValue({ panels: [] })
+    mock.layout.set.mockImplementationOnce(() => {
+      throw syncError
+    })
+
+    render(<App />)
+
+    expect(await screen.findByText('Dockview shell')).toBeInTheDocument()
+    await waitFor(() => {
+      expect(dockviewApiMock.onDidLayoutChange).toHaveBeenCalled()
+    })
+
+    try {
+      const onDidLayoutChange = dockviewApiMock.onDidLayoutChange.mock.calls[0]?.[0] as
+        | (() => void)
+        | undefined
+      expect(onDidLayoutChange).toBeTruthy()
+
+      expect(() => onDidLayoutChange?.()).not.toThrow()
+      expect(mock.layout.set).toHaveBeenCalledWith({ panels: [] })
+      expect(errorSpy).toHaveBeenCalledWith('Layout save failed', syncError)
+    } finally {
+      errorSpy.mockRestore()
+    }
   })
 
   it('shows the wizard shell when first-run is incomplete', async () => {

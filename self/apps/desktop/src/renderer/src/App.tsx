@@ -196,15 +196,14 @@ function resolvePanelParams(api: DockviewApi, panelDefs: PanelDef[]): void {
  * dockview JSON before persisting over IPC.  This prevents structuredClone
  * errors when electron-store tries to serialize the layout.
  */
-function stripNonSerializableFromLayout(layout: SerializedDockview): SerializedDockview {
+function stripNonSerializableFromLayout(layout: SerializedDockview): SerializedDockview | null {
   try {
     // JSON.parse(JSON.stringify(…)) is the simplest and most reliable way
     // to drop functions, undefined, symbols, circular refs, etc.
     return JSON.parse(JSON.stringify(layout))
-  } catch {
-    // If serialization itself throws, return layout unchanged and let the
-    // IPC layer handle the error gracefully.
-    return layout
+  } catch (error) {
+    console.warn('Layout serialization failed, skipping save', error)
+    return null
   }
 }
 
@@ -573,9 +572,17 @@ function DockviewShell({
     event.api.onDidLayoutChange(() => {
       const json = event.api.toJSON()
       const safe = stripNonSerializableFromLayout(json)
-      window.electronAPI.layout.set(safe).catch(() => {
-        // Layout save failed — non-critical, will retry on next change
-      })
+      if (!safe) {
+        return
+      }
+
+      try {
+        void window.electronAPI.layout.set(safe).catch((error) => {
+          console.error('Layout save failed', error)
+        })
+      } catch (error) {
+        console.error('Layout save failed', error)
+      }
     })
 
     dockviewApiRef.current = event.api

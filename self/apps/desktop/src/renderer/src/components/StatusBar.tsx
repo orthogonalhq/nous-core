@@ -18,28 +18,14 @@ export function StatusBar() {
         flexShrink: 0,
       }}
     >
-      {/* Left slot: phase indicator */}
+      {/* Left slot: runtime status */}
       <div style={{ display: 'flex', alignItems: 'center', height: '100%' }}>
         <div
           style={{
             display: 'flex',
             alignItems: 'center',
-            gap: 'var(--nous-space-sm)',
-            padding: '0 var(--nous-space-lg)',
-            height: '100%',
-            cursor: 'default',
-          }}
-        >
-          <span style={{ fontSize: 'var(--nous-font-size-2xs)', lineHeight: 'var(--nous-line-height-tight)' }}>◈</span>
-          <span>phase-7.3</span>
-        </div>
-
-        <div
-          style={{
-            display: 'flex',
-            alignItems: 'center',
             gap: 'var(--nous-space-xs)',
-            padding: '0 var(--nous-space-md)',
+            padding: '0 var(--nous-space-lg)',
           }}
         >
           <span style={{ display: 'flex', alignItems: 'center', gap: 'var(--nous-space-xs)' }}>
