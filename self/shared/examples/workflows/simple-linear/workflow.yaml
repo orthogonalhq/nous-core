@@ -1,0 +1,30 @@
+name: Simple Linear
+version: 1
+nodes:
+  - id: schedule-trigger
+    name: Schedule Trigger
+    type: nous.trigger.schedule
+    position: [0, 0]
+    parameters:
+      cron: "0 * * * *"
+      timezone: UTC
+  - id: analyze-agent
+    name: Analyze Agent
+    type: nous.agent.claude
+    position: [220, 0]
+    parameters:
+      model: claude-3-5-sonnet
+      systemPrompt: Summarize the incoming workload into a concise execution brief.
+      temperature: 0.2
+  - id: store-result
+    name: Store Result
+    type: nous.tool.artifact-store
+    position: [460, 0]
+    parameters:
+      key: reports/simple-linear-latest.md
+      operation: put
+connections:
+  - from: schedule-trigger
+    to: analyze-agent
+  - from: analyze-agent
+    to: store-result

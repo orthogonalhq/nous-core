@@ -1,17 +1,9 @@
 ---
 nous:
-  v: 1
-  kind: workflow_step
+  v: 2
+  kind: workflow_node
   id: collect-principal-context
-name: Collect Principal Context
-description: Capture stable Principal preferences that should shape Nous behavior.
-type: model-call
-governance: must
-executionModel: synchronous
-config:
-  type: model-call
-  modelRole: reasoner
-  promptRef: workflow://a-soul-is-born/collect-principal-context
+  skill: identity-alignment
 ---
 
 # Collect Principal Context
