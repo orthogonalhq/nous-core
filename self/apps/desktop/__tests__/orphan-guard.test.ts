@@ -152,7 +152,7 @@ describe('desktop orphan guard', () => {
     const jobHandle = getFunctionMock('CreateJobObjectW').mock.results[0]?.value
     const processHandle = getFunctionMock('OpenProcess').mock.results[0]?.value
 
-    expect(getFunctionMock('OpenProcess')).toHaveBeenCalledWith(0x0101, false, 1234)
+    expect(getFunctionMock('OpenProcess')).toHaveBeenCalledWith(0x0101, 0, 1234)
     expect(getFunctionMock('AssignProcessToJobObject')).toHaveBeenCalledWith(jobHandle, processHandle)
     expect(getFunctionMock('CloseHandle')).toHaveBeenCalledWith(processHandle)
   })

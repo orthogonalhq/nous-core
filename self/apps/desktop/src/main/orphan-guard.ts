@@ -38,7 +38,7 @@ type Win32Bindings = {
     info: JobObjectExtendedLimitInformation,
     infoSize: number,
   ) => number
-  OpenProcess: (access: number, inheritHandle: boolean, processId: number) => unknown
+  OpenProcess: (access: number, inheritHandle: number, processId: number) => unknown
   AssignProcessToJobObject: (job: unknown, process: unknown) => number
   CloseHandle: (handle: unknown) => number
   infoSize: number
@@ -207,7 +207,7 @@ export function registerChild(pid: number): void {
   let processHandle: unknown = null
 
   try {
-    processHandle = win32Bindings.OpenProcess(PROCESS_SET_QUOTA | PROCESS_TERMINATE, false, pid)
+    processHandle = win32Bindings.OpenProcess(PROCESS_SET_QUOTA | PROCESS_TERMINATE, 0, pid)
     if (isNullHandle(processHandle)) {
       throw new Error('OpenProcess returned NULL')
     }
