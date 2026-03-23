@@ -26,6 +26,7 @@ import type {
   HardwareSpec,
   RecommendationResult,
 } from '../../../shared-server/src/hardware-detection'
+import { initOrphanGuard, registerChild } from './orphan-guard'
 import superjson from 'superjson'
 
 interface StoredLayout {
@@ -417,6 +418,7 @@ async function startOllama(): Promise<OllamaStatus> {
 
     console.log(`[nous:desktop] ollama process started (pid=${child.pid ?? 'n/a'})`)
     ollamaChild = child
+    if (child.pid != null) registerChild(child.pid)
     isOllamaManaged = true
     ollamaSuppressRestartOnExit = false
     attachOllamaProcessListeners(child)
@@ -608,6 +610,7 @@ function spawnBackendServer(port: number): Promise<number> {
     }
 
     backendChild = child
+    if (child.pid != null) registerChild(child.pid)
 
     const timeout = setTimeout(() => {
       reject(new Error('Backend server did not signal readiness within 30 seconds'))
@@ -1707,6 +1710,8 @@ app.on('before-quit', (event) => {
 })
 
 app.whenReady().then(async () => {
+  initOrphanGuard()
+
   // Start the backend server before creating the window
   try {
     await startBackend()
