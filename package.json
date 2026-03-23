@@ -39,6 +39,7 @@
       "better-sqlite3",
       "esbuild",
       "electron",
+      "koffi",
       "unrs-resolver"
     ]
   }
