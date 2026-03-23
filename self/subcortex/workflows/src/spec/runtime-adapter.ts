@@ -29,6 +29,20 @@ import { buildDerivedWorkflowGraph } from '../graph-builder.js';
 // Conversion options
 // ---------------------------------------------------------------------------
 
+export interface NodeEnrichmentData {
+  /** Named skill reference declared by the node package content. */
+  skill?: string;
+
+  /** Contract bindings declared by the node package content. */
+  contracts?: string[];
+
+  /** Template bindings declared by the node package content. */
+  templates?: string[];
+
+  /** Raw markdown body loaded from node.md. */
+  body?: string;
+}
+
 export interface SpecToDefinitionOptions {
   /** UUID for the workflow definition. Auto-generated if omitted. */
   definitionId?: string;
@@ -38,6 +52,9 @@ export interface SpecToDefinitionOptions {
 
   /** Definition mode. Defaults to 'protocol'. */
   mode?: 'protocol' | 'hybrid';
+
+  /** Optional package-loader enrichment keyed by declarative node id. */
+  enrichment?: Record<string, NodeEnrichmentData>;
 }
 
 // ---------------------------------------------------------------------------
@@ -233,6 +250,7 @@ export function specToWorkflowDefinition(
     const nodeUuid = nodeIdMap.get(node.id)!;
     const runtimeType = mapNodeTypeToRuntimeType(node);
     const config = mapNodeTypeToConfig(node);
+    const nodeEnrichment = options.enrichment?.[node.id];
 
     return {
       id: nodeUuid as WorkflowNodeDefinitionId,
@@ -241,6 +259,16 @@ export function specToWorkflowDefinition(
       governance: 'should' as const,
       executionModel: 'synchronous' as const,
       config,
+      ...(nodeEnrichment
+        ? {
+            metadata: {
+              specNodeId: node.id,
+              skill: nodeEnrichment.skill,
+              contracts: nodeEnrichment.contracts,
+              templates: nodeEnrichment.templates,
+            },
+          }
+        : {}),
     };
   });
 
