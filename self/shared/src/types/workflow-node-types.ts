@@ -131,6 +131,42 @@ export const MemorySearchParamsSchema = z.object({
 });
 export type MemorySearchParams = z.infer<typeof MemorySearchParamsSchema>;
 
+/** nous.app.http-request */
+export const AppHttpRequestParamsSchema = z.object({
+  url: z.string().url(),
+  method: z.enum(['GET', 'POST', 'PUT', 'PATCH', 'DELETE']).default('GET'),
+  headers: z.record(z.string(), z.string()).optional(),
+  body: z.unknown().optional(),
+});
+export type AppHttpRequestParams = z.infer<typeof AppHttpRequestParamsSchema>;
+
+/** nous.app.slack */
+export const AppSlackParamsSchema = z.object({
+  channel: z.string().min(1),
+  message: z.string().min(1),
+  webhook: z.string().url().optional(),
+});
+export type AppSlackParams = z.infer<typeof AppSlackParamsSchema>;
+
+/** nous.tool.memory-search */
+export const ToolMemorySearchParamsSchema = z.object({
+  query: z.string().min(1),
+  limit: z.number().positive().optional(),
+  scope: z.enum(['global', 'project']).optional(),
+});
+export type ToolMemorySearchParams = z.infer<
+  typeof ToolMemorySearchParamsSchema
+>;
+
+/** nous.tool.artifact-store */
+export const ToolArtifactStoreParamsSchema = z.object({
+  key: z.string().min(1),
+  operation: z.enum(['get', 'put', 'delete', 'list']),
+});
+export type ToolArtifactStoreParams = z.infer<
+  typeof ToolArtifactStoreParamsSchema
+>;
+
 /** nous.governance.pfc-gate */
 export const GovernancePfcGateParamsSchema = z.object({
   tier: z.number().int().min(0).max(5),
@@ -172,6 +208,10 @@ export const NODE_TYPE_PARAMETER_SCHEMAS: Record<string, z.ZodType> = {
   'nous.condition.if': ConditionIfParamsSchema,
   'nous.condition.switch': ConditionSwitchParamsSchema,
   'nous.condition.governance-gate': ConditionGovernanceGateParamsSchema,
+  'nous.app.http-request': AppHttpRequestParamsSchema,
+  'nous.app.slack': AppSlackParamsSchema,
+  'nous.tool.memory-search': ToolMemorySearchParamsSchema,
+  'nous.tool.artifact-store': ToolArtifactStoreParamsSchema,
   'nous.memory.read': MemoryReadParamsSchema,
   'nous.memory.write': MemoryWriteParamsSchema,
   'nous.memory.search': MemorySearchParamsSchema,

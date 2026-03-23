@@ -10,15 +10,23 @@
  * in `workflow.ts`. The runtime adapter bridges between the two.
  */
 import { z } from 'zod';
-import { NousNodeTypeSchema } from './workflow-node-types.js';
+import {
+  NODE_TYPE_PARAMETER_SCHEMAS,
+  NousNodeTypeSchema,
+  resolveNodeTypeParameterSchema,
+} from './workflow-node-types.js';
 
 // ---------------------------------------------------------------------------
 // WorkflowNode — a single node in the declarative spec
 // ---------------------------------------------------------------------------
 
+export const WorkflowNodeIdSchema = z
+  .string()
+  .regex(/^[a-z0-9]+(-[a-z0-9]+)*$/, 'Node ID must be kebab-case');
+
 export const WorkflowNodeSchema = z.object({
   /** Short identifier — unique within the workflow. */
-  id: z.string().min(1),
+  id: WorkflowNodeIdSchema,
 
   /** Human-readable display name. */
   name: z.string().min(1),
@@ -58,8 +66,8 @@ export const WorkflowSpecSchema = z.object({
   /** Workflow display name. */
   name: z.string().min(1),
 
-  /** Schema version — currently always 1. */
-  version: z.literal(1),
+  /** Schema version — forward-compatible positive integer. */
+  version: z.number().int().positive(),
 
   /** Ordered list of nodes. */
   nodes: z.array(WorkflowNodeSchema).min(1),
@@ -78,6 +86,11 @@ export interface WorkflowSpecValidationError {
   message: string;
 }
 
+export interface ValidateWorkflowSpecOptions {
+  /** Validate per-node parameters against registered schemas when true. */
+  deep?: boolean;
+}
+
 /**
  * Validate a `WorkflowSpec` and return structured errors.
  *
@@ -88,6 +101,7 @@ export interface WorkflowSpecValidationError {
  */
 export function validateWorkflowSpec(
   input: unknown,
+  options?: ValidateWorkflowSpecOptions,
 ): { success: true; data: WorkflowSpec } | { success: false; errors: WorkflowSpecValidationError[] } {
   const result = WorkflowSpecSchema.safeParse(input);
 
@@ -143,8 +157,46 @@ export function validateWorkflowSpec(
     }
   }
 
+  if (spec.version !== 1) {
+    structuralErrors.push({
+      path: 'version',
+      message: `Unsupported spec version: ${spec.version}. Only version 1 is currently supported.`,
+    });
+  }
+
   if (structuralErrors.length > 0) {
     return { success: false, errors: structuralErrors };
+  }
+
+  if (!options?.deep) {
+    return { success: true, data: spec };
+  }
+
+  const deepValidationErrors: WorkflowSpecValidationError[] = [];
+
+  for (let i = 0; i < spec.nodes.length; i++) {
+    const node = spec.nodes[i]!;
+    if (NODE_TYPE_PARAMETER_SCHEMAS[node.type] === undefined) {
+      continue;
+    }
+
+    const validationResult = resolveNodeTypeParameterSchema(node.type).safeParse(
+      node.parameters,
+    );
+    if (validationResult.success) {
+      continue;
+    }
+
+    deepValidationErrors.push(
+      ...validationResult.error.issues.map((issue) => ({
+        path: ['nodes', String(i), 'parameters', ...issue.path.map(String)].join('.'),
+        message: issue.message,
+      })),
+    );
+  }
+
+  if (deepValidationErrors.length > 0) {
+    return { success: false, errors: deepValidationErrors };
   }
 
   return { success: true, data: spec };
