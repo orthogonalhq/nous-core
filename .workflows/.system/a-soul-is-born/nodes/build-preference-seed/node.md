@@ -1,17 +1,11 @@
 ---
 nous:
-  v: 1
-  kind: workflow_step
+  v: 2
+  kind: workflow_node
   id: build-preference-seed
-name: Build Preference Seed
-description: Convert collected preferences into a durable Principal Preference Seed artifact.
-type: model-call
-governance: must
-executionModel: synchronous
-config:
-  type: model-call
-  modelRole: reasoner
-  promptRef: workflow://a-soul-is-born/build-preference-seed
+  skill: identity-alignment
+  templates:
+    - principal-preference-seed-template
 ---
 
 # Build Preference Seed
@@ -23,7 +17,7 @@ Convert collected preferences into a durable `Principal Preference Seed` artifac
 ## Inputs
 
 - Structured preference capture set
-- `references/principal-preference-seed-template.md`
+- `templates/principal-preference-seed-template.md`
 - Existing `SOUL.md` (if present)
 
 ## Procedure

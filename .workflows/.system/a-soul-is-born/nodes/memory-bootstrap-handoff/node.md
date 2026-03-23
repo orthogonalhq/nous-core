@@ -1,17 +1,11 @@
 ---
 nous:
-  v: 1
-  kind: workflow_step
+  v: 2
+  kind: workflow_node
   id: memory-bootstrap-handoff
-name: Memory Bootstrap Handoff
-description: Prepare the STM-LTM bootstrap handoff and promotion guard posture.
-type: model-call
-governance: must
-executionModel: synchronous
-config:
-  type: model-call
-  modelRole: reasoner
-  promptRef: workflow://a-soul-is-born/memory-bootstrap-handoff
+  skill: identity-alignment
+  templates:
+    - memory-bootstrap-handoff-template
 ---
 
 # Memory Bootstrap Handoff
@@ -24,7 +18,7 @@ rejection posture.
 ## Inputs
 
 - Draft `Principal Preference Seed`
-- `references/templates/memory-bootstrap-handoff-template.md`
+- `templates/memory-bootstrap-handoff-template.md`
 - Any explicit `Do-Not-Store` guidance from the Principal
 
 ## Procedure

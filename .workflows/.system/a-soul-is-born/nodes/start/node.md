@@ -1,17 +1,8 @@
 ---
 nous:
-  v: 1
-  kind: workflow_step
+  v: 2
+  kind: workflow_node
   id: start
-name: Start
-description: Initialize onboarding scope and choose the active entrypoint mode.
-type: model-call
-governance: must
-executionModel: synchronous
-config:
-  type: model-call
-  modelRole: reasoner
-  promptRef: workflow://a-soul-is-born/start
 ---
 
 # Start
