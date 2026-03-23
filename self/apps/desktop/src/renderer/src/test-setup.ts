@@ -215,6 +215,10 @@ export function createElectronAPIMock() {
     appPanels: {
       list: vi.fn(async () => []),
     },
+    mode: {
+      get: vi.fn(async (): Promise<string | null> => null),
+      set: vi.fn(async () => {}),
+    },
     backend: {
       getStatus: vi.fn(async () => ({
         ready: true,

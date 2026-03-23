@@ -48,7 +48,11 @@
       "target": "dir"
     },
     "win": {
-      "target": "dir"
+      "target": "nsis"
+    },
+    "nsis": {
+      "oneClick": false,
+      "allowToChangeInstallationDirectory": true
     }
   },
   "dependencies": {
