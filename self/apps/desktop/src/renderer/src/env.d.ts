@@ -149,6 +149,10 @@ interface ElectronAPI {
       src: string
     }[]>
   }
+  mode: {
+    get: () => Promise<string | null>
+    set: (mode: string) => Promise<void>
+  }
   backend: {
     getStatus: () => Promise<{
       ready: boolean

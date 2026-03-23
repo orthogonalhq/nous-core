@@ -111,6 +111,107 @@ describe('App', () => {
     dockviewApiMock.addPanel.mockClear()
     dockviewApiMock.removePanel.mockClear()
     dockviewApiMock.panels.length = 0
+    window.localStorage.clear()
+  })
+
+  it('starts in simple mode by default', async () => {
+    const mock = installMock()
+    mock.firstRun.getWizardState.mockResolvedValue(
+      createFirstRunState({
+        currentStep: 'complete',
+        complete: true,
+      }),
+    )
+
+    render(<App />)
+
+    await waitFor(() => {
+      expect(document.querySelector('[data-shell-area="rail"]')).not.toBeNull()
+    })
+
+    expect(screen.getByText('Chat placeholder')).toBeInTheDocument()
+    expect(screen.getByText('Observe placeholder')).toBeInTheDocument()
+    expect(screen.getByText('Content placeholder')).toBeInTheDocument()
+    expect(screen.queryByText('Dockview shell')).not.toBeInTheDocument()
+    expect(mock.mode.get).toHaveBeenCalledTimes(1)
+  })
+
+  it('loads developer mode from persisted state', async () => {
+    const mock = installMock()
+    mock.firstRun.getWizardState.mockResolvedValue(
+      createFirstRunState({
+        currentStep: 'complete',
+        complete: true,
+      }),
+    )
+    mock.mode.get.mockResolvedValue('developer')
+
+    render(<App />)
+
+    expect(await screen.findByText('Dockview shell')).toBeInTheDocument()
+    expect(mock.mode.get).toHaveBeenCalledTimes(1)
+  })
+
+  it('toggles mode with the keyboard shortcut and persists the change', async () => {
+    const mock = installMock()
+    mock.firstRun.getWizardState.mockResolvedValue(
+      createFirstRunState({
+        currentStep: 'complete',
+        complete: true,
+      }),
+    )
+
+    render(<App />)
+
+    await waitFor(() => {
+      expect(document.querySelector('[data-shell-area="rail"]')).not.toBeNull()
+    })
+
+    fireEvent.keyDown(window, {
+      ctrlKey: true,
+      shiftKey: true,
+      key: 'D',
+    })
+
+    expect(await screen.findByText('Dockview shell')).toBeInTheDocument()
+    expect(mock.mode.set).toHaveBeenCalledWith('developer')
+  })
+
+  it('falls back to localStorage when the mode bridge is unavailable', async () => {
+    const mock = installMock()
+    mock.firstRun.getWizardState.mockResolvedValue(
+      createFirstRunState({
+        currentStep: 'complete',
+        complete: true,
+      }),
+    )
+
+    Object.defineProperty(window, 'electronAPI', {
+      configurable: true,
+      writable: true,
+      value: {
+        ...mock,
+        mode: undefined,
+      },
+    })
+
+    window.localStorage.setItem('nous:shell-mode', 'developer')
+
+    render(<App />)
+
+    expect(await screen.findByText('Dockview shell')).toBeInTheDocument()
+
+    fireEvent.keyDown(window, {
+      ctrlKey: true,
+      shiftKey: true,
+      key: 'D',
+    })
+
+    await waitFor(() => {
+      expect(document.querySelector('[data-shell-area="rail"]')).not.toBeNull()
+    })
+
+    expect(window.localStorage.getItem('nous:shell-mode')).toBe('simple')
   })
 
   it('skips persisting the layout when serialization fails', async () => {

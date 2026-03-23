@@ -22,6 +22,15 @@ import {
   AgentPanel,
   PreferencesPanel,
 } from '@nous/ui/panels'
+import {
+  ContentRouter,
+  NavigationRail,
+  ShellLayout,
+  ShellProvider,
+  type ContentRouterRenderProps,
+  type RailSection,
+  type ShellMode,
+} from '@nous/ui/components'
 import { AppInstallWizardPanel } from './components/AppInstallWizard'
 import { FirstRunWizard } from './components/FirstRunWizard'
 import { TitleBar } from './components/TitleBar'
@@ -140,6 +149,138 @@ const PANEL_ADD_ORDER = [
   'preferences',
 ]
 
+const DEFAULT_ROUTE = 'home'
+const MODE_STORAGE_KEY = 'nous:shell-mode'
+
+const RAIL_SECTIONS: RailSection[] = [
+  {
+    id: 'main',
+    label: 'Navigate',
+    items: [
+      { id: 'home', label: 'Home', icon: 'H' },
+      { id: 'threads', label: 'Threads', icon: 'T' },
+      { id: 'workflows', label: 'Workflows', icon: 'W' },
+      { id: 'skills', label: 'Skills', icon: 'S' },
+      { id: 'apps', label: 'Apps', icon: 'A' },
+      { id: 'settings', label: 'Settings', icon: 'P' },
+    ],
+  },
+]
+
+function parseShellMode(value: unknown): ShellMode | null {
+  return value === 'simple' || value === 'developer' ? value : null
+}
+
+const modePersistence = {
+  get: async (): Promise<ShellMode | null> => {
+    try {
+      if (typeof window.electronAPI?.mode?.get === 'function') {
+        return parseShellMode(await window.electronAPI.mode.get())
+      }
+
+      return parseShellMode(window.localStorage.getItem(MODE_STORAGE_KEY))
+    } catch {
+      console.warn('[nous:mode] Failed to load mode, defaulting to simple')
+      return null
+    }
+  },
+  set: async (mode: ShellMode): Promise<void> => {
+    try {
+      if (typeof window.electronAPI?.mode?.set === 'function') {
+        await window.electronAPI.mode.set(mode)
+        return
+      }
+
+      window.localStorage.setItem(MODE_STORAGE_KEY, mode)
+    } catch {
+      console.warn('[nous:mode] Failed to save mode')
+    }
+  },
+}
+
+function ShellPanePlaceholder({
+  title,
+  description,
+}: {
+  title: string
+  description: string
+}) {
+  return (
+    <div
+      style={{
+        display: 'flex',
+        alignItems: 'center',
+        justifyContent: 'center',
+        height: '100%',
+        padding: 'var(--nous-space-lg)',
+        boxSizing: 'border-box',
+      }}
+    >
+      <div
+        style={{
+          display: 'grid',
+          gap: 'var(--nous-space-xs)',
+          textAlign: 'center',
+        }}
+      >
+        <div
+          style={{
+            fontSize: 'var(--nous-font-size-base)',
+            color: 'var(--nous-fg)',
+          }}
+        >
+          {title}
+        </div>
+        <div
+          style={{
+            fontSize: 'var(--nous-font-size-sm)',
+            color: 'var(--nous-fg-subtle)',
+          }}
+        >
+          {description}
+        </div>
+      </div>
+    </div>
+  )
+}
+
+function createContentPlaceholder(title: string) {
+  return function ContentPlaceholder(_props: ContentRouterRenderProps) {
+    return (
+      <ShellPanePlaceholder
+        title={title}
+        description="Content placeholder"
+      />
+    )
+  }
+}
+
+const BASE_SIMPLE_MODE_ROUTES = {
+  home: createContentPlaceholder('Home'),
+  threads: createContentPlaceholder('Threads'),
+  workflows: createContentPlaceholder('Workflows'),
+  skills: createContentPlaceholder('Skills'),
+  apps: createContentPlaceholder('Apps'),
+}
+
+function ChatPlaceholder() {
+  return (
+    <ShellPanePlaceholder
+      title="Chat"
+      description="Chat placeholder"
+    />
+  )
+}
+
+function ObservePlaceholder() {
+  return (
+    <ShellPanePlaceholder
+      title="Observe"
+      description="Observe placeholder"
+    />
+  )
+}
+
 function toAppPanelDef(panel: AppPanelSnapshot): PanelDef {
   return {
     id: panel.dockview_panel_id,
@@ -222,13 +363,18 @@ function ChromeShell({
   children,
   dockviewApi,
   panelDefs,
+  mode,
+  onModeToggle,
 }: {
   children: React.ReactNode
   dockviewApi: DockviewApi | null
   panelDefs: PanelDef[]
+  mode: ShellMode
+  onModeToggle: () => void
 }) {
   return (
     <div
+      data-shell-mode={mode}
       style={{
         display: 'flex',
         flexDirection: 'column',
@@ -237,11 +383,16 @@ function ChromeShell({
         background: 'var(--nous-bg)',
       }}
     >
-      <TitleBar dockviewApi={dockviewApi} panelDefs={panelDefs} />
+      <TitleBar
+        dockviewApi={dockviewApi}
+        panelDefs={panelDefs}
+        mode={mode}
+        onModeToggle={onModeToggle}
+      />
       <div style={{ flex: 1, overflow: 'hidden', minHeight: 0 }}>
         {children}
       </div>
-      <StatusBar />
+      <StatusBar mode={mode} />
     </div>
   )
 }
@@ -255,6 +406,8 @@ export function App() {
   const [savedLayout, setSavedLayout] = useState<LayoutState>(undefined)
   const [dockviewApi, setDockviewApi] = useState<DockviewApi | null>(null)
   const [appPanels, setAppPanels] = useState<AppPanelSnapshot[]>([])
+  const [mode, setMode] = useState<ShellMode>('simple')
+  const [activeRoute, setActiveRoute] = useState(DEFAULT_ROUTE)
 
   const initializeApp = useCallback(async () => {
     const runId = ++bootstrapRunRef.current
@@ -366,6 +519,25 @@ export function App() {
 
   useEffect(() => {
     if (phase !== 'main') {
+      return
+    }
+
+    let cancelled = false
+
+    void modePersistence.get().then((storedMode) => {
+      if (!cancelled && storedMode) {
+        console.log(`[nous:mode] Loaded mode: ${storedMode}`)
+        setMode(storedMode)
+      }
+    })
+
+    return () => {
+      cancelled = true
+    }
+  }, [phase])
+
+  useEffect(() => {
+    if (phase !== 'main') {
       setAppPanels([])
       return
     }
@@ -405,6 +577,97 @@ export function App() {
     void initializeApp()
   }, [initializeApp])
 
+  const handleNavigate = useCallback((routeId: string) => {
+    setActiveRoute(routeId)
+  }, [])
+
+  const handleGoBack = useCallback(() => {
+    setActiveRoute(DEFAULT_ROUTE)
+  }, [])
+
+  const handleModeChange = useCallback((nextMode: ShellMode) => {
+    setMode((previousMode) => {
+      if (previousMode === nextMode) {
+        return previousMode
+      }
+
+      console.log(`[nous:mode] Mode switched: ${previousMode} -> ${nextMode}`)
+      void modePersistence.set(nextMode)
+      return nextMode
+    })
+  }, [])
+
+  const handleModeToggle = useCallback(() => {
+    setMode((previousMode) => {
+      const nextMode = previousMode === 'simple' ? 'developer' : 'simple'
+      console.log(`[nous:mode] Mode switched: ${previousMode} -> ${nextMode}`)
+      void modePersistence.set(nextMode)
+      return nextMode
+    })
+  }, [])
+
+  useEffect(() => {
+    if (phase !== 'main') {
+      return
+    }
+
+    const handleKeyDown = (event: KeyboardEvent) => {
+      if (
+        event.ctrlKey &&
+        event.shiftKey &&
+        event.key.toLowerCase() === 'd'
+      ) {
+        event.preventDefault()
+        handleModeToggle()
+      }
+    }
+
+    window.addEventListener('keydown', handleKeyDown)
+    return () => {
+      window.removeEventListener('keydown', handleKeyDown)
+    }
+  }, [handleModeToggle, phase])
+
+  const buildPreferencesPanelParams = useCallback(() => ({
+    preferencesApi: {
+      ...(window as any).electronAPI?.preferences,
+      getHardwareRecommendations: window.electronAPI?.hardware.getRecommendations,
+      resetWizard: window.electronAPI?.firstRun.resetWizard,
+    },
+    onWizardReset: handleWizardReset,
+    onModeChange: handleModeChange,
+    currentMode: mode,
+  }), [handleModeChange, handleWizardReset, mode])
+
+  const preferencesPanelParams = buildPreferencesPanelParams()
+
+  const SettingsRoute = (_props: ContentRouterRenderProps) => (
+    <div
+      style={{
+        height: '100%',
+        overflow: 'auto',
+        background: 'var(--nous-content-bg)',
+      }}
+    >
+      <PreferencesPanel
+        api={{} as never}
+        containerApi={{} as never}
+        params={preferencesPanelParams}
+      />
+    </div>
+  )
+
+  const simpleModeRoutes = {
+    ...BASE_SIMPLE_MODE_ROUTES,
+    settings: SettingsRoute,
+  }
+
+  const navigation = {
+    activeRoute,
+    history: [activeRoute],
+    canGoBack: activeRoute !== DEFAULT_ROUTE,
+  }
+
   const nativePanelDefs = NATIVE_PANEL_DEFS.map((def) => {
     if (def.id !== 'preferences') {
       return def
@@ -412,21 +675,19 @@ export function App() {
 
     return {
       ...def,
-      params: () => ({
-        preferencesApi: {
-          ...(window as any).electronAPI?.preferences,
-          getHardwareRecommendations: window.electronAPI?.hardware.getRecommendations,
-          resetWizard: window.electronAPI?.firstRun.resetWizard,
-        },
-        onWizardReset: handleWizardReset,
-      }),
+      params: buildPreferencesPanelParams,
     }
   })
 
   const panelDefs = [...nativePanelDefs, ...appPanels.map(toAppPanelDef)]
 
   const loadingShell = (
-    <ChromeShell dockviewApi={null} panelDefs={panelDefs}>
+    <ChromeShell
+      dockviewApi={null}
+      panelDefs={panelDefs}
+      mode={mode}
+      onModeToggle={handleModeToggle}
+    >
       <div
         style={{
           height: '100%',
@@ -478,7 +739,12 @@ export function App() {
 
   if (phase === 'wizard' && firstRunState) {
     return (
-      <ChromeShell dockviewApi={null} panelDefs={panelDefs}>
+      <ChromeShell
+        dockviewApi={null}
+        panelDefs={panelDefs}
+        mode={mode}
+        onModeToggle={handleModeToggle}
+      >
         <FirstRunWizard
           initialState={firstRunState}
           onComplete={handleWizardComplete}
@@ -492,13 +758,47 @@ export function App() {
   }
 
   return (
-    <ChromeShell dockviewApi={dockviewApi} panelDefs={panelDefs}>
-      <DockviewShell
-        savedLayout={savedLayout}
-        onApiReady={setDockviewApi}
-        activeAppPanelIds={new Set(appPanels.map((panel) => panel.dockview_panel_id))}
-        panelDefs={panelDefs}
-      />
+    <ChromeShell
+      dockviewApi={dockviewApi}
+      panelDefs={panelDefs}
+      mode={mode}
+      onModeToggle={handleModeToggle}
+    >
+      <ShellProvider
+        mode={mode}
+        activeRoute={activeRoute}
+        navigation={navigation}
+        navigate={handleNavigate}
+        goBack={handleGoBack}
+      >
+        {mode === 'simple' ? (
+          <ShellLayout
+            rail={(
+              <NavigationRail
+                items={RAIL_SECTIONS}
+                activeItemId={activeRoute}
+                onItemSelect={handleNavigate}
+              />
+            )}
+            chat={<ChatPlaceholder />}
+            content={(
+              <ContentRouter
+                activeRoute={activeRoute}
+                routes={simpleModeRoutes}
+                onNavigate={handleNavigate}
+              />
+            )}
+            observe={<ObservePlaceholder />}
+          />
+        ) : (
+          <DockviewShell
+            savedLayout={savedLayout}
+            onApiReady={setDockviewApi}
+            activeAppPanelIds={new Set(appPanels.map((panel) => panel.dockview_panel_id))}
+            panelDefs={panelDefs}
+          />
+        )}
+      </ShellProvider>
     </ChromeShell>
   )
 }

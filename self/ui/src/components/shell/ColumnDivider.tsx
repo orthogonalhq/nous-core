@@ -47,6 +47,7 @@ export function ColumnDivider({
 
         const pointerId = event.pointerId
         const startAxis = isVertical ? event.clientX : event.clientY
+        let lastAxis = startAxis
         const body = document.body
         const previousCursor = body.style.cursor
         const previousUserSelect = body.style.userSelect
@@ -56,7 +57,14 @@ export function ColumnDivider({
 
         const handleMove = (moveEvent: PointerEvent) => {
           const nextAxis = isVertical ? moveEvent.clientX : moveEvent.clientY
-          onResize(nextAxis - startAxis)
+          const delta = nextAxis - lastAxis
+
+          if (!Number.isFinite(delta)) {
+            return
+          }
+
+          lastAxis = nextAxis
+          onResize(delta)
         }
 
         const cleanup = () => {

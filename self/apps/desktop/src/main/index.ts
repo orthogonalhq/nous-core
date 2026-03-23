@@ -35,7 +35,10 @@ interface StoredLayout {
   savedAt: string
 }
 
-const store = new Store<{ layoutStore: StoredLayout | undefined }>()
+const store = new Store<{
+  layoutStore: StoredLayout | undefined
+  'shell.mode': string | undefined
+}>()
 const execFileAsync = promisify(execFile)
 
 // Hoisted window reference — needed by IPC handlers registered before createWindow
@@ -1204,6 +1207,16 @@ ipcMain.handle('layout:set', (_event, layout: unknown) => {
     layout,
     savedAt: new Date().toISOString(),
   } satisfies StoredLayout)
+})
+
+ipcMain.handle('mode:get', () => {
+  return store.get('shell.mode') ?? null
+})
+
+ipcMain.handle('mode:set', (_event, mode: unknown) => {
+  if (mode === 'simple' || mode === 'developer') {
+    store.set('shell.mode', mode)
+  }
 })
 
 // Filesystem handlers — implemented in ui/phase-1.4

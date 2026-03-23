@@ -96,10 +96,14 @@ export interface PreferencesApi {
   ) => Promise<{ success: boolean; error?: string }>
 }
 
+type PreferencesShellMode = 'simple' | 'developer'
+
 interface PreferencesPanelProps extends IDockviewPanelProps {
   params: {
     preferencesApi?: PreferencesApi
     onWizardReset?: () => void | Promise<void>
+    onModeChange?: (mode: PreferencesShellMode) => void
+    currentMode?: PreferencesShellMode
   }
 }
 
@@ -404,6 +408,8 @@ function buildChangedRoleAssignments(
 export function PreferencesPanel({ params }: PreferencesPanelProps) {
   const api = params?.preferencesApi
   const onWizardReset = params?.onWizardReset
+  const currentMode = params?.currentMode ?? 'simple'
+  const isDeveloperMode = currentMode === 'developer'
 
   const [apiKeys, setApiKeys] = useState<ApiKeyEntry[]>([])
   const [systemStatus, setSystemStatus] = useState<SystemStatus | null>(null)
@@ -1064,6 +1070,49 @@ export function PreferencesPanel({ params }: PreferencesPanelProps) {
           )}
         </div>
       )}
+
+      <div style={sectionStyle}>
+        <div style={sectionTitleStyle}>Shell Mode</div>
+
+        <div style={cardStyle}>
+          <div style={rowStyle}>
+            <div>
+              <label
+                htmlFor="developer-mode-toggle"
+                style={{
+                  fontSize: 'var(--nous-font-size-base)',
+                  fontWeight: 'var(--nous-font-weight-semibold)' as never,
+                  color: 'var(--nous-fg)',
+                }}
+              >
+                Developer Mode
+              </label>
+              <div style={{ ...helperTextStyle, marginTop: 'var(--nous-space-xs)' }}>
+                Switch to the advanced panel-based layout with full customization
+              </div>
+            </div>
+            <input
+              id="developer-mode-toggle"
+              aria-label="Developer Mode"
+              type="checkbox"
+              role="switch"
+              checked={isDeveloperMode}
+              disabled={!params?.onModeChange}
+              onChange={(event) => {
+                params?.onModeChange?.(
+                  event.target.checked ? 'developer' : 'simple',
+                )
+              }}
+              style={{
+                width: 'var(--nous-space-4xl)',
+                height: 'var(--nous-space-lg)',
+                accentColor: 'var(--nous-btn-primary-bg)',
+                cursor: params?.onModeChange ? 'pointer' : 'not-allowed',
+              }}
+            />
+          </div>
+        </div>
+      </div>
 
       {/* ── System Status ─────────────────────────────────── */}
       <div style={sectionStyle}>
