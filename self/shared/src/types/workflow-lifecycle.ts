@@ -53,7 +53,7 @@ export const WorkflowLifecycleDefinitionSummarySchema = z
     toolDependencies: z.array(WorkflowPackageToolDependencySchema).default([]),
     rootRef: z.string().min(1),
     manifestRef: z.string().min(1),
-    flowRef: z.string().min(1),
+    flowRef: z.string().min(1).optional(),
   })
   .strict();
 export type WorkflowLifecycleDefinitionSummary = z.infer<
