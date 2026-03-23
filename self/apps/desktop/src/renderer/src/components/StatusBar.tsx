@@ -1,6 +1,12 @@
 'use client'
 
-export function StatusBar() {
+import type { ShellMode } from '@nous/ui/components'
+
+export function StatusBar({
+  mode,
+}: {
+  mode: ShellMode
+}) {
   return (
     <div
       style={{
@@ -24,7 +30,7 @@ export function StatusBar() {
           style={{
             display: 'flex',
             alignItems: 'center',
-            gap: 'var(--nous-space-xs)',
+            gap: 'var(--nous-space-lg)',
             padding: '0 var(--nous-space-lg)',
           }}
         >
@@ -32,10 +38,12 @@ export function StatusBar() {
             <span style={{ fontSize: 'var(--nous-indicator-size)' }}>●</span>
             <span>ready</span>
           </span>
+          <span aria-label="Active project scope" style={{ minWidth: 'var(--nous-space-4xl)' }} />
+          <span>0 workflows</span>
         </div>
       </div>
 
-      {/* Right slot: version */}
+      {/* Right slot: mode */}
       <div
         style={{
           display: 'flex',
@@ -43,7 +51,19 @@ export function StatusBar() {
           height: '100%',
         }}
       >
-        <div style={{ padding: '0 var(--nous-space-lg)' }}>v0.0.1</div>
+        <div style={{ padding: '0 var(--nous-space-lg)' }}>
+          <div
+            style={{
+              padding: '0 var(--nous-space-sm)',
+              borderRadius: 'var(--nous-radius-sm)',
+              background: 'var(--nous-surface)',
+              fontSize: 'var(--nous-font-size-xs)',
+              color: 'var(--nous-fg-subtle)',
+            }}
+          >
+            {mode === 'simple' ? 'Simple' : 'Developer'}
+          </div>
+        </div>
       </div>
     </div>
   )
