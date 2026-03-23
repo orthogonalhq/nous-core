@@ -32,6 +32,13 @@
       {
         "from": "../../../node_modules/better-sqlite3/build/Release/better_sqlite3.node",
         "to": "app.asar.unpacked/node_modules/better-sqlite3/build/Release"
+      },
+      {
+        "from": "../../../node_modules/koffi/build/koffi",
+        "to": "node_modules/koffi/build/koffi",
+        "filter": [
+          "win32_*/koffi.node"
+        ]
       }
     ],
     "mac": {
@@ -53,6 +60,7 @@
     "@vscode/codicons": "^0.0.44",
     "dockview-react": "^4.2.0",
     "electron-store": "^8.2.0",
+    "koffi": "^2.9.0",
     "react": "^19.0.0",
     "react-dom": "^19.0.0",
     "superjson": "^2.2.2"

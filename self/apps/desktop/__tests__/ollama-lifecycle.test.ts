@@ -11,6 +11,8 @@ const execFileMock = vi.hoisted(() => vi.fn());
 const forkMock = vi.hoisted(() => vi.fn());
 const spawnMock = vi.hoisted(() => vi.fn());
 const fetchMock = vi.hoisted(() => vi.fn());
+const initOrphanGuardMock = vi.hoisted(() => vi.fn());
+const registerChildMock = vi.hoisted(() => vi.fn());
 
 const originalFetch = globalThis.fetch;
 const originalPlatformDescriptor = Object.getOwnPropertyDescriptor(process, 'platform');
@@ -112,6 +114,11 @@ vi.mock('node:child_process', () => ({
   execFile: execFileMock,
   fork: forkMock,
   spawn: spawnMock,
+}));
+
+vi.mock('../src/main/orphan-guard', () => ({
+  initOrphanGuard: initOrphanGuardMock,
+  registerChild: registerChildMock,
 }));
 
 function setPlatform(platform: NodeJS.Platform): void {
@@ -253,6 +260,8 @@ describe('desktop Ollama lifecycle', () => {
     forkMock.mockReset();
     spawnMock.mockReset();
     fetchMock.mockReset();
+    initOrphanGuardMock.mockReset();
+    registerChildMock.mockReset();
     appMock.whenReady.mockClear();
     appMock.on.mockClear();
     appMock.getPath.mockClear();
