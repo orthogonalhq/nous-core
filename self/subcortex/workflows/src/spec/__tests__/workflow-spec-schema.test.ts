@@ -3,9 +3,13 @@
  */
 import { describe, it, expect } from 'vitest';
 import {
-  WorkflowSpecSchema,
-  WorkflowNodeSchema,
+  AppHttpRequestParamsSchema,
+  AppSlackParamsSchema,
+  ToolArtifactStoreParamsSchema,
+  ToolMemorySearchParamsSchema,
   WorkflowConnectionSchema,
+  WorkflowNodeSchema,
+  WorkflowSpecSchema,
   validateWorkflowSpec,
   type WorkflowSpec,
 } from '@nous/shared';
@@ -170,6 +174,40 @@ describe('WorkflowNodeSchema', () => {
     expect(result.success).toBe(false);
   });
 
+  it('accepts kebab-case node ids', () => {
+    const validIds = ['trigger', 'node-1', 'compile-fail-context', 'a1-b2'];
+
+    for (const id of validIds) {
+      const result = WorkflowNodeSchema.safeParse({
+        id,
+        name: 'Valid ID',
+        type: 'nous.trigger.schedule',
+        position: [0, 0],
+      });
+      expect(result.success).toBe(true);
+    }
+  });
+
+  it('rejects non-kebab-case node ids', () => {
+    const invalidIds = [
+      'Step 1',
+      'UPPER',
+      'under_score',
+      '--double',
+      'trailing-',
+    ];
+
+    for (const id of invalidIds) {
+      const result = WorkflowNodeSchema.safeParse({
+        id,
+        name: 'Invalid ID',
+        type: 'nous.trigger.schedule',
+        position: [0, 0],
+      });
+      expect(result.success).toBe(false);
+    }
+  });
+
   it('rejects position with wrong length', () => {
     const result = WorkflowNodeSchema.safeParse({
       id: 'node-1',
@@ -241,12 +279,28 @@ describe('WorkflowSpecSchema', () => {
     expect(result.success).toBe(true);
   });
 
-  it('rejects version != 1', () => {
-    const result = WorkflowSpecSchema.safeParse({
-      ...validMinimalSpec,
-      version: 2,
-    });
-    expect(result.success).toBe(false);
+  it('accepts positive integer versions at the schema level', () => {
+    const versions = [1, 2, 99];
+
+    for (const version of versions) {
+      const result = WorkflowSpecSchema.safeParse({
+        ...validMinimalSpec,
+        version,
+      });
+      expect(result.success).toBe(true);
+    }
+  });
+
+  it('rejects invalid version values', () => {
+    const invalidVersions = [0, -1, 1.5, '1', null];
+
+    for (const version of invalidVersions) {
+      const result = WorkflowSpecSchema.safeParse({
+        ...validMinimalSpec,
+        version,
+      });
+      expect(result.success).toBe(false);
+    }
   });
 
   it('rejects empty name', () => {
@@ -282,6 +336,24 @@ describe('WorkflowSpecSchema', () => {
 describe('validateWorkflowSpec', () => {
   it('returns success for a valid spec', () => {
     const result = validateWorkflowSpec(validLinearSpec);
+    expect(result.success).toBe(true);
+  });
+
+  it('preserves shallow validation when deep mode is omitted', () => {
+    const spec: WorkflowSpec = {
+      ...validMinimalSpec,
+      nodes: [
+        {
+          id: 'notify',
+          name: 'Slack Notify',
+          type: 'nous.app.slack',
+          position: [0, 0],
+          parameters: {},
+        },
+      ],
+    };
+
+    const result = validateWorkflowSpec(spec);
     expect(result.success).toBe(true);
   });
 
@@ -328,6 +400,127 @@ describe('validateWorkflowSpec', () => {
     }
   });
 
+  it('returns an unsupported version error for future spec versions', () => {
+    const result = validateWorkflowSpec({
+      ...validMinimalSpec,
+      version: 2,
+    });
+    expect(result.success).toBe(false);
+    if (!result.success) {
+      expect(result.errors).toContainEqual(
+        expect.objectContaining({
+          path: 'version',
+          message: expect.stringContaining('Unsupported spec version: 2'),
+        }),
+      );
+    }
+  });
+
+  it('passes deep validation for valid registered node parameters', () => {
+    const spec: WorkflowSpec = {
+      ...validMinimalSpec,
+      nodes: [
+        {
+          id: 'fetch',
+          name: 'Fetch URL',
+          type: 'nous.app.http-request',
+          position: [0, 0],
+          parameters: {
+            url: 'https://example.com/hook',
+            method: 'POST',
+          },
+        },
+      ],
+    };
+
+    const result = validateWorkflowSpec(spec, { deep: true });
+    expect(result.success).toBe(true);
+  });
+
+  it('catches invalid registered node parameters in deep mode', () => {
+    const spec: WorkflowSpec = {
+      ...validMinimalSpec,
+      nodes: [
+        {
+          id: 'notify',
+          name: 'Slack Notify',
+          type: 'nous.app.slack',
+          position: [0, 0],
+          parameters: {
+            channel: '',
+          },
+        },
+      ],
+    };
+
+    const result = validateWorkflowSpec(spec, { deep: true });
+    expect(result.success).toBe(false);
+    if (!result.success) {
+      expect(
+        result.errors.some((error) =>
+          error.path.startsWith('nodes.0.parameters'),
+        ),
+      ).toBe(true);
+    }
+  });
+
+  it('passes unknown node types in deep mode', () => {
+    const spec: WorkflowSpec = {
+      ...validMinimalSpec,
+      nodes: [
+        {
+          id: 'custom',
+          name: 'Custom App',
+          type: 'nous.app.custom',
+          position: [0, 0],
+          parameters: {},
+        },
+      ],
+    };
+
+    const result = validateWorkflowSpec(spec, { deep: true });
+    expect(result.success).toBe(true);
+  });
+
+  it('collects deep validation errors across multiple nodes', () => {
+    const spec: WorkflowSpec = {
+      ...validMinimalSpec,
+      nodes: [
+        {
+          id: 'notify',
+          name: 'Slack Notify',
+          type: 'nous.app.slack',
+          position: [0, 0],
+          parameters: {
+            channel: 'alerts',
+          },
+        },
+        {
+          id: 'store',
+          name: 'Store Artifact',
+          type: 'nous.tool.artifact-store',
+          position: [200, 0],
+          parameters: {
+            key: 'artifact-key',
+            operation: 'archive',
+          },
+        },
+      ],
+      connections: [{ from: 'notify', to: 'store' }],
+    };
+
+    const result = validateWorkflowSpec(spec, { deep: true });
+    expect(result.success).toBe(false);
+    if (!result.success) {
+      expect(result.errors).toEqual(
+        expect.arrayContaining([
+          expect.objectContaining({ path: 'nodes.0.parameters.message' }),
+          expect.objectContaining({ path: 'nodes.1.parameters.operation' }),
+        ]),
+      );
+    }
+  });
+
   it('returns schema errors for completely invalid input', () => {
     const result = validateWorkflowSpec({ name: 123 });
     expect(result.success).toBe(false);
@@ -339,5 +532,75 @@ describe('validateWorkflowSpec', () => {
     if (!result.success) {
       expect(result.errors.length).toBeGreaterThan(0);
     }
+  });
+});
+
+describe('App and tool parameter schemas', () => {
+  it('validates AppHttpRequestParamsSchema', () => {
+    expect(
+      AppHttpRequestParamsSchema.safeParse({
+        url: 'https://example.com/api',
+        method: 'GET',
+      }).success,
+    ).toBe(true);
+    expect(
+      AppHttpRequestParamsSchema.safeParse({
+        method: 'GET',
+      }).success,
+    ).toBe(false);
+    expect(
+      AppHttpRequestParamsSchema.safeParse({
+        url: 'not-a-url',
+      }).success,
+    ).toBe(false);
+  });
+
+  it('validates AppSlackParamsSchema', () => {
+    expect(
+      AppSlackParamsSchema.safeParse({
+        channel: '#alerts',
+        message: 'Build failed',
+      }).success,
+    ).toBe(true);
+    expect(
+      AppSlackParamsSchema.safeParse({
+        message: 'Build failed',
+      }).success,
+    ).toBe(false);
+    expect(
+      AppSlackParamsSchema.safeParse({
+        channel: '#alerts',
+      }).success,
+    ).toBe(false);
+  });
+
+  it('validates ToolMemorySearchParamsSchema', () => {
+    expect(
+      ToolMemorySearchParamsSchema.safeParse({
+        query: 'workflow spec',
+        limit: 5,
+        scope: 'project',
+      }).success,
+    ).toBe(true);
+    expect(
+      ToolMemorySearchParamsSchema.safeParse({
+        limit: 5,
+      }).success,
+    ).toBe(false);
+  });
+
+  it('validates ToolArtifactStoreParamsSchema', () => {
+    expect(
+      ToolArtifactStoreParamsSchema.safeParse({
+        key: 'artifact-key',
+        operation: 'put',
+      }).success,
+    ).toBe(true);
+    expect(
+      ToolArtifactStoreParamsSchema.safeParse({
+        key: 'artifact-key',
+        operation: 'archive',
+      }).success,
+    ).toBe(false);
   });
 });
