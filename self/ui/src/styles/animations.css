@@ -1,0 +1,140 @@
+/**
+ * @nous/ui — Shared motion primitives
+ *
+ * Keyframes and opt-in utility classes for shell motion patterns.
+ */
+
+@keyframes nous-pulse {
+  0%,
+  100% {
+    opacity: 0.72;
+    transform: scale(1);
+  }
+
+  50% {
+    opacity: 1;
+    transform: scale(var(--nous-scale-lift));
+  }
+}
+
+@keyframes nous-shake {
+  0%,
+  100% {
+    transform: translateX(0);
+  }
+
+  25% {
+    transform: translateX(calc(var(--nous-shake-distance) * -1));
+  }
+
+  75% {
+    transform: translateX(var(--nous-shake-distance));
+  }
+}
+
+@keyframes nous-flash-success {
+  0% {
+    box-shadow: 0 0 0 0 var(--nous-alert-success);
+  }
+
+  35% {
+    box-shadow: 0 0 0 1px var(--nous-alert-success);
+  }
+
+  100% {
+    box-shadow: 0 0 0 0 transparent;
+  }
+}
+
+@keyframes nous-flash-error {
+  0% {
+    box-shadow: 0 0 0 0 var(--nous-alert-error);
+  }
+
+  35% {
+    box-shadow: 0 0 0 1px var(--nous-alert-error);
+  }
+
+  100% {
+    box-shadow: 0 0 0 0 transparent;
+  }
+}
+
+@keyframes nous-slide-in-right {
+  from {
+    opacity: 0;
+    transform: translateX(var(--nous-space-md));
+  }
+
+  to {
+    opacity: 1;
+    transform: translateX(0);
+  }
+}
+
+@keyframes nous-fade-in-up {
+  from {
+    opacity: 0;
+    transform: translateY(var(--nous-space-sm));
+  }
+
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+.nous-animate-pulse {
+  animation:
+    nous-pulse
+    var(--nous-duration-ambient)
+    var(--nous-ease-in-out)
+    infinite;
+}
+
+.nous-animate-shake {
+  animation:
+    nous-shake
+    var(--nous-duration-normal)
+    var(--nous-ease-in-out);
+}
+
+.nous-animate-flash-success {
+  animation:
+    nous-flash-success
+    var(--nous-duration-slow)
+    var(--nous-ease-out);
+}
+
+.nous-animate-flash-error {
+  animation:
+    nous-flash-error
+    var(--nous-duration-normal)
+    var(--nous-ease-out);
+}
+
+.nous-animate-slide-in-right {
+  animation:
+    nous-slide-in-right
+    var(--nous-duration-normal)
+    var(--nous-ease-out);
+}
+
+.nous-animate-fade-in-up {
+  animation:
+    nous-fade-in-up
+    var(--nous-duration-normal)
+    var(--nous-ease-out);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .nous-animate-pulse,
+  .nous-animate-shake,
+  .nous-animate-flash-success,
+  .nous-animate-flash-error,
+  .nous-animate-slide-in-right,
+  .nous-animate-fade-in-up {
+    animation: none !important;
+    transition-duration: 0s !important;
+  }
+}
