@@ -163,9 +163,9 @@ function toAppPanelDef(panel: AppPanelSnapshot): PanelDef {
  * Build a param lookup from NATIVE_PANEL_DEFS keyed by panel id.
  * Used to re-inject live API bridges after layout restore.
  */
-function buildParamLookup(): Map<string, () => Record<string, unknown>> {
+function buildParamLookup(panelDefs: PanelDef[]): Map<string, () => Record<string, unknown>> {
   const lookup = new Map<string, () => Record<string, unknown>>()
-  for (const def of NATIVE_PANEL_DEFS) {
+  for (const def of panelDefs) {
     if (def.params) {
       lookup.set(def.id, def.params)
     }
@@ -177,8 +177,8 @@ function buildParamLookup(): Map<string, () => Record<string, unknown>> {
  * After fromJSON() restores a layout, panels have stale/empty params.
  * Walk every panel and re-inject live params from the registry.
  */
-function resolvePanelParams(api: DockviewApi): void {
-  const lookup = buildParamLookup()
+function resolvePanelParams(api: DockviewApi, panelDefs: PanelDef[]): void {
+  const lookup = buildParamLookup(panelDefs)
   for (const panel of api.panels) {
     const factory = lookup.get(panel.id)
     if (factory) {
@@ -256,7 +256,6 @@ export function App() {
   const [savedLayout, setSavedLayout] = useState<LayoutState>(undefined)
   const [dockviewApi, setDockviewApi] = useState<DockviewApi | null>(null)
   const [appPanels, setAppPanels] = useState<AppPanelSnapshot[]>([])
-  const panelDefs = [...NATIVE_PANEL_DEFS, ...appPanels.map(toAppPanelDef)]
 
   const initializeApp = useCallback(async () => {
     const runId = ++bootstrapRunRef.current
@@ -403,6 +402,30 @@ export function App() {
     setPhase('main')
   }, [])
 
+  const handleWizardReset = useCallback(() => {
+    void initializeApp()
+  }, [initializeApp])
+
+  const nativePanelDefs = NATIVE_PANEL_DEFS.map((def) => {
+    if (def.id !== 'preferences') {
+      return def
+    }
+
+    return {
+      ...def,
+      params: () => ({
+        preferencesApi: {
+          ...(window as any).electronAPI?.preferences,
+          getHardwareRecommendations: window.electronAPI?.hardware.getRecommendations,
+          resetWizard: window.electronAPI?.firstRun.resetWizard,
+        },
+        onWizardReset: handleWizardReset,
+      }),
+    }
+  })
+
+  const panelDefs = [...nativePanelDefs, ...appPanels.map(toAppPanelDef)]
+
   const loadingShell = (
     <ChromeShell dockviewApi={null} panelDefs={panelDefs}>
       <div
@@ -475,6 +498,7 @@ export function App() {
         savedLayout={savedLayout}
         onApiReady={setDockviewApi}
         activeAppPanelIds={new Set(appPanels.map((panel) => panel.dockview_panel_id))}
+        panelDefs={panelDefs}
       />
     </ChromeShell>
   )
@@ -504,10 +528,12 @@ function DockviewShell({
   savedLayout,
   onApiReady,
   activeAppPanelIds,
+  panelDefs,
 }: {
   savedLayout: SerializedDockview | null
   onApiReady: (api: DockviewApi) => void
   activeAppPanelIds: Set<string>
+  panelDefs: PanelDef[]
 }) {
   const dockviewApiRef = useRef<DockviewApi | null>(null)
 
@@ -534,12 +560,12 @@ function DockviewShell({
     }
 
     if (!layoutRestored) {
-      initDefaultLayout(event)
+      initDefaultLayout(event, panelDefs)
     }
 
     // After any layout init (restored or default), re-inject live API bridges
     // so panels have working APIs immediately on first render.
-    resolvePanelParams(event.api)
+    resolvePanelParams(event.api, panelDefs)
 
     // Persist layout on every change (UI-INV-006).
     // ALWAYS strip non-serializable params before sending over IPC to
@@ -554,7 +580,7 @@ function DockviewShell({
 
     dockviewApiRef.current = event.api
     onApiReady(event.api)
-  }, [savedLayout, onApiReady])
+  }, [savedLayout, onApiReady, panelDefs])
 
   return (
     <div style={{ height: '100%', width: '100%', padding: 'var(--nous-space-sm)', boxSizing: 'border-box', background: 'var(--nous-surface)' }}>
@@ -584,8 +610,8 @@ const DEFAULT_POSITIONS: Record<string, { direction: string; referencePanel: str
  * Adds panels in dependency-safe order. Panels that reference others
  * (via position.referencePanel) are added AFTER their reference target.
  */
-function initDefaultLayout(event: DockviewReadyEvent) {
-  const defById = new Map(NATIVE_PANEL_DEFS.map((d) => [d.id, d]))
+function initDefaultLayout(event: DockviewReadyEvent, panelDefs: PanelDef[]) {
+  const defById = new Map(panelDefs.map((d) => [d.id, d]))
 
   for (const id of PANEL_ADD_ORDER) {
     const def = defById.get(id)

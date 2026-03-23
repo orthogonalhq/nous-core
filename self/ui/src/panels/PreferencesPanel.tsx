@@ -85,6 +85,7 @@ export interface PreferencesApi {
   deleteApiKey: (input: { provider: Provider }) => Promise<{ deleted: boolean }>
   testApiKey: (input: { provider: Provider; key?: string }) => Promise<TestResult>
   getSystemStatus: () => Promise<SystemStatus>
+  resetWizard?: () => Promise<unknown>
   getAvailableModels?: () => Promise<{ models: AvailableModel[] }>
   getModelSelection?: () => Promise<ModelSelection>
   setModelSelection?: (input: { principal?: string; system?: string }) => Promise<{ success: boolean }>
@@ -98,6 +99,7 @@ export interface PreferencesApi {
 interface PreferencesPanelProps extends IDockviewPanelProps {
   params: {
     preferencesApi?: PreferencesApi
+    onWizardReset?: () => void | Promise<void>
   }
 }
 
@@ -401,6 +403,7 @@ function buildChangedRoleAssignments(
 
 export function PreferencesPanel({ params }: PreferencesPanelProps) {
   const api = params?.preferencesApi
+  const onWizardReset = params?.onWizardReset
 
   const [apiKeys, setApiKeys] = useState<ApiKeyEntry[]>([])
   const [systemStatus, setSystemStatus] = useState<SystemStatus | null>(null)
@@ -435,6 +438,8 @@ export function PreferencesPanel({ params }: PreferencesPanelProps) {
   const [applyAllRoleModel, setApplyAllRoleModel] = useState('')
   const [savingRoleAssignments, setSavingRoleAssignments] = useState(false)
   const [roleAssignmentFeedback, setRoleAssignmentFeedback] = useState<FeedbackState | null>(null)
+  const [resettingWizard, setResettingWizard] = useState(false)
+  const [wizardFeedback, setWizardFeedback] = useState<FeedbackState | null>(null)
 
   const refresh = useCallback(async () => {
     if (!api) return
@@ -616,6 +621,36 @@ export function PreferencesPanel({ params }: PreferencesPanelProps) {
       setRoleAssignmentFeedback(formatFeedbackError(err))
     } finally {
       setSavingRoleAssignments(false)
+    }
+  }
+
+  const handleResetWizard = async () => {
+    if (!api?.resetWizard || resettingWizard) {
+      return
+    }
+
+    const confirmed = window.confirm(
+      'Re-run the setup wizard from the beginning? This resets the onboarding flow so you can reconfigure your local runtime.',
+    )
+
+    if (!confirmed) {
+      return
+    }
+
+    setResettingWizard(true)
+    setWizardFeedback(null)
+
+    try {
+      await api.resetWizard()
+      setWizardFeedback({
+        message: 'Setup wizard reset. Returning to onboarding...',
+        success: true,
+      })
+      await onWizardReset?.()
+    } catch (err) {
+      setWizardFeedback(formatFeedbackError(err))
+    } finally {
+      setResettingWizard(false)
     }
   }
 
@@ -1068,6 +1103,48 @@ export function PreferencesPanel({ params }: PreferencesPanelProps) {
           </div>
         </div>
       </div>
+
+      {api.resetWizard && (
+        <div style={sectionStyle}>
+          <div style={sectionTitleStyle}>Setup Wizard</div>
+
+          <div style={cardStyle}>
+            <div
+              style={{
+                fontSize: 'var(--nous-font-size-base)',
+                fontWeight: 'var(--nous-font-weight-semibold)' as never,
+                color: 'var(--nous-fg)',
+                marginBottom: 'var(--nous-space-xs)',
+              }}
+            >
+              Re-run local setup
+            </div>
+            <div style={{ ...helperTextStyle, marginBottom: 'var(--nous-space-md)' }}>
+              Use this if your hardware changed, you want to reconfigure providers from scratch,
+              or you need to troubleshoot the onboarding flow again.
+            </div>
+            <div style={{ display: 'flex', justifyContent: 'flex-start' }}>
+              <button
+                style={{
+                  ...btnStyle('ghost'),
+                  opacity: resettingWizard ? 0.5 : 1,
+                  cursor: resettingWizard ? 'not-allowed' : 'pointer',
+                }}
+                onClick={handleResetWizard}
+                disabled={resettingWizard}
+              >
+                {resettingWizard ? 'Resetting...' : 'Re-run Setup Wizard'}
+              </button>
+            </div>
+          </div>
+
+          {wizardFeedback && (
+            <div style={feedbackStyle(wizardFeedback.success)}>
+              {wizardFeedback.message}
+            </div>
+          )}
+        </div>
+      )}
 
       {/* ── About ─────────────────────────────────────────── */}
       <div style={sectionStyle}>

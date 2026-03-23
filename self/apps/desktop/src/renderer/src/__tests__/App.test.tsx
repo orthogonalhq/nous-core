@@ -1,9 +1,18 @@
 import { act, fireEvent, render, screen, waitFor } from '@testing-library/react'
-import { describe, expect, it, vi } from 'vitest'
+import { beforeEach, describe, expect, it, vi } from 'vitest'
 import {
   createElectronAPIMock,
   createFirstRunState,
 } from '../test-setup'
+
+const dockviewApiMock = vi.hoisted(() => ({
+  panels: [] as never[],
+  fromJSON: vi.fn(),
+  onDidLayoutChange: vi.fn(),
+  toJSON: vi.fn(() => null),
+  addPanel: vi.fn(),
+  removePanel: vi.fn(),
+}))
 
 vi.mock('dockview-react', async () => {
   const React = await import('react')
@@ -25,14 +34,7 @@ vi.mock('dockview-react', async () => {
     }) => {
       React.useEffect(() => {
         onReady?.({
-          api: {
-            panels: [],
-            fromJSON: vi.fn(),
-            onDidLayoutChange: vi.fn(),
-            toJSON: vi.fn(() => null),
-            addPanel: vi.fn(),
-            removePanel: vi.fn(),
-          },
+          api: dockviewApiMock,
         })
       }, [onReady])
 
@@ -102,6 +104,15 @@ function installMock() {
 }
 
 describe('App', () => {
+  beforeEach(() => {
+    dockviewApiMock.fromJSON.mockClear()
+    dockviewApiMock.onDidLayoutChange.mockClear()
+    dockviewApiMock.toJSON.mockClear()
+    dockviewApiMock.addPanel.mockClear()
+    dockviewApiMock.removePanel.mockClear()
+    dockviewApiMock.panels.length = 0
+  })
+
   it('shows the wizard shell when first-run is incomplete', async () => {
     const mock = installMock()
     mock.firstRun.getWizardState.mockResolvedValue(
@@ -184,6 +195,49 @@ describe('App', () => {
       fireEvent.click(screen.getByRole('button', { name: 'Retry' }))
       await Promise.resolve()
       await Promise.resolve()
+    })
+
+    await waitFor(() => {
+      expect(mock.firstRun.getWizardState).toHaveBeenCalledTimes(2)
+    })
+
+    expect(await screen.findByText('Wizard shell')).toBeInTheDocument()
+  })
+
+  it('wires the preferences panel reset callback back into app initialization', async () => {
+    const mock = installMock()
+    mock.firstRun.getWizardState
+      .mockResolvedValueOnce(
+        createFirstRunState({
+          currentStep: 'complete',
+          complete: true,
+        }),
+      )
+      .mockResolvedValueOnce(
+        createFirstRunState({
+          currentStep: 'ollama_check',
+          complete: false,
+        }),
+      )
+
+    render(<App />)
+
+    expect(await screen.findByText('Dockview shell')).toBeInTheDocument()
+
+    const preferencesPanelCall = dockviewApiMock.addPanel.mock.calls.find(
+      ([panel]) => panel.id === 'preferences',
+    )
+    expect(preferencesPanelCall).toBeTruthy()
+
+    const preferencesParams = preferencesPanelCall?.[0].params as {
+      preferencesApi?: { resetWizard?: () => Promise<unknown> }
+      onWizardReset?: () => Promise<void> | void
+    }
+
+    expect(preferencesParams.preferencesApi?.resetWizard).toBe(mock.firstRun.resetWizard)
+
+    await act(async () => {
+      await preferencesParams.onWizardReset?.()
     })
 
     await waitFor(() => {
