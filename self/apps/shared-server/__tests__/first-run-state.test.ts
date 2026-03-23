@@ -8,6 +8,10 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 
+vi.mock('node:child_process', () => ({
+  execFile: vi.fn(),
+}));
+
 function createTempDir(): string {
   return mkdtempSync(join(tmpdir(), 'nous-first-run-'));
 }

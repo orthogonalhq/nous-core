@@ -49,7 +49,6 @@ async function loadModule() {
 
 describe('hardware detection', () => {
   beforeEach(() => {
-    vi.resetModules();
     execFileMock.mockReset();
     osMocks.totalmem.mockReset().mockReturnValue(16 * 1024 * 1024 * 1024);
     osMocks.freemem.mockReset().mockReturnValue(10 * 1024 * 1024 * 1024);

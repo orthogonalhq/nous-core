@@ -90,13 +90,16 @@ async function flush(): Promise<void> {
   await new Promise((resolve) => window.setTimeout(resolve, 0))
 }
 
-async function renderPanel(api: PreferencesApi): Promise<void> {
+async function renderPanel(
+  api: PreferencesApi,
+  paramsOverrides: Record<string, unknown> = {},
+): Promise<void> {
   await act(async () => {
     root.render(
       <PreferencesPanel
         api={{} as any}
         containerApi={{} as any}
-        params={{ preferencesApi: api } as any}
+        params={{ preferencesApi: api, ...paramsOverrides } as any}
       />,
     )
     await flush()
@@ -156,7 +159,7 @@ afterEach(async () => {
     await flush()
   })
   container.remove()
-  vi.clearAllMocks()
+  vi.restoreAllMocks()
 })
 
 describe('PreferencesPanel role assignment settings', () => {
@@ -307,5 +310,23 @@ describe('PreferencesPanel role assignment settings', () => {
     expect(textContent()).toContain('GPT-4o')
     expect(textContent()).toContain('Claude Sonnet 4')
     expect(textContent()).toContain('Not assigned')
+  })
+
+  it('renders the re-run wizard control and calls reset + callback', async () => {
+    const resetWizard = vi.fn(async () => ({ complete: false }))
+    const onWizardReset = vi.fn()
+    vi.spyOn(window, 'confirm').mockReturnValue(true)
+
+    const api = createBaseApi({
+      resetWizard,
+      getRoleAssignments: async () => createRoleAssignments() as any,
+      setRoleAssignment: async () => ({ success: true }),
+    })
+
+    await renderPanel(api, { onWizardReset })
+    await click(getButton('Re-run Setup Wizard'))
+
+    expect(resetWizard).toHaveBeenCalledTimes(1)
+    expect(onWizardReset).toHaveBeenCalledTimes(1)
   })
 })

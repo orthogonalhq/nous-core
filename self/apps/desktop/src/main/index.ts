@@ -47,6 +47,7 @@ let backendPort: number | null = null
 let backendReady = false
 let backendReadyPromise: Promise<number> | null = null
 let isAppQuitting = false
+let shutdownCleanupComplete = false
 
 type BackendOllamaRequestAction = 'getStatus' | 'start' | 'stop'
 
@@ -68,8 +69,10 @@ const OLLAMA_HEALTH_INTERVAL_MS = 10_000
 const OLLAMA_HEALTH_FAILURE_THRESHOLD = 3
 const OLLAMA_READY_TIMEOUT_MS = 30_000
 const OLLAMA_READY_POLL_INTERVAL_MS = 500
+const BACKEND_STOP_TIMEOUT_MS = 5000
 const OLLAMA_STOP_TIMEOUT_MS = 5000
 const OLLAMA_MAX_RESTARTS = 5
+const APP_SHUTDOWN_TIMEOUT_MS = 10_000
 
 let ollamaChild: ChildProcess | null = null
 let ollamaState: OllamaLifecycleState = 'not_installed'
@@ -638,6 +641,7 @@ function spawnBackendServer(port: number): Promise<number> {
       console.log(`[nous:desktop] backend server exited (code=${code}, signal=${signal})`)
       backendChild = null
       backendReady = false
+      backendReadyPromise = null
       backendPort = null
 
       // Auto-restart if the app is still running and it wasn't a clean shutdown
@@ -669,18 +673,64 @@ async function startBackend(): Promise<number> {
  * Stop the backend child process gracefully.
  * DO NOT REMOVE — see fix/desktop-backend-wiring
  */
-function stopBackend(): void {
-  if (backendChild) {
-    console.log('[nous:desktop] stopping backend server...')
-    backendChild.kill('SIGTERM')
-    // Force kill after 5 seconds
-    const forceKillTimer = setTimeout(() => {
-      if (backendChild) {
-        backendChild.kill('SIGKILL')
-      }
-    }, 5000)
-    forceKillTimer.unref()
+async function stopBackend(): Promise<void> {
+  if (!backendChild) {
+    return
   }
+
+  const child = backendChild
+  console.log('[nous:desktop] stopping backend server...')
+
+  const exitPromise = new Promise<void>((resolve) => {
+    const onExit = () => {
+      console.log('[nous:desktop] backend server stopped')
+      resolve()
+    }
+
+    child.once('exit', onExit)
+
+    try {
+      child.kill('SIGTERM')
+    } catch {
+      child.off('exit', onExit)
+      resolve()
+      return
+    }
+
+    const forceKillTimer = setTimeout(() => {
+      if (backendChild === child) {
+        try {
+          child.kill('SIGKILL')
+        } catch {
+          // Ignore force-kill failures during shutdown cleanup.
+        }
+      }
+    }, BACKEND_STOP_TIMEOUT_MS)
+    forceKillTimer.unref()
+    child.once('exit', () => clearTimeout(forceKillTimer))
+  })
+
+  await exitPromise
+}
+
+async function performShutdownCleanup(): Promise<void> {
+  console.log('[nous:desktop] shutdown: cleanup starting...')
+
+  const results = await Promise.allSettled([
+    stopOllama(),
+    stopBackend(),
+  ])
+
+  for (const [index, result] of results.entries()) {
+    if (result.status === 'fulfilled') {
+      continue
+    }
+
+    const target = index === 0 ? 'ollama' : 'backend'
+    console.error(`[nous:desktop] failed to stop ${target} during shutdown:`, result.reason)
+  }
+
+  console.log('[nous:desktop] shutdown: cleanup complete')
 }
 
 // ━━━ Types ━━━
@@ -1620,12 +1670,40 @@ function createWindow(): void {
 
 // ━━━ App Lifecycle ━━━
 
-app.on('before-quit', () => {
+app.on('before-quit', (event) => {
+  if (shutdownCleanupComplete) {
+    return
+  }
+
+  event.preventDefault()
+
+  if (isAppQuitting) {
+    return
+  }
+
   isAppQuitting = true
-  void stopOllama().catch((err) => {
-    console.error('[nous:desktop] failed to stop ollama during shutdown:', err)
+  let shutdownTimeout: ReturnType<typeof setTimeout> | null = null
+
+  const timeoutPromise = new Promise<void>((resolve) => {
+    shutdownTimeout = setTimeout(() => {
+      console.warn(
+        `[nous:desktop] shutdown: cleanup timed out after ${APP_SHUTDOWN_TIMEOUT_MS / 1000}s, force-quitting`,
+      )
+      resolve()
+    }, APP_SHUTDOWN_TIMEOUT_MS)
+    shutdownTimeout.unref()
   })
-  stopBackend()
+
+  void Promise.race([
+    performShutdownCleanup(),
+    timeoutPromise,
+  ]).finally(() => {
+    if (shutdownTimeout) {
+      clearTimeout(shutdownTimeout)
+    }
+    shutdownCleanupComplete = true
+    app.quit()
+  })
 })
 
 app.whenReady().then(async () => {

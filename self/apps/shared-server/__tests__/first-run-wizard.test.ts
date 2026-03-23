@@ -27,6 +27,10 @@ const bootstrapMock = vi.hoisted(() => ({
   upsertProviderConfig: vi.fn(),
 }));
 
+vi.mock('node:child_process', () => ({
+  execFile: vi.fn(),
+}));
+
 vi.mock('../src/hardware-detection', async () => {
   const actual = await vi.importActual<typeof import('../src/hardware-detection')>(
     '../src/hardware-detection',
@@ -197,8 +201,6 @@ async function loadFirstRunRouter() {
 
 describe('first-run wizard router', () => {
   beforeEach(() => {
-    vi.resetModules();
-
     detectHardwareMock.mockReset().mockResolvedValue({
       totalMemoryMB: 16384,
       availableMemoryMB: 8192,
