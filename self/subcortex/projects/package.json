@@ -23,6 +23,7 @@
     "@nous/autonomic-storage": "workspace:*",
     "@nous/subcortex-apps": "workspace:*",
     "semver": "^7.6.3",
+    "yaml": "^2.7.0",
     "zod": "^3.24.1"
   }
 }

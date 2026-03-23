@@ -1,7 +1,7 @@
 import { mkdtemp, mkdir, rm, writeFile } from 'node:fs/promises';
 import { join } from 'node:path';
 import { tmpdir } from 'node:os';
-import { afterEach, describe, expect, it } from 'vitest';
+import { afterEach, describe, expect, it, vi } from 'vitest';
 import { NodeRuntime } from '@nous/autonomic-runtime';
 import { ProjectConfigSchema } from '@nous/shared';
 import {
@@ -20,6 +20,7 @@ const sanitizePackageId = (packageId: string): string =>
 const tempRoots: string[] = [];
 
 afterEach(async () => {
+  vi.restoreAllMocks();
   await Promise.all(
     tempRoots.splice(0).map((root) => rm(root, { recursive: true, force: true })),
   );
@@ -87,6 +88,7 @@ async function writeInstalledWorkflow(options: {
   steps: Record<string, string>;
   system?: boolean;
   packageVersion?: string;
+  manifestFileName?: 'workflow.md' | 'WORKFLOW.md';
 }) {
   const root = join(
     options.instanceRoot,
@@ -95,7 +97,10 @@ async function writeInstalledWorkflow(options: {
     sanitizePackageId(options.packageId),
   );
   await mkdir(root, { recursive: true });
-  await writeFile(join(root, 'WORKFLOW.md'), options.workflowMd);
+  await writeFile(
+    join(root, options.manifestFileName ?? 'WORKFLOW.md'),
+    options.workflowMd,
+  );
   await writeFile(join(root, 'nous.flow.yaml'), options.flowYaml);
   await mkdir(join(root, 'steps'), { recursive: true });
   for (const [name, content] of Object.entries(options.steps)) {
@@ -132,6 +137,103 @@ async function writeInstalledApp(options: {
     );
   }
 }
+
+async function writeInstalledCompositeWorkflow(options: {
+  instanceRoot: string;
+  packageId: string;
+  workflowMd: string;
+  workflowYaml: string;
+  nodes?: Record<string, string>;
+  contracts?: Record<string, string>;
+  templates?: Record<string, string>;
+  legacyFlowYaml?: string;
+  system?: boolean;
+  packageVersion?: string;
+  manifestFileName?: 'workflow.md' | 'WORKFLOW.md';
+  createNodesDir?: boolean;
+}) {
+  const root = join(
+    options.instanceRoot,
+    '.workflows',
+    ...(options.system ? ['.system'] : []),
+    sanitizePackageId(options.packageId),
+  );
+  await mkdir(root, { recursive: true });
+  await writeFile(
+    join(root, options.manifestFileName ?? 'workflow.md'),
+    options.workflowMd,
+  );
+  await writeFile(join(root, 'workflow.yaml'), options.workflowYaml);
+
+  if (options.legacyFlowYaml) {
+    await writeFile(join(root, 'nous.flow.yaml'), options.legacyFlowYaml);
+  }
+
+  if (options.createNodesDir ?? true) {
+    await mkdir(join(root, 'nodes'), { recursive: true });
+  }
+  for (const [nodeId, content] of Object.entries(options.nodes ?? {})) {
+    const nodeRoot = join(root, 'nodes', nodeId);
+    await mkdir(nodeRoot, { recursive: true });
+    await writeFile(join(nodeRoot, 'node.md'), content);
+  }
+
+  if (options.contracts && Object.keys(options.contracts).length > 0) {
+    await mkdir(join(root, 'contracts'), { recursive: true });
+    for (const [name, content] of Object.entries(options.contracts)) {
+      await writeFile(join(root, 'contracts', name), content);
+    }
+  }
+
+  if (options.templates && Object.keys(options.templates).length > 0) {
+    await mkdir(join(root, 'templates'), { recursive: true });
+    for (const [name, content] of Object.entries(options.templates)) {
+      await writeFile(join(root, 'templates', name), content);
+    }
+  }
+
+  if (options.packageVersion) {
+    await writeFile(
+      join(root, '.nous-package.json'),
+      JSON.stringify({ package_version: options.packageVersion }, null, 2),
+    );
+  }
+}
+
+const compositeWorkflowMd = `---
+name: research-workflow
+description: Workflow package manifest.
+entrypoint: draft-node
+---
+
+# Workflow
+`;
+
+const compositeWorkflowYaml = `name: Research Workflow
+version: 1
+nodes:
+  - id: draft-node
+    name: Draft Node
+    type: nous.agent.claude
+    position: [0, 0]
+    parameters: {}
+connections: []
+`;
+
+const compositeNodeMd = `---
+nous:
+  v: 2
+  kind: workflow_node
+  id: draft-node
+  skill: atomic-research
+  contracts:
+    - quality-gate
+  templates:
+    - goals-template
+---
+
+# Draft Node
+`;
 
 describe('package document loading', () => {
   const runtime = new NodeRuntime();
@@ -376,6 +478,346 @@ config:
       /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i,
     );
     expect(resolved.source.sourceKind).toBe('installed_package');
+  });
+
+  it('loads legacy workflow packages with a deprecation warning and legacy format discriminator', async () => {
+    const warnSpy = vi.spyOn(console, 'warn').mockImplementation(() => {});
+    const instanceRoot = await createInstanceRoot();
+    await writeInstalledWorkflow({
+      instanceRoot,
+      packageId: 'workflow.legacy',
+      workflowMd: `---
+name: legacy-workflow
+description: Legacy workflow package manifest.
+entrypoint: draft
+---
+
+# Workflow
+`,
+      flowYaml: `nous:
+  v: 1
+flow:
+  id: legacy-workflow
+  mode: graph
+  entry_step: draft
+  steps:
+    - id: draft
+      file: steps/draft.md
+      next: []
+`,
+      steps: {
+        'draft.md': `---
+nous:
+  v: 1
+  kind: workflow_step
+  id: draft
+name: Draft
+type: model-call
+governance: must
+executionModel: synchronous
+config:
+  type: model-call
+  modelRole: reasoner
+  promptRef: prompt://draft
+---
+`,
+      },
+    });
+
+    const loaded = await loadInstalledWorkflowPackage({
+      instanceRoot,
+      runtime,
+      packageId: 'workflow.legacy',
+    });
+
+    expect(loaded.format).toBe('legacy');
+    expect(warnSpy).toHaveBeenCalledWith(
+      expect.stringContaining('legacy nous.flow.yaml + steps/'),
+    );
+  });
+
+  it('loads composite workflow packages and captures topology, node content, contracts, and templates', async () => {
+    const instanceRoot = await createInstanceRoot();
+    await writeInstalledCompositeWorkflow({
+      instanceRoot,
+      packageId: 'workflow.composite',
+      packageVersion: '3.0.0',
+      workflowMd: compositeWorkflowMd,
+      workflowYaml: compositeWorkflowYaml,
+      nodes: {
+        'draft-node': compositeNodeMd,
+      },
+      contracts: {
+        'quality-gate.md': `---
+contract: quality-gate
+scope: per-node
+description: Validate draft quality.
+---
+
+# Contract
+`,
+      },
+      templates: {
+        'goals-template.md': `---
+template: goals-template
+description: Goals artifact structure.
+---
+
+# Template
+`,
+      },
+    });
+
+    const loaded = await loadInstalledWorkflowPackage({
+      instanceRoot,
+      runtime,
+      packageId: 'workflow.composite',
+    });
+
+    expect(loaded.format).toBe('composite');
+    expect(loaded.flowRef).toBeUndefined();
+    expect(loaded.topology?.nodes[0]?.id).toBe('draft-node');
+    expect(loaded.nodeContent?.['draft-node']?.frontmatter.nous.skill).toBe(
+      'atomic-research',
+    );
+    expect(loaded.contracts?.['quality-gate']?.frontmatter.scope).toBe('per-node');
+    expect(loaded.templates?.['goals-template']?.frontmatter.template).toBe(
+      'goals-template',
+    );
+  });
+
+  it('accepts lowercase workflow.md manifests for composite workflow packages', async () => {
+    const instanceRoot = await createInstanceRoot();
+    await writeInstalledCompositeWorkflow({
+      instanceRoot,
+      packageId: 'workflow.lowercase',
+      workflowMd: compositeWorkflowMd,
+      workflowYaml: compositeWorkflowYaml,
+      nodes: {
+        'draft-node': compositeNodeMd,
+      },
+      manifestFileName: 'workflow.md',
+    });
+
+    const loaded = await loadInstalledWorkflowPackage({
+      instanceRoot,
+      runtime,
+      packageId: 'workflow.lowercase',
+    });
+
+    expect(loaded.manifestRef).toContain('workflow.md');
+  });
+
+  it('prefers workflow.yaml over nous.flow.yaml when both topology files exist', async () => {
+    const warnSpy = vi.spyOn(console, 'warn').mockImplementation(() => {});
+    const instanceRoot = await createInstanceRoot();
+    await writeInstalledCompositeWorkflow({
+      instanceRoot,
+      packageId: 'workflow.dual',
+      workflowMd: compositeWorkflowMd,
+      workflowYaml: compositeWorkflowYaml,
+      legacyFlowYaml: `nous:
+  v: 1
+flow:
+  id: dual-workflow
+  mode: graph
+  entry_step: legacy
+  steps:
+    - id: legacy
+      file: steps/legacy.md
+      next: []
+`,
+      nodes: {
+        'draft-node': compositeNodeMd,
+      },
+    });
+
+    const loaded = await loadInstalledWorkflowPackage({
+      instanceRoot,
+      runtime,
+      packageId: 'workflow.dual',
+    });
+
+    expect(loaded.format).toBe('composite');
+    expect(loaded.topology?.name).toBe('Research Workflow');
+    expect(warnSpy).toHaveBeenCalledWith(
+      expect.stringContaining('contains both workflow.yaml and nous.flow.yaml'),
+    );
+  });
+
+  it('lists composite workflow packages even when flowRef is absent', async () => {
+    const instanceRoot = await createInstanceRoot();
+    await writeInstalledCompositeWorkflow({
+      instanceRoot,
+      packageId: 'workflow.listing',
+      workflowMd: compositeWorkflowMd,
+      workflowYaml: compositeWorkflowYaml,
+      nodes: {
+        'draft-node': compositeNodeMd,
+      },
+    });
+
+    const listed = await listInstalledWorkflowPackages({
+      instanceRoot,
+      runtime,
+    });
+
+    expect(listed).toHaveLength(1);
+    expect(listed[0]?.packageId).toBe('workflow.listing');
+    expect(listed[0]?.flowRef).toBeUndefined();
+  });
+
+  it('rejects composite workflow packages that are missing the nodes directory', async () => {
+    const instanceRoot = await createInstanceRoot();
+    await writeInstalledCompositeWorkflow({
+      instanceRoot,
+      packageId: 'workflow.no-nodes',
+      workflowMd: compositeWorkflowMd,
+      workflowYaml: compositeWorkflowYaml,
+      createNodesDir: false,
+    });
+
+    await expect(
+      loadInstalledWorkflowPackage({
+        instanceRoot,
+        runtime,
+        packageId: 'workflow.no-nodes',
+      }),
+    ).rejects.toThrow(/missing nodes\/ directory/i);
+  });
+
+  it('rejects composite workflow packages when a topology node is missing node.md', async () => {
+    const instanceRoot = await createInstanceRoot();
+    await writeInstalledCompositeWorkflow({
+      instanceRoot,
+      packageId: 'workflow.missing-node',
+      workflowMd: compositeWorkflowMd,
+      workflowYaml: compositeWorkflowYaml,
+      nodes: {},
+    });
+
+    await expect(
+      loadInstalledWorkflowPackage({
+        instanceRoot,
+        runtime,
+        packageId: 'workflow.missing-node',
+      }),
+    ).rejects.toThrow(/missing node\.md/i);
+  });
+
+  it('rejects composite workflow packages whose node frontmatter ids do not match topology ids', async () => {
+    const instanceRoot = await createInstanceRoot();
+    await writeInstalledCompositeWorkflow({
+      instanceRoot,
+      packageId: 'workflow.composite-mismatch',
+      workflowMd: compositeWorkflowMd,
+      workflowYaml: compositeWorkflowYaml,
+      nodes: {
+        'draft-node': `---
+nous:
+  v: 2
+  kind: workflow_node
+  id: review-node
+---
+`,
+      },
+    });
+
+    await expect(
+      loadInstalledWorkflowPackage({
+        instanceRoot,
+        runtime,
+        packageId: 'workflow.composite-mismatch',
+      }),
+    ).rejects.toThrow(/workflow node id mismatch/i);
+  });
+
+  it('rejects composite workflow packages with invalid node frontmatter', async () => {
+    const instanceRoot = await createInstanceRoot();
+    await writeInstalledCompositeWorkflow({
+      instanceRoot,
+      packageId: 'workflow.invalid-node',
+      workflowMd: compositeWorkflowMd,
+      workflowYaml: compositeWorkflowYaml,
+      nodes: {
+        'draft-node': `---
+nous:
+  v: 1
+  kind: workflow_step
+  id: draft-node
+---
+`,
+      },
+    });
+
+    await expect(
+      loadInstalledWorkflowPackage({
+        instanceRoot,
+        runtime,
+        packageId: 'workflow.invalid-node',
+      }),
+    ).rejects.toThrow(/workflow_node|invalid literal/i);
+  });
+
+  it('guards composite packages from legacy inspection and definition resolution paths', async () => {
+    const instanceRoot = await createInstanceRoot();
+    await writeInstalledCompositeWorkflow({
+      instanceRoot,
+      packageId: 'workflow.composite-guarded',
+      packageVersion: '3.0.0',
+      workflowMd: compositeWorkflowMd,
+      workflowYaml: compositeWorkflowYaml,
+      nodes: {
+        'draft-node': compositeNodeMd,
+      },
+    });
+
+    const projectConfig = ProjectConfigSchema.parse({
+      id: '550e8400-e29b-41d4-a716-446655440501',
+      name: 'Composite Guard Project',
+      type: 'hybrid',
+      pfcTier: 3,
+      memoryAccessPolicy: {
+        canReadFrom: 'all',
+        canBeReadBy: 'all',
+        inheritsGlobal: true,
+      },
+      escalationChannels: ['in-app'],
+      workflow: {
+        definitions: [],
+        packageBindings: [
+          {
+            workflowDefinitionId: '550e8400-e29b-41d4-a716-446655440502',
+            workflowPackageId: 'workflow.composite-guarded',
+            workflowPackageVersion: '3.0.0',
+            entrypoint: 'draft-node',
+            boundAt: '2026-03-23T18:00:00.000Z',
+            manifestRef: '.workflows/workflow__composite-guarded/workflow.md',
+          },
+        ],
+        defaultWorkflowDefinitionId: '550e8400-e29b-41d4-a716-446655440502',
+      },
+      retrievalBudgetTokens: 500,
+      createdAt: '2026-03-23T18:00:00.000Z',
+      updatedAt: '2026-03-23T18:00:00.000Z',
+    });
+
+    await expect(
+      inspectInstalledWorkflowPackage({
+        instanceRoot,
+        runtime,
+        packageId: 'workflow.composite-guarded',
+      }),
+    ).rejects.toThrow(/does not support composite workflow packages yet/i);
+
+    await expect(
+      resolveInstalledWorkflowDefinition({
+        instanceRoot,
+        runtime,
+        projectConfig,
+        binding: projectConfig.workflow!.packageBindings[0]!,
+      }),
+    ).rejects.toThrow(/does not support composite workflow packages yet/i);
   });
 
   it('loads installed app packages from the canonical app store', async () => {
