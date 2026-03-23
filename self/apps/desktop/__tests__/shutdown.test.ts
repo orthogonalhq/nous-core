@@ -24,6 +24,8 @@ const createDefaultFirstRunStateMock = vi.hoisted(() =>
     lastUpdatedAt: '2026-03-22T00:00:00.000Z',
   }))
 )
+const initOrphanGuardMock = vi.hoisted(() => vi.fn())
+const registerChildMock = vi.hoisted(() => vi.fn())
 
 let nextPid = 7000
 
@@ -129,6 +131,11 @@ vi.mock('../../shared-server/src/ollama-detection', () => ({
 
 vi.mock('../../shared-server/src/first-run', () => ({
   createDefaultFirstRunState: createDefaultFirstRunStateMock,
+}))
+
+vi.mock('../src/main/orphan-guard', () => ({
+  initOrphanGuard: initOrphanGuardMock,
+  registerChild: registerChildMock,
 }))
 
 function installDefaultMocks(): void {
@@ -270,6 +277,8 @@ describe('desktop graceful shutdown', () => {
     resolveOllamaBinaryMock.mockReset()
     pullOllamaModelMock.mockReset()
     createDefaultFirstRunStateMock.mockClear()
+    initOrphanGuardMock.mockReset()
+    registerChildMock.mockReset()
 
     installDefaultMocks()
 
