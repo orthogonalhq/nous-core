@@ -240,6 +240,58 @@ describe('specToWorkflowDefinition', () => {
     });
     expect(def.mode).toBe('hybrid');
   });
+
+  it('adds node metadata when enrichment is provided', () => {
+    const def = specToWorkflowDefinition(linearSpec, {
+      projectId,
+      enrichment: {
+        agent: {
+          skill: 'atomic-research',
+          contracts: ['quality-gate'],
+          templates: ['goals-template'],
+          body: '# Claude Agent',
+        },
+      },
+    });
+
+    const agentNode = def.nodes.find((node) => node.name === 'Claude Agent');
+    expect(agentNode?.metadata).toEqual({
+      specNodeId: 'agent',
+      skill: 'atomic-research',
+      contracts: ['quality-gate'],
+      templates: ['goals-template'],
+    });
+  });
+
+  it('only enriches the nodes present in the enrichment map', () => {
+    const def = specToWorkflowDefinition(linearSpec, {
+      projectId,
+      enrichment: {
+        save: {
+          contracts: ['retention-policy'],
+        },
+      },
+    });
+
+    const saveNode = def.nodes.find((node) => node.name === 'Save to Memory');
+    const triggerNode = def.nodes.find(
+      (node) => node.name === 'Schedule Trigger',
+    );
+
+    expect(saveNode?.metadata).toEqual({
+      specNodeId: 'save',
+      skill: undefined,
+      contracts: ['retention-policy'],
+      templates: undefined,
+    });
+    expect(triggerNode).not.toHaveProperty('metadata');
+  });
+
+  it('preserves backward compatibility when enrichment is omitted', () => {
+    const def = specToWorkflowDefinition(linearSpec, { projectId });
+
+    expect(def.nodes.every((node) => !('metadata' in node))).toBe(true);
+  });
 });
 
 // ---------------------------------------------------------------------------
