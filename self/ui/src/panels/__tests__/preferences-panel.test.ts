@@ -371,3 +371,49 @@ describe('Model selector API contract', () => {
     expect(panelsIndex.PreferencesPanel).toBe(PreferencesPanel);
   }, 15000);
 });
+
+// ---------------------------------------------------------------------------
+// Settings module exports
+// ---------------------------------------------------------------------------
+
+describe('Settings module exports', () => {
+  it('SettingsShell is exported as a function component from panels index', async () => {
+    const panelsIndex = await import('../index.js');
+    expect(typeof panelsIndex.SettingsShell).toBe('function');
+    expect(panelsIndex.SettingsShell.name).toBe('SettingsShell');
+  }, 15000);
+
+  it('settings types are importable from panels index', async () => {
+    const panelsIndex = await import('../index.js');
+    // These are type exports — they exist as undefined at runtime but the import should not throw
+    // We verify the module loaded without errors and the value exports are present
+    expect(panelsIndex.SettingsShell).toBeDefined();
+    expect(panelsIndex.PreferencesPanel).toBeDefined();
+  }, 15000);
+
+  it('testStoredProviderKey and formatFeedbackError are re-exported from panels index', async () => {
+    const panelsIndex = await import('../index.js');
+    expect(typeof panelsIndex.testStoredProviderKey).toBe('function');
+    expect(typeof panelsIndex.formatFeedbackError).toBe('function');
+  }, 15000);
+
+  it('PreferencesPanel identity matches between direct import and panels index', async () => {
+    const panelsIndex = await import('../index.js');
+    expect(panelsIndex.PreferencesPanel).toBe(PreferencesPanel);
+  }, 15000);
+
+  it('SettingsShellProps type contract verifies expected fields', () => {
+    // This is a compile-time test — if the type is wrong, TypeScript will error
+    type SettingsShellPropsFromIndex = import('../index.js').SettingsShellProps;
+    const props: SettingsShellPropsFromIndex = {
+      api: undefined,
+      appPanels: [{ id: 'test', title: 'Test' }],
+      defaultPageId: 'about',
+      currentMode: 'simple',
+      onModeChange: () => {},
+      onWizardReset: () => {},
+    };
+    expect(props.defaultPageId).toBe('about');
+    expect(props.appPanels).toHaveLength(1);
+  });
+});

@@ -10,3 +10,14 @@ export { CodexBarPanel, CodexBarHeaderActions, useCodexBarApi } from './CodexBar
 export { DashboardPanel, DashboardWidgetMenu, useDashboardApi } from './dashboard'
 export { PreferencesPanel } from './PreferencesPanel'
 export type { PreferencesApi, AvailableModel, ModelSelection, RoleAssignmentDisplayEntry } from './PreferencesPanel'
+export { testStoredProviderKey, formatFeedbackError } from './PreferencesPanel'
+export { SettingsShell } from './settings'
+export type {
+  SettingsShellProps,
+  SettingsCategory,
+  SettingsPageProps,
+  AppPanelEntry,
+  SettingsPage,
+  SettingsNavProps,
+  SettingsNavItem,
+} from './settings'
