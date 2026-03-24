@@ -2,8 +2,9 @@
 
 import { useState, useEffect, useRef } from 'react'
 import type { IDockviewPanelProps } from 'dockview-react'
+import { clsx } from 'clsx'
 
-interface AgentCycleEntry {
+export interface AgentCycleEntry {
   agent: string
   role: 'orchestrator' | 'worker' | 'reviewer' | 'prompt-gen'
   state: 'idle' | 'active' | 'complete' | 'waiting'
@@ -11,10 +12,17 @@ interface AgentCycleEntry {
   cycle: number
 }
 
-interface MaoApi {
+export interface MaoApi {
   getAgentProjections: (projectId: string) => Promise<MaoAgentProjection[]>
   getProjectControlProjection: (projectId: string) => Promise<MaoProjectControlProjection | null>
   requestProjectControl: (input: unknown) => Promise<unknown>
+}
+
+export interface MAOPanelCoreProps {
+  maoApi?: MaoApi
+  entries?: AgentCycleEntry[]
+  hostingContext?: 'dockview' | 'observe-child'
+  className?: string
 }
 
 interface MaoAgentProjection {
@@ -107,9 +115,12 @@ interface MAOPanelProps extends IDockviewPanelProps {
   }
 }
 
-export function MAOPanel({ params }: MAOPanelProps) {
-  const maoApi = params?.maoApi
-  const [entries, setEntries] = useState<AgentCycleEntry[]>(params?.entries ?? DEMO_MAO_STATE)
+export function MAOPanel(props: MAOPanelProps | MAOPanelCoreProps) {
+  const maoApi = 'params' in props ? props.params?.maoApi : props.maoApi
+  const initialEntries = 'params' in props ? props.params?.entries : props.entries
+  const className = 'className' in props ? props.className : undefined
+  const _hostingContext = 'hostingContext' in props ? props.hostingContext : undefined
+  const [entries, setEntries] = useState<AgentCycleEntry[]>(initialEntries ?? DEMO_MAO_STATE)
   const [controlState, setControlState] = useState<string | null>(null)
   const [error, setError] = useState<string | null>(null)
   const [isLive, setIsLive] = useState(false)
@@ -123,7 +134,7 @@ export function MAOPanel({ params }: MAOPanelProps) {
   useEffect(() => {
     if (!maoApi) {
       setIsLive(false)
-      setEntries(params?.entries ?? DEMO_MAO_STATE)
+      setEntries(initialEntries ?? DEMO_MAO_STATE)
       return
     }
 
@@ -141,7 +152,7 @@ export function MAOPanel({ params }: MAOPanelProps) {
           setError(null)
         } else {
           // Backend returned empty — show demo state with a note
-          setEntries(params?.entries ?? DEMO_MAO_STATE)
+          setEntries(initialEntries ?? DEMO_MAO_STATE)
           setIsLive(false)
           setError(null)
         }
@@ -170,12 +181,12 @@ export function MAOPanel({ params }: MAOPanelProps) {
       cancelled = true
       window.clearInterval(intervalId)
     }
-  }, [maoApi, params?.entries])
+  }, [maoApi, initialEntries])
 
   const maxCycle = Math.max(...entries.map(e => e.cycle), 0)
 
   return (
-    <div style={{ display: 'flex', flexDirection: 'column', height: '100%', color: 'var(--nous-fg)', fontSize: 'var(--nous-font-size-base)' }}>
+    <div className={clsx(className)} style={{ display: 'flex', flexDirection: 'column', height: '100%', color: 'var(--nous-fg)', fontSize: 'var(--nous-font-size-base)' }}>
       <div style={{ padding: 'var(--nous-space-md) var(--nous-space-2xl)', borderBottom: '1px solid var(--nous-border)', fontWeight: 'var(--nous-font-weight-semibold)' as any, fontSize: 'var(--nous-font-size-xs)', color: 'var(--nous-fg-muted)', display: 'flex', justifyContent: 'space-between', textTransform: 'uppercase', letterSpacing: '0.06em' }}>
         <span>MAO — Agent Cycle</span>
         <span style={{ display: 'flex', gap: 'var(--nous-space-lg)', alignItems: 'center' }}>
