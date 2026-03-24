@@ -20,6 +20,16 @@ export type AuthorityActor = 'nous_cortex' | 'orchestration_agent' | 'worker_age
 /** Re-export for convenience */
 export type { LifecycleAction };
 
+/** Execution context for scope guard validation. */
+export interface ScopeGuardExecutionContext {
+  /** Node definition ID, if executing a specific workflow node */
+  nodeDefinitionId?: string;
+  /** Active workmode ID */
+  workmodeId?: string;
+  /** Emitter agent class for provenance validation */
+  agentClass?: string;
+}
+
 /** Input for dispatch admission evaluation. */
 export interface DispatchAdmissionInput {
   /** Actor initiating the dispatch (source of authority) */
@@ -32,6 +42,8 @@ export interface DispatchAdmissionInput {
   projectRunId?: string;
   /** Optional workmode ID for context */
   workmodeId?: WorkmodeId;
+  /** Optional execution context for scope guard validation */
+  executionContext?: ScopeGuardExecutionContext;
 }
 
 /** Input for lifecycle admission evaluation. */
@@ -87,4 +99,7 @@ export interface IWorkmodeAdmissionGuard {
 
   /** Evaluate whether a lifecycle action is permitted */
   evaluateLifecycleAdmission(input: LifecycleAdmissionInput): AdmissionResult;
+
+  /** Evaluate scope guard admissibility (optional — concrete class provides implementation) */
+  evaluateScopeGuard?(input: DispatchAdmissionInput): AdmissionResult;
 }
