@@ -169,6 +169,21 @@ async function toggleSwitch(input: HTMLInputElement, checked: boolean): Promise<
   })
 }
 
+async function navigateToPage(pageId: string): Promise<void> {
+  const navButton = container.querySelector(`[data-testid="page-${pageId}"]`)
+  if (!(navButton instanceof HTMLButtonElement)) {
+    throw new Error(`Nav button not found for page: ${pageId}`)
+  }
+  await act(async () => {
+    fireEvent.click(navButton)
+    await flush()
+  })
+  // Extra flush to allow page component to mount and load data
+  await act(async () => {
+    await flush()
+  })
+}
+
 beforeEach(() => {
   container = document.createElement('div')
   document.body.appendChild(container)
@@ -184,6 +199,26 @@ afterEach(async () => {
   vi.restoreAllMocks()
 })
 
+describe('PreferencesPanel renders SettingsShell', () => {
+  it('renders the settings shell structure', async () => {
+    const api = createBaseApi()
+    await renderPanel(api)
+
+    expect(container.querySelector('[data-testid="settings-shell"]')).toBeTruthy()
+    expect(container.querySelector('[data-testid="settings-nav-column"]')).toBeTruthy()
+    expect(container.querySelector('[data-testid="settings-content"]')).toBeTruthy()
+  })
+
+  it('renders navigation categories', async () => {
+    const api = createBaseApi()
+    await renderPanel(api)
+
+    expect(textContent()).toContain('General')
+    expect(textContent()).toContain('AI Configuration')
+    expect(textContent()).toContain('System')
+  })
+})
+
 describe('PreferencesPanel role assignment settings', () => {
   it('renders the role assignment section when the API is provided', async () => {
     const api = createBaseApi({
@@ -192,6 +227,7 @@ describe('PreferencesPanel role assignment settings', () => {
     })
 
     await renderPanel(api)
+    await navigateToPage('role-assignments')
 
     expect(textContent()).toContain('Role Assignments')
     for (const label of ROLE_LABELS) {
@@ -206,6 +242,7 @@ describe('PreferencesPanel role assignment settings', () => {
     })
 
     await renderPanel(api)
+    await navigateToPage('role-assignments')
 
     expect(textContent()).toContain('Qwen 2.5 7B')
     expect(textContent()).toContain('GPT-4o')
@@ -220,6 +257,7 @@ describe('PreferencesPanel role assignment settings', () => {
     })
 
     await renderPanel(api)
+    await navigateToPage('role-assignments')
     await changeSelect(
       getSelectByAriaLabel('Orchestrator assignment'),
       'anthropic:claude-sonnet-4-20250514',
@@ -240,6 +278,7 @@ describe('PreferencesPanel role assignment settings', () => {
     })
 
     await renderPanel(api)
+    await navigateToPage('role-assignments')
     await changeSelect(
       getSelectByAriaLabel('Apply one model to every role'),
       'openai:gpt-4o',
@@ -268,6 +307,7 @@ describe('PreferencesPanel role assignment settings', () => {
     })
 
     await renderPanel(api)
+    await navigateToPage('role-assignments')
     await changeSelect(getSelectByAriaLabel('Reasoner assignment'), 'anthropic:claude-sonnet-4-20250514')
     await click(getButton('Save Role Assignments'))
 
@@ -284,6 +324,7 @@ describe('PreferencesPanel role assignment settings', () => {
     })
 
     await renderPanel(api)
+    await navigateToPage('role-assignments')
 
     expect((textContent().match(/Not assigned/g) ?? []).length).toBeGreaterThanOrEqual(2)
   })
@@ -292,9 +333,15 @@ describe('PreferencesPanel role assignment settings', () => {
     const api = createBaseApi()
 
     await renderPanel(api)
+    await navigateToPage('role-assignments')
 
-    expect(textContent()).not.toContain('Role Assignments')
-    expect(textContent()).toContain('Model Configuration')
+    // RoleAssignmentsPage returns null when api.getRoleAssignments is missing.
+    // The settings-page-content container exists but is empty.
+    const pageContent = container.querySelector('[data-testid="settings-page-content"]')
+    expect(pageContent).toBeTruthy()
+    expect(pageContent?.textContent).toBe('')
+    // The "Role Assignments" label is visible in nav, but no page content renders
+    expect(container.querySelector('[data-testid="page-role-assignments"]')).toBeTruthy()
   })
 
   it('renders a fully empty state when all 7 roles are unassigned', async () => {
@@ -312,6 +359,7 @@ describe('PreferencesPanel role assignment settings', () => {
     })
 
     await renderPanel(api)
+    await navigateToPage('role-assignments')
 
     expect((textContent().match(/Not assigned/g) ?? []).length).toBeGreaterThanOrEqual(7)
   })
@@ -328,12 +376,15 @@ describe('PreferencesPanel role assignment settings', () => {
     })
 
     await renderPanel(api)
+    await navigateToPage('role-assignments')
 
     expect(textContent()).toContain('GPT-4o')
     expect(textContent()).toContain('Claude Sonnet 4')
     expect(textContent()).toContain('Not assigned')
   })
+})
 
+describe('PreferencesPanel setup wizard', () => {
   it('renders the re-run wizard control and calls reset + callback', async () => {
     const resetWizard = vi.fn(async () => ({ complete: false }))
     const onWizardReset = vi.fn()
@@ -346,12 +397,15 @@ describe('PreferencesPanel role assignment settings', () => {
     })
 
     await renderPanel(api, { onWizardReset })
+    await navigateToPage('setup-wizard')
     await click(getButton('Re-run Setup Wizard'))
 
     expect(resetWizard).toHaveBeenCalledTimes(1)
     expect(onWizardReset).toHaveBeenCalledTimes(1)
   })
+})
 
+describe('PreferencesPanel developer mode toggle', () => {
   it('renders the developer mode toggle when mode params are provided', async () => {
     const api = createBaseApi()
 
@@ -360,6 +414,7 @@ describe('PreferencesPanel role assignment settings', () => {
       onModeChange: vi.fn(),
     })
 
+    // Shell mode is the default page, no navigation needed
     const toggle = getSwitchByAriaLabel('Developer Mode')
 
     expect(textContent()).toContain('Developer Mode')
