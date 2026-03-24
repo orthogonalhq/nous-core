@@ -789,7 +789,7 @@ export function App() {
                 onItemSelect={handleNavigate}
               />
             )}
-            chat={<ChatSurface chatApi={window.electronAPI?.chat as ChatAPI | undefined} />}
+            chat={<ChatSurface chatApi={window.electronAPI?.chat} />}
             content={(
               <ContentRouter
                 activeRoute={activeRoute}
