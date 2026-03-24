@@ -2,7 +2,7 @@ import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import { EventEmitter } from 'node:events';
 import type { IncomingMessage, ServerResponse } from 'node:http';
 import { createEventSseHandler } from '../../sse/event-sse-handler';
-import { EventBus } from '../../event-bus/event-bus';
+import { EventBus } from '@nous/shared-server';
 
 /**
  * Minimal mock for IncomingMessage.

@@ -27,6 +27,7 @@ import type {
   IPublicMcpGatewayService,
   IAppRuntimeService,
   ICredentialVaultService,
+  IEventBus,
 } from '@nous/shared';
 import type { PanelTranspiler } from '@nous/subcortex-apps';
 import type { ProviderRegistry } from '@nous/subcortex-providers';
@@ -101,4 +102,5 @@ export interface NousContext {
   codingAgentMaoEvents: Array<{ type: string; data: unknown; timestamp: string }>;
   /** In-memory store for agent sessions (keyed by session ID). */
   agentSessions: Map<string, AgentSessionEntry>;
+  eventBus: IEventBus;
 }

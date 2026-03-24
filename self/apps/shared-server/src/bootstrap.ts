@@ -130,6 +130,7 @@ import {
   TunnelSessionStore,
 } from '@nous/subcortex-public-mcp';
 import { MemoryAccessPolicyEngine } from '@nous/memory-access';
+import { EventBus } from './event-bus/event-bus.js';
 import type { NousContext } from './context';
 import type { IDocumentStore, IIngressGateway, IVectorStore } from '@nous/shared';
 
@@ -731,9 +732,11 @@ export function createNousServices(config?: BootstrapConfig): NousContext {
       submit: async (envelope) => schedulerIngressGateway.submit(envelope),
     },
   });
+  const eventBus = new EventBus();
   const escalationService = new EscalationService({
     escalationStore,
     projectStore,
+    eventBus,
   });
   const registryService = new RegistryService({
     registryStore,
@@ -755,6 +758,7 @@ export function createNousServices(config?: BootstrapConfig): NousContext {
   });
   const packageLifecycleOrchestrator = new PackageLifecycleOrchestrator({
     credentialVaultService,
+    eventBus,
   });
   const packageInstallService = new PackageInstallService({
     registryService,
@@ -788,6 +792,7 @@ export function createNousServices(config?: BootstrapConfig): NousContext {
     communicationGatewayService,
     escalationService,
     witnessService,
+    eventBus,
   });
   const panelTranspiler = new PanelTranspiler();
   const appToolRegistry = new AppToolRegistry({
@@ -827,6 +832,7 @@ export function createNousServices(config?: BootstrapConfig): NousContext {
     toolRegistry: appToolRegistry,
     communicationGatewayService,
     panelTranspiler,
+    eventBus,
   });
   const appInstallService = new AppInstallService({
     registryService,
@@ -852,6 +858,7 @@ export function createNousServices(config?: BootstrapConfig): NousContext {
     schedulerService,
     voiceControlService,
     witnessService,
+    eventBus,
   });
   const publicMcpNamespaceStore = new NamespaceRegistryStore(documentStore);
   const publicMcpAuditStore = new AuditProjectionStore(documentStore);
@@ -1207,6 +1214,7 @@ export function createNousServices(config?: BootstrapConfig): NousContext {
       profile: 'fast',
       fallbackPolicy: 'block_if_unmet',
     },
+    eventBus,
   });
   providerRegistry.onLeaseReleased((event) => {
     void gatewayRuntime.notifyLeaseReleased({
@@ -1256,6 +1264,7 @@ export function createNousServices(config?: BootstrapConfig): NousContext {
     dataDir,
     codingAgentMaoEvents,
     agentSessions,
+    eventBus,
   };
 
   console.log(`[nous:${runtimeLabel}] bootstrap complete`);

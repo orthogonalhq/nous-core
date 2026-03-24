@@ -21,6 +21,7 @@ export {
 } from './bootstrap';
 export type { BootstrapConfig } from './bootstrap';
 export type { NousContext, AgentSessionEntry } from './context';
+export { EventBus } from './event-bus/index.js';
 export { appRouter } from './trpc/root';
 export type { AppRouter } from './trpc/root';
 export { createTRPCContext, router, publicProcedure } from './trpc/trpc';

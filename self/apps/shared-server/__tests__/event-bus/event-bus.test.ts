@@ -1,5 +1,5 @@
 import { describe, it, expect, vi } from 'vitest';
-import { EventBus } from '../../event-bus/event-bus';
+import { EventBus } from '../../src/event-bus/event-bus';
 
 describe('EventBus', () => {
   // --- Tier 1: Contract Tests ---
