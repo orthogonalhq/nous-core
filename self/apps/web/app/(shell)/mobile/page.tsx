@@ -11,8 +11,8 @@ export default function MobilePage() {
   return (
     <React.Suspense
       fallback={
-        <div className="p-6">
-          <p className="text-muted-foreground">Loading mobile operating surface...</p>
+        <div style={{ padding: 'var(--nous-space-3xl)' }}>
+          <p style={{ color: 'var(--nous-text-secondary)' }}>Loading mobile operating surface...</p>
         </div>
       }
     >
@@ -50,8 +50,23 @@ function MobilePageContent() {
 
   if (!projectId) {
     return (
-      <div className="flex h-full items-center justify-center p-8 text-center">
-        <p className="max-w-sm text-sm text-muted-foreground">
+      <div
+        style={{
+          display: 'flex',
+          height: '100%',
+          alignItems: 'center',
+          justifyContent: 'center',
+          padding: 'var(--nous-space-4xl)',
+          textAlign: 'center',
+        }}
+      >
+        <p
+          style={{
+            maxWidth: '24rem',
+            fontSize: 'var(--nous-font-size-sm)',
+            color: 'var(--nous-text-secondary)',
+          }}
+        >
           Select a project from the navigation to open the mobile operating surface.
         </p>
       </div>
@@ -60,8 +75,8 @@ function MobilePageContent() {
 
   if (operationsSnapshot.isLoading || !operationsSnapshot.data) {
     return (
-      <div className="p-6">
-        <p className="text-muted-foreground">Loading mobile operating surface...</p>
+      <div style={{ padding: 'var(--nous-space-3xl)' }}>
+        <p style={{ color: 'var(--nous-text-secondary)' }}>Loading mobile operating surface...</p>
       </div>
     );
   }

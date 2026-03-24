@@ -8,6 +8,25 @@
  */
 
 :root {
+  /* ── Shell rail ─────────────────────────────────────────────────────── */
+  --nous-rail-bg:              var(--nous-bg-base);
+  --nous-rail-fg:              var(--nous-text-secondary);
+  --nous-rail-item-active-bg:  var(--nous-bg-active);
+  --nous-rail-hover-bg:        var(--nous-bg-hover);
+  --nous-rail-section-fg:      var(--nous-text-tertiary);
+
+  /* ── Shell columns ──────────────────────────────────────────────────── */
+  --nous-shell-column-border:  var(--nous-border-strong);
+  --nous-observe-bg:           var(--nous-bg-surface);
+
+  /* ── Ambient stream ─────────────────────────────────────────────────── */
+  --nous-ambient-fg:           var(--nous-text-tertiary);
+  --nous-ambient-event-bg:     var(--nous-accent-muted);
+
+  /* ── Catalog surfaces ──────────────────────────────────────────────── */
+  --nous-catalog-card-bg:      var(--nous-bg-elevated);
+  --nous-catalog-card-hover:   var(--nous-bg-hover);
+
   /* ── Panel header ──────────────────────────────────────────────────── */
   --nous-header-bg:     var(--nous-surface);
   --nous-header-fg:     var(--nous-fg-muted);

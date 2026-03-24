@@ -65,13 +65,19 @@
 
 On conversation start (or context reset), determine your operating state before taking action.
 
-#### Step 1 — Detect branch context
+#### Step 1 — Detect sprint context
 
-Read the current git branch name.
+**Keyword trigger: ideation triage.** If the Principal says "ideation triage", "promote discoveries", or equivalent, route to **research-planning-sop** orchestrator with mode `ideation_promotion`. Skip sprint/branch detection. Read `research-planning-sop/SKILL.md` and `research-planning-sop/orchestrator/ENTRY.md`, then execute `orchestrator/procedures/ideation-promotion-gate.md`.
+
+**Primary signal: thread-scoped sprint assignment.** If the conversation has an established sprint (the Principal named it, or a prior turn in this thread identified it), use that sprint's `<type>/<name>` as the context and proceed to Step 2. The main working tree may remain on `dev` — the sprint's feature branch exists in a worktree or on remote.
+
+**Fallback: branch detection.** If no thread-scoped sprint is established, read the current git branch name:
 
 - `main`, `staging`, `dev`: No active sprint. Route to **sprint-selection-sop**. If prior sprints exist, use `sprint_transition` mode; if no prior sprints exist, use `cold_start` mode. Read `sprint-selection-sop/SKILL.md` and `sprint-selection-sop/orchestrator/ENTRY.md`.
 - `fix/<name>` or `feat/<name>` (phase branch): Active sprint root. Check for sub-phase branches.
 - `fix/<name>.N/<descriptor>` or `feat/<name>.N/<descriptor>` (sub-phase branch): Active sub-phase. Proceed to Step 2.
+
+**Parallel sprint model:** Multiple sprints may run in parallel, each in its own conversation thread with its own orchestrator. The main working tree stays on `dev`. Implementation agents are dispatched to isolated worktrees (`isolation: "worktree"`). Behavioral testing temporarily checks out the feature branch on the main tree, then returns to `dev`.
 
 #### Step 2 — Detect workflow phase
 

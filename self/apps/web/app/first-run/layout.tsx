@@ -7,7 +7,17 @@ export default function FirstRunLayout({
   children: React.ReactNode;
 }) {
   return (
-    <div className="flex min-h-screen flex-col items-center justify-center bg-background p-8">
+    <div
+      style={{
+        display: 'flex',
+        minHeight: '100vh',
+        flexDirection: 'column',
+        alignItems: 'center',
+        justifyContent: 'center',
+        background: 'var(--nous-bg-surface)',
+        padding: 'var(--nous-space-3xl)',
+      }}
+    >
       {children}
     </div>
   );
