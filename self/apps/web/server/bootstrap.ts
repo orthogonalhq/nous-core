@@ -117,6 +117,7 @@ import {
 import { MemoryAccessPolicyEngine } from '@nous/memory-access';
 import type { NousContext } from './context';
 import type { IDocumentStore, IIngressGateway, IVectorStore } from '@nous/shared';
+import { EventBus } from './event-bus';
 
 const MOCK_PROVIDER_ID = '00000000-0000-0000-0000-000000000001' as ProviderId;
 
@@ -765,6 +766,8 @@ export function createNousContext(): NousContext {
     tunnelForwarder: publicMcpTunnelForwarder,
   });
 
+  const eventBus = new EventBus();
+
   const coreExecutor = new GatewayBackedTurnExecutor({
     modelRouter: router,
     getProvider,
@@ -840,6 +843,7 @@ export function createNousContext(): NousContext {
     publicMcpExecutionBridge,
     appRuntimeService,
     panelTranspiler,
+    eventBus,
     dataDir,
   };
   cachedContext = context;

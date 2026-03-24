@@ -25,6 +25,7 @@ import type {
   IVoiceControlService,
   IPublicMcpGatewayService,
   IAppRuntimeService,
+  IEventBus,
 } from '@nous/shared';
 import type { PanelTranspiler } from '@nous/subcortex-apps';
 import type {
@@ -68,5 +69,6 @@ export interface NousContext {
   publicMcpExecutionBridge: IPublicMcpExecutionBridge;
   appRuntimeService: IAppRuntimeService;
   panelTranspiler: PanelTranspiler;
+  eventBus: IEventBus;
   dataDir: string;
 }
