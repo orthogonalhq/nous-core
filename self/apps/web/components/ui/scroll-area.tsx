@@ -3,10 +3,14 @@ import * as React from 'react';
 const ScrollArea = React.forwardRef<
   HTMLDivElement,
   React.HTMLAttributes<HTMLDivElement>
->(({ className = '', children, ...props }, ref) => (
+>(({ className = '', children, style, ...props }, ref) => (
   <div
     ref={ref}
-    className={`overflow-auto ${className}`}
+    className={className}
+    style={{
+      overflow: 'auto',
+      ...style,
+    }}
     {...props}
   >
     {children}

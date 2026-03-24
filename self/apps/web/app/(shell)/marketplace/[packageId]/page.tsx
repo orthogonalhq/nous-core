@@ -9,8 +9,8 @@ export default function MarketplacePackagePage() {
   return (
     <React.Suspense
       fallback={
-        <div className="p-8">
-          <p className="text-muted-foreground">Loading package detail...</p>
+        <div style={{ padding: 'var(--nous-space-4xl)' }}>
+          <p style={{ color: 'var(--nous-text-secondary)' }}>Loading package detail...</p>
         </div>
       }
     >
@@ -30,14 +30,14 @@ function MarketplacePackagePageContent() {
 
   if (detailQuery.isLoading || !detailQuery.data) {
     return (
-      <div className="p-8">
-        <p className="text-muted-foreground">Loading package detail...</p>
+      <div style={{ padding: 'var(--nous-space-4xl)' }}>
+        <p style={{ color: 'var(--nous-text-secondary)' }}>Loading package detail...</p>
       </div>
     );
   }
 
   return (
-    <div className="p-8">
+    <div style={{ padding: 'var(--nous-space-4xl)' }}>
       <MarketplacePackageDetail
         snapshot={detailQuery.data}
         projectId={projectId}

@@ -2,7 +2,7 @@
 
 import * as Tooltip from '@radix-ui/react-tooltip'
 import * as React from 'react'
-import { cn } from '../../lib/cn'
+import { clsx } from 'clsx'
 import type { ProjectItem, RailItem, RailSection } from './types'
 
 const RAIL_ITEM_DIMENSION = 'calc(var(--nous-rail-width) - (var(--nous-space-sm) * 2))'
@@ -33,10 +33,7 @@ function RailItemButton({ item, isActive, onSelect }: RailItemButtonProps) {
       <Tooltip.Trigger asChild>
         <button
           type="button"
-          className={cn(
-            'nous-rail-item-button flex items-center justify-center',
-            isActive && 'is-active',
-          )}
+          className={clsx('nous-rail-item-button', isActive && 'is-active')}
           data-state={isActive ? 'active' : 'inactive'}
           aria-label={item.label}
           disabled={item.disabled}
@@ -44,6 +41,9 @@ function RailItemButton({ item, isActive, onSelect }: RailItemButtonProps) {
           onMouseEnter={() => setIsHovered(true)}
           onMouseLeave={() => setIsHovered(false)}
           style={{
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
             width: RAIL_ITEM_DIMENSION,
             minWidth: RAIL_ITEM_DIMENSION,
             minHeight: RAIL_ITEM_DIMENSION,
@@ -104,17 +104,16 @@ function RailSectionGroup({
 
   return (
     <div
-      className="nous-rail-section flex min-w-0 flex-col"
+      className="nous-rail-section"
       style={{
+        display: 'flex',
+        minWidth: 0,
+        flexDirection: 'column',
         gap: 'var(--nous-space-xs)',
       }}
     >
       <button
         type="button"
-        className={cn(
-          'flex items-center justify-between text-left',
-          !section.collapsible && 'pointer-events-none',
-        )}
         aria-expanded={!isCollapsed}
         onClick={() => {
           if (section.collapsible) {
@@ -122,6 +121,11 @@ function RailSectionGroup({
           }
         }}
         style={{
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'space-between',
+          textAlign: 'left',
+          pointerEvents: section.collapsible ? 'auto' : 'none',
           width: '100%',
           border: 'none',
           background: 'transparent',
@@ -139,8 +143,10 @@ function RailSectionGroup({
 
       {!isCollapsed ? (
         <div
-          className="flex flex-col items-center"
           style={{
+            display: 'flex',
+            flexDirection: 'column',
+            alignItems: 'center',
             gap: 'var(--nous-space-xs)',
           }}
         >
@@ -169,11 +175,14 @@ function RailProjectEntry({ project, onSelect }: RailProjectEntryProps) {
   return (
     <button
       type="button"
-      className="nous-rail-project-entry flex min-w-0 items-center"
+      className="nous-rail-project-entry"
       onClick={() => onSelect(project.id)}
       onMouseEnter={() => setIsHovered(true)}
       onMouseLeave={() => setIsHovered(false)}
       style={{
+        display: 'flex',
+        minWidth: 0,
+        alignItems: 'center',
         width: '100%',
         border: 'none',
         borderRadius: 'var(--nous-radius-md)',
@@ -185,10 +194,23 @@ function RailProjectEntry({ project, onSelect }: RailProjectEntryProps) {
         gap: 'var(--nous-space-sm)',
       }}
     >
-      <span className="flex items-center justify-center">{project.icon ?? '•'}</span>
       <span
-        className="min-w-0 flex-1 overflow-hidden text-ellipsis whitespace-nowrap text-left"
         style={{
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'center',
+        }}
+      >
+        {project.icon ?? '•'}
+      </span>
+      <span
+        style={{
+          minWidth: 0,
+          flex: '1 1 0%',
+          overflow: 'hidden',
+          textOverflow: 'ellipsis',
+          whiteSpace: 'nowrap',
+          textAlign: 'left',
           fontSize: 'var(--nous-font-size-xs)',
           color: 'var(--nous-text-secondary)',
         }}
@@ -209,11 +231,14 @@ function NewProjectButton({ onSelect }: NewProjectButtonProps) {
   return (
     <button
       type="button"
-      className="nous-new-project-button flex items-center justify-center"
+      className="nous-new-project-button"
       onClick={() => onSelect(PROJECT_NEW_ID)}
       onMouseEnter={() => setIsHovered(true)}
       onMouseLeave={() => setIsHovered(false)}
       style={{
+        display: 'flex',
+        alignItems: 'center',
+        justifyContent: 'center',
         width: '100%',
         border: '1px dashed var(--nous-shell-column-border)',
         borderRadius: 'var(--nous-radius-md)',
@@ -243,11 +268,11 @@ export function NavigationRail({
   return (
     <Tooltip.Provider delayDuration={150}>
       <div
-        className={cn(
-          'nous-navigation-rail flex h-full min-w-0 flex-col',
-          className,
-        )}
+        className={clsx('nous-navigation-rail', className)}
         style={{
+          display: 'flex',
+          height: '100%',
+          flexDirection: 'column',
           width: 'var(--nous-rail-width)',
           minWidth: 'var(--nous-rail-width)',
           background: 'var(--nous-rail-bg)',
@@ -262,8 +287,9 @@ export function NavigationRail({
       >
         {projects.length > 0 ? (
           <div
-            className="flex flex-col"
             style={{
+              display: 'flex',
+              flexDirection: 'column',
               gap: 'var(--nous-space-xs)',
             }}
           >
@@ -290,8 +316,12 @@ export function NavigationRail({
         ) : null}
 
         <div
-          className="flex min-w-0 flex-1 flex-col items-center"
           style={{
+            display: 'flex',
+            minWidth: 0,
+            flex: '1 1 0%',
+            flexDirection: 'column',
+            alignItems: 'center',
             gap: 'var(--nous-space-md)',
           }}
         >

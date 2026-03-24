@@ -16,20 +16,51 @@ export function ConfigReviewStep({ onNext }: ConfigReviewStepProps) {
   const assignments = (config?.modelRoleAssignments as Array<{ role: string; providerId: string }>) ?? [];
 
   return (
-    <Card className="w-full max-w-lg">
+    <Card style={{ width: '100%', maxWidth: '32rem' }}>
       <CardHeader>
         <CardTitle>Configuration Review</CardTitle>
       </CardHeader>
-      <CardContent className="space-y-4">
+      <CardContent
+        style={{
+          display: 'flex',
+          flexDirection: 'column',
+          gap: 'var(--nous-space-md)',
+        }}
+      >
         <div>
-          <p className="text-sm font-medium">Cortex Tier</p>
-          <p className="text-muted-foreground text-sm">
+          <p
+            style={{
+              fontSize: 'var(--nous-font-size-sm)',
+              fontWeight: 'var(--nous-font-weight-medium)',
+            }}
+          >
+            Cortex Tier
+          </p>
+          <p
+            style={{
+              color: 'var(--nous-text-secondary)',
+              fontSize: 'var(--nous-font-size-sm)',
+            }}
+          >
             {pfcTier} — Controls orchestration strength and reflection depth.
           </p>
         </div>
         <div>
-          <p className="text-sm font-medium">Model Assignments</p>
-          <ul className="text-muted-foreground list-inside list-disc text-sm">
+          <p
+            style={{
+              fontSize: 'var(--nous-font-size-sm)',
+              fontWeight: 'var(--nous-font-weight-medium)',
+            }}
+          >
+            Model Assignments
+          </p>
+          <ul
+            style={{
+              color: 'var(--nous-text-secondary)',
+              fontSize: 'var(--nous-font-size-sm)',
+              paddingLeft: '1.25rem',
+            }}
+          >
             {assignments.map((a) => {
               const prov = providers.find((p) => p.id === a.providerId);
               const name = prov?.name ?? 'Ollama';

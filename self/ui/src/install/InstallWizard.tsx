@@ -16,6 +16,94 @@ const STAGES: AppInstallStage[] = [
   'validation_activation',
 ]
 
+const mutedTextStyle: React.CSSProperties = {
+  fontSize: 'var(--nous-font-size-sm)',
+  color: 'var(--nous-text-secondary)',
+}
+
+const mutedTextXsStyle: React.CSSProperties = {
+  fontSize: 'var(--nous-font-size-xs)',
+  color: 'var(--nous-text-secondary)',
+}
+
+const stackXsStyle: React.CSSProperties = {
+  display: 'flex',
+  flexDirection: 'column',
+  gap: 'var(--nous-space-xs)',
+}
+
+const stackMdStyle: React.CSSProperties = {
+  display: 'flex',
+  flexDirection: 'column',
+  gap: 'var(--nous-space-md)',
+}
+
+const stackLgStyle: React.CSSProperties = {
+  display: 'flex',
+  flexDirection: 'column',
+  gap: '20px',
+}
+
+const rowWrapXsStyle: React.CSSProperties = {
+  display: 'flex',
+  flexWrap: 'wrap',
+  gap: 'var(--nous-space-xs)',
+}
+
+const rowBetweenSmStyle: React.CSSProperties = {
+  display: 'flex',
+  flexWrap: 'wrap',
+  alignItems: 'flex-start',
+  justifyContent: 'space-between',
+  gap: '12px',
+}
+
+const twoColumnGridCompactStyle: React.CSSProperties = {
+  display: 'grid',
+  gap: '12px',
+  gridTemplateColumns: 'repeat(2, 1fr)',
+}
+
+const twoColumnGridStyle: React.CSSProperties = {
+  display: 'grid',
+  gap: 'var(--nous-space-md)',
+  gridTemplateColumns: 'repeat(2, 1fr)',
+}
+
+const sectionCardStyle: React.CSSProperties = {
+  display: 'flex',
+  flexDirection: 'column',
+  gap: 'var(--nous-space-md)',
+  borderRadius: 'var(--nous-radius-md)',
+  border: '1px solid var(--nous-shell-column-border)',
+  padding: 'var(--nous-space-md)',
+}
+
+const warningStyle: React.CSSProperties = {
+  borderRadius: 'var(--nous-radius-md)',
+  border: '1px solid rgba(245, 158, 11, 0.4)',
+  background: 'rgba(245, 158, 11, 0.1)',
+  padding: 'var(--nous-space-md)',
+  fontSize: 'var(--nous-font-size-sm)',
+  color: 'rgb(254, 243, 199)',
+}
+
+const errorStyle: React.CSSProperties = {
+  borderRadius: 'var(--nous-radius-md)',
+  border: '1px solid rgba(239, 68, 68, 0.4)',
+  background: 'rgba(239, 68, 68, 0.1)',
+  padding: 'var(--nous-space-md)',
+  fontSize: 'var(--nous-font-size-sm)',
+  color: 'rgb(254, 226, 226)',
+}
+
+const checkboxStyle: React.CSSProperties = {
+  height: '16px',
+  width: '16px',
+  borderRadius: 'var(--nous-radius-sm)',
+  border: '1px solid var(--nous-shell-column-border)',
+}
+
 export interface InstallWizardProps {
   preparation: AppInstallPreparation
   projectId: string
@@ -146,21 +234,21 @@ export function InstallWizard({
   }
 
   return (
-    <Card className="border-border/80 bg-background/80">
-      <CardHeader className="space-y-3 border-b border-border">
-        <div className="flex flex-wrap items-start justify-between gap-3">
-          <div className="space-y-1">
+    <Card>
+      <CardHeader style={{ gap: '12px', borderBottom: '1px solid var(--nous-shell-column-border)' }}>
+        <div style={rowBetweenSmStyle}>
+          <div style={stackXsStyle}>
             <CardTitle>{preparation.display_name}</CardTitle>
-            <p className="text-sm text-muted-foreground">
+            <p style={mutedTextStyle}>
               {preparation.description ?? preparation.package_id}
             </p>
           </div>
-          <div className="flex flex-wrap gap-2">
+          <div style={rowWrapXsStyle}>
             <Badge variant="outline">{preparation.package_version}</Badge>
             <Badge variant="outline">{preparation.app_id}</Badge>
           </div>
         </div>
-        <div className="flex flex-wrap gap-2">
+        <div style={rowWrapXsStyle}>
           {STAGES.map((entry) => (
             <Badge
               key={entry}
@@ -171,33 +259,64 @@ export function InstallWizard({
           ))}
         </div>
       </CardHeader>
-      <CardContent className="space-y-6 pt-6">
+      <CardContent
+        style={{
+          display: 'flex',
+          flexDirection: 'column',
+          gap: 'var(--nous-space-xl)',
+          paddingTop: 'var(--nous-space-xl)',
+        }}
+      >
         {disabled ? (
-          <div className="rounded-md border border-amber-500/40 bg-amber-500/10 p-4 text-sm text-amber-100">
+          <div style={warningStyle}>
             {disabledReason ?? 'This install surface is currently unavailable.'}
           </div>
         ) : null}
 
         {stage === 'permission_review' ? (
-          <div className="space-y-4">
-            <p className="text-sm text-muted-foreground">
+          <div style={stackMdStyle}>
+            <p style={mutedTextStyle}>
               Review the runtime permissions requested by this app before any
               configuration or activation work begins.
             </p>
-            <div className="grid gap-3 md:grid-cols-2">
+            <div style={twoColumnGridCompactStyle}>
               {renderPermissionSummary(preparation).map((entry) => (
                 <div
                   key={entry.label}
-                  className="rounded-md border border-border/80 bg-muted/20 p-3"
+                  style={{
+                    borderRadius: 'var(--nous-radius-md)',
+                    border: '1px solid var(--nous-shell-column-border)',
+                    background: 'var(--nous-bg-hover)',
+                    padding: 'var(--nous-space-sm)',
+                  }}
                 >
-                  <div className="text-xs uppercase tracking-wide text-muted-foreground">
+                  <div
+                    style={{
+                      fontSize: 'var(--nous-font-size-xs)',
+                      textTransform: 'uppercase',
+                      letterSpacing: '0.06em',
+                      color: 'var(--nous-text-secondary)',
+                    }}
+                  >
                     {entry.label}
                   </div>
-                  <div className="mt-1 text-sm">{entry.value}</div>
+                  <div
+                    style={{
+                      marginTop: '4px',
+                      fontSize: 'var(--nous-font-size-sm)',
+                    }}
+                  >
+                    {entry.value}
+                  </div>
                 </div>
               ))}
             </div>
-            <div className="flex justify-end">
+            <div
+              style={{
+                display: 'flex',
+                justifyContent: 'flex-end',
+              }}
+            >
               <Button
                 onClick={() => React.startTransition(() => setStage('configuration'))}
                 disabled={disabled}
@@ -209,26 +328,47 @@ export function InstallWizard({
         ) : null}
 
         {stage === 'configuration' ? (
-          <div className="space-y-5">
-            <p className="text-sm text-muted-foreground">
+          <div style={stackLgStyle}>
+            <p style={mutedTextStyle}>
               Configuration fields are rendered directly from the canonical app
               manifest. Secret fields are submitted vault-first and are not sent
               into the activation handshake.
             </p>
             {deferredGroups.map((group) => (
-              <div key={group.id} className="space-y-4 rounded-md border border-border/80 p-4">
+              <div key={group.id} style={sectionCardStyle}>
                 <div>
-                  <h4 className="text-sm font-semibold">{group.label}</h4>
-                  <p className="text-xs text-muted-foreground">
+                  <h4
+                    style={{
+                      fontSize: 'var(--nous-font-size-sm)',
+                      fontWeight: 'var(--nous-font-weight-semibold)',
+                    }}
+                  >
+                    {group.label}
+                  </h4>
+                  <p style={mutedTextXsStyle}>
                     {group.fields.some((field) => field.secret)
                       ? 'Includes vault-backed secret fields.'
                       : 'Non-secret runtime configuration.'}
                   </p>
                 </div>
-                <div className="grid gap-4 md:grid-cols-2">
+                <div style={twoColumnGridStyle}>
                   {group.fields.map((field) => (
-                    <label key={field.key} className="space-y-2 text-sm">
-                      <div className="flex items-center gap-2">
+                    <label
+                      key={field.key}
+                      style={{
+                        display: 'flex',
+                        flexDirection: 'column',
+                        gap: 'var(--nous-space-xs)',
+                        fontSize: 'var(--nous-font-size-sm)',
+                      }}
+                    >
+                      <div
+                        style={{
+                          display: 'flex',
+                          alignItems: 'center',
+                          gap: 'var(--nous-space-xs)',
+                        }}
+                      >
                         <span>{field.label ?? field.key}</span>
                         {field.required ? (
                           <Badge variant="outline">Required</Badge>
@@ -238,7 +378,7 @@ export function InstallWizard({
                         {field.secret ? <Badge variant="outline">Secret</Badge> : null}
                       </div>
                       {field.description ? (
-                        <div className="text-xs text-muted-foreground">
+                        <div style={mutedTextXsStyle}>
                           {field.description}
                         </div>
                       ) : null}
@@ -252,7 +392,7 @@ export function InstallWizard({
                               [field.key]: event.target.checked,
                             }))
                           }
-                          className="h-4 w-4 rounded border border-border"
+                          style={checkboxStyle}
                         />
                       ) : field.type === 'select' ? (
                         <Select
@@ -296,7 +436,7 @@ export function InstallWizard({
                         />
                       )}
                       {field.validation ? (
-                        <div className="text-xs text-muted-foreground">
+                        <div style={mutedTextXsStyle}>
                           Rule: {field.validation}
                         </div>
                       ) : null}
@@ -305,7 +445,13 @@ export function InstallWizard({
                 </div>
               </div>
             ))}
-            <div className="flex justify-between gap-3">
+            <div
+              style={{
+                display: 'flex',
+                justifyContent: 'space-between',
+                gap: '12px',
+              }}
+            >
               <Button
                 variant="outline"
                 onClick={() => React.startTransition(() => setStage('permission_review'))}
@@ -320,8 +466,25 @@ export function InstallWizard({
         ) : null}
 
         {result ? (
-          <div className="space-y-4 rounded-md border border-border/80 bg-muted/10 p-4">
-            <div className="flex flex-wrap items-center gap-2">
+          <div
+            style={{
+              display: 'flex',
+              flexDirection: 'column',
+              gap: 'var(--nous-space-md)',
+              borderRadius: 'var(--nous-radius-md)',
+              border: '1px solid var(--nous-shell-column-border)',
+              background: 'var(--nous-bg-hover)',
+              padding: 'var(--nous-space-md)',
+            }}
+          >
+            <div
+              style={{
+                display: 'flex',
+                flexWrap: 'wrap',
+                alignItems: 'center',
+                gap: 'var(--nous-space-xs)',
+              }}
+            >
               <Badge variant={result.status === 'failed' ? 'outline' : 'default'}>
                 {result.status}
               </Badge>
@@ -331,24 +494,29 @@ export function InstallWizard({
               ) : null}
             </div>
             {result.validation.results.length > 0 ? (
-              <div className="space-y-2">
+              <div style={stackXsStyle}>
                 {result.validation.results.map((entry, index) => (
                   <div
                     key={`${entry.check}-${entry.field ?? 'general'}-${index}`}
-                    className="rounded-md border border-border/60 p-3 text-sm"
+                    style={{
+                      borderRadius: 'var(--nous-radius-md)',
+                      border: '1px solid var(--nous-shell-column-border)',
+                      padding: 'var(--nous-space-sm)',
+                      fontSize: 'var(--nous-font-size-sm)',
+                    }}
                   >
-                    <div className="font-medium">
+                    <div style={{ fontWeight: 'var(--nous-font-weight-medium)' }}>
                       {entry.field ? `${entry.field}: ` : ''}
                       {entry.check}
                     </div>
-                    <div className="text-muted-foreground">
+                    <div style={{ color: 'var(--nous-text-secondary)' }}>
                       {entry.message ?? (entry.passed ? 'Passed' : 'Failed')}
                     </div>
                   </div>
                 ))}
               </div>
             ) : (
-              <p className="text-sm text-muted-foreground">
+              <p style={mutedTextStyle}>
                 Validation completed without additional per-check output.
               </p>
             )}
@@ -356,7 +524,7 @@ export function InstallWizard({
         ) : null}
 
         {error ? (
-          <div className="rounded-md border border-red-500/40 bg-red-500/10 p-4 text-sm text-red-100">
+          <div style={errorStyle}>
             {error}
           </div>
         ) : null}
