@@ -661,7 +661,8 @@ export function App() {
     onWizardReset: handleWizardReset,
     onModeChange: handleModeChange,
     currentMode: mode,
-  }), [handleModeChange, handleWizardReset, mode])
+    appPanels: appPanels.map((p) => ({ id: p.dockview_panel_id, title: p.label })),
+  }), [handleModeChange, handleWizardReset, mode, appPanels])
 
   const buildPreferencesPanelParams = useCallback(() => preferencesPanelParams, [preferencesPanelParams])
 

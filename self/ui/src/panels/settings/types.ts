@@ -1,15 +1,16 @@
 import type React from 'react'
-
-// ─── Re-exports from PreferencesPanel ─────────────────────────────────────────
-
-export type { PreferencesApi, AvailableModel, ModelSelection, RoleAssignmentDisplayEntry } from '../PreferencesPanel'
+import type {
+  AppSettingsPreparation,
+  AppSettingsSaveRequest,
+  AppSettingsSaveResult,
+} from '@nous/shared'
 
 // ─── Import and re-export from shell types (canonical ShellMode) ──────────────
 
 import type { ShellMode } from '../../components/shell/types'
 export type { ShellMode } from '../../components/shell/types'
 
-// ─── Internal types (copied from PreferencesPanel.tsx L8-79) ──────────────────
+// ─── Canonical types (primary definitions — formerly in PreferencesPanel.tsx) ──
 
 export type Provider = 'anthropic' | 'openai'
 
@@ -41,9 +42,24 @@ export interface FeedbackState {
   success: boolean
 }
 
-export interface HydratedRoleAssignmentDisplayEntry {
+export interface AvailableModel {
+  id: string
+  name: string
+  provider: string
+  available: boolean
+}
+
+export interface ModelSelection {
+  principal: string | null
+  system: string | null
+}
+
+export interface RoleAssignmentDisplayEntry {
   role: string
   providerId: string | null
+}
+
+export interface HydratedRoleAssignmentDisplayEntry extends RoleAssignmentDisplayEntry {
   displayName?: string | null
   modelSpec?: string | null
 }
@@ -68,7 +84,25 @@ export interface HardwareRecommendations {
   advisory: string
 }
 
-// ─── Constants (copied from PreferencesPanel.tsx L110-138) ────────────────────
+/** API surface the host must provide via panel params. */
+export interface PreferencesApi {
+  getApiKeys: () => Promise<ApiKeyEntry[]>
+  setApiKey: (input: { provider: Provider; key: string }) => Promise<{ stored: boolean }>
+  deleteApiKey: (input: { provider: Provider }) => Promise<{ deleted: boolean }>
+  testApiKey: (input: { provider: Provider; key?: string }) => Promise<TestResult>
+  getSystemStatus: () => Promise<SystemStatus>
+  resetWizard?: () => Promise<unknown>
+  getAvailableModels?: () => Promise<{ models: AvailableModel[] }>
+  getModelSelection?: () => Promise<ModelSelection>
+  setModelSelection?: (input: { principal?: string; system?: string }) => Promise<{ success: boolean }>
+  getRoleAssignments?: () => Promise<RoleAssignmentDisplayEntry[]>
+  getHardwareRecommendations?: () => Promise<HardwareRecommendations>
+  setRoleAssignment?: (
+    input: { role: string; modelSpec: string },
+  ) => Promise<{ success: boolean; error?: string }>
+}
+
+// ─── Constants ─────────────────────────────────────────────────────────────────
 
 export const MODEL_ROLES = [
   'orchestrator',
@@ -115,7 +149,7 @@ export const PAGE_IDS = {
   LOCAL_MODELS: 'local-models',
 } as const
 
-// ─── New Settings Shell Types ─────────────────────────────────────────────────
+// ─── Settings Shell Types ─────────────────────────────────────────────────────
 
 export interface SettingsPage {
   id: string
@@ -170,12 +204,3 @@ export interface SettingsShellProps {
   onWizardReset?: () => void | Promise<void>
   appSettingsContext?: Record<string, AppSettingsPageProps>
 }
-
-// Need to import PreferencesApi for use in interface definitions above
-// (type-only import is already handled via re-export)
-import type { PreferencesApi } from '../PreferencesPanel'
-import type {
-  AppSettingsPreparation,
-  AppSettingsSaveRequest,
-  AppSettingsSaveResult,
-} from '@nous/shared'
