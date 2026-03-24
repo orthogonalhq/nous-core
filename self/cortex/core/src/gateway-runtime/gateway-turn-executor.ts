@@ -32,6 +32,7 @@ import {
 import { AgentGatewayFactory } from '../agent-gateway/index.js';
 import { createInternalMcpSurfaceBundle } from '../internal-mcp/index.js';
 import type { InternalMcpOutputSchemaValidator } from '../internal-mcp/types.js';
+import { WorkmodeAdmissionGuard } from '../workmode/admission-guard.js';
 import { parseModelOutput } from '../output-parser.js';
 import { GatewayTraceRecorder } from './trace-recorder.js';
 
@@ -261,6 +262,8 @@ export class GatewayBackedTurnExecutor implements ICoreExecutor {
         runtime: this.deps.runtime,
         instanceRoot: this.deps.instanceRoot,
         outputSchemaValidator: this.deps.outputSchemaValidator,
+        // TODO(Phase 1.3): Wire admission guard from runtime deps
+        workmodeAdmissionGuard: new WorkmodeAdmissionGuard(),
         now: this.now,
         idFactory: this.idFactory,
       },
