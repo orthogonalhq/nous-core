@@ -15,7 +15,6 @@ import type {
 import { AgentGatewayFactory } from '../agent-gateway/index.js';
 import { createInternalMcpSurfaceBundle } from '../internal-mcp/index.js';
 import type { InternalMcpRuntimeDeps } from '../internal-mcp/types.js';
-import { WorkmodeAdmissionGuard } from '../workmode/admission-guard.js';
 import { parseModelOutput } from '../output-parser.js';
 import { ORCHESTRATOR_SYSTEM_PROMPT } from '../prompts/index.js';
 
@@ -92,8 +91,7 @@ export class PublicMcpRuntimeAdapter {
       agentId,
       deps: {
         ...this.deps,
-        // TODO(Phase 1.3): Wire admission guard from runtime deps
-        workmodeAdmissionGuard: this.deps.workmodeAdmissionGuard ?? new WorkmodeAdmissionGuard(),
+        workmodeAdmissionGuard: this.deps.workmodeAdmissionGuard,
         now: this.now,
         nowMs: this.deps.nowMs,
         idFactory: this.idFactory,
