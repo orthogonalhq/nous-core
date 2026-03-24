@@ -1,7 +1,7 @@
 'use client'
 
 import * as React from 'react'
-import { cn } from '../../lib/cn'
+import { clsx } from 'clsx'
 
 export interface ContentRouterRenderProps {
   navigate: (routeId: string) => void
@@ -80,8 +80,12 @@ export function ContentRouter({
 
   return (
     <div
-      className={cn('nous-content-router flex h-full min-w-0 flex-col', className)}
+      className={clsx('nous-content-router', className)}
       style={{
+        display: 'flex',
+        height: '100%',
+        minWidth: 0,
+        flexDirection: 'column',
         gap: 'var(--nous-space-sm)',
         ...style,
       }}
@@ -89,8 +93,9 @@ export function ContentRouter({
     >
       {canGoBack ? (
         <div
-          className="flex items-center"
           style={{
+            display: 'flex',
+            alignItems: 'center',
             padding: 'var(--nous-space-sm)',
           }}
         >
@@ -112,7 +117,13 @@ export function ContentRouter({
         </div>
       ) : null}
 
-      <div className="min-w-0 flex-1 overflow-y-auto">
+      <div
+        style={{
+          minWidth: 0,
+          flex: '1 1 0%',
+          overflowY: 'auto',
+        }}
+      >
         {ActiveRoute ? (
           <ActiveRoute
             navigate={navigate}

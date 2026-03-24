@@ -1,7 +1,7 @@
 'use client'
 
 import * as React from 'react'
-import { cn } from '../../lib/cn'
+import { clsx } from 'clsx'
 
 export interface ColumnDividerProps
   extends React.HTMLAttributes<HTMLDivElement> {
@@ -33,10 +33,7 @@ export function ColumnDivider({
     <div
       role="separator"
       aria-orientation={orientation}
-      className={cn(
-        'nous-column-divider absolute select-none',
-        className,
-      )}
+      className={clsx('nous-column-divider', className)}
       data-state={isDragging ? 'dragging' : isHovered ? 'hover' : 'idle'}
       onMouseEnter={() => setIsHovered(true)}
       onMouseLeave={() => setIsHovered(false)}
@@ -85,6 +82,8 @@ export function ColumnDivider({
         document.addEventListener('pointerup', handleUp)
       }}
       style={{
+        position: 'absolute',
+        userSelect: 'none',
         insetBlock: 0,
         width: isVertical ? 'var(--nous-column-divider-width)' : '100%',
         height: isVertical ? '100%' : 'var(--nous-column-divider-width)',

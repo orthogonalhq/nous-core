@@ -1,7 +1,7 @@
 'use client'
 
 import * as React from 'react'
-import { cn } from '../../lib/cn'
+import { clsx } from 'clsx'
 import { ColumnDivider } from './ColumnDivider'
 import type { ColumnWidths, ShellBreakpoint } from './types'
 
@@ -100,6 +100,7 @@ export function ShellLayout({
     '--shell-chat-width': `${chatWidth}px`,
     '--shell-observe-width': `${observeWidth}px`,
     display: 'grid',
+    minWidth: 0,
     gridTemplateAreas: '"rail chat content observe"',
     gridTemplateColumns: [
       'var(--nous-rail-width)',
@@ -118,15 +119,16 @@ export function ShellLayout({
   return (
     <div
       ref={containerRef}
-      className={cn('nous-shell-layout min-w-0', className)}
+      className={clsx('nous-shell-layout', className)}
       data-breakpoint={breakpoint}
       style={layoutStyle}
       {...props}
     >
       <div
         data-shell-area="rail"
-        className="min-w-0 overflow-hidden"
         style={{
+          minWidth: 0,
+          overflow: 'hidden',
           gridArea: 'rail',
           background: 'var(--nous-rail-bg)',
         }}
@@ -136,8 +138,9 @@ export function ShellLayout({
 
       <div
         data-shell-area="chat"
-        className="min-w-0 overflow-hidden"
         style={{
+          minWidth: 0,
+          overflow: 'hidden',
           gridArea: 'chat',
           display: showChat ? 'block' : 'none',
           background: 'var(--nous-bg-surface)',
@@ -149,8 +152,9 @@ export function ShellLayout({
 
       <div
         data-shell-area="content"
-        className="min-w-0 overflow-y-auto"
         style={{
+          minWidth: 0,
+          overflowY: 'auto',
           gridArea: 'content',
           background: 'var(--nous-content-bg)',
         }}
@@ -160,8 +164,9 @@ export function ShellLayout({
 
       <div
         data-shell-area="observe"
-        className="min-w-0 overflow-hidden"
         style={{
+          minWidth: 0,
+          overflow: 'hidden',
           gridArea: 'observe',
           display: showObserve ? 'block' : 'none',
           background: 'var(--nous-observe-bg)',

@@ -2,7 +2,7 @@
 
 import * as React from 'react'
 import { createPortal } from 'react-dom'
-import { cn } from '../../lib/cn'
+import { clsx } from 'clsx'
 import type { FlyoutItem } from './types'
 
 const FLYOUT_CLOSE_DELAY_MS = 100
@@ -106,10 +106,12 @@ export function RailHoverFlyout({
 
   return createPortal(
     <div
-      className={cn('nous-rail-hover-flyout flex min-w-0 flex-col', className)}
+      className={clsx('nous-rail-hover-flyout', className)}
       onMouseEnter={cancelClose}
       onMouseLeave={scheduleClose}
       style={{
+        display: 'flex',
+        flexDirection: 'column',
         position: 'fixed',
         left: `${position.left}px`,
         top: `${position.top}px`,
@@ -132,12 +134,15 @@ export function RailHoverFlyout({
         <button
           key={item.id}
           type="button"
-          className="flex min-w-0 items-start text-left"
           onClick={() => {
             onItemClick(item.id)
             onClose()
           }}
           style={{
+            display: 'flex',
+            minWidth: 0,
+            alignItems: 'flex-start',
+            textAlign: 'left',
             width: '100%',
             border: 'none',
             borderRadius: 'var(--nous-radius-md)',
@@ -149,8 +154,23 @@ export function RailHoverFlyout({
             gap: 'var(--nous-space-sm)',
           }}
         >
-          <span className="flex items-center justify-center">{item.icon ?? '•'}</span>
-          <span className="flex min-w-0 flex-1 flex-col">
+          <span
+            style={{
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+            }}
+          >
+            {item.icon ?? '•'}
+          </span>
+          <span
+            style={{
+              display: 'flex',
+              minWidth: 0,
+              flex: '1 1 0%',
+              flexDirection: 'column',
+            }}
+          >
             <span
               style={{
                 fontSize: 'var(--nous-font-size-sm)',
