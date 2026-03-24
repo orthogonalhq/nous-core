@@ -56,36 +56,37 @@ describe('SettingsShell', () => {
     expect(contentArea).not.toBeNull()
   })
 
-  it('placeholder content area shows selected page ID', async () => {
+  it('content area renders page content for the default page', async () => {
     await renderShell()
 
-    const placeholder = container.querySelector('[data-testid="settings-page-placeholder"]')
-    expect(placeholder).not.toBeNull()
-    // Default page is the first page (shell-mode)
-    expect(placeholder!.textContent).toBe('shell-mode')
+    const pageContent = container.querySelector('[data-testid="settings-page-content"]')
+    expect(pageContent).not.toBeNull()
+    // Default page is shell-mode, should render the ShellModePage
+    const shellModePage = container.querySelector('[data-testid="settings-page-shell-mode"]')
+    expect(shellModePage).not.toBeNull()
   })
 
   it('page state updates when nav item is clicked', async () => {
     await renderShell()
 
-    // Click on "API Keys" page
-    const apiKeysButton = container.querySelector('[data-testid="page-api-keys"]')
-    expect(apiKeysButton).not.toBeNull()
+    // Click on "About" page (does not require api)
+    const aboutButton = container.querySelector('[data-testid="page-about"]')
+    expect(aboutButton).not.toBeNull()
 
     await act(async () => {
-      apiKeysButton!.dispatchEvent(new MouseEvent('click', { bubbles: true }))
+      aboutButton!.dispatchEvent(new MouseEvent('click', { bubbles: true }))
       await flush()
     })
 
-    const placeholder = container.querySelector('[data-testid="settings-page-placeholder"]')
-    expect(placeholder!.textContent).toBe('api-keys')
+    const aboutPage = container.querySelector('[data-testid="settings-page-about"]')
+    expect(aboutPage).not.toBeNull()
   })
 
   it('accepts defaultPageId prop and initializes to it', async () => {
-    await renderShell({ defaultPageId: 'system-status' })
+    await renderShell({ defaultPageId: 'about' })
 
-    const placeholder = container.querySelector('[data-testid="settings-page-placeholder"]')
-    expect(placeholder!.textContent).toBe('system-status')
+    const aboutPage = container.querySelector('[data-testid="settings-page-about"]')
+    expect(aboutPage).not.toBeNull()
   })
 
   it('renders without optional api prop', async () => {
@@ -99,8 +100,9 @@ describe('SettingsShell', () => {
   it('SettingsShell with no defaultPageId defaults to first page', async () => {
     await renderShell()
 
-    const placeholder = container.querySelector('[data-testid="settings-page-placeholder"]')
-    expect(placeholder!.textContent).toBe('shell-mode')
+    // First page is shell-mode
+    const shellModePage = container.querySelector('[data-testid="settings-page-shell-mode"]')
+    expect(shellModePage).not.toBeNull()
   })
 
   it('renders dynamic app entries from appPanels', async () => {

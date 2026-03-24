@@ -4,8 +4,9 @@ import type React from 'react'
 
 export type { PreferencesApi, AvailableModel, ModelSelection, RoleAssignmentDisplayEntry } from '../PreferencesPanel'
 
-// ─── Re-export from shell types (canonical ShellMode) ─────────────────────────
+// ─── Import and re-export from shell types (canonical ShellMode) ──────────────
 
+import type { ShellMode } from '../../components/shell/types'
 export type { ShellMode } from '../../components/shell/types'
 
 // ─── Internal types (copied from PreferencesPanel.tsx L8-79) ──────────────────
@@ -153,12 +154,28 @@ export interface AppPanelEntry {
   title: string
 }
 
+export interface AppSettingsPageProps {
+  preparation: AppSettingsPreparation
+  actorId: string
+  onSave: (request: AppSettingsSaveRequest) => Promise<AppSettingsSaveResult>
+  evidenceRefs?: string[]
+}
+
 export interface SettingsShellProps {
   api?: PreferencesApi
   appPanels?: AppPanelEntry[]
   defaultPageId?: string
+  currentMode?: ShellMode
+  onModeChange?: (mode: ShellMode) => void
+  onWizardReset?: () => void | Promise<void>
+  appSettingsContext?: Record<string, AppSettingsPageProps>
 }
 
 // Need to import PreferencesApi for use in interface definitions above
 // (type-only import is already handled via re-export)
 import type { PreferencesApi } from '../PreferencesPanel'
+import type {
+  AppSettingsPreparation,
+  AppSettingsSaveRequest,
+  AppSettingsSaveResult,
+} from '@nous/shared'

@@ -4,6 +4,16 @@ import { useState } from 'react'
 import { SettingsNav } from './SettingsNav'
 import type { SettingsCategory, SettingsShellProps } from './types'
 import { PAGE_IDS } from './types'
+import {
+  AboutPage,
+  ApiKeysPage,
+  AppSettingsPage,
+  ModelConfigPage,
+  RoleAssignmentsPage,
+  SetupWizardPage,
+  ShellModePage,
+  SystemStatusPage,
+} from './pages'
 
 const shellContainerStyle: React.CSSProperties = {
   display: 'flex',
@@ -75,11 +85,66 @@ function buildCategories(appPanels?: { id: string; title: string }[]): SettingsC
   return categories
 }
 
-export function SettingsShell({ appPanels, defaultPageId }: SettingsShellProps) {
+export function SettingsShell({
+  api,
+  appPanels,
+  defaultPageId,
+  currentMode,
+  onModeChange,
+  onWizardReset,
+  appSettingsContext,
+}: SettingsShellProps) {
   const categories = buildCategories(appPanels)
 
   const firstPageId = categories[0]?.children?.[0]?.id ?? ''
   const [activePageId, setActivePageId] = useState<string>(defaultPageId ?? firstPageId)
+
+  function renderPage() {
+    if (!api) {
+      // Pages that don't need the API can still render
+      if (activePageId === PAGE_IDS.SHELL_MODE) {
+        return <ShellModePage currentMode={currentMode ?? 'simple'} onModeChange={onModeChange} />
+      }
+      if (activePageId === PAGE_IDS.ABOUT) {
+        return <AboutPage />
+      }
+      // For API-dependent pages, show the fallback
+      return (
+        <div style={{ color: 'var(--nous-fg-subtle)' }}>
+          Settings API not connected.
+        </div>
+      )
+    }
+
+    switch (activePageId) {
+      case PAGE_IDS.SHELL_MODE:
+        return <ShellModePage currentMode={currentMode ?? 'simple'} onModeChange={onModeChange} />
+      case PAGE_IDS.ABOUT:
+        return <AboutPage />
+      case PAGE_IDS.API_KEYS:
+        return <ApiKeysPage api={api} />
+      case PAGE_IDS.MODEL_CONFIG:
+        return <ModelConfigPage api={api} />
+      case PAGE_IDS.ROLE_ASSIGNMENTS:
+        return <RoleAssignmentsPage api={api} />
+      case PAGE_IDS.SYSTEM_STATUS:
+        return <SystemStatusPage api={api} />
+      case PAGE_IDS.SETUP_WIZARD:
+        return <SetupWizardPage api={api} onWizardReset={onWizardReset} />
+      default: {
+        // Check if this is an app settings page
+        const appContext = appSettingsContext?.[activePageId]
+        if (appContext) {
+          return <AppSettingsPage {...appContext} />
+        }
+        return (
+          <div style={{ color: 'var(--nous-fg-subtle)' }}>
+            Page not found: {activePageId}
+          </div>
+        )
+      }
+    }
+  }
 
   return (
     <div style={shellContainerStyle} data-testid="settings-shell">
@@ -91,8 +156,8 @@ export function SettingsShell({ appPanels, defaultPageId }: SettingsShellProps) 
         />
       </div>
       <div style={contentColumnStyle} data-testid="settings-content">
-        <div data-testid="settings-page-placeholder">
-          {activePageId}
+        <div data-testid="settings-page-content">
+          {renderPage()}
         </div>
       </div>
     </div>
