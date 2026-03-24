@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef, useCallback } from 'react'
+import { useState, useEffect, useRef, useCallback, useMemo } from 'react'
 import { DockviewReact } from 'dockview-react'
 import type {
   DockviewApi,
@@ -261,6 +261,30 @@ const BASE_SIMPLE_MODE_ROUTES = {
   workflows: createContentPlaceholder('Workflows'),
   skills: createContentPlaceholder('Skills'),
   apps: createContentPlaceholder('Apps'),
+}
+
+type PreferencesPanelParams = Parameters<typeof PreferencesPanel>[0]['params']
+
+function SettingsRoute({
+  preferencesPanelParams,
+}: {
+  preferencesPanelParams: PreferencesPanelParams
+}) {
+  return (
+    <div
+      style={{
+        height: '100%',
+        overflow: 'auto',
+        background: 'var(--nous-content-bg)',
+      }}
+    >
+      <PreferencesPanel
+        api={{} as never}
+        containerApi={{} as never}
+        params={preferencesPanelParams}
+      />
+    </div>
+  )
 }
 
 function ChatPlaceholder() {
@@ -628,7 +652,7 @@ export function App() {
     }
   }, [handleModeToggle, phase])
 
-  const buildPreferencesPanelParams = useCallback(() => ({
+  const preferencesPanelParams = useMemo(() => ({
     preferencesApi: {
       ...(window as any).electronAPI?.preferences,
       getHardwareRecommendations: window.electronAPI?.hardware.getRecommendations,
@@ -639,28 +663,14 @@ export function App() {
     currentMode: mode,
   }), [handleModeChange, handleWizardReset, mode])
 
-  const preferencesPanelParams = buildPreferencesPanelParams()
+  const buildPreferencesPanelParams = useCallback(() => preferencesPanelParams, [preferencesPanelParams])
 
-  const SettingsRoute = (_props: ContentRouterRenderProps) => (
-    <div
-      style={{
-        height: '100%',
-        overflow: 'auto',
-        background: 'var(--nous-content-bg)',
-      }}
-    >
-      <PreferencesPanel
-        api={{} as never}
-        containerApi={{} as never}
-        params={preferencesPanelParams}
-      />
-    </div>
-  )
-
-  const simpleModeRoutes = {
+  const simpleModeRoutes = useMemo(() => ({
     ...BASE_SIMPLE_MODE_ROUTES,
-    settings: SettingsRoute,
-  }
+    settings: (_props: ContentRouterRenderProps) => (
+      <SettingsRoute preferencesPanelParams={preferencesPanelParams} />
+    ),
+  }), [preferencesPanelParams])
 
   const navigation = {
     activeRoute,

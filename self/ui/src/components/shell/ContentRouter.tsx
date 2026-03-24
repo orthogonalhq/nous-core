@@ -112,7 +112,7 @@ export function ContentRouter({
         </div>
       ) : null}
 
-      <div className="min-w-0 flex-1">
+      <div className="min-w-0 flex-1 overflow-y-auto">
         {ActiveRoute ? (
           <ActiveRoute
             navigate={navigate}
