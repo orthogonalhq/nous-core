@@ -3,6 +3,7 @@
 import * as React from 'react';
 import Link from 'next/link';
 import type { ProjectEscalationQueueSnapshot } from '@nous/shared';
+import { useEventSubscription } from '@nous/ui';
 import { trpc } from '@/lib/trpc';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
@@ -16,6 +17,14 @@ interface EscalationInboxProps {
 
 export function EscalationInbox({ queue, maoContext }: EscalationInboxProps) {
   const utils = trpc.useUtils();
+
+  useEventSubscription({
+    channels: ['escalation:new', 'escalation:resolved'],
+    onEvent: () => {
+      void utils.escalations.listProjectQueue.invalidate();
+    },
+  });
+
   const acknowledge = trpc.escalations.acknowledge.useMutation({
     onSuccess: async (updated) => {
       await utils.escalations.listProjectQueue.invalidate({ projectId: updated.projectId });

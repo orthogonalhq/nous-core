@@ -6,6 +6,7 @@ import type { MarketplaceNudgeCard, NudgeSuppressionAction } from '@nous/shared'
 import { Badge } from '@/components/ui/badge';
 import { MarketplaceBrowser } from '@/components/marketplace/marketplace-browser';
 import { MarketplaceDiscoveryFeed } from '@/components/marketplace/marketplace-discovery-feed';
+import { useEventSubscription } from '@nous/ui';
 import { useProject } from '@/lib/project-context';
 import { trpc } from '@/lib/trpc';
 import { useSearchParams } from 'next/navigation';
@@ -35,6 +36,13 @@ function MarketplacePageContent() {
   const [query, setQuery] = React.useState('');
   const deferredQuery = React.useDeferredValue(query);
   const utils = trpc.useUtils();
+
+  useEventSubscription({
+    channels: ['lifecycle:transition'],
+    onEvent: () => {
+      void utils.marketplace.browsePackages.invalidate();
+    },
+  });
 
   React.useEffect(() => {
     if (linkedProjectId && linkedProjectId !== projectId) {

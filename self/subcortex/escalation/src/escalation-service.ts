@@ -22,6 +22,7 @@ export interface EscalationServiceOptions {
   escalationStore: DocumentEscalationStore;
   projectStore?: IProjectStore;
   now?: () => Date;
+  eventBus?: import('@nous/shared').IEventBus;
 }
 
 function uniqueSurfaces(
@@ -32,9 +33,11 @@ function uniqueSurfaces(
 
 export class EscalationService implements IEscalationService {
   private readonly now: () => Date;
+  private readonly eventBus?: import('@nous/shared').IEventBus;
 
   constructor(private readonly options: EscalationServiceOptions) {
     this.now = options.now ?? (() => new Date());
+    this.eventBus = options.eventBus;
   }
 
   private nowIso(): string {
@@ -86,6 +89,12 @@ export class EscalationService implements IEscalationService {
     });
 
     await this.options.escalationStore.save(record);
+    this.eventBus?.publish('escalation:new', {
+      escalationId,
+      projectId: contract.projectId,
+      severity: contract.priority,
+      message: contract.context,
+    });
     return escalationId;
   }
 
@@ -153,6 +162,10 @@ export class EscalationService implements IEscalationService {
     });
 
     await this.options.escalationStore.save(updated);
+    this.eventBus?.publish('escalation:resolved', {
+      escalationId: existing.escalationId,
+      resolution: 'acknowledged',
+    });
     return updated;
   }
 }
