@@ -67,6 +67,8 @@ On conversation start (or context reset), determine your operating state before 
 
 #### Step 1 — Detect sprint context
 
+**Keyword trigger: ideation triage.** If the Principal says "ideation triage", "promote discoveries", or equivalent, route to **research-planning-sop** orchestrator with mode `ideation_promotion`. Skip sprint/branch detection. Read `research-planning-sop/SKILL.md` and `research-planning-sop/orchestrator/ENTRY.md`, then execute `orchestrator/procedures/ideation-promotion-gate.md`.
+
 **Primary signal: thread-scoped sprint assignment.** If the conversation has an established sprint (the Principal named it, or a prior turn in this thread identified it), use that sprint's `<type>/<name>` as the context and proceed to Step 2. The main working tree may remain on `dev` — the sprint's feature branch exists in a worktree or on remote.
 
 **Fallback: branch detection.** If no thread-scoped sprint is established, read the current git branch name:
