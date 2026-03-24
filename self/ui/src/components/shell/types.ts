@@ -163,3 +163,108 @@ export interface HomeScreenProps extends ContentRouterRenderProps {
     icon?: string
   }>
 }
+
+// --- CatalogItem ---
+
+export const CatalogItemSchema = z.object({
+  id: z.string().min(1),
+  title: z.string().min(1),
+  description: z.string().optional(),
+  icon: z.string().optional(),
+  metadata: z.record(z.string(), z.string()).optional(),
+})
+export type CatalogItem = z.infer<typeof CatalogItemSchema>
+
+// --- CatalogFilterGroup ---
+
+export const CatalogFilterOptionSchema = z.object({
+  id: z.string().min(1),
+  label: z.string().min(1),
+})
+export type CatalogFilterOption = z.infer<typeof CatalogFilterOptionSchema>
+
+export const CatalogFilterGroupSchema = z.object({
+  id: z.string().min(1),
+  label: z.string().min(1),
+  options: z.array(CatalogFilterOptionSchema),
+})
+export type CatalogFilterGroup = z.infer<typeof CatalogFilterGroupSchema>
+
+// --- CatalogSortOption ---
+
+const comparatorFnSchema = z.custom<(a: CatalogItem, b: CatalogItem) => number>(
+  (value) => typeof value === 'function',
+  'Comparator function is required',
+)
+
+export const CatalogSortOptionSchema = z.object({
+  id: z.string().min(1),
+  label: z.string().min(1),
+  comparator: comparatorFnSchema,
+})
+export type CatalogSortOption = z.infer<typeof CatalogSortOptionSchema>
+
+// --- CatalogViewProps ---
+
+export const CatalogViewPropsSchema = z.object({
+  navigate: z.function().args(z.string()).returns(z.void()),
+  goBack: z.function().args().returns(z.void()),
+  canGoBack: z.boolean(),
+  items: z.array(CatalogItemSchema),
+  loading: z.boolean().optional(),
+  onItemClick: z.custom<(item: CatalogItem) => void>(() => true).optional(),
+  sortOptions: z.array(CatalogSortOptionSchema).optional(),
+  filterGroups: z.array(CatalogFilterGroupSchema).optional(),
+  defaultViewMode: z.enum(['grid', 'list']).optional(),
+  emptyMessage: z.string().optional(),
+  className: z.string().optional(),
+})
+export interface CatalogViewProps extends ContentRouterRenderProps {
+  items: CatalogItem[]
+  loading?: boolean
+  onItemClick?: (item: CatalogItem) => void
+  sortOptions?: CatalogSortOption[]
+  filterGroups?: CatalogFilterGroup[]
+  defaultViewMode?: 'grid' | 'list'
+  emptyMessage?: string
+  className?: string
+}
+
+// --- CommandItem ---
+
+export const CommandItemSchema = z.object({
+  id: z.string().min(1),
+  label: z.string().min(1),
+  shortcut: z.string().optional(),
+  section: z.string().optional(),
+  action: z.custom<() => void>(
+    (value) => typeof value === 'function',
+    'Action function is required',
+  ),
+})
+export type CommandItem = z.infer<typeof CommandItemSchema>
+
+// --- CommandGroup ---
+
+export const CommandGroupSchema = z.object({
+  id: z.string().min(1),
+  label: z.string().min(1),
+  commands: z.array(CommandItemSchema),
+})
+export type CommandGroup = z.infer<typeof CommandGroupSchema>
+
+// --- CommandPaletteProps ---
+
+export const CommandPalettePropsSchema = z.object({
+  isOpen: z.boolean(),
+  onClose: z.custom<() => void>(
+    (value) => typeof value === 'function',
+    'onClose function is required',
+  ),
+  commands: z.array(CommandGroupSchema),
+})
+export interface CommandPaletteProps {
+  isOpen: boolean
+  onClose: () => void
+  commands: CommandGroup[]
+}

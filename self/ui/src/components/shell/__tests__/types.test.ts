@@ -14,6 +14,13 @@ import {
   MAOSurfacePropsSchema,
   HomeScreenPropsSchema,
   defaultConversationContext,
+  CatalogItemSchema,
+  CatalogFilterGroupSchema,
+  CatalogSortOptionSchema,
+  CatalogViewPropsSchema,
+  CommandItemSchema,
+  CommandGroupSchema,
+  CommandPalettePropsSchema,
 } from '../types'
 
 describe('shell type schemas', () => {
@@ -214,6 +221,238 @@ describe('shell type schemas', () => {
         goBack,
         canGoBack: false,
         recentActivity: [{ id: '', label: '' }],
+      }).success,
+    ).toBe(false)
+  })
+
+  // --- CatalogItem ---
+
+  it('parses valid CatalogItem and rejects invalid ones', () => {
+    expect(
+      CatalogItemSchema.safeParse({
+        id: 'item-1',
+        title: 'Test Item',
+        description: 'A description',
+        icon: 'star',
+        metadata: { category: 'tools' },
+      }).success,
+    ).toBe(true)
+
+    // Valid with optional fields omitted
+    expect(
+      CatalogItemSchema.safeParse({ id: 'item-2', title: 'Minimal' }).success,
+    ).toBe(true)
+
+    // Invalid: empty id
+    expect(
+      CatalogItemSchema.safeParse({ id: '', title: 'Bad' }).success,
+    ).toBe(false)
+
+    // Invalid: empty title
+    expect(
+      CatalogItemSchema.safeParse({ id: 'ok', title: '' }).success,
+    ).toBe(false)
+  })
+
+  // --- CatalogFilterGroup ---
+
+  it('parses valid CatalogFilterGroup and rejects invalid ones', () => {
+    expect(
+      CatalogFilterGroupSchema.safeParse({
+        id: 'category',
+        label: 'Category',
+        options: [{ id: 'tools', label: 'Tools' }],
+      }).success,
+    ).toBe(true)
+
+    // Valid with empty options array
+    expect(
+      CatalogFilterGroupSchema.safeParse({
+        id: 'category',
+        label: 'Category',
+        options: [],
+      }).success,
+    ).toBe(true)
+
+    // Invalid: empty id
+    expect(
+      CatalogFilterGroupSchema.safeParse({
+        id: '',
+        label: 'Category',
+        options: [],
+      }).success,
+    ).toBe(false)
+  })
+
+  // --- CatalogSortOption ---
+
+  it('parses valid CatalogSortOption and rejects invalid ones', () => {
+    expect(
+      CatalogSortOptionSchema.safeParse({
+        id: 'alpha',
+        label: 'Alphabetical',
+        comparator: (a: any, b: any) => a.title.localeCompare(b.title),
+      }).success,
+    ).toBe(true)
+
+    // Invalid: non-function comparator
+    expect(
+      CatalogSortOptionSchema.safeParse({
+        id: 'alpha',
+        label: 'Alphabetical',
+        comparator: 'not-a-function',
+      }).success,
+    ).toBe(false)
+
+    // Invalid: empty id
+    expect(
+      CatalogSortOptionSchema.safeParse({
+        id: '',
+        label: 'Alphabetical',
+        comparator: () => 0,
+      }).success,
+    ).toBe(false)
+  })
+
+  // --- CatalogViewProps ---
+
+  it('parses valid CatalogViewProps and rejects invalid ones', () => {
+    const navigate = () => {}
+    const goBack = () => {}
+
+    expect(
+      CatalogViewPropsSchema.safeParse({
+        navigate,
+        goBack,
+        canGoBack: false,
+        items: [{ id: 'i1', title: 'Item 1' }],
+      }).success,
+    ).toBe(true)
+
+    // Valid with all optional fields
+    expect(
+      CatalogViewPropsSchema.safeParse({
+        navigate,
+        goBack,
+        canGoBack: true,
+        items: [],
+        loading: true,
+        onItemClick: () => {},
+        sortOptions: [{ id: 'a', label: 'A', comparator: () => 0 }],
+        filterGroups: [{ id: 'fg', label: 'FG', options: [] }],
+        defaultViewMode: 'list',
+        emptyMessage: 'Empty',
+        className: 'test',
+      }).success,
+    ).toBe(true)
+
+    // Invalid: missing items
+    expect(
+      CatalogViewPropsSchema.safeParse({
+        navigate,
+        goBack,
+        canGoBack: false,
+      }).success,
+    ).toBe(false)
+  })
+
+  // --- CommandItem ---
+
+  it('parses valid CommandItem and rejects invalid ones', () => {
+    expect(
+      CommandItemSchema.safeParse({
+        id: 'cmd-1',
+        label: 'Test Command',
+        action: () => {},
+      }).success,
+    ).toBe(true)
+
+    // Valid with optional fields
+    expect(
+      CommandItemSchema.safeParse({
+        id: 'cmd-2',
+        label: 'Full Command',
+        shortcut: 'Ctrl+K',
+        section: 'nav',
+        action: () => {},
+      }).success,
+    ).toBe(true)
+
+    // Invalid: non-function action
+    expect(
+      CommandItemSchema.safeParse({
+        id: 'cmd-3',
+        label: 'Bad Command',
+        action: 'not-a-function',
+      }).success,
+    ).toBe(false)
+
+    // Invalid: empty id
+    expect(
+      CommandItemSchema.safeParse({
+        id: '',
+        label: 'Bad',
+        action: () => {},
+      }).success,
+    ).toBe(false)
+  })
+
+  // --- CommandGroup ---
+
+  it('parses valid CommandGroup and rejects invalid ones', () => {
+    expect(
+      CommandGroupSchema.safeParse({
+        id: 'group-1',
+        label: 'Navigation',
+        commands: [{ id: 'cmd-1', label: 'Home', action: () => {} }],
+      }).success,
+    ).toBe(true)
+
+    // Valid with empty commands
+    expect(
+      CommandGroupSchema.safeParse({
+        id: 'group-2',
+        label: 'Empty',
+        commands: [],
+      }).success,
+    ).toBe(true)
+
+    // Invalid: non-array commands
+    expect(
+      CommandGroupSchema.safeParse({
+        id: 'group-3',
+        label: 'Bad',
+        commands: 'not-array',
+      }).success,
+    ).toBe(false)
+  })
+
+  // --- CommandPaletteProps ---
+
+  it('parses valid CommandPaletteProps and rejects invalid ones', () => {
+    expect(
+      CommandPalettePropsSchema.safeParse({
+        isOpen: true,
+        onClose: () => {},
+        commands: [
+          { id: 'g1', label: 'Group', commands: [{ id: 'c1', label: 'Cmd', action: () => {} }] },
+        ],
+      }).success,
+    ).toBe(true)
+
+    // Invalid: missing onClose
+    expect(
+      CommandPalettePropsSchema.safeParse({
+        isOpen: true,
+        commands: [],
+      }).success,
+    ).toBe(false)
+
+    // Invalid: missing commands
+    expect(
+      CommandPalettePropsSchema.safeParse({
+        isOpen: true,
+        onClose: () => {},
       }).success,
     ).toBe(false)
   })
