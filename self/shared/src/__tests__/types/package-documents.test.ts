@@ -224,7 +224,80 @@ describe('LoadedWorkflowPackageSchema', () => {
       assets: [],
     });
 
-    expect(parsed.steps[0]?.stepId).toBe('draft');
+    expect(parsed.format).toBe('legacy');
+    expect(parsed.steps?.[0]?.stepId).toBe('draft');
+  });
+
+  it('accepts composite workflow packages without legacy flow fields', () => {
+    const parsed = LoadedWorkflowPackageSchema.parse({
+      packageId: 'workflow.research',
+      packageVersion: '2.0.0',
+      rootRef: '.workflows/workflow__research',
+      manifestRef: '.workflows/workflow__research/workflow.md',
+      format: 'composite',
+      manifest: {
+        name: 'research-workflow',
+        description: 'Workflow package manifest.',
+        entrypoint: 'draft-node',
+      },
+      topology: {
+        name: 'Research Workflow',
+        version: 1,
+        nodes: [
+          {
+            id: 'draft-node',
+            name: 'Draft Node',
+            type: 'nous.agent.claude',
+            position: [0, 0],
+            parameters: {},
+          },
+        ],
+        connections: [],
+      },
+      nodeContent: {
+        'draft-node': {
+          frontmatter: {
+            nous: {
+              v: 2,
+              kind: 'workflow_node',
+              id: 'draft-node',
+              skill: 'atomic-research',
+              contracts: ['quality-gate'],
+              templates: ['goals-template'],
+            },
+          },
+          body: '# Draft Node',
+        },
+      },
+      contracts: {
+        'quality-gate': {
+          frontmatter: {
+            contract: 'quality-gate',
+            scope: 'per-node',
+            description: 'Quality gate for draft output.',
+          },
+          body: '# Contract',
+        },
+      },
+      templates: {
+        'goals-template': {
+          frontmatter: {
+            template: 'goals-template',
+            description: 'Goals artifact structure.',
+          },
+          body: '# Template',
+        },
+      },
+      references: [],
+      scripts: [],
+      assets: [],
+    });
+
+    expect(parsed.format).toBe('composite');
+    expect(parsed.flowRef).toBeUndefined();
+    expect(parsed.nodeContent?.['draft-node']?.frontmatter.nous.skill).toBe(
+      'atomic-research',
+    );
   });
 });
 

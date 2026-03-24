@@ -11,6 +11,88 @@ import { Badge } from '@/components/ui/badge';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { trpc } from '@/lib/trpc';
 
+const sectionStackStyle: React.CSSProperties = {
+  display: 'flex',
+  flexDirection: 'column',
+  gap: 'var(--nous-space-3xl)',
+};
+
+const headerDividerStyle: React.CSSProperties = {
+  borderBottom: '1px solid var(--nous-shell-column-border)',
+};
+
+const cardContentTopStyle: React.CSSProperties = {
+  paddingTop: 'var(--nous-space-2xl)',
+};
+
+const contentStackStyle: React.CSSProperties = {
+  display: 'flex',
+  flexDirection: 'column',
+  gap: 'var(--nous-space-2xl)',
+  paddingTop: 'var(--nous-space-2xl)',
+};
+
+const borderedPanelStyle: React.CSSProperties = {
+  borderRadius: 'var(--nous-radius-md)',
+  border: '1px solid var(--nous-shell-column-border)',
+  padding: 'var(--nous-space-xl)',
+  fontSize: 'var(--nous-font-size-sm)',
+};
+
+const mutedPanelStyle: React.CSSProperties = {
+  ...borderedPanelStyle,
+  background: 'var(--nous-bg-hover)',
+  color: 'var(--nous-text-secondary)',
+};
+
+const titleRowStyle: React.CSSProperties = {
+  display: 'flex',
+  flexWrap: 'wrap',
+  alignItems: 'center',
+  justifyContent: 'space-between',
+  gap: 'var(--nous-space-xl)',
+  fontSize: 'var(--nous-font-size-base)',
+};
+
+const rowWrapStyle: React.CSSProperties = {
+  display: 'flex',
+  flexWrap: 'wrap',
+  gap: 'var(--nous-space-md)',
+};
+
+const mutedTextStyle: React.CSSProperties = {
+  fontSize: 'var(--nous-font-size-sm)',
+  color: 'var(--nous-text-secondary)',
+};
+
+const actionLinkStyle: React.CSSProperties = {
+  borderRadius: 'var(--nous-radius-md)',
+  border: '1px solid var(--nous-shell-column-border)',
+  padding: 'var(--nous-space-xs) var(--nous-space-xl)',
+  fontSize: 'var(--nous-font-size-sm)',
+};
+
+const cardColumnStyle: React.CSSProperties = {
+  display: 'flex',
+  flexDirection: 'column',
+  gap: 'var(--nous-space-xl)',
+};
+
+const responsiveTwoColumnStyle: React.CSSProperties = {
+  display: 'grid',
+  gap: 'var(--nous-space-xl)',
+  gridTemplateColumns: 'repeat(auto-fit, minmax(min(100%, 18rem), 1fr))',
+  paddingTop: 'var(--nous-space-2xl)',
+};
+
+const itemTitleStyle: React.CSSProperties = {
+  fontWeight: 'var(--nous-font-weight-medium)',
+};
+
+const itemMutedStyle: React.CSSProperties = {
+  color: 'var(--nous-text-secondary)',
+};
+
 interface MarketplacePackageDetailProps {
   snapshot: RegistryPackageDetailSnapshot;
   projectId?: string;
@@ -62,12 +144,12 @@ export function MarketplacePackageDetail({
   }, [])
 
   return (
-    <div className="space-y-6">
+    <div style={sectionStackStyle}>
       <Card>
-        <CardHeader className="border-b border-border">
-          <CardTitle className="text-base">Install Wizard</CardTitle>
+        <CardHeader style={headerDividerStyle}>
+          <CardTitle style={{ fontSize: 'var(--nous-font-size-base)' }}>Install Wizard</CardTitle>
         </CardHeader>
-        <CardContent className="pt-4">
+        <CardContent style={cardContentTopStyle}>
           {projectId && settingsPreparationQuery.data ? (
             <AppSettingsSurface
               preparation={settingsPreparationQuery.data}
@@ -95,7 +177,7 @@ export function MarketplacePackageDetail({
               disabled={installPreparationQuery.isLoading || installAppMutation.isPending}
             />
           ) : (
-            <div className="rounded-md border border-border bg-muted/20 p-4 text-sm text-muted-foreground">
+            <div style={{ ...mutedPanelStyle, padding: 'var(--nous-space-2xl)' }}>
               {projectId
                 ? settingsPreparationQuery.error
                   ? 'Preparing the canonical settings or install contract...'
@@ -107,26 +189,26 @@ export function MarketplacePackageDetail({
       </Card>
 
       <Card>
-        <CardHeader className="border-b border-border">
-          <CardTitle className="flex flex-wrap items-center justify-between gap-3 text-base">
+        <CardHeader style={headerDividerStyle}>
+          <CardTitle style={titleRowStyle}>
             <span>{snapshot.package.display_name}</span>
-            <div className="flex flex-wrap gap-2">
+            <div style={rowWrapStyle}>
               <Badge variant="outline">{snapshot.package.trust_tier}</Badge>
               <Badge variant="outline">{snapshot.package.distribution_status}</Badge>
               <Badge variant="outline">{snapshot.package.compatibility_state}</Badge>
             </div>
           </CardTitle>
         </CardHeader>
-        <CardContent className="space-y-4 pt-4">
-          <p className="text-sm text-muted-foreground">{snapshot.package.package_id}</p>
+        <CardContent style={contentStackStyle}>
+          <p style={mutedTextStyle}>{snapshot.package.package_id}</p>
           {snapshot.latestRelease ? (
-            <div className="rounded-md border border-border p-3 text-sm">
+            <div style={borderedPanelStyle}>
               Latest release {snapshot.latestRelease.package_version} · origin{' '}
               {snapshot.latestRelease.origin_class}
             </div>
           ) : null}
           {snapshot.trustEligibility ? (
-            <div className="rounded-md border border-border bg-muted/20 p-3 text-sm text-muted-foreground">
+            <div style={mutedPanelStyle}>
               Project trust eligibility: {snapshot.trustEligibility.distribution_status} /
               {' '}
               {snapshot.trustEligibility.compatibility_state}
@@ -135,11 +217,11 @@ export function MarketplacePackageDetail({
                 : ''}
             </div>
           ) : null}
-          <div className="flex flex-wrap gap-2">
+          <div style={rowWrapStyle}>
             {projectsLink?.projectId ? (
               <Link
                 href={`/projects?source=marketplace&projectId=${projectsLink.projectId}&packageId=${snapshot.package.package_id}`}
-                className="rounded-md border border-border px-3 py-1 text-sm hover:bg-muted/20"
+                style={actionLinkStyle}
               >
                 Open Projects
               </Link>
@@ -147,7 +229,7 @@ export function MarketplacePackageDetail({
             {maoLink?.projectId ? (
               <Link
                 href={`/mao?source=marketplace&projectId=${maoLink.projectId}&packageId=${snapshot.package.package_id}`}
-                className="rounded-md border border-border px-3 py-1 text-sm hover:bg-muted/20"
+                style={actionLinkStyle}
               >
                 Open MAO
               </Link>
@@ -157,14 +239,14 @@ export function MarketplacePackageDetail({
       </Card>
 
       <Card>
-        <CardHeader className="border-b border-border">
-          <CardTitle className="text-base">Maintainers and provenance</CardTitle>
+        <CardHeader style={headerDividerStyle}>
+          <CardTitle style={{ fontSize: 'var(--nous-font-size-base)' }}>Maintainers and provenance</CardTitle>
         </CardHeader>
-        <CardContent className="space-y-3 pt-4">
+        <CardContent style={contentStackStyle}>
           {snapshot.maintainers.map((maintainer) => (
-            <div key={maintainer.maintainer_id} className="rounded-md border border-border p-3 text-sm">
-              <div className="font-medium">{maintainer.display_name}</div>
-              <div className="text-muted-foreground">
+            <div key={maintainer.maintainer_id} style={borderedPanelStyle}>
+              <div style={itemTitleStyle}>{maintainer.display_name}</div>
+              <div style={itemMutedStyle}>
                 {maintainer.verification_state} · {maintainer.roles.join(', ')}
               </div>
             </div>
@@ -173,14 +255,14 @@ export function MarketplacePackageDetail({
       </Card>
 
       <Card>
-        <CardHeader className="border-b border-border">
-          <CardTitle className="text-base">Release history</CardTitle>
+        <CardHeader style={headerDividerStyle}>
+          <CardTitle style={{ fontSize: 'var(--nous-font-size-base)' }}>Release history</CardTitle>
         </CardHeader>
-        <CardContent className="space-y-3 pt-4">
+        <CardContent style={contentStackStyle}>
           {snapshot.releases.map((release) => (
-            <div key={release.release_id} className="rounded-md border border-border p-3 text-sm">
-              <div className="font-medium">{release.package_version}</div>
-              <div className="text-muted-foreground">
+            <div key={release.release_id} style={borderedPanelStyle}>
+              <div style={itemTitleStyle}>{release.package_version}</div>
+              <div style={itemMutedStyle}>
                 {release.distribution_status} · {release.compatibility_state}
               </div>
             </div>
@@ -189,23 +271,23 @@ export function MarketplacePackageDetail({
       </Card>
 
       <Card>
-        <CardHeader className="border-b border-border">
-          <CardTitle className="text-base">Moderation and appeals</CardTitle>
+        <CardHeader style={headerDividerStyle}>
+          <CardTitle style={{ fontSize: 'var(--nous-font-size-base)' }}>Moderation and appeals</CardTitle>
         </CardHeader>
-        <CardContent className="grid gap-3 pt-4 md:grid-cols-2">
-          <div className="space-y-3">
+        <CardContent style={responsiveTwoColumnStyle}>
+          <div style={cardColumnStyle}>
             {snapshot.governanceTimeline.map((action) => (
-              <div key={action.action_id} className="rounded-md border border-border p-3 text-sm">
-                <div className="font-medium">{action.action_type}</div>
-                <div className="text-muted-foreground">{action.reason_code}</div>
+              <div key={action.action_id} style={borderedPanelStyle}>
+                <div style={itemTitleStyle}>{action.action_type}</div>
+                <div style={itemMutedStyle}>{action.reason_code}</div>
               </div>
             ))}
           </div>
-          <div className="space-y-3">
+          <div style={cardColumnStyle}>
             {snapshot.appeals.map((appeal) => (
-              <div key={appeal.appeal_id} className="rounded-md border border-border p-3 text-sm">
-                <div className="font-medium">{appeal.status}</div>
-                <div className="text-muted-foreground">{appeal.submitted_reason}</div>
+              <div key={appeal.appeal_id} style={borderedPanelStyle}>
+                <div style={itemTitleStyle}>{appeal.status}</div>
+                <div style={itemMutedStyle}>{appeal.submitted_reason}</div>
               </div>
             ))}
           </div>

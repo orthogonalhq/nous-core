@@ -138,8 +138,8 @@ function createInMemoryDocumentStore(): IDocumentStore {
 
 export class PrincipalSystemGatewayRuntime
 implements IPrincipalSystemGatewayRuntime, ISystemInboxSubmissionService {
-  private readonly healthSink = new GatewayRuntimeHealthSink();
-  private readonly replicaProvider = new SystemContextReplicaProvider(this.healthSink);
+  private readonly healthSink: GatewayRuntimeHealthSink;
+  private readonly replicaProvider: SystemContextReplicaProvider;
   private readonly gatewayFactory: AgentGatewayFactory;
   private readonly workmodeAdmissionGuard: WorkmodeAdmissionGuard;
   private readonly idFactory: () => string;
@@ -152,6 +152,8 @@ implements IPrincipalSystemGatewayRuntime, ISystemInboxSubmissionService {
   private readonly systemBacklogQueue: SystemBacklogQueue;
 
   constructor(private readonly deps: PrincipalSystemGatewayRuntimeDeps = {}) {
+    this.healthSink = new GatewayRuntimeHealthSink({ eventBus: deps.eventBus });
+    this.replicaProvider = new SystemContextReplicaProvider(this.healthSink);
     this.gatewayFactory = (deps.agentGatewayFactory ?? new AgentGatewayFactory()) as AgentGatewayFactory;
     this.workmodeAdmissionGuard =
       (deps.workmodeAdmissionGuard ?? new WorkmodeAdmissionGuard()) as WorkmodeAdmissionGuard;
@@ -463,6 +465,9 @@ implements IPrincipalSystemGatewayRuntime, ISystemInboxSubmissionService {
       opctlService: this.deps.opctlService,
       runtime: this.deps.runtime,
       appRuntimeService: this.deps.appRuntimeService,
+      credentialVaultService: this.deps.credentialVaultService,
+      credentialInjector: this.deps.credentialInjector,
+      appCredentialInstallService: this.deps.appCredentialInstallService,
       instanceRoot: this.deps.instanceRoot,
       outputSchemaValidator: this.deps.outputSchemaValidator,
       workmodeAdmissionGuard: this.workmodeAdmissionGuard,

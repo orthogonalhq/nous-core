@@ -8,6 +8,14 @@ import {
   WorkflowDefinitionIdSchema,
 } from './ids.js';
 import {
+  WorkflowContractFrontmatterSchema,
+  WorkflowNodeFrontmatterSchema,
+  WorkflowTemplateFrontmatterSchema,
+} from './workflow-package.js';
+import {
+  WorkflowSpecSchema,
+} from './workflow-spec.js';
+import {
   WorkflowNodeConfigSchema,
   WorkflowNodeKindSchema,
   WorkflowSchemaRefSchema,
@@ -173,6 +181,30 @@ export const LoadedWorkflowStepSchema = z.object({
 });
 export type LoadedWorkflowStep = z.infer<typeof LoadedWorkflowStepSchema>;
 
+export const LoadedWorkflowNodeContentSchema = z.object({
+  frontmatter: WorkflowNodeFrontmatterSchema,
+  body: z.string(),
+});
+export type LoadedWorkflowNodeContent = z.infer<
+  typeof LoadedWorkflowNodeContentSchema
+>;
+
+export const LoadedWorkflowContractContentSchema = z.object({
+  frontmatter: WorkflowContractFrontmatterSchema,
+  body: z.string(),
+});
+export type LoadedWorkflowContractContent = z.infer<
+  typeof LoadedWorkflowContractContentSchema
+>;
+
+export const LoadedWorkflowTemplateContentSchema = z.object({
+  frontmatter: WorkflowTemplateFrontmatterSchema,
+  body: z.string(),
+});
+export type LoadedWorkflowTemplateContent = z.infer<
+  typeof LoadedWorkflowTemplateContentSchema
+>;
+
 export const WorkflowFlowEdgeTargetSchema = z.union([
   z.string().min(1),
   z.object({
@@ -208,10 +240,19 @@ export const LoadedWorkflowPackageSchema = z.object({
   packageVersion: z.string().min(1).optional(),
   rootRef: z.string().min(1),
   manifestRef: z.string().min(1),
-  flowRef: z.string().min(1),
+  format: z.enum(['legacy', 'composite']).default('legacy'),
+  flowRef: z.string().min(1).optional(),
   manifest: WorkflowManifestFrontmatterSchema,
-  flow: z.record(z.unknown()),
-  steps: z.array(LoadedWorkflowStepSchema).min(1),
+  flow: z.record(z.unknown()).optional(),
+  steps: z.array(LoadedWorkflowStepSchema).min(1).optional(),
+  topology: WorkflowSpecSchema.optional(),
+  nodeContent: z.record(z.string(), LoadedWorkflowNodeContentSchema).optional(),
+  contracts: z
+    .record(z.string(), LoadedWorkflowContractContentSchema)
+    .optional(),
+  templates: z
+    .record(z.string(), LoadedWorkflowTemplateContentSchema)
+    .optional(),
   references: z.array(z.string().min(1)).default([]),
   scripts: z.array(z.string().min(1)).default([]),
   assets: z.array(z.string().min(1)).default([]),

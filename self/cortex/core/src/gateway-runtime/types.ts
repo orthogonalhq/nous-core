@@ -6,6 +6,7 @@ import type {
   IDocumentStore,
   IAgentGateway,
   IAgentGatewayFactory,
+  IEventBus,
   IModelProvider,
   IModelRouter,
   IPromotedMemoryBridgeService,
@@ -20,6 +21,9 @@ import type {
   IWitnessService,
   IRuntime,
   IAppRuntimeService,
+  IAppCredentialInstallService,
+  ICredentialVaultService,
+  ICredentialInjector,
   IOpctlService,
   IngressDispatchOutcome,
   IngressTriggerEnvelope,
@@ -177,6 +181,9 @@ export interface PrincipalSystemGatewayRuntimeDeps {
   opctlService?: IOpctlService;
   runtime?: IRuntime;
   appRuntimeService?: IAppRuntimeService;
+  credentialVaultService?: ICredentialVaultService;
+  credentialInjector?: ICredentialInjector;
+  appCredentialInstallService?: IAppCredentialInstallService;
   instanceRoot?: string;
   workmodeAdmissionGuard?: IWorkmodeAdmissionGuard;
   outputSchemaValidator?: InternalMcpOutputSchemaValidator;
@@ -186,6 +193,7 @@ export interface PrincipalSystemGatewayRuntimeDeps {
   workerBaseSystemPrompt?: string;
   defaultModelRequirements?: ModelRequirements;
   backlogConfig?: Partial<BacklogQueueConfig>;
+  eventBus?: IEventBus;
   now?: () => string;
   nowMs?: () => number;
   idFactory?: () => string;

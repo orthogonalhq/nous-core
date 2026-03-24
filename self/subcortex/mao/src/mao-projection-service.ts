@@ -491,6 +491,7 @@ export interface MaoProjectionServiceDeps {
   schedulerService: IScheduler;
   voiceControlService?: IVoiceControlService;
   witnessService?: IWitnessService;
+  eventBus?: import('@nous/shared').IEventBus;
 }
 
 export class MaoProjectionService {
@@ -524,7 +525,7 @@ export class MaoProjectionService {
     const controlProjection = this.buildProjectControlProjection(context);
     const summary = buildSummary(context.agentProjections);
 
-    return MaoProjectSnapshotSchema.parse({
+    const snapshot = MaoProjectSnapshotSchema.parse({
       projectId: parsed.projectId,
       densityMode: parsed.densityMode,
       workflowRunId: context.selectedRun?.runId,
@@ -550,6 +551,10 @@ export class MaoProjectionService {
       },
       generatedAt: context.generatedAt,
     });
+    this.deps.eventBus?.publish('mao:projection-changed', {
+      projectId: parsed.projectId,
+    });
+    return snapshot;
   }
 
   async getAgentInspectProjection(
@@ -765,6 +770,12 @@ export class MaoProjectionService {
         },
       );
     }
+
+    this.deps.eventBus?.publish('mao:control-action', {
+      projectId: parsed.project_id,
+      action: parsed.action,
+      result: accepted ? 'success' : 'failure',
+    });
 
     return result;
   }

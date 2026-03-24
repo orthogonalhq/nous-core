@@ -51,3 +51,4 @@ export {
   type WorkflowNodeHandlerDependencies,
 } from './handlers/index.js';
 export { DeterministicWorkflowEngine } from './workflow-engine.js';
+export * from './spec/index.js';

@@ -43,7 +43,7 @@ export function CollapsibleTrigger({
       {...props}
     >
       {children}
-      <span className="ml-1">{ctx.open ? '▼' : '▶'}</span>
+      <span style={{ marginLeft: '4px' }}>{ctx.open ? '▼' : '▶'}</span>
     </button>
   )
 }

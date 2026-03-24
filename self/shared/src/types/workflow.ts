@@ -167,6 +167,14 @@ export const WorkflowNodeConfigSchema = z.discriminatedUnion('type', [
 ]);
 export type WorkflowNodeConfig = z.infer<typeof WorkflowNodeConfigSchema>;
 
+export const WorkflowNodeMetadataSchema = z.object({
+  specNodeId: z.string().min(1),
+  skill: z.string().min(1).optional(),
+  contracts: z.array(z.string().min(1)).optional(),
+  templates: z.array(z.string().min(1)).optional(),
+});
+export type WorkflowNodeMetadata = z.infer<typeof WorkflowNodeMetadataSchema>;
+
 export const WorkflowNodeDefinitionSchema = z
   .object({
     id: WorkflowNodeDefinitionIdSchema,
@@ -178,6 +186,7 @@ export const WorkflowNodeDefinitionSchema = z
     inputSchemaRef: WorkflowSchemaRefSchema.optional(),
     outputSchemaRef: WorkflowSchemaRefSchema.optional(),
     config: WorkflowNodeConfigSchema,
+    metadata: WorkflowNodeMetadataSchema.optional(),
   })
   .superRefine((value, ctx) => {
     if (value.type !== value.config.type) {

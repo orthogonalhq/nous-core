@@ -48,8 +48,10 @@ export function ChatPanel({ params }: ChatPanelProps) {
   const chatApi = params?.chatApi
 
   useEffect(() => {
-    if (chatApi) {
-      chatApi.getHistory().then(setMessages)
+    if (chatApi?.getHistory) {
+      chatApi.getHistory().then(setMessages).catch(() => {
+        // History fetch failed — start with empty conversation
+      })
     }
   }, [chatApi])
 
@@ -58,7 +60,7 @@ export function ChatPanel({ params }: ChatPanelProps) {
   }, [messages])
 
   const send = async () => {
-    if (!input.trim() || sending || !chatApi) return
+    if (!input.trim() || sending || !chatApi?.send) return
     const userMsg = input.trim()
     setInput('')
     setSending(true)
@@ -118,7 +120,7 @@ export function ChatPanel({ params }: ChatPanelProps) {
       <div style={{ flex: 1, overflowY: 'auto', padding: 'var(--nous-space-2xl)', display: 'flex', flexDirection: 'column', gap: 'var(--nous-space-xl)' }}>
         {messages.length === 0 && (
           <div style={{ textAlign: 'center', color: 'var(--nous-fg-subtle)', fontSize: 'var(--nous-font-size-base)', marginTop: 'var(--nous-space-4xl)' }}>
-            {chatApi ? 'Start a conversation with Nous.' : 'Chat API not connected.'}
+            {chatApi?.send ? 'Start a conversation with Nous.' : 'Chat API not connected. Start the web backend with `pnpm dev:web`.'}
           </div>
         )}
         {messages.map((msg, i) => (
@@ -170,11 +172,11 @@ export function ChatPanel({ params }: ChatPanelProps) {
         </button>
         <button
           onClick={send}
-          disabled={sending || !input.trim() || !chatApi}
+          disabled={sending || !input.trim() || !chatApi?.send}
           style={{
             background: 'var(--nous-btn-primary-bg)', border: 'none', borderRadius: 'var(--nous-radius-md)',
             padding: 'var(--nous-space-md) var(--nous-space-2xl)', color: 'var(--nous-fg-on-color)', cursor: sending ? 'not-allowed' : 'pointer',
-            fontSize: 'var(--nous-font-size-base)', fontWeight: 'var(--nous-font-weight-medium)' as any, opacity: (sending || !input.trim() || !chatApi) ? 0.5 : 1,
+            fontSize: 'var(--nous-font-size-base)', fontWeight: 'var(--nous-font-weight-medium)' as any, opacity: (sending || !input.trim() || !chatApi?.send) ? 0.5 : 1,
           }}
         >
           Send

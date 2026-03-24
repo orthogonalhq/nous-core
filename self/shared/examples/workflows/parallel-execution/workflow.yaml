@@ -1,0 +1,63 @@
+name: Parallel Execution
+version: 1
+nodes:
+  - id: start-trigger
+    name: Start Trigger
+    type: nous.trigger.schedule
+    position: [0, 0]
+    parameters:
+      cron: "0 8 * * 1-5"
+      timezone: UTC
+  - id: agent-a
+    name: Agent A
+    type: nous.agent.claude
+    position: [240, -180]
+    parameters:
+      model: claude-3-5-sonnet
+      systemPrompt: Produce the execution summary for track A.
+      temperature: 0.1
+  - id: agent-b
+    name: Agent B
+    type: nous.agent.claude
+    position: [240, 0]
+    parameters:
+      model: claude-3-5-sonnet
+      systemPrompt: Produce the execution summary for track B.
+      temperature: 0.1
+  - id: agent-c
+    name: Agent C
+    type: nous.agent.claude
+    position: [240, 180]
+    parameters:
+      model: claude-3-5-sonnet
+      systemPrompt: Produce the execution summary for track C.
+      temperature: 0.1
+  - id: merge-results
+    name: Merge Results
+    type: nous.tool.artifact-store
+    position: [520, 0]
+    parameters:
+      key: reports/parallel-aggregate.json
+      operation: put
+  - id: output-report
+    name: Output Report
+    type: nous.app.slack
+    position: [760, 0]
+    parameters:
+      channel: "#workflow-reports"
+      message: Parallel summary ready for review.
+connections:
+  - from: start-trigger
+    to: agent-a
+  - from: start-trigger
+    to: agent-b
+  - from: start-trigger
+    to: agent-c
+  - from: agent-a
+    to: merge-results
+  - from: agent-b
+    to: merge-results
+  - from: agent-c
+    to: merge-results
+  - from: merge-results
+    to: output-report

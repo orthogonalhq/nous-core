@@ -12,10 +12,35 @@ export default function MarketplaceModerationPage() {
   });
 
   return (
-    <div className="space-y-6 p-8">
-      <div className="space-y-1">
-        <h1 className="text-2xl font-semibold">Marketplace Moderation Dashboard</h1>
-        <p className="text-sm text-muted-foreground">
+    <div
+      style={{
+        display: 'flex',
+        flexDirection: 'column',
+        gap: 'var(--nous-space-3xl)',
+        padding: 'var(--nous-space-4xl)',
+      }}
+    >
+      <div
+        style={{
+          display: 'flex',
+          flexDirection: 'column',
+          gap: 'var(--nous-space-xs)',
+        }}
+      >
+        <h1
+          style={{
+            fontSize: '24px',
+            fontWeight: 'var(--nous-font-weight-semibold)',
+          }}
+        >
+          Marketplace Moderation Dashboard
+        </h1>
+        <p
+          style={{
+            fontSize: 'var(--nous-font-size-sm)',
+            color: 'var(--nous-text-secondary)',
+          }}
+        >
           Review canonical moderation posture, appeals, holds, delistings, and escalation continuity for registry packages.
         </p>
       </div>
