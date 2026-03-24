@@ -149,7 +149,7 @@ export function ShellLayout({
 
       <div
         data-shell-area="content"
-        className="min-w-0 overflow-hidden"
+        className="min-w-0 overflow-y-auto"
         style={{
           gridArea: 'content',
           background: 'var(--nous-content-bg)',
