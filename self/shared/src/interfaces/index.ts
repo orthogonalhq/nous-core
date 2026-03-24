@@ -71,6 +71,7 @@ export type {
   AuthorityActor,
   DispatchAdmissionInput,
   LifecycleAdmissionInput,
+  ScopeGuardExecutionContext,
 } from './workmode.js';
 export type {
   IChatScopeResolver,

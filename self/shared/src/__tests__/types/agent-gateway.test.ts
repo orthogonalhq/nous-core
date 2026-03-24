@@ -5,6 +5,7 @@ import {
   AgentResultSchema,
   GatewayInboxMessageSchema,
   GatewayOutboxEventSchema,
+  GatewayStampedPacketSchema,
 } from '../../types/agent-gateway.js';
 
 const GATEWAY_ID = '550e8400-e29b-41d4-a716-446655440000';
@@ -375,5 +376,39 @@ describe('AgentResultSchema', () => {
     });
 
     expect(result.success).toBe(false);
+  });
+});
+
+describe('GatewayStampedPacketSchema — emitter_agent_class', () => {
+  it('accepts packet with valid emitter_agent_class', () => {
+    const packet = { ...createStampedPacket(), emitter_agent_class: 'Worker' };
+    const result = GatewayStampedPacketSchema.safeParse(packet);
+    expect(result.success).toBe(true);
+    if (result.success) {
+      expect(result.data.emitter_agent_class).toBe('Worker');
+    }
+  });
+
+  it('accepts packet without emitter_agent_class (backward compat)', () => {
+    const packet = createStampedPacket();
+    const result = GatewayStampedPacketSchema.safeParse(packet);
+    expect(result.success).toBe(true);
+    if (result.success) {
+      expect(result.data.emitter_agent_class).toBeUndefined();
+    }
+  });
+
+  it('rejects packet with invalid emitter_agent_class', () => {
+    const packet = { ...createStampedPacket(), emitter_agent_class: 'InvalidClass' };
+    const result = GatewayStampedPacketSchema.safeParse(packet);
+    expect(result.success).toBe(false);
+  });
+
+  it('accepts all valid AgentClass values as emitter_agent_class', () => {
+    for (const agentClass of ['Cortex::Principal', 'Cortex::System', 'Orchestrator', 'Worker']) {
+      const packet = { ...createStampedPacket(), emitter_agent_class: agentClass };
+      const result = GatewayStampedPacketSchema.safeParse(packet);
+      expect(result.success).toBe(true);
+    }
   });
 });

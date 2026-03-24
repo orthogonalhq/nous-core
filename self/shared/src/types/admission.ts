@@ -5,7 +5,16 @@
  * Canonical source: work-operation-modes-architecture-v1.md
  */
 import { z } from 'zod';
+import type { InvariantCode } from './evidence.js';
 import { InvariantCodeSchema } from './evidence.js';
+
+/** Scope guard reason codes for dispatch admission. */
+export const SCOPE_GUARD_CODES = {
+  /** Scope guard context required but missing or invalid */
+  SCOPE_GUARD_VIOLATION: 'WMODE-SCOPE-GUARD-VIOLATION' as InvariantCode,
+  /** Packet admissibility rejected at node entry validation */
+  PACKET_ADMISSIBILITY_REJECTED: 'WMODE-PACKET-ADMISSIBILITY-REJECTED' as InvariantCode,
+} as const;
 
 export const AdmissionResultSchema = z.discriminatedUnion('allowed', [
   z.object({ allowed: z.literal(true) }),
