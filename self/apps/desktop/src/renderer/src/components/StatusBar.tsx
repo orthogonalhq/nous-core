@@ -43,28 +43,30 @@ export function StatusBar({
         </div>
       </div>
 
-      {/* Right slot: mode */}
-      <div
-        style={{
-          display: 'flex',
-          alignItems: 'center',
-          height: '100%',
-        }}
-      >
-        <div style={{ padding: '0 var(--nous-space-lg)' }}>
-          <div
-            style={{
-              padding: '0 var(--nous-space-sm)',
-              borderRadius: 'var(--nous-radius-sm)',
-              background: 'var(--nous-surface)',
-              fontSize: 'var(--nous-font-size-xs)',
-              color: 'var(--nous-fg-subtle)',
-            }}
-          >
-            {mode === 'simple' ? 'Simple' : 'Developer'}
+      {/* Right slot: mode chip (developer mode only) */}
+      {mode === 'developer' ? (
+        <div
+          style={{
+            display: 'flex',
+            alignItems: 'center',
+            height: '100%',
+          }}
+        >
+          <div style={{ padding: '0 var(--nous-space-lg)' }}>
+            <div
+              style={{
+                padding: '0 var(--nous-space-sm)',
+                borderRadius: 'var(--nous-radius-sm)',
+                background: 'var(--nous-surface)',
+                fontSize: 'var(--nous-font-size-xs)',
+                color: 'var(--nous-fg-subtle)',
+              }}
+            >
+              Developer
+            </div>
           </div>
         </div>
-      </div>
+      ) : null}
     </div>
   )
 }

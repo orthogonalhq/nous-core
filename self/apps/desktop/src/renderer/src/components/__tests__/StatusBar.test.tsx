@@ -3,10 +3,11 @@ import { describe, expect, it } from 'vitest'
 import { StatusBar } from '../StatusBar'
 
 describe('StatusBar', () => {
-  it('renders the simple mode chip', () => {
+  it('renders no mode chip in simple mode', () => {
     render(<StatusBar mode="simple" />)
 
-    expect(screen.getByText('Simple')).toBeInTheDocument()
+    expect(screen.queryByText('Simple')).not.toBeInTheDocument()
+    expect(screen.queryByText('Developer')).not.toBeInTheDocument()
   })
 
   it('renders the developer mode chip', () => {
