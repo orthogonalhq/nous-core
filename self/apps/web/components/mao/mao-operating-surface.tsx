@@ -20,6 +20,7 @@ import {
   readMaoNavigationContext,
 } from '@/lib/mao-links';
 import { useProject } from '@/lib/project-context';
+import { useEventSubscription } from '@nous/ui';
 import { trpc } from '@/lib/trpc';
 import { useSearchParams } from 'next/navigation';
 
@@ -58,6 +59,14 @@ export function MaoOperatingSurface() {
     React.useState<MaoProjectControlResult | null>(null);
   const [, startTransition] = React.useTransition();
   const utils = trpc.useUtils();
+
+  useEventSubscription({
+    channels: ['mao:projection-changed', 'mao:control-action'],
+    onEvent: () => {
+      void utils.mao.getProjectSnapshot.invalidate();
+    },
+    enabled: !!projectId,
+  });
 
   React.useEffect(() => {
     if (linkedProjectId && linkedProjectId !== projectId) {
