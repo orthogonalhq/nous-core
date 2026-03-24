@@ -4,6 +4,7 @@ import {
   createBaseInput,
   createGatewayHarness,
   createProjectApi,
+  createWorkmodeAdmissionGuard,
 } from './helpers.js';
 
 function createStampedPacket() {
@@ -70,6 +71,7 @@ describe('AgentGateway lifecycle integration', () => {
       agentClass: 'Orchestrator',
       agentId: createBaseInput().correlation.parentId!,
       deps: {
+        workmodeAdmissionGuard: createWorkmodeAdmissionGuard(),
         getProjectApi: () => createProjectApi(),
         dispatchRuntime: {
           dispatchChild: async ({ request }) => {
@@ -152,6 +154,7 @@ describe('AgentGateway lifecycle integration', () => {
       agentClass: 'Worker',
       agentId: createBaseInput().correlation.parentId!,
       deps: {
+        workmodeAdmissionGuard: createWorkmodeAdmissionGuard(),
         getProjectApi: () => createProjectApi(),
         outputSchemaValidator: {
           validate: async () => ({ success: true }),
