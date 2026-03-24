@@ -47,6 +47,8 @@ Nous uses JSON5 for configuration. The config file is validated at load time wit
 
 Legacy names are normalized at runtime. `allowSilentLocalToRemoteFailover` — when false (default), remote is allowed only as explicit fallback in hybrid_controlled.
 
+When Anthropic or OpenAI credentials are restored at startup and the active profile is `local-only` or `local_strict`, Nous promotes the runtime into a hybrid-compatible profile so remote providers can actually be routed. Removing the last cloud provider returns the runtime to local-only posture.
+
 ## Cortex Tier
 
 `pfcTier` is a number 0–5. Higher tiers enable more capabilities (reflection, memory gating, tool authorization, planning, escalation detection). See [Cortex Mode Capability Matrix](/docs/architecture/Cortex-mode-capability-matrix).
@@ -56,13 +58,18 @@ Legacy names are normalized at runtime. `allowSilentLocalToRemoteFailover` — w
 ```json5
 {
   "modelRoleAssignments": [
-    { "role": "reasoner", "providerId": "550e8400-e29b-41d4-a716-446655440001" },
-    { "role": "orchestrator", "providerId": "550e8400-e29b-41d4-a716-446655440001" }
+    {
+      "role": "reasoner",
+      "providerId": "550e8400-e29b-41d4-a716-446655440002",
+      "fallbackProviderId": "550e8400-e29b-41d4-a716-446655440001"
+    }
   ]
 }
 ```
 
-`providerId` must be a valid UUID matching a provider `id` in the providers array. Roles: `orchestrator`, `reasoner`, `tool-advisor`, `summarizer`, `embedder`, `reranker`, `vision`.
+`providerId` and optional `fallbackProviderId` must be valid UUIDs matching provider `id` values in the `providers` array. Roles: `orchestrator`, `reasoner`, `tool-advisor`, `summarizer`, `embedder`, `reranker`, `vision`.
+
+Saved Principal and System model selections are restored into this structure at startup. When both saved selections are available, Nous uses the primary selection as `providerId` and the secondary selection as `fallbackProviderId` for the active `reasoner` assignment.
 
 ## Providers
 
@@ -75,18 +82,18 @@ Legacy names are normalized at runtime. `allowSilentLocalToRemoteFailover` — w
       "type": "text",
       "modelId": "llama3.2:3b",
       "isLocal": true,
-      "capabilities": ["text"],
+      "capabilities": ["chat", "streaming"],
       "providerClass": "local_text",
       "meetsProfiles": ["review-standard", "prompt-generation"]
     },
     {
       "id": "550e8400-e29b-41d4-a716-446655440002",
-      "name": "OpenAI-compatible",
+      "name": "openai",
       "type": "text",
-      "endpoint": "https://api.openai.com/v1",
-      "modelId": "gpt-4o-mini",
+      "endpoint": "https://api.openai.com",
+      "modelId": "gpt-4o",
       "isLocal": false,
-      "capabilities": ["text"],
+      "capabilities": ["chat", "streaming"],
       "providerClass": "remote_text",
       "meetsProfiles": ["review-standard", "review-implementation"]
     }
@@ -96,6 +103,7 @@ Legacy names are normalized at runtime. `allowSilentLocalToRemoteFailover` — w
 
 - **providerClass** (optional): `local_text` | `remote_text` — used for credential segregation and profile boundary.
 - **meetsProfiles** (optional): Array of capability profiles (e.g. `review-standard`, `review-implementation`). Router enforces that the selected provider meets the required profile unless Principal override evidence is present.
+- **endpoint** (optional): Use the provider base URL (for example `https://api.openai.com` or `https://api.anthropic.com`), not the full `/v1/chat/completions` path.
 
 Provider types: `text`, `image`, `video`, `vision`, `embedding`, `external-api`.
 
@@ -164,14 +172,18 @@ These apply to newly created projects.
 
 ## Environment Variables
 
-| Variable | Overrides |
-|----------|-----------|
-| `NOUS_DATA_DIR` | `storage.dataDir` |
-| `NOUS_CONFIG_PATH` | Config file path |
-| `NOUS_BASIC_AUTH` | Basic auth for tRPC (format: `user:password`) |
+| Variable | Purpose |
+|----------|---------|
+| `NOUS_DATA_DIR` | Overrides `storage.dataDir` |
+| `NOUS_CONFIG_PATH` | Overrides the config file path |
+| `NOUS_BASIC_AUTH` | Enables basic auth for tRPC (format: `user:password`) |
+| `OPENAI_API_KEY` | Enables the built-in OpenAI remote provider at startup |
+| `ANTHROPIC_API_KEY` | Enables the built-in Anthropic remote provider at startup |
 | `NOUS_PUBLIC_BASE_URL` | Base URL used in OAuth discovery documents for the public MCP edge (default: `http://localhost:3000`). Set this when deploying behind a non-localhost public endpoint. |
 | `NOUS_PUBLIC_MCP_HOSTED_BINDINGS_JSON` | Seeded hosted public-MCP binding records used to map a public host or user handle onto a hosted tenant runtime. Accepts a JSON object or JSON array of binding records. |
 | `NOUS_PUBLIC_MCP_TUNNEL_SESSIONS_JSON` | Seeded public-MCP tunnel session records used to map a public host or user handle onto a local tunnel runtime. Accepts a JSON object or JSON array of session records. |
+
+When `OPENAI_API_KEY` or `ANTHROPIC_API_KEY` is present at startup, Nous registers the matching remote provider, updates available cloud models, restores saved model selections against stable provider IDs, and enables hybrid-compatible routing. These variables can be supplied directly or populated from stored vault credentials during bootstrap.
 
 Phase 13.5 config audit result: public MCP deployment routing adds two operator-facing seed
 variables for hosted and local-tunnel routing. `NOUS_PUBLIC_BASE_URL` remains the public MCP edge

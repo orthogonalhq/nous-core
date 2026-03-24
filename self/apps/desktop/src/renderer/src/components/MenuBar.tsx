@@ -3,6 +3,7 @@ import { useState, useEffect } from 'react'
 import * as Menubar from '@radix-ui/react-menubar'
 import type { CSSProperties } from 'react'
 import type { DockviewApi } from 'dockview-react'
+import type { ShellMode } from '@nous/ui/components'
 import type { PanelDef } from '../App'
 
 // Electron-specific CSS property
@@ -165,6 +166,12 @@ function togglePanel(dockviewApi: DockviewApi | null, def: PanelDef) {
   }
 }
 
+function logSimpleModeToggle(target: 'chat' | 'observe') {
+  console.log(
+    `[nous:shell] ${target} column toggle requested (planned for Phase 1.3)`,
+  )
+}
+
 // ─── Menu definitions ────────────────────────────────────────────────────────
 
 function FileMenu() {
@@ -186,20 +193,28 @@ function FileMenu() {
 function ViewMenu({
   dockviewApi,
   panelDefs,
+  mode,
+  onModeToggle,
 }: {
   dockviewApi: DockviewApi | null
   panelDefs: PanelDef[]
+  mode: ShellMode
+  onModeToggle: () => void
 }) {
   const [openIds, setOpenIds] = useState<Set<string>>(new Set())
 
   useEffect(() => {
-    if (!dockviewApi) return
+    if (mode !== 'developer' || !dockviewApi) {
+      setOpenIds(new Set())
+      return
+    }
+
     const sync = () => setOpenIds(new Set(dockviewApi.panels.map((p) => p.id)))
     sync()
     const d1 = dockviewApi.onDidAddPanel(sync)
     const d2 = dockviewApi.onDidRemovePanel(sync)
     return () => { d1.dispose(); d2.dispose() }
-  }, [dockviewApi])
+  }, [dockviewApi, mode])
 
   return (
     <Menubar.Menu>
@@ -207,18 +222,42 @@ function ViewMenu({
       <Menubar.Portal>
         <Menubar.Content style={contentStyle} align="start" sideOffset={0}>
           <Menubar.Label style={labelStyle}>Panels</Menubar.Label>
-          {panelDefs.map((def) => (
-            <Menubar.CheckboxItem
-              key={def.id}
-              checked={openIds.has(def.id)}
-              onCheckedChange={() => togglePanel(dockviewApi, def)}
-              style={checkboxItemStyle}
-              data-nous-menu-item
-            >
-              <Menubar.ItemIndicator style={indicatorStyle}>✓</Menubar.ItemIndicator>
-              {def.title}
-            </Menubar.CheckboxItem>
-          ))}
+          {mode === 'simple' ? (
+            <>
+              <Item
+                label="Toggle Chat Panel"
+                onSelect={() => logSimpleModeToggle('chat')}
+              />
+              <Item
+                label="Toggle Observe Panel"
+                onSelect={() => logSimpleModeToggle('observe')}
+              />
+            </>
+          ) : (
+            panelDefs.map((def) => (
+              <Menubar.CheckboxItem
+                key={def.id}
+                checked={openIds.has(def.id)}
+                onCheckedChange={() => togglePanel(dockviewApi, def)}
+                style={checkboxItemStyle}
+                data-nous-menu-item
+              >
+                <Menubar.ItemIndicator style={indicatorStyle}>✓</Menubar.ItemIndicator>
+                {def.title}
+              </Menubar.CheckboxItem>
+            ))
+          )}
+          <Separator />
+          <Item
+            label="Toggle Developer Mode"
+            shortcut="Ctrl+Shift+D"
+            onSelect={onModeToggle}
+          />
+          <Item
+            label="Command Palette"
+            shortcut="Ctrl+K"
+            disabled
+          />
           <Separator />
           <Item
             label="Developer Tools"
@@ -258,9 +297,13 @@ function HelpMenu() {
 export function AppMenuBar({
   dockviewApi,
   panelDefs,
+  mode,
+  onModeToggle,
 }: {
   dockviewApi: DockviewApi | null
   panelDefs: PanelDef[]
+  mode: ShellMode
+  onModeToggle: () => void
 }) {
   // Inject hover CSS once on first render
   injectHoverStyles()
@@ -276,7 +319,12 @@ export function AppMenuBar({
       } as ElectronStyle}
     >
       <FileMenu />
-      <ViewMenu dockviewApi={dockviewApi} panelDefs={panelDefs} />
+      <ViewMenu
+        dockviewApi={dockviewApi}
+        panelDefs={panelDefs}
+        mode={mode}
+        onModeToggle={onModeToggle}
+      />
       <HelpMenu />
     </Menubar.Root>
   )

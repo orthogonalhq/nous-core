@@ -27,38 +27,98 @@ export function EscalationInbox({ queue, maoContext }: EscalationInboxProps) {
   }
 
   return (
-    <div className="border-b border-border bg-muted/20 px-6 py-3">
-      <div className="mb-2 flex items-center justify-between gap-3">
-        <div className="text-sm font-medium">Escalation inbox</div>
-        <div className="flex gap-2">
+    <div
+      style={{
+        borderBottom: '1px solid var(--nous-shell-column-border)',
+        background: 'var(--nous-bg-hover)',
+        padding: '12px var(--nous-space-2xl)',
+      }}
+    >
+      <div
+        style={{
+          marginBottom: 'var(--nous-space-xs)',
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'space-between',
+          gap: '12px',
+        }}
+      >
+        <div
+          style={{
+            fontSize: 'var(--nous-font-size-sm)',
+            fontWeight: 'var(--nous-font-weight-medium)',
+          }}
+        >
+          Escalation inbox
+        </div>
+        <div style={{ display: 'flex', gap: 'var(--nous-space-xs)' }}>
           <Badge variant="outline">{queue.openCount} open</Badge>
           <Badge variant="outline">{queue.urgentCount} urgent</Badge>
         </div>
       </div>
       {maoContext ? (
-        <div className="mb-3 rounded-md border border-border bg-background px-3 py-2 text-sm text-muted-foreground">
+        <div
+          style={{
+            marginBottom: '12px',
+            borderRadius: 'var(--nous-radius-md)',
+            border: '1px solid var(--nous-shell-column-border)',
+            background: 'var(--nous-bg-surface)',
+            padding: 'var(--nous-space-sm) var(--nous-space-md)',
+            fontSize: 'var(--nous-font-size-sm)',
+            color: 'var(--nous-text-secondary)',
+          }}
+        >
           MAO-linked escalation context is active.
           {maoContext.evidenceRef ? ` evidence ${maoContext.evidenceRef}.` : ''}
           <Link
             href={buildMaoReturnHref(maoContext)}
-            className="ml-2 underline underline-offset-4"
+            style={{
+              marginLeft: 'var(--nous-space-xs)',
+              textDecoration: 'underline',
+              textUnderlineOffset: '4px',
+            }}
           >
             Return to MAO
           </Link>
         </div>
       ) : null}
-      <div className="space-y-2">
+      <div
+        style={{
+          display: 'flex',
+          flexDirection: 'column',
+          gap: 'var(--nous-space-xs)',
+        }}
+      >
         {queue.items.slice(0, 3).map((item) => (
           <div
             key={item.escalationId}
-            className="rounded-md border border-border bg-background px-3 py-2 text-sm"
+            style={{
+              borderRadius: 'var(--nous-radius-md)',
+              border: '1px solid var(--nous-shell-column-border)',
+              background: 'var(--nous-bg-surface)',
+              padding: 'var(--nous-space-sm) var(--nous-space-md)',
+              fontSize: 'var(--nous-font-size-sm)',
+            }}
           >
-            <div className="flex items-center justify-between gap-3">
+            <div
+              style={{
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'space-between',
+                gap: '12px',
+              }}
+            >
               <div>
-                <div className="font-medium">{item.title}</div>
-                <div className="text-muted-foreground">{item.message}</div>
+                <div style={{ fontWeight: 'var(--nous-font-weight-medium)' }}>{item.title}</div>
+                <div style={{ color: 'var(--nous-text-secondary)' }}>{item.message}</div>
               </div>
-              <div className="flex items-center gap-2">
+              <div
+                style={{
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: 'var(--nous-space-xs)',
+                }}
+              >
                 <Badge variant="outline">{item.severity}</Badge>
                 {item.status !== 'acknowledged' && item.status !== 'resolved' ? (
                   <Button

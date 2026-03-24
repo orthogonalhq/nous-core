@@ -43,6 +43,55 @@ const DEFAULT_CHAT_BUDGET = {
 
 const CHAT_COMPLETION_SCHEMA_REF = 'schema://chat-response';
 
+type GatewayInputRecord = {
+  systemPrompt: string;
+  context: unknown;
+};
+
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return typeof value === 'object' && value !== null;
+}
+
+function isGatewayInput(value: unknown): value is GatewayInputRecord {
+  if (!isRecord(value)) {
+    return false;
+  }
+
+  return typeof value.systemPrompt === 'string' && Array.isArray(value.context);
+}
+
+export function transformGatewayInput(input: unknown): unknown {
+  if (!isRecord(input)) {
+    return input;
+  }
+
+  if ('messages' in input || 'prompt' in input) {
+    return input;
+  }
+
+  if (!isGatewayInput(input)) {
+    return input;
+  }
+
+  const parsedContext = GatewayContextFrameSchema.array().safeParse(input.context);
+  if (!parsedContext.success) {
+    return input;
+  }
+
+  return {
+    messages: [
+      {
+        role: 'system' as const,
+        content: input.systemPrompt,
+      },
+      ...parsedContext.data.map((frame) => ({
+        role: frame.role === 'tool' ? 'user' as const : frame.role,
+        content: frame.content,
+      })),
+    ],
+  };
+}
+
 interface MwcPipelineLike {
   submit(
     candidate: MemoryWriteCandidate,
@@ -249,7 +298,10 @@ export class GatewayBackedTurnExecutor implements ICoreExecutor {
     return {
       ...provider,
       invoke: async (request) => {
-        const response = await provider.invoke(request);
+        const response = await provider.invoke({
+          ...request,
+          input: transformGatewayInput(request.input),
+        });
         const parsedOutput = parseModelOutput(
           response.output,
           response.traceId,

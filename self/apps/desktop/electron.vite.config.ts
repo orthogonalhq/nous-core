@@ -7,6 +7,11 @@ export default defineConfig({
     // No externalizeDepsPlugin — bundle all deps into main process.
     // pnpm's strict node_modules breaks electron-builder's dependency
     // resolution, so the main bundle must be self-contained.
+    build: {
+      rollupOptions: {
+        external: ['koffi'],
+      },
+    },
   },
   preload: {
     plugins: [externalizeDepsPlugin()],

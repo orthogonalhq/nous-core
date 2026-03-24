@@ -12,6 +12,7 @@
     "resolveJsonModule": true,
     "isolatedModules": true,
     "noEmit": true,
+    "types": ["vitest/globals"],
     "baseUrl": ".",
     "paths": {
       "@nous/shared": ["../shared/src/index.ts"]
