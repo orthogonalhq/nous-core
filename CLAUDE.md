@@ -46,7 +46,8 @@ When the Orchestrator reaches implementation dispatch, do NOT emit the full impl
    - The phase spec and pattern reference files
    - Branch name and pre-flight instructions
    - Clear scope: "code this, run verify, produce Completion Report"
-6. **Principal bridges that one packet to Codex.** This is the only manual handoff.
+   - **Dispatch to an isolated worktree** (`isolation: "worktree"`). The main working tree stays on `dev`. The worktree creates the feature branch, codes, commits, and pushes. After implementation, cherry-pick or merge the worktree branch into the main tree for behavioral testing.
+6. **Principal bridges that one packet to Codex, or dispatches a Claude agent.** This is the only manual handoff. If dispatching a Claude agent, use `isolation: "worktree"` to keep the main tree clean.
 7. **Codex returns code + Completion Report.** Principal pastes result back.
 8. **Opus resumes** — gates the Completion Report, handles behavioral testing, User Documentation, and synthesis review.
 
