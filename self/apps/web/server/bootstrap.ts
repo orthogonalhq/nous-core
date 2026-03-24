@@ -339,9 +339,11 @@ export function createNousContext(): NousContext {
       submit: async (envelope) => schedulerIngressGateway.submit(envelope),
     },
   });
+  const eventBus = new EventBus();
   const escalationService = new EscalationService({
     escalationStore,
     projectStore,
+    eventBus,
   });
   const registryService = new RegistryService({
     registryStore,
@@ -358,7 +360,7 @@ export function createNousContext(): NousContext {
     vaultService: credentialVaultService,
     oauthBroker: credentialOAuthBroker,
   });
-  const packageLifecycleOrchestrator = new PackageLifecycleOrchestrator();
+  const packageLifecycleOrchestrator = new PackageLifecycleOrchestrator({ eventBus });
   const packageInstallService = new PackageInstallService({
     registryService,
     lifecycleOrchestrator: packageLifecycleOrchestrator,
@@ -391,6 +393,7 @@ export function createNousContext(): NousContext {
     communicationGatewayService,
     escalationService,
     witnessService,
+    eventBus,
   });
   const panelTranspiler = new PanelTranspiler();
   const appToolRegistry = new AppToolRegistry({
@@ -430,6 +433,7 @@ export function createNousContext(): NousContext {
     toolRegistry: appToolRegistry,
     communicationGatewayService,
     panelTranspiler,
+    eventBus,
   });
   const appInstallService = new AppInstallService({
     registryService,
@@ -455,6 +459,7 @@ export function createNousContext(): NousContext {
     schedulerService,
     voiceControlService,
     witnessService,
+    eventBus,
   });
   const publicMcpNamespaceStore = new NamespaceRegistryStore(documentStore);
   const publicMcpAuditStore = new AuditProjectionStore(documentStore);
@@ -766,8 +771,6 @@ export function createNousContext(): NousContext {
     tunnelForwarder: publicMcpTunnelForwarder,
   });
 
-  const eventBus = new EventBus();
-
   const coreExecutor = new GatewayBackedTurnExecutor({
     modelRouter: router,
     getProvider,
@@ -804,6 +807,7 @@ export function createNousContext(): NousContext {
     appRuntimeService,
     instanceRoot,
     outputSchemaValidator: new DefaultSchemaRefValidator(),
+    eventBus,
   });
   providerRegistry.onLeaseReleased((event) => {
     void gatewayRuntime.notifyLeaseReleased({

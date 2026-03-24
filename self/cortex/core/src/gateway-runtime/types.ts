@@ -6,6 +6,7 @@ import type {
   IDocumentStore,
   IAgentGateway,
   IAgentGatewayFactory,
+  IEventBus,
   IModelProvider,
   IModelRouter,
   IPromotedMemoryBridgeService,
@@ -186,6 +187,7 @@ export interface PrincipalSystemGatewayRuntimeDeps {
   workerBaseSystemPrompt?: string;
   defaultModelRequirements?: ModelRequirements;
   backlogConfig?: Partial<BacklogQueueConfig>;
+  eventBus?: IEventBus;
   now?: () => string;
   nowMs?: () => number;
   idFactory?: () => string;
