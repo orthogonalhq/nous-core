@@ -8,8 +8,16 @@ export default function MemoryPage() {
 
   if (!projectId) {
     return (
-      <div className="flex h-full items-center justify-center p-8">
-        <p className="text-muted-foreground">
+      <div
+        style={{
+          display: 'flex',
+          height: '100%',
+          alignItems: 'center',
+          justifyContent: 'center',
+          padding: 'var(--nous-space-4xl)',
+        }}
+      >
+        <p style={{ color: 'var(--nous-text-secondary)' }}>
           Select a project from the sidebar to inspect memory.
         </p>
       </div>
@@ -17,7 +25,7 @@ export default function MemoryPage() {
   }
 
   return (
-    <div className="p-8">
+    <div style={{ padding: 'var(--nous-space-4xl)' }}>
       <MemoryInspector projectId={projectId} />
     </div>
   );

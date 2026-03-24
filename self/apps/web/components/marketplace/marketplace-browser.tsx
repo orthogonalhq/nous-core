@@ -15,6 +15,89 @@ interface MarketplaceBrowserProps {
   projectId: string | null;
 }
 
+const cardHeaderStyle: React.CSSProperties = {
+  borderBottom: '1px solid var(--nous-shell-column-border)',
+};
+
+const cardTitleStyle: React.CSSProperties = {
+  display: 'flex',
+  flexWrap: 'wrap',
+  alignItems: 'center',
+  justifyContent: 'space-between',
+  gap: '12px',
+  fontSize: 'var(--nous-font-size-base)',
+};
+
+const rowWrapStyle: React.CSSProperties = {
+  display: 'flex',
+  flexWrap: 'wrap',
+  gap: 'var(--nous-space-xs)',
+};
+
+const contentStyle: React.CSSProperties = {
+  display: 'flex',
+  flexDirection: 'column',
+  gap: 'var(--nous-space-md)',
+  paddingTop: 'var(--nous-space-md)',
+};
+
+const mutedTextStyle: React.CSSProperties = {
+  fontSize: 'var(--nous-font-size-sm)',
+  color: 'var(--nous-text-secondary)',
+};
+
+const packageCardStyle: React.CSSProperties = {
+  borderRadius: 'var(--nous-radius-md)',
+  border: '1px solid var(--nous-shell-column-border)',
+  padding: 'var(--nous-space-md)',
+};
+
+const packageHeaderStyle: React.CSSProperties = {
+  display: 'flex',
+  flexWrap: 'wrap',
+  alignItems: 'flex-start',
+  justifyContent: 'space-between',
+  gap: '12px',
+};
+
+const packageTitleRowStyle: React.CSSProperties = {
+  display: 'flex',
+  flexWrap: 'wrap',
+  alignItems: 'center',
+  gap: 'var(--nous-space-xs)',
+};
+
+const titleStyle: React.CSSProperties = {
+  fontSize: 'var(--nous-font-size-base)',
+  fontWeight: 'var(--nous-font-weight-semibold)',
+};
+
+const actionLinkStyle: React.CSSProperties = {
+  borderRadius: 'var(--nous-radius-md)',
+  border: '1px solid var(--nous-shell-column-border)',
+  padding: 'var(--nous-space-sm) var(--nous-space-md)',
+  fontSize: 'var(--nous-font-size-sm)',
+  fontWeight: 'var(--nous-font-weight-medium)',
+};
+
+const eligibilityStyle: React.CSSProperties = {
+  marginTop: '12px',
+  borderRadius: 'var(--nous-radius-md)',
+  border: '1px solid var(--nous-shell-column-border)',
+  background: 'var(--nous-bg-hover)',
+  padding: 'var(--nous-space-sm) var(--nous-space-md)',
+  fontSize: 'var(--nous-font-size-sm)',
+  color: 'var(--nous-text-secondary)',
+};
+
+const emptyStateStyle: React.CSSProperties = {
+  borderRadius: 'var(--nous-radius-md)',
+  border: '1px dashed var(--nous-shell-column-border)',
+  padding: 'var(--nous-space-3xl)',
+  fontSize: 'var(--nous-font-size-sm)',
+  color: 'var(--nous-text-secondary)',
+};
+
 export function MarketplaceBrowser({
   query,
   onQueryChange,
@@ -24,10 +107,10 @@ export function MarketplaceBrowser({
 }: MarketplaceBrowserProps) {
   return (
     <Card>
-      <CardHeader className="border-b border-border">
-        <CardTitle className="flex flex-wrap items-center justify-between gap-3 text-base">
+      <CardHeader style={cardHeaderStyle}>
+        <CardTitle style={cardTitleStyle}>
           <span>Marketplace browser</span>
-          <div className="flex items-center gap-2">
+          <div style={{ display: 'flex', alignItems: 'center', gap: 'var(--nous-space-xs)' }}>
             <Badge variant="outline">
               {snapshot?.totalCount ?? 0} package
               {(snapshot?.totalCount ?? 0) === 1 ? '' : 's'}
@@ -36,7 +119,7 @@ export function MarketplaceBrowser({
           </div>
         </CardTitle>
       </CardHeader>
-      <CardContent className="space-y-4 pt-4">
+      <CardContent style={contentStyle}>
         <Input
           value={query}
           onChange={(event) => onQueryChange(event.target.value)}
@@ -44,32 +127,25 @@ export function MarketplaceBrowser({
           aria-label="Search registry packages"
         />
 
-        {isLoading ? (
-          <p className="text-sm text-muted-foreground">Loading registry packages...</p>
-        ) : null}
+        {isLoading ? <p style={mutedTextStyle}>Loading registry packages...</p> : null}
 
-        <div className="grid gap-3">
+        <div style={{ display: 'grid', gap: '12px' }}>
           {(snapshot?.items ?? []).map((item) => (
-            <div
-              key={item.package.package_id}
-              className="rounded-md border border-border p-4"
-            >
-              <div className="flex flex-wrap items-start justify-between gap-3">
+            <div key={item.package.package_id} style={packageCardStyle}>
+              <div style={packageHeaderStyle}>
                 <div>
-                  <div className="flex flex-wrap items-center gap-2">
-                    <h2 className="text-base font-semibold">
-                      {item.package.display_name}
-                    </h2>
+                  <div style={packageTitleRowStyle}>
+                    <h2 style={titleStyle}>{item.package.display_name}</h2>
                     <Badge variant="outline">{item.package.package_type}</Badge>
                     <Badge variant="outline">{item.package.trust_tier}</Badge>
                     <Badge variant="outline">{item.package.distribution_status}</Badge>
                     <Badge variant="outline">{item.package.compatibility_state}</Badge>
                   </div>
-                  <p className="mt-1 text-sm text-muted-foreground">
+                  <p style={{ ...mutedTextStyle, marginTop: '4px' }}>
                     {item.package.package_id}
                   </p>
                   {item.latestRelease ? (
-                    <p className="mt-2 text-sm text-muted-foreground">
+                    <p style={{ ...mutedTextStyle, marginTop: 'var(--nous-space-xs)' }}>
                       Latest release {item.latestRelease.package_version}
                     </p>
                   ) : null}
@@ -81,16 +157,15 @@ export function MarketplaceBrowser({
                       ? `/marketplace/${item.package.package_id}?projectId=${projectId}`
                       : `/marketplace/${item.package.package_id}`
                   }
-                  className="rounded-md border border-border px-3 py-1 text-sm font-medium hover:bg-muted/20"
+                  style={actionLinkStyle}
                 >
                   View package
                 </Link>
               </div>
 
               {item.trustEligibility ? (
-                <div className="mt-3 rounded-md border border-border bg-muted/20 px-3 py-2 text-sm text-muted-foreground">
-                  Trust eligibility: {item.trustEligibility.distribution_status} /
-                  {' '}
+                <div style={eligibilityStyle}>
+                  Trust eligibility: {item.trustEligibility.distribution_status} /{' '}
                   {item.trustEligibility.compatibility_state}
                   {item.trustEligibility.block_reason_codes.length > 0
                     ? ` (${item.trustEligibility.block_reason_codes.join(', ')})`
@@ -98,7 +173,7 @@ export function MarketplaceBrowser({
                 </div>
               ) : null}
 
-              <div className="mt-3 flex flex-wrap gap-2">
+              <div style={{ ...rowWrapStyle, marginTop: '12px' }}>
                 {item.maintainers.map((maintainer) => (
                   <Badge key={maintainer.maintainer_id} variant="outline">
                     {maintainer.display_name} · {maintainer.verification_state}
@@ -109,7 +184,7 @@ export function MarketplaceBrowser({
           ))}
 
           {!isLoading && (snapshot?.items.length ?? 0) === 0 ? (
-            <div className="rounded-md border border-dashed border-border p-6 text-sm text-muted-foreground">
+            <div style={emptyStateStyle}>
               No registry packages match the current search and filter posture.
             </div>
           ) : null}

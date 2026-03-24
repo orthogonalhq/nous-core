@@ -18,8 +18,15 @@ export function FirstRunRedirect() {
   }, [data, isLoading, router]);
 
   return (
-    <div className="flex min-h-screen items-center justify-center">
-      <p className="text-muted-foreground">Loading...</p>
+    <div
+      style={{
+        display: 'flex',
+        minHeight: '100vh',
+        alignItems: 'center',
+        justifyContent: 'center',
+      }}
+    >
+      <p style={{ color: 'var(--nous-text-secondary)' }}>Loading...</p>
     </div>
   );
 }

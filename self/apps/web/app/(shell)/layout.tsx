@@ -13,7 +13,18 @@ export default function ShellLayout({
   children: React.ReactNode;
 }) {
   return (
-    <Suspense fallback={<main className="flex-1 overflow-auto">{children}</main>}>
+    <Suspense
+      fallback={(
+        <main
+          style={{
+            flex: '1 1 0%',
+            overflow: 'auto',
+          }}
+        >
+          {children}
+        </main>
+      )}
+    >
       <ShellLayoutContent>{children}</ShellLayoutContent>
     </Suspense>
   );
@@ -61,8 +72,20 @@ function ShellLayoutContent({
 
   return (
     <ProjectProvider value={{ projectId, setProjectId }}>
-      <div className="flex h-screen overflow-hidden">
-        <div className="hidden h-full shrink-0 md:block">
+      <div
+        style={{
+          display: 'flex',
+          height: '100vh',
+          overflow: 'hidden',
+        }}
+      >
+        <div
+          style={{
+            display: sidebarOpen ? 'none' : 'block',
+            height: '100%',
+            flexShrink: 0,
+          }}
+        >
           <Sidebar
             projectId={projectId}
             onProjectSelect={setProjectId}
@@ -73,33 +96,72 @@ function ShellLayoutContent({
           <button
             type="button"
             aria-label="Close navigation"
-            className="fixed inset-0 z-40 bg-black/40 md:hidden"
             onClick={() => setSidebarOpen(false)}
+            style={{
+              position: 'fixed',
+              inset: 0,
+              zIndex: 40,
+              background: 'rgba(0, 0, 0, 0.4)',
+            }}
           />
         ) : null}
         <div
-          className={`fixed inset-y-0 left-0 z-50 w-72 transition-transform md:hidden ${
-            sidebarOpen ? 'translate-x-0' : '-translate-x-full'
-          }`}
+          style={{
+            position: 'fixed',
+            insetBlock: 0,
+            left: 0,
+            zIndex: 50,
+            width: '18rem',
+            transition: 'transform 0.2s ease',
+            transform: sidebarOpen ? 'translateX(0)' : 'translateX(-100%)',
+          }}
         >
           <Sidebar
             projectId={projectId}
             onProjectSelect={setProjectId}
             onNewProject={handleNewProject}
             onNavigate={() => setSidebarOpen(false)}
-            className="h-full w-full bg-background"
+            className="web-shell-sidebar"
           />
         </div>
-        <div className="flex min-w-0 flex-1 flex-col">
-          <div className="flex items-center justify-between border-b border-border px-3 py-2 md:hidden">
+        <div
+          style={{
+            display: 'flex',
+            minWidth: 0,
+            flex: '1 1 0%',
+            flexDirection: 'column',
+          }}
+        >
+          <div
+            style={{
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'space-between',
+              borderBottom: '1px solid var(--nous-shell-column-border)',
+              padding: 'var(--nous-space-sm) var(--nous-space-md)',
+            }}
+          >
             <Button variant="outline" size="sm" onClick={() => setSidebarOpen(true)}>
               Menu
             </Button>
-            <div className="text-xs text-muted-foreground">
+            <div
+              style={{
+                fontSize: 'var(--nous-font-size-xs)',
+                color: 'var(--nous-text-secondary)',
+              }}
+            >
               {projectId ? 'Project selected' : 'No project selected'}
             </div>
           </div>
-          <main className="min-h-0 flex-1 overflow-auto">{children}</main>
+          <main
+            style={{
+              minHeight: 0,
+              flex: '1 1 0%',
+              overflow: 'auto',
+            }}
+          >
+            {children}
+          </main>
         </div>
       </div>
     </ProjectProvider>
