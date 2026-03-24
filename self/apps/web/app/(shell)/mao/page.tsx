@@ -7,8 +7,8 @@ export default function MaoPage() {
   return (
     <React.Suspense
       fallback={
-        <div className="p-8">
-          <p className="text-muted-foreground">Loading MAO projection...</p>
+        <div style={{ padding: 'var(--nous-space-4xl)' }}>
+          <p style={{ color: 'var(--nous-text-secondary)' }}>Loading MAO projection...</p>
         </div>
       }
     >

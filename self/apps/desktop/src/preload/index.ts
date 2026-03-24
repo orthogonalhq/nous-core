@@ -149,4 +149,8 @@ contextBridge.exposeInMainWorld('electronAPI', {
   appPanels: {
     list: (): Promise<unknown[]> => ipcRenderer.invoke('app-panels:list'),
   },
+  mode: {
+    get: (): Promise<string | null> => ipcRenderer.invoke('mode:get'),
+    set: (mode: string): Promise<void> => ipcRenderer.invoke('mode:set', mode),
+  },
 })

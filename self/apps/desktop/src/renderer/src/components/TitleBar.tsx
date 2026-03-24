@@ -2,6 +2,7 @@
 import { useState, useEffect, useCallback } from 'react'
 import type { CSSProperties } from 'react'
 import type { DockviewApi } from 'dockview-react'
+import type { ShellMode } from '@nous/ui/components'
 import type { PanelDef } from '../App'
 import { AppMenuBar } from './MenuBar'
 
@@ -13,9 +14,13 @@ const winAPI = () => window.electronAPI?.win
 export function TitleBar({
   dockviewApi,
   panelDefs,
+  mode,
+  onModeToggle,
 }: {
   dockviewApi: DockviewApi | null
   panelDefs: PanelDef[]
+  mode: ShellMode
+  onModeToggle: () => void
 }) {
   const [isMaximized, setIsMaximized] = useState(false)
   const [btnHover, setBtnHover] = useState<'min' | 'max' | 'close' | null>(null)
@@ -78,8 +83,26 @@ export function TitleBar({
         </span>
       </div>
 
+      <div
+        aria-label="Active project"
+        style={{
+          minWidth: 'var(--nous-space-4xl)',
+          paddingRight: 'var(--nous-space-lg)',
+          color: 'var(--nous-fg-subtle)',
+          fontSize: 'var(--nous-font-size-xs)',
+          WebkitAppRegion: 'no-drag',
+          pointerEvents: 'none',
+          flexShrink: 0,
+        } as ElectronStyle}
+      />
+
       {/* Menu bar — File / View / Help */}
-      <AppMenuBar dockviewApi={dockviewApi} panelDefs={panelDefs} />
+      <AppMenuBar
+        dockviewApi={dockviewApi}
+        panelDefs={panelDefs}
+        mode={mode}
+        onModeToggle={onModeToggle}
+      />
 
       {/* Drag region fills the middle */}
       <div style={{ flex: 1 }} />

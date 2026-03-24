@@ -1,5 +1,6 @@
 // @vitest-environment jsdom
 
+import { fireEvent } from '@testing-library/react'
 import { act } from 'react'
 import { createRoot, type Root } from 'react-dom/client'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
@@ -132,6 +133,16 @@ function getSelectByAriaLabel(label: string): HTMLSelectElement {
   return select
 }
 
+function getSwitchByAriaLabel(label: string): HTMLInputElement {
+  const input = container.querySelector(`input[aria-label="${label}"]`)
+
+  if (!(input instanceof HTMLInputElement)) {
+    throw new Error(`Switch not found: ${label}`)
+  }
+
+  return input
+}
+
 async function click(button: HTMLButtonElement): Promise<void> {
   await act(async () => {
     button.dispatchEvent(new MouseEvent('click', { bubbles: true }))
@@ -143,6 +154,17 @@ async function changeSelect(select: HTMLSelectElement, value: string): Promise<v
   await act(async () => {
     select.value = value
     select.dispatchEvent(new Event('change', { bubbles: true }))
+    await flush()
+  })
+}
+
+async function toggleSwitch(input: HTMLInputElement, checked: boolean): Promise<void> {
+  if (input.checked === checked) {
+    return
+  }
+
+  await act(async () => {
+    fireEvent.click(input)
     await flush()
   })
 }
@@ -328,5 +350,49 @@ describe('PreferencesPanel role assignment settings', () => {
 
     expect(resetWizard).toHaveBeenCalledTimes(1)
     expect(onWizardReset).toHaveBeenCalledTimes(1)
+  })
+
+  it('renders the developer mode toggle when mode params are provided', async () => {
+    const api = createBaseApi()
+
+    await renderPanel(api, {
+      currentMode: 'developer',
+      onModeChange: vi.fn(),
+    })
+
+    const toggle = getSwitchByAriaLabel('Developer Mode')
+
+    expect(textContent()).toContain('Developer Mode')
+    expect(toggle.checked).toBe(true)
+  })
+
+  it('calls onModeChange with the next mode when the toggle changes', async () => {
+    const onModeChange = vi.fn()
+    const api = createBaseApi()
+
+    await renderPanel(api, {
+      currentMode: 'simple',
+      onModeChange,
+    })
+
+    await toggleSwitch(getSwitchByAriaLabel('Developer Mode'), true)
+
+    expect(onModeChange).toHaveBeenCalledWith('developer')
+  })
+
+  it('reflects the current mode in the developer mode toggle state', async () => {
+    const api = createBaseApi()
+
+    await renderPanel(api, {
+      currentMode: 'simple',
+      onModeChange: vi.fn(),
+    })
+    expect(getSwitchByAriaLabel('Developer Mode').checked).toBe(false)
+
+    await renderPanel(api, {
+      currentMode: 'developer',
+      onModeChange: vi.fn(),
+    })
+    expect(getSwitchByAriaLabel('Developer Mode').checked).toBe(true)
   })
 })

@@ -1,0 +1,49 @@
+/**
+ * @nous/ui — Interaction compositions
+ *
+ * Semantic transitions and interaction recipes built from tokens.css.
+ */
+
+:root {
+  /* ── Hover ───────────────────────────────────────────────────────────── */
+  --nous-hover-transition:
+    background var(--nous-duration-fast) var(--nous-ease-out);
+  --nous-hover-button-transition:
+    color var(--nous-duration-fast) var(--nous-ease-out),
+    background var(--nous-duration-fast) var(--nous-ease-out);
+
+  /* ── Press ───────────────────────────────────────────────────────────── */
+  --nous-press-transform: scale(var(--nous-scale-press));
+  --nous-press-duration:  var(--nous-duration-instant);
+
+  /* ── Drag ────────────────────────────────────────────────────────────── */
+  --nous-drag-shadow:    var(--nous-shadow-md);
+  --nous-drag-transform: scale(var(--nous-scale-lift));
+
+  /* ── Focus ───────────────────────────────────────────────────────────── */
+  --nous-focus-ring:
+    calc(var(--nous-space-xs) / 2) solid var(--nous-accent);
+  --nous-focus-ring-offset: calc(var(--nous-space-xs) / 2);
+
+  /* ── Feedback ────────────────────────────────────────────────────────── */
+  --nous-feedback-success-duration: var(--nous-duration-slow);
+  --nous-feedback-error-duration:   var(--nous-duration-normal);
+  --nous-feedback-shake-duration:   var(--nous-duration-normal);
+  --nous-feedback-pulse-duration:   var(--nous-duration-ambient);
+
+  /* ── Panel and content transitions ──────────────────────────────────── */
+  --nous-panel-transition:
+    var(--nous-duration-normal) var(--nous-ease-out);
+  --nous-content-transition:
+    var(--nous-duration-fast) var(--nous-ease-out);
+  --nous-flyout-enter:
+    var(--nous-duration-fast) var(--nous-ease-snap);
+  --nous-flyout-exit:
+    var(--nous-duration-fast) var(--nous-ease-out);
+  --nous-ambient-fade:
+    var(--nous-duration-normal) var(--nous-ease-in-out);
+  --nous-observe-crossfade:
+    var(--nous-duration-fast) var(--nous-ease-out);
+  --nous-modal-enter:
+    var(--nous-duration-normal) var(--nous-ease-out);
+}
