@@ -13,6 +13,10 @@ export type { FloatingPanelProps, UseFloatingPanelReturn, UseFloatingPanelOption
 export { NodePalette } from './NodePalette'
 export type { NodePaletteProps } from './NodePalette'
 
+// Inspector components and types (SP 2.3)
+export { NodeInspector, EdgeInspector, WorkflowInspector, ParameterForm, BindingPopover } from './inspectors'
+export type { NodeInspectorProps, EdgeInspectorProps, WorkflowInspectorProps } from './inspectors'
+
 // Type re-exports for Phase 2
 export type {
   FloatingPanelState,
@@ -24,4 +28,8 @@ export type {
   UndoRedoState,
   WorkflowSyncState,
   SyncStatus,
+  InspectorState,
+  ParameterFormProps,
+  BindingOption,
+  BindingPopoverProps,
 } from '../../types/workflow-builder'

@@ -14,6 +14,9 @@ import type { IDockviewPanelProps } from 'dockview-react'
 import { useBuilderState } from './hooks/useBuilderState'
 import { BuilderToolbar } from './BuilderToolbar'
 import { NodePalette } from './NodePalette'
+import { NodeInspector } from './inspectors/NodeInspector'
+import { EdgeInspector } from './inspectors/EdgeInspector'
+import { WorkflowInspector } from './inspectors/WorkflowInspector'
 import { nodeTypes } from './nodes'
 import { edgeTypes } from './edges'
 
@@ -48,9 +51,16 @@ function CanvasDropTarget({
     onNodeClick,
     onEdgeClick,
     onPaneClick,
+    selectedNodeId,
+    selectedEdgeId,
     mode,
     setMode,
     addNode,
+    addEdge,
+    removeEdge,
+    updateNodeData,
+    getCurrentSpec,
+    validationErrors,
     undo,
     redo,
     canUndo,
@@ -130,6 +140,29 @@ function CanvasDropTarget({
         canRedo={canRedo}
       />
       <NodePalette containerRef={canvasRef} />
+      <NodeInspector
+        selectedNodeId={selectedNodeId}
+        nodes={nodes}
+        updateNodeData={updateNodeData}
+        validationErrors={validationErrors}
+        containerRef={canvasRef}
+      />
+      <EdgeInspector
+        selectedEdgeId={selectedEdgeId}
+        edges={edges}
+        nodes={nodes}
+        removeEdge={removeEdge}
+        addEdge={addEdge}
+        containerRef={canvasRef}
+      />
+      <WorkflowInspector
+        selectedNodeId={selectedNodeId}
+        selectedEdgeId={selectedEdgeId}
+        nodes={nodes}
+        edges={edges}
+        getCurrentSpec={getCurrentSpec}
+        containerRef={canvasRef}
+      />
     </>
   )
 }
