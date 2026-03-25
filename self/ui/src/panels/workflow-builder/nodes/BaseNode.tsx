@@ -3,7 +3,7 @@
 import React from 'react'
 import { Handle, Position } from '@xyflow/react'
 import type { NodeProps } from '@xyflow/react'
-import type { WorkflowBuilderNode, WorkflowBuilderNodeData } from '../../../types/workflow-builder'
+import type { WorkflowBuilderNode } from '../../../types/workflow-builder'
 import { getRegistryEntry } from './node-registry'
 
 // ─── State indicator color tokens ────────────────────────────────────────────
@@ -19,9 +19,10 @@ const STATE_COLOR_VAR: Record<string, string> = {
 // ─── BaseNode — custom React Flow node with category styling ─────────────────
 
 function BaseNodeInner({ data }: NodeProps<WorkflowBuilderNode>) {
-  const nodeData = data as unknown as WorkflowBuilderNodeData
-  const entry = getRegistryEntry(nodeData.nousType)
-  const stateKey = (nodeData as Record<string, unknown>).state as string | undefined
+  // React Flow v12 NodeProps<T> correctly propagates data type via Pick<T, 'data'>.
+  // No type assertion needed — data is typed as WorkflowBuilderNodeData.
+  const entry = getRegistryEntry(data.nousType)
+  const stateKey = (data as Record<string, unknown>).state as string | undefined
   const stateColor = STATE_COLOR_VAR[stateKey ?? 'idle'] ?? STATE_COLOR_VAR.idle
 
   return (
@@ -81,7 +82,7 @@ function BaseNodeInner({ data }: NodeProps<WorkflowBuilderNode>) {
             whiteSpace: 'nowrap',
           }}
         >
-          {nodeData.label}
+          {data.label}
         </div>
 
         {/* State indicator dot */}
@@ -97,7 +98,7 @@ function BaseNodeInner({ data }: NodeProps<WorkflowBuilderNode>) {
       </div>
 
       {/* Description (2-line clamp) */}
-      {nodeData.description && (
+      {data.description && (
         <div
           style={{
             fontSize: 'var(--nous-font-size-xs)',
@@ -110,7 +111,7 @@ function BaseNodeInner({ data }: NodeProps<WorkflowBuilderNode>) {
             WebkitBoxOrient: 'vertical',
           }}
         >
-          {nodeData.description}
+          {data.description}
         </div>
       )}
 

@@ -1,6 +1,6 @@
 'use client'
 
-import { useMemo } from 'react'
+import { useMemo, useCallback, useRef } from 'react'
 import {
   ReactFlow,
   ReactFlowProvider,
@@ -8,10 +8,12 @@ import {
   BackgroundVariant,
   MiniMap,
   Controls,
+  useReactFlow,
 } from '@xyflow/react'
 import type { IDockviewPanelProps } from 'dockview-react'
 import { useBuilderState } from './hooks/useBuilderState'
 import { BuilderToolbar } from './BuilderToolbar'
+import { NodePalette } from './NodePalette'
 import { nodeTypes } from './nodes'
 import { edgeTypes } from './edges'
 
@@ -29,7 +31,14 @@ interface WorkflowBuilderDockviewProps extends IDockviewPanelProps {
 
 // ─── Inner canvas (runtime-agnostic — no dockview imports) ──────────────────
 
-function WorkflowBuilderCanvas({ className }: { className?: string }) {
+// Inner drop-target component — must be inside ReactFlowProvider for useReactFlow()
+function CanvasDropTarget({
+  className,
+  canvasRef,
+}: {
+  className?: string
+  canvasRef: React.RefObject<HTMLDivElement | null>
+}) {
   const {
     nodes,
     edges,
@@ -41,13 +50,85 @@ function WorkflowBuilderCanvas({ className }: { className?: string }) {
     onPaneClick,
     mode,
     setMode,
+    addNode,
   } = useBuilderState()
+
+  const { screenToFlowPosition } = useReactFlow()
 
   const memoizedNodeTypes = useMemo(() => nodeTypes, [])
   const memoizedEdgeTypes = useMemo(() => edgeTypes, [])
 
+  const onDragOver = useCallback((e: React.DragEvent) => {
+    e.preventDefault()
+    e.dataTransfer.dropEffect = 'copy'
+  }, [])
+
+  const onDrop = useCallback(
+    (e: React.DragEvent) => {
+      e.preventDefault()
+      const nousType = e.dataTransfer.getData('application/nous-node-type')
+      if (!nousType) return
+      const position = screenToFlowPosition({ x: e.clientX, y: e.clientY })
+      addNode(nousType, position)
+    },
+    [screenToFlowPosition, addNode],
+  )
+
+  return (
+    <>
+      <ReactFlow
+        nodes={nodes}
+        edges={edges}
+        onNodesChange={onNodesChange}
+        onEdgesChange={onEdgesChange}
+        onConnect={onConnect}
+        onNodeClick={onNodeClick}
+        onEdgeClick={onEdgeClick}
+        onPaneClick={onPaneClick}
+        nodeTypes={memoizedNodeTypes}
+        edgeTypes={memoizedEdgeTypes}
+        onDragOver={onDragOver}
+        onDrop={onDrop}
+        fitView
+        style={{
+          background: 'var(--nous-builder-canvas-bg)',
+        }}
+      >
+        <Background
+          variant={BackgroundVariant.Dots}
+          color="var(--nous-builder-grid-color)"
+          gap={20}
+          size={1}
+        />
+        <MiniMap
+          style={{
+            background: 'var(--nous-builder-minimap-bg)',
+            borderRadius: '6px',
+            border: '1px solid var(--nous-border)',
+          }}
+          nodeColor="var(--nous-builder-minimap-node)"
+          maskColor="rgba(0, 0, 0, 0.6)"
+        />
+        <Controls
+          style={{
+            background: 'var(--nous-bg-elevated)',
+            border: '1px solid var(--nous-border)',
+            borderRadius: '6px',
+          }}
+        />
+      </ReactFlow>
+      <BuilderToolbar mode={mode} onModeChange={setMode} />
+      <NodePalette containerRef={canvasRef} />
+    </>
+  )
+}
+
+function WorkflowBuilderCanvas({ className }: { className?: string }) {
+  const canvasRef = useRef<HTMLDivElement | null>(null)
+
   return (
     <div
+      ref={canvasRef}
       className={className}
       style={{
         width: '100%',
@@ -56,46 +137,7 @@ function WorkflowBuilderCanvas({ className }: { className?: string }) {
       }}
     >
       <ReactFlowProvider>
-        <ReactFlow
-          nodes={nodes}
-          edges={edges}
-          onNodesChange={onNodesChange}
-          onEdgesChange={onEdgesChange}
-          onConnect={onConnect}
-          onNodeClick={onNodeClick}
-          onEdgeClick={onEdgeClick}
-          onPaneClick={onPaneClick}
-          nodeTypes={memoizedNodeTypes}
-          edgeTypes={memoizedEdgeTypes}
-          fitView
-          style={{
-            background: 'var(--nous-builder-canvas-bg)',
-          }}
-        >
-          <Background
-            variant={BackgroundVariant.Dots}
-            color="var(--nous-builder-grid-color)"
-            gap={20}
-            size={1}
-          />
-          <MiniMap
-            style={{
-              background: 'var(--nous-builder-minimap-bg)',
-              borderRadius: '6px',
-              border: '1px solid var(--nous-border)',
-            }}
-            nodeColor="var(--nous-builder-minimap-node)"
-            maskColor="rgba(0, 0, 0, 0.6)"
-          />
-          <Controls
-            style={{
-              background: 'var(--nous-bg-elevated)',
-              border: '1px solid var(--nous-border)',
-              borderRadius: '6px',
-            }}
-          />
-        </ReactFlow>
-        <BuilderToolbar mode={mode} onModeChange={setMode} />
+        <CanvasDropTarget className={className} canvasRef={canvasRef} />
       </ReactFlowProvider>
     </div>
   )

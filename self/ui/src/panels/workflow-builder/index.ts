@@ -4,3 +4,15 @@ export { BuilderToolbar } from './BuilderToolbar'
 export type { BuilderToolbarProps } from './BuilderToolbar'
 export { useBuilderState } from './hooks/useBuilderState'
 export type { UseBuilderStateReturn } from './hooks/useBuilderState'
+export { FloatingPanel, useFloatingPanel } from './floating-panel'
+export type { FloatingPanelProps, UseFloatingPanelReturn, UseFloatingPanelOptions } from './floating-panel'
+export { NodePalette } from './NodePalette'
+export type { NodePaletteProps } from './NodePalette'
+
+// Type re-exports for Phase 2
+export type {
+  FloatingPanelState,
+  FloatingPanelPosition,
+  NodePaletteItem,
+  AuthoringAction,
+} from '../../types/workflow-builder'

@@ -2,12 +2,14 @@
 
 import { useState, useCallback } from 'react'
 import { applyNodeChanges, applyEdgeChanges } from '@xyflow/react'
-import type { NodeChange, EdgeChange, Connection, Viewport } from '@xyflow/react'
+import type { NodeChange, EdgeChange, Connection, Viewport, XYPosition } from '@xyflow/react'
 import type {
   WorkflowBuilderNode,
   WorkflowBuilderEdge,
+  WorkflowBuilderEdgeData,
   BuilderMode,
 } from '../../../types/workflow-builder'
+import { getRegistryEntry } from '../nodes/node-registry'
 import { DEMO_WORKFLOW_NODES, DEMO_WORKFLOW_EDGES } from '../demo-workflow'
 
 // ─── Return type ──────────────────────────────────────────────────────────────
@@ -22,8 +24,15 @@ export interface UseBuilderStateReturn {
   onNodesChange: (changes: NodeChange<WorkflowBuilderNode>[]) => void
   /** React Flow edge-change handler. */
   onEdgesChange: (changes: EdgeChange<WorkflowBuilderEdge>[]) => void
-  /** React Flow connection handler (no-op stub in Phase 1). */
+  /** React Flow connection handler — creates a new edge. */
   onConnect: (connection: Connection) => void
+
+  /** Add a new node to the canvas at the given position. */
+  addNode: (nousType: string, position: XYPosition) => void
+  /** Remove a node and its connected edges. */
+  removeNode: (nodeId: string) => void
+  /** Add a new edge from a connection event. */
+  addEdge: (connection: Connection) => void
   /** React Flow node-click handler — sets selectedNodeId. */
   onNodeClick: (event: React.MouseEvent, node: WorkflowBuilderNode) => void
   /** React Flow edge-click handler — sets selectedEdgeId. */
@@ -77,9 +86,65 @@ export function useBuilderState(): UseBuilderStateReturn {
     [],
   )
 
-  const onConnect = useCallback((_connection: Connection) => {
-    // No-op stub — connection creation is Phase 2 scope
-  }, [])
+  // ─── Phase 2 mutations ────────────────────────────────────────────────────
+
+  const addNode = useCallback(
+    (nousType: string, position: XYPosition) => {
+      const entry = getRegistryEntry(nousType)
+      const id = crypto.randomUUID()
+      const newNode: WorkflowBuilderNode = {
+        id,
+        type: 'builderNode',
+        position,
+        data: {
+          label: entry.defaultLabel,
+          category: entry.category,
+          nousType,
+          description: '',
+        },
+      }
+      setNodes((prev) => [...prev, newNode])
+    },
+    [],
+  )
+
+  const removeNode = useCallback(
+    (nodeId: string) => {
+      setNodes((prev) => prev.filter((n) => n.id !== nodeId))
+      setEdges((prev) => prev.filter((e) => e.source !== nodeId && e.target !== nodeId))
+    },
+    [],
+  )
+
+  const addEdge = useCallback(
+    (connection: Connection) => {
+      if (!connection.source || !connection.target) return
+      const edgeId = `e-${connection.source}-${connection.target}`
+      const edgeData: WorkflowBuilderEdgeData = { edgeType: 'execution' }
+      const newEdge: WorkflowBuilderEdge = {
+        id: edgeId,
+        source: connection.source,
+        target: connection.target,
+        sourceHandle: connection.sourceHandle,
+        targetHandle: connection.targetHandle,
+        type: 'builderEdge',
+        data: edgeData,
+      }
+      setEdges((prev) => {
+        // Prevent duplicate edges for the same source/target pair
+        if (prev.some((e) => e.id === edgeId)) return prev
+        return [...prev, newEdge]
+      })
+    },
+    [],
+  )
+
+  const onConnect = useCallback(
+    (connection: Connection) => {
+      addEdge(connection)
+    },
+    [addEdge],
+  )
 
   const onNodeClick = useCallback(
     (_event: React.MouseEvent, node: WorkflowBuilderNode) => {
@@ -116,5 +181,8 @@ export function useBuilderState(): UseBuilderStateReturn {
     mode,
     setMode,
     viewport,
+    addNode,
+    removeNode,
+    addEdge,
   }
 }
