@@ -42,7 +42,7 @@ describe('node-registry', () => {
         const entry = getRegistryEntry(nousType)
         for (const field of REQUIRED_FIELDS) {
           expect(entry).toHaveProperty(field)
-          expect((entry as Record<string, unknown>)[field]).toBeDefined()
+          expect((entry as unknown as Record<string, unknown>)[field]).toBeDefined()
         }
       },
     )
