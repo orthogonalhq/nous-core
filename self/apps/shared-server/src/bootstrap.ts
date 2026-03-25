@@ -131,7 +131,9 @@ import {
   TunnelSessionStore,
 } from '@nous/subcortex-public-mcp';
 import { MemoryAccessPolicyEngine } from '@nous/memory-access';
+import { HealthAggregator, HealthMonitor } from '@nous/autonomic-health';
 import { EventBus } from './event-bus/event-bus.js';
+import { GatewayHealthSourceAdapter } from './adapters/gateway-health-source-adapter.js';
 import type { NousContext } from './context';
 import type { IDocumentStore, IIngressGateway, IVectorStore } from '@nous/shared';
 
@@ -1230,6 +1232,16 @@ export function createNousServices(config?: BootstrapConfig): NousContext {
 
   const agentSessions = new Map<string, import('./context').AgentSessionEntry>();
 
+  // Health monitoring DI wiring (SP 1.2)
+  const gatewayHealthAdapter = new GatewayHealthSourceAdapter(gatewayRuntime);
+  const healthAggregator = new HealthAggregator({
+    gatewayHealthSource: gatewayHealthAdapter,
+    providerHealthSource: providerRegistry,
+    eventBus,
+  });
+  const healthMonitor = new HealthMonitor({ aggregator: healthAggregator });
+  maoProjectionService.setHealthAggregator(healthAggregator);
+
   const context: NousContext = {
     // Type assertion: GatewayBackedTurnExecutor satisfies ICoreExecutor structurally,
     // but cortex-core uses zod v4 BRAND markers while shared uses zod v3.
@@ -1269,6 +1281,8 @@ export function createNousServices(config?: BootstrapConfig): NousContext {
     codingAgentMaoEvents,
     agentSessions,
     eventBus,
+    healthAggregator,
+    healthMonitor,
   };
 
   console.log(`[nous:${runtimeLabel}] bootstrap complete`);

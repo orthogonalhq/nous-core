@@ -28,6 +28,8 @@ import type {
   IAppRuntimeService,
   ICredentialVaultService,
   IEventBus,
+  IHealthAggregator,
+  IHealthMonitor,
 } from '@nous/shared';
 import type { PanelTranspiler } from '@nous/subcortex-apps';
 import type { ProviderRegistry } from '@nous/subcortex-providers';
@@ -103,4 +105,6 @@ export interface NousContext {
   /** In-memory store for agent sessions (keyed by session ID). */
   agentSessions: Map<string, AgentSessionEntry>;
   eventBus: IEventBus;
+  healthAggregator: IHealthAggregator;
+  healthMonitor: IHealthMonitor;
 }

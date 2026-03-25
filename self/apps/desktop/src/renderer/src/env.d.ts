@@ -7,6 +7,9 @@ import type {
   AppSettingsPreparation,
   AppSettingsSaveRequest,
   AppSettingsSaveResult,
+  SystemStatusSnapshot,
+  ProviderHealthSnapshot,
+  AgentStatusSnapshot,
 } from '@nous/shared'
 import type {
   FirstRunActionResult,
@@ -103,6 +106,11 @@ interface ElectronAPI {
   }
   usage: {
     getSnapshot: () => Promise<unknown>
+  }
+  health: {
+    systemStatus: () => Promise<SystemStatusSnapshot>
+    providerHealth: () => Promise<ProviderHealthSnapshot>
+    agentStatus: () => Promise<AgentStatusSnapshot>
   }
   win: {
     minimize: () => Promise<void>
