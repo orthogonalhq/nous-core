@@ -51,6 +51,10 @@ function CanvasDropTarget({
     mode,
     setMode,
     addNode,
+    undo,
+    redo,
+    canUndo,
+    canRedo,
   } = useBuilderState()
 
   const { screenToFlowPosition } = useReactFlow()
@@ -117,7 +121,14 @@ function CanvasDropTarget({
           }}
         />
       </ReactFlow>
-      <BuilderToolbar mode={mode} onModeChange={setMode} />
+      <BuilderToolbar
+        mode={mode}
+        onModeChange={setMode}
+        onUndo={undo}
+        onRedo={redo}
+        canUndo={canUndo}
+        canRedo={canRedo}
+      />
       <NodePalette containerRef={canvasRef} />
     </>
   )
