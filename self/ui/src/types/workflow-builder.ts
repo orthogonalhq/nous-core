@@ -1,4 +1,5 @@
-import type { Node, Edge, Viewport } from '@xyflow/react'
+import type { Node, Edge, Viewport, XYPosition } from '@xyflow/react'
+import type { WorkflowSpec, WorkflowSpecValidationError } from '@nous/shared'
 
 /**
  * Node categories — mirrors NousNodeCategory from @nous/shared.
@@ -114,16 +115,64 @@ export interface NodePaletteItem {
   icon: string
 }
 
-/**
- * Discriminated union for authoring actions (undo/redo).
- * Type stubs only — full implementation in SP 2.2.
- */
+// ─── Authoring Action Union (SP 2.2) ────────────────────────────────────────
+
+/** Discriminated union of all undoable builder mutations. */
 export type AuthoringAction =
-  | { type: 'add-node'; nodeId: string }
-  | { type: 'remove-node'; nodeId: string }
-  | { type: 'add-edge'; edgeId: string }
-  | { type: 'remove-edge'; edgeId: string }
-  | { type: 'move-node'; nodeId: string; fromX: number; fromY: number; toX: number; toY: number }
+  | { type: 'addNode'; node: WorkflowBuilderNode }
+  | { type: 'removeNode'; nodeId: string }
+  | { type: 'addEdge'; edge: WorkflowBuilderEdge }
+  | { type: 'removeEdge'; edgeId: string }
+  | { type: 'moveNode'; nodeId: string; from: XYPosition; to: XYPosition }
+  | { type: 'updateNodeData'; nodeId: string; before: Partial<WorkflowBuilderNodeData>; after: Partial<WorkflowBuilderNodeData> }
+
+// ─── Command Pattern (SP 2.2) ──────────────────────────────────────────────
+
+/** Subset of builder state that commands can mutate. */
+export interface BuilderMutableState {
+  nodes: WorkflowBuilderNode[]
+  edges: WorkflowBuilderEdge[]
+}
+
+/** An undoable command wrapping an AuthoringAction. */
+export interface BuilderCommand {
+  /** The action this command represents. */
+  action: AuthoringAction
+  /** Human-readable description for potential UI display. */
+  label: string
+  /** Apply the mutation to state. */
+  execute: (state: BuilderMutableState) => BuilderMutableState
+  /** Reverse the mutation. */
+  undo: (state: BuilderMutableState) => BuilderMutableState
+}
+
+// ─── Undo/Redo State (SP 2.2) ──────────────────────────────────────────────
+
+export interface UndoRedoState {
+  /** Command history stack. Index 0 is oldest. */
+  history: BuilderCommand[]
+  /** Points to the next undo position (index of last executed command + 1). */
+  pointer: number
+  /** Maximum history depth. Default: 50. */
+  maxDepth: number
+}
+
+// ─── Workflow Sync State (SP 2.2) ──────────────────────────────────────────
+
+export type SyncStatus = 'idle' | 'syncing' | 'error'
+
+export interface WorkflowSyncState {
+  /** The last successfully loaded/synced spec (null before first load). */
+  lastSyncedSpec: WorkflowSpec | null
+  /** Validation errors from the most recent outbound sync. Empty array = valid. */
+  validationErrors: WorkflowSpecValidationError[]
+  /** True when builder state has diverged from lastSyncedSpec. */
+  isDirty: boolean
+  /** Current sync operation status. */
+  syncStatus: SyncStatus
+}
+
+// ─── Top-level Builder State ────────────────────────────────────────────────
 
 /** Top-level builder state — consumed by useBuilderState in SP 1.4. */
 export interface WorkflowBuilderState {
