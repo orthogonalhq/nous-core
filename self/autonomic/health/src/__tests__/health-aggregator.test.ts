@@ -43,7 +43,7 @@ function createMockGatewayHealth(agentClass: string, overrides?: Partial<Gateway
       suspendedCount: 0,
       completedInWindow: 0,
       failedInWindow: 0,
-      pressureTrend: 'idle',
+      pressureTrend: 'stable',
     },
     issueCodes: [],
     appSessions: [],
@@ -62,7 +62,7 @@ function createMockSystemContext(overrides?: Partial<SystemContextProjection>): 
       suspendedCount: 0,
       completedInWindow: 0,
       failedInWindow: 0,
-      pressureTrend: 'idle',
+      pressureTrend: 'stable',
     },
     issueCodes: [],
     ...overrides,
@@ -288,7 +288,7 @@ describe('HealthAggregator', () => {
             suspendedCount: 1,
             completedInWindow: 10,
             failedInWindow: 0,
-            pressureTrend: 'steady',
+            pressureTrend: 'stable',
           },
         }),
       });
@@ -301,7 +301,7 @@ describe('HealthAggregator', () => {
       const result = aggregator.getSystemStatus();
       expect(result.backlogAnalytics.queuedCount).toBe(5);
       expect(result.backlogAnalytics.activeCount).toBe(2);
-      expect(result.backlogAnalytics.pressureTrend).toBe('steady');
+      expect(result.backlogAnalytics.pressureTrend).toBe('stable');
     });
   });
 
