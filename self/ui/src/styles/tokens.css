@@ -192,6 +192,22 @@
   --nous-shell-breakpoint-full:   1400px;
   --nous-shell-breakpoint-medium: 1100px;
   --nous-shell-breakpoint-narrow: 800px;
+
+  /* ── Canvas / workflow builder ─────────────────────────────────────── */
+  --nous-canvas-bg:              #0a0a0a;
+  --nous-canvas-grid-dot:        #1a1a1a;
+  --nous-node-trigger:           #e06c75;
+  --nous-node-agent:             #61afef;
+  --nous-node-condition:         #e5c07b;
+  --nous-node-app:               #c678dd;
+  --nous-node-tool:              #56b6c2;
+  --nous-node-memory:            #98c379;
+  --nous-node-governance:        #d19a66;
+  --nous-edge-execution:         #abb2bf;
+  --nous-edge-config:            #5c6370;
+  --nous-canvas-selection-ring:  #007acc;
+  --nous-canvas-minimap-bg:      #0f0f0f;
+  --nous-canvas-minimap-node:    #2a2a2a;
 }
 
 @media (prefers-color-scheme: light) {
