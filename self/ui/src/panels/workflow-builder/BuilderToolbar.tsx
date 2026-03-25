@@ -6,6 +6,10 @@ import type { BuilderMode } from '../../types/workflow-builder'
 export interface BuilderToolbarProps {
   mode: BuilderMode
   onModeChange: (mode: BuilderMode) => void
+  onUndo?: () => void
+  onRedo?: () => void
+  canUndo?: boolean
+  canRedo?: boolean
 }
 
 const MODES: { value: BuilderMode; label: string; icon: string }[] = [
@@ -67,7 +71,14 @@ const separatorStyle: React.CSSProperties = {
   flexShrink: 0,
 }
 
-export function BuilderToolbar({ mode, onModeChange }: BuilderToolbarProps) {
+export function BuilderToolbar({
+  mode,
+  onModeChange,
+  onUndo,
+  onRedo,
+  canUndo = false,
+  canRedo = false,
+}: BuilderToolbarProps) {
   const { zoomIn, zoomOut, fitView } = useReactFlow()
 
   return (
@@ -116,13 +127,27 @@ export function BuilderToolbar({ mode, onModeChange }: BuilderToolbarProps) {
 
       <div style={separatorStyle} />
 
-      {/* ── Placeholder actions (non-functional stubs) ── */}
-      <button type="button" title="Undo" style={disabledButtonStyle} disabled>
+      {/* ── Undo/Redo (wired in SP 2.2) ── */}
+      <button
+        type="button"
+        title="Undo (Ctrl+Z)"
+        style={canUndo ? buttonBaseStyle : disabledButtonStyle}
+        disabled={!canUndo}
+        onClick={onUndo}
+      >
         <i className="codicon codicon-discard" style={{ fontSize: 14 }} />
       </button>
-      <button type="button" title="Redo" style={disabledButtonStyle} disabled>
+      <button
+        type="button"
+        title="Redo (Ctrl+Shift+Z)"
+        style={canRedo ? buttonBaseStyle : disabledButtonStyle}
+        disabled={!canRedo}
+        onClick={onRedo}
+      >
         <i className="codicon codicon-redo" style={{ fontSize: 14 }} />
       </button>
+
+      {/* ── Placeholder actions (non-functional stubs) ── */}
       <button type="button" title="Save" style={disabledButtonStyle} disabled>
         <i className="codicon codicon-save" style={{ fontSize: 14 }} />
       </button>

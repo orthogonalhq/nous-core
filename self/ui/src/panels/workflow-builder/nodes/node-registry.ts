@@ -145,6 +145,14 @@ const FALLBACK_ENTRY: NodeRegistryEntryInternal = {
  * Resolves a `nous.<category>.<action>` type string to its registry entry.
  * Falls back to a generic entry for unknown types.
  */
+/**
+ * Returns all registry entries as [nousType, entry] tuples.
+ * Read-only accessor — does not modify the registry.
+ */
+export function getAllRegistryEntries(): [string, NodeRegistryEntryInternal][] {
+  return Array.from(NODE_REGISTRY.entries())
+}
+
 export function getRegistryEntry(nousType: string): NodeRegistryEntryInternal {
   // Direct lookup first
   const direct = NODE_REGISTRY.get(nousType)

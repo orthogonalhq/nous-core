@@ -205,4 +205,11 @@
   --nous-builder-selection-ring:  var(--nous-canvas-selection-ring);
   --nous-builder-minimap-bg:      var(--nous-canvas-minimap-bg);
   --nous-builder-minimap-node:    var(--nous-canvas-minimap-node);
+
+  /* ── Workflow builder floating panels ────────────────────────────── */
+  --nous-builder-panel-bg:          var(--nous-canvas-panel-bg);
+  --nous-builder-panel-border:      var(--nous-canvas-panel-border);
+  --nous-builder-panel-shadow:      var(--nous-canvas-panel-shadow);
+  --nous-builder-panel-header-bg:   var(--nous-canvas-panel-header-bg);
+  --nous-builder-panel-header-text: var(--nous-canvas-panel-header-text);
 }

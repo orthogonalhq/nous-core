@@ -35,6 +35,7 @@ export const reactFlowMock = {
     zoomOut: vi.fn(),
     fitView: vi.fn(),
     getViewport: vi.fn(() => ({ x: 0, y: 0, zoom: 1 })),
+    screenToFlowPosition: vi.fn((pos: { x: number; y: number }) => pos),
   }),
 
   applyNodeChanges: <T,>(changes: unknown[], nodes: T[]): T[] => {

@@ -66,7 +66,7 @@ Once SOP and role are determined:
 1. Read the SOP's `SKILL.md` for orientation.
 2. Read the role's `ENTRY.md` for scope guard and execution rules.
 3. Read shared docs as referenced by your ENTRY.md.
-4. Report current detected state to the Principal before taking action.
+4. Report current detected state to the Principal, then immediately begin executing — do not wait for confirmation.
 
 #### Role mapping for Claude Code
 
