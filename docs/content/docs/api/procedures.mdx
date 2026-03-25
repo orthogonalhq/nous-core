@@ -359,6 +359,14 @@ Response excerpt:
 | Procedure | Type | Input | Output |
 |----------|------|-------|--------|
 | `health.check` | query | — | `HealthReport` (component status) |
+| `health.systemStatus` | query | — | `SystemStatusSnapshot` |
+| `health.providerHealth` | query | — | `ProviderHealthSnapshot` |
+| `health.agentStatus` | query | — | `AgentStatusSnapshot` |
+
+- `health.check` — Returns the legacy component health report. Backward-compatible; unchanged by the health monitoring feature.
+- `health.systemStatus` — Returns the current system status snapshot including boot status, gateway health projection, and system context projection. Sourced from the `HealthAggregator` in-memory cache (synchronous, no I/O).
+- `health.providerHealth` — Returns the current provider health snapshot listing all configured model providers with their status and configuration metadata. Provider status defaults to `unknown` until active probing is implemented.
+- `health.agentStatus` — Returns the current agent status snapshot with per-agent-class health projections derived from the gateway runtime.
 
 ## firstRun
 
