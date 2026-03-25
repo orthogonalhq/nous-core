@@ -20,6 +20,7 @@
   "dependencies": {
     "@nous/shared": "workspace:*",
     "clsx": "^2.1.0",
+    "yaml": "^2.7.0",
     "zod": "^3.25.76"
   },
   "peerDependencies": {
