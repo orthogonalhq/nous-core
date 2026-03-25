@@ -681,6 +681,73 @@ describe('Internal MCP capability handlers', () => {
     expect(witnessService.appendCompletion).toHaveBeenCalledTimes(3);
   });
 
+  it('denies artifact_store when PFC sensitivity check rejects the request', async () => {
+    const projectApi = createProjectApi();
+    const pfc = createPfcEngine({
+      evaluateToolExecution: vi.fn().mockResolvedValue({
+        approved: false,
+        reason: 'artifact_store denied by policy',
+        confidence: 1,
+      }),
+    });
+    const surface = createScopedMcpToolSurface({
+      agentClass: 'Worker',
+      agentId: AGENT_ID,
+      deps: {
+        getProjectApi: () => projectApi,
+        pfc,
+      },
+    });
+
+    await expect(
+      surface.executeTool(
+        'artifact_store',
+        {
+          name: 'report.json',
+          mimeType: 'application/json',
+          data: '{}',
+          contentEncoding: 'utf8',
+          tags: [],
+        },
+        {
+          projectId: PROJECT_ID,
+          traceId: TRACE_ID,
+        },
+      ),
+    ).rejects.toThrow('artifact_store denied by policy');
+
+    expect(projectApi.artifact.store).not.toHaveBeenCalled();
+  });
+
+  it('allows artifact_store when PFC is unavailable (fail-open)', async () => {
+    const projectApi = createProjectApi();
+    const surface = createScopedMcpToolSurface({
+      agentClass: 'Worker',
+      agentId: AGENT_ID,
+      deps: {
+        getProjectApi: () => projectApi,
+      },
+    });
+
+    const result = await surface.executeTool(
+      'artifact_store',
+      {
+        name: 'report.json',
+        mimeType: 'application/json',
+        data: '{}',
+        contentEncoding: 'utf8',
+        tags: [],
+      },
+      {
+        projectId: PROJECT_ID,
+        traceId: TRACE_ID,
+      },
+    );
+
+    expect(result.success).toBe(true);
+    expect(projectApi.artifact.store).toHaveBeenCalled();
+  });
+
   it('denies credential operations when app permissions do not grant them', async () => {
     const handlers = createCapabilityHandlers({
       agentClass: 'Worker',
