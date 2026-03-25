@@ -21,6 +21,7 @@ import {
   useDashboardApi,
   AgentPanel,
   PreferencesPanel,
+  WorkflowBuilderPanel,
   type ChatAPI,
 } from '@nous/ui/panels'
 import {
@@ -59,6 +60,7 @@ const panelComponents = {
   dashboard: DashboardPanel,
   'coding-agents': AgentPanel,
   preferences: PreferencesPanel,
+  'workflow-builder': WorkflowBuilderPanel,
 }
 
 // Single source of truth for all panels — used by initDefaultLayout() and View menu toggle
@@ -129,6 +131,7 @@ export const NATIVE_PANEL_DEFS: PanelDef[] = [
   },
   { id: 'dashboard', component: 'dashboard', title: 'Dashboard' },
   { id: 'coding-agents', component: 'coding-agents', title: 'Coding Agents' },
+  { id: 'workflow-builder', component: 'workflow-builder', title: 'Workflow Builder' },
   {
     id: 'preferences',
     component: 'preferences',
@@ -155,6 +158,7 @@ const PANEL_ADD_ORDER = [
   'dashboard',
   'coding-agents',
   'preferences',
+  'workflow-builder',
 ]
 
 const DEFAULT_ROUTE = 'home'
@@ -922,6 +926,7 @@ const DEFAULT_POSITIONS: Record<string, { direction: string; referencePanel: str
   dashboard: { direction: 'within', referencePanel: 'chat' },
   'coding-agents': { direction: 'within', referencePanel: 'mao' },
   preferences: { direction: 'within', referencePanel: 'chat' },
+  'workflow-builder': { direction: 'within', referencePanel: 'chat' },
 }
 
 /**
