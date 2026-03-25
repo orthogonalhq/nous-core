@@ -160,17 +160,3 @@ export function getRegistryEntry(nousType: string): NodeRegistryEntryInternal {
 
   return FALLBACK_ENTRY
 }
-
-// ─── React Flow nodeTypes object (module-level for referential stability) ────
-
-// Lazy import to avoid circular dependency — BaseNode imports getRegistryEntry.
-// The nodeTypes object is populated once at module load time.
-import { BaseNode as BaseNodeComponent } from './BaseNode'
-
-/**
- * React Flow `nodeTypes` prop value.
- * Maps the `'builderNode'` type key to the BaseNode component.
- * MUST be defined at module level (not inside a component) to prevent
- * React Flow from remounting nodes on every render.
- */
-export const nodeTypes = { builderNode: BaseNodeComponent }
