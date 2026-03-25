@@ -173,6 +173,10 @@ export const AgentStatusSnapshotSchema = z.object({
     stale: z.boolean(),
   })),
   collectedAt: z.string().datetime(),
+  // Escalation audit summary (Phase 1.1 — WR-054)
+  escalationCount: z.number().int().nonnegative().optional(),
+  lastEscalationAt: z.string().datetime().optional(),
+  lastEscalationSeverity: z.string().optional(),
 });
 export type AgentStatusSnapshot = z.infer<typeof AgentStatusSnapshotSchema>;
 
@@ -193,5 +197,13 @@ export const SystemStatusSnapshotSchema = z.object({
     pressureTrend: z.enum(['increasing', 'stable', 'decreasing']),
   }),
   collectedAt: z.string().datetime(),
+  // Escalation audit summary (Phase 1.1 — WR-054)
+  escalationCount: z.number().int().nonnegative().optional(),
+  lastEscalationAt: z.string().datetime().optional(),
+  lastEscalationSeverity: z.string().optional(),
+  // Checkpoint visibility (Phase 1.1 — WR-072)
+  lastPreparedCheckpointId: z.string().optional(),
+  lastCommittedCheckpointId: z.string().optional(),
+  chainValid: z.boolean().optional(),
 });
 export type SystemStatusSnapshot = z.infer<typeof SystemStatusSnapshotSchema>;

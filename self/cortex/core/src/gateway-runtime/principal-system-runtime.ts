@@ -29,6 +29,8 @@ import {
   type ISystemInboxSubmissionService,
 } from './system-inbox-tools.js';
 import type {
+  CheckpointVisibilityStatus,
+  EscalationAuditSummary,
   GatewaySubmissionSource,
   IPrincipalSystemGatewayRuntime,
   PrincipalSystemGatewayRuntimeDeps,
@@ -259,6 +261,14 @@ implements IPrincipalSystemGatewayRuntime, ISystemInboxSubmissionService {
     return this.replicaProvider.getReplica();
   }
 
+  getCheckpointStatus(): CheckpointVisibilityStatus {
+    return this.healthSink.getCheckpointStatus();
+  }
+
+  getEscalationAuditSummary(): EscalationAuditSummary {
+    return this.healthSink.getEscalationAuditSummary();
+  }
+
   listPrincipalTools(): ToolDefinition[] {
     return this.principalTools.slice();
   }
@@ -474,6 +484,7 @@ implements IPrincipalSystemGatewayRuntime, ISystemInboxSubmissionService {
       instanceRoot: this.deps.instanceRoot,
       outputSchemaValidator: this.deps.outputSchemaValidator,
       workmodeAdmissionGuard: this.workmodeAdmissionGuard,
+      addHealthIssue: (code: string) => this.healthSink.addIssue(code),
       dispatchRuntime: {
         dispatchChild: async (dispatchArgs: {
           request: {

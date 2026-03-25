@@ -10,6 +10,8 @@ import {
   GatewayBootSnapshotSchema,
   GatewayHealthSnapshotSchema,
   SystemContextReplicaSchema,
+  type CheckpointVisibilityStatus,
+  type EscalationAuditSummary,
   type GatewayBootSnapshot,
   type GatewayBootStatus,
   type GatewayBootStep,
@@ -51,6 +53,16 @@ export class GatewayRuntimeHealthSink {
   private readonly appSessions = new Map<string, GatewayAppSessionHealthProjection>();
   private pendingSystemRuns = 0;
   private readonly eventBus?: IEventBus;
+
+  // Escalation audit trail (Phase 1.1 — WR-054)
+  private escalationCount = 0;
+  private lastEscalationAt?: string;
+  private lastEscalationSeverity?: string;
+
+  // Checkpoint visibility (Phase 1.1 — WR-072)
+  private lastPreparedCheckpointId?: string;
+  private lastCommittedCheckpointId?: string;
+  private chainValid?: boolean;
 
   constructor(options?: { eventBus?: IEventBus }) {
     this.eventBus = options?.eventBus;
@@ -145,6 +157,36 @@ export class GatewayRuntimeHealthSink {
     const gateway = this.requireGateway('Cortex::Principal');
     gateway.lastSubmissionAt = timestamp;
     gateway.lastSubmissionSource = 'principal_tool';
+  }
+
+  recordEscalation(severity: string, timestamp: string): void {
+    this.escalationCount++;
+    this.lastEscalationAt = timestamp;
+    this.lastEscalationSeverity = severity;
+  }
+
+  recordCheckpointPrepared(id: string, _timestamp: string): void {
+    this.lastPreparedCheckpointId = id;
+  }
+
+  recordCheckpointCommitted(id: string, _timestamp: string): void {
+    this.lastCommittedCheckpointId = id;
+  }
+
+  getCheckpointStatus(): CheckpointVisibilityStatus {
+    return {
+      lastPreparedCheckpointId: this.lastPreparedCheckpointId,
+      lastCommittedCheckpointId: this.lastCommittedCheckpointId,
+      chainValid: this.chainValid,
+    };
+  }
+
+  getEscalationAuditSummary(): EscalationAuditSummary {
+    return {
+      escalationCount: this.escalationCount,
+      lastEscalationAt: this.lastEscalationAt,
+      lastEscalationSeverity: this.lastEscalationSeverity,
+    };
   }
 
   addIssue(code: string, agentClass?: TrackedAgentClass): void {
@@ -251,6 +293,14 @@ export class GatewayRuntimeHealthSink {
         agentClass === 'Cortex::System'
           ? [...this.appSessions.values()]
           : [],
+      // Escalation audit summary
+      escalationCount: this.escalationCount > 0 ? this.escalationCount : undefined,
+      lastEscalationAt: this.lastEscalationAt,
+      lastEscalationSeverity: this.lastEscalationSeverity,
+      // Checkpoint visibility
+      lastPreparedCheckpointId: this.lastPreparedCheckpointId,
+      lastCommittedCheckpointId: this.lastCommittedCheckpointId,
+      chainValid: this.chainValid,
     });
   }
 
@@ -267,6 +317,14 @@ export class GatewayRuntimeHealthSink {
       issueCodes: [...new Set([...this.issueCodes, ...gateway.issueCodes])],
       visibleTools: [...gateway.visibleTools],
       appSessions: [...this.appSessions.values()],
+      // Escalation audit summary
+      escalationCount: this.escalationCount > 0 ? this.escalationCount : undefined,
+      lastEscalationAt: this.lastEscalationAt,
+      lastEscalationSeverity: this.lastEscalationSeverity,
+      // Checkpoint visibility
+      lastPreparedCheckpointId: this.lastPreparedCheckpointId,
+      lastCommittedCheckpointId: this.lastCommittedCheckpointId,
+      chainValid: this.chainValid,
     });
   }
 
