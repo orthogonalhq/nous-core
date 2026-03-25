@@ -1,5 +1,6 @@
 import type { IDockviewPanelProps } from 'dockview-react'
 import type { CSSProperties } from 'react'
+import { useEventSubscription } from '../../../hooks/useEventSubscription'
 
 type ProviderEntry = {
   name: string
@@ -29,6 +30,13 @@ const rowStyle: CSSProperties = {
 }
 
 export function ProviderHealthWidget(_props: IDockviewPanelProps) {
+  useEventSubscription({
+    channels: ['health:boot-step', 'health:gateway-status', 'health:issue', 'health:backlog-analytics'],
+    onEvent: () => {
+      // Future: invalidate health tRPC query when widget is connected to real data
+    },
+  })
+
   return (
     <div style={{ height: '100%', overflow: 'auto', color: 'var(--nous-fg)' }}>
       {STUB_PROVIDERS.map((provider) => {

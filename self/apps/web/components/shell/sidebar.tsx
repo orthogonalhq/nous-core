@@ -25,24 +25,75 @@ export function Sidebar({
   const { data: projects, isLoading } = trpc.projects.list.useQuery();
 
   return (
-    <aside className={`flex h-full w-56 flex-col border-r border-border bg-muted/30 ${className ?? ''}`}>
-      <div className="flex items-center justify-between border-b border-border p-2">
-        <span className="font-semibold">Nous</span>
+    <aside
+      className={className}
+      style={{
+        display: 'flex',
+        height: '100%',
+        width: '14rem',
+        flexDirection: 'column',
+        borderRight: '1px solid var(--nous-shell-column-border)',
+        background: 'var(--nous-bg-hover)',
+      }}
+    >
+      <div
+        style={{
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'space-between',
+          borderBottom: '1px solid var(--nous-shell-column-border)',
+          padding: 'var(--nous-space-xs)',
+        }}
+      >
+        <span style={{ fontWeight: 'var(--nous-font-weight-semibold)' }}>Nous</span>
         <ThemeToggle />
       </div>
-      <div className="flex-1 overflow-hidden">
-        <ScrollArea className="h-full">
-          <div className="p-2">
-            <div className="mb-2 flex items-center justify-between">
-              <span className="text-xs font-medium text-muted-foreground">Projects</span>
+      <div
+        style={{
+          flex: '1 1 0%',
+          overflow: 'hidden',
+        }}
+      >
+        <ScrollArea style={{ height: '100%' }}>
+          <div style={{ padding: 'var(--nous-space-xs)' }}>
+            <div
+              style={{
+                marginBottom: 'var(--nous-space-xs)',
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'space-between',
+              }}
+            >
+              <span
+                style={{
+                  fontSize: 'var(--nous-font-size-xs)',
+                  fontWeight: 'var(--nous-font-weight-medium)',
+                  color: 'var(--nous-text-secondary)',
+                }}
+              >
+                Projects
+              </span>
               <Button variant="ghost" size="sm" onClick={onNewProject}>
                 + New
               </Button>
             </div>
             {isLoading ? (
-              <div className="text-sm text-muted-foreground">Loading...</div>
+              <div
+                style={{
+                  fontSize: 'var(--nous-font-size-sm)',
+                  color: 'var(--nous-text-secondary)',
+                }}
+              >
+                Loading...
+              </div>
             ) : (
-              <div className="space-y-0.5">
+              <div
+                style={{
+                  display: 'flex',
+                  flexDirection: 'column',
+                  gap: '2px',
+                }}
+              >
                 {(projects ?? []).map((p) => (
                   <button
                     key={p.id}
@@ -51,11 +102,25 @@ export function Sidebar({
                       onProjectSelect(p.id);
                       onNavigate?.();
                     }}
-                    className={`block w-full rounded px-2 py-1.5 text-left text-sm ${
-                      projectId === p.id
-                        ? 'bg-primary text-primary-foreground'
-                        : 'hover:bg-muted'
-                    }`}
+                    style={{
+                      display: 'block',
+                      width: '100%',
+                      border: 'none',
+                      borderRadius: 'var(--nous-radius-sm)',
+                      padding: '6px var(--nous-space-xs)',
+                      textAlign: 'left',
+                      fontSize: 'var(--nous-font-size-sm)',
+                      cursor: 'pointer',
+                      ...(projectId === p.id
+                        ? {
+                            background: 'var(--nous-accent)',
+                            color: 'var(--nous-fg-on-color)',
+                          }
+                        : {
+                            background: 'transparent',
+                            color: 'var(--nous-text-primary)',
+                          }),
+                    }}
                   >
                     {p.name}
                   </button>
@@ -63,8 +128,19 @@ export function Sidebar({
               </div>
             )}
           </div>
-          <div className="border-t border-border p-2">
-            <nav className="space-y-0.5">
+          <div
+            style={{
+              borderTop: '1px solid var(--nous-shell-column-border)',
+              padding: 'var(--nous-space-xs)',
+            }}
+          >
+            <nav
+              style={{
+                display: 'flex',
+                flexDirection: 'column',
+                gap: '2px',
+              }}
+            >
               {NAV_CONFIG.items.map((item) =>
                 item.external ? (
                   <a
@@ -73,7 +149,12 @@ export function Sidebar({
                     target="_blank"
                     rel="noopener noreferrer"
                     onClick={() => onNavigate?.()}
-                    className="block rounded px-2 py-1.5 text-sm hover:bg-muted"
+                    style={{
+                      display: 'block',
+                      borderRadius: 'var(--nous-radius-sm)',
+                      padding: '6px var(--nous-space-xs)',
+                      fontSize: 'var(--nous-font-size-sm)',
+                    }}
                   >
                     {item.label}
                   </a>
@@ -82,9 +163,18 @@ export function Sidebar({
                     key={item.href}
                     href={item.href}
                     onClick={() => onNavigate?.()}
-                    className={`block rounded px-2 py-1.5 text-sm ${
-                      pathname === item.href ? 'bg-muted font-medium' : 'hover:bg-muted'
-                    }`}
+                    style={{
+                      display: 'block',
+                      borderRadius: 'var(--nous-radius-sm)',
+                      padding: '6px var(--nous-space-xs)',
+                      fontSize: 'var(--nous-font-size-sm)',
+                      ...(pathname === item.href
+                        ? {
+                            background: 'var(--nous-bg-hover)',
+                            fontWeight: 'var(--nous-font-weight-medium)',
+                          }
+                        : {}),
+                    }}
                   >
                     {item.label}
                   </Link>

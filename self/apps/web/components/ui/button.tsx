@@ -7,23 +7,69 @@ export interface ButtonProps
 }
 
 const Button = React.forwardRef<HTMLButtonElement, ButtonProps>(
-  ({ className = '', variant = 'default', size = 'default', type = 'button', ...props }, ref) => {
-    const base =
-      'inline-flex items-center justify-center rounded-md text-sm font-medium transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-offset-2 disabled:pointer-events-none disabled:opacity-50';
-    const sizes = {
-      default: 'px-4 py-2',
-      sm: 'px-2 py-1',
+  ({
+    className = '',
+    variant = 'default',
+    size = 'default',
+    type = 'button',
+    style,
+    disabled,
+    ...props
+  }, ref) => {
+    const baseStyle: React.CSSProperties = {
+      display: 'inline-flex',
+      alignItems: 'center',
+      justifyContent: 'center',
+      borderRadius: 'var(--nous-radius-md)',
+      fontSize: 'var(--nous-font-size-sm)',
+      fontWeight: 'var(--nous-font-weight-medium)',
+      transition: 'color 0.15s, background-color 0.15s',
+      outline: 'none',
+      cursor: disabled ? 'not-allowed' : 'pointer',
     };
-    const variants = {
-      default: 'bg-primary text-primary-foreground hover:opacity-90',
-      outline: 'border border-border bg-transparent hover:bg-muted',
-      ghost: 'hover:bg-muted',
+    const sizeStyles: Record<NonNullable<ButtonProps['size']>, React.CSSProperties> = {
+      default: {
+        padding: 'var(--nous-space-sm) var(--nous-space-md)',
+      },
+      sm: {
+        padding: 'var(--nous-space-xs) var(--nous-space-sm)',
+      },
+    };
+    const variantStyles: Record<NonNullable<ButtonProps['variant']>, React.CSSProperties> = {
+      default: {
+        border: 'none',
+        background: 'var(--nous-accent)',
+        color: 'var(--nous-fg-on-color)',
+      },
+      outline: {
+        border: '1px solid var(--nous-shell-column-border)',
+        background: 'transparent',
+        color: 'var(--nous-text-primary)',
+      },
+      ghost: {
+        border: 'none',
+        background: 'transparent',
+        color: 'var(--nous-text-primary)',
+      },
     };
     return (
       <button
         ref={ref}
         type={type}
-        className={`${base} ${sizes[size]} ${variants[variant]} ${className}`}
+        className={className}
+        disabled={disabled}
+        style={{
+          ...baseStyle,
+          ...sizeStyles[size],
+          ...variantStyles[variant],
+          ...(disabled
+            ? {
+                pointerEvents: 'none',
+                opacity: 0.5,
+              }
+            : {}),
+          ...style,
+        }}
         {...props}
       />
     );

@@ -118,4 +118,151 @@ describe('WorkmodeAdmissionGuard', () => {
       expect(result.allowed).toBe(true);
     });
   });
+
+  describe('evaluateScopeGuard', () => {
+    it('allows valid scope with consistent execution context', () => {
+      const result = guard.evaluateScopeGuard({
+        sourceActor: 'orchestration_agent',
+        targetActor: 'worker_agent',
+        action: 'dispatch',
+        executionContext: {
+          workmodeId: 'system:implementation',
+          agentClass: 'Orchestrator',
+        },
+      });
+      expect(result.allowed).toBe(true);
+    });
+
+    it('allows non-scope-requiring action without execution context', () => {
+      const result = guard.evaluateScopeGuard({
+        sourceActor: 'orchestration_agent',
+        targetActor: 'worker_agent',
+        action: 'query',
+      });
+      expect(result.allowed).toBe(true);
+    });
+
+    it('handles missing execution context gracefully for non-scope actions', () => {
+      const result = guard.evaluateScopeGuard({
+        sourceActor: 'nous_cortex',
+        targetActor: 'orchestration_agent',
+        action: 'status_check',
+      });
+      expect(result.allowed).toBe(true);
+    });
+
+    it('denies scope-requiring action without execution context (fail-close)', () => {
+      const result = guard.evaluateScopeGuard({
+        sourceActor: 'orchestration_agent',
+        targetActor: 'worker_agent',
+        action: 'execute_subphase',
+      });
+      expect(result.allowed).toBe(false);
+      if (!result.allowed) {
+        expect(result.reasonCode).toBe('WMODE-SCOPE-GUARD-VIOLATION');
+        expect(result.evidenceRefs.length).toBeGreaterThanOrEqual(1);
+        expect(result.evidenceRefs[0]).toContain('execute_subphase');
+      }
+    });
+
+    it('denies scope-requiring action with missing workmodeId', () => {
+      const result = guard.evaluateScopeGuard({
+        sourceActor: 'orchestration_agent',
+        targetActor: 'worker_agent',
+        action: 'execute_node',
+        executionContext: {
+          nodeDefinitionId: 'node-1',
+        },
+      });
+      expect(result.allowed).toBe(false);
+      if (!result.allowed) {
+        expect(result.reasonCode).toBe('WMODE-SCOPE-GUARD-VIOLATION');
+        expect(result.evidenceRefs.length).toBeGreaterThanOrEqual(1);
+        expect(result.evidenceRefs[0]).toContain('workmodeId');
+      }
+    });
+
+    it('rejects structurally invalid scope — agentClass/sourceActor mismatch (WMODE-PACKET-ADMISSIBILITY-REJECTED)', () => {
+      const result = guard.evaluateScopeGuard({
+        sourceActor: 'orchestration_agent',
+        targetActor: 'worker_agent',
+        action: 'dispatch',
+        executionContext: {
+          workmodeId: 'system:implementation',
+          agentClass: 'Worker',
+        },
+      });
+      expect(result.allowed).toBe(false);
+      if (!result.allowed) {
+        expect(result.reasonCode).toBe('WMODE-PACKET-ADMISSIBILITY-REJECTED');
+        expect(result.evidenceRefs.length).toBeGreaterThanOrEqual(1);
+        expect(result.evidenceRefs[0]).toContain('agentClass');
+      }
+    });
+
+    it('fail-close denial always includes evidenceRefs', () => {
+      const result = guard.evaluateScopeGuard({
+        sourceActor: 'nous_cortex',
+        targetActor: 'orchestration_agent',
+        action: 'dispatch',
+      });
+      expect(result.allowed).toBe(false);
+      if (!result.allowed) {
+        expect(Array.isArray(result.evidenceRefs)).toBe(true);
+        expect(result.evidenceRefs.length).toBeGreaterThanOrEqual(1);
+      }
+    });
+
+    it('allows scope-requiring action with all executionContext fields populated', () => {
+      const result = guard.evaluateScopeGuard({
+        sourceActor: 'nous_cortex',
+        targetActor: 'orchestration_agent',
+        action: 'dispatch',
+        executionContext: {
+          nodeDefinitionId: 'node-42',
+          workmodeId: 'system:implementation',
+          agentClass: 'Cortex::Principal',
+        },
+      });
+      expect(result.allowed).toBe(true);
+    });
+
+    it('allows scope-requiring action with partial executionContext (workmodeId present)', () => {
+      const result = guard.evaluateScopeGuard({
+        sourceActor: 'orchestration_agent',
+        targetActor: 'worker_agent',
+        action: 'execute_subphase',
+        executionContext: {
+          workmodeId: 'system:implementation',
+        },
+      });
+      expect(result.allowed).toBe(true);
+    });
+
+    it('treats dispatch_agent as scope-requiring (CF-002 action string alignment)', () => {
+      const result = guard.evaluateScopeGuard({
+        sourceActor: 'orchestration_agent',
+        targetActor: 'worker_agent',
+        action: 'dispatch_agent',
+      });
+      expect(result.allowed).toBe(false);
+      if (!result.allowed) {
+        expect(result.reasonCode).toBe('WMODE-SCOPE-GUARD-VIOLATION');
+        expect(result.evidenceRefs[0]).toContain('dispatch_agent');
+      }
+    });
+
+    it('allows dispatch_agent with valid execution context', () => {
+      const result = guard.evaluateScopeGuard({
+        sourceActor: 'orchestration_agent',
+        targetActor: 'worker_agent',
+        action: 'dispatch_agent',
+        executionContext: {
+          workmodeId: 'system:implementation',
+          agentClass: 'Orchestrator',
+        },
+      });
+      expect(result.allowed).toBe(true);
+    });
+  });
 });

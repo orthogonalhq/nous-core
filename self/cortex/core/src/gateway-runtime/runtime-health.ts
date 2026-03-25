@@ -3,6 +3,7 @@ import type {
   AppHealthSnapshot,
   AppRuntimeSession,
   GatewayOutboxEvent,
+  IEventBus,
 } from '@nous/shared';
 import {
   GatewayAppSessionHealthProjectionSchema,
@@ -49,8 +50,10 @@ export class GatewayRuntimeHealthSink {
   private readonly gatewayHealth = new Map<TrackedAgentClass, MutableGatewayHealth>();
   private readonly appSessions = new Map<string, GatewayAppSessionHealthProjection>();
   private pendingSystemRuns = 0;
+  private readonly eventBus?: IEventBus;
 
-  constructor() {
+  constructor(options?: { eventBus?: IEventBus }) {
+    this.eventBus = options?.eventBus;
     const emptyAnalytics = BacklogAnalyticsSchema.parse({
       queuedCount: 0,
       activeCount: 0,
@@ -81,6 +84,7 @@ export class GatewayRuntimeHealthSink {
 
   completeBootStep(step: GatewayBootStep, timestamp: string): void {
     this.stepTimestamps.set(step, timestamp);
+    this.eventBus?.publish('health:boot-step', { step, status: 'completed' });
   }
 
   markGatewayBooted(args: {
@@ -96,6 +100,7 @@ export class GatewayRuntimeHealthSink {
       args.agentClass === 'Cortex::Principal' ? 'principal_booted' : 'system_booted',
       args.timestamp,
     );
+    this.eventBus?.publish('health:gateway-status', { status: 'booted' });
   }
 
   markInboxReady(timestamp: string): void {
@@ -109,6 +114,7 @@ export class GatewayRuntimeHealthSink {
     const gateway = this.requireGateway(agentClass);
     if (event.type === 'turn_ack') {
       gateway.lastAckAt = event.emittedAt;
+      this.eventBus?.publish('health:gateway-status', { status: 'booted' });
       return;
     }
 
@@ -149,6 +155,7 @@ export class GatewayRuntimeHealthSink {
         gateway.issueCodes.push(code);
       }
     }
+    this.eventBus?.publish('health:issue', { issueId: code, severity: 'warning', message: code });
   }
 
   updateBacklogAnalytics(analytics: BacklogAnalytics): void {
@@ -156,6 +163,11 @@ export class GatewayRuntimeHealthSink {
     gateway.backlogAnalytics = BacklogAnalyticsSchema.parse(analytics);
     this.pendingSystemRuns =
       analytics.queuedCount + analytics.activeCount + analytics.suspendedCount;
+    this.eventBus?.publish('health:backlog-analytics', {
+      pending: analytics.queuedCount,
+      inProgress: analytics.activeCount,
+      completed: analytics.completedInWindow,
+    });
   }
 
   upsertAppSession(
@@ -186,6 +198,11 @@ export class GatewayRuntimeHealthSink {
         session.health_status === 'stale',
     });
     this.appSessions.set(projection.sessionId, projection);
+    this.eventBus?.publish('app-health:change', {
+      appId: session.app_id,
+      sessionId: session.session_id,
+      status: session.health_status as 'healthy' | 'degraded' | 'stale' | 'disconnected',
+    });
     return projection;
   }
 
@@ -202,6 +219,11 @@ export class GatewayRuntimeHealthSink {
       stale: snapshot.stale,
     });
     this.appSessions.set(projection.sessionId, projection);
+    this.eventBus?.publish('app-health:change', {
+      appId: current.appId,
+      sessionId: snapshot.session_id,
+      status: snapshot.status as 'healthy' | 'degraded' | 'stale' | 'disconnected',
+    });
     return projection;
   }
 

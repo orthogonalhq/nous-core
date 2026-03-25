@@ -2,16 +2,24 @@
 
 import { useState, useEffect, useRef, type KeyboardEvent } from 'react'
 import type { IDockviewPanelProps } from 'dockview-react'
+import { clsx } from 'clsx'
+import type { ConversationContext } from '../components/shell/types'
 
-interface ChatMessage {
+export interface ChatMessage {
   role: 'user' | 'assistant'
   content: string
   timestamp: string
 }
 
-interface ChatAPI {
+export interface ChatAPI {
   send: (message: string) => Promise<{ response: string; traceId: string }>
   getHistory: () => Promise<ChatMessage[]>
+}
+
+export interface ChatPanelCoreProps {
+  chatApi?: ChatAPI
+  conversationContext?: ConversationContext
+  className?: string
 }
 
 interface BrowserSpeechRecognitionResult {
@@ -37,7 +45,7 @@ interface ChatPanelProps extends IDockviewPanelProps {
   params: { chatApi?: ChatAPI }
 }
 
-export function ChatPanel({ params }: ChatPanelProps) {
+export function ChatPanel(props: ChatPanelProps | ChatPanelCoreProps) {
   const [messages, setMessages] = useState<ChatMessage[]>([])
   const [input, setInput] = useState('')
   const [sending, setSending] = useState(false)
@@ -45,11 +53,15 @@ export function ChatPanel({ params }: ChatPanelProps) {
   const messagesEndRef = useRef<HTMLDivElement>(null)
   const recognitionRef = useRef<BrowserSpeechRecognition | null>(null)
 
-  const chatApi = params?.chatApi
+  const chatApi = 'params' in props ? props.params?.chatApi : props.chatApi
+  const conversationContext = 'conversationContext' in props ? props.conversationContext : undefined
+  const className = 'className' in props ? props.className : undefined
 
   useEffect(() => {
-    if (chatApi) {
-      chatApi.getHistory().then(setMessages)
+    if (chatApi?.getHistory) {
+      chatApi.getHistory().then(setMessages).catch(() => {
+        // History fetch failed — start with empty conversation
+      })
     }
   }, [chatApi])
 
@@ -58,7 +70,7 @@ export function ChatPanel({ params }: ChatPanelProps) {
   }, [messages])
 
   const send = async () => {
-    if (!input.trim() || sending || !chatApi) return
+    if (!input.trim() || sending || !chatApi?.send) return
     const userMsg = input.trim()
     setInput('')
     setSending(true)
@@ -108,17 +120,33 @@ export function ChatPanel({ params }: ChatPanelProps) {
     setIsListening(true)
   }
 
+  const headerText = conversationContext?.threadId
+    ? `Thread: ${conversationContext.threadId.length > 12 ? conversationContext.threadId.slice(0, 12) + '...' : conversationContext.threadId}`
+    : conversationContext?.isAmbient
+      ? 'Ambient'
+      : 'Principal ↔ Cortex'
+
   return (
-    <div style={{ display: 'flex', flexDirection: 'column', height: '100%', color: 'var(--nous-fg)' }}>
+    <div className={clsx(className)} style={{ display: 'flex', flexDirection: 'column', height: '100%', color: 'var(--nous-fg)' }}>
       {/* Header */}
-      <div style={{ padding: 'var(--nous-space-lg) var(--nous-space-2xl)', borderBottom: '1px solid var(--nous-header-border)', fontSize: 'var(--nous-font-size-sm)', fontWeight: 'var(--nous-font-weight-semibold)' as any, color: 'var(--nous-fg-muted)' }}>
-        Principal ↔ Cortex
+      <div style={{ padding: 'var(--nous-space-lg) var(--nous-space-2xl)', borderBottom: '1px solid var(--nous-header-border)', fontSize: 'var(--nous-font-size-sm)', fontWeight: 'var(--nous-font-weight-semibold)' as any, color: 'var(--nous-fg-muted)', display: 'flex', alignItems: 'center', gap: 'var(--nous-space-sm)' }}>
+        <span>{headerText}</span>
+        {conversationContext?.isAmbient && (
+          <span data-testid="ambient-badge" style={{ background: 'var(--nous-accent-muted)', fontSize: 'var(--nous-font-size-2xs)', borderRadius: 'var(--nous-radius-xs)', padding: '0 var(--nous-space-xs)', fontWeight: 'var(--nous-font-weight-medium)' as any }}>
+            Ambient
+          </span>
+        )}
+        {conversationContext?.threadId && (
+          <span data-testid="thread-indicator" style={{ fontSize: 'var(--nous-font-size-2xs)', color: 'var(--nous-fg-subtle)', fontWeight: 'var(--nous-font-weight-regular)' as any }}>
+            {conversationContext.threadId.length > 12 ? conversationContext.threadId.slice(0, 12) + '...' : conversationContext.threadId}
+          </span>
+        )}
       </div>
       {/* Messages */}
       <div style={{ flex: 1, overflowY: 'auto', padding: 'var(--nous-space-2xl)', display: 'flex', flexDirection: 'column', gap: 'var(--nous-space-xl)' }}>
         {messages.length === 0 && (
           <div style={{ textAlign: 'center', color: 'var(--nous-fg-subtle)', fontSize: 'var(--nous-font-size-base)', marginTop: 'var(--nous-space-4xl)' }}>
-            {chatApi ? 'Start a conversation with Nous.' : 'Chat API not connected.'}
+            {chatApi?.send ? 'Start a conversation with Nous.' : 'Chat API not connected. Start the web backend with `pnpm dev:web`.'}
           </div>
         )}
         {messages.map((msg, i) => (
@@ -170,11 +198,11 @@ export function ChatPanel({ params }: ChatPanelProps) {
         </button>
         <button
           onClick={send}
-          disabled={sending || !input.trim() || !chatApi}
+          disabled={sending || !input.trim() || !chatApi?.send}
           style={{
             background: 'var(--nous-btn-primary-bg)', border: 'none', borderRadius: 'var(--nous-radius-md)',
             padding: 'var(--nous-space-md) var(--nous-space-2xl)', color: 'var(--nous-fg-on-color)', cursor: sending ? 'not-allowed' : 'pointer',
-            fontSize: 'var(--nous-font-size-base)', fontWeight: 'var(--nous-font-weight-medium)' as any, opacity: (sending || !input.trim() || !chatApi) ? 0.5 : 1,
+            fontSize: 'var(--nous-font-size-base)', fontWeight: 'var(--nous-font-weight-medium)' as any, opacity: (sending || !input.trim() || !chatApi?.send) ? 0.5 : 1,
           }}
         >
           Send

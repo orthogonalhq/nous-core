@@ -10,20 +10,29 @@ export const tokens = {
   colors: {
     surface:      '#0b0b0b',
     bg:           '#1e1e1e',
-    bgElevated:   '#252526',
-    bgHover:      '#2a2d2e',
-    bgInput:      '#3c3c3c',
+    bgBase:       '#000000',
+    bgSurface:    '#0A0A0A',
+    bgElevated:   '#141414',
+    bgHover:      '#1A1A1A',
+    bgActive:     '#222222',
+    bgInput:      '#0F0F0F',
 
-    border:       '#3c3c3c',
+    border:       '#1A1A1A',
+    borderStrong: '#2A2A2A',
     borderSubtle: '#2d2d2d',
 
     fg:           '#cccccc',
     fgMuted:      '#9d9d9d',
     fgDim:        '#858585',
     fgSubtle:     '#6a6a6a',
+    textPrimary:   'rgba(255,255,255,0.95)',
+    textSecondary: 'rgba(255,255,255,0.60)',
+    textTertiary:  'rgba(255,255,255,0.35)',
+    textGhost:     'rgba(255,255,255,0.12)',
 
     accent:       '#007acc',
     accentHover:  '#1a85d0',
+    accentMuted:  'rgba(0,122,204,0.16)',
     selection:    '#094771',
 
     menuBg:       '#252526',
@@ -34,6 +43,14 @@ export const tokens = {
     chatUserBg:   '#264f78',
     closeBtnHover:'#e81123',
     fgOnColor:    '#ffffff',
+
+    alert: {
+      critical: '#FF2D55',
+      error:    '#FF453A',
+      warning:  '#FFD60A',
+      info:     '#64B5F6',
+      success:  '#32D74B',
+    },
 
     state: {
       idle:          '#6a6a6a',
@@ -53,6 +70,30 @@ export const tokens = {
       blocked:       '#8b1a1a',
       approved:      '#0d6e5e',
       needsRevision: '#6b3d99',
+    },
+
+    /** Canvas / workflow builder — keep in sync with tokens.css */
+    canvas: {
+      bg:            '#0a0a0a',
+      gridDot:       '#1a1a1a',
+      selectionRing: '#007acc',
+      minimapBg:     '#0f0f0f',
+      minimapNode:   '#2a2a2a',
+    },
+
+    node: {
+      trigger:    '#e06c75',
+      agent:      '#61afef',
+      condition:  '#e5c07b',
+      app:        '#c678dd',
+      tool:       '#56b6c2',
+      memory:     '#98c379',
+      governance: '#d19a66',
+    },
+
+    edge: {
+      execution: '#abb2bf',
+      config:    '#5c6370',
     },
   },
 
@@ -91,17 +132,23 @@ export const tokens = {
   },
 
   radius: {
-    xs: 2,
-    sm: 3,
-    md: 4,
-    lg: 8,
+    xs: 4,
+    sm: 6,
+    md: 8,
+    lg: 12,
     xl: 16,
   },
 
   shadow: {
     sm: '0 1px 2px rgba(0,0,0,0.3)',
-    md: '0 2px 8px rgba(0,0,0,0.4)',
-    lg: '0 4px 16px rgba(0,0,0,0.5)',
+    md: '0 4px 12px rgba(0,0,0,0.4)',
+    lg: '0 8px 24px rgba(0,0,0,0.5)',
+  },
+
+  blur: {
+    sm: 8,
+    md: 16,
+    lg: 24,
   },
 
   zIndex: {
@@ -113,10 +160,28 @@ export const tokens = {
   },
 
   duration: {
+    instant: 50,
     micro:  100,
-    fast:   150,
+    fast:   100,
     normal: 200,
     slow:   300,
+    ambient: 2000,
+  },
+
+  easing: {
+    out: 'cubic-bezier(0.0, 0, 0.2, 1)',
+    in: 'cubic-bezier(0.4, 0, 1, 1)',
+    inOut: 'cubic-bezier(0.4, 0, 0.2, 1)',
+    snap: 'cubic-bezier(0, 0, 0.2, 1)',
+  },
+
+  scale: {
+    press: 0.98,
+    lift: 1.02,
+  },
+
+  distance: {
+    shake: 2,
   },
 
   iconSize: {
@@ -131,5 +196,19 @@ export const tokens = {
     titlebarBtnWidth:  46,
     dvTabHeight:       35,
     dvTabHeightNested: 28,
+  },
+
+  shell: {
+    railWidth: 72,
+    railWidthCollapsed: 56,
+    chatColumnWidth: 320,
+    observeColumnWidth: 280,
+    columnDividerWidth: 1,
+  },
+
+  breakpoint: {
+    shellFull: 1400,
+    shellMedium: 1100,
+    shellNarrow: 800,
   },
 } as const

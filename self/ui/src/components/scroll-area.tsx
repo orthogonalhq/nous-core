@@ -1,15 +1,18 @@
 'use client'
 
 import * as React from 'react'
-import { cn } from '../lib/cn'
 
 const ScrollArea = React.forwardRef<
   HTMLDivElement,
   React.HTMLAttributes<HTMLDivElement>
->(({ className, children, ...props }, ref) => (
+>(({ className, children, style, ...props }, ref) => (
   <div
     ref={ref}
-    className={cn('overflow-auto', className)}
+    className={className}
+    style={{
+      overflow: 'auto',
+      ...style,
+    }}
     {...props}
   >
     {children}

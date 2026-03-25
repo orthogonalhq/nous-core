@@ -3,19 +3,23 @@ import {
   AppHeartbeatSignalSchema,
   type AppHealthSnapshot,
   type AppHeartbeatSignal,
+  type IEventBus,
 } from '@nous/shared';
 
 export interface AppHealthRegistryOptions {
   now?: () => Date;
+  eventBus?: IEventBus;
 }
 
 export class AppHealthRegistry {
   private readonly now: () => Date;
+  private readonly eventBus?: IEventBus;
   private readonly snapshots = new Map<string, AppHealthSnapshot>();
   private readonly heartbeatSequences = new Map<string, number>();
 
   constructor(options: AppHealthRegistryOptions = {}) {
     this.now = options.now ?? (() => new Date());
+    this.eventBus = options.eventBus;
   }
 
   initializeSession(sessionId: string): AppHealthSnapshot {
@@ -28,12 +32,18 @@ export class AppHealthRegistry {
     });
     this.snapshots.set(sessionId, snapshot);
     this.heartbeatSequences.set(sessionId, -1);
+    this.eventBus?.publish('app-health:change', { appId: 'unknown', sessionId, status: 'healthy' });
     return snapshot;
   }
 
   updateSnapshot(snapshot: AppHealthSnapshot): AppHealthSnapshot {
     const parsed = AppHealthSnapshotSchema.parse(snapshot);
     this.snapshots.set(parsed.session_id, parsed);
+    this.eventBus?.publish('app-health:change', {
+      appId: 'unknown',
+      sessionId: parsed.session_id,
+      status: parsed.status as 'healthy' | 'degraded' | 'stale' | 'disconnected',
+    });
     return parsed;
   }
 
@@ -53,6 +63,11 @@ export class AppHealthRegistry {
         : {},
     });
     this.snapshots.set(parsed.session_id, nextSnapshot);
+    this.eventBus?.publish('app-health:heartbeat', {
+      appId: 'unknown',
+      sessionId: parsed.session_id,
+      timestamp: parsed.reported_at,
+    });
     return nextSnapshot;
   }
 
@@ -77,6 +92,11 @@ export class AppHealthRegistry {
         },
       });
       this.snapshots.set(sessionId, nextSnapshot);
+      this.eventBus?.publish('app-health:change', {
+        appId: 'unknown',
+        sessionId,
+        status: 'stale',
+      });
       updated.push(nextSnapshot);
     }
 

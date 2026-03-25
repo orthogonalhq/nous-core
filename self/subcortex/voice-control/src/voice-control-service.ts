@@ -51,6 +51,7 @@ export interface VoiceControlServiceOptions {
   degradedModeController?: DegradedModeController;
   continuationOrchestrator?: ContinuationOrchestrator;
   turnEvaluator?: TurnEvaluator;
+  eventBus?: import('@nous/shared').IEventBus;
   now?: () => string;
   idFactory?: () => string;
 }
@@ -74,8 +75,10 @@ export class VoiceControlService implements IVoiceControlService {
   private readonly turnEvaluator: TurnEvaluator;
   private readonly now: () => string;
   private readonly idFactory: () => string;
+  private readonly eventBus?: import('@nous/shared').IEventBus;
 
   constructor(private readonly options: VoiceControlServiceOptions) {
+    this.eventBus = options.eventBus;
     if (!options.voiceControlStore && !options.documentStore) {
       throw new Error('VoiceControlService requires documentStore or voiceControlStore');
     }
@@ -149,6 +152,7 @@ export class VoiceControlService implements IVoiceControlService {
       sessionId: record.session_id,
       projectId: record.project_id,
     }, record.project_id);
+    this.eventBus?.publish('voice:state-change', { turnId: record.turn_id, state: 'recording' });
     return record;
   }
 
@@ -200,6 +204,10 @@ export class VoiceControlService implements IVoiceControlService {
       },
       parsed.project_id,
     );
+    this.eventBus?.publish('voice:state-change', {
+      turnId: parsed.turn_id,
+      state: evaluation.nextTurnState as 'recording' | 'evaluating' | 'barge-in' | 'continuation' | 'idle',
+    });
     return evaluation.decision;
   }
 
@@ -214,6 +222,7 @@ export class VoiceControlService implements IVoiceControlService {
       event: 'voice_turn_ended',
       state: record.state,
     }, parsed.project_id);
+    this.eventBus?.publish('voice:transcription', { turnId: record.output_id, transcript: '' });
     return record;
   }
 
@@ -265,6 +274,7 @@ export class VoiceControlService implements IVoiceControlService {
       event: 'voice_barge_in_detected',
       latencyMs: bargeIn.latency_ms,
     }, parsed.project_id);
+    this.eventBus?.publish('voice:state-change', { turnId: bargeIn.barge_in_id, state: 'barge-in' });
     return bargeIn;
   }
 
@@ -315,6 +325,10 @@ export class VoiceControlService implements IVoiceControlService {
       },
       parsed.project_id,
     );
+    this.eventBus?.publish('voice:state-change', {
+      turnId: result.continuation.continuation_id,
+      state: 'continuation',
+    });
     return result.continuation;
   }
 

@@ -71,6 +71,7 @@ export type {
   AuthorityActor,
   DispatchAdmissionInput,
   LifecycleAdmissionInput,
+  ScopeGuardExecutionContext,
 } from './workmode.js';
 export type {
   IChatScopeResolver,
@@ -130,6 +131,9 @@ export type {
   IRuntime,
   IConfig,
   IHealthMonitor,
+  IGatewayHealthSource,
+  IProviderHealthSource,
+  IHealthAggregator,
   ICredentialVaultService,
   ICredentialInjector,
   SystemConfig,

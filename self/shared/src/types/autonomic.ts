@@ -68,3 +68,130 @@ export const SystemMetricsSchema = z.object({
   totalMemoryEntries: z.number().int().min(0),
 });
 export type SystemMetrics = z.infer<typeof SystemMetricsSchema>;
+
+// --- Gateway Health Projections ---
+// Lightweight projections of cortex-core gateway types, owned by @nous/shared.
+// These decouple the autonomic layer from cortex-core schema maintenance.
+// The DI wiring layer (sub-phase 1.2) maps the richer cortex-core types to these projections.
+
+export const GatewayBootProjectionSchema = z.object({
+  status: z.enum(['booting', 'ready', 'degraded']),
+  completedSteps: z.array(z.string().min(1)),
+  issueCodes: z.array(z.string().min(1)),
+});
+export type GatewayBootProjection = z.infer<typeof GatewayBootProjectionSchema>;
+
+const BacklogAnalyticsProjectionSchema = z.object({
+  queuedCount: z.number().int().nonnegative(),
+  activeCount: z.number().int().nonnegative(),
+  suspendedCount: z.number().int().nonnegative(),
+  completedInWindow: z.number().int().nonnegative(),
+  failedInWindow: z.number().int().nonnegative(),
+  pressureTrend: z.enum(['idle', 'steady', 'rising', 'degrading']),
+});
+
+export const GatewayHealthProjectionSchema = z.object({
+  agentClass: z.string().min(1),
+  agentId: z.string().uuid(),
+  visibleTools: z.array(z.string().min(1)),
+  inboxReady: z.boolean(),
+  lastAckAt: z.string().datetime().optional(),
+  lastObservationAt: z.string().datetime().optional(),
+  lastSubmissionAt: z.string().datetime().optional(),
+  lastResultStatus: z.string().optional(),
+  backlogAnalytics: BacklogAnalyticsProjectionSchema,
+  issueCodes: z.array(z.string().min(1)),
+  appSessions: z.array(z.object({
+    sessionId: z.string().min(1),
+    appId: z.string().min(1),
+    packageId: z.string().min(1),
+    projectId: z.string().uuid().optional(),
+    status: z.enum(['starting', 'active', 'draining', 'stopped', 'failed']),
+    healthStatus: z.enum(['healthy', 'degraded', 'unhealthy', 'stale']),
+    startedAt: z.string().datetime(),
+    lastHeartbeatAt: z.string().datetime().optional(),
+    stale: z.boolean(),
+  })),
+});
+export type GatewayHealthProjection = z.infer<typeof GatewayHealthProjectionSchema>;
+
+export const SystemContextProjectionSchema = z.object({
+  bootStatus: z.enum(['booting', 'ready', 'degraded']),
+  inboxReady: z.boolean(),
+  pendingSystemRuns: z.number().int().nonnegative(),
+  backlogAnalytics: BacklogAnalyticsProjectionSchema,
+  issueCodes: z.array(z.string().min(1)),
+});
+export type SystemContextProjection = z.infer<typeof SystemContextProjectionSchema>;
+
+// --- Provider Health Snapshot ---
+
+export const ProviderHealthEntrySchema = z.object({
+  providerId: z.string().uuid(),
+  name: z.string().min(1),
+  type: z.string().min(1),
+  isLocal: z.boolean(),
+  endpoint: z.string().optional(),
+  status: z.enum(['available', 'unknown', 'unreachable']),
+  modelId: z.string().optional(),
+});
+export type ProviderHealthEntry = z.infer<typeof ProviderHealthEntrySchema>;
+
+export const ProviderHealthSnapshotSchema = z.object({
+  providers: z.array(ProviderHealthEntrySchema),
+  collectedAt: z.string().datetime(),
+});
+export type ProviderHealthSnapshot = z.infer<typeof ProviderHealthSnapshotSchema>;
+
+// --- Agent Status Snapshot ---
+
+export const AgentGatewayEntrySchema = z.object({
+  agentClass: z.string().min(1),
+  agentId: z.string().uuid(),
+  inboxReady: z.boolean(),
+  visibleToolCount: z.number().int().nonnegative(),
+  lastAckAt: z.string().datetime().optional(),
+  lastObservationAt: z.string().datetime().optional(),
+  lastSubmissionAt: z.string().datetime().optional(),
+  lastResultStatus: z.string().optional(),
+  issueCount: z.number().int().nonnegative(),
+  issueCodes: z.array(z.string().min(1)),
+});
+export type AgentGatewayEntry = z.infer<typeof AgentGatewayEntrySchema>;
+
+export const AgentStatusSnapshotSchema = z.object({
+  gateways: z.array(AgentGatewayEntrySchema),
+  appSessions: z.array(z.object({
+    sessionId: z.string().min(1),
+    appId: z.string().min(1),
+    packageId: z.string().min(1),
+    projectId: z.string().uuid().optional(),
+    status: z.enum(['starting', 'active', 'draining', 'stopped', 'failed']),
+    healthStatus: z.enum(['healthy', 'degraded', 'unhealthy', 'stale']),
+    startedAt: z.string().datetime(),
+    lastHeartbeatAt: z.string().datetime().optional(),
+    stale: z.boolean(),
+  })),
+  collectedAt: z.string().datetime(),
+});
+export type AgentStatusSnapshot = z.infer<typeof AgentStatusSnapshotSchema>;
+
+// --- System Status Snapshot ---
+
+export const SystemStatusSnapshotSchema = z.object({
+  bootStatus: z.enum(['booting', 'ready', 'degraded']),
+  completedBootSteps: z.array(z.string().min(1)),
+  issueCodes: z.array(z.string().min(1)),
+  inboxReady: z.boolean(),
+  pendingSystemRuns: z.number().int().nonnegative(),
+  backlogAnalytics: z.object({
+    queuedCount: z.number().int().nonnegative(),
+    activeCount: z.number().int().nonnegative(),
+    suspendedCount: z.number().int().nonnegative(),
+    completedInWindow: z.number().int().nonnegative(),
+    failedInWindow: z.number().int().nonnegative(),
+    pressureTrend: z.enum(['idle', 'steady', 'rising', 'degrading']),
+  }),
+  collectedAt: z.string().datetime(),
+});
+export type SystemStatusSnapshot = z.infer<typeof SystemStatusSnapshotSchema>;

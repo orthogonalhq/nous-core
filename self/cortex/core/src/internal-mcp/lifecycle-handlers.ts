@@ -196,6 +196,7 @@ function buildTaskCompletionPacket(
     },
     artifact_refs: args.request.artifactRefs ?? [],
     summary: args.request.summary,
+    emitter_agent_class: args.agentClass,
   };
 
   return GatewayStampedPacketSchema.parse(packet);
@@ -388,7 +389,7 @@ export function createLifecycleHandlers(options: {
             );
           }
 
-          const admission = options.deps.workmodeAdmissionGuard?.evaluateDispatchAdmission({
+          const admission = options.deps.workmodeAdmissionGuard.evaluateDispatchAdmission({
             sourceActor: authorityActorForClass(options.agentClass),
             targetActor: targetAuthorityActorForDispatch(request.targetClass),
             action: 'dispatch_agent',
@@ -396,11 +397,35 @@ export function createLifecycleHandlers(options: {
             workmodeId: lifecycleContext.execution?.workmodeId,
           });
 
-          if (admission && !admission.allowed) {
+          if (!admission.allowed) {
             throw new NousError(
               admission.reasonCode,
               'DISPATCH_ADMISSION_DENIED',
               { evidenceRefs: admission.evidenceRefs },
+            );
+          }
+
+          // Scope guard: validate execution context consistency for dispatch
+          const scopeGuard = options.deps.workmodeAdmissionGuard.evaluateScopeGuard?.({
+            sourceActor: authorityActorForClass(options.agentClass),
+            targetActor: targetAuthorityActorForDispatch(request.targetClass),
+            action: 'dispatch_agent',
+            projectRunId: lifecycleContext.execution?.executionId,
+            workmodeId: lifecycleContext.execution?.workmodeId,
+            executionContext: lifecycleContext.execution
+              ? {
+                  workmodeId: lifecycleContext.execution.workmodeId,
+                  agentClass: options.agentClass,
+                  nodeDefinitionId: lifecycleContext.execution.nodeDefinitionId,
+                }
+              : undefined,
+          });
+
+          if (scopeGuard && !scopeGuard.allowed) {
+            throw new NousError(
+              scopeGuard.reasonCode,
+              'DISPATCH_ADMISSION_DENIED',
+              { evidenceRefs: scopeGuard.evidenceRefs },
             );
           }
 

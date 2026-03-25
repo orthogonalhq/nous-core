@@ -9,6 +9,7 @@ const MATRIX: Record<AgentClass, readonly InternalMcpToolName[]> = {
     'workflow_list',
     'workflow_inspect',
     'workflow_status',
+    'workflow_validate',
   ],
   'Cortex::System': [
     'memory_search',
@@ -31,6 +32,8 @@ const MATRIX: Record<AgentClass, readonly InternalMcpToolName[]> = {
     'workflow_pause',
     'workflow_resume',
     'workflow_cancel',
+    'workflow_validate',
+    'workflow_from_spec',
     'dispatch_agent',
     'task_complete',
     'request_escalation',

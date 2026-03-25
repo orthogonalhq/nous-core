@@ -32,6 +32,8 @@ import {
 import { AgentGatewayFactory } from '../agent-gateway/index.js';
 import { createInternalMcpSurfaceBundle } from '../internal-mcp/index.js';
 import type { InternalMcpOutputSchemaValidator } from '../internal-mcp/types.js';
+import type { IWorkmodeAdmissionGuard } from '@nous/shared';
+import { WorkmodeAdmissionGuard } from '../workmode/admission-guard.js';
 import { parseModelOutput } from '../output-parser.js';
 import { GatewayTraceRecorder } from './trace-recorder.js';
 
@@ -42,6 +44,55 @@ const DEFAULT_CHAT_BUDGET = {
 } as const;
 
 const CHAT_COMPLETION_SCHEMA_REF = 'schema://chat-response';
+
+type GatewayInputRecord = {
+  systemPrompt: string;
+  context: unknown;
+};
+
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return typeof value === 'object' && value !== null;
+}
+
+function isGatewayInput(value: unknown): value is GatewayInputRecord {
+  if (!isRecord(value)) {
+    return false;
+  }
+
+  return typeof value.systemPrompt === 'string' && Array.isArray(value.context);
+}
+
+export function transformGatewayInput(input: unknown): unknown {
+  if (!isRecord(input)) {
+    return input;
+  }
+
+  if ('messages' in input || 'prompt' in input) {
+    return input;
+  }
+
+  if (!isGatewayInput(input)) {
+    return input;
+  }
+
+  const parsedContext = GatewayContextFrameSchema.array().safeParse(input.context);
+  if (!parsedContext.success) {
+    return input;
+  }
+
+  return {
+    messages: [
+      {
+        role: 'system' as const,
+        content: input.systemPrompt,
+      },
+      ...parsedContext.data.map((frame) => ({
+        role: frame.role === 'tool' ? 'user' as const : frame.role,
+        content: frame.content,
+      })),
+    ],
+  };
+}
 
 interface MwcPipelineLike {
   submit(
@@ -72,6 +123,7 @@ export interface GatewayBackedTurnExecutorDeps {
   instanceRoot?: string;
   outputSchemaValidator?: InternalMcpOutputSchemaValidator;
   agentGatewayFactory?: IAgentGatewayFactory;
+  workmodeAdmissionGuard?: IWorkmodeAdmissionGuard;
   now?: () => string;
   nowMs?: () => number;
   idFactory?: () => string;
@@ -79,12 +131,14 @@ export interface GatewayBackedTurnExecutorDeps {
 
 export class GatewayBackedTurnExecutor implements ICoreExecutor {
   private readonly gatewayFactory: IAgentGatewayFactory;
+  private readonly workmodeAdmissionGuard: IWorkmodeAdmissionGuard;
   private readonly traceRecorder: GatewayTraceRecorder;
   private readonly now: () => string;
   private readonly idFactory: () => string;
 
   constructor(private readonly deps: GatewayBackedTurnExecutorDeps) {
     this.gatewayFactory = deps.agentGatewayFactory ?? new AgentGatewayFactory();
+    this.workmodeAdmissionGuard = deps.workmodeAdmissionGuard ?? new WorkmodeAdmissionGuard();
     this.traceRecorder = new GatewayTraceRecorder(deps.documentStore);
     this.now = deps.now ?? (() => new Date().toISOString());
     this.idFactory = deps.idFactory ?? randomUUID;
@@ -212,6 +266,7 @@ export class GatewayBackedTurnExecutor implements ICoreExecutor {
         runtime: this.deps.runtime,
         instanceRoot: this.deps.instanceRoot,
         outputSchemaValidator: this.deps.outputSchemaValidator,
+        workmodeAdmissionGuard: this.workmodeAdmissionGuard,
         now: this.now,
         idFactory: this.idFactory,
       },
@@ -249,7 +304,10 @@ export class GatewayBackedTurnExecutor implements ICoreExecutor {
     return {
       ...provider,
       invoke: async (request) => {
-        const response = await provider.invoke(request);
+        const response = await provider.invoke({
+          ...request,
+          input: transformGatewayInput(request.input),
+        });
         const parsedOutput = parseModelOutput(
           response.output,
           response.traceId,

@@ -8,6 +8,32 @@
  */
 
 :root {
+  /* ── Shell rail ─────────────────────────────────────────────────────── */
+  --nous-rail-bg:              var(--nous-bg-base);
+  --nous-rail-fg:              var(--nous-text-secondary);
+  --nous-rail-item-active-bg:  var(--nous-bg-active);
+  --nous-rail-hover-bg:        var(--nous-bg-hover);
+  --nous-rail-section-fg:      var(--nous-text-tertiary);
+
+  /* ── Shell columns ──────────────────────────────────────────────────── */
+  --nous-shell-column-border:  var(--nous-border-strong);
+  --nous-observe-bg:           var(--nous-bg-surface);
+
+  /* ── Ambient stream ─────────────────────────────────────────────────── */
+  --nous-ambient-fg:           var(--nous-text-tertiary);
+  --nous-ambient-event-bg:     var(--nous-accent-muted);
+
+  /* ── Catalog surfaces ──────────────────────────────────────────────── */
+  --nous-catalog-card-bg:      var(--nous-bg-elevated);
+  --nous-catalog-card-hover:   var(--nous-bg-hover);
+
+  /* ── Command palette ────────────────────────────────────────────────── */
+  --nous-palette-bg:         var(--nous-bg-elevated);
+  --nous-palette-border:     var(--nous-border-strong);
+  --nous-palette-shadow:     var(--nous-shadow-lg);
+  --nous-palette-item-hover: var(--nous-bg-hover);
+  --nous-palette-match-fg:   var(--nous-accent);
+
   /* ── Panel header ──────────────────────────────────────────────────── */
   --nous-header-bg:     var(--nous-surface);
   --nous-header-fg:     var(--nous-fg-muted);
@@ -163,4 +189,20 @@
   --nous-menu-shortcut-fg:      var(--nous-fg-muted);
   --nous-menu-label-fg:         var(--nous-fg-subtle);
   --nous-menu-separator:        var(--nous-border);
+
+  /* ── Workflow builder ──────────────────────────────────────────────── */
+  --nous-builder-canvas-bg:       var(--nous-canvas-bg);
+  --nous-builder-grid-color:      var(--nous-canvas-grid-dot);
+  --nous-builder-node-trigger:    var(--nous-node-trigger);
+  --nous-builder-node-agent:      var(--nous-node-agent);
+  --nous-builder-node-condition:  var(--nous-node-condition);
+  --nous-builder-node-app:        var(--nous-node-app);
+  --nous-builder-node-tool:       var(--nous-node-tool);
+  --nous-builder-node-memory:     var(--nous-node-memory);
+  --nous-builder-node-governance: var(--nous-node-governance);
+  --nous-builder-edge-execution:  var(--nous-edge-execution);
+  --nous-builder-edge-config:     var(--nous-edge-config);
+  --nous-builder-selection-ring:  var(--nous-canvas-selection-ring);
+  --nous-builder-minimap-bg:      var(--nous-canvas-minimap-bg);
+  --nous-builder-minimap-node:    var(--nous-canvas-minimap-node);
 }

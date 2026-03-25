@@ -8,6 +8,9 @@ import type {
   AdmissionResult,
   InvariantCode,
 } from '@nous/shared';
+import {
+  SCOPE_GUARD_CODES,
+} from '@nous/shared';
 import type {
   IWorkmodeAdmissionGuard,
   DispatchAdmissionInput,
@@ -29,6 +32,22 @@ const VALID_DISPATCH_EDGES: Array<[AuthorityActor, AuthorityActor]> = [
   ['nous_cortex', 'worker_agent'],
   ['orchestration_agent', 'worker_agent'],
 ];
+
+/** Maps AgentClass to AuthorityActor for provenance cross-validation */
+const AGENT_CLASS_TO_AUTHORITY: Record<string, AuthorityActor> = {
+  'Cortex::Principal': 'nous_cortex',
+  'Cortex::System': 'nous_cortex',
+  'Orchestrator': 'orchestration_agent',
+  'Worker': 'worker_agent',
+};
+
+/** Actions that require scope guard validation context */
+const SCOPE_REQUIRING_ACTIONS = new Set([
+  'execute_subphase',
+  'execute_node',
+  'dispatch',
+  'dispatch_agent',
+]);
 
 export class WorkmodeAdmissionGuard implements IWorkmodeAdmissionGuard {
   evaluateDispatchAdmission(input: DispatchAdmissionInput): AdmissionResult {
@@ -84,5 +103,57 @@ export class WorkmodeAdmissionGuard implements IWorkmodeAdmissionGuard {
       input.controlState,
       input.confirmationProof != null,
     );
+  }
+
+  /**
+   * Evaluate scope guard admissibility for a dispatch.
+   * Validates that required execution context is present and consistent.
+   * Fail-close: missing required context on scope-requiring actions produces rejection with evidence.
+   */
+  evaluateScopeGuard(input: DispatchAdmissionInput): AdmissionResult {
+    const { action, executionContext } = input;
+
+    // If action does not require scope guard, pass through
+    if (!SCOPE_REQUIRING_ACTIONS.has(action)) {
+      return { allowed: true };
+    }
+
+    // Fail-close: scope-requiring action without context
+    if (!executionContext) {
+      return {
+        allowed: false,
+        reasonCode: SCOPE_GUARD_CODES.SCOPE_GUARD_VIOLATION,
+        evidenceRefs: [
+          `scope guard violation: action="${action}" requires executionContext but none provided`,
+        ],
+      };
+    }
+
+    // Validate: workmodeId must be present for scoped actions
+    if (!executionContext.workmodeId) {
+      return {
+        allowed: false,
+        reasonCode: SCOPE_GUARD_CODES.SCOPE_GUARD_VIOLATION,
+        evidenceRefs: [
+          `scope guard violation: action="${action}" requires workmodeId in executionContext`,
+        ],
+      };
+    }
+
+    // Validate: emitter agent class, if present, must match source actor mapping
+    if (executionContext.agentClass) {
+      const expectedActor = AGENT_CLASS_TO_AUTHORITY[executionContext.agentClass];
+      if (expectedActor && expectedActor !== input.sourceActor) {
+        return {
+          allowed: false,
+          reasonCode: SCOPE_GUARD_CODES.PACKET_ADMISSIBILITY_REJECTED,
+          evidenceRefs: [
+            `packet admissibility rejected: agentClass="${executionContext.agentClass}" maps to actor="${expectedActor}" but sourceActor="${input.sourceActor}"`,
+          ],
+        };
+      }
+    }
+
+    return { allowed: true };
   }
 }

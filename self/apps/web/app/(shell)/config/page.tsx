@@ -1,9 +1,48 @@
 'use client';
 
+import type { CSSProperties } from 'react';
+
 import { trpc } from '@/lib/trpc';
 import { Card, CardHeader, CardTitle, CardContent } from '@/components/ui/card';
 import { Select } from '@/components/ui/select';
 import { Badge } from '@/components/ui/badge';
+
+const pageStyle: CSSProperties = {
+  display: 'flex',
+  flexDirection: 'column',
+  gap: 'var(--nous-space-4xl)',
+  padding: 'var(--nous-space-4xl)',
+};
+
+const pageTitleStyle: CSSProperties = {
+  fontSize: '24px',
+  fontWeight: 'var(--nous-font-weight-semibold)',
+};
+
+const mutedTextStyle: CSSProperties = {
+  color: 'var(--nous-text-secondary)',
+};
+
+const cardListStyle: CSSProperties = {
+  display: 'flex',
+  flexDirection: 'column',
+  gap: 'var(--nous-space-xs)',
+  fontSize: 'var(--nous-font-size-sm)',
+  margin: 0,
+  paddingInlineStart: '1.25rem',
+};
+
+const healthListStyle: CSSProperties = {
+  display: 'flex',
+  flexDirection: 'column',
+  gap: 'var(--nous-space-md)',
+};
+
+const healthRowStyle: CSSProperties = {
+  display: 'flex',
+  alignItems: 'center',
+  gap: 'var(--nous-space-md)',
+};
 
 export default function ConfigPage() {
   const { data: config, isLoading } = trpc.config.get.useQuery();
@@ -19,8 +58,8 @@ export default function ConfigPage() {
 
   if (isLoading || !config) {
     return (
-      <div className="p-8">
-        <p className="text-muted-foreground">Loading configuration...</p>
+      <div style={{ padding: 'var(--nous-space-4xl)' }}>
+        <p style={mutedTextStyle}>Loading configuration...</p>
       </div>
     );
   }
@@ -32,8 +71,8 @@ export default function ConfigPage() {
   };
 
   return (
-    <div className="space-y-8 p-8">
-      <h1 className="text-2xl font-semibold">Configuration</h1>
+    <div style={pageStyle}>
+      <h1 style={pageTitleStyle}>Configuration</h1>
 
       <Card>
         <CardHeader>
@@ -43,7 +82,7 @@ export default function ConfigPage() {
           <Select
             value={String(cfg.pfcTier ?? 3)}
             onChange={handlePfcTierChange}
-            className="w-48"
+            style={{ width: '12rem' }}
           >
             {[0, 1, 2, 3, 4, 5].map((t) => (
               <option key={t} value={t}>
@@ -60,9 +99,9 @@ export default function ConfigPage() {
         </CardHeader>
         <CardContent>
           {!cfg.modelRoleAssignments?.length ? (
-            <p className="text-muted-foreground">No assignments configured.</p>
+            <p style={mutedTextStyle}>No assignments configured.</p>
           ) : (
-            <ul className="space-y-1 text-sm">
+            <ul style={cardListStyle}>
               {cfg.modelRoleAssignments.map((a, i) => (
                 <li key={i}>
                   {a.role} → {a.providerId}
@@ -79,11 +118,11 @@ export default function ConfigPage() {
         </CardHeader>
         <CardContent>
           {!health ? (
-            <p className="text-muted-foreground">Checking...</p>
+            <p style={mutedTextStyle}>Checking...</p>
           ) : (
-            <div className="space-y-2">
+            <div style={healthListStyle}>
               {health.components.map((c) => (
-                <div key={c.name} className="flex items-center gap-2">
+                <div key={c.name} style={healthRowStyle}>
                   <Badge
                     variant={
                       c.status === 'healthy'
@@ -97,7 +136,12 @@ export default function ConfigPage() {
                   </Badge>
                   <span>{c.name}</span>
                   {c.message && (
-                    <span className="text-muted-foreground text-sm">
+                    <span
+                      style={{
+                        color: 'var(--nous-text-secondary)',
+                        fontSize: 'var(--nous-font-size-sm)',
+                      }}
+                    >
                       {c.message}
                     </span>
                   )}

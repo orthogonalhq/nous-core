@@ -91,6 +91,7 @@ export class PublicMcpRuntimeAdapter {
       agentId,
       deps: {
         ...this.deps,
+        workmodeAdmissionGuard: this.deps.workmodeAdmissionGuard,
         now: this.now,
         nowMs: this.deps.nowMs,
         idFactory: this.idFactory,
