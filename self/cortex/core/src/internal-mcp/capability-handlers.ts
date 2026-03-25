@@ -820,6 +820,23 @@ export function createCapabilityHandlers(
       const api = requireProjectApi(context, projectId);
       const request = parseArtifactStoreRequest(params);
 
+      const decision = await context.deps.pfc?.evaluateToolExecution(
+        'artifact_store',
+        { name: request.name, mimeType: request.mimeType },
+        projectId,
+      );
+
+      if (decision && !decision.approved) {
+        return denyWithWitness({
+          context,
+          actionCategory: 'trace-persist',
+          actionRef: 'artifact_store',
+          projectId,
+          traceId: execution?.traceId,
+          reason: decision.reason ?? 'artifact_store denied by policy',
+        });
+      }
+
       const result = await executeWithWitness({
         context,
         actionCategory: 'trace-persist',

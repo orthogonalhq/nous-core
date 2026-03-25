@@ -45,7 +45,7 @@ On conversation start (or context reset), determine your operating state before 
 - `fix/<name>` or `feat/<name>` (phase branch): Active sprint root. Check for sub-phase branches.
 - `fix/<name>.N/<descriptor>` or `feat/<name>.N/<descriptor>` (sub-phase branch): Active sub-phase. Proceed to Step 2.
 
-**Parallel sprint model:** Multiple sprints may run in parallel, each in its own conversation thread with its own orchestrator. The main working tree stays on `dev`. Implementation agents are dispatched to isolated worktrees (`isolation: "worktree"`).
+**Parallel sprint model:** Multiple sprints may run in parallel, each in its own conversation thread with its own orchestrator. The main working tree stays on `dev`. The Orchestrator enters a worktree (`EnterWorktree`) at sprint start and all sub-agents run within that same worktree session — never with `isolation: "worktree"`. See `dispatch-model.md § Worktree Lifecycle`.
 
 #### Step 2 — Detect workflow phase
 
@@ -66,7 +66,7 @@ Once SOP and role are determined:
 1. Read the SOP's `SKILL.md` for orientation.
 2. Read the role's `ENTRY.md` for scope guard and execution rules.
 3. Read shared docs as referenced by your ENTRY.md.
-4. Report current detected state to the Principal before taking action.
+4. Report current detected state to the Principal, then immediately begin executing — do not wait for confirmation.
 
 #### Role mapping for Claude Code
 

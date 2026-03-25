@@ -21,7 +21,10 @@ import {
   useDashboardApi,
   AgentPanel,
   PreferencesPanel,
+  WorkflowBuilderPanel,
+  HealthQueryProvider,
   type ChatAPI,
+  type HealthFetchers,
 } from '@nous/ui/panels'
 import {
   ContentRouter,
@@ -59,6 +62,7 @@ const panelComponents = {
   dashboard: DashboardPanel,
   'coding-agents': AgentPanel,
   preferences: PreferencesPanel,
+  'workflow-builder': WorkflowBuilderPanel,
 }
 
 // Single source of truth for all panels — used by initDefaultLayout() and View menu toggle
@@ -129,6 +133,7 @@ export const NATIVE_PANEL_DEFS: PanelDef[] = [
   },
   { id: 'dashboard', component: 'dashboard', title: 'Dashboard' },
   { id: 'coding-agents', component: 'coding-agents', title: 'Coding Agents' },
+  { id: 'workflow-builder', component: 'workflow-builder', title: 'Workflow Builder' },
   {
     id: 'preferences',
     component: 'preferences',
@@ -155,6 +160,7 @@ const PANEL_ADD_ORDER = [
   'dashboard',
   'coding-agents',
   'preferences',
+  'workflow-builder',
 ]
 
 const DEFAULT_ROUTE = 'home'
@@ -668,6 +674,12 @@ export function App() {
     },
   ], [handleNavigate, handleModeToggle])
 
+  const healthFetchers: HealthFetchers = useMemo(() => ({
+    fetchSystemStatus: () => window.electronAPI.health.systemStatus(),
+    fetchProviderHealth: () => window.electronAPI.health.providerHealth(),
+    fetchAgentStatus: () => window.electronAPI.health.agentStatus(),
+  }), [])
+
   const navigation = {
     activeRoute,
     history: [activeRoute],
@@ -777,38 +789,40 @@ export function App() {
         navigate={handleNavigate}
         goBack={handleGoBack}
       >
-        <CommandPalette
-          isOpen={commandPaletteOpen}
-          onClose={() => setCommandPaletteOpen(false)}
-          commands={commands}
-        />
-        {mode === 'simple' ? (
-          <ShellLayout
-            rail={(
-              <NavigationRail
-                items={RAIL_SECTIONS}
-                activeItemId={activeRoute}
-                onItemSelect={handleNavigate}
-              />
-            )}
-            chat={<ChatSurface chatApi={window.electronAPI?.chat as ChatAPI | undefined} />}
-            content={(
-              <ContentRouter
-                activeRoute={activeRoute}
-                routes={simpleModeRoutes}
-                onNavigate={handleNavigate}
-              />
-            )}
-            observe={<ObservePanel maoApi={(window as any).electronAPI?.mao} />}
+        <HealthQueryProvider fetchers={healthFetchers}>
+          <CommandPalette
+            isOpen={commandPaletteOpen}
+            onClose={() => setCommandPaletteOpen(false)}
+            commands={commands}
           />
-        ) : (
-          <DockviewShell
-            savedLayout={savedLayout}
-            onApiReady={setDockviewApi}
-            activeAppPanelIds={new Set(appPanels.map((panel) => panel.dockview_panel_id))}
-            panelDefs={panelDefs}
-          />
-        )}
+          {mode === 'simple' ? (
+            <ShellLayout
+              rail={(
+                <NavigationRail
+                  items={RAIL_SECTIONS}
+                  activeItemId={activeRoute}
+                  onItemSelect={handleNavigate}
+                />
+              )}
+              chat={<ChatSurface chatApi={window.electronAPI?.chat as ChatAPI | undefined} />}
+              content={(
+                <ContentRouter
+                  activeRoute={activeRoute}
+                  routes={simpleModeRoutes}
+                  onNavigate={handleNavigate}
+                />
+              )}
+              observe={<ObservePanel maoApi={(window as any).electronAPI?.mao} />}
+            />
+          ) : (
+            <DockviewShell
+              savedLayout={savedLayout}
+              onApiReady={setDockviewApi}
+              activeAppPanelIds={new Set(appPanels.map((panel) => panel.dockview_panel_id))}
+              panelDefs={panelDefs}
+            />
+          )}
+        </HealthQueryProvider>
       </ShellProvider>
     </ChromeShell>
   )
@@ -922,6 +936,7 @@ const DEFAULT_POSITIONS: Record<string, { direction: string; referencePanel: str
   dashboard: { direction: 'within', referencePanel: 'chat' },
   'coding-agents': { direction: 'within', referencePanel: 'mao' },
   preferences: { direction: 'within', referencePanel: 'chat' },
+  'workflow-builder': { direction: 'within', referencePanel: 'chat' },
 }
 
 /**

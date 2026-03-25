@@ -124,6 +124,11 @@ contextBridge.exposeInMainWorld('electronAPI', {
     prepare: (input: unknown): Promise<unknown> => ipcRenderer.invoke('app-settings:prepare', input),
     save: (input: unknown): Promise<unknown> => ipcRenderer.invoke('app-settings:save', input),
   },
+  health: {
+    systemStatus: (): Promise<unknown> => ipcRenderer.invoke('health:systemStatus'),
+    providerHealth: (): Promise<unknown> => ipcRenderer.invoke('health:providerHealth'),
+    agentStatus: (): Promise<unknown> => ipcRenderer.invoke('health:agentStatus'),
+  },
   mao: {
     getAgentProjections: (projectId: string): Promise<unknown[]> =>
       ipcRenderer.invoke('mao:getAgentProjections', projectId),
