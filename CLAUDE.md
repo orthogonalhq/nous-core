@@ -11,7 +11,7 @@
 1. Read `AGENTS.md` — Workmode selection, SOP routing, state detection
 2. Follow `AGENTS.md § State Detection and Role Inference` — detect branch, scan worklog artifacts, determine pipeline position
 3. Read `SOUL.md` — Identity and collaboration posture
-4. Report detected state to the user before taking action
+4. Report detected state to the user, then immediately begin executing — do not wait for confirmation
 
 **State recovery comes from artifacts, not memory.** Do NOT use memory files, session notes, or conversation history to determine what to work on. The branch name + worklog artifacts + work register (`.architecture/work-register.md`) are the canonical sources. Memory is for user preferences and project context — never for workflow state.
 
