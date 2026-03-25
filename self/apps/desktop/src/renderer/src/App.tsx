@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef, useCallback, useMemo } from 'react'
+import React, { useState, useEffect, useRef, useCallback, useMemo } from 'react'
 import { DockviewReact } from 'dockview-react'
 import type {
   DockviewApi,
@@ -21,15 +21,23 @@ import {
   useDashboardApi,
   AgentPanel,
   PreferencesPanel,
+  type ChatAPI,
 } from '@nous/ui/panels'
 import {
   ContentRouter,
   NavigationRail,
   ShellLayout,
   ShellProvider,
+  HomeScreen,
+  CatalogView,
+  ChatSurface,
+  ObservePanel,
+  CommandPalette,
   type ContentRouterRenderProps,
   type RailSection,
   type ShellMode,
+  type CommandGroup,
+  type CatalogItem,
 } from '@nous/ui/components'
 import { AppInstallWizardPanel } from './components/AppInstallWizard'
 import { FirstRunWizard } from './components/FirstRunWizard'
@@ -167,6 +175,30 @@ const RAIL_SECTIONS: RailSection[] = [
   },
 ]
 
+const STUB_THREADS: CatalogItem[] = [
+  { id: 'thread-1', title: 'Project Planning', description: 'Roadmap and milestone discussion', icon: 'T' },
+  { id: 'thread-2', title: 'Architecture Review', description: 'System design feedback', icon: 'T' },
+  { id: 'thread-3', title: 'Bug Triage', description: 'Issue prioritization session', icon: 'T' },
+]
+
+const STUB_WORKFLOWS: CatalogItem[] = [
+  { id: 'wf-1', title: 'Code Review Pipeline', description: 'Automated review and gate checks', icon: 'W' },
+  { id: 'wf-2', title: 'Deploy to Staging', description: 'Build, test, and deploy workflow', icon: 'W' },
+  { id: 'wf-3', title: 'Daily Standup', description: 'Agent-assisted status aggregation', icon: 'W' },
+]
+
+const STUB_SKILLS: CatalogItem[] = [
+  { id: 'skill-1', title: 'Code Generation', description: 'Generate code from natural language', icon: 'S' },
+  { id: 'skill-2', title: 'Document Analysis', description: 'Extract insights from documents', icon: 'S' },
+  { id: 'skill-3', title: 'Test Writing', description: 'Generate test suites from specifications', icon: 'S' },
+]
+
+const STUB_APPS: CatalogItem[] = [
+  { id: 'app-1', title: 'Terminal', description: 'Integrated terminal emulator', icon: 'A' },
+  { id: 'app-2', title: 'File Manager', description: 'Browse and manage project files', icon: 'A' },
+  { id: 'app-3', title: 'Metrics Dashboard', description: 'System and agent performance metrics', icon: 'A' },
+]
+
 function parseShellMode(value: unknown): ShellMode | null {
   return value === 'simple' || value === 'developer' ? value : null
 }
@@ -198,69 +230,12 @@ const modePersistence = {
   },
 }
 
-function ShellPanePlaceholder({
-  title,
-  description,
-}: {
-  title: string
-  description: string
-}) {
-  return (
-    <div
-      style={{
-        display: 'flex',
-        alignItems: 'center',
-        justifyContent: 'center',
-        height: '100%',
-        padding: 'var(--nous-space-lg)',
-        boxSizing: 'border-box',
-      }}
-    >
-      <div
-        style={{
-          display: 'grid',
-          gap: 'var(--nous-space-xs)',
-          textAlign: 'center',
-        }}
-      >
-        <div
-          style={{
-            fontSize: 'var(--nous-font-size-base)',
-            color: 'var(--nous-fg)',
-          }}
-        >
-          {title}
-        </div>
-        <div
-          style={{
-            fontSize: 'var(--nous-font-size-sm)',
-            color: 'var(--nous-fg-subtle)',
-          }}
-        >
-          {description}
-        </div>
-      </div>
-    </div>
-  )
-}
-
-function createContentPlaceholder(title: string) {
-  return function ContentPlaceholder(_props: ContentRouterRenderProps) {
-    return (
-      <ShellPanePlaceholder
-        title={title}
-        description="Content placeholder"
-      />
-    )
-  }
-}
-
-const BASE_SIMPLE_MODE_ROUTES = {
-  home: createContentPlaceholder('Home'),
-  threads: createContentPlaceholder('Threads'),
-  workflows: createContentPlaceholder('Workflows'),
-  skills: createContentPlaceholder('Skills'),
-  apps: createContentPlaceholder('Apps'),
+const BASE_SIMPLE_MODE_ROUTES: Record<string, React.ComponentType<ContentRouterRenderProps>> = {
+  home: HomeScreen,
+  threads: (props: ContentRouterRenderProps) => <CatalogView {...props} items={STUB_THREADS} />,
+  workflows: (props: ContentRouterRenderProps) => <CatalogView {...props} items={STUB_WORKFLOWS} />,
+  skills: (props: ContentRouterRenderProps) => <CatalogView {...props} items={STUB_SKILLS} />,
+  apps: (props: ContentRouterRenderProps) => <CatalogView {...props} items={STUB_APPS} />,
 }
 
 type PreferencesPanelParams = Parameters<typeof PreferencesPanel>[0]['params']
@@ -284,24 +259,6 @@ function SettingsRoute({
         params={preferencesPanelParams}
       />
     </div>
-  )
-}
-
-function ChatPlaceholder() {
-  return (
-    <ShellPanePlaceholder
-      title="Chat"
-      description="Chat placeholder"
-    />
-  )
-}
-
-function ObservePlaceholder() {
-  return (
-    <ShellPanePlaceholder
-      title="Observe"
-      description="Observe placeholder"
-    />
   )
 }
 
@@ -432,6 +389,7 @@ export function App() {
   const [appPanels, setAppPanels] = useState<AppPanelSnapshot[]>([])
   const [mode, setMode] = useState<ShellMode>('simple')
   const [activeRoute, setActiveRoute] = useState(DEFAULT_ROUTE)
+  const [commandPaletteOpen, setCommandPaletteOpen] = useState(false)
 
   const initializeApp = useCallback(async () => {
     const runId = ++bootstrapRunRef.current
@@ -652,6 +610,20 @@ export function App() {
     }
   }, [handleModeToggle, phase])
 
+  useEffect(() => {
+    if (phase !== 'main') return
+
+    const handleKeyDown = (event: KeyboardEvent) => {
+      if (event.ctrlKey && !event.shiftKey && !event.altKey && event.key.toLowerCase() === 'k') {
+        event.preventDefault()
+        setCommandPaletteOpen((prev) => !prev)
+      }
+    }
+
+    window.addEventListener('keydown', handleKeyDown)
+    return () => window.removeEventListener('keydown', handleKeyDown)
+  }, [phase])
+
   const preferencesPanelParams = useMemo(() => ({
     preferencesApi: {
       ...(window as any).electronAPI?.preferences,
@@ -672,6 +644,29 @@ export function App() {
       <SettingsRoute preferencesPanelParams={preferencesPanelParams} />
     ),
   }), [preferencesPanelParams])
+
+  const commands: CommandGroup[] = useMemo(() => [
+    {
+      id: 'navigation',
+      label: 'Navigation',
+      commands: [
+        { id: 'nav-home', label: 'Go to Home', action: () => handleNavigate('home') },
+        { id: 'nav-threads', label: 'Go to Threads', action: () => handleNavigate('threads') },
+        { id: 'nav-workflows', label: 'Go to Workflows', action: () => handleNavigate('workflows') },
+        { id: 'nav-skills', label: 'Go to Skills', action: () => handleNavigate('skills') },
+        { id: 'nav-apps', label: 'Go to Apps', action: () => handleNavigate('apps') },
+        { id: 'nav-settings', label: 'Go to Settings', action: () => handleNavigate('settings') },
+      ],
+    },
+    {
+      id: 'actions',
+      label: 'Actions',
+      commands: [
+        { id: 'action-toggle-mode', label: 'Toggle Mode', shortcut: 'Ctrl+Shift+D', action: handleModeToggle },
+        { id: 'action-command-palette', label: 'Open Command Palette', shortcut: 'Ctrl+K', action: () => setCommandPaletteOpen(true) },
+      ],
+    },
+  ], [handleNavigate, handleModeToggle])
 
   const navigation = {
     activeRoute,
@@ -782,6 +777,11 @@ export function App() {
         navigate={handleNavigate}
         goBack={handleGoBack}
       >
+        <CommandPalette
+          isOpen={commandPaletteOpen}
+          onClose={() => setCommandPaletteOpen(false)}
+          commands={commands}
+        />
         {mode === 'simple' ? (
           <ShellLayout
             rail={(
@@ -791,7 +791,7 @@ export function App() {
                 onItemSelect={handleNavigate}
               />
             )}
-            chat={<ChatPlaceholder />}
+            chat={<ChatSurface chatApi={window.electronAPI?.chat as ChatAPI | undefined} />}
             content={(
               <ContentRouter
                 activeRoute={activeRoute}
@@ -799,7 +799,7 @@ export function App() {
                 onNavigate={handleNavigate}
               />
             )}
-            observe={<ObservePlaceholder />}
+            observe={<ObservePanel maoApi={(window as any).electronAPI?.mao} />}
           />
         ) : (
           <DockviewShell

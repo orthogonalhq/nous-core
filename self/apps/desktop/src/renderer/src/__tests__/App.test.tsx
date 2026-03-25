@@ -129,9 +129,12 @@ describe('App', () => {
       expect(document.querySelector('[data-shell-area="rail"]')).not.toBeNull()
     })
 
-    expect(screen.getByText('Chat placeholder')).toBeInTheDocument()
-    expect(screen.getByText('Observe placeholder')).toBeInTheDocument()
-    expect(screen.getByText('Content placeholder')).toBeInTheDocument()
+    // HomeScreen renders a greeting (time-dependent)
+    expect(
+      screen.getByText(/Good (morning|afternoon|evening), User/),
+    ).toBeInTheDocument()
+    // Observe column renders (ObservePanel default view text)
+    expect(screen.getByText('No observe content for this view')).toBeInTheDocument()
     expect(screen.queryByText('Dockview shell')).not.toBeInTheDocument()
     expect(mock.mode.get).toHaveBeenCalledTimes(1)
   })
@@ -422,5 +425,95 @@ describe('App', () => {
     })
 
     expect(await screen.findByText('Wizard shell')).toBeInTheDocument()
+  })
+
+  it('opens command palette with Ctrl+K', async () => {
+    const mock = installMock()
+    mock.firstRun.getWizardState.mockResolvedValue(
+      createFirstRunState({
+        currentStep: 'complete',
+        complete: true,
+      }),
+    )
+
+    render(<App />)
+
+    await waitFor(() => {
+      expect(document.querySelector('[data-shell-area="rail"]')).not.toBeNull()
+    })
+
+    // Command palette should not be visible initially
+    expect(screen.queryByRole('dialog', { name: 'Command palette' })).not.toBeInTheDocument()
+
+    // Press Ctrl+K
+    fireEvent.keyDown(window, {
+      ctrlKey: true,
+      key: 'k',
+    })
+
+    expect(screen.getByRole('dialog', { name: 'Command palette' })).toBeInTheDocument()
+  })
+
+  it('closes command palette with Escape', async () => {
+    const mock = installMock()
+    mock.firstRun.getWizardState.mockResolvedValue(
+      createFirstRunState({
+        currentStep: 'complete',
+        complete: true,
+      }),
+    )
+
+    render(<App />)
+
+    await waitFor(() => {
+      expect(document.querySelector('[data-shell-area="rail"]')).not.toBeNull()
+    })
+
+    // Open with Ctrl+K
+    fireEvent.keyDown(window, {
+      ctrlKey: true,
+      key: 'k',
+    })
+
+    const dialog = screen.getByRole('dialog', { name: 'Command palette' })
+    expect(dialog).toBeInTheDocument()
+
+    // Press Escape inside the palette
+    fireEvent.keyDown(dialog, { key: 'Escape' })
+
+    await waitFor(() => {
+      expect(screen.queryByRole('dialog', { name: 'Command palette' })).not.toBeInTheDocument()
+    })
+  })
+
+  it('navigates via command palette', async () => {
+    const mock = installMock()
+    mock.firstRun.getWizardState.mockResolvedValue(
+      createFirstRunState({
+        currentStep: 'complete',
+        complete: true,
+      }),
+    )
+
+    render(<App />)
+
+    await waitFor(() => {
+      expect(document.querySelector('[data-shell-area="rail"]')).not.toBeNull()
+    })
+
+    // Open command palette
+    fireEvent.keyDown(window, {
+      ctrlKey: true,
+      key: 'k',
+    })
+
+    // Click "Go to Threads" command
+    const threadsCommand = screen.getByTestId('command-item-nav-threads')
+    fireEvent.click(threadsCommand)
+
+    // Palette should close after executing command
+    await waitFor(() => {
+      expect(screen.queryByRole('dialog', { name: 'Command palette' })).not.toBeInTheDocument()
+    })
   })
 })

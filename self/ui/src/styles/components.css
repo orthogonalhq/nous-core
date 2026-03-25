@@ -27,6 +27,13 @@
   --nous-catalog-card-bg:      var(--nous-bg-elevated);
   --nous-catalog-card-hover:   var(--nous-bg-hover);
 
+  /* ── Command palette ────────────────────────────────────────────────── */
+  --nous-palette-bg:         var(--nous-bg-elevated);
+  --nous-palette-border:     var(--nous-border-strong);
+  --nous-palette-shadow:     var(--nous-shadow-lg);
+  --nous-palette-item-hover: var(--nous-bg-hover);
+  --nous-palette-match-fg:   var(--nous-accent);
+
   /* ── Panel header ──────────────────────────────────────────────────── */
   --nous-header-bg:     var(--nous-surface);
   --nous-header-fg:     var(--nous-fg-muted);
