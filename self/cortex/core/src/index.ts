@@ -1,6 +1,20 @@
 /**
  * @nous/cortex-core — Central execution loop for Nous-OSS.
+ *
+ * Export groups:
+ * 1. Workmode — admission guard, registry, canonical modes
+ * 2. Chat — scope resolution, intent classification, thread binding
+ * 3. Ingress — trigger validation, authn/authz, dispatch admission
+ * 4. Recovery — checkpoint, retry, rollback, orchestration
+ * 5. Output parsing — model output normalization
+ * 6. AgentGateway — gateway class, factory, budget, correlation, inbox/outbox
+ * 7. Internal MCP — tool surface, authorization matrix, lifecycle/capability handlers
+ * 8. Public MCP — execution bridge for external MCP tools
+ * 9. Prompts — system prompt templates
+ * 10. Gateway runtime — boot sequence, turn executor bridge, backlog, health
  */
+
+// ── 1. Workmode ──────────────────────────────────────────────────────────────
 export {
   InMemoryWorkmodeRegistry,
   InMemoryLeaseStore,
@@ -11,6 +25,8 @@ export {
   SYSTEM_SKILL_AUTHORING,
   evaluateLifecycleAdmission,
 } from './workmode/index.js';
+
+// ── 2. Chat ──────────────────────────────────────────────────────────────────
 export {
   ChatScopeResolver,
   ChatIntentClassifier,
@@ -18,6 +34,8 @@ export {
   InMemoryChatThreadStore,
   ChatThreadBindGuard,
 } from './chat/index.js';
+
+// ── 3. Ingress ───────────────────────────────────────────────────────────────
 export {
   IngressTriggerValidator,
   IngressAuthnVerifier,
@@ -26,6 +44,8 @@ export {
   IngressDispatchAdmission,
   IngressGateway,
 } from './ingress/index.js';
+
+// ── 4. Recovery ──────────────────────────────────────────────────────────────
 export {
   InMemoryRecoveryLedgerStore,
   CheckpointManager,
@@ -33,8 +53,12 @@ export {
   RollbackPolicyEvaluator,
   RecoveryOrchestrator,
 } from './recovery/index.js';
+
+// ── 5. Output parsing ────────────────────────────────────────────────────────
 export { parseModelOutput } from './output-parser.js';
 export type { ParsedModelOutput } from './output-parser.js';
+
+// ── 6. AgentGateway ──────────────────────────────────────────────────────────
 export {
   AgentGateway,
   AgentGatewayFactory,
@@ -48,6 +72,8 @@ export {
   estimateBudgetUnits,
   estimateUsageUnits,
 } from './agent-gateway/index.js';
+
+// ── 7. Internal MCP — tool surface, authorization, lifecycle/capability ──────
 export {
   DefaultSchemaRefValidator,
   ScopedMcpToolSurface,
@@ -81,6 +107,8 @@ export type {
   InternalMcpSurfaceBundle,
   InternalMcpToolName,
 } from './internal-mcp/index.js';
+
+// ── 8. Public MCP — execution bridge ─────────────────────────────────────────
 export {
   PublicMcpExecutionBridge,
 } from './public-mcp/index.js';
@@ -89,10 +117,14 @@ export type {
   PublicMcpExecutionBridgeOptions,
   PublicMcpInternalExecutor,
 } from './public-mcp/index.js';
+
+// ── 9. Prompts ───────────────────────────────────────────────────────────────
 export {
   WORKFLOW_ROUTER_SYSTEM_PROMPT,
   ORCHESTRATOR_SYSTEM_PROMPT,
 } from './prompts/index.js';
+
+// ── 10. Gateway runtime — boot, turn executor bridge, backlog, health ────────
 export {
   createPrincipalSystemGatewayRuntime,
   DocumentBacklogStore,

@@ -71,6 +71,30 @@ export const tokens = {
       approved:      '#0d6e5e',
       needsRevision: '#6b3d99',
     },
+
+    /** Canvas / workflow builder — keep in sync with tokens.css */
+    canvas: {
+      bg:            '#0a0a0a',
+      gridDot:       '#1a1a1a',
+      selectionRing: '#007acc',
+      minimapBg:     '#0f0f0f',
+      minimapNode:   '#2a2a2a',
+    },
+
+    node: {
+      trigger:    '#e06c75',
+      agent:      '#61afef',
+      condition:  '#e5c07b',
+      app:        '#c678dd',
+      tool:       '#56b6c2',
+      memory:     '#98c379',
+      governance: '#d19a66',
+    },
+
+    edge: {
+      execution: '#abb2bf',
+      config:    '#5c6370',
+    },
   },
 
   space: {
