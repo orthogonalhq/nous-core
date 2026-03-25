@@ -861,6 +861,7 @@ export function createNousServices(config?: BootstrapConfig): NousContext {
     witnessService,
     eventBus,
   });
+  const workmodeAdmissionGuard = new WorkmodeAdmissionGuard();
   const publicMcpNamespaceStore = new NamespaceRegistryStore(documentStore);
   const publicMcpAuditStore = new AuditProjectionStore(documentStore);
   const publicMcpQuotaUsageStore = new QuotaUsageStore(documentStore);
@@ -1001,8 +1002,7 @@ export function createNousServices(config?: BootstrapConfig): NousContext {
       instanceRoot,
       outputSchemaValidator: new DefaultSchemaRefValidator(),
       promotedMemoryBridgeService: publicPromotedBridgeService,
-      // TODO(Phase 1.3): Wire real admission guard from gateway runtime deps
-      workmodeAdmissionGuard: new WorkmodeAdmissionGuard(),
+      workmodeAdmissionGuard,
     });
     const surfaceService = new PublicMcpSurfaceService({
       runtimeAdapter,
@@ -1020,8 +1020,7 @@ export function createNousServices(config?: BootstrapConfig): NousContext {
       deps: {
         externalSourceMemoryService,
         publicMcpSurfaceService: surfaceService,
-        // TODO(Phase 1.3): Wire real admission guard from gateway runtime deps
-        workmodeAdmissionGuard: new WorkmodeAdmissionGuard(),
+        workmodeAdmissionGuard,
       },
     });
 

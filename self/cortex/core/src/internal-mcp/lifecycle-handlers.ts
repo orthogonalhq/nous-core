@@ -405,6 +405,30 @@ export function createLifecycleHandlers(options: {
             );
           }
 
+          // Scope guard: validate execution context consistency for dispatch
+          const scopeGuard = options.deps.workmodeAdmissionGuard.evaluateScopeGuard?.({
+            sourceActor: authorityActorForClass(options.agentClass),
+            targetActor: targetAuthorityActorForDispatch(request.targetClass),
+            action: 'dispatch_agent',
+            projectRunId: lifecycleContext.execution?.executionId,
+            workmodeId: lifecycleContext.execution?.workmodeId,
+            executionContext: lifecycleContext.execution
+              ? {
+                  workmodeId: lifecycleContext.execution.workmodeId,
+                  agentClass: options.agentClass,
+                  nodeDefinitionId: lifecycleContext.execution.nodeDefinitionId,
+                }
+              : undefined,
+          });
+
+          if (scopeGuard && !scopeGuard.allowed) {
+            throw new NousError(
+              scopeGuard.reasonCode,
+              'DISPATCH_ADMISSION_DENIED',
+              { evidenceRefs: scopeGuard.evidenceRefs },
+            );
+          }
+
           const targetNode = await resolveDispatchTargetNode({
             deps: options.deps,
             lifecycleContext,
