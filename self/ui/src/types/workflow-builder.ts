@@ -72,6 +72,59 @@ export interface NodeRegistryEntry {
   colorVar: string
 }
 
+// ─── Phase 2 types ─────────────────────────────────────────────────────────
+
+/** State for a single floating panel instance. */
+export interface FloatingPanelState {
+  /** Current x position relative to the canvas wrapper. */
+  x: number
+  /** Current y position relative to the canvas wrapper. */
+  y: number
+  /** Whether the panel body is collapsed (header-only mode). */
+  collapsed: boolean
+  /** Whether the panel position is locked (drag disabled). */
+  pinned: boolean
+  /** Whether the panel is visible. */
+  visible: boolean
+}
+
+/**
+ * Position initializer for a floating panel.
+ * Preset values resolve to computed positions during mount.
+ */
+export type FloatingPanelPosition =
+  | 'left'
+  | 'right'
+  | { x: number; y: number }
+
+/**
+ * Palette display item — derived from NodeRegistryEntry
+ * with rendering-specific fields for the Node Palette UI.
+ */
+export interface NodePaletteItem {
+  /** Full nous.<category>.<action> type key from the registry. */
+  nousType: string
+  /** Display label for the palette item. */
+  label: string
+  /** Node category from workflow-convention-v1. */
+  category: NodeCategory
+  /** CSS custom property reference for the category color. */
+  colorVar: string
+  /** Codicon icon class name (e.g., 'codicon-zap'). */
+  icon: string
+}
+
+/**
+ * Discriminated union for authoring actions (undo/redo).
+ * Type stubs only — full implementation in SP 2.2.
+ */
+export type AuthoringAction =
+  | { type: 'add-node'; nodeId: string }
+  | { type: 'remove-node'; nodeId: string }
+  | { type: 'add-edge'; edgeId: string }
+  | { type: 'remove-edge'; edgeId: string }
+  | { type: 'move-node'; nodeId: string; fromX: number; fromY: number; toX: number; toY: number }
+
 /** Top-level builder state — consumed by useBuilderState in SP 1.4. */
 export interface WorkflowBuilderState {
   nodes: WorkflowBuilderNode[]
