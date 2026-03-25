@@ -238,5 +238,31 @@ describe('WorkmodeAdmissionGuard', () => {
       });
       expect(result.allowed).toBe(true);
     });
+
+    it('treats dispatch_agent as scope-requiring (CF-002 action string alignment)', () => {
+      const result = guard.evaluateScopeGuard({
+        sourceActor: 'orchestration_agent',
+        targetActor: 'worker_agent',
+        action: 'dispatch_agent',
+      });
+      expect(result.allowed).toBe(false);
+      if (!result.allowed) {
+        expect(result.reasonCode).toBe('WMODE-SCOPE-GUARD-VIOLATION');
+        expect(result.evidenceRefs[0]).toContain('dispatch_agent');
+      }
+    });
+
+    it('allows dispatch_agent with valid execution context', () => {
+      const result = guard.evaluateScopeGuard({
+        sourceActor: 'orchestration_agent',
+        targetActor: 'worker_agent',
+        action: 'dispatch_agent',
+        executionContext: {
+          workmodeId: 'system:implementation',
+          agentClass: 'Orchestrator',
+        },
+      });
+      expect(result.allowed).toBe(true);
+    });
   });
 });
