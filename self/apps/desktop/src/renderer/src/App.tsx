@@ -22,6 +22,8 @@ import {
   AgentPanel,
   PreferencesPanel,
   WorkflowBuilderPanel,
+  HealthQueryProvider,
+  type HealthFetchers,
   type ChatAPI,
 } from '@nous/ui/panels'
 import {
@@ -341,6 +343,28 @@ function wait(delayMs: number): Promise<void> {
   return new Promise((resolve) => {
     window.setTimeout(resolve, delayMs)
   })
+}
+
+/**
+ * Call a tRPC query endpoint via raw HTTP fetch.
+ * tRPC batch-compatible: GET /api/trpc/<procedure>
+ */
+async function trpcQuery(procedure: string): Promise<unknown> {
+  const status = await window.electronAPI.backend.getStatus()
+  if (!status.trpcUrl) throw new Error('Backend not ready')
+  const res = await fetch(`${status.trpcUrl}/${procedure}`, {
+    headers: { 'Content-Type': 'application/json' },
+  })
+  if (!res.ok) throw new Error(`tRPC ${procedure}: ${res.status}`)
+  const json = await res.json()
+  // tRPC wraps query results in { result: { data } }
+  return json?.result?.data
+}
+
+const healthFetchers: HealthFetchers = {
+  fetchSystemStatus: () => trpcQuery('health.systemStatus') as any,
+  fetchProviderHealth: () => trpcQuery('health.providerHealth') as any,
+  fetchAgentStatus: () => trpcQuery('health.agentStatus') as any,
 }
 
 // Outer chrome shell — titlebar + content area + statusbar
@@ -774,6 +798,7 @@ export function App() {
       mode={mode}
       onModeToggle={handleModeToggle}
     >
+      <HealthQueryProvider fetchers={healthFetchers}>
       <ShellProvider
         mode={mode}
         activeRoute={activeRoute}
@@ -814,6 +839,7 @@ export function App() {
           />
         )}
       </ShellProvider>
+      </HealthQueryProvider>
     </ChromeShell>
   )
 }
