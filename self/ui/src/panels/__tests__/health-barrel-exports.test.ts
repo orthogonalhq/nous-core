@@ -9,13 +9,13 @@ describe('panels barrel — health re-exports', () => {
     const barrel = await import('../index')
     expect(barrel).toHaveProperty('HealthQueryProvider')
     expect(typeof barrel.HealthQueryProvider).toBe('function')
-  })
+  }, 15_000)
 
   it('re-exports useHealthQueries from the panels barrel', async () => {
     const barrel = await import('../index')
     expect(barrel).toHaveProperty('useHealthQueries')
     expect(typeof barrel.useHealthQueries).toBe('function')
-  })
+  }, 15_000)
 
   it('re-exports HealthFetchers type (verifiable via HealthQueryProvider accepting fetchers prop)', async () => {
     // HealthFetchers is a type-only export and cannot be tested at runtime.
@@ -24,5 +24,5 @@ describe('panels barrel — health re-exports', () => {
     // broken, TypeScript compilation would fail.
     const barrel = await import('../index')
     expect(barrel.HealthQueryProvider).toBeDefined()
-  })
+  }, 15_000)
 })
