@@ -189,4 +189,20 @@
   --nous-menu-shortcut-fg:      var(--nous-fg-muted);
   --nous-menu-label-fg:         var(--nous-fg-subtle);
   --nous-menu-separator:        var(--nous-border);
+
+  /* ── Workflow builder ──────────────────────────────────────────────── */
+  --nous-builder-canvas-bg:       var(--nous-canvas-bg);
+  --nous-builder-grid-color:      var(--nous-canvas-grid-dot);
+  --nous-builder-node-trigger:    var(--nous-node-trigger);
+  --nous-builder-node-agent:      var(--nous-node-agent);
+  --nous-builder-node-condition:  var(--nous-node-condition);
+  --nous-builder-node-app:        var(--nous-node-app);
+  --nous-builder-node-tool:       var(--nous-node-tool);
+  --nous-builder-node-memory:     var(--nous-node-memory);
+  --nous-builder-node-governance: var(--nous-node-governance);
+  --nous-builder-edge-execution:  var(--nous-edge-execution);
+  --nous-builder-edge-config:     var(--nous-edge-config);
+  --nous-builder-selection-ring:  var(--nous-canvas-selection-ring);
+  --nous-builder-minimap-bg:      var(--nous-canvas-minimap-bg);
+  --nous-builder-minimap-node:    var(--nous-canvas-minimap-node);
 }

@@ -1,0 +1,83 @@
+import type { Node, Edge, Viewport } from '@xyflow/react'
+
+/**
+ * Node categories — mirrors NousNodeCategory from @nous/shared.
+ * Kept as a local string literal union to avoid @nous/ui importing
+ * runtime Zod schemas from @nous/shared for a compile-time-only concern.
+ *
+ * 7 categories per workflow-convention-v1 `nous.<category>.<action>` namespace.
+ */
+export type NodeCategory =
+  | 'trigger'
+  | 'agent'
+  | 'condition'
+  | 'app'
+  | 'tool'
+  | 'memory'
+  | 'governance'
+
+/** Data payload carried by each builder node. */
+export interface WorkflowBuilderNodeData {
+  label: string
+  category: NodeCategory
+  description?: string
+  /** Full nous.<category>.<action> type string from workflow-convention-v1. */
+  nousType: string
+  [key: string]: unknown
+}
+
+/**
+ * Builder node — extends React Flow's Node<T> generic.
+ * The `type` field is the React Flow component key (e.g., 'builderNode'),
+ * not the nous.<category>.<action> string (which lives in data.nousType).
+ */
+export type WorkflowBuilderNode = Node<WorkflowBuilderNodeData>
+
+/** Edge type discriminator for visual styling. */
+export type BuilderEdgeType = 'execution' | 'config'
+
+/** Data payload carried by each builder edge. */
+export interface WorkflowBuilderEdgeData {
+  edgeType: BuilderEdgeType
+  label?: string
+  [key: string]: unknown
+}
+
+/** Builder edge — extends React Flow's Edge<T> generic. */
+export type WorkflowBuilderEdge = Edge<WorkflowBuilderEdgeData>
+
+/** Builder interaction mode per UX design direction. */
+export type BuilderMode = 'authoring' | 'monitoring' | 'inspecting'
+
+/** Port direction for node connection points. */
+export type PortDirection = 'input' | 'output'
+
+/** Definition of a single connection port on a node type. */
+export interface NodePortDefinition {
+  id: string
+  label: string
+  direction: PortDirection
+  /** If true, multiple edges can connect to/from this port. */
+  multi?: boolean
+}
+
+/** Registry entry mapping a node category to its visual/behavioral config. */
+export interface NodeRegistryEntry {
+  category: NodeCategory
+  /** Default display label for new nodes of this category. */
+  defaultLabel: string
+  /** Default ports for this node category. */
+  ports: NodePortDefinition[]
+  /** CSS custom property reference for the node category color. */
+  colorVar: string
+}
+
+/** Top-level builder state — consumed by useBuilderState in SP 1.4. */
+export interface WorkflowBuilderState {
+  nodes: WorkflowBuilderNode[]
+  edges: WorkflowBuilderEdge[]
+  /** Currently selected node/edge IDs. */
+  selectedIds: string[]
+  mode: BuilderMode
+  viewport: Viewport
+}
