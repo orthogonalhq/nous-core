@@ -98,7 +98,7 @@ export class DocumentBacklogStore {
     return updated;
   }
 
-  async resetActiveToQueued(): Promise<void> {
+  async resetActiveToQueued(): Promise<number> {
     const active = await this.listByStatus('active');
     for (const entry of active) {
       await this.transition(entry.id, 'queued', {
@@ -106,6 +106,7 @@ export class DocumentBacklogStore {
         resultStatus: undefined,
       });
     }
+    return active.length;
   }
 
   async requeueSuspended(criteria?: {
@@ -168,14 +169,34 @@ export class DocumentBacklogStore {
       0,
     );
 
-    const pressureTrend =
-      queuedCount === 0 && activeCount === 0 && suspendedCount === 0
-        ? 'idle'
-        : suspendedCount > 0
-          ? 'degrading'
-          : queuedCount > config.activeCapacity
-            ? 'rising'
-            : 'steady';
+    // ADR Decision 5: 25%/75% windowed wait-time comparison with 20% threshold
+    let pressureTrend: 'increasing' | 'stable' | 'decreasing' = 'stable';
+    if (terminalWindowEntries.length > 0) {
+      const sorted = [...terminalWindowEntries].sort(
+        (a, b) => Date.parse(a.completedAt!) - Date.parse(b.completedAt!),
+      );
+      const cutoffIndex = Math.ceil(sorted.length * 0.75);
+      const earlyEntries = sorted.slice(0, cutoffIndex);
+      const recentEntries = sorted.slice(cutoffIndex);
+
+      const earlyWaits = earlyEntries
+        .filter((e) => e.promotedAt)
+        .map((e) => Date.parse(e.promotedAt!) - Date.parse(e.acceptedAt));
+      const recentWaits = recentEntries
+        .filter((e) => e.promotedAt)
+        .map((e) => Date.parse(e.promotedAt!) - Date.parse(e.acceptedAt));
+
+      const earlyAvg = average(earlyWaits);
+      const recentAvg = average(recentWaits);
+
+      if (earlyWaits.length > 0 && recentWaits.length > 0) {
+        if (recentAvg > earlyAvg * 1.2) {
+          pressureTrend = 'increasing';
+        } else if (recentAvg < earlyAvg * 0.8) {
+          pressureTrend = 'decreasing';
+        }
+      }
+    }
 
     return BacklogAnalyticsSchema.parse({
       queuedCount,

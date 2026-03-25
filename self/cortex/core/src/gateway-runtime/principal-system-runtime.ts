@@ -227,6 +227,9 @@ implements IPrincipalSystemGatewayRuntime, ISystemInboxSubmissionService {
       createInboxFrame('Principal/System inbox exchange ready.', this.now),
     );
     this.healthSink.markInboxReady(this.now());
+    if (!this.deps.documentStore) {
+      console.warn('Using in-memory document store for backlog queue -- queued work will not survive restart.');
+    }
     this.systemBacklogQueue = new SystemBacklogQueue({
       documentStore: this.deps.documentStore ?? createInMemoryDocumentStore(),
       healthSink: this.healthSink,

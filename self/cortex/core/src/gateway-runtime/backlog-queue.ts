@@ -102,7 +102,13 @@ export class SystemBacklogQueue {
   }
 
   private async initialize(): Promise<void> {
-    await this.store.resetActiveToQueued();
+    const resetCount = await this.store.resetActiveToQueued();
+    if (resetCount > 0) {
+      console.warn(`Backlog recovery: ${resetCount} entries reset from active to queued.`);
+      this.deps.healthSink.addIssue('backlog_recovery_reset', 'Cortex::System');
+    } else {
+      console.info('Backlog recovery: 0 entries reset from active to queued.');
+    }
     await this.refreshAnalytics();
     void this.promote();
   }
