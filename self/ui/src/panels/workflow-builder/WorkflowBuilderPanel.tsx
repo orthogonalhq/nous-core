@@ -11,16 +11,16 @@ import {
   applyNodeChanges,
   applyEdgeChanges,
 } from '@xyflow/react'
-import type { NodeProps, NodeChange, EdgeChange } from '@xyflow/react'
+import type { NodeChange, EdgeChange } from '@xyflow/react'
 import type { IDockviewPanelProps } from 'dockview-react'
 import type {
   WorkflowBuilderNode,
   WorkflowBuilderEdge,
-  WorkflowBuilderNodeData,
-  NodeCategory,
 } from '../../types/workflow-builder'
 import { DEMO_WORKFLOW_NODES, DEMO_WORKFLOW_EDGES } from './demo-workflow'
 import { BuilderToolbar } from './BuilderToolbar'
+import { nodeTypes } from './nodes'
+import { edgeTypes } from './edges'
 
 import '@xyflow/react/dist/style.css'
 
@@ -31,73 +31,8 @@ export interface WorkflowBuilderPanelCoreProps {
 }
 
 interface WorkflowBuilderDockviewProps extends IDockviewPanelProps {
-  params?: Record<string, unknown>
+  params: Record<string, unknown>
 }
-
-// ─── Category color mapping ─────────────────────────────────────────────────
-
-const CATEGORY_COLOR_VAR: Record<NodeCategory, string> = {
-  trigger: 'var(--nous-builder-node-trigger)',
-  agent: 'var(--nous-builder-node-agent)',
-  condition: 'var(--nous-builder-node-condition)',
-  app: 'var(--nous-builder-node-app)',
-  tool: 'var(--nous-builder-node-tool)',
-  memory: 'var(--nous-builder-node-memory)',
-  governance: 'var(--nous-builder-node-governance)',
-}
-
-// ─── Minimal node placeholder (replaced by BaseNode in SP 1.3) ─────────────
-
-function BuilderMinimalNode({ data }: NodeProps<WorkflowBuilderNode>) {
-  const nodeData = data as unknown as WorkflowBuilderNodeData
-  const accentColor = CATEGORY_COLOR_VAR[nodeData.category] ?? 'var(--nous-fg-dim)'
-
-  return (
-    <div
-      style={{
-        background: 'var(--nous-bg-elevated)',
-        border: '1px solid var(--nous-border-strong)',
-        borderLeft: `3px solid ${accentColor}`,
-        borderRadius: '6px',
-        padding: 'var(--nous-space-lg) var(--nous-space-2xl)',
-        color: 'var(--nous-fg)',
-        fontSize: 'var(--nous-font-size-sm)',
-        minWidth: 140,
-        maxWidth: 220,
-      }}
-    >
-      <div
-        style={{
-          fontWeight: 600,
-          marginBottom: 'var(--nous-space-2xs)',
-        }}
-      >
-        {nodeData.label}
-      </div>
-      {nodeData.description && (
-        <div
-          style={{
-            fontSize: 'var(--nous-font-size-xs)',
-            color: 'var(--nous-fg-subtle)',
-            lineHeight: 1.3,
-            overflow: 'hidden',
-            textOverflow: 'ellipsis',
-            display: '-webkit-box',
-            WebkitLineClamp: 2,
-            WebkitBoxOrient: 'vertical',
-          }}
-        >
-          {nodeData.description}
-        </div>
-      )}
-    </div>
-  )
-}
-
-// ─── Stable nodeTypes / edgeTypes (React Flow requires referential stability) ─
-
-const nodeTypes = { builderNode: BuilderMinimalNode }
-const edgeTypes = {}
 
 // ─── Inner canvas (runtime-agnostic — no dockview imports) ──────────────────
 
