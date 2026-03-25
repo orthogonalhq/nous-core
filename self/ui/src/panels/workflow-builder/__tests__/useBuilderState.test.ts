@@ -9,6 +9,27 @@ vi.mock('@xyflow/react', () => reactFlowMock)
 import { useBuilderState } from '../hooks/useBuilderState'
 import { DEMO_WORKFLOW_NODES, DEMO_WORKFLOW_EDGES } from '../demo-workflow'
 
+// ─── Test YAML fixture ──────────────────────────────────────────────────────
+
+const TEST_YAML = `
+name: Test Workflow
+version: 1
+nodes:
+  - id: trigger-1
+    name: Webhook Trigger
+    type: nous.trigger.webhook
+    position: [100, 50]
+    parameters:
+      path: /api/hook
+  - id: agent-1
+    name: Classify Intent
+    type: nous.agent.classify
+    position: [100, 250]
+connections:
+  - from: trigger-1
+    to: agent-1
+`
+
 describe('useBuilderState', () => {
   // ─── Tier 1 — Contract ──────────────────────────────────────────────────────
 
@@ -44,6 +65,26 @@ describe('useBuilderState', () => {
     it('initial mode is "authoring"', () => {
       const { result } = renderHook(() => useBuilderState())
       expect(result.current.mode).toBe('authoring')
+    })
+
+    it('initial isDirty is false', () => {
+      const { result } = renderHook(() => useBuilderState())
+      expect(result.current.isDirty).toBe(false)
+    })
+
+    it('initial validationErrors is empty array', () => {
+      const { result } = renderHook(() => useBuilderState())
+      expect(result.current.validationErrors).toEqual([])
+    })
+
+    it('initial canUndo is false', () => {
+      const { result } = renderHook(() => useBuilderState())
+      expect(result.current.canUndo).toBe(false)
+    })
+
+    it('initial canRedo is false', () => {
+      const { result } = renderHook(() => useBuilderState())
+      expect(result.current.canRedo).toBe(false)
     })
   })
 
@@ -291,6 +332,78 @@ describe('useBuilderState', () => {
       })
     })
 
+    describe('removeEdge', () => {
+      it('removes the target edge', () => {
+        const { result } = renderHook(() => useBuilderState())
+        const initialCount = result.current.edges.length
+
+        act(() => {
+          result.current.removeEdge('edge-1')
+        })
+
+        expect(result.current.edges).toHaveLength(initialCount - 1)
+        expect(result.current.edges.find((e) => e.id === 'edge-1')).toBeUndefined()
+      })
+    })
+
+    describe('updateNodeData', () => {
+      it('merges partial data without losing existing fields', () => {
+        const { result } = renderHook(() => useBuilderState())
+        const nodeId = result.current.nodes[0].id
+        const originalLabel = result.current.nodes[0].data.label
+
+        act(() => {
+          result.current.updateNodeData(nodeId, { description: 'Updated description' })
+        })
+
+        const updatedNode = result.current.nodes.find((n) => n.id === nodeId)!
+        expect(updatedNode.data.description).toBe('Updated description')
+        expect(updatedNode.data.label).toBe(originalLabel)
+        expect(updatedNode.data.category).toBe('trigger')
+      })
+
+      it('with empty partial {} produces no visible change', () => {
+        const { result } = renderHook(() => useBuilderState())
+        const nodeId = result.current.nodes[0].id
+        const originalData = { ...result.current.nodes[0].data }
+
+        act(() => {
+          result.current.updateNodeData(nodeId, {})
+        })
+
+        const updatedNode = result.current.nodes.find((n) => n.id === nodeId)!
+        expect(updatedNode.data.label).toBe(originalData.label)
+        expect(updatedNode.data.category).toBe(originalData.category)
+      })
+    })
+
+    describe('moveNode', () => {
+      it('updates node position', () => {
+        const { result } = renderHook(() => useBuilderState())
+        const nodeId = result.current.nodes[0].id
+
+        act(() => {
+          result.current.moveNode(nodeId, { x: 999, y: 888 })
+        })
+
+        const movedNode = result.current.nodes.find((n) => n.id === nodeId)!
+        expect(movedNode.position).toEqual({ x: 999, y: 888 })
+      })
+
+      it('move to same position is still tracked as undoable command', () => {
+        const { result } = renderHook(() => useBuilderState())
+        const nodeId = result.current.nodes[0].id
+        const originalPosition = { ...result.current.nodes[0].position }
+
+        act(() => {
+          result.current.moveNode(nodeId, originalPosition)
+        })
+
+        // Should still be undoable
+        expect(result.current.canUndo).toBe(true)
+      })
+    })
+
     describe('onConnect wiring', () => {
       it('onConnect calls addEdge and creates an edge', () => {
         const { result } = renderHook(() => useBuilderState())
@@ -310,6 +423,213 @@ describe('useBuilderState', () => {
         expect(newEdge.source).toBe('node-6')
         expect(newEdge.target).toBe('node-7')
       })
+    })
+  })
+
+  // ─── SP 2.2 — isDirty and validation ─────────────────────────────────────
+
+  describe('SP 2.2 — isDirty tracking', () => {
+    it('isDirty becomes true after addNode', () => {
+      const { result } = renderHook(() => useBuilderState())
+      expect(result.current.isDirty).toBe(false)
+
+      act(() => {
+        result.current.addNode('nous.trigger.webhook', { x: 0, y: 0 })
+      })
+
+      expect(result.current.isDirty).toBe(true)
+    })
+
+    it('isDirty is false after loadSpec', () => {
+      const { result } = renderHook(() => useBuilderState())
+
+      // Make dirty first
+      act(() => {
+        result.current.addNode('nous.trigger.webhook', { x: 0, y: 0 })
+      })
+      expect(result.current.isDirty).toBe(true)
+
+      // Load spec resets
+      act(() => {
+        result.current.loadSpec(TEST_YAML)
+      })
+
+      expect(result.current.isDirty).toBe(false)
+    })
+
+    it('markClean resets isDirty to false', () => {
+      const { result } = renderHook(() => useBuilderState())
+
+      act(() => {
+        result.current.addNode('nous.trigger.webhook', { x: 0, y: 0 })
+      })
+      expect(result.current.isDirty).toBe(true)
+
+      act(() => {
+        result.current.markClean()
+      })
+      expect(result.current.isDirty).toBe(false)
+    })
+  })
+
+  // ─── SP 2.2 — Spec load/serialize ────────────────────────────────────────
+
+  describe('SP 2.2 — Spec load and serialize', () => {
+    it('loadSpec replaces nodes/edges with spec-projected state', () => {
+      const { result } = renderHook(() => useBuilderState())
+
+      act(() => {
+        const loadResult = result.current.loadSpec(TEST_YAML)
+        expect(loadResult.success).toBe(true)
+      })
+
+      expect(result.current.nodes).toHaveLength(2)
+      expect(result.current.edges).toHaveLength(1)
+      expect(result.current.nodes[0].id).toBe('trigger-1')
+      expect(result.current.nodes[1].id).toBe('agent-1')
+    })
+
+    it('loadSpec returns errors for invalid YAML', () => {
+      const { result } = renderHook(() => useBuilderState())
+      const initialNodeCount = result.current.nodes.length
+
+      let loadResult: { success: boolean; errors?: any[] }
+      act(() => {
+        loadResult = result.current.loadSpec('not: valid: yaml: ][')
+      })
+
+      // Builder state should be preserved on failure
+      expect(result.current.nodes).toHaveLength(initialNodeCount)
+    })
+
+    it('getCurrentSpec returns a valid WorkflowSpec', () => {
+      const { result } = renderHook(() => useBuilderState())
+
+      act(() => {
+        result.current.loadSpec(TEST_YAML)
+      })
+
+      const specResult = result.current.getCurrentSpec()
+      expect(specResult).not.toBeNull()
+      expect(specResult!.spec.name).toBe('Test Workflow')
+      expect(specResult!.spec.version).toBe(1)
+      expect(specResult!.spec.nodes).toHaveLength(2)
+      expect(specResult!.yaml).toBeTruthy()
+    })
+
+    it('loading a new spec clears undo history', () => {
+      const { result } = renderHook(() => useBuilderState())
+
+      // Make a mutation to create undo history
+      act(() => {
+        result.current.addNode('nous.trigger.webhook', { x: 0, y: 0 })
+      })
+      expect(result.current.canUndo).toBe(true)
+
+      // Load spec
+      act(() => {
+        result.current.loadSpec(TEST_YAML)
+      })
+
+      expect(result.current.canUndo).toBe(false)
+    })
+  })
+
+  // ─── SP 2.2 — Undo/Redo integration ──────────────────────────────────────
+
+  describe('SP 2.2 — Undo/Redo integration', () => {
+    it('canUndo/canRedo reflect correct state through mutation -> undo -> redo', () => {
+      const { result } = renderHook(() => useBuilderState())
+
+      expect(result.current.canUndo).toBe(false)
+      expect(result.current.canRedo).toBe(false)
+
+      // Add node
+      act(() => {
+        result.current.addNode('nous.trigger.webhook', { x: 0, y: 0 })
+      })
+      expect(result.current.canUndo).toBe(true)
+      expect(result.current.canRedo).toBe(false)
+
+      // Undo
+      act(() => {
+        result.current.undo()
+      })
+      expect(result.current.canUndo).toBe(false)
+      expect(result.current.canRedo).toBe(true)
+
+      // Redo
+      act(() => {
+        result.current.redo()
+      })
+      expect(result.current.canUndo).toBe(true)
+      expect(result.current.canRedo).toBe(false)
+    })
+
+    it('undo restores node AND its connected edges after removeNode', () => {
+      const { result } = renderHook(() => useBuilderState())
+
+      // node-1 is source of edge-1 (to node-2)
+      const edgesBefore = result.current.edges.filter(
+        (e) => e.source === 'node-1' || e.target === 'node-1',
+      )
+      const nodesBefore = result.current.nodes.length
+
+      act(() => {
+        result.current.removeNode('node-1')
+      })
+
+      expect(result.current.nodes.find((n) => n.id === 'node-1')).toBeUndefined()
+
+      // Undo
+      act(() => {
+        result.current.undo()
+      })
+
+      expect(result.current.nodes).toHaveLength(nodesBefore)
+      expect(result.current.nodes.find((n) => n.id === 'node-1')).toBeDefined()
+
+      // Connected edges should be restored
+      const edgesAfterUndo = result.current.edges.filter(
+        (e) => e.source === 'node-1' || e.target === 'node-1',
+      )
+      expect(edgesAfterUndo.length).toBe(edgesBefore.length)
+    })
+
+    it('undo/redo for addNode works correctly', () => {
+      const { result } = renderHook(() => useBuilderState())
+      const initialCount = result.current.nodes.length
+
+      act(() => {
+        result.current.addNode('nous.trigger.webhook', { x: 50, y: 50 })
+      })
+      expect(result.current.nodes).toHaveLength(initialCount + 1)
+
+      act(() => {
+        result.current.undo()
+      })
+      expect(result.current.nodes).toHaveLength(initialCount)
+
+      act(() => {
+        result.current.redo()
+      })
+      expect(result.current.nodes).toHaveLength(initialCount + 1)
+    })
+
+    it('undo/redo for moveNode restores position', () => {
+      const { result } = renderHook(() => useBuilderState())
+      const nodeId = result.current.nodes[0].id
+      const originalPos = { ...result.current.nodes[0].position }
+
+      act(() => {
+        result.current.moveNode(nodeId, { x: 500, y: 600 })
+      })
+      expect(result.current.nodes.find((n) => n.id === nodeId)!.position).toEqual({ x: 500, y: 600 })
+
+      act(() => {
+        result.current.undo()
+      })
+      expect(result.current.nodes.find((n) => n.id === nodeId)!.position).toEqual(originalPos)
     })
   })
 })
