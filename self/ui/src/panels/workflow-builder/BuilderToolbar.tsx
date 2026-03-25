@@ -1,10 +1,12 @@
 'use client'
 
-import { useState } from 'react'
 import { useReactFlow } from '@xyflow/react'
 import type { BuilderMode } from '../../types/workflow-builder'
 
-// TODO: SP 1.4+ — mode state will be lifted to panel level or shared context when mode behavior is introduced
+export interface BuilderToolbarProps {
+  mode: BuilderMode
+  onModeChange: (mode: BuilderMode) => void
+}
 
 const MODES: { value: BuilderMode; label: string; icon: string }[] = [
   { value: 'authoring', label: 'Author', icon: 'codicon-edit' },
@@ -65,8 +67,7 @@ const separatorStyle: React.CSSProperties = {
   flexShrink: 0,
 }
 
-export function BuilderToolbar() {
-  const [mode, setMode] = useState<BuilderMode>('authoring')
+export function BuilderToolbar({ mode, onModeChange }: BuilderToolbarProps) {
   const { zoomIn, zoomOut, fitView } = useReactFlow()
 
   return (
@@ -78,7 +79,7 @@ export function BuilderToolbar() {
           type="button"
           title={m.label}
           style={mode === m.value ? activeButtonStyle : buttonBaseStyle}
-          onClick={() => setMode(m.value)}
+          onClick={() => onModeChange(m.value)}
         >
           <i className={`codicon ${m.icon}`} style={{ fontSize: 14, marginRight: 'var(--nous-space-xs)' }} />
           <span style={{ fontSize: 'var(--nous-font-size-xs)' }}>{m.label}</span>

@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useCallback, useMemo } from 'react'
+import { useMemo } from 'react'
 import {
   ReactFlow,
   ReactFlowProvider,
@@ -8,16 +8,9 @@ import {
   BackgroundVariant,
   MiniMap,
   Controls,
-  applyNodeChanges,
-  applyEdgeChanges,
 } from '@xyflow/react'
-import type { NodeChange, EdgeChange } from '@xyflow/react'
 import type { IDockviewPanelProps } from 'dockview-react'
-import type {
-  WorkflowBuilderNode,
-  WorkflowBuilderEdge,
-} from '../../types/workflow-builder'
-import { DEMO_WORKFLOW_NODES, DEMO_WORKFLOW_EDGES } from './demo-workflow'
+import { useBuilderState } from './hooks/useBuilderState'
 import { BuilderToolbar } from './BuilderToolbar'
 import { nodeTypes } from './nodes'
 import { edgeTypes } from './edges'
@@ -37,20 +30,18 @@ interface WorkflowBuilderDockviewProps extends IDockviewPanelProps {
 // ─── Inner canvas (runtime-agnostic — no dockview imports) ──────────────────
 
 function WorkflowBuilderCanvas({ className }: { className?: string }) {
-  const [nodes, setNodes] = useState<WorkflowBuilderNode[]>(DEMO_WORKFLOW_NODES)
-  const [edges, setEdges] = useState<WorkflowBuilderEdge[]>(DEMO_WORKFLOW_EDGES)
-
-  const onNodesChange = useCallback(
-    (changes: NodeChange<WorkflowBuilderNode>[]) =>
-      setNodes((nds) => applyNodeChanges(changes, nds)),
-    [],
-  )
-
-  const onEdgesChange = useCallback(
-    (changes: EdgeChange<WorkflowBuilderEdge>[]) =>
-      setEdges((eds) => applyEdgeChanges(changes, eds)),
-    [],
-  )
+  const {
+    nodes,
+    edges,
+    onNodesChange,
+    onEdgesChange,
+    onConnect,
+    onNodeClick,
+    onEdgeClick,
+    onPaneClick,
+    mode,
+    setMode,
+  } = useBuilderState()
 
   const memoizedNodeTypes = useMemo(() => nodeTypes, [])
   const memoizedEdgeTypes = useMemo(() => edgeTypes, [])
@@ -70,6 +61,10 @@ function WorkflowBuilderCanvas({ className }: { className?: string }) {
           edges={edges}
           onNodesChange={onNodesChange}
           onEdgesChange={onEdgesChange}
+          onConnect={onConnect}
+          onNodeClick={onNodeClick}
+          onEdgeClick={onEdgeClick}
+          onPaneClick={onPaneClick}
           nodeTypes={memoizedNodeTypes}
           edgeTypes={memoizedEdgeTypes}
           fitView
@@ -100,7 +95,7 @@ function WorkflowBuilderCanvas({ className }: { className?: string }) {
             }}
           />
         </ReactFlow>
-        <BuilderToolbar />
+        <BuilderToolbar mode={mode} onModeChange={setMode} />
       </ReactFlowProvider>
     </div>
   )
