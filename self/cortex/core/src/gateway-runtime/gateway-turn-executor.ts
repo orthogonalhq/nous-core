@@ -32,6 +32,8 @@ import {
 import { AgentGatewayFactory } from '../agent-gateway/index.js';
 import { createInternalMcpSurfaceBundle } from '../internal-mcp/index.js';
 import type { InternalMcpOutputSchemaValidator } from '../internal-mcp/types.js';
+import type { IWorkmodeAdmissionGuard } from '@nous/shared';
+import { WorkmodeAdmissionGuard } from '../workmode/admission-guard.js';
 import { parseModelOutput } from '../output-parser.js';
 import { GatewayTraceRecorder } from './trace-recorder.js';
 
@@ -121,6 +123,7 @@ export interface GatewayBackedTurnExecutorDeps {
   instanceRoot?: string;
   outputSchemaValidator?: InternalMcpOutputSchemaValidator;
   agentGatewayFactory?: IAgentGatewayFactory;
+  workmodeAdmissionGuard?: IWorkmodeAdmissionGuard;
   now?: () => string;
   nowMs?: () => number;
   idFactory?: () => string;
@@ -128,12 +131,14 @@ export interface GatewayBackedTurnExecutorDeps {
 
 export class GatewayBackedTurnExecutor implements ICoreExecutor {
   private readonly gatewayFactory: IAgentGatewayFactory;
+  private readonly workmodeAdmissionGuard: IWorkmodeAdmissionGuard;
   private readonly traceRecorder: GatewayTraceRecorder;
   private readonly now: () => string;
   private readonly idFactory: () => string;
 
   constructor(private readonly deps: GatewayBackedTurnExecutorDeps) {
     this.gatewayFactory = deps.agentGatewayFactory ?? new AgentGatewayFactory();
+    this.workmodeAdmissionGuard = deps.workmodeAdmissionGuard ?? new WorkmodeAdmissionGuard();
     this.traceRecorder = new GatewayTraceRecorder(deps.documentStore);
     this.now = deps.now ?? (() => new Date().toISOString());
     this.idFactory = deps.idFactory ?? randomUUID;
@@ -261,6 +266,7 @@ export class GatewayBackedTurnExecutor implements ICoreExecutor {
         runtime: this.deps.runtime,
         instanceRoot: this.deps.instanceRoot,
         outputSchemaValidator: this.deps.outputSchemaValidator,
+        workmodeAdmissionGuard: this.workmodeAdmissionGuard,
         now: this.now,
         idFactory: this.idFactory,
       },

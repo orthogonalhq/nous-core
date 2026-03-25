@@ -135,7 +135,7 @@ export interface InternalMcpRuntimeDeps {
   opctlService?: IOpctlService;
   runtime?: IRuntime;
   instanceRoot?: string;
-  workmodeAdmissionGuard?: IWorkmodeAdmissionGuard;
+  workmodeAdmissionGuard: IWorkmodeAdmissionGuard;
   witnessService?: IWitnessService;
   escalationService?: IEscalationService;
   scheduler?: IScheduler;
