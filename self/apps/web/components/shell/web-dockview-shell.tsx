@@ -8,8 +8,6 @@ export interface WebDockviewShellProps {
   onApiReady?: (api: DockviewApi) => void
 }
 
-const LAYOUT_STORAGE_KEY = 'nous-web-dockview-layout'
-
 const DockviewShellInner = dynamic(
   () => import('./web-dockview-shell-inner').then((mod) => ({ default: mod.WebDockviewShellInner })),
   {
