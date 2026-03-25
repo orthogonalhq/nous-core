@@ -46,6 +46,7 @@ const SCOPE_REQUIRING_ACTIONS = new Set([
   'execute_subphase',
   'execute_node',
   'dispatch',
+  'dispatch_agent',
 ]);
 
 export class WorkmodeAdmissionGuard implements IWorkmodeAdmissionGuard {
