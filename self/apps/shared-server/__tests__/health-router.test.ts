@@ -209,6 +209,28 @@ describe('health tRPC router', () => {
       expect(result.inboxReady).toBe(true);
       expect(result.pendingSystemRuns).toBe(0);
     });
+
+    it('returns backlogAnalytics sub-object with all required fields', async () => {
+      const aggregator = createMockHealthAggregator();
+      const ctx = createMockContext(aggregator);
+      const caller = await getCaller(ctx);
+
+      const result = await caller.health.systemStatus();
+
+      expect(result.backlogAnalytics).toBeDefined();
+      expect(result.backlogAnalytics).toHaveProperty('queuedCount');
+      expect(result.backlogAnalytics).toHaveProperty('activeCount');
+      expect(result.backlogAnalytics).toHaveProperty('suspendedCount');
+      expect(result.backlogAnalytics).toHaveProperty('completedInWindow');
+      expect(result.backlogAnalytics).toHaveProperty('failedInWindow');
+      expect(result.backlogAnalytics).toHaveProperty('pressureTrend');
+      expect(typeof result.backlogAnalytics.queuedCount).toBe('number');
+      expect(typeof result.backlogAnalytics.activeCount).toBe('number');
+      expect(typeof result.backlogAnalytics.suspendedCount).toBe('number');
+      expect(typeof result.backlogAnalytics.completedInWindow).toBe('number');
+      expect(typeof result.backlogAnalytics.failedInWindow).toBe('number');
+      expect(typeof result.backlogAnalytics.pressureTrend).toBe('string');
+    });
   });
 
   describe('health.providerHealth', () => {
