@@ -582,6 +582,193 @@ describe('Internal MCP lifecycle handlers', () => {
     );
   });
 
+  describe('requestEscalation bridge', () => {
+    const LIFECYCLE_CONTEXT_BASE = {
+      agentId: AGENT_ID,
+      agentClass: 'Cortex::System' as const,
+      correlation: { runId: RUN_ID, parentId: AGENT_ID, sequence: 0 },
+      usage: { turnsUsed: 0, tokensUsed: 0, elapsedMs: 0, spawnUnitsUsed: 0 },
+      snapshot: {
+        agentId: AGENT_ID,
+        agentClass: 'Cortex::System' as const,
+        correlation: { runId: RUN_ID, parentId: AGENT_ID, sequence: 0 },
+        budget: { maxTurns: 3, maxTokens: 100, timeoutMs: 1000 },
+        usage: { turnsUsed: 0, tokensUsed: 0, elapsedMs: 0, spawnUnitsUsed: 0 },
+        startedAt: '2026-03-12T19:00:00.000Z',
+        lastUpdatedAt: '2026-03-12T19:00:00.000Z',
+        contextFrameCount: 0,
+      },
+    };
+
+    it('calls escalationService.notify() with correct EscalationContract fields', async () => {
+      const notify = vi.fn().mockResolvedValue('esc-001');
+      const bundle = createInternalMcpSurfaceBundle({
+        agentClass: 'Cortex::System',
+        agentId: AGENT_ID,
+        deps: {
+          workmodeAdmissionGuard: createWorkmodeAdmissionGuard(),
+          escalationService: { notify, checkResponse: vi.fn(), getInAppRecord: vi.fn(), listInAppRecords: vi.fn(), acknowledgeInApp: vi.fn() },
+          now: () => '2026-03-25T10:00:00.000Z',
+        },
+      });
+
+      await bundle.lifecycleHooks.requestEscalation!(
+        { reason: 'Test escalation', severity: 'critical', detail: {} },
+        {
+          ...LIFECYCLE_CONTEXT_BASE,
+          execution: { projectId: PROJECT_ID, traceId: TRACE_ID, workmodeId: 'system:implementation' },
+        },
+      );
+
+      expect(notify).toHaveBeenCalledOnce();
+      expect(notify).toHaveBeenCalledWith(
+        expect.objectContaining({
+          context: 'Test escalation',
+          triggerReason: 'Test escalation',
+          requiredAction: 'Test escalation',
+          channel: 'in-app',
+          projectId: PROJECT_ID,
+          priority: 'critical',
+          timestamp: '2026-03-25T10:00:00.000Z',
+        }),
+      );
+    });
+
+    it('circuit-breaker: does NOT call notify() when escalationOrigin is true', async () => {
+      const notify = vi.fn().mockResolvedValue('esc-002');
+      const bundle = createInternalMcpSurfaceBundle({
+        agentClass: 'Cortex::System',
+        agentId: AGENT_ID,
+        deps: {
+          workmodeAdmissionGuard: createWorkmodeAdmissionGuard(),
+          escalationService: { notify, checkResponse: vi.fn(), getInAppRecord: vi.fn(), listInAppRecords: vi.fn(), acknowledgeInApp: vi.fn() },
+        },
+      });
+
+      await bundle.lifecycleHooks.requestEscalation!(
+        { reason: 'Recursive escalation', severity: 'high', detail: {} },
+        {
+          ...LIFECYCLE_CONTEXT_BASE,
+          execution: {
+            projectId: PROJECT_ID,
+            traceId: TRACE_ID,
+            workmodeId: 'system:implementation',
+            escalationOrigin: true,
+          },
+        },
+      );
+
+      expect(notify).not.toHaveBeenCalled();
+    });
+
+    it('calls addHealthIssue when escalationService is undefined', async () => {
+      const addHealthIssue = vi.fn();
+      const bundle = createInternalMcpSurfaceBundle({
+        agentClass: 'Cortex::System',
+        agentId: AGENT_ID,
+        deps: {
+          workmodeAdmissionGuard: createWorkmodeAdmissionGuard(),
+          addHealthIssue,
+        },
+      });
+
+      await bundle.lifecycleHooks.requestEscalation!(
+        { reason: 'No service', severity: 'low', detail: {} },
+        {
+          ...LIFECYCLE_CONTEXT_BASE,
+          execution: { projectId: PROJECT_ID, traceId: TRACE_ID },
+        },
+      );
+
+      expect(addHealthIssue).toHaveBeenCalledWith('escalation_service_unavailable');
+    });
+
+    it('calls addHealthIssue when projectId is undefined', async () => {
+      const addHealthIssue = vi.fn();
+      const notify = vi.fn();
+      const bundle = createInternalMcpSurfaceBundle({
+        agentClass: 'Cortex::System',
+        agentId: AGENT_ID,
+        deps: {
+          workmodeAdmissionGuard: createWorkmodeAdmissionGuard(),
+          escalationService: { notify, checkResponse: vi.fn(), getInAppRecord: vi.fn(), listInAppRecords: vi.fn(), acknowledgeInApp: vi.fn() },
+          addHealthIssue,
+        },
+      });
+
+      await bundle.lifecycleHooks.requestEscalation!(
+        { reason: 'No project', severity: 'medium', detail: {} },
+        {
+          ...LIFECYCLE_CONTEXT_BASE,
+          execution: { traceId: TRACE_ID },
+        },
+      );
+
+      expect(notify).not.toHaveBeenCalled();
+      expect(addHealthIssue).toHaveBeenCalledWith('escalation_bridge_no_project');
+    });
+  });
+
+  describe('flagObservation bridge', () => {
+    const LIFECYCLE_CONTEXT_BASE = {
+      agentId: AGENT_ID,
+      agentClass: 'Cortex::System' as const,
+      correlation: { runId: RUN_ID, parentId: AGENT_ID, sequence: 0 },
+      usage: { turnsUsed: 0, tokensUsed: 0, elapsedMs: 0, spawnUnitsUsed: 0 },
+      snapshot: {
+        agentId: AGENT_ID,
+        agentClass: 'Cortex::System' as const,
+        correlation: { runId: RUN_ID, parentId: AGENT_ID, sequence: 0 },
+        budget: { maxTurns: 3, maxTokens: 100, timeoutMs: 1000 },
+        usage: { turnsUsed: 0, tokensUsed: 0, elapsedMs: 0, spawnUnitsUsed: 0 },
+        startedAt: '2026-03-12T19:00:00.000Z',
+        lastUpdatedAt: '2026-03-12T19:00:00.000Z',
+        contextFrameCount: 0,
+      },
+    };
+
+    it('calls addHealthIssue with observation type', async () => {
+      const addHealthIssue = vi.fn();
+      const bundle = createInternalMcpSurfaceBundle({
+        agentClass: 'Cortex::System',
+        agentId: AGENT_ID,
+        deps: {
+          workmodeAdmissionGuard: createWorkmodeAdmissionGuard(),
+          addHealthIssue,
+        },
+      });
+
+      await bundle.lifecycleHooks.flagObservation!(
+        { observationType: 'anomaly', content: 'Something happened', detail: {} },
+        {
+          ...LIFECYCLE_CONTEXT_BASE,
+          execution: { projectId: PROJECT_ID, traceId: TRACE_ID },
+        },
+      );
+
+      expect(addHealthIssue).toHaveBeenCalledWith('observation_anomaly');
+    });
+
+    it('completes without error when addHealthIssue is undefined', async () => {
+      const bundle = createInternalMcpSurfaceBundle({
+        agentClass: 'Cortex::System',
+        agentId: AGENT_ID,
+        deps: {
+          workmodeAdmissionGuard: createWorkmodeAdmissionGuard(),
+        },
+      });
+
+      // Should not throw
+      await bundle.lifecycleHooks.flagObservation!(
+        { observationType: 'anomaly', content: 'Something happened', detail: {} },
+        {
+          ...LIFECYCLE_CONTEXT_BASE,
+          execution: { projectId: PROJECT_ID, traceId: TRACE_ID },
+        },
+      );
+    });
+  });
+
   it('populates emitter_agent_class in task completion packets', async () => {
     const bundle = createInternalMcpSurfaceBundle({
       agentClass: 'Orchestrator',

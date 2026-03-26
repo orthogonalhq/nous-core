@@ -89,6 +89,7 @@ export const GatewayExecutionContextSchema = z
     appSessionId: z.string().min(1).optional(),
     traceId: TraceIdSchema.optional(),
     workmodeId: WorkmodeIdSchema.optional(),
+    escalationOrigin: z.boolean().optional(),
   })
   .strict();
 export type GatewayExecutionContext = z.infer<
