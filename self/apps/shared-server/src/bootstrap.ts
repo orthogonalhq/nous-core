@@ -56,11 +56,14 @@ import {
   createPfcMutationEvaluator,
 } from '@nous/cortex-pfc';
 import {
+  CheckpointManager,
   DefaultSchemaRefValidator,
   GatewayBackedTurnExecutor,
   GatewayRuntimeIngressAdapter,
+  InMemoryRecoveryLedgerStore,
   PublicMcpExecutionBridge,
   PublicMcpRuntimeAdapter,
+  RecoveryOrchestrator,
   WorkmodeAdmissionGuard,
   createCapabilityHandlers,
   getPublicToolMapping,
@@ -1192,6 +1195,11 @@ export function createNousServices(config?: BootstrapConfig): NousContext {
     outputSchemaValidator: new DefaultSchemaRefValidator(),
   });
 
+  // Recovery component instantiation (Phase 1.2 — WR-072)
+  const recoveryLedgerStore = new InMemoryRecoveryLedgerStore();
+  const checkpointManager = new CheckpointManager(recoveryLedgerStore);
+  const recoveryOrchestrator = new RecoveryOrchestrator();
+
   const gatewayRuntime = createPrincipalSystemGatewayRuntime({
     documentStore,
     modelRouter: router,
@@ -1221,6 +1229,12 @@ export function createNousServices(config?: BootstrapConfig): NousContext {
       fallbackPolicy: 'block_if_unmet',
     },
     eventBus,
+    // Recovery component injection (Phase 1.2 — WR-072)
+    // Type assertion: cortex-core uses zod v4 BRAND markers while shared uses zod v3.
+    // Pre-existing monorepo zod version split — safe to assert until aligned.
+    checkpointManager: checkpointManager as any,
+    recoveryLedgerStore,
+    recoveryOrchestrator,
   });
   providerRegistry.onLeaseReleased((event) => {
     void gatewayRuntime.notifyLeaseReleased({

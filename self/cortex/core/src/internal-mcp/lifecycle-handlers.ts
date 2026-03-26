@@ -5,6 +5,7 @@ import {
   GatewayStampedPacketSchema,
   type AgentClass,
   type AgentGatewayConfig,
+  type EscalationContract,
   type GatewayBudget,
   type GatewayLifecycleContext,
   type GatewayStampedPacket,
@@ -554,7 +555,36 @@ export function createLifecycleHandlers(options: {
               severity: request.severity,
               reason: request.reason,
             },
-            operation: async () => undefined,
+            operation: async () => {
+              // Circuit-breaker: prevent re-escalation from escalation-originated tasks
+              if (lifecycleContext.execution?.escalationOrigin) {
+                return;
+              }
+
+              const escalationService = options.deps.escalationService;
+              if (!escalationService) {
+                options.deps.addHealthIssue?.('escalation_service_unavailable');
+                return;
+              }
+
+              const projectId = lifecycleContext.execution?.projectId;
+              if (!projectId) {
+                options.deps.addHealthIssue?.('escalation_bridge_no_project');
+                return;
+              }
+
+              const contract: EscalationContract = {
+                context: request.reason,
+                triggerReason: request.reason,
+                requiredAction: request.reason,
+                channel: 'in-app',
+                projectId: projectId as ProjectId,
+                priority: request.severity,
+                timestamp: (options.deps.now?.() ?? new Date().toISOString()),
+              };
+
+              await escalationService.notify(contract);
+            },
           });
         }
       : undefined,
@@ -568,7 +598,9 @@ export function createLifecycleHandlers(options: {
             detail: {
               observationType: observation.observationType,
             },
-            operation: async () => undefined,
+            operation: async () => {
+              options.deps.addHealthIssue?.(`observation_${observation.observationType}`);
+            },
           });
         }
       : undefined,
