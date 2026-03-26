@@ -429,6 +429,18 @@ function createService(runState: WorkflowRunState, opts?: { healthAggregator?: I
   };
 }
 
+function makeMockProof(action: 'resume' | 'hard_stop' | 'pause' = 'hard_stop'): ConfirmationProof {
+  return {
+    proof_id: 'aaaaaaaa-bbbb-cccc-dddd-eeeeeeeeeeee',
+    issued_at: NOW,
+    expires_at: '2026-03-10T02:00:00.000Z',
+    scope_hash: '0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef',
+    action,
+    tier: action === 'pause' ? 'T1' : 'T3',
+    signature: 'mock-sig',
+  };
+}
+
 function makeControlRequest(overrides?: Partial<import('@nous/shared').MaoProjectControlRequest>): import('@nous/shared').MaoProjectControlRequest {
   return {
     command_id: randomUUID(),
@@ -489,23 +501,26 @@ describe('MaoProjectionService', () => {
     const { service, setControlState } = createService(createWorkflowRun('waiting'));
     setControlState('paused_review');
 
-    const result = await service.requestProjectControl({
-      command_id: 'eeeeeeee-eeee-eeee-eeee-eeeeeeeeeeee',
-      project_id: PROJECT_ID,
-      action: 'resume_project',
-      actor_id: 'principal-operator',
-      actor_type: 'operator',
-      reason: 'Resume after review',
-      requested_at: NOW,
-      impactSummary: {
-        activeRunCount: 1,
-        activeAgentCount: 1,
-        blockedAgentCount: 0,
-        urgentAgentCount: 0,
-        affectedScheduleCount: 1,
-        evidenceRefs: ['evidence://impact'],
+    const result = await service.requestProjectControl(
+      {
+        command_id: 'eeeeeeee-eeee-eeee-eeee-eeeeeeeeeeee',
+        project_id: PROJECT_ID,
+        action: 'resume_project',
+        actor_id: 'principal-operator',
+        actor_type: 'operator',
+        reason: 'Resume after review',
+        requested_at: NOW,
+        impactSummary: {
+          activeRunCount: 1,
+          activeAgentCount: 1,
+          blockedAgentCount: 0,
+          urgentAgentCount: 0,
+          affectedScheduleCount: 1,
+          evidenceRefs: ['evidence://impact'],
+        },
       },
-    });
+      makeMockProof('resume'),
+    );
 
     expect(result.accepted).toBe(true);
     expect(result.to_state).toBe('running');
@@ -523,6 +538,7 @@ describe('MaoProjectionService', () => {
 
       await service.requestProjectControl(
         makeControlRequest({ command_id: commandId, action: 'hard_stop_project' }),
+        makeMockProof('hard_stop'),
       );
 
       const history = await service.getControlAuditHistory(PROJECT_ID);
@@ -538,10 +554,12 @@ describe('MaoProjectionService', () => {
 
       await service.requestProjectControl(
         makeControlRequest({ command_id: cmd1, action: 'hard_stop_project' }),
+        makeMockProof('hard_stop'),
       );
       setControlState('hard_stopped');
       await service.requestProjectControl(
         makeControlRequest({ command_id: cmd2, action: 'resume_project' }),
+        makeMockProof('resume'),
       );
 
       const history = await service.getControlAuditHistory(PROJECT_ID);
@@ -562,11 +580,13 @@ describe('MaoProjectionService', () => {
           setControlState('running');
           await service.requestProjectControl(
             makeControlRequest({ command_id: cmdId, action: 'hard_stop_project' }),
+            makeMockProof('hard_stop'),
           );
         } else {
           setControlState('hard_stopped');
           await service.requestProjectControl(
             makeControlRequest({ command_id: cmdId, action: 'resume_project' }),
+            makeMockProof('resume'),
           );
         }
       }
@@ -584,10 +604,12 @@ describe('MaoProjectionService', () => {
 
       await service.requestProjectControl(
         makeControlRequest({ action: 'hard_stop_project', reason: 'First stop' }),
+        makeMockProof('hard_stop'),
       );
       setControlState('hard_stopped');
       await service.requestProjectControl(
         makeControlRequest({ action: 'resume_project', reason: 'Resume after first' }),
+        makeMockProof('resume'),
       );
 
       const projection = await service.getProjectControlProjection(PROJECT_ID);
@@ -621,6 +643,7 @@ describe('MaoProjectionService', () => {
 
       await service.requestProjectControl(
         makeControlRequest({ command_id: commandId, action: 'hard_stop_project', reason: 'Test reason' }),
+        makeMockProof('hard_stop'),
       );
 
       const history = await service.getControlAuditHistory(PROJECT_ID);
@@ -642,10 +665,12 @@ describe('MaoProjectionService', () => {
 
       await service.requestProjectControl(
         makeControlRequest({ action: 'hard_stop_project' }),
+        makeMockProof('hard_stop'),
       );
       setControlState('hard_stopped');
       await service.requestProjectControl(
         makeControlRequest({ action: 'resume_project' }),
+        makeMockProof('resume'),
       );
 
       const history = await service.getControlAuditHistory(PROJECT_ID);
@@ -724,6 +749,58 @@ describe('MaoProjectionService', () => {
       // Voice degradation reason should take precedence via nullish coalescing order
       expect(snapshot.diagnostics.degradedReasonCode).not.toBe('system_health_degraded');
       expect(snapshot.diagnostics.degradedReasonCode).toBeDefined();
+    });
+  });
+
+  describe('T3 server-side enforcement', () => {
+    it('rejects T3 action (resume_project) when confirmationProof is not supplied', async () => {
+      const { service, setControlState } = createService(createWorkflowRun('waiting'));
+      setControlState('paused_review');
+
+      const result = await service.requestProjectControl(
+        makeControlRequest({ action: 'resume_project' }),
+        // No proof supplied
+      );
+
+      expect(result.accepted).toBe(false);
+      expect(result.status).toBe('blocked');
+      expect(result.reason_code).toBe('T3_PROOF_REQUIRED');
+    });
+
+    it('rejects T3 action (hard_stop_project) when confirmationProof is not supplied', async () => {
+      const { service } = createService(createWorkflowRun());
+
+      const result = await service.requestProjectControl(
+        makeControlRequest({ action: 'hard_stop_project' }),
+        // No proof supplied
+      );
+
+      expect(result.accepted).toBe(false);
+      expect(result.status).toBe('blocked');
+      expect(result.reason_code).toBe('T3_PROOF_REQUIRED');
+    });
+
+    it('allows T1 action (pause_project) without confirmationProof (auto-generation preserved)', async () => {
+      const { service } = createService(createWorkflowRun());
+
+      const result = await service.requestProjectControl(
+        makeControlRequest({ action: 'pause_project' }),
+        // No proof — T1 auto-generates
+      );
+
+      expect(result.accepted).toBe(true);
+      expect(result.status).not.toBe('blocked');
+    });
+
+    it('allows T3 action with valid confirmationProof', async () => {
+      const { service } = createService(createWorkflowRun());
+
+      const result = await service.requestProjectControl(
+        makeControlRequest({ action: 'hard_stop_project' }),
+        makeMockProof('hard_stop'),
+      );
+
+      expect(result.accepted).toBe(true);
     });
   });
 });

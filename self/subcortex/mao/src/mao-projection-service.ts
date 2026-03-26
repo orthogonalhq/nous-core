@@ -699,14 +699,35 @@ export class MaoProjectionService {
         impactSummary: parsed.impactSummary,
       },
     };
-    const proof =
-      confirmationProof ??
-      (await this.deps.opctlService.requestConfirmationProof({
+    let proof: ConfirmationProof;
+    if (confirmationProof) {
+      proof = confirmationProof;
+    } else if (tier === 'T3') {
+      // T3 requires client-supplied proof; reject without fallback (Phase 1 constraint #3)
+      const fromStateNow = await this.deps.opctlService.getProjectControlState(
+        parsed.project_id,
+      );
+      return MaoProjectControlResultSchema.parse({
+        command_id: parsed.command_id,
+        project_id: parsed.project_id,
+        accepted: false,
+        status: 'blocked',
+        from_state: fromStateNow,
+        to_state: fromStateNow,
+        reason_code: 'T3_PROOF_REQUIRED',
+        decision_ref: `mao-control:${parsed.command_id}`,
+        impactSummary: parsed.impactSummary,
+        evidenceRefs: [`project-control:${fromStateNow}`],
+      });
+    } else {
+      // T0/T1/T2 auto-generate proof
+      proof = await this.deps.opctlService.requestConfirmationProof({
         scope: envelope.scope,
         action: controlAction,
         tier,
         reason: parsed.reason,
-      }));
+      });
+    }
 
     const opctlResult = await this.deps.opctlService.submitCommand(envelope, proof);
     const impactSummary = await this.buildImpactSummary(parsed.project_id);

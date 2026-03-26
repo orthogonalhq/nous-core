@@ -3,17 +3,25 @@
 import * as React from 'react';
 import Link from 'next/link';
 import type {
+  ConfirmationProof,
   MaoDensityMode,
   MaoGridTileProjection,
+  MaoProjectControlAction,
   MaoProjectControlResult,
   ProjectId,
 } from '@nous/shared';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
+import { MaoAuditTrailPanel } from '@/components/mao/mao-audit-trail-panel';
+import { MaoBacklogPressureCard } from '@/components/mao/mao-backlog-pressure-card';
 import { MaoDensityGrid } from '@/components/mao/mao-density-grid';
 import { MaoInspectPanel } from '@/components/mao/mao-inspect-panel';
 import { MaoProjectControls } from '@/components/mao/mao-project-controls';
 import { MaoRunGraph } from '@/components/mao/mao-run-graph';
+import {
+  MaoT3ConfirmationDialog,
+  T3_ACTIONS,
+} from '@/components/mao/mao-t3-confirmation-dialog';
 import {
   buildMaoReturnHref,
   formatShortId,
@@ -25,6 +33,12 @@ import { trpc } from '@/lib/trpc';
 import { useSearchParams } from 'next/navigation';
 
 const DENSITY_MODES: MaoDensityMode[] = ['D0', 'D1', 'D2', 'D3', 'D4'];
+
+interface PendingT3Action {
+  action: MaoProjectControlAction;
+  reason: string;
+  commandId: string;
+}
 
 interface InspectTarget {
   agentId: string | null;
@@ -57,6 +71,8 @@ export function MaoOperatingSurface() {
   });
   const [lastResult, setLastResult] =
     React.useState<MaoProjectControlResult | null>(null);
+  const [pendingT3Action, setPendingT3Action] =
+    React.useState<PendingT3Action | null>(null);
   const [, startTransition] = React.useTransition();
   const utils = trpc.useUtils();
 
@@ -114,6 +130,8 @@ export function MaoOperatingSurface() {
         utils.mao.getProjectSnapshot.invalidate(),
         utils.mao.getAgentInspectProjection.invalidate(),
         utils.mao.getProjectControlProjection.invalidate(),
+        utils.mao.getControlAuditHistory.invalidate(),
+        utils.health.systemStatus.invalidate(),
         utils.projects.dashboardSnapshot.invalidate(),
         utils.escalations.listProjectQueue.invalidate(),
       ]);
@@ -202,15 +220,12 @@ export function MaoOperatingSurface() {
     });
   };
 
-  const handleRequestControl = ({
-    action,
-    reason,
-    commandId,
-  }: {
-    action: import('@nous/shared').MaoProjectControlAction;
-    reason: string;
-    commandId: string;
-  }) => {
+  const executeControl = (
+    action: MaoProjectControlAction,
+    reason: string,
+    commandId: string,
+    confirmationProof?: ConfirmationProof,
+  ) => {
     controlMutation.mutate({
       request: {
         command_id: commandId as any,
@@ -229,7 +244,40 @@ export function MaoOperatingSurface() {
           evidenceRefs: linkedEvidenceRef ? [linkedEvidenceRef] : [],
         },
       },
+      confirmationProof,
     });
+  };
+
+  const handleRequestControl = ({
+    action,
+    reason,
+    commandId,
+  }: {
+    action: MaoProjectControlAction;
+    reason: string;
+    commandId: string;
+  }) => {
+    if (T3_ACTIONS.has(action)) {
+      setPendingT3Action({ action, reason, commandId });
+    } else {
+      executeControl(action, reason, commandId);
+    }
+  };
+
+  const handleT3Confirm = (proof: ConfirmationProof) => {
+    if (pendingT3Action) {
+      executeControl(
+        pendingT3Action.action,
+        pendingT3Action.reason,
+        pendingT3Action.commandId,
+        proof,
+      );
+    }
+    setPendingT3Action(null);
+  };
+
+  const handleT3Cancel = () => {
+    setPendingT3Action(null);
   };
 
   return (
@@ -253,6 +301,11 @@ export function MaoOperatingSurface() {
           {snapshot.workflowRunId ? (
             <Badge variant="outline">
               run {formatShortId(snapshot.workflowRunId)}
+            </Badge>
+          ) : null}
+          {snapshot.diagnostics?.degradedReasonCode ? (
+            <Badge variant="outline" className="border-amber-500/40 text-amber-500">
+              degraded: {snapshot.diagnostics.degradedReasonCode}
             </Badge>
           ) : null}
         </div>
@@ -326,8 +379,24 @@ export function MaoOperatingSurface() {
             inspect={inspectQuery.data}
             isLoading={inspectQuery.isLoading}
           />
+          <MaoAuditTrailPanel projectId={projectId as ProjectId} />
+          <MaoBacklogPressureCard />
         </div>
       </div>
+
+      <MaoT3ConfirmationDialog
+        open={pendingT3Action !== null}
+        action={pendingT3Action?.action ?? 'resume_project'}
+        projectId={projectId as ProjectId}
+        impactSummary={{
+          activeRunCount: snapshot.workflowRunId ? 1 : 0,
+          activeAgentCount: snapshot.summary.activeAgentCount,
+          blockedAgentCount: snapshot.summary.blockedAgentCount,
+          urgentAgentCount: snapshot.summary.urgentAgentCount,
+        }}
+        onConfirm={handleT3Confirm}
+        onCancel={handleT3Cancel}
+      />
     </div>
   );
 }
