@@ -297,7 +297,7 @@ function createMockHealthAggregator(bootStatus: 'booting' | 'ready' | 'degraded'
         suspendedCount: 0,
         completedInWindow: 0,
         failedInWindow: 0,
-        pressureTrend: 'idle',
+        pressureTrend: 'stable',
       },
       collectedAt: NOW,
     }),

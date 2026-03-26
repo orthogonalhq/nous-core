@@ -1522,7 +1522,7 @@ ipcMain.handle('health:systemStatus', async () => {
       issueCodes: [],
       inboxReady: false,
       pendingSystemRuns: 0,
-      backlogAnalytics: { queuedCount: 0, activeCount: 0, suspendedCount: 0, completedInWindow: 0, failedInWindow: 0, pressureTrend: 'idle' },
+      backlogAnalytics: { queuedCount: 0, activeCount: 0, suspendedCount: 0, completedInWindow: 0, failedInWindow: 0, pressureTrend: 'stable' },
       collectedAt: new Date().toISOString(),
     }
   }
