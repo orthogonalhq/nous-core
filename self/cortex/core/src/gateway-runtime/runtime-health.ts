@@ -67,7 +67,7 @@ export class GatewayRuntimeHealthSink {
       avgExecutionMs: 0,
       p95WaitMs: 0,
       peakQueueDepth: 0,
-      pressureTrend: 'idle',
+      pressureTrend: 'stable',
     });
 
     for (const agentClass of TRACKED_AGENT_CLASSES) {

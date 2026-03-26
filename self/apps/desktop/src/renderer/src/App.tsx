@@ -22,7 +22,9 @@ import {
   AgentPanel,
   PreferencesPanel,
   WorkflowBuilderPanel,
+  HealthQueryProvider,
   type ChatAPI,
+  type HealthFetchers,
 } from '@nous/ui/panels'
 import {
   ContentRouter,
@@ -672,6 +674,12 @@ export function App() {
     },
   ], [handleNavigate, handleModeToggle])
 
+  const healthFetchers: HealthFetchers = useMemo(() => ({
+    fetchSystemStatus: () => window.electronAPI.health.systemStatus(),
+    fetchProviderHealth: () => window.electronAPI.health.providerHealth(),
+    fetchAgentStatus: () => window.electronAPI.health.agentStatus(),
+  }), [])
+
   const navigation = {
     activeRoute,
     history: [activeRoute],
@@ -781,38 +789,40 @@ export function App() {
         navigate={handleNavigate}
         goBack={handleGoBack}
       >
-        <CommandPalette
-          isOpen={commandPaletteOpen}
-          onClose={() => setCommandPaletteOpen(false)}
-          commands={commands}
-        />
-        {mode === 'simple' ? (
-          <ShellLayout
-            rail={(
-              <NavigationRail
-                items={RAIL_SECTIONS}
-                activeItemId={activeRoute}
-                onItemSelect={handleNavigate}
-              />
-            )}
-            chat={<ChatSurface chatApi={window.electronAPI?.chat as ChatAPI | undefined} />}
-            content={(
-              <ContentRouter
-                activeRoute={activeRoute}
-                routes={simpleModeRoutes}
-                onNavigate={handleNavigate}
-              />
-            )}
-            observe={<ObservePanel maoApi={(window as any).electronAPI?.mao} />}
+        <HealthQueryProvider fetchers={healthFetchers}>
+          <CommandPalette
+            isOpen={commandPaletteOpen}
+            onClose={() => setCommandPaletteOpen(false)}
+            commands={commands}
           />
-        ) : (
-          <DockviewShell
-            savedLayout={savedLayout}
-            onApiReady={setDockviewApi}
-            activeAppPanelIds={new Set(appPanels.map((panel) => panel.dockview_panel_id))}
-            panelDefs={panelDefs}
-          />
-        )}
+          {mode === 'simple' ? (
+            <ShellLayout
+              rail={(
+                <NavigationRail
+                  items={RAIL_SECTIONS}
+                  activeItemId={activeRoute}
+                  onItemSelect={handleNavigate}
+                />
+              )}
+              chat={<ChatSurface chatApi={window.electronAPI?.chat as ChatAPI | undefined} />}
+              content={(
+                <ContentRouter
+                  activeRoute={activeRoute}
+                  routes={simpleModeRoutes}
+                  onNavigate={handleNavigate}
+                />
+              )}
+              observe={<ObservePanel maoApi={(window as any).electronAPI?.mao} />}
+            />
+          ) : (
+            <DockviewShell
+              savedLayout={savedLayout}
+              onApiReady={setDockviewApi}
+              activeAppPanelIds={new Set(appPanels.map((panel) => panel.dockview_panel_id))}
+              panelDefs={panelDefs}
+            />
+          )}
+        </HealthQueryProvider>
       </ShellProvider>
     </ChromeShell>
   )

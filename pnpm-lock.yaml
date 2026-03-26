@@ -293,6 +293,9 @@ importers:
       '@nous/autonomic-embeddings':
         specifier: workspace:*
         version: link:../../autonomic/embeddings
+      '@nous/autonomic-health':
+        specifier: workspace:*
+        version: link:../../autonomic/health
       '@nous/autonomic-runtime':
         specifier: workspace:*
         version: link:../../autonomic/runtime

@@ -87,7 +87,7 @@ const BacklogAnalyticsProjectionSchema = z.object({
   suspendedCount: z.number().int().nonnegative(),
   completedInWindow: z.number().int().nonnegative(),
   failedInWindow: z.number().int().nonnegative(),
-  pressureTrend: z.enum(['idle', 'steady', 'rising', 'degrading']),
+  pressureTrend: z.enum(['increasing', 'stable', 'decreasing']),
 });
 
 export const GatewayHealthProjectionSchema = z.object({
@@ -190,7 +190,7 @@ export const SystemStatusSnapshotSchema = z.object({
     suspendedCount: z.number().int().nonnegative(),
     completedInWindow: z.number().int().nonnegative(),
     failedInWindow: z.number().int().nonnegative(),
-    pressureTrend: z.enum(['idle', 'steady', 'rising', 'degrading']),
+    pressureTrend: z.enum(['increasing', 'stable', 'decreasing']),
   }),
   collectedAt: z.string().datetime(),
 });

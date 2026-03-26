@@ -25,6 +25,7 @@ import type {
   ProjectId,
   WorkflowNodeRunState,
   WorkflowRunState,
+  IHealthAggregator,
 } from '@nous/shared';
 import {
   MaoAgentInspectInputSchema,
@@ -492,12 +493,22 @@ export interface MaoProjectionServiceDeps {
   voiceControlService?: IVoiceControlService;
   witnessService?: IWitnessService;
   eventBus?: import('@nous/shared').IEventBus;
+  healthAggregator?: IHealthAggregator;
 }
 
 export class MaoProjectionService {
   private readonly controlAuditByProject = new Map<ProjectId, ControlAuditRecord>();
 
   constructor(private deps: MaoProjectionServiceDeps) {}
+
+  /**
+   * Late-bind the health aggregator for degradedReasonCode derivation.
+   * Needed because the HealthAggregator depends on gatewayRuntime which is
+   * constructed after MaoProjectionService in the bootstrap sequence.
+   */
+  setHealthAggregator(aggregator: import('@nous/shared').IHealthAggregator): void {
+    this.deps.healthAggregator = aggregator;
+  }
 
   async getAgentProjections(projectId: ProjectId): Promise<MaoAgentProjection[]> {
     const context = await this.buildProjectionContext({
@@ -870,6 +881,9 @@ export class MaoProjectionService {
         voiceProjection?.degraded_mode.reason ??
         (selectedRun != null && selectedGraph == null
           ? 'workflow_run_graph_unavailable'
+          : undefined) ??
+        (this.deps.healthAggregator?.getSystemStatus().bootStatus === 'degraded'
+          ? 'system_health_degraded'
           : undefined),
     };
   }

@@ -183,6 +183,19 @@ export function createElectronAPIMock() {
     usage: {
       getSnapshot: vi.fn(async () => ({})),
     },
+    health: {
+      systemStatus: vi.fn(async () => ({
+        bootStatus: 'booting' as const,
+        completedBootSteps: [],
+        issueCodes: [],
+        inboxReady: false,
+        pendingSystemRuns: 0,
+        backlogAnalytics: { queuedCount: 0, activeCount: 0, suspendedCount: 0, completedInWindow: 0, failedInWindow: 0, pressureTrend: 'idle' as const },
+        collectedAt: new Date().toISOString(),
+      })),
+      providerHealth: vi.fn(async () => ({ providers: [], collectedAt: new Date().toISOString() })),
+      agentStatus: vi.fn(async () => ({ gateways: [], appSessions: [], collectedAt: new Date().toISOString() })),
+    },
     win: {
       minimize: vi.fn(async () => {}),
       maximize: vi.fn(async () => {}),
