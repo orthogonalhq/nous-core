@@ -142,6 +142,7 @@ export interface InternalMcpRuntimeDeps {
   appRuntimeService?: IAppRuntimeService;
   outputSchemaValidator?: InternalMcpOutputSchemaValidator;
   dispatchRuntime?: InternalMcpDispatchRuntime;
+  addHealthIssue?: (code: string) => void;
   now?: () => string;
   nowMs?: () => number;
   idFactory?: () => string;

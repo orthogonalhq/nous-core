@@ -56,11 +56,14 @@ import {
   createPfcMutationEvaluator,
 } from '@nous/cortex-pfc';
 import {
+  CheckpointManager,
   DefaultSchemaRefValidator,
   GatewayBackedTurnExecutor,
   GatewayRuntimeIngressAdapter,
+  InMemoryRecoveryLedgerStore,
   PublicMcpExecutionBridge,
   PublicMcpRuntimeAdapter,
+  RecoveryOrchestrator,
   WorkmodeAdmissionGuard,
   createCapabilityHandlers,
   getPublicToolMapping,
@@ -131,7 +134,9 @@ import {
   TunnelSessionStore,
 } from '@nous/subcortex-public-mcp';
 import { MemoryAccessPolicyEngine } from '@nous/memory-access';
+import { HealthAggregator, HealthMonitor } from '@nous/autonomic-health';
 import { EventBus } from './event-bus/event-bus.js';
+import { GatewayHealthSourceAdapter } from './adapters/gateway-health-source-adapter.js';
 import type { NousContext } from './context';
 import type { IDocumentStore, IIngressGateway, IVectorStore } from '@nous/shared';
 
@@ -1190,6 +1195,11 @@ export function createNousServices(config?: BootstrapConfig): NousContext {
     outputSchemaValidator: new DefaultSchemaRefValidator(),
   });
 
+  // Recovery component instantiation (Phase 1.2 — WR-072)
+  const recoveryLedgerStore = new InMemoryRecoveryLedgerStore();
+  const checkpointManager = new CheckpointManager(recoveryLedgerStore);
+  const recoveryOrchestrator = new RecoveryOrchestrator();
+
   const gatewayRuntime = createPrincipalSystemGatewayRuntime({
     documentStore,
     modelRouter: router,
@@ -1219,6 +1229,12 @@ export function createNousServices(config?: BootstrapConfig): NousContext {
       fallbackPolicy: 'block_if_unmet',
     },
     eventBus,
+    // Recovery component injection (Phase 1.2 — WR-072)
+    // Type assertion: cortex-core uses zod v4 BRAND markers while shared uses zod v3.
+    // Pre-existing monorepo zod version split — safe to assert until aligned.
+    checkpointManager: checkpointManager as any,
+    recoveryLedgerStore,
+    recoveryOrchestrator,
   });
   providerRegistry.onLeaseReleased((event) => {
     void gatewayRuntime.notifyLeaseReleased({
@@ -1229,6 +1245,16 @@ export function createNousServices(config?: BootstrapConfig): NousContext {
   schedulerIngressGateway = new GatewayRuntimeIngressAdapter(gatewayRuntime);
 
   const agentSessions = new Map<string, import('./context').AgentSessionEntry>();
+
+  // Health monitoring DI wiring (SP 1.2)
+  const gatewayHealthAdapter = new GatewayHealthSourceAdapter(gatewayRuntime);
+  const healthAggregator = new HealthAggregator({
+    gatewayHealthSource: gatewayHealthAdapter,
+    providerHealthSource: providerRegistry,
+    eventBus,
+  });
+  const healthMonitor = new HealthMonitor({ aggregator: healthAggregator });
+  maoProjectionService.setHealthAggregator(healthAggregator);
 
   const context: NousContext = {
     // Type assertion: GatewayBackedTurnExecutor satisfies ICoreExecutor structurally,
@@ -1269,6 +1295,8 @@ export function createNousServices(config?: BootstrapConfig): NousContext {
     codingAgentMaoEvents,
     agentSessions,
     eventBus,
+    healthAggregator,
+    healthMonitor,
   };
 
   console.log(`[nous:${runtimeLabel}] bootstrap complete`);

@@ -26,7 +26,7 @@ function createDefaultSystemStatus(): SystemStatusSnapshot {
       suspendedCount: 0,
       completedInWindow: 0,
       failedInWindow: 0,
-      pressureTrend: 'idle' as const,
+      pressureTrend: 'stable' as const,
     },
     collectedAt: new Date().toISOString(),
   };

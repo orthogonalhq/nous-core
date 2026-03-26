@@ -10,6 +10,9 @@ const mocks = vi.hoisted(() => ({
   getProjectSnapshotUseQuery: vi.fn(),
   getAgentInspectProjectionUseQuery: vi.fn(),
   requestProjectControlUseMutation: vi.fn(),
+  getControlAuditHistoryUseQuery: vi.fn(),
+  systemStatusUseQuery: vi.fn(),
+  requestConfirmationProofUseMutation: vi.fn(),
   useUtils: vi.fn(),
   useProject: vi.fn(),
   useSearchParams: vi.fn(),
@@ -21,6 +24,13 @@ vi.mock('@/lib/trpc', () => ({
       getProjectSnapshot: { useQuery: mocks.getProjectSnapshotUseQuery },
       getAgentInspectProjection: { useQuery: mocks.getAgentInspectProjectionUseQuery },
       requestProjectControl: { useMutation: mocks.requestProjectControlUseMutation },
+      getControlAuditHistory: { useQuery: mocks.getControlAuditHistoryUseQuery },
+    },
+    health: {
+      systemStatus: { useQuery: mocks.systemStatusUseQuery },
+    },
+    opctl: {
+      requestConfirmationProof: { useMutation: mocks.requestConfirmationProofUseMutation },
     },
     useUtils: mocks.useUtils,
   },
@@ -32,6 +42,10 @@ vi.mock('@/lib/project-context', () => ({
 
 vi.mock('next/navigation', () => ({
   useSearchParams: mocks.useSearchParams,
+}));
+
+vi.mock('@nous/ui', () => ({
+  useEventSubscription: vi.fn(),
 }));
 
 import MaoPage from '@/app/(shell)/mao/page';
@@ -76,11 +90,45 @@ describe('MaoPage', () => {
       mutate,
       isPending: false,
     });
+    mocks.getControlAuditHistoryUseQuery.mockReturnValue({
+      data: [],
+      isLoading: false,
+      isError: false,
+    });
+    mocks.systemStatusUseQuery.mockReturnValue({
+      data: {
+        bootStatus: 'ready',
+        completedBootSteps: [],
+        issueCodes: [],
+        inboxReady: true,
+        pendingSystemRuns: 0,
+        backlogAnalytics: {
+          queuedCount: 0,
+          activeCount: 0,
+          suspendedCount: 0,
+          completedInWindow: 0,
+          failedInWindow: 0,
+          pressureTrend: 'stable',
+        },
+        collectedAt: '2026-03-10T01:00:00.000Z',
+      },
+      isLoading: false,
+      isError: false,
+    });
+    mocks.requestConfirmationProofUseMutation.mockReturnValue({
+      mutate: vi.fn(),
+      isPending: false,
+      isError: false,
+    });
     mocks.useUtils.mockReturnValue({
       mao: {
         getProjectSnapshot: { invalidate: invalidateSnapshot },
         getAgentInspectProjection: { invalidate: invalidateInspect },
         getProjectControlProjection: { invalidate: invalidateControl },
+        getControlAuditHistory: { invalidate: vi.fn() },
+      },
+      health: {
+        systemStatus: { invalidate: vi.fn() },
       },
       projects: {
         dashboardSnapshot: { invalidate: invalidateDashboard },
@@ -114,15 +162,15 @@ describe('MaoPage', () => {
     fireEvent.change(screen.getByLabelText('Control reason'), {
       target: { value: 'Resume after review' },
     });
+    // resume_project is T3, so clicking opens T3 confirmation dialog
     fireEvent.click(screen.getByRole('button', { name: 'Resume Project' }));
 
     await waitFor(() => {
-      expect(mutate).toHaveBeenCalled();
+      // T3 dialog should be open
+      expect(screen.getByText('Confirm T3 action')).toBeTruthy();
     });
 
-    expect(mutate.mock.calls[0]?.[0]?.request.action).toBe('resume_project');
-    expect(mutate.mock.calls[0]?.[0]?.request.reason).toBe('Resume after review');
-    expect(mutate.mock.calls[0]?.[0]?.request.impactSummary.blockedAgentCount).toBe(1);
+    expect(screen.getByText('resume project')).toBeTruthy();
   });
 
   it('preserves marketplace handoff context in the MAO surface', () => {

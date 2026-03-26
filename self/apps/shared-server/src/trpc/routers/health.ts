@@ -54,4 +54,16 @@ export const healthRouter = router({
       timestamp: now,
     };
   }),
+
+  systemStatus: publicProcedure.query(({ ctx }) => {
+    return ctx.healthAggregator.getSystemStatus();
+  }),
+
+  providerHealth: publicProcedure.query(({ ctx }) => {
+    return ctx.healthAggregator.getProviderHealth();
+  }),
+
+  agentStatus: publicProcedure.query(({ ctx }) => {
+    return ctx.healthAggregator.getAgentStatus();
+  }),
 });

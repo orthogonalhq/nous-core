@@ -1509,6 +1509,42 @@ ipcMain.handle('preferences:setRoleAssignment', async (_event, input: unknown) =
     return { success: false, error: 'Backend unavailable' }
   }
 })
+// Health handlers — tRPC proxy to backend server with safe fallbacks
+ipcMain.handle('health:systemStatus', async () => {
+  try {
+    await ensureBackendReady()
+    const client = getTrpcClient() as any
+    return await client.health.systemStatus.query()
+  } catch {
+    return {
+      bootStatus: 'booting',
+      completedBootSteps: [],
+      issueCodes: [],
+      inboxReady: false,
+      pendingSystemRuns: 0,
+      backlogAnalytics: { queuedCount: 0, activeCount: 0, suspendedCount: 0, completedInWindow: 0, failedInWindow: 0, pressureTrend: 'stable' },
+      collectedAt: new Date().toISOString(),
+    }
+  }
+})
+ipcMain.handle('health:providerHealth', async () => {
+  try {
+    await ensureBackendReady()
+    const client = getTrpcClient() as any
+    return await client.health.providerHealth.query()
+  } catch {
+    return { providers: [], collectedAt: new Date().toISOString() }
+  }
+})
+ipcMain.handle('health:agentStatus', async () => {
+  try {
+    await ensureBackendReady()
+    const client = getTrpcClient() as any
+    return await client.health.agentStatus.query()
+  } catch {
+    return { gateways: [], appSessions: [], collectedAt: new Date().toISOString() }
+  }
+})
 ipcMain.handle('hardware:getSpec', async (): Promise<HardwareSpec> => {
   try {
     await ensureBackendReady()
