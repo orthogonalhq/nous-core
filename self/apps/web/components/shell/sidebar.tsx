@@ -1,5 +1,10 @@
 'use client';
 
+/**
+ * @deprecated Replaced by NavigationRail in SP 1.2.
+ * Retained for potential mobile fallback until NavigationRail responsive behavior is verified.
+ */
+
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
 import { trpc } from '@/lib/trpc';

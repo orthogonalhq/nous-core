@@ -50,7 +50,7 @@ function TracesPageContent() {
         }}
       >
         <p style={{ color: 'var(--nous-text-secondary)' }}>
-          Select a project from the sidebar to view traces.
+          Select a project from the navigation panel to view traces.
         </p>
       </div>
     );
