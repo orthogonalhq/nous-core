@@ -112,6 +112,14 @@ export const GatewayHealthProjectionSchema = z.object({
     lastHeartbeatAt: z.string().datetime().optional(),
     stale: z.boolean(),
   })),
+  // Escalation audit summary (Phase 1.2 — WR-054)
+  escalationCount: z.number().int().nonnegative().optional(),
+  lastEscalationAt: z.string().datetime().optional(),
+  lastEscalationSeverity: z.string().optional(),
+  // Checkpoint visibility (Phase 1.2 — WR-072)
+  lastPreparedCheckpointId: z.string().optional(),
+  lastCommittedCheckpointId: z.string().optional(),
+  chainValid: z.boolean().optional(),
 });
 export type GatewayHealthProjection = z.infer<typeof GatewayHealthProjectionSchema>;
 
@@ -121,6 +129,14 @@ export const SystemContextProjectionSchema = z.object({
   pendingSystemRuns: z.number().int().nonnegative(),
   backlogAnalytics: BacklogAnalyticsProjectionSchema,
   issueCodes: z.array(z.string().min(1)),
+  // Escalation audit summary (Phase 1.2 — WR-054)
+  escalationCount: z.number().int().nonnegative().optional(),
+  lastEscalationAt: z.string().datetime().optional(),
+  lastEscalationSeverity: z.string().optional(),
+  // Checkpoint visibility (Phase 1.2 — WR-072)
+  lastPreparedCheckpointId: z.string().optional(),
+  lastCommittedCheckpointId: z.string().optional(),
+  chainValid: z.boolean().optional(),
 });
 export type SystemContextProjection = z.infer<typeof SystemContextProjectionSchema>;
 

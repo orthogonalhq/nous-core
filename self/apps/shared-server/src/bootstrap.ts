@@ -56,11 +56,14 @@ import {
   createPfcMutationEvaluator,
 } from '@nous/cortex-pfc';
 import {
+  CheckpointManager,
   DefaultSchemaRefValidator,
   GatewayBackedTurnExecutor,
   GatewayRuntimeIngressAdapter,
+  InMemoryRecoveryLedgerStore,
   PublicMcpExecutionBridge,
   PublicMcpRuntimeAdapter,
+  RecoveryOrchestrator,
   WorkmodeAdmissionGuard,
   createCapabilityHandlers,
   getPublicToolMapping,
@@ -1190,6 +1193,11 @@ export function createNousServices(config?: BootstrapConfig): NousContext {
     outputSchemaValidator: new DefaultSchemaRefValidator(),
   });
 
+  // Recovery component instantiation (Phase 1.2 — WR-072)
+  const recoveryLedgerStore = new InMemoryRecoveryLedgerStore();
+  const checkpointManager = new CheckpointManager(recoveryLedgerStore);
+  const recoveryOrchestrator = new RecoveryOrchestrator();
+
   const gatewayRuntime = createPrincipalSystemGatewayRuntime({
     documentStore,
     modelRouter: router,
@@ -1219,6 +1227,10 @@ export function createNousServices(config?: BootstrapConfig): NousContext {
       fallbackPolicy: 'block_if_unmet',
     },
     eventBus,
+    // Recovery component injection (Phase 1.2 — WR-072)
+    checkpointManager,
+    recoveryLedgerStore,
+    recoveryOrchestrator,
   });
   providerRegistry.onLeaseReleased((event) => {
     void gatewayRuntime.notifyLeaseReleased({
