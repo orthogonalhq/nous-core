@@ -117,6 +117,10 @@ export class HealthAggregator implements IHealthAggregator {
           lastHeartbeatAt: s.lastHeartbeatAt,
           stale: s.stale,
         })),
+        // Escalation audit (Phase 1.2 — from system gateway health projection)
+        escalationCount: systemHealth.escalationCount,
+        lastEscalationAt: systemHealth.lastEscalationAt,
+        lastEscalationSeverity: systemHealth.lastEscalationSeverity,
         collectedAt: new Date().toISOString(),
       };
     } catch (err) {
@@ -148,6 +152,14 @@ export class HealthAggregator implements IHealthAggregator {
           failedInWindow: systemContext.backlogAnalytics.failedInWindow,
           pressureTrend: systemContext.backlogAnalytics.pressureTrend,
         },
+        // Escalation audit (Phase 1.2 — from systemContext)
+        escalationCount: systemContext.escalationCount,
+        lastEscalationAt: systemContext.lastEscalationAt,
+        lastEscalationSeverity: systemContext.lastEscalationSeverity,
+        // Checkpoint visibility (Phase 1.2 — from systemContext)
+        lastPreparedCheckpointId: systemContext.lastPreparedCheckpointId,
+        lastCommittedCheckpointId: systemContext.lastCommittedCheckpointId,
+        chainValid: systemContext.chainValid,
         collectedAt: new Date().toISOString(),
       };
     } catch (err) {

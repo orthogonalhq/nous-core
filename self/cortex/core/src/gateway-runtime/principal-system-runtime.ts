@@ -1,14 +1,21 @@
-import { randomUUID } from 'node:crypto';
+import { createHash, randomUUID } from 'node:crypto';
 import type {
   AgentClass,
   AgentGatewayConfig,
+  AgentResult,
   GatewayBudget,
   GatewayOutboxEvent,
   IAgentGateway,
+  ICheckpointManager,
   IDocumentStore,
   IGatewayOutboxSink,
+  IRecoveryLedgerStore,
+  IRecoveryOrchestrator,
+  IRetryPolicyEvaluator,
+  IRollbackPolicyEvaluator,
   IngressDispatchOutcome,
   IngressTriggerEnvelope,
+  RecoveryOrchestratorContext,
   ToolDefinition,
 } from '@nous/shared';
 import { AgentGatewayFactory, createInboxFrame } from '../agent-gateway/index.js';
@@ -18,6 +25,8 @@ import {
   getVisibleInternalMcpTools,
 } from '../internal-mcp/index.js';
 import { ORCHESTRATOR_SYSTEM_PROMPT } from '../prompts/index.js';
+import { RetryPolicyEvaluator } from '../recovery/retry-policy-evaluator.js';
+import { RollbackPolicyEvaluator } from '../recovery/rollback-policy-evaluator.js';
 import { WorkmodeAdmissionGuard } from '../workmode/admission-guard.js';
 import type { BacklogPriority, BacklogEntry } from './backlog-types.js';
 import { SystemBacklogQueue } from './backlog-queue.js';
@@ -153,6 +162,13 @@ implements IPrincipalSystemGatewayRuntime, ISystemInboxSubmissionService {
   private readonly systemTools: ToolDefinition[];
   private readonly systemBacklogQueue: SystemBacklogQueue;
 
+  // Recovery component slots (Phase 1.2 — WR-072)
+  private readonly checkpointManager?: ICheckpointManager;
+  private readonly recoveryLedgerStore?: IRecoveryLedgerStore;
+  private readonly recoveryOrchestrator?: IRecoveryOrchestrator;
+  private readonly retryPolicyEvaluator: IRetryPolicyEvaluator;
+  private readonly rollbackPolicyEvaluator: IRollbackPolicyEvaluator;
+
   constructor(private readonly deps: PrincipalSystemGatewayRuntimeDeps = {}) {
     this.healthSink = new GatewayRuntimeHealthSink({ eventBus: deps.eventBus });
     this.replicaProvider = new SystemContextReplicaProvider(this.healthSink);
@@ -162,6 +178,14 @@ implements IPrincipalSystemGatewayRuntime, ISystemInboxSubmissionService {
     this.idFactory = deps.idFactory ?? randomUUID;
     this.now = deps.now ?? (() => new Date().toISOString());
     this.nowMs = deps.nowMs ?? (() => Date.now());
+
+    // Recovery component wiring (Phase 1.2 — WR-072)
+    this.checkpointManager = deps.checkpointManager;
+    this.recoveryLedgerStore = deps.recoveryLedgerStore;
+    this.recoveryOrchestrator = deps.recoveryOrchestrator;
+    this.retryPolicyEvaluator = new RetryPolicyEvaluator();
+    this.rollbackPolicyEvaluator = new RollbackPolicyEvaluator();
+
     this.healthSink.completeBootStep('subcortex_initialized', this.now());
     this.healthSink.completeBootStep('internal_mcp_registered', this.now());
 
@@ -397,7 +421,150 @@ implements IPrincipalSystemGatewayRuntime, ISystemInboxSubmissionService {
     };
   }
 
-  private async executeSystemEntry(entry: BacklogEntry) {
+  /** Build a synthetic AgentResult for pre-execution gate blocks or recovery terminal states. */
+  private buildSyntheticResult(
+    entry: BacklogEntry,
+    status: 'suspended' | 'escalated' | 'error',
+    reason: string,
+  ): AgentResult {
+    return {
+      status,
+      reason,
+      correlation: {
+        runId: entry.runId as never,
+        parentId: this.systemGateway.agentId,
+        sequence: 0,
+      },
+      usage: { turnsUsed: 0, tokensUsed: 0, wallTimeMs: 0 },
+      evidenceRefs: [],
+      ...(status === 'suspended' ? { resumeWhen: 'lease_release' as const } : {}),
+      ...(status === 'escalated' ? { severity: 'high' as never, detail: {} } : {}),
+      ...(status === 'error' ? { detail: {} } : {}),
+    } as unknown as AgentResult;
+  }
+
+  private async executeSystemEntry(entry: BacklogEntry): Promise<AgentResult> {
+    // Phase 1.2 — Opctl gate: block principal_tool-sourced entries when project is paused/stopped
+    if (entry.source === 'principal_tool' && entry.projectId && this.deps.opctlService) {
+      try {
+        const controlState = await this.deps.opctlService.getProjectControlState(
+          entry.projectId as never,
+        );
+        if (controlState === 'paused_review' || controlState === 'hard_stopped') {
+          this.healthSink.addIssue('opctl_gate_blocked');
+          return this.buildSyntheticResult(entry, 'suspended', `opctl_gate_blocked:${controlState}`);
+        }
+      } catch {
+        // Fail-open: opctl service error should not block execution
+        console.warn('[nous:gateway-runtime] opctl gate check failed, allowing execution');
+      }
+    }
+    // scheduler, system_event, hook sources bypass the gate entirely
+
+    // Phase 1.2 — Checkpoint capture: prepare before execution
+    let preparedCheckpointId: string | undefined;
+    if (this.checkpointManager && entry.projectId) {
+      try {
+        const stateHash = createHash('sha256')
+          .update(JSON.stringify(entry.payload))
+          .digest('hex');
+        const prepareResult = await this.checkpointManager.prepare(
+          entry.runId,
+          entry.projectId,
+          {
+            domain_scope: 'step_domain',
+            state_vector_hash: stateHash,
+            policy_epoch: this.now(),
+            scheduler_cursor: entry.id,
+            tool_side_effect_journal_hwm: 0,
+            memory_write_journal_hwm: 0,
+            idempotency_key_set_hash: createHash('sha256')
+              .update(entry.runId)
+              .digest('hex'),
+          },
+        );
+        if (prepareResult.success && prepareResult.checkpoint_id) {
+          preparedCheckpointId = prepareResult.checkpoint_id;
+          this.healthSink.recordCheckpointPrepared(preparedCheckpointId, this.now());
+        }
+      } catch {
+        // Checkpoint capture is advisory for V1 — proceed without checkpoint
+        console.warn('[nous:gateway-runtime] checkpoint prepare failed, proceeding without checkpoint');
+      }
+    }
+
+    // Execute the system entry
+    const result = await this.executeSystemEntryInner(entry);
+
+    // Phase 1.2 — Checkpoint capture: commit after successful execution
+    if (preparedCheckpointId && this.checkpointManager && result.status !== 'error') {
+      try {
+        const commitResult = await this.checkpointManager.commit(
+          entry.runId,
+          preparedCheckpointId,
+          `witness:${entry.runId}`,
+        );
+        if (commitResult.success) {
+          this.healthSink.recordCheckpointCommitted(preparedCheckpointId, this.now());
+        }
+      } catch {
+        // Commit failure: checkpoint remains prepared-only
+        console.warn('[nous:gateway-runtime] checkpoint commit failed');
+      }
+    }
+
+    // Phase 1.2 — Recovery invocation on system entry error
+    if (
+      result.status === 'error' &&
+      this.recoveryOrchestrator &&
+      this.checkpointManager &&
+      this.recoveryLedgerStore
+    ) {
+      try {
+        const recoveryContext: RecoveryOrchestratorContext = {
+          run_id: entry.runId,
+          project_id: entry.projectId ?? 'unknown',
+          failure_class: 'retryable_transient',
+          ledger_store: this.recoveryLedgerStore,
+          checkpoint_manager: this.checkpointManager,
+          retry_evaluator: this.retryPolicyEvaluator,
+          rollback_evaluator: this.rollbackPolicyEvaluator,
+        };
+
+        const terminalState = await this.recoveryOrchestrator.run(recoveryContext);
+
+        switch (terminalState) {
+          case 'recovery_completed':
+            // Single retry — prevents infinite recursion
+            return this.executeSystemEntryInner(entry);
+
+          case 'recovery_failed_hard_stop':
+            this.healthSink.recordEscalation('critical', this.now());
+            return result;
+
+          case 'recovery_blocked_review_required':
+            this.healthSink.recordEscalation('high', this.now());
+            await this.principalGateway.getInboxHandle().injectContext(
+              createInboxFrame(
+                `Recovery blocked — review required for run ${entry.runId}`,
+                this.now,
+              ),
+            );
+            this.healthSink.recordEscalationRoutedToPrincipal(this.now());
+            return this.buildSyntheticResult(entry, 'escalated', 'recovery_blocked_review_required');
+        }
+      } catch {
+        // Recovery failure must not mask the original error
+        console.warn('[nous:gateway-runtime] recovery orchestrator failed, propagating original error');
+        return result;
+      }
+    }
+
+    return result;
+  }
+
+  /** Core system entry execution — inbox injection, gateway.run, escalation routing. */
+  private async executeSystemEntryInner(entry: BacklogEntry) {
     const traceId = this.nextRunId();
     const inboxFrame = entry.payload.inboxFrame as ReturnType<typeof createInboxFrame> | undefined;
     if (inboxFrame) {
