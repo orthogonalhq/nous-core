@@ -155,10 +155,10 @@ describe('useBuilderState — monitoring', () => {
   })
 
   it('setActiveRun loads the correct run', () => {
-    const { result } = renderHook(() => useBuilderState())
-    act(() => {
-      result.current.setMode('monitoring')
-    })
+    const { result } = renderHook(
+      ({ mode }) => useBuilderState(mode),
+      { initialProps: { mode: 'monitoring' as const } },
+    )
     act(() => {
       result.current.setActiveRun('run-001')
     })
@@ -168,10 +168,10 @@ describe('useBuilderState — monitoring', () => {
   })
 
   it('clearActiveRun sets activeRun to null', () => {
-    const { result } = renderHook(() => useBuilderState())
-    act(() => {
-      result.current.setMode('monitoring')
-    })
+    const { result } = renderHook(
+      ({ mode }) => useBuilderState(mode),
+      { initialProps: { mode: 'monitoring' as const } },
+    )
     act(() => {
       result.current.setActiveRun('run-001')
     })
@@ -183,38 +183,138 @@ describe('useBuilderState — monitoring', () => {
   })
 
   it('switching mode away from monitoring clears activeRun', () => {
-    const { result } = renderHook(() => useBuilderState())
-    act(() => {
-      result.current.setMode('monitoring')
-    })
+    const { result, rerender } = renderHook(
+      ({ mode }) => useBuilderState(mode),
+      { initialProps: { mode: 'monitoring' as const } },
+    )
     act(() => {
       result.current.setActiveRun('run-002')
     })
     expect(result.current.activeRun).not.toBeNull()
-    act(() => {
-      result.current.setMode('authoring')
-    })
+    rerender({ mode: 'authoring' as const })
     expect(result.current.activeRun).toBeNull()
     expect(result.current.monitoringState.isMonitoring).toBe(false)
   })
 
   it('isMonitoring is false when mode is monitoring but no active run', () => {
-    const { result } = renderHook(() => useBuilderState())
-    act(() => {
-      result.current.setMode('monitoring')
-    })
-    expect(result.current.mode).toBe('monitoring')
+    const { result } = renderHook(
+      ({ mode }) => useBuilderState(mode),
+      { initialProps: { mode: 'monitoring' as const } },
+    )
     expect(result.current.monitoringState.isMonitoring).toBe(false)
   })
 
   it('setActiveRun with invalid ID does not set active run', () => {
-    const { result } = renderHook(() => useBuilderState())
-    act(() => {
-      result.current.setMode('monitoring')
-    })
+    const { result } = renderHook(
+      ({ mode }) => useBuilderState(mode),
+      { initialProps: { mode: 'monitoring' as const } },
+    )
     act(() => {
       result.current.setActiveRun('nonexistent')
     })
     expect(result.current.activeRun).toBeNull()
+  })
+})
+
+// ─── Tier 3 — State-layer mode enforcement (SP 3.1.2) ────────────────────────
+
+describe('useBuilderState — mode enforcement', () => {
+  it('addNode is blocked in monitoring mode', () => {
+    const { result } = renderHook(() => useBuilderState('monitoring'))
+    const initialCount = result.current.nodes.length
+    act(() => {
+      result.current.addNode('nous.trigger.webhook', { x: 0, y: 0 })
+    })
+    expect(result.current.nodes.length).toBe(initialCount)
+  })
+
+  it('addNode is blocked in inspecting mode', () => {
+    const { result } = renderHook(() => useBuilderState('inspecting'))
+    const initialCount = result.current.nodes.length
+    act(() => {
+      result.current.addNode('nous.trigger.webhook', { x: 0, y: 0 })
+    })
+    expect(result.current.nodes.length).toBe(initialCount)
+  })
+
+  it('addNode works in authoring mode', () => {
+    const { result } = renderHook(() => useBuilderState('authoring'))
+    const initialCount = result.current.nodes.length
+    act(() => {
+      result.current.addNode('nous.trigger.webhook', { x: 0, y: 0 })
+    })
+    expect(result.current.nodes.length).toBe(initialCount + 1)
+  })
+
+  it('removeNode is blocked in monitoring mode', () => {
+    const { result } = renderHook(() => useBuilderState('monitoring'))
+    const initialCount = result.current.nodes.length
+    act(() => {
+      result.current.removeNode(result.current.nodes[0].id)
+    })
+    expect(result.current.nodes.length).toBe(initialCount)
+  })
+
+  it('undo is blocked in monitoring mode', () => {
+    // First do something undoable in authoring mode
+    const { result, rerender } = renderHook(
+      ({ mode }) => useBuilderState(mode),
+      { initialProps: { mode: 'authoring' as const } },
+    )
+    act(() => {
+      result.current.addNode('nous.trigger.webhook', { x: 0, y: 0 })
+    })
+    const afterAdd = result.current.nodes.length
+    expect(result.current.canUndo).toBe(true)
+
+    // Switch to monitoring — undo should be blocked
+    rerender({ mode: 'monitoring' as const })
+    act(() => {
+      result.current.undo()
+    })
+    expect(result.current.nodes.length).toBe(afterAdd)
+  })
+
+  it('redo is blocked in monitoring mode', () => {
+    const { result, rerender } = renderHook(
+      ({ mode }) => useBuilderState(mode),
+      { initialProps: { mode: 'authoring' as const } },
+    )
+    act(() => {
+      result.current.addNode('nous.trigger.webhook', { x: 0, y: 0 })
+    })
+    act(() => {
+      result.current.undo()
+    })
+    expect(result.current.canRedo).toBe(true)
+
+    rerender({ mode: 'monitoring' as const })
+    const afterUndo = result.current.nodes.length
+    act(() => {
+      result.current.redo()
+    })
+    expect(result.current.nodes.length).toBe(afterUndo)
+  })
+
+  it('onNodesChange is blocked in monitoring mode', () => {
+    const { result } = renderHook(() => useBuilderState('monitoring'))
+    const initialPos = { ...result.current.nodes[0].position }
+    act(() => {
+      result.current.onNodesChange([
+        { type: 'position', id: result.current.nodes[0].id, position: { x: 999, y: 888 } } as any,
+      ])
+    })
+    expect(result.current.nodes[0].position).toEqual(initialPos)
+  })
+
+  it('onEdgesChange is blocked in monitoring mode', () => {
+    const { result } = renderHook(() => useBuilderState('monitoring'))
+    const initialCount = result.current.edges.length
+    act(() => {
+      result.current.onEdgesChange([
+        { type: 'remove', id: result.current.edges[0].id } as any,
+      ])
+    })
+    expect(result.current.edges.length).toBe(initialCount)
   })
 })

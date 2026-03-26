@@ -7,6 +7,7 @@ import { reactFlowMock } from '../react-flow-mock'
 vi.mock('@xyflow/react', () => reactFlowMock)
 
 import { useBuilderState } from '../../hooks/useBuilderState'
+import type { BuilderMode } from '../../../../types/workflow-builder'
 
 /**
  * Integration test: Monitor mode workflow
@@ -15,29 +16,28 @@ import { useBuilderState } from '../../hooks/useBuilderState'
  * monitoring state), WorkflowBuilderPanel (interaction disabling), and the
  * monitoring overlay/history components.
  *
- * Since WorkflowBuilderPanel requires a full React Flow context, this test
- * validates the hook-level behavior that drives the panel behavior.
+ * Mode is now a parameter to useBuilderState (SP 3.1.2), so mode switching
+ * is simulated via renderHook rerender.
  */
 describe('Monitor mode workflow — Integration', () => {
-  it('switching to monitoring mode changes mode state', () => {
-    const { result } = renderHook(() => useBuilderState())
-    expect(result.current.mode).toBe('authoring')
-
+  it('monitoring mode is accepted as parameter', () => {
+    const { result } = renderHook(
+      ({ mode }) => useBuilderState(mode),
+      { initialProps: { mode: 'monitoring' as BuilderMode } },
+    )
+    // In monitoring mode, mutations are blocked at state layer
+    const initialCount = result.current.nodes.length
     act(() => {
-      result.current.setMode('monitoring')
+      result.current.addNode('nous.trigger.webhook', { x: 0, y: 0 })
     })
-
-    expect(result.current.mode).toBe('monitoring')
-    // nodesDraggable and nodesConnectable would be set to false in the panel
-    // based on mode !== 'monitoring' — verified at hook level
+    expect(result.current.nodes.length).toBe(initialCount)
   })
 
   it('selecting a run from history populates monitoring state', () => {
-    const { result } = renderHook(() => useBuilderState())
-
-    act(() => {
-      result.current.setMode('monitoring')
-    })
+    const { result } = renderHook(
+      ({ mode }) => useBuilderState(mode),
+      { initialProps: { mode: 'monitoring' as BuilderMode } },
+    )
 
     // Simulate history panel selecting a run
     act(() => {
@@ -51,37 +51,39 @@ describe('Monitor mode workflow — Integration', () => {
   })
 
   it('switching back to authoring clears monitoring state and re-enables interactions', () => {
-    const { result } = renderHook(() => useBuilderState())
+    const { result, rerender } = renderHook(
+      ({ mode }) => useBuilderState(mode),
+      { initialProps: { mode: 'monitoring' as BuilderMode } },
+    )
 
     // Enter monitoring mode with active run
-    act(() => {
-      result.current.setMode('monitoring')
-    })
     act(() => {
       result.current.setActiveRun('run-002')
     })
     expect(result.current.monitoringState.isMonitoring).toBe(true)
 
     // Switch back to authoring
-    act(() => {
-      result.current.setMode('authoring')
-    })
+    rerender({ mode: 'authoring' as BuilderMode })
 
-    expect(result.current.mode).toBe('authoring')
     expect(result.current.activeRun).toBeNull()
     expect(result.current.monitoringState.isMonitoring).toBe(false)
-    // nodesDraggable and nodesConnectable would be true (mode !== 'monitoring')
+
+    // Mutations should work again
+    const initialCount = result.current.nodes.length
+    act(() => {
+      result.current.addNode('nous.trigger.webhook', { x: 0, y: 0 })
+    })
+    expect(result.current.nodes.length).toBe(initialCount + 1)
   })
 
   it('full cycle: authoring -> monitoring -> select run -> switch run -> back to authoring', () => {
-    const { result } = renderHook(() => useBuilderState())
-
-    // Start in authoring
-    expect(result.current.mode).toBe('authoring')
+    const { result, rerender } = renderHook(
+      ({ mode }) => useBuilderState(mode),
+      { initialProps: { mode: 'authoring' as BuilderMode } },
+    )
 
     // Switch to monitoring
-    act(() => { result.current.setMode('monitoring') })
-    expect(result.current.mode).toBe('monitoring')
+    rerender({ mode: 'monitoring' as BuilderMode })
 
     // Select run 1
     act(() => { result.current.setActiveRun('run-001') })
@@ -94,23 +96,22 @@ describe('Monitor mode workflow — Integration', () => {
     // Clear active run
     act(() => { result.current.clearActiveRun() })
     expect(result.current.activeRun).toBeNull()
-    expect(result.current.mode).toBe('monitoring') // still in monitoring mode
 
     // Back to authoring
-    act(() => { result.current.setMode('authoring') })
-    expect(result.current.mode).toBe('authoring')
+    rerender({ mode: 'authoring' as BuilderMode })
     expect(result.current.activeRun).toBeNull()
   })
 
   it('switching to inspecting mode also clears monitoring state', () => {
-    const { result } = renderHook(() => useBuilderState())
+    const { result, rerender } = renderHook(
+      ({ mode }) => useBuilderState(mode),
+      { initialProps: { mode: 'monitoring' as BuilderMode } },
+    )
 
-    act(() => { result.current.setMode('monitoring') })
     act(() => { result.current.setActiveRun('run-003') })
     expect(result.current.activeRun!.id).toBe('run-003')
 
-    act(() => { result.current.setMode('inspecting') })
-    expect(result.current.mode).toBe('inspecting')
+    rerender({ mode: 'inspecting' as BuilderMode })
     expect(result.current.activeRun).toBeNull()
   })
 })
