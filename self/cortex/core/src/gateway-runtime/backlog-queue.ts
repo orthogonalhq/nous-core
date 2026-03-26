@@ -4,6 +4,7 @@ import { DocumentBacklogStore } from './backlog-store.js';
 import type {
   BacklogAnalytics,
   BacklogEntry,
+  BacklogEntryStatus,
   BacklogPriority,
   BacklogQueueConfig,
 } from './backlog-types.js';
@@ -99,6 +100,14 @@ export class SystemBacklogQueue {
   async getAnalytics(): Promise<BacklogAnalytics> {
     await this.ready;
     return this.store.snapshotAnalytics(this.deps.now(), this.config);
+  }
+
+  async listEntries(filter?: { status?: BacklogEntryStatus }): Promise<BacklogEntry[]> {
+    await this.ready;
+    if (filter?.status) {
+      return this.store.listByStatus(filter.status);
+    }
+    return this.store.list();
   }
 
   private async initialize(): Promise<void> {

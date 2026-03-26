@@ -3,12 +3,14 @@
 import { clsx } from 'clsx'
 import { useShellContext } from './ShellContext'
 import { MAOSurface } from './MAOSurface'
+import { SystemActivitySurface } from './SystemActivitySurface'
 import type { ObservePanelProps, ObserveRoute } from './types'
 
 /** Map content routes to observe sub-panel routes */
 const OBSERVE_ROUTE_MAP: Record<string, ObserveRoute> = {
   workflows: 'mao',
   'workflow-detail': 'mao',
+  'system-activity': 'system-activity',
 }
 
 export function ObservePanel(props: ObservePanelProps) {
@@ -28,6 +30,8 @@ export function ObservePanel(props: ObservePanelProps) {
     >
       {observeRoute === 'mao' ? (
         <MAOSurface maoApi={props.maoApi} />
+      ) : observeRoute === 'system-activity' ? (
+        <SystemActivitySurface />
       ) : (
         <div
           style={{

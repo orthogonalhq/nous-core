@@ -27,6 +27,9 @@ const ALL_CHANNELS: (keyof EventChannelMap)[] = [
   'lifecycle:transition',
   'escalation:new',
   'escalation:resolved',
+  'system:backlog-change',
+  'system:outbox-event',
+  'system:turn-ack',
 ];
 
 const HEARTBEAT_INTERVAL_MS = 30_000;

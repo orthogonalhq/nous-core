@@ -724,6 +724,145 @@ describe('SystemBacklogQueue', () => {
     expect(analytics.pressureTrend).toBe('decreasing');
   });
 
+  describe('listEntries()', () => {
+    it('returns all entries when no filter is provided', async () => {
+      const documentStore = createDocumentStore();
+      const healthSink = new GatewayRuntimeHealthSink();
+      let resolveAll!: () => void;
+      const blockAll = new Promise<void>((resolve) => {
+        resolveAll = resolve;
+      });
+
+      const queue = new SystemBacklogQueue({
+        documentStore,
+        healthSink,
+        now: (() => {
+          let counter = 0;
+          return () => new Date(Date.UTC(2026, 2, 13, 17, 0, counter++)).toISOString();
+        })(),
+        executeEntry: async () => {
+          await blockAll;
+          return completedResult();
+        },
+      });
+
+      await queue.enqueue({
+        id: 'entry-1',
+        runId: 'run-1',
+        dispatchRef: 'dispatch-1',
+        source: 'scheduler',
+        priority: 'normal',
+        instructions: 'task-1',
+        payload: {},
+        acceptedAt: '2026-03-13T17:00:00.000Z',
+      });
+      await queue.enqueue({
+        id: 'entry-2',
+        runId: 'run-2',
+        dispatchRef: 'dispatch-2',
+        source: 'scheduler',
+        priority: 'low',
+        instructions: 'task-2',
+        payload: {},
+        acceptedAt: '2026-03-13T17:00:01.000Z',
+      });
+
+      const entries = await queue.listEntries();
+      // Should include all entries regardless of status
+      expect(entries.length).toBeGreaterThanOrEqual(2);
+      const ids = entries.map((e) => e.id);
+      expect(ids).toContain('entry-1');
+      expect(ids).toContain('entry-2');
+
+      resolveAll();
+      await queue.whenIdle();
+    });
+
+    it('returns only entries matching the status filter', async () => {
+      const documentStore = createDocumentStore();
+      const backlogStore = new DocumentBacklogStore(documentStore);
+      const healthSink = new GatewayRuntimeHealthSink();
+
+      // Seed entries with different statuses
+      await backlogStore.put({
+        id: 'queued-entry',
+        status: 'queued',
+        source: 'scheduler',
+        priority: 'normal',
+        priorityRank: 1,
+        instructions: 'queued',
+        payload: {},
+        dispatchRef: 'dispatch-queued',
+        runId: 'run-queued',
+        acceptedAt: '2026-03-13T17:00:00.000Z',
+        queueDepthAtAcceptance: 0,
+      });
+      await backlogStore.put({
+        id: 'completed-entry',
+        status: 'completed',
+        source: 'scheduler',
+        priority: 'normal',
+        priorityRank: 1,
+        instructions: 'completed',
+        payload: {},
+        dispatchRef: 'dispatch-completed',
+        runId: 'run-completed',
+        acceptedAt: '2026-03-13T17:00:01.000Z',
+        completedAt: '2026-03-13T17:00:02.000Z',
+        queueDepthAtAcceptance: 0,
+        resultStatus: 'completed',
+      });
+
+      const queue = new SystemBacklogQueue({
+        documentStore,
+        healthSink,
+        now: () => '2026-03-13T17:00:05.000Z',
+        executeEntry: async () => completedResult(),
+      });
+
+      // Wait for initialization to settle
+      await vi.waitFor(async () => {
+        const all = await queue.listEntries();
+        expect(all.length).toBeGreaterThanOrEqual(1);
+      });
+
+      const completedEntries = await queue.listEntries({ status: 'completed' });
+      expect(completedEntries.every((e) => e.status === 'completed')).toBe(true);
+      expect(completedEntries.some((e) => e.id === 'completed-entry')).toBe(true);
+    });
+
+    it('returns empty array when no entries match the filter', async () => {
+      const documentStore = createDocumentStore();
+      const healthSink = new GatewayRuntimeHealthSink();
+
+      const queue = new SystemBacklogQueue({
+        documentStore,
+        healthSink,
+        now: () => '2026-03-13T17:00:00.000Z',
+        executeEntry: async () => completedResult(),
+      });
+
+      const entries = await queue.listEntries({ status: 'suspended' });
+      expect(entries).toEqual([]);
+    });
+
+    it('returns same result with undefined filter as with no filter', async () => {
+      const documentStore = createDocumentStore();
+      const healthSink = new GatewayRuntimeHealthSink();
+
+      const queue = new SystemBacklogQueue({
+        documentStore,
+        healthSink,
+        now: () => '2026-03-13T17:00:00.000Z',
+        executeEntry: async () => completedResult(),
+      });
+
+      const noFilter = await queue.listEntries();
+      const undefinedFilter = await queue.listEntries(undefined);
+      expect(noFilter).toEqual(undefinedFilter);
+    });
+  });
+
   it('returns stable pressureTrend when no terminal entries exist', async () => {
     const documentStore = createDocumentStore();
     const backlogStore = new DocumentBacklogStore(documentStore);
