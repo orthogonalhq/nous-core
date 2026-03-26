@@ -107,7 +107,7 @@ function ProjectsPageContent() {
     return (
       <div className="flex h-full items-center justify-center p-8">
         <p className="text-muted-foreground">
-          Select a project from the sidebar to monitor and edit workflows.
+          Select a project from the navigation panel to monitor and edit workflows.
         </p>
       </div>
     );

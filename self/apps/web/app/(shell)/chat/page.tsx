@@ -104,7 +104,7 @@ function ChatPageContent() {
         }}
       >
         <p style={{ color: 'var(--nous-text-secondary)' }}>
-          Select or create a project from the sidebar to start chatting.
+          Select or create a project from the navigation panel to start chatting.
         </p>
       </div>
     );
