@@ -335,9 +335,6 @@ const CanvasDropTarget = forwardRef<
 
   useEffect(() => {
     const handler = (e: KeyboardEvent) => {
-      // Suppress all authoring shortcuts in monitor mode
-      if (mode === 'monitoring') return
-
       const target = e.target as HTMLElement
       if (
         target.tagName === 'INPUT' ||
@@ -351,16 +348,20 @@ const CanvasDropTarget = forwardRef<
 
       if (isMod && (e.key === 'k' || e.key === 'K')) {
         e.preventDefault()
+        if (mode === 'monitoring') return
         setContextMenu(null) // Close any open context menu
         setNodeSearchOpen((prev) => !prev)
       } else if (isMod && e.shiftKey && (e.key === 'z' || e.key === 'Z')) {
         e.preventDefault()
+        if (mode === 'monitoring') return
         redo()
       } else if (isMod && (e.key === 'z' || e.key === 'Z')) {
         e.preventDefault()
+        if (mode === 'monitoring') return
         undo()
       } else if (isMod && (e.key === 's' || e.key === 'S')) {
         e.preventDefault()
+        if (mode === 'monitoring') return
         handleSave()
       }
     }
