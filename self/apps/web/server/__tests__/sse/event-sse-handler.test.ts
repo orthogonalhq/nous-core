@@ -155,6 +155,62 @@ describe('createEventSseHandler', () => {
       expect(allOutput).not.toContain('event: mao:projection-changed');
     });
 
+    it('subscribes to all 16 channels including system:* channels when no filter', () => {
+      const handler = createEventSseHandler(bus);
+      const req = createMockReq('/events');
+      const res = createMockRes();
+
+      handler(req, res);
+
+      bus.publish('system:backlog-change', {
+        pending: 1,
+        active: 0,
+        suspended: 0,
+        pressureTrend: 'stable',
+      });
+      bus.publish('system:turn-ack', {
+        agentClass: 'Cortex::System',
+        turn: 1,
+        runId: 'run-1',
+        turnsUsed: 1,
+        tokensUsed: 100,
+        emittedAt: '2026-03-25T12:00:00.000Z',
+      });
+      bus.publish('system:outbox-event', {
+        agentClass: 'Cortex::System',
+        type: 'observation',
+        observationType: 'insight',
+        content: 'test',
+        runId: 'run-1',
+        emittedAt: '2026-03-25T12:00:00.000Z',
+      });
+
+      const allOutput = res._chunks.join('');
+      expect(allOutput).toContain('event: system:backlog-change');
+      expect(allOutput).toContain('event: system:turn-ack');
+      expect(allOutput).toContain('event: system:outbox-event');
+    });
+
+    it('supports system:* glob prefix filtering', () => {
+      const handler = createEventSseHandler(bus);
+      const req = createMockReq('/events?channels=system:*');
+      const res = createMockRes();
+
+      handler(req, res);
+
+      bus.publish('system:backlog-change', {
+        pending: 0,
+        active: 0,
+        suspended: 0,
+        pressureTrend: 'stable',
+      });
+      bus.publish('health:boot-step', { step: 'x', status: 'started' });
+
+      const allOutput = res._chunks.join('');
+      expect(allOutput).toContain('event: system:backlog-change');
+      expect(allOutput).not.toContain('event: health:boot-step');
+    });
+
     it('subscribes to all channels when no ?channels= is specified', () => {
       const handler = createEventSseHandler(bus);
       const req = createMockReq('/events');

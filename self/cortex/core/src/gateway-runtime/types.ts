@@ -37,6 +37,8 @@ import type {
 import type { InternalMcpOutputSchemaValidator } from '../internal-mcp/types.js';
 import {
   BacklogAnalyticsSchema,
+  type BacklogEntry,
+  type BacklogEntryStatus,
   type BacklogQueueConfig,
 } from './backlog-types.js';
 
@@ -254,6 +256,7 @@ export interface IPrincipalSystemGatewayRuntime {
   submitTaskToSystem(input: SystemTaskSubmission): Promise<SystemSubmissionReceipt>;
   injectDirectiveToSystem(input: SystemDirectiveInjection): Promise<SystemSubmissionReceipt>;
   submitIngressEnvelope(envelope: IngressTriggerEnvelope): Promise<IngressDispatchOutcome>;
+  listBacklogEntries(filter?: { status?: BacklogEntryStatus }): Promise<BacklogEntry[]>;
   notifyLeaseReleased(event: LaneLeaseReleasedEvent): Promise<void>;
   whenIdle(): Promise<void>;
 }
