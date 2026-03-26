@@ -2,6 +2,7 @@
 
 import { useReactFlow } from '@xyflow/react'
 import type { BuilderMode } from '../../types/workflow-builder'
+import { useBuilderMode } from './context/BuilderModeContext'
 
 export interface BuilderToolbarProps {
   mode: BuilderMode
@@ -111,6 +112,8 @@ export function BuilderToolbar({
   isValidationPanelOpen = false,
 }: BuilderToolbarProps) {
   const { zoomIn, zoomOut, fitView } = useReactFlow()
+  const { mode: currentMode } = useBuilderMode()
+  const isAuthoring = currentMode === 'authoring'
 
   return (
     <div style={toolbarContainerStyle}>
@@ -167,8 +170,8 @@ export function BuilderToolbar({
         type="button"
         title="Undo (Ctrl+Z)"
         aria-label="Undo"
-        style={canUndo ? buttonBaseStyle : disabledButtonStyle}
-        disabled={!canUndo}
+        style={isAuthoring && canUndo ? buttonBaseStyle : disabledButtonStyle}
+        disabled={!isAuthoring || !canUndo}
         onClick={onUndo}
       >
         <i className="codicon codicon-discard" style={{ fontSize: 14 }} />
@@ -177,8 +180,8 @@ export function BuilderToolbar({
         type="button"
         title="Redo (Ctrl+Shift+Z)"
         aria-label="Redo"
-        style={canRedo ? buttonBaseStyle : disabledButtonStyle}
-        disabled={!canRedo}
+        style={isAuthoring && canRedo ? buttonBaseStyle : disabledButtonStyle}
+        disabled={!isAuthoring || !canRedo}
         onClick={onRedo}
       >
         <i className="codicon codicon-redo" style={{ fontSize: 14 }} />
@@ -190,8 +193,8 @@ export function BuilderToolbar({
         title="Serialize workflow (persistence coming in Phase 3)"
         aria-label="Save workflow"
         data-testid="toolbar-save"
-        style={isDirty ? buttonBaseStyle : disabledButtonStyle}
-        disabled={!isDirty || !onSave}
+        style={isAuthoring && isDirty ? buttonBaseStyle : disabledButtonStyle}
+        disabled={!isAuthoring || !isDirty || !onSave}
         onClick={onSave}
       >
         <i className="codicon codicon-save" style={{ fontSize: 14 }} />
@@ -203,8 +206,8 @@ export function BuilderToolbar({
         title="Toggle Validation Panel"
         aria-label="Toggle validation panel"
         data-testid="toolbar-validate"
-        style={isValidationPanelOpen ? activeButtonStyle : buttonBaseStyle}
-        disabled={!onValidate}
+        style={!isAuthoring ? disabledButtonStyle : isValidationPanelOpen ? activeButtonStyle : buttonBaseStyle}
+        disabled={!isAuthoring || !onValidate}
         onClick={onValidate}
       >
         <i className="codicon codicon-check-all" style={{ fontSize: 14 }} />

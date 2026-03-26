@@ -12,6 +12,7 @@ import {
 } from '@xyflow/react'
 import type { IDockviewPanelProps } from 'dockview-react'
 import type { WorkflowBuilderNode, WorkflowBuilderEdge, ContextMenuState } from '../../types/workflow-builder'
+import { BuilderModeProvider, useBuilderMode } from './context/BuilderModeContext'
 import { useBuilderState } from './hooks/useBuilderState'
 import { useKeyboardNav } from './hooks/useKeyboardNav'
 import { BuilderToolbar } from './BuilderToolbar'
@@ -59,6 +60,7 @@ const CanvasDropTarget = forwardRef<
   canvasHasFocus,
   onFocusedNodeChange,
 }, ref) {
+  const { mode, setMode } = useBuilderMode()
   const {
     nodes,
     edges,
@@ -70,8 +72,6 @@ const CanvasDropTarget = forwardRef<
     onPaneClick,
     selectedNodeId,
     selectedEdgeId,
-    mode,
-    setMode,
     addNode,
     addEdge,
     removeNode,
@@ -90,7 +90,7 @@ const CanvasDropTarget = forwardRef<
     activeRun,
     setActiveRun,
     clearActiveRun,
-  } = useBuilderState()
+  } = useBuilderState(mode)
 
   const { screenToFlowPosition, fitView } = useReactFlow()
 
@@ -413,9 +413,9 @@ const CanvasDropTarget = forwardRef<
       <ReactFlow
         nodes={nodes}
         edges={edges}
-        onNodesChange={mode !== 'monitoring' ? onNodesChange : undefined}
-        onEdgesChange={mode !== 'monitoring' ? onEdgesChange : undefined}
-        onConnect={mode !== 'monitoring' ? onConnect : undefined}
+        onNodesChange={onNodesChange}
+        onEdgesChange={onEdgesChange}
+        onConnect={onConnect}
         onNodeClick={onNodeClick}
         onEdgeClick={onEdgeClick}
         onPaneClick={onPaneClick}
@@ -427,8 +427,8 @@ const CanvasDropTarget = forwardRef<
         nodesDraggable={mode !== 'monitoring'}
         nodesConnectable={mode !== 'monitoring'}
         elementsSelectable={mode !== 'monitoring'}
-        onDragOver={mode !== 'monitoring' ? onDragOver : undefined}
-        onDrop={mode !== 'monitoring' ? onDrop : undefined}
+        onDragOver={onDragOver}
+        onDrop={onDrop}
         deleteKeyCode={mode !== 'monitoring' ? 'Delete' : null}
         fitView
         style={{
@@ -597,14 +597,16 @@ function WorkflowBuilderCanvas({ className }: { className?: string }) {
         outline: 'none',
       }}
     >
-      <ReactFlowProvider>
-        <CanvasDropTarget
-          ref={dropTargetRef}
-          canvasRef={canvasRef}
-          canvasHasFocus={canvasHasFocus}
-          onFocusedNodeChange={handleFocusedNodeChange}
-        />
-      </ReactFlowProvider>
+      <BuilderModeProvider>
+        <ReactFlowProvider>
+          <CanvasDropTarget
+            ref={dropTargetRef}
+            canvasRef={canvasRef}
+            canvasHasFocus={canvasHasFocus}
+            onFocusedNodeChange={handleFocusedNodeChange}
+          />
+        </ReactFlowProvider>
+      </BuilderModeProvider>
     </div>
   )
 }

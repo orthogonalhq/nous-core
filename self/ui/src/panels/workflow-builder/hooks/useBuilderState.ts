@@ -13,6 +13,7 @@ import type {
   ExecutionRun,
   MonitoringState,
 } from '../../../types/workflow-builder'
+export type { BuilderMode }
 import { DEMO_EXECUTION_RUNS } from '../monitoring/demo-execution-data'
 import { getRegistryEntry } from '../nodes/node-registry'
 import { DEMO_WORKFLOW_NODES, DEMO_WORKFLOW_EDGES } from '../demo-workflow'
@@ -67,11 +68,6 @@ export interface UseBuilderStateReturn {
   /** Currently selected edge ID, or null. */
   selectedEdgeId: string | null
 
-  /** Current builder interaction mode. */
-  mode: BuilderMode
-  /** Update builder interaction mode. */
-  setMode: (mode: BuilderMode) => void
-
   /** Canvas viewport state. */
   viewport: Viewport
 
@@ -119,12 +115,11 @@ const DEFAULT_SPEC_META = { name: 'Untitled Workflow', version: 1 }
  * sync layer. All mutations route through the undo pipeline and trigger
  * outbound sync + validation.
  */
-export function useBuilderState(): UseBuilderStateReturn {
+export function useBuilderState(mode: BuilderMode = 'authoring'): UseBuilderStateReturn {
   const [nodes, setNodes] = useState<WorkflowBuilderNode[]>(() => [...DEMO_WORKFLOW_NODES])
   const [edges, setEdges] = useState<WorkflowBuilderEdge[]>(() => [...DEMO_WORKFLOW_EDGES])
   const [selectedNodeId, setSelectedNodeId] = useState<string | null>(null)
   const [selectedEdgeId, setSelectedEdgeId] = useState<string | null>(null)
-  const [mode, setModeRaw] = useState<BuilderMode>('authoring')
   const [activeRun, setActiveRunState] = useState<ExecutionRun | null>(null)
   const [viewport] = useState<Viewport>(DEFAULT_VIEWPORT)
   const [validationErrors, setValidationErrors] = useState<WorkflowSpecValidationError[]>([])
@@ -134,15 +129,13 @@ export function useBuilderState(): UseBuilderStateReturn {
   const specMetaRef = useRef(DEFAULT_SPEC_META)
 
   // ─── Monitoring state helpers ────────────────────────────────────────────
-  const setMode = useCallback(
-    (newMode: BuilderMode) => {
-      setModeRaw(newMode)
-      if (newMode !== 'monitoring') {
-        setActiveRunState(null)
-      }
-    },
-    [],
-  )
+
+  // Clear active run when leaving monitoring mode
+  useEffect(() => {
+    if (mode !== 'monitoring') {
+      setActiveRunState(null)
+    }
+  }, [mode])
 
   const setActiveRun = useCallback(
     (runId: string) => {
@@ -186,21 +179,26 @@ export function useBuilderState(): UseBuilderStateReturn {
   // ─── React Flow change handlers (non-undoable — visual only) ────────────
 
   const onNodesChange = useCallback(
-    (changes: NodeChange<WorkflowBuilderNode>[]) =>
-      setNodes((nds) => applyNodeChanges(changes, nds)),
-    [],
+    (changes: NodeChange<WorkflowBuilderNode>[]) => {
+      if (mode !== 'authoring') return
+      setNodes((nds) => applyNodeChanges(changes, nds))
+    },
+    [mode],
   )
 
   const onEdgesChange = useCallback(
-    (changes: EdgeChange<WorkflowBuilderEdge>[]) =>
-      setEdges((eds) => applyEdgeChanges(changes, eds)),
-    [],
+    (changes: EdgeChange<WorkflowBuilderEdge>[]) => {
+      if (mode !== 'authoring') return
+      setEdges((eds) => applyEdgeChanges(changes, eds))
+    },
+    [mode],
   )
 
   // ─── Undoable mutations ─────────────────────────────────────────────────
 
   const addNode = useCallback(
     (nousType: string, position: XYPosition) => {
+      if (mode !== 'authoring') return
       const entry = getRegistryEntry(nousType)
       const id = crypto.randomUUID()
       const newNode: WorkflowBuilderNode = {
@@ -223,11 +221,12 @@ export function useBuilderState(): UseBuilderStateReturn {
       setIsDirty(true)
       runOutboundSync(newState.nodes, newState.edges)
     },
-    [undoRedo, runOutboundSync],
+    [mode, undoRedo, runOutboundSync],
   )
 
   const removeNode = useCallback(
     (nodeId: string) => {
+      if (mode !== 'authoring') return
       const node = nodesRef.current.find((n) => n.id === nodeId)
       if (!node) return
 
@@ -243,11 +242,12 @@ export function useBuilderState(): UseBuilderStateReturn {
       setIsDirty(true)
       runOutboundSync(newState.nodes, newState.edges)
     },
-    [undoRedo, runOutboundSync],
+    [mode, undoRedo, runOutboundSync],
   )
 
   const addEdge = useCallback(
     (connection: Connection) => {
+      if (mode !== 'authoring') return
       if (!connection.source || !connection.target) return
       const edgeId = `e-${connection.source}-${connection.target}`
 
@@ -273,11 +273,12 @@ export function useBuilderState(): UseBuilderStateReturn {
       setIsDirty(true)
       runOutboundSync(newState.nodes, newState.edges)
     },
-    [undoRedo, runOutboundSync],
+    [mode, undoRedo, runOutboundSync],
   )
 
   const removeEdge = useCallback(
     (edgeId: string) => {
+      if (mode !== 'authoring') return
       const edge = edgesRef.current.find((e) => e.id === edgeId)
       if (!edge) return
 
@@ -289,11 +290,12 @@ export function useBuilderState(): UseBuilderStateReturn {
       setIsDirty(true)
       runOutboundSync(newState.nodes, newState.edges)
     },
-    [undoRedo, runOutboundSync],
+    [mode, undoRedo, runOutboundSync],
   )
 
   const updateNodeData = useCallback(
     (nodeId: string, data: Partial<WorkflowBuilderNodeData>) => {
+      if (mode !== 'authoring') return
       const node = nodesRef.current.find((n) => n.id === nodeId)
       if (!node) return
 
@@ -311,11 +313,12 @@ export function useBuilderState(): UseBuilderStateReturn {
       setIsDirty(true)
       runOutboundSync(newState.nodes, newState.edges)
     },
-    [undoRedo, runOutboundSync],
+    [mode, undoRedo, runOutboundSync],
   )
 
   const moveNode = useCallback(
     (nodeId: string, position: XYPosition) => {
+      if (mode !== 'authoring') return
       const node = nodesRef.current.find((n) => n.id === nodeId)
       if (!node) return
 
@@ -327,10 +330,10 @@ export function useBuilderState(): UseBuilderStateReturn {
       setIsDirty(true)
       runOutboundSync(newState.nodes, newState.edges)
     },
-    [undoRedo, runOutboundSync],
+    [mode, undoRedo, runOutboundSync],
   )
 
-  // ─── Connection handler ─────────────────────────────────────────────────
+  // ─── Connection handler (delegates to guarded addEdge) ────────────────
 
   const onConnect = useCallback(
     (connection: Connection) => {
@@ -407,6 +410,7 @@ export function useBuilderState(): UseBuilderStateReturn {
   // ─── Undo / Redo ────────────────────────────────────────────────────────
 
   const undo = useCallback(() => {
+    if (mode !== 'authoring') return
     const currentState = { nodes: nodesRef.current, edges: edgesRef.current }
     const newState = undoRedo.undo(currentState)
     if (!newState) return
@@ -417,9 +421,10 @@ export function useBuilderState(): UseBuilderStateReturn {
     // against lastSyncedSpec is deferred per SDS note on isDirty tracking
     setIsDirty(true)
     runOutboundSync(newState.nodes, newState.edges)
-  }, [undoRedo, runOutboundSync])
+  }, [mode, undoRedo, runOutboundSync])
 
   const redo = useCallback(() => {
+    if (mode !== 'authoring') return
     const currentState = { nodes: nodesRef.current, edges: edgesRef.current }
     const newState = undoRedo.redo(currentState)
     if (!newState) return
@@ -428,40 +433,7 @@ export function useBuilderState(): UseBuilderStateReturn {
     setEdges(newState.edges)
     setIsDirty(true)
     runOutboundSync(newState.nodes, newState.edges)
-  }, [undoRedo, runOutboundSync])
-
-  // ─── Keyboard bindings ──────────────────────────────────────────────────
-
-  useEffect(() => {
-    const handler = (e: KeyboardEvent) => {
-      // Skip if focus is in an input or textarea
-      const target = e.target as HTMLElement
-      if (
-        target.tagName === 'INPUT' ||
-        target.tagName === 'TEXTAREA' ||
-        target.isContentEditable
-      ) {
-        return
-      }
-
-      const isMod = e.ctrlKey || e.metaKey
-
-      if (isMod && e.shiftKey && e.key === 'Z') {
-        e.preventDefault()
-        redo()
-        return
-      }
-
-      if (isMod && (e.key === 'z' || e.key === 'Z')) {
-        e.preventDefault()
-        undo()
-        return
-      }
-    }
-
-    window.addEventListener('keydown', handler)
-    return () => window.removeEventListener('keydown', handler)
-  }, [undo, redo])
+  }, [mode, undoRedo, runOutboundSync])
 
   return {
     nodes,
@@ -474,8 +446,6 @@ export function useBuilderState(): UseBuilderStateReturn {
     onPaneClick,
     selectedNodeId,
     selectedEdgeId,
-    mode,
-    setMode,
     viewport,
     addNode,
     removeNode,
