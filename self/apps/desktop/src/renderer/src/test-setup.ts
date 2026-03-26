@@ -190,7 +190,7 @@ export function createElectronAPIMock() {
         issueCodes: [],
         inboxReady: false,
         pendingSystemRuns: 0,
-        backlogAnalytics: { queuedCount: 0, activeCount: 0, suspendedCount: 0, completedInWindow: 0, failedInWindow: 0, pressureTrend: 'idle' as const },
+        backlogAnalytics: { queuedCount: 0, activeCount: 0, suspendedCount: 0, completedInWindow: 0, failedInWindow: 0, pressureTrend: 'stable' as const },
         collectedAt: new Date().toISOString(),
       })),
       providerHealth: vi.fn(async () => ({ providers: [], collectedAt: new Date().toISOString() })),

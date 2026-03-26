@@ -40,7 +40,7 @@ function createMockRuntime(): IPrincipalSystemGatewayRuntime {
         suspendedCount: 0,
         completedInWindow: 10,
         failedInWindow: 1,
-        pressureTrend: 'steady',
+        pressureTrend: 'stable',
       },
       issueCodes: [],
       appSessions: [
@@ -70,7 +70,7 @@ function createMockRuntime(): IPrincipalSystemGatewayRuntime {
         suspendedCount: 0,
         completedInWindow: 8,
         failedInWindow: 0,
-        pressureTrend: 'rising',
+        pressureTrend: 'increasing',
       },
       issueCodes: ['ISSUE_1'],
       visibleTools: ['sys-tool-a'],
@@ -180,7 +180,7 @@ describe('GatewayHealthSourceAdapter', () => {
           suspendedCount: 0,
           completedInWindow: 8,
           failedInWindow: 0,
-          pressureTrend: 'rising',
+          pressureTrend: 'increasing',
         },
         issueCodes: ['ISSUE_1'],
       });

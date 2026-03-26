@@ -1,32 +1,10 @@
-'use client';
+'use client'
 
-import { MemoryInspector } from '@/components/memory/memory-inspector';
-import { useProject } from '@/lib/project-context';
+import * as React from 'react'
+import { useProject } from '@/lib/project-context'
+import { MemoryContent } from './memory-content'
 
 export default function MemoryPage() {
-  const { projectId } = useProject();
-
-  if (!projectId) {
-    return (
-      <div
-        style={{
-          display: 'flex',
-          height: '100%',
-          alignItems: 'center',
-          justifyContent: 'center',
-          padding: 'var(--nous-space-4xl)',
-        }}
-      >
-        <p style={{ color: 'var(--nous-text-secondary)' }}>
-          Select a project from the navigation panel to inspect memory.
-        </p>
-      </div>
-    );
-  }
-
-  return (
-    <div style={{ padding: 'var(--nous-space-4xl)' }}>
-      <MemoryInspector projectId={projectId} />
-    </div>
-  );
+  const { projectId } = useProject()
+  return <MemoryContent projectId={projectId} />
 }

@@ -25,7 +25,7 @@ const mockSnapshot: SystemStatusSnapshot = {
     suspendedCount: 0,
     completedInWindow: 5,
     failedInWindow: 0,
-    pressureTrend: 'steady',
+    pressureTrend: 'stable',
   },
   collectedAt: '2026-03-25T10:00:00.000Z',
 }
@@ -63,7 +63,7 @@ describe('SystemStatusWidget', () => {
     expect(await screen.findByText('Ready')).toBeTruthy()
     expect(screen.getByText('config-loaded')).toBeTruthy()
     expect(screen.getByText('providers-registered')).toBeTruthy()
-    expect(screen.getByText('steady')).toBeTruthy()
+    expect(screen.getByText('stable')).toBeTruthy()
     // collectedAt rendered as localized time
     expect(screen.getByText(/Updated:/)).toBeTruthy()
   })

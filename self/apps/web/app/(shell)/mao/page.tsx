@@ -1,7 +1,7 @@
-'use client';
+'use client'
 
-import * as React from 'react';
-import { MaoOperatingSurface } from '@/components/mao/mao-operating-surface';
+import * as React from 'react'
+import { MaoContent } from './mao-content'
 
 export default function MaoPage() {
   return (
@@ -12,7 +12,7 @@ export default function MaoPage() {
         </div>
       }
     >
-      <MaoOperatingSurface />
+      <MaoContent projectId={null} />
     </React.Suspense>
-  );
+  )
 }

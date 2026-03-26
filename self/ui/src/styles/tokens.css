@@ -208,6 +208,13 @@
   --nous-canvas-selection-ring:  #007acc;
   --nous-canvas-minimap-bg:      #0f0f0f;
   --nous-canvas-minimap-node:    #2a2a2a;
+
+  /* ── Canvas floating panels ────────────────────────────────────────── */
+  --nous-canvas-panel-bg:          #141414;
+  --nous-canvas-panel-border:      #2a2a2a;
+  --nous-canvas-panel-shadow:      0 4px 12px rgba(0,0,0,0.5);
+  --nous-canvas-panel-header-bg:   #1a1a1a;
+  --nous-canvas-panel-header-text: #fafafa;
 }
 
 @media (prefers-color-scheme: light) {
