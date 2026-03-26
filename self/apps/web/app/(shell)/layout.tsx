@@ -14,6 +14,8 @@ import {
   CommandPalette,
 } from '@nous/ui/components'
 import type { ShellMode, NavigationState } from '@nous/ui/components'
+import { HealthQueryProvider } from '@nous/ui/panels'
+import type { HealthFetchers } from '@nous/ui/panels'
 import { WebChromeShell } from '@/components/shell/web-chrome-shell'
 import { webRailSections } from '@/components/shell/web-rail-config'
 import { webShellRoutes } from '@/components/shell/web-shell-routes'
@@ -171,6 +173,12 @@ function ShellLayoutContent({
     [projectsData],
   )
 
+  const healthFetchers: HealthFetchers = useMemo(() => ({
+    fetchSystemStatus: () => utils.health.systemStatus.fetch(),
+    fetchProviderHealth: () => utils.health.providerHealth.fetch(),
+    fetchAgentStatus: () => utils.health.agentStatus.fetch(),
+  }), [utils])
+
   return (
     <WebChromeShell mode={mode} onModeToggle={handleModeToggle}>
       <ShellProvider
@@ -181,6 +189,7 @@ function ShellLayoutContent({
         goBack={handleGoBack}
         activeProjectId={projectId}
       >
+        <HealthQueryProvider fetchers={healthFetchers}>
         <ProjectProvider value={{ projectId, setProjectId }}>
           <CommandPalette
             isOpen={commandPaletteOpen}
@@ -213,6 +222,7 @@ function ShellLayoutContent({
           )}
           {children}
         </ProjectProvider>
+        </HealthQueryProvider>
       </ShellProvider>
     </WebChromeShell>
   )

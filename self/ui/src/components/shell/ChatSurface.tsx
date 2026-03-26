@@ -9,7 +9,7 @@ export function ChatSurface(props: ChatSurfaceProps) {
   const { conversation } = useShellContext()
 
   const chatApi: ChatAPI | undefined =
-    props.chatApi ?? (window as any).electronAPI?.chat ?? undefined
+    props.chatApi ?? (typeof window !== 'undefined' ? (window as any).electronAPI?.chat : undefined) ?? undefined
 
   return (
     <ChatPanel
