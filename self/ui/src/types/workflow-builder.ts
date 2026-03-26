@@ -235,3 +235,60 @@ export interface BindingPopoverProps {
   /** Called when user clears the binding. */
   onClear: () => void
 }
+
+// ─── Context Menu Types (SP 2.4) ────────────────────────────────────────────
+
+/** Discriminator for which context menu is active. */
+export type ContextMenuType = 'canvas' | 'node' | 'edge'
+
+/** State for the currently-open context menu (null = closed). */
+export interface ContextMenuState {
+  /** Which menu variant is open. */
+  type: ContextMenuType
+  /** Screen-space position for rendering the menu. */
+  position: { x: number; y: number }
+  /** Target element ID (nodeId or edgeId). Null for canvas menu. */
+  targetId: string | null
+}
+
+/** A single action item within a context menu. */
+export interface ContextMenuAction {
+  /** Unique key for this action. */
+  id: string
+  /** Display label. */
+  label: string
+  /** Codicon icon class name (e.g., 'codicon-trash'). */
+  icon: string
+  /** Whether this action is disabled (placeholder actions). */
+  disabled?: boolean
+  /** If true, this action has a sub-menu (e.g., "Add node" categories). */
+  hasSubmenu?: boolean
+  /** Handler called when the action is selected. */
+  handler: () => void
+}
+
+// ─── Node Search Types (SP 2.4) ─────────────────────────────────────────────
+
+/** State for the Node Search command palette. */
+export interface NodeSearchState {
+  /** Whether the search overlay is open. */
+  isOpen: boolean
+  /** Current search query string. */
+  query: string
+}
+
+/** A single result item in the Node Search palette. */
+export interface NodeSearchResult {
+  /** Unique key for this result. */
+  id: string
+  /** Display label (node label for existing nodes, type label for registry entries). */
+  label: string
+  /** Codicon icon class name. */
+  icon: string
+  /** Category for grouping in results. */
+  category: NodeCategory
+  /** Result type discriminator. */
+  type: 'existing-node' | 'add-node'
+  /** The nousType string (for add-node) or node ID (for existing-node). */
+  value: string
+}

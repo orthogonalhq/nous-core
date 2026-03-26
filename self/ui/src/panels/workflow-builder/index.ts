@@ -17,6 +17,14 @@ export type { NodePaletteProps } from './NodePalette'
 export { NodeInspector, EdgeInspector, WorkflowInspector, ParameterForm, BindingPopover } from './inspectors'
 export type { NodeInspectorProps, EdgeInspectorProps, WorkflowInspectorProps } from './inspectors'
 
+// Context menu components (SP 2.4)
+export { CanvasContextMenu, NodeContextMenu, EdgeContextMenu } from './context-menu'
+export type { CanvasContextMenuProps, NodeContextMenuProps, EdgeContextMenuProps } from './context-menu'
+
+// Node Search (SP 2.4)
+export { NodeSearch } from './NodeSearch'
+export type { NodeSearchProps } from './NodeSearch'
+
 // Type re-exports for Phase 2
 export type {
   FloatingPanelState,
@@ -32,4 +40,9 @@ export type {
   ParameterFormProps,
   BindingOption,
   BindingPopoverProps,
+  ContextMenuType,
+  ContextMenuState,
+  ContextMenuAction,
+  NodeSearchState,
+  NodeSearchResult,
 } from '../../types/workflow-builder'

@@ -34,6 +34,7 @@ export const reactFlowMock = {
     zoomIn: vi.fn(),
     zoomOut: vi.fn(),
     fitView: vi.fn(),
+    setCenter: vi.fn(),
     getViewport: vi.fn(() => ({ x: 0, y: 0, zoom: 1 })),
     screenToFlowPosition: vi.fn((pos: { x: number; y: number }) => pos),
   }),
