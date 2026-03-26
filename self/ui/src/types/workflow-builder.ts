@@ -183,3 +183,55 @@ export interface WorkflowBuilderState {
   mode: BuilderMode
   viewport: Viewport
 }
+
+// ─── Inspector Types (SP 2.3) ──────────────────────────────────────────────
+
+import type { z } from 'zod'
+
+/**
+ * Discriminated union describing which inspector panel is active.
+ * Structural mutual exclusivity — cannot have two active inspectors.
+ */
+export type InspectorState =
+  | { type: 'node'; nodeId: string }
+  | { type: 'edge'; edgeId: string }
+  | { type: 'workflow' }
+  | { type: 'none' }
+
+/** Props for the generic Zod-schema-to-form renderer. */
+export interface ParameterFormProps {
+  /** Zod schema for the node type's parameters. */
+  schema: z.ZodObject<z.ZodRawShape>
+  /** Current parameter values (from node.data). */
+  values: Record<string, unknown>
+  /** Validation errors keyed by field path. */
+  validationErrors?: Record<string, string>
+  /** Called when any field value changes. Emits partial update. */
+  onChange: (patch: Record<string, unknown>) => void
+  /** Whether all fields should render read-only. */
+  readOnly?: boolean
+}
+
+/** A single binding option for skill/contract/template binding. */
+export interface BindingOption {
+  /** Machine-readable binding key (skill name, contract name, etc). */
+  value: string
+  /** Human-readable display label. */
+  label: string
+  /** Binding type discriminator. */
+  kind: 'skill' | 'contract' | 'template'
+}
+
+/** Props for the skill/contract/template binding popover. */
+export interface BindingPopoverProps {
+  /** The parameter field name this popover is bound to. */
+  fieldName: string
+  /** Current bound value (may be a skill name, contract name, or template name). */
+  value: string | undefined
+  /** Available binding options. */
+  options: BindingOption[]
+  /** Called when user selects a binding. */
+  onSelect: (value: string) => void
+  /** Called when user clears the binding. */
+  onClear: () => void
+}
