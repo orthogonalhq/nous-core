@@ -181,6 +181,19 @@ describe('mao router', () => {
     expect(pause.accepted).toBe(true);
     expect(pause.to_state).toBe('paused_review');
 
+    // Obtain confirmation proof for T3 action (resume_project)
+    const proof = await caller.opctl.requestConfirmationProof({
+      scope: {
+        class: 'project_run_scope',
+        kind: 'project_run',
+        target_ids: [],
+        project_id: projectId,
+      },
+      action: 'resume',
+      tier: 'T3',
+      reason: 'Resume after review',
+    });
+
     const resume = await caller.mao.requestProjectControl({
       request: {
         command_id: '550e8400-e29b-41d4-a716-446655443102',
@@ -199,6 +212,7 @@ describe('mao router', () => {
           evidenceRefs: ['evidence://resume'],
         },
       },
+      confirmationProof: proof,
     });
     expect(resume.accepted).toBe(true);
     expect(resume.to_state).toBe('running');

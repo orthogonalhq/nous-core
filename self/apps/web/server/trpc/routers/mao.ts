@@ -58,4 +58,12 @@ export const maoRouter = router({
         input.confirmationProof,
       );
     }),
+
+  getControlAuditHistory: publicProcedure
+    .input(z.object({ projectId: z.string().uuid() }))
+    .query(async ({ ctx, input }) => {
+      return ctx.maoProjectionService.getControlAuditHistory(
+        input.projectId as import('@nous/shared').ProjectId,
+      );
+    }),
 });

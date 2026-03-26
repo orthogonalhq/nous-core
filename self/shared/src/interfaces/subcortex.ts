@@ -82,6 +82,7 @@ import type {
   MaoProjectSnapshotInput,
   MaoEventType,
   MaoRunGraphSnapshot,
+  MaoControlAuditHistoryEntry,
   GtmGateReportInput,
   GtmGateReport,
   GtmStageLabel,
@@ -1159,6 +1160,9 @@ export interface IMaoProjectionService {
     eventType: MaoEventType,
     detail: Record<string, unknown>,
   ): Promise<void>;
+
+  /** Get audit history for project control actions. */
+  getControlAuditHistory(projectId: ProjectId): Promise<MaoControlAuditHistoryEntry[]>;
 }
 
 export interface IGtmGateCalculator {
