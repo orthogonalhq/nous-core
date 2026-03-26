@@ -5,12 +5,14 @@
  * analytics, status, gateway health, escalation audit, and checkpoint status.
  */
 import { z } from 'zod';
-import { BacklogEntryStatusSchema } from '@nous/cortex-core';
 import { router, publicProcedure } from '../trpc';
+
+/** Inline enum to avoid cross-package Zod instance mismatch with @nous/cortex-core */
+const BacklogEntryStatusFilter = z.enum(['queued', 'active', 'completed', 'suspended', 'failed']);
 
 export const systemActivityRouter = router({
   backlogEntries: publicProcedure
-    .input(z.object({ status: BacklogEntryStatusSchema.optional() }).optional())
+    .input(z.object({ status: BacklogEntryStatusFilter.optional() }).optional())
     .query(async ({ ctx, input }) => {
       return ctx.gatewayRuntime.listBacklogEntries(input ?? undefined);
     }),
