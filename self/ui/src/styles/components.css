@@ -213,3 +213,8 @@
   --nous-builder-panel-header-bg:   var(--nous-canvas-panel-header-bg);
   --nous-builder-panel-header-text: var(--nous-canvas-panel-header-text);
 }
+
+/* ── Context menu item hover ─────────────────────────────────────── */
+.context-menu-item:hover {
+  background: var(--nous-bg-hover);
+}

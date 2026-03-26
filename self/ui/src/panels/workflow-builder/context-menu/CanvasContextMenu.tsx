@@ -1,6 +1,7 @@
 'use client'
 
 import React, { useCallback, useEffect, useRef, useState } from 'react'
+import { createPortal } from 'react-dom'
 import { getAllRegistryEntries } from '../nodes/node-registry'
 import type { NodeCategory } from '../../../types/workflow-builder'
 
@@ -142,7 +143,7 @@ function CanvasContextMenuInner({ position, onClose, onAddNode, onSelectAll }: C
     return { category, entries }
   }).filter((g) => g.entries.length > 0)
 
-  return (
+  return createPortal(
     <div
       ref={menuRef}
       style={{ ...menuStyle, left: clampedPosition.x, top: clampedPosition.y }}
@@ -157,6 +158,7 @@ function CanvasContextMenuInner({ position, onClose, onAddNode, onSelectAll }: C
       >
         <button
           type="button"
+          className="context-menu-item"
           style={menuItemStyle}
           aria-label="Add node"
           role="menuitem"
@@ -187,6 +189,7 @@ function CanvasContextMenuInner({ position, onClose, onAddNode, onSelectAll }: C
                   <button
                     key={nousType}
                     type="button"
+                    className="context-menu-item"
                     style={menuItemStyle}
                     onClick={() => handleAddNode(nousType)}
                     aria-label={`Add ${entry.defaultLabel}`}
@@ -208,6 +211,7 @@ function CanvasContextMenuInner({ position, onClose, onAddNode, onSelectAll }: C
       {/* Paste — placeholder */}
       <button
         type="button"
+        className="context-menu-item"
         style={menuItemDisabledStyle}
         disabled
         aria-label="Paste"
@@ -221,6 +225,7 @@ function CanvasContextMenuInner({ position, onClose, onAddNode, onSelectAll }: C
       {/* Select all */}
       <button
         type="button"
+        className="context-menu-item"
         style={menuItemStyle}
         onClick={handleSelectAll}
         aria-label="Select all"
@@ -236,6 +241,7 @@ function CanvasContextMenuInner({ position, onClose, onAddNode, onSelectAll }: C
       {/* Auto-layout — placeholder */}
       <button
         type="button"
+        className="context-menu-item"
         style={menuItemDisabledStyle}
         disabled
         aria-label="Auto-layout"
@@ -245,7 +251,8 @@ function CanvasContextMenuInner({ position, onClose, onAddNode, onSelectAll }: C
         <i className="codicon codicon-layout" style={{ fontSize: 14 }} />
         <span>Auto-layout</span>
       </button>
-    </div>
+    </div>,
+    document.body,
   )
 }
 
