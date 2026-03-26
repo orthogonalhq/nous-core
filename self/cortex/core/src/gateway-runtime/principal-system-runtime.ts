@@ -435,7 +435,7 @@ implements IPrincipalSystemGatewayRuntime, ISystemInboxSubmissionService {
         parentId: this.systemGateway.agentId,
         sequence: 0,
       },
-      usage: { turnsUsed: 0, tokensUsed: 0, wallTimeMs: 0 },
+      usage: { turnsUsed: 0, tokensUsed: 0, elapsedMs: 0, spawnUnitsUsed: 0 },
       evidenceRefs: [],
       ...(status === 'suspended' ? { resumeWhen: 'lease_release' as const } : {}),
       ...(status === 'escalated' ? { severity: 'high' as never, detail: {} } : {}),
@@ -451,8 +451,8 @@ implements IPrincipalSystemGatewayRuntime, ISystemInboxSubmissionService {
           entry.projectId as never,
         );
         if (controlState === 'paused_review' || controlState === 'hard_stopped') {
-          this.healthSink.addIssue('opctl_gate_blocked');
-          return this.buildSyntheticResult(entry, 'suspended', `opctl_gate_blocked:${controlState}`);
+          this.healthSink.addIssue('opctl_gate_blocked', 'Cortex::System');
+          return this.buildSyntheticResult(entry, 'error', `opctl_gate_blocked:${controlState}`);
         }
       } catch {
         // Fail-open: opctl service error should not block execution
