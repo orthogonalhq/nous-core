@@ -290,6 +290,210 @@ describe('PrincipalSystemGatewayRuntime', () => {
     infoSpy.mockRestore();
   });
 
+  describe('HealthTrackingOutboxSink event bus publication', () => {
+    it('publishes turn_ack events to system:turn-ack channel', async () => {
+      const eventBus = {
+        subscribe: vi.fn().mockReturnValue('sub-1'),
+        unsubscribe: vi.fn(),
+        publish: vi.fn(),
+      };
+
+      const runtime = createPrincipalSystemGatewayRuntime({
+        documentStore: createDocumentStore(),
+        eventBus,
+        modelProviderByClass: {
+          'Cortex::Principal': createModelProvider(
+            ['{"response":"idle","toolCalls":[]}'],
+          ),
+          'Cortex::System': createModelProvider([
+            JSON.stringify({
+              response: 'Task done',
+              toolCalls: [
+                {
+                  name: 'task_complete',
+                  params: { output: { ok: true }, summary: 'done' },
+                },
+              ],
+            }),
+          ]),
+          Orchestrator: createModelProvider(
+            ['{"response":"idle","toolCalls":[]}'],
+          ),
+          Worker: createModelProvider(
+            ['{"response":"idle","toolCalls":[]}'],
+          ),
+        },
+        getProjectApi: () => createProjectApi(),
+        pfc: createPfcEngine(),
+        outputSchemaValidator: {
+          validate: vi.fn().mockResolvedValue({ success: true }),
+        },
+        idFactory: (() => {
+          let counter = 0;
+          return () => {
+            const suffix = String(counter).padStart(12, '0');
+            counter += 1;
+            return `00000000-0000-4000-8000-${suffix}`;
+          };
+        })(),
+      });
+
+      await runtime.submitTaskToSystem({
+        task: 'Test turn ack publication',
+        detail: {},
+      });
+      await runtime.whenIdle();
+
+      const turnAckCalls = eventBus.publish.mock.calls.filter(
+        ([channel]: [string]) => channel === 'system:turn-ack',
+      );
+      expect(turnAckCalls.length).toBeGreaterThan(0);
+
+      const payload = turnAckCalls[0][1];
+      expect(payload).toHaveProperty('agentClass');
+      expect(payload).toHaveProperty('turn');
+      expect(payload).toHaveProperty('runId');
+      expect(payload).toHaveProperty('turnsUsed');
+      expect(payload).toHaveProperty('tokensUsed');
+      expect(payload).toHaveProperty('emittedAt');
+    });
+
+    it('publishes observation events to system:outbox-event channel', async () => {
+      const eventBus = {
+        subscribe: vi.fn().mockReturnValue('sub-1'),
+        unsubscribe: vi.fn(),
+        publish: vi.fn(),
+      };
+
+      const runtime = createPrincipalSystemGatewayRuntime({
+        documentStore: createDocumentStore(),
+        eventBus,
+        modelProviderByClass: {
+          'Cortex::Principal': createModelProvider(
+            ['{"response":"idle","toolCalls":[]}'],
+          ),
+          'Cortex::System': createModelProvider([
+            JSON.stringify({
+              response: '',
+              toolCalls: [
+                {
+                  name: 'flag_observation',
+                  params: {
+                    observationType: 'insight',
+                    content: 'Test observation',
+                  },
+                },
+                {
+                  name: 'task_complete',
+                  params: { output: { ok: true }, summary: 'done' },
+                },
+              ],
+            }),
+          ]),
+          Orchestrator: createModelProvider(
+            ['{"response":"idle","toolCalls":[]}'],
+          ),
+          Worker: createModelProvider(
+            ['{"response":"idle","toolCalls":[]}'],
+          ),
+        },
+        getProjectApi: () => createProjectApi(),
+        pfc: createPfcEngine(),
+        outputSchemaValidator: {
+          validate: vi.fn().mockResolvedValue({ success: true }),
+        },
+        idFactory: (() => {
+          let counter = 0;
+          return () => {
+            const suffix = String(counter).padStart(12, '0');
+            counter += 1;
+            return `00000000-0000-4000-8000-${suffix}`;
+          };
+        })(),
+      });
+
+      await runtime.submitTaskToSystem({
+        task: 'Test observation publication',
+        detail: {},
+      });
+      await runtime.whenIdle();
+
+      const outboxCalls = eventBus.publish.mock.calls.filter(
+        ([channel]: [string]) => channel === 'system:outbox-event',
+      );
+      expect(outboxCalls.length).toBeGreaterThan(0);
+
+      const payload = outboxCalls[0][1];
+      expect(payload).toHaveProperty('agentClass');
+      expect(payload.type).toBe('observation');
+      expect(payload).toHaveProperty('observationType');
+      expect(payload).toHaveProperty('content');
+      expect(payload).toHaveProperty('runId');
+      expect(payload).toHaveProperty('emittedAt');
+    });
+
+    it('still records to healthSink when eventBus.publish throws', async () => {
+      const eventBus = {
+        subscribe: vi.fn().mockReturnValue('sub-1'),
+        unsubscribe: vi.fn(),
+        publish: vi.fn().mockImplementation(() => {
+          throw new Error('Event bus failure');
+        }),
+      };
+
+      const runtime = createPrincipalSystemGatewayRuntime({
+        documentStore: createDocumentStore(),
+        eventBus,
+        modelProviderByClass: {
+          'Cortex::Principal': createModelProvider(
+            ['{"response":"idle","toolCalls":[]}'],
+          ),
+          'Cortex::System': createModelProvider([
+            JSON.stringify({
+              response: 'Done',
+              toolCalls: [
+                {
+                  name: 'task_complete',
+                  params: { output: { ok: true }, summary: 'done' },
+                },
+              ],
+            }),
+          ]),
+          Orchestrator: createModelProvider(
+            ['{"response":"idle","toolCalls":[]}'],
+          ),
+          Worker: createModelProvider(
+            ['{"response":"idle","toolCalls":[]}'],
+          ),
+        },
+        getProjectApi: () => createProjectApi(),
+        pfc: createPfcEngine(),
+        outputSchemaValidator: {
+          validate: vi.fn().mockResolvedValue({ success: true }),
+        },
+        idFactory: (() => {
+          let counter = 0;
+          return () => {
+            const suffix = String(counter).padStart(12, '0');
+            counter += 1;
+            return `00000000-0000-4000-8000-${suffix}`;
+          };
+        })(),
+      });
+
+      await runtime.submitTaskToSystem({
+        task: 'Test error isolation',
+        detail: {},
+      });
+      await runtime.whenIdle();
+
+      // Health sink should still have recorded the completion despite event bus errors
+      const health = runtime.getGatewayHealth('Cortex::System');
+      expect(health.lastResultStatus).toBe('completed');
+      expect(health.backlogAnalytics.completedInWindow).toBe(1);
+    });
+  });
+
   it('does not log in-memory warning when documentStore is injected', () => {
     const warnSpy = vi.spyOn(console, 'warn').mockImplementation(() => {});
     const infoSpy = vi.spyOn(console, 'info').mockImplementation(() => {});

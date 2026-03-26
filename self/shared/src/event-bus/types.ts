@@ -110,6 +110,36 @@ export const EscalationResolvedPayloadSchema = z.object({
 });
 export type EscalationResolvedPayload = z.infer<typeof EscalationResolvedPayloadSchema>;
 
+// --- System Domain ---
+
+export const SystemBacklogChangePayloadSchema = z.object({
+  pending: z.number().int().nonnegative(),
+  active: z.number().int().nonnegative(),
+  suspended: z.number().int().nonnegative(),
+  pressureTrend: z.enum(['increasing', 'stable', 'decreasing']),
+});
+export type SystemBacklogChangePayload = z.infer<typeof SystemBacklogChangePayloadSchema>;
+
+export const SystemTurnAckPayloadSchema = z.object({
+  agentClass: z.enum(['Cortex::Principal', 'Cortex::System']),
+  turn: z.number().int().positive(),
+  runId: z.string().min(1),
+  turnsUsed: z.number().int().nonnegative(),
+  tokensUsed: z.number().int().nonnegative(),
+  emittedAt: z.string().datetime(),
+});
+export type SystemTurnAckPayload = z.infer<typeof SystemTurnAckPayloadSchema>;
+
+export const SystemOutboxEventPayloadSchema = z.object({
+  agentClass: z.enum(['Cortex::Principal', 'Cortex::System']),
+  type: z.literal('observation'),
+  observationType: z.string(),
+  content: z.string(),
+  runId: z.string().min(1),
+  emittedAt: z.string().datetime(),
+});
+export type SystemOutboxEventPayload = z.infer<typeof SystemOutboxEventPayloadSchema>;
+
 // --- Channel Map ---
 
 export interface EventChannelMap {
@@ -126,6 +156,9 @@ export interface EventChannelMap {
   'lifecycle:transition': LifecycleTransitionPayload;
   'escalation:new': EscalationNewPayload;
   'escalation:resolved': EscalationResolvedPayload;
+  'system:backlog-change': SystemBacklogChangePayload;
+  'system:outbox-event': SystemOutboxEventPayload;
+  'system:turn-ack': SystemTurnAckPayload;
 }
 
 /**

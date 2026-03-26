@@ -8,6 +8,7 @@ import type {
   IAgentGateway,
   ICheckpointManager,
   IDocumentStore,
+  IEventBus,
   IGatewayOutboxSink,
   IRecoveryLedgerStore,
   IRecoveryOrchestrator,
@@ -84,10 +85,37 @@ class HealthTrackingOutboxSink implements IGatewayOutboxSink {
   constructor(
     private readonly agentClass: 'Cortex::Principal' | 'Cortex::System',
     private readonly healthSink: GatewayRuntimeHealthSink,
+    private readonly eventBus?: IEventBus,
   ) {}
 
   async emit(event: GatewayOutboxEvent): Promise<void> {
     this.healthSink.recordGatewayEvent(this.agentClass, event);
+
+    if (this.eventBus) {
+      try {
+        if (event.type === 'turn_ack') {
+          this.eventBus.publish('system:turn-ack', {
+            agentClass: this.agentClass,
+            turn: event.turn,
+            runId: event.correlation.runId,
+            turnsUsed: event.usage.turnsUsed,
+            tokensUsed: event.usage.tokensUsed,
+            emittedAt: event.emittedAt,
+          });
+        } else if (event.type === 'observation') {
+          this.eventBus.publish('system:outbox-event', {
+            agentClass: this.agentClass,
+            type: 'observation',
+            observationType: event.observation.observationType,
+            content: event.observation.content,
+            runId: event.correlation.runId,
+            emittedAt: event.emittedAt,
+          });
+        }
+      } catch {
+        // Event bus publication is fire-and-forget; do not disrupt health sink recording
+      }
+    }
   }
 }
 
@@ -212,7 +240,7 @@ implements IPrincipalSystemGatewayRuntime, ISystemInboxSubmissionService {
         lifecycleHooks: principalBase.lifecycleHooks,
         baseSystemPrompt:
           this.deps.principalBaseSystemPrompt ?? DEFAULT_PRINCIPAL_PROMPT,
-        outbox: new HealthTrackingOutboxSink('Cortex::Principal', this.healthSink),
+        outbox: new HealthTrackingOutboxSink('Cortex::Principal', this.healthSink, this.deps.eventBus),
       }),
     );
     this.healthSink.markGatewayBooted({
@@ -236,7 +264,7 @@ implements IPrincipalSystemGatewayRuntime, ISystemInboxSubmissionService {
         toolSurface: systemBundle.toolSurface,
         lifecycleHooks: systemBundle.lifecycleHooks,
         baseSystemPrompt: this.deps.systemBaseSystemPrompt ?? DEFAULT_SYSTEM_PROMPT,
-        outbox: new HealthTrackingOutboxSink('Cortex::System', this.healthSink),
+        outbox: new HealthTrackingOutboxSink('Cortex::System', this.healthSink, this.deps.eventBus),
       }),
     );
     this.healthSink.markGatewayBooted({
@@ -381,6 +409,10 @@ implements IPrincipalSystemGatewayRuntime, ISystemInboxSubmissionService {
 
   async whenIdle(): Promise<void> {
     await this.systemBacklogQueue.whenIdle();
+  }
+
+  async listBacklogEntries(filter?: { status?: import('./backlog-types.js').BacklogEntryStatus }): Promise<BacklogEntry[]> {
+    return this.systemBacklogQueue.listEntries(filter);
   }
 
   async notifyLeaseReleased(event: { laneKey: string; leaseId?: string }): Promise<void> {

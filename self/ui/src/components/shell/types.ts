@@ -108,7 +108,7 @@ export interface ShellContextValue {
 import type { ContentRouterRenderProps } from './ContentRouter'
 
 /** Routes available in the observe column */
-export const ObserveRouteSchema = z.enum(['mao', 'agent-logs', 'metrics', 'default'])
+export const ObserveRouteSchema = z.enum(['mao', 'agent-logs', 'metrics', 'default', 'system-activity'])
 export type ObserveRoute = z.infer<typeof ObserveRouteSchema>
 
 /** Props for the ObservePanel container */
