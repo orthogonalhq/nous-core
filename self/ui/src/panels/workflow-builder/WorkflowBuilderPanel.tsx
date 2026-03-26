@@ -321,7 +321,7 @@ const CanvasDropTarget = forwardRef<
     [fitView],
   )
 
-  // ─── Ctrl+K keyboard handler ───────────────────────────────────────────
+  // ─── Global keyboard shortcuts (Ctrl+K, Ctrl+Z, Ctrl+Shift+Z, Ctrl+S) ───
 
   useEffect(() => {
     const handler = (e: KeyboardEvent) => {
@@ -340,12 +340,21 @@ const CanvasDropTarget = forwardRef<
         e.preventDefault()
         setContextMenu(null) // Close any open context menu
         setNodeSearchOpen((prev) => !prev)
+      } else if (isMod && e.shiftKey && (e.key === 'z' || e.key === 'Z')) {
+        e.preventDefault()
+        redo()
+      } else if (isMod && (e.key === 'z' || e.key === 'Z')) {
+        e.preventDefault()
+        undo()
+      } else if (isMod && (e.key === 's' || e.key === 'S')) {
+        e.preventDefault()
+        handleSave()
       }
     }
 
     window.addEventListener('keydown', handler)
     return () => window.removeEventListener('keydown', handler)
-  }, [])
+  }, [undo, redo, handleSave])
 
   // ─── Drag and drop ────────────────────────────────────────────────────
 

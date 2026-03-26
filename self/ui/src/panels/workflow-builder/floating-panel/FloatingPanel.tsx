@@ -1,6 +1,6 @@
 'use client'
 
-import React from 'react'
+import React, { useId } from 'react'
 import type { FloatingPanelState } from '../../../types/workflow-builder'
 
 // ─── Props ────────────────────────────────────────────────────────────────────
@@ -99,6 +99,8 @@ function FloatingPanelInner({
   className,
   style,
 }: FloatingPanelProps) {
+  const panelTitleId = useId()
+
   if (!state.visible) return null
 
   const pinnedHeaderStyle: React.CSSProperties = {
@@ -117,6 +119,9 @@ function FloatingPanelInner({
         ...style,
       }}
       data-testid="floating-panel"
+      role="region"
+      aria-label={title}
+      aria-labelledby={panelTitleId}
     >
       {/* Header / drag handle */}
       <div
@@ -124,7 +129,7 @@ function FloatingPanelInner({
         onMouseDown={onDragStart}
         data-testid="floating-panel-header"
       >
-        <span style={headerTitleStyle}>{title}</span>
+        <span id={panelTitleId} style={headerTitleStyle}>{title}</span>
 
         {/* Collapse toggle */}
         <button
