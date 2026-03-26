@@ -14,6 +14,8 @@ import {
   CommandPalette,
 } from '@nous/ui/components'
 import type { ShellMode, NavigationState } from '@nous/ui/components'
+import { HealthQueryProvider } from '@nous/ui/panels'
+import type { HealthFetchers } from '@nous/ui/panels'
 import { WebChromeShell } from '@/components/shell/web-chrome-shell'
 import { webRailSections } from '@/components/shell/web-rail-config'
 import { webShellRoutes } from '@/components/shell/web-shell-routes'
@@ -63,6 +65,13 @@ function ShellLayoutContent({
 
   const searchParams = useSearchParams()
   const utils = trpc.useUtils()
+
+  const healthFetchers: HealthFetchers = useMemo(() => ({
+    fetchSystemStatus: () => utils.health.systemStatus.fetch(),
+    fetchProviderHealth: () => utils.health.providerHealth.fetch(),
+    fetchAgentStatus: () => utils.health.agentStatus.fetch(),
+  }), [utils])
+
   const createProject = trpc.projects.create.useMutation({
     onSuccess: () => {
       utils.projects.list.invalidate()
@@ -182,36 +191,38 @@ function ShellLayoutContent({
         activeProjectId={projectId}
       >
         <ProjectProvider value={{ projectId, setProjectId }}>
-          <CommandPalette
-            isOpen={commandPaletteOpen}
-            onClose={() => setCommandPaletteOpen(false)}
-            commands={commands}
-          />
-          {mode === 'simple' ? (
-            <UIShellLayout
-              rail={
-                <NavigationRail
-                  items={webRailSections}
-                  activeItemId={activeRoute}
-                  onItemSelect={handleNavigate}
-                  projects={projects}
-                  onProjectSelect={handleProjectSelect}
-                />
-              }
-              chat={<ChatSurface />}
-              content={
-                <ContentRouter
-                  activeRoute={activeRoute}
-                  routes={webShellRoutes}
-                  onNavigate={handleNavigate}
-                />
-              }
-              observe={<ObservePanel />}
+          <HealthQueryProvider fetchers={healthFetchers}>
+            <CommandPalette
+              isOpen={commandPaletteOpen}
+              onClose={() => setCommandPaletteOpen(false)}
+              commands={commands}
             />
-          ) : (
-            <WebDockviewShell />
-          )}
-          {children}
+            {mode === 'simple' ? (
+              <UIShellLayout
+                rail={
+                  <NavigationRail
+                    items={webRailSections}
+                    activeItemId={activeRoute}
+                    onItemSelect={handleNavigate}
+                    projects={projects}
+                    onProjectSelect={handleProjectSelect}
+                  />
+                }
+                chat={<ChatSurface />}
+                content={
+                  <ContentRouter
+                    activeRoute={activeRoute}
+                    routes={webShellRoutes}
+                    onNavigate={handleNavigate}
+                  />
+                }
+                observe={<ObservePanel />}
+              />
+            ) : (
+              <WebDockviewShell />
+            )}
+            {children}
+          </HealthQueryProvider>
         </ProjectProvider>
       </ShellProvider>
     </WebChromeShell>
