@@ -121,7 +121,7 @@ function renderWithProvider(
 
 function getOnEventForChannel(channel: string) {
   const call = mockUseEventSubscription.mock.calls.find(
-    (c) => Array.isArray(c[0]?.channels) && c[0].channels.includes(channel),
+    (c) => Array.isArray(c[0]?.channels) && (c[0].channels as string[]).includes(channel),
   )
   return call?.[0]?.onEvent
 }
