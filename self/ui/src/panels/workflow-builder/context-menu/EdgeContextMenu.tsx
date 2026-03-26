@@ -1,6 +1,7 @@
 'use client'
 
 import React, { useCallback, useEffect, useRef, useState } from 'react'
+import { createPortal } from 'react-dom'
 
 // ─── Props ──────────────────────────────────────────────────────────────────
 
@@ -112,7 +113,7 @@ function EdgeContextMenuInner({
     onClose()
   }, [onChangeEdgeType, edgeId, onClose])
 
-  return (
+  return createPortal(
     <div
       ref={menuRef}
       style={{ ...menuStyle, left: clampedPosition.x, top: clampedPosition.y }}
@@ -122,6 +123,7 @@ function EdgeContextMenuInner({
       {/* Delete */}
       <button
         type="button"
+        className="context-menu-item"
         style={menuItemStyle}
         onClick={handleDelete}
         aria-label="Delete edge"
@@ -135,6 +137,7 @@ function EdgeContextMenuInner({
       {/* Change type */}
       <button
         type="button"
+        className="context-menu-item"
         style={menuItemStyle}
         onClick={handleChangeType}
         aria-label="Change edge type"
@@ -150,6 +153,7 @@ function EdgeContextMenuInner({
       {/* Set condition — placeholder */}
       <button
         type="button"
+        className="context-menu-item"
         style={menuItemDisabledStyle}
         disabled
         aria-label="Set condition"
@@ -159,7 +163,8 @@ function EdgeContextMenuInner({
         <i className="codicon codicon-filter" style={{ fontSize: 14 }} />
         <span>Set condition</span>
       </button>
-    </div>
+    </div>,
+    document.body,
   )
 }
 

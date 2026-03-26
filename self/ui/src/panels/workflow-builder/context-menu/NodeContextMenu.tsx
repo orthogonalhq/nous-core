@@ -1,6 +1,7 @@
 'use client'
 
 import React, { useCallback, useEffect, useRef, useState } from 'react'
+import { createPortal } from 'react-dom'
 
 // ─── Props ──────────────────────────────────────────────────────────────────
 
@@ -114,7 +115,7 @@ function NodeContextMenuInner({
     onClose()
   }, [onOpenInspector, nodeId, onClose])
 
-  return (
+  return createPortal(
     <div
       ref={menuRef}
       style={{ ...menuStyle, left: clampedPosition.x, top: clampedPosition.y }}
@@ -124,6 +125,7 @@ function NodeContextMenuInner({
       {/* Delete */}
       <button
         type="button"
+        className="context-menu-item"
         style={menuItemStyle}
         onClick={handleDelete}
         aria-label="Delete node"
@@ -137,6 +139,7 @@ function NodeContextMenuInner({
       {/* Duplicate */}
       <button
         type="button"
+        className="context-menu-item"
         style={menuItemStyle}
         onClick={handleDuplicate}
         aria-label="Duplicate node"
@@ -152,6 +155,7 @@ function NodeContextMenuInner({
       {/* Bind skill */}
       <button
         type="button"
+        className="context-menu-item"
         style={menuItemStyle}
         onClick={handleOpenInspector}
         aria-label="Bind skill"
@@ -165,6 +169,7 @@ function NodeContextMenuInner({
       {/* Bind contract */}
       <button
         type="button"
+        className="context-menu-item"
         style={menuItemStyle}
         onClick={handleOpenInspector}
         aria-label="Bind contract"
@@ -178,6 +183,7 @@ function NodeContextMenuInner({
       {/* Bind template */}
       <button
         type="button"
+        className="context-menu-item"
         style={menuItemStyle}
         onClick={handleOpenInspector}
         aria-label="Bind template"
@@ -193,6 +199,7 @@ function NodeContextMenuInner({
       {/* View node.md */}
       <button
         type="button"
+        className="context-menu-item"
         style={menuItemStyle}
         onClick={handleOpenInspector}
         aria-label="View node.md"
@@ -202,7 +209,8 @@ function NodeContextMenuInner({
         <i className="codicon codicon-file-code" style={{ fontSize: 14 }} />
         <span>View node.md</span>
       </button>
-    </div>
+    </div>,
+    document.body,
   )
 }
 
