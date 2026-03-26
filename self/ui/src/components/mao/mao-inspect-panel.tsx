@@ -1,44 +1,11 @@
 'use client';
 
 import * as React from 'react';
-import Link from 'next/link';
 import type { MaoAgentInspectProjection, MaoSurfaceLink } from '@nous/shared';
-import { Badge } from '@/components/ui/badge';
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
-import { buildMaoSurfaceHref, formatShortId } from '@/lib/mao-links';
-
-function renderSurfaceLink(
-  link: MaoSurfaceLink,
-  inspect: MaoAgentInspectProjection,
-  index: number,
-) {
-  const href = buildMaoSurfaceHref(link, {
-    agentId: inspect.agent.agent_id,
-    evidenceRef: inspect.agent.reasoning_log_preview?.evidenceRef ?? undefined,
-    reasoningRef: inspect.agent.reasoning_log_preview?.evidenceRef ?? undefined,
-  });
-
-  if (!href) {
-    return (
-      <span
-        key={`${link.target}-${index}`}
-        className="rounded-md border border-border px-2 py-1 text-xs text-muted-foreground"
-      >
-        {link.target}
-      </span>
-    );
-  }
-
-  return (
-    <Link
-      key={`${link.target}-${index}`}
-      href={href}
-      className="rounded-md border border-border px-2 py-1 text-xs hover:bg-muted/20"
-    >
-      {link.target}
-    </Link>
-  );
-}
+import { Badge } from '../badge';
+import { Card, CardContent, CardHeader, CardTitle } from '../card';
+import { buildMaoSurfaceHref, formatShortId } from './mao-links';
+import { useMaoServices } from './mao-services-context';
 
 interface MaoInspectPanelProps {
   inspect: MaoAgentInspectProjection | null | undefined;
@@ -46,6 +13,41 @@ interface MaoInspectPanelProps {
 }
 
 export function MaoInspectPanel({ inspect, isLoading }: MaoInspectPanelProps) {
+  const { Link } = useMaoServices();
+
+  function renderSurfaceLink(
+    link: MaoSurfaceLink,
+    inspectData: MaoAgentInspectProjection,
+    index: number,
+  ) {
+    const href = buildMaoSurfaceHref(link, {
+      agentId: inspectData.agent.agent_id,
+      evidenceRef: inspectData.agent.reasoning_log_preview?.evidenceRef ?? undefined,
+      reasoningRef: inspectData.agent.reasoning_log_preview?.evidenceRef ?? undefined,
+    });
+
+    if (!href) {
+      return (
+        <span
+          key={`${link.target}-${index}`}
+          className="rounded-md border border-border px-2 py-1 text-xs text-muted-foreground"
+        >
+          {link.target}
+        </span>
+      );
+    }
+
+    return (
+      <Link
+        key={`${link.target}-${index}`}
+        href={href}
+        className="rounded-md border border-border px-2 py-1 text-xs hover:bg-muted/20"
+      >
+        {link.target}
+      </Link>
+    );
+  }
+
   return (
     <Card>
       <CardHeader className="border-b border-border">

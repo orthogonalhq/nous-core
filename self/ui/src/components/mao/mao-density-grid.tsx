@@ -2,8 +2,8 @@
 
 import * as React from 'react';
 import type { MaoGridTileProjection, MaoProjectSnapshot } from '@nous/shared';
-import { Badge } from '@/components/ui/badge';
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
+import { Badge } from '../badge';
+import { Card, CardContent, CardHeader, CardTitle } from '../card';
 
 function gridColumnsForDensity(
   densityMode: MaoProjectSnapshot['densityMode'],
@@ -40,7 +40,7 @@ function toneClasses(tile: MaoGridTileProjection): string {
   return 'border-border bg-background';
 }
 
-interface MaoDensityGridProps {
+export interface MaoDensityGridProps {
   snapshot: MaoProjectSnapshot;
   selectedAgentId: string | null;
   onSelectTile: (tile: MaoGridTileProjection) => void;

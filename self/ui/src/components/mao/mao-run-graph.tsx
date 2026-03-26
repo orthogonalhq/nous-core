@@ -2,11 +2,11 @@
 
 import * as React from 'react';
 import type { MaoRunGraphSnapshot } from '@nous/shared';
-import { Badge } from '@/components/ui/badge';
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
-import { formatShortId } from '@/lib/mao-links';
+import { Badge } from '../badge';
+import { Card, CardContent, CardHeader, CardTitle } from '../card';
+import { formatShortId } from './mao-links';
 
-interface MaoRunGraphProps {
+export interface MaoRunGraphProps {
   graph: MaoRunGraphSnapshot;
   selectedNodeId: string | null;
   onSelectNode: (input: {

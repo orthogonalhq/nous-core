@@ -1,10 +1,10 @@
 'use client';
 
 import * as React from 'react';
-import { Badge } from '@/components/ui/badge';
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
-import { useEventSubscription } from '@nous/ui';
-import { trpc } from '@/lib/trpc';
+import { Badge } from '../badge';
+import { Card, CardContent, CardHeader, CardTitle } from '../card';
+import { useEventSubscription } from '../../hooks/useEventSubscription';
+import { useMaoServices } from './mao-services-context';
 
 const TREND_CONFIG = {
   increasing: {
@@ -25,14 +25,15 @@ const TREND_CONFIG = {
 } as const;
 
 export function MaoBacklogPressureCard() {
-  const utils = trpc.useUtils();
+  const { useSystemStatusQuery, useInvalidation } = useMaoServices();
+  const { systemStatusInvalidate } = useInvalidation();
 
-  const statusQuery = trpc.health.systemStatus.useQuery();
+  const statusQuery = useSystemStatusQuery(undefined);
 
   useEventSubscription({
     channels: ['mao:projection-changed'],
     onEvent: () => {
-      void utils.health.systemStatus.invalidate();
+      void systemStatusInvalidate.invalidate();
     },
     enabled: true,
   });

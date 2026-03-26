@@ -1,7 +1,6 @@
 'use client';
 
 import * as React from 'react';
-import Link from 'next/link';
 import type {
   ConfirmationProof,
   MaoDensityMode,
@@ -10,27 +9,25 @@ import type {
   MaoProjectControlResult,
   ProjectId,
 } from '@nous/shared';
-import { Badge } from '@/components/ui/badge';
-import { Button } from '@/components/ui/button';
-import { MaoAuditTrailPanel } from '@/components/mao/mao-audit-trail-panel';
-import { MaoBacklogPressureCard } from '@/components/mao/mao-backlog-pressure-card';
-import { MaoDensityGrid } from '@/components/mao/mao-density-grid';
-import { MaoInspectPanel } from '@/components/mao/mao-inspect-panel';
-import { MaoProjectControls } from '@/components/mao/mao-project-controls';
-import { MaoRunGraph } from '@/components/mao/mao-run-graph';
+import { Badge } from '../badge';
+import { Button } from '../button';
+import { MaoAuditTrailPanel } from './mao-audit-trail-panel';
+import { MaoBacklogPressureCard } from './mao-backlog-pressure-card';
+import { MaoDensityGrid } from './mao-density-grid';
+import { MaoInspectPanel } from './mao-inspect-panel';
+import { MaoProjectControls } from './mao-project-controls';
+import { MaoRunGraph } from './mao-run-graph';
 import {
   MaoT3ConfirmationDialog,
   T3_ACTIONS,
-} from '@/components/mao/mao-t3-confirmation-dialog';
+} from './mao-t3-confirmation-dialog';
 import {
   buildMaoReturnHref,
   formatShortId,
   readMaoNavigationContext,
-} from '@/lib/mao-links';
-import { useProject } from '@/lib/project-context';
-import { useEventSubscription } from '@nous/ui';
-import { trpc } from '@/lib/trpc';
-import { useSearchParams } from 'next/navigation';
+} from './mao-links';
+import { useEventSubscription } from '../../hooks/useEventSubscription';
+import { useMaoServices } from './mao-services-context';
 
 const DENSITY_MODES: MaoDensityMode[] = ['D0', 'D1', 'D2', 'D3', 'D4'];
 
@@ -47,8 +44,28 @@ interface InspectTarget {
 }
 
 export function MaoOperatingSurface() {
+  const {
+    useSnapshotQuery,
+    useInspectQuery,
+    useControlMutation,
+    useInvalidation,
+    Link,
+    useProject,
+    useSearchParams,
+  } = useMaoServices();
+
   const { projectId, setProjectId } = useProject();
   const searchParams = useSearchParams();
+  const {
+    snapshotInvalidate,
+    inspectInvalidate,
+    controlProjectionInvalidate,
+    auditInvalidate,
+    systemStatusInvalidate,
+    dashboardInvalidate,
+    escalationsInvalidate,
+  } = useInvalidation();
+
   const linkedProjectId = searchParams.get('projectId');
   const linkedRunId = searchParams.get('runId');
   const linkedNodeId = searchParams.get('nodeId');
@@ -74,12 +91,26 @@ export function MaoOperatingSurface() {
   const [pendingT3Action, setPendingT3Action] =
     React.useState<PendingT3Action | null>(null);
   const [, startTransition] = React.useTransition();
-  const utils = trpc.useUtils();
+
+  const controlMutation = useControlMutation({
+    onSuccess: async (result) => {
+      setLastResult(result);
+      await Promise.all([
+        snapshotInvalidate.invalidate(),
+        inspectInvalidate.invalidate(),
+        controlProjectionInvalidate.invalidate(),
+        auditInvalidate.invalidate(),
+        systemStatusInvalidate.invalidate(),
+        dashboardInvalidate.invalidate(),
+        escalationsInvalidate.invalidate(),
+      ]);
+    },
+  });
 
   useEventSubscription({
     channels: ['mao:projection-changed', 'mao:control-action'],
     onEvent: () => {
-      void utils.mao.getProjectSnapshot.invalidate();
+      void snapshotInvalidate.invalidate();
     },
     enabled: !!projectId,
   });
@@ -90,7 +121,7 @@ export function MaoOperatingSurface() {
     }
   }, [linkedProjectId, projectId, setProjectId]);
 
-  const snapshotQuery = trpc.mao.getProjectSnapshot.useQuery(
+  const snapshotQuery = useSnapshotQuery(
     {
       projectId: projectId as ProjectId,
       densityMode,
@@ -116,27 +147,12 @@ export function MaoOperatingSurface() {
         }
       : undefined;
 
-  const inspectQuery = trpc.mao.getAgentInspectProjection.useQuery(
+  const inspectQuery = useInspectQuery(
     inspectInput as any,
     {
       enabled: inspectInput != null,
     },
   );
-
-  const controlMutation = trpc.mao.requestProjectControl.useMutation({
-    onSuccess: async (result) => {
-      setLastResult(result);
-      await Promise.all([
-        utils.mao.getProjectSnapshot.invalidate(),
-        utils.mao.getAgentInspectProjection.invalidate(),
-        utils.mao.getProjectControlProjection.invalidate(),
-        utils.mao.getControlAuditHistory.invalidate(),
-        utils.health.systemStatus.invalidate(),
-        utils.projects.dashboardSnapshot.invalidate(),
-        utils.escalations.listProjectQueue.invalidate(),
-      ]);
-    },
-  });
 
   React.useEffect(() => {
     if (!snapshotQuery.data) {
