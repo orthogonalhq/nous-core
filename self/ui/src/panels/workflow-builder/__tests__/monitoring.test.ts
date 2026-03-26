@@ -24,6 +24,7 @@ import type {
   RevisionCycleRef,
   EscalationRef,
   BuilderEdgeType,
+  BuilderMode,
 } from '../../../types/workflow-builder'
 
 // ─── Tier 1 — Contract ────────────────────────────────────────────────────────
@@ -157,7 +158,7 @@ describe('useBuilderState — monitoring', () => {
   it('setActiveRun loads the correct run', () => {
     const { result } = renderHook(
       ({ mode }) => useBuilderState(mode),
-      { initialProps: { mode: 'monitoring' as const } },
+      { initialProps: { mode: 'monitoring' as BuilderMode } },
     )
     act(() => {
       result.current.setActiveRun('run-001')
@@ -170,7 +171,7 @@ describe('useBuilderState — monitoring', () => {
   it('clearActiveRun sets activeRun to null', () => {
     const { result } = renderHook(
       ({ mode }) => useBuilderState(mode),
-      { initialProps: { mode: 'monitoring' as const } },
+      { initialProps: { mode: 'monitoring' as BuilderMode } },
     )
     act(() => {
       result.current.setActiveRun('run-001')
@@ -185,13 +186,13 @@ describe('useBuilderState — monitoring', () => {
   it('switching mode away from monitoring clears activeRun', () => {
     const { result, rerender } = renderHook(
       ({ mode }) => useBuilderState(mode),
-      { initialProps: { mode: 'monitoring' as const } },
+      { initialProps: { mode: 'monitoring' as BuilderMode } },
     )
     act(() => {
       result.current.setActiveRun('run-002')
     })
     expect(result.current.activeRun).not.toBeNull()
-    rerender({ mode: 'authoring' as const })
+    rerender({ mode: 'authoring' as BuilderMode })
     expect(result.current.activeRun).toBeNull()
     expect(result.current.monitoringState.isMonitoring).toBe(false)
   })
@@ -199,7 +200,7 @@ describe('useBuilderState — monitoring', () => {
   it('isMonitoring is false when mode is monitoring but no active run', () => {
     const { result } = renderHook(
       ({ mode }) => useBuilderState(mode),
-      { initialProps: { mode: 'monitoring' as const } },
+      { initialProps: { mode: 'monitoring' as BuilderMode } },
     )
     expect(result.current.monitoringState.isMonitoring).toBe(false)
   })
@@ -207,7 +208,7 @@ describe('useBuilderState — monitoring', () => {
   it('setActiveRun with invalid ID does not set active run', () => {
     const { result } = renderHook(
       ({ mode }) => useBuilderState(mode),
-      { initialProps: { mode: 'monitoring' as const } },
+      { initialProps: { mode: 'monitoring' as BuilderMode } },
     )
     act(() => {
       result.current.setActiveRun('nonexistent')
@@ -259,7 +260,7 @@ describe('useBuilderState — mode enforcement', () => {
     // First do something undoable in authoring mode
     const { result, rerender } = renderHook(
       ({ mode }) => useBuilderState(mode),
-      { initialProps: { mode: 'authoring' as const } },
+      { initialProps: { mode: 'authoring' as BuilderMode } },
     )
     act(() => {
       result.current.addNode('nous.trigger.webhook', { x: 0, y: 0 })
@@ -268,7 +269,7 @@ describe('useBuilderState — mode enforcement', () => {
     expect(result.current.canUndo).toBe(true)
 
     // Switch to monitoring — undo should be blocked
-    rerender({ mode: 'monitoring' as const })
+    rerender({ mode: 'monitoring' as BuilderMode })
     act(() => {
       result.current.undo()
     })
@@ -278,7 +279,7 @@ describe('useBuilderState — mode enforcement', () => {
   it('redo is blocked in monitoring mode', () => {
     const { result, rerender } = renderHook(
       ({ mode }) => useBuilderState(mode),
-      { initialProps: { mode: 'authoring' as const } },
+      { initialProps: { mode: 'authoring' as BuilderMode } },
     )
     act(() => {
       result.current.addNode('nous.trigger.webhook', { x: 0, y: 0 })
@@ -288,7 +289,7 @@ describe('useBuilderState — mode enforcement', () => {
     })
     expect(result.current.canRedo).toBe(true)
 
-    rerender({ mode: 'monitoring' as const })
+    rerender({ mode: 'monitoring' as BuilderMode })
     const afterUndo = result.current.nodes.length
     act(() => {
       result.current.redo()
