@@ -95,6 +95,15 @@ export const tokens = {
       execution: '#abb2bf',
       config:    '#5c6370',
     },
+
+    /** Canvas floating panels — keep in sync with tokens.css */
+    panel: {
+      bg:         '#141414',
+      border:     '#2a2a2a',
+      shadow:     '0 4px 12px rgba(0,0,0,0.5)',
+      headerBg:   '#1a1a1a',
+      headerText: '#fafafa',
+    },
   },
 
   space: {
