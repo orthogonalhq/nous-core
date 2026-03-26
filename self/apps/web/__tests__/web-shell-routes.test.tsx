@@ -5,10 +5,11 @@ describe('webShellRoutes', () => {
   const EXPECTED_KEYS = [
     'home', 'chat', 'projects', 'marketplace', 'traces', 'memory',
     'config', 'settings', 'mao', 'threads', 'workflows', 'skills',
+    'mobile',
   ]
 
-  it('has exactly 12 keys', () => {
-    expect(Object.keys(webShellRoutes).length).toBe(12)
+  it('has exactly 13 keys', () => {
+    expect(Object.keys(webShellRoutes).length).toBe(13)
   })
 
   it('each value is a function (valid ComponentType)', () => {

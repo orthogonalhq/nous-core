@@ -13,6 +13,8 @@ import { ChatApiAdapter } from './chat-api-adapter'
 import { ConfigAdapter } from './adapters/config-adapter'
 import { MemoryAdapter } from './adapters/memory-adapter'
 import { MaoAdapter } from './adapters/mao-adapter'
+import { TracesAdapter } from './adapters/traces-adapter'
+import { MobileAdapter } from './adapters/mobile-adapter'
 
 // ─── Stub data (matches desktop pattern) ────────────────────────────────────
 
@@ -99,11 +101,12 @@ export const webShellRoutes: Record<string, ComponentType<ContentRouterRenderPro
   chat: ChatApiAdapter,
   projects: createPlaceholder('Projects'),
   marketplace: createPlaceholder('Marketplace'),
-  traces: createPlaceholder('Traces'),
+  traces: TracesAdapter,
   memory: MemoryAdapter,
   config: ConfigAdapter,
   settings: SettingsRoute,
   mao: MaoAdapter,
+  mobile: MobileAdapter,
   threads: (props: ContentRouterRenderProps) => <CatalogView {...props} items={STUB_THREADS} />,
   workflows: (props: ContentRouterRenderProps) => <CatalogView {...props} items={STUB_WORKFLOWS} />,
   skills: (props: ContentRouterRenderProps) => <CatalogView {...props} items={STUB_SKILLS} />,
