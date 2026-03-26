@@ -460,3 +460,28 @@ export const MaoEventTypeSchema = z.enum([
   'mao_graph_lineage_rendered',
 ]);
 export type MaoEventType = z.infer<typeof MaoEventTypeSchema>;
+
+export const MaoControlAuditHistoryEntrySchema = z.object({
+  commandId: z.string().uuid(),
+  action: MaoProjectControlActionSchema,
+  actorId: z.string().min(1),
+  reason: z.string().min(1),
+  reasonCode: z.string().min(1),
+  at: z.string().datetime(),
+  evidenceRefs: z.array(z.string().min(1)).default([]),
+  resumeReadinessStatus: MaoResumeReadinessStatusSchema,
+  decisionRef: z.string().min(1),
+});
+export type MaoControlAuditHistoryEntry = z.infer<
+  typeof MaoControlAuditHistoryEntrySchema
+>;
+
+export const MaoControlAuditHistorySchema = z.object({
+  projectId: ProjectIdSchema,
+  entries: z.array(MaoControlAuditHistoryEntrySchema),
+  totalCount: z.number().int().nonnegative(),
+  cappedAt: z.number().int().positive(),
+});
+export type MaoControlAuditHistory = z.infer<
+  typeof MaoControlAuditHistorySchema
+>;
