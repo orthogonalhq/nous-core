@@ -2,20 +2,21 @@
 
 import * as React from 'react';
 import type { ProjectId } from '@nous/shared';
-import { Badge } from '@/components/ui/badge';
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
-import { useEventSubscription } from '@nous/ui';
-import { trpc } from '@/lib/trpc';
+import { Badge } from '../badge';
+import { Card, CardContent, CardHeader, CardTitle } from '../card';
+import { useEventSubscription } from '../../hooks/useEventSubscription';
+import { useMaoServices } from './mao-services-context';
 
 export interface MaoAuditTrailPanelProps {
   projectId: ProjectId | null;
 }
 
 export function MaoAuditTrailPanel({ projectId }: MaoAuditTrailPanelProps) {
-  const utils = trpc.useUtils();
+  const { useAuditQuery, useInvalidation } = useMaoServices();
+  const { auditInvalidate } = useInvalidation();
   const [expandedId, setExpandedId] = React.useState<string | null>(null);
 
-  const auditQuery = trpc.mao.getControlAuditHistory.useQuery(
+  const auditQuery = useAuditQuery(
     { projectId: projectId as string },
     { enabled: !!projectId },
   );
@@ -23,7 +24,7 @@ export function MaoAuditTrailPanel({ projectId }: MaoAuditTrailPanelProps) {
   useEventSubscription({
     channels: ['mao:control-action'],
     onEvent: () => {
-      void utils.mao.getControlAuditHistory.invalidate();
+      void auditInvalidate.invalidate();
     },
     enabled: !!projectId,
   });

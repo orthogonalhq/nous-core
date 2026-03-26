@@ -6,9 +6,9 @@ import type {
   MaoProjectControlResult,
   MaoProjectSnapshot,
 } from '@nous/shared';
-import { Badge } from '@/components/ui/badge';
-import { Button } from '@/components/ui/button';
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
+import { Badge } from '../badge';
+import { Button } from '../button';
+import { Card, CardContent, CardHeader, CardTitle } from '../card';
 
 const COMMAND_IDS: Record<MaoProjectControlAction, string> = {
   pause_project: '6f139b92-f4fc-49b9-a1df-2d6b8149b001',
@@ -16,7 +16,7 @@ const COMMAND_IDS: Record<MaoProjectControlAction, string> = {
   hard_stop_project: '6f139b92-f4fc-49b9-a1df-2d6b8149b003',
 };
 
-interface MaoProjectControlsProps {
+export interface MaoProjectControlsProps {
   snapshot: MaoProjectSnapshot;
   pending: boolean;
   lastResult: MaoProjectControlResult | null;

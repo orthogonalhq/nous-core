@@ -7,8 +7,8 @@ import type {
   MaoProjectControlAction,
   ProjectId,
 } from '@nous/shared';
-import { Button } from '@/components/ui/button';
-import { trpc } from '@/lib/trpc';
+import { Button } from '../button';
+import { useMaoServices } from './mao-services-context';
 
 /**
  * T3 actions that require a confirmation dialog before mutation.
@@ -61,7 +61,9 @@ export function MaoT3ConfirmationDialog({
   onConfirm,
   onCancel,
 }: MaoT3ConfirmationDialogProps) {
-  const proofMutation = trpc.opctl.requestConfirmationProof.useMutation({
+  const { useProofMutation } = useMaoServices();
+
+  const proofMutation = useProofMutation({
     onSuccess: (proof) => {
       onConfirm(proof);
     },
