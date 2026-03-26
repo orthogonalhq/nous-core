@@ -436,8 +436,11 @@ describe('PrincipalSystemGatewayRuntime', () => {
       const eventBus = {
         subscribe: vi.fn().mockReturnValue('sub-1'),
         unsubscribe: vi.fn(),
-        publish: vi.fn().mockImplementation(() => {
-          throw new Error('Event bus failure');
+        publish: vi.fn().mockImplementation((channel: string) => {
+          // Only throw on backlog channels — boot-step publishes must succeed for construction
+          if (channel.startsWith('system:')) {
+            throw new Error('Event bus failure');
+          }
         }),
       };
 
