@@ -130,8 +130,12 @@ const CanvasDropTarget = forwardRef<
   // ─── Expose keyboard nav handler to parent via imperative handle ────────
 
   useImperativeHandle(ref, () => ({
-    handleKeyDown: keyboardNavHandleKeyDown,
-  }), [keyboardNavHandleKeyDown])
+    handleKeyDown: (e: React.KeyboardEvent) => {
+      // Suppress keyboard navigation/mutations in monitor mode
+      if (mode === 'monitoring') return
+      keyboardNavHandleKeyDown(e)
+    },
+  }), [mode, keyboardNavHandleKeyDown])
 
   // Propagate focusedNodeId changes to parent for visual focus ring
   useEffect(() => {
@@ -407,6 +411,7 @@ const CanvasDropTarget = forwardRef<
         elementsSelectable={mode !== 'monitoring'}
         onDragOver={mode !== 'monitoring' ? onDragOver : undefined}
         onDrop={mode !== 'monitoring' ? onDrop : undefined}
+        deleteKeyCode={mode !== 'monitoring' ? 'Delete' : null}
         fitView
         style={{
           background: 'var(--nous-builder-canvas-bg)',
