@@ -1,6 +1,6 @@
 'use client'
 
-import { useMemo, useCallback, useRef, useState, useEffect } from 'react'
+import { useMemo, useCallback, useRef, useState, useEffect, useImperativeHandle, forwardRef } from 'react'
 import {
   ReactFlow,
   ReactFlowProvider,
@@ -13,6 +13,7 @@ import {
 import type { IDockviewPanelProps } from 'dockview-react'
 import type { WorkflowBuilderNode, WorkflowBuilderEdge, ContextMenuState } from '../../types/workflow-builder'
 import { useBuilderState } from './hooks/useBuilderState'
+import { useKeyboardNav } from './hooks/useKeyboardNav'
 import { BuilderToolbar } from './BuilderToolbar'
 import { NodePalette } from './NodePalette'
 import { NodeInspector } from './inspectors/NodeInspector'
@@ -20,6 +21,7 @@ import { EdgeInspector } from './inspectors/EdgeInspector'
 import { WorkflowInspector } from './inspectors/WorkflowInspector'
 import { CanvasContextMenu, NodeContextMenu, EdgeContextMenu } from './context-menu'
 import { NodeSearch } from './NodeSearch'
+import { ValidationPanel } from './ValidationPanel'
 import { nodeTypes } from './nodes'
 import { edgeTypes } from './edges'
 
@@ -37,14 +39,24 @@ interface WorkflowBuilderDockviewProps extends IDockviewPanelProps {
 
 // ─── Inner canvas (runtime-agnostic — no dockview imports) ──────────────────
 
+// Imperative handle exposed by CanvasDropTarget to parent for keyboard nav wiring
+interface CanvasDropTargetHandle {
+  handleKeyDown: (e: React.KeyboardEvent) => void
+}
+
 // Inner drop-target component — must be inside ReactFlowProvider for useReactFlow()
-function CanvasDropTarget({
-  className,
+const CanvasDropTarget = forwardRef<
+  CanvasDropTargetHandle,
+  {
+    canvasRef: React.RefObject<HTMLDivElement | null>
+    canvasHasFocus: boolean
+    onFocusedNodeChange: (nodeId: string | null) => void
+  }
+>(function CanvasDropTarget({
   canvasRef,
-}: {
-  className?: string
-  canvasRef: React.RefObject<HTMLDivElement | null>
-}) {
+  canvasHasFocus,
+  onFocusedNodeChange,
+}, ref) {
   const {
     nodes,
     edges,
@@ -65,22 +77,100 @@ function CanvasDropTarget({
     updateNodeData,
     getCurrentSpec,
     validationErrors,
+    isDirty,
+    markClean,
+    moveNode,
     undo,
     redo,
     canUndo,
     canRedo,
   } = useBuilderState()
 
-  const { screenToFlowPosition, fitView, setCenter } = useReactFlow()
+  const { screenToFlowPosition, fitView } = useReactFlow()
 
   // ─── Context menu state ─────────────────────────────────────────────────
 
   const [contextMenu, setContextMenu] = useState<ContextMenuState | null>(null)
   const [nodeSearchOpen, setNodeSearchOpen] = useState(false)
+  const [isValidationPanelOpen, setIsValidationPanelOpen] = useState(false)
 
   const closeContextMenu = useCallback(() => {
     setContextMenu(null)
   }, [])
+
+  // ─── Keyboard navigation ───────────────────────────────────────────────
+
+  const { focusedNodeId, handleKeyDown: keyboardNavHandleKeyDown } = useKeyboardNav({
+    nodes,
+    edges,
+    selectedNodeId,
+    selectedEdgeId,
+    onSelectNode: (nodeId: string) => {
+      const node = nodes.find((n) => n.id === nodeId)
+      if (node) onNodeClick({} as React.MouseEvent, node)
+    },
+    onDeselectAll: () => onPaneClick({} as React.MouseEvent),
+    removeNode,
+    removeEdge,
+    moveNode,
+    onEscape: () => {
+      setContextMenu(null)
+      setNodeSearchOpen(false)
+      setIsValidationPanelOpen(false)
+    },
+    canvasHasFocus,
+  })
+
+  // ─── Expose keyboard nav handler to parent via imperative handle ────────
+
+  useImperativeHandle(ref, () => ({
+    handleKeyDown: keyboardNavHandleKeyDown,
+  }), [keyboardNavHandleKeyDown])
+
+  // Propagate focusedNodeId changes to parent for visual focus ring
+  useEffect(() => {
+    onFocusedNodeChange(focusedNodeId)
+  }, [focusedNodeId, onFocusedNodeChange])
+
+  // ─── Save handler (SP 2.5) ─────────────────────────────────────────────
+
+  const handleSave = useCallback(() => {
+    getCurrentSpec()
+    markClean()
+  }, [getCurrentSpec, markClean])
+
+  // ─── Validate toggle handler (SP 2.5) ──────────────────────────────────
+
+  const handleValidate = useCallback(() => {
+    setIsValidationPanelOpen((prev) => !prev)
+  }, [])
+
+  // ─── Error click handler (SP 2.5) ─────────────────────────────────────
+
+  const handleErrorClick = useCallback(
+    (errorPath: string) => {
+      // Parse path to find affected node/edge
+      const nodeMatch = errorPath.match(/^nodes\[(\d+)\]/)
+      if (nodeMatch) {
+        const index = parseInt(nodeMatch[1], 10)
+        const node = nodes[index]
+        if (node) {
+          onNodeClick({} as React.MouseEvent, node)
+          fitView({ nodes: [{ id: node.id }], duration: 300 })
+        }
+        return
+      }
+      const connMatch = errorPath.match(/^connections\[(\d+)\]/)
+      if (connMatch) {
+        const index = parseInt(connMatch[1], 10)
+        const edge = edges[index]
+        if (edge) {
+          onEdgeClick({} as React.MouseEvent, edge)
+        }
+      }
+    },
+    [nodes, edges, onNodeClick, onEdgeClick, fitView],
+  )
 
   // ─── Context menu event handlers ────────────────────────────────────────
 
@@ -331,6 +421,11 @@ function CanvasDropTarget({
         onRedo={redo}
         canUndo={canUndo}
         canRedo={canRedo}
+        onSave={handleSave}
+        onValidate={handleValidate}
+        isDirty={isDirty}
+        validationErrorCount={validationErrors.length}
+        isValidationPanelOpen={isValidationPanelOpen}
       />
       <NodePalette containerRef={canvasRef} />
       <NodeInspector
@@ -394,25 +489,58 @@ function CanvasDropTarget({
         onAddNode={handleSearchAddNode}
         onFocusNode={handleSearchFocusNode}
       />
+
+      {/* Validation Panel (SP 2.5) */}
+      <ValidationPanel
+        validationErrors={validationErrors}
+        nodes={nodes}
+        edges={edges}
+        isVisible={isValidationPanelOpen}
+        onClose={() => setIsValidationPanelOpen(false)}
+        onErrorClick={handleErrorClick}
+        containerRef={canvasRef}
+      />
     </>
   )
-}
+})
 
 function WorkflowBuilderCanvas({ className }: { className?: string }) {
   const canvasRef = useRef<HTMLDivElement | null>(null)
+  const dropTargetRef = useRef<CanvasDropTargetHandle>(null)
+  const [canvasHasFocus, setCanvasHasFocus] = useState(false)
+  const [focusedNodeId, setFocusedNodeId] = useState<string | null>(null)
+
+  const handleKeyDown = useCallback((e: React.KeyboardEvent) => {
+    dropTargetRef.current?.handleKeyDown(e)
+  }, [])
+
+  const handleFocusedNodeChange = useCallback((nodeId: string | null) => {
+    setFocusedNodeId(nodeId)
+  }, [])
 
   return (
     <div
       ref={canvasRef}
       className={className}
+      tabIndex={0}
+      onFocus={() => setCanvasHasFocus(true)}
+      onBlur={() => setCanvasHasFocus(false)}
+      onKeyDown={handleKeyDown}
+      data-focused-node-id={focusedNodeId ?? undefined}
       style={{
         width: '100%',
         height: '100%',
         position: 'relative',
+        outline: 'none',
       }}
     >
       <ReactFlowProvider>
-        <CanvasDropTarget className={className} canvasRef={canvasRef} />
+        <CanvasDropTarget
+          ref={dropTargetRef}
+          canvasRef={canvasRef}
+          canvasHasFocus={canvasHasFocus}
+          onFocusedNodeChange={handleFocusedNodeChange}
+        />
       </ReactFlowProvider>
     </div>
   )

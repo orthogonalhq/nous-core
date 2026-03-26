@@ -292,3 +292,27 @@ export interface NodeSearchResult {
   /** The nousType string (for add-node) or node ID (for existing-node). */
   value: string
 }
+
+// ─── Keyboard Navigation Types (SP 2.5) ─────────────────────────────────────
+
+/** State tracked by useKeyboardNav. */
+export interface KeyboardNavState {
+  /** Index into the position-sorted node array. -1 = no focus. */
+  focusedIndex: number
+  /** Whether keyboard nav is actively intercepting keys (canvas has focus). */
+  isActive: boolean
+}
+
+/** A renderable validation error item for the ValidationPanel. */
+export interface ValidationPanelItem {
+  /** Original error path from WorkflowSpecValidationError. */
+  path: string
+  /** Human-readable error message. */
+  message: string
+  /** Severity level derived from error path analysis. */
+  severity: 'error' | 'warning'
+  /** Affected element ID extracted from the error path. Null if structural. */
+  elementId: string | null
+  /** Element type for icon rendering. */
+  elementType: 'node' | 'edge' | 'spec' | null
+}
