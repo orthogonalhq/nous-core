@@ -332,6 +332,9 @@ const CanvasDropTarget = forwardRef<
   )
 
   // ─── Global keyboard shortcuts (Ctrl+K, Ctrl+Z, Ctrl+Shift+Z, Ctrl+S) ───
+  // Registered in CAPTURE PHASE so this handler fires before App.tsx's
+  // bubble-phase Ctrl+K handler. In monitor mode, stopImmediatePropagation
+  // prevents the event from reaching any other listener.
 
   useEffect(() => {
     const handler = (e: KeyboardEvent) => {
@@ -345,29 +348,43 @@ const CanvasDropTarget = forwardRef<
       }
 
       const isMod = e.ctrlKey || e.metaKey
+      if (!isMod) return
 
-      if (isMod && (e.key === 'k' || e.key === 'K')) {
+      const key = e.key.toLowerCase()
+      const isAuthoringKey =
+        key === 'k' ||
+        key === 'z' ||
+        key === 's'
+
+      if (!isAuthoringKey) return
+
+      // Monitor mode: fully consume the event — no other handler should see it
+      if (mode === 'monitoring') {
         e.preventDefault()
-        if (mode === 'monitoring') return
-        setContextMenu(null) // Close any open context menu
+        e.stopImmediatePropagation()
+        return
+      }
+
+      // Authoring mode: handle normally (no stopImmediatePropagation —
+      // App.tsx Ctrl+K CommandPalette must still work in bubble phase)
+      if (key === 'k') {
+        e.preventDefault()
+        setContextMenu(null)
         setNodeSearchOpen((prev) => !prev)
-      } else if (isMod && e.shiftKey && (e.key === 'z' || e.key === 'Z')) {
+      } else if (key === 'z' && e.shiftKey) {
         e.preventDefault()
-        if (mode === 'monitoring') return
         redo()
-      } else if (isMod && (e.key === 'z' || e.key === 'Z')) {
+      } else if (key === 'z' && !e.shiftKey) {
         e.preventDefault()
-        if (mode === 'monitoring') return
         undo()
-      } else if (isMod && (e.key === 's' || e.key === 'S')) {
+      } else if (key === 's') {
         e.preventDefault()
-        if (mode === 'monitoring') return
         handleSave()
       }
     }
 
-    window.addEventListener('keydown', handler)
-    return () => window.removeEventListener('keydown', handler)
+    window.addEventListener('keydown', handler, true)
+    return () => window.removeEventListener('keydown', handler, true)
   }, [mode, undo, redo, handleSave])
 
   // ─── Drag and drop ────────────────────────────────────────────────────
