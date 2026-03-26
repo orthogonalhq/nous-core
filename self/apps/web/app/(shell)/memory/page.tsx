@@ -18,7 +18,7 @@ export default function MemoryPage() {
         }}
       >
         <p style={{ color: 'var(--nous-text-secondary)' }}>
-          Select a project from the sidebar to inspect memory.
+          Select a project from the navigation panel to inspect memory.
         </p>
       </div>
     );
