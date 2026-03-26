@@ -331,6 +331,9 @@ const CanvasDropTarget = forwardRef<
 
   useEffect(() => {
     const handler = (e: KeyboardEvent) => {
+      // Suppress all authoring shortcuts in monitor mode
+      if (mode === 'monitoring') return
+
       const target = e.target as HTMLElement
       if (
         target.tagName === 'INPUT' ||
@@ -360,7 +363,7 @@ const CanvasDropTarget = forwardRef<
 
     window.addEventListener('keydown', handler)
     return () => window.removeEventListener('keydown', handler)
-  }, [undo, redo, handleSave])
+  }, [mode, undo, redo, handleSave])
 
   // ─── Drag and drop ────────────────────────────────────────────────────
 
@@ -388,21 +391,22 @@ const CanvasDropTarget = forwardRef<
       <ReactFlow
         nodes={nodes}
         edges={edges}
-        onNodesChange={onNodesChange}
-        onEdgesChange={onEdgesChange}
-        onConnect={onConnect}
+        onNodesChange={mode !== 'monitoring' ? onNodesChange : undefined}
+        onEdgesChange={mode !== 'monitoring' ? onEdgesChange : undefined}
+        onConnect={mode !== 'monitoring' ? onConnect : undefined}
         onNodeClick={onNodeClick}
         onEdgeClick={onEdgeClick}
         onPaneClick={onPaneClick}
-        onPaneContextMenu={onPaneContextMenu}
-        onNodeContextMenu={onNodeContextMenu}
-        onEdgeContextMenu={onEdgeContextMenu}
+        onPaneContextMenu={mode !== 'monitoring' ? onPaneContextMenu : undefined}
+        onNodeContextMenu={mode !== 'monitoring' ? onNodeContextMenu : undefined}
+        onEdgeContextMenu={mode !== 'monitoring' ? onEdgeContextMenu : undefined}
         nodeTypes={memoizedNodeTypes}
         edgeTypes={memoizedEdgeTypes}
         nodesDraggable={mode !== 'monitoring'}
         nodesConnectable={mode !== 'monitoring'}
-        onDragOver={onDragOver}
-        onDrop={onDrop}
+        elementsSelectable={mode !== 'monitoring'}
+        onDragOver={mode !== 'monitoring' ? onDragOver : undefined}
+        onDrop={mode !== 'monitoring' ? onDrop : undefined}
         fitView
         style={{
           background: 'var(--nous-builder-canvas-bg)',
@@ -444,79 +448,84 @@ const CanvasDropTarget = forwardRef<
         validationErrorCount={validationErrors.length}
         isValidationPanelOpen={isValidationPanelOpen}
       />
-      <NodePalette containerRef={canvasRef} />
-      <NodeInspector
-        selectedNodeId={selectedNodeId}
-        nodes={nodes}
-        updateNodeData={updateNodeData}
-        validationErrors={validationErrors}
-        containerRef={canvasRef}
-      />
-      <EdgeInspector
-        selectedEdgeId={selectedEdgeId}
-        edges={edges}
-        nodes={nodes}
-        removeEdge={removeEdge}
-        addEdge={addEdge}
-        containerRef={canvasRef}
-      />
-      <WorkflowInspector
-        selectedNodeId={selectedNodeId}
-        selectedEdgeId={selectedEdgeId}
-        nodes={nodes}
-        edges={edges}
-        getCurrentSpec={getCurrentSpec}
-        containerRef={canvasRef}
-      />
+      {/* Authoring-only UI — hidden in monitor mode */}
+      {mode !== 'monitoring' && (
+        <>
+          <NodePalette containerRef={canvasRef} />
+          <NodeInspector
+            selectedNodeId={selectedNodeId}
+            nodes={nodes}
+            updateNodeData={updateNodeData}
+            validationErrors={validationErrors}
+            containerRef={canvasRef}
+          />
+          <EdgeInspector
+            selectedEdgeId={selectedEdgeId}
+            edges={edges}
+            nodes={nodes}
+            removeEdge={removeEdge}
+            addEdge={addEdge}
+            containerRef={canvasRef}
+          />
+          <WorkflowInspector
+            selectedNodeId={selectedNodeId}
+            selectedEdgeId={selectedEdgeId}
+            nodes={nodes}
+            edges={edges}
+            getCurrentSpec={getCurrentSpec}
+            containerRef={canvasRef}
+          />
 
-      {/* Context Menus */}
-      {contextMenu?.type === 'canvas' && (
-        <CanvasContextMenu
-          position={contextMenu.position}
-          onClose={closeContextMenu}
-          onAddNode={handleContextMenuAddNode}
-          onSelectAll={handleSelectAll}
-        />
-      )}
-      {contextMenu?.type === 'node' && contextMenu.targetId && (
-        <NodeContextMenu
-          position={contextMenu.position}
-          nodeId={contextMenu.targetId}
-          onClose={closeContextMenu}
-          onDeleteNode={handleContextMenuDeleteNode}
-          onDuplicateNode={handleContextMenuDuplicateNode}
-          onOpenInspector={handleContextMenuOpenInspector}
-        />
-      )}
-      {contextMenu?.type === 'edge' && contextMenu.targetId && (
-        <EdgeContextMenu
-          position={contextMenu.position}
-          edgeId={contextMenu.targetId}
-          onClose={closeContextMenu}
-          onDeleteEdge={handleContextMenuDeleteEdge}
-          onChangeEdgeType={handleContextMenuChangeEdgeType}
-        />
-      )}
+          {/* Context Menus */}
+          {contextMenu?.type === 'canvas' && (
+            <CanvasContextMenu
+              position={contextMenu.position}
+              onClose={closeContextMenu}
+              onAddNode={handleContextMenuAddNode}
+              onSelectAll={handleSelectAll}
+            />
+          )}
+          {contextMenu?.type === 'node' && contextMenu.targetId && (
+            <NodeContextMenu
+              position={contextMenu.position}
+              nodeId={contextMenu.targetId}
+              onClose={closeContextMenu}
+              onDeleteNode={handleContextMenuDeleteNode}
+              onDuplicateNode={handleContextMenuDuplicateNode}
+              onOpenInspector={handleContextMenuOpenInspector}
+            />
+          )}
+          {contextMenu?.type === 'edge' && contextMenu.targetId && (
+            <EdgeContextMenu
+              position={contextMenu.position}
+              edgeId={contextMenu.targetId}
+              onClose={closeContextMenu}
+              onDeleteEdge={handleContextMenuDeleteEdge}
+              onChangeEdgeType={handleContextMenuChangeEdgeType}
+            />
+          )}
 
-      {/* Node Search */}
-      <NodeSearch
-        isOpen={nodeSearchOpen}
-        onClose={() => setNodeSearchOpen(false)}
-        nodes={nodes}
-        onAddNode={handleSearchAddNode}
-        onFocusNode={handleSearchFocusNode}
-      />
+          {/* Node Search */}
+          <NodeSearch
+            isOpen={nodeSearchOpen}
+            onClose={() => setNodeSearchOpen(false)}
+            nodes={nodes}
+            onAddNode={handleSearchAddNode}
+            onFocusNode={handleSearchFocusNode}
+          />
 
-      {/* Validation Panel (SP 2.5) */}
-      <ValidationPanel
-        validationErrors={validationErrors}
-        nodes={nodes}
-        edges={edges}
-        isVisible={isValidationPanelOpen}
-        onClose={() => setIsValidationPanelOpen(false)}
-        onErrorClick={handleErrorClick}
-        containerRef={canvasRef}
-      />
+          {/* Validation Panel (SP 2.5) */}
+          <ValidationPanel
+            validationErrors={validationErrors}
+            nodes={nodes}
+            edges={edges}
+            isVisible={isValidationPanelOpen}
+            onClose={() => setIsValidationPanelOpen(false)}
+            onErrorClick={handleErrorClick}
+            containerRef={canvasRef}
+          />
+        </>
+      )}
 
       {/* Execution Monitor Overlay (SP 3.1) */}
       {mode === 'monitoring' && activeRun !== null && (
