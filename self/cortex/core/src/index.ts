@@ -141,6 +141,7 @@ export {
   SUBMIT_TASK_TO_SYSTEM_TOOL_NAME,
   SystemContextReplicaProvider,
   GatewayRuntimeHealthSink,
+  BacklogEntryStatusSchema,
 } from './gateway-runtime/index.js';
 export type {
   GatewayAppSessionHealthProjection,
