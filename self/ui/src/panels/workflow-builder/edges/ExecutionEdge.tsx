@@ -32,15 +32,20 @@ export function ExecutionEdge({
   })
 
   const edgeData = data as unknown as WorkflowBuilderEdgeData | undefined
+  const execState = edgeData?.executionState
+  const isActive = execState?.status === 'active'
+  const isCompleted = execState?.status === 'completed'
 
   return (
     <>
       <BaseEdge
         id={id}
         path={edgePath}
-        className="nousEdgeAnimated"
+        className={isActive ? 'nous-edge-flow-active' : undefined}
         style={{
-          stroke: 'var(--nous-builder-edge-execution)',
+          stroke: isActive || isCompleted
+            ? 'var(--nous-accent)'
+            : 'var(--nous-builder-edge-execution)',
           strokeWidth: 2,
         }}
         markerEnd={markerEnd ?? 'url(#nous-arrow-execution)'}

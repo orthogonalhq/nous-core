@@ -24,6 +24,8 @@ import { NodeSearch } from './NodeSearch'
 import { ValidationPanel } from './ValidationPanel'
 import { nodeTypes } from './nodes'
 import { edgeTypes } from './edges'
+import { ExecutionMonitor } from './monitoring/ExecutionMonitor'
+import { ExecutionHistory } from './monitoring/ExecutionHistory'
 
 import '@xyflow/react/dist/style.css'
 
@@ -84,6 +86,10 @@ const CanvasDropTarget = forwardRef<
     redo,
     canUndo,
     canRedo,
+    monitoringState,
+    activeRun,
+    setActiveRun,
+    clearActiveRun,
   } = useBuilderState()
 
   const { screenToFlowPosition, fitView } = useReactFlow()
@@ -393,6 +399,8 @@ const CanvasDropTarget = forwardRef<
         onEdgeContextMenu={onEdgeContextMenu}
         nodeTypes={memoizedNodeTypes}
         edgeTypes={memoizedEdgeTypes}
+        nodesDraggable={mode !== 'monitoring'}
+        nodesConnectable={mode !== 'monitoring'}
         onDragOver={onDragOver}
         onDrop={onDrop}
         fitView
@@ -509,6 +517,20 @@ const CanvasDropTarget = forwardRef<
         onErrorClick={handleErrorClick}
         containerRef={canvasRef}
       />
+
+      {/* Execution Monitor Overlay (SP 3.1) */}
+      {mode === 'monitoring' && activeRun !== null && (
+        <ExecutionMonitor activeRun={activeRun} />
+      )}
+
+      {/* Execution History Panel (SP 3.1) */}
+      {mode === 'monitoring' && (
+        <ExecutionHistory
+          containerRef={canvasRef}
+          onSelectRun={setActiveRun}
+          activeRunId={activeRun?.id ?? null}
+        />
+      )}
     </>
   )
 })

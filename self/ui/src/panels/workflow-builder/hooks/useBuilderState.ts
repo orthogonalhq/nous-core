@@ -10,7 +10,10 @@ import type {
   WorkflowBuilderEdgeData,
   WorkflowBuilderNodeData,
   BuilderMode,
+  ExecutionRun,
+  MonitoringState,
 } from '../../../types/workflow-builder'
+import { DEMO_EXECUTION_RUNS } from '../monitoring/demo-execution-data'
 import { getRegistryEntry } from '../nodes/node-registry'
 import { DEMO_WORKFLOW_NODES, DEMO_WORKFLOW_EDGES } from '../demo-workflow'
 import { useWorkflowSync } from './useWorkflowSync'
@@ -92,6 +95,15 @@ export interface UseBuilderStateReturn {
   canUndo: boolean
   /** Whether redo is available. */
   canRedo: boolean
+
+  /** Monitoring state — active run + isMonitoring flag. */
+  monitoringState: MonitoringState
+  /** Currently active execution run, or null. */
+  activeRun: ExecutionRun | null
+  /** Load an execution run by ID for monitor overlay display. */
+  setActiveRun: (runId: string) => void
+  /** Clear the active execution run. */
+  clearActiveRun: () => void
 }
 
 // ─── Hook ─────────────────────────────────────────────────────────────────────
@@ -112,13 +124,44 @@ export function useBuilderState(): UseBuilderStateReturn {
   const [edges, setEdges] = useState<WorkflowBuilderEdge[]>(() => [...DEMO_WORKFLOW_EDGES])
   const [selectedNodeId, setSelectedNodeId] = useState<string | null>(null)
   const [selectedEdgeId, setSelectedEdgeId] = useState<string | null>(null)
-  const [mode, setMode] = useState<BuilderMode>('authoring')
+  const [mode, setModeRaw] = useState<BuilderMode>('authoring')
+  const [activeRun, setActiveRunState] = useState<ExecutionRun | null>(null)
   const [viewport] = useState<Viewport>(DEFAULT_VIEWPORT)
   const [validationErrors, setValidationErrors] = useState<WorkflowSpecValidationError[]>([])
   const [isDirty, setIsDirty] = useState(false)
 
   // Spec metadata for outbound serialization
   const specMetaRef = useRef(DEFAULT_SPEC_META)
+
+  // ─── Monitoring state helpers ────────────────────────────────────────────
+  const setMode = useCallback(
+    (newMode: BuilderMode) => {
+      setModeRaw(newMode)
+      if (newMode !== 'monitoring') {
+        setActiveRunState(null)
+      }
+    },
+    [],
+  )
+
+  const setActiveRun = useCallback(
+    (runId: string) => {
+      const run = DEMO_EXECUTION_RUNS.find((r) => r.id === runId)
+      if (run) {
+        setActiveRunState(run)
+      }
+    },
+    [],
+  )
+
+  const clearActiveRun = useCallback(() => {
+    setActiveRunState(null)
+  }, [])
+
+  const monitoringState: MonitoringState = {
+    activeRun,
+    isMonitoring: mode === 'monitoring' && activeRun !== null,
+  }
 
   // Hooks
   const sync = useWorkflowSync()
@@ -449,5 +492,9 @@ export function useBuilderState(): UseBuilderStateReturn {
     redo,
     canUndo: undoRedo.canUndo,
     canRedo: undoRedo.canRedo,
+    monitoringState,
+    activeRun,
+    setActiveRun,
+    clearActiveRun,
   }
 }

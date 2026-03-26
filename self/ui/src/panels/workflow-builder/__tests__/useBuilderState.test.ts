@@ -43,9 +43,9 @@ describe('useBuilderState', () => {
       }
     })
 
-    it('returns edges array with 7 items matching demo data IDs', () => {
+    it('returns edges array with 8 items matching demo data IDs', () => {
       const { result } = renderHook(() => useBuilderState())
-      expect(result.current.edges).toHaveLength(7)
+      expect(result.current.edges).toHaveLength(8)
       const edgeIds = result.current.edges.map((e) => e.id)
       for (const demoEdge of DEMO_WORKFLOW_EDGES) {
         expect(edgeIds).toContain(demoEdge.id)
