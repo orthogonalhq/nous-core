@@ -14,3 +14,6 @@ export {
   createMoveNodeCommand,
   createUpdateNodeDataCommand,
 } from './useUndoRedo'
+
+export { useKeyboardNav } from './useKeyboardNav'
+export type { UseKeyboardNavReturn } from './useKeyboardNav'

@@ -25,6 +25,14 @@ export type { CanvasContextMenuProps, NodeContextMenuProps, EdgeContextMenuProps
 export { NodeSearch } from './NodeSearch'
 export type { NodeSearchProps } from './NodeSearch'
 
+// Validation Panel (SP 2.5)
+export { ValidationPanel } from './ValidationPanel'
+export type { ValidationPanelProps } from './ValidationPanel'
+
+// Keyboard Navigation hook (SP 2.5)
+export { useKeyboardNav } from './hooks/useKeyboardNav'
+export type { UseKeyboardNavReturn } from './hooks/useKeyboardNav'
+
 // Type re-exports for Phase 2
 export type {
   FloatingPanelState,
@@ -45,4 +53,6 @@ export type {
   ContextMenuAction,
   NodeSearchState,
   NodeSearchResult,
+  KeyboardNavState,
+  ValidationPanelItem,
 } from '../../types/workflow-builder'
