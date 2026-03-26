@@ -71,6 +71,8 @@ export const INTERNAL_MCP_TOOL_NAMES = [
   'workflow_pause',
   'workflow_resume',
   'workflow_cancel',
+  'workflow_validate',
+  'workflow_from_spec',
   'health_report',
   'health_heartbeat',
   'credentials_store',
@@ -133,13 +135,14 @@ export interface InternalMcpRuntimeDeps {
   opctlService?: IOpctlService;
   runtime?: IRuntime;
   instanceRoot?: string;
-  workmodeAdmissionGuard?: IWorkmodeAdmissionGuard;
+  workmodeAdmissionGuard: IWorkmodeAdmissionGuard;
   witnessService?: IWitnessService;
   escalationService?: IEscalationService;
   scheduler?: IScheduler;
   appRuntimeService?: IAppRuntimeService;
   outputSchemaValidator?: InternalMcpOutputSchemaValidator;
   dispatchRuntime?: InternalMcpDispatchRuntime;
+  addHealthIssue?: (code: string) => void;
   now?: () => string;
   nowMs?: () => number;
   idFactory?: () => string;

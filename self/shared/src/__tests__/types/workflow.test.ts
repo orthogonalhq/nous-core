@@ -9,6 +9,7 @@ import {
   WorkflowDispatchLineageSchema,
   WorkflowExecuteNodeRequestSchema,
   WorkflowGraphSchema,
+  WorkflowNodeDefinitionSchema,
   WorkflowNodeAttemptSchema,
   WorkflowNodeRunStateSchema,
   WorkflowNodeWaitStateSchema,
@@ -289,6 +290,27 @@ describe('WorkflowDefinitionSchema', () => {
     });
     expect(result.success).toBe(false);
   });
+
+  it('accepts additive node metadata and preserves it through parsing', () => {
+    const parsed = WorkflowDefinitionSchema.parse({
+      ...definition,
+      nodes: [
+        {
+          ...definition.nodes[0],
+          metadata: {
+            specNodeId: 'draft-node',
+            skill: 'atomic-research',
+            contracts: ['quality-gate'],
+            templates: ['goals-template'],
+          },
+        },
+        definition.nodes[1],
+      ],
+    });
+
+    expect(parsed.nodes[0]?.metadata?.specNodeId).toBe('draft-node');
+    expect(parsed.nodes[0]?.metadata?.skill).toBe('atomic-research');
+  });
 });
 
 describe('DerivedWorkflowGraphSchema', () => {
@@ -339,6 +361,20 @@ describe('Workflow admission schemas', () => {
 });
 
 describe('Workflow runtime schemas', () => {
+  it('accepts a standalone workflow node definition with metadata', () => {
+    expect(
+      WorkflowNodeDefinitionSchema.safeParse({
+        ...definition.nodes[0],
+        metadata: {
+          specNodeId: 'draft-node',
+          skill: 'atomic-research',
+          contracts: ['quality-gate'],
+          templates: ['goals-template'],
+        },
+      }).success,
+    ).toBe(true);
+  });
+
   it('accepts the additive canceled workflow run status', () => {
     expect(WorkflowRunStatusSchema.parse('canceled')).toBe('canceled');
   });

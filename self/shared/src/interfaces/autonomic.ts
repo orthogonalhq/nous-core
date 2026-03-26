@@ -23,6 +23,13 @@ import type {
   CredentialRestoreResult,
   CredentialStoreRequest,
   CredentialStoreResult,
+  GatewayBootProjection,
+  GatewayHealthProjection,
+  SystemContextProjection,
+  ModelProviderConfig,
+  ProviderHealthSnapshot,
+  AgentStatusSnapshot,
+  SystemStatusSnapshot,
 } from '../types/index.js';
 
 // SystemConfig is defined in @nous/autonomic-config, but the interface
@@ -157,6 +164,63 @@ export interface IHealthMonitor {
 
   /** Get system metrics */
   getMetrics(): Promise<SystemMetrics>;
+}
+
+/**
+ * Adapter interface for gateway runtime health data.
+ *
+ * Abstracts the read-only health query methods of IPrincipalSystemGatewayRuntime
+ * (defined in @nous/cortex-core) so that autonomic-layer consumers can depend on
+ * @nous/shared only, respecting the dependency rule:
+ *   autonomic/ -> depends on interfaces in shared/
+ *   autonomic/ -> never touches cortex/
+ *
+ * Implemented by PrincipalSystemGatewayRuntime at the DI composition root (sub-phase 1.2).
+ */
+export interface IGatewayHealthSource {
+  /** Get the current boot status snapshot. */
+  getBootSnapshot(): GatewayBootProjection;
+
+  /** Get the health snapshot for a specific agent gateway. */
+  getGatewayHealth(agentClass: string): GatewayHealthProjection;
+
+  /** Get the system context replica with operational state. */
+  getSystemContextReplica(): SystemContextProjection;
+}
+
+/**
+ * Adapter interface for provider enumeration.
+ *
+ * Abstracts ProviderRegistry.listProviders() so that autonomic-layer consumers
+ * can depend on @nous/shared only.
+ *
+ * ProviderRegistry in @nous/subcortex-providers is structurally compatible
+ * with this interface (listProviders() returns ModelProviderConfig[]).
+ */
+export interface IProviderHealthSource {
+  /** Enumerate all configured model providers. */
+  listProviders(): ModelProviderConfig[];
+}
+
+/**
+ * Supplementary interface for granular health data queries.
+ *
+ * Provides domain-specific snapshot accessors that IHealthMonitor's coarse
+ * two-method contract (check/getMetrics) does not expose. Methods are
+ * synchronous because all data is cached in memory.
+ */
+export interface IHealthAggregator {
+  /** Get health snapshot for all configured model providers. */
+  getProviderHealth(): ProviderHealthSnapshot;
+
+  /** Get status snapshot for agent gateways and app sessions. */
+  getAgentStatus(): AgentStatusSnapshot;
+
+  /** Get system-wide status including boot state and backlog analytics. */
+  getSystemStatus(): SystemStatusSnapshot;
+
+  /** Release EventBus subscriptions and internal resources. */
+  dispose(): void;
 }
 
 export interface ICredentialVaultService {

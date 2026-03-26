@@ -26,6 +26,7 @@ export default defineWorkspace([
   'self/memory/stubs',
   'self/cortex/pfc',
   'self/cortex/core',
+  'self/apps/shared-server',
   'self/apps/web',
   'self/apps/cli',
   'scripts/install',

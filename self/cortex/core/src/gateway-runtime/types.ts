@@ -6,11 +6,15 @@ import type {
   IDocumentStore,
   IAgentGateway,
   IAgentGatewayFactory,
+  ICheckpointManager,
+  IEventBus,
   IModelProvider,
   IModelRouter,
   IPromotedMemoryBridgeService,
   IProjectApi,
   IProjectStore,
+  IRecoveryLedgerStore,
+  IRecoveryOrchestrator,
   IToolExecutor,
   IWorkmodeAdmissionGuard,
   IPfcEngine,
@@ -20,6 +24,9 @@ import type {
   IWitnessService,
   IRuntime,
   IAppRuntimeService,
+  IAppCredentialInstallService,
+  ICredentialVaultService,
+  ICredentialInjector,
   IOpctlService,
   IngressDispatchOutcome,
   IngressTriggerEnvelope,
@@ -88,6 +95,14 @@ export const GatewayHealthSnapshotSchema = z
         stale: z.boolean(),
       }),
     ),
+    // Escalation audit summary (Phase 1.1 — WR-054)
+    escalationCount: z.number().int().nonnegative().optional(),
+    lastEscalationAt: z.string().datetime().optional(),
+    lastEscalationSeverity: z.string().optional(),
+    // Checkpoint visibility (Phase 1.1 — WR-072)
+    lastPreparedCheckpointId: z.string().optional(),
+    lastCommittedCheckpointId: z.string().optional(),
+    chainValid: z.boolean().optional(),
   })
   .strict();
 export type GatewayHealthSnapshot = z.infer<typeof GatewayHealthSnapshotSchema>;
@@ -148,6 +163,14 @@ export const SystemContextReplicaSchema = z
     issueCodes: z.array(z.string().min(1)),
     visibleTools: z.array(z.string().min(1)),
     appSessions: z.array(GatewayAppSessionHealthProjectionSchema),
+    // Escalation audit summary (Phase 1.1 — WR-054)
+    escalationCount: z.number().int().nonnegative().optional(),
+    lastEscalationAt: z.string().datetime().optional(),
+    lastEscalationSeverity: z.string().optional(),
+    // Checkpoint visibility (Phase 1.1 — WR-072)
+    lastPreparedCheckpointId: z.string().optional(),
+    lastCommittedCheckpointId: z.string().optional(),
+    chainValid: z.boolean().optional(),
   })
   .strict();
 export type SystemContextReplica = z.infer<typeof SystemContextReplicaSchema>;
@@ -157,6 +180,20 @@ export interface SystemSubmissionReceipt {
   dispatchRef: string;
   acceptedAt: string;
   source: GatewaySubmissionSource;
+}
+
+/** Escalation audit trail summary projected through health sink. */
+export interface EscalationAuditSummary {
+  escalationCount: number;
+  lastEscalationAt?: string;
+  lastEscalationSeverity?: string;
+}
+
+/** Checkpoint lifecycle visibility projected through health sink. */
+export interface CheckpointVisibilityStatus {
+  lastPreparedCheckpointId?: string;
+  lastCommittedCheckpointId?: string;
+  chainValid?: boolean;
 }
 
 export interface PrincipalSystemGatewayRuntimeDeps {
@@ -177,6 +214,9 @@ export interface PrincipalSystemGatewayRuntimeDeps {
   opctlService?: IOpctlService;
   runtime?: IRuntime;
   appRuntimeService?: IAppRuntimeService;
+  credentialVaultService?: ICredentialVaultService;
+  credentialInjector?: ICredentialInjector;
+  appCredentialInstallService?: IAppCredentialInstallService;
   instanceRoot?: string;
   workmodeAdmissionGuard?: IWorkmodeAdmissionGuard;
   outputSchemaValidator?: InternalMcpOutputSchemaValidator;
@@ -186,6 +226,11 @@ export interface PrincipalSystemGatewayRuntimeDeps {
   workerBaseSystemPrompt?: string;
   defaultModelRequirements?: ModelRequirements;
   backlogConfig?: Partial<BacklogQueueConfig>;
+  eventBus?: IEventBus;
+  // Recovery component slots (Phase 1.1 — WR-072, wired in Phase 1.2)
+  checkpointManager?: ICheckpointManager;
+  recoveryLedgerStore?: IRecoveryLedgerStore;
+  recoveryOrchestrator?: IRecoveryOrchestrator;
   now?: () => string;
   nowMs?: () => number;
   idFactory?: () => string;
@@ -202,6 +247,8 @@ export interface IPrincipalSystemGatewayRuntime {
   getBootSnapshot(): GatewayBootSnapshot;
   getGatewayHealth(agentClass: 'Cortex::Principal' | 'Cortex::System'): GatewayHealthSnapshot;
   getSystemContextReplica(): SystemContextReplica;
+  getCheckpointStatus(): CheckpointVisibilityStatus;
+  getEscalationAuditSummary(): EscalationAuditSummary;
   listPrincipalTools(): ToolDefinition[];
   listSystemTools(): ToolDefinition[];
   submitTaskToSystem(input: SystemTaskSubmission): Promise<SystemSubmissionReceipt>;

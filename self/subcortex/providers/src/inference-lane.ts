@@ -14,6 +14,8 @@ export type InferencePriority =
 export interface LaneWaitEstimate {
   queuedAhead: number;
   estimatedWaitMs: number;
+  activeCount: number;
+  capacity: number;
 }
 
 export interface InferenceLaneLeaseState {
@@ -97,6 +99,7 @@ function toInferencePriority(
 }
 
 export class InferenceLane {
+  private static readonly DEFAULT_HISTORY_WINDOW = 500;
   private readonly queue: Array<LaneEntry<any>> = [];
   private readonly active = new Map<string, ActiveLaneEntry<any>>();
   private readonly waitHistory: number[] = [];
@@ -137,16 +140,27 @@ export class InferenceLane {
     request: ModelRequest,
     execute: (request: ModelRequest) => AsyncIterable<ModelStreamChunk>,
   ): AsyncIterable<ModelStreamChunk> {
-    const chunks = await this.enqueue(request, async (laneRequest) => {
-      const buffered: ModelStreamChunk[] = [];
-      for await (const chunk of execute(laneRequest)) {
-        buffered.push(chunk);
-      }
-      return buffered;
-    });
+    if (this.leaseState.held) {
+      throw new LeaseHeldError({
+        laneKey: this.laneKey,
+        leaseId: this.leaseState.leaseId,
+        holderType: this.leaseState.holderType,
+      });
+    }
 
-    for (const chunk of chunks) {
-      yield chunk;
+    if (request.abortSignal?.aborted) {
+      throw new NousError('Provider request aborted.', 'ABORTED');
+    }
+
+    const { signal, release } = await this.acquireSlot(request);
+    try {
+      const laneRequest = { ...request, abortSignal: signal };
+      for await (const chunk of execute(laneRequest)) {
+        yield chunk;
+      }
+    } finally {
+      release();
+      void this.schedule();
     }
   }
 
@@ -205,7 +219,52 @@ export class InferenceLane {
     return {
       queuedAhead: this.queue.length,
       estimatedWaitMs: average(this.waitHistory) * Math.max(1, this.queue.length),
+      activeCount: this.active.size,
+      capacity: this.capacity,
     };
+  }
+
+  private acquireSlot(
+    request: ModelRequest,
+  ): Promise<{ signal: AbortSignal; release: () => void }> {
+    return new Promise<{ signal: AbortSignal; release: () => void }>((resolveSlot) => {
+      // When schedule() promotes this entry and calls execute(), the execute callback
+      // signals slot acquisition back to the stream() caller. The returned promise
+      // never resolves — the slot stays "active" until stream() calls release().
+      let releaseSlotHold!: () => void;
+      const entryId = randomUUID();
+
+      const entry: LaneEntry<any> = {
+        id: entryId,
+        mode: 'enqueue',
+        request,
+        priority: toInferencePriority(request.agentClass),
+        enqueuedAtMs: Date.now(),
+        execute: (laneRequest: ModelRequest) => {
+          // schedule() has promoted us — we now hold the slot.
+          const signal = laneRequest.abortSignal!;
+          resolveSlot({
+            signal,
+            release: () => {
+              // Immediately remove from active so callers see the slot freed synchronously.
+              this.active.delete(entryId);
+              // Resolve the hold promise so the .then() in schedule() can proceed.
+              releaseSlotHold();
+            },
+          });
+          // Return a promise that is held open until release() is called.
+          return new Promise<void>((resolve) => {
+            releaseSlotHold = resolve;
+          });
+        },
+        resolve: () => {},
+        reject: () => {},
+      };
+
+      this.queueEntry(entry);
+      this.maybePreempt(entry.priority);
+      void this.schedule();
+    });
   }
 
   private submit<T>(
@@ -299,6 +358,9 @@ export class InferenceLane {
       };
       this.active.set(entry.id, activeEntry);
       this.waitHistory.push(activeEntry.startedAtMs - entry.enqueuedAtMs);
+      if (this.waitHistory.length > InferenceLane.DEFAULT_HISTORY_WINDOW) {
+        this.waitHistory.splice(0, this.waitHistory.length - InferenceLane.DEFAULT_HISTORY_WINDOW);
+      }
 
       void Promise.resolve()
         .then(() =>

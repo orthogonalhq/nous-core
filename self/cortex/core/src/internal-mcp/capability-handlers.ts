@@ -29,12 +29,17 @@ import {
   type WorkflowLifecycleInspectResult,
   type WorkflowLifecycleInstanceSummary,
   type WorkflowRunState,
+  type WorkflowDefinition,
 } from '@nous/shared';
 import {
   inspectInstalledWorkflowPackage,
   listInstalledWorkflowPackages,
   loadInstalledSkillPackage,
 } from '@nous/subcortex-projects';
+import {
+  parseWorkflowSpec,
+  specToWorkflowDefinition,
+} from '@nous/subcortex-workflows';
 import {
   parseArtifactRetrieveRequest,
   parseArtifactStoreRequest,
@@ -69,6 +74,8 @@ import {
   parseWorkflowResumeRequest,
   parseWorkflowStartRequest,
   parseWorkflowStatusRequest,
+  parseWorkflowValidateRequest,
+  parseWorkflowFromSpecRequest,
 } from './request-normalizers.js';
 import type {
   InternalMcpCapabilityHandler,
@@ -813,6 +820,23 @@ export function createCapabilityHandlers(
       const api = requireProjectApi(context, projectId);
       const request = parseArtifactStoreRequest(params);
 
+      const decision = await context.deps.pfc?.evaluateToolExecution(
+        'artifact_store',
+        { name: request.name, mimeType: request.mimeType },
+        projectId,
+      );
+
+      if (decision && !decision.approved) {
+        return denyWithWitness({
+          context,
+          actionCategory: 'trace-persist',
+          actionRef: 'artifact_store',
+          projectId,
+          traceId: execution?.traceId,
+          reason: decision.reason ?? 'artifact_store denied by policy',
+        });
+      }
+
       const result = await executeWithWitness({
         context,
         actionCategory: 'trace-persist',
@@ -1216,12 +1240,50 @@ export function createCapabilityHandlers(
       const request = parseWorkflowStartRequest(params);
       const workflowEngine = requireWorkflowEngine(context);
       const projectConfig = await resolveProjectConfig(context, request.projectId);
-      const selection = await resolveWorkflowSelection(
-        context,
-        projectConfig,
-        request.definition,
-        request.entrypoint,
-      );
+
+      let selection: WorkflowSelection;
+
+      if (request.yamlSpec) {
+        // Parse YAML spec → validate → convert to workflow definition → inject
+        const parseResult = parseWorkflowSpec(request.yamlSpec);
+        if (!parseResult.success) {
+          return {
+            success: false,
+            output: { valid: false, errors: parseResult.errors },
+            durationMs: 0,
+          };
+        }
+
+        const specDefinition = specToWorkflowDefinition(parseResult.data, {
+          projectId: request.projectId,
+        });
+
+        // Inject the spec-derived definition into project config
+        const augmentedConfig = ProjectConfigSchema.parse({
+          ...projectConfig,
+          workflow: {
+            ...projectConfig.workflow,
+            definitions: [
+              ...(projectConfig.workflow?.definitions ?? []),
+              specDefinition,
+            ],
+          },
+        });
+
+        selection = {
+          workflowDefinitionId: specDefinition.id,
+          definitionName: specDefinition.name,
+          projectConfig: augmentedConfig,
+          definitionSource: null,
+        };
+      } else {
+        selection = await resolveWorkflowSelection(
+          context,
+          projectConfig,
+          request.definition!,
+          request.entrypoint,
+        );
+      }
       const warnings = await collectWorkflowDependencyWarnings({
         context,
         projectId: request.projectId,
@@ -1488,6 +1550,62 @@ export function createCapabilityHandlers(
           }),
           evidenceRef: result.evidenceRef,
         }),
+        0,
+      );
+    },
+
+    workflow_validate: async (params) => {
+      const request = parseWorkflowValidateRequest(params);
+      const parseResult = parseWorkflowSpec(request.yamlSpec);
+
+      if (parseResult.success) {
+        return success({ valid: true }, 0);
+      }
+
+      return success({ valid: false, errors: parseResult.errors }, 0);
+    },
+
+    workflow_from_spec: async (params, execution) => {
+      await requireSystemAgent(context, 'workflow_from_spec', execution);
+      const request = parseWorkflowFromSpecRequest(params);
+
+      const parseResult = parseWorkflowSpec(request.yamlSpec);
+      if (!parseResult.success) {
+        return {
+          success: false,
+          output: { valid: false, errors: parseResult.errors },
+          durationMs: 0,
+        };
+      }
+
+      const projectConfig = await resolveProjectConfig(context, request.projectId);
+      const specDefinition = specToWorkflowDefinition(parseResult.data, {
+        projectId: request.projectId,
+      });
+
+      // Persist the definition into the project's workflow configuration
+      const updatedConfig = ProjectConfigSchema.parse({
+        ...projectConfig,
+        workflow: {
+          ...projectConfig.workflow,
+          definitions: [
+            ...(projectConfig.workflow?.definitions ?? []),
+            specDefinition,
+          ],
+        },
+      });
+
+      if (context.deps.projectStore) {
+        await context.deps.projectStore.update(request.projectId, {
+          workflow: updatedConfig.workflow,
+        });
+      }
+
+      return success(
+        {
+          workflowDefinitionId: specDefinition.id,
+          definitionName: specDefinition.name,
+        },
         0,
       );
     },

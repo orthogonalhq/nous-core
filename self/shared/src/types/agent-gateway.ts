@@ -89,6 +89,7 @@ export const GatewayExecutionContextSchema = z
     appSessionId: z.string().min(1).optional(),
     traceId: TraceIdSchema.optional(),
     workmodeId: WorkmodeIdSchema.optional(),
+    escalationOrigin: z.boolean().optional(),
   })
   .strict();
 export type GatewayExecutionContext = z.infer<
@@ -328,6 +329,7 @@ export const GatewayStampedPacketSchema = z
     retry: GatewayPacketRetrySchema,
     artifact_refs: z.array(z.string().min(1)).optional(),
     summary: z.string().min(1).optional(),
+    emitter_agent_class: AgentClassSchema.optional(),
   })
   .strict();
 export type GatewayStampedPacket = z.infer<typeof GatewayStampedPacketSchema>;

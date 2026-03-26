@@ -253,6 +253,7 @@ export function createWorkmodeAdmissionGuard(
   return {
     evaluateDispatchAdmission: vi.fn().mockReturnValue({ allowed: true }),
     evaluateLifecycleAdmission: vi.fn().mockReturnValue({ allowed: true }),
+    evaluateScopeGuard: vi.fn().mockReturnValue({ allowed: true }),
     ...overrides,
   };
 }

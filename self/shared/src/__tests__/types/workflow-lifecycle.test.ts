@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import {
   WorkflowLifecycleCancelCommandSchema,
+  WorkflowLifecycleDefinitionSummarySchema,
   WorkflowLifecycleInspectQuerySchema,
   WorkflowLifecycleListQuerySchema,
   WorkflowLifecycleMutationResultSchema,
@@ -44,6 +45,21 @@ describe('Workflow lifecycle schemas', () => {
   });
 
   it('accepts canonical inspect, start, mutation, and status payloads', () => {
+    expect(
+      WorkflowLifecycleDefinitionSummarySchema.parse({
+        packageId: 'workflow.research',
+        packageVersion: '2.0.0',
+        name: 'research-workflow',
+        description: 'Workflow package manifest.',
+        entrypoint: 'draft-node',
+        entrypoints: ['draft-node'],
+        skillDependencies: [],
+        toolDependencies: [],
+        rootRef: '.workflows/workflow__research',
+        manifestRef: '.workflows/workflow__research/workflow.md',
+      }).flowRef,
+    ).toBeUndefined();
+
     expect(
       WorkflowLifecycleInspectQuerySchema.parse({
         packageId: 'a-soul-is-born',

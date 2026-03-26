@@ -2,6 +2,7 @@
 
 import * as React from 'react';
 import type { ProjectBlockedAction, ProjectEscalationQueueSnapshot } from '@nous/shared';
+import { useEventSubscription } from '@nous/ui';
 import { trpc } from '@/lib/trpc';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
@@ -17,6 +18,17 @@ export function ProjectEscalationQueue({
   blockedActions,
 }: ProjectEscalationQueueProps) {
   const utils = trpc.useUtils();
+
+  useEventSubscription({
+    channels: ['escalation:new', 'escalation:resolved'],
+    onEvent: () => {
+      void Promise.all([
+        utils.escalations.listProjectQueue.invalidate(),
+        utils.projects.dashboardSnapshot.invalidate(),
+      ]);
+    },
+  });
+
   const acknowledge = trpc.escalations.acknowledge.useMutation({
     onSuccess: async (updated) => {
       await Promise.all([

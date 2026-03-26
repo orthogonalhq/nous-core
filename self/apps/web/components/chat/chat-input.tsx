@@ -25,13 +25,21 @@ export function ChatInput({
   );
 
   return (
-    <form onSubmit={handleSubmit} className="flex gap-2 border-t border-border p-4">
+    <form
+      onSubmit={handleSubmit}
+      style={{
+        display: 'flex',
+        gap: 'var(--nous-space-xs)',
+        borderTop: '1px solid var(--nous-shell-column-border)',
+        padding: 'var(--nous-space-md)',
+      }}
+    >
       <Input
         value={value}
         onChange={(e) => setValue(e.target.value)}
         placeholder="Type a message..."
         disabled={disabled}
-        className="flex-1"
+        style={{ flex: '1 1 0%' }}
       />
       <Button type="submit" disabled={disabled || !value.trim()}>
         Send

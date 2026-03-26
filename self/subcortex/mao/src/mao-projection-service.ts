@@ -25,6 +25,8 @@ import type {
   ProjectId,
   WorkflowNodeRunState,
   WorkflowRunState,
+  IHealthAggregator,
+  MaoControlAuditHistoryEntry,
 } from '@nous/shared';
 import {
   MaoAgentInspectInputSchema,
@@ -39,6 +41,7 @@ import {
 } from '@nous/shared';
 
 type ControlAuditRecord = {
+  commandId: string;
   action: MaoProjectControlAction;
   actorId: string;
   reason: string;
@@ -491,12 +494,24 @@ export interface MaoProjectionServiceDeps {
   schedulerService: IScheduler;
   voiceControlService?: IVoiceControlService;
   witnessService?: IWitnessService;
+  eventBus?: import('@nous/shared').IEventBus;
+  healthAggregator?: IHealthAggregator;
 }
 
 export class MaoProjectionService {
-  private readonly controlAuditByProject = new Map<ProjectId, ControlAuditRecord>();
+  private static readonly MAX_AUDIT_HISTORY_PER_PROJECT = 100;
+  private readonly controlAuditByProject = new Map<ProjectId, ControlAuditRecord[]>();
 
   constructor(private deps: MaoProjectionServiceDeps) {}
+
+  /**
+   * Late-bind the health aggregator for degradedReasonCode derivation.
+   * Needed because the HealthAggregator depends on gatewayRuntime which is
+   * constructed after MaoProjectionService in the bootstrap sequence.
+   */
+  setHealthAggregator(aggregator: import('@nous/shared').IHealthAggregator): void {
+    this.deps.healthAggregator = aggregator;
+  }
 
   async getAgentProjections(projectId: ProjectId): Promise<MaoAgentProjection[]> {
     const context = await this.buildProjectionContext({
@@ -524,7 +539,7 @@ export class MaoProjectionService {
     const controlProjection = this.buildProjectControlProjection(context);
     const summary = buildSummary(context.agentProjections);
 
-    return MaoProjectSnapshotSchema.parse({
+    const snapshot = MaoProjectSnapshotSchema.parse({
       projectId: parsed.projectId,
       densityMode: parsed.densityMode,
       workflowRunId: context.selectedRun?.runId,
@@ -550,6 +565,10 @@ export class MaoProjectionService {
       },
       generatedAt: context.generatedAt,
     });
+    this.deps.eventBus?.publish('mao:projection-changed', {
+      projectId: parsed.projectId,
+    });
+    return snapshot;
   }
 
   async getAgentInspectProjection(
@@ -680,14 +699,35 @@ export class MaoProjectionService {
         impactSummary: parsed.impactSummary,
       },
     };
-    const proof =
-      confirmationProof ??
-      (await this.deps.opctlService.requestConfirmationProof({
+    let proof: ConfirmationProof;
+    if (confirmationProof) {
+      proof = confirmationProof;
+    } else if (tier === 'T3') {
+      // T3 requires client-supplied proof; reject without fallback (Phase 1 constraint #3)
+      const fromStateNow = await this.deps.opctlService.getProjectControlState(
+        parsed.project_id,
+      );
+      return MaoProjectControlResultSchema.parse({
+        command_id: parsed.command_id,
+        project_id: parsed.project_id,
+        accepted: false,
+        status: 'blocked',
+        from_state: fromStateNow,
+        to_state: fromStateNow,
+        reason_code: 'T3_PROOF_REQUIRED',
+        decision_ref: `mao-control:${parsed.command_id}`,
+        impactSummary: parsed.impactSummary,
+        evidenceRefs: [`project-control:${fromStateNow}`],
+      });
+    } else {
+      // T0/T1/T2 auto-generate proof
+      proof = await this.deps.opctlService.requestConfirmationProof({
         scope: envelope.scope,
         action: controlAction,
         tier,
         reason: parsed.reason,
-      }));
+      });
+    }
 
     const opctlResult = await this.deps.opctlService.submitCommand(envelope, proof);
     const impactSummary = await this.buildImpactSummary(parsed.project_id);
@@ -732,7 +772,9 @@ export class MaoProjectionService {
       readiness_status: readinessStatus,
     });
 
-    this.controlAuditByProject.set(parsed.project_id, {
+    const auditHistory = this.controlAuditByProject.get(parsed.project_id) ?? [];
+    auditHistory.push({
+      commandId: parsed.command_id,
       action: parsed.action,
       actorId: parsed.actor_id,
       reason: parsed.reason,
@@ -742,6 +784,10 @@ export class MaoProjectionService {
       resumeReadinessStatus: readinessStatus,
       decisionRef,
     });
+    if (auditHistory.length > MaoProjectionService.MAX_AUDIT_HISTORY_PER_PROJECT) {
+      auditHistory.splice(0, auditHistory.length - MaoProjectionService.MAX_AUDIT_HISTORY_PER_PROJECT);
+    }
+    this.controlAuditByProject.set(parsed.project_id, auditHistory);
 
     await this.emitProjectionEvent(
       accepted ? 'mao_project_control_applied' : 'mao_project_control_blocked',
@@ -766,6 +812,12 @@ export class MaoProjectionService {
       );
     }
 
+    this.deps.eventBus?.publish('mao:control-action', {
+      projectId: parsed.project_id,
+      action: parsed.action,
+      result: accepted ? 'success' : 'failure',
+    });
+
     return result;
   }
 
@@ -782,6 +834,20 @@ export class MaoProjectionService {
         detail,
       });
     }
+  }
+
+  async getControlAuditHistory(projectId: ProjectId): Promise<MaoControlAuditHistoryEntry[]> {
+    return (this.controlAuditByProject.get(projectId) ?? []).map((record) => ({
+      commandId: record.commandId,
+      action: record.action,
+      actorId: record.actorId,
+      reason: record.reason,
+      reasonCode: record.reasonCode,
+      at: record.at,
+      evidenceRefs: record.evidenceRefs,
+      resumeReadinessStatus: record.resumeReadinessStatus,
+      decisionRef: record.decisionRef,
+    }));
   }
 
   private async buildProjectionContext(
@@ -859,6 +925,9 @@ export class MaoProjectionService {
         voiceProjection?.degraded_mode.reason ??
         (selectedRun != null && selectedGraph == null
           ? 'workflow_run_graph_unavailable'
+          : undefined) ??
+        (this.deps.healthAggregator?.getSystemStatus().bootStatus === 'degraded'
+          ? 'system_health_degraded'
           : undefined),
     };
   }
@@ -953,7 +1022,7 @@ export class MaoProjectionService {
     context: ProjectionContext,
   ): MaoProjectControlProjection {
     const summary = buildSummary(context.agentProjections);
-    const audit = this.controlAuditByProject.get(context.projectId);
+    const audit = this.controlAuditByProject.get(context.projectId)?.at(-1);
     const pfcReviewActive =
       context.controlState === 'paused_review' ||
       context.agentProjections.some((agent) => agent.state === 'waiting_pfc');

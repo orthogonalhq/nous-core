@@ -49,13 +49,17 @@ import {
   type WorkflowLifecycleResumeCommand,
   type WorkflowLifecycleStartCommand,
   type WorkflowLifecycleStatusQuery,
+  type WorkflowLifecycleValidateCommand,
+  type WorkflowLifecycleFromSpecCommand,
   WorkflowLifecycleCancelCommandSchema,
+  WorkflowLifecycleFromSpecCommandSchema,
   WorkflowLifecycleInspectQuerySchema,
   WorkflowLifecycleListQuerySchema,
   WorkflowLifecyclePauseCommandSchema,
   WorkflowLifecycleResumeCommandSchema,
   WorkflowLifecycleStartCommandSchema,
   WorkflowLifecycleStatusQuerySchema,
+  WorkflowLifecycleValidateCommandSchema,
   AppHealthSnapshotSchema,
   AppHeartbeatSignalSchema,
   CredentialInjectRequestSchema,
@@ -151,6 +155,8 @@ export type WorkflowStatusRequest = WorkflowLifecycleStatusQuery;
 export type WorkflowPauseRequest = WorkflowLifecyclePauseCommand;
 export type WorkflowResumeRequest = WorkflowLifecycleResumeCommand;
 export type WorkflowCancelRequest = WorkflowLifecycleCancelCommand;
+export type WorkflowValidateRequest = WorkflowLifecycleValidateCommand;
+export type WorkflowFromSpecRequest = WorkflowLifecycleFromSpecCommand;
 export type AppHealthReportRequest = z.infer<typeof AppHealthReportRequestSchema>;
 export type AppHeartbeatRequest = z.infer<typeof AppHeartbeatRequestSchema>;
 export type AppCredentialStoreRequest = CredentialStoreRequest;
@@ -347,6 +353,18 @@ export function parseWorkflowCancelRequest(
   params: unknown,
 ): WorkflowCancelRequest {
   return WorkflowLifecycleCancelCommandSchema.parse(params ?? {});
+}
+
+export function parseWorkflowValidateRequest(
+  params: unknown,
+): WorkflowValidateRequest {
+  return WorkflowLifecycleValidateCommandSchema.parse(params ?? {});
+}
+
+export function parseWorkflowFromSpecRequest(
+  params: unknown,
+): WorkflowFromSpecRequest {
+  return WorkflowLifecycleFromSpecCommandSchema.parse(params ?? {});
 }
 
 export function parseHealthReportRequest(

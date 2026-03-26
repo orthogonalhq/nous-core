@@ -1,37 +1,146 @@
 import type { IDockviewPanelProps } from 'dockview-react'
 import type { CSSProperties } from 'react'
+import { useEventSubscription } from '../../../hooks/useEventSubscription'
+import { useHealthQueries, useHealthQuery } from '../hooks'
 
-const STUB_STATUS = [
-  { label: 'Status', value: 'Online', dot: 'var(--nous-state-complete)' },
-  { label: 'Uptime', value: '4h 23m' },
-  { label: 'Version', value: 'v0.0.1' },
-  { label: 'Phase', value: 'phase-7.3' },
-  { label: 'Memory', value: '1.2 GB / 4.0 GB' },
-]
+const containerStyle: CSSProperties = {
+  height: '100%',
+  overflow: 'auto',
+  color: 'var(--nous-fg)',
+  padding: 'var(--nous-space-md) var(--nous-space-xl)',
+  fontSize: 'var(--nous-font-size-sm)',
+}
+
+const sectionHeaderStyle: CSSProperties = {
+  fontSize: 'var(--nous-font-size-xs)',
+  color: 'var(--nous-fg-subtle)',
+  textTransform: 'uppercase',
+  letterSpacing: '0.05em',
+  marginTop: 'var(--nous-space-lg)',
+  marginBottom: 'var(--nous-space-sm)',
+}
 
 const rowStyle: CSSProperties = {
   display: 'flex',
-  justifyContent: 'space-between',
   alignItems: 'center',
-  padding: 'var(--nous-space-sm) var(--nous-space-xl)',
+  gap: 'var(--nous-space-md)',
+  padding: 'var(--nous-space-xs) 0',
   fontSize: 'var(--nous-font-size-sm)',
-  borderBottom: '1px solid var(--nous-border-subtle)',
+}
+
+const BOOT_STATUS_COLORS: Record<string, string> = {
+  ready: 'var(--nous-state-complete)',
+  booting: 'var(--nous-state-active)',
+  degraded: 'var(--nous-state-blocked)',
+}
+
+const BOOT_STATUS_LABELS: Record<string, string> = {
+  ready: 'Ready',
+  booting: 'Booting',
+  degraded: 'Degraded',
 }
 
 export function SystemStatusWidget(_props: IDockviewPanelProps) {
+  const { fetchSystemStatus } = useHealthQueries()
+  const { data, isLoading, error, refetch } = useHealthQuery(fetchSystemStatus)
+
+  useEventSubscription({
+    channels: [
+      'health:boot-step',
+      'health:gateway-status',
+      'health:issue',
+      'health:backlog-analytics',
+    ],
+    onEvent: () => {
+      refetch()
+    },
+  })
+
+  if (isLoading && !data) {
+    return (
+      <div style={containerStyle}>
+        <span style={{ color: 'var(--nous-fg-muted)' }}>Loading system status...</span>
+      </div>
+    )
+  }
+
+  if (error && !data) {
+    return (
+      <div style={containerStyle}>
+        <span style={{ color: 'var(--nous-state-blocked)' }}>
+          Failed to load system status: {error.message}
+        </span>
+      </div>
+    )
+  }
+
+  if (!data) return <div style={containerStyle} />
+
+  const backlog = data.backlogAnalytics
+
   return (
-    <div style={{ height: '100%', overflow: 'auto', color: 'var(--nous-fg)' }}>
-      {STUB_STATUS.map((item) => (
-        <div key={item.label} style={rowStyle}>
-          <span style={{ color: 'var(--nous-fg-muted)' }}>{item.label}</span>
-          <span style={{ display: 'flex', alignItems: 'center', gap: 'var(--nous-space-sm)' }}>
-            {item.dot && (
-              <span style={{ width: 8, height: 8, borderRadius: '50%', background: item.dot, display: 'inline-block' }} />
-            )}
-            {item.value}
+    <div style={containerStyle}>
+      {/* Boot status */}
+      <div style={rowStyle}>
+        <span
+          style={{
+            width: 8,
+            height: 8,
+            borderRadius: '50%',
+            background: BOOT_STATUS_COLORS[data.bootStatus] ?? 'var(--nous-fg-subtle)',
+            flexShrink: 0,
+          }}
+        />
+        <span style={{ fontWeight: 'var(--nous-font-weight-semibold)' as any }}>
+          {BOOT_STATUS_LABELS[data.bootStatus] ?? data.bootStatus}
+        </span>
+        {data.issueCodes.length > 0 && (
+          <span style={{ color: 'var(--nous-state-blocked)', fontSize: 'var(--nous-font-size-xs)' }}>
+            {data.issueCodes.length} issue{data.issueCodes.length !== 1 ? 's' : ''}
           </span>
+        )}
+      </div>
+
+      {/* Completed boot steps */}
+      <div style={sectionHeaderStyle}>Boot Steps</div>
+      {data.completedBootSteps.length === 0 ? (
+        <div style={{ color: 'var(--nous-fg-muted)', fontSize: 'var(--nous-font-size-xs)' }}>
+          No boot steps recorded
         </div>
-      ))}
+      ) : (
+        data.completedBootSteps.map((step) => (
+          <div key={step} style={rowStyle}>
+            <span style={{ color: 'var(--nous-state-complete)', flexShrink: 0 }}>&#x2713;</span>
+            <span>{step}</span>
+          </div>
+        ))
+      )}
+
+      {/* Backlog analytics */}
+      <div style={sectionHeaderStyle}>Backlog</div>
+      <div style={rowStyle}>
+        <span style={{ color: 'var(--nous-fg-muted)', minWidth: 80 }}>Queued</span>
+        <span>{backlog.queuedCount}</span>
+      </div>
+      <div style={rowStyle}>
+        <span style={{ color: 'var(--nous-fg-muted)', minWidth: 80 }}>Active</span>
+        <span>{backlog.activeCount}</span>
+      </div>
+      <div style={rowStyle}>
+        <span style={{ color: 'var(--nous-fg-muted)', minWidth: 80 }}>Trend</span>
+        <span>{backlog.pressureTrend}</span>
+      </div>
+
+      {/* Collected at */}
+      <div
+        style={{
+          marginTop: 'var(--nous-space-lg)',
+          fontSize: 'var(--nous-font-size-xs)',
+          color: 'var(--nous-fg-subtle)',
+        }}
+      >
+        Updated: {new Date(data.collectedAt).toLocaleTimeString()}
+      </div>
     </div>
   )
 }

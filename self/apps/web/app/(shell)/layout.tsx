@@ -1,107 +1,219 @@
-'use client';
+'use client'
 
-import { Suspense, useState, useCallback, useEffect } from 'react';
-import { usePathname, useSearchParams } from 'next/navigation';
-import { Sidebar } from '@/components/shell/sidebar';
-import { trpc } from '@/lib/trpc';
-import { ProjectProvider } from '@/lib/project-context';
-import { Button } from '@/components/ui/button';
+import * as React from 'react'
+import { Suspense, useState, useCallback, useEffect, useMemo } from 'react'
+import { useSearchParams } from 'next/navigation'
+import dynamic from 'next/dynamic'
+import {
+  ShellProvider,
+  ShellLayout as UIShellLayout,
+  NavigationRail,
+  ContentRouter,
+  ChatSurface,
+  ObservePanel,
+  CommandPalette,
+} from '@nous/ui/components'
+import type { ShellMode, NavigationState } from '@nous/ui/components'
+import { WebChromeShell } from '@/components/shell/web-chrome-shell'
+import { webRailSections } from '@/components/shell/web-rail-config'
+import { webShellRoutes } from '@/components/shell/web-shell-routes'
+import { buildWebCommands } from '@/components/shell/web-command-config'
+import { trpc } from '@/lib/trpc'
+import { ProjectProvider } from '@/lib/project-context'
+
+const WebDockviewShell = dynamic(
+  () => import('@/components/shell/web-dockview-shell').then((mod) => ({ default: mod.WebDockviewShell })),
+  { ssr: false },
+)
+
+const MODE_STORAGE_KEY = 'nous:shell-mode'
 
 export default function ShellLayout({
   children,
 }: {
-  children: React.ReactNode;
+  children: React.ReactNode
 }) {
   return (
-    <Suspense fallback={<main className="flex-1 overflow-auto">{children}</main>}>
+    <Suspense
+      fallback={(
+        <main
+          style={{
+            flex: '1 1 0%',
+            overflow: 'auto',
+          }}
+        >
+          {children}
+        </main>
+      )}
+    >
       <ShellLayoutContent>{children}</ShellLayoutContent>
     </Suspense>
-  );
+  )
 }
 
 function ShellLayoutContent({
   children,
 }: {
-  children: React.ReactNode;
+  children: React.ReactNode
 }) {
-  const [projectId, setProjectId] = useState<string | null>(null);
-  const [sidebarOpen, setSidebarOpen] = useState(false);
-  const searchParams = useSearchParams();
-  const pathname = usePathname();
-  const utils = trpc.useUtils();
+  const [mode, setMode] = useState<ShellMode>('simple')
+  const [activeRoute, setActiveRoute] = useState('home')
+  const [commandPaletteOpen, setCommandPaletteOpen] = useState(false)
+  const [projectId, setProjectId] = useState<string | null>(null)
+
+  const searchParams = useSearchParams()
+  const utils = trpc.useUtils()
   const createProject = trpc.projects.create.useMutation({
     onSuccess: () => {
-      utils.projects.list.invalidate();
+      utils.projects.list.invalidate()
     },
-  });
+  })
+  const { data: projectsData } = trpc.projects.list.useQuery()
+
+  // Mode persistence — load on mount
+  useEffect(() => {
+    try {
+      const stored = localStorage.getItem(MODE_STORAGE_KEY)
+      if (stored === 'simple' || stored === 'developer') {
+        setMode(stored)
+      }
+    } catch {
+      /* localStorage unavailable */
+    }
+  }, [])
+
+  // searchParams sync (carried from previous layout)
+  useEffect(() => {
+    const linkedProjectId = searchParams.get('projectId')
+    if (linkedProjectId && linkedProjectId !== projectId) {
+      setProjectId(linkedProjectId)
+    }
+  }, [projectId, searchParams])
+
+  // Mode toggle handler
+  const handleModeToggle = useCallback(() => {
+    setMode((prev) => {
+      const next = prev === 'simple' ? 'developer' : 'simple'
+      try {
+        localStorage.setItem(MODE_STORAGE_KEY, next)
+      } catch {
+        /* localStorage unavailable */
+      }
+      return next
+    })
+  }, [])
+
+  // Keyboard shortcut: Ctrl+Shift+D — mode toggle
+  useEffect(() => {
+    const handler = (event: KeyboardEvent) => {
+      if (event.ctrlKey && event.shiftKey && event.key.toLowerCase() === 'd') {
+        event.preventDefault()
+        handleModeToggle()
+      }
+    }
+    window.addEventListener('keydown', handler)
+    return () => window.removeEventListener('keydown', handler)
+  }, [handleModeToggle])
+
+  // Keyboard shortcut: Ctrl+K — command palette
+  useEffect(() => {
+    const handler = (event: KeyboardEvent) => {
+      if (event.ctrlKey && !event.shiftKey && !event.altKey && event.key.toLowerCase() === 'k') {
+        event.preventDefault()
+        setCommandPaletteOpen((prev) => !prev)
+      }
+    }
+    window.addEventListener('keydown', handler)
+    return () => window.removeEventListener('keydown', handler)
+  }, [])
+
+  const handleNavigate = useCallback((routeId: string) => {
+    setActiveRoute(routeId)
+  }, [])
+
+  const handleGoBack = useCallback(() => {
+    setActiveRoute('home')
+  }, [])
 
   const handleNewProject = useCallback(async () => {
-    const name = prompt('Project name:');
-    if (!name?.trim()) return;
+    const name = prompt('Project name:')
+    if (!name?.trim()) return
     try {
-      const project = await createProject.mutateAsync({ name: name.trim() });
-      setProjectId(project.id);
-      setSidebarOpen(false);
+      const project = await createProject.mutateAsync({ name: name.trim() })
+      setProjectId(project.id)
     } catch (err) {
-      console.error(err);
-      alert('Failed to create project');
+      console.error(err)
+      alert('Failed to create project')
     }
-  }, [createProject]);
+  }, [createProject])
 
-  useEffect(() => {
-    const linkedProjectId = searchParams.get('projectId');
-    if (linkedProjectId && linkedProjectId !== projectId) {
-      setProjectId(linkedProjectId);
+  const handleProjectSelect = useCallback((id: string) => {
+    if (id === 'new-project') {
+      void handleNewProject()
+    } else {
+      setProjectId(id)
     }
-  }, [projectId, searchParams]);
+  }, [handleNewProject])
 
-  useEffect(() => {
-    setSidebarOpen(false);
-  }, [pathname, searchParams]);
+  const navigation: NavigationState = useMemo(() => ({
+    activeRoute,
+    history: [activeRoute],
+    canGoBack: activeRoute !== 'home',
+  }), [activeRoute])
+
+  const commands = useMemo(
+    () => buildWebCommands({ navigate: handleNavigate, onModeToggle: handleModeToggle }),
+    [handleNavigate, handleModeToggle],
+  )
+
+  const projects = useMemo(
+    () => (projectsData ?? []).map((p) => ({ id: p.id, name: p.name })),
+    [projectsData],
+  )
 
   return (
-    <ProjectProvider value={{ projectId, setProjectId }}>
-      <div className="flex h-screen overflow-hidden">
-        <div className="hidden h-full shrink-0 md:block">
-          <Sidebar
-            projectId={projectId}
-            onProjectSelect={setProjectId}
-            onNewProject={handleNewProject}
+    <WebChromeShell mode={mode} onModeToggle={handleModeToggle}>
+      <ShellProvider
+        mode={mode}
+        activeRoute={activeRoute}
+        navigation={navigation}
+        navigate={handleNavigate}
+        goBack={handleGoBack}
+        activeProjectId={projectId}
+      >
+        <ProjectProvider value={{ projectId, setProjectId }}>
+          <CommandPalette
+            isOpen={commandPaletteOpen}
+            onClose={() => setCommandPaletteOpen(false)}
+            commands={commands}
           />
-        </div>
-        {sidebarOpen ? (
-          <button
-            type="button"
-            aria-label="Close navigation"
-            className="fixed inset-0 z-40 bg-black/40 md:hidden"
-            onClick={() => setSidebarOpen(false)}
-          />
-        ) : null}
-        <div
-          className={`fixed inset-y-0 left-0 z-50 w-72 transition-transform md:hidden ${
-            sidebarOpen ? 'translate-x-0' : '-translate-x-full'
-          }`}
-        >
-          <Sidebar
-            projectId={projectId}
-            onProjectSelect={setProjectId}
-            onNewProject={handleNewProject}
-            onNavigate={() => setSidebarOpen(false)}
-            className="h-full w-full bg-background"
-          />
-        </div>
-        <div className="flex min-w-0 flex-1 flex-col">
-          <div className="flex items-center justify-between border-b border-border px-3 py-2 md:hidden">
-            <Button variant="outline" size="sm" onClick={() => setSidebarOpen(true)}>
-              Menu
-            </Button>
-            <div className="text-xs text-muted-foreground">
-              {projectId ? 'Project selected' : 'No project selected'}
-            </div>
-          </div>
-          <main className="min-h-0 flex-1 overflow-auto">{children}</main>
-        </div>
-      </div>
-    </ProjectProvider>
-  );
+          {mode === 'simple' ? (
+            <UIShellLayout
+              rail={
+                <NavigationRail
+                  items={webRailSections}
+                  activeItemId={activeRoute}
+                  onItemSelect={handleNavigate}
+                  projects={projects}
+                  onProjectSelect={handleProjectSelect}
+                />
+              }
+              chat={<ChatSurface />}
+              content={
+                <ContentRouter
+                  activeRoute={activeRoute}
+                  routes={webShellRoutes}
+                  onNavigate={handleNavigate}
+                />
+              }
+              observe={<ObservePanel />}
+            />
+          ) : (
+            <WebDockviewShell />
+          )}
+          {children}
+        </ProjectProvider>
+      </ShellProvider>
+    </WebChromeShell>
+  )
 }

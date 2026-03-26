@@ -1,22 +1,12 @@
 import type { IDockviewPanelProps } from 'dockview-react'
 import type { CSSProperties } from 'react'
-
-type ProviderEntry = {
-  name: string
-  status: 'connected' | 'not-configured' | 'error'
-  model?: string
-}
-
-const STUB_PROVIDERS: ProviderEntry[] = [
-  { name: 'Ollama', status: 'connected', model: 'llama3.2:3b' },
-  { name: 'OpenAI', status: 'not-configured' },
-  { name: 'Anthropic', status: 'not-configured' },
-]
+import { useEventSubscription } from '../../../hooks/useEventSubscription'
+import { useHealthQueries, useHealthQuery } from '../hooks'
 
 const STATUS_DOT: Record<string, { color: string; label: string }> = {
-  connected: { color: 'var(--nous-state-complete)', label: 'Connected' },
-  'not-configured': { color: 'var(--nous-fg-subtle)', label: 'Not configured' },
-  error: { color: 'var(--nous-state-blocked)', label: 'Error' },
+  available: { color: 'var(--nous-state-complete)', label: 'Available' },
+  unknown: { color: 'var(--nous-fg-subtle)', label: 'Unknown' },
+  unreachable: { color: 'var(--nous-state-blocked)', label: 'Unreachable' },
 }
 
 const rowStyle: CSSProperties = {
@@ -28,13 +18,51 @@ const rowStyle: CSSProperties = {
   borderBottom: '1px solid var(--nous-border-subtle)',
 }
 
+const containerStyle: CSSProperties = {
+  height: '100%',
+  overflow: 'auto',
+  color: 'var(--nous-fg)',
+}
+
 export function ProviderHealthWidget(_props: IDockviewPanelProps) {
+  const { fetchProviderHealth } = useHealthQueries()
+  const { data, isLoading, error, refetch } = useHealthQuery(fetchProviderHealth)
+
+  useEventSubscription({
+    channels: ['health:boot-step', 'health:gateway-status', 'health:issue', 'health:backlog-analytics'],
+    onEvent: () => {
+      refetch()
+    },
+  })
+
+  if (isLoading && !data) {
+    return (
+      <div style={containerStyle}>
+        <div style={{ padding: 'var(--nous-space-md) var(--nous-space-xl)', color: 'var(--nous-fg-muted)', fontSize: 'var(--nous-font-size-sm)' }}>
+          Loading provider health...
+        </div>
+      </div>
+    )
+  }
+
+  if (error && !data) {
+    return (
+      <div style={containerStyle}>
+        <div style={{ padding: 'var(--nous-space-md) var(--nous-space-xl)', color: 'var(--nous-state-blocked)', fontSize: 'var(--nous-font-size-sm)' }}>
+          Failed to load provider health: {error.message}
+        </div>
+      </div>
+    )
+  }
+
+  if (!data) return <div style={containerStyle} />
+
   return (
-    <div style={{ height: '100%', overflow: 'auto', color: 'var(--nous-fg)' }}>
-      {STUB_PROVIDERS.map((provider) => {
-        const dot = STATUS_DOT[provider.status]
+    <div style={containerStyle}>
+      {data.providers.map((provider) => {
+        const dot = STATUS_DOT[provider.status] ?? { color: 'var(--nous-fg-subtle)', label: provider.status }
         return (
-          <div key={provider.name} style={rowStyle}>
+          <div key={provider.providerId} style={rowStyle}>
             <span
               style={{
                 width: 8,
@@ -46,14 +74,23 @@ export function ProviderHealthWidget(_props: IDockviewPanelProps) {
             />
             <span style={{ fontWeight: 'var(--nous-font-weight-medium)' as any, minWidth: '80px' }}>{provider.name}</span>
             <span style={{ color: 'var(--nous-fg-muted)', flex: 1 }}>{dot.label}</span>
-            {provider.model && (
+            {provider.modelId && (
               <span style={{ fontSize: 'var(--nous-font-size-xs)', color: 'var(--nous-fg-subtle)', flexShrink: 0 }}>
-                {provider.model}
+                {provider.modelId}
               </span>
             )}
           </div>
         )
       })}
+      <div
+        style={{
+          padding: 'var(--nous-space-sm) var(--nous-space-xl)',
+          fontSize: 'var(--nous-font-size-xs)',
+          color: 'var(--nous-fg-subtle)',
+        }}
+      >
+        Updated: {new Date(data.collectedAt).toLocaleTimeString()}
+      </div>
     </div>
   )
 }

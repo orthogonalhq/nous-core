@@ -12,7 +12,17 @@ import { buildMaoReturnHref, readMaoNavigationContext } from '@/lib/mao-links';
 
 export default function ChatPage() {
   return (
-    <React.Suspense fallback={<div className="flex h-full flex-col" />}>
+    <React.Suspense
+      fallback={(
+        <div
+          style={{
+            display: 'flex',
+            height: '100%',
+            flexDirection: 'column',
+          }}
+        />
+      )}
+    >
       <ChatPageContent />
     </React.Suspense>
   );
@@ -84,9 +94,17 @@ function ChatPageContent() {
 
   if (!projectId) {
     return (
-      <div className="flex h-full items-center justify-center p-8">
-        <p className="text-muted-foreground">
-          Select or create a project from the sidebar to start chatting.
+      <div
+        style={{
+          display: 'flex',
+          height: '100%',
+          alignItems: 'center',
+          justifyContent: 'center',
+          padding: 'var(--nous-space-3xl)',
+        }}
+      >
+        <p style={{ color: 'var(--nous-text-secondary)' }}>
+          Select or create a project from the navigation panel to start chatting.
         </p>
       </div>
     );
@@ -96,25 +114,51 @@ function ChatPageContent() {
   const linkedNodeId = searchParams.get('nodeId');
 
   return (
-    <div className="flex h-full flex-col">
+    <div
+      style={{
+        display: 'flex',
+        height: '100%',
+        flexDirection: 'column',
+      }}
+    >
       {escalationQueue ? (
         <EscalationInbox queue={escalationQueue} maoContext={maoContext} />
       ) : null}
       {maoContext ? (
-        <div className="border-b border-border bg-muted/20 px-6 py-3 text-sm text-muted-foreground">
+        <div
+          style={{
+            borderBottom: '1px solid var(--nous-shell-column-border)',
+            background: 'var(--nous-bg-hover)',
+            padding: '12px var(--nous-space-2xl)',
+            fontSize: 'var(--nous-font-size-sm)',
+            color: 'var(--nous-text-secondary)',
+          }}
+        >
           MAO reasoning handoff active
           {maoContext.reasoningRef ? ` with reasoning ${maoContext.reasoningRef}` : ''}
           {maoContext.evidenceRef ? ` and evidence ${maoContext.evidenceRef}` : ''}.
           <Link
             href={buildMaoReturnHref(maoContext)}
-            className="ml-2 underline underline-offset-4"
+            style={{
+              marginLeft: 'var(--nous-space-xs)',
+              textDecoration: 'underline',
+              textUnderlineOffset: '4px',
+            }}
           >
             Return to MAO
           </Link>
         </div>
       ) : null}
       {linkedRunId || linkedNodeId ? (
-        <div className="border-b border-border bg-muted/20 px-6 py-3 text-sm text-muted-foreground">
+        <div
+          style={{
+            borderBottom: '1px solid var(--nous-shell-column-border)',
+            background: 'var(--nous-bg-hover)',
+            padding: '12px var(--nous-space-2xl)',
+            fontSize: 'var(--nous-font-size-sm)',
+            color: 'var(--nous-text-secondary)',
+          }}
+        >
           Linked workflow context
           {linkedRunId ? ` run ${linkedRunId.slice(0, 8)}` : ''}
           {linkedNodeId ? ` node ${linkedNodeId.slice(0, 8)}` : ''}.

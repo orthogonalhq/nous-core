@@ -79,6 +79,38 @@ describe('ScopedMcpToolSurface', () => {
     ).rejects.toThrow('not available');
   });
 
+  it('rejects Principal execution of dispatch_agent at the surface level', async () => {
+    const surface = createScopedMcpToolSurface({
+      agentClass: 'Cortex::Principal',
+      agentId: AGENT_ID,
+      deps: {
+        getProjectApi: () => createProjectApi(),
+      },
+    });
+
+    await expect(
+      surface.executeTool('dispatch_agent', {}, {
+        projectId: PROJECT_ID,
+      }),
+    ).rejects.toThrow('not available');
+  });
+
+  it('rejects Principal execution of task_complete at the surface level', async () => {
+    const surface = createScopedMcpToolSurface({
+      agentClass: 'Cortex::Principal',
+      agentId: AGENT_ID,
+      deps: {
+        getProjectApi: () => createProjectApi(),
+      },
+    });
+
+    await expect(
+      surface.executeTool('task_complete', {}, {
+        projectId: PROJECT_ID,
+      }),
+    ).rejects.toThrow('not available');
+  });
+
   it('exposes the same visible catalog through the helper projection', () => {
     expect(getVisibleInternalMcpTools('Orchestrator')).toContain('dispatch_agent');
     expect(getVisibleInternalMcpTools('Orchestrator')).toContain('workflow_list');

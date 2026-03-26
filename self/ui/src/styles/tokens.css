@@ -13,12 +13,16 @@
   --nous-surface:        #030303;  /* outer "table" — panels sit on top of this */
   --nous-surface-nested: #131313;  /* inset surface — nested widget gaps inside a panel */
   --nous-bg:             #131313;
-  --nous-bg-elevated:    #1d1d1d;
-  --nous-bg-hover:     #2a2d2e;
-  --nous-bg-input:     #3c3c3c53;
+  --nous-bg-base:        #000000;
+  --nous-bg-surface:     #0a0a0a;
+  --nous-bg-elevated:    #141414;
+  --nous-bg-hover:       #1a1a1a;
+  --nous-bg-active:      #222222;
+  --nous-bg-input:       #0f0f0f;
 
   /* ── Borders ─────────────────────────────────────────────────────────── */
-  --nous-border:        #3c3c3c20;
+  --nous-border:        #1a1a1a;
+  --nous-border-strong: #2a2a2a;
   --nous-border-subtle: #2d2d2d0a;
 
   --nous-nested-panel-border: transparent;
@@ -28,10 +32,15 @@
   --nous-fg-muted:  #bababa;
   --nous-fg-dim:    #858585;
   --nous-fg-subtle: #6a6a6a;
+  --nous-text-primary:   rgba(255,255,255,0.95);
+  --nous-text-secondary: rgba(255,255,255,0.60);
+  --nous-text-tertiary:  rgba(255,255,255,0.35);
+  --nous-text-ghost:     rgba(255,255,255,0.12);
 
   /* ── Accent / interactive ────────────────────────────────────────────── */
   --nous-accent:       #007acc;
   --nous-accent-hover: #1a85d0;
+  --nous-accent-muted: rgba(0,122,204,0.16);
   --nous-selection:    #094771;
 
   /* ── Menu ────────────────────────────────────────────────────────────── */
@@ -62,11 +71,21 @@
   --nous-state-approved-fill:      #0d6e5e;
   --nous-state-needs-revision-fill:#6b3d99;
 
+  /* ── Alert colours ───────────────────────────────────────────────────── */
+  --nous-alert-critical: #ff2d55;
+  --nous-alert-error:    #ff453a;
+  --nous-alert-warning:  #ffd60a;
+  --nous-alert-info:     #64b5f6;
+  --nous-alert-success:  #32d74b;
+
   /* ── Overlay / shadow ────────────────────────────────────────────────── */
   --nous-btn-hover:    rgba(255,255,255,0.07);  /* subtle hover on frameless window controls & menu triggers */
   --nous-fg-on-color:  #ffffff;                  /* text on accent / error / selection backgrounds */
   --nous-shadow:       rgba(0,0,0,0.4);          /* DEPRECATED — use --nous-shadow-md instead */
   --nous-drag-over-bg: rgba(0,122,204,0.15);     /* dockview drag-over feedback tint */
+  --nous-blur-sm:      8px;
+  --nous-blur-md:      16px;
+  --nous-blur-lg:      24px;
 
   /* ── Spacing ─────────────────────────────────────────────────────────── */
   --nous-space-2xs:  2px;
@@ -113,8 +132,8 @@
 
   /* ── Shadow ─────────────────────────────────────────────────────────── */
   --nous-shadow-sm: 0 1px 2px rgba(0,0,0,0.3);
-  --nous-shadow-md: 0 2px 8px rgba(0,0,0,0.4);
-  --nous-shadow-lg: 0 4px 16px rgba(0,0,0,0.5);
+  --nous-shadow-md: 0 4px 12px rgba(0,0,0,0.4);
+  --nous-shadow-lg: 0 8px 24px rgba(0,0,0,0.5);
 
   /* ── Z-index layers ─────────────────────────────────────────────────── */
   --nous-z-base:     0;
@@ -124,15 +143,23 @@
   --nous-z-toast:    400;
 
   /* ── Transition duration ────────────────────────────────────────────── */
+  --nous-duration-instant: 50ms;
   --nous-duration-micro:  100ms;
-  --nous-duration-fast:   150ms;
+  --nous-duration-fast:   100ms;
   --nous-duration-normal: 200ms;
   --nous-duration-slow:   300ms;
+  --nous-duration-ambient: 2000ms;
 
   /* ── Easing curves ──────────────────────────────────────────────────── */
   --nous-ease-out:    cubic-bezier(0.0, 0, 0.2, 1);
   --nous-ease-in:     cubic-bezier(0.4, 0, 1, 1);
   --nous-ease-in-out: cubic-bezier(0.4, 0, 0.2, 1);
+  --nous-ease-snap:   cubic-bezier(0, 0, 0.2, 1);
+
+  /* ── Scales / motion distances ──────────────────────────────────────── */
+  --nous-scale-press:    0.98;
+  --nous-scale-lift:     1.02;
+  --nous-shake-distance: 2px;
 
   /* ── Icon size ──────────────────────────────────────────────────────── */
   --nous-icon-size-sm: 14px;
@@ -153,4 +180,65 @@
 
   /* ── Overlay ────────────────────────────────────────────────────────── */
   --nous-overlay-bg: rgba(0, 0, 0, 0.5);
+
+  /* ── Shell geometry ─────────────────────────────────────────────────── */
+  --nous-rail-width:            72px;
+  --nous-rail-width-collapsed:  56px;
+  --nous-chat-column-width:     320px;
+  --nous-observe-column-width:  280px;
+  --nous-column-divider-width:  1px;
+
+  /* ── Shell breakpoints ──────────────────────────────────────────────── */
+  --nous-shell-breakpoint-full:   1400px;
+  --nous-shell-breakpoint-medium: 1100px;
+  --nous-shell-breakpoint-narrow: 800px;
+
+  /* ── Canvas / workflow builder ─────────────────────────────────────── */
+  --nous-canvas-bg:              #0a0a0a;
+  --nous-canvas-grid-dot:        #1a1a1a;
+  --nous-node-trigger:           #e06c75;
+  --nous-node-agent:             #61afef;
+  --nous-node-condition:         #e5c07b;
+  --nous-node-app:               #c678dd;
+  --nous-node-tool:              #56b6c2;
+  --nous-node-memory:            #98c379;
+  --nous-node-governance:        #d19a66;
+  --nous-edge-execution:         #abb2bf;
+  --nous-edge-config:            #5c6370;
+  --nous-canvas-selection-ring:  #007acc;
+  --nous-canvas-minimap-bg:      #0f0f0f;
+  --nous-canvas-minimap-node:    #2a2a2a;
+
+  /* ── Canvas floating panels ────────────────────────────────────────── */
+  --nous-canvas-panel-bg:          #141414;
+  --nous-canvas-panel-border:      #2a2a2a;
+  --nous-canvas-panel-shadow:      0 4px 12px rgba(0,0,0,0.5);
+  --nous-canvas-panel-header-bg:   #1a1a1a;
+  --nous-canvas-panel-header-text: #fafafa;
+}
+
+@media (prefers-color-scheme: light) {
+  :root {
+    --nous-bg-base:        #ffffff;
+    --nous-bg-surface:     #f5f5f5;
+    --nous-bg-elevated:    #ebebeb;
+    --nous-bg-hover:       #e0e0e0;
+    --nous-bg-active:      #d6d6d6;
+    --nous-bg-input:       #f0f0f0;
+    --nous-border:         #e5e5e5;
+    --nous-border-strong:  #d0d0d0;
+    --nous-text-primary:   rgba(0,0,0,0.90);
+    --nous-text-secondary: rgba(0,0,0,0.55);
+    --nous-text-tertiary:  rgba(0,0,0,0.30);
+    --nous-text-ghost:     rgba(0,0,0,0.08);
+    --nous-accent-muted:   rgba(25,118,210,0.12);
+    --nous-alert-critical: #d1002f;
+    --nous-alert-error:    #d32f2f;
+    --nous-alert-warning:  #c49000;
+    --nous-alert-info:     #1976d2;
+    --nous-alert-success:  #2e7d32;
+    --nous-shadow-sm:      0 1px 2px rgba(0,0,0,0.08);
+    --nous-shadow-md:      0 4px 12px rgba(0,0,0,0.12);
+    --nous-shadow-lg:      0 8px 24px rgba(0,0,0,0.16);
+  }
 }
