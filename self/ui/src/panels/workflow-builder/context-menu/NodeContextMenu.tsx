@@ -66,6 +66,7 @@ function NodeContextMenuInner({
   onOpenInspector,
 }: NodeContextMenuProps) {
   const menuRef = useRef<HTMLDivElement>(null)
+  const previousFocusRef = useRef<Element | null>(null)
   const [clampedPosition, setClampedPosition] = useState(position)
 
   // Clamp position to viewport bounds after render
@@ -77,6 +78,21 @@ function NodeContextMenuInner({
       y: Math.min(position.y, window.innerHeight - rect.height - 8),
     })
   }, [position])
+
+  // Save focus on mount and auto-focus first menu item; restore on unmount
+  useEffect(() => {
+    previousFocusRef.current = document.activeElement
+    requestAnimationFrame(() => {
+      const firstItem = menuRef.current?.querySelector<HTMLElement>('[role="menuitem"]:not([disabled])')
+      firstItem?.focus()
+    })
+    return () => {
+      const prev = previousFocusRef.current as HTMLElement | null
+      if (prev && typeof prev.focus === 'function' && document.contains(prev)) {
+        prev.focus()
+      }
+    }
+  }, [])
 
   // Click outside dismissal
   useEffect(() => {
@@ -100,6 +116,33 @@ function NodeContextMenuInner({
     return () => document.removeEventListener('keydown', handler)
   }, [onClose])
 
+  // Arrow key and Tab navigation within menu
+  const handleMenuKeyDown = useCallback((e: React.KeyboardEvent) => {
+    const items = menuRef.current?.querySelectorAll<HTMLElement>('[role="menuitem"]:not([disabled])')
+    if (!items || items.length === 0) return
+
+    const currentIndex = Array.from(items).findIndex((item) => item === document.activeElement)
+
+    if (e.key === 'ArrowDown') {
+      e.preventDefault()
+      const next = (currentIndex + 1) % items.length
+      items[next]?.focus()
+    } else if (e.key === 'ArrowUp') {
+      e.preventDefault()
+      const prev = currentIndex <= 0 ? items.length - 1 : currentIndex - 1
+      items[prev]?.focus()
+    } else if (e.key === 'Tab') {
+      e.preventDefault()
+      if (e.shiftKey) {
+        const prev = currentIndex <= 0 ? items.length - 1 : currentIndex - 1
+        items[prev]?.focus()
+      } else {
+        const next = (currentIndex + 1) % items.length
+        items[next]?.focus()
+      }
+    }
+  }, [])
+
   const handleDelete = useCallback(() => {
     onDeleteNode(nodeId)
     onClose()
@@ -121,6 +164,8 @@ function NodeContextMenuInner({
       style={{ ...menuStyle, left: clampedPosition.x, top: clampedPosition.y }}
       data-testid="node-context-menu"
       role="menu"
+      aria-label="Node context menu"
+      onKeyDown={handleMenuKeyDown}
     >
       {/* Delete */}
       <button

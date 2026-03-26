@@ -160,8 +160,15 @@ function ValidationPanelInner({
         onClose={handleClose}
         onDragStart={onDragStart}
       >
+        {/* Error count announcement for screen readers */}
+        <div role="status" aria-live="polite" data-testid="validation-panel-status">
+          {items.length === 0
+            ? 'No validation issues'
+            : `${items.length} validation ${items.length === 1 ? 'error' : 'errors'}`}
+        </div>
+
         {items.length === 0 ? (
-          <div data-testid="validation-panel-empty" style={emptyStateStyle}>
+          <div data-testid="validation-panel-empty" style={emptyStateStyle} role="status">
             <i
               className="codicon codicon-check"
               style={{ fontSize: 16, color: 'var(--nous-node-governance, #98c379)' }}
