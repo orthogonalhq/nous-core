@@ -5,9 +5,10 @@ import type {
   ConfirmationProof,
   ConfirmationProofRequest,
   MaoAgentInspectProjection,
-  MaoControlAuditHistory,
+  MaoControlAuditHistoryEntry,
   MaoDensityMode,
   MaoProjectControlAction,
+  MaoProjectControlRequest,
   MaoProjectControlResult,
   MaoProjectSnapshot,
   SystemStatusSnapshot,
@@ -24,7 +25,9 @@ export type QueryHook<TInput, TData> = (
 ) => { data: TData | undefined; isLoading: boolean; isError: boolean };
 
 /** Typed function signature for a tRPC-like mutation hook. */
-export type MutationHook<TInput, TData> = () => {
+export type MutationHook<TInput, TData> = (
+  opts?: { onSuccess?: (data: TData) => void },
+) => {
   mutate: (input: TInput) => void;
   data: TData | undefined;
   isPending: boolean;
@@ -53,15 +56,14 @@ export interface MaoServicesContextValue {
     },
     MaoAgentInspectProjection
   >;
-  useAuditQuery: QueryHook<{ projectId: string }, MaoControlAuditHistory>;
+  useAuditQuery: QueryHook<{ projectId: string }, MaoControlAuditHistoryEntry[]>;
   useSystemStatusQuery: QueryHook<void, SystemStatusSnapshot>;
 
   // Mutation hooks
   useControlMutation: MutationHook<
     {
-      action: MaoProjectControlAction;
-      reason: string;
-      commandId: string;
+      request: MaoProjectControlRequest;
+      confirmationProof?: ConfirmationProof;
     },
     MaoProjectControlResult
   >;

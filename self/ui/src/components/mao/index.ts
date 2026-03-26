@@ -31,3 +31,13 @@ export { MaoRunGraph } from './mao-run-graph';
 export type { MaoRunGraphProps } from './mao-run-graph';
 
 export { MaoInspectPanel } from './mao-inspect-panel';
+
+export { MaoAuditTrailPanel } from './mao-audit-trail-panel';
+export type { MaoAuditTrailPanelProps } from './mao-audit-trail-panel';
+
+export { MaoBacklogPressureCard } from './mao-backlog-pressure-card';
+
+export { MaoT3ConfirmationDialog, T3_ACTIONS, ACTION_MAP } from './mao-t3-confirmation-dialog';
+export type { MaoT3ConfirmationDialogProps } from './mao-t3-confirmation-dialog';
+
+export { MaoOperatingSurface } from './mao-operating-surface';
