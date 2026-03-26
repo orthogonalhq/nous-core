@@ -5,13 +5,12 @@ import type { EdgeProps } from '@xyflow/react'
 import type { WorkflowBuilderEdge, WorkflowBuilderEdgeData } from '../../../types/workflow-builder'
 
 /**
- * ExecutionEdge — solid line for execution flow connections.
+ * MemoryFlowEdge — dotted line for memory/context flow connections.
  *
- * Uses `--nous-builder-edge-execution` color token, 2px stroke, arrow marker
- * at target end. Includes a placeholder `nousEdgeAnimated` CSS class for
- * future monitor-mode animation (Phase 3).
+ * Uses `--nous-builder-edge-memory` color token, 1.5px dotted stroke.
+ * Supports monitor-mode flow animation via optional `data.executionState`.
  */
-export function ExecutionEdge({
+export function MemoryFlowEdge({
   id,
   sourceX,
   sourceY,
@@ -20,7 +19,6 @@ export function ExecutionEdge({
   sourcePosition,
   targetPosition,
   data,
-  markerEnd,
 }: EdgeProps<WorkflowBuilderEdge>) {
   const [edgePath, labelX, labelY] = getBezierPath({
     sourceX,
@@ -33,8 +31,14 @@ export function ExecutionEdge({
 
   const edgeData = data as unknown as WorkflowBuilderEdgeData | undefined
   const execState = edgeData?.executionState
+
+  // Determine style and animation based on execution state
   const isActive = execState?.status === 'active'
   const isCompleted = execState?.status === 'completed'
+
+  const strokeColor = isActive || isCompleted
+    ? 'var(--nous-builder-edge-memory)'
+    : 'var(--nous-builder-edge-memory)'
 
   return (
     <>
@@ -43,12 +47,11 @@ export function ExecutionEdge({
         path={edgePath}
         className={isActive ? 'nous-edge-flow-active' : undefined}
         style={{
-          stroke: isActive || isCompleted
-            ? 'var(--nous-accent)'
-            : 'var(--nous-builder-edge-execution)',
-          strokeWidth: 2,
+          stroke: strokeColor,
+          strokeWidth: 1.5,
+          strokeDasharray: isActive ? undefined : '4 4',
+          opacity: isCompleted ? 1 : 0.7,
         }}
-        markerEnd={markerEnd ?? 'url(#nous-arrow-execution)'}
       />
       {edgeData?.label && (
         <EdgeLabelRenderer>
@@ -57,13 +60,14 @@ export function ExecutionEdge({
               position: 'absolute',
               transform: `translate(-50%, -50%) translate(${labelX}px, ${labelY}px)`,
               pointerEvents: 'all',
-              fontSize: 'var(--nous-font-size-xs)',
-              color: 'var(--nous-fg-muted)',
+              fontSize: 'var(--nous-font-size-2xs)',
+              color: 'var(--nous-fg-dim)',
               background: 'var(--nous-bg-elevated)',
               padding: '2px 6px',
               borderRadius: '4px',
               border: '1px solid var(--nous-border)',
               whiteSpace: 'nowrap',
+              opacity: 0.8,
             }}
             className="nodrag nopan"
           >

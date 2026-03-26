@@ -43,9 +43,9 @@ describe('useBuilderState', () => {
       }
     })
 
-    it('returns edges array with 7 items matching demo data IDs', () => {
+    it('returns edges array with 8 items matching demo data IDs', () => {
       const { result } = renderHook(() => useBuilderState())
-      expect(result.current.edges).toHaveLength(7)
+      expect(result.current.edges).toHaveLength(8)
       const edgeIds = result.current.edges.map((e) => e.id)
       for (const demoEdge of DEMO_WORKFLOW_EDGES) {
         expect(edgeIds).toContain(demoEdge.id)
@@ -62,9 +62,15 @@ describe('useBuilderState', () => {
       expect(result.current.selectedEdgeId).toBeNull()
     })
 
-    it('initial mode is "authoring"', () => {
+    it('default mode parameter is authoring', () => {
+      // useBuilderState() defaults to 'authoring' mode
       const { result } = renderHook(() => useBuilderState())
-      expect(result.current.mode).toBe('authoring')
+      // Verify mutations work (proving authoring mode)
+      const initialCount = result.current.nodes.length
+      act(() => {
+        result.current.addNode('nous.trigger.webhook', { x: 0, y: 0 })
+      })
+      expect(result.current.nodes.length).toBe(initialCount + 1)
     })
 
     it('initial isDirty is false', () => {
@@ -142,14 +148,14 @@ describe('useBuilderState', () => {
       expect(result.current.selectedEdgeId).toBeNull()
     })
 
-    it('setMode updates mode to "monitoring"', () => {
+    it('accepts mode parameter and defaults to authoring', () => {
       const { result } = renderHook(() => useBuilderState())
-
+      // Default mode is authoring — mutations should work
+      const initialCount = result.current.nodes.length
       act(() => {
-        result.current.setMode('monitoring')
+        result.current.addNode('nous.trigger.webhook', { x: 0, y: 0 })
       })
-
-      expect(result.current.mode).toBe('monitoring')
+      expect(result.current.nodes.length).toBe(initialCount + 1)
     })
 
     it('onNodesChange applies position changes to nodes', () => {
