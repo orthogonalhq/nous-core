@@ -5,7 +5,6 @@ import Link from 'next/link';
 import { useSearchParams } from 'next/navigation';
 import { trpc } from '@/lib/trpc';
 import { useProject } from '@/lib/project-context';
-import { EscalationInbox } from '@/components/chat/escalation-inbox';
 import { MessageList } from '@/components/chat/message-list';
 import { ChatInput } from '@/components/chat/chat-input';
 import { buildMaoReturnHref, readMaoNavigationContext } from '@/lib/mao-links';
@@ -47,11 +46,6 @@ function ChatPageContent() {
     { projectId: projectId ?? undefined },
     { enabled: !!projectId },
   );
-  const { data: escalationQueue } = trpc.escalations.listProjectQueue.useQuery(
-    { projectId: projectId ?? undefined as any },
-    { enabled: !!projectId },
-  );
-
   const utils = trpc.useUtils();
   const sendMessage = trpc.chat.sendMessage.useMutation({
     onSuccess: async () => {
@@ -121,9 +115,6 @@ function ChatPageContent() {
         flexDirection: 'column',
       }}
     >
-      {escalationQueue ? (
-        <EscalationInbox queue={escalationQueue} maoContext={maoContext} />
-      ) : null}
       {maoContext ? (
         <div
           style={{
