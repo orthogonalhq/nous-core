@@ -145,4 +145,11 @@ export const DEMO_WORKFLOW_EDGES: WorkflowBuilderEdge[] = [
     type: 'config',
     data: { edgeType: 'config', label: 'Classification context' },
   },
+  {
+    id: 'edge-8',
+    source: 'node-6',
+    target: 'node-2',
+    type: 'memory',
+    data: { edgeType: 'memory', label: 'Resolution memory' },
+  },
 ]

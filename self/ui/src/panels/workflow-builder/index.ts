@@ -33,6 +33,10 @@ export type { ValidationPanelProps } from './ValidationPanel'
 export { useKeyboardNav } from './hooks/useKeyboardNav'
 export type { UseKeyboardNavReturn } from './hooks/useKeyboardNav'
 
+// Monitoring components (SP 3.1)
+export { ExecutionMonitor, ExecutionHistory, DEMO_EXECUTION_RUNS } from './monitoring'
+export type { ExecutionMonitorProps, ExecutionHistoryProps } from './monitoring'
+
 // Type re-exports for Phase 2
 export type {
   FloatingPanelState,
@@ -55,4 +59,19 @@ export type {
   NodeSearchResult,
   KeyboardNavState,
   ValidationPanelItem,
+  // Phase 3 — Execution Monitoring
+  ExecutionRunStatus,
+  ExecutionNodeStatus,
+  ExecutionEdgeStatus,
+  ExecutionEventType,
+  NodeExecutionState,
+  EdgeFlowState,
+  ExecutionEvent,
+  ExecutionRun,
+  MonitoringState,
+  GateState,
+  ArtifactRef,
+  DispatchPacketRef,
+  RevisionCycleRef,
+  EscalationRef,
 } from '../../types/workflow-builder'

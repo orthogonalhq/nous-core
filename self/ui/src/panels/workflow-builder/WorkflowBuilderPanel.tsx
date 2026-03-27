@@ -12,6 +12,7 @@ import {
 } from '@xyflow/react'
 import type { IDockviewPanelProps } from 'dockview-react'
 import type { WorkflowBuilderNode, WorkflowBuilderEdge, ContextMenuState } from '../../types/workflow-builder'
+import { BuilderModeProvider, useBuilderMode } from './context/BuilderModeContext'
 import { useBuilderState } from './hooks/useBuilderState'
 import { useKeyboardNav } from './hooks/useKeyboardNav'
 import { BuilderToolbar } from './BuilderToolbar'
@@ -24,6 +25,10 @@ import { NodeSearch } from './NodeSearch'
 import { ValidationPanel } from './ValidationPanel'
 import { nodeTypes } from './nodes'
 import { edgeTypes } from './edges'
+import { ExecutionMonitor } from './monitoring/ExecutionMonitor'
+import { ExecutionHistory } from './monitoring/ExecutionHistory'
+import { GatePanel } from './monitoring/GatePanel'
+import { ArtifactBrowser } from './monitoring/ArtifactBrowser'
 
 import '@xyflow/react/dist/style.css'
 
@@ -57,6 +62,7 @@ const CanvasDropTarget = forwardRef<
   canvasHasFocus,
   onFocusedNodeChange,
 }, ref) {
+  const { mode, setMode } = useBuilderMode()
   const {
     nodes,
     edges,
@@ -68,8 +74,6 @@ const CanvasDropTarget = forwardRef<
     onPaneClick,
     selectedNodeId,
     selectedEdgeId,
-    mode,
-    setMode,
     addNode,
     addEdge,
     removeNode,
@@ -84,7 +88,14 @@ const CanvasDropTarget = forwardRef<
     redo,
     canUndo,
     canRedo,
-  } = useBuilderState()
+    monitoringState,
+    activeRun,
+    setActiveRun,
+    clearActiveRun,
+    inspectionState,
+    setInspectedNode,
+    clearInspection,
+  } = useBuilderState(mode)
 
   const { screenToFlowPosition, fitView } = useReactFlow()
 
@@ -124,13 +135,41 @@ const CanvasDropTarget = forwardRef<
   // ─── Expose keyboard nav handler to parent via imperative handle ────────
 
   useImperativeHandle(ref, () => ({
-    handleKeyDown: keyboardNavHandleKeyDown,
-  }), [keyboardNavHandleKeyDown])
+    handleKeyDown: (e: React.KeyboardEvent) => {
+      // Suppress keyboard navigation/mutations in monitor mode
+      if (mode === 'monitoring') return
+      keyboardNavHandleKeyDown(e)
+    },
+  }), [mode, keyboardNavHandleKeyDown])
 
   // Propagate focusedNodeId changes to parent for visual focus ring
   useEffect(() => {
     onFocusedNodeChange(focusedNodeId)
   }, [focusedNodeId, onFocusedNodeChange])
+
+  // ─── Mode-aware click handlers (SP 3.2) ─────────────────────────────────
+
+  const handleNodeClick = useCallback(
+    (event: React.MouseEvent, node: WorkflowBuilderNode) => {
+      if (mode === 'monitoring' || mode === 'inspecting') {
+        setInspectedNode(node.id)
+      } else {
+        onNodeClick(event, node)
+      }
+    },
+    [mode, onNodeClick, setInspectedNode],
+  )
+
+  const handlePaneClick = useCallback(
+    (event: React.MouseEvent) => {
+      if (mode === 'monitoring' || mode === 'inspecting') {
+        clearInspection()
+      } else {
+        onPaneClick(event)
+      }
+    },
+    [mode, onPaneClick, clearInspection],
+  )
 
   // ─── Save handler (SP 2.5) ─────────────────────────────────────────────
 
@@ -322,6 +361,9 @@ const CanvasDropTarget = forwardRef<
   )
 
   // ─── Global keyboard shortcuts (Ctrl+K, Ctrl+Z, Ctrl+Shift+Z, Ctrl+S) ───
+  // Registered in CAPTURE PHASE so this handler fires before App.tsx's
+  // bubble-phase Ctrl+K handler. In monitor mode, stopImmediatePropagation
+  // prevents the event from reaching any other listener.
 
   useEffect(() => {
     const handler = (e: KeyboardEvent) => {
@@ -335,26 +377,44 @@ const CanvasDropTarget = forwardRef<
       }
 
       const isMod = e.ctrlKey || e.metaKey
+      if (!isMod) return
 
-      if (isMod && (e.key === 'k' || e.key === 'K')) {
+      const key = e.key.toLowerCase()
+      const isAuthoringKey =
+        key === 'k' ||
+        key === 'z' ||
+        key === 's'
+
+      if (!isAuthoringKey) return
+
+      // Monitor mode: fully consume the event — no other handler should see it
+      if (mode === 'monitoring') {
         e.preventDefault()
-        setContextMenu(null) // Close any open context menu
+        e.stopImmediatePropagation()
+        return
+      }
+
+      // Authoring mode: handle normally (no stopImmediatePropagation —
+      // App.tsx Ctrl+K CommandPalette must still work in bubble phase)
+      if (key === 'k') {
+        e.preventDefault()
+        setContextMenu(null)
         setNodeSearchOpen((prev) => !prev)
-      } else if (isMod && e.shiftKey && (e.key === 'z' || e.key === 'Z')) {
+      } else if (key === 'z' && e.shiftKey) {
         e.preventDefault()
         redo()
-      } else if (isMod && (e.key === 'z' || e.key === 'Z')) {
+      } else if (key === 'z' && !e.shiftKey) {
         e.preventDefault()
         undo()
-      } else if (isMod && (e.key === 's' || e.key === 'S')) {
+      } else if (key === 's') {
         e.preventDefault()
         handleSave()
       }
     }
 
-    window.addEventListener('keydown', handler)
-    return () => window.removeEventListener('keydown', handler)
-  }, [undo, redo, handleSave])
+    window.addEventListener('keydown', handler, true)
+    return () => window.removeEventListener('keydown', handler, true)
+  }, [mode, undo, redo, handleSave])
 
   // ─── Drag and drop ────────────────────────────────────────────────────
 
@@ -385,16 +445,20 @@ const CanvasDropTarget = forwardRef<
         onNodesChange={onNodesChange}
         onEdgesChange={onEdgesChange}
         onConnect={onConnect}
-        onNodeClick={onNodeClick}
+        onNodeClick={handleNodeClick}
         onEdgeClick={onEdgeClick}
-        onPaneClick={onPaneClick}
-        onPaneContextMenu={onPaneContextMenu}
-        onNodeContextMenu={onNodeContextMenu}
-        onEdgeContextMenu={onEdgeContextMenu}
+        onPaneClick={handlePaneClick}
+        onPaneContextMenu={mode !== 'monitoring' ? onPaneContextMenu : undefined}
+        onNodeContextMenu={mode !== 'monitoring' ? onNodeContextMenu : undefined}
+        onEdgeContextMenu={mode !== 'monitoring' ? onEdgeContextMenu : undefined}
         nodeTypes={memoizedNodeTypes}
         edgeTypes={memoizedEdgeTypes}
+        nodesDraggable={mode !== 'monitoring'}
+        nodesConnectable={mode !== 'monitoring'}
+        elementsSelectable={mode !== 'monitoring'}
         onDragOver={onDragOver}
         onDrop={onDrop}
+        deleteKeyCode={mode !== 'monitoring' ? 'Delete' : null}
         fitView
         style={{
           background: 'var(--nous-builder-canvas-bg)',
@@ -436,79 +500,127 @@ const CanvasDropTarget = forwardRef<
         validationErrorCount={validationErrors.length}
         isValidationPanelOpen={isValidationPanelOpen}
       />
-      <NodePalette containerRef={canvasRef} />
-      <NodeInspector
-        selectedNodeId={selectedNodeId}
-        nodes={nodes}
-        updateNodeData={updateNodeData}
-        validationErrors={validationErrors}
-        containerRef={canvasRef}
-      />
-      <EdgeInspector
-        selectedEdgeId={selectedEdgeId}
-        edges={edges}
-        nodes={nodes}
-        removeEdge={removeEdge}
-        addEdge={addEdge}
-        containerRef={canvasRef}
-      />
-      <WorkflowInspector
-        selectedNodeId={selectedNodeId}
-        selectedEdgeId={selectedEdgeId}
-        nodes={nodes}
-        edges={edges}
-        getCurrentSpec={getCurrentSpec}
-        containerRef={canvasRef}
-      />
+      {/* Authoring-only UI — hidden in monitor mode */}
+      {mode !== 'monitoring' && (
+        <>
+          <NodePalette containerRef={canvasRef} />
+          <NodeInspector
+            selectedNodeId={selectedNodeId}
+            nodes={nodes}
+            updateNodeData={updateNodeData}
+            validationErrors={validationErrors}
+            containerRef={canvasRef}
+          />
+          <EdgeInspector
+            selectedEdgeId={selectedEdgeId}
+            edges={edges}
+            nodes={nodes}
+            removeEdge={removeEdge}
+            addEdge={addEdge}
+            containerRef={canvasRef}
+          />
+          <WorkflowInspector
+            selectedNodeId={selectedNodeId}
+            selectedEdgeId={selectedEdgeId}
+            nodes={nodes}
+            edges={edges}
+            getCurrentSpec={getCurrentSpec}
+            containerRef={canvasRef}
+          />
 
-      {/* Context Menus */}
-      {contextMenu?.type === 'canvas' && (
-        <CanvasContextMenu
-          position={contextMenu.position}
-          onClose={closeContextMenu}
-          onAddNode={handleContextMenuAddNode}
-          onSelectAll={handleSelectAll}
+          {/* Context Menus */}
+          {contextMenu?.type === 'canvas' && (
+            <CanvasContextMenu
+              position={contextMenu.position}
+              onClose={closeContextMenu}
+              onAddNode={handleContextMenuAddNode}
+              onSelectAll={handleSelectAll}
+            />
+          )}
+          {contextMenu?.type === 'node' && contextMenu.targetId && (
+            <NodeContextMenu
+              position={contextMenu.position}
+              nodeId={contextMenu.targetId}
+              onClose={closeContextMenu}
+              onDeleteNode={handleContextMenuDeleteNode}
+              onDuplicateNode={handleContextMenuDuplicateNode}
+              onOpenInspector={handleContextMenuOpenInspector}
+            />
+          )}
+          {contextMenu?.type === 'edge' && contextMenu.targetId && (
+            <EdgeContextMenu
+              position={contextMenu.position}
+              edgeId={contextMenu.targetId}
+              onClose={closeContextMenu}
+              onDeleteEdge={handleContextMenuDeleteEdge}
+              onChangeEdgeType={handleContextMenuChangeEdgeType}
+            />
+          )}
+
+          {/* Node Search */}
+          <NodeSearch
+            isOpen={nodeSearchOpen}
+            onClose={() => setNodeSearchOpen(false)}
+            nodes={nodes}
+            onAddNode={handleSearchAddNode}
+            onFocusNode={handleSearchFocusNode}
+          />
+
+          {/* Validation Panel (SP 2.5) */}
+          <ValidationPanel
+            validationErrors={validationErrors}
+            nodes={nodes}
+            edges={edges}
+            isVisible={isValidationPanelOpen}
+            onClose={() => setIsValidationPanelOpen(false)}
+            onErrorClick={handleErrorClick}
+            containerRef={canvasRef}
+          />
+        </>
+      )}
+
+      {/* Execution Monitor Overlay (SP 3.1) */}
+      {mode === 'monitoring' && activeRun !== null && (
+        <ExecutionMonitor activeRun={activeRun} />
+      )}
+
+      {/* Execution History Panel (SP 3.1) */}
+      {mode === 'monitoring' && (
+        <ExecutionHistory
+          containerRef={canvasRef}
+          onSelectRun={setActiveRun}
+          activeRunId={activeRun?.id ?? null}
         />
       )}
-      {contextMenu?.type === 'node' && contextMenu.targetId && (
-        <NodeContextMenu
-          position={contextMenu.position}
-          nodeId={contextMenu.targetId}
-          onClose={closeContextMenu}
-          onDeleteNode={handleContextMenuDeleteNode}
-          onDuplicateNode={handleContextMenuDuplicateNode}
-          onOpenInspector={handleContextMenuOpenInspector}
-        />
-      )}
-      {contextMenu?.type === 'edge' && contextMenu.targetId && (
-        <EdgeContextMenu
-          position={contextMenu.position}
-          edgeId={contextMenu.targetId}
-          onClose={closeContextMenu}
-          onDeleteEdge={handleContextMenuDeleteEdge}
-          onChangeEdgeType={handleContextMenuChangeEdgeType}
-        />
-      )}
 
-      {/* Node Search */}
-      <NodeSearch
-        isOpen={nodeSearchOpen}
-        onClose={() => setNodeSearchOpen(false)}
-        nodes={nodes}
-        onAddNode={handleSearchAddNode}
-        onFocusNode={handleSearchFocusNode}
-      />
-
-      {/* Validation Panel (SP 2.5) */}
-      <ValidationPanel
-        validationErrors={validationErrors}
-        nodes={nodes}
-        edges={edges}
-        isVisible={isValidationPanelOpen}
-        onClose={() => setIsValidationPanelOpen(false)}
-        onErrorClick={handleErrorClick}
-        containerRef={canvasRef}
-      />
+      {/* Inspection Panels (SP 3.2) */}
+      {(mode === 'monitoring' || mode === 'inspecting') &&
+        inspectionState.type === 'node' &&
+        activeRun !== null && (() => {
+          const inspectedNodeId = inspectionState.nodeId
+          const inspectedNode = nodes.find((n) => n.id === inspectedNodeId)
+          const gates = activeRun.gateStates?.[inspectedNodeId] ?? []
+          const artifacts = activeRun.artifactRefs?.[inspectedNodeId] ?? []
+          return (
+            <>
+              <GatePanel
+                key={`gate-${inspectedNodeId}`}
+                nodeId={inspectedNodeId}
+                nodeLabel={inspectedNode?.data.label ?? inspectedNodeId}
+                gates={gates}
+                containerRef={canvasRef}
+              />
+              <ArtifactBrowser
+                key={`artifact-${inspectedNodeId}`}
+                nodeId={inspectedNodeId}
+                nodeLabel={inspectedNode?.data.label ?? inspectedNodeId}
+                artifacts={artifacts}
+                containerRef={canvasRef}
+              />
+            </>
+          )
+        })()
+      }
     </>
   )
 })
@@ -543,14 +655,16 @@ function WorkflowBuilderCanvas({ className }: { className?: string }) {
         outline: 'none',
       }}
     >
-      <ReactFlowProvider>
-        <CanvasDropTarget
-          ref={dropTargetRef}
-          canvasRef={canvasRef}
-          canvasHasFocus={canvasHasFocus}
-          onFocusedNodeChange={handleFocusedNodeChange}
-        />
-      </ReactFlowProvider>
+      <BuilderModeProvider>
+        <ReactFlowProvider>
+          <CanvasDropTarget
+            ref={dropTargetRef}
+            canvasRef={canvasRef}
+            canvasHasFocus={canvasHasFocus}
+            onFocusedNodeChange={handleFocusedNodeChange}
+          />
+        </ReactFlowProvider>
+      </BuilderModeProvider>
     </div>
   )
 }

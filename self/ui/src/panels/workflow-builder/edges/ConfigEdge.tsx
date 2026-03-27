@@ -30,16 +30,22 @@ export function ConfigEdge({
   })
 
   const edgeData = data as unknown as WorkflowBuilderEdgeData | undefined
+  const execState = edgeData?.executionState
+  const isActive = execState?.status === 'active'
+  const isCompleted = execState?.status === 'completed'
 
   return (
     <>
       <BaseEdge
         id={id}
         path={edgePath}
+        className={isActive ? 'nous-edge-flow-active' : undefined}
         style={{
-          stroke: 'var(--nous-builder-edge-config)',
+          stroke: isActive || isCompleted
+            ? 'var(--nous-accent)'
+            : 'var(--nous-builder-edge-config)',
           strokeWidth: 1.5,
-          strokeDasharray: '6 3',
+          strokeDasharray: isActive ? undefined : '6 3',
         }}
       />
       {edgeData?.label && (

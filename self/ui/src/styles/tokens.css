@@ -205,6 +205,10 @@
   --nous-node-governance:        #d19a66;
   --nous-edge-execution:         #abb2bf;
   --nous-edge-config:            #5c6370;
+  --nous-edge-memory:            #98c379;
+  --nous-monitor-pulse-color:    rgba(0, 122, 204, 0.4);
+  --nous-monitor-badge-bg:       #1a1a1a;
+  --nous-monitor-badge-fg:       #fafafa;
   --nous-canvas-selection-ring:  #007acc;
   --nous-canvas-minimap-bg:      #0f0f0f;
   --nous-canvas-minimap-node:    #2a2a2a;

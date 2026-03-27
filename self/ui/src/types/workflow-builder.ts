@@ -35,12 +35,14 @@ export interface WorkflowBuilderNodeData {
 export type WorkflowBuilderNode = Node<WorkflowBuilderNodeData>
 
 /** Edge type discriminator for visual styling. */
-export type BuilderEdgeType = 'execution' | 'config'
+export type BuilderEdgeType = 'execution' | 'config' | 'memory'
 
 /** Data payload carried by each builder edge. */
 export interface WorkflowBuilderEdgeData {
   edgeType: BuilderEdgeType
   label?: string
+  /** Execution state for monitor-mode edge animation (Phase 3). */
+  executionState?: EdgeFlowState
   [key: string]: unknown
 }
 
@@ -315,4 +317,138 @@ export interface ValidationPanelItem {
   elementId: string | null
   /** Element type for icon rendering. */
   elementType: 'node' | 'edge' | 'spec' | null
+}
+
+// ─── Phase 3 — Execution Monitoring Types ────────────────────────────────────
+
+/** Status of an execution run. */
+export type ExecutionRunStatus = 'running' | 'completed' | 'failed' | 'paused'
+
+/** Status of a single node within an execution run. */
+export type ExecutionNodeStatus = 'pending' | 'running' | 'completed' | 'failed' | 'skipped'
+
+/** Status of an edge within an execution run. */
+export type ExecutionEdgeStatus = 'idle' | 'active' | 'completed'
+
+/** Event type discriminator for execution timeline events. */
+export type ExecutionEventType =
+  | 'run_started'
+  | 'node_started'
+  | 'node_completed'
+  | 'node_failed'
+  | 'node_skipped'
+  | 'edge_activated'
+  | 'edge_completed'
+  | 'run_completed'
+  | 'run_failed'
+
+/** State of a single node during execution. */
+export interface NodeExecutionState {
+  nodeId: string
+  status: ExecutionNodeStatus
+  startedAt: string | null
+  completedAt: string | null
+  duration: number | null
+  error: string | null
+}
+
+/** State of an edge during execution. */
+export interface EdgeFlowState {
+  edgeId: string
+  status: ExecutionEdgeStatus
+  flowType: BuilderEdgeType
+}
+
+/** A timestamped event in the execution timeline. */
+export interface ExecutionEvent {
+  id: string
+  type: ExecutionEventType
+  timestamp: string
+  nodeId: string | null
+  edgeId: string | null
+  metadata: Record<string, unknown>
+}
+
+/** A single execution run. */
+export interface ExecutionRun {
+  id: string
+  workflowId: string
+  status: ExecutionRunStatus
+  startedAt: string
+  completedAt: string | null
+  /** Map of nodeId -> NodeExecutionState for fast lookup. */
+  nodeStates: Record<string, NodeExecutionState>
+  /** Map of edgeId -> EdgeFlowState for fast lookup. */
+  edgeStates: Record<string, EdgeFlowState>
+  /** Ordered event timeline for potential future replay. */
+  events: ExecutionEvent[]
+  /** Per-node gate states for the Gate Panel (SP 3.2). Optional for backward compat. */
+  gateStates?: Record<string, GateState[]>
+  /** Per-node artifact refs for the Artifact Browser (SP 3.2). Optional for backward compat. */
+  artifactRefs?: Record<string, ArtifactRef[]>
+}
+
+/** Monitoring state slice within useBuilderState. */
+export interface MonitoringState {
+  /** Currently loaded execution run, or null if none selected. */
+  activeRun: ExecutionRun | null
+  /** Convenience flag: true when activeRun is non-null and mode is 'monitoring'. */
+  isMonitoring: boolean
+}
+
+/**
+ * Discriminated union tracking which element is being inspected in
+ * monitoring / inspecting mode. Distinct from authoring InspectorState.
+ */
+export type InspectionState =
+  | { type: 'node'; nodeId: string }
+  | { type: 'none' }
+
+// ─── Shared Downstream Types (Foundation for SP 3.2-3.4) ────────────────────
+
+/** Gate state for the Gate Panel (SP 3.2). */
+export interface GateState {
+  gateId: string
+  name: string
+  status: 'pending' | 'passed' | 'failed' | 'skipped'
+  nodeId: string
+  /** Gate type discriminator for display grouping and icon selection. */
+  type: 'approval' | 'quality' | 'governance'
+  /** Error detail string when status is 'failed', null otherwise. */
+  errorDetail: string | null
+}
+
+/** Reference to an artifact for the Artifact Browser (SP 3.2). */
+export interface ArtifactRef {
+  id: string
+  /** Freeform description string (retained from SP 3.1 stub). */
+  type: string
+  label: string
+  nodeId: string
+  /** Typed discriminator for visual badge styling. */
+  artifactType: 'dispatch' | 'revision' | 'escalation' | 'output' | 'other'
+}
+
+/** Reference to a dispatch packet for the Dispatch Viewer (SP 3.3). */
+export interface DispatchPacketRef {
+  id: string
+  type: string
+  sourceNodeId: string
+  targetNodeId: string
+}
+
+/** Reference to a revision cycle for the Revision Tracker (SP 3.3). */
+export interface RevisionCycleRef {
+  id: string
+  cycle: number
+  nodeId: string
+  status: 'open' | 'closed'
+}
+
+/** Reference to an escalation for the Escalation Queue (SP 3.4). */
+export interface EscalationRef {
+  id: string
+  severity: 'low' | 'medium' | 'high' | 'critical'
+  nodeId: string
+  message: string
 }
