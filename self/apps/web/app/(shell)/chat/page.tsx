@@ -3,11 +3,10 @@
 import * as React from 'react';
 import Link from 'next/link';
 import { useSearchParams } from 'next/navigation';
+import { ChatPanel } from '@nous/ui/panels';
+import type { ChatAPI } from '@nous/ui/panels';
 import { trpc } from '@/lib/trpc';
 import { useProject } from '@/lib/project-context';
-import { EscalationInbox } from '@/components/chat/escalation-inbox';
-import { MessageList } from '@/components/chat/message-list';
-import { ChatInput } from '@/components/chat/chat-input';
 import { buildMaoReturnHref, readMaoNavigationContext } from '@/lib/mao-links';
 
 export default function ChatPage() {
@@ -33,9 +32,6 @@ function ChatPageContent() {
   const searchParams = useSearchParams();
   const linkedProjectId = searchParams.get('projectId');
   const maoContext = readMaoNavigationContext(searchParams);
-  const [optimisticMessages, setOptimisticMessages] = React.useState<
-    Array<{ role: 'user' | 'assistant'; content: string }>
-  >([]);
 
   React.useEffect(() => {
     if (linkedProjectId && linkedProjectId !== projectId) {
@@ -43,54 +39,38 @@ function ChatPageContent() {
     }
   }, [linkedProjectId, projectId, setProjectId]);
 
-  const { data: history } = trpc.chat.getHistory.useQuery(
-    { projectId: projectId ?? undefined },
-    { enabled: !!projectId },
-  );
-  const { data: escalationQueue } = trpc.escalations.listProjectQueue.useQuery(
-    { projectId: projectId ?? undefined as any },
-    { enabled: !!projectId },
-  );
-
   const utils = trpc.useUtils();
-  const sendMessage = trpc.chat.sendMessage.useMutation({
-    onSuccess: async () => {
-      if (projectId) {
-        await utils.chat.getHistory.invalidate({ projectId });
-      }
-      setOptimisticMessages([]);
-    },
-  });
+  const sendMessage = trpc.chat.sendMessage.useMutation();
 
-  const handleSend = (message: string) => {
-    setOptimisticMessages((prev) => [...prev, { role: 'user', content: message }]);
-    sendMessage.mutate({
-      message,
-      projectId: projectId ?? undefined,
-    });
-  };
-
-  const baseEntries = history?.entries ?? [];
-  const mergedEntries = [
-    ...baseEntries.map((e) => ({
-      role: e.role as 'user' | 'assistant' | 'system' | 'tool',
-      content: e.content,
-      timestamp: e.timestamp,
-      metadata: e.metadata,
-    })),
-    ...optimisticMessages.map((m) => ({
-      role: m.role as 'user' | 'assistant' | 'system' | 'tool',
-      content: m.content,
-      timestamp: new Date().toISOString(),
-      metadata: undefined as Record<string, unknown> | undefined,
-    })),
-  ];
-
-  const displayContext = {
-    entries: mergedEntries,
-    summary: history?.summary,
-    tokenCount: history?.tokenCount ?? 0,
-  };
+  const chatApi: ChatAPI = React.useMemo(
+    () => ({
+      send: async (message: string) => {
+        const result = await sendMessage.mutateAsync({
+          message,
+          projectId: projectId ?? undefined,
+        });
+        if (projectId) {
+          await utils.chat.getHistory.invalidate({ projectId });
+        }
+        return { response: result.response, traceId: result.traceId };
+      },
+      getHistory: async () => {
+        const data = await utils.chat.getHistory.fetch({
+          projectId: projectId ?? undefined,
+        });
+        return (data?.entries ?? [])
+          .filter(
+            (e) => e.role === 'user' || e.role === 'assistant',
+          )
+          .map((e) => ({
+            role: e.role as 'user' | 'assistant',
+            content: e.content,
+            timestamp: e.timestamp,
+          }));
+      },
+    }),
+    [projectId, sendMessage, utils],
+  );
 
   if (!projectId) {
     return (
@@ -121,9 +101,6 @@ function ChatPageContent() {
         flexDirection: 'column',
       }}
     >
-      {escalationQueue ? (
-        <EscalationInbox queue={escalationQueue} maoContext={maoContext} />
-      ) : null}
       {maoContext ? (
         <div
           style={{
@@ -164,11 +141,7 @@ function ChatPageContent() {
           {linkedNodeId ? ` node ${linkedNodeId.slice(0, 8)}` : ''}.
         </div>
       ) : null}
-      <MessageList context={displayContext} />
-      <ChatInput
-        onSend={handleSend}
-        disabled={sendMessage.isPending}
-      />
+      <ChatPanel chatApi={chatApi} className="flex-1" />
     </div>
   );
 }

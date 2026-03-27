@@ -27,7 +27,7 @@ describe('webRailSections', () => {
 
   it('all expected item IDs present', () => {
     const allItemIds = webRailSections.flatMap((s) => s.items.map((i) => i.id))
-    const expectedIds = ['home', 'chat', 'projects', 'mao', 'marketplace', 'traces', 'memory', 'config', 'settings']
+    const expectedIds = ['home', 'chat', 'projects', 'mao', 'traces', 'config', 'settings']
     for (const id of expectedIds) {
       expect(allItemIds).toContain(id)
     }

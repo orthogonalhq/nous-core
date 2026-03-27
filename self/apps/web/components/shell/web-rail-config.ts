@@ -15,9 +15,7 @@ export const webRailSections: RailSection[] = [
     id: 'discover',
     label: 'Discover',
     items: [
-      { id: 'marketplace', label: 'Marketplace', icon: 'K' },
       { id: 'traces', label: 'Traces', icon: 'R' },
-      { id: 'memory', label: 'Memory', icon: 'Y' },
     ],
   },
   {
