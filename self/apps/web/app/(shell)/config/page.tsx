@@ -3,9 +3,7 @@
 import type { CSSProperties } from 'react';
 
 import { trpc } from '@/lib/trpc';
-import { Card, CardHeader, CardTitle, CardContent } from '@/components/ui/card';
-import { Select } from '@/components/ui/select';
-import { Badge } from '@/components/ui/badge';
+import { Card, CardHeader, CardTitle, CardContent, Select, Badge } from '@nous/ui';
 
 const pageStyle: CSSProperties = {
   display: 'flex',

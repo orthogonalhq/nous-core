@@ -4,9 +4,7 @@ import { Suspense } from 'react';
 import { useSearchParams } from 'next/navigation';
 import { useProject } from '@/lib/project-context';
 import { trpc } from '@/lib/trpc';
-import { Card, CardHeader, CardTitle, CardContent } from '@/components/ui/card';
-import { Collapsible, CollapsibleTrigger, CollapsibleContent } from '@/components/ui/collapsible';
-import { Badge } from '@/components/ui/badge';
+import { Card, CardHeader, CardTitle, CardContent, Collapsible, CollapsibleTrigger, CollapsibleContent, Badge } from '@nous/ui';
 
 function shortId(id: string): string {
   if (id.length <= 14) {

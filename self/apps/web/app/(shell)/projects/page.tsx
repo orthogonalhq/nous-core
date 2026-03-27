@@ -3,7 +3,7 @@
 import * as React from 'react';
 import Link from 'next/link';
 import { useSearchParams } from 'next/navigation';
-import { Badge } from '@/components/ui/badge';
+import { Badge } from '@nous/ui';
 import { ProjectConfigurationPanel } from '@/components/projects/project-configuration-panel';
 import { ProjectDashboard } from '@/components/projects/project-dashboard';
 import { ProjectEscalationQueue } from '@/components/projects/project-escalation-queue';

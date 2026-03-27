@@ -2,8 +2,7 @@
 
 import * as React from 'react';
 import type { WorkflowVisualDebugSnapshot } from '@nous/shared';
-import { Badge } from '@/components/ui/badge';
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
+import { Badge, Card, CardContent, CardHeader, CardTitle } from '@nous/ui';
 
 interface WorkflowGraphCanvasProps {
   snapshot: WorkflowVisualDebugSnapshot;

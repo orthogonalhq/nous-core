@@ -8,8 +8,7 @@
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
 import { trpc } from '@/lib/trpc';
-import { Button } from '@/components/ui/button';
-import { ScrollArea } from '@/components/ui/scroll-area';
+import { Button, ScrollArea } from '@nous/ui';
 import { NAV_CONFIG } from '@/lib/nav-config';
 import { ThemeToggle } from './theme-toggle';
 

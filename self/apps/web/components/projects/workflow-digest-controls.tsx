@@ -1,8 +1,7 @@
 'use client';
 
 import * as React from 'react';
-import { Input } from '@/components/ui/input';
-import { Select } from '@/components/ui/select';
+import { Input, Select } from '@nous/ui';
 
 export interface WorkflowDigestState {
   query: string;
