@@ -4,9 +4,6 @@ import * as React from 'react';
 import Link from 'next/link';
 import { useSearchParams } from 'next/navigation';
 import { Badge } from '@nous/ui';
-import { ProjectConfigurationPanel } from '@/components/projects/project-configuration-panel';
-import { ProjectDashboard } from '@/components/projects/project-dashboard';
-import { ProjectEscalationQueue } from '@/components/projects/project-escalation-queue';
 import { WorkflowEditor } from '@/components/projects/workflow-editor';
 import { WorkflowMonitor } from '@/components/projects/workflow-monitor';
 import { buildMaoReturnHref, readMaoNavigationContext } from '@/lib/mao-links';
@@ -33,19 +30,7 @@ function ProjectsPageContent() {
   const linkedProjectId = searchParams.get('projectId');
   const linkedRunId = searchParams.get('runId');
   const linkedNodeId = searchParams.get('nodeId');
-  const linkedPackageId = searchParams.get('packageId');
-  const linkedReleaseId = searchParams.get('releaseId');
-  const linkedCandidateId = searchParams.get('candidateId');
-  const linkedSource = searchParams.get('source');
   const maoContext = readMaoNavigationContext(searchParams);
-  const marketplaceContext =
-    linkedSource === 'marketplace' && (linkedPackageId || linkedCandidateId)
-      ? {
-          packageId: linkedPackageId,
-          releaseId: linkedReleaseId,
-          candidateId: linkedCandidateId,
-        }
-      : null;
   const [selectedRunId, setSelectedRunId] = React.useState<string | null>(
     linkedRunId,
   );
@@ -78,30 +63,6 @@ function ProjectsPageContent() {
       enabled: projectId != null,
     },
   );
-  const dashboardQuery = trpc.projects.dashboardSnapshot.useQuery(
-    {
-      projectId: projectId as any,
-    },
-    {
-      enabled: projectId != null,
-    },
-  );
-  const configurationQuery = trpc.projects.configurationSnapshot.useQuery(
-    {
-      projectId: projectId as any,
-    },
-    {
-      enabled: projectId != null,
-    },
-  );
-  const escalationQueueQuery = trpc.escalations.listProjectQueue.useQuery(
-    {
-      projectId: projectId as any,
-    },
-    {
-      enabled: projectId != null,
-    },
-  );
 
   if (!projectId) {
     return (
@@ -116,14 +77,8 @@ function ProjectsPageContent() {
   if (
     snapshotQuery.isLoading ||
     visualDebugQuery.isLoading ||
-    dashboardQuery.isLoading ||
-    configurationQuery.isLoading ||
-    escalationQueueQuery.isLoading ||
     !snapshotQuery.data ||
-    !visualDebugQuery.data ||
-    !dashboardQuery.data ||
-    !configurationQuery.data ||
-    !escalationQueueQuery.data
+    !visualDebugQuery.data
   ) {
     return (
       <div className="p-8">
@@ -134,9 +89,6 @@ function ProjectsPageContent() {
 
   const snapshot = snapshotQuery.data;
   const visualDebugSnapshot = visualDebugQuery.data;
-  const dashboard = dashboardQuery.data;
-  const configuration = configurationQuery.data;
-  const escalationQueue = escalationQueueQuery.data;
 
   return (
     <div className="space-y-6 p-8">
@@ -151,15 +103,6 @@ function ProjectsPageContent() {
         </div>
         <div className="flex flex-wrap gap-2">
           <Badge variant="outline">{snapshot.project.type}</Badge>
-          <Badge variant="outline">{dashboard.health.overallStatus}</Badge>
-          {dashboard.controlProjection ? (
-            <Badge variant="outline">
-              {dashboard.controlProjection.project_control_state}
-            </Badge>
-          ) : null}
-          {dashboard.health.activeRunStatus ? (
-            <Badge variant="outline">{dashboard.health.activeRunStatus}</Badge>
-          ) : null}
         </div>
       </div>
 
@@ -177,43 +120,6 @@ function ProjectsPageContent() {
           </Link>
         </div>
       ) : null}
-
-      {marketplaceContext ? (
-        <div className="rounded-md border border-border bg-muted/20 px-4 py-3 text-sm text-muted-foreground">
-          Marketplace handoff active
-          {marketplaceContext.packageId
-            ? ` for package ${marketplaceContext.packageId}`
-            : ''}
-          {marketplaceContext.releaseId
-            ? ` release ${marketplaceContext.releaseId}`
-            : ''}
-          {marketplaceContext.candidateId
-            ? ` candidate ${marketplaceContext.candidateId}`
-            : ''}.
-          {linkedPackageId ? (
-            <Link
-              href={`/marketplace/${linkedPackageId}${projectId ? `?projectId=${projectId}` : ''}`}
-              className="ml-2 underline underline-offset-4"
-            >
-              Return to marketplace
-            </Link>
-          ) : null}
-        </div>
-      ) : null}
-
-      <ProjectDashboard
-        snapshot={dashboard}
-        maoContext={maoContext}
-        marketplaceContext={marketplaceContext}
-      />
-
-      <div className="grid gap-6 xl:grid-cols-[minmax(0,1.5fr)_minmax(0,1fr)]">
-        <ProjectConfigurationPanel snapshot={configuration} />
-        <ProjectEscalationQueue
-          queue={escalationQueue}
-          blockedActions={dashboard.blockedActions}
-        />
-      </div>
 
       <WorkflowMonitor
         snapshot={visualDebugSnapshot}
