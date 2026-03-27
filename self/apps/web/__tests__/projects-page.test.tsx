@@ -3,45 +3,13 @@
 /* @vitest-environment jsdom */
 
 import * as React from 'react';
-import { cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react';
+import { cleanup, render, screen } from '@testing-library/react';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 const mocks = vi.hoisted(() => ({
-  workflowSnapshotUseQuery: vi.fn(),
-  workflowVisualDebugSnapshotUseQuery: vi.fn(),
-  workflowNodeInspectUseQuery: vi.fn(),
-  dashboardSnapshotUseQuery: vi.fn(),
-  configurationSnapshotUseQuery: vi.fn(),
-  listProjectQueueUseQuery: vi.fn(),
-  validateWorkflowDefinitionUseMutation: vi.fn(),
-  saveWorkflowDefinitionUseMutation: vi.fn(),
-  updateConfigurationUseMutation: vi.fn(),
-  upsertScheduleUseMutation: vi.fn(),
-  acknowledgeUseMutation: vi.fn(),
-  useUtils: vi.fn(),
   useProject: vi.fn(),
   useSearchParams: vi.fn(),
-}));
-
-vi.mock('@/lib/trpc', () => ({
-  trpc: {
-    projects: {
-      workflowSnapshot: { useQuery: mocks.workflowSnapshotUseQuery },
-      workflowVisualDebugSnapshot: { useQuery: mocks.workflowVisualDebugSnapshotUseQuery },
-      workflowNodeInspect: { useQuery: mocks.workflowNodeInspectUseQuery },
-      dashboardSnapshot: { useQuery: mocks.dashboardSnapshotUseQuery },
-      configurationSnapshot: { useQuery: mocks.configurationSnapshotUseQuery },
-      validateWorkflowDefinition: { useMutation: mocks.validateWorkflowDefinitionUseMutation },
-      saveWorkflowDefinition: { useMutation: mocks.saveWorkflowDefinitionUseMutation },
-      updateConfiguration: { useMutation: mocks.updateConfigurationUseMutation },
-      upsertSchedule: { useMutation: mocks.upsertScheduleUseMutation },
-    },
-    escalations: {
-      listProjectQueue: { useQuery: mocks.listProjectQueueUseQuery },
-      acknowledge: { useMutation: mocks.acknowledgeUseMutation },
-    },
-    useUtils: mocks.useUtils,
-  },
+  WorkflowBuilderPanel: vi.fn(),
 }));
 
 vi.mock('@/lib/project-context', () => ({
@@ -52,20 +20,16 @@ vi.mock('next/navigation', () => ({
   useSearchParams: mocks.useSearchParams,
 }));
 
+vi.mock('@nous/ui/panels', () => ({
+  WorkflowBuilderPanel: (props: Record<string, unknown>) => {
+    mocks.WorkflowBuilderPanel(props);
+    return <div data-testid="workflow-builder-panel" />;
+  },
+}));
+
 import ProjectsPage from '@/app/(shell)/projects/page';
 
 describe('ProjectsPage', () => {
-  const validateMutateAsync = vi.fn();
-  const saveMutateAsync = vi.fn();
-  const updateConfigurationMutate = vi.fn();
-  const upsertScheduleMutate = vi.fn();
-  const acknowledgeMutate = vi.fn();
-  const workflowInvalidate = vi.fn();
-  const visualDebugInvalidate = vi.fn();
-  const dashboardInvalidate = vi.fn();
-  const configurationInvalidate = vi.fn();
-  const queueInvalidate = vi.fn();
-
   beforeEach(() => {
     vi.clearAllMocks();
     mocks.useProject.mockReturnValue({
@@ -75,161 +39,35 @@ describe('ProjectsPage', () => {
     mocks.useSearchParams.mockReturnValue({
       get: vi.fn(() => null),
     });
-    mocks.workflowSnapshotUseQuery.mockReturnValue({
-      data: createWorkflowSnapshot(),
-      isLoading: false,
-    });
-    mocks.workflowVisualDebugSnapshotUseQuery.mockReturnValue({
-      data: createWorkflowVisualDebugSnapshot(),
-      isLoading: false,
-    });
-    mocks.workflowNodeInspectUseQuery.mockReturnValue({
-      data: createWorkflowNodeInspect(),
-      isLoading: false,
-    });
-    mocks.dashboardSnapshotUseQuery.mockReturnValue({
-      data: createDashboardSnapshot(),
-      isLoading: false,
-    });
-    mocks.configurationSnapshotUseQuery.mockReturnValue({
-      data: createConfigurationSnapshot(),
-      isLoading: false,
-    });
-    mocks.listProjectQueueUseQuery.mockReturnValue({
-      data: createQueueSnapshot(),
-      isLoading: false,
-    });
-    mocks.validateWorkflowDefinitionUseMutation.mockReturnValue({
-      mutateAsync: validateMutateAsync,
-      isPending: false,
-    });
-    mocks.saveWorkflowDefinitionUseMutation.mockReturnValue({
-      mutateAsync: saveMutateAsync,
-      isPending: false,
-    });
-    mocks.updateConfigurationUseMutation.mockReturnValue({
-      mutate: updateConfigurationMutate,
-      isPending: false,
-    });
-    mocks.upsertScheduleUseMutation.mockReturnValue({
-      mutate: upsertScheduleMutate,
-      isPending: false,
-    });
-    mocks.acknowledgeUseMutation.mockReturnValue({
-      mutate: acknowledgeMutate,
-      isPending: false,
-    });
-    mocks.useUtils.mockReturnValue({
-      projects: {
-        workflowSnapshot: {
-          invalidate: workflowInvalidate,
-        },
-        workflowVisualDebugSnapshot: {
-          invalidate: visualDebugInvalidate,
-        },
-        dashboardSnapshot: {
-          invalidate: dashboardInvalidate,
-        },
-        configurationSnapshot: {
-          invalidate: configurationInvalidate,
-        },
-      },
-      escalations: {
-        listProjectQueue: {
-          invalidate: queueInvalidate,
-        },
-      },
-    });
-    validateMutateAsync.mockResolvedValue({
-      valid: true,
-      definition: createWorkflowSnapshot().workflowDefinition,
-      derivedGraph: createWorkflowSnapshot().graph,
-      issues: [],
-    });
-    saveMutateAsync.mockResolvedValue({
-      project: { workflow: { definitions: [{ version: '1.0.1' }] } },
-      validation: { valid: true, issues: [] },
-    });
   });
 
   afterEach(() => {
     cleanup();
   });
 
-  it('renders workflow sections after domain component retirement', async () => {
+  it('renders WorkflowBuilderPanel from @nous/ui/panels', () => {
     render(<ProjectsPage />);
 
-    expect(screen.getByText('Projects Operating Surface')).toBeTruthy();
-    expect(screen.getByText('Run monitor')).toBeTruthy();
-    expect(screen.getByText('Visual workflow canvas')).toBeTruthy();
-    expect(screen.getByText('Advanced editor')).toBeTruthy();
+    expect(screen.getByTestId('workflow-builder-panel')).toBeTruthy();
+    expect(mocks.WorkflowBuilderPanel).toHaveBeenCalledWith(
+      expect.objectContaining({
+        className: expect.any(String),
+      }),
+    );
   });
 
-  it('validates and saves the workflow draft through the server mutations', async () => {
-    render(<ProjectsPage />);
-
-    fireEvent.click(screen.getByRole('button', { name: 'Validate draft' }));
-
-    await waitFor(() => {
-      expect(validateMutateAsync).toHaveBeenCalled();
-    });
-    expect(await screen.findByText('Workflow definition is valid.')).toBeTruthy();
-
-    fireEvent.click(screen.getByRole('button', { name: 'Save workflow' }));
-
-    await waitFor(() => {
-      expect(saveMutateAsync).toHaveBeenCalled();
-    });
-    expect(await screen.findByText('Workflow definition saved.')).toBeTruthy();
-    expect(workflowInvalidate).toHaveBeenCalled();
-    expect(visualDebugInvalidate).toHaveBeenCalled();
-  });
-
-  it('renders inspect-first empty state when no canonical workflow definition exists', () => {
-    mocks.workflowSnapshotUseQuery.mockReturnValue({
-      data: createWorkflowSnapshot({
-        workflowDefinition: null,
-        graph: null,
-        nodeProjections: [],
-        project: {
-          ...createWorkflowSnapshot().project,
-          type: 'intent',
-        },
-        runtimeAvailability: 'no_active_run',
-        diagnostics: {
-          runtimePosture: 'single_process_local',
-          inspectFirstMode: 'no-definition',
-        },
-      }),
-      isLoading: false,
-    });
-    mocks.workflowVisualDebugSnapshotUseQuery.mockReturnValue({
-      data: createWorkflowVisualDebugSnapshot({
-        workflowDefinition: null,
-        graph: null,
-        stages: [],
-        canvasNodes: [],
-        canvasEdges: [],
-        nodeProjections: [],
-        project: {
-          ...createWorkflowVisualDebugSnapshot().project,
-          type: 'intent',
-        },
-        runtimeAvailability: 'no_active_run',
-        diagnostics: {
-          runtimePosture: 'single_process_local',
-          inspectFirstMode: 'no-definition',
-          graphProjectionParity: 'aligned',
-        },
-      }),
-      isLoading: false,
+  it('shows project selection prompt when no project is selected', () => {
+    mocks.useProject.mockReturnValue({
+      projectId: null,
+      setProjectId: vi.fn(),
     });
 
     render(<ProjectsPage />);
 
-    expect(screen.getByText('Inspect-first workflow surface')).toBeTruthy();
     expect(
-      screen.getByText(/intent project has no canonical workflow definition yet/i),
+      screen.getByText(
+        'Select a project from the navigation panel to monitor and edit workflows.',
+      ),
     ).toBeTruthy();
   });
 
@@ -251,474 +89,5 @@ describe('ProjectsPage', () => {
 
     expect(screen.getByText(/MAO handoff active/i)).toBeTruthy();
     expect(screen.getAllByText(/Return to MAO/i).length).toBeGreaterThan(0);
-    expect(
-      screen.getAllByText(/MAO-origin monitoring context is active/i).length,
-    ).toBeGreaterThan(0);
   });
-
 });
-
-function createWorkflowSnapshot(overrides: Record<string, unknown> = {}) {
-  return {
-    project: {
-      id: '550e8400-e29b-41d4-a716-446655443001',
-      name: 'Projects UI Test',
-      type: 'hybrid',
-    },
-    workflowDefinition: {
-      id: '550e8400-e29b-41d4-a716-446655443002',
-      projectId: '550e8400-e29b-41d4-a716-446655443001',
-      mode: 'hybrid',
-      version: '1.0.0',
-      name: 'Projects Workflow',
-      entryNodeIds: ['550e8400-e29b-41d4-a716-446655443003'],
-      nodes: [
-        {
-          id: '550e8400-e29b-41d4-a716-446655443003',
-          name: 'Draft',
-          type: 'model-call',
-          governance: 'must',
-          executionModel: 'synchronous',
-          config: {
-            type: 'model-call',
-            modelRole: 'reasoner',
-            promptRef: 'prompt://draft',
-          },
-        },
-      ],
-      edges: [],
-    },
-    graph: {
-      workflowDefinitionId: '550e8400-e29b-41d4-a716-446655443002',
-      projectId: '550e8400-e29b-41d4-a716-446655443001',
-      version: '1.0.0',
-      graphDigest:
-        '0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef',
-      entryNodeIds: ['550e8400-e29b-41d4-a716-446655443003'],
-      topologicalOrder: ['550e8400-e29b-41d4-a716-446655443003'],
-      nodes: {
-        '550e8400-e29b-41d4-a716-446655443003': {
-          definition: {
-            id: '550e8400-e29b-41d4-a716-446655443003',
-            name: 'Draft',
-            type: 'model-call',
-            governance: 'must',
-            executionModel: 'synchronous',
-            config: {
-              type: 'model-call',
-              modelRole: 'reasoner',
-              promptRef: 'prompt://draft',
-            },
-          },
-          inboundEdgeIds: [],
-          outboundEdgeIds: [],
-          topologicalIndex: 0,
-        },
-      },
-      edges: {},
-    },
-    runtimeAvailability: 'live',
-    selectedRunId: '550e8400-e29b-41d4-a716-446655443004',
-    activeRunState: {
-      runId: '550e8400-e29b-41d4-a716-446655443004',
-      workflowDefinitionId: '550e8400-e29b-41d4-a716-446655443002',
-      projectId: '550e8400-e29b-41d4-a716-446655443001',
-      workflowVersion: '1.0.0',
-      graphDigest:
-        '0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef',
-      status: 'running',
-      admission: {
-        allowed: true,
-        reasonCode: 'workflow_admitted',
-        evidenceRefs: ['workflow:admission'],
-      },
-      activeNodeIds: ['550e8400-e29b-41d4-a716-446655443003'],
-      activatedEdgeIds: [],
-      readyNodeIds: ['550e8400-e29b-41d4-a716-446655443003'],
-      waitingNodeIds: [],
-      blockedNodeIds: [],
-      completedNodeIds: [],
-      checkpointState: 'idle',
-      nodeStates: {
-        '550e8400-e29b-41d4-a716-446655443003': {
-          id: '550e8400-e29b-41d4-a716-446655443005',
-          nodeDefinitionId: '550e8400-e29b-41d4-a716-446655443003',
-          status: 'running',
-          attempts: [
-            {
-              attempt: 1,
-              status: 'running',
-              dispatchLineageId: '550e8400-e29b-41d4-a716-446655443006',
-              governanceDecision: {
-                outcome: 'allow_with_flag',
-                reasonCode: 'CGR-ALLOW-WITH-FLAG',
-                governance: 'must',
-                actionCategory: 'model-invoke',
-                projectControlState: 'running',
-                patternId: '550e8400-e29b-41d4-a716-446655443007',
-                confidence: 0.9,
-                confidenceTier: 'high',
-                supportingSignals: 1,
-                decayState: 'stable',
-                autonomyAllowed: false,
-                requiresConfirmation: false,
-                highRiskOverrideApplied: false,
-                evidenceRefs: [],
-                explanation: {
-                  patternId: '550e8400-e29b-41d4-a716-446655443007',
-                  outcomeRef: 'workflow:test',
-                  evidenceRefs: [],
-                },
-              },
-              sideEffectStatus: 'none',
-              reasonCode: 'workflow_running',
-              evidenceRefs: ['workflow:run'],
-              startedAt: '2026-03-09T19:00:00.000Z',
-              updatedAt: '2026-03-09T19:00:00.000Z',
-            },
-          ],
-          activeAttempt: 1,
-          correctionArcs: [],
-          evidenceRefs: [],
-          updatedAt: '2026-03-09T19:00:00.000Z',
-        },
-      },
-      dispatchLineage: [],
-      startedAt: '2026-03-09T19:00:00.000Z',
-      updatedAt: '2026-03-09T19:00:00.000Z',
-    },
-    recentRuns: [],
-    nodeProjections: [
-      {
-        nodeDefinitionId: '550e8400-e29b-41d4-a716-446655443003',
-        definition: {
-          id: '550e8400-e29b-41d4-a716-446655443003',
-          name: 'Draft',
-          type: 'model-call',
-          governance: 'must',
-          executionModel: 'synchronous',
-          config: {
-            type: 'model-call',
-            modelRole: 'reasoner',
-            promptRef: 'prompt://draft',
-          },
-        },
-        nodeState: null,
-        status: 'running',
-        groupKey: 'status:running',
-        artifactRefs: ['artifact://draft/v1'],
-        traceIds: [],
-        deepLinks: [
-          {
-            target: 'chat',
-            projectId: '550e8400-e29b-41d4-a716-446655443001',
-            workflowRunId: '550e8400-e29b-41d4-a716-446655443004',
-            nodeDefinitionId: '550e8400-e29b-41d4-a716-446655443003',
-          },
-        ],
-      },
-    ],
-    recentArtifacts: [
-      {
-        artifactId: '550e8400-e29b-41d4-a716-446655443008',
-        version: 1,
-        artifactRef: 'artifact://draft/v1',
-        projectId: '550e8400-e29b-41d4-a716-446655443001',
-        name: 'draft.md',
-        mimeType: 'text/markdown',
-        sizeBytes: 7,
-        integrityRef:
-          'sha256:0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef',
-        writeState: 'committed',
-        lineage: {
-          workflowRunId: '550e8400-e29b-41d4-a716-446655443004',
-          workflowNodeDefinitionId: '550e8400-e29b-41d4-a716-446655443003',
-          evidenceRefs: [],
-        },
-        tags: ['draft'],
-        createdAt: '2026-03-09T19:00:00.000Z',
-        committedAt: '2026-03-09T19:00:00.000Z',
-        updatedAt: '2026-03-09T19:00:00.000Z',
-      },
-    ],
-    recentTraces: [
-      {
-        traceId: '550e8400-e29b-41d4-a716-446655443009',
-        startedAt: '2026-03-09T19:00:00.000Z',
-        completedAt: '2026-03-09T19:00:01.000Z',
-        turnCount: 1,
-      },
-    ],
-    controlProjection: {
-      project_id: '550e8400-e29b-41d4-a716-446655443001',
-      project_control_state: 'running',
-      active_agent_count: 1,
-      blocked_agent_count: 0,
-      urgent_agent_count: 0,
-      pfc_project_review_status: 'none',
-      pfc_project_recommendation: 'continue',
-    },
-    diagnostics: {
-      runtimePosture: 'single_process_local',
-      inspectFirstMode: 'hybrid',
-    },
-    ...overrides,
-  };
-}
-
-function createWorkflowVisualDebugSnapshot(overrides: Record<string, unknown> = {}) {
-  const base = createWorkflowSnapshot();
-  return {
-    ...base,
-    stages: [
-      {
-        id: 'stage-0',
-        index: 0,
-        label: 'Entry',
-        nodeDefinitionIds: ['550e8400-e29b-41d4-a716-446655443003'],
-        kind: 'entry',
-      },
-    ],
-    canvasNodes: [
-      {
-        nodeDefinitionId: '550e8400-e29b-41d4-a716-446655443003',
-        definition: base.workflowDefinition.nodes[0],
-        stageId: 'stage-0',
-        column: 0,
-        row: 0,
-        status: 'running',
-        isEntry: true,
-        isActive: true,
-        latestAttemptStatus: 'running',
-        latestReasonCode: 'workflow_running',
-        artifactCount: 1,
-        traceCount: 0,
-        deepLinks: base.nodeProjections[0].deepLinks,
-      },
-    ],
-    canvasEdges: [],
-    maoRunGraph: {
-      projectId: base.project.id,
-      workflowRunId: base.selectedRunId,
-      nodes: [],
-      edges: [],
-      generatedAt: '2026-03-09T19:00:00.000Z',
-    },
-    checkpointSummary: {
-      runCheckpointState: 'idle',
-    },
-    schedulerSummary: {
-      triggerContext: null,
-      enabledScheduleCount: 1,
-      overdueScheduleCount: 0,
-      evidenceRefs: ['schedule:primary'],
-    },
-    diagnostics: {
-      ...base.diagnostics,
-      graphProjectionParity: 'aligned',
-    },
-    ...overrides,
-  };
-}
-
-function createWorkflowNodeInspect(overrides: Record<string, unknown> = {}) {
-  const base = createWorkflowSnapshot();
-  return {
-    nodeDefinitionId: '550e8400-e29b-41d4-a716-446655443003',
-    monitor: {
-      ...base.nodeProjections[0],
-      nodeState: base.activeRunState.nodeStates['550e8400-e29b-41d4-a716-446655443003'],
-    },
-    maoInspect: {
-      projectId: base.project.id,
-      workflowRunId: base.selectedRunId,
-      workflowNodeDefinitionId: '550e8400-e29b-41d4-a716-446655443003',
-      agent: {
-        agent_id: '550e8400-e29b-41d4-a716-446655443005',
-        project_id: base.project.id,
-        workflow_run_id: base.selectedRunId,
-        workflow_node_definition_id: '550e8400-e29b-41d4-a716-446655443003',
-        dispatching_task_agent_id: null,
-        dispatch_origin_ref: 'workflow://draft',
-        state: 'running',
-        current_step: 'Draft',
-        progress_percent: 50,
-        risk_level: 'medium',
-        urgency_level: 'normal',
-        attention_level: 'low',
-        pfc_alert_status: 'none',
-        pfc_mitigation_status: 'none',
-        dispatch_state: 'running',
-        reflection_cycle_count: 0,
-        last_update_at: '2026-03-09T19:00:00.000Z',
-        reasoning_log_preview: null,
-        reasoning_log_last_entry_class: null,
-        reasoning_log_last_entry_at: null,
-        reasoning_log_redaction_state: 'none',
-        deepLinks: base.nodeProjections[0].deepLinks,
-        evidenceRefs: ['workflow:run'],
-      },
-      projectControlState: 'running',
-      runStatus: 'running',
-      latestAttempt: {
-        attempt: 1,
-        status: 'running',
-        reasonCode: 'workflow_running',
-        evidenceRefs: ['workflow:run'],
-        startedAt: '2026-03-09T19:00:00.000Z',
-      },
-      correctionArcs: [],
-      evidenceRefs: ['workflow:run'],
-      generatedAt: '2026-03-09T19:00:00.000Z',
-    },
-    checkpointSummary: {
-      runCheckpointState: 'idle',
-    },
-    artifactRefs: ['artifact://draft/v1'],
-    traceIds: [],
-    policyReasonCode: 'workflow_running',
-    ...overrides,
-  };
-}
-
-function createDashboardSnapshot() {
-  return {
-    project: createWorkflowSnapshot().project,
-    health: {
-      overallStatus: 'attention_required',
-      runtimeAvailability: 'live',
-      activeRunStatus: 'running',
-      blockedNodeCount: 0,
-      waitingNodeCount: 0,
-      enabledScheduleCount: 1,
-      overdueScheduleCount: 0,
-      openEscalationCount: 1,
-      urgentEscalationCount: 1,
-    },
-    controlProjection: createWorkflowSnapshot().controlProjection,
-    workflowSnapshot: createWorkflowSnapshot(),
-    schedules: [
-      {
-        id: '550e8400-e29b-41d4-a716-446655443010',
-        projectId: '550e8400-e29b-41d4-a716-446655443001',
-        workflowDefinitionId: '550e8400-e29b-41d4-a716-446655443002',
-        workmodeId: 'system:implementation',
-        trigger: {
-          kind: 'cron',
-          cron: '0 * * * *',
-        },
-        enabled: true,
-        requestedDeliveryMode: 'none',
-        nextDueAt: '2026-03-09T20:00:00.000Z',
-        createdAt: '2026-03-09T19:00:00.000Z',
-        updatedAt: '2026-03-09T19:00:00.000Z',
-      },
-    ],
-    openEscalations: createQueueSnapshot().items,
-    blockedActions: [
-      {
-        action: 'edit_project_configuration',
-        allowed: true,
-        message: 'Configuration edits are allowed while the project is running.',
-        evidenceRefs: ['project-control:running'],
-      },
-      {
-        action: 'update_schedule',
-        allowed: true,
-        message: 'Schedule updates are allowed while the project is running.',
-        evidenceRefs: ['project-control:running'],
-      },
-      {
-        action: 'acknowledge_escalation',
-        allowed: true,
-        message: 'Escalations may be acknowledged while the project is running.',
-        evidenceRefs: ['project-control:running'],
-      },
-    ],
-    packageDefaultIntake: [],
-    diagnostics: {
-      runtimePosture: 'single_process_local',
-    },
-  };
-}
-
-function createConfigurationSnapshot() {
-  return {
-    projectId: '550e8400-e29b-41d4-a716-446655443001',
-    updatedAt: '2026-03-09T19:00:00.000Z',
-    config: {
-      id: '550e8400-e29b-41d4-a716-446655443001',
-      name: 'Projects UI Test',
-      type: 'hybrid',
-      pfcTier: 3,
-      governanceDefaults: {
-        defaultNodeGovernance: 'must',
-        requireExplicitReviewForShouldDeviation: true,
-        blockedActionFeedbackMode: 'reason_coded',
-      },
-      modelAssignments: {
-        reasoner: '00000000-0000-0000-0000-000000000001',
-      },
-      memoryAccessPolicy: {
-        canReadFrom: 'all',
-        canBeReadBy: 'all',
-        inheritsGlobal: true,
-      },
-      escalationChannels: ['in-app'],
-      escalationPreferences: {
-        routeByPriority: {
-          low: ['projects'],
-          medium: ['projects'],
-          high: ['projects', 'chat'],
-          critical: ['projects', 'chat', 'mao'],
-        },
-        acknowledgementSurfaces: ['projects', 'chat'],
-        mirrorToChat: true,
-      },
-      workflow: {
-        defaultWorkflowDefinitionId: '550e8400-e29b-41d4-a716-446655443002',
-        definitions: [createWorkflowSnapshot().workflowDefinition],
-      },
-      packageDefaultIntake: [],
-      retrievalBudgetTokens: 500,
-      createdAt: '2026-03-09T19:00:00.000Z',
-      updatedAt: '2026-03-09T19:00:00.000Z',
-    },
-    schedules: createDashboardSnapshot().schedules,
-    blockedActions: createDashboardSnapshot().blockedActions,
-    fieldProvenance: [
-      {
-        field: 'type',
-        source: 'project_override',
-        evidenceRefs: ['project-config:type'],
-        lockedByPolicy: false,
-      },
-    ],
-  };
-}
-
-function createQueueSnapshot() {
-  return {
-    projectId: '550e8400-e29b-41d4-a716-446655443001',
-    items: [
-      {
-        escalationId: '550e8400-e29b-41d4-a716-446655443011',
-        projectId: '550e8400-e29b-41d4-a716-446655443001',
-        source: 'workflow',
-        severity: 'high',
-        title: 'Workflow blocked on review',
-        message: 'Review and resume is required.',
-        status: 'visible',
-        routeTargets: ['projects', 'chat'],
-        requiredAction: 'Review and resume',
-        evidenceRefs: ['evidence:workflow:blocked'],
-        acknowledgements: [],
-        createdAt: '2026-03-09T19:00:00.000Z',
-        updatedAt: '2026-03-09T19:00:00.000Z',
-      },
-    ],
-    openCount: 1,
-    acknowledgedCount: 0,
-    urgentCount: 1,
-  };
-}
