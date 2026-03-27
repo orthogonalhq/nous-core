@@ -123,6 +123,7 @@ export type {
   RollbackEvaluationContext,
   RecoveryOrchestratorContext,
 } from './recovery.js';
+export type { IThoughtEmitter } from './thought-emitter.js';
 export type {
   IDocumentStore,
   IVectorStore,

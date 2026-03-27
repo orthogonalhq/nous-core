@@ -30,6 +30,8 @@ const ALL_CHANNELS: (keyof EventChannelMap)[] = [
   'system:backlog-change',
   'system:outbox-event',
   'system:turn-ack',
+  'thought:pfc-decision',
+  'thought:turn-lifecycle',
 ];
 
 const HEARTBEAT_INTERVAL_MS = 30_000;

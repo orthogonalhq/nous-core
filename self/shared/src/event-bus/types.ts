@@ -140,6 +140,45 @@ export const SystemOutboxEventPayloadSchema = z.object({
 });
 export type SystemOutboxEventPayload = z.infer<typeof SystemOutboxEventPayloadSchema>;
 
+// --- Thought Domain ---
+
+export const ThoughtPfcDecisionPayloadSchema = z.object({
+  traceId: z.string(),
+  thoughtType: z.enum([
+    'confidence-governance',
+    'memory-write',
+    'memory-mutation',
+    'tool-execution',
+    'reflection',
+    'escalation',
+  ]),
+  decision: z.enum(['approved', 'denied', 'neutral']),
+  confidence: z.number().min(0).max(1).optional(),
+  reason: z.string(),
+  content: z.string(),
+  sequence: z.number().int(),
+  emittedAt: z.string().datetime(),
+});
+export type ThoughtPfcDecisionPayload = z.infer<typeof ThoughtPfcDecisionPayloadSchema>;
+
+export const ThoughtTurnLifecyclePayloadSchema = z.object({
+  traceId: z.string(),
+  phase: z.enum([
+    'turn-start',
+    'opctl-check',
+    'gateway-run',
+    'response-resolved',
+    'stm-finalize',
+    'trace-record',
+    'turn-complete',
+  ]),
+  status: z.enum(['started', 'completed', 'failed']),
+  content: z.string().optional(),
+  sequence: z.number().int(),
+  emittedAt: z.string().datetime(),
+});
+export type ThoughtTurnLifecyclePayload = z.infer<typeof ThoughtTurnLifecyclePayloadSchema>;
+
 // --- Channel Map ---
 
 export interface EventChannelMap {
@@ -159,6 +198,8 @@ export interface EventChannelMap {
   'system:backlog-change': SystemBacklogChangePayload;
   'system:outbox-event': SystemOutboxEventPayload;
   'system:turn-ack': SystemTurnAckPayload;
+  'thought:pfc-decision': ThoughtPfcDecisionPayload;
+  'thought:turn-lifecycle': ThoughtTurnLifecyclePayload;
 }
 
 /**
