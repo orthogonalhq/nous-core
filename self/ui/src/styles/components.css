@@ -216,6 +216,28 @@
   --nous-builder-panel-shadow:      var(--nous-canvas-panel-shadow);
   --nous-builder-panel-header-bg:   var(--nous-canvas-panel-header-bg);
   --nous-builder-panel-header-text: var(--nous-canvas-panel-header-text);
+
+  /* ── Builder gate status (SP 3.2) ──────────────────────────────── */
+  --nous-builder-gate-passed-bg:    rgba(50, 215, 75, 0.15);
+  --nous-builder-gate-passed-fg:    var(--nous-alert-success);
+  --nous-builder-gate-failed-bg:    rgba(255, 69, 58, 0.15);
+  --nous-builder-gate-failed-fg:    var(--nous-alert-error);
+  --nous-builder-gate-pending-bg:   rgba(0, 122, 204, 0.15);
+  --nous-builder-gate-pending-fg:   var(--nous-accent);
+  --nous-builder-gate-skipped-bg:   transparent;
+  --nous-builder-gate-skipped-fg:   var(--nous-fg-subtle);
+
+  /* ── Builder artifact type (SP 3.2) ────────────────────────────── */
+  --nous-builder-artifact-dispatch-bg:   rgba(0, 122, 204, 0.15);
+  --nous-builder-artifact-dispatch-fg:   var(--nous-accent);
+  --nous-builder-artifact-revision-bg:   rgba(188, 140, 255, 0.15);
+  --nous-builder-artifact-revision-fg:   var(--nous-state-needs-revision);
+  --nous-builder-artifact-escalation-bg: rgba(255, 69, 58, 0.15);
+  --nous-builder-artifact-escalation-fg: var(--nous-alert-error);
+  --nous-builder-artifact-output-bg:     rgba(50, 215, 75, 0.15);
+  --nous-builder-artifact-output-fg:     var(--nous-alert-success);
+  --nous-builder-artifact-other-bg:      transparent;
+  --nous-builder-artifact-other-fg:      var(--nous-fg-muted);
 }
 
 /* ── Context menu item hover ─────────────────────────────────────── */

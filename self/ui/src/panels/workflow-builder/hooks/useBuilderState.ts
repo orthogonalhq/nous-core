@@ -12,6 +12,7 @@ import type {
   BuilderMode,
   ExecutionRun,
   MonitoringState,
+  InspectionState,
 } from '../../../types/workflow-builder'
 export type { BuilderMode }
 import { DEMO_EXECUTION_RUNS } from '../monitoring/demo-execution-data'
@@ -100,6 +101,13 @@ export interface UseBuilderStateReturn {
   setActiveRun: (runId: string) => void
   /** Clear the active execution run. */
   clearActiveRun: () => void
+
+  /** Current inspection state for monitoring/inspecting mode (SP 3.2). */
+  inspectionState: InspectionState
+  /** Set a node as the inspected target (monitoring/inspecting mode). */
+  setInspectedNode: (nodeId: string) => void
+  /** Clear the current inspection selection. */
+  clearInspection: () => void
 }
 
 // ─── Hook ─────────────────────────────────────────────────────────────────────
@@ -121,6 +129,7 @@ export function useBuilderState(mode: BuilderMode = 'authoring'): UseBuilderStat
   const [selectedNodeId, setSelectedNodeId] = useState<string | null>(null)
   const [selectedEdgeId, setSelectedEdgeId] = useState<string | null>(null)
   const [activeRun, setActiveRunState] = useState<ExecutionRun | null>(null)
+  const [inspectionState, setInspectionState] = useState<InspectionState>({ type: 'none' })
   const [viewport] = useState<Viewport>(DEFAULT_VIEWPORT)
   const [validationErrors, setValidationErrors] = useState<WorkflowSpecValidationError[]>([])
   const [isDirty, setIsDirty] = useState(false)
@@ -130,10 +139,11 @@ export function useBuilderState(mode: BuilderMode = 'authoring'): UseBuilderStat
 
   // ─── Monitoring state helpers ────────────────────────────────────────────
 
-  // Clear active run when leaving monitoring mode
+  // Clear active run and inspection state when leaving monitoring/inspecting mode
   useEffect(() => {
-    if (mode !== 'monitoring') {
+    if (mode !== 'monitoring' && mode !== 'inspecting') {
       setActiveRunState(null)
+      setInspectionState({ type: 'none' })
     }
   }, [mode])
 
@@ -149,6 +159,14 @@ export function useBuilderState(mode: BuilderMode = 'authoring'): UseBuilderStat
 
   const clearActiveRun = useCallback(() => {
     setActiveRunState(null)
+  }, [])
+
+  const setInspectedNode = useCallback((nodeId: string) => {
+    setInspectionState({ type: 'node', nodeId })
+  }, [])
+
+  const clearInspection = useCallback(() => {
+    setInspectionState({ type: 'none' })
   }, [])
 
   const monitoringState: MonitoringState = {
@@ -466,5 +484,8 @@ export function useBuilderState(mode: BuilderMode = 'authoring'): UseBuilderStat
     activeRun,
     setActiveRun,
     clearActiveRun,
+    inspectionState,
+    setInspectedNode,
+    clearInspection,
   }
 }
