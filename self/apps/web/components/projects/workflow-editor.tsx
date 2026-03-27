@@ -7,10 +7,7 @@ import type {
   WorkflowDefinitionValidationResult,
   WorkflowNodeDefinition,
 } from '@nous/shared';
-import { Button } from '@/components/ui/button';
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
-import { Input } from '@/components/ui/input';
-import { Select } from '@/components/ui/select';
+import { Button, Card, CardContent, CardHeader, CardTitle, Input, Select } from '@nous/ui';
 import { trpc } from '@/lib/trpc';
 
 function createId(): string {

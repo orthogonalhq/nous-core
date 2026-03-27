@@ -2,8 +2,7 @@
 
 import * as React from 'react';
 import type { WorkflowVisualDebugSnapshot } from '@nous/shared';
-import { Badge } from '@/components/ui/badge';
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
+import { Badge, Card, CardContent, CardHeader, CardTitle } from '@nous/ui';
 import type { MaoNavigationContext } from '@/lib/mao-links';
 import { buildMaoReturnHref } from '@/lib/mao-links';
 import { trpc } from '@/lib/trpc';

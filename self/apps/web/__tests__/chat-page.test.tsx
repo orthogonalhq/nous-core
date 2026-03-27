@@ -118,24 +118,10 @@ describe('ChatPage', () => {
     cleanup();
   });
 
-  it('renders the escalation inbox and canonical chat history', () => {
+  it('renders canonical chat history', () => {
     render(<ChatPage />);
 
-    expect(screen.getByText('Escalation inbox')).toBeTruthy();
-    expect(screen.getByText('Workflow blocked on review')).toBeTruthy();
     expect(screen.getByText('Ready to help.')).toBeTruthy();
-  });
-
-  it('acknowledges escalations through the canonical queue mutation', () => {
-    render(<ChatPage />);
-
-    fireEvent.click(screen.getByRole('button', { name: 'Acknowledge' }));
-    expect(acknowledgeMutate).toHaveBeenCalledWith({
-      escalationId: '550e8400-e29b-41d4-a716-446655444002',
-      surface: 'chat',
-      actorType: 'principal',
-      note: 'Acknowledged from Chat',
-    });
   });
 
   it('renders MAO-origin reasoning continuity in chat', () => {
@@ -156,7 +142,6 @@ describe('ChatPage', () => {
     render(<ChatPage />);
 
     expect(screen.getByText(/MAO reasoning handoff active/i)).toBeTruthy();
-    expect(screen.getByText(/MAO-linked escalation context is active/i)).toBeTruthy();
     expect(screen.getAllByText(/Return to MAO/i).length).toBeGreaterThan(0);
   });
 });

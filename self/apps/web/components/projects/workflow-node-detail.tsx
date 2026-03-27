@@ -8,8 +8,7 @@ import type {
   WorkflowSurfaceLink,
   WorkflowTraceSummary,
 } from '@nous/shared';
-import { Badge } from '@/components/ui/badge';
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
+import { Badge, Card, CardContent, CardHeader, CardTitle } from '@nous/ui';
 
 function buildHref(link: WorkflowSurfaceLink): string | null {
   const params = new URLSearchParams();

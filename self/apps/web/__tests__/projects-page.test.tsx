@@ -156,13 +156,10 @@ describe('ProjectsPage', () => {
     cleanup();
   });
 
-  it('renders dashboard, configuration, queue, and workflow sections', async () => {
+  it('renders workflow sections after domain component retirement', async () => {
     render(<ProjectsPage />);
 
     expect(screen.getByText('Projects Operating Surface')).toBeTruthy();
-    expect(screen.getByText('Project dashboard')).toBeTruthy();
-    expect(screen.getByText('Configuration surface')).toBeTruthy();
-    expect(screen.getByText('Escalation queue')).toBeTruthy();
     expect(screen.getByText('Run monitor')).toBeTruthy();
     expect(screen.getByText('Visual workflow canvas')).toBeTruthy();
     expect(screen.getByText('Advanced editor')).toBeTruthy();
@@ -186,19 +183,6 @@ describe('ProjectsPage', () => {
     expect(await screen.findByText('Workflow definition saved.')).toBeTruthy();
     expect(workflowInvalidate).toHaveBeenCalled();
     expect(visualDebugInvalidate).toHaveBeenCalled();
-  });
-
-  it('submits configuration and escalation actions through canonical mutations', async () => {
-    render(<ProjectsPage />);
-
-    fireEvent.click(screen.getByRole('button', { name: 'Save configuration' }));
-    expect(updateConfigurationMutate).toHaveBeenCalled();
-
-    fireEvent.click(screen.getByRole('button', { name: 'Save schedule' }));
-    expect(upsertScheduleMutate).toHaveBeenCalled();
-
-    fireEvent.click(screen.getByRole('button', { name: 'Acknowledge' }));
-    expect(acknowledgeMutate).toHaveBeenCalled();
   });
 
   it('renders inspect-first empty state when no canonical workflow definition exists', () => {
@@ -272,28 +256,6 @@ describe('ProjectsPage', () => {
     ).toBeGreaterThan(0);
   });
 
-  it('preserves marketplace handoff context in the project surface', () => {
-    mocks.useSearchParams.mockReturnValue({
-      get: vi.fn((key: string) => {
-        const values: Record<string, string | null> = {
-          source: 'marketplace',
-          projectId: '550e8400-e29b-41d4-a716-446655443001',
-          packageId: 'pkg.persona-engine',
-          releaseId: 'release-1',
-          candidateId: 'candidate-1',
-        };
-        return values[key] ?? null;
-      }),
-    });
-
-    render(<ProjectsPage />);
-
-    expect(screen.getByText(/Marketplace handoff active/i)).toBeTruthy();
-    expect(screen.getAllByText(/Return to marketplace/i).length).toBeGreaterThan(0);
-    expect(
-      screen.getByText(/Marketplace-origin package context is active/i),
-    ).toBeTruthy();
-  });
 });
 
 function createWorkflowSnapshot(overrides: Record<string, unknown> = {}) {
