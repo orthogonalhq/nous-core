@@ -1,9 +1,9 @@
 /**
  * Unit tests for PfcEngine.
  */
-import { describe, it, expect } from 'vitest';
+import { describe, it, expect, vi } from 'vitest';
 import { PfcEngine } from '../pfc-engine.js';
-import type { IConfig, IToolExecutor, ToolDefinition } from '@nous/shared';
+import type { IConfig, IToolExecutor, IThoughtEmitter, ToolDefinition, ThoughtPfcDecisionPayload } from '@nous/shared';
 import { createEvaluationInput } from './fixtures/confidence-governance-scenarios.js';
 
 function mockConfig(pfcTier: number): IConfig {
@@ -337,6 +337,169 @@ describe('PfcEngine', () => {
       } as IConfig;
       const pfc = new PfcEngine(config, mockToolExecutor([]));
       expect(pfc.getTier()).toBe(3);
+    });
+  });
+
+  describe('ThoughtEmitter integration', () => {
+    function mockThoughtEmitter(): IThoughtEmitter & {
+      pfcCalls: ThoughtPfcDecisionPayload[];
+    } {
+      const pfcCalls: ThoughtPfcDecisionPayload[] = [];
+      return {
+        pfcCalls,
+        emitPfcDecision: vi.fn((payload: ThoughtPfcDecisionPayload) => {
+          pfcCalls.push(payload);
+        }),
+        emitTurnLifecycle: vi.fn(),
+        resetSequence: vi.fn(),
+      };
+    }
+
+    it('emits confidence-governance thought when thoughtEmitter is set', async () => {
+      const emitter = mockThoughtEmitter();
+      const pfc = new PfcEngine(mockConfig(3), mockToolExecutor([]), undefined, emitter);
+
+      await pfc.evaluateConfidenceGovernance(
+        createEvaluationInput({
+          governance: 'may',
+          actionCategory: 'model-invoke',
+          confidenceSignal: {
+            tier: 'high',
+            confidence: 0.95,
+            supportingSignals: 22,
+            decayState: 'stable',
+          },
+        }),
+      );
+
+      expect(emitter.emitPfcDecision).toHaveBeenCalledTimes(1);
+      expect(emitter.pfcCalls[0]!.thoughtType).toBe('confidence-governance');
+    });
+
+    it('emits memory-write thought on approved write', async () => {
+      const emitter = mockThoughtEmitter();
+      const pfc = new PfcEngine(mockConfig(3), mockToolExecutor([]), undefined, emitter);
+
+      await pfc.evaluateMemoryWrite(
+        {
+          content: 'test',
+          type: 'fact',
+          scope: 'project',
+          confidence: 0.8,
+          sensitivity: [],
+          retention: 'permanent',
+          provenance: {
+            traceId: '00000000-0000-0000-0000-000000000001' as never,
+            source: 'test',
+            timestamp: new Date().toISOString(),
+          },
+          tags: [],
+        },
+        undefined,
+      );
+
+      expect(emitter.pfcCalls[0]!.thoughtType).toBe('memory-write');
+      expect(emitter.pfcCalls[0]!.decision).toBe('approved');
+    });
+
+    it('emits memory-mutation thought on denied mutation', async () => {
+      const emitter = mockThoughtEmitter();
+      const pfc = new PfcEngine(mockConfig(3), mockToolExecutor([]), undefined, emitter);
+
+      await pfc.evaluateMemoryMutation({
+        action: 'soft-delete',
+        actor: 'core',
+        targetEntryId: '00000000-0000-0000-0000-000000000002' as never,
+        reason: 'test',
+        traceId: '00000000-0000-0000-0000-000000000001' as never,
+        evidenceRefs: [],
+      });
+
+      expect(emitter.pfcCalls[0]!.thoughtType).toBe('memory-mutation');
+      expect(emitter.pfcCalls[0]!.decision).toBe('denied');
+    });
+
+    it('emits tool-execution thought', async () => {
+      const emitter = mockThoughtEmitter();
+      const pfc = new PfcEngine(mockConfig(3), mockToolExecutor(['echo']), undefined, emitter);
+
+      await pfc.evaluateToolExecution('echo', {}, undefined);
+
+      expect(emitter.pfcCalls[0]!.thoughtType).toBe('tool-execution');
+      expect(emitter.pfcCalls[0]!.decision).toBe('approved');
+    });
+
+    it('emits reflection thought', async () => {
+      const emitter = mockThoughtEmitter();
+      const pfc = new PfcEngine(mockConfig(3), mockToolExecutor([]), undefined, emitter);
+
+      await pfc.reflect('output', {
+        output: 'test',
+        traceId: '00000000-0000-0000-0000-000000000001' as never,
+        tier: 3,
+      });
+
+      expect(emitter.pfcCalls[0]!.thoughtType).toBe('reflection');
+      expect(emitter.pfcCalls[0]!.decision).toBe('neutral');
+      expect(emitter.pfcCalls[0]!.confidence).toBe(0.8);
+    });
+
+    it('emits escalation thought when escalating', async () => {
+      const emitter = mockThoughtEmitter();
+      const pfc = new PfcEngine(mockConfig(3), mockToolExecutor([]), undefined, emitter);
+
+      await pfc.evaluateEscalation({
+        trigger: 'low_confidence',
+        context: 'test',
+        confidence: 0.2,
+      });
+
+      expect(emitter.pfcCalls[0]!.thoughtType).toBe('escalation');
+      expect(emitter.pfcCalls[0]!.decision).toBe('neutral');
+    });
+
+    it('emits escalation thought when NOT escalating', async () => {
+      const emitter = mockThoughtEmitter();
+      const pfc = new PfcEngine(mockConfig(3), mockToolExecutor([]), undefined, emitter);
+
+      await pfc.evaluateEscalation({
+        trigger: 'test',
+        context: 'test',
+        confidence: 0.8,
+      });
+
+      expect(emitter.pfcCalls[0]!.thoughtType).toBe('escalation');
+      expect(emitter.pfcCalls[0]!.decision).toBe('neutral');
+      expect(emitter.pfcCalls[0]!.reason).toBe('confidence sufficient');
+    });
+
+    it('works normally without thoughtEmitter (optional dependency)', async () => {
+      const pfc = new PfcEngine(mockConfig(3), mockToolExecutor(['echo']));
+
+      const decision = await pfc.evaluateToolExecution('echo', {}, undefined);
+      expect(decision.approved).toBe(true);
+    });
+
+    it('setThoughtEmitter enables late-binding', async () => {
+      const emitter = mockThoughtEmitter();
+      const pfc = new PfcEngine(mockConfig(3), mockToolExecutor([]));
+
+      // No emitter yet — should work fine
+      await pfc.reflect('output', {
+        output: 'test',
+        traceId: '00000000-0000-0000-0000-000000000001' as never,
+        tier: 3,
+      });
+      expect(emitter.emitPfcDecision).not.toHaveBeenCalled();
+
+      // Late-bind emitter
+      pfc.setThoughtEmitter(emitter);
+      await pfc.reflect('output', {
+        output: 'test',
+        traceId: '00000000-0000-0000-0000-000000000001' as never,
+        tier: 3,
+      });
+      expect(emitter.emitPfcDecision).toHaveBeenCalledTimes(1);
     });
   });
 });

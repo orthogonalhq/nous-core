@@ -136,6 +136,7 @@ import {
 import { MemoryAccessPolicyEngine } from '@nous/memory-access';
 import { HealthAggregator, HealthMonitor } from '@nous/autonomic-health';
 import { EventBus } from './event-bus/event-bus.js';
+import { ThoughtEmitterImpl } from './event-bus/thought-emitter.js';
 import { GatewayHealthSourceAdapter } from './adapters/gateway-health-source-adapter.js';
 import type { NousContext } from './context';
 import type { IDocumentStore, IIngressGateway, IVectorStore } from '@nous/shared';
@@ -739,6 +740,8 @@ export function createNousServices(config?: BootstrapConfig): NousContext {
     },
   });
   const eventBus = new EventBus();
+  const thoughtEmitter = new ThoughtEmitterImpl(eventBus);
+  Cortex.setThoughtEmitter(thoughtEmitter);
   const escalationService = new EscalationService({
     escalationStore,
     projectStore,
@@ -1193,6 +1196,7 @@ export function createNousServices(config?: BootstrapConfig): NousContext {
     runtime,
     instanceRoot,
     outputSchemaValidator: new DefaultSchemaRefValidator(),
+    thoughtEmitter,
   });
 
   // Recovery component instantiation (Phase 1.2 — WR-072)

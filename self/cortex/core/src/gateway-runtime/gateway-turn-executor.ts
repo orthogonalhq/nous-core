@@ -16,6 +16,7 @@ import {
   type IRuntime,
   type IScheduler,
   type IStmStore,
+  type IThoughtEmitter,
   type IToolExecutor,
   type IWorkflowEngine,
   type IWitnessService,
@@ -124,6 +125,7 @@ export interface GatewayBackedTurnExecutorDeps {
   outputSchemaValidator?: InternalMcpOutputSchemaValidator;
   agentGatewayFactory?: IAgentGatewayFactory;
   workmodeAdmissionGuard?: IWorkmodeAdmissionGuard;
+  thoughtEmitter?: IThoughtEmitter;
   now?: () => string;
   nowMs?: () => number;
   idFactory?: () => string;
@@ -154,12 +156,18 @@ export class GatewayBackedTurnExecutor implements ICoreExecutor {
 
     const validInput = parsed.data;
     const startedAt = this.now();
+    const traceId = validInput.traceId;
 
+    this.deps.thoughtEmitter?.resetSequence();
+    this.emitLifecycle(traceId, 'turn-start', 'started');
+
+    this.emitLifecycle(traceId, 'opctl-check', 'started');
     if (validInput.projectId && this.deps.opctlService) {
       const controlState = await this.deps.opctlService.getProjectControlState(
         validInput.projectId,
       );
       if (controlState === 'paused_review' || controlState === 'hard_stopped') {
+        this.emitLifecycle(traceId, 'opctl-check', 'completed', `blocked controlState=${controlState}`);
         return {
           response: `[Project blocked by operator control (${controlState}).]`,
           traceId: validInput.traceId,
@@ -168,11 +176,13 @@ export class GatewayBackedTurnExecutor implements ICoreExecutor {
         };
       }
     }
+    this.emitLifecycle(traceId, 'opctl-check', 'completed');
 
     const stmContext = validInput.stmContext ?? (validInput.projectId
       ? await this.deps.stmStore.getContext(validInput.projectId)
       : { entries: [], tokenCount: 0 });
 
+    this.emitLifecycle(traceId, 'gateway-run', 'started');
     const gateway = this.createGateway(validInput.message);
     const result = await gateway.run({
       taskInstructions: [
@@ -198,8 +208,11 @@ export class GatewayBackedTurnExecutor implements ICoreExecutor {
       },
       modelRequirements: validInput.modelRequirements,
     });
+    this.emitLifecycle(traceId, 'gateway-run', 'completed');
 
     const response = this.resolveResponse(result);
+    this.emitLifecycle(traceId, 'response-resolved', 'completed');
+
     const pfcDecisions =
       result.status === 'completed'
         ? []
@@ -211,6 +224,7 @@ export class GatewayBackedTurnExecutor implements ICoreExecutor {
             },
           ];
 
+    this.emitLifecycle(traceId, 'stm-finalize', 'started');
     await this.finalizeStmTurn(
       validInput.projectId,
       validInput.message,
@@ -218,6 +232,7 @@ export class GatewayBackedTurnExecutor implements ICoreExecutor {
       validInput.traceId,
       result.evidenceRefs,
     );
+    this.emitLifecycle(traceId, 'stm-finalize', 'completed');
 
     await this.traceRecorder.recordTurn({
       traceId: validInput.traceId,
@@ -229,13 +244,26 @@ export class GatewayBackedTurnExecutor implements ICoreExecutor {
       pfcDecisions,
       evidenceRefs: result.evidenceRefs,
     });
+    this.emitLifecycle(traceId, 'trace-record', 'completed');
 
+    this.emitLifecycle(traceId, 'turn-complete', 'completed');
     return {
       response,
       traceId: validInput.traceId,
       memoryCandidates: [],
       pfcDecisions,
     };
+  }
+
+  private emitLifecycle(traceId: string, phase: string, status: string, content?: string): void {
+    this.deps.thoughtEmitter?.emitTurnLifecycle({
+      traceId,
+      phase: phase as 'turn-start' | 'opctl-check' | 'gateway-run' | 'response-resolved' | 'stm-finalize' | 'trace-record' | 'turn-complete',
+      status: status as 'started' | 'completed' | 'failed',
+      content,
+      sequence: 0,
+      emittedAt: new Date().toISOString(),
+    });
   }
 
   async superviseProject(): Promise<void> {
