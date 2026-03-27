@@ -1,4 +1,4 @@
-import type { ExecutionRun } from '../../../types/workflow-builder'
+import type { ExecutionRun, GateState, ArtifactRef } from '../../../types/workflow-builder'
 
 /**
  * Demo execution runs for the Execution Monitor and History panels.
@@ -52,6 +52,40 @@ export const DEMO_EXECUTION_RUNS: ExecutionRun[] = [
       { id: 'evt-013', type: 'node_completed', timestamp: '2026-03-26T03:00:10Z', nodeId: 'node-6', edgeId: null, metadata: {} },
       { id: 'evt-014', type: 'run_completed', timestamp: '2026-03-26T03:00:12Z', nodeId: null, edgeId: null, metadata: {} },
     ],
+    gateStates: {
+      'node-1': [
+        { gateId: 'g-101', name: 'Input validation', status: 'passed', nodeId: 'node-1', type: 'quality', errorDetail: null },
+        { gateId: 'g-102', name: 'Rate limit check', status: 'passed', nodeId: 'node-1', type: 'quality', errorDetail: null },
+      ],
+      'node-2': [
+        { gateId: 'g-103', name: 'Schema conformance', status: 'passed', nodeId: 'node-2', type: 'quality', errorDetail: null },
+        { gateId: 'g-104', name: 'Reviewer approval', status: 'passed', nodeId: 'node-2', type: 'approval', errorDetail: null },
+      ],
+      'node-3': [
+        { gateId: 'g-105', name: 'Output format check', status: 'passed', nodeId: 'node-3', type: 'quality', errorDetail: null },
+      ],
+      'node-5': [
+        { gateId: 'g-106', name: 'Policy compliance', status: 'passed', nodeId: 'node-5', type: 'governance', errorDetail: null },
+      ],
+    },
+    artifactRefs: {
+      'node-1': [
+        { id: 'art-101', type: 'webhook payload', label: 'Inbound webhook payload', nodeId: 'node-1', artifactType: 'output' },
+      ],
+      'node-2': [
+        { id: 'art-102', type: 'dispatch packet', label: 'Agent dispatch to node-3', nodeId: 'node-2', artifactType: 'dispatch' },
+        { id: 'art-103', type: 'processed result', label: 'Analysis output', nodeId: 'node-2', artifactType: 'output' },
+      ],
+      'node-3': [
+        { id: 'art-104', type: 'dispatch packet', label: 'Condition routing packet', nodeId: 'node-3', artifactType: 'dispatch' },
+      ],
+      'node-5': [
+        { id: 'art-105', type: 'revision record', label: 'Governance revision v1', nodeId: 'node-5', artifactType: 'revision' },
+      ],
+      'node-6': [
+        { id: 'art-106', type: 'escalation notice', label: 'Low-priority alert', nodeId: 'node-6', artifactType: 'escalation' },
+      ],
+    },
   },
 
   // ─── Run 2: Running ──────────────────────────────────────────────────────────
@@ -87,6 +121,20 @@ export const DEMO_EXECUTION_RUNS: ExecutionRun[] = [
       { id: 'evt-023', type: 'edge_activated', timestamp: '2026-03-26T04:30:01Z', nodeId: null, edgeId: 'edge-1', metadata: {} },
       { id: 'evt-024', type: 'node_started', timestamp: '2026-03-26T04:30:01Z', nodeId: 'node-2', edgeId: null, metadata: {} },
     ],
+    gateStates: {
+      'node-1': [
+        { gateId: 'g-201', name: 'Input validation', status: 'passed', nodeId: 'node-1', type: 'quality', errorDetail: null },
+      ],
+      'node-2': [
+        { gateId: 'g-202', name: 'Schema conformance', status: 'pending', nodeId: 'node-2', type: 'quality', errorDetail: null },
+        { gateId: 'g-203', name: 'Reviewer approval', status: 'pending', nodeId: 'node-2', type: 'approval', errorDetail: null },
+      ],
+    },
+    artifactRefs: {
+      'node-1': [
+        { id: 'art-201', type: 'webhook payload', label: 'Inbound webhook payload', nodeId: 'node-1', artifactType: 'output' },
+      ],
+    },
   },
 
   // ─── Run 3: Failed ───────────────────────────────────────────────────────────
@@ -130,5 +178,28 @@ export const DEMO_EXECUTION_RUNS: ExecutionRun[] = [
       { id: 'evt-041', type: 'node_skipped', timestamp: '2026-03-26T02:00:07Z', nodeId: 'node-7', edgeId: null, metadata: { reason: 'upstream failure' } },
       { id: 'evt-042', type: 'run_failed', timestamp: '2026-03-26T02:00:07Z', nodeId: null, edgeId: null, metadata: { reason: 'Node node-4 failed' } },
     ],
+    gateStates: {
+      'node-1': [
+        { gateId: 'g-301', name: 'Input validation', status: 'passed', nodeId: 'node-1', type: 'quality', errorDetail: null },
+      ],
+      'node-2': [
+        { gateId: 'g-302', name: 'Schema conformance', status: 'passed', nodeId: 'node-2', type: 'quality', errorDetail: null },
+        { gateId: 'g-303', name: 'Reviewer approval', status: 'passed', nodeId: 'node-2', type: 'approval', errorDetail: null },
+      ],
+      'node-3': [
+        { gateId: 'g-304', name: 'Output format check', status: 'passed', nodeId: 'node-3', type: 'quality', errorDetail: null },
+      ],
+      'node-4': [
+        { gateId: 'g-305', name: 'API response validation', status: 'failed', nodeId: 'node-4', type: 'quality', errorDetail: 'Output schema validation failed: missing required field "confidence_score"' },
+      ],
+    },
+    artifactRefs: {
+      'node-1': [
+        { id: 'art-301', type: 'webhook payload', label: 'Inbound webhook payload', nodeId: 'node-1', artifactType: 'output' },
+      ],
+      'node-2': [
+        { id: 'art-302', type: 'dispatch packet', label: 'Agent dispatch to node-3', nodeId: 'node-2', artifactType: 'dispatch' },
+      ],
+    },
   },
 ]

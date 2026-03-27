@@ -382,6 +382,10 @@ export interface ExecutionRun {
   edgeStates: Record<string, EdgeFlowState>
   /** Ordered event timeline for potential future replay. */
   events: ExecutionEvent[]
+  /** Per-node gate states for the Gate Panel (SP 3.2). Optional for backward compat. */
+  gateStates?: Record<string, GateState[]>
+  /** Per-node artifact refs for the Artifact Browser (SP 3.2). Optional for backward compat. */
+  artifactRefs?: Record<string, ArtifactRef[]>
 }
 
 /** Monitoring state slice within useBuilderState. */
@@ -392,6 +396,14 @@ export interface MonitoringState {
   isMonitoring: boolean
 }
 
+/**
+ * Discriminated union tracking which element is being inspected in
+ * monitoring / inspecting mode. Distinct from authoring InspectorState.
+ */
+export type InspectionState =
+  | { type: 'node'; nodeId: string }
+  | { type: 'none' }
+
 // ─── Shared Downstream Types (Foundation for SP 3.2-3.4) ────────────────────
 
 /** Gate state for the Gate Panel (SP 3.2). */
@@ -400,14 +412,21 @@ export interface GateState {
   name: string
   status: 'pending' | 'passed' | 'failed' | 'skipped'
   nodeId: string
+  /** Gate type discriminator for display grouping and icon selection. */
+  type: 'approval' | 'quality' | 'governance'
+  /** Error detail string when status is 'failed', null otherwise. */
+  errorDetail: string | null
 }
 
 /** Reference to an artifact for the Artifact Browser (SP 3.2). */
 export interface ArtifactRef {
   id: string
+  /** Freeform description string (retained from SP 3.1 stub). */
   type: string
   label: string
   nodeId: string
+  /** Typed discriminator for visual badge styling. */
+  artifactType: 'dispatch' | 'revision' | 'escalation' | 'output' | 'other'
 }
 
 /** Reference to a dispatch packet for the Dispatch Viewer (SP 3.3). */

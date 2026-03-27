@@ -81,8 +81,8 @@ describe('Execution types — Contract', () => {
 
   it('shared downstream types are importable', () => {
     // Type-level imports verified by compilation
-    const gate: GateState = { gateId: 'g1', name: 'test', status: 'pending', nodeId: 'n1' }
-    const artifact: ArtifactRef = { id: 'a1', type: 'test', label: 'test', nodeId: 'n1' }
+    const gate: GateState = { gateId: 'g1', name: 'test', status: 'pending', nodeId: 'n1', type: 'quality', errorDetail: null }
+    const artifact: ArtifactRef = { id: 'a1', type: 'test', label: 'test', nodeId: 'n1', artifactType: 'output' }
     const dispatch: DispatchPacketRef = { id: 'd1', type: 'test', sourceNodeId: 'n1', targetNodeId: 'n2' }
     const revision: RevisionCycleRef = { id: 'r1', cycle: 1, nodeId: 'n1', status: 'open' }
     const escalation: EscalationRef = { id: 'e1', severity: 'low', nodeId: 'n1', message: 'test' }

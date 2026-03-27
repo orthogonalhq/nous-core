@@ -27,6 +27,8 @@ import { nodeTypes } from './nodes'
 import { edgeTypes } from './edges'
 import { ExecutionMonitor } from './monitoring/ExecutionMonitor'
 import { ExecutionHistory } from './monitoring/ExecutionHistory'
+import { GatePanel } from './monitoring/GatePanel'
+import { ArtifactBrowser } from './monitoring/ArtifactBrowser'
 
 import '@xyflow/react/dist/style.css'
 
@@ -90,6 +92,9 @@ const CanvasDropTarget = forwardRef<
     activeRun,
     setActiveRun,
     clearActiveRun,
+    inspectionState,
+    setInspectedNode,
+    clearInspection,
   } = useBuilderState(mode)
 
   const { screenToFlowPosition, fitView } = useReactFlow()
@@ -141,6 +146,30 @@ const CanvasDropTarget = forwardRef<
   useEffect(() => {
     onFocusedNodeChange(focusedNodeId)
   }, [focusedNodeId, onFocusedNodeChange])
+
+  // ─── Mode-aware click handlers (SP 3.2) ─────────────────────────────────
+
+  const handleNodeClick = useCallback(
+    (event: React.MouseEvent, node: WorkflowBuilderNode) => {
+      if (mode === 'monitoring' || mode === 'inspecting') {
+        setInspectedNode(node.id)
+      } else {
+        onNodeClick(event, node)
+      }
+    },
+    [mode, onNodeClick, setInspectedNode],
+  )
+
+  const handlePaneClick = useCallback(
+    (event: React.MouseEvent) => {
+      if (mode === 'monitoring' || mode === 'inspecting') {
+        clearInspection()
+      } else {
+        onPaneClick(event)
+      }
+    },
+    [mode, onPaneClick, clearInspection],
+  )
 
   // ─── Save handler (SP 2.5) ─────────────────────────────────────────────
 
@@ -416,9 +445,9 @@ const CanvasDropTarget = forwardRef<
         onNodesChange={onNodesChange}
         onEdgesChange={onEdgesChange}
         onConnect={onConnect}
-        onNodeClick={onNodeClick}
+        onNodeClick={handleNodeClick}
         onEdgeClick={onEdgeClick}
-        onPaneClick={onPaneClick}
+        onPaneClick={handlePaneClick}
         onPaneContextMenu={mode !== 'monitoring' ? onPaneContextMenu : undefined}
         onNodeContextMenu={mode !== 'monitoring' ? onNodeContextMenu : undefined}
         onEdgeContextMenu={mode !== 'monitoring' ? onEdgeContextMenu : undefined}
@@ -563,6 +592,35 @@ const CanvasDropTarget = forwardRef<
           activeRunId={activeRun?.id ?? null}
         />
       )}
+
+      {/* Inspection Panels (SP 3.2) */}
+      {(mode === 'monitoring' || mode === 'inspecting') &&
+        inspectionState.type === 'node' &&
+        activeRun !== null && (() => {
+          const inspectedNodeId = inspectionState.nodeId
+          const inspectedNode = nodes.find((n) => n.id === inspectedNodeId)
+          const gates = activeRun.gateStates?.[inspectedNodeId] ?? []
+          const artifacts = activeRun.artifactRefs?.[inspectedNodeId] ?? []
+          return (
+            <>
+              <GatePanel
+                key={`gate-${inspectedNodeId}`}
+                nodeId={inspectedNodeId}
+                nodeLabel={inspectedNode?.data.label ?? inspectedNodeId}
+                gates={gates}
+                containerRef={canvasRef}
+              />
+              <ArtifactBrowser
+                key={`artifact-${inspectedNodeId}`}
+                nodeId={inspectedNodeId}
+                nodeLabel={inspectedNode?.data.label ?? inspectedNodeId}
+                artifacts={artifacts}
+                containerRef={canvasRef}
+              />
+            </>
+          )
+        })()
+      }
     </>
   )
 })

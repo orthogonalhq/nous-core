@@ -102,7 +102,7 @@ describe('Monitor mode workflow — Integration', () => {
     expect(result.current.activeRun).toBeNull()
   })
 
-  it('switching to inspecting mode also clears monitoring state', () => {
+  it('switching to inspecting mode retains active run (SP 3.2 — inspecting needs run data)', () => {
     const { result, rerender } = renderHook(
       ({ mode }) => useBuilderState(mode),
       { initialProps: { mode: 'monitoring' as BuilderMode } },
@@ -112,6 +112,20 @@ describe('Monitor mode workflow — Integration', () => {
     expect(result.current.activeRun!.id).toBe('run-003')
 
     rerender({ mode: 'inspecting' as BuilderMode })
+    expect(result.current.activeRun!.id).toBe('run-003')
+  })
+
+  it('switching to authoring mode from inspecting clears active run', () => {
+    const { result, rerender } = renderHook(
+      ({ mode }) => useBuilderState(mode),
+      { initialProps: { mode: 'monitoring' as BuilderMode } },
+    )
+
+    act(() => { result.current.setActiveRun('run-003') })
+    rerender({ mode: 'inspecting' as BuilderMode })
+    expect(result.current.activeRun!.id).toBe('run-003')
+
+    rerender({ mode: 'authoring' as BuilderMode })
     expect(result.current.activeRun).toBeNull()
   })
 })
