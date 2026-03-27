@@ -10,7 +10,6 @@
     "./server/trpc/root": "./server/trpc/root.ts"
   },
   "scripts": {
-    "predev": "node ./scripts/clean-dev-cache.mjs",
     "dev": "node ./scripts/dev.mjs",
     "build": "next build",
     "start": "next start",

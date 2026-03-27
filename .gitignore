@@ -7,6 +7,7 @@ out/
 .next/
 .next-*/
 *.tsbuildinfo
+next-env.d.ts
 
 # Test coverage
 coverage/

@@ -1,9 +1,6 @@
 import type { NextConfig } from 'next';
 
-const configuredDistDir = process.env.NOUS_NEXT_DIST_DIR?.trim();
-
 const nextConfig: NextConfig = {
-  distDir: configuredDistDir || '.next',
   transpilePackages: [
     '@nous/ui',
     '@nous/shared',
