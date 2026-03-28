@@ -47,13 +47,47 @@ import { StatusBar } from './components/StatusBar'
 import type { FirstRunState } from './components/wizard/types'
 import { setBackendPort as setWizardBackendPort, trpcQuery } from './components/wizard/trpc-fetch'
 
+import { trpc } from '@nous/transport'
 import 'dockview-react/dist/styles/dockview.css'
+
+/** tRPC-backed ChatAPI — replaces the removed IPC chatApi. */
+function useChatApi() {
+  const utils = trpc.useUtils()
+  const sendMessage = trpc.chat.sendMessage.useMutation()
+  return useMemo(
+    () => ({
+      send: async (message: string) => {
+        const result = await sendMessage.mutateAsync({ message })
+        return { response: result.response, traceId: result.traceId }
+      },
+      getHistory: async () => {
+        const data = await utils.chat.getHistory.fetch({})
+        return (data?.entries ?? [])
+          .filter((e: any) => e.role === 'user' || e.role === 'assistant')
+          .map((e: any) => ({ role: e.role, content: e.content, timestamp: e.timestamp }))
+      },
+    }),
+    [sendMessage, utils],
+  )
+}
+
+/** Wrapper that wires ChatPanel to tRPC via useChatApi (dockview). */
+function DesktopChatPanel(props: import('dockview-react').IDockviewPanelProps) {
+  const chatApi = useChatApi()
+  return <ChatPanel {...props} params={{ chatApi }} />
+}
+
+/** Wrapper that wires ChatSurface to tRPC via useChatApi (simple mode). */
+function ConnectedChatSurface() {
+  const chatApi = useChatApi()
+  return <ChatSurface chatApi={chatApi} />
+}
 
 const panelComponents = {
   'app-installer': AppInstallWizardPanel,
   'app-iframe': AppIframePanel,
   placeholder: PlaceholderPanel,
-  chat: ChatPanel,
+  chat: DesktopChatPanel,
   'file-browser': FileBrowserPanel,
   'node-projection': NodeProjectionPanel,
   mao: MAOPanel,
@@ -801,7 +835,7 @@ export function App() {
                 onItemSelect={handleNavigate}
               />
             )}
-            chat={<ChatSurface />}
+            chat={<ConnectedChatSurface />}
             content={(
               <ContentRouter
                 activeRoute={activeRoute}
