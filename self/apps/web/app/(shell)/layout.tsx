@@ -169,7 +169,7 @@ function ShellLayoutContent({
             onClose={() => setCommandPaletteOpen(false)}
             commands={commands}
           />
-          <div style={{ flex: 1, minHeight: 0, overflow: 'hidden', position: 'relative' }}>
+          <div style={{ flex: 1, minHeight: 0, height: '100%', overflow: 'hidden', position: 'relative' }}>
             {mode === 'simple' ? (
               <UIShellLayout
                 rail={
@@ -193,7 +193,8 @@ function ShellLayoutContent({
               <WebDockviewShell />
             )}
           </div>
-          {children}
+          {/* Next.js page outlet — hidden; shell uses ContentRouter for navigation */}
+          <div style={{ display: 'none' }}>{children}</div>
         </ProjectProvider>
       </ShellProvider>
     </WebChromeShell>
