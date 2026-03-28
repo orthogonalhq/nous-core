@@ -24,3 +24,4 @@ export { useEventSubscription } from './hooks/useEventSubscription';
 export type { UseEventSubscriptionOptions } from './hooks/useEventSubscription';
 export { useChatApi } from './hooks/useChatApi';
 export type { UseChatApiOptions } from './hooks/useChatApi';
+export { usePreferencesApi } from './hooks/usePreferencesApi';
