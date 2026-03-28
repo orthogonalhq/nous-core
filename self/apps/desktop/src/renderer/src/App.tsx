@@ -7,96 +7,37 @@ import type {
   IDockviewHeaderActionsProps,
 } from 'dockview-react'
 import {
-  AppIframePanel,
-  PlaceholderPanel,
-  ChatPanel,
-  FileBrowserPanel,
-  NodeProjectionPanel,
-  MAOPanel,
-  CodexBarPanel,
   CodexBarHeaderActions,
   useCodexBarApi,
-  DashboardPanel,
   DashboardWidgetMenu,
   useDashboardApi,
-  AgentPanel,
   PreferencesPanel,
-  WorkflowBuilderPanel,
 } from '@nous/ui/panels'
 import {
   ContentRouter,
   NavigationRail,
   ShellLayout,
   ShellProvider,
-  HomeScreen,
-  CatalogView,
-  ChatSurface,
   ObservePanel,
   CommandPalette,
   type ContentRouterRenderProps,
-  type RailSection,
   type ShellMode,
   type CommandGroup,
-  type CatalogItem,
 } from '@nous/ui/components'
 import { TransportProvider, createDesktopTransport } from '@nous/transport'
-import { AppInstallWizardPanel } from './components/AppInstallWizard'
 import { FirstRunWizard } from './components/FirstRunWizard'
 import { TitleBar } from './components/TitleBar'
 import { StatusBar } from './components/StatusBar'
 import type { FirstRunState } from './components/wizard/types'
 import { setBackendPort as setWizardBackendPort, trpcQuery } from './components/wizard/trpc-fetch'
+import { ConnectedChatSurface } from './desktop-chat-wrappers'
+import { panelComponents } from './desktop-panel-map'
+import { RAIL_SECTIONS } from './desktop-rail-config'
+import { buildDesktopCommands } from './desktop-command-config'
+import { BASE_SIMPLE_MODE_ROUTES } from './desktop-routes'
+import { SettingsRoute } from './desktop-settings-route'
 
-import { trpc } from '@nous/transport'
 import 'dockview-react/dist/styles/dockview.css'
-
-/** tRPC-backed ChatAPI — replaces the removed IPC chatApi. */
-function useChatApi() {
-  const utils = trpc.useUtils()
-  const sendMessage = trpc.chat.sendMessage.useMutation()
-  return useMemo(
-    () => ({
-      send: async (message: string) => {
-        const result = await sendMessage.mutateAsync({ message })
-        return { response: result.response, traceId: result.traceId }
-      },
-      getHistory: async () => {
-        const data = await utils.chat.getHistory.fetch({})
-        return (data?.entries ?? [])
-          .filter((e: any) => e.role === 'user' || e.role === 'assistant')
-          .map((e: any) => ({ role: e.role, content: e.content, timestamp: e.timestamp }))
-      },
-    }),
-    [sendMessage, utils],
-  )
-}
-
-/** Wrapper that wires ChatPanel to tRPC via useChatApi (dockview). */
-function DesktopChatPanel(props: import('dockview-react').IDockviewPanelProps) {
-  const chatApi = useChatApi()
-  return <ChatPanel {...props} params={{ chatApi }} />
-}
-
-/** Wrapper that wires ChatSurface to tRPC via useChatApi (simple mode). */
-function ConnectedChatSurface() {
-  const chatApi = useChatApi()
-  return <ChatSurface chatApi={chatApi} />
-}
-
-const panelComponents = {
-  'app-installer': AppInstallWizardPanel,
-  'app-iframe': AppIframePanel,
-  placeholder: PlaceholderPanel,
-  chat: DesktopChatPanel,
-  'file-browser': FileBrowserPanel,
-  'node-projection': NodeProjectionPanel,
-  mao: MAOPanel,
-  codexbar: CodexBarPanel,
-  dashboard: DashboardPanel,
-  'coding-agents': AgentPanel,
-  preferences: PreferencesPanel,
-  'workflow-builder': WorkflowBuilderPanel,
-}
 
 // Single source of truth for all panels — used by initDefaultLayout() and View menu toggle
 export type PanelDef = {
@@ -188,44 +129,6 @@ const PANEL_ADD_ORDER = [
 const DEFAULT_ROUTE = 'home'
 const MODE_STORAGE_KEY = 'nous:shell-mode'
 
-const RAIL_SECTIONS: RailSection[] = [
-  {
-    id: 'main',
-    label: 'Navigate',
-    items: [
-      { id: 'home', label: 'Home', icon: 'H' },
-      { id: 'threads', label: 'Threads', icon: 'T' },
-      { id: 'workflows', label: 'Workflows', icon: 'W' },
-      { id: 'skills', label: 'Skills', icon: 'S' },
-      { id: 'apps', label: 'Apps', icon: 'A' },
-      { id: 'settings', label: 'Settings', icon: 'P' },
-    ],
-  },
-]
-
-const STUB_THREADS: CatalogItem[] = [
-  { id: 'thread-1', title: 'Project Planning', description: 'Roadmap and milestone discussion', icon: 'T' },
-  { id: 'thread-2', title: 'Architecture Review', description: 'System design feedback', icon: 'T' },
-  { id: 'thread-3', title: 'Bug Triage', description: 'Issue prioritization session', icon: 'T' },
-]
-
-const STUB_WORKFLOWS: CatalogItem[] = [
-  { id: 'wf-1', title: 'Code Review Pipeline', description: 'Automated review and gate checks', icon: 'W' },
-  { id: 'wf-2', title: 'Deploy to Staging', description: 'Build, test, and deploy workflow', icon: 'W' },
-  { id: 'wf-3', title: 'Daily Standup', description: 'Agent-assisted status aggregation', icon: 'W' },
-]
-
-const STUB_SKILLS: CatalogItem[] = [
-  { id: 'skill-1', title: 'Code Generation', description: 'Generate code from natural language', icon: 'S' },
-  { id: 'skill-2', title: 'Document Analysis', description: 'Extract insights from documents', icon: 'S' },
-  { id: 'skill-3', title: 'Test Writing', description: 'Generate test suites from specifications', icon: 'S' },
-]
-
-const STUB_APPS: CatalogItem[] = [
-  { id: 'app-1', title: 'Terminal', description: 'Integrated terminal emulator', icon: 'A' },
-  { id: 'app-2', title: 'File Manager', description: 'Browse and manage project files', icon: 'A' },
-  { id: 'app-3', title: 'Metrics Dashboard', description: 'System and agent performance metrics', icon: 'A' },
-]
 
 function parseShellMode(value: unknown): ShellMode | null {
   return value === 'simple' || value === 'developer' ? value : null
@@ -258,37 +161,7 @@ const modePersistence = {
   },
 }
 
-const BASE_SIMPLE_MODE_ROUTES: Record<string, React.ComponentType<ContentRouterRenderProps>> = {
-  home: HomeScreen,
-  threads: (props: ContentRouterRenderProps) => <CatalogView {...props} items={STUB_THREADS} />,
-  workflows: (props: ContentRouterRenderProps) => <CatalogView {...props} items={STUB_WORKFLOWS} />,
-  skills: (props: ContentRouterRenderProps) => <CatalogView {...props} items={STUB_SKILLS} />,
-  apps: (props: ContentRouterRenderProps) => <CatalogView {...props} items={STUB_APPS} />,
-}
-
 type PreferencesPanelParams = Parameters<typeof PreferencesPanel>[0]['params']
-
-function SettingsRoute({
-  preferencesPanelParams,
-}: {
-  preferencesPanelParams: PreferencesPanelParams
-}) {
-  return (
-    <div
-      style={{
-        height: '100%',
-        overflow: 'auto',
-        background: 'var(--nous-content-bg)',
-      }}
-    >
-      <PreferencesPanel
-        api={{} as never}
-        containerApi={{} as never}
-        params={preferencesPanelParams}
-      />
-    </div>
-  )
-}
 
 function toAppPanelDef(panel: AppPanelSnapshot): PanelDef {
   return {
@@ -688,28 +561,14 @@ export function App() {
     ),
   }), [preferencesPanelParams])
 
-  const commands: CommandGroup[] = useMemo(() => [
-    {
-      id: 'navigation',
-      label: 'Navigation',
-      commands: [
-        { id: 'nav-home', label: 'Go to Home', action: () => handleNavigate('home') },
-        { id: 'nav-threads', label: 'Go to Threads', action: () => handleNavigate('threads') },
-        { id: 'nav-workflows', label: 'Go to Workflows', action: () => handleNavigate('workflows') },
-        { id: 'nav-skills', label: 'Go to Skills', action: () => handleNavigate('skills') },
-        { id: 'nav-apps', label: 'Go to Apps', action: () => handleNavigate('apps') },
-        { id: 'nav-settings', label: 'Go to Settings', action: () => handleNavigate('settings') },
-      ],
-    },
-    {
-      id: 'actions',
-      label: 'Actions',
-      commands: [
-        { id: 'action-toggle-mode', label: 'Toggle Mode', shortcut: 'Ctrl+Shift+D', action: handleModeToggle },
-        { id: 'action-command-palette', label: 'Open Command Palette', shortcut: 'Ctrl+K', action: () => setCommandPaletteOpen(true) },
-      ],
-    },
-  ], [handleNavigate, handleModeToggle])
+  const commands: CommandGroup[] = useMemo(
+    () => buildDesktopCommands({
+      navigate: handleNavigate,
+      onModeToggle: handleModeToggle,
+      onCommandPalette: () => setCommandPaletteOpen(true),
+    }),
+    [handleNavigate, handleModeToggle],
+  )
 
   const transportConfig = useMemo(
     () => backendPort ? createDesktopTransport(backendPort) : null,
