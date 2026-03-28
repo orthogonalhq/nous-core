@@ -3,24 +3,12 @@
 import * as React from 'react'
 import { useCallback, useRef } from 'react'
 import { DockviewReact } from 'dockview-react'
-import type { DockviewApi, DockviewReadyEvent, IDockviewPanelProps, SerializedDockview } from 'dockview-react'
-import {
-  ChatPanel,
-  MAOPanel,
-  DashboardPanel,
-  PlaceholderPanel,
-} from '@nous/ui/panels'
+import type { DockviewApi, DockviewReadyEvent, SerializedDockview } from 'dockview-react'
+import { webPanelComponents } from './web-panel-map'
 
 import 'dockview-react/dist/styles/dockview.css'
 
 const LAYOUT_STORAGE_KEY = 'nous-web-dockview-layout'
-
-const WEB_PANEL_COMPONENTS = {
-  chat: ChatPanel,
-  mao: MAOPanel,
-  dashboard: DashboardPanel,
-  placeholder: PlaceholderPanel,
-} as Record<string, React.FunctionComponent<IDockviewPanelProps>>
 
 function initDefaultWebLayout(api: DockviewApi): void {
   api.addPanel({
@@ -97,7 +85,7 @@ export function WebDockviewShellInner({ onApiReady }: WebDockviewShellInnerProps
   return (
     <div style={{ height: '100%', width: '100%' }}>
       <DockviewReact
-        components={WEB_PANEL_COMPONENTS}
+        components={webPanelComponents}
         onReady={handleReady}
         className="dockview-theme-dark"
       />

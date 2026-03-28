@@ -43,6 +43,10 @@ vi.mock('@nous/transport', () => ({
   useChatApi: () => ({ send: vi.fn(), getHistory: vi.fn().mockResolvedValue([]) }),
 }))
 
+vi.mock('@/components/shell/web-chat-wrappers', () => ({
+  WebConnectedChatSurface: () => React.createElement('div', { 'data-testid': 'web-connected-chat-surface' }),
+}))
+
 vi.mock('next/dynamic', () => ({
   default: (_loader: () => Promise<any>, _options?: any) => {
     function DynamicWebDockviewShell() {
@@ -207,9 +211,9 @@ describe('Web Shell Integration', () => {
     expect(screen.getByTestId('web-chrome-shell').getAttribute('data-shell-mode')).toBe('developer')
   })
 
-  it('renders ChatSurface in simple mode', () => {
+  it('renders WebConnectedChatSurface in simple mode', () => {
     renderShell()
-    expect(screen.getByTestId('chat-surface')).toBeDefined()
+    expect(screen.getByTestId('web-connected-chat-surface')).toBeDefined()
   })
 
   it('renders children page outlet', () => {

@@ -9,7 +9,6 @@ import {
   ShellLayout as UIShellLayout,
   NavigationRail,
   ContentRouter,
-  ChatSurface,
   ObservePanel,
   CommandPalette,
 } from '@nous/ui/components'
@@ -18,7 +17,7 @@ import { WebChromeShell } from '@/components/shell/web-chrome-shell'
 import { webRailSections } from '@/components/shell/web-rail-config'
 import { webShellRoutes } from '@/components/shell/web-shell-routes'
 import { buildWebCommands } from '@/components/shell/web-command-config'
-import { useChatApi } from '@nous/transport'
+import { WebConnectedChatSurface } from '@/components/shell/web-chat-wrappers'
 import { trpc } from '@/lib/trpc'
 import { ProjectProvider } from '@/lib/project-context'
 
@@ -176,8 +175,6 @@ function ShellLayoutContent({
     [projectsData],
   )
 
-  const chatApi = useChatApi({ projectId: projectId ?? undefined })
-
   return (
     <WebChromeShell mode={mode} onModeToggle={handleModeToggle}>
       <ShellProvider
@@ -205,7 +202,7 @@ function ShellLayoutContent({
                   onProjectSelect={handleProjectSelect}
                 />
               }
-              chat={<ChatSurface chatApi={chatApi} />}
+              chat={<WebConnectedChatSurface />}
               content={
                 <ContentRouter
                   activeRoute={activeRoute}
