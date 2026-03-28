@@ -1,4 +1,5 @@
 import { PreferencesPanel } from '@nous/ui/panels'
+import { usePreferencesApi } from '@nous/transport'
 
 type PreferencesPanelParams = Parameters<typeof PreferencesPanel>[0]['params']
 
@@ -7,6 +8,8 @@ export function SettingsRoute({
 }: {
   preferencesPanelParams: PreferencesPanelParams
 }) {
+  const preferencesApi = usePreferencesApi()
+
   return (
     <div
       style={{
@@ -18,7 +21,7 @@ export function SettingsRoute({
       <PreferencesPanel
         api={{} as never}
         containerApi={{} as never}
-        params={preferencesPanelParams}
+        params={{ ...preferencesPanelParams, preferencesApi }}
       />
     </div>
   )

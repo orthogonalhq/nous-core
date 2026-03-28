@@ -7,11 +7,11 @@ import {
   CodexBarPanel,
   DashboardPanel,
   AgentPanel,
-  PreferencesPanel,
   WorkflowBuilderPanel,
 } from '@nous/ui/panels'
 import { DesktopChatPanel } from './desktop-chat-wrappers'
 import { AppInstallWizardPanel } from './components/AppInstallWizard'
+import { ConnectedPreferencesPanel } from './components/ConnectedPreferencesPanel'
 
 export const panelComponents = {
   'app-installer': AppInstallWizardPanel,
@@ -24,6 +24,6 @@ export const panelComponents = {
   codexbar: CodexBarPanel,
   dashboard: DashboardPanel,
   'coding-agents': AgentPanel,
-  preferences: PreferencesPanel,
+  preferences: ConnectedPreferencesPanel,
   'workflow-builder': WorkflowBuilderPanel,
 }
