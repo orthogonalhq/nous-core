@@ -1,7 +1,6 @@
 import type { IDockviewPanelProps } from 'dockview-react'
 import type { CSSProperties } from 'react'
-import { useEventSubscription } from '../../../hooks/useEventSubscription'
-import { useHealthQueries, useHealthQuery } from '../hooks'
+import { trpc, useEventSubscription } from '@nous/transport'
 
 const STATUS_DOT: Record<string, { color: string; label: string }> = {
   available: { color: 'var(--nous-state-complete)', label: 'Available' },
@@ -25,13 +24,13 @@ const containerStyle: CSSProperties = {
 }
 
 export function ProviderHealthWidget(_props: IDockviewPanelProps) {
-  const { fetchProviderHealth } = useHealthQueries()
-  const { data, isLoading, error, refetch } = useHealthQuery(fetchProviderHealth)
+  const utils = trpc.useUtils()
+  const { data, isLoading, error } = trpc.health.providerHealth.useQuery()
 
   useEventSubscription({
     channels: ['health:boot-step', 'health:gateway-status', 'health:issue', 'health:backlog-analytics'],
     onEvent: () => {
-      refetch()
+      void utils.health.providerHealth.invalidate()
     },
   })
 

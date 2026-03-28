@@ -1,86 +1,14 @@
 'use client';
 
 import * as React from 'react';
-import type {
-  ConfirmationProof,
-  ConfirmationProofRequest,
-  MaoAgentInspectProjection,
-  MaoControlAuditHistoryEntry,
-  MaoDensityMode,
-  MaoProjectControlAction,
-  MaoProjectControlRequest,
-  MaoProjectControlResult,
-  MaoProjectSnapshot,
-  SystemStatusSnapshot,
-} from '@nous/shared';
 
 // ---------------------------------------------------------------------------
-// Generic hook shape types — avoid importing tRPC in @nous/ui
-// ---------------------------------------------------------------------------
-
-/** Typed function signature for a tRPC-like query hook. */
-export type QueryHook<TInput, TData> = (
-  input: TInput,
-  opts?: { enabled?: boolean },
-) => { data: TData | undefined; isLoading: boolean; isError: boolean };
-
-/** Typed function signature for a tRPC-like mutation hook. */
-export type MutationHook<TInput, TData> = (
-  opts?: { onSuccess?: (data: TData) => void },
-) => {
-  mutate: (input: TInput) => void;
-  data: TData | undefined;
-  isPending: boolean;
-  isError: boolean;
-};
-
-/** Typed function signature for a tRPC-like useUtils invalidation target. */
-export type InvalidationTarget = { invalidate: () => Promise<void> };
-
-// ---------------------------------------------------------------------------
-// Context value interface
+// Slimmed context — only framework-specific injections remain.
+// Query/mutation hooks are now accessed via `trpc` from `@nous/transport`.
 // ---------------------------------------------------------------------------
 
 export interface MaoServicesContextValue {
-  // Query hooks
-  useSnapshotQuery: QueryHook<
-    { projectId: string; densityMode: MaoDensityMode; workflowRunId?: string },
-    MaoProjectSnapshot
-  >;
-  useInspectQuery: QueryHook<
-    {
-      projectId: string;
-      agentId?: string;
-      workflowRunId?: string;
-      nodeDefinitionId?: string;
-    },
-    MaoAgentInspectProjection
-  >;
-  useAuditQuery: QueryHook<{ projectId: string }, MaoControlAuditHistoryEntry[]>;
-  useSystemStatusQuery: QueryHook<void, SystemStatusSnapshot>;
-
-  // Mutation hooks
-  useControlMutation: MutationHook<
-    {
-      request: MaoProjectControlRequest;
-      confirmationProof?: ConfirmationProof;
-    },
-    MaoProjectControlResult
-  >;
-  useProofMutation: MutationHook<ConfirmationProofRequest, ConfirmationProof>;
-
-  // Invalidation
-  useInvalidation: () => {
-    snapshotInvalidate: InvalidationTarget;
-    inspectInvalidate: InvalidationTarget;
-    controlProjectionInvalidate: InvalidationTarget;
-    auditInvalidate: InvalidationTarget;
-    systemStatusInvalidate: InvalidationTarget;
-    dashboardInvalidate: InvalidationTarget;
-    escalationsInvalidate: InvalidationTarget;
-  };
-
-  // Framework-agnostic injections
+  // Framework-agnostic injections that differ between Next.js and Desktop
   Link: React.ComponentType<{
     href: string;
     className?: string;

@@ -2,16 +2,26 @@
 
 import React from 'react'
 import { render, screen } from '@testing-library/react'
-import { describe, expect, it, vi } from 'vitest'
+import { describe, expect, it, vi, beforeEach } from 'vitest'
 import { ActiveAgentsWidget } from '../widgets/ActiveAgentsWidget'
-import { HealthQueryProvider } from '../hooks/HealthQueryProvider'
-import type { HealthFetchers } from '../hooks/HealthQueryProvider'
 import type { AgentStatusSnapshot } from '@nous/shared'
 import type { IDockviewPanelProps } from 'dockview-react'
 
-vi.mock('../../../../hooks/useEventSubscription', () => ({
+vi.mock('@nous/transport', () => ({
+  trpc: {
+    useUtils: vi.fn().mockReturnValue({
+      health: { agentStatus: { invalidate: vi.fn() } },
+    }),
+    health: {
+      agentStatus: {
+        useQuery: vi.fn().mockReturnValue({ data: undefined, isLoading: true, error: null }),
+      },
+    },
+  },
   useEventSubscription: vi.fn(),
 }))
+
+import { trpc } from '@nous/transport'
 
 const mockSnapshot: AgentStatusSnapshot = {
   gateways: [
@@ -57,34 +67,33 @@ const mockSnapshot: AgentStatusSnapshot = {
 
 const dockviewProps = {} as IDockviewPanelProps
 
-function renderWithProvider(fetchers: Partial<HealthFetchers>) {
-  const defaultFetchers: HealthFetchers = {
-    fetchSystemStatus: vi.fn(),
-    fetchProviderHealth: vi.fn(),
-    fetchAgentStatus: vi.fn().mockResolvedValue(mockSnapshot),
-    ...fetchers,
-  }
-
-  return render(
-    <HealthQueryProvider fetchers={defaultFetchers}>
-      <ActiveAgentsWidget {...dockviewProps} />
-    </HealthQueryProvider>,
-  )
-}
+beforeEach(() => {
+  vi.clearAllMocks()
+})
 
 describe('ActiveAgentsWidget', () => {
   it('renders loading indicator during initial fetch', () => {
-    const fetcher = vi.fn().mockReturnValue(new Promise(() => {}))
-    renderWithProvider({ fetchAgentStatus: fetcher })
+    vi.mocked(trpc.health.agentStatus.useQuery).mockReturnValue({
+      data: undefined,
+      isLoading: true,
+      error: null,
+    } as any)
 
+    render(<ActiveAgentsWidget {...dockviewProps} />)
     expect(screen.getByText('Loading agent status...')).toBeTruthy()
   })
 
-  it('renders live gateway and session entries when data is available', async () => {
-    renderWithProvider({})
+  it('renders live gateway and session entries when data is available', () => {
+    vi.mocked(trpc.health.agentStatus.useQuery).mockReturnValue({
+      data: mockSnapshot,
+      isLoading: false,
+      error: null,
+    } as any)
+
+    render(<ActiveAgentsWidget {...dockviewProps} />)
 
     // Header with counts
-    expect(await screen.findByText(/2 Gateways/)).toBeTruthy()
+    expect(screen.getByText(/2 Gateways/)).toBeTruthy()
     expect(screen.getByText(/2 Sessions/)).toBeTruthy()
 
     // Gateway entries
@@ -107,12 +116,14 @@ describe('ActiveAgentsWidget', () => {
     expect(screen.getByText(/Updated:/)).toBeTruthy()
   })
 
-  it('renders error fallback when fetch fails', async () => {
-    const fetcher = vi.fn().mockRejectedValue(new Error('Timeout'))
-    renderWithProvider({ fetchAgentStatus: fetcher })
+  it('renders error fallback when query has error', () => {
+    vi.mocked(trpc.health.agentStatus.useQuery).mockReturnValue({
+      data: undefined,
+      isLoading: false,
+      error: new Error('Timeout'),
+    } as any)
 
-    expect(
-      await screen.findByText(/Failed to load agent status: Timeout/),
-    ).toBeTruthy()
+    render(<ActiveAgentsWidget {...dockviewProps} />)
+    expect(screen.getByText(/Failed to load agent status: Timeout/)).toBeTruthy()
   })
 })

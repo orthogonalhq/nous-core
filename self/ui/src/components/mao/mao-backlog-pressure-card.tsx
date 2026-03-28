@@ -3,8 +3,7 @@
 import * as React from 'react';
 import { Badge } from '../badge';
 import { Card, CardContent, CardHeader, CardTitle } from '../card';
-import { useEventSubscription } from '../../hooks/useEventSubscription';
-import { useMaoServices } from './mao-services-context';
+import { trpc, useEventSubscription } from '@nous/transport';
 
 const TREND_CONFIG = {
   increasing: {
@@ -25,15 +24,13 @@ const TREND_CONFIG = {
 } as const;
 
 export function MaoBacklogPressureCard() {
-  const { useSystemStatusQuery, useInvalidation } = useMaoServices();
-  const { systemStatusInvalidate } = useInvalidation();
-
-  const statusQuery = useSystemStatusQuery(undefined);
+  const utils = trpc.useUtils();
+  const statusQuery = trpc.health.systemStatus.useQuery();
 
   useEventSubscription({
     channels: ['mao:projection-changed'],
     onEvent: () => {
-      void systemStatusInvalidate.invalidate();
+      void utils.health.systemStatus.invalidate();
     },
     enabled: true,
   });

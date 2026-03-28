@@ -22,9 +22,7 @@ import {
   AgentPanel,
   PreferencesPanel,
   WorkflowBuilderPanel,
-  HealthQueryProvider,
   type ChatAPI,
-  type HealthFetchers,
 } from '@nous/ui/panels'
 import {
   ContentRouter,
@@ -691,11 +689,7 @@ export function App() {
     [backendPort],
   )
 
-  const healthFetchers: HealthFetchers = useMemo(() => ({
-    fetchSystemStatus: () => window.electronAPI.health.systemStatus(),
-    fetchProviderHealth: () => window.electronAPI.health.providerHealth(),
-    fetchAgentStatus: () => window.electronAPI.health.agentStatus(),
-  }), [])
+  // Health data is now fetched via trpc hooks directly in dashboard widgets.
 
   const navigation = {
     activeRoute,
@@ -800,7 +794,6 @@ export function App() {
       navigate={handleNavigate}
       goBack={handleGoBack}
     >
-      <HealthQueryProvider fetchers={healthFetchers}>
         <CommandPalette
           isOpen={commandPaletteOpen}
           onClose={() => setCommandPaletteOpen(false)}
@@ -833,7 +826,6 @@ export function App() {
             panelDefs={panelDefs}
           />
         )}
-      </HealthQueryProvider>
     </ShellProvider>
   )
 
