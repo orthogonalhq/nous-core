@@ -3,11 +3,11 @@ import { webShellRoutes } from '@/components/shell/web-shell-routes'
 
 describe('webShellRoutes', () => {
   const EXPECTED_KEYS = [
-    'home', 'settings', 'threads', 'workflows', 'skills',
+    'home', 'settings', 'threads', 'workflows', 'skills', 'apps',
   ]
 
-  it('has exactly 5 keys', () => {
-    expect(Object.keys(webShellRoutes).length).toBe(5)
+  it('has exactly 6 keys', () => {
+    expect(Object.keys(webShellRoutes).length).toBe(6)
   })
 
   it('each value is a function (valid ComponentType)', () => {

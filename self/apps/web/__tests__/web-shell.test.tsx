@@ -90,7 +90,7 @@ vi.mock('@/components/shell/web-chrome-shell', () => ({
 }))
 
 vi.mock('@/components/shell/web-rail-config', () => ({
-  webRailSections: [{ id: 'main', label: 'Main', items: [{ id: 'home', label: 'Home', icon: 'H' }] }],
+  webRailSections: [{ id: 'main', label: 'Navigate', items: [{ id: 'home', label: 'Home', icon: 'H' }] }],
 }))
 
 vi.mock('@/components/shell/web-shell-routes', () => ({

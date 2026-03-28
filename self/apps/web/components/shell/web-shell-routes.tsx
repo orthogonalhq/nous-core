@@ -8,7 +8,7 @@ import {
   type ContentRouterRenderProps,
 } from '@nous/ui/components'
 import { PreferencesPanel } from '@nous/ui/panels'
-import { STUB_THREADS, STUB_WORKFLOWS, STUB_SKILLS } from '@nous/ui'
+import { STUB_THREADS, STUB_WORKFLOWS, STUB_SKILLS, STUB_APPS } from '@nous/ui'
 import { usePreferencesApi } from '@nous/transport'
 
 // ─── Settings route wrapper (simplified, no Electron params) ────────────────
@@ -41,4 +41,5 @@ export const webShellRoutes: Record<string, ComponentType<ContentRouterRenderPro
   threads: (props: ContentRouterRenderProps) => <CatalogView {...props} items={STUB_THREADS} />,
   workflows: (props: ContentRouterRenderProps) => <CatalogView {...props} items={STUB_WORKFLOWS} />,
   skills: (props: ContentRouterRenderProps) => <CatalogView {...props} items={STUB_SKILLS} />,
+  apps: (props: ContentRouterRenderProps) => <CatalogView {...props} items={STUB_APPS} />,
 }

@@ -163,7 +163,11 @@ function ShellLayoutContent({
   }), [activeRoute])
 
   const commands = useMemo(
-    () => buildWebCommands({ navigate: handleNavigate, onModeToggle: handleModeToggle }),
+    () => buildWebCommands({
+      navigate: handleNavigate,
+      onModeToggle: handleModeToggle,
+      onCommandPalette: () => setCommandPaletteOpen((prev) => !prev),
+    }),
     [handleNavigate, handleModeToggle],
   )
 
