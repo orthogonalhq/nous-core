@@ -9,6 +9,7 @@ export default defineConfig({
     alias: {
       '@': path.resolve(__dirname),
       '@nous/shared': path.resolve(__dirname, '../../shared/src/index.ts'),
+      '@nous/transport': path.resolve(__dirname, '../../transport/src/index.ts'),
       '@nous/autonomic-credentials': path.resolve(
         __dirname,
         '../../autonomic/credentials/src/index.ts',
