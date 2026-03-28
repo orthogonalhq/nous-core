@@ -1,4 +1,4 @@
-import { useMemo } from 'react'
+import { useMemo, useRef } from 'react'
 import { trpc } from '../client'
 
 export interface UseChatApiOptions {
@@ -14,6 +14,10 @@ interface ChatApiShape {
 /**
  * Unified tRPC-backed ChatAPI hook.
  *
+ * Returns a **referentially stable** ChatAPI object. The object identity only
+ * changes when `projectId` changes, preventing downstream `useEffect` hooks
+ * (e.g. ChatPanel's history fetch) from re-firing on every render.
+ *
  * - Without `projectId`: passes `{}` to `getHistory`, no cache invalidation
  *   after send (desktop behavior).
  * - With `projectId`: passes `projectId` to both `sendMessage` and
@@ -25,19 +29,26 @@ export function useChatApi(options?: UseChatApiOptions): ChatApiShape {
   const utils = trpc.useUtils()
   const sendMessage = trpc.chat.sendMessage.useMutation()
 
+  // Store unstable references so the useMemo closure always calls the latest
+  // mutateAsync / utils without needing them as dependencies.
+  const sendRef = useRef(sendMessage.mutateAsync)
+  sendRef.current = sendMessage.mutateAsync
+  const utilsRef = useRef(utils)
+  utilsRef.current = utils
+
   return useMemo(
     () => ({
       send: async (message: string) => {
-        const result = await sendMessage.mutateAsync(
+        const result = await sendRef.current(
           projectId ? { message, projectId } : { message },
         )
         if (projectId) {
-          await utils.chat.getHistory.invalidate({ projectId })
+          await utilsRef.current.chat.getHistory.invalidate({ projectId })
         }
         return { response: result.response, traceId: result.traceId }
       },
       getHistory: async () => {
-        const data = await utils.chat.getHistory.fetch(
+        const data = await utilsRef.current.chat.getHistory.fetch(
           projectId ? { projectId } : {},
         )
         return (data?.entries ?? [])
@@ -49,6 +60,9 @@ export function useChatApi(options?: UseChatApiOptions): ChatApiShape {
           }))
       },
     }),
-    projectId ? [projectId, sendMessage, utils] : [sendMessage, utils],
+    // Only recompute when the logical identity changes (projectId).
+    // sendMessage and utils are accessed via refs for latest values.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [projectId],
   )
 }
