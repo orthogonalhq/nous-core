@@ -4,8 +4,7 @@ import * as React from 'react';
 import Link from 'next/link';
 import { useSearchParams } from 'next/navigation';
 import { ChatPanel } from '@nous/ui/panels';
-import type { ChatAPI } from '@nous/ui/panels';
-import { trpc } from '@/lib/trpc';
+import { useChatApi } from '@nous/transport';
 import { useProject } from '@/lib/project-context';
 import { buildMaoReturnHref, readMaoNavigationContext } from '@/lib/mao-links';
 
@@ -39,38 +38,7 @@ function ChatPageContent() {
     }
   }, [linkedProjectId, projectId, setProjectId]);
 
-  const utils = trpc.useUtils();
-  const sendMessage = trpc.chat.sendMessage.useMutation();
-
-  const chatApi: ChatAPI = React.useMemo(
-    () => ({
-      send: async (message: string) => {
-        const result = await sendMessage.mutateAsync({
-          message,
-          projectId: projectId ?? undefined,
-        });
-        if (projectId) {
-          await utils.chat.getHistory.invalidate({ projectId });
-        }
-        return { response: result.response, traceId: result.traceId };
-      },
-      getHistory: async () => {
-        const data = await utils.chat.getHistory.fetch({
-          projectId: projectId ?? undefined,
-        });
-        return (data?.entries ?? [])
-          .filter(
-            (e) => e.role === 'user' || e.role === 'assistant',
-          )
-          .map((e) => ({
-            role: e.role as 'user' | 'assistant',
-            content: e.content,
-            timestamp: e.timestamp,
-          }));
-      },
-    }),
-    [projectId, sendMessage, utils],
-  );
+  const chatApi = useChatApi({ projectId: projectId ?? undefined });
 
   if (!projectId) {
     return (
