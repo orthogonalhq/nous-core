@@ -42,28 +42,42 @@ export function WebHeader({ mode, onModeToggle }: WebHeaderProps) {
         display: 'flex',
         alignItems: 'center',
         justifyContent: 'space-between',
-        height: '48px',
-        minHeight: '48px',
+        height: 'var(--nous-titlebar-height)',
+        minHeight: 'var(--nous-titlebar-height)',
         padding: '0 var(--nous-space-md)',
-        borderBottom: '1px solid var(--nous-shell-column-border)',
-        background: 'var(--nous-bg-base)',
-        color: 'var(--nous-text-primary)',
+        borderBottom: '1px solid var(--nous-header-border)',
+        background: 'var(--nous-header-bg)',
+        color: 'var(--nous-header-fg)',
         fontFamily: 'var(--nous-font-family)',
         boxSizing: 'border-box',
+        userSelect: 'none',
+        flexShrink: 0,
       }}
     >
       <div
         style={{
           display: 'flex',
           alignItems: 'center',
-          gap: 'var(--nous-space-sm)',
+          gap: 'var(--nous-space-md)',
         }}
       >
         <span
+          data-testid="web-header-app-icon"
+          style={{
+            fontSize: 'var(--nous-font-size-base)',
+            color: 'var(--nous-header-fg)',
+            lineHeight: 'var(--nous-line-height-tight)',
+          }}
+        >
+          ◈
+        </span>
+        <span
           data-testid="web-header-app-name"
           style={{
-            fontSize: 'var(--nous-font-size-lg)',
-            fontWeight: 'var(--nous-font-weight-bold)',
+            fontSize: 'var(--nous-font-size-sm)',
+            fontWeight: 'var(--nous-font-weight-medium)' as any,
+            color: 'var(--nous-header-fg)',
+            letterSpacing: '0.01em',
           }}
         >
           Nous

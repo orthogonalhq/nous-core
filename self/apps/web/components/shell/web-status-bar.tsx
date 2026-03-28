@@ -15,39 +15,66 @@ export function WebStatusBar({ mode = 'simple' }: WebStatusBarProps) {
         display: 'flex',
         alignItems: 'center',
         justifyContent: 'space-between',
-        height: '28px',
-        minHeight: '28px',
-        padding: '0 var(--nous-space-md)',
-        borderTop: '1px solid var(--nous-shell-column-border)',
-        background: 'var(--nous-bg-base)',
-        color: 'var(--nous-text-secondary)',
+        height: 'var(--nous-statusbar-height)',
+        minHeight: 'var(--nous-statusbar-height)',
+        padding: '0',
+        borderTop: '1px solid var(--nous-footer-border)',
+        background: 'var(--nous-footer-bg)',
+        color: 'var(--nous-footer-fg)',
         fontSize: 'var(--nous-font-size-xs)',
         fontFamily: 'var(--nous-font-family)',
         boxSizing: 'border-box',
+        userSelect: 'none',
+        flexShrink: 0,
       }}
     >
-      <div
-        style={{
-          display: 'flex',
-          alignItems: 'center',
-          gap: 'var(--nous-space-sm)',
-        }}
-      >
-        <span data-testid="web-status-bar-status">Connected</span>
-        <span
-          data-testid="web-status-bar-mode"
+      {/* Left slot: runtime status */}
+      <div style={{ display: 'flex', alignItems: 'center', height: '100%' }}>
+        <div
           style={{
-            padding: '0 var(--nous-space-xs)',
-            borderLeft: '1px solid var(--nous-shell-column-border)',
+            display: 'flex',
+            alignItems: 'center',
+            gap: 'var(--nous-space-lg)',
+            padding: '0 var(--nous-space-lg)',
           }}
         >
-          {mode === 'simple' ? 'Simple' : 'Developer'}
-        </span>
+          <span
+            data-testid="web-status-bar-indicator"
+            style={{ display: 'flex', alignItems: 'center', gap: 'var(--nous-space-xs)' }}
+          >
+            <span style={{ fontSize: 'var(--nous-indicator-size)' }}>●</span>
+            <span>ready</span>
+          </span>
+          <span aria-label="Active project scope" style={{ minWidth: 'var(--nous-space-4xl)' }} />
+          <span data-testid="web-status-bar-workflows">0 workflows</span>
+        </div>
       </div>
 
-      <div>
-        <span data-testid="web-status-bar-version">v0.0.1</span>
-      </div>
+      {/* Right slot: mode chip (developer mode only) */}
+      {mode === 'developer' ? (
+        <div
+          style={{
+            display: 'flex',
+            alignItems: 'center',
+            height: '100%',
+          }}
+        >
+          <div style={{ padding: '0 var(--nous-space-lg)' }}>
+            <div
+              data-testid="web-status-bar-mode-badge"
+              style={{
+                padding: '0 var(--nous-space-sm)',
+                borderRadius: 'var(--nous-radius-sm)',
+                background: 'var(--nous-surface)',
+                fontSize: 'var(--nous-font-size-xs)',
+                color: 'var(--nous-fg-subtle)',
+              }}
+            >
+              Developer
+            </div>
+          </div>
+        </div>
+      ) : null}
     </footer>
   )
 }

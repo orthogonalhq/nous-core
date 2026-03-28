@@ -1,6 +1,8 @@
 import type { Metadata } from 'next';
 import { Providers } from './providers';
 import '@nous/ui/styles';
+import '@nous/ui/styles/nous-dark';
+import '@vscode/codicons/dist/codicon.css';
 import './globals.css';
 
 export const metadata: Metadata = {

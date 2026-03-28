@@ -63,6 +63,7 @@
     "react": "^19.0.0",
     "react-dom": "^19.0.0",
     "superjson": "^2.2.2",
+    "@vscode/codicons": "^0.0.44",
     "dockview-react": "^4.2.0",
     "zod": "^3.24.0"
   },

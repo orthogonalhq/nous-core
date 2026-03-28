@@ -98,7 +98,7 @@ vi.mock('@/components/shell/web-rail-config', () => ({
 }))
 
 vi.mock('@/components/shell/web-shell-routes', () => ({
-  webShellRoutes: { home: () => React.createElement('div', null, 'Home') },
+  createWebShellRoutes: () => ({ home: () => React.createElement('div', null, 'Home') }),
 }))
 
 vi.mock('@/components/shell/web-command-config', () => ({

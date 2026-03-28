@@ -7,6 +7,12 @@ import { WebHeader } from '@/components/shell/web-header'
 
 describe('WebHeader', () => {
   afterEach(() => { cleanup() })
+
+  it('renders the app icon', () => {
+    render(<WebHeader mode="simple" onModeToggle={() => {}} />)
+    expect(screen.getByTestId('web-header-app-icon').textContent).toBe('◈')
+  })
+
   it('renders the app name "Nous"', () => {
     render(<WebHeader mode="simple" onModeToggle={() => {}} />)
     expect(screen.getByTestId('web-header-app-name').textContent).toBe('Nous')

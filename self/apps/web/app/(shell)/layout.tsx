@@ -15,7 +15,7 @@ import {
 import type { ShellMode, NavigationState } from '@nous/ui/components'
 import { WebChromeShell } from '@/components/shell/web-chrome-shell'
 import { webRailSections } from '@/components/shell/web-rail-config'
-import { webShellRoutes } from '@/components/shell/web-shell-routes'
+import { createWebShellRoutes } from '@/components/shell/web-shell-routes'
 import { buildWebCommands } from '@/components/shell/web-command-config'
 import { WebConnectedChatSurface } from '@/components/shell/web-chat-wrappers'
 import { trpc } from '@/lib/trpc'
@@ -175,6 +175,17 @@ function ShellLayoutContent({
     [projectsData],
   )
 
+  const routes = useMemo(
+    () => createWebShellRoutes({
+      onModeChange: (newMode) => {
+        setMode(newMode)
+        try { localStorage.setItem(MODE_STORAGE_KEY, newMode) } catch { /* */ }
+      },
+      currentMode: mode,
+    }),
+    [mode],
+  )
+
   return (
     <WebChromeShell mode={mode} onModeToggle={handleModeToggle}>
       <ShellProvider
@@ -206,7 +217,7 @@ function ShellLayoutContent({
               content={
                 <ContentRouter
                   activeRoute={activeRoute}
-                  routes={webShellRoutes}
+                  routes={routes}
                   onNavigate={handleNavigate}
                 />
               }

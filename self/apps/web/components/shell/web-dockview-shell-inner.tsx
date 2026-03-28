@@ -11,25 +11,15 @@ import 'dockview-react/dist/styles/dockview.css'
 const LAYOUT_STORAGE_KEY = 'nous-web-dockview-layout'
 
 function initDefaultWebLayout(api: DockviewApi): void {
-  api.addPanel({
-    id: 'chat',
-    component: 'chat',
-    title: 'Chat',
-  })
-
-  api.addPanel({
-    id: 'mao',
-    component: 'mao',
-    title: 'MAO',
-    position: { referencePanel: 'chat', direction: 'right' },
-  })
-
-  api.addPanel({
-    id: 'dashboard',
-    component: 'dashboard',
-    title: 'Dashboard',
-    position: { referencePanel: 'chat', direction: 'within' },
-  })
+  // Matches desktop DEFAULT_POSITIONS (excluding Electron-only: files, app-installer)
+  api.addPanel({ id: 'chat', component: 'chat', title: 'Chat' })
+  api.addPanel({ id: 'node-projection', component: 'node-projection', title: 'Node Projection', position: { referencePanel: 'chat', direction: 'right' } })
+  api.addPanel({ id: 'mao', component: 'mao', title: 'MAO', position: { referencePanel: 'node-projection', direction: 'below' } })
+  api.addPanel({ id: 'codexbar', component: 'codexbar', title: 'CodexBar', position: { referencePanel: 'chat', direction: 'within' } })
+  api.addPanel({ id: 'dashboard', component: 'dashboard', title: 'Dashboard', position: { referencePanel: 'chat', direction: 'within' } })
+  api.addPanel({ id: 'coding-agents', component: 'coding-agents', title: 'Coding Agents', position: { referencePanel: 'mao', direction: 'within' } })
+  api.addPanel({ id: 'preferences', component: 'preferences', title: 'Preferences', position: { referencePanel: 'chat', direction: 'within' } })
+  api.addPanel({ id: 'workflow-builder', component: 'workflow-builder', title: 'Workflow Builder', position: { referencePanel: 'chat', direction: 'within' } })
 
   console.log('[nous:dockview] Default web layout initialized')
 }
@@ -83,7 +73,7 @@ export function WebDockviewShellInner({ onApiReady }: WebDockviewShellInnerProps
   )
 
   return (
-    <div style={{ height: '100%', width: '100%' }}>
+    <div style={{ height: '100%', width: '100%', padding: 'var(--nous-space-sm)', boxSizing: 'border-box', background: 'var(--nous-surface)' }}>
       <DockviewReact
         components={webPanelComponents}
         onReady={handleReady}
