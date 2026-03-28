@@ -4,22 +4,18 @@ import * as React from 'react'
 import { afterEach, describe, it, expect, vi } from 'vitest'
 import { cleanup, render, screen } from '@testing-library/react'
 
-// Mock radix menubar to avoid portal issues in jsdom
-vi.mock('@radix-ui/react-menubar', () => {
-  const Trigger = (props: any) => React.createElement('button', { ...props, 'data-testid': 'menu-trigger' })
-  return {
-    Root: (props: any) => React.createElement('div', { 'data-testid': 'web-menu-bar', ...props }),
-    Menu: (props: any) => React.createElement('div', props),
-    Trigger,
-    Portal: () => null,
-    Content: () => null,
-    Item: () => null,
-    Separator: () => null,
-    Label: () => null,
-    CheckboxItem: () => null,
-    ItemIndicator: () => null,
-  }
-})
+// Mock next/dynamic — returns a component that renders the mock WebMenuBar
+vi.mock('next/dynamic', () => ({
+  default: (_loader: () => Promise<any>, _options?: any) => {
+    return function DynamicWebMenuBar(props: any) {
+      return React.createElement('div', { 'data-testid': 'web-menu-bar' },
+        React.createElement('button', { 'data-testid': 'menu-trigger' }, 'File'),
+        React.createElement('button', { 'data-testid': 'menu-trigger' }, 'View'),
+        React.createElement('button', { 'data-testid': 'menu-trigger' }, 'Help'),
+      )
+    }
+  },
+}))
 
 import { WebHeader } from '@/components/shell/web-header'
 

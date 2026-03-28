@@ -1,8 +1,13 @@
 'use client'
 
 import * as React from 'react'
+import dynamic from 'next/dynamic'
 import type { ShellMode } from '@nous/ui/components'
-import { WebMenuBar } from './web-menu-bar'
+
+const WebMenuBar = dynamic(
+  () => import('./web-menu-bar').then((mod) => ({ default: mod.WebMenuBar })),
+  { ssr: false },
+)
 
 export interface WebHeaderProps {
   mode: ShellMode
