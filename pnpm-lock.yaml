@@ -510,6 +510,9 @@ importers:
       '@nous/subcortex-workflows':
         specifier: workspace:*
         version: link:../../subcortex/workflows
+      '@nous/transport':
+        specifier: workspace:*
+        version: link:../../transport
       '@nous/ui':
         specifier: workspace:*
         version: link:../../ui
@@ -1110,11 +1113,45 @@ importers:
         specifier: ^2.1.0
         version: 2.1.9(@types/node@20.19.33)(jsdom@26.1.0)(lightningcss@1.30.2)
 
+  self/transport:
+    dependencies:
+      '@nous/shared':
+        specifier: workspace:*
+        version: link:../shared
+      '@tanstack/react-query':
+        specifier: ^5.62.0
+        version: 5.90.21(react@19.2.3)
+      '@trpc/client':
+        specifier: ^11.0.0-rc.0
+        version: 11.10.0(@trpc/server@11.10.0(typescript@5.9.3))(typescript@5.9.3)
+      '@trpc/react-query':
+        specifier: ^11.0.0-rc.0
+        version: 11.10.0(@tanstack/react-query@5.90.21(react@19.2.3))(@trpc/client@11.10.0(@trpc/server@11.10.0(typescript@5.9.3))(typescript@5.9.3))(@trpc/server@11.10.0(typescript@5.9.3))(react@19.2.3)(typescript@5.9.3)
+      react:
+        specifier: ^19.0.0
+        version: 19.2.3
+      superjson:
+        specifier: ^2.2.2
+        version: 2.2.6
+    devDependencies:
+      '@nous/shared-server':
+        specifier: workspace:*
+        version: link:../apps/shared-server
+      '@types/react':
+        specifier: ^19
+        version: 19.2.14
+      typescript:
+        specifier: ^5
+        version: 5.9.3
+
   self/ui:
     dependencies:
       '@nous/shared':
         specifier: workspace:*
         version: link:../shared
+      '@nous/transport':
+        specifier: workspace:*
+        version: link:../transport
       clsx:
         specifier: ^2.1.0
         version: 2.1.1
