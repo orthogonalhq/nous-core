@@ -136,21 +136,21 @@ describe('coding agent pipeline integration', () => {
   });
 
   describe('desktop agent panel registration', () => {
-    it('imports AgentPanel in desktop App.tsx', () => {
-      const appPath = join(
+    it('imports AgentPanel in desktop panel map', () => {
+      const panelMapPath = join(
         ROOT,
-        '../desktop/src/renderer/src/App.tsx',
+        '../desktop/src/renderer/src/desktop-panel-map.ts',
       );
-      const content = readFileSync(appPath, 'utf-8');
+      const content = readFileSync(panelMapPath, 'utf-8');
       expect(content).toContain('AgentPanel');
     });
 
     it('registers coding-agents panel component', () => {
-      const appPath = join(
+      const panelMapPath = join(
         ROOT,
-        '../desktop/src/renderer/src/App.tsx',
+        '../desktop/src/renderer/src/desktop-panel-map.ts',
       );
-      const content = readFileSync(appPath, 'utf-8');
+      const content = readFileSync(panelMapPath, 'utf-8');
       expect(content).toContain("'coding-agents': AgentPanel");
     });
 

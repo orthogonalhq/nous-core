@@ -7,20 +7,14 @@ import { cleanup, render, screen } from '@testing-library/react';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 const mocks = vi.hoisted(() => ({
-  sendMessageUseMutation: vi.fn(),
-  useUtils: vi.fn(),
+  useChatApi: vi.fn(),
   useProject: vi.fn(),
   useSearchParams: vi.fn(),
   ChatPanel: vi.fn(),
 }));
 
-vi.mock('@/lib/trpc', () => ({
-  trpc: {
-    chat: {
-      sendMessage: { useMutation: mocks.sendMessageUseMutation },
-    },
-    useUtils: mocks.useUtils,
-  },
+vi.mock('@nous/transport', () => ({
+  useChatApi: mocks.useChatApi,
 }));
 
 vi.mock('@/lib/project-context', () => ({
@@ -50,17 +44,9 @@ describe('ChatPage', () => {
     mocks.useSearchParams.mockReturnValue({
       get: vi.fn(() => null),
     });
-    mocks.sendMessageUseMutation.mockReturnValue({
-      mutateAsync: vi.fn(),
-      isPending: false,
-    });
-    mocks.useUtils.mockReturnValue({
-      chat: {
-        getHistory: {
-          invalidate: vi.fn(),
-          fetch: vi.fn().mockResolvedValue({ entries: [], summary: undefined, tokenCount: 0 }),
-        },
-      },
+    mocks.useChatApi.mockReturnValue({
+      send: vi.fn(),
+      getHistory: vi.fn().mockResolvedValue([]),
     });
   });
 

@@ -1,0 +1,78 @@
+import { useMemo, useRef } from 'react'
+import { trpc } from '../client'
+
+/**
+ * tRPC-backed preferences API hook.
+ *
+ * Returns a referentially stable object structurally compatible with
+ * PreferencesApi from @nous/ui/panels/settings/types.
+ *
+ * Does NOT import PreferencesApi — structural compatibility only.
+ * This respects the dependency direction: transport does not depend on ui.
+ */
+export function usePreferencesApi() {
+  const utils = trpc.useUtils()
+  const setApiKey = trpc.preferences.setApiKey.useMutation()
+  const deleteApiKey = trpc.preferences.deleteApiKey.useMutation()
+  const testApiKey = trpc.preferences.testApiKey.useMutation()
+  const setModelSelection = trpc.preferences.setModelSelection.useMutation()
+  const setRoleAssignment = trpc.preferences.setRoleAssignment.useMutation()
+
+  const utilsRef = useRef(utils)
+  utilsRef.current = utils
+  const setApiKeyRef = useRef(setApiKey.mutateAsync)
+  setApiKeyRef.current = setApiKey.mutateAsync
+  const deleteApiKeyRef = useRef(deleteApiKey.mutateAsync)
+  deleteApiKeyRef.current = deleteApiKey.mutateAsync
+  const testApiKeyRef = useRef(testApiKey.mutateAsync)
+  testApiKeyRef.current = testApiKey.mutateAsync
+  const setModelSelectionRef = useRef(setModelSelection.mutateAsync)
+  setModelSelectionRef.current = setModelSelection.mutateAsync
+  const setRoleAssignmentRef = useRef(setRoleAssignment.mutateAsync)
+  setRoleAssignmentRef.current = setRoleAssignment.mutateAsync
+
+  return useMemo(
+    () => ({
+      // Required methods
+      getApiKeys: async () => {
+        return utilsRef.current.preferences.getApiKeys.fetch()
+      },
+      setApiKey: async (input: { provider: string; key: string }) => {
+        return setApiKeyRef.current(input as any)
+      },
+      deleteApiKey: async (input: { provider: string }) => {
+        return deleteApiKeyRef.current(input as any)
+      },
+      testApiKey: async (input: { provider: string; key?: string }) => {
+        return testApiKeyRef.current(input as any)
+      },
+      getSystemStatus: async () => {
+        return utilsRef.current.preferences.getSystemStatus.fetch()
+      },
+      // Optional methods (all provided — wired to existing tRPC endpoints)
+      getAvailableModels: async () => {
+        return utilsRef.current.preferences.getAvailableModels.fetch()
+      },
+      getModelSelection: async () => {
+        return utilsRef.current.preferences.getModelSelection.fetch()
+      },
+      setModelSelection: async (input: { principal?: string; system?: string }) => {
+        return setModelSelectionRef.current(input)
+      },
+      getRoleAssignments: async () => {
+        const record = await utilsRef.current.preferences.getRoleAssignments.fetch()
+        return Object.entries(record).map(([role, assignment]) => ({
+          role,
+          providerId: (assignment as any)?.providerId ?? null,
+        }))
+      },
+      setRoleAssignment: async (input: { role: string; modelSpec: string }) => {
+        return setRoleAssignmentRef.current(input as any)
+      },
+    }),
+    // No dependencies — object is created once per mount.
+    // Mutation handles and utils are accessed via refs for latest values.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [],
+  )
+}
