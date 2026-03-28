@@ -2,7 +2,25 @@
 
 import * as React from 'react'
 import { afterEach, describe, it, expect, vi } from 'vitest'
-import { cleanup, render, screen, fireEvent } from '@testing-library/react'
+import { cleanup, render, screen } from '@testing-library/react'
+
+// Mock radix menubar to avoid portal issues in jsdom
+vi.mock('@radix-ui/react-menubar', () => {
+  const Trigger = (props: any) => React.createElement('button', { ...props, 'data-testid': 'menu-trigger' })
+  return {
+    Root: (props: any) => React.createElement('div', { 'data-testid': 'web-menu-bar', ...props }),
+    Menu: (props: any) => React.createElement('div', props),
+    Trigger,
+    Portal: () => null,
+    Content: () => null,
+    Item: () => null,
+    Separator: () => null,
+    Label: () => null,
+    CheckboxItem: () => null,
+    ItemIndicator: () => null,
+  }
+})
+
 import { WebHeader } from '@/components/shell/web-header'
 
 describe('WebHeader', () => {
@@ -18,25 +36,19 @@ describe('WebHeader', () => {
     expect(screen.getByTestId('web-header-app-name').textContent).toBe('Nous')
   })
 
-  it('renders mode badge with "Simple" text for mode="simple"', () => {
+  it('renders the menu bar with File/View/Help triggers', () => {
     render(<WebHeader mode="simple" onModeToggle={() => {}} />)
-    expect(screen.getByTestId('web-header-mode-badge').textContent).toBe('Simple')
+    const triggers = screen.getAllByTestId('menu-trigger')
+    expect(triggers.length).toBe(3)
+    expect(triggers[0].textContent).toBe('File')
+    expect(triggers[1].textContent).toBe('View')
+    expect(triggers[2].textContent).toBe('Help')
   })
 
-  it('renders mode badge with "Developer" text for mode="developer"', () => {
-    render(<WebHeader mode="developer" onModeToggle={() => {}} />)
-    expect(screen.getByTestId('web-header-mode-badge').textContent).toBe('Developer')
-  })
-
-  it('calls onModeToggle callback on mode toggle button click', () => {
-    const onModeToggle = vi.fn()
-    render(<WebHeader mode="simple" onModeToggle={onModeToggle} />)
-    fireEvent.click(screen.getByTestId('web-header-mode-toggle'))
-    expect(onModeToggle).toHaveBeenCalledOnce()
-  })
-
-  it('renders theme toggle button', () => {
+  it('does not render mode badge or toggle buttons', () => {
     render(<WebHeader mode="simple" onModeToggle={() => {}} />)
-    expect(screen.getByTestId('web-header-theme-toggle')).toBeDefined()
+    expect(screen.queryByTestId('web-header-mode-badge')).toBeNull()
+    expect(screen.queryByTestId('web-header-mode-toggle')).toBeNull()
+    expect(screen.queryByTestId('web-header-theme-toggle')).toBeNull()
   })
 })

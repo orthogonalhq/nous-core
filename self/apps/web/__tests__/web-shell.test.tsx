@@ -62,21 +62,6 @@ vi.mock('next/navigation', () => ({
   usePathname: () => '/',
 }))
 
-const mockMutateAsync = vi.fn().mockResolvedValue({ id: 'new-proj-1', name: 'Test' })
-const mockInvalidate = vi.fn()
-
-vi.mock('@/lib/trpc', () => ({
-  trpc: {
-    useUtils: () => ({
-      projects: { list: { invalidate: mockInvalidate } },
-    }),
-    projects: {
-      create: { useMutation: (opts: any) => ({ mutateAsync: mockMutateAsync, ...opts }) },
-      list: { useQuery: () => ({ data: [{ id: 'proj-1', name: 'Alpha' }, { id: 'proj-2', name: 'Beta' }] }) },
-    },
-  },
-}))
-
 vi.mock('@/lib/project-context', () => ({
   ProjectProvider: ({ children, value }: any) => {
     return React.createElement('div', { 'data-testid': 'project-provider', 'data-project-id': value.projectId ?? '' }, children)

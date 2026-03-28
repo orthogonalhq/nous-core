@@ -18,7 +18,6 @@ import { webRailSections } from '@/components/shell/web-rail-config'
 import { createWebShellRoutes } from '@/components/shell/web-shell-routes'
 import { buildWebCommands } from '@/components/shell/web-command-config'
 import { WebConnectedChatSurface } from '@/components/shell/web-chat-wrappers'
-import { trpc } from '@/lib/trpc'
 import { ProjectProvider } from '@/lib/project-context'
 
 const WebDockviewShell = dynamic(
@@ -62,13 +61,6 @@ function ShellLayoutContent({
   const [projectId, setProjectId] = useState<string | null>(null)
 
   const searchParams = useSearchParams()
-  const utils = trpc.useUtils()
-  const createProject = trpc.projects.create.useMutation({
-    onSuccess: () => {
-      utils.projects.list.invalidate()
-    },
-  })
-  const { data: projectsData } = trpc.projects.list.useQuery()
 
   // Mode persistence — load on mount
   useEffect(() => {
@@ -135,26 +127,6 @@ function ShellLayoutContent({
     setActiveRoute('home')
   }, [])
 
-  const handleNewProject = useCallback(async () => {
-    const name = prompt('Project name:')
-    if (!name?.trim()) return
-    try {
-      const project = await createProject.mutateAsync({ name: name.trim() })
-      setProjectId(project.id)
-    } catch (err) {
-      console.error(err)
-      alert('Failed to create project')
-    }
-  }, [createProject])
-
-  const handleProjectSelect = useCallback((id: string) => {
-    if (id === 'new-project') {
-      void handleNewProject()
-    } else {
-      setProjectId(id)
-    }
-  }, [handleNewProject])
-
   const navigation: NavigationState = useMemo(() => ({
     activeRoute,
     history: [activeRoute],
@@ -168,11 +140,6 @@ function ShellLayoutContent({
       onCommandPalette: () => setCommandPaletteOpen((prev) => !prev),
     }),
     [handleNavigate, handleModeToggle],
-  )
-
-  const projects = useMemo(
-    () => (projectsData ?? []).map((p) => ({ id: p.id, name: p.name })),
-    [projectsData],
   )
 
   const routes = useMemo(
@@ -209,8 +176,6 @@ function ShellLayoutContent({
                   items={webRailSections}
                   activeItemId={activeRoute}
                   onItemSelect={handleNavigate}
-                  projects={projects}
-                  onProjectSelect={handleProjectSelect}
                 />
               }
               chat={<WebConnectedChatSurface />}
