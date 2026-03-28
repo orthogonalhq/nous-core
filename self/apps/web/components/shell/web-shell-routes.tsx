@@ -9,10 +9,13 @@ import {
 } from '@nous/ui/components'
 import { PreferencesPanel } from '@nous/ui/panels'
 import { STUB_THREADS, STUB_WORKFLOWS, STUB_SKILLS } from '@nous/ui'
+import { usePreferencesApi } from '@nous/transport'
 
 // ─── Settings route wrapper (simplified, no Electron params) ────────────────
 
 function SettingsRoute(_props: ContentRouterRenderProps) {
+  const preferencesApi = usePreferencesApi()
+
   return (
     <div
       style={{
@@ -24,7 +27,7 @@ function SettingsRoute(_props: ContentRouterRenderProps) {
       <PreferencesPanel
         api={{} as never}
         containerApi={{} as never}
-        params={{}}
+        params={{ preferencesApi }}
       />
     </div>
   )
