@@ -22,7 +22,6 @@ import {
   AgentPanel,
   PreferencesPanel,
   WorkflowBuilderPanel,
-  type ChatAPI,
 } from '@nous/ui/panels'
 import {
   ContentRouter,
@@ -46,6 +45,7 @@ import { FirstRunWizard } from './components/FirstRunWizard'
 import { TitleBar } from './components/TitleBar'
 import { StatusBar } from './components/StatusBar'
 import type { FirstRunState } from './components/wizard/types'
+import { setBackendPort as setWizardBackendPort, trpcQuery } from './components/wizard/trpc-fetch'
 
 import 'dockview-react/dist/styles/dockview.css'
 
@@ -105,16 +105,11 @@ export const NATIVE_PANEL_DEFS: PanelDef[] = [
     id: 'chat',
     component: 'chat',
     title: 'Principal \u2194 Cortex',
-    params: () => ({ chatApi: window.electronAPI?.chat }),
   },
   {
     id: 'app-installer',
     component: 'app-installer',
     title: 'App Installer',
-    params: () => ({
-      appInstallApi: window.electronAPI?.appInstall,
-      appSettingsApi: window.electronAPI?.appSettings,
-    }),
   },
   {
     id: 'files',
@@ -123,7 +118,7 @@ export const NATIVE_PANEL_DEFS: PanelDef[] = [
     params: () => ({ fsApi: window.electronAPI?.fs, initialPath: '/' }),
   },
   { id: 'node-projection', component: 'node-projection', title: 'Skill Projection' },
-  { id: 'mao', component: 'mao', title: 'MAO', params: () => ({ maoApi: (window as any).electronAPI?.mao }) },
+  { id: 'mao', component: 'mao', title: 'MAO' },
   {
     id: 'codexbar',
     component: 'codexbar',
@@ -137,12 +132,6 @@ export const NATIVE_PANEL_DEFS: PanelDef[] = [
     id: 'preferences',
     component: 'preferences',
     title: 'Preferences',
-    params: () => ({
-      preferencesApi: {
-        ...(window as any).electronAPI?.preferences,
-        getHardwareRecommendations: window.electronAPI?.hardware.getRecommendations,
-      },
-    }),
   },
 ]
 
@@ -445,10 +434,13 @@ export function App() {
     }
 
     // Discover backend port for direct HTTP/SSE transport
+    let discoveredPort: number | null = null
     try {
       const port = await window.electronAPI.backend.getPort()
       if (!isStale() && port) {
+        discoveredPort = port
         setBackendPort(port)
+        setWizardBackendPort(port)
       }
     } catch {
       console.warn('[nous:transport] Failed to get backend port — transport layer unavailable')
@@ -457,7 +449,7 @@ export function App() {
     setLoadingMessage('Loading first-run state…')
 
     try {
-      const nextFirstRunState = await window.electronAPI.firstRun.getWizardState()
+      const nextFirstRunState = await trpcQuery<FirstRunState>('firstRun.getWizardState')
       if (isStale()) {
         return
       }
@@ -542,11 +534,17 @@ export function App() {
 
     let cancelled = false
 
+    if (!backendPort) return
+
     const syncAppPanels = async () => {
       try {
-        const panels = await window.electronAPI.appPanels.list()
-        if (!cancelled) {
-          setAppPanels(panels)
+        const panels = await trpcQuery<AppPanelSnapshot[]>('packages.listAppPanels')
+        if (!cancelled && Array.isArray(panels)) {
+          const baseUrl = `http://127.0.0.1:${backendPort}`
+          setAppPanels(panels.map((p: AppPanelSnapshot) => ({
+            ...p,
+            src: new URL(p.route_path, baseUrl).toString(),
+          })))
         }
       } catch {
         // Backend may not be available yet — retry on next interval
@@ -562,7 +560,7 @@ export function App() {
       cancelled = true
       window.clearInterval(intervalId)
     }
-  }, [phase])
+  }, [phase, backendPort])
 
   const handleWizardComplete = useCallback(() => {
     console.log('[nous:wizard] Phase: wizard → main')
@@ -641,11 +639,6 @@ export function App() {
   }, [phase])
 
   const preferencesPanelParams = useMemo(() => ({
-    preferencesApi: {
-      ...(window as any).electronAPI?.preferences,
-      getHardwareRecommendations: window.electronAPI?.hardware.getRecommendations,
-      resetWizard: window.electronAPI?.firstRun.resetWizard,
-    },
     onWizardReset: handleWizardReset,
     onModeChange: handleModeChange,
     currentMode: mode,
@@ -808,7 +801,7 @@ export function App() {
                 onItemSelect={handleNavigate}
               />
             )}
-            chat={<ChatSurface chatApi={window.electronAPI?.chat as ChatAPI | undefined} />}
+            chat={<ChatSurface />}
             content={(
               <ContentRouter
                 activeRoute={activeRoute}
@@ -816,7 +809,7 @@ export function App() {
                 onNavigate={handleNavigate}
               />
             )}
-            observe={<ObservePanel maoApi={(window as any).electronAPI?.mao} />}
+            observe={<ObservePanel />}
           />
         ) : (
           <DockviewShell

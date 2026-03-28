@@ -1,10 +1,29 @@
-type ElectronAPI = Window['electronAPI']
+export type {
+  FirstRunState,
+  FirstRunPrerequisites,
+  FirstRunActionResult,
+  FirstRunStep,
+  FirstRunRoleAssignmentInput,
+} from '@nous/shared-server'
+import type {
+  FirstRunState,
+  FirstRunPrerequisites,
+  FirstRunStep,
+} from '@nous/shared-server'
 
-export type FirstRunState = Awaited<ReturnType<ElectronAPI['firstRun']['getWizardState']>>
-export type FirstRunPrerequisites = Awaited<ReturnType<ElectronAPI['firstRun']['checkPrerequisites']>>
-export type FirstRunActionResult = Awaited<ReturnType<ElectronAPI['firstRun']['downloadModel']>>
-export type FirstRunStep = Parameters<ElectronAPI['firstRun']['completeStep']>[0]
 export type FirstRunCurrentStep = FirstRunState['currentStep']
+
+/** ModelRole — mirrors @nous/shared ModelRole enum values. */
+export type ModelRole =
+  | 'orchestrator'
+  | 'reasoner'
+  | 'tool-advisor'
+  | 'summarizer'
+  | 'embedder'
+  | 'reranker'
+  | 'vision'
+
+type ElectronAPI = Window['electronAPI']
 export type OllamaStatus = Awaited<ReturnType<ElectronAPI['ollama']['getStatus']>>
 export type OllamaLifecycleState = OllamaStatus['state']
 export type OllamaModelPullProgress = Parameters<ElectronAPI['ollama']['onPullProgress']>[0] extends (
@@ -12,7 +31,6 @@ export type OllamaModelPullProgress = Parameters<ElectronAPI['ollama']['onPullPr
 ) => void
   ? T
   : never
-export type ModelRole = Parameters<ElectronAPI['firstRun']['assignRoles']>[0][number]['role']
 export type RoleAssignments = Partial<Record<ModelRole, string>>
 export type ModelRecommendation = NonNullable<FirstRunPrerequisites['recommendations']['singleModel']>
 export type RoleModelRecommendation = FirstRunPrerequisites['recommendations']['multiModel'][number]

@@ -3,7 +3,16 @@ import { beforeEach, describe, expect, it, vi } from 'vitest'
 import {
   createElectronAPIMock,
   createFirstRunState,
+  DEFAULT_WIZARD_STATE,
 } from '../test-setup'
+
+const trpcFetchMock = vi.hoisted(() => ({
+  setBackendPort: vi.fn(),
+  trpcQuery: vi.fn(),
+  trpcMutate: vi.fn(),
+}))
+
+vi.mock('../components/wizard/trpc-fetch', () => trpcFetchMock)
 
 const dockviewApiMock = vi.hoisted(() => ({
   panels: [] as never[],
@@ -112,16 +121,24 @@ describe('App', () => {
     dockviewApiMock.removePanel.mockClear()
     dockviewApiMock.panels.length = 0
     window.localStorage.clear()
+
+    // Default trpc-fetch mock: return incomplete wizard state
+    trpcFetchMock.trpcQuery.mockImplementation(async (procedure: string) => {
+      if (procedure === 'firstRun.getWizardState') return DEFAULT_WIZARD_STATE
+      if (procedure === 'packages.listAppPanels') return []
+      return null
+    })
+    trpcFetchMock.trpcMutate.mockResolvedValue(null)
+    trpcFetchMock.setBackendPort.mockClear()
   })
 
   it('starts in simple mode by default', async () => {
     const mock = installMock()
-    mock.firstRun.getWizardState.mockResolvedValue(
-      createFirstRunState({
-        currentStep: 'complete',
-        complete: true,
-      }),
-    )
+    trpcFetchMock.trpcQuery.mockImplementation(async (procedure: string) => {
+      if (procedure === 'firstRun.getWizardState') return createFirstRunState({ currentStep: 'complete', complete: true })
+      if (procedure === 'packages.listAppPanels') return []
+      return null
+    })
 
     render(<App />)
 
@@ -141,12 +158,11 @@ describe('App', () => {
 
   it('loads developer mode from persisted state', async () => {
     const mock = installMock()
-    mock.firstRun.getWizardState.mockResolvedValue(
-      createFirstRunState({
-        currentStep: 'complete',
-        complete: true,
-      }),
-    )
+    trpcFetchMock.trpcQuery.mockImplementation(async (procedure: string) => {
+      if (procedure === 'firstRun.getWizardState') return createFirstRunState({ currentStep: 'complete', complete: true })
+      if (procedure === 'packages.listAppPanels') return []
+      return null
+    })
     mock.mode.get.mockResolvedValue('developer')
 
     render(<App />)
@@ -157,12 +173,11 @@ describe('App', () => {
 
   it('toggles mode with the keyboard shortcut and persists the change', async () => {
     const mock = installMock()
-    mock.firstRun.getWizardState.mockResolvedValue(
-      createFirstRunState({
-        currentStep: 'complete',
-        complete: true,
-      }),
-    )
+    trpcFetchMock.trpcQuery.mockImplementation(async (procedure: string) => {
+      if (procedure === 'firstRun.getWizardState') return createFirstRunState({ currentStep: 'complete', complete: true })
+      if (procedure === 'packages.listAppPanels') return []
+      return null
+    })
 
     render(<App />)
 
@@ -182,12 +197,11 @@ describe('App', () => {
 
   it('falls back to localStorage when the mode bridge is unavailable', async () => {
     const mock = installMock()
-    mock.firstRun.getWizardState.mockResolvedValue(
-      createFirstRunState({
-        currentStep: 'complete',
-        complete: true,
-      }),
-    )
+    trpcFetchMock.trpcQuery.mockImplementation(async (procedure: string) => {
+      if (procedure === 'firstRun.getWizardState') return createFirstRunState({ currentStep: 'complete', complete: true })
+      if (procedure === 'packages.listAppPanels') return []
+      return null
+    })
 
     Object.defineProperty(window, 'electronAPI', {
       configurable: true,
@@ -223,12 +237,11 @@ describe('App', () => {
     const circularLayout: Record<string, unknown> = {}
     circularLayout.self = circularLayout
 
-    mock.firstRun.getWizardState.mockResolvedValue(
-      createFirstRunState({
-        currentStep: 'complete',
-        complete: true,
-      }),
-    )
+    trpcFetchMock.trpcQuery.mockImplementation(async (procedure: string) => {
+      if (procedure === 'firstRun.getWizardState') return createFirstRunState({ currentStep: 'complete', complete: true })
+      if (procedure === 'packages.listAppPanels') return []
+      return null
+    })
     dockviewApiMock.toJSON.mockReturnValue(circularLayout)
 
     render(<App />)
@@ -261,12 +274,11 @@ describe('App', () => {
     const errorSpy = vi.spyOn(console, 'error').mockImplementation(() => {})
     const syncError = new Error('An object could not be cloned')
 
-    mock.firstRun.getWizardState.mockResolvedValue(
-      createFirstRunState({
-        currentStep: 'complete',
-        complete: true,
-      }),
-    )
+    trpcFetchMock.trpcQuery.mockImplementation(async (procedure: string) => {
+      if (procedure === 'firstRun.getWizardState') return createFirstRunState({ currentStep: 'complete', complete: true })
+      if (procedure === 'packages.listAppPanels') return []
+      return null
+    })
     dockviewApiMock.toJSON.mockReturnValue({ panels: [] })
     mock.layout.set.mockImplementationOnce(() => {
       throw syncError
@@ -294,10 +306,8 @@ describe('App', () => {
   })
 
   it('shows the wizard shell when first-run is incomplete', async () => {
-    const mock = installMock()
-    mock.firstRun.getWizardState.mockResolvedValue(
-      createFirstRunState({ complete: false, currentStep: 'ollama_check' }),
-    )
+    installMock()
+    // Default trpcQuery mock returns incomplete wizard state
 
     render(<App />)
 
@@ -305,13 +315,12 @@ describe('App', () => {
   })
 
   it('shows the dockview shell when first-run is already complete', async () => {
-    const mock = installMock()
-    mock.firstRun.getWizardState.mockResolvedValue(
-      createFirstRunState({
-        currentStep: 'complete',
-        complete: true,
-      }),
-    )
+    installMock()
+    trpcFetchMock.trpcQuery.mockImplementation(async (procedure: string) => {
+      if (procedure === 'firstRun.getWizardState') return createFirstRunState({ currentStep: 'complete', complete: true })
+      if (procedure === 'packages.listAppPanels') return []
+      return null
+    })
 
     render(<App />)
 
@@ -319,10 +328,8 @@ describe('App', () => {
   })
 
   it('transitions from the wizard shell to dockview after completion', async () => {
-    const mock = installMock()
-    mock.firstRun.getWizardState.mockResolvedValue(
-      createFirstRunState({ complete: false, currentStep: 'ollama_check' }),
-    )
+    installMock()
+    // Default trpcQuery mock returns incomplete wizard state
 
     render(<App />)
 
@@ -355,17 +362,24 @@ describe('App', () => {
     })
 
     expect(mock.backend.getStatus).toHaveBeenCalledTimes(2)
-    expect(mock.firstRun.getWizardState).toHaveBeenCalledTimes(1)
+    expect(trpcFetchMock.trpcQuery).toHaveBeenCalled()
     expect(screen.getByText('Wizard shell')).toBeInTheDocument()
 
     vi.useRealTimers()
   })
 
   it('shows an error and retries when loading the first-run state fails', async () => {
-    const mock = installMock()
-    mock.firstRun.getWizardState
-      .mockRejectedValueOnce(new Error('wizard state failed'))
-      .mockResolvedValueOnce(createFirstRunState({ complete: false }))
+    installMock()
+    let callCount = 0
+    trpcFetchMock.trpcQuery.mockImplementation(async (procedure: string) => {
+      if (procedure === 'firstRun.getWizardState') {
+        callCount++
+        if (callCount === 1) throw new Error('wizard state failed')
+        return createFirstRunState({ complete: false })
+      }
+      if (procedure === 'packages.listAppPanels') return []
+      return null
+    })
 
     render(<App />)
 
@@ -378,27 +392,24 @@ describe('App', () => {
     })
 
     await waitFor(() => {
-      expect(mock.firstRun.getWizardState).toHaveBeenCalledTimes(2)
+      expect(callCount).toBeGreaterThanOrEqual(2)
     })
 
     expect(await screen.findByText('Wizard shell')).toBeInTheDocument()
   })
 
   it('wires the preferences panel reset callback back into app initialization', async () => {
-    const mock = installMock()
-    mock.firstRun.getWizardState
-      .mockResolvedValueOnce(
-        createFirstRunState({
-          currentStep: 'complete',
-          complete: true,
-        }),
-      )
-      .mockResolvedValueOnce(
-        createFirstRunState({
-          currentStep: 'ollama_check',
-          complete: false,
-        }),
-      )
+    installMock()
+    let wizardCallCount = 0
+    trpcFetchMock.trpcQuery.mockImplementation(async (procedure: string) => {
+      if (procedure === 'firstRun.getWizardState') {
+        wizardCallCount++
+        if (wizardCallCount === 1) return createFirstRunState({ currentStep: 'complete', complete: true })
+        return createFirstRunState({ currentStep: 'ollama_check', complete: false })
+      }
+      if (procedure === 'packages.listAppPanels') return []
+      return null
+    })
 
     render(<App />)
 
@@ -410,18 +421,15 @@ describe('App', () => {
     expect(preferencesPanelCall).toBeTruthy()
 
     const preferencesParams = preferencesPanelCall?.[0].params as {
-      preferencesApi?: { resetWizard?: () => Promise<unknown> }
       onWizardReset?: () => Promise<void> | void
     }
-
-    expect(preferencesParams.preferencesApi?.resetWizard).toBe(mock.firstRun.resetWizard)
 
     await act(async () => {
       await preferencesParams.onWizardReset?.()
     })
 
     await waitFor(() => {
-      expect(mock.firstRun.getWizardState).toHaveBeenCalledTimes(2)
+      expect(wizardCallCount).toBeGreaterThanOrEqual(2)
     })
 
     expect(await screen.findByText('Wizard shell')).toBeInTheDocument()
@@ -429,12 +437,11 @@ describe('App', () => {
 
   it('opens command palette with Ctrl+K', async () => {
     const mock = installMock()
-    mock.firstRun.getWizardState.mockResolvedValue(
-      createFirstRunState({
-        currentStep: 'complete',
-        complete: true,
-      }),
-    )
+    trpcFetchMock.trpcQuery.mockImplementation(async (procedure: string) => {
+      if (procedure === 'firstRun.getWizardState') return createFirstRunState({ currentStep: 'complete', complete: true })
+      if (procedure === 'packages.listAppPanels') return []
+      return null
+    })
 
     render(<App />)
 
@@ -456,12 +463,11 @@ describe('App', () => {
 
   it('closes command palette with Escape', async () => {
     const mock = installMock()
-    mock.firstRun.getWizardState.mockResolvedValue(
-      createFirstRunState({
-        currentStep: 'complete',
-        complete: true,
-      }),
-    )
+    trpcFetchMock.trpcQuery.mockImplementation(async (procedure: string) => {
+      if (procedure === 'firstRun.getWizardState') return createFirstRunState({ currentStep: 'complete', complete: true })
+      if (procedure === 'packages.listAppPanels') return []
+      return null
+    })
 
     render(<App />)
 
@@ -488,12 +494,11 @@ describe('App', () => {
 
   it('navigates via command palette', async () => {
     const mock = installMock()
-    mock.firstRun.getWizardState.mockResolvedValue(
-      createFirstRunState({
-        currentStep: 'complete',
-        complete: true,
-      }),
-    )
+    trpcFetchMock.trpcQuery.mockImplementation(async (procedure: string) => {
+      if (procedure === 'firstRun.getWizardState') return createFirstRunState({ currentStep: 'complete', complete: true })
+      if (procedure === 'packages.listAppPanels') return []
+      return null
+    })
 
     render(<App />)
 

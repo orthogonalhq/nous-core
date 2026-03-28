@@ -5,8 +5,10 @@ import {
   getRecommendedModelSpec,
   parseModelSpec,
   toOllamaModelSpec,
+  type FirstRunActionResult,
   type WizardStepProps,
 } from './types'
+import { trpcMutate } from './trpc-fetch'
 
 export interface WizardStepModelDownloadProps extends WizardStepProps {
   selectedModelSpec: string | null
@@ -77,16 +79,18 @@ export function WizardStepModelDownload({
 
     try {
       if (!skipDownloadStep) {
-        const downloadResult = await window.electronAPI.firstRun.downloadModel(
-          parsedModel.modelId,
+        const downloadResult = await trpcMutate<FirstRunActionResult>(
+          'firstRun.downloadModel',
+          { model: parsedModel.modelId },
         )
         if (!downloadResult.success) {
           throw new Error(downloadResult.error ?? 'The backend could not mark the model as downloaded.')
         }
       }
 
-      const providerResult = await window.electronAPI.firstRun.configureProvider(
-        resolvedModelSpec,
+      const providerResult = await trpcMutate<FirstRunActionResult>(
+        'firstRun.configureProvider',
+        { modelSpec: resolvedModelSpec },
       )
       if (!providerResult.success) {
         throw new Error(providerResult.error ?? 'The backend could not configure the selected model.')

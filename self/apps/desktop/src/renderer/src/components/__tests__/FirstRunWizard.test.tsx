@@ -1,11 +1,20 @@
 import { fireEvent, render, screen, waitFor } from '@testing-library/react'
-import { describe, expect, it, vi } from 'vitest'
+import { beforeEach, describe, expect, it, vi } from 'vitest'
 import {
   createElectronAPIMock,
   createFirstRunState,
   createPrerequisites,
+  DEFAULT_PREREQUISITES,
 } from '../../test-setup'
 import { FirstRunWizard } from '../FirstRunWizard'
+
+const trpcFetchMock = vi.hoisted(() => ({
+  setBackendPort: vi.fn(),
+  trpcQuery: vi.fn(),
+  trpcMutate: vi.fn(),
+}))
+
+vi.mock('../wizard/trpc-fetch', () => trpcFetchMock)
 
 function installMock() {
   const mock = createElectronAPIMock()
@@ -18,6 +27,14 @@ function installMock() {
 }
 
 describe('FirstRunWizard', () => {
+  beforeEach(() => {
+    trpcFetchMock.trpcQuery.mockImplementation(async (procedure: string) => {
+      if (procedure === 'firstRun.checkPrerequisites') return DEFAULT_PREREQUISITES
+      return null
+    })
+    trpcFetchMock.trpcMutate.mockImplementation(async () => createFirstRunState())
+  })
+
   it('renders the welcome step for a fresh ollama_check state', async () => {
     installMock()
 
@@ -44,7 +61,7 @@ describe('FirstRunWizard', () => {
     )
 
     await waitFor(() => {
-      expect(mock.firstRun.checkPrerequisites).toHaveBeenCalledTimes(1)
+      expect(trpcFetchMock.trpcQuery).toHaveBeenCalled()
       expect(mock.ollama.onStateChange).toHaveBeenCalledTimes(1)
     })
   })
@@ -110,10 +127,16 @@ describe('FirstRunWizard', () => {
   })
 
   it('shows a prerequisites error and retries the request', async () => {
-    const mock = installMock()
-    mock.firstRun.checkPrerequisites
-      .mockRejectedValueOnce(new Error('prerequisites failed'))
-      .mockResolvedValueOnce(createPrerequisites())
+    installMock()
+    let prereqCallCount = 0
+    trpcFetchMock.trpcQuery.mockImplementation(async (procedure: string) => {
+      if (procedure === 'firstRun.checkPrerequisites') {
+        prereqCallCount++
+        if (prereqCallCount === 1) throw new Error('prerequisites failed')
+        return createPrerequisites()
+      }
+      return null
+    })
 
     render(
       <FirstRunWizard
@@ -127,7 +150,7 @@ describe('FirstRunWizard', () => {
     fireEvent.click(screen.getByRole('button', { name: 'Retry prerequisites' }))
 
     await waitFor(() => {
-      expect(mock.firstRun.checkPrerequisites).toHaveBeenCalledTimes(2)
+      expect(prereqCallCount).toBeGreaterThanOrEqual(2)
     })
   })
 

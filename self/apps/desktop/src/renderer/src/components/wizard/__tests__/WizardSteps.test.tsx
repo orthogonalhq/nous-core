@@ -1,6 +1,6 @@
 import { useState } from 'react'
 import { fireEvent, render, screen, waitFor } from '@testing-library/react'
-import { describe, expect, it, vi } from 'vitest'
+import { beforeEach, describe, expect, it, vi } from 'vitest'
 import {
   createElectronAPIMock,
   createFirstRunActionResult,
@@ -12,6 +12,14 @@ import { WizardStepModelDownload } from '../WizardStepModelDownload'
 import { WizardStepOllamaSetup } from '../WizardStepOllamaSetup'
 import { WizardStepRoleAssignment } from '../WizardStepRoleAssignment'
 import { WizardStepWelcome } from '../WizardStepWelcome'
+
+const trpcFetchMock = vi.hoisted(() => ({
+  setBackendPort: vi.fn(),
+  trpcQuery: vi.fn(),
+  trpcMutate: vi.fn(),
+}))
+
+vi.mock('../trpc-fetch', () => trpcFetchMock)
 
 function installMock() {
   const mock = createElectronAPIMock()
@@ -36,6 +44,11 @@ function createStepProps() {
 }
 
 describe('Wizard step components', () => {
+  beforeEach(() => {
+    trpcFetchMock.trpcQuery.mockResolvedValue(null)
+    trpcFetchMock.trpcMutate.mockResolvedValue(null)
+  })
+
   it('renders the welcome step shell', () => {
     installMock()
     const props = createStepProps()
@@ -101,8 +114,10 @@ describe('Wizard step components', () => {
   })
 
   it('marks the Ollama check complete when running and Continue is clicked', async () => {
-    const mock = installMock()
+    installMock()
     const props = createStepProps()
+    const nextState = createFirstRunState({ currentStep: 'model_download' })
+    trpcFetchMock.trpcMutate.mockResolvedValue(nextState)
 
     render(
       <WizardStepOllamaSetup
@@ -115,7 +130,10 @@ describe('Wizard step components', () => {
     fireEvent.click(screen.getByRole('button', { name: 'Continue' }))
 
     await waitFor(() => {
-      expect(mock.firstRun.completeStep).toHaveBeenCalledWith('ollama_check')
+      expect(trpcFetchMock.trpcMutate).toHaveBeenCalledWith(
+        'firstRun.completeStep',
+        { step: 'ollama_check' },
+      )
       expect(props.onStepComplete).toHaveBeenCalledTimes(1)
     })
   })
@@ -148,10 +166,7 @@ describe('Wizard step components', () => {
         role_assignment: { status: 'pending' },
       },
     })
-    mock.firstRun.downloadModel.mockResolvedValue(
-      createFirstRunActionResult(nextState),
-    )
-    mock.firstRun.configureProvider.mockResolvedValue(
+    trpcFetchMock.trpcMutate.mockResolvedValue(
       createFirstRunActionResult(nextState),
     )
 
@@ -176,8 +191,14 @@ describe('Wizard step components', () => {
     })
 
     await waitFor(() => {
-      expect(mock.firstRun.downloadModel).toHaveBeenCalledWith('qwen2.5:7b')
-      expect(mock.firstRun.configureProvider).toHaveBeenCalledWith('ollama:qwen2.5:7b')
+      expect(trpcFetchMock.trpcMutate).toHaveBeenCalledWith(
+        'firstRun.downloadModel',
+        { model: 'qwen2.5:7b' },
+      )
+      expect(trpcFetchMock.trpcMutate).toHaveBeenCalledWith(
+        'firstRun.configureProvider',
+        { modelSpec: 'ollama:qwen2.5:7b' },
+      )
       expect(props.onStepComplete).toHaveBeenCalledWith(nextState)
     })
   })
@@ -208,8 +229,12 @@ describe('Wizard step components', () => {
   })
 
   it('assigns the selected model to all seven roles in simple mode', async () => {
-    const mock = installMock()
+    installMock()
     const props = createStepProps()
+    const nextState = createFirstRunState({ currentStep: 'complete', complete: true })
+    trpcFetchMock.trpcMutate.mockResolvedValue(
+      createFirstRunActionResult(nextState),
+    )
 
     render(
       <WizardStepRoleAssignment
@@ -225,8 +250,10 @@ describe('Wizard step components', () => {
     fireEvent.click(screen.getByRole('button', { name: 'Continue' }))
 
     await waitFor(() => {
-      expect(mock.firstRun.assignRoles).toHaveBeenCalledTimes(1)
-      const assignments = mock.firstRun.assignRoles.mock.calls[0]?.[0] ?? []
+      expect(trpcFetchMock.trpcMutate).toHaveBeenCalledTimes(1)
+      const call = trpcFetchMock.trpcMutate.mock.calls[0]
+      expect(call[0]).toBe('firstRun.assignRoles')
+      const assignments = call[1]?.assignments ?? []
       expect(assignments).toHaveLength(7)
       expect(assignments.every((entry: { modelSpec: string }) => entry.modelSpec === 'ollama:qwen2.5:7b')).toBe(true)
     })

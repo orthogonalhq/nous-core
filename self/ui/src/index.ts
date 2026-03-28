@@ -5,5 +5,4 @@ export * from './settings/index'
 export * from './tokens/index'
 export { cn } from './lib/cn'
 export * from './types/skill-graph'
-export { useEventSubscription } from './hooks/useEventSubscription'
-export type { UseEventSubscriptionOptions } from './hooks/useEventSubscription'
+// useEventSubscription has moved to @nous/transport

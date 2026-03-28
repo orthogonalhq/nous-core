@@ -5,9 +5,11 @@ import {
   buildWizardModelOptions,
   formatRoleLabel,
   getModelDisplayName,
+  type FirstRunActionResult,
   type RoleAssignments,
   type WizardStepProps,
 } from './types'
+import { trpcMutate } from './trpc-fetch'
 
 type RoleAssignmentMode = 'default' | 'advanced'
 
@@ -85,7 +87,7 @@ export function WizardStepRoleAssignment({
         role,
         modelSpec: nextAssignments[role] ?? selectedModelSpec,
       }))
-      const result = await window.electronAPI.firstRun.assignRoles(assignments)
+      const result = await trpcMutate<FirstRunActionResult>('firstRun.assignRoles', { assignments })
       if (!result.success) {
         throw new Error(result.error ?? 'Role assignment did not complete successfully.')
       }

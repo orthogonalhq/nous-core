@@ -10,7 +10,7 @@ import type { ThoughtPfcDecisionPayload, ThoughtTurnLifecyclePayload } from '@no
 // Capture the onEvent callback from useEventSubscription
 let capturedOnEvent: ((channel: string, payload: unknown) => void) | null = null
 
-vi.mock('../../hooks/useEventSubscription', () => ({
+vi.mock('@nous/transport', () => ({
   useEventSubscription: (options: { onEvent: (channel: string, payload: unknown) => void }) => {
     capturedOnEvent = options.onEvent
   },

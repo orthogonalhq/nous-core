@@ -5,7 +5,6 @@ import { execFile, fork, spawn, type ChildProcess } from 'node:child_process'
 import { promisify } from 'node:util'
 import { readdir, readFile } from 'node:fs/promises'
 import Store from 'electron-store'
-import { createTRPCClient, httpBatchLink } from '@trpc/client'
 import {
   detectOllama,
   pullOllamaModel,
@@ -14,20 +13,7 @@ import {
   type OllamaModelPullProgress,
   type OllamaStatus,
 } from '../../../shared-server/src/ollama-detection'
-import {
-  createDefaultFirstRunState,
-  type FirstRunActionResult,
-  type FirstRunPrerequisites,
-  type FirstRunRoleAssignmentInput,
-  type FirstRunState,
-  type FirstRunStep,
-} from '../../../shared-server/src/first-run'
-import type {
-  HardwareSpec,
-  RecommendationResult,
-} from '../../../shared-server/src/hardware-detection'
 import { initOrphanGuard, registerChild } from './orphan-guard'
-import superjson from 'superjson'
 
 interface StoredLayout {
   version: 1
@@ -567,9 +553,6 @@ function resolveServerEntryPath(): string {
  * DO NOT REMOVE — see fix/desktop-backend-wiring
  */
 function spawnBackendServer(port: number): Promise<number> {
-  // Discard stale tRPC client so it gets recreated with the new port
-  trpcClient = null
-
   return new Promise((resolve, reject) => {
     const serverPath = resolveServerEntryPath()
     const args = [`--port=${port}`]
@@ -741,59 +724,10 @@ async function performShutdownCleanup(): Promise<void> {
 
 // ━━━ Types ━━━
 
-type JsonRecord = Record<string, unknown>
-
 interface UsageWindowSnapshot {
   usedPercent: number | null
   windowMinutes: number | null
   resetsAt: string | null
-}
-
-interface DesktopProviderConfigEntry {
-  id: string
-  name?: string
-  modelId?: string
-}
-
-interface RoleAssignmentDisplayEntry {
-  role: string
-  providerId: string | null
-  displayName?: string | null
-  modelSpec?: string | null
-}
-
-function isDesktopProviderConfigEntry(value: unknown): value is DesktopProviderConfigEntry {
-  return typeof value === 'object' &&
-    value !== null &&
-    typeof (value as { id?: unknown }).id === 'string'
-}
-
-function buildRoleAssignmentDisplayEntries(
-  assignments: Record<string, { providerId: string } | null>,
-  providers: unknown,
-): RoleAssignmentDisplayEntry[] {
-  const providersById = new Map(
-    Array.isArray(providers)
-      ? providers
-          .filter(isDesktopProviderConfigEntry)
-          .map((provider) => [provider.id, provider] as const)
-      : [],
-  )
-
-  return Object.entries(assignments).map(([role, assignment]) => {
-    const providerId = assignment?.providerId ?? null
-    const provider = providerId ? providersById.get(providerId) : undefined
-    const modelSpec = provider?.name && provider?.modelId
-      ? `${provider.name}:${provider.modelId}`
-      : null
-
-    return {
-      role,
-      providerId,
-      ...(provider?.modelId ? { displayName: provider.modelId } : {}),
-      ...(modelSpec ? { modelSpec } : {}),
-    }
-  })
 }
 
 interface ProviderUsageSnapshot {
@@ -837,25 +771,6 @@ interface DesktopUsageSnapshot {
   providers: ProviderUsageEntry[]
 }
 
-interface WebHostAppPanel {
-  app_id: string
-  panel_id: string
-  label: string
-  route_path: string
-  dockview_panel_id: string
-  config_version: string
-  preserve_state: boolean
-  position?: 'left' | 'right' | 'bottom' | 'main'
-  config_snapshot: Record<string, {
-    value: unknown
-    source: 'manifest_default' | 'project_config' | 'system'
-  }>
-}
-
-interface DesktopAppPanel extends WebHostAppPanel {
-  src: string
-}
-
 // ━━━ Utility Functions ━━━
 
 const PROVIDER_DISPLAY_NAMES: Record<string, string> = {
@@ -882,14 +797,7 @@ const PROVIDER_DISPLAY_NAMES: Record<string, string> = {
   openrouter: 'OpenRouter',
 }
 
-function getBackendBaseUrl(): string {
-  if (backendPort) return `http://127.0.0.1:${backendPort}`
-  throw new Error('Backend server is not ready')
-}
-
-function buildBackendUrl(pathname: string): string {
-  return new URL(pathname, getBackendBaseUrl()).toString()
-}
+type JsonRecord = Record<string, unknown>
 
 function asRecord(value: unknown): JsonRecord | null {
   if (typeof value !== 'object' || value === null || Array.isArray(value)) return null
@@ -1333,361 +1241,6 @@ ipcMain.handle('ollama:pullModel', async (_event, modelId: string) => {
     .finally(() => {
       activeOllamaPull = null
     })
-})
-
-// Chat handlers — tRPC proxy to the self-hosted backend
-// Lazy tRPC client — created once the backend is ready
-let trpcClient: ReturnType<typeof createTRPCClient> | null = null
-
-function getTrpcClient() {
-  if (!trpcClient && backendPort) {
-    trpcClient = createTRPCClient({
-      links: [httpBatchLink({
-        url: `http://127.0.0.1:${backendPort}/api/trpc`,
-        transformer: superjson,
-      })],
-    })
-  }
-  if (!trpcClient) {
-    throw new Error('Backend server is not ready — tRPC client unavailable')
-  }
-  return trpcClient
-}
-
-/**
- * Ensure the backend is ready before making tRPC calls.
- * Waits for the backend ready promise if it's still starting.
- */
-async function ensureBackendReady(): Promise<void> {
-  if (backendReady) return
-  if (backendReadyPromise) {
-    await backendReadyPromise
-    return
-  }
-  throw new Error('Backend server is not running')
-}
-
-function buildHardwareFallback(): HardwareSpec {
-  return {
-    totalMemoryMB: 0,
-    availableMemoryMB: 0,
-    cpuCores: 0,
-    cpuModel: 'Unknown CPU',
-    platform: process.platform,
-    arch: process.arch,
-    gpu: {
-      detected: false,
-    },
-  }
-}
-
-function buildRecommendationFallback(): RecommendationResult {
-  return {
-    singleModel: null,
-    multiModel: [],
-    hardwareSpec: buildHardwareFallback(),
-    profileName: 'local-only',
-    advisory: 'Hardware recommendations are unavailable while the backend is starting.',
-  }
-}
-
-function buildFirstRunActionFailure(error = 'Backend unavailable'): FirstRunActionResult {
-  return {
-    success: false,
-    state: createDefaultFirstRunState(),
-    error,
-  }
-}
-
-const chatHistory: { role: string; content: string; timestamp: string }[] = []
-
-ipcMain.handle('chat:send', async (_event, message: string) => {
-  chatHistory.push({ role: 'user', content: message, timestamp: new Date().toISOString() })
-  try {
-    await ensureBackendReady()
-    const client = getTrpcClient() as any
-    const result = await client.chat.sendMessage.mutate({ message })
-    chatHistory.push({ role: 'assistant', content: result.response, timestamp: new Date().toISOString() })
-    return { response: result.response, traceId: result.traceId }
-  } catch (err) {
-    const errorMessage = err instanceof Error ? err.message : 'Unknown error'
-    const response = `[Starting...] Nous backend is initializing. Please try again in a moment. (${errorMessage})`
-    chatHistory.push({ role: 'assistant', content: response, timestamp: new Date().toISOString() })
-    return { response, traceId: 'starting-' + Date.now() }
-  }
-})
-
-ipcMain.handle('chat:getHistory', () => chatHistory)
-
-// MAO handlers — tRPC proxy to backend server with stub fallback
-ipcMain.handle('mao:getAgentProjections', async (_event, projectId: string) => {
-  try {
-    await ensureBackendReady()
-    const client = getTrpcClient() as any
-    return await client.mao.getAgentProjections.query({ projectId })
-  } catch {
-    return []
-  }
-})
-
-ipcMain.handle('mao:getProjectControlProjection', async (_event, projectId: string) => {
-  try {
-    await ensureBackendReady()
-    const client = getTrpcClient() as any
-    return await client.mao.getProjectControlProjection.query({ projectId })
-  } catch {
-    return null
-  }
-})
-
-ipcMain.handle('mao:getProjectSnapshot', async (_event, input: unknown) => {
-  try {
-    await ensureBackendReady()
-    const client = getTrpcClient() as any
-    return await client.mao.getProjectSnapshot.query(input)
-  } catch {
-    return null
-  }
-})
-
-ipcMain.handle('mao:requestProjectControl', async (_event, input: unknown) => {
-  try {
-    await ensureBackendReady()
-    const client = getTrpcClient() as any
-    return await client.mao.requestProjectControl.mutate(input)
-  } catch {
-    return null
-  }
-})
-
-// Preferences handlers — tRPC proxy
-ipcMain.handle('preferences:getApiKeys', async () => {
-  try { await ensureBackendReady(); const c = getTrpcClient() as any; return await c.preferences.getApiKeys.query() } catch { return [] }
-})
-ipcMain.handle('preferences:setApiKey', async (_event, input: unknown) => {
-  try { await ensureBackendReady(); const c = getTrpcClient() as any; return await c.preferences.setApiKey.mutate(input) } catch { return { stored: false } }
-})
-ipcMain.handle('preferences:deleteApiKey', async (_event, input: unknown) => {
-  try { await ensureBackendReady(); const c = getTrpcClient() as any; return await c.preferences.deleteApiKey.mutate(input) } catch { return { deleted: false } }
-})
-ipcMain.handle('preferences:testApiKey', async (_event, input: unknown) => {
-  try { await ensureBackendReady(); const c = getTrpcClient() as any; return await c.preferences.testApiKey.mutate(input) } catch { return { valid: false, error: 'Backend unavailable' } }
-})
-ipcMain.handle('preferences:getSystemStatus', async () => {
-  try { await ensureBackendReady(); const c = getTrpcClient() as any; return await c.preferences.getSystemStatus.query() } catch { return { ollama: { running: false, models: [] }, configuredProviders: [], credentialVaultHealthy: false } }
-})
-ipcMain.handle('preferences:getAvailableModels', async () => {
-  try { await ensureBackendReady(); const c = getTrpcClient() as any; return await c.preferences.getAvailableModels.query() } catch { return { models: [] } }
-})
-ipcMain.handle('preferences:getModelSelection', async () => {
-  try { await ensureBackendReady(); const c = getTrpcClient() as any; return await c.preferences.getModelSelection.query() } catch { return { principal: null, system: null } }
-})
-ipcMain.handle('preferences:setModelSelection', async (_event, input: unknown) => {
-  try { await ensureBackendReady(); const c = getTrpcClient() as any; return await c.preferences.setModelSelection.mutate(input) } catch { return { success: false } }
-})
-ipcMain.handle('preferences:getRoleAssignments', async (): Promise<RoleAssignmentDisplayEntry[]> => {
-  try {
-    await ensureBackendReady()
-    const client = getTrpcClient() as any
-    const [assignments, config] = await Promise.all([
-      client.preferences.getRoleAssignments.query(),
-      client.config.get.query(),
-    ])
-
-    return buildRoleAssignmentDisplayEntries(
-      assignments as Record<string, { providerId: string } | null>,
-      (config as JsonRecord | null | undefined)?.['providers'],
-    )
-  } catch {
-    return []
-  }
-})
-ipcMain.handle('preferences:setRoleAssignment', async (_event, input: unknown) => {
-  try {
-    await ensureBackendReady()
-    const client = getTrpcClient() as any
-    return await client.preferences.setRoleAssignment.mutate(input)
-  } catch {
-    return { success: false, error: 'Backend unavailable' }
-  }
-})
-// Health handlers — tRPC proxy to backend server with safe fallbacks
-ipcMain.handle('health:systemStatus', async () => {
-  try {
-    await ensureBackendReady()
-    const client = getTrpcClient() as any
-    return await client.health.systemStatus.query()
-  } catch {
-    return {
-      bootStatus: 'booting',
-      completedBootSteps: [],
-      issueCodes: [],
-      inboxReady: false,
-      pendingSystemRuns: 0,
-      backlogAnalytics: { queuedCount: 0, activeCount: 0, suspendedCount: 0, completedInWindow: 0, failedInWindow: 0, pressureTrend: 'stable' },
-      collectedAt: new Date().toISOString(),
-    }
-  }
-})
-ipcMain.handle('health:providerHealth', async () => {
-  try {
-    await ensureBackendReady()
-    const client = getTrpcClient() as any
-    return await client.health.providerHealth.query()
-  } catch {
-    return { providers: [], collectedAt: new Date().toISOString() }
-  }
-})
-ipcMain.handle('health:agentStatus', async () => {
-  try {
-    await ensureBackendReady()
-    const client = getTrpcClient() as any
-    return await client.health.agentStatus.query()
-  } catch {
-    return { gateways: [], appSessions: [], collectedAt: new Date().toISOString() }
-  }
-})
-ipcMain.handle('hardware:getSpec', async (): Promise<HardwareSpec> => {
-  try {
-    await ensureBackendReady()
-    const client = getTrpcClient() as any
-    return await client.hardware.getSpec.query()
-  } catch {
-    return buildHardwareFallback()
-  }
-})
-ipcMain.handle('hardware:getRecommendations', async (): Promise<RecommendationResult> => {
-  try {
-    await ensureBackendReady()
-    const client = getTrpcClient() as any
-    return await client.hardware.getRecommendations.query()
-  } catch {
-    return buildRecommendationFallback()
-  }
-})
-ipcMain.handle('firstRun:getWizardState', async (): Promise<FirstRunState> => {
-  try {
-    await ensureBackendReady()
-    const client = getTrpcClient() as any
-    return await client.firstRun.getWizardState.query()
-  } catch {
-    return createDefaultFirstRunState()
-  }
-})
-ipcMain.handle('firstRun:checkPrerequisites', async (): Promise<FirstRunPrerequisites> => {
-  try {
-    await ensureBackendReady()
-    const client = getTrpcClient() as any
-    return await client.firstRun.checkPrerequisites.query()
-  } catch {
-    return {
-      ollama: {
-        installed: false,
-        running: false,
-        state: 'not_installed',
-        models: [],
-        defaultModel: null,
-      },
-      hardware: buildHardwareFallback(),
-      recommendations: buildRecommendationFallback(),
-    }
-  }
-})
-ipcMain.handle('firstRun:downloadModel', async (_event, input: { model: string }): Promise<FirstRunActionResult> => {
-  try {
-    await ensureBackendReady()
-    const client = getTrpcClient() as any
-    return await client.firstRun.downloadModel.mutate(input)
-  } catch {
-    return buildFirstRunActionFailure()
-  }
-})
-ipcMain.handle('firstRun:configureProvider', async (_event, input: { modelSpec: string }): Promise<FirstRunActionResult> => {
-  try {
-    await ensureBackendReady()
-    const client = getTrpcClient() as any
-    return await client.firstRun.configureProvider.mutate(input)
-  } catch {
-    return buildFirstRunActionFailure()
-  }
-})
-ipcMain.handle('firstRun:assignRoles', async (_event, input: { assignments: FirstRunRoleAssignmentInput[] }): Promise<FirstRunActionResult> => {
-  try {
-    await ensureBackendReady()
-    const client = getTrpcClient() as any
-    return await client.firstRun.assignRoles.mutate(input)
-  } catch {
-    return buildFirstRunActionFailure()
-  }
-})
-ipcMain.handle('firstRun:completeStep', async (_event, input: { step: FirstRunStep }): Promise<FirstRunState> => {
-  try {
-    await ensureBackendReady()
-    const client = getTrpcClient() as any
-    return await client.firstRun.completeStep.mutate(input)
-  } catch {
-    return createDefaultFirstRunState()
-  }
-})
-ipcMain.handle('firstRun:resetWizard', async (): Promise<FirstRunState> => {
-  try {
-    await ensureBackendReady()
-    const client = getTrpcClient() as any
-    return await client.firstRun.resetWizard.mutate()
-  } catch {
-    return createDefaultFirstRunState()
-  }
-})
-
-ipcMain.handle('app-install:prepare', async (_event, input: unknown) => {
-  try {
-    await ensureBackendReady()
-    const client = getTrpcClient() as any
-    return await client.packages.prepareAppInstall.query(input)
-  } catch {
-    return { error: 'Backend unavailable' }
-  }
-})
-ipcMain.handle('app-install:install', async (_event, input: unknown) => {
-  try {
-    await ensureBackendReady()
-    const client = getTrpcClient() as any
-    return await client.packages.installApp.mutate(input)
-  } catch {
-    return { error: 'Backend unavailable' }
-  }
-})
-ipcMain.handle('app-settings:prepare', async (_event, input: unknown) => {
-  try {
-    await ensureBackendReady()
-    const client = getTrpcClient() as any
-    return await client.packages.prepareAppSettings.query(input)
-  } catch {
-    return { error: 'Backend unavailable' }
-  }
-})
-ipcMain.handle('app-settings:save', async (_event, input: unknown) => {
-  try {
-    await ensureBackendReady()
-    const client = getTrpcClient() as any
-    return await client.packages.saveAppSettings.mutate(input)
-  } catch {
-    return { error: 'Backend unavailable' }
-  }
-})
-ipcMain.handle('app-panels:list', async (): Promise<DesktopAppPanel[]> => {
-  try {
-    await ensureBackendReady()
-    const client = getTrpcClient() as any
-    const panels = await client.packages.listAppPanels.query()
-    if (!Array.isArray(panels)) return []
-    return panels.map((panel: WebHostAppPanel) => ({
-      ...panel,
-      src: buildBackendUrl(panel.route_path),
-    }))
-  } catch {
-    return []
-  }
 })
 
 // ━━━ Window Creation ━━━
