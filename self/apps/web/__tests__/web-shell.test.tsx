@@ -39,6 +39,10 @@ vi.mock('@nous/ui/components', () => ({
   },
 }))
 
+vi.mock('@nous/transport', () => ({
+  useChatApi: () => ({ send: vi.fn(), getHistory: vi.fn().mockResolvedValue([]) }),
+}))
+
 vi.mock('next/dynamic', () => ({
   default: (_loader: () => Promise<any>, _options?: any) => {
     function DynamicWebDockviewShell() {
