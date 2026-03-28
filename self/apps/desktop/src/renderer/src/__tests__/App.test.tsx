@@ -68,10 +68,12 @@ vi.mock('@nous/ui/panels', () => {
     DashboardWidgetMenu: Panel,
     AgentPanel: Panel,
     PreferencesPanel: Panel,
+    WorkflowBuilderPanel: Panel,
     useCodexBarApi: () => null,
     useDashboardApi: () => null,
   }
 })
+
 
 vi.mock('../components/AppInstallWizard', () => ({
   AppInstallWizardPanel: () => null,
