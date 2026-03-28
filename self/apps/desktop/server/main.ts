@@ -14,6 +14,7 @@ import {
   createNousServices,
   appRouter,
   createTRPCContext,
+  createEventSseHandler,
   detectOllama,
   loadStoredApiKeys,
   loadModelSelection,
@@ -221,6 +222,8 @@ async function main() {
     basePath: '/api/trpc/',
   });
 
+  const eventSseHandler = createEventSseHandler(context.eventBus);
+
   const server = createServer(async (req, res) => {
     res.setHeader('Access-Control-Allow-Origin', '*');
     res.setHeader('Access-Control-Allow-Methods', 'GET, POST, OPTIONS');
@@ -322,6 +325,11 @@ async function main() {
       req.on('close', () => {
         pullProgressEvents.off('progress', onProgress);
       });
+      return;
+    }
+
+    if (req.url?.startsWith('/api/events')) {
+      eventSseHandler(req, res);
       return;
     }
 

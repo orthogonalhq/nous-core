@@ -37,6 +37,7 @@ contextBridge.exposeInMainWorld('electronAPI', {
       port: number | null
       trpcUrl: string | null
     }> => ipcRenderer.invoke('backend:getStatus'),
+    getPort: (): Promise<number | null> => ipcRenderer.invoke('backend:getPort'),
     getOllamaStatus: (): Promise<{
       installed: boolean
       running: boolean

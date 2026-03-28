@@ -1269,6 +1269,8 @@ ipcMain.handle('backend:getStatus', () => ({
   trpcUrl: backendPort ? `http://127.0.0.1:${backendPort}/api/trpc` : null,
 }))
 
+ipcMain.handle('backend:getPort', () => backendPort)
+
 // Ollama status — retained for backward compatibility with older renderer code.
 /** @deprecated Use ollama:getStatus instead. */
 ipcMain.handle('backend:getOllamaStatus', async () => {

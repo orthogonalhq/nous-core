@@ -167,6 +167,7 @@ interface ElectronAPI {
       port: number | null
       trpcUrl: string | null
     }>
+    getPort: () => Promise<number | null>
     /** @deprecated Use `window.electronAPI.ollama.getStatus()` instead. */
     getOllamaStatus: () => Promise<OllamaStatus>
   }

@@ -42,6 +42,7 @@ import {
   type CommandGroup,
   type CatalogItem,
 } from '@nous/ui/components'
+import { TransportProvider, createDesktopTransport } from '@nous/transport'
 import { AppInstallWizardPanel } from './components/AppInstallWizard'
 import { FirstRunWizard } from './components/FirstRunWizard'
 import { TitleBar } from './components/TitleBar'
@@ -396,6 +397,7 @@ export function App() {
   const [mode, setMode] = useState<ShellMode>('simple')
   const [activeRoute, setActiveRoute] = useState(DEFAULT_ROUTE)
   const [commandPaletteOpen, setCommandPaletteOpen] = useState(false)
+  const [backendPort, setBackendPort] = useState<number | null>(null)
 
   const initializeApp = useCallback(async () => {
     const runId = ++bootstrapRunRef.current
@@ -442,6 +444,16 @@ export function App() {
     if (!backendReady) {
       setBootError('The desktop backend did not become ready within 30 seconds.')
       return
+    }
+
+    // Discover backend port for direct HTTP/SSE transport
+    try {
+      const port = await window.electronAPI.backend.getPort()
+      if (!isStale() && port) {
+        setBackendPort(port)
+      }
+    } catch {
+      console.warn('[nous:transport] Failed to get backend port — transport layer unavailable')
     }
 
     setLoadingMessage('Loading first-run state…')
@@ -674,6 +686,11 @@ export function App() {
     },
   ], [handleNavigate, handleModeToggle])
 
+  const transportConfig = useMemo(
+    () => backendPort ? createDesktopTransport(backendPort) : null,
+    [backendPort],
+  )
+
   const healthFetchers: HealthFetchers = useMemo(() => ({
     fetchSystemStatus: () => window.electronAPI.health.systemStatus(),
     fetchProviderHealth: () => window.electronAPI.health.providerHealth(),
@@ -775,6 +792,51 @@ export function App() {
     return loadingShell
   }
 
+  const mainContent = (
+    <ShellProvider
+      mode={mode}
+      activeRoute={activeRoute}
+      navigation={navigation}
+      navigate={handleNavigate}
+      goBack={handleGoBack}
+    >
+      <HealthQueryProvider fetchers={healthFetchers}>
+        <CommandPalette
+          isOpen={commandPaletteOpen}
+          onClose={() => setCommandPaletteOpen(false)}
+          commands={commands}
+        />
+        {mode === 'simple' ? (
+          <ShellLayout
+            rail={(
+              <NavigationRail
+                items={RAIL_SECTIONS}
+                activeItemId={activeRoute}
+                onItemSelect={handleNavigate}
+              />
+            )}
+            chat={<ChatSurface chatApi={window.electronAPI?.chat as ChatAPI | undefined} />}
+            content={(
+              <ContentRouter
+                activeRoute={activeRoute}
+                routes={simpleModeRoutes}
+                onNavigate={handleNavigate}
+              />
+            )}
+            observe={<ObservePanel maoApi={(window as any).electronAPI?.mao} />}
+          />
+        ) : (
+          <DockviewShell
+            savedLayout={savedLayout}
+            onApiReady={setDockviewApi}
+            activeAppPanelIds={new Set(appPanels.map((panel) => panel.dockview_panel_id))}
+            panelDefs={panelDefs}
+          />
+        )}
+      </HealthQueryProvider>
+    </ShellProvider>
+  )
+
   return (
     <ChromeShell
       dockviewApi={dockviewApi}
@@ -782,48 +844,13 @@ export function App() {
       mode={mode}
       onModeToggle={handleModeToggle}
     >
-      <ShellProvider
-        mode={mode}
-        activeRoute={activeRoute}
-        navigation={navigation}
-        navigate={handleNavigate}
-        goBack={handleGoBack}
-      >
-        <HealthQueryProvider fetchers={healthFetchers}>
-          <CommandPalette
-            isOpen={commandPaletteOpen}
-            onClose={() => setCommandPaletteOpen(false)}
-            commands={commands}
-          />
-          {mode === 'simple' ? (
-            <ShellLayout
-              rail={(
-                <NavigationRail
-                  items={RAIL_SECTIONS}
-                  activeItemId={activeRoute}
-                  onItemSelect={handleNavigate}
-                />
-              )}
-              chat={<ChatSurface chatApi={window.electronAPI?.chat as ChatAPI | undefined} />}
-              content={(
-                <ContentRouter
-                  activeRoute={activeRoute}
-                  routes={simpleModeRoutes}
-                  onNavigate={handleNavigate}
-                />
-              )}
-              observe={<ObservePanel maoApi={(window as any).electronAPI?.mao} />}
-            />
-          ) : (
-            <DockviewShell
-              savedLayout={savedLayout}
-              onApiReady={setDockviewApi}
-              activeAppPanelIds={new Set(appPanels.map((panel) => panel.dockview_panel_id))}
-              panelDefs={panelDefs}
-            />
-          )}
-        </HealthQueryProvider>
-      </ShellProvider>
+      {transportConfig ? (
+        <TransportProvider config={transportConfig}>
+          {mainContent}
+        </TransportProvider>
+      ) : (
+        mainContent
+      )}
     </ChromeShell>
   )
 }
