@@ -26,7 +26,7 @@ import {
   formatShortId,
   readMaoNavigationContext,
 } from './mao-links';
-import { useEventSubscription } from '../../hooks/useEventSubscription';
+import { trpc, useEventSubscription } from '@nous/transport';
 import { useMaoServices } from './mao-services-context';
 
 const DENSITY_MODES: MaoDensityMode[] = ['D0', 'D1', 'D2', 'D3', 'D4'];
@@ -45,26 +45,14 @@ interface InspectTarget {
 
 export function MaoOperatingSurface() {
   const {
-    useSnapshotQuery,
-    useInspectQuery,
-    useControlMutation,
-    useInvalidation,
     Link,
     useProject,
     useSearchParams,
   } = useMaoServices();
 
+  const utils = trpc.useUtils();
   const { projectId, setProjectId } = useProject();
   const searchParams = useSearchParams();
-  const {
-    snapshotInvalidate,
-    inspectInvalidate,
-    controlProjectionInvalidate,
-    auditInvalidate,
-    systemStatusInvalidate,
-    dashboardInvalidate,
-    escalationsInvalidate,
-  } = useInvalidation();
 
   const linkedProjectId = searchParams.get('projectId');
   const linkedRunId = searchParams.get('runId');
@@ -92,17 +80,17 @@ export function MaoOperatingSurface() {
     React.useState<PendingT3Action | null>(null);
   const [, startTransition] = React.useTransition();
 
-  const controlMutation = useControlMutation({
+  const controlMutation = trpc.mao.requestProjectControl.useMutation({
     onSuccess: async (result) => {
       setLastResult(result);
       await Promise.all([
-        snapshotInvalidate.invalidate(),
-        inspectInvalidate.invalidate(),
-        controlProjectionInvalidate.invalidate(),
-        auditInvalidate.invalidate(),
-        systemStatusInvalidate.invalidate(),
-        dashboardInvalidate.invalidate(),
-        escalationsInvalidate.invalidate(),
+        utils.mao.getProjectSnapshot.invalidate(),
+        utils.mao.getAgentInspectProjection.invalidate(),
+        utils.mao.getProjectControlProjection.invalidate(),
+        utils.mao.getControlAuditHistory.invalidate(),
+        utils.health.systemStatus.invalidate(),
+        utils.projects.dashboardSnapshot.invalidate(),
+        utils.escalations.listProjectQueue.invalidate(),
       ]);
     },
   });
@@ -110,7 +98,7 @@ export function MaoOperatingSurface() {
   useEventSubscription({
     channels: ['mao:projection-changed', 'mao:control-action'],
     onEvent: () => {
-      void snapshotInvalidate.invalidate();
+      void utils.mao.getProjectSnapshot.invalidate();
     },
     enabled: !!projectId,
   });
@@ -121,7 +109,7 @@ export function MaoOperatingSurface() {
     }
   }, [linkedProjectId, projectId, setProjectId]);
 
-  const snapshotQuery = useSnapshotQuery(
+  const snapshotQuery = trpc.mao.getProjectSnapshot.useQuery(
     {
       projectId: projectId as ProjectId,
       densityMode,
@@ -147,7 +135,7 @@ export function MaoOperatingSurface() {
         }
       : undefined;
 
-  const inspectQuery = useInspectQuery(
+  const inspectQuery = trpc.mao.getAgentInspectProjection.useQuery(
     inspectInput as any,
     {
       enabled: inspectInput != null,

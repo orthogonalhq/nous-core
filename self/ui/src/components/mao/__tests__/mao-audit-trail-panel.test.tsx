@@ -4,13 +4,23 @@ import * as React from 'react';
 import { cleanup, fireEvent, render, screen } from '@testing-library/react';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
-vi.mock('../../../hooks/useEventSubscription', () => ({
+let mockUseQuery: ReturnType<typeof vi.fn>;
+
+vi.mock('@nous/transport', () => ({
+  trpc: {
+    useUtils: vi.fn().mockReturnValue({
+      mao: { getControlAuditHistory: { invalidate: vi.fn() } },
+    }),
+    mao: {
+      getControlAuditHistory: {
+        useQuery: (...args: any[]) => mockUseQuery(...args),
+      },
+    },
+  },
   useEventSubscription: vi.fn(),
 }));
 
 import { MaoAuditTrailPanel } from '../mao-audit-trail-panel';
-import { MaoServicesProvider } from '../mao-services-context';
-import type { MaoServicesContextValue } from '../mao-services-context';
 
 const MOCK_PROJECT_ID = '550e8400-e29b-41d4-a716-446655445001' as any;
 
@@ -39,36 +49,14 @@ const MOCK_ENTRIES = [
   },
 ];
 
-function createMockServices(overrides?: Partial<MaoServicesContextValue>): MaoServicesContextValue {
-  return {
-    useSnapshotQuery: vi.fn().mockReturnValue({ data: undefined, isLoading: false, isError: false }),
-    useInspectQuery: vi.fn().mockReturnValue({ data: undefined, isLoading: false, isError: false }),
-    useAuditQuery: vi.fn().mockReturnValue({ data: [], isLoading: false, isError: false }),
-    useSystemStatusQuery: vi.fn().mockReturnValue({ data: undefined, isLoading: false, isError: false }),
-    useControlMutation: vi.fn().mockReturnValue({ mutate: vi.fn(), data: undefined, isPending: false, isError: false }),
-    useProofMutation: vi.fn().mockReturnValue({ mutate: vi.fn(), data: undefined, isPending: false, isError: false }),
-    useInvalidation: vi.fn().mockReturnValue({
-      snapshotInvalidate: { invalidate: vi.fn() },
-      inspectInvalidate: { invalidate: vi.fn() },
-      controlProjectionInvalidate: { invalidate: vi.fn() },
-      auditInvalidate: { invalidate: vi.fn() },
-      systemStatusInvalidate: { invalidate: vi.fn() },
-      dashboardInvalidate: { invalidate: vi.fn() },
-      escalationsInvalidate: { invalidate: vi.fn() },
-    }),
-    Link: ({ href, className, children }) => React.createElement('a', { href, className }, children),
-    useProject: vi.fn().mockReturnValue({ projectId: null, setProjectId: vi.fn() }),
-    useSearchParams: vi.fn().mockReturnValue({ get: () => null }),
-    ...overrides,
-  };
-}
-
 describe('MaoAuditTrailPanel', () => {
-  let mockServices: MaoServicesContextValue;
-
   beforeEach(() => {
     vi.clearAllMocks();
-    mockServices = createMockServices();
+    mockUseQuery = vi.fn().mockReturnValue({
+      data: [],
+      isLoading: false,
+      isError: false,
+    });
   });
 
   afterEach(() => {
@@ -76,19 +64,13 @@ describe('MaoAuditTrailPanel', () => {
   });
 
   it('renders timeline entries with action, actorId, timestamp, and reason', () => {
-    mockServices = createMockServices({
-      useAuditQuery: vi.fn().mockReturnValue({
-        data: MOCK_ENTRIES,
-        isLoading: false,
-        isError: false,
-      }),
+    mockUseQuery = vi.fn().mockReturnValue({
+      data: MOCK_ENTRIES,
+      isLoading: false,
+      isError: false,
     });
 
-    render(
-      <MaoServicesProvider value={mockServices}>
-        <MaoAuditTrailPanel projectId={MOCK_PROJECT_ID} />
-      </MaoServicesProvider>,
-    );
+    render(<MaoAuditTrailPanel projectId={MOCK_PROJECT_ID} />);
 
     expect(screen.getByText('Audit trail')).toBeTruthy();
     expect(screen.getByText('2 entries')).toBeTruthy();
@@ -100,19 +82,13 @@ describe('MaoAuditTrailPanel', () => {
   });
 
   it('shows empty state when no audit history exists', () => {
-    mockServices = createMockServices({
-      useAuditQuery: vi.fn().mockReturnValue({
-        data: [],
-        isLoading: false,
-        isError: false,
-      }),
+    mockUseQuery = vi.fn().mockReturnValue({
+      data: [],
+      isLoading: false,
+      isError: false,
     });
 
-    render(
-      <MaoServicesProvider value={mockServices}>
-        <MaoAuditTrailPanel projectId={MOCK_PROJECT_ID} />
-      </MaoServicesProvider>,
-    );
+    render(<MaoAuditTrailPanel projectId={MOCK_PROJECT_ID} />);
 
     expect(
       screen.getByText('No control actions have been recorded for this project.'),
@@ -120,19 +96,13 @@ describe('MaoAuditTrailPanel', () => {
   });
 
   it('expands entry details on click showing commandId, resumeReadinessStatus, and decisionRef', () => {
-    mockServices = createMockServices({
-      useAuditQuery: vi.fn().mockReturnValue({
-        data: MOCK_ENTRIES,
-        isLoading: false,
-        isError: false,
-      }),
+    mockUseQuery = vi.fn().mockReturnValue({
+      data: MOCK_ENTRIES,
+      isLoading: false,
+      isError: false,
     });
 
-    render(
-      <MaoServicesProvider value={mockServices}>
-        <MaoAuditTrailPanel projectId={MOCK_PROJECT_ID} />
-      </MaoServicesProvider>,
-    );
+    render(<MaoAuditTrailPanel projectId={MOCK_PROJECT_ID} />);
 
     // Click the first entry to expand
     fireEvent.click(screen.getByText('Emergency stop for review'));

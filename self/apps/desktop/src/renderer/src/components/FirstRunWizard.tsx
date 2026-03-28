@@ -15,6 +15,7 @@ import {
   type OllamaStatus,
   type RoleAssignments,
 } from './wizard/types'
+import { trpcQuery, trpcMutate } from './wizard/trpc-fetch'
 
 type RoleAssignmentMode = 'default' | 'advanced'
 
@@ -68,7 +69,7 @@ export function FirstRunWizard({
     setPrerequisitesError(null)
 
     try {
-      const nextPrerequisites = await window.electronAPI.firstRun.checkPrerequisites()
+      const nextPrerequisites = await trpcQuery<FirstRunPrerequisites>('firstRun.checkPrerequisites')
       setPrerequisites(nextPrerequisites)
       setOllamaStatus(nextPrerequisites.ollama)
       setSelectedModelSpec(
@@ -119,7 +120,7 @@ export function FirstRunWizard({
     setActionInProgress(true)
 
     try {
-      const nextState = await window.electronAPI.firstRun.resetWizard()
+      const nextState = await trpcMutate<FirstRunState>('firstRun.resetWizard')
       setFirstRunState(nextState)
       setWelcomeCompleted(false)
       setRoleAssignments({})

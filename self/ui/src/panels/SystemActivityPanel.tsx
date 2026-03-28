@@ -1,12 +1,10 @@
 'use client'
 
-import { useState, createContext, useContext } from 'react'
-import type { ReactNode } from 'react'
+import { useState } from 'react'
 import type { IDockviewPanelProps } from 'dockview-react'
 import { clsx } from 'clsx'
-import type { SystemTurnAckPayload, AgentStatusSnapshot } from '@nous/shared'
-import { useEventSubscription } from '../hooks/useEventSubscription'
-import { useHealthQuery } from './dashboard/hooks/useHealthQuery'
+import type { SystemTurnAckPayload } from '@nous/shared'
+import { trpc, useEventSubscription } from '@nous/transport'
 
 // ---------------------------------------------------------------------------
 // Inline projection type for BacklogEntry (not importable from @nous/cortex-core)
@@ -20,42 +18,6 @@ export interface BacklogEntryProjection {
   acceptedAt: string
   instructions: string
   runId: string
-}
-
-// ---------------------------------------------------------------------------
-// Fetcher context (follows HealthQueryProvider pattern)
-// ---------------------------------------------------------------------------
-
-export type SystemActivityFetchers = {
-  fetchBacklogEntries: () => Promise<BacklogEntryProjection[]>
-  fetchGatewayHealth: () => Promise<AgentStatusSnapshot>
-}
-
-const SystemActivityQueryContext = createContext<SystemActivityFetchers | null>(null)
-
-export function SystemActivityQueryProvider({
-  fetchers,
-  children,
-}: {
-  fetchers: SystemActivityFetchers
-  children: ReactNode
-}) {
-  return (
-    <SystemActivityQueryContext.Provider value={fetchers}>
-      {children}
-    </SystemActivityQueryContext.Provider>
-  )
-}
-
-export function useSystemActivityQueries(): SystemActivityFetchers {
-  const ctx = useContext(SystemActivityQueryContext)
-  if (ctx === null) {
-    throw new Error(
-      'useSystemActivityQueries must be used within a <SystemActivityQueryProvider>. ' +
-        'Wrap your component tree with <SystemActivityQueryProvider fetchers={...}>.',
-    )
-  }
-  return ctx
 }
 
 // ---------------------------------------------------------------------------
@@ -95,14 +57,12 @@ const STATUS_COLOR: Record<string, string> = {
 }
 
 function BacklogQueueView() {
-  const { fetchBacklogEntries } = useSystemActivityQueries()
-  const { data, isLoading, error, refetch } = useHealthQuery(fetchBacklogEntries, {
-    pollIntervalMs: 0,
-  })
+  const utils = trpc.useUtils()
+  const { data, isLoading, error } = trpc.systemActivity.backlogEntries.useQuery()
 
   useEventSubscription({
     channels: ['system:backlog-change'],
-    onEvent: () => refetch(),
+    onEvent: () => { void utils.systemActivity.backlogEntries.invalidate() },
   })
 
   return (
@@ -156,7 +116,7 @@ function BacklogQueueView() {
           </div>
         )}
         {data !== undefined &&
-          data.map((entry) => (
+          (data as BacklogEntryProjection[]).map((entry) => (
             <div
               key={entry.id}
               style={{
@@ -283,14 +243,12 @@ function TurnActivityStreamView() {
 // ---------------------------------------------------------------------------
 
 function HealthProjectionView() {
-  const { fetchGatewayHealth } = useSystemActivityQueries()
-  const { data, isLoading, error, refetch } = useHealthQuery(fetchGatewayHealth, {
-    pollIntervalMs: 0,
-  })
+  const utils = trpc.useUtils()
+  const { data, isLoading, error } = trpc.systemActivity.gatewayHealth.useQuery()
 
   useEventSubscription({
     channels: ['health:gateway-status'],
-    onEvent: () => refetch(),
+    onEvent: () => { void utils.systemActivity.gatewayHealth.invalidate() },
   })
 
   return (

@@ -15,7 +15,8 @@
     "types": ["vitest/globals"],
     "baseUrl": ".",
     "paths": {
-      "@nous/shared": ["../shared/src/index.ts"]
+      "@nous/shared": ["../shared/src/index.ts"],
+      "@nous/transport": ["../transport/src/index.ts"]
     }
   },
   "include": ["src/**/*.ts", "src/**/*.tsx"],

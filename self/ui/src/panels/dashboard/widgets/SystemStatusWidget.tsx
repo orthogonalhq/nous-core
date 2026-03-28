@@ -1,7 +1,6 @@
 import type { IDockviewPanelProps } from 'dockview-react'
 import type { CSSProperties } from 'react'
-import { useEventSubscription } from '../../../hooks/useEventSubscription'
-import { useHealthQueries, useHealthQuery } from '../hooks'
+import { trpc, useEventSubscription } from '@nous/transport'
 
 const containerStyle: CSSProperties = {
   height: '100%',
@@ -41,8 +40,8 @@ const BOOT_STATUS_LABELS: Record<string, string> = {
 }
 
 export function SystemStatusWidget(_props: IDockviewPanelProps) {
-  const { fetchSystemStatus } = useHealthQueries()
-  const { data, isLoading, error, refetch } = useHealthQuery(fetchSystemStatus)
+  const utils = trpc.useUtils()
+  const { data, isLoading, error } = trpc.health.systemStatus.useQuery()
 
   useEventSubscription({
     channels: [
@@ -52,7 +51,7 @@ export function SystemStatusWidget(_props: IDockviewPanelProps) {
       'health:backlog-analytics',
     ],
     onEvent: () => {
-      refetch()
+      void utils.health.systemStatus.invalidate()
     },
   })
 

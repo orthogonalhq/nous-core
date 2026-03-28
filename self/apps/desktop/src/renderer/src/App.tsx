@@ -22,9 +22,6 @@ import {
   AgentPanel,
   PreferencesPanel,
   WorkflowBuilderPanel,
-  HealthQueryProvider,
-  type ChatAPI,
-  type HealthFetchers,
 } from '@nous/ui/panels'
 import {
   ContentRouter,
@@ -42,19 +39,55 @@ import {
   type CommandGroup,
   type CatalogItem,
 } from '@nous/ui/components'
+import { TransportProvider, createDesktopTransport } from '@nous/transport'
 import { AppInstallWizardPanel } from './components/AppInstallWizard'
 import { FirstRunWizard } from './components/FirstRunWizard'
 import { TitleBar } from './components/TitleBar'
 import { StatusBar } from './components/StatusBar'
 import type { FirstRunState } from './components/wizard/types'
+import { setBackendPort as setWizardBackendPort, trpcQuery } from './components/wizard/trpc-fetch'
 
+import { trpc } from '@nous/transport'
 import 'dockview-react/dist/styles/dockview.css'
+
+/** tRPC-backed ChatAPI — replaces the removed IPC chatApi. */
+function useChatApi() {
+  const utils = trpc.useUtils()
+  const sendMessage = trpc.chat.sendMessage.useMutation()
+  return useMemo(
+    () => ({
+      send: async (message: string) => {
+        const result = await sendMessage.mutateAsync({ message })
+        return { response: result.response, traceId: result.traceId }
+      },
+      getHistory: async () => {
+        const data = await utils.chat.getHistory.fetch({})
+        return (data?.entries ?? [])
+          .filter((e: any) => e.role === 'user' || e.role === 'assistant')
+          .map((e: any) => ({ role: e.role, content: e.content, timestamp: e.timestamp }))
+      },
+    }),
+    [sendMessage, utils],
+  )
+}
+
+/** Wrapper that wires ChatPanel to tRPC via useChatApi (dockview). */
+function DesktopChatPanel(props: import('dockview-react').IDockviewPanelProps) {
+  const chatApi = useChatApi()
+  return <ChatPanel {...props} params={{ chatApi }} />
+}
+
+/** Wrapper that wires ChatSurface to tRPC via useChatApi (simple mode). */
+function ConnectedChatSurface() {
+  const chatApi = useChatApi()
+  return <ChatSurface chatApi={chatApi} />
+}
 
 const panelComponents = {
   'app-installer': AppInstallWizardPanel,
   'app-iframe': AppIframePanel,
   placeholder: PlaceholderPanel,
-  chat: ChatPanel,
+  chat: DesktopChatPanel,
   'file-browser': FileBrowserPanel,
   'node-projection': NodeProjectionPanel,
   mao: MAOPanel,
@@ -106,16 +139,11 @@ export const NATIVE_PANEL_DEFS: PanelDef[] = [
     id: 'chat',
     component: 'chat',
     title: 'Principal \u2194 Cortex',
-    params: () => ({ chatApi: window.electronAPI?.chat }),
   },
   {
     id: 'app-installer',
     component: 'app-installer',
     title: 'App Installer',
-    params: () => ({
-      appInstallApi: window.electronAPI?.appInstall,
-      appSettingsApi: window.electronAPI?.appSettings,
-    }),
   },
   {
     id: 'files',
@@ -124,7 +152,7 @@ export const NATIVE_PANEL_DEFS: PanelDef[] = [
     params: () => ({ fsApi: window.electronAPI?.fs, initialPath: '/' }),
   },
   { id: 'node-projection', component: 'node-projection', title: 'Skill Projection' },
-  { id: 'mao', component: 'mao', title: 'MAO', params: () => ({ maoApi: (window as any).electronAPI?.mao }) },
+  { id: 'mao', component: 'mao', title: 'MAO' },
   {
     id: 'codexbar',
     component: 'codexbar',
@@ -138,12 +166,6 @@ export const NATIVE_PANEL_DEFS: PanelDef[] = [
     id: 'preferences',
     component: 'preferences',
     title: 'Preferences',
-    params: () => ({
-      preferencesApi: {
-        ...(window as any).electronAPI?.preferences,
-        getHardwareRecommendations: window.electronAPI?.hardware.getRecommendations,
-      },
-    }),
   },
 ]
 
@@ -396,6 +418,7 @@ export function App() {
   const [mode, setMode] = useState<ShellMode>('simple')
   const [activeRoute, setActiveRoute] = useState(DEFAULT_ROUTE)
   const [commandPaletteOpen, setCommandPaletteOpen] = useState(false)
+  const [backendPort, setBackendPort] = useState<number | null>(null)
 
   const initializeApp = useCallback(async () => {
     const runId = ++bootstrapRunRef.current
@@ -444,10 +467,23 @@ export function App() {
       return
     }
 
+    // Discover backend port for direct HTTP/SSE transport
+    let discoveredPort: number | null = null
+    try {
+      const port = await window.electronAPI.backend.getPort()
+      if (!isStale() && port) {
+        discoveredPort = port
+        setBackendPort(port)
+        setWizardBackendPort(port)
+      }
+    } catch {
+      console.warn('[nous:transport] Failed to get backend port — transport layer unavailable')
+    }
+
     setLoadingMessage('Loading first-run state…')
 
     try {
-      const nextFirstRunState = await window.electronAPI.firstRun.getWizardState()
+      const nextFirstRunState = await trpcQuery<FirstRunState>('firstRun.getWizardState')
       if (isStale()) {
         return
       }
@@ -532,11 +568,17 @@ export function App() {
 
     let cancelled = false
 
+    if (!backendPort) return
+
     const syncAppPanels = async () => {
       try {
-        const panels = await window.electronAPI.appPanels.list()
-        if (!cancelled) {
-          setAppPanels(panels)
+        const panels = await trpcQuery<AppPanelSnapshot[]>('packages.listAppPanels')
+        if (!cancelled && Array.isArray(panels)) {
+          const baseUrl = `http://127.0.0.1:${backendPort}`
+          setAppPanels(panels.map((p: AppPanelSnapshot) => ({
+            ...p,
+            src: new URL(p.route_path, baseUrl).toString(),
+          })))
         }
       } catch {
         // Backend may not be available yet — retry on next interval
@@ -552,7 +594,7 @@ export function App() {
       cancelled = true
       window.clearInterval(intervalId)
     }
-  }, [phase])
+  }, [phase, backendPort])
 
   const handleWizardComplete = useCallback(() => {
     console.log('[nous:wizard] Phase: wizard → main')
@@ -631,11 +673,6 @@ export function App() {
   }, [phase])
 
   const preferencesPanelParams = useMemo(() => ({
-    preferencesApi: {
-      ...(window as any).electronAPI?.preferences,
-      getHardwareRecommendations: window.electronAPI?.hardware.getRecommendations,
-      resetWizard: window.electronAPI?.firstRun.resetWizard,
-    },
     onWizardReset: handleWizardReset,
     onModeChange: handleModeChange,
     currentMode: mode,
@@ -674,11 +711,12 @@ export function App() {
     },
   ], [handleNavigate, handleModeToggle])
 
-  const healthFetchers: HealthFetchers = useMemo(() => ({
-    fetchSystemStatus: () => window.electronAPI.health.systemStatus(),
-    fetchProviderHealth: () => window.electronAPI.health.providerHealth(),
-    fetchAgentStatus: () => window.electronAPI.health.agentStatus(),
-  }), [])
+  const transportConfig = useMemo(
+    () => backendPort ? createDesktopTransport(backendPort) : null,
+    [backendPort],
+  )
+
+  // Health data is now fetched via trpc hooks directly in dashboard widgets.
 
   const navigation = {
     activeRoute,
@@ -775,6 +813,49 @@ export function App() {
     return loadingShell
   }
 
+  const mainContent = (
+    <ShellProvider
+      mode={mode}
+      activeRoute={activeRoute}
+      navigation={navigation}
+      navigate={handleNavigate}
+      goBack={handleGoBack}
+    >
+        <CommandPalette
+          isOpen={commandPaletteOpen}
+          onClose={() => setCommandPaletteOpen(false)}
+          commands={commands}
+        />
+        {mode === 'simple' ? (
+          <ShellLayout
+            rail={(
+              <NavigationRail
+                items={RAIL_SECTIONS}
+                activeItemId={activeRoute}
+                onItemSelect={handleNavigate}
+              />
+            )}
+            chat={<ConnectedChatSurface />}
+            content={(
+              <ContentRouter
+                activeRoute={activeRoute}
+                routes={simpleModeRoutes}
+                onNavigate={handleNavigate}
+              />
+            )}
+            observe={<ObservePanel />}
+          />
+        ) : (
+          <DockviewShell
+            savedLayout={savedLayout}
+            onApiReady={setDockviewApi}
+            activeAppPanelIds={new Set(appPanels.map((panel) => panel.dockview_panel_id))}
+            panelDefs={panelDefs}
+          />
+        )}
+    </ShellProvider>
+  )
+
   return (
     <ChromeShell
       dockviewApi={dockviewApi}
@@ -782,48 +863,13 @@ export function App() {
       mode={mode}
       onModeToggle={handleModeToggle}
     >
-      <ShellProvider
-        mode={mode}
-        activeRoute={activeRoute}
-        navigation={navigation}
-        navigate={handleNavigate}
-        goBack={handleGoBack}
-      >
-        <HealthQueryProvider fetchers={healthFetchers}>
-          <CommandPalette
-            isOpen={commandPaletteOpen}
-            onClose={() => setCommandPaletteOpen(false)}
-            commands={commands}
-          />
-          {mode === 'simple' ? (
-            <ShellLayout
-              rail={(
-                <NavigationRail
-                  items={RAIL_SECTIONS}
-                  activeItemId={activeRoute}
-                  onItemSelect={handleNavigate}
-                />
-              )}
-              chat={<ChatSurface chatApi={window.electronAPI?.chat as ChatAPI | undefined} />}
-              content={(
-                <ContentRouter
-                  activeRoute={activeRoute}
-                  routes={simpleModeRoutes}
-                  onNavigate={handleNavigate}
-                />
-              )}
-              observe={<ObservePanel maoApi={(window as any).electronAPI?.mao} />}
-            />
-          ) : (
-            <DockviewShell
-              savedLayout={savedLayout}
-              onApiReady={setDockviewApi}
-              activeAppPanelIds={new Set(appPanels.map((panel) => panel.dockview_panel_id))}
-              panelDefs={panelDefs}
-            />
-          )}
-        </HealthQueryProvider>
-      </ShellProvider>
+      {transportConfig ? (
+        <TransportProvider config={transportConfig}>
+          {mainContent}
+        </TransportProvider>
+      ) : (
+        mainContent
+      )}
     </ChromeShell>
   )
 }

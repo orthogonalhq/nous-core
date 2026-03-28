@@ -6,35 +6,38 @@ import * as React from 'react';
 import { cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
-const mocks = vi.hoisted(() => ({
-  getProjectSnapshotUseQuery: vi.fn(),
-  getAgentInspectProjectionUseQuery: vi.fn(),
-  requestProjectControlUseMutation: vi.fn(),
-  getControlAuditHistoryUseQuery: vi.fn(),
-  systemStatusUseQuery: vi.fn(),
-  requestConfirmationProofUseMutation: vi.fn(),
-  useUtils: vi.fn(),
-  useProject: vi.fn(),
-  useSearchParams: vi.fn(),
-}));
-
-vi.mock('@/lib/trpc', () => ({
-  trpc: {
+const { mocks, trpcMock } = vi.hoisted(() => {
+  const m = {
+    getProjectSnapshotUseQuery: vi.fn(),
+    getAgentInspectProjectionUseQuery: vi.fn(),
+    requestProjectControlUseMutation: vi.fn(),
+    getControlAuditHistoryUseQuery: vi.fn(),
+    systemStatusUseQuery: vi.fn(),
+    requestConfirmationProofUseMutation: vi.fn(),
+    useUtils: vi.fn(),
+    useProject: vi.fn(),
+    useSearchParams: vi.fn(),
+  };
+  const t = {
     mao: {
-      getProjectSnapshot: { useQuery: mocks.getProjectSnapshotUseQuery },
-      getAgentInspectProjection: { useQuery: mocks.getAgentInspectProjectionUseQuery },
-      requestProjectControl: { useMutation: mocks.requestProjectControlUseMutation },
-      getControlAuditHistory: { useQuery: mocks.getControlAuditHistoryUseQuery },
+      getProjectSnapshot: { useQuery: m.getProjectSnapshotUseQuery },
+      getAgentInspectProjection: { useQuery: m.getAgentInspectProjectionUseQuery },
+      requestProjectControl: { useMutation: m.requestProjectControlUseMutation },
+      getControlAuditHistory: { useQuery: m.getControlAuditHistoryUseQuery },
     },
     health: {
-      systemStatus: { useQuery: mocks.systemStatusUseQuery },
+      systemStatus: { useQuery: m.systemStatusUseQuery },
     },
     opctl: {
-      requestConfirmationProof: { useMutation: mocks.requestConfirmationProofUseMutation },
+      requestConfirmationProof: { useMutation: m.requestConfirmationProofUseMutation },
     },
-    useUtils: mocks.useUtils,
-  },
-}));
+    useUtils: m.useUtils,
+  };
+  return { mocks: m, trpcMock: t };
+});
+
+vi.mock('@/lib/trpc', () => ({ trpc: trpcMock }));
+vi.mock('@nous/transport', () => ({ trpc: trpcMock, useEventSubscription: vi.fn() }));
 
 vi.mock('@/lib/project-context', () => ({
   useProject: mocks.useProject,
@@ -44,9 +47,6 @@ vi.mock('next/navigation', () => ({
   useSearchParams: mocks.useSearchParams,
 }));
 
-vi.mock('@nous/ui', () => ({
-  useEventSubscription: vi.fn(),
-}));
 
 import MaoPage from '@/app/(shell)/mao/page';
 

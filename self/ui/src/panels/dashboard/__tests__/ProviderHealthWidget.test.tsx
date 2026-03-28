@@ -2,16 +2,26 @@
 
 import React from 'react'
 import { render, screen } from '@testing-library/react'
-import { describe, expect, it, vi } from 'vitest'
+import { describe, expect, it, vi, beforeEach } from 'vitest'
 import { ProviderHealthWidget } from '../widgets/ProviderHealthWidget'
-import { HealthQueryProvider } from '../hooks/HealthQueryProvider'
-import type { HealthFetchers } from '../hooks/HealthQueryProvider'
 import type { ProviderHealthSnapshot } from '@nous/shared'
 import type { IDockviewPanelProps } from 'dockview-react'
 
-vi.mock('../../../../hooks/useEventSubscription', () => ({
+vi.mock('@nous/transport', () => ({
+  trpc: {
+    useUtils: vi.fn().mockReturnValue({
+      health: { providerHealth: { invalidate: vi.fn() } },
+    }),
+    health: {
+      providerHealth: {
+        useQuery: vi.fn().mockReturnValue({ data: undefined, isLoading: true, error: null }),
+      },
+    },
+  },
   useEventSubscription: vi.fn(),
 }))
+
+import { trpc } from '@nous/transport'
 
 const mockSnapshot: ProviderHealthSnapshot = {
   providers: [
@@ -44,33 +54,32 @@ const mockSnapshot: ProviderHealthSnapshot = {
 
 const dockviewProps = {} as IDockviewPanelProps
 
-function renderWithProvider(fetchers: Partial<HealthFetchers>) {
-  const defaultFetchers: HealthFetchers = {
-    fetchSystemStatus: vi.fn(),
-    fetchProviderHealth: vi.fn().mockResolvedValue(mockSnapshot),
-    fetchAgentStatus: vi.fn(),
-    ...fetchers,
-  }
-
-  return render(
-    <HealthQueryProvider fetchers={defaultFetchers}>
-      <ProviderHealthWidget {...dockviewProps} />
-    </HealthQueryProvider>,
-  )
-}
+beforeEach(() => {
+  vi.clearAllMocks()
+})
 
 describe('ProviderHealthWidget', () => {
   it('renders loading indicator during initial fetch', () => {
-    const fetcher = vi.fn().mockReturnValue(new Promise(() => {}))
-    renderWithProvider({ fetchProviderHealth: fetcher })
+    vi.mocked(trpc.health.providerHealth.useQuery).mockReturnValue({
+      data: undefined,
+      isLoading: true,
+      error: null,
+    } as any)
 
+    render(<ProviderHealthWidget {...dockviewProps} />)
     expect(screen.getByText('Loading provider health...')).toBeTruthy()
   })
 
-  it('renders live provider entries when data is available', async () => {
-    renderWithProvider({})
+  it('renders live provider entries when data is available', () => {
+    vi.mocked(trpc.health.providerHealth.useQuery).mockReturnValue({
+      data: mockSnapshot,
+      isLoading: false,
+      error: null,
+    } as any)
 
-    expect(await screen.findByText('Ollama')).toBeTruthy()
+    render(<ProviderHealthWidget {...dockviewProps} />)
+
+    expect(screen.getByText('Ollama')).toBeTruthy()
     expect(screen.getByText('OpenAI')).toBeTruthy()
     expect(screen.getByText('Anthropic')).toBeTruthy()
     expect(screen.getByText('Available')).toBeTruthy()
@@ -80,12 +89,14 @@ describe('ProviderHealthWidget', () => {
     expect(screen.getByText(/Updated:/)).toBeTruthy()
   })
 
-  it('renders error fallback when fetch fails', async () => {
-    const fetcher = vi.fn().mockRejectedValue(new Error('Connection refused'))
-    renderWithProvider({ fetchProviderHealth: fetcher })
+  it('renders error fallback when query has error', () => {
+    vi.mocked(trpc.health.providerHealth.useQuery).mockReturnValue({
+      data: undefined,
+      isLoading: false,
+      error: new Error('Connection refused'),
+    } as any)
 
-    expect(
-      await screen.findByText(/Failed to load provider health: Connection refused/),
-    ).toBeTruthy()
+    render(<ProviderHealthWidget {...dockviewProps} />)
+    expect(screen.getByText(/Failed to load provider health: Connection refused/)).toBeTruthy()
   })
 })

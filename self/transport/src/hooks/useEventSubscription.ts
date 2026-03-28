@@ -1,5 +1,15 @@
+/**
+ * useEventSubscription — React hook for typed SSE events from the Nous event bus.
+ *
+ * Reads the events URL from TransportProvider context so it works on both
+ * web (relative `/api/events`) and desktop (loopback `http://127.0.0.1:<port>/api/events`).
+ *
+ * Auto-reconnects with exponential backoff on connection drop.
+ * Cleans up EventSource and timers on unmount or when disabled.
+ */
 import { useEffect, useRef, useCallback } from 'react';
 import type { EventChannelMap } from '@nous/shared';
+import { useEventsUrl } from '../provider';
 
 export interface UseEventSubscriptionOptions<C extends keyof EventChannelMap> {
   /** Channel or channels to subscribe to. Supports glob prefixes (e.g., 'health:*'). */
@@ -14,17 +24,11 @@ const MAX_BACKOFF_MS = 30_000;
 const BASE_BACKOFF_MS = 1_000;
 const JITTER_MAX_MS = 500;
 
-/**
- * React hook for subscribing to typed SSE events from the Nous event bus.
- *
- * Connects to `/api/events` with channel filtering via query parameter.
- * Auto-reconnects with exponential backoff on connection drop.
- * Cleans up EventSource and timers on unmount or when disabled.
- */
 export function useEventSubscription<C extends keyof EventChannelMap>(
   options: UseEventSubscriptionOptions<C>,
 ): void {
   const { channels, onEvent, enabled = true } = options;
+  const eventsUrl = useEventsUrl();
 
   // Stabilize channels reference via JSON serialization
   const channelsKey = JSON.stringify(channels);
@@ -35,11 +39,11 @@ export function useEventSubscription<C extends keyof EventChannelMap>(
 
   const connect = useCallback(
     (channelList: string[]) => {
-      const url = `/api/events?channels=${channelList.join(',')}`;
+      const url = `${eventsUrl}?channels=${channelList.join(',')}`;
       const source = new EventSource(url);
       return { source, channelList };
     },
-    [],
+    [eventsUrl],
   );
 
   useEffect(() => {
@@ -73,7 +77,7 @@ export function useEventSubscription<C extends keyof EventChannelMap>(
         return;
       }
 
-      const url = `/api/events?channels=${parsedChannels.join(',')}`;
+      const url = `${eventsUrl}?channels=${parsedChannels.join(',')}`;
       const source = new EventSource(url);
 
       source.addEventListener('open', () => {
@@ -128,5 +132,5 @@ export function useEventSubscription<C extends keyof EventChannelMap>(
         eventSource = null;
       }
     };
-  }, [channelsKey, enabled, connect]);
+  }, [channelsKey, enabled, connect, eventsUrl]);
 }

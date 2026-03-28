@@ -1,8 +1,10 @@
 import {
   formatLifecycleState,
+  type FirstRunState,
   type OllamaStatus,
   type WizardStepProps,
 } from './types'
+import { trpcMutate } from './trpc-fetch'
 
 export interface WizardStepOllamaSetupProps extends WizardStepProps {
   ollamaStatus: OllamaStatus | null
@@ -73,7 +75,7 @@ export function WizardStepOllamaSetup({
     setActionError(null)
     setActionInProgress(true)
     try {
-      const nextState = await window.electronAPI.firstRun.completeStep('ollama_check')
+      const nextState = await trpcMutate<FirstRunState>('firstRun.completeStep', { step: 'ollama_check' })
       onStepComplete(nextState)
     } catch (error) {
       const message = error instanceof Error ? error.message : String(error)

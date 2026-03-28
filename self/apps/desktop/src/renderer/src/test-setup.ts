@@ -1,14 +1,14 @@
 import '@testing-library/jest-dom/vitest'
 import { cleanup } from '@testing-library/react'
 import { afterEach, beforeEach, vi } from 'vitest'
+import type {
+  FirstRunState,
+  FirstRunPrerequisites,
+  FirstRunActionResult,
+} from '@nous/shared-server'
 
 type ElectronAPI = Window['electronAPI']
-type FirstRunState = Awaited<ReturnType<ElectronAPI['firstRun']['getWizardState']>>
-type FirstRunPrerequisites = Awaited<ReturnType<ElectronAPI['firstRun']['checkPrerequisites']>>
-type FirstRunActionResult = Awaited<ReturnType<ElectronAPI['firstRun']['downloadModel']>>
-type FirstRunRoleAssignmentInput = Parameters<ElectronAPI['firstRun']['assignRoles']>[0]
 type OllamaStatus = Awaited<ReturnType<ElectronAPI['ollama']['getStatus']>>
-type PreferencesSystemStatus = Awaited<ReturnType<ElectronAPI['preferences']['getSystemStatus']>>
 type OllamaModelPullProgress = Parameters<ElectronAPI['ollama']['onPullProgress']>[0] extends (
   progress: infer T,
 ) => void
@@ -98,15 +98,6 @@ export const DEFAULT_PREREQUISITES: FirstRunPrerequisites = {
   },
 }
 
-export const DEFAULT_PREFERENCES_STATUS: PreferencesSystemStatus = {
-  ollama: {
-    running: true,
-    models: ['qwen2.5:7b'],
-  },
-  configuredProviders: ['anthropic'],
-  credentialVaultHealthy: true,
-}
-
 export function createFirstRunState(overrides: Partial<FirstRunState> = {}): FirstRunState {
   return {
     ...DEFAULT_WIZARD_STATE,
@@ -176,25 +167,8 @@ export function createElectronAPIMock() {
       readDir: vi.fn(async () => []),
       readFile: vi.fn(async () => null),
     },
-    chat: {
-      send: vi.fn(async () => ({ response: 'ok', traceId: 'trace-1' })),
-      getHistory: vi.fn(async () => []),
-    },
     usage: {
       getSnapshot: vi.fn(async () => ({})),
-    },
-    health: {
-      systemStatus: vi.fn(async () => ({
-        bootStatus: 'booting' as const,
-        completedBootSteps: [],
-        issueCodes: [],
-        inboxReady: false,
-        pendingSystemRuns: 0,
-        backlogAnalytics: { queuedCount: 0, activeCount: 0, suspendedCount: 0, completedInWindow: 0, failedInWindow: 0, pressureTrend: 'stable' as const },
-        collectedAt: new Date().toISOString(),
-      })),
-      providerHealth: vi.fn(async () => ({ providers: [], collectedAt: new Date().toISOString() })),
-      agentStatus: vi.fn(async () => ({ gateways: [], appSessions: [], collectedAt: new Date().toISOString() })),
     },
     win: {
       minimize: vi.fn(async () => {}),
@@ -209,25 +183,6 @@ export function createElectronAPIMock() {
       quit: vi.fn(async () => {}),
       newWindow: vi.fn(async () => {}),
     },
-    appInstall: {
-      prepare: vi.fn(async () => {
-        throw new Error('Not implemented in renderer tests')
-      }),
-      install: vi.fn(async () => {
-        throw new Error('Not implemented in renderer tests')
-      }),
-    },
-    appSettings: {
-      prepare: vi.fn(async () => {
-        throw new Error('Not implemented in renderer tests')
-      }),
-      save: vi.fn(async () => {
-        throw new Error('Not implemented in renderer tests')
-      }),
-    },
-    appPanels: {
-      list: vi.fn(async () => []),
-    },
     mode: {
       get: vi.fn(async (): Promise<string | null> => null),
       set: vi.fn(async () => {}),
@@ -236,8 +191,9 @@ export function createElectronAPIMock() {
       getStatus: vi.fn(async () => ({
         ready: true,
         port: 4317,
-        trpcUrl: 'http://127.0.0.1:4317/trpc',
+        trpcUrl: 'http://127.0.0.1:4317/api/trpc',
       })),
+      getPort: vi.fn(async () => 4317),
       getOllamaStatus: vi.fn(async () => DEFAULT_OLLAMA_STATUS),
     },
     ollama: {
@@ -257,98 +213,6 @@ export function createElectronAPIMock() {
           ollamaStateListeners.delete(callback)
         }
       }),
-    },
-    preferences: {
-      getApiKeys: vi.fn(async () => []),
-      setApiKey: vi.fn(async () => ({ stored: true })),
-      deleteApiKey: vi.fn(async () => ({ deleted: true })),
-      testApiKey: vi.fn(async () => ({ valid: true, error: null })),
-      getSystemStatus: vi.fn(async () => DEFAULT_PREFERENCES_STATUS),
-      getAvailableModels: vi.fn(async () => ({
-        models: [
-          {
-            id: 'ollama:qwen2.5:7b',
-            name: 'Qwen 2.5 7B',
-            provider: 'ollama',
-            available: true,
-          },
-        ],
-      })),
-      getModelSelection: vi.fn(async () => ({
-        principal: 'ollama:qwen2.5:7b',
-        system: 'ollama:qwen2.5:7b',
-      })),
-      setModelSelection: vi.fn(async () => ({ success: true })),
-      getRoleAssignments: vi.fn(async () => []),
-      setRoleAssignment: vi.fn(async () => ({ success: true })),
-    },
-    hardware: {
-      getSpec: vi.fn(async () => DEFAULT_PREREQUISITES.hardware),
-      getRecommendations: vi.fn(async () => DEFAULT_PREREQUISITES.recommendations),
-    },
-    firstRun: {
-      getWizardState: vi.fn(async () => DEFAULT_WIZARD_STATE),
-      checkPrerequisites: vi.fn(async () => DEFAULT_PREREQUISITES),
-      downloadModel: vi.fn(async () => createFirstRunActionResult(createFirstRunState({
-        currentStep: 'provider_config',
-        steps: {
-          ...DEFAULT_WIZARD_STATE.steps,
-          model_download: {
-            status: 'complete',
-            completedAt: '2026-03-22T00:05:00.000Z',
-          },
-        },
-      }))),
-      configureProvider: vi.fn(async () => createFirstRunActionResult(createFirstRunState({
-        currentStep: 'role_assignment',
-        steps: {
-          ...DEFAULT_WIZARD_STATE.steps,
-          model_download: {
-            status: 'complete',
-            completedAt: '2026-03-22T00:05:00.000Z',
-          },
-          provider_config: {
-            status: 'complete',
-            completedAt: '2026-03-22T00:06:00.000Z',
-          },
-        },
-      }))),
-      assignRoles: vi.fn(async (_assignments: FirstRunRoleAssignmentInput) => createFirstRunActionResult(createFirstRunState({
-        currentStep: 'complete',
-        complete: true,
-        completedAt: '2026-03-22T00:07:00.000Z',
-        steps: {
-          ollama_check: {
-            status: 'complete',
-            completedAt: '2026-03-22T00:04:00.000Z',
-          },
-          model_download: {
-            status: 'complete',
-            completedAt: '2026-03-22T00:05:00.000Z',
-          },
-          provider_config: {
-            status: 'complete',
-            completedAt: '2026-03-22T00:06:00.000Z',
-          },
-          role_assignment: {
-            status: 'complete',
-            completedAt: '2026-03-22T00:07:00.000Z',
-          },
-        },
-      }))),
-      completeStep: vi.fn(async (step) => createFirstRunState({
-        currentStep: step === 'ollama_check' ? 'model_download' : 'complete',
-        complete: step === 'role_assignment',
-        completedAt: step === 'role_assignment' ? '2026-03-22T00:07:00.000Z' : undefined,
-        steps: {
-          ...DEFAULT_WIZARD_STATE.steps,
-          [step]: {
-            status: 'complete',
-            completedAt: '2026-03-22T00:04:00.000Z',
-          },
-        },
-      })),
-      resetWizard: vi.fn(async () => DEFAULT_WIZARD_STATE),
     },
   } satisfies ElectronAPI
 

@@ -4,7 +4,7 @@ import { useState, useEffect, useRef, type KeyboardEvent } from 'react'
 import type { IDockviewPanelProps } from 'dockview-react'
 import { clsx } from 'clsx'
 import type { ConversationContext } from '../components/shell/types'
-import { useEventSubscription } from '../hooks/useEventSubscription'
+import { useEventSubscription } from '@nous/transport'
 import type { ThoughtPfcDecisionPayload, ThoughtTurnLifecyclePayload } from '@nous/shared'
 
 type ThoughtEvent =

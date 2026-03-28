@@ -33,6 +33,7 @@
     "@nous/memory-mwc": "workspace:*",
     "@nous/memory-stm": "workspace:*",
     "@nous/shared": "workspace:*",
+    "@nous/transport": "workspace:*",
     "@nous/ui": "workspace:*",
     "@nous/subcortex-apps": "workspace:*",
     "@nous/subcortex-projects": "workspace:*",

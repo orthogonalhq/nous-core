@@ -4,9 +4,6 @@ export {
 } from './mao-services-context';
 export type {
   MaoServicesContextValue,
-  QueryHook,
-  MutationHook,
-  InvalidationTarget,
 } from './mao-services-context';
 
 export {

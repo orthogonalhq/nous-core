@@ -1,7 +1,6 @@
 import type { IDockviewPanelProps } from 'dockview-react'
 import type { CSSProperties } from 'react'
-import { useEventSubscription } from '../../../hooks/useEventSubscription'
-import { useHealthQueries, useHealthQuery } from '../hooks'
+import { trpc, useEventSubscription } from '@nous/transport'
 
 const HEALTH_STATUS_COLORS: Record<string, string> = {
   healthy: 'var(--nous-state-complete)',
@@ -42,8 +41,8 @@ const containerStyle: CSSProperties = {
 }
 
 export function ActiveAgentsWidget(_props: IDockviewPanelProps) {
-  const { fetchAgentStatus } = useHealthQueries()
-  const { data, isLoading, error, refetch } = useHealthQuery(fetchAgentStatus)
+  const utils = trpc.useUtils()
+  const { data, isLoading, error } = trpc.health.agentStatus.useQuery()
 
   useEventSubscription({
     channels: [
@@ -53,7 +52,7 @@ export function ActiveAgentsWidget(_props: IDockviewPanelProps) {
       'health:backlog-analytics',
     ],
     onEvent: () => {
-      refetch()
+      void utils.health.agentStatus.invalidate()
     },
   })
 

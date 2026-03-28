@@ -1,5 +1,6 @@
 packages:
   - self/shared
+  - self/transport
   - self/ui
   - self/autonomic/*
   - self/cortex/*
