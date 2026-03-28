@@ -169,28 +169,30 @@ function ShellLayoutContent({
             onClose={() => setCommandPaletteOpen(false)}
             commands={commands}
           />
-          {mode === 'simple' ? (
-            <UIShellLayout
-              rail={
-                <NavigationRail
-                  items={webRailSections}
-                  activeItemId={activeRoute}
-                  onItemSelect={handleNavigate}
-                />
-              }
-              chat={<WebConnectedChatSurface />}
-              content={
-                <ContentRouter
-                  activeRoute={activeRoute}
-                  routes={routes}
-                  onNavigate={handleNavigate}
-                />
-              }
-              observe={<ObservePanel />}
-            />
-          ) : (
-            <WebDockviewShell />
-          )}
+          <div style={{ flex: 1, minHeight: 0, overflow: 'hidden', position: 'relative' }}>
+            {mode === 'simple' ? (
+              <UIShellLayout
+                rail={
+                  <NavigationRail
+                    items={webRailSections}
+                    activeItemId={activeRoute}
+                    onItemSelect={handleNavigate}
+                  />
+                }
+                chat={<WebConnectedChatSurface />}
+                content={
+                  <ContentRouter
+                    activeRoute={activeRoute}
+                    routes={routes}
+                    onNavigate={handleNavigate}
+                  />
+                }
+                observe={<ObservePanel />}
+              />
+            ) : (
+              <WebDockviewShell />
+            )}
+          </div>
           {children}
         </ProjectProvider>
       </ShellProvider>

@@ -28,6 +28,8 @@ export function WebChromeShell({ mode, onModeToggle, children }: WebChromeShellP
       <WebHeader mode={mode} onModeToggle={onModeToggle} />
       <div
         style={{
+          display: 'flex',
+          flexDirection: 'column',
           flex: 1,
           overflow: 'hidden',
           minHeight: 0,
