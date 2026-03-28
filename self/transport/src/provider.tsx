@@ -19,9 +19,9 @@ import { trpc } from './client';
 // ---------------------------------------------------------------------------
 
 export interface TransportConfig {
-  /** Full URL for tRPC endpoint, e.g. "/api/trpc" or "http://127.0.0.1:4317/api/trpc" */
+  /** Full URL for tRPC endpoint, e.g. "/api/trpc" or "http://localhost:4317/api/trpc" */
   trpcUrl: string;
-  /** Full URL for SSE events endpoint, e.g. "/api/events" or "http://127.0.0.1:4317/api/events" */
+  /** Full URL for SSE events endpoint, e.g. "/api/events" or "http://localhost:4317/api/events" */
   eventsUrl: string;
 }
 
@@ -45,7 +45,7 @@ export function createWebTransport(baseUrl = ''): TransportConfig {
  * @param port - The backend server port on loopback.
  */
 export function createDesktopTransport(port: number): TransportConfig {
-  const base = `http://127.0.0.1:${port}`;
+  const base = `http://localhost:${port}`;
   return {
     trpcUrl: `${base}/api/trpc`,
     eventsUrl: `${base}/api/events`,

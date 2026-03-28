@@ -16,7 +16,7 @@ function baseUrl(): string {
   if (!_backendPort) {
     throw new Error('Backend port not configured — call setBackendPort() first')
   }
-  return `http://127.0.0.1:${_backendPort}/api/trpc`
+  return `http://localhost:${_backendPort}/api/trpc`
 }
 
 /**
