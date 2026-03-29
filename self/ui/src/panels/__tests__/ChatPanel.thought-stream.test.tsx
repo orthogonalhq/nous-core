@@ -70,6 +70,17 @@ function renderSendingPanel() {
   return { ...result, resolveSend: resolveSend! }
 }
 
+/**
+ * Creates a ChatPanel in idle state (not sending).
+ */
+function renderIdlePanel() {
+  const mockApi: ChatAPI = {
+    send: vi.fn().mockResolvedValue({ response: 'ok', traceId: 'trace-1' }),
+    getHistory: async () => [],
+  }
+  return render(<ChatPanel chatApi={mockApi} />)
+}
+
 describe('ChatPanel — Thought Stream', () => {
   beforeEach(() => {
     capturedOnEvent = null
@@ -86,14 +97,15 @@ describe('ChatPanel — Thought Stream', () => {
     expect(screen.queryByTestId('thought-stream')).toBeNull()
   })
 
-  it('accumulates thoughts during sending state', async () => {
-    renderSendingPanel()
+  it('accumulates thoughts regardless of sending state', async () => {
+    renderIdlePanel()
 
-    // Emit a thought event
+    // Emit a thought event while NOT sending
     act(() => {
       capturedOnEvent!('thought:pfc-decision', makePfcPayload())
     })
 
+    // Thought should accumulate even when not sending (sendingRef gate removed)
     expect(screen.getByTestId('thought-toggle')).toBeTruthy()
     expect(screen.getByText('1 thought')).toBeTruthy()
   })
@@ -109,7 +121,7 @@ describe('ChatPanel — Thought Stream', () => {
     expect(screen.getByText('2 thoughts')).toBeTruthy()
   })
 
-  it('clears thoughts when sending becomes false (response arrives)', async () => {
+  it('thoughts persist when sending becomes false', async () => {
     const { resolveSend } = renderSendingPanel()
 
     act(() => {
@@ -123,7 +135,8 @@ describe('ChatPanel — Thought Stream', () => {
       resolveSend({ response: 'done', traceId: 'trace-1' })
     })
 
-    expect(screen.queryByTestId('thought-toggle')).toBeNull()
+    // Thoughts persist after sending completes (no longer cleared)
+    expect(screen.getByTestId('thought-toggle')).toBeTruthy()
   })
 
   it('collapsed state shows thought count chip but not event details', async () => {
@@ -138,7 +151,7 @@ describe('ChatPanel — Thought Stream', () => {
     expect(screen.queryByTestId('thought-stream')).toBeNull()
   })
 
-  it('expanded state shows thought events', async () => {
+  it('expanded state shows thought events with ThoughtCard components', async () => {
     renderSendingPanel()
 
     act(() => {
@@ -215,18 +228,18 @@ describe('ChatPanel — Thought Stream', () => {
       capturedOnEvent!('thought:pfc-decision', makePfcPayload())
     })
 
-    // Should be expanded on mount because localStorage says so
+    // Should be expanded on mount because localStorage says so (detailsAlwaysOn)
     expect(screen.getByTestId('thought-stream')).toBeTruthy()
   })
 
-  it('caps at 20 events, truncating older ones', async () => {
+  it('caps at 50 events, truncating older ones', async () => {
     localStorage.setItem('nous:thoughts-expanded', 'true')
 
     renderSendingPanel()
 
-    // Emit 25 events
+    // Emit 55 events
     act(() => {
-      for (let i = 0; i < 25; i++) {
+      for (let i = 0; i < 55; i++) {
         capturedOnEvent!('thought:pfc-decision', makePfcPayload({
           sequence: i,
           content: `event-${i}`,
@@ -235,13 +248,57 @@ describe('ChatPanel — Thought Stream', () => {
     })
 
     const events = screen.getAllByTestId('thought-event')
-    expect(events.length).toBe(20)
+    expect(events.length).toBe(50)
 
-    // The last event should be event-24 (most recent)
-    expect(screen.getByText('event-24')).toBeTruthy()
-    // The first retained event should be event-5 (25 - 20 = 5)
+    // The last event should be event-54 (most recent)
+    expect(screen.getByText('event-54')).toBeTruthy()
+    // The first retained event should be event-5 (55 - 50 = 5)
     expect(screen.getByText('event-5')).toBeTruthy()
     // event-4 should be truncated
     expect(screen.queryByText('event-4')).toBeNull()
+  })
+
+  it('ThoughtToggle shows "Thinking..." when sending and collapsed', async () => {
+    renderSendingPanel()
+
+    act(() => {
+      capturedOnEvent!('thought:pfc-decision', makePfcPayload())
+    })
+
+    // Collapsed by default + sending=true: should show "Thinking..."
+    expect(screen.getByText('Thinking...')).toBeTruthy()
+  })
+
+  it('ThoughtStream container has correct ARIA attributes', async () => {
+    localStorage.setItem('nous:thoughts-expanded', 'true')
+
+    renderSendingPanel()
+
+    act(() => {
+      capturedOnEvent!('thought:pfc-decision', makePfcPayload())
+    })
+
+    const stream = screen.getByTestId('thought-stream')
+    expect(stream.getAttribute('role')).toBe('log')
+    expect(stream.getAttribute('aria-live')).toBe('polite')
+    expect(stream.getAttribute('aria-label')).toBe('AI thought stream')
+    expect(stream.getAttribute('id')).toBe('thought-stream')
+  })
+
+  it('ThoughtToggle has correct ARIA attributes', async () => {
+    renderSendingPanel()
+
+    act(() => {
+      capturedOnEvent!('thought:pfc-decision', makePfcPayload())
+    })
+
+    const toggle = screen.getByTestId('thought-toggle')
+    expect(toggle.getAttribute('aria-expanded')).toBe('false')
+    expect(toggle.getAttribute('aria-controls')).toBe('thought-stream')
+    expect(toggle.getAttribute('aria-label')).toContain('1 event')
+
+    // Expand and verify aria-expanded changes
+    fireEvent.click(toggle)
+    expect(toggle.getAttribute('aria-expanded')).toBe('true')
   })
 })
