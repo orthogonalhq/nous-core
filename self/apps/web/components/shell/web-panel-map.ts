@@ -1,7 +1,6 @@
 import {
   PlaceholderPanel,
   NodeProjectionPanel,
-  MAOPanel,
   CodexBarPanel,
   DashboardPanel,
   AgentPanel,
@@ -9,12 +8,13 @@ import {
 } from '@nous/ui/panels'
 import { WebChatPanel } from './web-chat-wrappers'
 import { WebConnectedPreferencesPanel } from './web-connected-preferences-panel'
+import { WebMaoPanel } from './web-mao-panel'
 
 export const webPanelComponents = {
   placeholder: PlaceholderPanel,
   chat: WebChatPanel,
   'node-projection': NodeProjectionPanel,
-  mao: MAOPanel,
+  mao: WebMaoPanel,
   codexbar: CodexBarPanel,
   dashboard: DashboardPanel,
   'coding-agents': AgentPanel,

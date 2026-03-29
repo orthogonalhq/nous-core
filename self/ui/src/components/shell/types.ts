@@ -113,11 +113,9 @@ export type ObserveRoute = z.infer<typeof ObserveRouteSchema>
 
 /** Props for the ObservePanel container */
 export const ObservePanelPropsSchema = z.object({
-  maoApi: z.custom<Record<string, unknown>>(() => true).optional(),
   className: z.string().optional(),
 })
 export interface ObservePanelProps {
-  maoApi?: import('../../panels/MAOPanel').MaoApi
   className?: string
 }
 
@@ -128,16 +126,6 @@ export const ChatSurfacePropsSchema = z.object({
 })
 export interface ChatSurfaceProps {
   chatApi?: import('../../panels/ChatPanel').ChatAPI
-  className?: string
-}
-
-/** Props for the MAOSurface adapter */
-export const MAOSurfacePropsSchema = z.object({
-  maoApi: z.custom<Record<string, unknown>>(() => true).optional(),
-  className: z.string().optional(),
-})
-export interface MAOSurfaceProps {
-  maoApi?: import('../../panels/MAOPanel').MaoApi
   className?: string
 }
 
