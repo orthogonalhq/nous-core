@@ -1,20 +1,24 @@
 'use client'
 
-import { useState, useEffect, useRef, type KeyboardEvent } from 'react'
+import { useState, useEffect, useRef, useCallback, type KeyboardEvent } from 'react'
 import type { IDockviewPanelProps } from 'dockview-react'
 import { clsx } from 'clsx'
 import type { ConversationContext } from '../components/shell/types'
 import { useEventSubscription } from '@nous/transport'
-import type { ThoughtPfcDecisionPayload, ThoughtTurnLifecyclePayload } from '@nous/shared'
-
-type ThoughtEvent =
-  | { channel: 'thought:pfc-decision'; payload: ThoughtPfcDecisionPayload }
-  | { channel: 'thought:turn-lifecycle'; payload: ThoughtTurnLifecyclePayload }
+import {
+  ThoughtStream,
+  ThoughtToggle,
+  ThoughtSummary,
+  useThoughtMode,
+  BUFFER_MAX,
+} from '../components/thought'
+import type { ThoughtEvent } from '../components/thought'
 
 export interface ChatMessage {
   role: 'user' | 'assistant'
   content: string
   timestamp: string
+  traceId?: string
 }
 
 export interface ChatAPI {
@@ -60,12 +64,12 @@ export function ChatPanel(props: ChatPanelProps | ChatPanelCoreProps) {
   const recognitionRef = useRef<BrowserSpeechRecognition | null>(null)
 
   const [thoughts, setThoughts] = useState<ThoughtEvent[]>([])
-  const [thoughtsExpanded, setThoughtsExpanded] = useState(
+  const detailsAlwaysOn = useState(
     () => {
       try { return localStorage.getItem('nous:thoughts-expanded') === 'true' }
       catch { return false }
     }
-  )
+  )[0]
 
   const chatApi = 'params' in props ? props.params?.chatApi : props.chatApi
   const conversationContext = 'conversationContext' in props ? props.conversationContext : undefined
@@ -83,30 +87,39 @@ export function ChatPanel(props: ChatPanelProps | ChatPanelCoreProps) {
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' })
   }, [messages])
 
-  const sendingRef = useRef(sending)
-  sendingRef.current = sending
+  const { mode, dispatch, isExpanded } = useThoughtMode({
+    detailsAlwaysOn,
+    sending,
+  })
 
   useEventSubscription({
     channels: ['thought:pfc-decision', 'thought:turn-lifecycle'],
     onEvent: (channel, payload) => {
-      if (sendingRef.current) {
-        setThoughts(prev => [...prev.slice(-19), { channel: channel as ThoughtEvent['channel'], payload: payload as any }])
-      }
+      setThoughts(prev => [
+        ...prev.slice(-(BUFFER_MAX - 1)),
+        { channel: channel as ThoughtEvent['channel'], payload: payload as any },
+      ])
     },
     enabled: true,
   })
 
-  useEffect(() => {
-    if (!sending) setThoughts([])
-  }, [sending])
+  const handleToggle = useCallback(() => {
+    dispatch({ type: 'TOGGLE_EXPAND' })
+    try {
+      const next = !isExpanded
+      localStorage.setItem('nous:thoughts-expanded', String(next))
+    } catch { /* localStorage unavailable */ }
+  }, [dispatch, isExpanded])
 
-  const toggleThoughts = () => {
-    setThoughtsExpanded(prev => {
-      const next = !prev
-      try { localStorage.setItem('nous:thoughts-expanded', String(next)) } catch {}
-      return next
-    })
-  }
+  const handleInputFocus = useCallback(() => {
+    dispatch({ type: 'FOCUS_INPUT' })
+  }, [dispatch])
+
+  const handleInputBlur = useCallback(() => {
+    if (!sending) {
+      dispatch({ type: 'BLUR_INPUT' })
+    }
+  }, [dispatch, sending])
 
   const send = async () => {
     if (!input.trim() || sending || !chatApi?.send) return
@@ -117,11 +130,17 @@ export function ChatPanel(props: ChatPanelProps | ChatPanelCoreProps) {
     setMessages(prev => [...prev, userEntry])
     try {
       const result = await chatApi.send(userMsg)
-      setMessages(prev => [...prev, { role: 'assistant', content: result.response, timestamp: new Date().toISOString() }])
+      setMessages(prev => [...prev, {
+        role: 'assistant',
+        content: result.response,
+        timestamp: new Date().toISOString(),
+        traceId: result.traceId,
+      }])
     } catch (e) {
       setMessages(prev => [...prev, { role: 'assistant', content: 'Error: could not reach Nous.', timestamp: new Date().toISOString() }])
     } finally {
       setSending(false)
+      setThoughts([])
     }
   }
 
@@ -189,7 +208,7 @@ export function ChatPanel(props: ChatPanelProps | ChatPanelCoreProps) {
           </div>
         )}
         {messages.map((msg, i) => (
-          <div key={i} style={{ display: 'flex', justifyContent: msg.role === 'user' ? 'flex-end' : 'flex-start' }}>
+          <div key={i} style={{ display: 'flex', flexDirection: 'column', alignItems: msg.role === 'user' ? 'flex-end' : 'flex-start' }}>
             <div style={{
               maxWidth: '80%', padding: 'var(--nous-space-md) var(--nous-space-xl)', borderRadius: 'var(--nous-radius-md)', fontSize: 'var(--nous-font-size-base)', lineHeight: '1.5',
               background: msg.role === 'user' ? 'var(--nous-chat-user-bg)' : 'var(--nous-bg-elevated)',
@@ -197,63 +216,31 @@ export function ChatPanel(props: ChatPanelProps | ChatPanelCoreProps) {
             }}>
               {msg.content}
             </div>
+            {msg.role === 'assistant' && msg.traceId && !sending && (
+              <ThoughtSummary traceId={msg.traceId} />
+            )}
           </div>
         ))}
-        {sending && thoughts.length > 0 && (
+        {thoughts.length > 0 && (
           <div style={{ display: 'flex', justifyContent: 'flex-start' }}>
             <div style={{ maxWidth: '80%' }}>
-              <button
-                onClick={toggleThoughts}
-                data-testid="thought-toggle"
+              <ThoughtToggle
+                expanded={isExpanded}
+                eventCount={thoughts.length}
+                onToggle={handleToggle}
+                sending={sending}
+              />
+              <ThoughtStream
+                thoughts={thoughts}
+                mode={mode}
                 style={{
-                  background: 'none', border: 'none', cursor: 'pointer',
-                  color: 'var(--nous-fg-subtle)', fontSize: 'var(--nous-font-size-xs)',
-                  padding: 'var(--nous-space-xs) 0', display: 'flex', alignItems: 'center',
-                  gap: 'var(--nous-space-xs)',
+                  opacity: isExpanded ? 1 : 0,
+                  maxHeight: isExpanded
+                    ? mode === 'conversing:expanded' ? '200px' : '2000px'
+                    : '0px',
+                  overflow: isExpanded ? undefined : 'hidden',
                 }}
-              >
-                <i className={`codicon codicon-chevron-${thoughtsExpanded ? 'down' : 'right'}`}
-                   style={{ fontSize: 'var(--nous-font-size-xs)' }} />
-                {thoughts.length} thought{thoughts.length !== 1 ? 's' : ''}
-              </button>
-              {thoughtsExpanded && (
-                <div data-testid="thought-stream" style={{
-                  padding: 'var(--nous-space-sm) var(--nous-space-md)',
-                  background: 'var(--nous-bg-elevated)',
-                  borderRadius: 'var(--nous-radius-sm)',
-                  fontSize: 'var(--nous-font-size-xs)',
-                  color: 'var(--nous-fg-subtle)',
-                  maxHeight: '200px',
-                  overflowY: 'auto',
-                  display: 'flex',
-                  flexDirection: 'column',
-                  gap: 'var(--nous-space-2xs)',
-                }}>
-                  {thoughts.map((t, i) => {
-                    const label = t.channel === 'thought:pfc-decision'
-                      ? (t.payload as ThoughtPfcDecisionPayload).thoughtType
-                      : (t.payload as ThoughtTurnLifecyclePayload).phase
-                    const content = t.channel === 'thought:pfc-decision'
-                      ? (t.payload as ThoughtPfcDecisionPayload).content
-                      : (t.payload as ThoughtTurnLifecyclePayload).content ?? (t.payload as ThoughtTurnLifecyclePayload).status
-                    return (
-                      <div key={i} data-testid="thought-event" style={{ fontFamily: 'var(--nous-font-mono)', lineHeight: 1.4 }}>
-                        <span style={{ color: 'var(--nous-accent)', fontWeight: 'var(--nous-font-weight-medium)' as any }}>
-                          [{label}]
-                        </span>{' '}
-                        {content}
-                      </div>
-                    )
-                  })}
-                </div>
-              )}
-            </div>
-          </div>
-        )}
-        {sending && (
-          <div style={{ display: 'flex', justifyContent: 'flex-start' }}>
-            <div style={{ padding: 'var(--nous-space-md) var(--nous-space-xl)', borderRadius: 'var(--nous-radius-md)', background: 'var(--nous-bg-elevated)', color: 'var(--nous-fg-subtle)', fontSize: 'var(--nous-font-size-base)' }}>
-              Thinking...
+              />
             </div>
           </div>
         )}
@@ -265,6 +252,8 @@ export function ChatPanel(props: ChatPanelProps | ChatPanelCoreProps) {
           value={input}
           onChange={e => setInput(e.target.value)}
           onKeyDown={handleKeyDown}
+          onFocus={handleInputFocus}
+          onBlur={handleInputBlur}
           placeholder="Message Nous... (Enter to send, Shift+Enter for newline)"
           disabled={sending}
           style={{

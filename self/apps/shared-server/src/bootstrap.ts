@@ -1200,6 +1200,7 @@ export function createNousServices(config?: BootstrapConfig): NousContext {
     instanceRoot,
     outputSchemaValidator: new DefaultSchemaRefValidator(),
     thoughtEmitter,
+    pfcEngine: Cortex,
   });
 
   // Recovery component instantiation (Phase 1.2 — WR-072)

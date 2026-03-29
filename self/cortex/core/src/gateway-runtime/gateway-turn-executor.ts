@@ -126,6 +126,7 @@ export interface GatewayBackedTurnExecutorDeps {
   agentGatewayFactory?: IAgentGatewayFactory;
   workmodeAdmissionGuard?: IWorkmodeAdmissionGuard;
   thoughtEmitter?: IThoughtEmitter;
+  pfcEngine?: { setTraceId(traceId: string): void };
   now?: () => string;
   nowMs?: () => number;
   idFactory?: () => string;
@@ -159,6 +160,7 @@ export class GatewayBackedTurnExecutor implements ICoreExecutor {
     const traceId = validInput.traceId;
 
     this.deps.thoughtEmitter?.resetSequence();
+    this.deps.pfcEngine?.setTraceId(traceId);
     this.emitLifecycle(traceId, 'turn-start', 'started');
 
     this.emitLifecycle(traceId, 'opctl-check', 'started');
@@ -246,6 +248,7 @@ export class GatewayBackedTurnExecutor implements ICoreExecutor {
     });
     this.emitLifecycle(traceId, 'trace-record', 'completed');
 
+    this.deps.pfcEngine?.setTraceId('');
     this.emitLifecycle(traceId, 'turn-complete', 'completed');
     return {
       response,

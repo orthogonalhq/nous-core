@@ -92,4 +92,25 @@ describe('ChatPanel', () => {
     render(<ChatPanel />)
     expect(screen.getByText('Chat API not connected. Start the web backend with `pnpm dev:web`.')).toBeTruthy()
   })
+
+  // Tier 2 — Message binding
+  it('ChatMessage type includes optional traceId field', () => {
+    // Type-level verification — if this compiles, the traceId field exists
+    const msg: ChatMessage = {
+      role: 'assistant',
+      content: 'test',
+      timestamp: new Date().toISOString(),
+      traceId: 'trace-123',
+    }
+    expect(msg.traceId).toBe('trace-123')
+  })
+
+  it('ChatMessage type allows omitting traceId (optional field)', () => {
+    const msg: ChatMessage = {
+      role: 'user',
+      content: 'test',
+      timestamp: new Date().toISOString(),
+    }
+    expect(msg.traceId).toBeUndefined()
+  })
 })
