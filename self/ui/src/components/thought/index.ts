@@ -18,3 +18,9 @@ export type { ThoughtToggleProps } from './ThoughtToggle'
 
 export { ThoughtStream } from './ThoughtStream'
 export type { ThoughtStreamProps, ThoughtEvent } from './ThoughtStream'
+
+export { ThoughtSummary } from './ThoughtSummary'
+export type { ThoughtSummaryProps, ThoughtSummaryCounts } from './ThoughtSummary'
+
+export { TraceDetail } from './TraceDetail'
+export type { TraceDetailProps } from './TraceDetail'
