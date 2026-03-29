@@ -63,7 +63,6 @@ export class ObservableProvider implements IModelProvider {
     const eventBus = this.eventBus;
     const meta = this.meta;
 
-    const self = this;
     return {
       [Symbol.asyncIterator](): AsyncIterator<ModelStreamChunk> {
         let iterator: AsyncIterator<ModelStreamChunk> | null = null;
