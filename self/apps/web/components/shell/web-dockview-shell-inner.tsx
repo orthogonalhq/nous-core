@@ -7,8 +7,6 @@ import type { DockviewApi, DockviewReadyEvent, SerializedDockview } from 'dockvi
 import { webPanelComponents } from './web-panel-map'
 import { WEB_PANEL_DEFS, DEFAULT_POSITIONS, PANEL_ADD_ORDER } from './web-panel-defs'
 
-import 'dockview-react/dist/styles/dockview.css'
-
 const LAYOUT_STORAGE_KEY = 'nous-web-dockview-layout'
 
 function initDefaultWebLayout(api: DockviewApi): void {

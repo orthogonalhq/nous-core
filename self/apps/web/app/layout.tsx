@@ -1,5 +1,6 @@
 import type { Metadata } from 'next';
 import { Providers } from './providers';
+import 'dockview-react/dist/styles/dockview.css';
 import '@nous/ui/styles';
 import '@nous/ui/styles/nous-dark';
 import '@vscode/codicons/dist/codicon.css';
