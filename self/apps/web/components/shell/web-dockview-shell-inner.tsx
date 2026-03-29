@@ -3,45 +3,26 @@
 import * as React from 'react'
 import { useCallback, useRef } from 'react'
 import { DockviewReact } from 'dockview-react'
-import type { DockviewApi, DockviewReadyEvent, IDockviewPanelProps, SerializedDockview } from 'dockview-react'
-import {
-  ChatPanel,
-  MAOPanel,
-  DashboardPanel,
-  PlaceholderPanel,
-} from '@nous/ui/panels'
-
-import 'dockview-react/dist/styles/dockview.css'
+import type { DockviewApi, DockviewReadyEvent, SerializedDockview } from 'dockview-react'
+import { webPanelComponents } from './web-panel-map'
+import { WEB_PANEL_DEFS, DEFAULT_POSITIONS, PANEL_ADD_ORDER } from './web-panel-defs'
 
 const LAYOUT_STORAGE_KEY = 'nous-web-dockview-layout'
 
-const WEB_PANEL_COMPONENTS = {
-  chat: ChatPanel,
-  mao: MAOPanel,
-  dashboard: DashboardPanel,
-  placeholder: PlaceholderPanel,
-} as Record<string, React.FunctionComponent<IDockviewPanelProps>>
-
 function initDefaultWebLayout(api: DockviewApi): void {
-  api.addPanel({
-    id: 'chat',
-    component: 'chat',
-    title: 'Chat',
-  })
+  const defMap = new Map(WEB_PANEL_DEFS.map((d) => [d.id, d]))
 
-  api.addPanel({
-    id: 'mao',
-    component: 'mao',
-    title: 'MAO',
-    position: { referencePanel: 'chat', direction: 'right' },
-  })
-
-  api.addPanel({
-    id: 'dashboard',
-    component: 'dashboard',
-    title: 'Dashboard',
-    position: { referencePanel: 'chat', direction: 'within' },
-  })
+  for (const id of PANEL_ADD_ORDER) {
+    const def = defMap.get(id)
+    if (!def) continue
+    const position = DEFAULT_POSITIONS[id]
+    api.addPanel({
+      id: def.id,
+      component: def.component,
+      title: def.title,
+      ...(position ? { position } : {}),
+    })
+  }
 
   console.log('[nous:dockview] Default web layout initialized')
 }
@@ -95,9 +76,9 @@ export function WebDockviewShellInner({ onApiReady }: WebDockviewShellInnerProps
   )
 
   return (
-    <div style={{ height: '100%', width: '100%' }}>
+    <div style={{ height: '100%', width: '100%', padding: 'var(--nous-space-sm)', boxSizing: 'border-box', background: 'var(--nous-surface)' }}>
       <DockviewReact
-        components={WEB_PANEL_COMPONENTS}
+        components={webPanelComponents}
         onReady={handleReady}
         className="dockview-theme-dark"
       />

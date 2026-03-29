@@ -519,6 +519,9 @@ importers:
       '@nous/ui':
         specifier: workspace:*
         version: link:../../ui
+      '@radix-ui/react-menubar':
+        specifier: ^1.1.7
+        version: 1.1.16(@types/react-dom@19.2.3(@types/react@19.2.14))(@types/react@19.2.14)(react-dom@19.2.3(react@19.2.3))(react@19.2.3)
       '@radix-ui/react-tooltip':
         specifier: ^1.1.0
         version: 1.2.8(@types/react-dom@19.2.3(@types/react@19.2.14))(@types/react@19.2.14)(react-dom@19.2.3(react@19.2.3))(react@19.2.3)
@@ -534,6 +537,9 @@ importers:
       '@trpc/server':
         specifier: ^11.0.0-rc.0
         version: 11.10.0(typescript@5.9.3)
+      '@vscode/codicons':
+        specifier: ^0.0.44
+        version: 0.0.44
       dockview-react:
         specifier: ^4.2.0
         version: 4.13.1(react@19.2.3)

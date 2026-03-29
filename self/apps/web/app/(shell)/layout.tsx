@@ -4,22 +4,22 @@ import * as React from 'react'
 import { Suspense, useState, useCallback, useEffect, useMemo } from 'react'
 import { useSearchParams } from 'next/navigation'
 import dynamic from 'next/dynamic'
+import type { DockviewApi } from 'dockview-react'
 import {
   ShellProvider,
   ShellLayout as UIShellLayout,
   NavigationRail,
   ContentRouter,
-  ChatSurface,
   ObservePanel,
   CommandPalette,
 } from '@nous/ui/components'
 import type { ShellMode, NavigationState } from '@nous/ui/components'
 import { WebChromeShell } from '@/components/shell/web-chrome-shell'
 import { webRailSections } from '@/components/shell/web-rail-config'
-import { webShellRoutes } from '@/components/shell/web-shell-routes'
+import { createWebShellRoutes } from '@/components/shell/web-shell-routes'
 import { buildWebCommands } from '@/components/shell/web-command-config'
-import { useChatApi } from '@nous/transport'
-import { trpc } from '@/lib/trpc'
+import { WebConnectedChatSurface } from '@/components/shell/web-chat-wrappers'
+import { WEB_PANEL_DEFS } from '@/components/shell/web-panel-defs'
 import { ProjectProvider } from '@/lib/project-context'
 
 const WebDockviewShell = dynamic(
@@ -61,15 +61,9 @@ function ShellLayoutContent({
   const [activeRoute, setActiveRoute] = useState('home')
   const [commandPaletteOpen, setCommandPaletteOpen] = useState(false)
   const [projectId, setProjectId] = useState<string | null>(null)
+  const [dockviewApi, setDockviewApi] = useState<DockviewApi | null>(null)
 
   const searchParams = useSearchParams()
-  const utils = trpc.useUtils()
-  const createProject = trpc.projects.create.useMutation({
-    onSuccess: () => {
-      utils.projects.list.invalidate()
-    },
-  })
-  const { data: projectsData } = trpc.projects.list.useQuery()
 
   // Mode persistence — load on mount
   useEffect(() => {
@@ -95,6 +89,7 @@ function ShellLayoutContent({
   const handleModeToggle = useCallback(() => {
     setMode((prev) => {
       const next = prev === 'simple' ? 'developer' : 'simple'
+      if (next === 'simple') setDockviewApi(null)
       try {
         localStorage.setItem(MODE_STORAGE_KEY, next)
       } catch {
@@ -136,26 +131,6 @@ function ShellLayoutContent({
     setActiveRoute('home')
   }, [])
 
-  const handleNewProject = useCallback(async () => {
-    const name = prompt('Project name:')
-    if (!name?.trim()) return
-    try {
-      const project = await createProject.mutateAsync({ name: name.trim() })
-      setProjectId(project.id)
-    } catch (err) {
-      console.error(err)
-      alert('Failed to create project')
-    }
-  }, [createProject])
-
-  const handleProjectSelect = useCallback((id: string) => {
-    if (id === 'new-project') {
-      void handleNewProject()
-    } else {
-      setProjectId(id)
-    }
-  }, [handleNewProject])
-
   const navigation: NavigationState = useMemo(() => ({
     activeRoute,
     history: [activeRoute],
@@ -163,19 +138,27 @@ function ShellLayoutContent({
   }), [activeRoute])
 
   const commands = useMemo(
-    () => buildWebCommands({ navigate: handleNavigate, onModeToggle: handleModeToggle }),
+    () => buildWebCommands({
+      navigate: handleNavigate,
+      onModeToggle: handleModeToggle,
+      onCommandPalette: () => setCommandPaletteOpen((prev) => !prev),
+    }),
     [handleNavigate, handleModeToggle],
   )
 
-  const projects = useMemo(
-    () => (projectsData ?? []).map((p) => ({ id: p.id, name: p.name })),
-    [projectsData],
+  const routes = useMemo(
+    () => createWebShellRoutes({
+      onModeChange: (newMode) => {
+        setMode(newMode)
+        try { localStorage.setItem(MODE_STORAGE_KEY, newMode) } catch { /* */ }
+      },
+      currentMode: mode,
+    }),
+    [mode],
   )
 
-  const chatApi = useChatApi({ projectId: projectId ?? undefined })
-
   return (
-    <WebChromeShell mode={mode} onModeToggle={handleModeToggle}>
+    <WebChromeShell mode={mode} onModeToggle={handleModeToggle} dockviewApi={dockviewApi} panelDefs={WEB_PANEL_DEFS}>
       <ShellProvider
         mode={mode}
         activeRoute={activeRoute}
@@ -190,31 +173,32 @@ function ShellLayoutContent({
             onClose={() => setCommandPaletteOpen(false)}
             commands={commands}
           />
-          {mode === 'simple' ? (
-            <UIShellLayout
-              rail={
-                <NavigationRail
-                  items={webRailSections}
-                  activeItemId={activeRoute}
-                  onItemSelect={handleNavigate}
-                  projects={projects}
-                  onProjectSelect={handleProjectSelect}
-                />
-              }
-              chat={<ChatSurface chatApi={chatApi} />}
-              content={
-                <ContentRouter
-                  activeRoute={activeRoute}
-                  routes={webShellRoutes}
-                  onNavigate={handleNavigate}
-                />
-              }
-              observe={<ObservePanel />}
-            />
-          ) : (
-            <WebDockviewShell />
-          )}
-          {children}
+          <div style={{ flex: 1, minHeight: 0, height: '100%', overflow: 'hidden', position: 'relative' }}>
+            {mode === 'simple' ? (
+              <UIShellLayout
+                rail={
+                  <NavigationRail
+                    items={webRailSections}
+                    activeItemId={activeRoute}
+                    onItemSelect={handleNavigate}
+                  />
+                }
+                chat={<WebConnectedChatSurface />}
+                content={
+                  <ContentRouter
+                    activeRoute={activeRoute}
+                    routes={routes}
+                    onNavigate={handleNavigate}
+                  />
+                }
+                observe={<ObservePanel />}
+              />
+            ) : (
+              <WebDockviewShell onApiReady={setDockviewApi} />
+            )}
+          </div>
+          {/* Next.js page outlet — hidden; shell uses ContentRouter for navigation */}
+          <div style={{ display: 'none' }}>{children}</div>
         </ProjectProvider>
       </ShellProvider>
     </WebChromeShell>

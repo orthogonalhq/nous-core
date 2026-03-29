@@ -43,6 +43,10 @@ vi.mock('@nous/transport', () => ({
   useChatApi: () => ({ send: vi.fn(), getHistory: vi.fn().mockResolvedValue([]) }),
 }))
 
+vi.mock('@/components/shell/web-chat-wrappers', () => ({
+  WebConnectedChatSurface: () => React.createElement('div', { 'data-testid': 'web-connected-chat-surface' }),
+}))
+
 vi.mock('next/dynamic', () => ({
   default: (_loader: () => Promise<any>, _options?: any) => {
     function DynamicWebDockviewShell() {
@@ -56,21 +60,6 @@ vi.mock('next/dynamic', () => ({
 vi.mock('next/navigation', () => ({
   useSearchParams: () => new URLSearchParams(),
   usePathname: () => '/',
-}))
-
-const mockMutateAsync = vi.fn().mockResolvedValue({ id: 'new-proj-1', name: 'Test' })
-const mockInvalidate = vi.fn()
-
-vi.mock('@/lib/trpc', () => ({
-  trpc: {
-    useUtils: () => ({
-      projects: { list: { invalidate: mockInvalidate } },
-    }),
-    projects: {
-      create: { useMutation: (opts: any) => ({ mutateAsync: mockMutateAsync, ...opts }) },
-      list: { useQuery: () => ({ data: [{ id: 'proj-1', name: 'Alpha' }, { id: 'proj-2', name: 'Beta' }] }) },
-    },
-  },
 }))
 
 vi.mock('@/lib/project-context', () => ({
@@ -90,15 +79,24 @@ vi.mock('@/components/shell/web-chrome-shell', () => ({
 }))
 
 vi.mock('@/components/shell/web-rail-config', () => ({
-  webRailSections: [{ id: 'main', label: 'Main', items: [{ id: 'home', label: 'Home', icon: 'H' }] }],
+  webRailSections: [{ id: 'main', label: 'Navigate', items: [{ id: 'home', label: 'Home', icon: 'H' }] }],
 }))
 
 vi.mock('@/components/shell/web-shell-routes', () => ({
-  webShellRoutes: { home: () => React.createElement('div', null, 'Home') },
+  createWebShellRoutes: () => ({ home: () => React.createElement('div', null, 'Home') }),
 }))
 
 vi.mock('@/components/shell/web-command-config', () => ({
   buildWebCommands: (cbs: any) => [{ id: 'test', label: 'Test', commands: [] }],
+}))
+
+vi.mock('@/components/shell/web-panel-defs', () => ({
+  WEB_PANEL_DEFS: [
+    { id: 'chat', component: 'chat', title: 'Chat' },
+    { id: 'mao', component: 'mao', title: 'MAO' },
+  ],
+  DEFAULT_POSITIONS: { mao: { direction: 'below', referencePanel: 'chat' } },
+  PANEL_ADD_ORDER: ['chat', 'mao'],
 }))
 
 // ─── Import under test (after mocks) ────────────────────────────────────────
@@ -207,9 +205,9 @@ describe('Web Shell Integration', () => {
     expect(screen.getByTestId('web-chrome-shell').getAttribute('data-shell-mode')).toBe('developer')
   })
 
-  it('renders ChatSurface in simple mode', () => {
+  it('renders WebConnectedChatSurface in simple mode', () => {
     renderShell()
-    expect(screen.getByTestId('chat-surface')).toBeDefined()
+    expect(screen.getByTestId('web-connected-chat-surface')).toBeDefined()
   })
 
   it('renders children page outlet', () => {
@@ -235,5 +233,18 @@ describe('Web Shell Integration', () => {
   it('renders WebChromeShell as the outermost shell', () => {
     renderShell()
     expect(screen.getByTestId('web-chrome-shell')).toBeDefined()
+  })
+
+  it('passes panelDefs to WebChromeShell', () => {
+    renderShell()
+    expect(capturedChromeShellProps.panelDefs).toEqual([
+      { id: 'chat', component: 'chat', title: 'Chat' },
+      { id: 'mao', component: 'mao', title: 'MAO' },
+    ])
+  })
+
+  it('passes null dockviewApi in simple mode', () => {
+    renderShell()
+    expect(capturedChromeShellProps.dockviewApi).toBeNull()
   })
 })

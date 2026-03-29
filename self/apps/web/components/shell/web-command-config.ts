@@ -3,42 +3,27 @@ import type { CommandGroup } from '@nous/ui/components'
 export function buildWebCommands(callbacks: {
   navigate: (routeId: string) => void
   onModeToggle: () => void
+  onCommandPalette: () => void
 }): CommandGroup[] {
-  const { navigate, onModeToggle } = callbacks
-
   return [
     {
       id: 'navigation',
       label: 'Navigation',
       commands: [
-        { id: 'nav-home', label: 'Go to Home', action: () => navigate('home') },
-        { id: 'nav-chat', label: 'Go to Chat', action: () => navigate('chat') },
-        { id: 'nav-projects', label: 'Go to Projects', action: () => navigate('projects') },
-        { id: 'nav-marketplace', label: 'Go to Marketplace', action: () => navigate('marketplace') },
-        { id: 'nav-traces', label: 'Go to Traces', action: () => navigate('traces') },
-        { id: 'nav-memory', label: 'Go to Memory', action: () => navigate('memory') },
-        { id: 'nav-config', label: 'Go to Configuration', action: () => navigate('config') },
-        { id: 'nav-settings', label: 'Go to Settings', action: () => navigate('settings') },
+        { id: 'nav-home', label: 'Go to Home', action: () => callbacks.navigate('home') },
+        { id: 'nav-threads', label: 'Go to Threads', action: () => callbacks.navigate('threads') },
+        { id: 'nav-workflows', label: 'Go to Workflows', action: () => callbacks.navigate('workflows') },
+        { id: 'nav-skills', label: 'Go to Skills', action: () => callbacks.navigate('skills') },
+        { id: 'nav-apps', label: 'Go to Apps', action: () => callbacks.navigate('apps') },
+        { id: 'nav-settings', label: 'Go to Settings', action: () => callbacks.navigate('settings') },
       ],
     },
     {
       id: 'actions',
       label: 'Actions',
       commands: [
-        {
-          id: 'toggle-mode',
-          label: 'Toggle Mode',
-          shortcut: 'Ctrl+Shift+D',
-          action: onModeToggle,
-        },
-        {
-          id: 'open-command-palette',
-          label: 'Open Command Palette',
-          shortcut: 'Ctrl+K',
-          action: () => {
-            /* handled by keyboard shortcut registration in SP 2 */
-          },
-        },
+        { id: 'action-toggle-mode', label: 'Toggle Mode', shortcut: 'Ctrl+Shift+D', action: callbacks.onModeToggle },
+        { id: 'action-command-palette', label: 'Open Command Palette', shortcut: 'Ctrl+K', action: callbacks.onCommandPalette },
       ],
     },
   ]

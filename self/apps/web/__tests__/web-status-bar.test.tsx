@@ -7,23 +7,30 @@ import { WebStatusBar } from '@/components/shell/web-status-bar'
 
 describe('WebStatusBar', () => {
   afterEach(() => { cleanup() })
-  it('renders mode label matching provided mode "simple"', () => {
+
+  it('renders ready indicator', () => {
     render(<WebStatusBar mode="simple" />)
-    expect(screen.getByTestId('web-status-bar-mode').textContent).toBe('Simple')
+    expect(screen.getByTestId('web-status-bar-indicator').textContent).toContain('ready')
   })
 
-  it('renders mode label matching provided mode "developer"', () => {
+  it('renders workflow count', () => {
+    render(<WebStatusBar mode="simple" />)
+    expect(screen.getByTestId('web-status-bar-workflows').textContent).toBe('0 workflows')
+  })
+
+  it('shows Developer badge in developer mode', () => {
     render(<WebStatusBar mode="developer" />)
-    expect(screen.getByTestId('web-status-bar-mode').textContent).toBe('Developer')
+    expect(screen.getByTestId('web-status-bar-mode-badge').textContent).toBe('Developer')
   })
 
-  it('renders "Connected" status indicator', () => {
+  it('hides Developer badge in simple mode', () => {
     render(<WebStatusBar mode="simple" />)
-    expect(screen.getByTestId('web-status-bar-status').textContent).toBe('Connected')
+    expect(screen.queryByTestId('web-status-bar-mode-badge')).toBeNull()
   })
 
-  it('renders with default mode when prop omitted', () => {
+  it('renders with default mode (simple) when prop omitted', () => {
     render(<WebStatusBar />)
-    expect(screen.getByTestId('web-status-bar-mode').textContent).toBe('Simple')
+    expect(screen.queryByTestId('web-status-bar-mode-badge')).toBeNull()
+    expect(screen.getByTestId('web-status-bar-indicator')).toBeDefined()
   })
 })

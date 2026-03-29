@@ -18,19 +18,16 @@ describe('webRailSections', () => {
     }
   })
 
-  it('Main, Discover, System sections exist', () => {
-    const sectionIds = webRailSections.map((s) => s.id)
-    expect(sectionIds).toContain('main')
-    expect(sectionIds).toContain('discover')
-    expect(sectionIds).toContain('system')
+  it('has single Navigate section matching desktop', () => {
+    expect(webRailSections.length).toBe(1)
+    expect(webRailSections[0].id).toBe('main')
+    expect(webRailSections[0].label).toBe('Navigate')
   })
 
-  it('all expected item IDs present', () => {
+  it('all expected item IDs present and match desktop', () => {
     const allItemIds = webRailSections.flatMap((s) => s.items.map((i) => i.id))
-    const expectedIds = ['home', 'chat', 'projects', 'mao', 'traces', 'config', 'settings']
-    for (const id of expectedIds) {
-      expect(allItemIds).toContain(id)
-    }
+    const expectedIds = ['home', 'threads', 'workflows', 'skills', 'apps', 'settings']
+    expect(allItemIds).toEqual(expectedIds)
   })
 
   it('each item has required fields: id, label, icon', () => {
@@ -43,10 +40,5 @@ describe('webRailSections', () => {
         expect(item.icon).toBeDefined()
       }
     }
-  })
-
-  it('System section is collapsible', () => {
-    const system = webRailSections.find((s) => s.id === 'system')
-    expect(system?.collapsible).toBe(true)
   })
 })
