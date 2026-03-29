@@ -35,8 +35,14 @@ export function ThoughtToggle({
       }}
     >
       <i
-        className={`codicon codicon-chevron-${expanded ? 'down' : 'right'}`}
-        style={{ fontSize: 'var(--nous-font-size-xs)' }}
+        className="codicon codicon-chevron-right nous-thought-transition"
+        data-testid="thought-toggle-chevron"
+        style={{
+          fontSize: 'var(--nous-font-size-xs)',
+          transform: expanded ? 'rotate(90deg)' : 'rotate(0deg)',
+          transition: 'transform var(--nous-ambient-fade)',
+          display: 'inline-block',
+        }}
       />
       <span>
         {eventCount} thought{eventCount !== 1 ? 's' : ''}

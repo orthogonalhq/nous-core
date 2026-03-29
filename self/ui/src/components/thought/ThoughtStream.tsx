@@ -1,6 +1,6 @@
 'use client'
 
-import { useEffect, useRef } from 'react'
+import { useEffect, useRef, type CSSProperties } from 'react'
 import { clsx } from 'clsx'
 import type { ThoughtPfcDecisionPayload, ThoughtTurnLifecyclePayload } from '@nous/shared'
 import type { ThoughtMode } from './use-thought-mode'
@@ -15,9 +15,10 @@ export interface ThoughtStreamProps {
   thoughts: ThoughtEvent[]
   mode: ThoughtMode
   className?: string
+  style?: CSSProperties
 }
 
-export function ThoughtStream({ thoughts, mode, className }: ThoughtStreamProps) {
+export function ThoughtStream({ thoughts, mode, className, style: styleProp }: ThoughtStreamProps) {
   const bottomRef = useRef<HTMLDivElement>(null)
 
   const isCompact = mode === 'conversing:expanded'
@@ -33,7 +34,7 @@ export function ThoughtStream({ thoughts, mode, className }: ThoughtStreamProps)
       aria-label="AI thought stream"
       id="thought-stream"
       data-testid="thought-stream"
-      className={clsx(className)}
+      className={clsx('nous-thought-transition', className)}
       style={{
         padding: 'var(--nous-space-sm) var(--nous-space-md)',
         background: 'var(--nous-bg-elevated)',
@@ -47,6 +48,8 @@ export function ThoughtStream({ thoughts, mode, className }: ThoughtStreamProps)
         gap: isCompact
           ? 'var(--nous-space-xs)'
           : 'var(--nous-space-sm)',
+        transition: 'max-height var(--nous-ambient-fade), opacity var(--nous-ambient-fade), gap var(--nous-ambient-fade)',
+        ...styleProp,
       }}
     >
       {thoughts.map((t, i) =>

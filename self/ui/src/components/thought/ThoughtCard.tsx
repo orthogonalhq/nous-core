@@ -2,6 +2,7 @@
 
 import { clsx } from 'clsx'
 import type { ThoughtPfcDecisionPayload } from '@nous/shared'
+import { getThoughtLabel } from './thought-labels'
 
 export interface ThoughtCardProps {
   payload: ThoughtPfcDecisionPayload
@@ -46,7 +47,7 @@ export function ThoughtCard({ payload, compact }: ThoughtCardProps) {
             fontWeight: 'var(--nous-font-weight-medium)' as any,
           }}
         >
-          [{payload.thoughtType}]
+          [{getThoughtLabel('thoughtType', payload.thoughtType)}]
         </span>
         <span
           style={{

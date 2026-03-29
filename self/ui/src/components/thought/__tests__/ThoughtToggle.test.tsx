@@ -87,4 +87,36 @@ describe('ThoughtToggle', () => {
     )
     expect(screen.queryByText('Thinking...')).toBeNull()
   })
+
+  it('expanded chevron has transform rotate(90deg)', () => {
+    render(
+      <ThoughtToggle expanded={true} eventCount={3} onToggle={() => {}} sending={false} />,
+    )
+    const chevron = screen.getByTestId('thought-toggle-chevron')
+    expect(chevron.style.transform).toBe('rotate(90deg)')
+  })
+
+  it('collapsed chevron has transform rotate(0deg)', () => {
+    render(
+      <ThoughtToggle expanded={false} eventCount={3} onToggle={() => {}} sending={false} />,
+    )
+    const chevron = screen.getByTestId('thought-toggle-chevron')
+    expect(chevron.style.transform).toBe('rotate(0deg)')
+  })
+
+  it('chevron has transition property for transform', () => {
+    render(
+      <ThoughtToggle expanded={false} eventCount={3} onToggle={() => {}} sending={false} />,
+    )
+    const chevron = screen.getByTestId('thought-toggle-chevron')
+    expect(chevron.style.transition).toContain('var(--nous-ambient-fade)')
+  })
+
+  it('chevron has nous-thought-transition CSS class', () => {
+    render(
+      <ThoughtToggle expanded={false} eventCount={3} onToggle={() => {}} sending={false} />,
+    )
+    const chevron = screen.getByTestId('thought-toggle-chevron')
+    expect(chevron.classList.contains('nous-thought-transition')).toBe(true)
+  })
 })

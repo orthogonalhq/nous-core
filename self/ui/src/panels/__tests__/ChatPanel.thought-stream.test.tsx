@@ -146,16 +146,19 @@ describe('ChatPanel — Thought Stream', () => {
     expect(screen.queryByTestId('thought-toggle')).toBeNull()
   })
 
-  it('collapsed state shows thought count chip but not event details', async () => {
+  it('collapsed state shows thought count chip and stream is in DOM but hidden', async () => {
     renderSendingPanel()
 
     act(() => {
       capturedOnEvent!('thought:pfc-decision', makePfcPayload())
     })
 
-    // Collapsed by default — toggle visible, stream not
+    // Collapsed by default — toggle visible, stream in DOM but hidden via CSS
     expect(screen.getByTestId('thought-toggle')).toBeTruthy()
-    expect(screen.queryByTestId('thought-stream')).toBeNull()
+    const stream = screen.getByTestId('thought-stream')
+    expect(stream.style.opacity).toBe('0')
+    expect(stream.style.maxHeight).toBe('0px')
+    expect(stream.style.overflow).toBe('hidden')
   })
 
   it('expanded state shows thought events with ThoughtCard components', async () => {
@@ -172,7 +175,7 @@ describe('ChatPanel — Thought Stream', () => {
     fireEvent.click(screen.getByTestId('thought-toggle'))
 
     expect(screen.getByTestId('thought-stream')).toBeTruthy()
-    expect(screen.getByText('[memory-write]')).toBeTruthy()
+    expect(screen.getByText('[Memory Write]')).toBeTruthy()
     expect(screen.getByText('MEM-WRITE-APPROVED confidence=0.85')).toBeTruthy()
   })
 
@@ -189,7 +192,7 @@ describe('ChatPanel — Thought Stream', () => {
 
     fireEvent.click(screen.getByTestId('thought-toggle'))
 
-    expect(screen.getByText('[gateway-run]')).toBeTruthy()
+    expect(screen.getByText('[Gateway Execution]')).toBeTruthy()
     expect(screen.getByText('gateway execution finished')).toBeTruthy()
   })
 
@@ -206,7 +209,7 @@ describe('ChatPanel — Thought Stream', () => {
 
     fireEvent.click(screen.getByTestId('thought-toggle'))
 
-    expect(screen.getByText('[turn-start]')).toBeTruthy()
+    expect(screen.getByText('[Turn Started]')).toBeTruthy()
     expect(screen.getByText('started')).toBeTruthy()
   })
 
@@ -236,7 +239,8 @@ describe('ChatPanel — Thought Stream', () => {
     })
 
     // Should be expanded on mount because localStorage says so (detailsAlwaysOn)
-    expect(screen.getByTestId('thought-stream')).toBeTruthy()
+    const stream = screen.getByTestId('thought-stream')
+    expect(stream.style.opacity).toBe('1')
   })
 
   it('caps at 50 events, truncating older ones', async () => {
@@ -307,5 +311,31 @@ describe('ChatPanel — Thought Stream', () => {
     // Expand and verify aria-expanded changes
     fireEvent.click(toggle)
     expect(toggle.getAttribute('aria-expanded')).toBe('true')
+  })
+
+  it('ThoughtStream is always in DOM when thoughts exist (always-render pattern)', async () => {
+    renderSendingPanel()
+
+    act(() => {
+      capturedOnEvent!('thought:pfc-decision', makePfcPayload())
+    })
+
+    // Even when collapsed, ThoughtStream is in the DOM
+    expect(screen.getByTestId('thought-stream')).toBeTruthy()
+  })
+
+  it('expanded ThoughtStream has opacity 1 and non-zero maxHeight', async () => {
+    renderSendingPanel()
+
+    act(() => {
+      capturedOnEvent!('thought:pfc-decision', makePfcPayload())
+    })
+
+    // Expand
+    fireEvent.click(screen.getByTestId('thought-toggle'))
+
+    const stream = screen.getByTestId('thought-stream')
+    expect(stream.style.opacity).toBe('1')
+    expect(stream.style.maxHeight).not.toBe('0px')
   })
 })

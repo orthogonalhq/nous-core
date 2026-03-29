@@ -82,7 +82,7 @@ describe('ThoughtStream', () => {
         mode="conversing:expanded"
       />,
     )
-    expect(screen.getByText('[memory-write]')).toBeTruthy()
+    expect(screen.getByText('[Memory Write]')).toBeTruthy()
   })
 
   it('renders ThoughtLifecycleEvent for thought:turn-lifecycle events', () => {
@@ -92,7 +92,7 @@ describe('ThoughtStream', () => {
         mode="conversing:expanded"
       />,
     )
-    expect(screen.getByText('[gateway-run]')).toBeTruthy()
+    expect(screen.getByText('[Gateway Execution]')).toBeTruthy()
   })
 
   it('in conversing:expanded mode applies compact layout (200px max height, xs gaps)', () => {
@@ -107,6 +107,32 @@ describe('ThoughtStream', () => {
     const el = screen.getByTestId('thought-stream')
     expect(el.style.maxHeight).toBe('')
     expect(el.style.gap).toContain('var(--nous-space-sm)')
+  })
+
+  it('container has CSS transition property using --nous-ambient-fade', () => {
+    render(<ThoughtStream thoughts={[makePfcEvent()]} mode="conversing:expanded" />)
+    const el = screen.getByTestId('thought-stream')
+    expect(el.style.transition).toContain('var(--nous-ambient-fade)')
+  })
+
+  it('applies nous-thought-transition CSS class', () => {
+    render(<ThoughtStream thoughts={[makePfcEvent()]} mode="conversing:expanded" />)
+    const el = screen.getByTestId('thought-stream')
+    expect(el.classList.contains('nous-thought-transition')).toBe(true)
+  })
+
+  it('merges external style prop onto container', () => {
+    render(
+      <ThoughtStream
+        thoughts={[makePfcEvent()]}
+        mode="conversing:expanded"
+        style={{ opacity: 0, maxHeight: '0px', overflow: 'hidden' }}
+      />,
+    )
+    const el = screen.getByTestId('thought-stream')
+    expect(el.style.opacity).toBe('0')
+    expect(el.style.maxHeight).toBe('0px')
+    expect(el.style.overflow).toBe('hidden')
   })
 
   it('renders multiple events correctly', () => {
