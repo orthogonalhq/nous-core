@@ -2,9 +2,64 @@
 
 import React from 'react'
 import { render, screen } from '@testing-library/react'
-import { describe, expect, it } from 'vitest'
+import { describe, expect, it, vi } from 'vitest'
 import { ObservePanel } from '../ObservePanel'
 import { ShellProvider } from '../ShellContext'
+
+// Mock ResizeObserver for jsdom
+class MockResizeObserver {
+  observe() {}
+  unobserve() {}
+  disconnect() {}
+}
+;(globalThis as any).ResizeObserver = MockResizeObserver
+
+// ---- Transport mock (required by MaoOperatingSurface) ----
+
+vi.mock('@nous/transport', () => ({
+  trpc: {
+    useUtils: vi.fn().mockReturnValue({
+      mao: {
+        getProjectSnapshot: { invalidate: vi.fn() },
+        getAgentInspectProjection: { invalidate: vi.fn() },
+        getProjectControlProjection: { invalidate: vi.fn() },
+        getControlAuditHistory: { invalidate: vi.fn() },
+        getSystemSnapshot: { invalidate: vi.fn() },
+      },
+      health: { systemStatus: { invalidate: vi.fn() } },
+      projects: { dashboardSnapshot: { invalidate: vi.fn() } },
+      escalations: { listProjectQueue: { invalidate: vi.fn() } },
+    }),
+    mao: {
+      getSystemSnapshot: {
+        useQuery: vi.fn().mockReturnValue({ data: null, isLoading: true }),
+      },
+      getProjectSnapshot: {
+        useQuery: vi.fn().mockReturnValue({ data: null, isLoading: true }),
+      },
+      getAgentInspectProjection: {
+        useQuery: vi.fn().mockReturnValue({ data: null, isLoading: true }),
+      },
+      getControlAuditHistory: {
+        useQuery: vi.fn().mockReturnValue({ data: null, isLoading: true }),
+      },
+      requestProjectControl: {
+        useMutation: vi.fn().mockReturnValue({ mutate: vi.fn(), isPending: false }),
+      },
+    },
+    opctl: {
+      requestConfirmationProof: {
+        useMutation: vi.fn().mockReturnValue({ mutate: vi.fn(), isPending: false }),
+      },
+    },
+    health: {
+      systemStatus: {
+        useQuery: vi.fn().mockReturnValue({ data: null, isLoading: true }),
+      },
+    },
+  },
+  useEventSubscription: vi.fn(),
+}))
 
 describe('ObservePanel', () => {
   it('renders without crashing when wrapped in ShellProvider', () => {
@@ -15,36 +70,30 @@ describe('ObservePanel', () => {
     )
   })
 
-  it('accepts ObservePanelProps (maoApi, className)', () => {
-    const mockApi = {
-      getAgentProjections: async () => [],
-      getProjectControlProjection: async () => null,
-      requestProjectControl: async () => ({}),
-    }
+  it('accepts className prop', () => {
     render(
       <ShellProvider>
-        <ObservePanel maoApi={mockApi} className="test-class" />
+        <ObservePanel className="test-class" />
       </ShellProvider>,
     )
   })
 
-  it('renders MAOSurface when activeRoute is workflows', () => {
+  it('renders canonical MaoOperatingSurface when activeRoute is workflows', () => {
     render(
       <ShellProvider activeRoute="workflows">
         <ObservePanel />
       </ShellProvider>,
     )
-    // MAOPanel renders "MAO — Agent Cycle" header
-    expect(screen.getByText('MAO — Agent Cycle')).toBeTruthy()
+    expect(screen.getByText('MAO Operating Surface')).toBeTruthy()
   })
 
-  it('renders MAOSurface when activeRoute is workflow-detail', () => {
+  it('renders canonical MaoOperatingSurface when activeRoute is workflow-detail', () => {
     render(
       <ShellProvider activeRoute="workflow-detail">
         <ObservePanel />
       </ShellProvider>,
     )
-    expect(screen.getByText('MAO — Agent Cycle')).toBeTruthy()
+    expect(screen.getByText('MAO Operating Surface')).toBeTruthy()
   })
 
   it('renders default placeholder when activeRoute is home', () => {
@@ -63,20 +112,5 @@ describe('ObservePanel', () => {
       </ShellProvider>,
     )
     expect(screen.getByText('No observe content for this view')).toBeTruthy()
-  })
-
-  it('passes maoApi prop through to MAOSurface', () => {
-    const mockApi = {
-      getAgentProjections: async () => [],
-      getProjectControlProjection: async () => null,
-      requestProjectControl: async () => ({}),
-    }
-    render(
-      <ShellProvider activeRoute="workflows">
-        <ObservePanel maoApi={mockApi} />
-      </ShellProvider>,
-    )
-    // MAOPanel renders when maoApi provided
-    expect(screen.getByText('MAO — Agent Cycle')).toBeTruthy()
   })
 })

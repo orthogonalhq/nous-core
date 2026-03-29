@@ -11,7 +11,6 @@ import {
   ObserveRouteSchema,
   ObservePanelPropsSchema,
   ChatSurfacePropsSchema,
-  MAOSurfacePropsSchema,
   HomeScreenPropsSchema,
   defaultConversationContext,
   CatalogItemSchema,
@@ -170,19 +169,12 @@ describe('shell type schemas', () => {
   it('parses valid ObservePanelProps and rejects invalid shapes', () => {
     expect(ObservePanelPropsSchema.safeParse({}).success).toBe(true)
     expect(ObservePanelPropsSchema.safeParse({ className: 'test' }).success).toBe(true)
-    expect(ObservePanelPropsSchema.safeParse({ maoApi: {} }).success).toBe(true)
   })
 
   it('parses valid ChatSurfaceProps', () => {
     expect(ChatSurfacePropsSchema.safeParse({}).success).toBe(true)
     expect(ChatSurfacePropsSchema.safeParse({ className: 'test' }).success).toBe(true)
     expect(ChatSurfacePropsSchema.safeParse({ chatApi: {} }).success).toBe(true)
-  })
-
-  it('parses valid MAOSurfaceProps', () => {
-    expect(MAOSurfacePropsSchema.safeParse({}).success).toBe(true)
-    expect(MAOSurfacePropsSchema.safeParse({ className: 'custom' }).success).toBe(true)
-    expect(MAOSurfacePropsSchema.safeParse({ maoApi: {} }).success).toBe(true)
   })
 
   it('parses valid HomeScreenProps with required and optional fields', () => {

@@ -61,7 +61,6 @@ vi.mock('@nous/ui/panels', () => {
     ChatPanel: Panel,
     FileBrowserPanel: Panel,
     NodeProjectionPanel: Panel,
-    MAOPanel: Panel,
     CodexBarPanel: Panel,
     CodexBarHeaderActions: Panel,
     DashboardPanel: Panel,
