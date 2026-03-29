@@ -123,6 +123,11 @@ export const MaoAgentProjectionSchema = z.object({
   reasoning_log_redaction_state: z.enum(['none', 'partial', 'restricted']),
   deepLinks: z.array(MaoSurfaceLinkSchema).default([]),
   evidenceRefs: z.array(z.string().min(1)).default([]),
+  inference_provider_id: z.string().optional(),
+  inference_model_id: z.string().optional(),
+  inference_latency_ms: z.number().nonnegative().optional(),
+  inference_total_tokens: z.number().int().nonnegative().optional(),
+  inference_is_streaming: z.boolean().optional(),
 });
 export type MaoAgentProjection = z.infer<typeof MaoAgentProjectionSchema>;
 
@@ -396,6 +401,16 @@ export const MaoAgentInspectProjectionSchema = z.object({
   latestAttempt: MaoAgentAttemptSummarySchema.nullable(),
   correctionArcs: z.array(MaoCorrectionArcSummarySchema).default([]),
   evidenceRefs: z.array(z.string().min(1)).default([]),
+  inference_history: z.array(z.object({
+    providerId: z.string(),
+    modelId: z.string(),
+    agentClass: z.string().optional(),
+    traceId: z.string(),
+    inputTokens: z.number().int().nonnegative().optional(),
+    outputTokens: z.number().int().nonnegative().optional(),
+    latencyMs: z.number().nonnegative(),
+    timestamp: z.string().datetime(),
+  })).optional(),
   generatedAt: z.string().datetime(),
 });
 export type MaoAgentInspectProjection = z.infer<

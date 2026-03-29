@@ -6,6 +6,7 @@
  */
 import type {
   IConfig,
+  IEventBus,
   IModelProvider,
   ModelProviderConfig,
   ProviderId,
@@ -20,16 +21,19 @@ import type { LaneLeaseReleasedEvent } from './inference-lane-registry.js';
 import { AnthropicProvider } from './anthropic-provider.js';
 import { InferenceLaneRegistry } from './inference-lane-registry.js';
 import { LaneAwareProvider } from './lane-aware-provider.js';
+import { ObservableProvider } from './observable-provider.js';
 import { OllamaProvider } from './ollama-provider.js';
 import { OpenAiCompatibleProvider } from './openai-provider.js';
 
 export class ProviderRegistry {
   private readonly providers = new Map<string, IModelProvider>();
   readonly laneRegistry: InferenceLaneRegistry;
+  private readonly eventBus: IEventBus | undefined;
   private static readonly ANTHROPIC_ENDPOINT = 'https://api.anthropic.com';
 
-  constructor(config: IConfig, options?: { laneRegistry?: InferenceLaneRegistry }) {
+  constructor(config: IConfig, options?: { laneRegistry?: InferenceLaneRegistry; eventBus?: IEventBus }) {
     this.laneRegistry = options?.laneRegistry ?? new InferenceLaneRegistry();
+    this.eventBus = options?.eventBus;
     const configObj = config.get() as { providers?: ProviderConfigEntry[] };
     const entries = Array.isArray(configObj.providers) ? configObj.providers : [];
 
@@ -148,9 +152,17 @@ export class ProviderRegistry {
         : new OpenAiCompatibleProvider(normalizedConfig, {
             apiKey: this.resolveRemoteApiKey(normalizedConfig),
           });
-    return new LaneAwareProvider(
-      provider,
-      this.laneRegistry.getOrCreate(normalizedConfig),
-    );
+    const lane = this.laneRegistry.getOrCreate(normalizedConfig);
+    const laneAware = new LaneAwareProvider(provider, lane);
+
+    if (this.eventBus) {
+      return new ObservableProvider(laneAware, this.eventBus, {
+        providerId: normalizedConfig.id,
+        modelId: normalizedConfig.modelId,
+        laneKey: lane.laneKey,
+      });
+    }
+
+    return laneAware;
   }
 }

@@ -32,7 +32,7 @@ import type {
   IHealthMonitor,
 } from '@nous/shared';
 import type { PanelTranspiler } from '@nous/subcortex-apps';
-import type { ProviderRegistry } from '@nous/subcortex-providers';
+import type { ProviderRegistry, TokenAccumulatorService } from '@nous/subcortex-providers';
 import type {
   IPrincipalSystemGatewayRuntime,
   IPublicMcpExecutionBridge,
@@ -107,4 +107,5 @@ export interface NousContext {
   eventBus: IEventBus;
   healthAggregator: IHealthAggregator;
   healthMonitor: IHealthMonitor;
+  tokenAccumulator: TokenAccumulatorService;
 }
