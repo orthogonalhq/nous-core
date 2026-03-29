@@ -25,7 +25,7 @@ describe('ThoughtCard', () => {
   it('renders thoughtType, decision, content from payload', () => {
     render(<ThoughtCard payload={makePayload()} compact={false} />)
 
-    expect(screen.getByText('[confidence-governance]')).toBeTruthy()
+    expect(screen.getByText('[Confidence Check]')).toBeTruthy()
     // text-transform: uppercase is CSS-only; jsdom sees lowercase
     expect(screen.getByText('approved')).toBeTruthy()
     expect(

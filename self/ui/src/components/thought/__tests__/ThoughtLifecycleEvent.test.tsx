@@ -22,7 +22,7 @@ function makePayload(
 describe('ThoughtLifecycleEvent', () => {
   it('renders phase and status from payload', () => {
     render(<ThoughtLifecycleEvent payload={makePayload({ phase: 'gateway-run', status: 'completed' })} />)
-    expect(screen.getByText('[gateway-run]')).toBeTruthy()
+    expect(screen.getByText('[Gateway Execution]')).toBeTruthy()
     expect(screen.getByText('completed')).toBeTruthy()
   })
 

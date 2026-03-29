@@ -230,9 +230,17 @@ export function ChatPanel(props: ChatPanelProps | ChatPanelCoreProps) {
                 onToggle={handleToggle}
                 sending={sending}
               />
-              {isExpanded && (
-                <ThoughtStream thoughts={thoughts} mode={mode} />
-              )}
+              <ThoughtStream
+                thoughts={thoughts}
+                mode={mode}
+                style={{
+                  opacity: isExpanded ? 1 : 0,
+                  maxHeight: isExpanded
+                    ? mode === 'conversing:expanded' ? '200px' : '2000px'
+                    : '0px',
+                  overflow: isExpanded ? undefined : 'hidden',
+                }}
+              />
             </div>
           </div>
         )}

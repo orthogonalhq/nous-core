@@ -2,6 +2,7 @@
 
 import { clsx } from 'clsx'
 import type { ThoughtTurnLifecyclePayload } from '@nous/shared'
+import { getThoughtLabel } from './thought-labels'
 
 export interface ThoughtLifecycleEventProps {
   payload: ThoughtTurnLifecyclePayload
@@ -31,7 +32,7 @@ export function ThoughtLifecycleEvent({ payload }: ThoughtLifecycleEventProps) {
           fontWeight: 'var(--nous-font-weight-medium)' as any,
         }}
       >
-        [{payload.phase}]
+        [{getThoughtLabel('phase', payload.phase)}]
       </span>{' '}
       {displayContent}
     </div>
