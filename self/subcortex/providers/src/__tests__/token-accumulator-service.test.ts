@@ -198,7 +198,7 @@ describe('TokenAccumulatorService', () => {
       // publish may have been called before dispose, but no new snapshot
       const publishCalls = (eventBus.publish as ReturnType<typeof vi.fn>).mock.calls;
       const snapshotCalls = publishCalls.filter(
-        ([ch]: [string]) => ch === 'inference:accumulator-snapshot',
+        (call: unknown[]) => call[0] === 'inference:accumulator-snapshot',
       );
       expect(snapshotCalls).toHaveLength(0);
     });

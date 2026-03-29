@@ -24,14 +24,14 @@ function createMockProvider(overrides?: {
   invoke?: IModelProvider['invoke'];
   stream?: IModelProvider['stream'];
 }): IModelProvider {
-  const config: ModelProviderConfig = {
-    id: 'provider-1' as any,
+  const config = {
+    id: 'provider-1',
     name: 'test-provider',
-    type: 'ollama' as any,
+    type: 'ollama',
     modelId: 'test-model',
     isLocal: true,
     capabilities: [],
-  };
+  } as unknown as ModelProviderConfig;
   return {
     getConfig: () => config,
     invoke: overrides?.invoke ?? vi.fn().mockResolvedValue({
@@ -39,12 +39,12 @@ function createMockProvider(overrides?: {
       providerId: 'provider-1',
       usage: { inputTokens: 100, outputTokens: 50, computeMs: 500 },
       traceId: 'trace-1',
-    } satisfies ModelResponse),
+    } as ModelResponse),
     stream: overrides?.stream ?? vi.fn().mockReturnValue(
       (async function* () {
-        yield { content: 'chunk1', done: false } satisfies ModelStreamChunk;
-        yield { content: 'chunk2', done: false, usage: { inputTokens: 100, outputTokens: 50 } } satisfies ModelStreamChunk;
-        yield { content: '', done: true, usage: { inputTokens: 100, outputTokens: 80 } } satisfies ModelStreamChunk;
+        yield { content: 'chunk1', done: false } as ModelStreamChunk;
+        yield { content: 'chunk2', done: false, usage: { inputTokens: 100, outputTokens: 50 } } as ModelStreamChunk;
+        yield { content: '', done: true, usage: { inputTokens: 100, outputTokens: 80 } } as ModelStreamChunk;
       })(),
     ),
   };

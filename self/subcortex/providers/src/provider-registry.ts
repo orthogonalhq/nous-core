@@ -28,7 +28,7 @@ import { OpenAiCompatibleProvider } from './openai-provider.js';
 export class ProviderRegistry {
   private readonly providers = new Map<string, IModelProvider>();
   readonly laneRegistry: InferenceLaneRegistry;
-  private readonly eventBus?: IEventBus;
+  private readonly eventBus: IEventBus | undefined;
   private static readonly ANTHROPIC_ENDPOINT = 'https://api.anthropic.com';
 
   constructor(config: IConfig, options?: { laneRegistry?: InferenceLaneRegistry; eventBus?: IEventBus }) {
