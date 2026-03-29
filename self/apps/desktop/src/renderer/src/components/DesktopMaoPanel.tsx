@@ -7,27 +7,14 @@ import {
   MaoServicesProvider,
 } from '@nous/ui/components';
 import type { MaoServicesContextValue } from '@nous/ui/components';
-import { trpc } from '@nous/transport';
 
 /**
  * Desktop-specific project state for MAO.
- *
- * Stopgap: auto-selects the first available project so the MAO surface
- * renders with live data. The MAO surface is specced to be system-wide
- * (all agents across all projects), but the current projection service
- * and tRPC queries are project-scoped. System-wide MAO is tracked
- * separately — this auto-select ensures WR-088 inference data is visible.
+ * Uses a simple local state since the desktop app doesn't have a global
+ * project context yet. The project list tRPC query provides available IDs.
  */
 function useDesktopProject() {
   const [projectId, setProjectId] = React.useState<string | null>(null);
-  const { data: projects } = trpc.projects.list.useQuery();
-
-  React.useEffect(() => {
-    if (projectId == null && projects && projects.length > 0) {
-      setProjectId(projects[0].id);
-    }
-  }, [projectId, projects]);
-
   return { projectId, setProjectId };
 }
 
