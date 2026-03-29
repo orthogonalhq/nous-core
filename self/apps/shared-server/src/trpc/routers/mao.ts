@@ -6,6 +6,7 @@ import {
   MaoAgentInspectInputSchema,
   MaoProjectControlRequestSchema,
   MaoProjectSnapshotInputSchema,
+  MaoSystemSnapshotInputSchema,
   ConfirmationProofSchema,
 } from '@nous/shared';
 import { router, publicProcedure } from '../trpc';
@@ -65,5 +66,11 @@ export const maoRouter = router({
       return ctx.maoProjectionService.getControlAuditHistory(
         input.projectId as import('@nous/shared').ProjectId,
       );
+    }),
+
+  getSystemSnapshot: publicProcedure
+    .input(MaoSystemSnapshotInputSchema)
+    .query(async ({ ctx, input }) => {
+      return ctx.maoProjectionService.getSystemSnapshot(input);
     }),
 });

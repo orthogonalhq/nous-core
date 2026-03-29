@@ -871,6 +871,7 @@ export function createNousServices(config?: BootstrapConfig): NousContext {
     witnessService,
     eventBus,
     inferenceAdapter,
+    projectStore,
   });
   const workmodeAdmissionGuard = new WorkmodeAdmissionGuard();
   const publicMcpNamespaceStore = new NamespaceRegistryStore(documentStore);
