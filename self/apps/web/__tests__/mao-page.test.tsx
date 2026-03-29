@@ -9,6 +9,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 const { mocks, trpcMock } = vi.hoisted(() => {
   const m = {
     getProjectSnapshotUseQuery: vi.fn(),
+    getSystemSnapshotUseQuery: vi.fn(),
     getAgentInspectProjectionUseQuery: vi.fn(),
     requestProjectControlUseMutation: vi.fn(),
     getControlAuditHistoryUseQuery: vi.fn(),
@@ -21,6 +22,7 @@ const { mocks, trpcMock } = vi.hoisted(() => {
   const t = {
     mao: {
       getProjectSnapshot: { useQuery: m.getProjectSnapshotUseQuery },
+      getSystemSnapshot: { useQuery: m.getSystemSnapshotUseQuery },
       getAgentInspectProjection: { useQuery: m.getAgentInspectProjectionUseQuery },
       requestProjectControl: { useMutation: m.requestProjectControlUseMutation },
       getControlAuditHistory: { useQuery: m.getControlAuditHistoryUseQuery },
@@ -115,6 +117,10 @@ describe('MaoPage', () => {
       isLoading: false,
       isError: false,
     });
+    mocks.getSystemSnapshotUseQuery.mockReturnValue({
+      data: undefined,
+      isLoading: false,
+    });
     mocks.requestConfirmationProofUseMutation.mockReturnValue({
       mutate: vi.fn(),
       isPending: false,
@@ -123,6 +129,7 @@ describe('MaoPage', () => {
     mocks.useUtils.mockReturnValue({
       mao: {
         getProjectSnapshot: { invalidate: invalidateSnapshot },
+        getSystemSnapshot: { invalidate: vi.fn() },
         getAgentInspectProjection: { invalidate: invalidateInspect },
         getProjectControlProjection: { invalidate: invalidateControl },
         getControlAuditHistory: { invalidate: vi.fn() },

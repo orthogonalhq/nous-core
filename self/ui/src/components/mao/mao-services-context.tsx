@@ -14,7 +14,7 @@ export interface MaoServicesContextValue {
     className?: string;
     children: React.ReactNode;
   }>;
-  useProject: () => { projectId: string | null; setProjectId: (id: string) => void };
+  useProject: () => { projectId: string | null; setProjectId: (id: string | null) => void };
   useSearchParams: () => { get: (name: string) => string | null };
 }
 
