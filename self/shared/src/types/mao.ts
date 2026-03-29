@@ -14,6 +14,7 @@ import {
   WorkflowNodeDefinitionIdSchema,
 } from './ids.js';
 import { NodeReasoningLogClassSchema } from './chat-node-context.js';
+import { AgentClassSchema } from './agent-gateway.js';
 
 export const MaoDensityModeSchema = z.enum(['D0', 'D1', 'D2', 'D3', 'D4']);
 export type MaoDensityMode = z.infer<typeof MaoDensityModeSchema>;
@@ -98,6 +99,8 @@ export const MaoAgentProjectionSchema = z.object({
   workflow_node_definition_id: WorkflowNodeDefinitionIdSchema.optional(),
   dispatching_task_agent_id: z.string().uuid().nullable(),
   dispatch_origin_ref: z.string().min(1),
+  agent_class: AgentClassSchema.optional(),
+  display_name: z.string().optional(),
   state: MaoAgentLifecycleStateSchema,
   state_reason: z.string().min(1).optional(),
   state_reason_code: z.string().min(1).optional(),
@@ -303,6 +306,20 @@ export const MaoProjectSnapshotInputSchema = z.object({
 export type MaoProjectSnapshotInput = z.infer<
   typeof MaoProjectSnapshotInputSchema
 >;
+
+export const MaoSystemSnapshotInputSchema = z.object({
+  densityMode: MaoDensityModeSchema.default('D2'),
+});
+export type MaoSystemSnapshotInput = z.infer<typeof MaoSystemSnapshotInputSchema>;
+
+export const MaoSystemSnapshotSchema = z.object({
+  agents: z.array(MaoAgentProjectionSchema).default([]),
+  leaseRoots: z.array(z.string().uuid()).default([]),
+  projectControls: z.record(ProjectIdSchema, MaoProjectControlProjectionSchema).default({}),
+  densityMode: MaoDensityModeSchema,
+  generatedAt: z.string().datetime(),
+});
+export type MaoSystemSnapshot = z.infer<typeof MaoSystemSnapshotSchema>;
 
 export const MaoRunGraphSnapshotSchema = z.object({
   projectId: ProjectIdSchema,
