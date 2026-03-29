@@ -3,7 +3,7 @@
 import * as React from 'react';
 import { cleanup, render, screen } from '@testing-library/react';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-import type { MaoAgentProjection, MaoSystemSnapshot } from '@nous/shared';
+import type { MaoAgentProjection, MaoSystemSnapshot, ProjectId } from '@nous/shared';
 import { MaoSystemHealthStrip } from '../mao-system-health-strip';
 
 function createAgent(
@@ -112,9 +112,9 @@ describe('MaoSystemHealthStrip', () => {
   it('displays project count from projectControls', () => {
     const snapshot = createSystemSnapshot({
       projectControls: {
-        'proj-1': {} as any,
-        'proj-2': {} as any,
-        'proj-3': {} as any,
+        ['proj-1' as ProjectId]: {} as any,
+        ['proj-2' as ProjectId]: {} as any,
+        ['proj-3' as ProjectId]: {} as any,
       },
     });
 

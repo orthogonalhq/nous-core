@@ -4,7 +4,7 @@ import * as React from 'react';
 import { cleanup, fireEvent, render, screen } from '@testing-library/react';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { MaoServicesProvider } from '../mao-services-context';
-import type { MaoProjectSnapshot, MaoSystemSnapshot } from '@nous/shared';
+import type { MaoProjectSnapshot, MaoSystemSnapshot, ProjectId } from '@nous/shared';
 
 // Mock ResizeObserver for jsdom
 class MockResizeObserver {
@@ -307,7 +307,7 @@ describe('MaoOperatingSurface tab behavior', () => {
     mockGetSystemSnapshotQuery = vi.fn().mockReturnValue({
       data: createSystemSnapshot({
         agents: [],
-        projectControls: { 'p1': {} as any },
+        projectControls: { ['p1' as ProjectId]: {} as any },
       }),
       isLoading: false,
     });
