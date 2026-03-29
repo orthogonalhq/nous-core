@@ -501,5 +501,133 @@ describe('PfcEngine', () => {
       });
       expect(emitter.emitPfcDecision).toHaveBeenCalledTimes(1);
     });
+
+    it('setTraceId sets traceId on emitted PFC decisions', async () => {
+      const emitter = mockThoughtEmitter();
+      const pfc = new PfcEngine(mockConfig(3), mockToolExecutor(['echo']), undefined, emitter);
+
+      pfc.setTraceId('test-trace-uuid');
+      await pfc.evaluateToolExecution('echo', {}, undefined);
+
+      expect(emitter.pfcCalls[0]!.traceId).toBe('test-trace-uuid');
+    });
+
+    it('traceId defaults to empty string when setTraceId not called', async () => {
+      const emitter = mockThoughtEmitter();
+      const pfc = new PfcEngine(mockConfig(3), mockToolExecutor(['echo']), undefined, emitter);
+
+      await pfc.evaluateToolExecution('echo', {}, undefined);
+
+      expect(emitter.pfcCalls[0]!.traceId).toBe('');
+    });
+
+    it('setTraceId can be called multiple times (per-turn reset)', async () => {
+      const emitter = mockThoughtEmitter();
+      const pfc = new PfcEngine(mockConfig(3), mockToolExecutor(['echo']), undefined, emitter);
+
+      pfc.setTraceId('trace-1');
+      await pfc.evaluateToolExecution('echo', {}, undefined);
+      expect(emitter.pfcCalls[0]!.traceId).toBe('trace-1');
+
+      pfc.setTraceId('trace-2');
+      await pfc.evaluateToolExecution('echo', {}, undefined);
+      expect(emitter.pfcCalls[1]!.traceId).toBe('trace-2');
+    });
+
+    it('setTraceId propagates to all 9 emission sites', async () => {
+      const emitter = mockThoughtEmitter();
+      const pfc = new PfcEngine(mockConfig(3), mockToolExecutor(['echo']), undefined, emitter);
+
+      pfc.setTraceId('propagation-test-id');
+
+      // 1. evaluateConfidenceGovernance (1 site)
+      await pfc.evaluateConfidenceGovernance(
+        createEvaluationInput({
+          governance: 'may',
+          actionCategory: 'model-invoke',
+          confidenceSignal: {
+            tier: 'high',
+            confidence: 0.95,
+            supportingSignals: 22,
+            decayState: 'stable',
+          },
+        }),
+      );
+
+      // 2-3. evaluateMemoryWrite deny + approve (2 sites)
+      await pfc.evaluateMemoryWrite(
+        {
+          content: 'test',
+          type: 'fact',
+          scope: 'project',
+          confidence: 0.3,
+          sensitivity: [],
+          retention: 'permanent',
+          provenance: {
+            traceId: '00000000-0000-0000-0000-000000000001' as never,
+            source: 'test',
+            timestamp: new Date().toISOString(),
+          },
+          tags: [],
+        },
+        undefined,
+      );
+      await pfc.evaluateMemoryWrite(
+        {
+          content: 'test',
+          type: 'fact',
+          scope: 'project',
+          confidence: 0.8,
+          sensitivity: [],
+          retention: 'permanent',
+          provenance: {
+            traceId: '00000000-0000-0000-0000-000000000001' as never,
+            source: 'test',
+            timestamp: new Date().toISOString(),
+          },
+          tags: [],
+        },
+        undefined,
+      );
+
+      // 4. emitMemoryMutationThought (1 site, via evaluateMemoryMutation)
+      await pfc.evaluateMemoryMutation({
+        action: 'soft-delete',
+        actor: 'core',
+        targetEntryId: '00000000-0000-0000-0000-000000000002' as never,
+        reason: 'test',
+        traceId: '00000000-0000-0000-0000-000000000001' as never,
+        evidenceRefs: [],
+      });
+
+      // 5-6. evaluateToolExecution deny + approve (2 sites)
+      await pfc.evaluateToolExecution('unknown_tool', {}, undefined);
+      await pfc.evaluateToolExecution('echo', {}, undefined);
+
+      // 7. reflect (1 site)
+      await pfc.reflect('output', {
+        output: 'test',
+        traceId: '00000000-0000-0000-0000-000000000001' as never,
+        tier: 3,
+      });
+
+      // 8-9. evaluateEscalation escalate + no-escalate (2 sites)
+      await pfc.evaluateEscalation({
+        trigger: 'low_confidence',
+        context: 'test',
+        confidence: 0.2,
+      });
+      await pfc.evaluateEscalation({
+        trigger: 'test',
+        context: 'test',
+        confidence: 0.8,
+      });
+
+      // All 9 emission sites should carry the trace ID
+      expect(emitter.pfcCalls).toHaveLength(9);
+      for (const call of emitter.pfcCalls) {
+        expect(call.traceId).toBe('propagation-test-id');
+      }
+    });
   });
 });
