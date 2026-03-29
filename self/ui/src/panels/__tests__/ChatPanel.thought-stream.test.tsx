@@ -14,6 +14,13 @@ vi.mock('@nous/transport', () => ({
   useEventSubscription: (options: { onEvent: (channel: string, payload: unknown) => void }) => {
     capturedOnEvent = options.onEvent
   },
+  trpc: {
+    traces: {
+      get: {
+        useQuery: () => ({ data: null, isLoading: false, isError: false }),
+      },
+    },
+  },
 }))
 
 beforeAll(() => {
@@ -121,7 +128,7 @@ describe('ChatPanel — Thought Stream', () => {
     expect(screen.getByText('2 thoughts')).toBeTruthy()
   })
 
-  it('thoughts persist when sending becomes false', async () => {
+  it('ephemeral thoughts clear when turn completes (post-turn transition)', async () => {
     const { resolveSend } = renderSendingPanel()
 
     act(() => {
@@ -135,8 +142,8 @@ describe('ChatPanel — Thought Stream', () => {
       resolveSend({ response: 'done', traceId: 'trace-1' })
     })
 
-    // Thoughts persist after sending completes (no longer cleared)
-    expect(screen.getByTestId('thought-toggle')).toBeTruthy()
+    // Ephemeral thoughts are cleared after turn completion
+    expect(screen.queryByTestId('thought-toggle')).toBeNull()
   })
 
   it('collapsed state shows thought count chip but not event details', async () => {
