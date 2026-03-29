@@ -28,6 +28,7 @@ import {
 
 export class PfcEngine implements IPfcEngine {
   private thoughtEmitter?: IThoughtEmitter;
+  private currentTraceId: string = '';
 
   constructor(
     private readonly config: IConfig,
@@ -42,6 +43,10 @@ export class PfcEngine implements IPfcEngine {
     this.thoughtEmitter = emitter;
   }
 
+  setTraceId(traceId: string): void {
+    this.currentTraceId = traceId;
+  }
+
   async evaluateConfidenceGovernance(
     input: ConfidenceGovernanceEvaluationInput,
   ): Promise<ConfidenceGovernanceEvaluationResult> {
@@ -54,7 +59,7 @@ export class PfcEngine implements IPfcEngine {
       `[nous:pfc] confidence_governance patternId=${decision.patternId} outcome=${decision.outcome} reasonCode=${decision.reasonCode} governance=${decision.governance} tier=${decision.confidenceTier} actionCategory=${decision.actionCategory}`,
     );
     this.thoughtEmitter?.emitPfcDecision({
-      traceId: '',
+      traceId: this.currentTraceId,
       thoughtType: 'confidence-governance',
       decision: decision.outcome === 'deny' ? 'denied' : 'approved',
       confidence: undefined,
@@ -80,7 +85,7 @@ export class PfcEngine implements IPfcEngine {
         `[nous:pfc] memory_write approved=false reason=${decision.reason}`,
       );
       this.thoughtEmitter?.emitPfcDecision({
-        traceId: '',
+        traceId: this.currentTraceId,
         thoughtType: 'memory-write',
         decision: 'denied',
         confidence: decision.confidence,
@@ -100,7 +105,7 @@ export class PfcEngine implements IPfcEngine {
       `[nous:pfc] memory_write approved=true reason=${decision.reason}`,
     );
     this.thoughtEmitter?.emitPfcDecision({
-      traceId: '',
+      traceId: this.currentTraceId,
       thoughtType: 'memory-write',
       decision: 'approved',
       confidence: decision.confidence,
@@ -199,7 +204,7 @@ export class PfcEngine implements IPfcEngine {
 
   private emitMemoryMutationThought(decision: PfcDecision): void {
     this.thoughtEmitter?.emitPfcDecision({
-      traceId: '',
+      traceId: this.currentTraceId,
       thoughtType: 'memory-mutation',
       decision: decision.approved ? 'approved' : 'denied',
       confidence: decision.confidence,
@@ -227,7 +232,7 @@ export class PfcEngine implements IPfcEngine {
         `[nous:pfc] tool_auth toolName=${toolName} approved=false reason=${decision.reason}`,
       );
       this.thoughtEmitter?.emitPfcDecision({
-        traceId: '',
+        traceId: this.currentTraceId,
         thoughtType: 'tool-execution',
         decision: 'denied',
         confidence: decision.confidence,
@@ -247,7 +252,7 @@ export class PfcEngine implements IPfcEngine {
       `[nous:pfc] tool_auth toolName=${toolName} approved=true reason=${decision.reason}`,
     );
     this.thoughtEmitter?.emitPfcDecision({
-      traceId: '',
+      traceId: this.currentTraceId,
       thoughtType: 'tool-execution',
       decision: 'approved',
       confidence: decision.confidence,
@@ -265,7 +270,7 @@ export class PfcEngine implements IPfcEngine {
   ): Promise<ReflectionResult> {
     console.debug('[nous:pfc] reflect confidence=0.8 qualityScore=0.8');
     this.thoughtEmitter?.emitPfcDecision({
-      traceId: '',
+      traceId: this.currentTraceId,
       thoughtType: 'reflection',
       decision: 'neutral',
       confidence: 0.8,
@@ -290,7 +295,7 @@ export class PfcEngine implements IPfcEngine {
         `[nous:pfc] escalation trigger=${situation.trigger} context=${situation.context}`,
       );
       this.thoughtEmitter?.emitPfcDecision({
-        traceId: '',
+        traceId: this.currentTraceId,
         thoughtType: 'escalation',
         decision: 'neutral',
         confidence: situation.confidence,
@@ -305,7 +310,7 @@ export class PfcEngine implements IPfcEngine {
       };
     }
     this.thoughtEmitter?.emitPfcDecision({
-      traceId: '',
+      traceId: this.currentTraceId,
       thoughtType: 'escalation',
       decision: 'neutral',
       confidence: situation.confidence,

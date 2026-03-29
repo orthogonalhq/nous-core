@@ -8,6 +8,7 @@ import { useEventSubscription } from '@nous/transport'
 import {
   ThoughtStream,
   ThoughtToggle,
+  ThoughtSummary,
   useThoughtMode,
   BUFFER_MAX,
 } from '../components/thought'
@@ -17,6 +18,7 @@ export interface ChatMessage {
   role: 'user' | 'assistant'
   content: string
   timestamp: string
+  traceId?: string
 }
 
 export interface ChatAPI {
@@ -128,11 +130,17 @@ export function ChatPanel(props: ChatPanelProps | ChatPanelCoreProps) {
     setMessages(prev => [...prev, userEntry])
     try {
       const result = await chatApi.send(userMsg)
-      setMessages(prev => [...prev, { role: 'assistant', content: result.response, timestamp: new Date().toISOString() }])
+      setMessages(prev => [...prev, {
+        role: 'assistant',
+        content: result.response,
+        timestamp: new Date().toISOString(),
+        traceId: result.traceId,
+      }])
     } catch (e) {
       setMessages(prev => [...prev, { role: 'assistant', content: 'Error: could not reach Nous.', timestamp: new Date().toISOString() }])
     } finally {
       setSending(false)
+      setThoughts([])
     }
   }
 
@@ -200,7 +208,7 @@ export function ChatPanel(props: ChatPanelProps | ChatPanelCoreProps) {
           </div>
         )}
         {messages.map((msg, i) => (
-          <div key={i} style={{ display: 'flex', justifyContent: msg.role === 'user' ? 'flex-end' : 'flex-start' }}>
+          <div key={i} style={{ display: 'flex', flexDirection: 'column', alignItems: msg.role === 'user' ? 'flex-end' : 'flex-start' }}>
             <div style={{
               maxWidth: '80%', padding: 'var(--nous-space-md) var(--nous-space-xl)', borderRadius: 'var(--nous-radius-md)', fontSize: 'var(--nous-font-size-base)', lineHeight: '1.5',
               background: msg.role === 'user' ? 'var(--nous-chat-user-bg)' : 'var(--nous-bg-elevated)',
@@ -208,6 +216,9 @@ export function ChatPanel(props: ChatPanelProps | ChatPanelCoreProps) {
             }}>
               {msg.content}
             </div>
+            {msg.role === 'assistant' && msg.traceId && !sending && (
+              <ThoughtSummary traceId={msg.traceId} />
+            )}
           </div>
         ))}
         {thoughts.length > 0 && (
