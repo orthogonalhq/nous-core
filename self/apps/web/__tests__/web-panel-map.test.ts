@@ -3,13 +3,16 @@ import { describe, it, expect, vi } from 'vitest'
 vi.mock('@nous/ui/panels', () => ({
   PlaceholderPanel: () => null,
   NodeProjectionPanel: () => null,
-  MAOPanel: () => null,
   CodexBarPanel: () => null,
   DashboardPanel: () => null,
   AgentPanel: () => null,
   WorkflowBuilderPanel: () => null,
   ChatPanel: () => null,
   PreferencesPanel: () => null,
+}))
+
+vi.mock('@/components/shell/web-mao-panel', () => ({
+  WebMaoPanel: () => null,
 }))
 
 vi.mock('@nous/ui/components', () => ({
