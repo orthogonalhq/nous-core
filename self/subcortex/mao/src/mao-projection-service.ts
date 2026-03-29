@@ -496,6 +496,7 @@ export interface MaoProjectionServiceDeps {
   witnessService?: IWitnessService;
   eventBus?: import('@nous/shared').IEventBus;
   healthAggregator?: IHealthAggregator;
+  inferenceAdapter?: import('./inference-projection-adapter.js').InferenceProjectionAdapter;
 }
 
 export class MaoProjectionService {
@@ -627,6 +628,17 @@ export class MaoProjectionService {
           occurredAt: arc.occurredAt,
         })) ?? [],
       evidenceRefs: agent.evidenceRefs,
+      inference_history: this.deps.inferenceAdapter
+        ? (() => {
+            const agentClass =
+              agent.workflow_node_definition_id ?? agent.agent_id;
+            const history = this.deps.inferenceAdapter!.getInferenceHistory({
+              agentClass,
+              limit: 50,
+            });
+            return history.length > 0 ? history : undefined;
+          })()
+        : undefined,
       generatedAt: context.generatedAt,
     });
   }
@@ -1014,6 +1026,20 @@ export class MaoProjectionService {
       ),
       evidenceRefs,
     } satisfies MaoAgentProjection;
+
+    // Inference enrichment (Layer 5 — ADR 4)
+    if (this.deps.inferenceAdapter) {
+      const agentClass =
+        graph.nodes[nodeDefinitionId]?.definition.agentClass ?? nodeDefinitionId;
+      const inferenceState = this.deps.inferenceAdapter.getAgentInferenceState(agentClass);
+      if (inferenceState) {
+        projection.inference_provider_id = inferenceState.lastProviderId;
+        projection.inference_model_id = inferenceState.lastModelId;
+        projection.inference_latency_ms = inferenceState.lastLatencyMs;
+        projection.inference_total_tokens = inferenceState.totalTokens;
+        projection.inference_is_streaming = inferenceState.isStreaming;
+      }
+    }
 
     return MaoAgentProjectionSchema.parse(projection);
   }
