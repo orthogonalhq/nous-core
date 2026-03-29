@@ -1025,21 +1025,20 @@ export class MaoProjectionService {
         evidenceRefs[0],
       ),
       evidenceRefs,
-    } satisfies MaoAgentProjection;
-
-    // Inference enrichment (Layer 5 — ADR 4)
-    if (this.deps.inferenceAdapter) {
-      const agentClass =
-        graph.nodes[nodeDefinitionId]?.definition.agentClass ?? nodeDefinitionId;
-      const inferenceState = this.deps.inferenceAdapter.getAgentInferenceState(agentClass);
-      if (inferenceState) {
-        projection.inference_provider_id = inferenceState.lastProviderId;
-        projection.inference_model_id = inferenceState.lastModelId;
-        projection.inference_latency_ms = inferenceState.lastLatencyMs;
-        projection.inference_total_tokens = inferenceState.totalTokens;
-        projection.inference_is_streaming = inferenceState.isStreaming;
-      }
-    }
+      ...(() => {
+        if (!this.deps.inferenceAdapter) return {};
+        const agentClass = nodeDefinitionId;
+        const inferenceState = this.deps.inferenceAdapter.getAgentInferenceState(agentClass);
+        if (!inferenceState) return {};
+        return {
+          inference_provider_id: inferenceState.lastProviderId,
+          inference_model_id: inferenceState.lastModelId,
+          inference_latency_ms: inferenceState.lastLatencyMs,
+          inference_total_tokens: inferenceState.totalTokens,
+          inference_is_streaming: inferenceState.isStreaming,
+        };
+      })(),
+    };
 
     return MaoAgentProjectionSchema.parse(projection);
   }
