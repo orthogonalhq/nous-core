@@ -1,6 +1,6 @@
 import { describe, it, expect, vi } from 'vitest';
-import { inferenceRouter } from '../routers/inference';
-import type { NousContext } from '../../context';
+import { inferenceRouter } from '../src/trpc/routers/inference';
+import type { NousContext } from '../src/context';
 
 // --- Helpers ---
 
