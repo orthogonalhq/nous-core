@@ -3,7 +3,6 @@ import {
   PlaceholderPanel,
   FileBrowserPanel,
   NodeProjectionPanel,
-  MAOPanel,
   CodexBarPanel,
   DashboardPanel,
   AgentPanel,
@@ -12,6 +11,7 @@ import {
 import { DesktopChatPanel } from './desktop-chat-wrappers'
 import { AppInstallWizardPanel } from './components/AppInstallWizard'
 import { ConnectedPreferencesPanel } from './components/ConnectedPreferencesPanel'
+import { DesktopMaoPanel } from './components/DesktopMaoPanel'
 
 export const panelComponents = {
   'app-installer': AppInstallWizardPanel,
@@ -20,7 +20,7 @@ export const panelComponents = {
   chat: DesktopChatPanel,
   'file-browser': FileBrowserPanel,
   'node-projection': NodeProjectionPanel,
-  mao: MAOPanel,
+  mao: DesktopMaoPanel,
   codexbar: CodexBarPanel,
   dashboard: DashboardPanel,
   'coding-agents': AgentPanel,

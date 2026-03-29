@@ -96,7 +96,13 @@ export function MaoOperatingSurface() {
   });
 
   useEventSubscription({
-    channels: ['mao:projection-changed', 'mao:control-action'],
+    channels: [
+      'mao:projection-changed',
+      'mao:control-action',
+      'inference:stream-start',
+      'inference:stream-complete',
+      'inference:accumulator-snapshot',
+    ],
     onEvent: () => {
       void utils.mao.getProjectSnapshot.invalidate();
     },

@@ -32,6 +32,10 @@ const ALL_CHANNELS: (keyof EventChannelMap)[] = [
   'system:turn-ack',
   'thought:pfc-decision',
   'thought:turn-lifecycle',
+  'inference:call-complete',
+  'inference:stream-start',
+  'inference:stream-complete',
+  'inference:accumulator-snapshot',
 ];
 
 const HEARTBEAT_INTERVAL_MS = 30_000;

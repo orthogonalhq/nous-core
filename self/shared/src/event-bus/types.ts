@@ -179,6 +179,50 @@ export const ThoughtTurnLifecyclePayloadSchema = z.object({
 });
 export type ThoughtTurnLifecyclePayload = z.infer<typeof ThoughtTurnLifecyclePayloadSchema>;
 
+// --- Inference Domain ---
+
+export const InferenceCallCompletePayloadSchema = z.object({
+  providerId: z.string(),
+  modelId: z.string(),
+  agentClass: z.string().optional(),
+  traceId: z.string(),
+  projectId: z.string().optional(),
+  laneKey: z.string(),
+  inputTokens: z.number().int().nonnegative().optional(),
+  outputTokens: z.number().int().nonnegative().optional(),
+  latencyMs: z.number().nonnegative(),
+  routingDecision: z.string().optional(),
+  emittedAt: z.string().datetime(),
+});
+export type InferenceCallCompletePayload = z.infer<typeof InferenceCallCompletePayloadSchema>;
+
+export const InferenceStreamCompletePayloadSchema = InferenceCallCompletePayloadSchema;
+export type InferenceStreamCompletePayload = InferenceCallCompletePayload;
+
+export const InferenceStreamStartPayloadSchema = z.object({
+  providerId: z.string(),
+  modelId: z.string(),
+  agentClass: z.string().optional(),
+  traceId: z.string(),
+  projectId: z.string().optional(),
+  laneKey: z.string(),
+  emittedAt: z.string().datetime(),
+});
+export type InferenceStreamStartPayload = z.infer<typeof InferenceStreamStartPayloadSchema>;
+
+export const InferenceAccumulatorSnapshotPayloadSchema = z.object({
+  totalInputTokens: z.number().int().nonnegative(),
+  totalOutputTokens: z.number().int().nonnegative(),
+  providerBreakdown: z.record(z.string(), z.object({
+    inputTokens: z.number().int().nonnegative(),
+    outputTokens: z.number().int().nonnegative(),
+    callCount: z.number().int().nonnegative(),
+  })),
+  windowStart: z.string().datetime(),
+  emittedAt: z.string().datetime(),
+});
+export type InferenceAccumulatorSnapshotPayload = z.infer<typeof InferenceAccumulatorSnapshotPayloadSchema>;
+
 // --- Channel Map ---
 
 export interface EventChannelMap {
@@ -200,6 +244,10 @@ export interface EventChannelMap {
   'system:turn-ack': SystemTurnAckPayload;
   'thought:pfc-decision': ThoughtPfcDecisionPayload;
   'thought:turn-lifecycle': ThoughtTurnLifecyclePayload;
+  'inference:call-complete': InferenceCallCompletePayload;
+  'inference:stream-start': InferenceStreamStartPayload;
+  'inference:stream-complete': InferenceStreamCompletePayload;
+  'inference:accumulator-snapshot': InferenceAccumulatorSnapshotPayload;
 }
 
 /**
