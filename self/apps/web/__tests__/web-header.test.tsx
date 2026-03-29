@@ -23,17 +23,17 @@ describe('WebHeader', () => {
   afterEach(() => { cleanup() })
 
   it('renders the app icon', () => {
-    render(<WebHeader mode="simple" onModeToggle={() => {}} />)
+    render(<WebHeader mode="simple" onModeToggle={() => {}} dockviewApi={null} panelDefs={[]} />)
     expect(screen.getByTestId('web-header-app-icon').textContent).toBe('◈')
   })
 
   it('renders the app name "Nous"', () => {
-    render(<WebHeader mode="simple" onModeToggle={() => {}} />)
+    render(<WebHeader mode="simple" onModeToggle={() => {}} dockviewApi={null} panelDefs={[]} />)
     expect(screen.getByTestId('web-header-app-name').textContent).toBe('Nous')
   })
 
   it('renders the menu bar with File/View/Help triggers', () => {
-    render(<WebHeader mode="simple" onModeToggle={() => {}} />)
+    render(<WebHeader mode="simple" onModeToggle={() => {}} dockviewApi={null} panelDefs={[]} />)
     const triggers = screen.getAllByTestId('menu-trigger')
     expect(triggers.length).toBe(3)
     expect(triggers[0].textContent).toBe('File')
@@ -42,7 +42,7 @@ describe('WebHeader', () => {
   })
 
   it('does not render mode badge or toggle buttons', () => {
-    render(<WebHeader mode="simple" onModeToggle={() => {}} />)
+    render(<WebHeader mode="simple" onModeToggle={() => {}} dockviewApi={null} panelDefs={[]} />)
     expect(screen.queryByTestId('web-header-mode-badge')).toBeNull()
     expect(screen.queryByTestId('web-header-mode-toggle')).toBeNull()
     expect(screen.queryByTestId('web-header-theme-toggle')).toBeNull()

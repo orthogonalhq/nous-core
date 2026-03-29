@@ -1,17 +1,21 @@
 'use client'
 
 import * as React from 'react'
+import type { DockviewApi } from 'dockview-react'
 import type { ShellMode } from '@nous/ui/components'
 import { WebHeader } from './web-header'
 import { WebStatusBar } from './web-status-bar'
+import type { PanelDef } from './web-panel-defs'
 
 export interface WebChromeShellProps {
   mode: ShellMode
   onModeToggle: () => void
   children: React.ReactNode
+  dockviewApi?: DockviewApi | null
+  panelDefs?: PanelDef[]
 }
 
-export function WebChromeShell({ mode, onModeToggle, children }: WebChromeShellProps) {
+export function WebChromeShell({ mode, onModeToggle, children, dockviewApi, panelDefs }: WebChromeShellProps) {
   return (
     <div
       data-testid="web-chrome-shell"
@@ -25,7 +29,7 @@ export function WebChromeShell({ mode, onModeToggle, children }: WebChromeShellP
         fontFamily: 'var(--nous-font-family)',
       }}
     >
-      <WebHeader mode={mode} onModeToggle={onModeToggle} />
+      <WebHeader mode={mode} onModeToggle={onModeToggle} dockviewApi={dockviewApi} panelDefs={panelDefs} />
       <div
         style={{
           display: 'flex',

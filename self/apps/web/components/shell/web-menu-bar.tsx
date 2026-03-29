@@ -4,7 +4,9 @@ import * as React from 'react'
 import { useState, useEffect } from 'react'
 import * as Menubar from '@radix-ui/react-menubar'
 import type { CSSProperties } from 'react'
+import type { DockviewApi } from 'dockview-react'
 import type { ShellMode } from '@nous/ui/components'
+import type { PanelDef } from './web-panel-defs'
 
 // ─── Shared style primitives (mirrored from desktop MenuBar.tsx) ───────────
 
@@ -68,6 +70,21 @@ const labelStyle: CSSProperties = {
   userSelect: 'none',
 }
 
+const checkboxItemStyle: CSSProperties = {
+  ...itemStyle,
+  paddingLeft: 'var(--nous-space-3xl)',
+  position: 'relative',
+}
+
+const indicatorStyle: CSSProperties = {
+  position: 'absolute',
+  left: 'var(--nous-space-md)',
+  width: 'var(--nous-icon-size-md)',
+  display: 'inline-flex',
+  alignItems: 'center',
+  justifyContent: 'center',
+}
+
 // Hover state CSS — injected once
 const HOVER_STYLE_ID = 'nous-menubar-hover'
 function injectHoverStyles() {
@@ -128,6 +145,23 @@ function Separator() {
   return <Menubar.Separator style={separatorStyle} />
 }
 
+// ─── Panel toggle ────────────────────────────────────────────────────────────
+
+function togglePanel(dockviewApi: DockviewApi | null, def: PanelDef) {
+  if (!dockviewApi) return
+  const existing = dockviewApi.getPanel(def.id)
+  if (existing) {
+    dockviewApi.removePanel(existing)
+  } else {
+    dockviewApi.addPanel({
+      id: def.id,
+      component: def.component,
+      title: def.title,
+      ...(def.position ? { position: def.position } : {}),
+    })
+  }
+}
+
 // ─── Menu definitions ────────────────────────────────────────────────────────
 
 function FileMenu() {
@@ -148,24 +182,54 @@ function FileMenu() {
 function ViewMenu({
   mode,
   onModeToggle,
+  dockviewApi,
+  panelDefs,
 }: {
   mode: ShellMode
   onModeToggle: () => void
+  dockviewApi: DockviewApi | null
+  panelDefs: PanelDef[]
 }) {
+  const [openIds, setOpenIds] = useState<Set<string>>(new Set())
+
+  useEffect(() => {
+    if (mode !== 'developer' || !dockviewApi) {
+      setOpenIds(new Set())
+      return
+    }
+
+    const sync = () => setOpenIds(new Set(dockviewApi.panels.map((p) => p.id)))
+    sync()
+    const d1 = dockviewApi.onDidAddPanel(sync)
+    const d2 = dockviewApi.onDidRemovePanel(sync)
+    return () => { d1.dispose(); d2.dispose() }
+  }, [dockviewApi, mode])
+
   return (
     <Menubar.Menu>
       <Menubar.Trigger style={triggerStyle} data-nous-menu-trigger>View</Menubar.Trigger>
       <Menubar.Portal>
         <Menubar.Content style={contentStyle} align="start" sideOffset={0}>
           <Menubar.Label style={labelStyle}>Panels</Menubar.Label>
-          <Item
-            label="Toggle Chat Panel"
-            disabled
-          />
-          <Item
-            label="Toggle Observe Panel"
-            disabled
-          />
+          {mode === 'simple' ? (
+            <>
+              <Item label="Toggle Chat Panel" disabled />
+              <Item label="Toggle Observe Panel" disabled />
+            </>
+          ) : (
+            panelDefs.map((def) => (
+              <Menubar.CheckboxItem
+                key={def.id}
+                checked={openIds.has(def.id)}
+                onCheckedChange={() => togglePanel(dockviewApi, def)}
+                style={checkboxItemStyle}
+                data-nous-menu-item
+              >
+                <Menubar.ItemIndicator style={indicatorStyle}>✓</Menubar.ItemIndicator>
+                {def.title}
+              </Menubar.CheckboxItem>
+            ))
+          )}
           <Separator />
           <Item
             label="Toggle Developer Mode"
@@ -205,9 +269,13 @@ function HelpMenu() {
 export function WebMenuBar({
   mode,
   onModeToggle,
+  dockviewApi,
+  panelDefs,
 }: {
   mode: ShellMode
   onModeToggle: () => void
+  dockviewApi: DockviewApi | null
+  panelDefs: PanelDef[]
 }) {
   injectHoverStyles()
 
@@ -220,7 +288,7 @@ export function WebMenuBar({
       }}
     >
       <FileMenu />
-      <ViewMenu mode={mode} onModeToggle={onModeToggle} />
+      <ViewMenu mode={mode} onModeToggle={onModeToggle} dockviewApi={dockviewApi} panelDefs={panelDefs} />
       <HelpMenu />
     </Menubar.Root>
   )

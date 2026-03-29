@@ -5,21 +5,26 @@ import { useCallback, useRef } from 'react'
 import { DockviewReact } from 'dockview-react'
 import type { DockviewApi, DockviewReadyEvent, SerializedDockview } from 'dockview-react'
 import { webPanelComponents } from './web-panel-map'
+import { WEB_PANEL_DEFS, DEFAULT_POSITIONS, PANEL_ADD_ORDER } from './web-panel-defs'
 
 import 'dockview-react/dist/styles/dockview.css'
 
 const LAYOUT_STORAGE_KEY = 'nous-web-dockview-layout'
 
 function initDefaultWebLayout(api: DockviewApi): void {
-  // Matches desktop DEFAULT_POSITIONS (excluding Electron-only: files, app-installer)
-  api.addPanel({ id: 'chat', component: 'chat', title: 'Chat' })
-  api.addPanel({ id: 'node-projection', component: 'node-projection', title: 'Node Projection', position: { referencePanel: 'chat', direction: 'right' } })
-  api.addPanel({ id: 'mao', component: 'mao', title: 'MAO', position: { referencePanel: 'node-projection', direction: 'below' } })
-  api.addPanel({ id: 'codexbar', component: 'codexbar', title: 'CodexBar', position: { referencePanel: 'chat', direction: 'within' } })
-  api.addPanel({ id: 'dashboard', component: 'dashboard', title: 'Dashboard', position: { referencePanel: 'chat', direction: 'within' } })
-  api.addPanel({ id: 'coding-agents', component: 'coding-agents', title: 'Coding Agents', position: { referencePanel: 'mao', direction: 'within' } })
-  api.addPanel({ id: 'preferences', component: 'preferences', title: 'Preferences', position: { referencePanel: 'chat', direction: 'within' } })
-  api.addPanel({ id: 'workflow-builder', component: 'workflow-builder', title: 'Workflow Builder', position: { referencePanel: 'chat', direction: 'within' } })
+  const defMap = new Map(WEB_PANEL_DEFS.map((d) => [d.id, d]))
+
+  for (const id of PANEL_ADD_ORDER) {
+    const def = defMap.get(id)
+    if (!def) continue
+    const position = DEFAULT_POSITIONS[id]
+    api.addPanel({
+      id: def.id,
+      component: def.component,
+      title: def.title,
+      ...(position ? { position } : {}),
+    })
+  }
 
   console.log('[nous:dockview] Default web layout initialized')
 }

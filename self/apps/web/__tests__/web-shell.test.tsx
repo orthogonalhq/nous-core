@@ -90,6 +90,15 @@ vi.mock('@/components/shell/web-command-config', () => ({
   buildWebCommands: (cbs: any) => [{ id: 'test', label: 'Test', commands: [] }],
 }))
 
+vi.mock('@/components/shell/web-panel-defs', () => ({
+  WEB_PANEL_DEFS: [
+    { id: 'chat', component: 'chat', title: 'Chat' },
+    { id: 'mao', component: 'mao', title: 'MAO' },
+  ],
+  DEFAULT_POSITIONS: { mao: { direction: 'below', referencePanel: 'chat' } },
+  PANEL_ADD_ORDER: ['chat', 'mao'],
+}))
+
 // ─── Import under test (after mocks) ────────────────────────────────────────
 
 import ShellLayout from '@/app/(shell)/layout'
@@ -224,5 +233,18 @@ describe('Web Shell Integration', () => {
   it('renders WebChromeShell as the outermost shell', () => {
     renderShell()
     expect(screen.getByTestId('web-chrome-shell')).toBeDefined()
+  })
+
+  it('passes panelDefs to WebChromeShell', () => {
+    renderShell()
+    expect(capturedChromeShellProps.panelDefs).toEqual([
+      { id: 'chat', component: 'chat', title: 'Chat' },
+      { id: 'mao', component: 'mao', title: 'MAO' },
+    ])
+  })
+
+  it('passes null dockviewApi in simple mode', () => {
+    renderShell()
+    expect(capturedChromeShellProps.dockviewApi).toBeNull()
   })
 })

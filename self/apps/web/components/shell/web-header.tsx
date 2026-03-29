@@ -2,7 +2,9 @@
 
 import * as React from 'react'
 import dynamic from 'next/dynamic'
+import type { DockviewApi } from 'dockview-react'
 import type { ShellMode } from '@nous/ui/components'
+import type { PanelDef } from './web-panel-defs'
 
 const WebMenuBar = dynamic(
   () => import('./web-menu-bar').then((mod) => ({ default: mod.WebMenuBar })),
@@ -12,9 +14,11 @@ const WebMenuBar = dynamic(
 export interface WebHeaderProps {
   mode: ShellMode
   onModeToggle: () => void
+  dockviewApi?: DockviewApi | null
+  panelDefs?: PanelDef[]
 }
 
-export function WebHeader({ mode, onModeToggle }: WebHeaderProps) {
+export function WebHeader({ mode, onModeToggle, dockviewApi, panelDefs }: WebHeaderProps) {
   return (
     <header
       data-testid="web-header"
@@ -76,7 +80,7 @@ export function WebHeader({ mode, onModeToggle }: WebHeaderProps) {
       />
 
       {/* Menu bar — File / View / Help */}
-      <WebMenuBar mode={mode} onModeToggle={onModeToggle} />
+      <WebMenuBar mode={mode} onModeToggle={onModeToggle} dockviewApi={dockviewApi ?? null} panelDefs={panelDefs ?? []} />
 
       {/* Spacer fills the rest */}
       <div style={{ flex: 1 }} />

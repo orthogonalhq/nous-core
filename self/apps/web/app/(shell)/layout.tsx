@@ -4,6 +4,7 @@ import * as React from 'react'
 import { Suspense, useState, useCallback, useEffect, useMemo } from 'react'
 import { useSearchParams } from 'next/navigation'
 import dynamic from 'next/dynamic'
+import type { DockviewApi } from 'dockview-react'
 import {
   ShellProvider,
   ShellLayout as UIShellLayout,
@@ -18,6 +19,7 @@ import { webRailSections } from '@/components/shell/web-rail-config'
 import { createWebShellRoutes } from '@/components/shell/web-shell-routes'
 import { buildWebCommands } from '@/components/shell/web-command-config'
 import { WebConnectedChatSurface } from '@/components/shell/web-chat-wrappers'
+import { WEB_PANEL_DEFS } from '@/components/shell/web-panel-defs'
 import { ProjectProvider } from '@/lib/project-context'
 
 const WebDockviewShell = dynamic(
@@ -59,6 +61,7 @@ function ShellLayoutContent({
   const [activeRoute, setActiveRoute] = useState('home')
   const [commandPaletteOpen, setCommandPaletteOpen] = useState(false)
   const [projectId, setProjectId] = useState<string | null>(null)
+  const [dockviewApi, setDockviewApi] = useState<DockviewApi | null>(null)
 
   const searchParams = useSearchParams()
 
@@ -86,6 +89,7 @@ function ShellLayoutContent({
   const handleModeToggle = useCallback(() => {
     setMode((prev) => {
       const next = prev === 'simple' ? 'developer' : 'simple'
+      if (next === 'simple') setDockviewApi(null)
       try {
         localStorage.setItem(MODE_STORAGE_KEY, next)
       } catch {
@@ -154,7 +158,7 @@ function ShellLayoutContent({
   )
 
   return (
-    <WebChromeShell mode={mode} onModeToggle={handleModeToggle}>
+    <WebChromeShell mode={mode} onModeToggle={handleModeToggle} dockviewApi={dockviewApi} panelDefs={WEB_PANEL_DEFS}>
       <ShellProvider
         mode={mode}
         activeRoute={activeRoute}
@@ -190,7 +194,7 @@ function ShellLayoutContent({
                 observe={<ObservePanel />}
               />
             ) : (
-              <WebDockviewShell />
+              <WebDockviewShell onApiReady={setDockviewApi} />
             )}
           </div>
           {/* Next.js page outlet — hidden; shell uses ContentRouter for navigation */}
