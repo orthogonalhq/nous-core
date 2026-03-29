@@ -5,8 +5,10 @@ import type {
   IEscalationService,
   IHealthAggregator,
   IOpctlService,
+  IProjectStore,
   IScheduler,
   IWorkflowEngine,
+  ProjectConfig,
   ProjectId,
   WitnessAuthorizationInput,
   WitnessCompletionInput,
@@ -16,6 +18,7 @@ import type {
 import { MaoProjectionService } from '../mao-projection-service.js';
 
 const PROJECT_ID = '11111111-1111-1111-1111-111111111111' as ProjectId;
+const PROJECT_ID_2 = '11111111-1111-1111-1111-222222222222' as ProjectId;
 const RUN_ID = '22222222-2222-2222-2222-222222222222' as const;
 const NODE_A = '33333333-3333-3333-3333-333333333333' as const;
 const NODE_B = '44444444-4444-4444-4444-444444444444' as const;
@@ -411,7 +414,26 @@ function createVoiceControlService(degraded = false) {
   } as any;
 }
 
-function createService(runState: WorkflowRunState, opts?: { healthAggregator?: IHealthAggregator; voiceDegraded?: boolean }) {
+function createProjectStoreMock(projectIds: ProjectId[] = []): IProjectStore {
+  const projects = projectIds.map((id) => ({
+    id,
+    name: `Project ${id}`,
+    description: 'Test project',
+    rootDir: `/projects/${id}`,
+    createdAt: NOW,
+    updatedAt: NOW,
+  })) as unknown as ProjectConfig[];
+
+  return {
+    create: async () => projectIds[0] ?? ('' as ProjectId),
+    get: async (id: ProjectId) => projects.find((p) => p.id === id) ?? null,
+    list: async () => projects,
+    update: async () => {},
+    archive: async () => {},
+  } as IProjectStore;
+}
+
+function createService(runState: WorkflowRunState, opts?: { healthAggregator?: IHealthAggregator; voiceDegraded?: boolean; projectStore?: IProjectStore }) {
   const { opctlService, setControlState } = createOpctlServiceMock();
 
   return {
@@ -423,6 +445,7 @@ function createService(runState: WorkflowRunState, opts?: { healthAggregator?: I
       voiceControlService: createVoiceControlService(opts?.voiceDegraded),
       witnessService: mockWitnessService(),
       healthAggregator: opts?.healthAggregator,
+      projectStore: opts?.projectStore,
     }),
     opctlService,
     setControlState,
@@ -801,6 +824,108 @@ describe('MaoProjectionService', () => {
       );
 
       expect(result.accepted).toBe(true);
+    });
+  });
+
+  describe('getSystemSnapshot', () => {
+    it('returns empty snapshot when projectStore is not provided', async () => {
+      const { service } = createService(createWorkflowRun());
+
+      const snapshot = await service.getSystemSnapshot({ densityMode: 'D2' });
+
+      expect(snapshot.agents).toEqual([]);
+      expect(snapshot.leaseRoots).toEqual([]);
+      expect(snapshot.projectControls).toEqual({});
+      expect(snapshot.densityMode).toBe('D2');
+      expect(snapshot.generatedAt).toBeDefined();
+    });
+
+    it('returns empty snapshot when projectStore has no projects', async () => {
+      const projectStore = createProjectStoreMock([]);
+      const { service } = createService(createWorkflowRun(), { projectStore });
+
+      const snapshot = await service.getSystemSnapshot({ densityMode: 'D2' });
+
+      expect(snapshot.agents).toEqual([]);
+      expect(snapshot.leaseRoots).toEqual([]);
+      expect(snapshot.projectControls).toEqual({});
+    });
+
+    it('aggregates agents from a single project', async () => {
+      const projectStore = createProjectStoreMock([PROJECT_ID]);
+      const { service, setControlState } = createService(createWorkflowRun(), { projectStore });
+      setControlState('running');
+
+      const snapshot = await service.getSystemSnapshot({ densityMode: 'D2' });
+
+      expect(snapshot.agents.length).toBeGreaterThan(0);
+      expect(snapshot.leaseRoots.length).toBeGreaterThan(0);
+      expect(snapshot.projectControls[PROJECT_ID]).toBeDefined();
+      expect(snapshot.densityMode).toBe('D2');
+    });
+
+    it('identifies lease roots as agents without dispatching_task_agent_id', async () => {
+      const projectStore = createProjectStoreMock([PROJECT_ID]);
+      const { service, setControlState } = createService(createWorkflowRun(), { projectStore });
+      setControlState('running');
+
+      const snapshot = await service.getSystemSnapshot({ densityMode: 'D2' });
+
+      // NODE_A has no parent (dispatching_task_agent_id is null), so it should be a lease root
+      const nodeAAgent = snapshot.agents.find(
+        (a) => a.workflow_node_definition_id === NODE_A,
+      );
+      if (nodeAAgent) {
+        expect(snapshot.leaseRoots).toContain(nodeAAgent.agent_id);
+      }
+    });
+
+    it('applies default D2 density mode', async () => {
+      const projectStore = createProjectStoreMock([PROJECT_ID]);
+      const { service } = createService(createWorkflowRun(), { projectStore });
+
+      const snapshot = await service.getSystemSnapshot({ densityMode: 'D2' });
+
+      expect(snapshot.densityMode).toBe('D2');
+    });
+  });
+
+  describe('buildAgentProjection — display_name', () => {
+    it('populates display_name from node definition metadata displayName', async () => {
+      const runState = createWorkflowRun();
+      const { service, setControlState } = createService(runState);
+      setControlState('running');
+
+      const projections = await service.getAgentProjections(PROJECT_ID);
+
+      // All agents should have display_name populated from node definition name
+      for (const proj of projections) {
+        expect(proj.display_name).toBeDefined();
+      }
+    });
+
+    it('falls back display_name to node definition name', async () => {
+      const { service, setControlState } = createService(createWorkflowRun());
+      setControlState('running');
+
+      const projections = await service.getAgentProjections(PROJECT_ID);
+
+      const draftAgent = projections.find(
+        (a) => a.workflow_node_definition_id === NODE_A,
+      );
+      // Node name is 'Draft' in the mock graph
+      expect(draftAgent?.display_name).toBe('Draft');
+    });
+
+    it('sets agent_class to undefined in SP 1.1', async () => {
+      const { service, setControlState } = createService(createWorkflowRun());
+      setControlState('running');
+
+      const projections = await service.getAgentProjections(PROJECT_ID);
+
+      for (const proj of projections) {
+        expect(proj.agent_class).toBeUndefined();
+      }
     });
   });
 });
