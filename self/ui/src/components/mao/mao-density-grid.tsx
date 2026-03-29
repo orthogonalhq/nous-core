@@ -1,7 +1,7 @@
 'use client';
 
 import * as React from 'react';
-import type { MaoGridTileProjection, MaoProjectSnapshot } from '@nous/shared';
+import type { MaoDensityMode, MaoGridTileProjection, MaoProjectSnapshot } from '@nous/shared';
 import { Badge } from '../badge';
 import { Card, CardContent, CardHeader, CardTitle } from '../card';
 
@@ -38,6 +38,55 @@ function toneClasses(tile: MaoGridTileProjection): string {
     return 'border-slate-500/40 bg-slate-500/10';
   }
   return 'border-border bg-background';
+}
+
+const streamingPulseStyle: React.CSSProperties = {
+  display: 'inline-block',
+  width: 6,
+  height: 6,
+  borderRadius: '50%',
+  backgroundColor: 'rgb(16 185 129)',
+  animation: 'nous-streaming-pulse 1.2s ease-in-out infinite',
+};
+
+function renderInferenceInfo(
+  tile: MaoGridTileProjection,
+  densityMode: MaoDensityMode,
+): React.ReactNode {
+  if (!tile.agent.inference_provider_id) return null;
+  if (densityMode === 'D3' || densityMode === 'D4') return null;
+
+  const provider = tile.agent.inference_provider_id;
+  const model = tile.agent.inference_model_id;
+  const latency = tile.agent.inference_latency_ms;
+  const tokens = tile.agent.inference_total_tokens;
+  const isStreaming = tile.agent.inference_is_streaming;
+
+  if (densityMode === 'D2') {
+    return (
+      <div className="mt-2 flex items-center gap-1.5 text-xs text-muted-foreground" data-testid="inference-d2">
+        {isStreaming ? <span style={streamingPulseStyle} data-testid="streaming-pulse" /> : null}
+        {tokens != null ? <span>{tokens.toLocaleString()} tok</span> : null}
+      </div>
+    );
+  }
+
+  // D0 and D1 share provider, model, latency, tokens
+  return (
+    <div className="mt-2 flex flex-wrap items-center gap-1.5 text-xs text-muted-foreground" data-testid={`inference-${densityMode.toLowerCase()}`}>
+      <span>{provider}</span>
+      {model ? <span className="text-muted-foreground/70">{model}</span> : null}
+      {latency != null ? (
+        <Badge variant="outline" className="text-[10px] px-1 py-0">
+          {latency}ms
+        </Badge>
+      ) : null}
+      {tokens != null ? <span>{tokens.toLocaleString()} tok</span> : null}
+      {densityMode === 'D0' && isStreaming ? (
+        <span style={streamingPulseStyle} data-testid="streaming-pulse" />
+      ) : null}
+    </div>
+  );
 }
 
 export interface MaoDensityGridProps {
@@ -121,6 +170,8 @@ export function MaoDensityGrid({
                     <span>{tile.agent.progress_percent}% complete</span>
                     <span>{tile.agent.reflection_cycle_count} review cycles</span>
                   </div>
+
+                  {renderInferenceInfo(tile, snapshot.densityMode)}
 
                   {tile.agent.reasoning_log_preview ? (
                     <p className="mt-3 line-clamp-2 text-xs text-muted-foreground">

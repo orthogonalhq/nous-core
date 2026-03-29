@@ -14,6 +14,7 @@ interface MaoInspectPanelProps {
 
 export function MaoInspectPanel({ inspect, isLoading }: MaoInspectPanelProps) {
   const { Link } = useMaoServices();
+  const [inferenceHistoryOpen, setInferenceHistoryOpen] = React.useState(false);
 
   function renderSurfaceLink(
     link: MaoSurfaceLink,
@@ -206,6 +207,71 @@ export function MaoInspectPanel({ inspect, isLoading }: MaoInspectPanelProps) {
                   ))}
                 </div>
               )}
+            </div>
+
+            <div className="space-y-2">
+              <button
+                type="button"
+                onClick={() => setInferenceHistoryOpen((prev) => !prev)}
+                className="flex w-full items-center justify-between font-medium"
+                data-testid="inference-history-toggle"
+              >
+                <span>Inference History</span>
+                <span className="text-xs text-muted-foreground">
+                  {inferenceHistoryOpen ? '\u25B2' : '\u25BC'}
+                </span>
+              </button>
+              {inferenceHistoryOpen ? (
+                !inspect.inference_history?.length ? (
+                  <p className="text-muted-foreground">
+                    No inference history available.
+                  </p>
+                ) : (
+                  <div className="overflow-x-auto">
+                    <table className="w-full text-xs" data-testid="inference-history-table">
+                      <thead>
+                        <tr className="border-b border-border text-left text-muted-foreground">
+                          <th className="pb-1 pr-3 font-medium">Timestamp</th>
+                          <th className="pb-1 pr-3 font-medium">Provider</th>
+                          <th className="pb-1 pr-3 font-medium">Model</th>
+                          <th className="pb-1 pr-3 font-medium text-right">In tokens</th>
+                          <th className="pb-1 pr-3 font-medium text-right">Out tokens</th>
+                          <th className="pb-1 font-medium text-right">Latency</th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {[...inspect.inference_history]
+                          .sort((a, b) => new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime())
+                          .slice(0, 50)
+                          .map((entry, idx) => (
+                            <tr key={`${entry.traceId}-${idx}`} className="border-b border-border/50">
+                              <td className="py-1 pr-3 whitespace-nowrap">
+                                {new Date(entry.timestamp).toLocaleString(undefined, {
+                                  month: 'short',
+                                  day: 'numeric',
+                                  hour: '2-digit',
+                                  minute: '2-digit',
+                                  second: '2-digit',
+                                })}
+                              </td>
+                              <td className="py-1 pr-3">{entry.providerId}</td>
+                              <td className="py-1 pr-3">{entry.modelId}</td>
+                              <td className="py-1 pr-3 text-right tabular-nums">
+                                {entry.inputTokens != null ? entry.inputTokens.toLocaleString() : '\u2014'}
+                              </td>
+                              <td className="py-1 pr-3 text-right tabular-nums">
+                                {entry.outputTokens != null ? entry.outputTokens.toLocaleString() : '\u2014'}
+                              </td>
+                              <td className="py-1 text-right tabular-nums">
+                                {Math.round(entry.latencyMs)}ms
+                              </td>
+                            </tr>
+                          ))}
+                      </tbody>
+                    </table>
+                  </div>
+                )
+              ) : null}
             </div>
           </>
         )}
