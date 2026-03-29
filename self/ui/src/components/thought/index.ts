@@ -24,3 +24,9 @@ export type { ThoughtSummaryProps, ThoughtSummaryCounts } from './ThoughtSummary
 
 export { TraceDetail } from './TraceDetail'
 export type { TraceDetailProps } from './TraceDetail'
+
+export {
+  getThoughtLabel,
+  LIFECYCLE_PHASE_LABELS,
+  PFC_THOUGHT_TYPE_LABELS,
+} from './thought-labels'
