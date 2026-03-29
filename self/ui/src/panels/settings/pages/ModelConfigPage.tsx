@@ -41,8 +41,8 @@ export function ModelConfigPage({ api }: ModelConfigPageProps) {
         setPendingPrincipal(selectionResult.principal ?? '')
         setPendingSystem(selectionResult.system ?? '')
       }
-    } catch {
-      // ignore
+    } catch (err) {
+      setModelFeedback(formatFeedbackError(err))
     }
   }, [api])
 

@@ -32,8 +32,8 @@ export function ApiKeysPage({ api }: ApiKeysPageProps) {
     try {
       const keys = await api.getApiKeys()
       setApiKeys(keys)
-    } catch {
-      // ignore
+    } catch (err) {
+      setFeedback(formatFeedbackError(err))
     }
   }, [api])
 
