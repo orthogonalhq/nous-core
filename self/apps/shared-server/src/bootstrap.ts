@@ -84,7 +84,7 @@ import {
 import { DocumentArtifactStore } from '@nous/subcortex-artifacts';
 import { DocumentEscalationStore, EscalationService } from '@nous/subcortex-escalation';
 import { ModelRouter } from '@nous/subcortex-router';
-import { ProviderRegistry } from '@nous/subcortex-providers';
+import { ProviderRegistry, TokenAccumulatorService } from '@nous/subcortex-providers';
 import {
   DiscoverProjectsTool,
   EchoTool,
@@ -105,7 +105,7 @@ import {
   InMemoryScopeLockStore,
   InMemoryProjectControlStateStore,
 } from '@nous/subcortex-opctl';
-import { MaoProjectionService } from '@nous/subcortex-mao';
+import { MaoProjectionService, InferenceProjectionAdapter } from '@nous/subcortex-mao';
 import { registerCodingAgentNodeTypes } from '@nous/subcortex-coding-agents';
 import { GtmGateCalculator } from '@nous/subcortex-gtm';
 import { VoiceControlService } from '@nous/subcortex-voice-control';
@@ -713,7 +713,6 @@ export function createNousServices(config?: BootstrapConfig): NousContext {
   );
 
   const router = new ModelRouter(appConfig);
-  const providerRegistry = new ProviderRegistry(appConfig);
   const codingAgentNodeHandlerOverrides = new Map<WorkflowNodeKind, IWorkflowNodeHandler>();
   const codingAgentMaoEvents: Array<{ type: string; data: unknown; timestamp: string }> = [];
   registerCodingAgentNodeTypes(codingAgentNodeHandlerOverrides, {
@@ -740,6 +739,9 @@ export function createNousServices(config?: BootstrapConfig): NousContext {
     },
   });
   const eventBus = new EventBus();
+  const providerRegistry = new ProviderRegistry(appConfig, { eventBus });
+  const tokenAccumulator = new TokenAccumulatorService(eventBus);
+  const inferenceAdapter = new InferenceProjectionAdapter(eventBus);
   const thoughtEmitter = new ThoughtEmitterImpl(eventBus);
   Cortex.setThoughtEmitter(thoughtEmitter);
   const escalationService = new EscalationService({
@@ -868,6 +870,7 @@ export function createNousServices(config?: BootstrapConfig): NousContext {
     voiceControlService,
     witnessService,
     eventBus,
+    inferenceAdapter,
   });
   const workmodeAdmissionGuard = new WorkmodeAdmissionGuard();
   const publicMcpNamespaceStore = new NamespaceRegistryStore(documentStore);
@@ -1301,6 +1304,7 @@ export function createNousServices(config?: BootstrapConfig): NousContext {
     eventBus,
     healthAggregator,
     healthMonitor,
+    tokenAccumulator,
   };
 
   console.log(`[nous:${runtimeLabel}] bootstrap complete`);
