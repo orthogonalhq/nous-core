@@ -172,6 +172,7 @@ export const WorkflowNodeMetadataSchema = z.object({
   skill: z.string().min(1).optional(),
   contracts: z.array(z.string().min(1)).optional(),
   templates: z.array(z.string().min(1)).optional(),
+  displayName: z.string().min(1).optional(),
 });
 export type WorkflowNodeMetadata = z.infer<typeof WorkflowNodeMetadataSchema>;
 

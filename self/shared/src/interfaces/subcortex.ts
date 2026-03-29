@@ -80,6 +80,8 @@ import type {
   MaoProjectControlProjection,
   MaoProjectSnapshot,
   MaoProjectSnapshotInput,
+  MaoSystemSnapshotInput,
+  MaoSystemSnapshot,
   MaoEventType,
   MaoRunGraphSnapshot,
   MaoControlAuditHistoryEntry,
@@ -1163,6 +1165,9 @@ export interface IMaoProjectionService {
 
   /** Get audit history for project control actions. */
   getControlAuditHistory(projectId: ProjectId): Promise<MaoControlAuditHistoryEntry[]>;
+
+  /** Derive a system-wide snapshot spanning all projects. */
+  getSystemSnapshot(input: MaoSystemSnapshotInput): Promise<MaoSystemSnapshot>;
 }
 
 export interface IGtmGateCalculator {

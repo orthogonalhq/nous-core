@@ -4,6 +4,7 @@ import type {
   ControlActorType,
   IEscalationService,
   IOpctlService,
+  IProjectStore,
   IScheduler,
   IVoiceControlService,
   IWorkflowEngine,
@@ -21,6 +22,8 @@ import type {
   MaoRunGraphEdge,
   MaoRunGraphNode,
   MaoRunGraphSnapshot,
+  MaoSystemSnapshot,
+  MaoSystemSnapshotInput,
   ProjectControlState,
   ProjectId,
   WorkflowNodeRunState,
@@ -38,6 +41,8 @@ import {
   MaoProjectSnapshotInputSchema,
   MaoProjectSnapshotSchema,
   MaoRunGraphSnapshotSchema,
+  MaoSystemSnapshotInputSchema,
+  MaoSystemSnapshotSchema,
 } from '@nous/shared';
 
 type ControlAuditRecord = {
@@ -497,6 +502,7 @@ export interface MaoProjectionServiceDeps {
   eventBus?: import('@nous/shared').IEventBus;
   healthAggregator?: IHealthAggregator;
   inferenceAdapter?: import('./inference-projection-adapter.js').InferenceProjectionAdapter;
+  projectStore?: IProjectStore;
 }
 
 export class MaoProjectionService {
@@ -862,6 +868,59 @@ export class MaoProjectionService {
     }));
   }
 
+  async getSystemSnapshot(input: MaoSystemSnapshotInput): Promise<MaoSystemSnapshot> {
+    const parsed = MaoSystemSnapshotInputSchema.parse(input);
+    const generatedAt = nowIso();
+
+    if (!this.deps.projectStore) {
+      return MaoSystemSnapshotSchema.parse({
+        agents: [],
+        leaseRoots: [],
+        projectControls: {},
+        densityMode: parsed.densityMode,
+        generatedAt,
+      });
+    }
+
+    const projects = await this.deps.projectStore.list();
+    const allAgents: MaoAgentProjection[] = [];
+    const leaseRoots: string[] = [];
+    const projectControls: Record<string, MaoProjectControlProjection> = {};
+
+    for (const project of projects) {
+      const projectId = project.id;
+      try {
+        const context = await this.buildProjectionContext({
+          projectId,
+          densityMode: parsed.densityMode,
+        });
+
+        allAgents.push(...context.agentProjections);
+
+        // Identify lease roots: agents that are not dispatched by another agent
+        for (const agent of context.agentProjections) {
+          if (agent.dispatching_task_agent_id == null) {
+            leaseRoots.push(agent.agent_id);
+          }
+        }
+
+        const controlProjection = this.buildProjectControlProjection(context);
+        projectControls[projectId] = controlProjection;
+      } catch {
+        // Skip projects that fail to build context (e.g. no workflow engine state)
+        continue;
+      }
+    }
+
+    return MaoSystemSnapshotSchema.parse({
+      agents: allAgents,
+      leaseRoots,
+      projectControls,
+      densityMode: parsed.densityMode,
+      generatedAt,
+    });
+  }
+
   private async buildProjectionContext(
     input: MaoProjectSnapshotInput,
   ): Promise<ProjectionContext> {
@@ -970,6 +1029,7 @@ export class MaoProjectionService {
       ]),
     ];
     const preview = buildReasoningPreview(projectId, run, nodeDefinitionId, nodeState);
+    const nodeDefinition = graph.nodes[nodeDefinitionId]?.definition;
     const projection = {
       agent_id: nodeState.id,
       project_id: projectId,
@@ -977,6 +1037,8 @@ export class MaoProjectionService {
       workflow_node_definition_id: nodeDefinitionId as import('@nous/shared').WorkflowNodeDefinitionId,
       dispatching_task_agent_id: dispatchingTaskAgentId,
       dispatch_origin_ref: nodeState.lastDispatchLineageId ?? `workflow-run:${run.runId}`,
+      agent_class: undefined,
+      display_name: nodeDefinition?.metadata?.displayName ?? nodeDefinition?.name,
       state: lifecycleState,
       state_reason: nodeState.reasonCode ?? nodeState.activeWaitState?.reasonCode,
       state_reason_code:
