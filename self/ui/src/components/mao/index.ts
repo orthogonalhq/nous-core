@@ -39,6 +39,8 @@ export type { MaoT3ConfirmationDialogProps } from './mao-t3-confirmation-dialog'
 
 export { MaoOperatingSurface } from './mao-operating-surface';
 
+export { MaoPanel } from './MaoPanel';
+
 export { MaoLeaseTree } from './mao-lease-tree';
 export type { MaoLeaseTreeProps } from './mao-lease-tree';
 
