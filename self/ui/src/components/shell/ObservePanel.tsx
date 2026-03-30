@@ -17,12 +17,6 @@ function ObserveLink(props: { href: string; className?: string; children: ReactN
   )
 }
 
-const observeMaoServices: MaoServicesContextValue = {
-  Link: ObserveLink,
-  useProject: () => ({ projectId: null, setProjectId: () => {} }),
-  useSearchParams: () => ({ get: () => null }),
-}
-
 /** Map content routes to observe sub-panel routes */
 const OBSERVE_ROUTE_MAP: Record<string, ObserveRoute> = {
   workflows: 'mao',
@@ -31,7 +25,13 @@ const OBSERVE_ROUTE_MAP: Record<string, ObserveRoute> = {
 }
 
 export function ObservePanel(props: ObservePanelProps) {
-  const { activeRoute } = useShellContext()
+  const { activeRoute, activeProjectId } = useShellContext()
+
+  const observeMaoServices: MaoServicesContextValue = {
+    Link: ObserveLink,
+    useProject: () => ({ projectId: activeProjectId ?? null, setProjectId: () => {} }),
+    useSearchParams: () => ({ get: () => null }),
+  }
 
   const observeRoute: ObserveRoute = OBSERVE_ROUTE_MAP[activeRoute] ?? 'default'
 
