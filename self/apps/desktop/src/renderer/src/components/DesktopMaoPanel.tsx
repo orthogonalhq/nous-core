@@ -7,14 +7,32 @@ import {
   MaoServicesProvider,
 } from '@nous/ui/components';
 import type { MaoServicesContextValue } from '@nous/ui/components';
+import { trpcQuery } from './wizard/trpc-fetch';
 
 /**
  * Desktop-specific project state for MAO.
  * Uses a simple local state since the desktop app doesn't have a global
  * project context yet. The project list tRPC query provides available IDs.
+ * Auto-selects the first project on mount when no project is selected.
  */
 function useDesktopProject() {
   const [projectId, setProjectId] = React.useState<string | null>(null);
+
+  React.useEffect(() => {
+    if (projectId !== null) return;
+    let cancelled = false;
+    trpcQuery<Array<{ id: string }>>('projects.list')
+      .then((projects) => {
+        if (!cancelled && projects.length > 0) {
+          setProjectId(projects[0].id);
+        }
+      })
+      .catch(() => {
+        // Silently ignore — panel shows empty state
+      });
+    return () => { cancelled = true; };
+  }, [projectId]);
+
   return { projectId, setProjectId };
 }
 
