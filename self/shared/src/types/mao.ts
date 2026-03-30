@@ -16,6 +16,13 @@ import {
 import { NodeReasoningLogClassSchema } from './chat-node-context.js';
 import { AgentClassSchema } from './agent-gateway.js';
 
+/**
+ * Sentinel project ID for system-scoped agents (Cortex::Principal, Cortex::System).
+ * These agents are not project-scoped but MaoAgentProjectionSchema requires a valid UUID.
+ * Uses the RFC 4122 nil UUID which will never collide with crypto.randomUUID().
+ */
+export const SYSTEM_SCOPE_SENTINEL_PROJECT_ID = '00000000-0000-0000-0000-000000000000';
+
 export const MaoDensityModeSchema = z.enum(['D0', 'D1', 'D2', 'D3', 'D4']);
 export type MaoDensityMode = z.infer<typeof MaoDensityModeSchema>;
 
