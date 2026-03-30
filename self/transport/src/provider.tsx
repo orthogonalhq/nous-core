@@ -76,7 +76,9 @@ export interface TransportProviderProps {
 }
 
 export function TransportProvider({ config, children }: TransportProviderProps) {
-  const [queryClient] = useState(() => new QueryClient());
+  const [queryClient] = useState(() => new QueryClient({
+    defaultOptions: { queries: { retry: 1 } },
+  }));
   const [trpcClient] = useState(() =>
     trpc.createClient({
       links: [
