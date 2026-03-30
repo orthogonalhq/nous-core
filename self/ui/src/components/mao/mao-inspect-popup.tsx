@@ -78,23 +78,60 @@ export function MaoInspectPopup({
   const noop = () => {};
 
   return createPortal(
-    <div className="fixed inset-0 z-50" data-testid="inspect-popup">
+    <div
+      data-testid="inspect-popup"
+      style={{
+        position: 'fixed',
+        inset: 0,
+        zIndex: 'var(--nous-z-toast, 400)' as any,
+        display: 'flex',
+        alignItems: 'center',
+        justifyContent: 'center',
+      }}
+    >
       {/* Backdrop */}
       <div
-        className="absolute inset-0 bg-black/30"
         onClick={onClose}
         data-testid="inspect-popup-backdrop"
+        style={{
+          position: 'absolute',
+          inset: 0,
+          background: 'rgba(0, 0, 0, 0.4)',
+        }}
       />
 
       {/* Popup container */}
-      <div className="absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 w-full max-w-2xl max-h-[85vh] overflow-y-auto rounded-xl border border-border bg-background p-6 shadow-xl">
+      <div
+        style={{
+          position: 'relative',
+          width: '100%',
+          maxWidth: '42rem',
+          maxHeight: '85vh',
+          overflowY: 'auto',
+          borderRadius: 'var(--nous-radius-xl, 12px)',
+          border: '1px solid var(--nous-border)',
+          background: 'var(--nous-bg-surface, var(--nous-bg))',
+          padding: 'var(--nous-space-3xl)',
+          boxShadow: '0 25px 50px -12px rgba(0, 0, 0, 0.25)',
+        }}
+      >
         {/* Close button */}
         <button
           type="button"
           onClick={onClose}
-          className="absolute right-4 top-4 rounded-sm p-1 text-muted-foreground hover:text-foreground transition-colors"
           aria-label="Close inspect popup"
           data-testid="inspect-popup-close"
+          style={{
+            position: 'absolute',
+            right: 'var(--nous-space-lg)',
+            top: 'var(--nous-space-lg)',
+            padding: 'var(--nous-space-xs)',
+            background: 'none',
+            border: 'none',
+            cursor: 'pointer',
+            color: 'var(--nous-text-secondary)',
+            borderRadius: 'var(--nous-radius-sm, 4px)',
+          }}
         >
           <svg
             xmlns="http://www.w3.org/2000/svg"
@@ -113,7 +150,7 @@ export function MaoInspectPopup({
         </button>
 
         {/* Content */}
-        <div className="space-y-6 pt-2">
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 'var(--nous-space-3xl)', paddingTop: 'var(--nous-space-sm)' }}>
           <MaoInspectPanel
             inspect={inspectQuery.data}
             isLoading={inspectQuery.isLoading}
