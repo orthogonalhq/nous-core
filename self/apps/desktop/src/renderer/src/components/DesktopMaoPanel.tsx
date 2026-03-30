@@ -9,5 +9,9 @@ import { MaoPanel } from '@nous/ui/components';
  * by MaoPanel in @nous/ui — this is pure chrome.
  */
 export function DesktopMaoPanel(_props: IDockviewPanelProps) {
-  return <MaoPanel />;
+  return (
+    <div style={{ height: '100%' }}>
+      <MaoPanel />
+    </div>
+  );
 }
