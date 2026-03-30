@@ -24,7 +24,7 @@ import {
   type ShellMode,
   type CommandGroup,
 } from '@nous/ui/components'
-import { TransportProvider, createDesktopTransport } from '@nous/transport'
+import { TransportProvider, createDesktopTransport, trpc } from '@nous/transport'
 import { FirstRunWizard } from './components/FirstRunWizard'
 import { TitleBar } from './components/TitleBar'
 import { StatusBar } from './components/StatusBar'
@@ -672,47 +672,53 @@ export function App() {
     return loadingShell
   }
 
+  const shellChildren = (
+    <>
+      <CommandPalette
+        isOpen={commandPaletteOpen}
+        onClose={() => setCommandPaletteOpen(false)}
+        commands={commands}
+      />
+      {mode === 'simple' ? (
+        <ShellLayout
+          rail={(
+            <NavigationRail
+              items={RAIL_SECTIONS}
+              activeItemId={activeRoute}
+              onItemSelect={handleNavigate}
+            />
+          )}
+          chat={<ConnectedChatSurface />}
+          content={(
+            <ContentRouter
+              activeRoute={activeRoute}
+              routes={simpleModeRoutes}
+              onNavigate={handleNavigate}
+            />
+          )}
+          observe={<ObservePanel />}
+        />
+      ) : (
+        <DockviewShell
+          savedLayout={savedLayout}
+          onApiReady={setDockviewApi}
+          activeAppPanelIds={new Set(appPanels.map((panel) => panel.dockview_panel_id))}
+          panelDefs={panelDefs}
+        />
+      )}
+    </>
+  )
+
   const mainContent = (
-    <ShellProvider
+    <DesktopShellWithProject
       mode={mode}
       activeRoute={activeRoute}
       navigation={navigation}
       navigate={handleNavigate}
       goBack={handleGoBack}
     >
-        <CommandPalette
-          isOpen={commandPaletteOpen}
-          onClose={() => setCommandPaletteOpen(false)}
-          commands={commands}
-        />
-        {mode === 'simple' ? (
-          <ShellLayout
-            rail={(
-              <NavigationRail
-                items={RAIL_SECTIONS}
-                activeItemId={activeRoute}
-                onItemSelect={handleNavigate}
-              />
-            )}
-            chat={<ConnectedChatSurface />}
-            content={(
-              <ContentRouter
-                activeRoute={activeRoute}
-                routes={simpleModeRoutes}
-                onNavigate={handleNavigate}
-              />
-            )}
-            observe={<ObservePanel />}
-          />
-        ) : (
-          <DockviewShell
-            savedLayout={savedLayout}
-            onApiReady={setDockviewApi}
-            activeAppPanelIds={new Set(appPanels.map((panel) => panel.dockview_panel_id))}
-            panelDefs={panelDefs}
-          />
-        )}
-    </ShellProvider>
+      {shellChildren}
+    </DesktopShellWithProject>
   )
 
   return (
@@ -730,6 +736,55 @@ export function App() {
         mainContent
       )}
     </ChromeShell>
+  )
+}
+
+// ─── Project boot wrapper ───────────────────────────────────────────────────
+// Renders inside TransportProvider so tRPC hooks are available.
+// Boots a default project on mount, then passes activeProjectId to ShellProvider.
+
+function DesktopShellWithProject({
+  children,
+  mode,
+  activeRoute,
+  navigation,
+  navigate,
+  goBack,
+}: {
+  children: React.ReactNode
+  mode: ShellMode
+  activeRoute: string
+  navigation: { activeRoute: string; history: string[]; canGoBack: boolean }
+  navigate: (routeId: string) => void
+  goBack: () => void
+}) {
+  const [activeProjectId, setActiveProjectId] = useState<string | null>(null)
+
+  const { data: projectList } = trpc.projects.list.useQuery()
+  const createProject = trpc.projects.create.useMutation()
+
+  useEffect(() => {
+    if (!projectList) return // still loading
+    if (projectList.length > 0) {
+      setActiveProjectId(projectList[0].id)
+    } else {
+      createProject.mutateAsync({ name: 'Default' }).then((created) => {
+        setActiveProjectId(created.id)
+      })
+    }
+  }, [projectList]) // eslint-disable-line react-hooks/exhaustive-deps
+
+  return (
+    <ShellProvider
+      mode={mode}
+      activeRoute={activeRoute}
+      navigation={navigation}
+      navigate={navigate}
+      goBack={goBack}
+      activeProjectId={activeProjectId}
+    >
+      {children}
+    </ShellProvider>
   )
 }
 

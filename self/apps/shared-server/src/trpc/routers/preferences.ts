@@ -671,13 +671,21 @@ export const preferencesRouter = router({
       // Ollama not reachable
     }
 
+    let credentialVaultHealthy = false
+    try {
+      await ctx.credentialVaultService.getMetadata(SYSTEM_APP_ID, 'health-check')
+      credentialVaultHealthy = true
+    } catch {
+      credentialVaultHealthy = false
+    }
+
     return {
       ollama: {
         running: ollamaRunning,
         models: ollamaModels,
       },
       configuredProviders,
-      credentialVaultHealthy: true,
+      credentialVaultHealthy,
     };
   }),
 });
