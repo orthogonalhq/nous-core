@@ -1,5 +1,6 @@
 import { createHash, randomUUID } from 'node:crypto';
 import type {
+  AgentGatewayEntry,
   ConfirmationProof,
   ControlActorType,
   IEscalationService,
@@ -43,6 +44,7 @@ import {
   MaoRunGraphSnapshotSchema,
   MaoSystemSnapshotInputSchema,
   MaoSystemSnapshotSchema,
+  SYSTEM_SCOPE_SENTINEL_PROJECT_ID,
 } from '@nous/shared';
 
 type ControlAuditRecord = {
@@ -520,6 +522,41 @@ export class MaoProjectionService {
     this.deps.healthAggregator = aggregator;
   }
 
+  /**
+   * Synthesize an MaoAgentProjection from a health aggregator gateway entry.
+   * Used for system agents (Cortex::Principal, Cortex::System) that exist
+   * outside the workflow engine.
+   */
+  private synthesizeSystemAgentProjection(gw: AgentGatewayEntry, generatedAt: string): MaoAgentProjection {
+    const now = gw.lastAckAt ?? gw.lastSubmissionAt ?? generatedAt;
+    const hasIssues = gw.issueCount > 0;
+    return {
+      agent_id: gw.agentId,
+      project_id: SYSTEM_SCOPE_SENTINEL_PROJECT_ID as ProjectId,
+      dispatching_task_agent_id: null,
+      dispatch_origin_ref: 'gateway-runtime:system-agent',
+      agent_class: gw.agentClass as 'Cortex::Principal' | 'Cortex::System' | 'Orchestrator' | 'Worker',
+      display_name: gw.agentClass,
+      state: gw.inboxReady ? 'running' : 'queued',
+      current_step: 'System gateway active',
+      progress_percent: 100,
+      risk_level: hasIssues ? 'medium' : 'low',
+      urgency_level: 'normal',
+      attention_level: hasIssues ? 'medium' : 'none',
+      pfc_alert_status: 'none',
+      pfc_mitigation_status: 'none',
+      dispatch_state: 'active',
+      reflection_cycle_count: 0,
+      last_update_at: now,
+      reasoning_log_preview: null,
+      reasoning_log_last_entry_class: null,
+      reasoning_log_last_entry_at: null,
+      reasoning_log_redaction_state: 'none',
+      deepLinks: [],
+      evidenceRefs: [],
+    };
+  }
+
   async getAgentProjections(projectId: ProjectId): Promise<MaoAgentProjection[]> {
     const context = await this.buildProjectionContext({
       projectId,
@@ -595,6 +632,23 @@ export class MaoProjectionService {
           : false,
     );
     if (!agent || !context.selectedRun) {
+      // Fallback: synthesize inspect projection for system agents from health data
+      if (parsed.agentId && this.deps.healthAggregator) {
+        const agentStatus = this.deps.healthAggregator.getAgentStatus();
+        const gw = agentStatus.gateways.find((g) => g.agentId === parsed.agentId);
+        if (gw) {
+          const systemAgent = this.synthesizeSystemAgentProjection(gw, context.generatedAt);
+          return MaoAgentInspectProjectionSchema.parse({
+            projectId: SYSTEM_SCOPE_SENTINEL_PROJECT_ID,
+            agent: systemAgent,
+            projectControlState: 'running',
+            latestAttempt: null,
+            correctionArcs: [],
+            evidenceRefs: [],
+            generatedAt: context.generatedAt,
+          });
+        }
+      }
       return null;
     }
 
@@ -906,19 +960,38 @@ export class MaoProjectionService {
 
         const controlProjection = this.buildProjectControlProjection(context);
         projectControls[projectId] = controlProjection;
-      } catch {
-        // Skip projects that fail to build context (e.g. no workflow engine state)
+      } catch (error) {
+        console.warn('[nous:mao] getSystemSnapshot: project %s skipped', projectId, error);
         continue;
       }
     }
 
-    return MaoSystemSnapshotSchema.parse({
+    // --- System agent synthesis from health aggregator ---
+    if (this.deps.healthAggregator) {
+      const agentStatus = this.deps.healthAggregator.getAgentStatus();
+      const existingIds = new Set(allAgents.map((a) => a.agent_id));
+
+      for (const gw of agentStatus.gateways) {
+        if (existingIds.has(gw.agentId)) continue;
+        existingIds.add(gw.agentId);
+
+        const systemAgent = this.synthesizeSystemAgentProjection(gw, generatedAt);
+        allAgents.push(systemAgent);
+        leaseRoots.push(gw.agentId);
+      }
+    }
+
+    const snapshot = MaoSystemSnapshotSchema.parse({
       agents: allAgents,
       leaseRoots,
       projectControls,
       densityMode: parsed.densityMode,
       generatedAt,
     });
+
+    this.deps.eventBus?.publish('mao:projection-changed', {});
+
+    return snapshot;
   }
 
   private async buildProjectionContext(

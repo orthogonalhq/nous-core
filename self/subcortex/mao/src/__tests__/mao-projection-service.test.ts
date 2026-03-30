@@ -1,6 +1,7 @@
-import { describe, expect, it } from 'vitest';
+import { describe, expect, it, vi } from 'vitest';
 import { randomUUID } from 'node:crypto';
 import type {
+  AgentGatewayEntry,
   ConfirmationProof,
   IEscalationService,
   IHealthAggregator,
@@ -15,6 +16,7 @@ import type {
   WitnessEvent,
   WorkflowRunState,
 } from '@nous/shared';
+import { SYSTEM_SCOPE_SENTINEL_PROJECT_ID } from '@nous/shared';
 import { MaoProjectionService } from '../mao-projection-service.js';
 
 const PROJECT_ID = '11111111-1111-1111-1111-111111111111' as ProjectId;
@@ -356,17 +358,35 @@ function createOpctlServiceMock(
   };
 }
 
-function mockHealthAggregator(bootStatus: 'booting' | 'ready' | 'degraded' = 'ready'): IHealthAggregator {
+const SYSTEM_AGENT_ID_1 = 'aaaa0000-0000-0000-0000-000000000001';
+const SYSTEM_AGENT_ID_2 = 'aaaa0000-0000-0000-0000-000000000002';
+
+function createGatewayEntry(overrides?: Partial<AgentGatewayEntry>): AgentGatewayEntry {
+  return {
+    agentClass: 'Cortex::Principal',
+    agentId: SYSTEM_AGENT_ID_1,
+    inboxReady: true,
+    visibleToolCount: 5,
+    lastAckAt: NOW,
+    lastSubmissionAt: NOW,
+    lastResultStatus: 'ok',
+    issueCount: 0,
+    issueCodes: [],
+    ...overrides,
+  };
+}
+
+function mockHealthAggregator(bootStatus: 'booting' | 'ready' | 'degraded' = 'ready', gateways: AgentGatewayEntry[] = []): IHealthAggregator {
   return {
     getProviderHealth: () => ({
       providers: [],
       collectedAt: NOW,
     }) as any,
     getAgentStatus: () => ({
-      gateways: [],
-      sessions: [],
+      gateways,
+      appSessions: [],
       collectedAt: NOW,
-    }) as any,
+    }),
     getSystemStatus: () => ({
       bootStatus,
       completedBootSteps: [],
@@ -385,6 +405,13 @@ function mockHealthAggregator(bootStatus: 'booting' | 'ready' | 'degraded' = 're
     }),
     dispose: () => {},
   };
+}
+
+function mockEventBus() {
+  return {
+    publish: vi.fn(),
+    subscribe: vi.fn(() => () => {}),
+  } as any as import('@nous/shared').IEventBus;
 }
 
 function createVoiceControlService(degraded = false) {
@@ -433,7 +460,7 @@ function createProjectStoreMock(projectIds: ProjectId[] = []): IProjectStore {
   } as IProjectStore;
 }
 
-function createService(runState: WorkflowRunState, opts?: { healthAggregator?: IHealthAggregator; voiceDegraded?: boolean; projectStore?: IProjectStore }) {
+function createService(runState: WorkflowRunState, opts?: { healthAggregator?: IHealthAggregator; voiceDegraded?: boolean; projectStore?: IProjectStore; eventBus?: import('@nous/shared').IEventBus }) {
   const { opctlService, setControlState } = createOpctlServiceMock();
 
   return {
@@ -446,6 +473,7 @@ function createService(runState: WorkflowRunState, opts?: { healthAggregator?: I
       witnessService: mockWitnessService(),
       healthAggregator: opts?.healthAggregator,
       projectStore: opts?.projectStore,
+      eventBus: opts?.eventBus,
     }),
     opctlService,
     setControlState,
@@ -926,6 +954,206 @@ describe('MaoProjectionService', () => {
       for (const proj of projections) {
         expect(proj.agent_class).toBeUndefined();
       }
+    });
+  });
+
+  describe('system agent projection synthesis (WR-105)', () => {
+    it('synthesizes system agent projections from health aggregator gateway entries', async () => {
+      const gateways = [
+        createGatewayEntry({ agentId: SYSTEM_AGENT_ID_1, agentClass: 'Cortex::Principal', inboxReady: true }),
+        createGatewayEntry({ agentId: SYSTEM_AGENT_ID_2, agentClass: 'Cortex::System', inboxReady: false, issueCount: 2, issueCodes: ['STALE', 'TIMEOUT'] }),
+      ];
+      const healthAgg = mockHealthAggregator('ready', gateways);
+      const projectStore = createProjectStoreMock([PROJECT_ID]);
+      const { service, setControlState } = createService(createWorkflowRun(), { healthAggregator: healthAgg, projectStore });
+      setControlState('running');
+
+      const snapshot = await service.getSystemSnapshot({ densityMode: 'D2' });
+
+      const sysAgent1 = snapshot.agents.find((a) => a.agent_id === SYSTEM_AGENT_ID_1);
+      const sysAgent2 = snapshot.agents.find((a) => a.agent_id === SYSTEM_AGENT_ID_2);
+
+      expect(sysAgent1).toBeDefined();
+      expect(sysAgent1!.project_id).toBe(SYSTEM_SCOPE_SENTINEL_PROJECT_ID);
+      expect(sysAgent1!.agent_class).toBe('Cortex::Principal');
+      expect(sysAgent1!.state).toBe('running');
+      expect(sysAgent1!.risk_level).toBe('low');
+      expect(sysAgent1!.dispatching_task_agent_id).toBeNull();
+      expect(sysAgent1!.dispatch_origin_ref).toBe('gateway-runtime:system-agent');
+
+      expect(sysAgent2).toBeDefined();
+      expect(sysAgent2!.state).toBe('queued');
+      expect(sysAgent2!.risk_level).toBe('medium');
+      expect(sysAgent2!.attention_level).toBe('medium');
+    });
+
+    it('adds system agents as lease roots', async () => {
+      const gateways = [createGatewayEntry({ agentId: SYSTEM_AGENT_ID_1 })];
+      const healthAgg = mockHealthAggregator('ready', gateways);
+      const projectStore = createProjectStoreMock([]);
+      const { service } = createService(createWorkflowRun(), { healthAggregator: healthAgg, projectStore });
+
+      const snapshot = await service.getSystemSnapshot({ densityMode: 'D2' });
+
+      expect(snapshot.leaseRoots).toContain(SYSTEM_AGENT_ID_1);
+    });
+
+    it('deduplicates system agents that already exist in allAgents', async () => {
+      // Create a gateway entry whose agentId matches a workflow agent's agent_id
+      // This tests the dedup guard
+      const projectStore = createProjectStoreMock([PROJECT_ID]);
+      const { service, setControlState } = createService(createWorkflowRun(), { projectStore });
+      setControlState('running');
+
+      // First get agents to know an existing agent_id
+      const baseSnapshot = await service.getSystemSnapshot({ densityMode: 'D2' });
+      const existingAgentId = baseSnapshot.agents[0]?.agent_id;
+      expect(existingAgentId).toBeDefined();
+
+      // Now create a health aggregator with a gateway that has the same agentId
+      const gateways = [createGatewayEntry({ agentId: existingAgentId! })];
+      const healthAgg = mockHealthAggregator('ready', gateways);
+      const { service: service2, setControlState: setControlState2 } = createService(createWorkflowRun(), { healthAggregator: healthAgg, projectStore });
+      setControlState2('running');
+
+      const snapshot = await service2.getSystemSnapshot({ densityMode: 'D2' });
+
+      // Should not have duplicates
+      const agentIds = snapshot.agents.map((a) => a.agent_id);
+      const uniqueIds = new Set(agentIds);
+      expect(agentIds.length).toBe(uniqueIds.size);
+    });
+
+    it('does not add system agents when healthAggregator is absent', async () => {
+      const projectStore = createProjectStoreMock([]);
+      const { service } = createService(createWorkflowRun(), { projectStore });
+
+      const snapshot = await service.getSystemSnapshot({ densityMode: 'D2' });
+
+      expect(snapshot.agents).toEqual([]);
+    });
+  });
+
+  describe('SSE event publication (WR-105)', () => {
+    it('publishes mao:projection-changed after getSystemSnapshot', async () => {
+      const eventBus = mockEventBus();
+      const projectStore = createProjectStoreMock([PROJECT_ID]);
+      const { service, setControlState } = createService(createWorkflowRun(), { projectStore, eventBus });
+      setControlState('running');
+
+      await service.getSystemSnapshot({ densityMode: 'D2' });
+
+      expect(eventBus.publish).toHaveBeenCalledWith('mao:projection-changed', {});
+    });
+
+    it('publishes event even when agents list is empty', async () => {
+      const eventBus = mockEventBus();
+      const projectStore = createProjectStoreMock([]);
+      const { service } = createService(createWorkflowRun(), { projectStore, eventBus });
+
+      await service.getSystemSnapshot({ densityMode: 'D2' });
+
+      expect(eventBus.publish).toHaveBeenCalledWith('mao:projection-changed', {});
+    });
+
+    it('does not throw when eventBus is absent', async () => {
+      const projectStore = createProjectStoreMock([]);
+      const { service } = createService(createWorkflowRun(), { projectStore });
+
+      await expect(service.getSystemSnapshot({ densityMode: 'D2' })).resolves.toBeDefined();
+    });
+  });
+
+  describe('system agent inspect fallback (WR-105)', () => {
+    it('returns sparse inspect projection for system agents from health data', async () => {
+      const gateways = [createGatewayEntry({ agentId: SYSTEM_AGENT_ID_1, agentClass: 'Cortex::Principal' })];
+      const healthAgg = mockHealthAggregator('ready', gateways);
+      const { service, setControlState } = createService(createWorkflowRun(), { healthAggregator: healthAgg });
+      setControlState('running');
+
+      const inspect = await service.getAgentInspectProjection({
+        projectId: PROJECT_ID,
+        agentId: SYSTEM_AGENT_ID_1,
+      });
+
+      expect(inspect).not.toBeNull();
+      expect(inspect!.agent.agent_id).toBe(SYSTEM_AGENT_ID_1);
+      expect(inspect!.agent.agent_class).toBe('Cortex::Principal');
+      expect(inspect!.projectId).toBe(SYSTEM_SCOPE_SENTINEL_PROJECT_ID);
+      expect(inspect!.latestAttempt).toBeNull();
+      expect(inspect!.correctionArcs).toEqual([]);
+      expect(inspect!.projectControlState).toBe('running');
+    });
+
+    it('returns null for unknown agent IDs', async () => {
+      const healthAgg = mockHealthAggregator('ready', []);
+      const { service, setControlState } = createService(createWorkflowRun(), { healthAggregator: healthAgg });
+      setControlState('running');
+
+      const inspect = await service.getAgentInspectProjection({
+        projectId: PROJECT_ID,
+        agentId: 'ffffffff-0000-0000-0000-000000000000',
+      });
+
+      expect(inspect).toBeNull();
+    });
+
+    it('returns null when healthAggregator is absent and no workflow match', async () => {
+      const { service, setControlState } = createService(createWorkflowRun());
+      setControlState('running');
+
+      const inspect = await service.getAgentInspectProjection({
+        projectId: PROJECT_ID,
+        agentId: SYSTEM_AGENT_ID_1,
+      });
+
+      expect(inspect).toBeNull();
+    });
+  });
+
+  describe('diagnostic logging (WR-105)', () => {
+    it('logs warning when project context build fails', async () => {
+      const warnSpy = vi.spyOn(console, 'warn').mockImplementation(() => {});
+      const projectStore = createProjectStoreMock([PROJECT_ID]);
+
+      // Create a service with a workflow engine that throws
+      const { opctlService, setControlState } = createOpctlServiceMock();
+      const failingEngine: IWorkflowEngine = {
+        resolveDefinition: async () => { throw new Error('test-failure'); },
+        resolveDefinitionSource: async () => { throw new Error('test-failure'); },
+        deriveGraph: async () => { throw new Error('test-failure'); },
+        evaluateAdmission: async () => { throw new Error('test-failure'); },
+        start: async () => { throw new Error('test-failure'); },
+        resume: async () => { throw new Error('test-failure'); },
+        pause: async () => { throw new Error('test-failure'); },
+        cancel: async () => { throw new Error('test-failure'); },
+        completeNode: async () => { throw new Error('test-failure'); },
+        executeReadyNode: async () => { throw new Error('test-failure'); },
+        continueNode: async () => { throw new Error('test-failure'); },
+        getState: async () => { throw new Error('test-failure'); },
+        listProjectRuns: async () => { throw new Error('test-failure'); },
+        getRunGraph: async () => { throw new Error('test-failure'); },
+      } as unknown as IWorkflowEngine;
+
+      const service = new MaoProjectionService({
+        opctlService,
+        workflowEngine: failingEngine,
+        escalationService: createEscalationService(),
+        schedulerService: createSchedulerService(),
+        witnessService: mockWitnessService(),
+        projectStore,
+      });
+      setControlState('running');
+
+      const snapshot = await service.getSystemSnapshot({ densityMode: 'D2' });
+
+      expect(snapshot.agents).toEqual([]);
+      expect(warnSpy).toHaveBeenCalled();
+      const call = warnSpy.mock.calls[0];
+      expect(call![0]).toContain('[nous:mao]');
+      expect(call![0]).toContain('getSystemSnapshot');
+
+      warnSpy.mockRestore();
     });
   });
 });
