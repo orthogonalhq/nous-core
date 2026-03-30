@@ -1,8 +1,9 @@
 'use client'
 
 import { useState, useEffect } from 'react'
-import type { PreferencesApi, Provider, SystemStatus } from '../types'
-import { sectionStyle, sectionTitleStyle, cardStyle, rowStyle, badgeStyle, PROVIDER_LABELS } from '../styles'
+import type { PreferencesApi, Provider, SystemStatus, FeedbackState } from '../types'
+import { sectionStyle, sectionTitleStyle, cardStyle, rowStyle, badgeStyle, feedbackStyle, PROVIDER_LABELS } from '../styles'
+import { formatFeedbackError } from './helpers'
 
 export interface SystemStatusPageProps {
   api: Pick<PreferencesApi, 'getSystemStatus'>
@@ -10,6 +11,7 @@ export interface SystemStatusPageProps {
 
 export function SystemStatusPage({ api }: SystemStatusPageProps) {
   const [systemStatus, setSystemStatus] = useState<SystemStatus | null>(null)
+  const [feedback, setFeedback] = useState<FeedbackState | null>(null)
 
   useEffect(() => {
     let cancelled = false
@@ -17,8 +19,8 @@ export function SystemStatusPage({ api }: SystemStatusPageProps) {
       if (!cancelled) {
         setSystemStatus(status)
       }
-    }).catch(() => {
-      // ignore
+    }).catch((err) => {
+      if (!cancelled) setFeedback(formatFeedbackError(err))
     })
     return () => { cancelled = true }
   }, [api])
@@ -61,6 +63,12 @@ export function SystemStatusPage({ api }: SystemStatusPageProps) {
             </span>
           </div>
         </div>
+
+        {feedback && (
+          <div style={feedbackStyle(feedback.success)}>
+            {feedback.message}
+          </div>
+        )}
       </div>
     </div>
   )

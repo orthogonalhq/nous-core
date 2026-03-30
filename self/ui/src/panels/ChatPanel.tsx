@@ -60,6 +60,7 @@ export function ChatPanel(props: ChatPanelProps | ChatPanelCoreProps) {
   const [input, setInput] = useState('')
   const [sending, setSending] = useState(false)
   const [isListening, setIsListening] = useState(false)
+  const [historyError, setHistoryError] = useState<string | null>(null)
   const messagesEndRef = useRef<HTMLDivElement>(null)
   const recognitionRef = useRef<BrowserSpeechRecognition | null>(null)
 
@@ -78,7 +79,7 @@ export function ChatPanel(props: ChatPanelProps | ChatPanelCoreProps) {
   useEffect(() => {
     if (chatApi?.getHistory) {
       chatApi.getHistory().then(setMessages).catch(() => {
-        // History fetch failed — start with empty conversation
+        setHistoryError('Could not load previous messages.')
       })
     }
   }, [chatApi])
@@ -205,6 +206,11 @@ export function ChatPanel(props: ChatPanelProps | ChatPanelCoreProps) {
         {messages.length === 0 && (
           <div style={{ textAlign: 'center', color: 'var(--nous-fg-subtle)', fontSize: 'var(--nous-font-size-base)', marginTop: 'var(--nous-space-4xl)' }}>
             {chatApi?.send ? 'Start a conversation with Nous.' : 'Chat API not connected. Start the web backend with `pnpm dev:web`.'}
+          </div>
+        )}
+        {historyError && (
+          <div style={{ textAlign: 'center', color: 'var(--nous-state-blocked)', fontSize: 'var(--nous-font-size-sm)', padding: 'var(--nous-space-sm) 0' }}>
+            {historyError}
           </div>
         )}
         {messages.map((msg, i) => (

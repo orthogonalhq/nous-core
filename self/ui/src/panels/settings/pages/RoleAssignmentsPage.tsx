@@ -77,8 +77,8 @@ export function RoleAssignmentsPage({ api }: RoleAssignmentsPageProps) {
       if (recommendationResult) {
         setHardwareRecommendations(recommendationResult)
       }
-    } catch {
-      // ignore
+    } catch (err) {
+      setRoleAssignmentFeedback(formatFeedbackError(err))
     }
   }, [api])
 
