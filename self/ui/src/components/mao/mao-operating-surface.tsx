@@ -342,7 +342,8 @@ export function MaoOperatingSurface() {
     (snapshotQuery.isLoading || !snapshot);
 
   return (
-    <div className="space-y-6 p-8" style={{ position: 'relative' }}>
+    <div style={{ position: 'relative', height: '100%', display: 'flex', flexDirection: 'column' }}>
+    <div style={{ flex: 1, overflow: 'auto', padding: 'var(--nous-space-4xl)', display: 'flex', flexDirection: 'column', gap: 'var(--nous-space-3xl)' }}>
       {/* Header */}
       <div className="flex flex-wrap items-start justify-between gap-4">
         <div className="space-y-1">
@@ -495,7 +496,9 @@ export function MaoOperatingSurface() {
         ) : null}
       </div>
 
-      {/* Inspect popup — both tabs */}
+      </div>
+
+      {/* Inspect popup — both tabs, outside scrollable area */}
       <MaoInspectPopup
         open={popupOpen}
         onClose={handleClosePopup}

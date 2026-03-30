@@ -65,13 +65,15 @@ export function MaoPanel() {
   return (
     <React.Suspense
       fallback={
-        <div style={{ padding: 'var(--nous-space-4xl)' }}>
+        <div style={{ padding: 'var(--nous-space-4xl)', height: '100%' }}>
           <p style={{ color: 'var(--nous-text-secondary)' }}>Loading MAO projection...</p>
         </div>
       }
     >
       <MaoServicesProvider value={services}>
-        <MaoOperatingSurface />
+        <div style={{ height: '100%' }}>
+          <MaoOperatingSurface />
+        </div>
       </MaoServicesProvider>
     </React.Suspense>
   );
