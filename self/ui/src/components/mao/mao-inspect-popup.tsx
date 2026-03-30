@@ -84,6 +84,8 @@ export function MaoInspectPopup({
         display: 'flex',
         alignItems: 'center',
         justifyContent: 'center',
+        overflow: 'hidden',
+        borderRadius: 'inherit',
       }}
     >
       {/* Backdrop */}
@@ -105,7 +107,8 @@ export function MaoInspectPopup({
           position: 'relative',
           width: '100%',
           maxWidth: '42rem',
-          maxHeight: '85vh',
+          maxHeight: 'calc(100% - 2rem)',
+          margin: '1rem',
           overflowY: 'auto',
           borderRadius: 'var(--nous-radius-xl, 12px)',
           border: '1px solid var(--nous-border)',
