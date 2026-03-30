@@ -619,6 +619,28 @@ export class MaoProjectionService {
     input: MaoAgentInspectInput,
   ): Promise<MaoAgentInspectProjection | null> {
     const parsed = MaoAgentInspectInputSchema.parse(input);
+
+    // System agent fast path: check health aggregator before expensive workflow lookup.
+    // System agents use the sentinel project ID and have no workflow runs —
+    // calling buildProjectionContext with the sentinel would fail.
+    if (parsed.agentId && this.deps.healthAggregator) {
+      const agentStatus = this.deps.healthAggregator.getAgentStatus();
+      const gw = agentStatus.gateways.find((g) => g.agentId === parsed.agentId);
+      if (gw) {
+        const generatedAt = new Date().toISOString();
+        const systemAgent = this.synthesizeSystemAgentProjection(gw, generatedAt);
+        return MaoAgentInspectProjectionSchema.parse({
+          projectId: SYSTEM_SCOPE_SENTINEL_PROJECT_ID,
+          agent: systemAgent,
+          projectControlState: 'running',
+          latestAttempt: null,
+          correctionArcs: [],
+          evidenceRefs: [],
+          generatedAt,
+        });
+      }
+    }
+
     const context = await this.buildProjectionContext({
       projectId: parsed.projectId,
       densityMode: 'D2',
@@ -632,23 +654,6 @@ export class MaoProjectionService {
           : false,
     );
     if (!agent || !context.selectedRun) {
-      // Fallback: synthesize inspect projection for system agents from health data
-      if (parsed.agentId && this.deps.healthAggregator) {
-        const agentStatus = this.deps.healthAggregator.getAgentStatus();
-        const gw = agentStatus.gateways.find((g) => g.agentId === parsed.agentId);
-        if (gw) {
-          const systemAgent = this.synthesizeSystemAgentProjection(gw, context.generatedAt);
-          return MaoAgentInspectProjectionSchema.parse({
-            projectId: SYSTEM_SCOPE_SENTINEL_PROJECT_ID,
-            agent: systemAgent,
-            projectControlState: 'running',
-            latestAttempt: null,
-            correctionArcs: [],
-            evidenceRefs: [],
-            generatedAt: context.generatedAt,
-          });
-        }
-      }
       return null;
     }
 
