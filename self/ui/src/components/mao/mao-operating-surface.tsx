@@ -342,7 +342,7 @@ export function MaoOperatingSurface() {
     (snapshotQuery.isLoading || !snapshot);
 
   return (
-    <div className="space-y-6 p-8">
+    <div className="space-y-6 p-8" style={{ position: 'relative' }}>
       {/* Header */}
       <div className="flex flex-wrap items-start justify-between gap-4">
         <div className="space-y-1">

@@ -1,7 +1,6 @@
 'use client';
 
 import * as React from 'react';
-import { createPortal } from 'react-dom';
 import type {
   MaoAgentProjection,
   MaoProjectSnapshot,
@@ -71,19 +70,17 @@ export function MaoInspectPopup({
     { enabled: open && agent != null },
   );
 
-  // SSR guard
-  if (typeof document === 'undefined') return null;
   if (!open) return null;
 
   const noop = () => {};
 
-  return createPortal(
+  return (
     <div
       data-testid="inspect-popup"
       style={{
-        position: 'fixed',
+        position: 'absolute',
         inset: 0,
-        zIndex: 'var(--nous-z-toast, 400)' as any,
+        zIndex: 10,
         display: 'flex',
         alignItems: 'center',
         justifyContent: 'center',
@@ -170,7 +167,6 @@ export function MaoInspectPopup({
           />
         </div>
       </div>
-    </div>,
-    document.body,
+    </div>
   );
 }
