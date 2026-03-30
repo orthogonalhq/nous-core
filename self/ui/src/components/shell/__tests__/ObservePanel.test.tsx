@@ -57,6 +57,14 @@ vi.mock('@nous/transport', () => ({
         useQuery: vi.fn().mockReturnValue({ data: null, isLoading: true }),
       },
     },
+    projects: {
+      list: {
+        useQuery: vi.fn().mockReturnValue({ data: [], isLoading: false }),
+      },
+      dashboardSnapshot: {
+        useQuery: vi.fn().mockReturnValue({ data: null, isLoading: true }),
+      },
+    },
   },
   useEventSubscription: vi.fn(),
 }))

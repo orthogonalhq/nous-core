@@ -2,20 +2,9 @@
 
 import { clsx } from 'clsx'
 import { useShellContext } from './ShellContext'
-import { MaoOperatingSurface, MaoServicesProvider } from '../mao'
-import type { MaoServicesContextValue } from '../mao'
+import { MaoPanel } from '../mao'
 import { SystemActivitySurface } from './SystemActivitySurface'
 import type { ObservePanelProps, ObserveRoute } from './types'
-import type { ReactNode } from 'react'
-
-/** Inert link for the observe column (no URL routing context). */
-function ObserveLink(props: { href: string; className?: string; children: ReactNode }) {
-  return (
-    <span className={props.className} style={{ cursor: 'default' }}>
-      {props.children}
-    </span>
-  )
-}
 
 /** Map content routes to observe sub-panel routes */
 const OBSERVE_ROUTE_MAP: Record<string, ObserveRoute> = {
@@ -25,13 +14,7 @@ const OBSERVE_ROUTE_MAP: Record<string, ObserveRoute> = {
 }
 
 export function ObservePanel(props: ObservePanelProps) {
-  const { activeRoute, activeProjectId } = useShellContext()
-
-  const observeMaoServices: MaoServicesContextValue = {
-    Link: ObserveLink,
-    useProject: () => ({ projectId: activeProjectId ?? null, setProjectId: () => {} }),
-    useSearchParams: () => ({ get: () => null }),
-  }
+  const { activeRoute } = useShellContext()
 
   const observeRoute: ObserveRoute = OBSERVE_ROUTE_MAP[activeRoute] ?? 'default'
 
@@ -46,9 +29,7 @@ export function ObservePanel(props: ObservePanelProps) {
       }}
     >
       {observeRoute === 'mao' ? (
-        <MaoServicesProvider value={observeMaoServices}>
-          <MaoOperatingSurface />
-        </MaoServicesProvider>
+        <MaoPanel />
       ) : observeRoute === 'system-activity' ? (
         <SystemActivitySurface />
       ) : (
