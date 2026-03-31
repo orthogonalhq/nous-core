@@ -288,3 +288,197 @@ describe('MaoLeaseTree', () => {
     expect(screen.getByTestId('edge-connector-svg')).toBeTruthy();
   });
 });
+
+describe('MaoLeaseTree motion pulse', () => {
+  it('applies nous-state-pulse-subtle on running root tile at D2', () => {
+    const root = createAgent({ agent_id: 'root-1', display_name: 'Root Agent', state: 'running' });
+    const snapshot = createSystemSnapshot({
+      agents: [root],
+      leaseRoots: ['root-1'],
+    });
+
+    const { container } = render(
+      <MaoLeaseTree
+        snapshot={snapshot}
+        densityMode="D2"
+        selectedAgentId={null}
+        onSelectAgent={noop}
+      />,
+    );
+
+    const rootButton = container.querySelector('[data-agent-id="root-1"]');
+    expect(rootButton?.className).toContain('nous-state-pulse-subtle');
+  });
+});
+
+describe('MaoLeaseTree urgent indicators', () => {
+  it('renders urgent indicator on root tile at D3', () => {
+    const root = createAgent({
+      agent_id: 'root-1',
+      display_name: 'Root Agent',
+      urgency_level: 'urgent',
+    });
+    const snapshot = createSystemSnapshot({
+      agents: [root],
+      leaseRoots: ['root-1'],
+    });
+
+    render(
+      <MaoLeaseTree
+        snapshot={snapshot}
+        densityMode="D3"
+        selectedAgentId={null}
+        onSelectAgent={noop}
+      />,
+    );
+
+    expect(screen.getByTestId('urgent-indicator')).toBeTruthy();
+  });
+
+  it('renders ring-red-500 on urgent root tile at D4', () => {
+    const root = createAgent({
+      agent_id: 'root-1',
+      display_name: 'Root Agent',
+      urgency_level: 'urgent',
+    });
+    const snapshot = createSystemSnapshot({
+      agents: [root],
+      leaseRoots: ['root-1'],
+    });
+
+    const { container } = render(
+      <MaoLeaseTree
+        snapshot={snapshot}
+        densityMode="D4"
+        selectedAgentId={null}
+        onSelectAgent={noop}
+      />,
+    );
+
+    const rootButton = container.querySelector('[data-agent-id="root-1"]');
+    expect(rootButton?.className).toContain('ring-red-500');
+  });
+});
+
+describe('MaoLeaseTree agent class badge', () => {
+  it('renders agent class badge at D2 when agent_class is set', () => {
+    const root = createAgent({
+      agent_id: 'root-1',
+      display_name: 'Root Agent',
+      agent_class: 'Orchestrator' as any,
+    });
+    const snapshot = createSystemSnapshot({
+      agents: [root],
+      leaseRoots: ['root-1'],
+    });
+
+    render(
+      <MaoLeaseTree
+        snapshot={snapshot}
+        densityMode="D2"
+        selectedAgentId={null}
+        onSelectAgent={noop}
+      />,
+    );
+
+    const badge = screen.getByTestId('agent-class-badge');
+    expect(badge).toBeTruthy();
+    expect(badge.textContent).toBe('Orchestrator');
+  });
+
+  it('does not render agent class badge at D3', () => {
+    const root = createAgent({
+      agent_id: 'root-1',
+      display_name: 'Root Agent',
+      agent_class: 'Worker' as any,
+    });
+    const snapshot = createSystemSnapshot({
+      agents: [root],
+      leaseRoots: ['root-1'],
+    });
+
+    render(
+      <MaoLeaseTree
+        snapshot={snapshot}
+        densityMode="D3"
+        selectedAgentId={null}
+        onSelectAgent={noop}
+      />,
+    );
+
+    expect(screen.queryByTestId('agent-class-badge')).toBeNull();
+  });
+
+  it('does not render agent class badge when agent_class is undefined', () => {
+    const root = createAgent({
+      agent_id: 'root-1',
+      display_name: 'Root Agent',
+      agent_class: undefined,
+    });
+    const snapshot = createSystemSnapshot({
+      agents: [root],
+      leaseRoots: ['root-1'],
+    });
+
+    render(
+      <MaoLeaseTree
+        snapshot={snapshot}
+        densityMode="D2"
+        selectedAgentId={null}
+        onSelectAgent={noop}
+      />,
+    );
+
+    expect(screen.queryByTestId('agent-class-badge')).toBeNull();
+  });
+});
+
+describe('MaoLeaseTree state color handling', () => {
+  it('renders appropriate dot color for canceled state', () => {
+    const root = createAgent({
+      agent_id: 'root-1',
+      display_name: 'Root Agent',
+      state: 'canceled',
+    });
+    const snapshot = createSystemSnapshot({
+      agents: [root],
+      leaseRoots: ['root-1'],
+    });
+
+    const { container } = render(
+      <MaoLeaseTree
+        snapshot={snapshot}
+        densityMode="D2"
+        selectedAgentId={null}
+        onSelectAgent={noop}
+      />,
+    );
+
+    const dots = container.querySelectorAll('.bg-slate-500');
+    expect(dots.length).toBeGreaterThan(0);
+  });
+
+  it('renders appropriate dot color for hard_stopped state', () => {
+    const root = createAgent({
+      agent_id: 'root-1',
+      display_name: 'Root Agent',
+      state: 'hard_stopped',
+    });
+    const snapshot = createSystemSnapshot({
+      agents: [root],
+      leaseRoots: ['root-1'],
+    });
+
+    const { container } = render(
+      <MaoLeaseTree
+        snapshot={snapshot}
+        densityMode="D2"
+        selectedAgentId={null}
+        onSelectAgent={noop}
+      />,
+    );
+
+    const dots = container.querySelectorAll('.bg-red-700');
+    expect(dots.length).toBeGreaterThan(0);
+  });
+});
