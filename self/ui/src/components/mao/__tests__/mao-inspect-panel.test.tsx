@@ -62,6 +62,174 @@ afterEach(() => {
   cleanup()
 })
 
+describe('MaoInspectPanel label, lineage, and badge', () => {
+  it('uses display_name as primary label when present', () => {
+    const inspect = createInspect({
+      agent: {
+        agent_id: 'agent-001',
+        current_step: 'Process data',
+        display_name: 'Custom Agent Name',
+        dispatch_state: 'dispatched',
+        state: 'running',
+        risk_level: 'low',
+        attention_level: 'normal',
+        progress_percent: 75,
+        reflection_cycle_count: 1,
+        reasoning_log_preview: null,
+        urgency_level: 'normal',
+        workflow_run_id: 'run-001',
+        workflow_node_definition_id: 'node-001',
+        deepLinks: [],
+        evidenceRefs: [],
+      } as any,
+    })
+
+    render(<MaoInspectPanel inspect={inspect} isLoading={false} />, {
+      wrapper: Wrapper,
+    })
+
+    const label = screen.getByTestId('inspect-primary-label')
+    expect(label.textContent).toBe('Custom Agent Name')
+  })
+
+  it('falls back to current_step when display_name is absent', () => {
+    const inspect = createInspect()
+
+    render(<MaoInspectPanel inspect={inspect} isLoading={false} />, {
+      wrapper: Wrapper,
+    })
+
+    const label = screen.getByTestId('inspect-primary-label')
+    expect(label.textContent).toBe('Process data')
+  })
+
+  it('renders dispatch lineage with resolved agent label when dispatching_task_agent_id is present', () => {
+    const resolverFn = vi.fn().mockReturnValue('Parent Orchestrator')
+    const inspect = createInspect({
+      agent: {
+        agent_id: 'agent-001',
+        current_step: 'Process data',
+        dispatching_task_agent_id: 'parent-agent-uuid',
+        dispatch_state: 'dispatched',
+        state: 'running',
+        risk_level: 'low',
+        attention_level: 'normal',
+        progress_percent: 75,
+        reflection_cycle_count: 1,
+        reasoning_log_preview: null,
+        urgency_level: 'normal',
+        workflow_run_id: 'run-001',
+        workflow_node_definition_id: 'node-001',
+        deepLinks: [],
+        evidenceRefs: [],
+      } as any,
+    })
+
+    render(
+      <MaoInspectPanel
+        inspect={inspect}
+        isLoading={false}
+        resolveAgentLabel={resolverFn}
+      />,
+      { wrapper: Wrapper },
+    )
+
+    const lineage = screen.getByTestId('inspect-dispatch-lineage')
+    expect(lineage).toBeTruthy()
+    expect(lineage.textContent).toContain('Parent Orchestrator')
+    expect(resolverFn).toHaveBeenCalledWith('parent-agent-uuid')
+  })
+
+  it('omits dispatch lineage when dispatching_task_agent_id is null', () => {
+    const inspect = createInspect({
+      agent: {
+        agent_id: 'agent-001',
+        current_step: 'Process data',
+        dispatching_task_agent_id: null,
+        dispatch_state: 'dispatched',
+        state: 'running',
+        risk_level: 'low',
+        attention_level: 'normal',
+        progress_percent: 75,
+        reflection_cycle_count: 1,
+        reasoning_log_preview: null,
+        urgency_level: 'normal',
+        workflow_run_id: 'run-001',
+        workflow_node_definition_id: 'node-001',
+        deepLinks: [],
+        evidenceRefs: [],
+      } as any,
+    })
+
+    render(<MaoInspectPanel inspect={inspect} isLoading={false} />, {
+      wrapper: Wrapper,
+    })
+
+    expect(screen.queryByTestId('inspect-dispatch-lineage')).toBeNull()
+  })
+
+  it('renders agent class badge when agent_class is present', () => {
+    const inspect = createInspect({
+      agent: {
+        agent_id: 'agent-001',
+        current_step: 'Process data',
+        agent_class: 'Worker',
+        dispatch_state: 'dispatched',
+        state: 'running',
+        risk_level: 'low',
+        attention_level: 'normal',
+        progress_percent: 75,
+        reflection_cycle_count: 1,
+        reasoning_log_preview: null,
+        urgency_level: 'normal',
+        workflow_run_id: 'run-001',
+        workflow_node_definition_id: 'node-001',
+        deepLinks: [],
+        evidenceRefs: [],
+      } as any,
+    })
+
+    render(<MaoInspectPanel inspect={inspect} isLoading={false} />, {
+      wrapper: Wrapper,
+    })
+
+    const badge = screen.getByTestId('inspect-agent-class-badge')
+    expect(badge).toBeTruthy()
+    expect(badge.textContent).toBe('Worker')
+  })
+
+  it('renders formatShortId fallback when resolveAgentLabel is not provided', () => {
+    const inspect = createInspect({
+      agent: {
+        agent_id: 'agent-001',
+        current_step: 'Process data',
+        dispatching_task_agent_id: 'aaaaaaaa-bbbb-cccc-dddd-eeeeeeeeeeee',
+        dispatch_state: 'dispatched',
+        state: 'running',
+        risk_level: 'low',
+        attention_level: 'normal',
+        progress_percent: 75,
+        reflection_cycle_count: 1,
+        reasoning_log_preview: null,
+        urgency_level: 'normal',
+        workflow_run_id: 'run-001',
+        workflow_node_definition_id: 'node-001',
+        deepLinks: [],
+        evidenceRefs: [],
+      } as any,
+    })
+
+    render(<MaoInspectPanel inspect={inspect} isLoading={false} />, {
+      wrapper: Wrapper,
+    })
+
+    const lineage = screen.getByTestId('inspect-dispatch-lineage')
+    expect(lineage).toBeTruthy()
+    // Should show short UUID format (first 8 chars)
+    expect(lineage.textContent).toContain('aaaaaaaa')
+  })
+})
+
 describe('MaoInspectPanel inference history', () => {
   it('renders with inference history section collapsed by default', () => {
     const inspect = createInspect({

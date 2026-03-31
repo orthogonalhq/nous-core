@@ -65,7 +65,7 @@ describe('MaoT3ConfirmationDialog', () => {
     expect(screen.getByRole('button', { name: 'Cancel' })).toBeTruthy();
   });
 
-  it('calls requestConfirmationProof mutation on confirm and invokes onConfirm with proof', async () => {
+  it('calls requestConfirmationProof mutation on confirm and invokes onConfirm with proof after Done click', async () => {
     const onConfirm = vi.fn();
 
     // Simulate mutation that calls onSuccess
@@ -96,7 +96,20 @@ describe('MaoT3ConfirmationDialog', () => {
       />,
     );
 
+    // Click Confirm to obtain proof
     fireEvent.click(screen.getByRole('button', { name: 'Confirm' }));
+
+    // Proof details should be displayed before onConfirm is called
+    await waitFor(() => {
+      expect(screen.getByTestId('proof-details')).toBeTruthy();
+      expect(screen.getByTestId('proof-id').textContent).toBe(MOCK_PROOF.proof_id);
+    });
+
+    // onConfirm should NOT have been called yet
+    expect(onConfirm).not.toHaveBeenCalled();
+
+    // Click Done to execute
+    fireEvent.click(screen.getByTestId('proof-done-button'));
 
     await waitFor(() => {
       expect(onConfirm).toHaveBeenCalledWith(MOCK_PROOF);
@@ -174,5 +187,131 @@ describe('MaoT3ConfirmationDialog', () => {
     const confirmButton = screen.getByRole('button', { name: 'Confirming...' });
     expect(confirmButton).toBeTruthy();
     expect((confirmButton as HTMLButtonElement).disabled).toBe(true);
+  });
+
+  it('displays proof details after mutation success before calling onConfirm', async () => {
+    const onConfirm = vi.fn();
+
+    mockUseMutation = vi.fn().mockImplementation(
+      (opts?: { onSuccess?: (proof: any) => void }) => ({
+        mutate: () => {
+          opts?.onSuccess?.(MOCK_PROOF);
+        },
+        isPending: false,
+        isError: false,
+      }),
+    );
+
+    render(
+      <MaoT3ConfirmationDialog
+        open={true}
+        action="hard_stop_project"
+        projectId={MOCK_PROJECT_ID}
+        onConfirm={onConfirm}
+        onCancel={vi.fn()}
+      />,
+    );
+
+    fireEvent.click(screen.getByRole('button', { name: 'Confirm' }));
+
+    await waitFor(() => {
+      expect(screen.getByText('Proof confirmed')).toBeTruthy();
+      expect(screen.getByTestId('proof-id').textContent).toBe(MOCK_PROOF.proof_id);
+    });
+
+    // onConfirm should not have been called yet
+    expect(onConfirm).not.toHaveBeenCalled();
+  });
+
+  it('calls onConfirm with proof when Done button is clicked after proof display', async () => {
+    const onConfirm = vi.fn();
+
+    mockUseMutation = vi.fn().mockImplementation(
+      (opts?: { onSuccess?: (proof: any) => void }) => ({
+        mutate: () => {
+          opts?.onSuccess?.(MOCK_PROOF);
+        },
+        isPending: false,
+        isError: false,
+      }),
+    );
+
+    render(
+      <MaoT3ConfirmationDialog
+        open={true}
+        action="resume_project"
+        projectId={MOCK_PROJECT_ID}
+        onConfirm={onConfirm}
+        onCancel={vi.fn()}
+      />,
+    );
+
+    fireEvent.click(screen.getByRole('button', { name: 'Confirm' }));
+
+    await waitFor(() => {
+      expect(screen.getByTestId('proof-done-button')).toBeTruthy();
+    });
+
+    fireEvent.click(screen.getByTestId('proof-done-button'));
+
+    expect(onConfirm).toHaveBeenCalledWith(MOCK_PROOF);
+  });
+
+  it('resets proof display state when dialog re-opens', async () => {
+    const onConfirm = vi.fn();
+    const onCancel = vi.fn();
+
+    mockUseMutation = vi.fn().mockImplementation(
+      (opts?: { onSuccess?: (proof: any) => void }) => ({
+        mutate: () => {
+          opts?.onSuccess?.(MOCK_PROOF);
+        },
+        isPending: false,
+        isError: false,
+      }),
+    );
+
+    const { rerender } = render(
+      <MaoT3ConfirmationDialog
+        open={true}
+        action="resume_project"
+        projectId={MOCK_PROJECT_ID}
+        onConfirm={onConfirm}
+        onCancel={onCancel}
+      />,
+    );
+
+    // Trigger confirm to show proof
+    fireEvent.click(screen.getByRole('button', { name: 'Confirm' }));
+
+    await waitFor(() => {
+      expect(screen.getByText('Proof confirmed')).toBeTruthy();
+    });
+
+    // Close the dialog
+    rerender(
+      <MaoT3ConfirmationDialog
+        open={false}
+        action="resume_project"
+        projectId={MOCK_PROJECT_ID}
+        onConfirm={onConfirm}
+        onCancel={onCancel}
+      />,
+    );
+
+    // Re-open the dialog
+    rerender(
+      <MaoT3ConfirmationDialog
+        open={true}
+        action="resume_project"
+        projectId={MOCK_PROJECT_ID}
+        onConfirm={onConfirm}
+        onCancel={onCancel}
+      />,
+    );
+
+    // Should show the confirmation view, not the proof display
+    expect(screen.getByText('Confirm T3 action')).toBeTruthy();
+    expect(screen.queryByText('Proof confirmed')).toBeNull();
   });
 });

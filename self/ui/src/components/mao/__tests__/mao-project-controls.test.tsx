@@ -1,10 +1,10 @@
 // @vitest-environment jsdom
 
 import * as React from 'react';
-import { fireEvent, render, screen } from '@testing-library/react';
-import { describe, expect, it, vi } from 'vitest';
+import { cleanup, fireEvent, render, screen } from '@testing-library/react';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { MaoProjectControls } from '../mao-project-controls';
-import type { MaoProjectSnapshot } from '@nous/shared';
+import type { MaoProjectControlResult, MaoProjectSnapshot } from '@nous/shared';
 
 const UUID_REGEX = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
@@ -38,6 +38,145 @@ function createSnapshot(): MaoProjectSnapshot {
     generatedAt: '2026-03-10T01:00:00.000Z',
   } as unknown as MaoProjectSnapshot;
 }
+
+beforeEach(() => {
+  vi.clearAllMocks();
+});
+
+afterEach(() => {
+  cleanup();
+});
+
+describe('MaoProjectControls Cortex and evidence surfaces', () => {
+  it('renders Cortex review status in body', () => {
+    const snapshot = createSnapshot();
+    (snapshot.controlProjection as any).pfc_project_review_status = 'active';
+
+    render(
+      <MaoProjectControls
+        snapshot={snapshot}
+        pending={false}
+        lastResult={null}
+        onRequestControl={vi.fn()}
+      />,
+    );
+
+    const section = screen.getByTestId('cortex-review-section');
+    expect(section).toBeTruthy();
+    expect(section.textContent).toContain('active');
+  });
+
+  it('shows "No active Cortex review" when pfc_project_review_status is "none"', () => {
+    const snapshot = createSnapshot();
+
+    render(
+      <MaoProjectControls
+        snapshot={snapshot}
+        pending={false}
+        lastResult={null}
+        onRequestControl={vi.fn()}
+      />,
+    );
+
+    const section = screen.getByTestId('cortex-review-section');
+    expect(section.textContent).toContain('No active Cortex review');
+  });
+
+  it('renders clickable evidence links from resume_readiness_evidence_refs', () => {
+    const snapshot = createSnapshot();
+    (snapshot.controlProjection as any).resume_readiness_evidence_refs = [
+      'evidence://ref-1',
+      'evidence://ref-2',
+    ];
+
+    render(
+      <MaoProjectControls
+        snapshot={snapshot}
+        pending={false}
+        lastResult={null}
+        onRequestControl={vi.fn()}
+      />,
+    );
+
+    const section = screen.getByTestId('resume-readiness-evidence');
+    expect(section).toBeTruthy();
+
+    const links = section.querySelectorAll('[data-evidence-ref]');
+    expect(links.length).toBe(2);
+    expect(links[0]!.getAttribute('data-evidence-ref')).toBe('evidence://ref-1');
+    expect(links[1]!.getAttribute('data-evidence-ref')).toBe('evidence://ref-2');
+  });
+
+  it('renders clickable evidence links from lastResult.evidenceRefs', () => {
+    const snapshot = createSnapshot();
+    const lastResult: MaoProjectControlResult = {
+      command_id: 'cmd-001',
+      project_id: '11111111-1111-1111-1111-111111111111',
+      accepted: true,
+      status: 'applied',
+      from_state: 'paused_review',
+      to_state: 'running',
+      reason_code: 'mao_project_control_applied',
+      decision_ref: 'mao-control:cmd-001',
+      impactSummary: {
+        activeRunCount: 1,
+        activeAgentCount: 1,
+        blockedAgentCount: 0,
+        urgentAgentCount: 0,
+        affectedScheduleCount: 0,
+        evidenceRefs: [],
+      },
+      evidenceRefs: ['evidence://result-ref-1'],
+      readiness_status: 'passed',
+    } as unknown as MaoProjectControlResult;
+
+    render(
+      <MaoProjectControls
+        snapshot={snapshot}
+        pending={false}
+        lastResult={lastResult}
+        onRequestControl={vi.fn()}
+      />,
+    );
+
+    const section = screen.getByTestId('last-result-evidence');
+    expect(section).toBeTruthy();
+
+    const links = section.querySelectorAll('[data-evidence-ref]');
+    expect(links.length).toBe(1);
+    expect(links[0]!.getAttribute('data-evidence-ref')).toBe('evidence://result-ref-1');
+  });
+
+  it('renders no evidence section when evidence refs are empty', () => {
+    const snapshot = createSnapshot();
+
+    render(
+      <MaoProjectControls
+        snapshot={snapshot}
+        pending={false}
+        lastResult={null}
+        onRequestControl={vi.fn()}
+      />,
+    );
+
+    expect(screen.queryByTestId('resume-readiness-evidence')).toBeNull();
+  });
+
+  it('START-005 placeholder element is present', () => {
+    const snapshot = createSnapshot();
+
+    render(
+      <MaoProjectControls
+        snapshot={snapshot}
+        pending={false}
+        lastResult={null}
+        onRequestControl={vi.fn()}
+      />,
+    );
+
+    expect(screen.getByTestId('start-005-stub')).toBeTruthy();
+  });
+});
 
 describe('MaoProjectControls', () => {
   it('generates a unique commandId on each button click', () => {
