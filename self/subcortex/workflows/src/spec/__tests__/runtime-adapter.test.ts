@@ -6,6 +6,14 @@ import {
   specToWorkflowDefinition,
   specToExecutionGraph,
 } from '../runtime-adapter.js';
+import {
+  WorkflowNodeConfigSchema,
+  WorkflowTypedNodeConfigSchema,
+  WorkflowNodeDefinitionSchema,
+  NODE_TYPE_PARAMETER_SCHEMAS,
+  NodeTypeSchema,
+  validateWorkflowSpec,
+} from '@nous/shared';
 import type { WorkflowSpec } from '@nous/shared';
 
 // ---------------------------------------------------------------------------
@@ -333,5 +341,332 @@ describe('specToExecutionGraph', () => {
     const entryNodeId = graph.entryNodeIds[0]!;
     const entryIndex = graph.nodes[entryNodeId]!.topologicalIndex;
     expect(entryIndex).toBe(0);
+  });
+});
+
+// ---------------------------------------------------------------------------
+// Logic gate type system tests (WR-108 Phase 1.1)
+// ---------------------------------------------------------------------------
+
+// Helper to make a spec node for logic gate tests
+function makeSpecNode(
+  id: string,
+  type: string,
+  parameters: Record<string, unknown> = {},
+): WorkflowSpec['nodes'][number] {
+  return { id, name: id, type, position: [0, 0] as [number, number], parameters };
+}
+
+// Helper to build a minimal WorkflowSpec with a single logic gate node
+function makeLogicGateSpec(
+  nodeType: string,
+  parameters: Record<string, unknown>,
+): WorkflowSpec {
+  return {
+    name: 'Logic Gate Test',
+    version: 1,
+    nodes: [
+      makeSpecNode('trigger', 'nous.trigger.schedule', { cron: '0 * * * *' }),
+      makeSpecNode('gate', nodeType, parameters),
+    ],
+    connections: [{ from: 'trigger', to: 'gate' }],
+  };
+}
+
+// ---------------------------------------------------------------------------
+// Tier 1 — Contract Tests
+// ---------------------------------------------------------------------------
+
+describe('Tier 1 — Schema contract tests', () => {
+  it('NODE_TYPE_PARAMETER_SCHEMAS has 21 entries', () => {
+    expect(Object.keys(NODE_TYPE_PARAMETER_SCHEMAS).length).toBe(21);
+  });
+
+  it('NodeTypeSchema has 10 values', () => {
+    expect(NodeTypeSchema.options.length).toBe(10);
+  });
+
+  it.each([
+    ['parallel-split', { type: 'parallel-split', splitMode: 'all', branches: [] }],
+    ['parallel-join', { type: 'parallel-join', joinMode: 'all' }],
+    ['loop', { type: 'loop', maxIterations: 5, exitConditionRef: 'check' }],
+    ['error-handler', { type: 'error-handler', catchScope: 'upstream' }],
+  ] as const)('WorkflowNodeConfigSchema parses %s config', (_kind, config) => {
+    const result = WorkflowNodeConfigSchema.safeParse(config);
+    expect(result.success).toBe(true);
+    if (result.success) {
+      expect(result.data.type).toBe(config.type);
+    }
+  });
+
+  it.each([
+    ['parallel-split', { type: 'parallel-split', splitMode: 'all', branches: [] }],
+    ['parallel-join', { type: 'parallel-join', joinMode: 'all' }],
+    ['loop', { type: 'loop', maxIterations: 5, exitConditionRef: 'check' }],
+    ['error-handler', { type: 'error-handler', catchScope: 'upstream' }],
+  ] as const)('WorkflowTypedNodeConfigSchema parses %s config', (_kind, config) => {
+    const result = WorkflowTypedNodeConfigSchema.safeParse(config);
+    expect(result.success).toBe(true);
+  });
+
+  it.each([
+    'parallel-split',
+    'parallel-join',
+    'loop',
+    'error-handler',
+  ] as const)('WorkflowNodeDefinitionSchema superRefine accepts %s', (kind) => {
+    const configMap: Record<string, Record<string, unknown>> = {
+      'parallel-split': { type: 'parallel-split', splitMode: 'all', branches: [] },
+      'parallel-join': { type: 'parallel-join', joinMode: 'all' },
+      'loop': { type: 'loop', maxIterations: 5, exitConditionRef: 'check' },
+      'error-handler': { type: 'error-handler', catchScope: 'upstream' },
+    };
+    const nodeDef = {
+      id: '00000000-0000-0000-0000-000000000099',
+      name: `Test ${kind}`,
+      type: kind,
+      governance: 'should',
+      executionModel: 'synchronous',
+      config: configMap[kind],
+    };
+    const result = WorkflowNodeDefinitionSchema.safeParse(nodeDef);
+    expect(result.success).toBe(true);
+  });
+});
+
+// ---------------------------------------------------------------------------
+// Tier 2 — Behavior Tests (adapter mapping)
+// ---------------------------------------------------------------------------
+
+describe('Tier 2 — mapNodeTypeToConfig for logic gates', () => {
+  it('returns parallel-split config for nous.condition.parallel-split', () => {
+    const spec = makeLogicGateSpec('nous.condition.parallel-split', {
+      splitMode: 'race',
+      branches: ['a', 'b'],
+    });
+    const def = specToWorkflowDefinition(spec, { projectId });
+    const node = def.nodes.find((n) => n.name === 'gate')!;
+    expect(node.config.type).toBe('parallel-split');
+    if (node.config.type === 'parallel-split') {
+      expect(node.config.splitMode).toBe('race');
+      expect(node.config.branches).toEqual(['a', 'b']);
+    }
+  });
+
+  it('returns parallel-join config for nous.condition.parallel-join', () => {
+    const spec = makeLogicGateSpec('nous.condition.parallel-join', {
+      joinMode: 'n-of-m',
+      requiredCount: 3,
+      timeoutMs: 5000,
+    });
+    const def = specToWorkflowDefinition(spec, { projectId });
+    const node = def.nodes.find((n) => n.name === 'gate')!;
+    expect(node.config.type).toBe('parallel-join');
+    if (node.config.type === 'parallel-join') {
+      expect(node.config.joinMode).toBe('n-of-m');
+      expect(node.config.requiredCount).toBe(3);
+      expect(node.config.timeoutMs).toBe(5000);
+    }
+  });
+
+  it('returns loop config for nous.condition.loop', () => {
+    const spec = makeLogicGateSpec('nous.condition.loop', {
+      maxIterations: 5,
+      exitConditionRef: 'done-check',
+      backoffMs: 100,
+    });
+    const def = specToWorkflowDefinition(spec, { projectId });
+    const node = def.nodes.find((n) => n.name === 'gate')!;
+    expect(node.config.type).toBe('loop');
+    if (node.config.type === 'loop') {
+      expect(node.config.maxIterations).toBe(5);
+      expect(node.config.exitConditionRef).toBe('done-check');
+      expect(node.config.backoffMs).toBe(100);
+    }
+  });
+
+  it('returns error-handler config for nous.condition.error-handler', () => {
+    const spec = makeLogicGateSpec('nous.condition.error-handler', {
+      catchScope: 'specific',
+      targetNodeIds: ['node-1', 'node-2'],
+    });
+    const def = specToWorkflowDefinition(spec, { projectId });
+    const node = def.nodes.find((n) => n.name === 'gate')!;
+    expect(node.config.type).toBe('error-handler');
+    if (node.config.type === 'error-handler') {
+      expect(node.config.catchScope).toBe('specific');
+      expect(node.config.targetNodeIds).toEqual(['node-1', 'node-2']);
+    }
+  });
+});
+
+describe('Tier 2 — mapNodeTypeToRuntimeType for logic gates', () => {
+  it.each([
+    ['nous.condition.parallel-split', 'parallel-split'],
+    ['nous.condition.parallel-join', 'parallel-join'],
+    ['nous.condition.loop', 'loop'],
+    ['nous.condition.error-handler', 'error-handler'],
+  ])('maps %s to runtime type %s', (specType, expectedRuntimeType) => {
+    const spec = makeLogicGateSpec(specType, {});
+    const def = specToWorkflowDefinition(spec, { projectId });
+    const node = def.nodes.find((n) => n.name === 'gate')!;
+    expect(node.type).toBe(expectedRuntimeType);
+  });
+});
+
+describe('Tier 2 — specToWorkflowDefinition end-to-end for logic gates', () => {
+  it('converts a spec with all 4 logic gate types', () => {
+    const spec: WorkflowSpec = {
+      name: 'All Logic Gates',
+      version: 1,
+      nodes: [
+        makeSpecNode('trigger', 'nous.trigger.schedule', { cron: '0 * * * *' }),
+        makeSpecNode('split', 'nous.condition.parallel-split', { splitMode: 'all' }),
+        makeSpecNode('join', 'nous.condition.parallel-join', { joinMode: 'all' }),
+        makeSpecNode('loop-node', 'nous.condition.loop', { maxIterations: 10, exitConditionRef: 'check' }),
+        makeSpecNode('error', 'nous.condition.error-handler', { catchScope: 'upstream' }),
+      ],
+      connections: [
+        { from: 'trigger', to: 'split' },
+        { from: 'split', to: 'join' },
+        { from: 'join', to: 'loop-node' },
+        { from: 'loop-node', to: 'error' },
+      ],
+    };
+    const def = specToWorkflowDefinition(spec, { projectId });
+
+    const splitNode = def.nodes.find((n) => n.name === 'split')!;
+    const joinNode = def.nodes.find((n) => n.name === 'join')!;
+    const loopNode = def.nodes.find((n) => n.name === 'loop-node')!;
+    const errorNode = def.nodes.find((n) => n.name === 'error')!;
+
+    expect(splitNode.type).toBe('parallel-split');
+    expect(splitNode.config.type).toBe('parallel-split');
+    expect(joinNode.type).toBe('parallel-join');
+    expect(joinNode.config.type).toBe('parallel-join');
+    expect(loopNode.type).toBe('loop');
+    expect(loopNode.config.type).toBe('loop');
+    expect(errorNode.type).toBe('error-handler');
+    expect(errorNode.config.type).toBe('error-handler');
+  });
+});
+
+// ---------------------------------------------------------------------------
+// Tier 2 — Regression Tests
+// ---------------------------------------------------------------------------
+
+describe('Tier 2 — Regression: existing condition types unchanged', () => {
+  it('mapNodeTypeToConfig still returns condition config for nous.condition.if', () => {
+    const spec = makeLogicGateSpec('nous.condition.if', { expression: 'x > 1' });
+    const def = specToWorkflowDefinition(spec, { projectId });
+    const node = def.nodes.find((n) => n.name === 'gate')!;
+    expect(node.config.type).toBe('condition');
+    if (node.config.type === 'condition') {
+      expect(node.config.predicateRef).toBe('inline:gate');
+      expect(node.config.trueBranchKey).toBe('true');
+      expect(node.config.falseBranchKey).toBe('false');
+    }
+  });
+
+  it('mapNodeTypeToConfig still returns condition config for nous.condition.switch', () => {
+    const spec = makeLogicGateSpec('nous.condition.switch', { expression: 'x' });
+    const def = specToWorkflowDefinition(spec, { projectId });
+    const node = def.nodes.find((n) => n.name === 'gate')!;
+    expect(node.config.type).toBe('condition');
+  });
+
+  it('mapNodeTypeToConfig still returns condition config for nous.condition.governance-gate', () => {
+    const spec = makeLogicGateSpec('nous.condition.governance-gate', { level: 'must' });
+    const def = specToWorkflowDefinition(spec, { projectId });
+    const node = def.nodes.find((n) => n.name === 'gate')!;
+    expect(node.config.type).toBe('condition');
+  });
+
+  it.each([
+    'nous.condition.if',
+    'nous.condition.switch',
+    'nous.condition.governance-gate',
+  ])('mapNodeTypeToRuntimeType still returns condition for %s', (specType) => {
+    const spec = makeLogicGateSpec(specType, {});
+    const def = specToWorkflowDefinition(spec, { projectId });
+    const node = def.nodes.find((n) => n.name === 'gate')!;
+    expect(node.type).toBe('condition');
+  });
+});
+
+// ---------------------------------------------------------------------------
+// Tier 2 — Deep Validation Tests
+// ---------------------------------------------------------------------------
+
+describe('Tier 2 — validateWorkflowSpec deep mode', () => {
+  it('accepts valid nous.condition.parallel-split parameters', () => {
+    const spec = makeLogicGateSpec('nous.condition.parallel-split', { splitMode: 'all' });
+    const result = validateWorkflowSpec(spec, { deep: true });
+    expect(result.success).toBe(true);
+  });
+
+  it('accepts valid nous.condition.parallel-join parameters', () => {
+    const spec = makeLogicGateSpec('nous.condition.parallel-join', { joinMode: 'any' });
+    const result = validateWorkflowSpec(spec, { deep: true });
+    expect(result.success).toBe(true);
+  });
+
+  it('accepts valid nous.condition.loop parameters', () => {
+    const spec = makeLogicGateSpec('nous.condition.loop', {
+      maxIterations: 10,
+      exitConditionRef: 'check',
+    });
+    const result = validateWorkflowSpec(spec, { deep: true });
+    expect(result.success).toBe(true);
+  });
+
+  it('accepts valid nous.condition.error-handler parameters', () => {
+    const spec = makeLogicGateSpec('nous.condition.error-handler', { catchScope: 'upstream' });
+    const result = validateWorkflowSpec(spec, { deep: true });
+    expect(result.success).toBe(true);
+  });
+});
+
+// ---------------------------------------------------------------------------
+// Tier 3 — Edge Case Tests
+// ---------------------------------------------------------------------------
+
+describe('Tier 3 — Edge cases', () => {
+  it('rejects nous.condition.loop with missing maxIterations', () => {
+    const spec = makeLogicGateSpec('nous.condition.loop', { exitConditionRef: 'check' });
+    const result = validateWorkflowSpec(spec, { deep: true });
+    expect(result.success).toBe(false);
+    if (!result.success) {
+      expect(result.errors.some((e) => e.path.includes('maxIterations'))).toBe(true);
+    }
+  });
+
+  it('rejects nous.condition.loop with missing exitConditionRef', () => {
+    const spec = makeLogicGateSpec('nous.condition.loop', { maxIterations: 5 });
+    const result = validateWorkflowSpec(spec, { deep: true });
+    expect(result.success).toBe(false);
+    if (!result.success) {
+      expect(result.errors.some((e) => e.path.includes('exitConditionRef'))).toBe(true);
+    }
+  });
+
+  it('rejects nous.condition.parallel-join with invalid joinMode', () => {
+    const spec = makeLogicGateSpec('nous.condition.parallel-join', { joinMode: 'invalid' });
+    const result = validateWorkflowSpec(spec, { deep: true });
+    expect(result.success).toBe(false);
+  });
+
+  it('sub-switch default handles unknown nous.condition.* type in mapNodeTypeToConfig', () => {
+    const spec = makeLogicGateSpec('nous.condition.unknown-future-type', {});
+    const def = specToWorkflowDefinition(spec, { projectId });
+    const node = def.nodes.find((n) => n.name === 'gate')!;
+    expect(node.config.type).toBe('condition');
+  });
+
+  it('sub-switch default handles unknown nous.condition.* type in mapNodeTypeToRuntimeType', () => {
+    const spec = makeLogicGateSpec('nous.condition.unknown-future-type', {});
+    const def = specToWorkflowDefinition(spec, { projectId });
+    const node = def.nodes.find((n) => n.name === 'gate')!;
+    expect(node.type).toBe('condition');
   });
 });
