@@ -1,5 +1,6 @@
 import { createHash, randomUUID } from 'node:crypto';
 import type {
+  AgentClass,
   AgentGatewayEntry,
   ConfirmationProof,
   ControlActorType,
@@ -27,8 +28,10 @@ import type {
   MaoSystemSnapshotInput,
   ProjectControlState,
   ProjectId,
+  WorkflowNodeDefinition,
   WorkflowNodeRunState,
   WorkflowRunState,
+  WorkflowRunStatus,
   IHealthAggregator,
   MaoControlAuditHistoryEntry,
 } from '@nous/shared';
@@ -163,10 +166,32 @@ function isPfcWait(nodeState: WorkflowNodeRunState): boolean {
   );
 }
 
+function deriveClassFromNodeKind(
+  nodeDefinition: WorkflowNodeDefinition | undefined,
+): AgentClass | undefined {
+  if (!nodeDefinition) return undefined;
+  switch (nodeDefinition.type) {
+    case 'model-call':
+    case 'tool-execution':
+      return 'Worker';
+    case 'subworkflow':
+      return 'Orchestrator';
+    default:
+      return undefined;
+  }
+}
+
 function mapLifecycleState(
   nodeState: WorkflowNodeRunState,
   controlState: ProjectControlState,
+  runStatus?: WorkflowRunStatus,
 ): MaoAgentProjection['state'] {
+  if (runStatus === 'canceled') {
+    return 'canceled';
+  }
+  if (controlState === 'hard_stopped') {
+    return 'hard_stopped';
+  }
   if (
     controlState === 'paused_review' &&
     ['ready', 'running'].includes(nodeState.status)
@@ -1089,7 +1114,7 @@ export class MaoProjectionService {
     nodeState: WorkflowNodeRunState,
     controlState: ProjectControlState,
   ): MaoAgentProjection {
-    const lifecycleState = mapLifecycleState(nodeState, controlState);
+    const lifecycleState = mapLifecycleState(nodeState, controlState, run.status);
     const urgencyLevel = deriveUrgencyLevel(lifecycleState);
     const latestAttempt = nodeState.attempts[nodeState.attempts.length - 1];
     const parentNodeDefinitionId = run.dispatchLineage.find(
@@ -1115,7 +1140,7 @@ export class MaoProjectionService {
       workflow_node_definition_id: nodeDefinitionId as import('@nous/shared').WorkflowNodeDefinitionId,
       dispatching_task_agent_id: dispatchingTaskAgentId,
       dispatch_origin_ref: nodeState.lastDispatchLineageId ?? `workflow-run:${run.runId}`,
-      agent_class: undefined,
+      agent_class: nodeDefinition?.metadata?.agentClass ?? deriveClassFromNodeKind(nodeDefinition),
       display_name: nodeDefinition?.metadata?.displayName ?? nodeDefinition?.name,
       state: lifecycleState,
       state_reason: nodeState.reasonCode ?? nodeState.activeWaitState?.reasonCode,
