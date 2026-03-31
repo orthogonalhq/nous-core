@@ -83,16 +83,47 @@ function mapNodeTypeToConfig(node: WorkflowNode): WorkflowNodeConfig {
         outputSchemaRef: `schema://${node.id}/output`,
       };
 
-    case 'condition':
-      // Condition nodes map to condition configs
-      return {
-        type: 'condition' as const,
-        predicateRef: node.parameters.expression
-          ? `inline:${node.id}`
-          : `default:${node.type}`,
-        trueBranchKey: 'true',
-        falseBranchKey: 'false',
-      };
+    case 'condition': {
+      // Sub-switch: route logic gate types to dedicated configs
+      switch (node.type) {
+        case 'nous.condition.parallel-split':
+          return {
+            type: 'parallel-split' as const,
+            splitMode: (node.parameters.splitMode as 'all' | 'race') ?? 'all',
+            branches: (node.parameters.branches as string[]) ?? [],
+          };
+        case 'nous.condition.parallel-join':
+          return {
+            type: 'parallel-join' as const,
+            joinMode: (node.parameters.joinMode as 'all' | 'any' | 'n-of-m') ?? 'all',
+            requiredCount: node.parameters.requiredCount as number | undefined,
+            timeoutMs: node.parameters.timeoutMs as number | undefined,
+          };
+        case 'nous.condition.loop':
+          return {
+            type: 'loop' as const,
+            maxIterations: (node.parameters.maxIterations as number) ?? 10,
+            exitConditionRef: (node.parameters.exitConditionRef as string) ?? `default:${node.id}`,
+            backoffMs: node.parameters.backoffMs as number | undefined,
+          };
+        case 'nous.condition.error-handler':
+          return {
+            type: 'error-handler' as const,
+            catchScope: (node.parameters.catchScope as 'upstream' | 'specific') ?? 'upstream',
+            targetNodeIds: node.parameters.targetNodeIds as string[] | undefined,
+          };
+        default:
+          // Existing condition types (if, switch, governance-gate) + unknown future condition types
+          return {
+            type: 'condition' as const,
+            predicateRef: node.parameters.expression
+              ? `inline:${node.id}`
+              : `default:${node.type}`,
+            trueBranchKey: 'true',
+            falseBranchKey: 'false',
+          };
+      }
+    }
 
     case 'tool':
       // MCP tool nodes map to tool-execution configs
@@ -158,8 +189,20 @@ function mapNodeTypeToRuntimeType(
   switch (category) {
     case 'agent':
       return 'model-call';
-    case 'condition':
-      return 'condition';
+    case 'condition': {
+      switch (node.type) {
+        case 'nous.condition.parallel-split':
+          return 'parallel-split';
+        case 'nous.condition.parallel-join':
+          return 'parallel-join';
+        case 'nous.condition.loop':
+          return 'loop';
+        case 'nous.condition.error-handler':
+          return 'error-handler';
+        default:
+          return 'condition';
+      }
+    }
     case 'tool':
     case 'memory':
     case 'app':
