@@ -2,6 +2,7 @@
 
 import * as React from 'react';
 import type { MaoAgentProjection, MaoDensityMode } from '@nous/shared';
+import { getStateVisuals } from './mao-state-utils';
 
 /** Agent class color mapping for edge connectors and tile accents */
 export interface AgentClassColor {
@@ -69,21 +70,22 @@ function tileSizeClasses(densityMode: MaoDensityMode): string {
   }
 }
 
-function stateColorDot(state: string): string {
-  switch (state) {
-    case 'running':
-    case 'resuming':
-      return 'bg-emerald-500';
-    case 'blocked':
-    case 'waiting_pfc':
-      return 'bg-amber-500';
-    case 'failed':
-      return 'bg-red-500';
-    case 'completed':
-      return 'bg-slate-400';
-    default:
-      return 'bg-slate-400';
-  }
+/** Small SVG exclamation icon for urgent indicators at D3 */
+function UrgentIcon() {
+  return (
+    <svg
+      width="8"
+      height="8"
+      viewBox="0 0 8 8"
+      fill="none"
+      xmlns="http://www.w3.org/2000/svg"
+      className="text-red-500 shrink-0"
+      aria-hidden="true"
+    >
+      <circle cx="4" cy="4" r="4" fill="currentColor" />
+      <text x="4" y="6" textAnchor="middle" fontSize="6" fill="white" fontWeight="bold">!</text>
+    </svg>
+  );
 }
 
 export interface MaoWorkflowGroupCardProps {
@@ -110,43 +112,97 @@ export function MaoWorkflowGroupCard({
         className={`relative rounded border ${classColor.fill} p-1`}
         data-testid="workflow-group-card"
       >
-        <button
-          type="button"
-          data-agent-id={orchestrator.agent_id}
-          onClick={() => onSelectAgent(orchestrator)}
-          className={`w-6 h-6 rounded ${stateColorDot(orchestrator.state)} ${
-            selectedAgentId === orchestrator.agent_id ? 'ring-2 ring-primary' : ''
-          }`}
-          aria-label={resolveAgentLabel(orchestrator)}
-          onMouseEnter={() => setHoveredId(orchestrator.agent_id)}
-          onMouseLeave={() => setHoveredId(null)}
-        />
-        {hoveredId === orchestrator.agent_id && (
-          <div className="absolute z-10 -top-8 left-0 rounded bg-popover px-2 py-1 text-xs shadow-md border border-border whitespace-nowrap">
-            {resolveAgentLabel(orchestrator)}
-          </div>
-        )}
-        <div className="flex flex-wrap gap-0.5 mt-0.5">
-          {workers.map((w) => (
-            <div key={w.agent_id} className="relative">
+        {/* Orchestrator tile — D4 with hover-expand to D3 */}
+        {(() => {
+          const isHovered = hoveredId === orchestrator.agent_id;
+          const orchVisuals = getStateVisuals(orchestrator.state);
+          const orchUrgent = orchestrator.urgency_level === 'urgent';
+
+          if (isHovered) {
+            // Hover-expand: render D3 compact markup
+            return (
               <button
                 type="button"
-                data-agent-id={w.agent_id}
-                onClick={() => onSelectAgent(w)}
-                className={`w-6 h-6 rounded ${stateColorDot(w.state)} ${
-                  selectedAgentId === w.agent_id ? 'ring-2 ring-primary' : ''
-                }`}
-                aria-label={resolveAgentLabel(w)}
-                onMouseEnter={() => setHoveredId(w.agent_id)}
+                data-agent-id={orchestrator.agent_id}
+                onClick={() => onSelectAgent(orchestrator)}
+                className={`inline-flex items-center gap-1 rounded px-1 py-0.5 text-xs font-medium transition-colors hover:bg-muted/30 ${
+                  selectedAgentId === orchestrator.agent_id ? 'ring-1 ring-primary' : ''
+                } ${orchUrgent ? 'border-2 border-red-500' : ''} ${orchVisuals.pulse}`}
+                aria-label={resolveAgentLabel(orchestrator)}
+                onMouseEnter={() => setHoveredId(orchestrator.agent_id)}
                 onMouseLeave={() => setHoveredId(null)}
-              />
-              {hoveredId === w.agent_id && (
-                <div className="absolute z-10 -top-8 left-0 rounded bg-popover px-2 py-1 text-xs shadow-md border border-border whitespace-nowrap">
-                  {resolveAgentLabel(w)}
+                data-testid="hover-expand-tile"
+              >
+                <span className={`inline-block w-2 h-2 rounded-full ${orchVisuals.dot}`} />
+                <span className="truncate max-w-24">
+                  {resolveAgentLabel(orchestrator)}
+                </span>
+                {orchUrgent && <UrgentIcon />}
+              </button>
+            );
+          }
+
+          return (
+            <button
+              type="button"
+              data-agent-id={orchestrator.agent_id}
+              onClick={() => onSelectAgent(orchestrator)}
+              className={`w-6 h-6 rounded ${orchVisuals.dot} ${
+                selectedAgentId === orchestrator.agent_id ? 'ring-2 ring-primary' : ''
+              } ${orchUrgent ? 'ring-2 ring-red-500' : ''} ${orchVisuals.pulse}`}
+              aria-label={resolveAgentLabel(orchestrator)}
+              onMouseEnter={() => setHoveredId(orchestrator.agent_id)}
+              onMouseLeave={() => setHoveredId(null)}
+            />
+          );
+        })()}
+
+        <div className="flex flex-wrap gap-0.5 mt-0.5">
+          {workers.map((w) => {
+            const isHovered = hoveredId === w.agent_id;
+            const wVisuals = getStateVisuals(w.state);
+            const wUrgent = w.urgency_level === 'urgent';
+
+            if (isHovered) {
+              // Hover-expand: render D3 compact markup
+              return (
+                <div key={w.agent_id} className="relative">
+                  <button
+                    type="button"
+                    data-agent-id={w.agent_id}
+                    onClick={() => onSelectAgent(w)}
+                    className={`inline-flex items-center gap-1 rounded px-1 py-0.5 text-xs transition-colors hover:bg-muted/30 ${
+                      selectedAgentId === w.agent_id ? 'ring-1 ring-primary' : ''
+                    } ${wUrgent ? 'border-2 border-red-500' : ''} ${wVisuals.pulse}`}
+                    aria-label={resolveAgentLabel(w)}
+                    onMouseEnter={() => setHoveredId(w.agent_id)}
+                    onMouseLeave={() => setHoveredId(null)}
+                    data-testid="hover-expand-tile"
+                  >
+                    <span className={`inline-block w-2 h-2 rounded-full ${wVisuals.dot}`} />
+                    <span className="truncate max-w-24 text-[10px]">{resolveAgentLabel(w)}</span>
+                    {wUrgent && <UrgentIcon />}
+                  </button>
                 </div>
-              )}
-            </div>
-          ))}
+              );
+            }
+
+            return (
+              <div key={w.agent_id} className="relative">
+                <button
+                  type="button"
+                  data-agent-id={w.agent_id}
+                  onClick={() => onSelectAgent(w)}
+                  className={`w-6 h-6 rounded ${wVisuals.dot} ${
+                    selectedAgentId === w.agent_id ? 'ring-2 ring-primary' : ''
+                  } ${wUrgent ? 'ring-2 ring-red-500' : ''} ${wVisuals.pulse}`}
+                  aria-label={resolveAgentLabel(w)}
+                  onMouseEnter={() => setHoveredId(w.agent_id)}
+                  onMouseLeave={() => setHoveredId(null)}
+                />
+              </div>
+            );
+          })}
         </div>
         <span className="text-[10px] text-muted-foreground">
           {workers.length + 1}
@@ -161,50 +217,66 @@ export function MaoWorkflowGroupCard({
         className={`rounded border ${classColor.fill} p-1.5`}
         data-testid="workflow-group-card"
       >
-        <button
-          type="button"
-          data-agent-id={orchestrator.agent_id}
-          onClick={() => onSelectAgent(orchestrator)}
-          className={`flex items-center gap-1 rounded px-1 py-0.5 text-xs font-medium transition-colors hover:bg-muted/30 ${
-            selectedAgentId === orchestrator.agent_id ? 'ring-1 ring-primary' : ''
-          }`}
-          aria-label={resolveAgentLabel(orchestrator)}
-          onMouseEnter={() => setHoveredId(orchestrator.agent_id)}
-          onMouseLeave={() => setHoveredId(null)}
-        >
-          <span className={`inline-block w-2 h-2 rounded-full ${stateColorDot(orchestrator.state)}`} />
-          <span className="truncate max-w-24">
-            {hoveredId === orchestrator.agent_id
-              ? resolveAgentLabel(orchestrator)
-              : resolveAgentLabel(orchestrator).slice(0, 12)}
-          </span>
-        </button>
-        <div className="flex flex-wrap gap-1 mt-1">
-          {workers.map((w) => (
+        {(() => {
+          const orchVisuals = getStateVisuals(orchestrator.state);
+          const orchUrgent = orchestrator.urgency_level === 'urgent';
+          return (
             <button
-              key={w.agent_id}
               type="button"
-              data-agent-id={w.agent_id}
-              onClick={() => onSelectAgent(w)}
-              className={`inline-flex items-center gap-1 rounded px-1 py-0.5 text-xs transition-colors hover:bg-muted/30 ${
-                selectedAgentId === w.agent_id ? 'ring-1 ring-primary' : ''
-              }`}
-              aria-label={resolveAgentLabel(w)}
-              onMouseEnter={() => setHoveredId(w.agent_id)}
+              data-agent-id={orchestrator.agent_id}
+              onClick={() => onSelectAgent(orchestrator)}
+              className={`flex items-center gap-1 rounded px-1 py-0.5 text-xs font-medium transition-colors hover:bg-muted/30 ${
+                selectedAgentId === orchestrator.agent_id ? 'ring-1 ring-primary' : ''
+              } ${orchUrgent ? 'border-2 border-red-500' : ''} ${orchVisuals.pulse}`}
+              aria-label={resolveAgentLabel(orchestrator)}
+              onMouseEnter={() => setHoveredId(orchestrator.agent_id)}
               onMouseLeave={() => setHoveredId(null)}
             >
-              <span className={`inline-block w-2 h-2 rounded-full ${stateColorDot(w.state)}`} />
-              {hoveredId === w.agent_id && (
-                <span className="truncate max-w-24 text-[10px]">{resolveAgentLabel(w)}</span>
+              <span className={`inline-block w-2 h-2 rounded-full ${orchVisuals.dot}`} />
+              <span className="truncate max-w-24">
+                {hoveredId === orchestrator.agent_id
+                  ? resolveAgentLabel(orchestrator)
+                  : resolveAgentLabel(orchestrator).slice(0, 12)}
+              </span>
+              {orchUrgent && (
+                <span data-testid="urgent-indicator"><UrgentIcon /></span>
               )}
             </button>
-          ))}
+          );
+        })()}
+        <div className="flex flex-wrap gap-1 mt-1">
+          {workers.map((w) => {
+            const wVisuals = getStateVisuals(w.state);
+            const wUrgent = w.urgency_level === 'urgent';
+            return (
+              <button
+                key={w.agent_id}
+                type="button"
+                data-agent-id={w.agent_id}
+                onClick={() => onSelectAgent(w)}
+                className={`inline-flex items-center gap-1 rounded px-1 py-0.5 text-xs transition-colors hover:bg-muted/30 ${
+                  selectedAgentId === w.agent_id ? 'ring-1 ring-primary' : ''
+                } ${wUrgent ? 'border-2 border-red-500' : ''} ${wVisuals.pulse}`}
+                aria-label={resolveAgentLabel(w)}
+                onMouseEnter={() => setHoveredId(w.agent_id)}
+                onMouseLeave={() => setHoveredId(null)}
+              >
+                <span className={`inline-block w-2 h-2 rounded-full ${wVisuals.dot}`} />
+                {hoveredId === w.agent_id && (
+                  <span className="truncate max-w-24 text-[10px]">{resolveAgentLabel(w)}</span>
+                )}
+                {wUrgent && (
+                  <span data-testid="urgent-indicator"><UrgentIcon /></span>
+                )}
+              </button>
+            );
+          })}
         </div>
       </div>
     );
   }
 
-  // D1 and D2 — full card rendering
+  // D0, D1, D2 — full card rendering
   const isLarge = densityMode === 'D1' || densityMode === 'D0';
   const tileSize = tileSizeClasses(densityMode);
 
@@ -214,59 +286,67 @@ export function MaoWorkflowGroupCard({
       data-testid="workflow-group-card"
     >
       {/* Orchestrator — header */}
-      <button
-        type="button"
-        data-agent-id={orchestrator.agent_id}
-        onClick={() => onSelectAgent(orchestrator)}
-        className={`w-full rounded-lg border p-3 text-left transition-colors hover:bg-muted/20 ${
-          selectedAgentId === orchestrator.agent_id
-            ? 'border-primary bg-primary/10'
-            : 'border-border bg-background'
-        } ${tileSize}`}
-        aria-label={resolveAgentLabel(orchestrator)}
-      >
-        <div className="flex items-start justify-between gap-2">
-          <div className="min-w-0">
-            <div className="truncate text-sm font-medium">
-              {resolveAgentLabel(orchestrator)}
+      {(() => {
+        const orchVisuals = getStateVisuals(orchestrator.state);
+        return (
+          <button
+            type="button"
+            data-agent-id={orchestrator.agent_id}
+            onClick={() => onSelectAgent(orchestrator)}
+            className={`w-full rounded-lg border p-3 text-left transition-colors hover:bg-muted/20 ${
+              selectedAgentId === orchestrator.agent_id
+                ? 'border-primary bg-primary/10'
+                : 'border-border bg-background'
+            } ${tileSize} ${orchVisuals.pulse}`}
+            aria-label={resolveAgentLabel(orchestrator)}
+          >
+            <div className="flex items-start justify-between gap-2">
+              <div className="min-w-0">
+                <div className="truncate text-sm font-medium">
+                  {resolveAgentLabel(orchestrator)}
+                </div>
+                <div className="mt-1 text-xs text-muted-foreground">
+                  {orchestrator.state}
+                </div>
+              </div>
+              <span className={`inline-block w-2.5 h-2.5 rounded-full mt-1 ${orchVisuals.dot}`} />
             </div>
-            <div className="mt-1 text-xs text-muted-foreground">
-              {orchestrator.state}
-            </div>
-          </div>
-          <span className={`inline-block w-2.5 h-2.5 rounded-full mt-1 ${stateColorDot(orchestrator.state)}`} />
-        </div>
-      </button>
+          </button>
+        );
+      })()}
 
       {/* Workers — horizontal flex-wrap */}
       {workers.length > 0 && (
         <div className="flex flex-wrap gap-2 mt-2" data-testid="workers-container">
-          {workers.map((w) => (
-            <button
-              key={w.agent_id}
-              type="button"
-              data-agent-id={w.agent_id}
-              onClick={() => onSelectAgent(w)}
-              className={`rounded-lg border p-2 text-left transition-colors hover:bg-muted/20 ${
-                selectedAgentId === w.agent_id
-                  ? 'border-primary bg-primary/10'
-                  : 'border-border bg-background'
-              } ${tileSize}`}
-              aria-label={resolveAgentLabel(w)}
-            >
-              <div className="flex items-start justify-between gap-2">
-                <div className="min-w-0">
-                  <div className="truncate text-sm font-medium">
-                    {resolveAgentLabel(w)}
+          {workers.map((w) => {
+            const wVisuals = getStateVisuals(w.state);
+            return (
+              <button
+                key={w.agent_id}
+                type="button"
+                data-agent-id={w.agent_id}
+                onClick={() => onSelectAgent(w)}
+                className={`rounded-lg border p-2 text-left transition-colors hover:bg-muted/20 ${
+                  selectedAgentId === w.agent_id
+                    ? 'border-primary bg-primary/10'
+                    : 'border-border bg-background'
+                } ${tileSize} ${wVisuals.pulse}`}
+                aria-label={resolveAgentLabel(w)}
+              >
+                <div className="flex items-start justify-between gap-2">
+                  <div className="min-w-0">
+                    <div className="truncate text-sm font-medium">
+                      {resolveAgentLabel(w)}
+                    </div>
+                    <div className="mt-1 text-xs text-muted-foreground">
+                      {w.state}
+                    </div>
                   </div>
-                  <div className="mt-1 text-xs text-muted-foreground">
-                    {w.state}
-                  </div>
+                  <span className={`inline-block w-2 h-2 rounded-full mt-1 ${wVisuals.dot}`} />
                 </div>
-                <span className={`inline-block w-2 h-2 rounded-full mt-1 ${stateColorDot(w.state)}`} />
-              </div>
-            </button>
-          ))}
+              </button>
+            );
+          })}
         </div>
       )}
     </div>

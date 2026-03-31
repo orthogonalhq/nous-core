@@ -5,6 +5,7 @@ import type { MaoRunGraphSnapshot } from '@nous/shared';
 import { Badge } from '../badge';
 import { Card, CardContent, CardHeader, CardTitle } from '../card';
 import { formatShortId } from './mao-links';
+import { getStateVisuals } from './mao-state-utils';
 
 export interface MaoRunGraphProps {
   graph: MaoRunGraphSnapshot;
@@ -46,10 +47,21 @@ export function MaoRunGraph({
                 (selectedNodeId === node.workflowNodeDefinitionId ||
                   selectedNodeId === node.id);
 
+              // State-based color coding for nodes
+              const stateClasses = node.state
+                ? getStateVisuals(node.state)
+                : null;
+              const nodeClasses = active
+                ? 'border-primary bg-primary/10'
+                : stateClasses
+                  ? `${stateClasses.tone} hover:bg-muted/20`
+                  : 'border-border hover:bg-muted/20';
+
               return (
                 <button
                   key={node.id}
                   type="button"
+                  data-testid="run-graph-node"
                   onClick={() =>
                     onSelectNode({
                       workflowRunId: node.workflowRunId,
@@ -57,11 +69,7 @@ export function MaoRunGraph({
                       agentId: node.agentId,
                     })
                   }
-                  className={`w-full rounded-md border px-3 py-2 text-left ${
-                    active
-                      ? 'border-primary bg-primary/10'
-                      : 'border-border hover:bg-muted/20'
-                  }`}
+                  className={`w-full rounded-md border px-3 py-2 text-left ${nodeClasses}`}
                 >
                   <div className="flex items-center justify-between gap-2">
                     <span className="font-medium">{node.label}</span>
@@ -87,23 +95,37 @@ export function MaoRunGraph({
               No dispatch or corrective arcs are available.
             </p>
           ) : (
-            graph.edges.map((edge) => (
-              <div
-                key={edge.id}
-                className="rounded-md border border-border px-3 py-2 text-sm"
-              >
-                <div className="flex items-center justify-between gap-2">
-                  <span className="font-medium">
-                    {formatShortId(edge.fromNodeId)} {'->'}{' '}
-                    {formatShortId(edge.toNodeId)}
-                  </span>
-                  <Badge variant="outline">{edge.kind}</Badge>
+            graph.edges.map((edge) => {
+              const isCorrective = edge.kind !== 'dispatch';
+
+              return (
+                <div
+                  key={edge.id}
+                  data-testid={isCorrective ? 'corrective-arc' : undefined}
+                  className={`rounded-md border px-3 py-2 text-sm ${
+                    isCorrective
+                      ? 'border-amber-500/60 bg-amber-500/5 border-l-2 border-l-amber-500'
+                      : 'border-border'
+                  }`}
+                >
+                  <div className="flex items-center justify-between gap-2">
+                    <span className="font-medium">
+                      {formatShortId(edge.fromNodeId)} {'->'}{' '}
+                      {formatShortId(edge.toNodeId)}
+                    </span>
+                    <Badge
+                      variant="outline"
+                      className={isCorrective ? 'border-amber-500 text-amber-500' : ''}
+                    >
+                      {edge.kind}
+                    </Badge>
+                  </div>
+                  <div className="mt-1 text-xs text-muted-foreground">
+                    {edge.reasonCode} • {edge.evidenceRefs[0]}
+                  </div>
                 </div>
-                <div className="mt-1 text-xs text-muted-foreground">
-                  {edge.reasonCode} • {edge.evidenceRefs[0]}
-                </div>
-              </div>
-            ))
+              );
+            })
           )}
         </div>
       </CardContent>

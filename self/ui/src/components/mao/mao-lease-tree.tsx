@@ -4,6 +4,7 @@ import * as React from 'react';
 import type { MaoAgentProjection, MaoDensityMode, MaoSystemSnapshot } from '@nous/shared';
 import { MaoWorkflowGroupCard, resolveAgentLabel, AGENT_CLASS_COLORS, FALLBACK_CLASS_COLOR } from './mao-workflow-group-card';
 import { MaoEdgeConnector, type EdgeDef } from './mao-edge-connector';
+import { getStateVisuals } from './mao-state-utils';
 
 // ---------------------------------------------------------------------------
 // Lease Tree Derivation
@@ -167,25 +168,26 @@ function rootTileSizeClasses(densityMode: MaoDensityMode): string {
   }
 }
 
-function stateColorDot(state: string): string {
-  switch (state) {
-    case 'running':
-    case 'resuming':
-      return 'bg-emerald-500';
-    case 'blocked':
-    case 'waiting_pfc':
-      return 'bg-amber-500';
-    case 'failed':
-      return 'bg-red-500';
-    case 'completed':
-      return 'bg-slate-400';
-    default:
-      return 'bg-slate-400';
-  }
-}
-
 function getClassFill(agent: MaoAgentProjection): string {
   return (AGENT_CLASS_COLORS[agent.agent_class ?? ''] ?? FALLBACK_CLASS_COLOR).fill;
+}
+
+/** Small SVG exclamation icon for urgent indicators at D3 */
+function UrgentIcon() {
+  return (
+    <svg
+      width="8"
+      height="8"
+      viewBox="0 0 8 8"
+      fill="none"
+      xmlns="http://www.w3.org/2000/svg"
+      className="text-red-500 shrink-0"
+      aria-hidden="true"
+    >
+      <circle cx="4" cy="4" r="4" fill="currentColor" />
+      <text x="4" y="6" textAnchor="middle" fontSize="6" fill="white" fontWeight="bold">!</text>
+    </svg>
+  );
 }
 
 // ---------------------------------------------------------------------------
@@ -248,6 +250,8 @@ export function MaoLeaseTree({
                           ? 'D3'
                           : 'D2'
                         : densityMode;
+                    const visuals = getStateVisuals(agent.state);
+                    const isUrgent = agent.urgency_level === 'urgent';
 
                     if (effectiveDensity === 'D4') {
                       return (
@@ -256,14 +260,15 @@ export function MaoLeaseTree({
                           type="button"
                           data-agent-id={agent.agent_id}
                           onClick={() => onSelectAgent(agent)}
-                          className={`w-6 h-6 rounded ${stateColorDot(agent.state)} ${
+                          className={`w-6 h-6 rounded ${visuals.dot} ${
                             selectedAgentId === agent.agent_id
                               ? 'ring-2 ring-primary'
                               : ''
-                          } ${getClassFill(agent)}`}
+                          } ${isUrgent ? 'ring-2 ring-red-500' : ''} ${getClassFill(agent)} ${visuals.pulse}`}
                           aria-label={resolveAgentLabel(agent)}
                           onMouseEnter={() => setHoveredId(agent.agent_id)}
                           onMouseLeave={() => setHoveredId(null)}
+                          data-testid="urgent-indicator-wrapper"
                         />
                       );
                     }
@@ -279,21 +284,25 @@ export function MaoLeaseTree({
                             selectedAgentId === agent.agent_id
                               ? 'border-primary bg-primary/10'
                               : getClassFill(agent)
-                          }`}
+                          } ${isUrgent ? 'border-2 border-red-500' : ''} ${visuals.pulse}`}
                           aria-label={resolveAgentLabel(agent)}
                           onMouseEnter={() => setHoveredId(agent.agent_id)}
                           onMouseLeave={() => setHoveredId(null)}
                         >
                           <span
-                            className={`inline-block w-2 h-2 rounded-full ${stateColorDot(agent.state)}`}
+                            className={`inline-block w-2 h-2 rounded-full ${visuals.dot}`}
                           />
                           <span className="truncate max-w-24">
                             {resolveAgentLabel(agent)}
                           </span>
+                          {isUrgent && (
+                            <span data-testid="urgent-indicator"><UrgentIcon /></span>
+                          )}
                         </button>
                       );
                     }
 
+                    // D0-D2: full root tile with agent class badge
                     return (
                       <button
                         key={agent.agent_id}
@@ -304,22 +313,30 @@ export function MaoLeaseTree({
                           selectedAgentId === agent.agent_id
                             ? 'border-primary bg-primary/10'
                             : `border-border bg-background`
-                        }`}
+                        } ${visuals.pulse}`}
                         aria-label={resolveAgentLabel(agent)}
                         onMouseEnter={() => setHoveredId(agent.agent_id)}
                         onMouseLeave={() => setHoveredId(null)}
                       >
                         <div className="flex items-start justify-between gap-2">
                           <div className="min-w-0">
-                            <div className="truncate text-sm font-medium">
+                            <div className="flex items-center gap-1.5 truncate text-sm font-medium">
                               {resolveAgentLabel(agent)}
+                              {agent.agent_class && (
+                                <span
+                                  className={`inline-flex items-center rounded-sm px-1 py-0.5 text-[10px] font-medium leading-none ${(AGENT_CLASS_COLORS[agent.agent_class] ?? FALLBACK_CLASS_COLOR).fill}`}
+                                  data-testid="agent-class-badge"
+                                >
+                                  {(AGENT_CLASS_COLORS[agent.agent_class] ?? FALLBACK_CLASS_COLOR).label}
+                                </span>
+                              )}
                             </div>
                             <div className="mt-1 text-xs text-muted-foreground">
                               {agent.state}
                             </div>
                           </div>
                           <span
-                            className={`inline-block w-2.5 h-2.5 rounded-full mt-1 ${stateColorDot(agent.state)}`}
+                            className={`inline-block w-2.5 h-2.5 rounded-full mt-1 ${visuals.dot}`}
                           />
                         </div>
                       </button>

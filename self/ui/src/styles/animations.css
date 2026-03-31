@@ -146,6 +146,44 @@
     var(--nous-ease-out);
 }
 
+/* State-based motion pulse — subtle for running/resuming agents */
+@keyframes nous-state-pulse-subtle {
+  0%,
+  100% {
+    opacity: 1;
+    transform: scale(1);
+  }
+
+  50% {
+    opacity: 0.85;
+    transform: scale(1.01);
+  }
+}
+
+/* State-based motion pulse — strong for blocked/waiting_pfc/failed agents */
+@keyframes nous-state-pulse-strong {
+  0%,
+  100% {
+    opacity: 1;
+    transform: scale(1);
+  }
+
+  50% {
+    opacity: 0.7;
+    transform: scale(1.03);
+  }
+}
+
+.nous-state-pulse-subtle {
+  animation: nous-state-pulse-subtle 2s ease-in-out infinite;
+  will-change: transform, opacity;
+}
+
+.nous-state-pulse-strong {
+  animation: nous-state-pulse-strong 1.2s ease-in-out infinite;
+  will-change: transform, opacity;
+}
+
 @media (prefers-reduced-motion: reduce) {
   .nous-animate-pulse,
   .nous-animate-shake,
@@ -153,7 +191,9 @@
   .nous-animate-flash-error,
   .nous-animate-slide-in-right,
   .nous-animate-fade-in-up,
-  .nous-animate-fade-in-scale {
+  .nous-animate-fade-in-scale,
+  .nous-state-pulse-subtle,
+  .nous-state-pulse-strong {
     animation: none !important;
     transition-duration: 0s !important;
   }

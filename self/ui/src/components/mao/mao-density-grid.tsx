@@ -4,6 +4,8 @@ import * as React from 'react';
 import type { MaoDensityMode, MaoGridTileProjection, MaoProjectSnapshot } from '@nous/shared';
 import { Badge } from '../badge';
 import { Card, CardContent, CardHeader, CardTitle } from '../card';
+import { resolveAgentLabel } from './mao-workflow-group-card';
+import { getStateVisuals, CLUSTER_STATE_ORDER } from './mao-state-utils';
 
 function gridColumnsForDensity(
   densityMode: MaoProjectSnapshot['densityMode'],
@@ -22,22 +24,6 @@ function gridColumnsForDensity(
     default:
       return 'grid-cols-1 md:grid-cols-2 xl:grid-cols-3';
   }
-}
-
-function toneClasses(tile: MaoGridTileProjection): string {
-  if (tile.agent.state === 'failed') {
-    return 'border-red-500/40 bg-red-500/10';
-  }
-  if (tile.agent.state === 'blocked' || tile.agent.state === 'waiting_pfc') {
-    return 'border-amber-500/40 bg-amber-500/10';
-  }
-  if (tile.agent.state === 'running' || tile.agent.state === 'resuming') {
-    return 'border-emerald-500/40 bg-emerald-500/10';
-  }
-  if (tile.agent.state === 'completed') {
-    return 'border-slate-500/40 bg-slate-500/10';
-  }
-  return 'border-border bg-background';
 }
 
 const streamingPulseStyle: React.CSSProperties = {
@@ -89,6 +75,45 @@ function renderInferenceInfo(
   );
 }
 
+/** Small SVG exclamation icon for urgent indicators at D3 */
+function UrgentIcon() {
+  return (
+    <svg
+      width="8"
+      height="8"
+      viewBox="0 0 8 8"
+      fill="none"
+      xmlns="http://www.w3.org/2000/svg"
+      className="text-red-500 shrink-0"
+      data-testid="urgent-icon"
+      aria-hidden="true"
+    >
+      <circle cx="4" cy="4" r="4" fill="currentColor" />
+      <text x="4" y="6" textAnchor="middle" fontSize="6" fill="white" fontWeight="bold">!</text>
+    </svg>
+  );
+}
+
+/** Elapsed-since-urgent timer for D0-D2 */
+function UrgentTimer({ lastUpdateAt }: { lastUpdateAt: string }) {
+  const [minutes, setMinutes] = React.useState(() =>
+    Math.floor((Date.now() - new Date(lastUpdateAt).getTime()) / 60000),
+  );
+
+  React.useEffect(() => {
+    const interval = setInterval(() => {
+      setMinutes(Math.floor((Date.now() - new Date(lastUpdateAt).getTime()) / 60000));
+    }, 60000);
+    return () => clearInterval(interval);
+  }, [lastUpdateAt]);
+
+  return (
+    <span className="text-[10px] text-red-500" data-testid="urgent-timer">
+      {minutes}m
+    </span>
+  );
+}
+
 export interface MaoDensityGridProps {
   snapshot: MaoProjectSnapshot;
   selectedAgentId: string | null;
@@ -100,6 +125,62 @@ export function MaoDensityGrid({
   selectedAgentId,
   onSelectTile,
 }: MaoDensityGridProps) {
+  const { densityMode } = snapshot;
+
+  // Sort tiles: urgent first, blocked second, then original order (D0-D3)
+  const sortedTiles = React.useMemo(() => {
+    return Array.from(snapshot.grid).sort((a, b) => {
+      const aUrgent =
+        snapshot.urgentOverlay.urgentAgentIds.includes(a.agent.agent_id) ||
+        a.agent.urgency_level === 'urgent';
+      const bUrgent =
+        snapshot.urgentOverlay.urgentAgentIds.includes(b.agent.agent_id) ||
+        b.agent.urgency_level === 'urgent';
+      const aBlocked = snapshot.urgentOverlay.blockedAgentIds.includes(a.agent.agent_id);
+      const bBlocked = snapshot.urgentOverlay.blockedAgentIds.includes(b.agent.agent_id);
+
+      if (aUrgent && !bUrgent) return -1;
+      if (!aUrgent && bUrgent) return 1;
+      if (aBlocked && !bBlocked) return -1;
+      if (!aBlocked && bBlocked) return 1;
+      return 0;
+    });
+  }, [snapshot.grid, snapshot.urgentOverlay]);
+
+  // D4 clustering: group tiles by lifecycle state
+  const clusterMap = React.useMemo(() => {
+    if (densityMode !== 'D4') return null;
+    const map = new Map<string, MaoGridTileProjection[]>();
+    for (const tile of snapshot.grid) {
+      const state = tile.agent.state;
+      if (!map.has(state)) map.set(state, []);
+      map.get(state)!.push(tile);
+    }
+    // Sort urgent to front within each cluster
+    for (const tiles of map.values()) {
+      tiles.sort((a, b) => {
+        const aUrgent =
+          snapshot.urgentOverlay.urgentAgentIds.includes(a.agent.agent_id) ||
+          a.agent.urgency_level === 'urgent';
+        const bUrgent =
+          snapshot.urgentOverlay.urgentAgentIds.includes(b.agent.agent_id) ||
+          b.agent.urgency_level === 'urgent';
+        if (aUrgent && !bUrgent) return -1;
+        if (!aUrgent && bUrgent) return 1;
+        return 0;
+      });
+    }
+    return map;
+  }, [snapshot.grid, snapshot.urgentOverlay, densityMode]);
+
+  // Ordered cluster entries for D4
+  const orderedClusters = React.useMemo(() => {
+    if (!clusterMap) return null;
+    return CLUSTER_STATE_ORDER
+      .filter((state) => clusterMap.has(state))
+      .map((state) => ({ state, tiles: clusterMap.get(state)! }));
+  }, [clusterMap]);
+
   return (
     <Card>
       <CardHeader className="border-b border-border">
@@ -121,11 +202,45 @@ export function MaoDensityGrid({
           <p className="text-sm text-muted-foreground">
             No MAO agent projections are available for the selected project.
           </p>
+        ) : densityMode === 'D4' && orderedClusters ? (
+          /* D4 clustered rendering */
+          <div className="space-y-3">
+            {orderedClusters.map(({ state, tiles }) => (
+              <div key={state} data-testid={`cluster-${state}`}>
+                <div className="text-[10px] text-muted-foreground font-medium mb-1 uppercase tracking-wider">
+                  {state} ({tiles.length})
+                </div>
+                <div className="flex flex-wrap gap-1">
+                  {tiles.map((tile) => {
+                    const isSelected = selectedAgentId === tile.agent.agent_id;
+                    const urgent =
+                      snapshot.urgentOverlay.urgentAgentIds.includes(tile.agent.agent_id) ||
+                      tile.agent.urgency_level === 'urgent';
+                    const visuals = getStateVisuals(tile.agent.state);
+
+                    return (
+                      <button
+                        key={tile.agent.agent_id}
+                        type="button"
+                        aria-label={`Inspect ${resolveAgentLabel(tile.agent)}`}
+                        onClick={() => onSelectTile(tile)}
+                        data-testid="density-tile-d4"
+                        className={`w-6 h-6 rounded ${visuals.dot} ${
+                          isSelected ? 'ring-2 ring-primary' : ''
+                        } ${urgent ? 'ring-2 ring-red-500' : ''} ${visuals.pulse}`}
+                      />
+                    );
+                  })}
+                </div>
+              </div>
+            ))}
+          </div>
         ) : (
+          /* D0-D3 flat rendering */
           <div
-            className={`grid gap-3 ${gridColumnsForDensity(snapshot.densityMode)}`}
+            className={`grid gap-3 ${gridColumnsForDensity(densityMode)}`}
           >
-            {snapshot.grid.map((tile) => {
+            {sortedTiles.map((tile) => {
               const isSelected = selectedAgentId === tile.agent.agent_id;
               const urgent =
                 snapshot.urgentOverlay.urgentAgentIds.includes(tile.agent.agent_id) ||
@@ -133,7 +248,29 @@ export function MaoDensityGrid({
               const blocked = snapshot.urgentOverlay.blockedAgentIds.includes(
                 tile.agent.agent_id,
               );
+              const visuals = getStateVisuals(tile.agent.state);
 
+              /* D3 compact tile */
+              if (densityMode === 'D3') {
+                return (
+                  <button
+                    key={tile.agent.agent_id}
+                    type="button"
+                    aria-label={`Inspect ${resolveAgentLabel(tile.agent)}`}
+                    onClick={() => onSelectTile(tile)}
+                    data-testid="density-tile-d3"
+                    className={`inline-flex items-center gap-1 rounded border px-1.5 py-1 text-xs transition-colors hover:bg-muted/30 ${
+                      isSelected ? 'border-primary bg-primary/10' : visuals.tone
+                    } ${urgent ? 'border-red-500 border-2' : ''} ${visuals.pulse}`}
+                  >
+                    <span className={`inline-block w-2 h-2 rounded-full ${visuals.dot}`} />
+                    <span className="truncate max-w-16">{resolveAgentLabel(tile.agent).slice(0, 16)}</span>
+                    {urgent && <UrgentIcon />}
+                  </button>
+                );
+              }
+
+              /* D0-D2 full card */
               return (
                 <button
                   key={tile.agent.agent_id}
@@ -141,8 +278,8 @@ export function MaoDensityGrid({
                   aria-label={`Inspect ${tile.agent.current_step}`}
                   onClick={() => onSelectTile(tile)}
                   className={`rounded-lg border p-3 text-left transition-colors hover:bg-muted/20 ${
-                    isSelected ? 'border-primary bg-primary/10' : toneClasses(tile)
-                  }`}
+                    isSelected ? 'border-primary bg-primary/10' : visuals.tone
+                  } ${urgent ? 'border-red-500 border-2' : ''} ${visuals.pulse}`}
                 >
                   <div className="flex items-start justify-between gap-2">
                     <div className="min-w-0">
@@ -162,9 +299,23 @@ export function MaoDensityGrid({
                     {tile.inspectOnly ? (
                       <Badge variant="outline">inspect-first</Badge>
                     ) : null}
-                    {urgent ? <Badge variant="outline">urgent</Badge> : null}
+                    {urgent ? (
+                      <Badge
+                        variant="outline"
+                        className="border-red-500 text-red-500 bg-red-500/10"
+                        data-testid="urgent-indicator"
+                      >
+                        URGENT
+                      </Badge>
+                    ) : null}
                     {blocked ? <Badge variant="outline">blocked</Badge> : null}
                   </div>
+
+                  {urgent && tile.agent.last_update_at && (
+                    <div className="mt-1">
+                      <UrgentTimer lastUpdateAt={tile.agent.last_update_at} />
+                    </div>
+                  )}
 
                   <div className="mt-3 flex items-center justify-between text-xs text-muted-foreground">
                     <span>{tile.agent.progress_percent}% complete</span>
