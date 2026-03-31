@@ -54,6 +54,8 @@ export const MaoAgentLifecycleStateSchema = z.enum([
   'completed',
   'paused',
   'resuming',
+  'canceled',
+  'hard_stopped',
 ]);
 export type MaoAgentLifecycleState = z.infer<
   typeof MaoAgentLifecycleStateSchema

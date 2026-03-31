@@ -59,6 +59,15 @@ describe('MaoAgentLifecycleStateSchema', () => {
     expect(MaoAgentLifecycleStateSchema.parse('waiting_pfc')).toBe('waiting_pfc');
     expect(MaoAgentLifecycleStateSchema.parse('resuming')).toBe('resuming');
   });
+
+  it('accepts canceled and hard_stopped lifecycle states', () => {
+    expect(MaoAgentLifecycleStateSchema.parse('canceled')).toBe('canceled');
+    expect(MaoAgentLifecycleStateSchema.parse('hard_stopped')).toBe('hard_stopped');
+  });
+
+  it('has exactly 12 enum members', () => {
+    expect(MaoAgentLifecycleStateSchema.options).toHaveLength(12);
+  });
 });
 
 describe('MaoReasoningLogPreviewSchema', () => {
@@ -586,6 +595,42 @@ describe('WorkflowNodeMetadataSchema — displayName', () => {
       WorkflowNodeMetadataSchema.parse({
         specNodeId: 'node-1',
         displayName: '',
+      }),
+    ).toThrow();
+  });
+});
+
+describe('WorkflowNodeMetadataSchema — agentClass', () => {
+  it('accepts agentClass when provided', () => {
+    const result = WorkflowNodeMetadataSchema.parse({
+      specNodeId: 'node-1',
+      agentClass: 'Worker',
+    });
+    expect(result.agentClass).toBe('Worker');
+  });
+
+  it('accepts all valid agentClass values', () => {
+    for (const cls of ['Cortex::Principal', 'Cortex::System', 'Orchestrator', 'Worker'] as const) {
+      const result = WorkflowNodeMetadataSchema.parse({
+        specNodeId: 'node-1',
+        agentClass: cls,
+      });
+      expect(result.agentClass).toBe(cls);
+    }
+  });
+
+  it('allows agentClass to be omitted (backward compat)', () => {
+    const result = WorkflowNodeMetadataSchema.parse({
+      specNodeId: 'node-1',
+    });
+    expect(result.agentClass).toBeUndefined();
+  });
+
+  it('rejects invalid agentClass values', () => {
+    expect(() =>
+      WorkflowNodeMetadataSchema.parse({
+        specNodeId: 'node-1',
+        agentClass: 'InvalidClass',
       }),
     ).toThrow();
   });
