@@ -135,6 +135,36 @@ export type WorkflowHumanDecisionNodeConfig = z.infer<
   typeof WorkflowHumanDecisionNodeConfigSchema
 >;
 
+export const WorkflowParallelSplitNodeConfigSchema = z.object({
+  type: z.literal('parallel-split'),
+  splitMode: z.enum(['all', 'race']),
+  branches: z.array(z.string().min(1)).default([]),
+});
+export type WorkflowParallelSplitNodeConfig = z.infer<typeof WorkflowParallelSplitNodeConfigSchema>;
+
+export const WorkflowParallelJoinNodeConfigSchema = z.object({
+  type: z.literal('parallel-join'),
+  joinMode: z.enum(['all', 'any', 'n-of-m']),
+  requiredCount: z.number().int().positive().optional(),
+  timeoutMs: z.number().positive().optional(),
+});
+export type WorkflowParallelJoinNodeConfig = z.infer<typeof WorkflowParallelJoinNodeConfigSchema>;
+
+export const WorkflowLoopNodeConfigSchema = z.object({
+  type: z.literal('loop'),
+  maxIterations: z.number().int().positive(),
+  exitConditionRef: z.string().min(1),
+  backoffMs: z.number().nonnegative().optional(),
+});
+export type WorkflowLoopNodeConfig = z.infer<typeof WorkflowLoopNodeConfigSchema>;
+
+export const WorkflowErrorHandlerNodeConfigSchema = z.object({
+  type: z.literal('error-handler'),
+  catchScope: z.enum(['upstream', 'specific']),
+  targetNodeIds: z.array(z.string().min(1)).optional(),
+});
+export type WorkflowErrorHandlerNodeConfig = z.infer<typeof WorkflowErrorHandlerNodeConfigSchema>;
+
 export const WorkflowSubworkflowNodeConfigSchema = z
   .object({
     type: z.literal('subworkflow'),
@@ -152,6 +182,10 @@ export const WorkflowTypedNodeConfigSchema = z.discriminatedUnion('type', [
   WorkflowTransformNodeConfigSchema,
   WorkflowQualityGateNodeConfigSchema,
   WorkflowHumanDecisionNodeConfigSchema,
+  WorkflowParallelSplitNodeConfigSchema,
+  WorkflowParallelJoinNodeConfigSchema,
+  WorkflowLoopNodeConfigSchema,
+  WorkflowErrorHandlerNodeConfigSchema,
 ]);
 export type WorkflowTypedNodeConfig = z.infer<
   typeof WorkflowTypedNodeConfigSchema
@@ -164,6 +198,10 @@ export const WorkflowNodeConfigSchema = z.discriminatedUnion('type', [
   WorkflowTransformNodeConfigSchema,
   WorkflowQualityGateNodeConfigSchema,
   WorkflowHumanDecisionNodeConfigSchema,
+  WorkflowParallelSplitNodeConfigSchema,
+  WorkflowParallelJoinNodeConfigSchema,
+  WorkflowLoopNodeConfigSchema,
+  WorkflowErrorHandlerNodeConfigSchema,
   WorkflowSubworkflowNodeConfigSchema,
 ]);
 export type WorkflowNodeConfig = z.infer<typeof WorkflowNodeConfigSchema>;
