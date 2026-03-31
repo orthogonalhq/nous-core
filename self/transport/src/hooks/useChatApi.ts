@@ -7,8 +7,14 @@ export interface UseChatApiOptions {
 
 /** Matches the ChatAPI interface from @nous/ui/panels (structural compatibility). */
 interface ChatApiShape {
-  send: (message: string) => Promise<{ response: string; traceId: string }>
-  getHistory: () => Promise<{ role: 'user' | 'assistant'; content: string; timestamp: string }[]>
+  send: (message: string) => Promise<{ response: string; traceId: string; contentType?: 'text' | 'openui' }>
+  getHistory: () => Promise<{
+    role: 'user' | 'assistant'
+    content: string
+    timestamp: string
+    contentType?: 'text' | 'openui'
+    actionOutcome?: { actionType: string; label: string; timestamp: string }
+  }[]>
 }
 
 /**
@@ -45,7 +51,7 @@ export function useChatApi(options?: UseChatApiOptions): ChatApiShape {
         if (projectId) {
           await utilsRef.current.chat.getHistory.invalidate({ projectId })
         }
-        return { response: result.response, traceId: result.traceId }
+        return { response: result.response, traceId: result.traceId, contentType: result.contentType }
       },
       getHistory: async () => {
         const data = await utilsRef.current.chat.getHistory.fetch(
@@ -57,6 +63,8 @@ export function useChatApi(options?: UseChatApiOptions): ChatApiShape {
             role: e.role as 'user' | 'assistant',
             content: e.content,
             timestamp: e.timestamp,
+            ...(e.metadata?.contentType ? { contentType: e.metadata.contentType as 'text' | 'openui' } : {}),
+            ...(e.metadata?.actionOutcome ? { actionOutcome: e.metadata.actionOutcome as { actionType: string; label: string; timestamp: string } } : {}),
           }))
       },
     }),

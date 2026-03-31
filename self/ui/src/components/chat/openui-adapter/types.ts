@@ -81,6 +81,23 @@ export interface CardActionHandlers {
 }
 
 // ---------------------------------------------------------------------------
+// RenderCardContext — rendering context passed to renderCardTree
+// ---------------------------------------------------------------------------
+// Carries stale-state and actionOutcome information from ChatPanel to
+// individual card renderers. When stale is true, cards render in muted
+// mode with no action handler.
+// ---------------------------------------------------------------------------
+
+export interface RenderCardContext {
+  stale?: boolean
+  actionOutcome?: {
+    actionType: string
+    label: string
+    timestamp: string
+  }
+}
+
+// ---------------------------------------------------------------------------
 // NousCardRegistry — read-only registry interface
 // ---------------------------------------------------------------------------
 

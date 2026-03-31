@@ -113,4 +113,52 @@ describe('ChatPanel', () => {
     }
     expect(msg.traceId).toBeUndefined()
   })
+
+  // Phase 1.2 — New type fields
+  it('ChatMessage type includes optional contentType field', () => {
+    const msg: ChatMessage = {
+      role: 'assistant',
+      content: 'test',
+      timestamp: new Date().toISOString(),
+      contentType: 'openui',
+    }
+    expect(msg.contentType).toBe('openui')
+  })
+
+  it('ChatMessage type allows omitting contentType (optional field)', () => {
+    const msg: ChatMessage = {
+      role: 'assistant',
+      content: 'test',
+      timestamp: new Date().toISOString(),
+    }
+    expect(msg.contentType).toBeUndefined()
+  })
+
+  it('ChatMessage type includes optional actionOutcome field', () => {
+    const msg: ChatMessage = {
+      role: 'assistant',
+      content: 'test',
+      timestamp: new Date().toISOString(),
+      actionOutcome: { actionType: 'approve', label: 'Approved', timestamp: '2026-01-01T00:00:00Z' },
+    }
+    expect(msg.actionOutcome?.actionType).toBe('approve')
+    expect(msg.actionOutcome?.label).toBe('Approved')
+  })
+
+  it('ChatMessage type allows omitting actionOutcome (optional field)', () => {
+    const msg: ChatMessage = {
+      role: 'assistant',
+      content: 'test',
+      timestamp: new Date().toISOString(),
+    }
+    expect(msg.actionOutcome).toBeUndefined()
+  })
+
+  it('ChatAPI.send return type includes optional contentType field', () => {
+    const api: ChatAPI = {
+      send: async () => ({ response: 'ok', traceId: '123', contentType: 'openui' as const }),
+      getHistory: async () => [],
+    }
+    expect(api).toBeDefined()
+  })
 })

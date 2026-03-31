@@ -250,4 +250,85 @@ describe('renderCardTree', () => {
     expect(() => renderCardTree(undefined as any, handlers)).not.toThrow()
     expect(() => renderCardTree([], handlers)).not.toThrow()
   })
+
+  // Phase 1.2 — RenderCardContext parameter tests
+  it('accepts optional third context parameter without error (backward compat)', () => {
+    registerNousCard(makeDummyCard('TestCard'))
+    const tree = [{ type: 'TestCard', props: { value: 1 }, children: [] }]
+    const handlers = { onAction: () => {} }
+
+    // No context (backward compat)
+    expect(() => renderCardTree(tree, handlers)).not.toThrow()
+    // With context
+    expect(() => renderCardTree(tree, handlers, { stale: false })).not.toThrow()
+    expect(() => renderCardTree(tree, handlers, { stale: true })).not.toThrow()
+  })
+
+  it('passes stale: true to card renderer when context.stale is true', () => {
+    let receivedProps: any = null
+    const staleSpy: any = {
+      name: 'StaleTestCard',
+      description: 'Test stale behavior',
+      propsSchema: { parse: (v: unknown) => v } as any,
+      renderer: ((p: any) => {
+        receivedProps = p
+        return React.createElement('div', { 'data-testid': 'stale-test' }, 'Stale')
+      }) as any,
+    }
+    registerNousCard(staleSpy)
+    const tree = [{ type: 'StaleTestCard', props: { v: 1 }, children: [] }]
+    const handlers = { onAction: () => {} }
+
+    render(
+      React.createElement(() => renderCardTree(tree, handlers, { stale: true })),
+    )
+    expect(receivedProps?.stale).toBe(true)
+    // onAction should NOT be passed when stale
+    expect(receivedProps?.onAction).toBeUndefined()
+  })
+
+  it('passes actionOutcome to card renderer when context provides it', () => {
+    let receivedProps: any = null
+    const outcomeCard: any = {
+      name: 'OutcomeCard',
+      description: 'Test outcome',
+      propsSchema: { parse: (v: unknown) => v } as any,
+      renderer: ((p: any) => {
+        receivedProps = p
+        return React.createElement('div', null, 'Outcome')
+      }) as any,
+    }
+    registerNousCard(outcomeCard)
+    const tree = [{ type: 'OutcomeCard', props: {}, children: [] }]
+    const handlers = { onAction: () => {} }
+    const actionOutcome = { actionType: 'approve', label: 'Done', timestamp: '2026-01-01T00:00:00Z' }
+
+    render(
+      React.createElement(() => renderCardTree(tree, handlers, { stale: true, actionOutcome })),
+    )
+    expect(receivedProps?.actionOutcome).toEqual(actionOutcome)
+  })
+
+  it('passes onAction when context.stale is false', () => {
+    let receivedProps: any = null
+    const liveCard: any = {
+      name: 'LiveCard',
+      description: 'Test live',
+      propsSchema: { parse: (v: unknown) => v } as any,
+      renderer: ((p: any) => {
+        receivedProps = p
+        return React.createElement('div', null, 'Live')
+      }) as any,
+    }
+    registerNousCard(liveCard)
+    const tree = [{ type: 'LiveCard', props: {}, children: [] }]
+    const mockAction = () => {}
+    const handlers = { onAction: mockAction }
+
+    render(
+      React.createElement(() => renderCardTree(tree, handlers, { stale: false })),
+    )
+    expect(receivedProps?.onAction).toBe(mockAction)
+    expect(receivedProps?.stale).toBeUndefined()
+  })
 })

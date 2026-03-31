@@ -15,6 +15,7 @@ export type {
   CardActionHandlers,
   NousCardRegistry,
   CardRendererProps,
+  RenderCardContext,
 } from './types'
 
 // Facade functions

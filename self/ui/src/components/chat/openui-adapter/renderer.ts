@@ -14,6 +14,7 @@ import type {
   NousCardElement,
   CardActionHandlers,
   CardRendererProps,
+  RenderCardContext,
 } from './types'
 import { getCardRegistry } from './registry'
 
@@ -27,6 +28,7 @@ import { getCardRegistry } from './registry'
 export function renderCardTree(
   tree: NousCardTree,
   handlers: CardActionHandlers,
+  context?: RenderCardContext,
 ): React.ReactElement {
   try {
     if (!tree || tree.length === 0) {
@@ -34,7 +36,7 @@ export function renderCardTree(
     }
 
     const children = tree.map((element, index) =>
-      renderElement(element, handlers, `card-${index}`),
+      renderElement(element, handlers, `card-${index}`, context),
     )
 
     return React.createElement(React.Fragment, null, ...children)
@@ -47,6 +49,7 @@ function renderElement(
   element: NousCardElement,
   handlers: CardActionHandlers,
   key: string,
+  context?: RenderCardContext,
 ): React.ReactElement {
   try {
     const registry = getCardRegistry()
@@ -73,7 +76,9 @@ function renderElement(
 
     const rendererProps: CardRendererProps<unknown> = {
       props: element.props,
-      onAction: handlers.onAction,
+      ...(context?.stale
+        ? { stale: true, actionOutcome: context.actionOutcome }
+        : { onAction: handlers.onAction }),
     }
 
     return React.createElement(definition.renderer, { key, ...rendererProps })

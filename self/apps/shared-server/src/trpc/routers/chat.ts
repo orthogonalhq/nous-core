@@ -22,7 +22,7 @@ export const chatRouter = router({
         traceId,
       });
 
-      return { response: result.response, traceId: result.traceId };
+      return { response: result.response, traceId: result.traceId, contentType: result.contentType };
     }),
 
   getHistory: publicProcedure
