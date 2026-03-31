@@ -10,12 +10,6 @@ import { Badge } from '../badge';
 import { Button } from '../button';
 import { Card, CardContent, CardHeader, CardTitle } from '../card';
 
-const COMMAND_IDS: Record<MaoProjectControlAction, string> = {
-  pause_project: '6f139b92-f4fc-49b9-a1df-2d6b8149b001',
-  resume_project: '6f139b92-f4fc-49b9-a1df-2d6b8149b002',
-  hard_stop_project: '6f139b92-f4fc-49b9-a1df-2d6b8149b003',
-};
-
 export interface MaoProjectControlsProps {
   snapshot: MaoProjectSnapshot;
   pending: boolean;
@@ -136,7 +130,7 @@ export function MaoProjectControls({
                 onRequestControl({
                   action: button.action,
                   reason: reasonTrimmed,
-                  commandId: COMMAND_IDS[button.action],
+                  commandId: crypto.randomUUID(),
                 })
               }
             >
