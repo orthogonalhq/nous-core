@@ -66,6 +66,11 @@ export const NodeTypeSchema = z.enum([
   'human-decision',
   'condition',
   'transform',
+  // Logic gate kinds (Phase 3 — WR-108)
+  'parallel-split',
+  'parallel-join',
+  'loop',
+  'error-handler',
 ]);
 export type NodeType = z.infer<typeof NodeTypeSchema>;
 
