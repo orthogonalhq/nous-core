@@ -21,6 +21,7 @@ import {
   ModelRoleSchema,
 } from './enums.js';
 import { WorkmodeIdSchema } from './workmode.js';
+import { AgentClassSchema } from './agent-gateway.js';
 import { ProjectControlStateSchema, type ProjectControlState } from './mao.js';
 import { IngressTriggerTypeSchema } from './ingress-trigger.js';
 import {
@@ -173,6 +174,7 @@ export const WorkflowNodeMetadataSchema = z.object({
   contracts: z.array(z.string().min(1)).optional(),
   templates: z.array(z.string().min(1)).optional(),
   displayName: z.string().min(1).optional(),
+  agentClass: AgentClassSchema.optional(),
 });
 export type WorkflowNodeMetadata = z.infer<typeof WorkflowNodeMetadataSchema>;
 

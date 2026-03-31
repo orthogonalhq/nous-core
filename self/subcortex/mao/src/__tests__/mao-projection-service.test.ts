@@ -945,15 +945,185 @@ describe('MaoProjectionService', () => {
       expect(draftAgent?.display_name).toBe('Draft');
     });
 
-    it('sets agent_class to undefined in SP 1.1', async () => {
+    it('derives agent_class from node kind for workflow-derived projections', async () => {
       const { service, setControlState } = createService(createWorkflowRun());
       setControlState('running');
 
       const projections = await service.getAgentProjections(PROJECT_ID);
 
+      // Node A is type 'model-call' -> Worker
+      const draftAgent = projections.find(
+        (a) => a.workflow_node_definition_id === NODE_A,
+      );
+      expect(draftAgent?.agent_class).toBe('Worker');
+
+      // Node B is type 'human-decision' -> undefined (structural node kind)
+      const reviewAgent = projections.find(
+        (a) => a.workflow_node_definition_id === NODE_B,
+      );
+      expect(reviewAgent?.agent_class).toBeUndefined();
+    });
+
+    it('reads agent_class from node metadata when present, overriding node-kind fallback', async () => {
+      const runState = createWorkflowRun();
+      // We need a custom engine with metadata.agentClass on Node A
+      const graphWithMetadata = {
+        workflowDefinitionId: runState.workflowDefinitionId,
+        projectId: PROJECT_ID,
+        version: '1.0.0',
+        graphDigest: runState.graphDigest,
+        entryNodeIds: [NODE_A],
+        topologicalOrder: [NODE_A, NODE_B],
+        nodes: {
+          [NODE_A]: {
+            definition: {
+              id: NODE_A,
+              name: 'Draft',
+              type: 'model-call',
+              governance: 'must',
+              executionModel: 'synchronous',
+              config: {
+                type: 'model-call',
+                modelRole: 'reasoner',
+                promptRef: 'prompt://draft',
+              },
+              metadata: {
+                specNodeId: 'spec-a',
+                agentClass: 'Orchestrator', // Override: model-call would normally be Worker
+              },
+            },
+            inboundEdgeIds: [],
+            outboundEdgeIds: ['edge-1'],
+            topologicalIndex: 0,
+          },
+          [NODE_B]: {
+            definition: {
+              id: NODE_B,
+              name: 'Review',
+              type: 'human-decision',
+              governance: 'must',
+              executionModel: 'synchronous',
+              config: {
+                type: 'human-decision',
+                decisionRef: 'decision://review',
+              },
+            },
+            inboundEdgeIds: ['edge-1'],
+            outboundEdgeIds: [],
+            topologicalIndex: 1,
+          },
+        },
+        edges: {
+          'edge-1': {
+            id: 'edge-1',
+            from: NODE_A,
+            to: NODE_B,
+            priority: 0,
+          },
+        },
+      } as any;
+
+      const { opctlService, setControlState } = createOpctlServiceMock();
+      setControlState('running');
+
+      const engine: IWorkflowEngine = {
+        resolveDefinition: async () => ({}) as any,
+        resolveDefinitionSource: async () => ({}) as any,
+        deriveGraph: async () => graphWithMetadata,
+        evaluateAdmission: async () => ({}) as any,
+        start: async () => ({}) as any,
+        resume: async () => runState,
+        pause: async () => runState,
+        cancel: async () => runState,
+        completeNode: async () => runState,
+        executeReadyNode: async () => runState,
+        continueNode: async () => runState,
+        getState: async () => runState,
+        listProjectRuns: async () => [runState],
+        getRunGraph: async () => graphWithMetadata,
+      };
+
+      const service = new MaoProjectionService({
+        opctlService,
+        workflowEngine: engine,
+        escalationService: createEscalationService(),
+        schedulerService: createSchedulerService(),
+        witnessService: mockWitnessService(),
+      });
+
+      const projections = await service.getAgentProjections(PROJECT_ID);
+
+      const draftAgent = projections.find(
+        (a) => a.workflow_node_definition_id === NODE_A,
+      );
+      // metadata.agentClass ('Orchestrator') overrides node-kind fallback ('Worker')
+      expect(draftAgent?.agent_class).toBe('Orchestrator');
+    });
+  });
+
+  describe('lifecycle state mapping — canceled and hard_stopped', () => {
+    it('maps all agents to canceled when workflow run status is canceled', async () => {
+      const { service, setControlState } = createService(createWorkflowRun('canceled'));
+      setControlState('running');
+
+      const projections = await service.getAgentProjections(PROJECT_ID);
+
       for (const proj of projections) {
-        expect(proj.agent_class).toBeUndefined();
+        expect(proj.state).toBe('canceled');
       }
+    });
+
+    it('maps all agents to hard_stopped when control state is hard_stopped', async () => {
+      const { service, setControlState } = createService(createWorkflowRun());
+      setControlState('hard_stopped');
+
+      const projections = await service.getAgentProjections(PROJECT_ID);
+
+      for (const proj of projections) {
+        expect(proj.state).toBe('hard_stopped');
+      }
+    });
+
+    it('canceled (run-level) takes precedence over hard_stopped (project-level)', async () => {
+      const { service, setControlState } = createService(createWorkflowRun('canceled'));
+      setControlState('hard_stopped');
+
+      const projections = await service.getAgentProjections(PROJECT_ID);
+
+      for (const proj of projections) {
+        expect(proj.state).toBe('canceled');
+      }
+    });
+
+    it('preserves existing paused_review overlay when neither canceled nor hard_stopped', async () => {
+      const { service, setControlState } = createService(createWorkflowRun());
+      setControlState('paused_review');
+
+      const projections = await service.getAgentProjections(PROJECT_ID);
+      // Node A is completed, so paused overlay does not apply
+      // Node B is blocked/waiting (active), so paused overlay applies
+      const reviewAgent = projections.find(
+        (a) => a.workflow_node_definition_id === NODE_B,
+      );
+      // Node B status is 'blocked' which is in the ['ready', 'running'] check?
+      // Actually per the existing logic, 'blocked' is NOT in ['ready', 'running'],
+      // so paused overlay does not apply; it returns 'waiting_pfc' from the wait state.
+      // This preserves existing behavior correctly.
+      expect(reviewAgent?.state).toBe('waiting_pfc');
+    });
+
+    it('omitting runStatus preserves existing behavior (no regression)', async () => {
+      // When runStatus is undefined (default), mapLifecycleState behaves as before
+      const { service, setControlState } = createService(createWorkflowRun('running'));
+      setControlState('running');
+
+      const projections = await service.getAgentProjections(PROJECT_ID);
+
+      const draftAgent = projections.find(
+        (a) => a.workflow_node_definition_id === NODE_A,
+      );
+      // Node A is 'completed' -> should map to 'completed'
+      expect(draftAgent?.state).toBe('completed');
     });
   });
 

@@ -6,13 +6,20 @@ import { Badge } from '../badge';
 import { Card, CardContent, CardHeader, CardTitle } from '../card';
 import { buildMaoSurfaceHref, formatShortId } from './mao-links';
 import { useMaoServices } from './mao-services-context';
+import {
+  resolveAgentLabel as resolveAgentLabelFromProjection,
+  AGENT_CLASS_COLORS,
+  FALLBACK_CLASS_COLOR,
+} from './mao-workflow-group-card';
 
 interface MaoInspectPanelProps {
   inspect: MaoAgentInspectProjection | null | undefined;
   isLoading: boolean;
+  /** Resolve a dispatching agent UUID to a human-readable label */
+  resolveAgentLabel?: (agentId: string) => string;
 }
 
-export function MaoInspectPanel({ inspect, isLoading }: MaoInspectPanelProps) {
+export function MaoInspectPanel({ inspect, isLoading, resolveAgentLabel }: MaoInspectPanelProps) {
   const { Link } = useMaoServices();
   const [inferenceHistoryOpen, setInferenceHistoryOpen] = React.useState(false);
 
@@ -66,13 +73,36 @@ export function MaoInspectPanel({ inspect, isLoading }: MaoInspectPanelProps) {
           <>
             <div className="space-y-2">
               <div className="flex flex-wrap items-center gap-2">
-                <span className="text-base font-semibold">
-                  {inspect.agent.current_step}
+                <span className="text-base font-semibold" data-testid="inspect-primary-label">
+                  {resolveAgentLabelFromProjection(inspect.agent as any)}
                 </span>
+                {(() => {
+                  const classKey = (inspect.agent as any).agent_class ?? '';
+                  const classColor = AGENT_CLASS_COLORS[classKey] ?? FALLBACK_CLASS_COLOR;
+                  return classKey ? (
+                    <Badge
+                      variant="outline"
+                      className={classColor.fill}
+                      data-testid="inspect-agent-class-badge"
+                    >
+                      {classColor.label}
+                    </Badge>
+                  ) : null;
+                })()}
                 <Badge variant="outline">{inspect.agent.state}</Badge>
                 <Badge variant="outline">{inspect.agent.urgency_level}</Badge>
                 <Badge variant="outline">{inspect.projectControlState}</Badge>
               </div>
+              {inspect.agent.dispatching_task_agent_id ? (
+                <div className="text-xs text-muted-foreground" data-testid="inspect-dispatch-lineage">
+                  Dispatched by:{' '}
+                  <span className="font-medium">
+                    {resolveAgentLabel
+                      ? resolveAgentLabel(inspect.agent.dispatching_task_agent_id)
+                      : formatShortId(inspect.agent.dispatching_task_agent_id)}
+                  </span>
+                </div>
+              ) : null}
               <div className="grid gap-2 md:grid-cols-2">
                 <div className="rounded-md border border-border px-3 py-2">
                   <div className="text-xs uppercase tracking-wide text-muted-foreground">

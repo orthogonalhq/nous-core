@@ -1,7 +1,7 @@
 // @vitest-environment jsdom
 
 import * as React from 'react'
-import { render, screen } from '@testing-library/react'
+import { render, screen, fireEvent } from '@testing-library/react'
 import { describe, expect, it, vi, beforeEach } from 'vitest'
 import { MaoDensityGrid } from '../mao-density-grid'
 import type { MaoDensityMode, MaoGridTileProjection, MaoProjectSnapshot } from '@nous/shared'
@@ -23,6 +23,7 @@ function createTile(
       urgency_level: 'normal',
       workflow_run_id: 'run-001',
       workflow_node_definition_id: 'node-001',
+      last_update_at: '2026-03-28T10:00:00Z',
       deepLinks: [],
       evidenceRefs: [],
       ...overrides,
@@ -34,6 +35,7 @@ function createTile(
 function createSnapshot(
   densityMode: MaoDensityMode,
   tiles: MaoGridTileProjection[],
+  overrides?: Partial<MaoProjectSnapshot>,
 ): MaoProjectSnapshot {
   return {
     projectId: 'project-001',
@@ -54,6 +56,7 @@ function createSnapshot(
     },
     diagnostics: { runtimePosture: 'single_process_local' },
     generatedAt: '2026-03-28T10:00:00Z',
+    ...overrides,
   } as unknown as MaoProjectSnapshot
 }
 
@@ -210,5 +213,263 @@ describe('MaoDensityGrid inference rendering', () => {
     )
 
     expect(screen.queryByTestId('streaming-pulse')).toBeNull()
+  })
+})
+
+describe('MaoDensityGrid D3 compact tile', () => {
+  it('renders compact tile at D3 with state dot and truncated label, no full card markup', () => {
+    const tile = createTile({
+      agent_id: 'agent-d3',
+      current_step: 'Execute long task name here',
+      state: 'running',
+      display_name: 'My Agent With Long Name',
+    })
+    const snapshot = createSnapshot('D3', [tile])
+
+    const { container } = render(
+      <MaoDensityGrid snapshot={snapshot} selectedAgentId={null} onSelectTile={noop} />,
+    )
+
+    const d3Tile = screen.getByTestId('density-tile-d3')
+    expect(d3Tile).toBeTruthy()
+    // Should not render full card elements
+    expect(screen.queryByText('dispatched')).toBeNull()
+    expect(screen.queryByText('50% complete')).toBeNull()
+    expect(screen.queryByText('2 review cycles')).toBeNull()
+  })
+
+  it('fires onSelectTile when D3 tile is clicked', () => {
+    const handler = vi.fn()
+    const tile = createTile({ agent_id: 'agent-d3-click' })
+    const snapshot = createSnapshot('D3', [tile])
+
+    render(
+      <MaoDensityGrid snapshot={snapshot} selectedAgentId={null} onSelectTile={handler} />,
+    )
+
+    fireEvent.click(screen.getByTestId('density-tile-d3'))
+    expect(handler).toHaveBeenCalledWith(
+      expect.objectContaining({
+        agent: expect.objectContaining({ agent_id: 'agent-d3-click' }),
+      }),
+    )
+  })
+})
+
+describe('MaoDensityGrid D4 tiny square', () => {
+  it('renders tiny square at D4 with no text', () => {
+    const tile = createTile({
+      agent_id: 'agent-d4',
+      state: 'running',
+      display_name: 'Visible Name',
+    })
+    const snapshot = createSnapshot('D4', [tile])
+
+    render(
+      <MaoDensityGrid snapshot={snapshot} selectedAgentId={null} onSelectTile={noop} />,
+    )
+
+    const d4Tile = screen.getByTestId('density-tile-d4')
+    expect(d4Tile).toBeTruthy()
+    expect(d4Tile.className).toContain('w-6')
+    expect(d4Tile.className).toContain('h-6')
+    // No text content at D4
+    expect(screen.queryByText('Visible Name')).toBeNull()
+    expect(screen.queryByText('dispatched')).toBeNull()
+  })
+
+  it('fires onSelectTile when D4 tile is clicked', () => {
+    const handler = vi.fn()
+    const tile = createTile({ agent_id: 'agent-d4-click' })
+    const snapshot = createSnapshot('D4', [tile])
+
+    render(
+      <MaoDensityGrid snapshot={snapshot} selectedAgentId={null} onSelectTile={handler} />,
+    )
+
+    fireEvent.click(screen.getByTestId('density-tile-d4'))
+    expect(handler).toHaveBeenCalledWith(
+      expect.objectContaining({
+        agent: expect.objectContaining({ agent_id: 'agent-d4-click' }),
+      }),
+    )
+  })
+})
+
+describe('MaoDensityGrid D4 clustering', () => {
+  it('groups tiles by lifecycle state with state-group headers at D4', () => {
+    const runningTile = createTile({ agent_id: 'a1', state: 'running' })
+    const blockedTile = createTile({ agent_id: 'a2', state: 'blocked' })
+    const completedTile = createTile({ agent_id: 'a3', state: 'completed' })
+    const snapshot = createSnapshot('D4', [runningTile, blockedTile, completedTile])
+
+    render(
+      <MaoDensityGrid snapshot={snapshot} selectedAgentId={null} onSelectTile={noop} />,
+    )
+
+    expect(screen.getByTestId('cluster-running')).toBeTruthy()
+    expect(screen.getByTestId('cluster-blocked')).toBeTruthy()
+    expect(screen.getByTestId('cluster-completed')).toBeTruthy()
+    // Headers show state name and count
+    expect(screen.getByText('running (1)')).toBeTruthy()
+    expect(screen.getByText('blocked (1)')).toBeTruthy()
+    expect(screen.getByText('completed (1)')).toBeTruthy()
+  })
+
+  it('renders empty state when grid is empty at D4', () => {
+    const snapshot = createSnapshot('D4', [])
+
+    render(
+      <MaoDensityGrid snapshot={snapshot} selectedAgentId={null} onSelectTile={noop} />,
+    )
+
+    expect(screen.getByText('No MAO agent projections are available for the selected project.')).toBeTruthy()
+  })
+})
+
+describe('MaoDensityGrid motion pulse', () => {
+  it('applies nous-state-pulse-subtle class on running agent tile', () => {
+    const tile = createTile({ agent_id: 'running-agent', state: 'running' })
+    const snapshot = createSnapshot('D2', [tile])
+
+    const { container } = render(
+      <MaoDensityGrid snapshot={snapshot} selectedAgentId={null} onSelectTile={noop} />,
+    )
+
+    const button = container.querySelector('[aria-label="Inspect Execute task"]')
+    expect(button?.className).toContain('nous-state-pulse-subtle')
+  })
+
+  it('applies nous-state-pulse-strong class on blocked agent tile', () => {
+    const tile = createTile({ agent_id: 'blocked-agent', state: 'blocked' })
+    const snapshot = createSnapshot('D2', [tile])
+
+    const { container } = render(
+      <MaoDensityGrid snapshot={snapshot} selectedAgentId={null} onSelectTile={noop} />,
+    )
+
+    const button = container.querySelector('[aria-label="Inspect Execute task"]')
+    expect(button?.className).toContain('nous-state-pulse-strong')
+  })
+
+  it('does not apply pulse class on completed agent tile', () => {
+    const tile = createTile({ agent_id: 'completed-agent', state: 'completed' })
+    const snapshot = createSnapshot('D2', [tile])
+
+    const { container } = render(
+      <MaoDensityGrid snapshot={snapshot} selectedAgentId={null} onSelectTile={noop} />,
+    )
+
+    const button = container.querySelector('[aria-label="Inspect Execute task"]')
+    expect(button?.className).not.toContain('nous-state-pulse-subtle')
+    expect(button?.className).not.toContain('nous-state-pulse-strong')
+  })
+
+  it('does not apply pulse class on canceled agent tile', () => {
+    const tile = createTile({ agent_id: 'canceled-agent', state: 'canceled' })
+    const snapshot = createSnapshot('D2', [tile])
+
+    const { container } = render(
+      <MaoDensityGrid snapshot={snapshot} selectedAgentId={null} onSelectTile={noop} />,
+    )
+
+    const button = container.querySelector('[aria-label="Inspect Execute task"]')
+    expect(button?.className).not.toContain('nous-state-pulse-subtle')
+    expect(button?.className).not.toContain('nous-state-pulse-strong')
+  })
+})
+
+describe('MaoDensityGrid urgent indicators', () => {
+  it('renders URGENT badge, critical border, and timer at D0-D2 for urgent agent', () => {
+    const tile = createTile({
+      agent_id: 'urgent-agent',
+      urgency_level: 'urgent',
+      last_update_at: new Date(Date.now() - 5 * 60000).toISOString(),
+    })
+    const snapshot = createSnapshot('D2', [tile])
+
+    render(
+      <MaoDensityGrid snapshot={snapshot} selectedAgentId={null} onSelectTile={noop} />,
+    )
+
+    expect(screen.getByTestId('urgent-indicator')).toBeTruthy()
+    expect(screen.getByText('URGENT')).toBeTruthy()
+    expect(screen.getByTestId('urgent-timer')).toBeTruthy()
+  })
+
+  it('renders critical border and urgent icon at D3 for urgent agent', () => {
+    const tile = createTile({
+      agent_id: 'urgent-d3',
+      urgency_level: 'urgent',
+    })
+    const snapshot = createSnapshot('D3', [tile])
+
+    const { container } = render(
+      <MaoDensityGrid snapshot={snapshot} selectedAgentId={null} onSelectTile={noop} />,
+    )
+
+    const d3Tile = screen.getByTestId('density-tile-d3')
+    expect(d3Tile.className).toContain('border-red-500')
+    expect(screen.getByTestId('urgent-icon')).toBeTruthy()
+  })
+
+  it('renders ring-red-500 at D4 for urgent agent', () => {
+    const tile = createTile({
+      agent_id: 'urgent-d4',
+      urgency_level: 'urgent',
+    })
+    const snapshot = createSnapshot('D4', [tile])
+
+    render(
+      <MaoDensityGrid snapshot={snapshot} selectedAgentId={null} onSelectTile={noop} />,
+    )
+
+    const d4Tile = screen.getByTestId('density-tile-d4')
+    expect(d4Tile.className).toContain('ring-red-500')
+  })
+
+  it('pins urgent agents to top of grid at D0-D3', () => {
+    const normalTile = createTile({ agent_id: 'normal-agent', state: 'running', urgency_level: 'normal' })
+    const urgentTile = createTile({ agent_id: 'urgent-agent', state: 'running', urgency_level: 'urgent' })
+    const snapshot = createSnapshot('D2', [normalTile, urgentTile])
+
+    const { container } = render(
+      <MaoDensityGrid snapshot={snapshot} selectedAgentId={null} onSelectTile={noop} />,
+    )
+
+    const buttons = container.querySelectorAll('button[type="button"]')
+    // Urgent agent should be rendered first
+    expect(buttons[0].getAttribute('aria-label')).toContain('Inspect')
+    // Check that the first button has the urgent indicator
+    const firstTileText = buttons[0].textContent
+    expect(firstTileText).toContain('URGENT')
+  })
+})
+
+describe('MaoDensityGrid state color handling', () => {
+  it('renders appropriate tone classes for canceled state (not default)', () => {
+    const tile = createTile({ agent_id: 'canceled-agent', state: 'canceled' })
+    const snapshot = createSnapshot('D2', [tile])
+
+    const { container } = render(
+      <MaoDensityGrid snapshot={snapshot} selectedAgentId={null} onSelectTile={noop} />,
+    )
+
+    const button = container.querySelector('[aria-label="Inspect Execute task"]')
+    expect(button?.className).toContain('border-slate-500/40')
+    expect(button?.className).toContain('bg-slate-500/10')
+  })
+
+  it('renders appropriate tone classes for hard_stopped state (not default)', () => {
+    const tile = createTile({ agent_id: 'stopped-agent', state: 'hard_stopped' })
+    const snapshot = createSnapshot('D2', [tile])
+
+    const { container } = render(
+      <MaoDensityGrid snapshot={snapshot} selectedAgentId={null} onSelectTile={noop} />,
+    )
+
+    const button = container.querySelector('[aria-label="Inspect Execute task"]')
+    expect(button?.className).toContain('border-red-700/40')
+    expect(button?.className).toContain('bg-red-700/10')
   })
 })

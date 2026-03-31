@@ -95,6 +95,30 @@ describe('MaoAuditTrailPanel', () => {
     ).toBeTruthy();
   });
 
+  it('shows system-level indicator when projectId is sentinel UUID', () => {
+    const SENTINEL_PROJECT_ID = '00000000-0000-0000-0000-000000000000' as any;
+
+    render(<MaoAuditTrailPanel projectId={SENTINEL_PROJECT_ID} />);
+
+    expect(screen.getByTestId('sentinel-indicator')).toBeTruthy();
+    expect(
+      screen.getByText(
+        'System-level agent — audit trail scoped to project context.',
+      ),
+    ).toBeTruthy();
+  });
+
+  it('does not fire query when projectId is sentinel UUID', () => {
+    const SENTINEL_PROJECT_ID = '00000000-0000-0000-0000-000000000000' as any;
+
+    render(<MaoAuditTrailPanel projectId={SENTINEL_PROJECT_ID} />);
+
+    // The query should have been called with enabled: false
+    expect(mockUseQuery).toHaveBeenCalled();
+    const queryCall = mockUseQuery.mock.calls[0];
+    expect(queryCall[1]?.enabled).toBe(false);
+  });
+
   it('expands entry details on click showing commandId, resumeReadinessStatus, and decisionRef', () => {
     mockUseQuery = vi.fn().mockReturnValue({
       data: MOCK_ENTRIES,

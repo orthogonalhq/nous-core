@@ -199,3 +199,175 @@ describe('MaoWorkflowGroupCard', () => {
     expect(selectedButton?.className).toContain('border-primary');
   });
 });
+
+describe('MaoWorkflowGroupCard motion pulse', () => {
+  it('applies nous-state-pulse-subtle on running worker tile at D2', () => {
+    const orch = createAgent({ agent_id: 'orch-1', display_name: 'Orch', state: 'running' });
+    const worker = createAgent({ agent_id: 'w1', display_name: 'Worker', state: 'running' });
+
+    const { container } = render(
+      <MaoWorkflowGroupCard
+        orchestrator={orch}
+        workers={[worker]}
+        densityMode="D2"
+        selectedAgentId={null}
+        onSelectAgent={noop}
+      />,
+    );
+
+    const workerButton = container.querySelector('[data-agent-id="w1"]');
+    expect(workerButton?.className).toContain('nous-state-pulse-subtle');
+  });
+
+  it('applies pulse class on orchestrator tile at D2', () => {
+    const orch = createAgent({ agent_id: 'orch-1', display_name: 'Orch', state: 'blocked' });
+
+    const { container } = render(
+      <MaoWorkflowGroupCard
+        orchestrator={orch}
+        workers={[]}
+        densityMode="D2"
+        selectedAgentId={null}
+        onSelectAgent={noop}
+      />,
+    );
+
+    const orchButton = container.querySelector('[data-agent-id="orch-1"]');
+    expect(orchButton?.className).toContain('nous-state-pulse-strong');
+  });
+});
+
+describe('MaoWorkflowGroupCard urgent indicators', () => {
+  it('renders urgent indicator at D3 for urgent agent', () => {
+    const orch = createAgent({
+      agent_id: 'orch-1',
+      display_name: 'Orch',
+      urgency_level: 'urgent',
+    });
+
+    render(
+      <MaoWorkflowGroupCard
+        orchestrator={orch}
+        workers={[]}
+        densityMode="D3"
+        selectedAgentId={null}
+        onSelectAgent={noop}
+      />,
+    );
+
+    expect(screen.getByTestId('urgent-indicator')).toBeTruthy();
+  });
+
+  it('renders ring-red-500 on urgent agent tile at D4', () => {
+    const orch = createAgent({
+      agent_id: 'orch-1',
+      display_name: 'Orch',
+      urgency_level: 'urgent',
+    });
+
+    const { container } = render(
+      <MaoWorkflowGroupCard
+        orchestrator={orch}
+        workers={[]}
+        densityMode="D4"
+        selectedAgentId={null}
+        onSelectAgent={noop}
+      />,
+    );
+
+    const orchButton = container.querySelector('[data-agent-id="orch-1"]');
+    expect(orchButton?.className).toContain('ring-red-500');
+  });
+});
+
+describe('MaoWorkflowGroupCard D4 hover-expand', () => {
+  it('expands D4 tile to D3 on hover with state dot and label visible', () => {
+    const orch = createAgent({ agent_id: 'orch-1', display_name: 'Orchestrator' });
+
+    const { container } = render(
+      <MaoWorkflowGroupCard
+        orchestrator={orch}
+        workers={[]}
+        densityMode="D4"
+        selectedAgentId={null}
+        onSelectAgent={noop}
+      />,
+    );
+
+    const orchButton = container.querySelector('[data-agent-id="orch-1"]');
+    expect(orchButton).toBeTruthy();
+
+    // Before hover: should be w-6 h-6 (D4)
+    expect(orchButton?.className).toContain('w-6');
+
+    // Simulate hover
+    fireEvent.mouseEnter(orchButton!);
+
+    // After hover: should expand to D3 with label visible
+    const expandedTile = screen.getByTestId('hover-expand-tile');
+    expect(expandedTile).toBeTruthy();
+    expect(screen.getByText('Orchestrator')).toBeTruthy();
+  });
+
+  it('fires click after hover-expand in D4', () => {
+    const handler = vi.fn();
+    const orch = createAgent({ agent_id: 'orch-1', display_name: 'Orch' });
+
+    const { container } = render(
+      <MaoWorkflowGroupCard
+        orchestrator={orch}
+        workers={[]}
+        densityMode="D4"
+        selectedAgentId={null}
+        onSelectAgent={handler}
+      />,
+    );
+
+    const orchButton = container.querySelector('[data-agent-id="orch-1"]');
+    fireEvent.mouseEnter(orchButton!);
+
+    const expandedTile = screen.getByTestId('hover-expand-tile');
+    fireEvent.click(expandedTile);
+    expect(handler).toHaveBeenCalledWith(
+      expect.objectContaining({ agent_id: 'orch-1' }),
+    );
+  });
+});
+
+describe('MaoWorkflowGroupCard state color handling', () => {
+  it('renders appropriate dot color for canceled state (not default)', () => {
+    const orch = createAgent({ agent_id: 'orch-1', display_name: 'Orch', state: 'canceled' });
+
+    const { container } = render(
+      <MaoWorkflowGroupCard
+        orchestrator={orch}
+        workers={[]}
+        densityMode="D2"
+        selectedAgentId={null}
+        onSelectAgent={noop}
+      />,
+    );
+
+    // The dot span should have bg-slate-500 (not default bg-slate-400)
+    const dots = container.querySelectorAll('.bg-slate-500');
+    expect(dots.length).toBeGreaterThan(0);
+  });
+
+  it('renders appropriate dot color for hard_stopped state', () => {
+    const orch = createAgent({ agent_id: 'orch-1', display_name: 'Orch', state: 'hard_stopped' });
+
+    const { container } = render(
+      <MaoWorkflowGroupCard
+        orchestrator={orch}
+        workers={[]}
+        densityMode="D2"
+        selectedAgentId={null}
+        onSelectAgent={noop}
+      />,
+    );
+
+    // The dot span should have bg-red-700
+    const dots = container.querySelectorAll('.bg-red-700');
+    expect(dots.length).toBeGreaterThan(0);
+  });
+});

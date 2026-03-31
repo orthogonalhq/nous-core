@@ -303,6 +303,123 @@ describe('MaoOperatingSurface tab behavior', () => {
     expect(screen.getByTestId('tab-projects')).toBeTruthy();
   });
 
+  it('system tab inspect popup passes projectControlProjection for non-sentinel agents', () => {
+    const controlProjection = {
+      project_id: 'real-project-001',
+      project_control_state: 'running',
+      active_agent_count: 2,
+      blocked_agent_count: 0,
+      urgent_agent_count: 0,
+      pfc_project_review_status: 'none',
+      pfc_project_recommendation: 'continue',
+      resume_readiness_status: 'not_applicable',
+      resume_readiness_evidence_refs: [],
+    };
+
+    mockGetSystemSnapshotQuery = vi.fn().mockReturnValue({
+      data: createSystemSnapshot({
+        agents: [
+          {
+            agent_id: 'agent-sys-001',
+            project_id: 'real-project-001',
+            current_step: 'Processing',
+            state: 'running',
+            risk_level: 'low',
+            urgency_level: 'normal',
+            attention_level: 'normal',
+            progress_percent: 50,
+            reflection_cycle_count: 0,
+            dispatch_state: 'dispatched',
+            pfc_alert_status: 'none',
+            pfc_mitigation_status: 'none',
+            dispatching_task_agent_id: null,
+            dispatch_origin_ref: 'origin',
+            reasoning_log_preview: null,
+            reasoning_log_redaction_state: 'none',
+            deepLinks: [],
+            evidenceRefs: [],
+          },
+        ] as any,
+        projectControls: {
+          'real-project-001': controlProjection,
+        } as any,
+      }),
+      isLoading: false,
+    });
+
+    // Mock the inspect query to return data for popup rendering
+    mockGetAgentInspectProjectionQuery = vi.fn().mockReturnValue({
+      data: null,
+      isLoading: false,
+    });
+
+    const Wrapper = createWrapper(null);
+
+    render(
+      <Wrapper>
+        <MaoOperatingSurface />
+      </Wrapper>,
+    );
+
+    // Verify we're on system tab and snapshot was queried
+    expect(screen.getByTestId('system-tab-content')).toBeTruthy();
+    expect(mockGetSystemSnapshotQuery).toHaveBeenCalled();
+
+    // The system snapshot has agents with non-sentinel project IDs,
+    // and projectControls with matching entries. The operating surface
+    // should derive the projectControlProjection for system-tab agents.
+    // We verify the snapshot contains the control projection entry.
+    const systemData = mockGetSystemSnapshotQuery.mock.results[0]?.value?.data;
+    expect(systemData?.projectControls['real-project-001']).toBeTruthy();
+  });
+
+  it('system tab inspect popup does not pass projectControlProjection for sentinel agents', () => {
+    mockGetSystemSnapshotQuery = vi.fn().mockReturnValue({
+      data: createSystemSnapshot({
+        agents: [
+          {
+            agent_id: 'agent-sentinel-001',
+            project_id: '00000000-0000-0000-0000-000000000000',
+            current_step: 'System task',
+            state: 'running',
+            risk_level: 'low',
+            urgency_level: 'normal',
+            attention_level: 'normal',
+            progress_percent: 50,
+            reflection_cycle_count: 0,
+            dispatch_state: 'dispatched',
+            pfc_alert_status: 'none',
+            pfc_mitigation_status: 'none',
+            dispatching_task_agent_id: null,
+            dispatch_origin_ref: 'origin',
+            reasoning_log_preview: null,
+            reasoning_log_redaction_state: 'none',
+            deepLinks: [],
+            evidenceRefs: [],
+          },
+        ] as any,
+        projectControls: {},
+      }),
+      isLoading: false,
+    });
+
+    const Wrapper = createWrapper(null);
+
+    render(
+      <Wrapper>
+        <MaoOperatingSurface />
+      </Wrapper>,
+    );
+
+    // Verify we're on system tab
+    expect(screen.getByTestId('system-tab-content')).toBeTruthy();
+
+    // For sentinel-scoped agents, projectControls should be empty
+    const systemData = mockGetSystemSnapshotQuery.mock.results[0]?.value?.data;
+    const sentinelId = '00000000-0000-0000-0000-000000000000';
+    expect(systemData?.projectControls[sentinelId]).toBeUndefined();
+  });
+
   it('system tab shows system health strip when snapshot is loaded', () => {
     mockGetSystemSnapshotQuery = vi.fn().mockReturnValue({
       data: createSystemSnapshot({

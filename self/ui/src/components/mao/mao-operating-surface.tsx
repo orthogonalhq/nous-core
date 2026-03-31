@@ -10,6 +10,7 @@ import type {
   MaoProjectControlResult,
   ProjectId,
 } from '@nous/shared';
+import { SYSTEM_SCOPE_SENTINEL_PROJECT_ID } from '@nous/shared';
 import { Badge } from '../badge';
 import { Button } from '../button';
 import { MaoAuditTrailPanel } from './mao-audit-trail-panel';
@@ -20,6 +21,7 @@ import { MaoInspectPopup } from './mao-inspect-popup';
 import { MaoLeaseTree } from './mao-lease-tree';
 import { MaoProjectControls } from './mao-project-controls';
 import { MaoRunGraph } from './mao-run-graph';
+import { resolveAgentLabel } from './mao-workflow-group-card';
 import { MaoSystemHealthStrip } from './mao-system-health-strip';
 import {
   MaoT3ConfirmationDialog,
@@ -184,6 +186,34 @@ export function MaoOperatingSurface() {
   }, [activeTab, activeTabState.selectedTarget, systemSnapshotQuery.data, snapshotQuery.data]);
 
   const popupOpen = selectedAgent != null;
+
+  // B1-e: Build a resolver function that looks up agent ID in the current snapshots
+  const resolveAgentLabelFn = React.useCallback(
+    (agentId: string): string => {
+      if (systemSnapshotQuery.data) {
+        const found = systemSnapshotQuery.data.agents.find(
+          (a) => a.agent_id === agentId,
+        );
+        if (found) return resolveAgentLabel(found);
+      }
+      if (snapshotQuery.data) {
+        const tile = snapshotQuery.data.grid.find(
+          (t) => t.agent.agent_id === agentId,
+        );
+        if (tile) return resolveAgentLabel(tile.agent);
+      }
+      return formatShortId(agentId);
+    },
+    [systemSnapshotQuery.data, snapshotQuery.data],
+  );
+
+  // B3-b: Derive project control projection for system tab agents
+  const systemTabProjectControlProjection = React.useMemo(() => {
+    if (activeTab !== 'system') return null;
+    if (!selectedAgent) return null;
+    if (selectedAgent.project_id === SYSTEM_SCOPE_SENTINEL_PROJECT_ID) return null;
+    return systemSnapshotQuery.data?.projectControls[selectedAgent.project_id as ProjectId] ?? null;
+  }, [activeTab, selectedAgent, systemSnapshotQuery.data]);
 
   const handleClosePopup = React.useCallback(() => {
     activeTabState.setSelectedTarget(null);
@@ -430,6 +460,14 @@ export function MaoOperatingSurface() {
       </div>
 
       {/* Tab content */}
+      {/*
+        * @todo START-005 — Unauthorized start attempt alert surface (system-level).
+        * This placeholder reserves the location for a future system-wide alert
+        * banner that surfaces unauthorized start attempt events from the backend.
+        * No runtime behavior. Deferred to follow-on WR.
+        */}
+      <div data-testid="start-005-stub-system" aria-hidden="true" style={{ display: 'none' }} />
+
       {activeTab === 'system' ? (
         <div data-testid="system-tab-content">
           {systemSnapshotQuery.isLoading || !systemSnapshot ? (
@@ -506,9 +544,11 @@ export function MaoOperatingSurface() {
         projectSnapshot={
           activeTab === 'projects' && snapshot ? snapshot : null
         }
+        projectControlProjection={systemTabProjectControlProjection}
         controlPending={controlMutation.isPending}
         lastControlResult={lastResult}
         onRequestControl={handleRequestControl}
+        resolveAgentLabel={resolveAgentLabelFn}
       />
 
       {/* T3 confirmation dialog */}
