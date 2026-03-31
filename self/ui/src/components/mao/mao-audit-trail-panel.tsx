@@ -2,6 +2,7 @@
 
 import * as React from 'react';
 import type { ProjectId } from '@nous/shared';
+import { SYSTEM_SCOPE_SENTINEL_PROJECT_ID } from '@nous/shared';
 import { Badge } from '../badge';
 import { Card, CardContent, CardHeader, CardTitle } from '../card';
 import { trpc, useEventSubscription } from '@nous/transport';
@@ -14,9 +15,11 @@ export function MaoAuditTrailPanel({ projectId }: MaoAuditTrailPanelProps) {
   const utils = trpc.useUtils();
   const [expandedId, setExpandedId] = React.useState<string | null>(null);
 
+  const isSentinel = projectId === SYSTEM_SCOPE_SENTINEL_PROJECT_ID;
+
   const auditQuery = trpc.mao.getControlAuditHistory.useQuery(
     { projectId: projectId as string },
-    { enabled: !!projectId },
+    { enabled: !!projectId && !isSentinel },
   );
 
   useEventSubscription({
@@ -24,7 +27,7 @@ export function MaoAuditTrailPanel({ projectId }: MaoAuditTrailPanelProps) {
     onEvent: () => {
       void utils.mao.getControlAuditHistory.invalidate();
     },
-    enabled: !!projectId,
+    enabled: !!projectId && !isSentinel,
   });
 
   const entries = auditQuery.data ?? [];
@@ -40,7 +43,11 @@ export function MaoAuditTrailPanel({ projectId }: MaoAuditTrailPanelProps) {
         </CardTitle>
       </CardHeader>
       <CardContent className="space-y-3 pt-4 text-sm">
-        {auditQuery.isLoading ? (
+        {isSentinel ? (
+          <p className="text-muted-foreground" data-testid="sentinel-indicator">
+            System-level agent — audit trail scoped to project context.
+          </p>
+        ) : auditQuery.isLoading ? (
           <p className="text-muted-foreground">Loading audit history...</p>
         ) : auditQuery.isError ? (
           <p className="text-muted-foreground">

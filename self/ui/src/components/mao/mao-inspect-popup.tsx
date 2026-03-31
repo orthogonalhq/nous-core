@@ -3,11 +3,13 @@
 import * as React from 'react';
 import type {
   MaoAgentProjection,
+  MaoProjectControlProjection,
   MaoProjectSnapshot,
   MaoProjectControlAction,
   MaoProjectControlResult,
   ProjectId,
 } from '@nous/shared';
+import { SYSTEM_SCOPE_SENTINEL_PROJECT_ID } from '@nous/shared';
 import { trpc } from '@nous/transport';
 import { MaoInspectPanel } from './mao-inspect-panel';
 import { MaoProjectControls } from './mao-project-controls';
@@ -20,6 +22,8 @@ export interface MaoInspectPopupProps {
   agent: MaoAgentProjection | null;
   /** Project snapshot for project controls (if available for the agent's project) */
   projectSnapshot: MaoProjectSnapshot | null;
+  /** Optional project control projection for system-tab agents */
+  projectControlProjection?: MaoProjectControlProjection | null;
   /** Control mutation pending state */
   controlPending?: boolean;
   /** Last control result */
@@ -30,6 +34,8 @@ export interface MaoInspectPopupProps {
     reason: string;
     commandId: string;
   }) => void;
+  /** Resolve dispatching agent UUID to human-readable label */
+  resolveAgentLabel?: (agentId: string) => string;
 }
 
 export function MaoInspectPopup({
@@ -37,9 +43,11 @@ export function MaoInspectPopup({
   onClose,
   agent,
   projectSnapshot,
+  projectControlProjection,
   controlPending = false,
   lastControlResult = null,
   onRequestControl,
+  resolveAgentLabel,
 }: MaoInspectPopupProps) {
   // Escape key handler
   React.useEffect(() => {
@@ -69,6 +77,45 @@ export function MaoInspectPopup({
     inspectInput as any,
     { enabled: open && agent != null },
   );
+
+  // Derive effective project snapshot: use provided snapshot or construct minimal from control projection
+  const effectiveProjectSnapshot = React.useMemo<MaoProjectSnapshot | null>(() => {
+    if (projectSnapshot) return projectSnapshot;
+    if (
+      !projectControlProjection ||
+      !agent ||
+      agent.project_id === SYSTEM_SCOPE_SENTINEL_PROJECT_ID
+    ) {
+      return null;
+    }
+    // Construct minimal snapshot from control projection (SDS D2)
+    return {
+      projectId: agent.project_id,
+      densityMode: 'D2',
+      controlProjection: projectControlProjection,
+      grid: [],
+      graph: {
+        projectId: agent.project_id,
+        nodes: [],
+        edges: [],
+        generatedAt: new Date().toISOString(),
+      },
+      urgentOverlay: {
+        urgentAgentIds: [],
+        blockedAgentIds: [],
+        generatedAt: new Date().toISOString(),
+      },
+      summary: {
+        activeAgentCount: projectControlProjection.active_agent_count,
+        blockedAgentCount: projectControlProjection.blocked_agent_count,
+        failedAgentCount: 0,
+        waitingPfcAgentCount: 0,
+        urgentAgentCount: projectControlProjection.urgent_agent_count,
+      },
+      diagnostics: { runtimePosture: 'single_process_local' as const },
+      generatedAt: new Date().toISOString(),
+    } as MaoProjectSnapshot;
+  }, [projectSnapshot, projectControlProjection, agent]);
 
   if (!open) return null;
 
@@ -156,11 +203,12 @@ export function MaoInspectPopup({
           <MaoInspectPanel
             inspect={inspectQuery.data}
             isLoading={inspectQuery.isLoading}
+            resolveAgentLabel={resolveAgentLabel}
           />
 
-          {projectSnapshot && onRequestControl ? (
+          {effectiveProjectSnapshot && onRequestControl ? (
             <MaoProjectControls
-              snapshot={projectSnapshot}
+              snapshot={effectiveProjectSnapshot}
               pending={controlPending}
               lastResult={lastControlResult ?? null}
               onRequestControl={onRequestControl}

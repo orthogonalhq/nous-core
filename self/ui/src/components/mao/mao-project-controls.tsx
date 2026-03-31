@@ -96,6 +96,43 @@ export function MaoProjectControls({
           </div>
         </div>
 
+        {/* B2-a: Cortex review status surface */}
+        <div className="rounded-md border border-border px-3 py-2" data-testid="cortex-review-section">
+          <div className="text-xs uppercase tracking-wide text-muted-foreground">
+            Cortex review
+          </div>
+          <div className="mt-1">
+            {control.pfc_project_review_status === 'none'
+              ? 'No active Cortex review'
+              : control.pfc_project_review_status}
+          </div>
+        </div>
+
+        {/* B2-b: Evidence links from resume_readiness_evidence_refs */}
+        {control.resume_readiness_evidence_refs &&
+        control.resume_readiness_evidence_refs.length > 0 ? (
+          <div className="space-y-1" data-testid="resume-readiness-evidence">
+            <div className="text-xs uppercase tracking-wide text-muted-foreground">
+              Resume readiness evidence
+            </div>
+            <div className="flex flex-wrap gap-1">
+              {control.resume_readiness_evidence_refs.map((ref) => (
+                <button
+                  key={ref}
+                  type="button"
+                  className="rounded-md border border-border px-2 py-1 text-xs hover:bg-muted/20"
+                  data-evidence-ref={ref}
+                  onClick={() => {
+                    /* V1: in-app evidence link placeholder */
+                  }}
+                >
+                  {ref}
+                </button>
+              ))}
+            </div>
+          </div>
+        ) : null}
+
         <div className="rounded-md border border-border p-3">
           <div className="text-xs uppercase tracking-wide text-muted-foreground">
             Impact summary
@@ -149,8 +186,34 @@ export function MaoProjectControls({
             <div className="mt-1 text-xs text-muted-foreground">
               {lastResult.reason_code} • {lastResult.decision_ref}
             </div>
+            {/* B2-b: Evidence links from lastResult.evidenceRefs */}
+            {lastResult.evidenceRefs && lastResult.evidenceRefs.length > 0 ? (
+              <div className="mt-2 flex flex-wrap gap-1" data-testid="last-result-evidence">
+                {lastResult.evidenceRefs.map((ref) => (
+                  <button
+                    key={ref}
+                    type="button"
+                    className="rounded-md border border-border px-2 py-1 text-xs hover:bg-muted/20"
+                    data-evidence-ref={ref}
+                    onClick={() => {
+                      /* V1: in-app evidence link placeholder */
+                    }}
+                  >
+                    {ref}
+                  </button>
+                ))}
+              </div>
+            ) : null}
           </div>
         ) : null}
+
+        {/*
+          * @todo START-005 — Unauthorized start attempt alert surface (project-level).
+          * This placeholder reserves the location for a future per-project alert
+          * surface that renders unauthorized start attempt events.
+          * No runtime behavior. Deferred to follow-on WR.
+          */}
+        <div data-testid="start-005-stub" aria-hidden="true" style={{ display: 'none' }} />
       </CardContent>
     </Card>
   );
