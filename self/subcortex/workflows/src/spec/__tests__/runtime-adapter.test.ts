@@ -5,8 +5,9 @@ import { describe, it, expect } from 'vitest';
 import {
   specToWorkflowDefinition,
   specToExecutionGraph,
+  mapNodeTypeToDispatchTarget,
 } from '../runtime-adapter.js';
-import type { WorkflowSpec } from '@nous/shared';
+import type { WorkflowSpec, WorkflowNodeKind } from '@nous/shared';
 
 // ---------------------------------------------------------------------------
 // Fixtures
@@ -333,5 +334,36 @@ describe('specToExecutionGraph', () => {
     const entryNodeId = graph.entryNodeIds[0]!;
     const entryIndex = graph.nodes[entryNodeId]!.topologicalIndex;
     expect(entryIndex).toBe(0);
+  });
+});
+
+// ---------------------------------------------------------------------------
+// mapNodeTypeToDispatchTarget tests
+// ---------------------------------------------------------------------------
+
+describe('mapNodeTypeToDispatchTarget', () => {
+  it.each([
+    ['model-call', 'dispatched', 'Worker'],
+    ['tool-execution', 'dispatched', 'Worker'],
+    ['subworkflow', 'dispatched', 'Orchestrator'],
+    ['condition', 'internal', null],
+    ['transform', 'internal', null],
+    ['quality-gate', 'internal', null],
+    ['human-decision', 'internal', null],
+  ] as const)(
+    'maps %s to executionMode=%s, agentClass=%s',
+    (kind, expectedMode, expectedClass) => {
+      const result = mapNodeTypeToDispatchTarget(kind);
+      expect(result.executionMode).toBe(expectedMode);
+      expect(result.agentClass).toBe(expectedClass);
+    },
+  );
+
+  it('returns fail-safe default for unknown node kind', () => {
+    const result = mapNodeTypeToDispatchTarget(
+      'nonexistent-type' as WorkflowNodeKind,
+    );
+    expect(result.executionMode).toBe('internal');
+    expect(result.agentClass).toBeNull();
   });
 });

@@ -22,6 +22,7 @@ export {
   specToWorkflowDefinition,
   specToExecutionGraph,
   buildNodeIdMap,
+  mapNodeTypeToDispatchTarget,
   type NodeEnrichmentData,
   type SpecToDefinitionOptions,
 } from './runtime-adapter.js';
