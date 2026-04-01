@@ -7,12 +7,17 @@ import { ChatPanel } from '../ChatPanel'
 import type { ChatAPI } from '../ChatPanel'
 import type { ThoughtPfcDecisionPayload, ThoughtTurnLifecyclePayload } from '@nous/shared'
 
-// Capture the onEvent callback from useEventSubscription
-let capturedOnEvent: ((channel: string, payload: unknown) => void) | null = null
+// Use refs to always hold the latest onEvent callbacks from useEventSubscription
+// ChatPanel registers multiple subscriptions — we track all active ones by channel set
+const latestCallbacks = new Map<string, (channel: string, payload: unknown) => void>()
 
 vi.mock('@nous/transport', () => ({
-  useEventSubscription: (options: { onEvent: (channel: string, payload: unknown) => void }) => {
-    capturedOnEvent = options.onEvent
+  useEventSubscription: (options: { channels: string[]; onEvent: (channel: string, payload: unknown) => void; enabled?: boolean }) => {
+    if (options.enabled !== false) {
+      // Key by sorted channel list to deduplicate across re-renders
+      const key = [...options.channels].sort().join(',')
+      latestCallbacks.set(key, options.onEvent)
+    }
   },
   trpc: {
     traces: {
@@ -22,6 +27,16 @@ vi.mock('@nous/transport', () => ({
     },
   },
 }))
+
+/** Broadcast an event to all matching enabled subscriptions */
+function emitEvent(channel: string, payload: unknown) {
+  for (const [key, onEvent] of latestCallbacks) {
+    const channels = key.split(',')
+    if (channels.some(c => c === channel || (c.endsWith('*') && channel.startsWith(c.slice(0, -1))))) {
+      onEvent(channel, payload)
+    }
+  }
+}
 
 beforeAll(() => {
   Element.prototype.scrollIntoView = () => {}
@@ -90,7 +105,7 @@ function renderIdlePanel() {
 
 describe('ChatPanel — Thought Stream', () => {
   beforeEach(() => {
-    capturedOnEvent = null
+    latestCallbacks.clear()
     localStorage.clear()
   })
 
@@ -109,7 +124,7 @@ describe('ChatPanel — Thought Stream', () => {
 
     // Emit a thought event while NOT sending
     act(() => {
-      capturedOnEvent!('thought:pfc-decision', makePfcPayload())
+      emitEvent('thought:pfc-decision', makePfcPayload())
     })
 
     // Thought should accumulate even when not sending (sendingRef gate removed)
@@ -121,18 +136,18 @@ describe('ChatPanel — Thought Stream', () => {
     renderSendingPanel()
 
     act(() => {
-      capturedOnEvent!('thought:pfc-decision', makePfcPayload({ sequence: 1 }))
-      capturedOnEvent!('thought:turn-lifecycle', makeLifecyclePayload({ sequence: 2 }))
+      emitEvent('thought:pfc-decision', makePfcPayload({ sequence: 1 }))
+      emitEvent('thought:turn-lifecycle', makeLifecyclePayload({ sequence: 2 }))
     })
 
     expect(screen.getByText('2 thoughts')).toBeTruthy()
   })
 
-  it('ephemeral thoughts clear when turn completes (post-turn transition)', async () => {
+  it('thoughts persist after send completes (SSE idle timer handles cleanup)', async () => {
     const { resolveSend } = renderSendingPanel()
 
     act(() => {
-      capturedOnEvent!('thought:pfc-decision', makePfcPayload())
+      emitEvent('thought:pfc-decision', makePfcPayload())
     })
 
     expect(screen.getByTestId('thought-toggle')).toBeTruthy()
@@ -142,15 +157,16 @@ describe('ChatPanel — Thought Stream', () => {
       resolveSend({ response: 'done', traceId: 'trace-1' })
     })
 
-    // Ephemeral thoughts are cleared after turn completion
-    expect(screen.queryByTestId('thought-toggle')).toBeNull()
+    // Thoughts persist — they are no longer cleared on send completion.
+    // In production, the SSE turn-complete event + idle timer handles cleanup.
+    expect(screen.getByTestId('thought-toggle')).toBeTruthy()
   })
 
   it('collapsed state shows thought count chip and stream is in DOM but hidden', async () => {
     renderSendingPanel()
 
     act(() => {
-      capturedOnEvent!('thought:pfc-decision', makePfcPayload())
+      emitEvent('thought:pfc-decision', makePfcPayload())
     })
 
     // Collapsed by default — toggle visible, stream in DOM but hidden via CSS
@@ -165,7 +181,7 @@ describe('ChatPanel — Thought Stream', () => {
     renderSendingPanel()
 
     act(() => {
-      capturedOnEvent!('thought:pfc-decision', makePfcPayload({
+      emitEvent('thought:pfc-decision', makePfcPayload({
         thoughtType: 'memory-write',
         content: 'MEM-WRITE-APPROVED confidence=0.85',
       }))
@@ -183,7 +199,7 @@ describe('ChatPanel — Thought Stream', () => {
     renderSendingPanel()
 
     act(() => {
-      capturedOnEvent!('thought:turn-lifecycle', makeLifecyclePayload({
+      emitEvent('thought:turn-lifecycle', makeLifecyclePayload({
         phase: 'gateway-run',
         status: 'completed',
         content: 'gateway execution finished',
@@ -200,7 +216,7 @@ describe('ChatPanel — Thought Stream', () => {
     renderSendingPanel()
 
     act(() => {
-      capturedOnEvent!('thought:turn-lifecycle', makeLifecyclePayload({
+      emitEvent('thought:turn-lifecycle', makeLifecyclePayload({
         phase: 'turn-start',
         status: 'started',
         content: undefined,
@@ -217,7 +233,7 @@ describe('ChatPanel — Thought Stream', () => {
     renderSendingPanel()
 
     act(() => {
-      capturedOnEvent!('thought:pfc-decision', makePfcPayload())
+      emitEvent('thought:pfc-decision', makePfcPayload())
     })
 
     // Expand
@@ -235,7 +251,7 @@ describe('ChatPanel — Thought Stream', () => {
     renderSendingPanel()
 
     act(() => {
-      capturedOnEvent!('thought:pfc-decision', makePfcPayload())
+      emitEvent('thought:pfc-decision', makePfcPayload())
     })
 
     // Should be expanded on mount because localStorage says so (detailsAlwaysOn)
@@ -251,7 +267,7 @@ describe('ChatPanel — Thought Stream', () => {
     // Emit 55 events
     act(() => {
       for (let i = 0; i < 55; i++) {
-        capturedOnEvent!('thought:pfc-decision', makePfcPayload({
+        emitEvent('thought:pfc-decision', makePfcPayload({
           sequence: i,
           content: `event-${i}`,
         }))
@@ -273,7 +289,7 @@ describe('ChatPanel — Thought Stream', () => {
     renderSendingPanel()
 
     act(() => {
-      capturedOnEvent!('thought:pfc-decision', makePfcPayload())
+      emitEvent('thought:pfc-decision', makePfcPayload())
     })
 
     // Collapsed by default + sending=true: should show "Thinking..."
@@ -286,7 +302,7 @@ describe('ChatPanel — Thought Stream', () => {
     renderSendingPanel()
 
     act(() => {
-      capturedOnEvent!('thought:pfc-decision', makePfcPayload())
+      emitEvent('thought:pfc-decision', makePfcPayload())
     })
 
     const stream = screen.getByTestId('thought-stream')
@@ -300,7 +316,7 @@ describe('ChatPanel — Thought Stream', () => {
     renderSendingPanel()
 
     act(() => {
-      capturedOnEvent!('thought:pfc-decision', makePfcPayload())
+      emitEvent('thought:pfc-decision', makePfcPayload())
     })
 
     const toggle = screen.getByTestId('thought-toggle')
@@ -317,7 +333,7 @@ describe('ChatPanel — Thought Stream', () => {
     renderSendingPanel()
 
     act(() => {
-      capturedOnEvent!('thought:pfc-decision', makePfcPayload())
+      emitEvent('thought:pfc-decision', makePfcPayload())
     })
 
     // Even when collapsed, ThoughtStream is in the DOM
@@ -328,7 +344,7 @@ describe('ChatPanel — Thought Stream', () => {
     renderSendingPanel()
 
     act(() => {
-      capturedOnEvent!('thought:pfc-decision', makePfcPayload())
+      emitEvent('thought:pfc-decision', makePfcPayload())
     })
 
     // Expand
@@ -337,5 +353,222 @@ describe('ChatPanel — Thought Stream', () => {
     const stream = screen.getByTestId('thought-stream')
     expect(stream.style.opacity).toBe('1')
     expect(stream.style.maxHeight).not.toBe('0px')
+  })
+})
+
+describe('ChatPanel — Stage-aware rendering', () => {
+  beforeEach(() => {
+    latestCallbacks.clear()
+    localStorage.clear()
+  })
+
+  afterEach(() => {
+    vi.restoreAllMocks()
+  })
+
+  it('renders full mode by default when stage is undefined', () => {
+    const mockApi: ChatAPI = {
+      send: vi.fn().mockResolvedValue({ response: 'ok', traceId: 'trace-1' }),
+      getHistory: async () => [],
+    }
+    const { container } = render(<ChatPanel chatApi={mockApi} />)
+
+    // Full mode: header and messages area should be present
+    expect(container.querySelector('[data-chat-stage="full"]')).toBeTruthy()
+    expect(screen.getByText('Principal \u2194 Cortex')).toBeTruthy()
+  })
+
+  it('renders full mode explicitly when stage="full"', () => {
+    const mockApi: ChatAPI = {
+      send: vi.fn().mockResolvedValue({ response: 'ok', traceId: 'trace-1' }),
+      getHistory: async () => [],
+    }
+    const { container } = render(<ChatPanel chatApi={mockApi} stage="full" />)
+
+    expect(container.querySelector('[data-chat-stage="full"]')).toBeTruthy()
+    expect(screen.getByText('Principal \u2194 Cortex')).toBeTruthy()
+  })
+
+  it('small stage hides header and messages, shows only input', () => {
+    const mockApi: ChatAPI = {
+      send: vi.fn().mockResolvedValue({ response: 'ok', traceId: 'trace-1' }),
+      getHistory: async () => [],
+    }
+    const { container } = render(<ChatPanel chatApi={mockApi} stage="small" />)
+
+    expect(container.querySelector('[data-chat-stage="small"]')).toBeTruthy()
+    // Header text should NOT be present
+    expect(screen.queryByText('Principal \u2194 Cortex')).toBeNull()
+    // Input should still be present
+    expect(screen.getByPlaceholderText(/Message Nous/i)).toBeTruthy()
+    // Send button should still be present
+    expect(screen.getByText('Send')).toBeTruthy()
+  })
+
+  it('ambient_small stage shows toggle bar with Thinking indicator and input', () => {
+    const mockApi: ChatAPI = {
+      send: vi.fn().mockResolvedValue({ response: 'ok', traceId: 'trace-1' }),
+      getHistory: async () => [],
+    }
+    const { container } = render(<ChatPanel chatApi={mockApi} stage="ambient_small" />)
+
+    expect(container.querySelector('[data-chat-stage="ambient_small"]')).toBeTruthy()
+    expect(screen.getByTestId('chat-stage-toggle')).toBeTruthy()
+    expect(screen.getByPlaceholderText(/Message Nous/i)).toBeTruthy()
+    // Should show Thinking indicator
+    expect(screen.getByText(/Thinking\.\.\./)).toBeTruthy()
+  })
+
+  it('ambient_large stage shows toggle bar with thought stream', () => {
+    const mockApi: ChatAPI = {
+      send: vi.fn().mockResolvedValue({ response: 'ok', traceId: 'trace-1' }),
+      getHistory: async () => [],
+    }
+    const { container } = render(<ChatPanel chatApi={mockApi} stage="ambient_large" />)
+
+    expect(container.querySelector('[data-chat-stage="ambient_large"]')).toBeTruthy()
+    expect(screen.getByTestId('chat-stage-toggle')).toBeTruthy()
+    expect(screen.getByPlaceholderText(/Message Nous/i)).toBeTruthy()
+  })
+
+  it('small stage expand button calls onStageChange with ambient_large', () => {
+    const mockApi: ChatAPI = {
+      send: vi.fn().mockResolvedValue({ response: 'ok', traceId: 'trace-1' }),
+      getHistory: async () => [],
+    }
+    const onStageChange = vi.fn()
+
+    render(<ChatPanel chatApi={mockApi} stage="small" onStageChange={onStageChange} />)
+
+    // Click expand chevron
+    fireEvent.click(screen.getByTestId('stage-panel-button'))
+    expect(onStageChange).toHaveBeenCalledWith('ambient_large')
+  })
+
+  it('ambient_large stage expand button calls onStageChange with full', () => {
+    const mockApi: ChatAPI = {
+      send: vi.fn().mockResolvedValue({ response: 'ok', traceId: 'trace-1' }),
+      getHistory: async () => [],
+    }
+    const onStageChange = vi.fn()
+
+    render(<ChatPanel chatApi={mockApi} stage="ambient_large" onStageChange={onStageChange} />)
+
+    fireEvent.click(screen.getByTestId('stage-fullscreen-button'))
+    expect(onStageChange).toHaveBeenCalledWith('full')
+  })
+
+  it('ambient_large stage minimize button calls onStageChange with small', () => {
+    const mockApi: ChatAPI = {
+      send: vi.fn().mockResolvedValue({ response: 'ok', traceId: 'trace-1' }),
+      getHistory: async () => [],
+    }
+    const onStageChange = vi.fn()
+
+    render(<ChatPanel chatApi={mockApi} stage="ambient_large" onStageChange={onStageChange} />)
+
+    fireEvent.click(screen.getByTestId('stage-minimize-button'))
+    expect(onStageChange).toHaveBeenCalledWith('small')
+  })
+
+  it('full stage minimize button calls onStageChange with small', () => {
+    const mockApi: ChatAPI = {
+      send: vi.fn().mockResolvedValue({ response: 'ok', traceId: 'trace-1' }),
+      getHistory: async () => [],
+    }
+    const onStageChange = vi.fn()
+
+    render(<ChatPanel chatApi={mockApi} stage="full" onStageChange={onStageChange} />)
+
+    fireEvent.click(screen.getByTestId('stage-minimize-button'))
+    expect(onStageChange).toHaveBeenCalledWith('small')
+  })
+
+  it('full stage panel button calls onStageChange with ambient_large', () => {
+    const mockApi: ChatAPI = {
+      send: vi.fn().mockResolvedValue({ response: 'ok', traceId: 'trace-1' }),
+      getHistory: async () => [],
+    }
+    const onStageChange = vi.fn()
+
+    render(<ChatPanel chatApi={mockApi} stage="full" onStageChange={onStageChange} />)
+
+    fireEvent.click(screen.getByTestId('stage-panel-button'))
+    expect(onStageChange).toHaveBeenCalledWith('ambient_large')
+  })
+
+  it('full stage pin button calls onTogglePin', () => {
+    const mockApi: ChatAPI = {
+      send: vi.fn().mockResolvedValue({ response: 'ok', traceId: 'trace-1' }),
+      getHistory: async () => [],
+    }
+    const onStageChange = vi.fn()
+    const onTogglePin = vi.fn()
+
+    render(<ChatPanel chatApi={mockApi} stage="full" onStageChange={onStageChange} onTogglePin={onTogglePin} />)
+
+    fireEvent.click(screen.getByTestId('stage-pin-button'))
+    expect(onTogglePin).toHaveBeenCalledTimes(1)
+  })
+
+  it('full stage pin button shows pinned state', () => {
+    const mockApi: ChatAPI = {
+      send: vi.fn().mockResolvedValue({ response: 'ok', traceId: 'trace-1' }),
+      getHistory: async () => [],
+    }
+    const onStageChange = vi.fn()
+
+    const { rerender } = render(<ChatPanel chatApi={mockApi} stage="full" onStageChange={onStageChange} isPinned={false} />)
+    expect(screen.getByTestId('stage-pin-button').title).toBe('Pin open')
+
+    rerender(<ChatPanel chatApi={mockApi} stage="full" onStageChange={onStageChange} isPinned={true} />)
+    expect(screen.getByTestId('stage-pin-button').title).toBe('Unpin')
+  })
+
+  it('input focus calls onInputFocus callback', () => {
+    const mockApi: ChatAPI = {
+      send: vi.fn().mockResolvedValue({ response: 'ok', traceId: 'trace-1' }),
+      getHistory: async () => [],
+    }
+    const onInputFocus = vi.fn()
+
+    render(<ChatPanel chatApi={mockApi} stage="ambient_small" onInputFocus={onInputFocus} />)
+
+    const textarea = screen.getByPlaceholderText(/Message Nous/i)
+    fireEvent.focus(textarea)
+    expect(onInputFocus).toHaveBeenCalledTimes(1)
+  })
+
+  it('ambient_large stage shows only last 5 messages (not visible in ambient_large — thought stream only)', async () => {
+    const mockApi: ChatAPI = {
+      send: vi.fn().mockResolvedValue({ response: 'ok', traceId: 'trace-1' }),
+      getHistory: async () => [],
+    }
+
+    const { container } = render(<ChatPanel chatApi={mockApi} stage="ambient_large" />)
+
+    expect(container.querySelector('[data-chat-stage="ambient_large"]')).toBeTruthy()
+    // ambient_large shows thought stream, not messages
+    expect(screen.queryByText('Principal \u2194 Cortex')).toBeNull()
+  })
+
+  it('full stage shows all messages', async () => {
+    const messages: { role: 'user' | 'assistant'; content: string; timestamp: string }[] = []
+    for (let i = 0; i < 10; i++) {
+      messages.push({ role: 'user', content: `msg-${i}`, timestamp: new Date().toISOString() })
+    }
+    const mockApi: ChatAPI = {
+      send: vi.fn().mockResolvedValue({ response: 'ok', traceId: 'trace-1' }),
+      getHistory: async () => messages,
+    }
+
+    render(<ChatPanel chatApi={mockApi} stage="full" />)
+
+    // Wait for history to load
+    await act(async () => {})
+
+    // All messages should be visible
+    expect(screen.getByText('msg-0')).toBeTruthy()
+    expect(screen.getByText('msg-9')).toBeTruthy()
   })
 })

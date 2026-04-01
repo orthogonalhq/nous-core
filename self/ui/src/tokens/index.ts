@@ -213,6 +213,14 @@ export const tokens = {
     chatColumnWidth: 320,
     observeColumnWidth: 280,
     columnDividerWidth: 1,
+    simpleShell: {
+      projectRailWidth: 48,
+      assetSidebarDefaultWidth: 320,
+      assetSidebarMinWidth: 240,
+      observeDefaultWidth: 20,
+      observeExpandedWidth: 280,
+      observeMinWidth: 20,
+    },
   },
 
   breakpoint: {
