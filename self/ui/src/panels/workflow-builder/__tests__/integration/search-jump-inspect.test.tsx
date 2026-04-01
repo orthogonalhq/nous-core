@@ -16,6 +16,9 @@ import { triggerKeyboardShortcut } from './test-utils'
 
 vi.mock('@xyflow/react', () => reactFlowMock)
 
+import { trpcMock } from '../trpc-mock'
+vi.mock('@nous/transport', () => trpcMock)
+
 vi.mock('../../nodes/node-registry', () => ({
   getAllRegistryEntries: () => [
     ['nous.trigger.webhook', {

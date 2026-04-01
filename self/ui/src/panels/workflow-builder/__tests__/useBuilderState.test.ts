@@ -1,10 +1,13 @@
 // @vitest-environment jsdom
 
-import { describe, expect, it, vi } from 'vitest'
+import { describe, expect, it, vi, beforeEach } from 'vitest'
 import { renderHook, act } from '@testing-library/react'
 import { reactFlowMock } from './react-flow-mock'
 
 vi.mock('@xyflow/react', () => reactFlowMock)
+
+import { trpcMock, mockMutateAsync, mockFetch } from './trpc-mock'
+vi.mock('@nous/transport', () => trpcMock)
 
 import { useBuilderState } from '../hooks/useBuilderState'
 import { DEMO_WORKFLOW_NODES, DEMO_WORKFLOW_EDGES } from '../demo-workflow'
@@ -636,6 +639,243 @@ describe('useBuilderState', () => {
         result.current.undo()
       })
       expect(result.current.nodes.find((n) => n.id === nodeId)!.position).toEqual(originalPos)
+    })
+  })
+
+  // ─── Phase 2.2 — Persistence integration ──────────────────────────────────
+
+  describe('Phase 2.2 — Persistence integration', () => {
+    beforeEach(() => {
+      mockMutateAsync.mockReset()
+      mockFetch.mockReset()
+    })
+
+    // Tier 1 — Contract
+
+    describe('Tier 1 — Contract', () => {
+      it('return type includes saveToServer, saveAsNew, resetToEmpty, isSaving, currentDefinitionId', () => {
+        const { result } = renderHook(() => useBuilderState())
+        expect(result.current.saveToServer).toBeTypeOf('function')
+        expect(result.current.saveAsNew).toBeTypeOf('function')
+        expect(result.current.resetToEmpty).toBeTypeOf('function')
+        expect(result.current.isSaving).toBe(false)
+        expect(result.current.currentDefinitionId).toBeNull()
+      })
+
+      it('saveToServer returns null when no projectId', async () => {
+        const { result } = renderHook(() => useBuilderState())
+        let saveResult: { definitionId: string } | null = null
+        await act(async () => {
+          saveResult = await result.current.saveToServer()
+        })
+        expect(saveResult).toBeNull()
+        expect(mockMutateAsync).not.toHaveBeenCalled()
+      })
+
+      it('saveAsNew returns null when no projectId', async () => {
+        const { result } = renderHook(() => useBuilderState())
+        let saveResult: { definitionId: string } | null = null
+        await act(async () => {
+          saveResult = await result.current.saveAsNew()
+        })
+        expect(saveResult).toBeNull()
+        expect(mockMutateAsync).not.toHaveBeenCalled()
+      })
+
+      it('resetToEmpty is a no-throw function without projectId', () => {
+        const { result } = renderHook(() => useBuilderState())
+        expect(() => {
+          act(() => {
+            result.current.resetToEmpty()
+          })
+        }).not.toThrow()
+      })
+    })
+
+    // Tier 2 — Behavior
+
+    describe('Tier 2 — Behavior', () => {
+      it('saveToServer calls tRPC mutation with correct args and marks clean on success', async () => {
+        mockMutateAsync.mockResolvedValue({ definitionId: 'def-123', validation: { valid: true } })
+
+        const { result } = renderHook(() =>
+          useBuilderState('authoring', { projectId: 'proj-1' }),
+        )
+
+        // Make dirty
+        act(() => {
+          result.current.addNode('nous.trigger.webhook', { x: 0, y: 0 })
+        })
+        expect(result.current.isDirty).toBe(true)
+
+        let saveResult: { definitionId: string } | null = null
+        await act(async () => {
+          saveResult = await result.current.saveToServer()
+        })
+
+        expect(mockMutateAsync).toHaveBeenCalledWith(
+          expect.objectContaining({
+            projectId: 'proj-1',
+            specYaml: expect.any(String),
+          }),
+        )
+        expect(saveResult).toEqual({ definitionId: 'def-123' })
+        expect(result.current.isDirty).toBe(false)
+        expect(result.current.isSaving).toBe(false)
+      })
+
+      it('saveToServer does NOT mark clean on tRPC error', async () => {
+        mockMutateAsync.mockRejectedValue(new Error('Save failed'))
+
+        const { result } = renderHook(() =>
+          useBuilderState('authoring', { projectId: 'proj-1' }),
+        )
+
+        act(() => {
+          result.current.addNode('nous.trigger.webhook', { x: 0, y: 0 })
+        })
+        expect(result.current.isDirty).toBe(true)
+
+        let saveResult: { definitionId: string } | null = null
+        await act(async () => {
+          saveResult = await result.current.saveToServer()
+        })
+
+        expect(saveResult).toBeNull()
+        expect(result.current.isDirty).toBe(true)
+        expect(result.current.isSaving).toBe(false)
+      })
+
+      it('saveAsNew omits definitionId in tRPC call', async () => {
+        mockMutateAsync.mockResolvedValue({ definitionId: 'new-def-456', validation: { valid: true } })
+
+        const { result } = renderHook(() =>
+          useBuilderState('authoring', { projectId: 'proj-1' }),
+        )
+
+        act(() => {
+          result.current.addNode('nous.trigger.webhook', { x: 0, y: 0 })
+        })
+
+        await act(async () => {
+          await result.current.saveAsNew('My Workflow')
+        })
+
+        expect(mockMutateAsync).toHaveBeenCalledWith(
+          expect.objectContaining({
+            projectId: 'proj-1',
+            specYaml: expect.any(String),
+            name: 'My Workflow',
+          }),
+        )
+        // definitionId should NOT be in the call
+        const callArgs = mockMutateAsync.mock.calls[0][0]
+        expect(callArgs.definitionId).toBeUndefined()
+      })
+
+      it('resetToEmpty clears nodes, edges, definitionId, isDirty', () => {
+        const { result } = renderHook(() =>
+          useBuilderState('authoring', { projectId: 'proj-1' }),
+        )
+
+        // Add some data first (starts empty with projectId)
+        act(() => {
+          result.current.addNode('nous.trigger.webhook', { x: 0, y: 0 })
+        })
+        expect(result.current.nodes.length).toBeGreaterThan(0)
+        expect(result.current.isDirty).toBe(true)
+
+        act(() => {
+          result.current.resetToEmpty()
+        })
+
+        expect(result.current.nodes).toHaveLength(0)
+        expect(result.current.edges).toHaveLength(0)
+        expect(result.current.isDirty).toBe(false)
+        expect(result.current.currentDefinitionId).toBeNull()
+      })
+
+      it('initialization without projectId uses demo fallback', () => {
+        const { result } = renderHook(() => useBuilderState())
+        expect(result.current.nodes).toHaveLength(DEMO_WORKFLOW_NODES.length)
+        expect(result.current.edges).toHaveLength(DEMO_WORKFLOW_EDGES.length)
+      })
+
+      it('initialization with projectId but no workflowDefinitionId starts empty', () => {
+        const { result } = renderHook(() =>
+          useBuilderState('authoring', { projectId: 'proj-1' }),
+        )
+        expect(result.current.nodes).toHaveLength(0)
+        expect(result.current.edges).toHaveLength(0)
+      })
+
+      it('subsequent saves after first save include the stored definitionId', async () => {
+        mockMutateAsync
+          .mockResolvedValueOnce({ definitionId: 'def-first', validation: { valid: true } })
+          .mockResolvedValueOnce({ definitionId: 'def-first', validation: { valid: true } })
+
+        const { result } = renderHook(() =>
+          useBuilderState('authoring', { projectId: 'proj-1' }),
+        )
+
+        // First save
+        act(() => {
+          result.current.addNode('nous.trigger.webhook', { x: 0, y: 0 })
+        })
+        await act(async () => {
+          await result.current.saveToServer()
+        })
+
+        expect(mockMutateAsync.mock.calls[0][0].definitionId).toBeUndefined()
+
+        // Make dirty again and save
+        act(() => {
+          result.current.addNode('nous.agent.claude', { x: 100, y: 100 })
+        })
+        await act(async () => {
+          await result.current.saveToServer()
+        })
+
+        // Second save should include the stored definitionId
+        expect(mockMutateAsync.mock.calls[1][0].definitionId).toBe('def-first')
+      })
+    })
+
+    // Tier 3 — Edge Cases
+
+    describe('Tier 3 — Edge Cases', () => {
+      it('saveToServer while already saving is guarded by isSaving', async () => {
+        let resolveFirst: (value: unknown) => void
+        const firstPromise = new Promise((resolve) => {
+          resolveFirst = resolve
+        })
+        mockMutateAsync.mockReturnValueOnce(firstPromise)
+
+        const { result } = renderHook(() =>
+          useBuilderState('authoring', { projectId: 'proj-1' }),
+        )
+
+        act(() => {
+          result.current.addNode('nous.trigger.webhook', { x: 0, y: 0 })
+        })
+
+        // Start first save (non-blocking)
+        let firstSavePromise: Promise<unknown>
+        act(() => {
+          firstSavePromise = result.current.saveToServer()
+        })
+
+        // isSaving should be true while in-flight
+        expect(result.current.isSaving).toBe(true)
+
+        // Resolve the first save
+        await act(async () => {
+          resolveFirst!({ definitionId: 'def-1', validation: { valid: true } })
+          await firstSavePromise!
+        })
+
+        expect(result.current.isSaving).toBe(false)
+      })
     })
   })
 })
