@@ -139,7 +139,7 @@ export function useChatStageManager(): ChatStageManagerReturn {
   const signalInputFocus = useCallback(() => {
     clearAllTimers()
     setChatStage((prev) => {
-      if (prev === 'ambient_small' || prev === 'ambient_large') return 'full'
+      if (prev !== 'full') return 'full'
       return prev
     })
   }, [clearAllTimers])

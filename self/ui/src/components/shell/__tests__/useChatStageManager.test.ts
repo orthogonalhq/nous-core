@@ -225,10 +225,10 @@ describe('useChatStageManager', () => {
     expect(result.current.chatStage).toBe('full')
   })
 
-  it('signalInputFocus: small stays small (no-op)', () => {
+  it('signalInputFocus: small -> full', () => {
     const { result } = renderHook(() => useChatStageManager())
     act(() => result.current.signalInputFocus())
-    expect(result.current.chatStage).toBe('small')
+    expect(result.current.chatStage).toBe('full')
   })
 
   it('signalInputFocus: full stays full (no-op)', () => {
