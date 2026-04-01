@@ -92,7 +92,7 @@ const WITNESS_ACTOR_BY_CLASS: Record<AgentClass, WitnessActor> = {
 
 type CapabilityToolName = Exclude<
   InternalMcpToolName,
-  'dispatch_agent' | 'task_complete' | 'request_escalation' | 'flag_observation'
+  'dispatch_orchestrator' | 'dispatch_worker' | 'task_complete' | 'request_escalation' | 'flag_observation'
 >;
 
 interface WorkflowSelection {
@@ -1236,7 +1236,6 @@ export function createCapabilityHandlers(
       );
     },
     workflow_start: async (params, execution) => {
-      await requireSystemAgent(context, 'workflow_start', execution);
       const request = parseWorkflowStartRequest(params);
       const workflowEngine = requireWorkflowEngine(context);
       const projectConfig = await resolveProjectConfig(context, request.projectId);
@@ -1379,7 +1378,6 @@ export function createCapabilityHandlers(
       );
     },
     workflow_pause: async (params, execution) => {
-      await requireSystemAgent(context, 'workflow_pause', execution);
       const request = parseWorkflowPauseRequest(params);
       const workflowEngine = requireWorkflowEngine(context);
       const current = await workflowEngine.getState(request.runId);
@@ -1432,7 +1430,6 @@ export function createCapabilityHandlers(
       );
     },
     workflow_resume: async (params, execution) => {
-      await requireSystemAgent(context, 'workflow_resume', execution);
       const request = parseWorkflowResumeRequest(params);
       const workflowEngine = requireWorkflowEngine(context);
       const current = await workflowEngine.getState(request.runId);

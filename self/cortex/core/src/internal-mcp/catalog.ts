@@ -1,6 +1,7 @@
 import type { AgentClass, ToolDefinition } from '@nous/shared';
 import {
-  DISPATCH_AGENT_TOOL_NAME,
+  DISPATCH_ORCHESTRATOR_TOOL_NAME,
+  DISPATCH_WORKER_TOOL_NAME,
   FLAG_OBSERVATION_TOOL_NAME,
   REQUEST_ESCALATION_TOOL_NAME,
   TASK_COMPLETE_TOOL_NAME,
@@ -488,12 +489,33 @@ export const INTERNAL_MCP_CATALOG: readonly InternalMcpCatalogEntry[] = [
     ),
   },
   {
-    name: DISPATCH_AGENT_TOOL_NAME,
+    name: DISPATCH_ORCHESTRATOR_TOOL_NAME,
     kind: 'lifecycle',
     definition: defineTool(
-      DISPATCH_AGENT_TOOL_NAME,
-      'Dispatch a child agent.',
-      { target_class: 'Worker | Orchestrator', task_instructions: 'string' },
+      DISPATCH_ORCHESTRATOR_TOOL_NAME,
+      'Dispatch an Orchestrator-class agent with a structured intent.',
+      {
+        dispatch_intent: '{ type: "workflow" | "task" | "skill" | "autonomous", ... }',
+        task_instructions: 'string',
+        budget: 'GatewayBudgetOverride?',
+      },
+      { child_result: 'AgentResult' },
+      ['control'],
+      'runtime',
+    ),
+  },
+  {
+    name: DISPATCH_WORKER_TOOL_NAME,
+    kind: 'lifecycle',
+    definition: defineTool(
+      DISPATCH_WORKER_TOOL_NAME,
+      'Dispatch a Worker-class agent for task execution.',
+      {
+        task_instructions: 'string',
+        node_id: 'string?',
+        payload: 'unknown?',
+        budget: 'GatewayBudgetOverride?',
+      },
       { child_result: 'AgentResult' },
       ['control'],
       'runtime',

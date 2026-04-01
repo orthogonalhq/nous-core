@@ -691,6 +691,7 @@ implements IPrincipalSystemGatewayRuntime, ISystemInboxSubmissionService {
             taskInstructions: string;
             payload?: unknown;
             nodeDefinitionId?: string;
+            dispatchIntent?: import('@nous/shared').DispatchIntent;
           };
           context: {
             agentId: string;
@@ -707,6 +708,7 @@ implements IPrincipalSystemGatewayRuntime, ISystemInboxSubmissionService {
           return child.run({
             taskInstructions: dispatchArgs.request.taskInstructions,
             payload: dispatchArgs.request.payload,
+            dispatchIntent: dispatchArgs.request.dispatchIntent,
             context: [],
             budget: dispatchArgs.budget ?? DEFAULT_CHILD_BUDGET,
             spawnBudgetCeiling:
