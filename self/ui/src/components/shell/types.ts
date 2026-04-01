@@ -154,12 +154,14 @@ export const ChatSurfacePropsSchema = z.object({
   className: z.string().optional(),
   stage: ChatStageSchema.optional(),
   onStageChange: z.custom<(stage: ChatStage) => void>(() => true).optional(),
+  onSendStart: z.custom<() => void>(() => true).optional(),
 })
 export interface ChatSurfaceProps {
   chatApi?: import('../../panels/ChatPanel').ChatAPI
   className?: string
   stage?: ChatStage
   onStageChange?: (stage: ChatStage) => void
+  onSendStart?: () => void
 }
 
 /** Props for the HomeScreen landing surface */

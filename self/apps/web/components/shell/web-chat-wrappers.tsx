@@ -13,8 +13,8 @@ export function WebChatPanel(props: IDockviewPanelProps) {
 }
 
 /** Wrapper that wires ChatSurface to tRPC via useChatApi (simple mode). */
-export function WebConnectedChatSurface({ stage, onStageChange }: { stage?: ChatStage; onStageChange?: (stage: ChatStage) => void } = {}) {
+export function WebConnectedChatSurface({ stage, onStageChange, onSendStart }: { stage?: ChatStage; onStageChange?: (stage: ChatStage) => void; onSendStart?: () => void } = {}) {
   const { activeProjectId } = useShellContext()
   const chatApi = useChatApi({ projectId: activeProjectId ?? undefined })
-  return <ChatSurface chatApi={chatApi} stage={stage} onStageChange={onStageChange} />
+  return <ChatSurface chatApi={chatApi} stage={stage} onStageChange={onStageChange} onSendStart={onSendStart} />
 }

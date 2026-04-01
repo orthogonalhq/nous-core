@@ -854,6 +854,7 @@ function DesktopSimpleShell({
             else if (s === 'full') chatStageManager.expandToFull()
             else if (s === 'small') chatStageManager.collapseToSmall()
           }}
+          onSendStart={() => chatStageManager.signalSending()}
         />
       )}
     />

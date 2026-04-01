@@ -32,6 +32,7 @@ export interface ChatPanelCoreProps {
   className?: string
   stage?: ChatStage
   onStageChange?: (stage: ChatStage) => void
+  onSendStart?: () => void
 }
 
 interface BrowserSpeechRecognitionResult {
@@ -79,6 +80,7 @@ export function ChatPanel(props: ChatPanelProps | ChatPanelCoreProps) {
   const className = 'className' in props ? props.className : undefined
   const stage: ChatStage | undefined = 'stage' in props ? props.stage : undefined
   const onStageChange = 'onStageChange' in props ? props.onStageChange : undefined
+  const onSendStart = 'onSendStart' in props ? props.onSendStart : undefined
 
   // Resolve effective stage: undefined means full (backwards compatible for dockview)
   const effectiveStage = stage ?? 'full'
@@ -198,6 +200,7 @@ export function ChatPanel(props: ChatPanelProps | ChatPanelCoreProps) {
     const userMsg = input.trim()
     setInput('')
     setSending(true)
+    onSendStart?.()
     const userEntry: ChatMessage = { role: 'user', content: userMsg, timestamp: new Date().toISOString() }
     setMessages(prev => [...prev, userEntry])
     try {
