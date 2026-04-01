@@ -337,7 +337,11 @@ export function AssetSidebar({
         display: 'flex',
         flexDirection: 'column',
         height: '100%',
+        width: '100%',
+        maxWidth: '100%',
+        minWidth: 0,
         overflow: 'hidden',
+        position: 'relative',
         ...style,
       }}
       {...props}
@@ -425,9 +429,12 @@ export function AssetSidebar({
           flexBasis: chatFlexBasis,
           minHeight: chatStage === 'ambient' ? '100px' : undefined,
           maxHeight: chatStage === 'full' ? '100%' : chatStage === 'peek' ? '50%' : undefined,
+          width: '100%',
+          maxWidth: '100%',
           borderTop: '1px solid var(--nous-shell-column-border)',
           overflow: 'hidden',
           transition: 'flex-basis var(--nous-duration-normal, 200ms) var(--nous-ease-out, ease-out)',
+          position: 'relative',
         }}
       >
         {chatSlot({ stage: chatStage, onStageChange: handleStageChange })}

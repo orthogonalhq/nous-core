@@ -62,7 +62,41 @@ export function CollapsibleObserveEdge({
           &#x2039;
         </button>
       ) : (
-        children
+        <>
+          <div
+            style={{
+              display: 'flex',
+              alignItems: 'center',
+              padding: 'var(--nous-space-xs)',
+              borderBottom: '1px solid var(--nous-shell-column-border)',
+              flexShrink: 0,
+            }}
+          >
+            <button
+              type="button"
+              aria-label="Collapse observe panel"
+              data-action="collapse"
+              onClick={onExpandToggle}
+              style={{
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                border: 'none',
+                background: 'transparent',
+                color: 'var(--nous-text-tertiary)',
+                cursor: 'pointer',
+                fontSize: 'var(--nous-font-size-md, 16px)',
+                padding: '2px 4px',
+                transition: 'var(--nous-hover-button-transition)',
+              }}
+            >
+              &#x203A;
+            </button>
+          </div>
+          <div style={{ flex: '1 1 0%', overflow: 'auto' }}>
+            {children}
+          </div>
+        </>
       )}
     </div>
   )
