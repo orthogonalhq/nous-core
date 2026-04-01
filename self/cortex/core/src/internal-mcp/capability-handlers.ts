@@ -30,7 +30,9 @@ import {
   type WorkflowLifecycleInstanceSummary,
   type WorkflowRunState,
   type WorkflowDefinition,
+  type DerivedWorkflowGraph,
 } from '@nous/shared';
+import { buildDispatchMetadata } from './dispatch-metadata.js';
 import {
   inspectInstalledWorkflowPackage,
   listInstalledWorkflowPackages,
@@ -395,8 +397,16 @@ function toWorkflowInstanceSummary(input: {
   runState: WorkflowRunState;
   definitionName: string;
   definitionSource?: ResolvedWorkflowDefinitionSource | null;
+  graph?: DerivedWorkflowGraph | null;
 }): WorkflowLifecycleInstanceSummary {
-  const { runState } = input;
+  const { runState, graph } = input;
+
+  const readyNodeDispatchMetadata = buildDispatchMetadata({
+    readyNodeIds: runState.readyNodeIds,
+    graph,
+    dispatchLineage: runState.dispatchLineage,
+  });
+
   return WorkflowLifecycleInstanceSummarySchema.parse({
     runId: runState.runId,
     projectId: runState.projectId,
@@ -412,6 +422,8 @@ function toWorkflowInstanceSummary(input: {
     startedAt: runState.startedAt,
     updatedAt: runState.updatedAt,
     definitionSource: input.definitionSource ?? undefined,
+    readyNodeIds: runState.readyNodeIds,
+    readyNodeDispatchMetadata,
   });
 }
 
@@ -608,11 +620,17 @@ async function resolveRunProjection(
     }
   }
 
+  // Retrieve graph for dispatch metadata construction
+  const graph = await requireWorkflowEngine(context).getRunGraph(
+    runState.runId,
+  );
+
   return {
     summary: toWorkflowInstanceSummary({
       runState,
       definitionName,
       definitionSource,
+      graph,
     }),
     projectConfig,
     definitionSource,
@@ -1338,12 +1356,17 @@ export function createCapabilityHandlers(
         selection.workflowDefinitionId as any,
       );
 
+      const startGraph = await workflowEngine.getRunGraph(
+        startedState.value.runId,
+      );
+
       return success(
         WorkflowLifecycleMutationResultSchema.parse({
           run: toWorkflowInstanceSummary({
             runState: startedState.value,
             definitionName: selection.definitionName,
             definitionSource,
+            graph: startGraph,
           }),
           evidenceRef: startedState.evidenceRef,
           warnings,
@@ -1417,12 +1440,15 @@ export function createCapabilityHandlers(
           }),
       });
 
+      const pauseGraph = await workflowEngine.getRunGraph(result.value.runId);
+
       return success(
         WorkflowLifecycleMutationResultSchema.parse({
           run: toWorkflowInstanceSummary({
             runState: result.value,
             definitionName: projection.summary.definitionName,
             definitionSource: projection.definitionSource,
+            graph: pauseGraph,
           }),
           evidenceRef: result.evidenceRef,
         }),
@@ -1489,12 +1515,15 @@ export function createCapabilityHandlers(
           }),
       });
 
+      const resumeGraph = await workflowEngine.getRunGraph(result.value.runId);
+
       return success(
         WorkflowLifecycleMutationResultSchema.parse({
           run: toWorkflowInstanceSummary({
             runState: result.value,
             definitionName: projection.summary.definitionName,
             definitionSource: projection.definitionSource,
+            graph: resumeGraph,
           }),
           evidenceRef: result.evidenceRef,
           warnings,
@@ -1538,12 +1567,15 @@ export function createCapabilityHandlers(
           }),
       });
 
+      const cancelGraph = await workflowEngine.getRunGraph(result.value.runId);
+
       return success(
         WorkflowLifecycleMutationResultSchema.parse({
           run: toWorkflowInstanceSummary({
             runState: result.value,
             definitionName: projection.summary.definitionName,
             definitionSource: projection.definitionSource,
+            graph: cancelGraph,
           }),
           evidenceRef: result.evidenceRef,
         }),
