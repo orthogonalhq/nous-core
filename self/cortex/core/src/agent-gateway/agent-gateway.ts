@@ -12,7 +12,8 @@ import {
   type CriticalActionCategory,
   type GatewayBudgetExhaustionReason,
   type GatewayContextFrame,
-  type GatewayDispatchRequest,
+  type DispatchOrchestratorRequest,
+  type DispatchWorkerRequest,
   type GatewayMessageId,
   type GatewayExecutionContext,
   type GatewayLifecycleContext,
@@ -38,12 +39,15 @@ import {
 import { CorrelationSequencer } from './correlation-sequencer.js';
 import { GatewayInbox } from './inbox.js';
 import {
-  DISPATCH_AGENT_TOOL_NAME,
+  DISPATCH_ORCHESTRATOR_TOOL_NAME,
+  DISPATCH_WORKER_TOOL_NAME,
   FLAG_OBSERVATION_TOOL_NAME,
   REQUEST_ESCALATION_TOOL_NAME,
   TASK_COMPLETE_TOOL_NAME,
   getLifecycleUnavailableMessage,
-  parseDispatchRequest,
+  isDispatchToolName,
+  parseDispatchOrchestratorRequest,
+  parseDispatchWorkerRequest,
   parseEscalationRequest,
   parseObservation,
   parseTaskCompletionRequest,
@@ -70,7 +74,8 @@ interface ToolHandlingResult {
 }
 
 interface PreparedDispatchCall {
-  request: GatewayDispatchRequest;
+  request: DispatchOrchestratorRequest | DispatchWorkerRequest;
+  toolName: string;
 }
 
 function defaultNow(): string {
@@ -297,7 +302,8 @@ export class AgentGateway implements IAgentGateway {
     startedAt: string;
   }): Promise<ToolHandlingResult> {
     switch (args.toolName) {
-      case DISPATCH_AGENT_TOOL_NAME:
+      case DISPATCH_ORCHESTRATOR_TOOL_NAME:
+      case DISPATCH_WORKER_TOOL_NAME:
         return this.handleDispatchTool(args);
       case TASK_COMPLETE_TOOL_NAME:
         return this.handleTaskCompleteTool(args);
@@ -326,7 +332,7 @@ export class AgentGateway implements IAgentGateway {
     const frameByIndex = new Map<number, GatewayContextFrame>();
     const dispatchIndexes = args.toolCalls
       .map((toolCall, index) =>
-        toolCall.name === DISPATCH_AGENT_TOOL_NAME ? index : -1,
+        isDispatchToolName(toolCall.name) ? index : -1,
       )
       .filter((index) => index >= 0);
 
@@ -390,11 +396,12 @@ export class AgentGateway implements IAgentGateway {
     const pending: Array<{ index: number; prepared: PreparedDispatchCall }> = [];
 
     for (const index of indexes) {
+      const toolCall = args.toolCalls[index]!;
       const prepared = this.prepareDispatchTool(
         {
           ...args,
-          toolName: DISPATCH_AGENT_TOOL_NAME,
-          params: args.toolCalls[index]!.params,
+          toolName: toolCall.name,
+          params: toolCall.params,
         },
         true,
       );
@@ -407,12 +414,12 @@ export class AgentGateway implements IAgentGateway {
     }
 
     const settled = await Promise.allSettled(
-      pending.map(({ prepared }) =>
+      pending.map(({ index, prepared }) =>
         this.executePreparedDispatch(
           {
             ...args,
-            toolName: DISPATCH_AGENT_TOOL_NAME,
-            params: args.toolCalls[0]?.params,
+            toolName: args.toolCalls[index]!.name,
+            params: args.toolCalls[index]!.params,
           },
           prepared,
         ),
@@ -420,7 +427,7 @@ export class AgentGateway implements IAgentGateway {
     );
 
     settled.forEach((result, offset) => {
-      const index = pending[offset]!.index;
+      const { index, prepared } = pending[offset]!;
       if (result.status === 'fulfilled') {
         immediate.set(index, result.value);
         return;
@@ -430,8 +437,8 @@ export class AgentGateway implements IAgentGateway {
         contextFrame: this.createContextFrame(
           'tool',
           'tool_error',
-          normalizeToolError(DISPATCH_AGENT_TOOL_NAME, result.reason),
-          DISPATCH_AGENT_TOOL_NAME,
+          normalizeToolError(prepared.toolName, result.reason),
+          prepared.toolName,
         ),
       });
     });
@@ -505,30 +512,37 @@ export class AgentGateway implements IAgentGateway {
     },
     batchMode: boolean,
   ): { prepared: PreparedDispatchCall } | { immediate: ToolHandlingResult } {
-    if (!this.config.lifecycleHooks?.dispatchAgent) {
+    const isOrchestrator = args.toolName === DISPATCH_ORCHESTRATOR_TOOL_NAME;
+    const lifecycleHook = isOrchestrator
+      ? this.config.lifecycleHooks?.dispatchOrchestrator
+      : this.config.lifecycleHooks?.dispatchWorker;
+
+    if (!lifecycleHook) {
       return {
         immediate: {
           contextFrame: this.createContextFrame(
             'tool',
             'tool_error',
-            getLifecycleUnavailableMessage(DISPATCH_AGENT_TOOL_NAME),
-            DISPATCH_AGENT_TOOL_NAME,
+            getLifecycleUnavailableMessage(args.toolName as Parameters<typeof getLifecycleUnavailableMessage>[0]),
+            args.toolName,
           ),
         },
       };
     }
 
-    let request: GatewayDispatchRequest;
+    let request: DispatchOrchestratorRequest | DispatchWorkerRequest;
     try {
-      request = parseDispatchRequest(args.params);
+      request = isOrchestrator
+        ? parseDispatchOrchestratorRequest(args.params)
+        : parseDispatchWorkerRequest(args.params);
     } catch (error) {
       return {
         immediate: {
           contextFrame: this.createContextFrame(
             'tool',
             'tool_error',
-            normalizeToolError(DISPATCH_AGENT_TOOL_NAME, error),
-            DISPATCH_AGENT_TOOL_NAME,
+            normalizeToolError(args.toolName, error),
+            args.toolName,
           ),
         },
       };
@@ -541,8 +555,8 @@ export class AgentGateway implements IAgentGateway {
             contextFrame: this.createContextFrame(
               'tool',
               'tool_error',
-              'Tool dispatch_agent failed: spawn budget exceeded',
-              DISPATCH_AGENT_TOOL_NAME,
+              `Tool ${args.toolName} failed: spawn budget exceeded`,
+              args.toolName,
             ),
           },
         };
@@ -563,7 +577,7 @@ export class AgentGateway implements IAgentGateway {
       };
     }
 
-    return { prepared: { request } };
+    return { prepared: { request, toolName: args.toolName } };
   }
 
   private async executePreparedDispatch(
@@ -582,16 +596,23 @@ export class AgentGateway implements IAgentGateway {
     prepared: PreparedDispatchCall,
   ): Promise<ToolHandlingResult> {
     try {
-      const value = await this.config.lifecycleHooks!.dispatchAgent!(
-        prepared.request,
-        this.buildLifecycleContext(
-          args.sequencer.snapshot(),
-          args.budgetTracker,
-          args.input,
-          args.context.length,
-          args.startedAt,
-        ),
+      const lifecycleContext = this.buildLifecycleContext(
+        args.sequencer.snapshot(),
+        args.budgetTracker,
+        args.input,
+        args.context.length,
+        args.startedAt,
       );
+
+      const value = prepared.toolName === DISPATCH_ORCHESTRATOR_TOOL_NAME
+        ? await this.config.lifecycleHooks!.dispatchOrchestrator!(
+            prepared.request as DispatchOrchestratorRequest,
+            lifecycleContext,
+          )
+        : await this.config.lifecycleHooks!.dispatchWorker!(
+            prepared.request as DispatchWorkerRequest,
+            lifecycleContext,
+          );
 
       args.budgetTracker.consumeSpawnUnits(estimateUsageUnits(value.usage));
 
@@ -600,7 +621,7 @@ export class AgentGateway implements IAgentGateway {
           'tool',
           'child_result',
           stringifyValue(projectChildResult(value)),
-          DISPATCH_AGENT_TOOL_NAME,
+          prepared.toolName,
         ),
       };
     } catch (error) {
@@ -611,7 +632,7 @@ export class AgentGateway implements IAgentGateway {
             args.sequencer.snapshot(),
             args.budgetTracker,
             args.evidenceRefs,
-            { toolName: DISPATCH_AGENT_TOOL_NAME },
+            { toolName: prepared.toolName },
           ),
         };
       }
@@ -620,8 +641,8 @@ export class AgentGateway implements IAgentGateway {
         contextFrame: this.createContextFrame(
           'tool',
           'tool_error',
-          normalizeToolError(DISPATCH_AGENT_TOOL_NAME, error),
-          DISPATCH_AGENT_TOOL_NAME,
+          normalizeToolError(prepared.toolName, error),
+          prepared.toolName,
         ),
       };
     }

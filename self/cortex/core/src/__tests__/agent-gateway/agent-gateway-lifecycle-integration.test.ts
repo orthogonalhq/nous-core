@@ -11,7 +11,7 @@ import {
 } from './helpers.js';
 
 describe('AgentGateway lifecycle integration', () => {
-  it('executes multiple dispatch_agent calls concurrently and preserves result order', async () => {
+  it('executes multiple dispatch_worker calls concurrently and preserves result order', async () => {
     const started: string[] = [];
     let resolveStarted!: () => void;
     let releaseChildren!: () => void;
@@ -65,16 +65,14 @@ describe('AgentGateway lifecycle integration', () => {
           response: 'dispatch both workers',
           toolCalls: [
             {
-              name: 'dispatch_agent',
+              name: 'dispatch_worker',
               params: {
-                target_class: 'Worker',
                 task_instructions: 'child-one',
               },
             },
             {
-              name: 'dispatch_agent',
+              name: 'dispatch_worker',
               params: {
-                target_class: 'Worker',
                 task_instructions: 'child-two',
               },
             },
@@ -147,7 +145,7 @@ describe('AgentGateway lifecycle integration', () => {
   });
 
   describe('dispatch authority enforcement', () => {
-    it('Worker dispatch blocked at tool-surface level — no dispatch_agent hook', () => {
+    it('Worker dispatch blocked at tool-surface level — no dispatch hooks', () => {
       const bundle = createInternalMcpSurfaceBundle({
         agentClass: 'Worker',
         agentId: createBaseInput().correlation.parentId!,
@@ -160,9 +158,10 @@ describe('AgentGateway lifecycle integration', () => {
         },
       });
 
-      // Worker agent class does not include dispatch_agent in its tool set,
-      // so the lifecycle hook is undefined (Layer 1: structural enforcement).
-      expect(bundle.lifecycleHooks.dispatchAgent).toBeUndefined();
+      // Worker agent class does not include dispatch tools in its tool set,
+      // so the lifecycle hooks are undefined (Layer 1: structural enforcement).
+      expect(bundle.lifecycleHooks.dispatchOrchestrator).toBeUndefined();
+      expect(bundle.lifecycleHooks.dispatchWorker).toBeUndefined();
     });
 
     it('Worker dispatch blocked at admission-guard level (Layer 2)', () => {
@@ -171,7 +170,7 @@ describe('AgentGateway lifecycle integration', () => {
       const result = guard.evaluateDispatchAdmission({
         sourceActor: 'worker_agent',
         targetActor: 'worker_agent',
-        action: 'dispatch_agent',
+        action: 'dispatch_worker',
       });
 
       expect(result.allowed).toBe(false);
@@ -184,7 +183,7 @@ describe('AgentGateway lifecycle integration', () => {
       const result = guard.evaluateDispatchAdmission({
         sourceActor: 'orchestration_agent',
         targetActor: 'orchestration_agent',
-        action: 'dispatch_agent',
+        action: 'dispatch_worker',
       });
 
       expect(result.allowed).toBe(false);
@@ -197,7 +196,7 @@ describe('AgentGateway lifecycle integration', () => {
       const result = guard.evaluateDispatchAdmission({
         sourceActor: 'orchestration_agent',
         targetActor: 'nous_cortex',
-        action: 'dispatch_agent',
+        action: 'dispatch_worker',
       });
 
       expect(result.allowed).toBe(false);
@@ -300,7 +299,7 @@ describe('AgentGateway lifecycle integration', () => {
       const cortexToOrch = guard.evaluateDispatchAdmission({
         sourceActor: 'nous_cortex',
         targetActor: 'orchestration_agent',
-        action: 'dispatch_agent',
+        action: 'dispatch_worker',
       });
       expect(cortexToOrch.allowed).toBe(true);
 
@@ -308,7 +307,7 @@ describe('AgentGateway lifecycle integration', () => {
       const cortexToWorker = guard.evaluateDispatchAdmission({
         sourceActor: 'nous_cortex',
         targetActor: 'worker_agent',
-        action: 'dispatch_agent',
+        action: 'dispatch_worker',
       });
       expect(cortexToWorker.allowed).toBe(true);
 
@@ -349,9 +348,8 @@ describe('AgentGateway lifecycle integration', () => {
             response: 'dispatch worker',
             toolCalls: [
               {
-                name: 'dispatch_agent',
+                name: 'dispatch_worker',
                 params: {
-                  target_class: 'Worker',
                   task_instructions: 'valid-dispatch',
                 },
               },
@@ -388,13 +386,13 @@ describe('AgentGateway lifecycle integration', () => {
         },
       });
 
-      // The dispatch_agent lifecycle hook should throw before reaching dispatchRuntime.
-      expect(orchBundle.lifecycleHooks.dispatchAgent).toBeDefined();
+      // The dispatch_orchestrator lifecycle hook should throw before reaching dispatchRuntime.
+      expect(orchBundle.lifecycleHooks.dispatchOrchestrator).toBeDefined();
 
       try {
-        await orchBundle.lifecycleHooks.dispatchAgent!(
+        await orchBundle.lifecycleHooks.dispatchOrchestrator!(
           {
-            targetClass: 'Orchestrator',
+            dispatchIntent: { type: 'task' },
             taskInstructions: 'nested-orchestrator',
           },
           {
@@ -422,7 +420,7 @@ describe('AgentGateway lifecycle integration', () => {
       const result = guard.evaluateDispatchAdmission({
         sourceActor: 'worker_agent',
         targetActor: 'worker_agent',
-        action: 'dispatch_agent',
+        action: 'dispatch_worker',
       });
 
       expect(result.allowed).toBe(false);
@@ -436,7 +434,7 @@ describe('AgentGateway lifecycle integration', () => {
       const result2 = guard.evaluateDispatchAdmission({
         sourceActor: 'worker_agent',
         targetActor: 'orchestration_agent',
-        action: 'dispatch_agent',
+        action: 'dispatch_worker',
       });
 
       expect(result2.allowed).toBe(false);
@@ -447,7 +445,7 @@ describe('AgentGateway lifecycle integration', () => {
       const result3 = guard.evaluateDispatchAdmission({
         sourceActor: 'orchestration_agent',
         targetActor: 'nous_cortex',
-        action: 'dispatch_agent',
+        action: 'dispatch_worker',
       });
 
       expect(result3.allowed).toBe(false);

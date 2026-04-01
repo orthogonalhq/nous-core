@@ -91,9 +91,8 @@ describe('AgentGateway dispatch chain integration', () => {
           response: 'dispatch worker',
           toolCalls: [
             {
-              name: 'dispatch_agent',
+              name: 'dispatch_worker',
               params: {
-                target_class: 'Worker',
                 task_instructions: 'Execute the sub-task',
               },
             },
@@ -150,9 +149,9 @@ describe('AgentGateway dispatch chain integration', () => {
           response: 'dispatch orchestrator',
           toolCalls: [
             {
-              name: 'dispatch_agent',
+              name: 'dispatch_orchestrator',
               params: {
-                target_class: 'Orchestrator',
+                dispatch_intent: { type: 'workflow', workflowDefinitionId: 'test-wf-001' },
                 task_instructions: 'Orchestrate the workflow',
               },
             },
@@ -490,8 +489,8 @@ describe('AgentGateway multi-tier dispatch chain (Phase 1.2)', () => {
           response: 'dispatch nested worker',
           toolCalls: [
             {
-              name: 'dispatch_agent',
-              params: { target_class: 'Worker', task_instructions: 'Nested sub-task' },
+              name: 'dispatch_worker',
+              params: { task_instructions: 'Nested sub-task' },
             },
           ],
         }),
@@ -536,8 +535,8 @@ describe('AgentGateway multi-tier dispatch chain (Phase 1.2)', () => {
           response: 'dispatch worker',
           toolCalls: [
             {
-              name: 'dispatch_agent',
-              params: { target_class: 'Worker', task_instructions: 'Execute task' },
+              name: 'dispatch_worker',
+              params: { task_instructions: 'Execute task' },
             },
           ],
         }),
@@ -582,8 +581,8 @@ describe('AgentGateway multi-tier dispatch chain (Phase 1.2)', () => {
           response: 'dispatch orchestrator',
           toolCalls: [
             {
-              name: 'dispatch_agent',
-              params: { target_class: 'Orchestrator', task_instructions: 'Orchestrate workflow' },
+              name: 'dispatch_orchestrator',
+              params: { dispatch_intent: { type: 'task' }, task_instructions: 'Orchestrate workflow' },
             },
           ],
         }),
@@ -671,8 +670,8 @@ describe('AgentGateway multi-tier dispatch chain (Phase 1.2)', () => {
           response: 'dispatch',
           toolCalls: [
             {
-              name: 'dispatch_agent',
-              params: { target_class: 'Worker', task_instructions: 'Sub-task' },
+              name: 'dispatch_worker',
+              params: { task_instructions: 'Sub-task' },
             },
           ],
         }),
@@ -718,8 +717,8 @@ describe('AgentGateway multi-tier dispatch chain (Phase 1.2)', () => {
           response: 'dispatch',
           toolCalls: [
             {
-              name: 'dispatch_agent',
-              params: { target_class: 'Orchestrator', task_instructions: 'Orchestrate' },
+              name: 'dispatch_orchestrator',
+              params: { dispatch_intent: { type: 'task' }, task_instructions: 'Orchestrate' },
             },
           ],
         }),
@@ -827,8 +826,8 @@ describe('AgentGateway multi-tier dispatch chain (Phase 1.2)', () => {
           response: 'dispatch worker',
           toolCalls: [
             {
-              name: 'dispatch_agent',
-              params: { target_class: 'Worker', task_instructions: 'Sub-task' },
+              name: 'dispatch_worker',
+              params: { task_instructions: 'Sub-task' },
             },
           ],
         }),
@@ -876,8 +875,8 @@ describe('AgentGateway multi-tier dispatch chain (Phase 1.2)', () => {
           response: 'dispatch',
           toolCalls: [
             {
-              name: 'dispatch_agent',
-              params: { target_class: 'Orchestrator', task_instructions: 'Orchestrate' },
+              name: 'dispatch_orchestrator',
+              params: { dispatch_intent: { type: 'task' }, task_instructions: 'Orchestrate' },
             },
           ],
         }),
@@ -969,8 +968,8 @@ describe('AgentGateway multi-tier dispatch chain (Phase 1.2)', () => {
           response: 'dispatch worker',
           toolCalls: [
             {
-              name: 'dispatch_agent',
-              params: { target_class: 'Worker', task_instructions: 'Sub-task' },
+              name: 'dispatch_worker',
+              params: { task_instructions: 'Sub-task' },
             },
           ],
         }),
@@ -993,7 +992,7 @@ describe('AgentGateway multi-tier dispatch chain (Phase 1.2)', () => {
     );
 
     // The gateway should not crash — it either completes or reports budget_exhausted
-    // With ceiling 0, dispatch_agent is rejected as a tool error, and the agent
+    // With ceiling 0, dispatch_orchestrator is rejected as a tool error, and the agent
     // continues to call task_complete on the next turn
     expect(['completed', 'budget_exhausted']).toContain(result.status);
   });
@@ -1065,8 +1064,8 @@ describe('AgentGateway multi-tier dispatch chain (Phase 1.2)', () => {
           response: 'dispatch worker',
           toolCalls: [
             {
-              name: 'dispatch_agent',
-              params: { target_class: 'Worker', task_instructions: 'Fail task' },
+              name: 'dispatch_worker',
+              params: { task_instructions: 'Fail task' },
             },
           ],
         }),
@@ -1158,8 +1157,8 @@ describe('AgentGateway multi-tier dispatch chain (Phase 1.2)', () => {
           response: 'dispatch worker',
           toolCalls: [
             {
-              name: 'dispatch_agent',
-              params: { target_class: 'Worker', task_instructions: 'Resolve conflict' },
+              name: 'dispatch_worker',
+              params: { task_instructions: 'Resolve conflict' },
             },
           ],
         }),
@@ -1209,8 +1208,8 @@ describe('AgentGateway multi-tier dispatch chain (Phase 1.2)', () => {
           response: 'dispatch orchestrator',
           toolCalls: [
             {
-              name: 'dispatch_agent',
-              params: { target_class: 'Orchestrator', task_instructions: 'Handle workflow' },
+              name: 'dispatch_orchestrator',
+              params: { dispatch_intent: { type: 'task' }, task_instructions: 'Handle workflow' },
             },
           ],
         }),

@@ -8,7 +8,7 @@ import type {
   CredentialRevokeRequest,
   CredentialStoreRequest,
   GatewayBudget,
-  GatewayDispatchRequest,
+  DispatchIntent,
   GatewayExecutionContext,
   GatewayLifecycleContext,
   GatewayStampedPacket,
@@ -71,6 +71,8 @@ export const INTERNAL_MCP_TOOL_NAMES = [
   'workflow_pause',
   'workflow_resume',
   'workflow_cancel',
+  'workflow_execute_node',
+  'workflow_complete_node',
   'workflow_validate',
   'workflow_from_spec',
   'health_report',
@@ -78,7 +80,8 @@ export const INTERNAL_MCP_TOOL_NAMES = [
   'credentials_store',
   'credentials_inject',
   'credentials_revoke',
-  'dispatch_agent',
+  'dispatch_orchestrator',
+  'dispatch_worker',
   'task_complete',
   'request_escalation',
   'flag_observation',
@@ -105,15 +108,23 @@ export interface InternalMcpOutputSchemaValidator {
   ): Promise<InternalMcpOutputSchemaValidationResult>;
 }
 
+export interface InternalMcpDispatchChildRequest {
+  targetClass: 'Orchestrator' | 'Worker';
+  taskInstructions: string;
+  payload?: unknown;
+  nodeDefinitionId?: string;
+  dispatchIntent?: DispatchIntent;
+}
+
 export interface InternalMcpDispatchChildArgs {
-  request: GatewayDispatchRequest;
+  request: InternalMcpDispatchChildRequest;
   context: GatewayLifecycleContext;
   budget: GatewayBudget;
 }
 
 export interface InternalMcpDispatchRuntime {
   dispatchChild(args: InternalMcpDispatchChildArgs): Promise<AgentResult>;
-  buildChildBudget?(request: GatewayDispatchRequest): GatewayBudget;
+  buildChildBudget?(request: { budget?: Partial<GatewayBudget> }): GatewayBudget;
 }
 
 export interface InternalMcpRuntimeDeps {

@@ -62,7 +62,8 @@ describe('PrincipalSystemGatewayRuntime', () => {
     const principalTools = runtime.listPrincipalTools().map((tool) => tool.name);
     expect(principalTools).toContain('submit_task_to_system');
     expect(principalTools).toContain('inject_directive_to_system');
-    expect(principalTools).not.toContain('dispatch_agent');
+    expect(principalTools).not.toContain('dispatch_orchestrator');
+    expect(principalTools).not.toContain('dispatch_worker');
     expect(principalTools).not.toContain('task_complete');
     expect(principalTools).not.toContain('request_escalation');
     expect(principalTools).not.toContain('flag_observation');
