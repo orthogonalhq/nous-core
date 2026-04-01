@@ -11,7 +11,6 @@ import {
   useReactFlow,
 } from '@xyflow/react'
 import type { IDockviewPanelProps } from 'dockview-react'
-import { trpc } from '@nous/transport'
 import { ShellContext } from '../../components/shell/ShellContext'
 import type { WorkflowBuilderNode, WorkflowBuilderEdge, ContextMenuState } from '../../types/workflow-builder'
 import { BuilderModeProvider, useBuilderMode } from './context/BuilderModeContext'
@@ -108,6 +107,7 @@ const CanvasDropTarget = forwardRef<
     saveToServer,
     saveAsNew,
     resetToEmpty,
+    loadFromServer,
     isSaving,
     currentDefinitionId,
   } = useBuilderState(mode, { projectId, workflowDefinitionId })
@@ -208,23 +208,11 @@ const CanvasDropTarget = forwardRef<
 
   // ─── Select workflow from picker ──────────────────────────────────────
 
-  const utils = trpc.useUtils()
   const handleSelectWorkflow = useCallback(
     async (definitionId: string) => {
-      if (!projectId) return
-      try {
-        const definition = await utils.projects.getWorkflowDefinition.fetch({
-          projectId,
-          definitionId,
-        })
-        if (definition.specYaml) {
-          loadSpec(definition.specYaml)
-        }
-      } catch (error) {
-        console.error('[WorkflowBuilder] Failed to load workflow:', error)
-      }
+      await loadFromServer(definitionId)
     },
-    [projectId, utils, loadSpec],
+    [loadFromServer],
   )
 
   // ─── Validate toggle handler (SP 2.5) ──────────────────────────────────

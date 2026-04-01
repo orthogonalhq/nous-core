@@ -116,6 +116,8 @@ export interface UseBuilderStateReturn {
   saveAsNew: (name?: string) => Promise<{ definitionId: string } | null>
   /** Reset builder to empty state (new workflow). */
   resetToEmpty: () => void
+  /** Load a workflow from server by definitionId (fetch + load + track). */
+  loadFromServer: (definitionId: string) => Promise<void>
   /** Whether a save operation is currently in-flight. */
   isSaving: boolean
   /** Current stored definitionId (null for unsaved workflows). */
@@ -666,6 +668,13 @@ export function useBuilderState(
     saveToServer,
     saveAsNew,
     resetToEmpty,
+    loadFromServer: useCallback(
+      async (defId: string) => {
+        if (!projectId) return
+        await fetchAndLoadDefinition(projectId, defId)
+      },
+      [projectId, fetchAndLoadDefinition],
+    ),
     isSaving,
     currentDefinitionId: definitionIdRef.current,
   }
