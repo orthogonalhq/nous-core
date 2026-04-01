@@ -38,6 +38,8 @@ import { WorkmodeAdmissionGuard } from '../workmode/admission-guard.js';
 import { parseModelOutput } from '../output-parser.js';
 import { GatewayTraceRecorder } from './trace-recorder.js';
 
+import { CARD_PROMPT_FRAGMENT } from './card-prompt-fragment.js';
+
 const DEFAULT_CHAT_BUDGET = {
   maxTurns: 4,
   maxTokens: 1200,
@@ -315,6 +317,7 @@ export class GatewayBackedTurnExecutor implements ICoreExecutor {
         'You are the gateway-backed compatibility executor for direct chat turns.',
         'You cannot dispatch child agents.',
         'Always finish with task_complete.',
+        CARD_PROMPT_FRAGMENT,
       ].join('\n'),
       modelRouter: this.deps.modelRouter,
       getProvider: (providerId) =>

@@ -1,5 +1,6 @@
 import { useMemo, useRef } from 'react'
 import { trpc } from '../client'
+import type { CardAction, ActionResult } from '@nous/shared'
 
 export interface UseChatApiOptions {
   projectId?: string
@@ -15,6 +16,7 @@ interface ChatApiShape {
     contentType?: 'text' | 'openui'
     actionOutcome?: { actionType: string; label: string; timestamp: string }
   }[]>
+  sendAction: (action: CardAction) => Promise<ActionResult>
 }
 
 /**
@@ -34,11 +36,14 @@ export function useChatApi(options?: UseChatApiOptions): ChatApiShape {
   const projectId = options?.projectId
   const utils = trpc.useUtils()
   const sendMessage = trpc.chat.sendMessage.useMutation()
+  const sendActionMutation = trpc.chat.sendAction.useMutation()
 
   // Store unstable references so the useMemo closure always calls the latest
   // mutateAsync / utils without needing them as dependencies.
   const sendRef = useRef(sendMessage.mutateAsync)
   sendRef.current = sendMessage.mutateAsync
+  const sendActionRef = useRef(sendActionMutation.mutateAsync)
+  sendActionRef.current = sendActionMutation.mutateAsync
   const utilsRef = useRef(utils)
   utilsRef.current = utils
 
@@ -66,6 +71,12 @@ export function useChatApi(options?: UseChatApiOptions): ChatApiShape {
             ...(e.metadata?.contentType ? { contentType: e.metadata.contentType as 'text' | 'openui' } : {}),
             ...(e.metadata?.actionOutcome ? { actionOutcome: e.metadata.actionOutcome as { actionType: string; label: string; timestamp: string } } : {}),
           }))
+      },
+      sendAction: async (action: CardAction) => {
+        const result = await sendActionRef.current(
+          projectId ? { action, projectId } : { action },
+        )
+        return result as ActionResult
       },
     }),
     // Only recompute when the logical identity changes (projectId).

@@ -14,7 +14,8 @@ import {
 } from '../components/thought'
 import type { ThoughtEvent } from '../components/thought'
 import { parseCardContent, renderCardTree } from '../components/chat/openui-adapter'
-import type { RenderCardContext } from '../components/chat/openui-adapter'
+import type { RenderCardContext, CardAction } from '../components/chat/openui-adapter'
+import { useCardActionHandler } from '../components/chat/hooks/useCardActionHandler'
 // Side-effect import: registers all 5 card types at module evaluation time
 import '../components/chat/cards/index'
 
@@ -33,9 +34,17 @@ export interface ChatMessage {
   }
 }
 
+export interface ActionResult {
+  ok: boolean
+  message: string
+  traceId?: string
+  contentType?: 'text' | 'openui'
+}
+
 export interface ChatAPI {
   send: (message: string) => Promise<{ response: string; traceId: string; contentType?: 'text' | 'openui' }>
   getHistory: () => Promise<ChatMessage[]>
+  sendAction?: (action: import('../components/chat/openui-adapter').CardAction) => Promise<ActionResult>
 }
 
 export interface ChatPanelCoreProps {
@@ -90,10 +99,12 @@ function ChatCardRenderer({
   content,
   stale,
   actionOutcome,
+  onAction,
 }: {
   content: string
   stale: boolean
   actionOutcome?: ChatMessage['actionOutcome']
+  onAction?: (action: CardAction) => void
 }) {
   try {
     const parsed = parseCardContent(content)
@@ -118,7 +129,7 @@ function ChatCardRenderer({
     }
     const handlers = stale
       ? { onAction: () => {} }
-      : { onAction: () => { /* stub: full action routing is sub-phase 1.3 */ } }
+      : { onAction: onAction ?? (() => {}) }
 
     return (
       <div data-testid="openui-card-container" {...(stale ? { 'data-stale': 'true' } : {})}>
@@ -179,6 +190,8 @@ export function ChatPanel(props: ChatPanelProps | ChatPanelCoreProps) {
   const chatApi = 'params' in props ? props.params?.chatApi : props.chatApi
   const conversationContext = 'conversationContext' in props ? props.conversationContext : undefined
   const className = 'className' in props ? props.className : undefined
+
+  const handleCardAction = useCardActionHandler({ chatApi: chatApi ?? {}, setMessages })
 
   useEffect(() => {
     if (chatApi?.getHistory) {
@@ -343,6 +356,7 @@ export function ChatPanel(props: ChatPanelProps | ChatPanelCoreProps) {
                     content={cardContent}
                     stale={isStale}
                     actionOutcome={msg.actionOutcome}
+                    onAction={isStale ? undefined : (action) => handleCardAction(action, i)}
                   />
                 ) : (
                   msg.content
