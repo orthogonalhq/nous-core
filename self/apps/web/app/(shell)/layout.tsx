@@ -15,7 +15,6 @@ import {
   CommandPalette,
   ProjectSwitcherRail,
   AssetSidebar,
-  CollapsibleObserveEdge,
 } from '@nous/ui/components'
 import type { ShellMode, NavigationState, ChatStage } from '@nous/ui/components'
 import { WebChromeShell } from '@/components/shell/web-chrome-shell'
@@ -67,7 +66,7 @@ function ShellLayoutContent({
   const [commandPaletteOpen, setCommandPaletteOpen] = useState(false)
   const [projectId, setProjectId] = useState<string | null>(null)
   const [dockviewApi, setDockviewApi] = useState<DockviewApi | null>(null)
-  const [observeWidth, setObserveWidth] = useState(20)
+
 
   const searchParams = useSearchParams()
 
@@ -221,15 +220,7 @@ function ShellLayoutContent({
                     onNavigate={handleNavigate}
                   />
                 }
-                observe={
-                  <CollapsibleObserveEdge
-                    width={observeWidth}
-                    onExpandToggle={() => setObserveWidth((w) => w < 60 ? 300 : 20)}
-                  >
-                    <ObservePanel />
-                  </CollapsibleObserveEdge>
-                }
-                onColumnResize={(widths) => setObserveWidth(widths.observe)}
+                observe={<ObservePanel />}
               />
             ) : (
               <WebDockviewShell onApiReady={setDockviewApi} />

@@ -24,7 +24,6 @@ import {
   CommandPalette,
   ProjectSwitcherRail,
   AssetSidebar,
-  CollapsibleObserveEdge,
   type ContentRouterRenderProps,
   type ShellMode,
   type CommandGroup,
@@ -299,7 +298,7 @@ export function App() {
   const [activeRoute, setActiveRoute] = useState(DEFAULT_ROUTE)
   const [commandPaletteOpen, setCommandPaletteOpen] = useState(false)
   const [backendPort, setBackendPort] = useState<number | null>(null)
-  const [observeWidth, setObserveWidth] = useState(20)
+
 
   const initializeApp = useCallback(async () => {
     const runId = ++bootstrapRunRef.current
@@ -704,15 +703,7 @@ export function App() {
               onNavigate={handleNavigate}
             />
           }
-          observe={
-            <CollapsibleObserveEdge
-              width={observeWidth}
-              onExpandToggle={() => setObserveWidth((w) => w < 60 ? 300 : 20)}
-            >
-              <ObservePanel />
-            </CollapsibleObserveEdge>
-          }
-          onColumnResize={(widths) => setObserveWidth(widths.observe)}
+          observe={<ObservePanel />}
         />
       ) : (
         <DockviewShell

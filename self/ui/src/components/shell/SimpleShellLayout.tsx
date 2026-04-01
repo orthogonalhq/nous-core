@@ -3,6 +3,7 @@
 import * as React from 'react'
 import { clsx } from 'clsx'
 import { ColumnDivider } from './ColumnDivider'
+import { CollapsibleObserveEdge } from './CollapsibleObserveEdge'
 import type { ShellBreakpoint, SimpleShellLayoutProps } from './types'
 
 const DEFAULT_SIDEBAR_WIDTH = 320
@@ -11,6 +12,7 @@ const MIN_SIDEBAR_WIDTH = 240
 const MIN_OBSERVE_WIDTH = 20
 const MAX_SIDEBAR_WIDTH = 480
 const MAX_OBSERVE_WIDTH = 400
+const COLLAPSED_THRESHOLD = 60
 
 /** Sidebar width caps per breakpoint */
 const BREAKPOINT_SIDEBAR: Record<ShellBreakpoint, number> = {
@@ -57,21 +59,39 @@ export function SimpleShellLayout({
     ),
   )
 
-  const emitResize = (nextSidebarWidth: number, nextObserveWidth: number) => {
-    onColumnResize?.({ sidebar: nextSidebarWidth, observe: nextObserveWidth })
-  }
+  const sidebarWidthRef = React.useRef(sidebarWidth)
+  const observeWidthRef = React.useRef(observeWidth)
 
-  const applySidebarResize = (delta: number) => {
-    const nextWidth = clampWidth(sidebarWidth + delta, MIN_SIDEBAR_WIDTH, MAX_SIDEBAR_WIDTH)
+  React.useEffect(() => {
+    sidebarWidthRef.current = sidebarWidth
+  }, [sidebarWidth])
+
+  React.useEffect(() => {
+    observeWidthRef.current = observeWidth
+  }, [observeWidth])
+
+  const applySidebarResize = React.useCallback((delta: number) => {
+    const nextWidth = clampWidth(sidebarWidthRef.current + delta, MIN_SIDEBAR_WIDTH, MAX_SIDEBAR_WIDTH)
+    sidebarWidthRef.current = nextWidth
     setSidebarWidth(nextWidth)
-    emitResize(nextWidth, observeWidth)
-  }
+    onColumnResize?.({ sidebar: nextWidth, observe: observeWidthRef.current })
+  }, [onColumnResize])
 
-  const applyObserveResize = (delta: number) => {
-    const nextWidth = clampWidth(observeWidth + delta, MIN_OBSERVE_WIDTH, MAX_OBSERVE_WIDTH)
+  const applyObserveResize = React.useCallback((delta: number) => {
+    const nextWidth = clampWidth(observeWidthRef.current + delta, MIN_OBSERVE_WIDTH, MAX_OBSERVE_WIDTH)
+    observeWidthRef.current = nextWidth
     setObserveWidth(nextWidth)
-    emitResize(sidebarWidth, nextWidth)
-  }
+    onColumnResize?.({ sidebar: sidebarWidthRef.current, observe: nextWidth })
+  }, [onColumnResize])
+
+  /** Snap observe to expanded width — called by CollapsibleObserveEdge */
+  const handleObserveExpandToggle = React.useCallback(() => {
+    const EXPANDED_WIDTH = 280
+    const next = observeWidthRef.current < COLLAPSED_THRESHOLD ? EXPANDED_WIDTH : MIN_OBSERVE_WIDTH
+    observeWidthRef.current = next
+    setObserveWidth(next)
+    onColumnResize?.({ sidebar: sidebarWidthRef.current, observe: next })
+  }, [onColumnResize])
 
   const showObserve = breakpoint === 'full'
 
@@ -156,7 +176,12 @@ export function SimpleShellLayout({
             : 'none',
         }}
       >
-        {observe}
+        <CollapsibleObserveEdge
+          width={observeWidth}
+          onExpandToggle={handleObserveExpandToggle}
+        >
+          {observe}
+        </CollapsibleObserveEdge>
       </div>
 
       <ColumnDivider

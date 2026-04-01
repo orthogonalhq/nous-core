@@ -59,7 +59,7 @@ export function CollapsibleObserveEdge({
             transition: 'var(--nous-hover-button-transition)',
           }}
         >
-          &#x203A;
+          &#x2039;
         </button>
       ) : (
         children

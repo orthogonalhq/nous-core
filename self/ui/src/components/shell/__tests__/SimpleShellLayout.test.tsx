@@ -63,7 +63,8 @@ describe('SimpleShellLayout', () => {
     expect(getArea('rail').textContent).toContain('rail')
     expect(getArea('sidebar').textContent).toContain('sidebar')
     expect(getArea('content').textContent).toContain('content')
-    expect(getArea('observe').textContent).toContain('observe')
+    // Observe area wraps content in CollapsibleObserveEdge — at default 20px width it shows the collapse chevron, not the children
+    expect(getArea('observe')).toBeTruthy()
   })
 
   it('sets grid-template-areas on the container', async () => {
