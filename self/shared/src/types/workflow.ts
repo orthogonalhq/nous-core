@@ -304,6 +304,7 @@ export const WorkflowDefinitionSchema = z.object({
   entryNodeIds: z.array(WorkflowNodeDefinitionIdSchema).min(1),
   nodes: z.array(WorkflowNodeDefinitionSchema).min(1),
   edges: z.array(WorkflowEdgeDefinitionSchema).default([]),
+  specYaml: z.string().optional(),
 });
 export type WorkflowDefinition = z.infer<typeof WorkflowDefinitionSchema>;
 
