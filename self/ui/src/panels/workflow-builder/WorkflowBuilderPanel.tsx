@@ -1,6 +1,6 @@
 'use client'
 
-import { useMemo, useCallback, useRef, useState, useEffect, useImperativeHandle, forwardRef } from 'react'
+import { useMemo, useCallback, useContext, useRef, useState, useEffect, useImperativeHandle, forwardRef } from 'react'
 import {
   ReactFlow,
   ReactFlowProvider,
@@ -11,6 +11,7 @@ import {
   useReactFlow,
 } from '@xyflow/react'
 import type { IDockviewPanelProps } from 'dockview-react'
+import { ShellContext } from '../../components/shell/ShellContext'
 import type { WorkflowBuilderNode, WorkflowBuilderEdge, ContextMenuState } from '../../types/workflow-builder'
 import { BuilderModeProvider, useBuilderMode } from './context/BuilderModeContext'
 import { useBuilderState } from './hooks/useBuilderState'
@@ -681,8 +682,14 @@ export function WorkflowBuilderPanel(
   props: WorkflowBuilderDockviewProps | WorkflowBuilderPanelCoreProps,
 ) {
   const className = 'className' in props ? props.className : undefined
-  const projectId = 'projectId' in props ? props.projectId : undefined
+  const propProjectId = 'projectId' in props ? props.projectId : undefined
   const workflowDefinitionId = 'workflowDefinitionId' in props ? props.workflowDefinitionId : undefined
+
+  // Desktop panels are mounted via dockview without explicit props.
+  // Fall back to ShellContext.activeProjectId when no projectId prop is provided.
+  // useContext returns null when no ShellProvider is present (e.g. in tests/storybook).
+  const shellCtx = useContext(ShellContext)
+  const projectId = propProjectId ?? shellCtx?.activeProjectId ?? undefined
 
   return (
     <WorkflowBuilderCanvas
