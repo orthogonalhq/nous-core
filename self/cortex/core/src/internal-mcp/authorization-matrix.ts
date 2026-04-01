@@ -54,6 +54,8 @@ const MATRIX: Record<AgentClass, readonly InternalMcpToolName[]> = {
     'workflow_start',
     'workflow_pause',
     'workflow_resume',
+    'workflow_execute_node',
+    'workflow_complete_node',
     'dispatch_orchestrator',
     'dispatch_worker',
     'task_complete',

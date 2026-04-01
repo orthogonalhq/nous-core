@@ -78,6 +78,8 @@ import {
   parseWorkflowStatusRequest,
   parseWorkflowValidateRequest,
   parseWorkflowFromSpecRequest,
+  parseWorkflowExecuteNodeRequest,
+  parseWorkflowCompleteNodeRequest,
 } from './request-normalizers.js';
 import type {
   InternalMcpCapabilityHandler,
@@ -1527,6 +1529,125 @@ export function createCapabilityHandlers(
           }),
           evidenceRef: result.evidenceRef,
           warnings,
+        }),
+        0,
+      );
+    },
+    workflow_execute_node: async (params, execution) => {
+      const request = parseWorkflowExecuteNodeRequest(params);
+      const workflowEngine = requireWorkflowEngine(context);
+      const current = await workflowEngine.getState(request.runId);
+      if (!current) {
+        throw new NousError(
+          `Workflow run ${request.runId} was not found`,
+          'WORKFLOW_RUN_NOT_FOUND',
+        );
+      }
+      const controlState = await requireProjectControlState(context, current.projectId);
+      const projection = await resolveRunProjection(context, current);
+      const lane = buildLifecycleLane(
+        projection.summary.definitionName,
+        request.runId,
+        `execute_node:${request.nodeDefinitionId}`,
+      );
+
+      const result = await executeWithWitness({
+        context,
+        actionCategory: 'opctl-command',
+        actionRef: lane.lane,
+        projectId: current.projectId,
+        traceId: execution?.traceId,
+        detail: {
+          lane: lane.lane,
+          laneRoot: lane.laneRoot,
+          laneDepth: lane.laneDepth,
+          workflowDefinitionId: current.workflowDefinitionId,
+          nodeDefinitionId: request.nodeDefinitionId,
+        },
+        operation: () =>
+          workflowEngine.executeReadyNode({
+            executionId: request.runId,
+            nodeDefinitionId: request.nodeDefinitionId,
+            controlState,
+            transition: {
+              reasonCode: 'node_execute_requested',
+              evidenceRefs: [],
+            },
+            payload: request.payload != null ? { detail: { userPayload: request.payload } } : undefined,
+          }),
+      });
+
+      const execGraph = await workflowEngine.getRunGraph(result.value.runId);
+
+      return success(
+        WorkflowLifecycleMutationResultSchema.parse({
+          run: toWorkflowInstanceSummary({
+            runState: result.value,
+            definitionName: projection.summary.definitionName,
+            definitionSource: projection.definitionSource,
+            graph: execGraph,
+          }),
+          evidenceRef: result.evidenceRef,
+        }),
+        0,
+      );
+    },
+    workflow_complete_node: async (params, execution) => {
+      const request = parseWorkflowCompleteNodeRequest(params);
+      const workflowEngine = requireWorkflowEngine(context);
+      const current = await workflowEngine.getState(request.runId);
+      if (!current) {
+        throw new NousError(
+          `Workflow run ${request.runId} was not found`,
+          'WORKFLOW_RUN_NOT_FOUND',
+        );
+      }
+      const projection = await resolveRunProjection(context, current);
+      const lane = buildLifecycleLane(
+        projection.summary.definitionName,
+        request.runId,
+        `complete_node:${request.nodeDefinitionId}`,
+      );
+
+      const transition = {
+        reasonCode: request.reasonCode ?? (request.status === 'failed' ? 'node_failed' : 'node_completed_by_agent'),
+        evidenceRefs: request.evidenceRefs,
+        occurredAt: (context.deps.now ?? (() => new Date().toISOString()))(),
+      };
+
+      const result = await executeWithWitness({
+        context,
+        actionCategory: 'opctl-command',
+        actionRef: lane.lane,
+        projectId: current.projectId,
+        traceId: execution?.traceId,
+        detail: {
+          lane: lane.lane,
+          laneRoot: lane.laneRoot,
+          laneDepth: lane.laneDepth,
+          workflowDefinitionId: current.workflowDefinitionId,
+          nodeDefinitionId: request.nodeDefinitionId,
+          status: request.status,
+        },
+        operation: () =>
+          workflowEngine.completeNode(
+            request.runId,
+            request.nodeDefinitionId,
+            transition,
+          ),
+      });
+
+      const completeGraph = await workflowEngine.getRunGraph(result.value.runId);
+
+      return success(
+        WorkflowLifecycleMutationResultSchema.parse({
+          run: toWorkflowInstanceSummary({
+            runState: result.value,
+            definitionName: projection.summary.definitionName,
+            definitionSource: projection.definitionSource,
+            graph: completeGraph,
+          }),
+          evidenceRef: result.evidenceRef,
         }),
         0,
       );

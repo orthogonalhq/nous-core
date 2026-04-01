@@ -71,6 +71,8 @@ export const INTERNAL_MCP_TOOL_NAMES = [
   'workflow_pause',
   'workflow_resume',
   'workflow_cancel',
+  'workflow_execute_node',
+  'workflow_complete_node',
   'workflow_validate',
   'workflow_from_spec',
   'health_report',

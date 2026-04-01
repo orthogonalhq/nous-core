@@ -53,6 +53,10 @@ import {
   type WorkflowLifecycleStatusQuery,
   type WorkflowLifecycleValidateCommand,
   type WorkflowLifecycleFromSpecCommand,
+  type WorkflowExecuteNodeToolRequest,
+  type WorkflowCompleteNodeToolRequest,
+  WorkflowExecuteNodeToolRequestSchema,
+  WorkflowCompleteNodeToolRequestSchema,
   WorkflowLifecycleCancelCommandSchema,
   WorkflowLifecycleFromSpecCommandSchema,
   WorkflowLifecycleInspectQuerySchema,
@@ -381,6 +385,18 @@ export function parseWorkflowFromSpecRequest(
   params: unknown,
 ): WorkflowFromSpecRequest {
   return WorkflowLifecycleFromSpecCommandSchema.parse(params ?? {});
+}
+
+export function parseWorkflowExecuteNodeRequest(
+  params: unknown,
+): WorkflowExecuteNodeToolRequest {
+  return WorkflowExecuteNodeToolRequestSchema.parse(params ?? {});
+}
+
+export function parseWorkflowCompleteNodeRequest(
+  params: unknown,
+): WorkflowCompleteNodeToolRequest {
+  return WorkflowCompleteNodeToolRequestSchema.parse(params ?? {});
 }
 
 export function parseHealthReportRequest(

@@ -48,6 +48,8 @@ describe('ScopedMcpToolSurface', () => {
     expect(workerTools).toContain('workflow_list');
     expect(workerTools).toContain('workflow_status');
     expect(workerTools).not.toContain('workflow_start');
+    expect(workerTools).not.toContain('workflow_execute_node');
+    expect(workerTools).not.toContain('workflow_complete_node');
     expect(workerTools).not.toContain('dispatch_orchestrator');
     expect(workerTools).not.toContain('dispatch_worker');
     expect(workerTools).not.toContain('memory_write');
@@ -58,6 +60,8 @@ describe('ScopedMcpToolSurface', () => {
     expect(principalTools).toContain('workflow_inspect');
     expect(principalTools).toContain('workflow_status');
     expect(principalTools).not.toContain('workflow_start');
+    expect(principalTools).not.toContain('workflow_execute_node');
+    expect(principalTools).not.toContain('workflow_complete_node');
     expect(principalTools).not.toContain('task_complete');
     expect(principalTools).not.toContain('dispatch_orchestrator');
     expect(principalTools).not.toContain('dispatch_worker');
@@ -120,8 +124,12 @@ describe('ScopedMcpToolSurface', () => {
     expect(getVisibleInternalMcpTools('Orchestrator')).toContain('workflow_start');
     expect(getVisibleInternalMcpTools('Orchestrator')).toContain('workflow_pause');
     expect(getVisibleInternalMcpTools('Orchestrator')).toContain('workflow_resume');
+    expect(getVisibleInternalMcpTools('Orchestrator')).toContain('workflow_execute_node');
+    expect(getVisibleInternalMcpTools('Orchestrator')).toContain('workflow_complete_node');
     expect(getVisibleInternalMcpTools('Worker')).not.toContain('dispatch_orchestrator');
     expect(getVisibleInternalMcpTools('Worker')).not.toContain('dispatch_worker');
+    expect(getVisibleInternalMcpTools('Worker')).not.toContain('workflow_execute_node');
+    expect(getVisibleInternalMcpTools('Worker')).not.toContain('workflow_complete_node');
     expect(getVisibleInternalMcpTools('Cortex::System')).toContain('dispatch_orchestrator');
     expect(getVisibleInternalMcpTools('Cortex::System')).not.toContain('dispatch_worker');
     expect(getVisibleInternalMcpTools('Cortex::System')).toContain('promoted_memory_promote');

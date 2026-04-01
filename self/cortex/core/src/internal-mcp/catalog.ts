@@ -406,6 +406,41 @@ export const INTERNAL_MCP_CATALOG: readonly InternalMcpCatalogEntry[] = [
     ),
   },
   {
+    name: 'workflow_execute_node',
+    kind: 'capability',
+    definition: defineTool(
+      'workflow_execute_node',
+      'Execute an engine-internal ready node (condition, transform, quality-gate) in a running workflow.',
+      {
+        runId: 'WorkflowExecutionId',
+        nodeDefinitionId: 'WorkflowNodeDefinitionId',
+        payload: 'unknown?',
+      },
+      { result: 'WorkflowLifecycleMutationResult' },
+      ['control'],
+      'runtime',
+    ),
+  },
+  {
+    name: 'workflow_complete_node',
+    kind: 'capability',
+    definition: defineTool(
+      'workflow_complete_node',
+      'Record external node completion (from Worker/Orchestrator dispatch) and advance workflow state.',
+      {
+        runId: 'WorkflowExecutionId',
+        nodeDefinitionId: 'WorkflowNodeDefinitionId',
+        output: 'unknown?',
+        status: "'completed' | 'failed' (default 'completed')",
+        reasonCode: 'string?',
+        evidenceRefs: 'string[]?',
+      },
+      { result: 'WorkflowLifecycleMutationResult' },
+      ['control'],
+      'runtime',
+    ),
+  },
+  {
     name: 'workflow_from_spec',
     kind: 'capability',
     definition: defineTool(
