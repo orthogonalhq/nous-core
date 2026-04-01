@@ -168,8 +168,8 @@ describe('SimpleShellLayout', () => {
   })
 
   it('sets data-chat-stage attribute on chat overlay', async () => {
-    await renderLayout({ chatStage: 'large' })
+    await renderLayout({ chatStage: 'ambient_large' })
     const chat = getArea('chat')
-    expect(chat.getAttribute('data-chat-stage')).toBe('large')
+    expect(chat.getAttribute('data-chat-stage')).toBe('ambient_large')
   })
 })

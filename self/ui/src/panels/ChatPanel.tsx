@@ -85,11 +85,12 @@ export function ChatPanel(props: ChatPanelProps | ChatPanelCoreProps) {
   // Resolve effective stage: undefined means full (backwards compatible for dockview)
   const effectiveStage = stage ?? 'full'
   const isSmall = effectiveStage === 'small'
-  const isLarge = effectiveStage === 'large'
+  const isAmbientSmall = effectiveStage === 'ambient_small'
+  const isAmbientLarge = effectiveStage === 'ambient_large'
   const isFull = effectiveStage === 'full'
 
-  // In large mode, only show last 5 messages for performance
-  const visibleMessages = isLarge ? messages.slice(-5) : messages
+  // In ambient_large mode, only show last 5 messages for performance
+  const visibleMessages = isAmbientLarge ? messages.slice(-5) : messages
 
   useEffect(() => {
     if (chatApi?.getHistory) {
@@ -257,7 +258,7 @@ export function ChatPanel(props: ChatPanelProps | ChatPanelCoreProps) {
 
   // --- Input section (shared across all stages) ---
   const inputSection = (
-    <div style={{ padding: 'var(--nous-space-lg) var(--nous-space-xl)', borderTop: isSmall ? 'none' : '1px solid var(--nous-footer-border)', display: 'flex', gap: 'var(--nous-space-sm)', alignItems: 'flex-end' }}>
+    <div style={{ padding: 'var(--nous-space-lg) var(--nous-space-xl)', borderTop: (isSmall || isAmbientSmall) ? 'none' : '1px solid var(--nous-footer-border)', display: 'flex', gap: 'var(--nous-space-sm)', alignItems: 'flex-end' }}>
       <textarea
         value={input}
         onChange={e => setInput(e.target.value)}
@@ -299,8 +300,7 @@ export function ChatPanel(props: ChatPanelProps | ChatPanelCoreProps) {
     </div>
   )
 
-  // --- Stage toggle bar (visible in small and large) ---
-  const isActive = isAgentWorking
+  // --- Stage toggle bar (visible in small, ambient_small, and ambient_large) ---
   const chevronButtonStyle = {
     background: 'none',
     border: 'none',
@@ -311,7 +311,11 @@ export function ChatPanel(props: ChatPanelProps | ChatPanelCoreProps) {
     lineHeight: 1,
   } as const
 
-  // Toggle bar: shown for small and large states
+  // Toggle bar label: "Chat" in small, activity indicator in ambient states
+  const isAmbientState = isAmbientSmall || isAmbientLarge
+  const toggleLabel = isAmbientState ? '\u29BF Thinking...' : 'Chat'
+
+  // Toggle bar: shown for small, ambient_small, and ambient_large states
   const showToggleBar = !isFull
   const stageToggleBar = showToggleBar ? (
     <div
@@ -326,27 +330,34 @@ export function ChatPanel(props: ChatPanelProps | ChatPanelCoreProps) {
         userSelect: 'none',
       }}
     >
-      <span
-        style={{ cursor: 'pointer' }}
-        onClick={() => onStageChange?.(isSmall ? 'large' : 'small')}
-      >
-        Chat
+      <span style={{ cursor: 'default' }}>
+        {toggleLabel}
       </span>
       {/* Expand controls */}
       <span style={{ marginLeft: 'auto', display: 'flex', gap: '2px' }}>
-        {isLarge ? (
-          <button
-            data-testid="large-expand-full-button"
-            onClick={() => onStageChange?.('full')}
-            style={chevronButtonStyle}
-            title="Maximize chat"
-          >
-            {'\u25BE'}
-          </button>
+        {isAmbientLarge ? (
+          <>
+            <button
+              data-testid="ambient-large-collapse-button"
+              onClick={() => onStageChange?.('ambient_small')}
+              style={chevronButtonStyle}
+              title="Collapse chat"
+            >
+              {'\u25B4'}
+            </button>
+            <button
+              data-testid="ambient-large-expand-full-button"
+              onClick={() => onStageChange?.('full')}
+              style={chevronButtonStyle}
+              title="Maximize chat"
+            >
+              {'\u25BE'}
+            </button>
+          </>
         ) : (
           <button
             data-testid="small-expand-button"
-            onClick={() => onStageChange?.('large')}
+            onClick={() => onStageChange?.('ambient_large')}
             style={chevronButtonStyle}
             title="Expand chat"
           >
@@ -392,33 +403,23 @@ export function ChatPanel(props: ChatPanelProps | ChatPanelCoreProps) {
     )
   }
 
-  // --- Large stage: toggle bar + header + recent messages + thought stream + input ---
-  if (isLarge) {
+  // --- Ambient Small stage: toggle bar + input only (with activity indicator in toggle) ---
+  if (isAmbientSmall) {
     return (
-      <div className={clsx(className)} data-chat-stage="large" style={{ display: 'flex', flexDirection: 'column', height: '100%', color: 'var(--nous-fg)' }}>
+      <div className={clsx(className)} data-chat-stage="ambient_small" style={{ display: 'flex', flexDirection: 'column', color: 'var(--nous-fg)' }}>
         {stageToggleBar}
-        {/* Header */}
-        <div style={{ padding: 'var(--nous-space-sm) var(--nous-space-xl)', borderBottom: '1px solid var(--nous-header-border)', fontSize: 'var(--nous-font-size-sm)', fontWeight: 'var(--nous-font-weight-semibold)' as any, color: 'var(--nous-fg-muted)', display: 'flex', alignItems: 'center', gap: 'var(--nous-space-sm)' }}>
-          <span>{headerText}</span>
-          {conversationContext?.isAmbient && (
-            <span data-testid="ambient-badge" style={{ background: 'var(--nous-accent-muted)', fontSize: 'var(--nous-font-size-2xs)', borderRadius: 'var(--nous-radius-xs)', padding: '0 var(--nous-space-xs)', fontWeight: 'var(--nous-font-weight-medium)' as any }}>
-              Ambient
-            </span>
-          )}
-        </div>
-        {/* Recent messages + thought stream */}
+        {inputSection}
+      </div>
+    )
+  }
+
+  // --- Ambient Large stage: toggle bar + thought stream + input ---
+  if (isAmbientLarge) {
+    return (
+      <div className={clsx(className)} data-chat-stage="ambient_large" style={{ display: 'flex', flexDirection: 'column', height: '100%', color: 'var(--nous-fg)' }}>
+        {stageToggleBar}
+        {/* Thought stream content */}
         <div style={{ flex: 1, overflowY: 'auto', padding: 'var(--nous-space-2xl)', display: 'flex', flexDirection: 'column', gap: 'var(--nous-space-xl)' }}>
-          {visibleMessages.map((msg, i) => (
-            <div key={`large-${messages.length - visibleMessages.length + i}`} style={{ display: 'flex', flexDirection: 'column', alignItems: msg.role === 'user' ? 'flex-end' : 'flex-start' }}>
-              <div style={{
-                maxWidth: '80%', padding: 'var(--nous-space-md) var(--nous-space-xl)', borderRadius: 'var(--nous-radius-md)', fontSize: 'var(--nous-font-size-base)', lineHeight: '1.5',
-                background: msg.role === 'user' ? 'var(--nous-chat-user-bg)' : 'var(--nous-bg-elevated)',
-                color: 'var(--nous-fg)',
-              }}>
-                {msg.content}
-              </div>
-            </div>
-          ))}
           {thoughtSection}
           <div ref={messagesEndRef} />
         </div>
@@ -443,11 +444,11 @@ export function ChatPanel(props: ChatPanelProps | ChatPanelCoreProps) {
             {conversationContext.threadId.length > 12 ? conversationContext.threadId.slice(0, 12) + '...' : conversationContext.threadId}
           </span>
         )}
-        {/* Minimize from full to large */}
+        {/* Minimize from full to ambient_large */}
         {onStageChange && (
           <button
             data-testid="full-collapse-button"
-            onClick={() => onStageChange('large')}
+            onClick={() => onStageChange('ambient_large')}
             style={{
               marginLeft: 'auto',
               ...chevronButtonStyle,

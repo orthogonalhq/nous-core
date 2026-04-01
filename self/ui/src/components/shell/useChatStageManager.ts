@@ -3,13 +3,15 @@
 import { useState, useRef, useCallback, useEffect } from 'react'
 import type { ChatStage, ChatStageManagerReturn } from './types'
 
-/** Idle timer: large -> small after turn complete */
-const IDLE_LARGE_TO_SMALL = 4_000
+/** Idle timer: ambient_large -> ambient_small after turn complete */
+const IDLE_AMBIENT_LARGE_TO_SMALL = 5_000
+/** Idle timer: ambient_small -> small after turn complete */
+const IDLE_AMBIENT_SMALL_TO_SMALL = 3_000
 
 /**
- * Manages the 3-state chat stage state machine for SimpleShellLayout.
+ * Manages the 4-state chat stage state machine for SimpleShellLayout.
  *
- * States: small | large | full
+ * States: small | ambient_small | ambient_large | full
  *
  * This hook is transport-agnostic — it exposes signal methods that the
  * app layer calls when SSE events fire. The hook handles all state
@@ -18,13 +20,18 @@ const IDLE_LARGE_TO_SMALL = 4_000
 export function useChatStageManager(): ChatStageManagerReturn {
   const [chatStage, setChatStage] = useState<ChatStage>('small')
 
-  // Idle timer ref
+  // Idle timer refs
   const idleTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
+  const secondaryTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
 
   const clearAllTimers = useCallback(() => {
     if (idleTimerRef.current) {
       clearTimeout(idleTimerRef.current)
       idleTimerRef.current = null
+    }
+    if (secondaryTimerRef.current) {
+      clearTimeout(secondaryTimerRef.current)
+      secondaryTimerRef.current = null
     }
   }, [])
 
@@ -36,7 +43,7 @@ export function useChatStageManager(): ChatStageManagerReturn {
   const signalSending = useCallback(() => {
     clearAllTimers()
     setChatStage((prev) => {
-      if (prev === 'small') return 'large'
+      if (prev === 'small') return 'ambient_small'
       return prev
     })
   }, [clearAllTimers])
@@ -44,28 +51,52 @@ export function useChatStageManager(): ChatStageManagerReturn {
   const signalInferenceStart = useCallback(() => {
     clearAllTimers()
     setChatStage((prev) => {
-      if (prev === 'small') return 'large'
+      if (prev === 'small') return 'ambient_small'
       return prev
     })
   }, [clearAllTimers])
 
-  const signalTurnComplete = useCallback(() => {
+  const signalPfcDecision = useCallback(() => {
     setChatStage((prev) => {
-      // Only start idle timer for large state — user-initiated full persists
-      if (prev === 'large') {
-        idleTimerRef.current = setTimeout(() => {
-          idleTimerRef.current = null
-          setChatStage((current) => (current === 'large' ? 'small' : current))
-        }, IDLE_LARGE_TO_SMALL)
-        return prev
-      }
+      if (prev === 'ambient_small') return 'ambient_large'
       return prev
     })
   }, [])
 
-  const expandToLarge = useCallback(() => {
+  const signalTurnComplete = useCallback(() => {
+    setChatStage((prev) => {
+      if (prev === 'ambient_large') {
+        // ambient_large -> ambient_small after 5s, then ambient_small -> small after 3s
+        idleTimerRef.current = setTimeout(() => {
+          idleTimerRef.current = null
+          setChatStage((current) => {
+            if (current === 'ambient_large') {
+              secondaryTimerRef.current = setTimeout(() => {
+                secondaryTimerRef.current = null
+                setChatStage((c) => (c === 'ambient_small' ? 'small' : c))
+              }, IDLE_AMBIENT_SMALL_TO_SMALL)
+              return 'ambient_small'
+            }
+            return current
+          })
+        }, IDLE_AMBIENT_LARGE_TO_SMALL)
+        return prev
+      }
+      if (prev === 'ambient_small') {
+        idleTimerRef.current = setTimeout(() => {
+          idleTimerRef.current = null
+          setChatStage((current) => (current === 'ambient_small' ? 'small' : current))
+        }, IDLE_AMBIENT_SMALL_TO_SMALL)
+        return prev
+      }
+      // full persists — no idle decay
+      return prev
+    })
+  }, [])
+
+  const expandToAmbientLarge = useCallback(() => {
     clearAllTimers()
-    setChatStage('large')
+    setChatStage('ambient_large')
   }, [clearAllTimers])
 
   const expandToFull = useCallback(() => {
@@ -73,9 +104,14 @@ export function useChatStageManager(): ChatStageManagerReturn {
     setChatStage('full')
   }, [clearAllTimers])
 
-  const minimizeToLarge = useCallback(() => {
+  const collapseToAmbientSmall = useCallback(() => {
     clearAllTimers()
-    setChatStage('large')
+    setChatStage('ambient_small')
+  }, [clearAllTimers])
+
+  const minimizeToAmbientLarge = useCallback(() => {
+    clearAllTimers()
+    setChatStage('ambient_large')
   }, [clearAllTimers])
 
   const collapseToSmall = useCallback(() => {
@@ -97,10 +133,12 @@ export function useChatStageManager(): ChatStageManagerReturn {
     chatStage,
     signalSending,
     signalInferenceStart,
+    signalPfcDecision,
     signalTurnComplete,
-    expandToLarge,
+    expandToAmbientLarge,
     expandToFull,
-    minimizeToLarge,
+    collapseToAmbientSmall,
+    minimizeToAmbientLarge,
     collapseToSmall,
     handleClickOutside,
   }

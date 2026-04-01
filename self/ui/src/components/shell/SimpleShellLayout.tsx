@@ -129,7 +129,8 @@ export function SimpleShellLayout({
   const chatOverlayHeight = (() => {
     switch (chatStage) {
       case 'small': return CHAT_SMALL_HEIGHT
-      case 'large': return Math.max(200, Math.round(containerHeight * 0.5))
+      case 'ambient_small': return 100
+      case 'ambient_large': return Math.round(containerHeight * 0.35)
       case 'full': return containerHeight || '100%'
       default: return CHAT_SMALL_HEIGHT
     }

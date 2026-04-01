@@ -405,20 +405,33 @@ describe('ChatPanel — Stage-aware rendering', () => {
     expect(screen.getByText('Send')).toBeTruthy()
   })
 
-  it('large stage shows header with toggle bar and recent messages', () => {
+  it('ambient_small stage shows toggle bar with Thinking indicator and input', () => {
     const mockApi: ChatAPI = {
       send: vi.fn().mockResolvedValue({ response: 'ok', traceId: 'trace-1' }),
       getHistory: async () => [],
     }
-    const { container } = render(<ChatPanel chatApi={mockApi} stage="large" />)
+    const { container } = render(<ChatPanel chatApi={mockApi} stage="ambient_small" />)
 
-    expect(container.querySelector('[data-chat-stage="large"]')).toBeTruthy()
-    expect(screen.getByText('Principal \u2194 Cortex')).toBeTruthy()
+    expect(container.querySelector('[data-chat-stage="ambient_small"]')).toBeTruthy()
+    expect(screen.getByTestId('chat-stage-toggle')).toBeTruthy()
+    expect(screen.getByPlaceholderText(/Message Nous/i)).toBeTruthy()
+    // Should show Thinking indicator
+    expect(screen.getByText(/Thinking\.\.\./)).toBeTruthy()
+  })
+
+  it('ambient_large stage shows toggle bar with thought stream', () => {
+    const mockApi: ChatAPI = {
+      send: vi.fn().mockResolvedValue({ response: 'ok', traceId: 'trace-1' }),
+      getHistory: async () => [],
+    }
+    const { container } = render(<ChatPanel chatApi={mockApi} stage="ambient_large" />)
+
+    expect(container.querySelector('[data-chat-stage="ambient_large"]')).toBeTruthy()
     expect(screen.getByTestId('chat-stage-toggle')).toBeTruthy()
     expect(screen.getByPlaceholderText(/Message Nous/i)).toBeTruthy()
   })
 
-  it('small stage expand button calls onStageChange with large', () => {
+  it('small stage expand button calls onStageChange with ambient_large', () => {
     const mockApi: ChatAPI = {
       send: vi.fn().mockResolvedValue({ response: 'ok', traceId: 'trace-1' }),
       getHistory: async () => [],
@@ -429,43 +442,59 @@ describe('ChatPanel — Stage-aware rendering', () => {
 
     // Click expand chevron
     fireEvent.click(screen.getByTestId('small-expand-button'))
-    expect(onStageChange).toHaveBeenCalledWith('large')
+    expect(onStageChange).toHaveBeenCalledWith('ambient_large')
   })
 
-  it('large stage expand button calls onStageChange with full', () => {
+  it('ambient_large stage expand button calls onStageChange with full', () => {
     const mockApi: ChatAPI = {
       send: vi.fn().mockResolvedValue({ response: 'ok', traceId: 'trace-1' }),
       getHistory: async () => [],
     }
     const onStageChange = vi.fn()
 
-    render(<ChatPanel chatApi={mockApi} stage="large" onStageChange={onStageChange} />)
+    render(<ChatPanel chatApi={mockApi} stage="ambient_large" onStageChange={onStageChange} />)
 
-    fireEvent.click(screen.getByTestId('large-expand-full-button'))
+    fireEvent.click(screen.getByTestId('ambient-large-expand-full-button'))
     expect(onStageChange).toHaveBeenCalledWith('full')
   })
 
-  it('large stage shows only last 5 messages', async () => {
-    const messages: { role: 'user' | 'assistant'; content: string; timestamp: string }[] = []
-    for (let i = 0; i < 10; i++) {
-      messages.push({ role: 'user', content: `msg-${i}`, timestamp: new Date().toISOString() })
-    }
+  it('ambient_large stage collapse button calls onStageChange with ambient_small', () => {
     const mockApi: ChatAPI = {
       send: vi.fn().mockResolvedValue({ response: 'ok', traceId: 'trace-1' }),
-      getHistory: async () => messages,
+      getHistory: async () => [],
+    }
+    const onStageChange = vi.fn()
+
+    render(<ChatPanel chatApi={mockApi} stage="ambient_large" onStageChange={onStageChange} />)
+
+    fireEvent.click(screen.getByTestId('ambient-large-collapse-button'))
+    expect(onStageChange).toHaveBeenCalledWith('ambient_small')
+  })
+
+  it('full stage minimize button calls onStageChange with ambient_large', () => {
+    const mockApi: ChatAPI = {
+      send: vi.fn().mockResolvedValue({ response: 'ok', traceId: 'trace-1' }),
+      getHistory: async () => [],
+    }
+    const onStageChange = vi.fn()
+
+    render(<ChatPanel chatApi={mockApi} stage="full" onStageChange={onStageChange} />)
+
+    fireEvent.click(screen.getByTestId('full-collapse-button'))
+    expect(onStageChange).toHaveBeenCalledWith('ambient_large')
+  })
+
+  it('ambient_large stage shows only last 5 messages (not visible in ambient_large — thought stream only)', async () => {
+    const mockApi: ChatAPI = {
+      send: vi.fn().mockResolvedValue({ response: 'ok', traceId: 'trace-1' }),
+      getHistory: async () => [],
     }
 
-    render(<ChatPanel chatApi={mockApi} stage="large" />)
+    const { container } = render(<ChatPanel chatApi={mockApi} stage="ambient_large" />)
 
-    // Wait for history to load
-    await act(async () => {})
-
-    // Last 5 messages should be visible
-    expect(screen.getByText('msg-9')).toBeTruthy()
-    expect(screen.getByText('msg-5')).toBeTruthy()
-    // Earlier messages should not be visible
-    expect(screen.queryByText('msg-4')).toBeNull()
-    expect(screen.queryByText('msg-0')).toBeNull()
+    expect(container.querySelector('[data-chat-stage="ambient_large"]')).toBeTruthy()
+    // ambient_large shows thought stream, not messages
+    expect(screen.queryByText('Principal \u2194 Cortex')).toBeNull()
   })
 
   it('full stage shows all messages', async () => {

@@ -20,23 +20,23 @@ describe('useChatStageManager', () => {
 
   // --- Signal transitions ---
 
-  it('signalSending: small -> large', () => {
+  it('signalSending: small -> ambient_small', () => {
     const { result } = renderHook(() => useChatStageManager())
     act(() => result.current.signalSending())
-    expect(result.current.chatStage).toBe('large')
+    expect(result.current.chatStage).toBe('ambient_small')
   })
 
-  it('signalSending: large stays large', () => {
+  it('signalSending: ambient_small stays ambient_small', () => {
     const { result } = renderHook(() => useChatStageManager())
-    act(() => result.current.expandToLarge())
     act(() => result.current.signalSending())
-    expect(result.current.chatStage).toBe('large')
+    act(() => result.current.signalSending())
+    expect(result.current.chatStage).toBe('ambient_small')
   })
 
-  it('signalInferenceStart: small -> large', () => {
+  it('signalInferenceStart: small -> ambient_small', () => {
     const { result } = renderHook(() => useChatStageManager())
     act(() => result.current.signalInferenceStart())
-    expect(result.current.chatStage).toBe('large')
+    expect(result.current.chatStage).toBe('ambient_small')
   })
 
   it('signalInferenceStart: full stays full', () => {
@@ -46,41 +46,79 @@ describe('useChatStageManager', () => {
     expect(result.current.chatStage).toBe('full')
   })
 
+  it('signalPfcDecision: ambient_small -> ambient_large', () => {
+    const { result } = renderHook(() => useChatStageManager())
+    act(() => result.current.signalSending()) // small -> ambient_small
+    act(() => result.current.signalPfcDecision())
+    expect(result.current.chatStage).toBe('ambient_large')
+  })
+
+  it('signalPfcDecision: small stays small (no-op)', () => {
+    const { result } = renderHook(() => useChatStageManager())
+    act(() => result.current.signalPfcDecision())
+    expect(result.current.chatStage).toBe('small')
+  })
+
+  it('signalPfcDecision: full stays full', () => {
+    const { result } = renderHook(() => useChatStageManager())
+    act(() => result.current.expandToFull())
+    act(() => result.current.signalPfcDecision())
+    expect(result.current.chatStage).toBe('full')
+  })
+
   // --- Idle timers ---
 
-  it('signalTurnComplete: large -> small after idle timer', () => {
+  it('signalTurnComplete: ambient_large -> ambient_small after 5s, then small after 3s', () => {
     const { result } = renderHook(() => useChatStageManager())
-    act(() => result.current.signalSending()) // small -> large
+    act(() => result.current.signalSending()) // small -> ambient_small
+    act(() => result.current.signalPfcDecision()) // ambient_small -> ambient_large
     act(() => result.current.signalTurnComplete())
 
     // Before timer fires
-    expect(result.current.chatStage).toBe('large')
+    expect(result.current.chatStage).toBe('ambient_large')
 
-    // After 4s
-    act(() => vi.advanceTimersByTime(4000))
+    // After 5s: ambient_large -> ambient_small
+    act(() => vi.advanceTimersByTime(5000))
+    expect(result.current.chatStage).toBe('ambient_small')
+
+    // After 3s more: ambient_small -> small
+    act(() => vi.advanceTimersByTime(3000))
+    expect(result.current.chatStage).toBe('small')
+  })
+
+  it('signalTurnComplete: ambient_small -> small after 3s', () => {
+    const { result } = renderHook(() => useChatStageManager())
+    act(() => result.current.signalSending()) // small -> ambient_small
+    act(() => result.current.signalTurnComplete())
+
+    // Before timer fires
+    expect(result.current.chatStage).toBe('ambient_small')
+
+    // After 3s
+    act(() => vi.advanceTimersByTime(3000))
     expect(result.current.chatStage).toBe('small')
   })
 
   it('new activity cancels idle timers', () => {
     const { result } = renderHook(() => useChatStageManager())
-    act(() => result.current.signalSending()) // small -> large
+    act(() => result.current.signalSending()) // small -> ambient_small
     act(() => result.current.signalTurnComplete()) // start idle timer
 
     // Before timer, new activity
-    act(() => vi.advanceTimersByTime(2000))
-    act(() => result.current.signalInferenceStart()) // cancels timer, stays large
+    act(() => vi.advanceTimersByTime(1500))
+    act(() => result.current.signalInferenceStart()) // cancels timer, stays ambient_small
 
     // After original timer would have fired
     act(() => vi.advanceTimersByTime(3000))
-    expect(result.current.chatStage).toBe('large')
+    expect(result.current.chatStage).toBe('ambient_small')
   })
 
   // --- User-initiated transitions ---
 
-  it('expandToLarge: any state -> large', () => {
+  it('expandToAmbientLarge: any state -> ambient_large', () => {
     const { result } = renderHook(() => useChatStageManager())
-    act(() => result.current.expandToLarge())
-    expect(result.current.chatStage).toBe('large')
+    act(() => result.current.expandToAmbientLarge())
+    expect(result.current.chatStage).toBe('ambient_large')
   })
 
   it('expandToFull: any state -> full', () => {
@@ -89,11 +127,18 @@ describe('useChatStageManager', () => {
     expect(result.current.chatStage).toBe('full')
   })
 
-  it('minimizeToLarge: full -> large', () => {
+  it('collapseToAmbientSmall: ambient_large -> ambient_small', () => {
+    const { result } = renderHook(() => useChatStageManager())
+    act(() => result.current.expandToAmbientLarge())
+    act(() => result.current.collapseToAmbientSmall())
+    expect(result.current.chatStage).toBe('ambient_small')
+  })
+
+  it('minimizeToAmbientLarge: full -> ambient_large', () => {
     const { result } = renderHook(() => useChatStageManager())
     act(() => result.current.expandToFull())
-    act(() => result.current.minimizeToLarge())
-    expect(result.current.chatStage).toBe('large')
+    act(() => result.current.minimizeToAmbientLarge())
+    expect(result.current.chatStage).toBe('ambient_large')
   })
 
   it('collapseToSmall: any state -> small', () => {
@@ -107,7 +152,7 @@ describe('useChatStageManager', () => {
 
   it('handleClickOutside: non-small -> small', () => {
     const { result } = renderHook(() => useChatStageManager())
-    act(() => result.current.expandToLarge())
+    act(() => result.current.expandToAmbientLarge())
     act(() => result.current.handleClickOutside())
     expect(result.current.chatStage).toBe('small')
   })
@@ -120,7 +165,7 @@ describe('useChatStageManager', () => {
 
   it('handleClickOutside cancels idle timers', () => {
     const { result } = renderHook(() => useChatStageManager())
-    act(() => result.current.signalSending()) // -> large
+    act(() => result.current.signalSending()) // -> ambient_small
     act(() => result.current.signalTurnComplete()) // start idle timer
     act(() => result.current.handleClickOutside()) // -> small immediately, cancel timer
     expect(result.current.chatStage).toBe('small')
