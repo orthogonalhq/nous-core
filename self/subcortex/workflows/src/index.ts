@@ -51,4 +51,11 @@ export {
   type WorkflowNodeHandlerDependencies,
 } from './handlers/index.js';
 export { DeterministicWorkflowEngine } from './workflow-engine.js';
+export {
+  WorkflowDispatchHarness,
+  type WorkflowDispatchHarnessConfig,
+  type HarnessRunInput,
+  type HarnessRunResult,
+  type HarnessNodeResult,
+} from './workflow-dispatch-harness.js';
 export * from './spec/index.js';
