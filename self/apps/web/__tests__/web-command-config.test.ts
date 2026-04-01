@@ -14,18 +14,18 @@ describe('buildWebCommands', () => {
     expect(groups.length).toBeGreaterThan(0)
   })
 
-  it('Navigation group has 6 commands matching desktop', () => {
+  it('Navigation group has 9 commands matching desktop', () => {
     const groups = buildWebCommands(mockCallbacks)
     const navGroup = groups.find((g) => g.id === 'navigation')
     expect(navGroup).toBeDefined()
-    expect(navGroup!.commands.length).toBe(6)
+    expect(navGroup!.commands.length).toBe(9)
   })
 
   it('Navigation command IDs match desktop', () => {
     const groups = buildWebCommands(mockCallbacks)
     const navGroup = groups.find((g) => g.id === 'navigation')!
     const ids = navGroup.commands.map((c) => c.id)
-    expect(ids).toEqual(['nav-home', 'nav-threads', 'nav-workflows', 'nav-skills', 'nav-apps', 'nav-settings'])
+    expect(ids).toEqual(['nav-home', 'nav-threads', 'nav-workflows', 'nav-skills', 'nav-apps', 'nav-settings', 'nav-dashboard', 'nav-org-chart', 'nav-inbox'])
   })
 
   it('Actions group has 2 commands', () => {

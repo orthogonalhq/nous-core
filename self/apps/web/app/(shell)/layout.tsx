@@ -8,16 +8,21 @@ import type { DockviewApi } from 'dockview-react'
 import {
   ShellProvider,
   ShellLayout as UIShellLayout,
+  SimpleShellLayout,
   NavigationRail,
   ContentRouter,
   ObservePanel,
   CommandPalette,
+  ProjectSwitcherRail,
+  AssetSidebar,
+  CollapsibleObserveEdge,
 } from '@nous/ui/components'
-import type { ShellMode, NavigationState } from '@nous/ui/components'
+import type { ShellMode, NavigationState, ChatStage } from '@nous/ui/components'
 import { WebChromeShell } from '@/components/shell/web-chrome-shell'
 import { webRailSections } from '@/components/shell/web-rail-config'
 import { createWebShellRoutes } from '@/components/shell/web-shell-routes'
 import { buildWebCommands } from '@/components/shell/web-command-config'
+import { WEB_TOP_NAV, buildWebSidebarSections } from '@/components/shell/web-sidebar-config'
 import { WebConnectedChatSurface } from '@/components/shell/web-chat-wrappers'
 import { WEB_PANEL_DEFS } from '@/components/shell/web-panel-defs'
 import { ProjectProvider } from '@/lib/project-context'
@@ -62,6 +67,7 @@ function ShellLayoutContent({
   const [commandPaletteOpen, setCommandPaletteOpen] = useState(false)
   const [projectId, setProjectId] = useState<string | null>(null)
   const [dockviewApi, setDockviewApi] = useState<DockviewApi | null>(null)
+  const [observeWidth, setObserveWidth] = useState(20)
 
   const searchParams = useSearchParams()
 
@@ -123,6 +129,18 @@ function ShellLayoutContent({
     return () => window.removeEventListener('keydown', handler)
   }, [])
 
+  const handleProjectChange = useCallback((newProjectId: string) => {
+    setProjectId(newProjectId)
+    setActiveRoute('home') // reset content route on project switch
+  }, [])
+
+  const sidebarSections = useMemo(() => buildWebSidebarSections(), [])
+
+  // Stub project list for the project rail (tRPC wiring in follow-up)
+  const stubProjects = useMemo(() => [
+    { id: 'project-1', name: 'Default Project' },
+  ], [])
+
   const handleNavigate = useCallback((routeId: string) => {
     setActiveRoute(routeId)
   }, [])
@@ -166,6 +184,7 @@ function ShellLayoutContent({
         navigate={handleNavigate}
         goBack={handleGoBack}
         activeProjectId={projectId}
+        onProjectChange={handleProjectChange}
       >
         <ProjectProvider value={{ projectId, setProjectId }}>
           <CommandPalette
@@ -175,15 +194,26 @@ function ShellLayoutContent({
           />
           <div style={{ flex: 1, minHeight: 0, height: '100%', overflow: 'hidden', position: 'relative' }}>
             {mode === 'simple' ? (
-              <UIShellLayout
-                rail={
-                  <NavigationRail
-                    items={webRailSections}
-                    activeItemId={activeRoute}
-                    onItemSelect={handleNavigate}
+              <SimpleShellLayout
+                projectRail={
+                  <ProjectSwitcherRail
+                    projects={stubProjects}
+                    activeProjectId={projectId ?? 'project-1'}
+                    onProjectSelect={handleProjectChange}
                   />
                 }
-                chat={<WebConnectedChatSurface />}
+                sidebar={
+                  <AssetSidebar
+                    projectName={stubProjects.find((p) => p.id === (projectId ?? 'project-1'))?.name ?? 'Project'}
+                    topNav={WEB_TOP_NAV}
+                    sections={sidebarSections}
+                    activeRoute={activeRoute}
+                    onNavigate={handleNavigate}
+                    chatSlot={({ stage, onStageChange }: { stage: ChatStage; onStageChange: (s: ChatStage) => void }) => (
+                      <WebConnectedChatSurface />
+                    )}
+                  />
+                }
                 content={
                   <ContentRouter
                     activeRoute={activeRoute}
@@ -191,7 +221,15 @@ function ShellLayoutContent({
                     onNavigate={handleNavigate}
                   />
                 }
-                observe={<ObservePanel />}
+                observe={
+                  <CollapsibleObserveEdge
+                    width={observeWidth}
+                    onExpandToggle={() => setObserveWidth((w) => w < 60 ? 300 : 20)}
+                  >
+                    <ObservePanel />
+                  </CollapsibleObserveEdge>
+                }
+                onColumnResize={(widths) => setObserveWidth(widths.observe)}
               />
             ) : (
               <WebDockviewShell onApiReady={setDockviewApi} />

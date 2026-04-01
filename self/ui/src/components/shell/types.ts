@@ -101,6 +101,7 @@ export interface ShellContextValue {
   activeProjectId: string | null
   navigate: (routeId: string) => void
   goBack: () => void
+  onProjectChange?: (projectId: string) => void
 }
 
 // --- Content Surface Types ---

@@ -22,6 +22,9 @@ vi.mock('@nous/ui/components', () => ({
   ShellLayout: (props: any) => {
     return React.createElement('div', { 'data-testid': 'shell-layout' }, props.rail, props.chat, props.content, props.observe)
   },
+  SimpleShellLayout: (props: any) => {
+    return React.createElement('div', { 'data-testid': 'simple-shell-layout' }, props.projectRail, props.sidebar, props.content, props.observe)
+  },
   NavigationRail: (props: any) => {
     capturedNavigationRailProps = props
     return React.createElement('div', { 'data-testid': 'navigation-rail', 'data-active-item': props.activeItemId })
@@ -29,6 +32,17 @@ vi.mock('@nous/ui/components', () => ({
   ContentRouter: (props: any) => {
     capturedContentRouterProps = props
     return React.createElement('div', { 'data-testid': 'content-router', 'data-active-route': props.activeRoute })
+  },
+  ProjectSwitcherRail: (props: any) => {
+    return React.createElement('div', { 'data-testid': 'project-switcher-rail', 'data-active-project': props.activeProjectId })
+  },
+  AssetSidebar: (props: any) => {
+    return React.createElement('div', { 'data-testid': 'asset-sidebar', 'data-active-route': props.activeRoute },
+      typeof props.chatSlot === 'function' ? props.chatSlot({ stage: 'ambient', onStageChange: () => {} }) : null
+    )
+  },
+  CollapsibleObserveEdge: (props: any) => {
+    return React.createElement('div', { 'data-testid': 'collapsible-observe-edge' }, props.children)
   },
   ChatSurface: () => React.createElement('div', { 'data-testid': 'chat-surface' }),
   ObservePanel: () => React.createElement('div', { 'data-testid': 'observe-panel' }),
@@ -80,6 +94,15 @@ vi.mock('@/components/shell/web-chrome-shell', () => ({
 
 vi.mock('@/components/shell/web-rail-config', () => ({
   webRailSections: [{ id: 'main', label: 'Navigate', items: [{ id: 'home', label: 'Home', icon: 'H' }] }],
+}))
+
+vi.mock('@/components/shell/web-sidebar-config', () => ({
+  WEB_TOP_NAV: [
+    { id: 'dashboard', label: 'Dashboard', icon: 'D', routeId: 'dashboard' },
+  ],
+  buildWebSidebarSections: () => [
+    { id: 'workflows', label: 'WORKFLOWS', items: [], collapsible: true, disabled: false },
+  ],
 }))
 
 vi.mock('@/components/shell/web-shell-routes', () => ({
@@ -135,7 +158,7 @@ describe('Web Shell Integration', () => {
     renderShell()
     const chrome = screen.getByTestId('web-chrome-shell')
     expect(chrome.getAttribute('data-shell-mode')).toBe('simple')
-    expect(screen.getByTestId('shell-layout')).toBeDefined()
+    expect(screen.getByTestId('simple-shell-layout')).toBeDefined()
     expect(screen.queryByTestId('web-dockview-shell')).toBeNull()
   })
 
@@ -150,7 +173,7 @@ describe('Web Shell Integration', () => {
 
     expect(screen.getByTestId('web-chrome-shell').getAttribute('data-shell-mode')).toBe('developer')
     expect(screen.getByTestId('web-dockview-shell')).toBeDefined()
-    expect(screen.queryByTestId('shell-layout')).toBeNull()
+    expect(screen.queryByTestId('simple-shell-layout')).toBeNull()
   })
 
   it('persists mode to localStorage on toggle', () => {
@@ -172,15 +195,15 @@ describe('Web Shell Integration', () => {
     expect(screen.getByTestId('web-chrome-shell').getAttribute('data-shell-mode')).toBe('developer')
   })
 
-  it('navigates when rail onItemSelect is called', () => {
+  it('navigates when ContentRouter onNavigate is called', () => {
     renderShell()
     expect(capturedContentRouterProps.activeRoute).toBe('home')
 
     act(() => {
-      ;(capturedNavigationRailProps.onItemSelect as (id: string) => void)('chat')
+      ;(capturedContentRouterProps.onNavigate as (id: string) => void)('dashboard')
     })
 
-    expect(capturedContentRouterProps.activeRoute).toBe('chat')
+    expect(capturedContentRouterProps.activeRoute).toBe('dashboard')
   })
 
   it('opens command palette on Ctrl+K', () => {
@@ -205,8 +228,13 @@ describe('Web Shell Integration', () => {
     expect(screen.getByTestId('web-chrome-shell').getAttribute('data-shell-mode')).toBe('developer')
   })
 
-  it('renders WebConnectedChatSurface in simple mode', () => {
+  it('renders new layout components in simple mode', () => {
     renderShell()
+    expect(screen.getByTestId('simple-shell-layout')).toBeDefined()
+    expect(screen.getByTestId('project-switcher-rail')).toBeDefined()
+    expect(screen.getByTestId('asset-sidebar')).toBeDefined()
+    expect(screen.getByTestId('content-router')).toBeDefined()
+    expect(screen.getByTestId('collapsible-observe-edge')).toBeDefined()
     expect(screen.getByTestId('web-connected-chat-surface')).toBeDefined()
   })
 

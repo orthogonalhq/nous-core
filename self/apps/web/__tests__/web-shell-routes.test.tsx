@@ -4,12 +4,13 @@ import { createWebShellRoutes } from '@/components/shell/web-shell-routes'
 describe('createWebShellRoutes', () => {
   const EXPECTED_KEYS = [
     'home', 'settings', 'threads', 'workflows', 'skills', 'apps',
+    'dashboard', 'org-chart', 'inbox', 'workflow-detail', 'tasks', 'task-detail', 'agents', 'agent-detail',
   ]
 
   const routes = createWebShellRoutes({})
 
-  it('has exactly 6 keys', () => {
-    expect(Object.keys(routes).length).toBe(6)
+  it('has exactly 14 keys', () => {
+    expect(Object.keys(routes).length).toBe(14)
   })
 
   it('each value is a function (valid ComponentType)', () => {

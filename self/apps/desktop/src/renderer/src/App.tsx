@@ -17,12 +17,18 @@ import {
   ContentRouter,
   NavigationRail,
   ShellLayout,
+  SimpleShellLayout,
   ShellProvider,
+  useShellContext as useShellCtx,
   ObservePanel,
   CommandPalette,
+  ProjectSwitcherRail,
+  AssetSidebar,
+  CollapsibleObserveEdge,
   type ContentRouterRenderProps,
   type ShellMode,
   type CommandGroup,
+  type ChatStage,
 } from '@nous/ui/components'
 import { TransportProvider, createDesktopTransport, trpc } from '@nous/transport'
 import { FirstRunWizard } from './components/FirstRunWizard'
@@ -34,6 +40,7 @@ import { ConnectedChatSurface } from './desktop-chat-wrappers'
 import { panelComponents } from './desktop-panel-map'
 import { RAIL_SECTIONS } from './desktop-rail-config'
 import { buildDesktopCommands } from './desktop-command-config'
+import { DESKTOP_TOP_NAV, buildDesktopSidebarSections } from './desktop-sidebar-config'
 import { BASE_SIMPLE_MODE_ROUTES } from './desktop-routes'
 import { SettingsRoute } from './desktop-settings-route'
 
@@ -292,6 +299,7 @@ export function App() {
   const [activeRoute, setActiveRoute] = useState(DEFAULT_ROUTE)
   const [commandPaletteOpen, setCommandPaletteOpen] = useState(false)
   const [backendPort, setBackendPort] = useState<number | null>(null)
+  const [observeWidth, setObserveWidth] = useState(20)
 
   const initializeApp = useCallback(async () => {
     const runId = ++bootstrapRunRef.current
@@ -561,6 +569,12 @@ export function App() {
     ),
   }), [preferencesPanelParams])
 
+  const desktopSidebarSections = useMemo(() => buildDesktopSidebarSections(), [])
+
+  const handleDesktopProjectChange = useCallback((newProjectId: string) => {
+    setActiveRoute(DEFAULT_ROUTE) // reset content route on project switch
+  }, [])
+
   const commands: CommandGroup[] = useMemo(
     () => buildDesktopCommands({
       navigate: handleNavigate,
@@ -680,23 +694,25 @@ export function App() {
         commands={commands}
       />
       {mode === 'simple' ? (
-        <ShellLayout
-          rail={(
-            <NavigationRail
-              items={RAIL_SECTIONS}
-              activeItemId={activeRoute}
-              onItemSelect={handleNavigate}
-            />
-          )}
-          chat={<ConnectedChatSurface />}
-          content={(
+        <SimpleShellLayout
+          projectRail={<DesktopProjectRail />}
+          sidebar={<DesktopAssetSidebarConnected sections={desktopSidebarSections} />}
+          content={
             <ContentRouter
               activeRoute={activeRoute}
               routes={simpleModeRoutes}
               onNavigate={handleNavigate}
             />
-          )}
-          observe={<ObservePanel />}
+          }
+          observe={
+            <CollapsibleObserveEdge
+              width={observeWidth}
+              onExpandToggle={() => setObserveWidth((w) => w < 60 ? 300 : 20)}
+            >
+              <ObservePanel />
+            </CollapsibleObserveEdge>
+          }
+          onColumnResize={(widths) => setObserveWidth(widths.observe)}
         />
       ) : (
         <DockviewShell
@@ -716,6 +732,7 @@ export function App() {
       navigation={navigation}
       navigate={handleNavigate}
       goBack={handleGoBack}
+      onProjectChange={handleDesktopProjectChange}
     >
       {shellChildren}
     </DesktopShellWithProject>
@@ -750,6 +767,7 @@ function DesktopShellWithProject({
   navigation,
   navigate,
   goBack,
+  onProjectChange,
 }: {
   children: React.ReactNode
   mode: ShellMode
@@ -757,6 +775,7 @@ function DesktopShellWithProject({
   navigation: { activeRoute: string; history: string[]; canGoBack: boolean }
   navigate: (routeId: string) => void
   goBack: () => void
+  onProjectChange?: (projectId: string) => void
 }) {
   const [activeProjectId, setActiveProjectId] = useState<string | null>(null)
 
@@ -774,6 +793,11 @@ function DesktopShellWithProject({
     }
   }, [projectList]) // eslint-disable-line react-hooks/exhaustive-deps
 
+  const handleProjectChange = useCallback((projectId: string) => {
+    setActiveProjectId(projectId)
+    onProjectChange?.(projectId)
+  }, [onProjectChange])
+
   return (
     <ShellProvider
       mode={mode}
@@ -782,9 +806,54 @@ function DesktopShellWithProject({
       navigate={navigate}
       goBack={goBack}
       activeProjectId={activeProjectId}
+      onProjectChange={handleProjectChange}
     >
       {children}
     </ShellProvider>
+  )
+}
+
+// ─── Desktop Project Rail (wired to tRPC) ──────────────────────────────────
+
+function DesktopAssetSidebarConnected({ sections }: { sections: import('@nous/ui/components').AssetSection[] }) {
+  const { activeProjectId, activeRoute, navigate } = useShellCtx()
+  const { data: projectList } = trpc.projects.list.useQuery()
+
+  const projectName = useMemo(() => {
+    if (!projectList || !activeProjectId) return 'Project'
+    const proj = projectList.find((p: { id: string }) => p.id === activeProjectId)
+    return proj?.name ?? 'Project'
+  }, [projectList, activeProjectId])
+
+  return (
+    <AssetSidebar
+      projectName={projectName}
+      topNav={DESKTOP_TOP_NAV}
+      sections={sections}
+      activeRoute={activeRoute}
+      onNavigate={navigate}
+      chatSlot={(_props: { stage: ChatStage; onStageChange: (s: ChatStage) => void }) => (
+        <ConnectedChatSurface />
+      )}
+    />
+  )
+}
+
+function DesktopProjectRail() {
+  const { activeProjectId, onProjectChange } = useShellCtx()
+  const { data: projectList } = trpc.projects.list.useQuery()
+
+  const projects = useMemo(
+    () => (projectList ?? []).map((p: { id: string; name?: string }) => ({ id: p.id, name: p.name ?? p.id })),
+    [projectList],
+  )
+
+  return (
+    <ProjectSwitcherRail
+      projects={projects}
+      activeProjectId={activeProjectId ?? ''}
+      onProjectSelect={(id) => onProjectChange?.(id)}
+    />
   )
 }
 
