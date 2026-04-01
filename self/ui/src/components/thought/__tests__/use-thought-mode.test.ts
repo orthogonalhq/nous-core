@@ -75,9 +75,10 @@ describe('thoughtModeReducer', () => {
       expect(result.toggledExpanded).toBe(false)
     })
 
-    it('from ambient:open is no-op', () => {
+    it('from ambient:open transitions to conversing:expanded', () => {
       const result = thoughtModeReducer(ambient, action)
-      expect(result).toBe(ambient)
+      expect(result.mode).toBe('conversing:expanded')
+      expect(result.toggledExpanded).toBe(true)
     })
   })
 

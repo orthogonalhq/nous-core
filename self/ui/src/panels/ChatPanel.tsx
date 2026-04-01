@@ -301,6 +301,16 @@ export function ChatPanel(props: ChatPanelProps | ChatPanelCoreProps) {
 
   // --- Stage toggle bar (always visible in ambient/peek) ---
   const isActive = isAgentWorking
+  const chevronButtonStyle = {
+    background: 'none',
+    border: 'none',
+    color: 'var(--nous-fg-muted)',
+    cursor: 'pointer',
+    padding: '0 var(--nous-space-xs)',
+    fontSize: 'var(--nous-font-size-xs)',
+    lineHeight: 1,
+  } as const
+
   const stageToggleBar = (isAmbient || isPeek) ? (
     <div
       data-testid="chat-stage-toggle"
@@ -311,30 +321,39 @@ export function ChatPanel(props: ChatPanelProps | ChatPanelCoreProps) {
         gap: 'var(--nous-space-xs)',
         fontSize: 'var(--nous-font-size-xs)',
         color: 'var(--nous-fg-muted)',
-        cursor: 'pointer',
         userSelect: 'none',
       }}
-      onClick={() => onStageChange?.(isAmbient ? 'peek' : 'ambient')}
     >
       {isActive ? (
         <span style={{ display: 'inline-block' }}>&#x25CF;</span>
       ) : null}
-      <span>{isActive ? 'Thinking...' : 'Chat'}</span>
-      <button
-        data-testid={isAmbient ? 'ambient-expand-button' : 'peek-collapse-button'}
-        style={{
-          background: 'none',
-          border: 'none',
-          color: 'var(--nous-fg-muted)',
-          cursor: 'pointer',
-          padding: '0 var(--nous-space-xs)',
-          fontSize: 'var(--nous-font-size-xs)',
-          lineHeight: 1,
-        }}
-        title={isAmbient ? 'Expand chat' : 'Collapse chat'}
+      <span
+        style={{ cursor: 'pointer' }}
+        onClick={() => onStageChange?.(isAmbient ? 'peek' : 'ambient')}
       >
-        {isAmbient ? '\u25BE' : '\u25B4'}
-      </button>
+        {isActive ? 'Thinking...' : 'Chat'}
+      </span>
+      {/* Collapse / expand controls */}
+      <span style={{ marginLeft: 'auto', display: 'flex', gap: '2px' }}>
+        {isPeek && (
+          <button
+            data-testid="peek-collapse-button"
+            onClick={() => onStageChange?.('ambient')}
+            style={chevronButtonStyle}
+            title="Collapse chat"
+          >
+            {'\u25B4'}
+          </button>
+        )}
+        <button
+          data-testid={isAmbient ? 'ambient-expand-button' : 'peek-expand-full-button'}
+          onClick={() => onStageChange?.(isAmbient ? 'peek' : 'full')}
+          style={chevronButtonStyle}
+          title={isAmbient ? 'Expand chat' : 'Maximize chat'}
+        >
+          {isAmbient ? '\u25BE' : '\u25BC'}
+        </button>
+      </span>
     </div>
   ) : null
 
@@ -365,6 +384,20 @@ export function ChatPanel(props: ChatPanelProps | ChatPanelCoreProps) {
           <span data-testid="thread-indicator" style={{ fontSize: 'var(--nous-font-size-2xs)', color: 'var(--nous-fg-subtle)', fontWeight: 'var(--nous-font-weight-regular)' as any }}>
             {conversationContext.threadId.length > 12 ? conversationContext.threadId.slice(0, 12) + '...' : conversationContext.threadId}
           </span>
+        )}
+        {/* Collapse from full mode */}
+        {effectiveStage === 'full' && onStageChange && (
+          <button
+            data-testid="full-collapse-button"
+            onClick={() => onStageChange('peek')}
+            style={{
+              marginLeft: 'auto',
+              ...chevronButtonStyle,
+            }}
+            title="Minimize chat"
+          >
+            {'\u25B2'}
+          </button>
         )}
       </div>
       {/* Messages */}

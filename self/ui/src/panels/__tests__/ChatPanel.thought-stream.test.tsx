@@ -471,7 +471,7 @@ describe('ChatPanel — Stage-aware rendering', () => {
 
     render(<ChatPanel chatApi={mockApi} stage="peek" onStageChange={onStageChange} />)
 
-    fireEvent.click(screen.getByTestId('chat-stage-toggle'))
+    fireEvent.click(screen.getByTestId('peek-collapse-button'))
     expect(onStageChange).toHaveBeenCalledWith('ambient')
   })
 

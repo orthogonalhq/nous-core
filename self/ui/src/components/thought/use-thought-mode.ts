@@ -45,7 +45,7 @@ export function thoughtModeReducer(
       return state
 
     case 'TOGGLE_EXPAND':
-      if (state.mode === 'conversing:collapsed') {
+      if (state.mode === 'conversing:collapsed' || state.mode === 'ambient:open') {
         return { ...state, mode: 'conversing:expanded', toggledExpanded: true }
       }
       if (state.mode === 'conversing:expanded') {
