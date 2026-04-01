@@ -1,5 +1,6 @@
 import { useMemo, useRef } from 'react'
 import { trpc } from '../client'
+import type { CardAction, ActionResult } from '@nous/shared'
 
 export interface UseChatApiOptions {
   projectId?: string
@@ -7,8 +8,15 @@ export interface UseChatApiOptions {
 
 /** Matches the ChatAPI interface from @nous/ui/panels (structural compatibility). */
 interface ChatApiShape {
-  send: (message: string) => Promise<{ response: string; traceId: string }>
-  getHistory: () => Promise<{ role: 'user' | 'assistant'; content: string; timestamp: string }[]>
+  send: (message: string) => Promise<{ response: string; traceId: string; contentType?: 'text' | 'openui' }>
+  getHistory: () => Promise<{
+    role: 'user' | 'assistant'
+    content: string
+    timestamp: string
+    contentType?: 'text' | 'openui'
+    actionOutcome?: { actionType: string; label: string; timestamp: string }
+  }[]>
+  sendAction: (action: CardAction) => Promise<ActionResult>
 }
 
 /**
@@ -28,11 +36,14 @@ export function useChatApi(options?: UseChatApiOptions): ChatApiShape {
   const projectId = options?.projectId
   const utils = trpc.useUtils()
   const sendMessage = trpc.chat.sendMessage.useMutation()
+  const sendActionMutation = trpc.chat.sendAction.useMutation()
 
   // Store unstable references so the useMemo closure always calls the latest
   // mutateAsync / utils without needing them as dependencies.
   const sendRef = useRef(sendMessage.mutateAsync)
   sendRef.current = sendMessage.mutateAsync
+  const sendActionRef = useRef(sendActionMutation.mutateAsync)
+  sendActionRef.current = sendActionMutation.mutateAsync
   const utilsRef = useRef(utils)
   utilsRef.current = utils
 
@@ -45,7 +56,7 @@ export function useChatApi(options?: UseChatApiOptions): ChatApiShape {
         if (projectId) {
           await utilsRef.current.chat.getHistory.invalidate({ projectId })
         }
-        return { response: result.response, traceId: result.traceId }
+        return { response: result.response, traceId: result.traceId, contentType: result.contentType }
       },
       getHistory: async () => {
         const data = await utilsRef.current.chat.getHistory.fetch(
@@ -57,7 +68,15 @@ export function useChatApi(options?: UseChatApiOptions): ChatApiShape {
             role: e.role as 'user' | 'assistant',
             content: e.content,
             timestamp: e.timestamp,
+            ...(e.metadata?.contentType ? { contentType: e.metadata.contentType as 'text' | 'openui' } : {}),
+            ...(e.metadata?.actionOutcome ? { actionOutcome: e.metadata.actionOutcome as { actionType: string; label: string; timestamp: string } } : {}),
           }))
+      },
+      sendAction: async (action: CardAction) => {
+        const result = await sendActionRef.current(
+          projectId ? { action, projectId } : { action },
+        )
+        return result as ActionResult
       },
     }),
     // Only recompute when the logical identity changes (projectId).

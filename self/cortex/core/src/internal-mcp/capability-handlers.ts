@@ -30,7 +30,9 @@ import {
   type WorkflowLifecycleInstanceSummary,
   type WorkflowRunState,
   type WorkflowDefinition,
+  type DerivedWorkflowGraph,
 } from '@nous/shared';
+import { buildDispatchMetadata } from './dispatch-metadata.js';
 import {
   inspectInstalledWorkflowPackage,
   listInstalledWorkflowPackages,
@@ -76,6 +78,8 @@ import {
   parseWorkflowStatusRequest,
   parseWorkflowValidateRequest,
   parseWorkflowFromSpecRequest,
+  parseWorkflowExecuteNodeRequest,
+  parseWorkflowCompleteNodeRequest,
 } from './request-normalizers.js';
 import type {
   InternalMcpCapabilityHandler,
@@ -92,7 +96,7 @@ const WITNESS_ACTOR_BY_CLASS: Record<AgentClass, WitnessActor> = {
 
 type CapabilityToolName = Exclude<
   InternalMcpToolName,
-  'dispatch_agent' | 'task_complete' | 'request_escalation' | 'flag_observation'
+  'dispatch_orchestrator' | 'dispatch_worker' | 'task_complete' | 'request_escalation' | 'flag_observation'
 >;
 
 interface WorkflowSelection {
@@ -395,8 +399,16 @@ function toWorkflowInstanceSummary(input: {
   runState: WorkflowRunState;
   definitionName: string;
   definitionSource?: ResolvedWorkflowDefinitionSource | null;
+  graph?: DerivedWorkflowGraph | null;
 }): WorkflowLifecycleInstanceSummary {
-  const { runState } = input;
+  const { runState, graph } = input;
+
+  const readyNodeDispatchMetadata = buildDispatchMetadata({
+    readyNodeIds: runState.readyNodeIds,
+    graph,
+    dispatchLineage: runState.dispatchLineage,
+  });
+
   return WorkflowLifecycleInstanceSummarySchema.parse({
     runId: runState.runId,
     projectId: runState.projectId,
@@ -412,6 +424,8 @@ function toWorkflowInstanceSummary(input: {
     startedAt: runState.startedAt,
     updatedAt: runState.updatedAt,
     definitionSource: input.definitionSource ?? undefined,
+    readyNodeIds: runState.readyNodeIds,
+    readyNodeDispatchMetadata,
   });
 }
 
@@ -608,11 +622,17 @@ async function resolveRunProjection(
     }
   }
 
+  // Retrieve graph for dispatch metadata construction
+  const graph = await requireWorkflowEngine(context).getRunGraph(
+    runState.runId,
+  );
+
   return {
     summary: toWorkflowInstanceSummary({
       runState,
       definitionName,
       definitionSource,
+      graph,
     }),
     projectConfig,
     definitionSource,
@@ -1236,7 +1256,6 @@ export function createCapabilityHandlers(
       );
     },
     workflow_start: async (params, execution) => {
-      await requireSystemAgent(context, 'workflow_start', execution);
       const request = parseWorkflowStartRequest(params);
       const workflowEngine = requireWorkflowEngine(context);
       const projectConfig = await resolveProjectConfig(context, request.projectId);
@@ -1339,12 +1358,17 @@ export function createCapabilityHandlers(
         selection.workflowDefinitionId as any,
       );
 
+      const startGraph = await workflowEngine.getRunGraph(
+        startedState.value.runId,
+      );
+
       return success(
         WorkflowLifecycleMutationResultSchema.parse({
           run: toWorkflowInstanceSummary({
             runState: startedState.value,
             definitionName: selection.definitionName,
             definitionSource,
+            graph: startGraph,
           }),
           evidenceRef: startedState.evidenceRef,
           warnings,
@@ -1379,7 +1403,6 @@ export function createCapabilityHandlers(
       );
     },
     workflow_pause: async (params, execution) => {
-      await requireSystemAgent(context, 'workflow_pause', execution);
       const request = parseWorkflowPauseRequest(params);
       const workflowEngine = requireWorkflowEngine(context);
       const current = await workflowEngine.getState(request.runId);
@@ -1419,12 +1442,15 @@ export function createCapabilityHandlers(
           }),
       });
 
+      const pauseGraph = await workflowEngine.getRunGraph(result.value.runId);
+
       return success(
         WorkflowLifecycleMutationResultSchema.parse({
           run: toWorkflowInstanceSummary({
             runState: result.value,
             definitionName: projection.summary.definitionName,
             definitionSource: projection.definitionSource,
+            graph: pauseGraph,
           }),
           evidenceRef: result.evidenceRef,
         }),
@@ -1432,7 +1458,6 @@ export function createCapabilityHandlers(
       );
     },
     workflow_resume: async (params, execution) => {
-      await requireSystemAgent(context, 'workflow_resume', execution);
       const request = parseWorkflowResumeRequest(params);
       const workflowEngine = requireWorkflowEngine(context);
       const current = await workflowEngine.getState(request.runId);
@@ -1492,15 +1517,137 @@ export function createCapabilityHandlers(
           }),
       });
 
+      const resumeGraph = await workflowEngine.getRunGraph(result.value.runId);
+
       return success(
         WorkflowLifecycleMutationResultSchema.parse({
           run: toWorkflowInstanceSummary({
             runState: result.value,
             definitionName: projection.summary.definitionName,
             definitionSource: projection.definitionSource,
+            graph: resumeGraph,
           }),
           evidenceRef: result.evidenceRef,
           warnings,
+        }),
+        0,
+      );
+    },
+    workflow_execute_node: async (params, execution) => {
+      const request = parseWorkflowExecuteNodeRequest(params);
+      const workflowEngine = requireWorkflowEngine(context);
+      const current = await workflowEngine.getState(request.runId);
+      if (!current) {
+        throw new NousError(
+          `Workflow run ${request.runId} was not found`,
+          'WORKFLOW_RUN_NOT_FOUND',
+        );
+      }
+      const controlState = await requireProjectControlState(context, current.projectId);
+      const projection = await resolveRunProjection(context, current);
+      const lane = buildLifecycleLane(
+        projection.summary.definitionName,
+        request.runId,
+        `execute_node:${request.nodeDefinitionId}`,
+      );
+
+      const result = await executeWithWitness({
+        context,
+        actionCategory: 'opctl-command',
+        actionRef: lane.lane,
+        projectId: current.projectId,
+        traceId: execution?.traceId,
+        detail: {
+          lane: lane.lane,
+          laneRoot: lane.laneRoot,
+          laneDepth: lane.laneDepth,
+          workflowDefinitionId: current.workflowDefinitionId,
+          nodeDefinitionId: request.nodeDefinitionId,
+        },
+        operation: () =>
+          workflowEngine.executeReadyNode({
+            executionId: request.runId,
+            nodeDefinitionId: request.nodeDefinitionId,
+            controlState,
+            transition: {
+              reasonCode: 'node_execute_requested',
+              evidenceRefs: [],
+            },
+            payload: request.payload != null ? { detail: { userPayload: request.payload } } : undefined,
+          }),
+      });
+
+      const execGraph = await workflowEngine.getRunGraph(result.value.runId);
+
+      return success(
+        WorkflowLifecycleMutationResultSchema.parse({
+          run: toWorkflowInstanceSummary({
+            runState: result.value,
+            definitionName: projection.summary.definitionName,
+            definitionSource: projection.definitionSource,
+            graph: execGraph,
+          }),
+          evidenceRef: result.evidenceRef,
+        }),
+        0,
+      );
+    },
+    workflow_complete_node: async (params, execution) => {
+      const request = parseWorkflowCompleteNodeRequest(params);
+      const workflowEngine = requireWorkflowEngine(context);
+      const current = await workflowEngine.getState(request.runId);
+      if (!current) {
+        throw new NousError(
+          `Workflow run ${request.runId} was not found`,
+          'WORKFLOW_RUN_NOT_FOUND',
+        );
+      }
+      const projection = await resolveRunProjection(context, current);
+      const lane = buildLifecycleLane(
+        projection.summary.definitionName,
+        request.runId,
+        `complete_node:${request.nodeDefinitionId}`,
+      );
+
+      const transition = {
+        reasonCode: request.reasonCode ?? (request.status === 'failed' ? 'node_failed' : 'node_completed_by_agent'),
+        evidenceRefs: request.evidenceRefs,
+        occurredAt: (context.deps.now ?? (() => new Date().toISOString()))(),
+      };
+
+      const result = await executeWithWitness({
+        context,
+        actionCategory: 'opctl-command',
+        actionRef: lane.lane,
+        projectId: current.projectId,
+        traceId: execution?.traceId,
+        detail: {
+          lane: lane.lane,
+          laneRoot: lane.laneRoot,
+          laneDepth: lane.laneDepth,
+          workflowDefinitionId: current.workflowDefinitionId,
+          nodeDefinitionId: request.nodeDefinitionId,
+          status: request.status,
+        },
+        operation: () =>
+          workflowEngine.completeNode(
+            request.runId,
+            request.nodeDefinitionId,
+            transition,
+          ),
+      });
+
+      const completeGraph = await workflowEngine.getRunGraph(result.value.runId);
+
+      return success(
+        WorkflowLifecycleMutationResultSchema.parse({
+          run: toWorkflowInstanceSummary({
+            runState: result.value,
+            definitionName: projection.summary.definitionName,
+            definitionSource: projection.definitionSource,
+            graph: completeGraph,
+          }),
+          evidenceRef: result.evidenceRef,
         }),
         0,
       );
@@ -1541,12 +1688,15 @@ export function createCapabilityHandlers(
           }),
       });
 
+      const cancelGraph = await workflowEngine.getRunGraph(result.value.runId);
+
       return success(
         WorkflowLifecycleMutationResultSchema.parse({
           run: toWorkflowInstanceSummary({
             runState: result.value,
             definitionName: projection.summary.definitionName,
             definitionSource: projection.definitionSource,
+            graph: cancelGraph,
           }),
           evidenceRef: result.evidenceRef,
         }),

@@ -25,7 +25,7 @@ import {
   getInternalMcpCatalogEntry,
   getVisibleInternalMcpTools,
 } from '../internal-mcp/index.js';
-import { ORCHESTRATOR_SYSTEM_PROMPT } from '../prompts/index.js';
+import { ORCHESTRATOR_SYSTEM_PROMPT, getOrchestratorPrompt } from '../prompts/index.js';
 import { RetryPolicyEvaluator } from '../recovery/retry-policy-evaluator.js';
 import { RollbackPolicyEvaluator } from '../recovery/rollback-policy-evaluator.js';
 import { WorkmodeAdmissionGuard } from '../workmode/admission-guard.js';
@@ -72,6 +72,7 @@ const DEFAULT_SYSTEM_PROMPT = [
   'You are Cortex::System.',
   'You are the long-lived coordination gateway for scheduler, event, and escalation owned work.',
   'Spawn downstream Orchestrator or Worker agents only through lifecycle tools.',
+  'Each dispatched Orchestrator receives an intent-specific prompt based on its dispatch type (workflow, task, skill, or autonomous).',
   'Use inbox context and delegated child execution to preserve canonical runtime truth.',
 ].join('\n');
 
@@ -691,6 +692,7 @@ implements IPrincipalSystemGatewayRuntime, ISystemInboxSubmissionService {
             taskInstructions: string;
             payload?: unknown;
             nodeDefinitionId?: string;
+            dispatchIntent?: import('@nous/shared').DispatchIntent;
           };
           context: {
             agentId: string;
@@ -701,12 +703,13 @@ implements IPrincipalSystemGatewayRuntime, ISystemInboxSubmissionService {
           };
           budget: GatewayBudget;
         }) => {
-          const child = this.createChildGateway(dispatchArgs.request.targetClass);
+          const child = this.createChildGateway(dispatchArgs.request.targetClass, dispatchArgs.request.dispatchIntent);
           const childRunId = this.nextRunId();
           const childTraceId = this.nextRunId();
           return child.run({
             taskInstructions: dispatchArgs.request.taskInstructions,
             payload: dispatchArgs.request.payload,
+            dispatchIntent: dispatchArgs.request.dispatchIntent,
             context: [],
             budget: dispatchArgs.budget ?? DEFAULT_CHILD_BUDGET,
             spawnBudgetCeiling:
@@ -740,7 +743,10 @@ implements IPrincipalSystemGatewayRuntime, ISystemInboxSubmissionService {
     };
   }
 
-  private createChildGateway(targetClass: 'Orchestrator' | 'Worker'): IAgentGateway {
+  private createChildGateway(
+    targetClass: 'Orchestrator' | 'Worker',
+    dispatchIntent?: import('@nous/shared').DispatchIntent,
+  ): IAgentGateway {
     const childAgentId = this.nextGatewayId();
     const bundle = createInternalMcpSurfaceBundle({
       agentClass: targetClass,
@@ -748,16 +754,23 @@ implements IPrincipalSystemGatewayRuntime, ISystemInboxSubmissionService {
       deps: this.createInternalMcpDeps(),
     });
 
+    let baseSystemPrompt: string;
+    if (targetClass === 'Worker') {
+      baseSystemPrompt = this.deps.workerBaseSystemPrompt ?? DEFAULT_WORKER_PROMPT;
+    } else if (this.deps.orchestratorBaseSystemPrompt) {
+      // Dep-injected override takes precedence over intent-based selection.
+      baseSystemPrompt = this.deps.orchestratorBaseSystemPrompt;
+    } else {
+      baseSystemPrompt = getOrchestratorPrompt(dispatchIntent);
+    }
+
     return this.gatewayFactory.create(
       this.createGatewayConfig({
         agentClass: targetClass,
         agentId: childAgentId,
         toolSurface: bundle.toolSurface,
         lifecycleHooks: bundle.lifecycleHooks,
-        baseSystemPrompt:
-          targetClass === 'Orchestrator'
-            ? this.deps.orchestratorBaseSystemPrompt ?? ORCHESTRATOR_SYSTEM_PROMPT
-            : this.deps.workerBaseSystemPrompt ?? DEFAULT_WORKER_PROMPT,
+        baseSystemPrompt,
       }),
     );
   }

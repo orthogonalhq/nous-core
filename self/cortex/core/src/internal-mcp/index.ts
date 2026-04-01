@@ -34,7 +34,8 @@ export {
   resolvePublicMcpRequiredScopes,
 } from './public-tool-mappings.js';
 export {
-  normalizeDispatchParams,
+  normalizeDispatchOrchestratorParams,
+  normalizeDispatchWorkerParams,
   normalizeEscalationParams,
   normalizeObservationParams,
   normalizeTaskCompletionParams,

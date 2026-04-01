@@ -21,9 +21,9 @@ describe('AgentGateway messaging', () => {
           response: 'spawn child',
           toolCalls: [
             {
-              name: 'dispatch_agent',
+              name: 'dispatch_orchestrator',
               params: {
-                targetClass: 'Worker',
+                dispatchIntent: { type: 'task' },
                 taskInstructions: 'Perform the child task.',
                 budget: {
                   maxTurns: 1,
@@ -40,7 +40,7 @@ describe('AgentGateway messaging', () => {
         }),
       ],
       lifecycleHooks: {
-        dispatchAgent: async () => ({
+        dispatchOrchestrator: async () => ({
           status: 'completed',
           output: { child: 'done' },
           v3Packet: createStampedPacket(),
