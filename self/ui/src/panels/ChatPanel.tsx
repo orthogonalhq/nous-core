@@ -13,17 +13,38 @@ import {
   BUFFER_MAX,
 } from '../components/thought'
 import type { ThoughtEvent } from '../components/thought'
+import { parseCardContent, renderCardTree } from '../components/chat/openui-adapter'
+import type { RenderCardContext, CardAction } from '../components/chat/openui-adapter'
+import { useCardActionHandler } from '../components/chat/hooks/useCardActionHandler'
+// Side-effect import: registers all 5 card types at module evaluation time
+import '../components/chat/cards/index'
+
+const OPENUI_PREFIX = '%%openui\n'
 
 export interface ChatMessage {
   role: 'user' | 'assistant'
   content: string
   timestamp: string
   traceId?: string
+  contentType?: 'text' | 'openui'
+  actionOutcome?: {
+    actionType: string
+    label: string
+    timestamp: string
+  }
+}
+
+export interface ActionResult {
+  ok: boolean
+  message: string
+  traceId?: string
+  contentType?: 'text' | 'openui'
 }
 
 export interface ChatAPI {
-  send: (message: string) => Promise<{ response: string; traceId: string }>
+  send: (message: string) => Promise<{ response: string; traceId: string; contentType?: 'text' | 'openui' }>
   getHistory: () => Promise<ChatMessage[]>
+  sendAction?: (action: import('../components/chat/openui-adapter').CardAction) => Promise<ActionResult>
 }
 
 export interface ChatPanelCoreProps {
@@ -55,6 +76,100 @@ interface ChatPanelProps extends IDockviewPanelProps {
   params: { chatApi?: ChatAPI }
 }
 
+/**
+ * Determine whether a message should be treated as OpenUI card content.
+ * Uses contentType metadata (primary) with %%openui\n prefix fallback (secondary).
+ * Returns the content to render (with prefix stripped if needed) and the detected type.
+ */
+function detectCardContent(msg: ChatMessage): { isCard: boolean; content: string } {
+  if (msg.contentType === 'openui') {
+    return { isCard: true, content: msg.content }
+  }
+  if (!msg.contentType && msg.content.startsWith(OPENUI_PREFIX)) {
+    return { isCard: true, content: msg.content.slice(OPENUI_PREFIX.length) }
+  }
+  return { isCard: false, content: msg.content }
+}
+
+/**
+ * Render an OpenUI card message. Falls back to plain text on parse failure.
+ * Never throws.
+ */
+function ChatCardRenderer({
+  content,
+  stale,
+  actionOutcome,
+  onAction,
+}: {
+  content: string
+  stale: boolean
+  actionOutcome?: ChatMessage['actionOutcome']
+  onAction?: (action: CardAction) => void
+}) {
+  try {
+    const parsed = parseCardContent(content)
+    if (!parsed.ok) {
+      return (
+        <div data-testid="card-parse-error">
+          <div style={{ whiteSpace: 'pre-wrap' }}>{content}</div>
+          <div style={{
+            fontSize: 'var(--nous-font-size-2xs)',
+            color: 'var(--nous-fg-subtle)',
+            marginTop: 'var(--nous-space-xs)',
+          }}>
+            Could not render card
+          </div>
+        </div>
+      )
+    }
+
+    const context: RenderCardContext = {
+      stale,
+      ...(actionOutcome ? { actionOutcome } : {}),
+    }
+    const handlers = stale
+      ? { onAction: () => {} }
+      : { onAction: onAction ?? (() => {}) }
+
+    return (
+      <div data-testid="openui-card-container" {...(stale ? { 'data-stale': 'true' } : {})}>
+        {stale && <span data-testid="stale-card" style={{ display: 'none' }} />}
+        {renderCardTree(parsed.tree, handlers, context)}
+        {actionOutcome && (
+          <div
+            data-testid="action-outcome-badge"
+            style={{
+              fontSize: 'var(--nous-font-size-2xs)',
+              color: 'var(--nous-fg-muted)',
+              marginTop: 'var(--nous-space-xs)',
+              padding: 'var(--nous-space-xs) var(--nous-space-sm)',
+              background: 'var(--nous-bg-elevated)',
+              borderRadius: 'var(--nous-radius-xs)',
+              display: 'inline-block',
+            }}
+          >
+            {actionOutcome.label}
+          </div>
+        )}
+      </div>
+    )
+  } catch {
+    // Never-throws invariant: fall back to plain text
+    return (
+      <div data-testid="card-parse-error">
+        <div style={{ whiteSpace: 'pre-wrap' }}>{content}</div>
+        <div style={{
+          fontSize: 'var(--nous-font-size-2xs)',
+          color: 'var(--nous-fg-subtle)',
+          marginTop: 'var(--nous-space-xs)',
+        }}>
+          Could not render card
+        </div>
+      </div>
+    )
+  }
+}
+
 export function ChatPanel(props: ChatPanelProps | ChatPanelCoreProps) {
   const [messages, setMessages] = useState<ChatMessage[]>([])
   const [input, setInput] = useState('')
@@ -75,6 +190,8 @@ export function ChatPanel(props: ChatPanelProps | ChatPanelCoreProps) {
   const chatApi = 'params' in props ? props.params?.chatApi : props.chatApi
   const conversationContext = 'conversationContext' in props ? props.conversationContext : undefined
   const className = 'className' in props ? props.className : undefined
+
+  const handleCardAction = useCardActionHandler({ chatApi: chatApi ?? {}, setMessages })
 
   useEffect(() => {
     if (chatApi?.getHistory) {
@@ -136,6 +253,7 @@ export function ChatPanel(props: ChatPanelProps | ChatPanelCoreProps) {
         content: result.response,
         timestamp: new Date().toISOString(),
         traceId: result.traceId,
+        contentType: result.contentType,
       }])
     } catch (e) {
       setMessages(prev => [...prev, { role: 'assistant', content: 'Error: could not reach Nous.', timestamp: new Date().toISOString() }])
@@ -185,6 +303,14 @@ export function ChatPanel(props: ChatPanelProps | ChatPanelCoreProps) {
       ? 'Ambient'
       : 'Principal ↔ Cortex'
 
+  // Find the index of the last assistant message for stale detection
+  const lastAssistantIndex = (() => {
+    for (let i = messages.length - 1; i >= 0; i--) {
+      if (messages[i].role === 'assistant') return i
+    }
+    return -1
+  })()
+
   return (
     <div className={clsx(className)} style={{ display: 'flex', flexDirection: 'column', height: '100%', color: 'var(--nous-fg)' }}>
       {/* Header */}
@@ -213,20 +339,35 @@ export function ChatPanel(props: ChatPanelProps | ChatPanelCoreProps) {
             {historyError}
           </div>
         )}
-        {messages.map((msg, i) => (
-          <div key={i} style={{ display: 'flex', flexDirection: 'column', alignItems: msg.role === 'user' ? 'flex-end' : 'flex-start' }}>
-            <div style={{
-              maxWidth: '80%', padding: 'var(--nous-space-md) var(--nous-space-xl)', borderRadius: 'var(--nous-radius-md)', fontSize: 'var(--nous-font-size-base)', lineHeight: '1.5',
-              background: msg.role === 'user' ? 'var(--nous-chat-user-bg)' : 'var(--nous-bg-elevated)',
-              color: 'var(--nous-fg)',
-            }}>
-              {msg.content}
+        {messages.map((msg, i) => {
+          const isAssistant = msg.role === 'assistant'
+          const { isCard, content: cardContent } = isAssistant ? detectCardContent(msg) : { isCard: false, content: msg.content }
+          const isStale = isAssistant && (!!msg.actionOutcome || i !== lastAssistantIndex)
+
+          return (
+            <div key={i} style={{ display: 'flex', flexDirection: 'column', alignItems: msg.role === 'user' ? 'flex-end' : 'flex-start' }}>
+              <div style={{
+                maxWidth: '80%', padding: 'var(--nous-space-md) var(--nous-space-xl)', borderRadius: 'var(--nous-radius-md)', fontSize: 'var(--nous-font-size-base)', lineHeight: '1.5',
+                background: msg.role === 'user' ? 'var(--nous-chat-user-bg)' : 'var(--nous-bg-elevated)',
+                color: 'var(--nous-fg)',
+              }}>
+                {isCard ? (
+                  <ChatCardRenderer
+                    content={cardContent}
+                    stale={isStale}
+                    actionOutcome={msg.actionOutcome}
+                    onAction={isStale ? undefined : (action) => handleCardAction(action, i)}
+                  />
+                ) : (
+                  msg.content
+                )}
+              </div>
+              {isAssistant && msg.traceId && !sending && (
+                <ThoughtSummary traceId={msg.traceId} />
+              )}
             </div>
-            {msg.role === 'assistant' && msg.traceId && !sending && (
-              <ThoughtSummary traceId={msg.traceId} />
-            )}
-          </div>
-        ))}
+          )
+        })}
         {thoughts.length > 0 && (
           <div style={{ display: 'flex', justifyContent: 'flex-start' }}>
             <div style={{ maxWidth: '80%' }}>

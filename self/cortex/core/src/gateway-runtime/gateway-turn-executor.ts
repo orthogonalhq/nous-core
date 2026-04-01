@@ -38,6 +38,8 @@ import { WorkmodeAdmissionGuard } from '../workmode/admission-guard.js';
 import { parseModelOutput } from '../output-parser.js';
 import { GatewayTraceRecorder } from './trace-recorder.js';
 
+import { CARD_PROMPT_FRAGMENT } from './card-prompt-fragment.js';
+
 const DEFAULT_CHAT_BUDGET = {
   maxTurns: 4,
   maxTokens: 1200,
@@ -212,7 +214,7 @@ export class GatewayBackedTurnExecutor implements ICoreExecutor {
     });
     this.emitLifecycle(traceId, 'gateway-run', 'completed');
 
-    const response = this.resolveResponse(result);
+    const resolved = this.resolveResponse(result);
     this.emitLifecycle(traceId, 'response-resolved', 'completed');
 
     const pfcDecisions =
@@ -230,9 +232,10 @@ export class GatewayBackedTurnExecutor implements ICoreExecutor {
     await this.finalizeStmTurn(
       validInput.projectId,
       validInput.message,
-      response,
+      resolved.response,
       validInput.traceId,
       result.evidenceRefs,
+      resolved.contentType,
     );
     this.emitLifecycle(traceId, 'stm-finalize', 'completed');
 
@@ -242,7 +245,7 @@ export class GatewayBackedTurnExecutor implements ICoreExecutor {
       startedAt,
       completedAt: this.now(),
       input: validInput.message,
-      output: response,
+      output: resolved.response,
       pfcDecisions,
       evidenceRefs: result.evidenceRefs,
     });
@@ -251,10 +254,11 @@ export class GatewayBackedTurnExecutor implements ICoreExecutor {
     this.deps.pfcEngine?.setTraceId('');
     this.emitLifecycle(traceId, 'turn-complete', 'completed');
     return {
-      response,
+      response: resolved.response,
       traceId: validInput.traceId,
       memoryCandidates: [],
       pfcDecisions,
+      contentType: resolved.contentType,
     };
   }
 
@@ -313,6 +317,7 @@ export class GatewayBackedTurnExecutor implements ICoreExecutor {
         'You are the gateway-backed compatibility executor for direct chat turns.',
         'You cannot dispatch child agents.',
         'Always finish with task_complete.',
+        CARD_PROMPT_FRAGMENT,
       ].join('\n'),
       modelRouter: this.deps.modelRouter,
       getProvider: (providerId) =>
@@ -358,7 +363,7 @@ export class GatewayBackedTurnExecutor implements ICoreExecutor {
               {
                 name: 'task_complete',
                 params: {
-                  output: { response: finalResponse },
+                  output: { response: finalResponse, contentType: parsedOutput.contentType },
                   summary: 'chat turn completed',
                 },
               },
@@ -400,31 +405,32 @@ export class GatewayBackedTurnExecutor implements ICoreExecutor {
 
   private resolveResponse(
     result: Awaited<ReturnType<ReturnType<GatewayBackedTurnExecutor['createGateway']>['run']>>,
-  ): string {
+  ): { response: string; contentType?: 'text' | 'openui' } {
     if (result.status === 'completed') {
-      const output = result.output as { response?: unknown } | string;
+      const output = result.output as { response?: unknown; contentType?: unknown } | string;
       if (typeof output === 'string') {
-        return output;
+        return { response: output };
       }
       if (typeof output?.response === 'string') {
-        return output.response;
+        const contentType = output.contentType === 'openui' ? 'openui' as const : output.contentType === 'text' ? 'text' as const : undefined;
+        return { response: output.response, contentType };
       }
-      return JSON.stringify(output);
+      return { response: JSON.stringify(output) };
     }
 
     if (result.status === 'escalated') {
-      return `[escalated: ${result.reason}]`;
+      return { response: `[escalated: ${result.reason}]` };
     }
     if (result.status === 'budget_exhausted') {
-      return '[budget exhausted]';
+      return { response: '[budget exhausted]' };
     }
     if (result.status === 'aborted') {
-      return `[aborted: ${result.reason}]`;
+      return { response: `[aborted: ${result.reason}]` };
     }
     if (result.status === 'suspended') {
-      return `[suspended: ${result.reason}]`;
+      return { response: `[suspended: ${result.reason}]` };
     }
-    return `[error: ${result.reason}]`;
+    return { response: `[error: ${result.reason}]` };
   }
 
   private async finalizeStmTurn(
@@ -433,6 +439,7 @@ export class GatewayBackedTurnExecutor implements ICoreExecutor {
     assistantResponse: string,
     traceId: TraceId,
     evidenceRefs: TraceEvidenceReference[],
+    contentType?: 'text' | 'openui',
   ): Promise<void> {
     if (!projectId) {
       return;
@@ -445,11 +452,15 @@ export class GatewayBackedTurnExecutor implements ICoreExecutor {
         content: userMessage,
         timestamp,
       });
-      await this.deps.stmStore.append(projectId, {
+      const assistantEntry: { role: 'assistant'; content: string; timestamp: string; metadata?: Record<string, unknown> } = {
         role: 'assistant',
         content: assistantResponse,
         timestamp,
-      });
+      };
+      if (contentType && contentType !== 'text') {
+        assistantEntry.metadata = { contentType };
+      }
+      await this.deps.stmStore.append(projectId, assistantEntry);
 
       const stmContext = await this.deps.stmStore.getContext(projectId);
       if (!stmContext.compactionState?.requiresCompaction) {

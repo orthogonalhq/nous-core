@@ -37,6 +37,7 @@ export * from './chat-intent.js';
 export * from './chat-turn.js';
 export * from './chat-thread.js';
 export * from './chat-node-context.js';
+export * from './card-action.js';
 export * from './chat-card.js';
 export * from './chat-scope.js';
 export * from './ingress-trigger.js';
