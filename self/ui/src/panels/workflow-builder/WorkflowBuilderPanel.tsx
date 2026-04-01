@@ -604,20 +604,19 @@ const CanvasDropTarget = forwardRef<
           </div>
           <input
             ref={(el) => {
-              // Native capture-phase listener to prevent React Flow from eating keystrokes
-              if (el) {
-                el.addEventListener('keydown', (evt) => evt.stopPropagation(), true)
-                el.focus()
-              }
+              if (!el) return
+              // Focus on mount
+              requestAnimationFrame(() => el.focus())
             }}
             type="text"
             value={nameInputValue}
-            onChange={(e) => setNameInputValue(e.target.value)}
-            onKeyDown={(e) => {
+            onKeyDownCapture={(e) => {
+              // Stop at capture phase before React Flow sees it
               e.stopPropagation()
-              if (e.key === 'Enter') handleNameSubmit()
-              if (e.key === 'Escape') { setShowNameInput(false); setPendingNameAction(null) }
+              if (e.key === 'Enter') { e.preventDefault(); handleNameSubmit() }
+              if (e.key === 'Escape') { e.preventDefault(); setShowNameInput(false); setPendingNameAction(null) }
             }}
+            onChange={(e) => setNameInputValue(e.target.value)}
             style={{
               width: '100%',
               padding: 'var(--nous-space-xs) var(--nous-space-sm)',
