@@ -11,6 +11,7 @@ import {
   useReactFlow,
 } from '@xyflow/react'
 import type { IDockviewPanelProps } from 'dockview-react'
+import { trpc } from '@nous/transport'
 import { ShellContext } from '../../components/shell/ShellContext'
 import type { WorkflowBuilderNode, WorkflowBuilderEdge, ContextMenuState } from '../../types/workflow-builder'
 import { BuilderModeProvider, useBuilderMode } from './context/BuilderModeContext'
@@ -213,6 +214,23 @@ const CanvasDropTarget = forwardRef<
       await loadFromServer(definitionId)
     },
     [loadFromServer],
+  )
+
+  // ─── Delete workflow from picker ─────────────────────────────────────
+
+  const deleteMutation = trpc.projects.deleteWorkflowDefinition.useMutation()
+  const trpcUtils = trpc.useUtils()
+  const handleDeleteWorkflow = useCallback(
+    async (definitionId: string) => {
+      if (!projectId) return
+      try {
+        await deleteMutation.mutateAsync({ projectId, definitionId })
+        void trpcUtils.projects.listWorkflowDefinitions.invalidate({ projectId })
+      } catch (error) {
+        console.error('[WorkflowBuilder] Failed to delete workflow:', error)
+      }
+    },
+    [projectId, deleteMutation, trpcUtils],
   )
 
   // ─── Validate toggle handler (SP 2.5) ──────────────────────────────────
@@ -550,6 +568,7 @@ const CanvasDropTarget = forwardRef<
               currentDefinitionId={currentDefinitionId}
               onSelectWorkflow={(id) => void handleSelectWorkflow(id)}
               onNewWorkflow={handleNewWorkflow}
+              onDeleteWorkflow={(id) => void handleDeleteWorkflow(id)}
               containerRef={canvasRef}
             />
           )}

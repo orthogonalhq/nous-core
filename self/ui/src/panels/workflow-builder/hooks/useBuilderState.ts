@@ -167,8 +167,8 @@ export function useBuilderState(
   const [isDirty, setIsDirty] = useState(false)
   const [isSaving, setIsSaving] = useState(false)
 
-  // Persistence state
-  const definitionIdRef = useRef<string | null>(workflowDefinitionId ?? null)
+  // Persistence state — use state (not ref) so React re-renders picker highlight
+  const [currentDefId, setCurrentDefId] = useState<string | null>(workflowDefinitionId ?? null)
 
   // Spec metadata for outbound serialization
   const specMetaRef = useRef(DEFAULT_SPEC_META)
@@ -482,7 +482,7 @@ export function useBuilderState(
             )
             setNodes([])
             setEdges([])
-            definitionIdRef.current = defId
+            setCurrentDefId(defId)
             setIsDirty(false)
             specMetaRef.current = { name: definition.name ?? 'Untitled Workflow', version: 1 }
             return
@@ -500,14 +500,14 @@ export function useBuilderState(
                 version: result.spec.version,
               }
             }
-            definitionIdRef.current = defId
+            setCurrentDefId(defId)
           }
         })
         .catch((error) => {
           console.warn('[useBuilderState] Failed to fetch workflow definition:', error)
           setNodes([])
           setEdges([])
-          definitionIdRef.current = null
+          setCurrentDefId(null)
         })
     },
     [sync, undoRedo, utils],
@@ -539,7 +539,7 @@ export function useBuilderState(
     const defaultDef = defaultQuery.data.find(
       (d: { id: string; isDefault?: boolean }) => d.isDefault,
     )
-    if (defaultDef && defaultDef.id !== definitionIdRef.current) {
+    if (defaultDef && defaultDef.id !== currentDefId) {
       initFetchedRef.current = true
       fetchAndLoadDefinition(projectId, defaultDef.id)
     }
@@ -559,14 +559,26 @@ export function useBuilderState(
       return null
     }
 
+    // Prompt for name on first save (no existing definitionId)
+    let saveName: string | undefined
+    if (!currentDefId) {
+      const prompted = typeof window !== 'undefined' && typeof window.prompt === 'function'
+        ? window.prompt('Workflow name:', specResult.spec.name || 'Untitled Workflow')
+        : specResult.spec.name || 'Untitled Workflow'
+      if (prompted === null || prompted === undefined) return null // user cancelled or no prompt available
+      saveName = (typeof prompted === 'string' ? prompted.trim() : '') || 'Untitled Workflow'
+      specMetaRef.current = { ...specMetaRef.current, name: saveName }
+    }
+
     setIsSaving(true)
     try {
       const result = await saveMutation.mutateAsync({
         projectId,
         specYaml: specResult.yaml,
-        definitionId: definitionIdRef.current ?? undefined,
+        definitionId: currentDefId ?? undefined,
+        name: saveName,
       })
-      definitionIdRef.current = result.definitionId
+      setCurrentDefId(result.definitionId)
       markClean()
       // Invalidate list query so default lookup stays fresh (dockview caching)
       void utils.projects.listWorkflowDefinitions.invalidate({ projectId })
@@ -577,7 +589,7 @@ export function useBuilderState(
     } finally {
       setIsSaving(false)
     }
-  }, [projectId, getCurrentSpec, saveMutation, markClean, utils])
+  }, [projectId, getCurrentSpec, saveMutation, markClean, utils, currentDefId])
 
   const saveAsNew = useCallback(async (name?: string): Promise<{ definitionId: string } | null> => {
     if (!projectId) return null
@@ -597,7 +609,7 @@ export function useBuilderState(
         specYaml: specResult.yaml,
         name: name ?? specResult.spec.name,
       })
-      definitionIdRef.current = result.definitionId
+      setCurrentDefId(result.definitionId)
       markClean()
       return { definitionId: result.definitionId }
     } catch (error) {
@@ -611,7 +623,7 @@ export function useBuilderState(
   const resetToEmpty = useCallback(() => {
     setNodes([])
     setEdges([])
-    definitionIdRef.current = null
+    setCurrentDefId(null)
     undoRedo.clearHistory()
     setIsDirty(false)
     setValidationErrors([])
@@ -691,6 +703,6 @@ export function useBuilderState(
       [projectId, fetchAndLoadDefinition],
     ),
     isSaving,
-    currentDefinitionId: definitionIdRef.current,
+    currentDefinitionId: currentDefId,
   }
 }

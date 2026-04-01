@@ -7,7 +7,16 @@
 import { vi } from 'vitest'
 
 export const mockMutateAsync = vi.fn()
+export const mockDeleteMutateAsync = vi.fn()
 export const mockFetch = vi.fn().mockResolvedValue({ specYaml: undefined })
+
+/** Configurable return value for listWorkflowDefinitions.useQuery. */
+export const mockListWorkflowDefinitionsResult = {
+  data: [] as Array<{ id: string; name: string; version: number; isDefault?: boolean }>,
+  isLoading: false,
+  error: null,
+  refetch: vi.fn(),
+}
 
 export const trpcMock = {
   trpc: {
@@ -16,10 +25,13 @@ export const trpcMock = {
         useMutation: () => ({ mutateAsync: mockMutateAsync }),
       },
       listWorkflowDefinitions: {
-        useQuery: vi.fn().mockReturnValue({ data: [], isLoading: false, error: null, refetch: vi.fn() }),
+        useQuery: vi.fn().mockImplementation(() => mockListWorkflowDefinitionsResult),
       },
       getWorkflowDefinition: {
         query: mockFetch,
+      },
+      deleteWorkflowDefinition: {
+        useMutation: () => ({ mutateAsync: mockDeleteMutateAsync }),
       },
     },
     useUtils: () => ({

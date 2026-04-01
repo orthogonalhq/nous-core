@@ -6,7 +6,7 @@ import { reactFlowMock } from './react-flow-mock'
 
 vi.mock('@xyflow/react', () => reactFlowMock)
 
-import { trpcMock, mockMutateAsync, mockFetch } from './trpc-mock'
+import { trpcMock, mockMutateAsync, mockFetch, mockListWorkflowDefinitionsResult } from './trpc-mock'
 vi.mock('@nous/transport', () => trpcMock)
 
 import { useBuilderState } from '../hooks/useBuilderState'
@@ -648,6 +648,8 @@ describe('useBuilderState', () => {
     beforeEach(() => {
       mockMutateAsync.mockReset()
       mockFetch.mockReset()
+      mockListWorkflowDefinitionsResult.data = []
+      mockListWorkflowDefinitionsResult.isLoading = false
     })
 
     // Tier 1 — Contract
@@ -695,6 +697,13 @@ describe('useBuilderState', () => {
     // Tier 2 — Behavior
 
     describe('Tier 2 — Behavior', () => {
+      beforeEach(() => {
+        // Mock window.prompt for first-save naming prompt
+        vi.spyOn(window, 'prompt').mockReturnValue('Test Workflow')
+      })
+      afterEach(() => {
+        vi.restoreAllMocks()
+      })
       it('saveToServer calls tRPC mutation with correct args and marks clean on success', async () => {
         mockMutateAsync.mockResolvedValue({ definitionId: 'def-123', validation: { valid: true } })
 
@@ -801,10 +810,77 @@ describe('useBuilderState', () => {
         expect(result.current.edges).toHaveLength(DEMO_WORKFLOW_EDGES.length)
       })
 
-      it('initialization with projectId but no workflowDefinitionId starts empty', () => {
+      it('initialization with projectId but no workflowDefinitionId starts empty when no default exists', () => {
         const { result } = renderHook(() =>
           useBuilderState('authoring', { projectId: 'proj-1' }),
         )
+        expect(result.current.nodes).toHaveLength(0)
+        expect(result.current.edges).toHaveLength(0)
+      })
+
+      it('loads default workflow when projectId provided and project has a default definition', async () => {
+        const TEST_SPEC_YAML = `
+name: Saved Workflow
+version: 1
+nodes:
+  - id: trigger-saved
+    name: Saved Trigger
+    type: nous.trigger.webhook
+    position: [100, 50]
+connections: []
+`
+        // Configure the list query to return a default definition
+        mockListWorkflowDefinitionsResult.data = [
+          { id: 'def-default-1', name: 'Saved Workflow', version: 1, isDefault: true },
+        ]
+        mockListWorkflowDefinitionsResult.isLoading = false
+
+        // Configure the fetch to return specYaml for that definition
+        mockFetch.mockResolvedValue({ specYaml: TEST_SPEC_YAML })
+
+        const { result } = renderHook(() =>
+          useBuilderState('authoring', { projectId: 'proj-1' }),
+        )
+
+        // Wait for the async fetch to resolve
+        await act(async () => {
+          await new Promise((resolve) => setTimeout(resolve, 10))
+        })
+
+        // Should have fetched the default definition
+        expect(mockFetch).toHaveBeenCalledWith(
+          expect.objectContaining({
+            projectId: 'proj-1',
+            definitionId: 'def-default-1',
+          }),
+        )
+
+        // Should have loaded the spec into builder state
+        expect(result.current.nodes).toHaveLength(1)
+        expect(result.current.nodes[0].id).toBe('trigger-saved')
+        expect(result.current.currentDefinitionId).toBe('def-default-1')
+        expect(result.current.isDirty).toBe(false)
+      })
+
+      it('stays empty when projectId provided but no definitions are marked default', async () => {
+        // List returns definitions but none is default
+        mockListWorkflowDefinitionsResult.data = [
+          { id: 'def-other', name: 'Other Workflow', version: 1, isDefault: false },
+        ]
+        mockListWorkflowDefinitionsResult.isLoading = false
+
+        const { result } = renderHook(() =>
+          useBuilderState('authoring', { projectId: 'proj-1' }),
+        )
+
+        await act(async () => {
+          await new Promise((resolve) => setTimeout(resolve, 10))
+        })
+
+        // Should NOT have fetched any definition
+        expect(mockFetch).not.toHaveBeenCalled()
+
+        // Should remain empty
         expect(result.current.nodes).toHaveLength(0)
         expect(result.current.edges).toHaveLength(0)
       })
@@ -844,6 +920,13 @@ describe('useBuilderState', () => {
     // Tier 3 — Edge Cases
 
     describe('Tier 3 — Edge Cases', () => {
+      beforeEach(() => {
+        vi.spyOn(window, 'prompt').mockReturnValue('Test Workflow')
+      })
+      afterEach(() => {
+        vi.restoreAllMocks()
+      })
+
       it('saveToServer while already saving is guarded by isSaving', async () => {
         let resolveFirst: (value: unknown) => void
         const firstPromise = new Promise((resolve) => {

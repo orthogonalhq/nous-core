@@ -8,6 +8,7 @@ export interface WorkflowPickerProps {
   currentDefinitionId: string | null
   onSelectWorkflow: (definitionId: string) => void
   onNewWorkflow: () => void
+  onDeleteWorkflow?: (definitionId: string) => void
   containerRef: React.RefObject<HTMLDivElement | null>
 }
 
@@ -90,11 +91,24 @@ const errorStyle: React.CSSProperties = {
   textAlign: 'center',
 }
 
+const deleteButtonStyle: React.CSSProperties = {
+  background: 'transparent',
+  border: 'none',
+  color: 'var(--nous-fg-subtle)',
+  cursor: 'pointer',
+  padding: '2px 4px',
+  fontSize: '11px',
+  lineHeight: 1,
+  borderRadius: '3px',
+  opacity: 0.6,
+}
+
 export function WorkflowPicker({
   projectId,
   currentDefinitionId,
   onSelectWorkflow,
   onNewWorkflow,
+  onDeleteWorkflow,
 }: WorkflowPickerProps) {
   const { data: definitions, isLoading, error, refetch } = trpc.projects.listWorkflowDefinitions.useQuery(
     { projectId },
@@ -170,6 +184,21 @@ export function WorkflowPicker({
               <span style={{ display: 'flex', gap: 'var(--nous-space-xs)', alignItems: 'center' }}>
                 <span style={badgeStyle}>v{def.version}</span>
                 {def.isDefault && <span style={badgeStyle}>default</span>}
+                {onDeleteWorkflow && def.id !== currentDefinitionId && (
+                  <button
+                    type="button"
+                    style={deleteButtonStyle}
+                    title="Delete workflow"
+                    onClick={(e) => {
+                      e.stopPropagation()
+                      if (window.confirm(`Delete "${def.name}"?`)) {
+                        onDeleteWorkflow(def.id)
+                      }
+                    }}
+                  >
+                    <i className="codicon codicon-trash" style={{ fontSize: 11 }} />
+                  </button>
+                )}
               </span>
             </div>
           ))}
