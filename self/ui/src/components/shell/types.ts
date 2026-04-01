@@ -120,12 +120,40 @@ export interface ObservePanelProps {
   className?: string
 }
 
+// --- Chat Stage Types ---
+
+export const ChatStageSchema = z.enum(['small', 'ambient_small', 'ambient_large', 'peek', 'full'])
+export type ChatStage = z.infer<typeof ChatStageSchema>
+
+/** Return type of the useChatStageManager hook */
+export interface ChatStageManagerReturn {
+  chatStage: ChatStage
+  /** User sent a message */
+  signalSending: () => void
+  /** Agent started an inference call */
+  signalInferenceStart: () => void
+  /** PFC emitted a decision thought */
+  signalPfcDecision: () => void
+  /** Turn completed — start idle timers */
+  signalTurnComplete: () => void
+  /** User clicked expand chevron (any non-full -> peek) */
+  expandToPeek: () => void
+  /** User clicked maximize chevron (peek -> full) */
+  expandToFull: () => void
+  /** User clicked minimize chevron (full -> peek) */
+  minimizeToPeek: () => void
+  /** Collapse to small (click outside or explicit dismiss) */
+  collapseToSmall: () => void
+  /** Handler for click-outside events */
+  handleClickOutside: () => void
+}
+
 /** Props for the ChatSurface adapter */
 export const ChatSurfacePropsSchema = z.object({
   chatApi: z.custom<Record<string, unknown>>(() => true).optional(),
   className: z.string().optional(),
-  stage: z.enum(['ambient', 'peek', 'full']).optional(),
-  onStageChange: z.custom<(stage: 'ambient' | 'peek' | 'full') => void>(() => true).optional(),
+  stage: ChatStageSchema.optional(),
+  onStageChange: z.custom<(stage: ChatStage) => void>(() => true).optional(),
 })
 export interface ChatSurfaceProps {
   chatApi?: import('../../panels/ChatPanel').ChatAPI
@@ -264,9 +292,6 @@ export interface CommandPaletteProps {
 
 // --- Simple Shell Types ---
 
-export const ChatStageSchema = z.enum(['ambient', 'peek', 'full'])
-export type ChatStage = z.infer<typeof ChatStageSchema>
-
 export const SidebarTopNavItemSchema = z.object({
   id: z.string().min(1),
   label: z.string().min(1),
@@ -338,6 +363,11 @@ export const SimpleShellLayoutPropsSchema = z.object({
     (value) => typeof value === 'function',
     'chatSlot render function is required',
   ),
+  chatStage: ChatStageSchema.optional(),
+  onClickOutside: z.custom<() => void>(
+    (value) => typeof value === 'function',
+    'onClickOutside function is required',
+  ).optional(),
   breakpoint: ShellBreakpointSchema.optional(),
   onColumnResize: z.custom<(widths: { sidebar: number; observe: number }) => void>(
     (value) => typeof value === 'function',

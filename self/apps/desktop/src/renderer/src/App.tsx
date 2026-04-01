@@ -24,12 +24,13 @@ import {
   CommandPalette,
   ProjectSwitcherRail,
   AssetSidebar,
+  useChatStageManager,
   type ContentRouterRenderProps,
   type ShellMode,
   type CommandGroup,
   type ChatStage,
 } from '@nous/ui/components'
-import { TransportProvider, createDesktopTransport, trpc } from '@nous/transport'
+import { TransportProvider, createDesktopTransport, trpc, useEventSubscription } from '@nous/transport'
 import { FirstRunWizard } from './components/FirstRunWizard'
 import { TitleBar } from './components/TitleBar'
 import { StatusBar } from './components/StatusBar'
@@ -693,18 +694,11 @@ export function App() {
         commands={commands}
       />
       {mode === 'simple' ? (
-        <SimpleShellLayout
-          projectRail={<DesktopProjectRail />}
-          sidebar={<DesktopAssetSidebarConnected sections={desktopSidebarSections} />}
-          content={
-            <ContentRouter
-              activeRoute={activeRoute}
-              routes={simpleModeRoutes}
-              onNavigate={handleNavigate}
-            />
-          }
-          observe={<ObservePanel />}
-          chatSlot={({ stage, onStageChange }) => <ConnectedChatSurface stage={stage} onStageChange={onStageChange} />}
+        <DesktopSimpleShell
+          activeRoute={activeRoute}
+          handleNavigate={handleNavigate}
+          simpleModeRoutes={simpleModeRoutes}
+          desktopSidebarSections={desktopSidebarSections}
         />
       ) : (
         <DockviewShell
@@ -802,6 +796,58 @@ function DesktopShellWithProject({
     >
       {children}
     </ShellProvider>
+  )
+}
+
+// ─── Desktop Simple Shell (wires chat stage manager + SSE) ───────────────────
+
+function DesktopSimpleShell({
+  activeRoute,
+  handleNavigate,
+  simpleModeRoutes,
+  desktopSidebarSections,
+}: {
+  activeRoute: string
+  handleNavigate: (routeId: string) => void
+  simpleModeRoutes: Record<string, any>
+  desktopSidebarSections: import('@nous/ui/components').AssetSection[]
+}) {
+  const chatStageManager = useChatStageManager()
+
+  // Wire SSE events to chat stage manager signals
+  useEventSubscription({
+    channels: ['inference:stream-start', 'thought:pfc-decision', 'thought:turn-lifecycle'],
+    onEvent: (channel, payload) => {
+      if (channel === 'inference:stream-start') {
+        chatStageManager.signalInferenceStart()
+      } else if (channel === 'thought:pfc-decision') {
+        chatStageManager.signalPfcDecision()
+      } else if (channel === 'thought:turn-lifecycle') {
+        const p = payload as Record<string, unknown>
+        if (p.phase === 'turn-complete') {
+          chatStageManager.signalTurnComplete()
+        }
+      }
+    },
+    enabled: true,
+  })
+
+  return (
+    <SimpleShellLayout
+      projectRail={<DesktopProjectRail />}
+      sidebar={<DesktopAssetSidebarConnected sections={desktopSidebarSections} />}
+      content={
+        <ContentRouter
+          activeRoute={activeRoute}
+          routes={simpleModeRoutes}
+          onNavigate={handleNavigate}
+        />
+      }
+      observe={<ObservePanel />}
+      chatStage={chatStageManager.chatStage}
+      onClickOutside={chatStageManager.handleClickOutside}
+      chatSlot={({ stage, onStageChange }) => <ConnectedChatSurface stage={stage} onStageChange={onStageChange} />}
+    />
   )
 }
 

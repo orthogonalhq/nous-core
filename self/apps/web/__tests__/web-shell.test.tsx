@@ -23,7 +23,7 @@ vi.mock('@nous/ui/components', () => ({
     return React.createElement('div', { 'data-testid': 'shell-layout' }, props.rail, props.chat, props.content, props.observe)
   },
   SimpleShellLayout: (props: any) => {
-    const chat = typeof props.chatSlot === 'function' ? props.chatSlot({ stage: 'ambient', onStageChange: () => {} }) : null
+    const chat = typeof props.chatSlot === 'function' ? props.chatSlot({ stage: 'small', onStageChange: () => {} }) : null
     return React.createElement('div', { 'data-testid': 'simple-shell-layout' }, props.projectRail, props.sidebar, props.content, props.observe, chat)
   },
   NavigationRail: (props: any) => {
@@ -39,7 +39,7 @@ vi.mock('@nous/ui/components', () => ({
   },
   AssetSidebar: (props: any) => {
     return React.createElement('div', { 'data-testid': 'asset-sidebar', 'data-active-route': props.activeRoute },
-      typeof props.chatSlot === 'function' ? props.chatSlot({ stage: 'ambient', onStageChange: () => {} }) : null
+      typeof props.chatSlot === 'function' ? props.chatSlot({ stage: 'small', onStageChange: () => {} }) : null
     )
   },
   CollapsibleObserveEdge: (props: any) => {
@@ -47,6 +47,18 @@ vi.mock('@nous/ui/components', () => ({
   },
   ChatSurface: () => React.createElement('div', { 'data-testid': 'chat-surface' }),
   ObservePanel: () => React.createElement('div', { 'data-testid': 'observe-panel' }),
+  useChatStageManager: () => ({
+    chatStage: 'small',
+    signalSending: vi.fn(),
+    signalInferenceStart: vi.fn(),
+    signalPfcDecision: vi.fn(),
+    signalTurnComplete: vi.fn(),
+    expandToPeek: vi.fn(),
+    expandToFull: vi.fn(),
+    minimizeToPeek: vi.fn(),
+    collapseToSmall: vi.fn(),
+    handleClickOutside: vi.fn(),
+  }),
   CommandPalette: (props: any) => {
     capturedCommandPaletteProps = props
     if (!props.isOpen) return null
@@ -56,6 +68,7 @@ vi.mock('@nous/ui/components', () => ({
 
 vi.mock('@nous/transport', () => ({
   useChatApi: () => ({ send: vi.fn(), getHistory: vi.fn().mockResolvedValue([]) }),
+  useEventSubscription: () => {},
 }))
 
 vi.mock('@/components/shell/web-chat-wrappers', () => ({

@@ -28,6 +28,7 @@ async function renderLayout(
         content={<div>content</div>}
         observe={<div>observe</div>}
         chatSlot={({ stage }) => <div data-testid="chat">{stage}</div>}
+        chatStage="small"
         {...overrides}
       />,
     )

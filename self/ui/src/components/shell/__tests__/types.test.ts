@@ -459,12 +459,15 @@ describe('shell type schemas', () => {
   // --- Simple Shell Types ---
 
   it('parses valid ChatStage values and rejects invalid ones', () => {
-    const ambient: ChatStage = 'ambient'
-    expect(ambient).toBe('ambient')
-    expect(ChatStageSchema.safeParse('ambient').success).toBe(true)
+    const small: ChatStage = 'small'
+    expect(small).toBe('small')
+    expect(ChatStageSchema.safeParse('small').success).toBe(true)
+    expect(ChatStageSchema.safeParse('ambient_small').success).toBe(true)
+    expect(ChatStageSchema.safeParse('ambient_large').success).toBe(true)
     expect(ChatStageSchema.safeParse('peek').success).toBe(true)
     expect(ChatStageSchema.safeParse('full').success).toBe(true)
-    expect(ChatStageSchema.options).toEqual(['ambient', 'peek', 'full'])
+    expect(ChatStageSchema.options).toEqual(['small', 'ambient_small', 'ambient_large', 'peek', 'full'])
+    expect(ChatStageSchema.safeParse('ambient').success).toBe(false)
     expect(ChatStageSchema.safeParse('minimized').success).toBe(false)
     expect(ChatStageSchema.safeParse('').success).toBe(false)
   })

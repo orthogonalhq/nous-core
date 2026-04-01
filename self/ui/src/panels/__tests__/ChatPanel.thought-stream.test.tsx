@@ -389,14 +389,14 @@ describe('ChatPanel — Stage-aware rendering', () => {
     expect(screen.getByText('Principal \u2194 Cortex')).toBeTruthy()
   })
 
-  it('ambient stage hides header and messages, shows only input', () => {
+  it('small stage hides header and messages, shows only input', () => {
     const mockApi: ChatAPI = {
       send: vi.fn().mockResolvedValue({ response: 'ok', traceId: 'trace-1' }),
       getHistory: async () => [],
     }
-    const { container } = render(<ChatPanel chatApi={mockApi} stage="ambient" />)
+    const { container } = render(<ChatPanel chatApi={mockApi} stage="small" />)
 
-    expect(container.querySelector('[data-chat-stage="ambient"]')).toBeTruthy()
+    expect(container.querySelector('[data-chat-stage="small"]')).toBeTruthy()
     // Header text should NOT be present
     expect(screen.queryByText('Principal \u2194 Cortex')).toBeNull()
     // Input should still be present
@@ -405,52 +405,53 @@ describe('ChatPanel — Stage-aware rendering', () => {
     expect(screen.getByText('Send')).toBeTruthy()
   })
 
-  it('ambient stage shows thinking indicator when sending', () => {
-    let resolveSend: ((value: { response: string; traceId: string }) => void) | undefined
-    const sendPromise = new Promise<{ response: string; traceId: string }>((resolve) => {
-      resolveSend = resolve
-    })
+  it('ambient_small stage shows toggle bar and input', () => {
     const mockApi: ChatAPI = {
-      send: () => sendPromise,
+      send: vi.fn().mockResolvedValue({ response: 'ok', traceId: 'trace-1' }),
       getHistory: async () => [],
     }
+    const { container } = render(<ChatPanel chatApi={mockApi} stage="ambient_small" />)
 
-    render(<ChatPanel chatApi={mockApi} stage="ambient" />)
-
-    // Type and send a message
-    const textarea = screen.getByPlaceholderText(/Message Nous/i)
-    fireEvent.change(textarea, { target: { value: 'Hello' } })
-    fireEvent.click(screen.getByText('Send'))
-
-    // Thinking indicator should appear
+    expect(container.querySelector('[data-chat-stage="ambient_small"]')).toBeTruthy()
+    // Header text should NOT be present
+    expect(screen.queryByText('Principal \u2194 Cortex')).toBeNull()
+    // Toggle bar should be present
     expect(screen.getByTestId('chat-stage-toggle')).toBeTruthy()
-    expect(screen.getByText('Thinking...')).toBeTruthy()
+    // Input should still be present
+    expect(screen.getByPlaceholderText(/Message Nous/i)).toBeTruthy()
   })
 
-  it('ambient stage expand button calls onStageChange with peek', () => {
-    let resolveSend: ((value: { response: string; traceId: string }) => void) | undefined
-    const sendPromise = new Promise<{ response: string; traceId: string }>((resolve) => {
-      resolveSend = resolve
-    })
+  it('ambient_large stage shows thought stream area but no header or messages', () => {
     const mockApi: ChatAPI = {
-      send: () => sendPromise,
+      send: vi.fn().mockResolvedValue({ response: 'ok', traceId: 'trace-1' }),
+      getHistory: async () => [],
+    }
+    const { container } = render(<ChatPanel chatApi={mockApi} stage="ambient_large" />)
+
+    expect(container.querySelector('[data-chat-stage="ambient_large"]')).toBeTruthy()
+    // Header text should NOT be present
+    expect(screen.queryByText('Principal \u2194 Cortex')).toBeNull()
+    // Toggle bar should be present
+    expect(screen.getByTestId('chat-stage-toggle')).toBeTruthy()
+    // Input should still be present
+    expect(screen.getByPlaceholderText(/Message Nous/i)).toBeTruthy()
+  })
+
+  it('small stage expand button calls onStageChange with peek', () => {
+    const mockApi: ChatAPI = {
+      send: vi.fn().mockResolvedValue({ response: 'ok', traceId: 'trace-1' }),
       getHistory: async () => [],
     }
     const onStageChange = vi.fn()
 
-    render(<ChatPanel chatApi={mockApi} stage="ambient" onStageChange={onStageChange} />)
-
-    // Trigger sending state
-    const textarea = screen.getByPlaceholderText(/Message Nous/i)
-    fireEvent.change(textarea, { target: { value: 'Hello' } })
-    fireEvent.click(screen.getByText('Send'))
+    render(<ChatPanel chatApi={mockApi} stage="small" onStageChange={onStageChange} />)
 
     // Click expand chevron
     fireEvent.click(screen.getByTestId('ambient-expand-button'))
     expect(onStageChange).toHaveBeenCalledWith('peek')
   })
 
-  it('peek stage shows header with collapse button', () => {
+  it('peek stage shows header with toggle bar', () => {
     const mockApi: ChatAPI = {
       send: vi.fn().mockResolvedValue({ response: 'ok', traceId: 'trace-1' }),
       getHistory: async () => [],
@@ -462,7 +463,7 @@ describe('ChatPanel — Stage-aware rendering', () => {
     expect(screen.getByTestId('chat-stage-toggle')).toBeTruthy()
   })
 
-  it('peek stage collapse button calls onStageChange with ambient', () => {
+  it('peek stage expand button calls onStageChange with full', () => {
     const mockApi: ChatAPI = {
       send: vi.fn().mockResolvedValue({ response: 'ok', traceId: 'trace-1' }),
       getHistory: async () => [],
@@ -471,8 +472,8 @@ describe('ChatPanel — Stage-aware rendering', () => {
 
     render(<ChatPanel chatApi={mockApi} stage="peek" onStageChange={onStageChange} />)
 
-    fireEvent.click(screen.getByTestId('peek-collapse-button'))
-    expect(onStageChange).toHaveBeenCalledWith('ambient')
+    fireEvent.click(screen.getByTestId('peek-expand-full-button'))
+    expect(onStageChange).toHaveBeenCalledWith('full')
   })
 
   it('peek stage shows only last 5 messages', async () => {

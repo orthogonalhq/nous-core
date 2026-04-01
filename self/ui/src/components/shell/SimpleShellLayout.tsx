@@ -36,6 +36,8 @@ export function SimpleShellLayout({
   content,
   observe,
   chatSlot,
+  chatStage: chatStageProp,
+  onClickOutside,
   breakpoint = 'full',
   onColumnResize,
   initialWidths,
@@ -44,7 +46,10 @@ export function SimpleShellLayout({
   ...props
 }: SimpleShellLayoutProps & Omit<React.HTMLAttributes<HTMLDivElement>, 'content'>) {
   const containerRef = React.useRef<HTMLDivElement | null>(null)
-  const [chatStage, setChatStage] = React.useState<ChatStage>('ambient')
+  // Use prop if provided (new 5-state model), otherwise fallback to internal state (backwards compat)
+  const [internalStage, setInternalStage] = React.useState<ChatStage>('small')
+  const chatStage = chatStageProp ?? internalStage
+  const setChatStage = chatStageProp !== undefined ? (() => {}) : setInternalStage
 
   const [sidebarWidth, setSidebarWidth] = React.useState(
     clampWidth(
@@ -100,16 +105,27 @@ export function SimpleShellLayout({
   // Cap sidebar width at breakpoint max
   const effectiveSidebarWidth = Math.min(sidebarWidth, BREAKPOINT_SIDEBAR[breakpoint])
 
-  // Chat row height based on stage
-  const chatRowHeight =
-    chatStage === 'full'
-      ? '1fr'
-      : chatStage === 'peek'
-        ? 'minmax(200px, 45%)'
-        : 'auto'
+  // Chat row height based on stage (5-state model)
+  const chatRowHeight = (() => {
+    switch (chatStage) {
+      case 'full': return '1fr'
+      case 'peek': return 'minmax(200px, 45%)'
+      case 'ambient_large': return 'minmax(150px, 35%)'
+      case 'ambient_small': return 'auto'
+      case 'small':
+      default: return 'auto'
+    }
+  })()
 
   // Main row shrinks to 0 when chat is full
   const mainRowHeight = chatStage === 'full' ? '0fr' : '1fr'
+
+  // Click-outside handler for non-chat areas
+  const handleAreaClick = React.useCallback(() => {
+    if (chatStage !== 'small' && onClickOutside) {
+      onClickOutside()
+    }
+  }, [chatStage, onClickOutside])
 
   const layoutStyle: SimpleShellStyle = {
     '--shell-sidebar-width': `${effectiveSidebarWidth}px`,
@@ -144,6 +160,7 @@ export function SimpleShellLayout({
     >
       <div
         data-shell-area="rail"
+        onClick={handleAreaClick}
         style={{
           minWidth: 0,
           minHeight: 0,
@@ -157,6 +174,7 @@ export function SimpleShellLayout({
 
       <div
         data-shell-area="sidebar"
+        onClick={handleAreaClick}
         style={{
           minWidth: 0,
           minHeight: 0,
@@ -171,6 +189,7 @@ export function SimpleShellLayout({
 
       <div
         data-shell-area="content"
+        onClick={handleAreaClick}
         style={{
           minWidth: 0,
           overflowY: 'auto',
@@ -183,6 +202,7 @@ export function SimpleShellLayout({
 
       <div
         data-shell-area="observe"
+        onClick={handleAreaClick}
         style={{
           minWidth: 0,
           overflow: 'hidden',
@@ -216,6 +236,7 @@ export function SimpleShellLayout({
           borderRight: '1px solid var(--nous-shell-column-border)',
           display: 'flex',
           flexDirection: 'column',
+          transition: 'max-height 300ms ease',
         }}
       >
         {chatSlot({ stage: chatStage, onStageChange: setChatStage })}

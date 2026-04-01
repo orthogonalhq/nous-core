@@ -80,10 +80,16 @@ export function ChatPanel(props: ChatPanelProps | ChatPanelCoreProps) {
   const stage: ChatStage | undefined = 'stage' in props ? props.stage : undefined
   const onStageChange = 'onStageChange' in props ? props.onStageChange : undefined
 
-  // Resolve effective stage: undefined means full (backwards compatible)
+  // Resolve effective stage: undefined means full (backwards compatible for dockview)
   const effectiveStage = stage ?? 'full'
-  const isAmbient = effectiveStage === 'ambient'
+  const isSmall = effectiveStage === 'small'
+  const isAmbientSmall = effectiveStage === 'ambient_small'
+  const isAmbientLarge = effectiveStage === 'ambient_large'
   const isPeek = effectiveStage === 'peek'
+  const isFull = effectiveStage === 'full'
+  // Backwards compat: treat old 'ambient' as 'small' if it somehow slips through
+  const isAmbient = isSmall || isAmbientSmall || isAmbientLarge
+  const isCompactAmbient = isSmall || isAmbientSmall
 
   // In peek mode, only show last 5 messages for performance
   const visibleMessages = isPeek ? messages.slice(-5) : messages
@@ -108,7 +114,6 @@ export function ChatPanel(props: ChatPanelProps | ChatPanelCoreProps) {
   // Track whether the agent is actively processing (SSE-driven)
   const [agentActive, setAgentActive] = useState(false)
   const agentIdleTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
-  const prevAgentActiveRef = useRef(false)
 
   useEventSubscription({
     channels: ['thought:pfc-decision', 'thought:turn-lifecycle'],
@@ -123,7 +128,9 @@ export function ChatPanel(props: ChatPanelProps | ChatPanelCoreProps) {
 
   // Subscribe to turn lifecycle + inference events for activity detection
   // Only active when in sidebar mode (stage is defined) — not needed for full/dockview
-  const trackActivity = stage !== undefined && effectiveStage !== 'full'
+  // In 5-state model, the app layer drives activity via useChatStageManager,
+  // but ChatPanel still tracks agentActive for its own "Thinking..." indicator
+  const trackActivity = stage !== undefined && !isFull
   useEventSubscription({
     channels: ['thought:turn-lifecycle', 'inference:stream-start', 'inference:stream-complete', 'system:turn-ack'],
     onEvent: (channel, payload) => {
@@ -164,14 +171,9 @@ export function ChatPanel(props: ChatPanelProps | ChatPanelCoreProps) {
     }
   }, [])
 
-  // Auto-expand: ambient → peek when agent becomes active
+  // Activity detection for UI indicators (Thinking... dot)
+  // Auto-expand is now handled by useChatStageManager in the app layer
   const isAgentWorking = sending || agentActive || thoughts.length > 0
-  useEffect(() => {
-    if (isAgentWorking && !prevAgentActiveRef.current && isAmbient) {
-      onStageChange?.('peek')
-    }
-    prevAgentActiveRef.current = isAgentWorking
-  }, [isAgentWorking, isAmbient, onStageChange])
 
   const handleToggle = useCallback(() => {
     dispatch({ type: 'TOGGLE_EXPAND' })
@@ -299,7 +301,7 @@ export function ChatPanel(props: ChatPanelProps | ChatPanelCoreProps) {
     </div>
   )
 
-  // --- Stage toggle bar (always visible in ambient/peek) ---
+  // --- Stage toggle bar (visible in small, ambient_small, ambient_large, peek) ---
   const isActive = isAgentWorking
   const chevronButtonStyle = {
     background: 'none',
@@ -311,7 +313,9 @@ export function ChatPanel(props: ChatPanelProps | ChatPanelCoreProps) {
     lineHeight: 1,
   } as const
 
-  const stageToggleBar = (isAmbient || isPeek) ? (
+  // Toggle bar: shown for all states except full
+  const showToggleBar = !isFull
+  const stageToggleBar = showToggleBar ? (
     <div
       data-testid="chat-stage-toggle"
       style={{
@@ -324,44 +328,93 @@ export function ChatPanel(props: ChatPanelProps | ChatPanelCoreProps) {
         userSelect: 'none',
       }}
     >
-      {isActive ? (
+      {isActive && (isAmbientSmall || isAmbientLarge) ? (
         <span style={{ display: 'inline-block' }}>&#x25CF;</span>
       ) : null}
       <span
         style={{ cursor: 'pointer' }}
-        onClick={() => onStageChange?.(isAmbient ? 'peek' : 'ambient')}
+        onClick={() => onStageChange?.(isPeek ? 'small' : 'peek')}
       >
-        {isActive ? 'Thinking...' : 'Chat'}
+        {isActive && (isAmbientSmall || isAmbientLarge) ? 'Thinking...' : 'Chat'}
       </span>
-      {/* Collapse / expand controls */}
+      {/* Expand controls: all non-full states get expand-to-peek or expand-to-full */}
       <span style={{ marginLeft: 'auto', display: 'flex', gap: '2px' }}>
-        {isPeek && (
+        {isPeek ? (
           <button
-            data-testid="peek-collapse-button"
-            onClick={() => onStageChange?.('ambient')}
+            data-testid="peek-expand-full-button"
+            onClick={() => onStageChange?.('full')}
             style={chevronButtonStyle}
-            title="Collapse chat"
+            title="Maximize chat"
           >
-            {'\u25B4'}
+            {'\u25BE'}
+          </button>
+        ) : (
+          <button
+            data-testid="ambient-expand-button"
+            onClick={() => onStageChange?.('peek')}
+            style={chevronButtonStyle}
+            title="Expand chat"
+          >
+            {'\u25BE'}
           </button>
         )}
-        <button
-          data-testid={isAmbient ? 'ambient-expand-button' : 'peek-expand-full-button'}
-          onClick={() => onStageChange?.(isAmbient ? 'peek' : 'full')}
-          style={chevronButtonStyle}
-          title={isAmbient ? 'Expand chat' : 'Maximize chat'}
-        >
-          {isAmbient ? '\u25BE' : '\u25BC'}
-        </button>
       </span>
     </div>
   ) : null
 
-  // --- Ambient stage: stage toggle + input only ---
-  if (isAmbient) {
+  // --- Thought stream section (reused across ambient_large, peek, full) ---
+  const thoughtSection = thoughts.length > 0 ? (
+    <div style={{ display: 'flex', justifyContent: 'flex-start' }}>
+      <div style={{ maxWidth: '80%' }}>
+        <ThoughtToggle
+          expanded={isExpanded}
+          eventCount={thoughts.length}
+          onToggle={handleToggle}
+          sending={sending}
+        />
+        <ThoughtStream
+          thoughts={thoughts}
+          mode={mode}
+          style={{
+            opacity: isExpanded ? 1 : 0,
+            maxHeight: isExpanded
+              ? mode === 'conversing:expanded' ? '200px' : '2000px'
+              : '0px',
+            overflow: isExpanded ? undefined : 'hidden',
+          }}
+        />
+      </div>
+    </div>
+  ) : null
+
+  // --- Small stage: toggle bar + input only ---
+  if (isSmall) {
     return (
-      <div className={clsx(className)} data-chat-stage="ambient" style={{ display: 'flex', flexDirection: 'column', color: 'var(--nous-fg)' }}>
+      <div className={clsx(className)} data-chat-stage="small" style={{ display: 'flex', flexDirection: 'column', color: 'var(--nous-fg)' }}>
         {stageToggleBar}
+        {inputSection}
+      </div>
+    )
+  }
+
+  // --- Ambient small: toggle bar + input + compact thinking indicator ---
+  if (isAmbientSmall) {
+    return (
+      <div className={clsx(className)} data-chat-stage="ambient_small" style={{ display: 'flex', flexDirection: 'column', color: 'var(--nous-fg)' }}>
+        {stageToggleBar}
+        {inputSection}
+      </div>
+    )
+  }
+
+  // --- Ambient large: toggle bar + thought stream + input (no header, no messages) ---
+  if (isAmbientLarge) {
+    return (
+      <div className={clsx(className)} data-chat-stage="ambient_large" style={{ display: 'flex', flexDirection: 'column', color: 'var(--nous-fg)', height: '100%' }}>
+        {stageToggleBar}
+        <div style={{ flex: 1, overflowY: 'auto', padding: 'var(--nous-space-lg) var(--nous-space-xl)' }}>
+          {thoughtSection}
+        </div>
         {inputSection}
       </div>
     )
@@ -370,7 +423,7 @@ export function ChatPanel(props: ChatPanelProps | ChatPanelCoreProps) {
   // --- Peek and Full stages ---
   return (
     <div className={clsx(className)} data-chat-stage={effectiveStage} style={{ display: 'flex', flexDirection: 'column', height: '100%', color: 'var(--nous-fg)' }}>
-      {/* Stage toggle bar (peek only — full has no toggle) */}
+      {/* Stage toggle bar (peek only — full has minimize in header) */}
       {stageToggleBar}
       {/* Header */}
       <div style={{ padding: 'var(--nous-space-sm) var(--nous-space-xl)', borderBottom: '1px solid var(--nous-header-border)', fontSize: 'var(--nous-font-size-sm)', fontWeight: 'var(--nous-font-weight-semibold)' as any, color: 'var(--nous-fg-muted)', display: 'flex', alignItems: 'center', gap: 'var(--nous-space-sm)' }}>
@@ -386,7 +439,7 @@ export function ChatPanel(props: ChatPanelProps | ChatPanelCoreProps) {
           </span>
         )}
         {/* Collapse from full mode */}
-        {effectiveStage === 'full' && onStageChange && (
+        {isFull && onStageChange && (
           <button
             data-testid="full-collapse-button"
             onClick={() => onStageChange('peek')}
@@ -396,7 +449,7 @@ export function ChatPanel(props: ChatPanelProps | ChatPanelCoreProps) {
             }}
             title="Minimize chat"
           >
-            {'\u25B2'}
+            {'\u25B4'}
           </button>
         )}
       </div>
@@ -426,29 +479,7 @@ export function ChatPanel(props: ChatPanelProps | ChatPanelCoreProps) {
             )}
           </div>
         ))}
-        {thoughts.length > 0 && (
-          <div style={{ display: 'flex', justifyContent: 'flex-start' }}>
-            <div style={{ maxWidth: '80%' }}>
-              <ThoughtToggle
-                expanded={isExpanded}
-                eventCount={thoughts.length}
-                onToggle={handleToggle}
-                sending={sending}
-              />
-              <ThoughtStream
-                thoughts={thoughts}
-                mode={mode}
-                style={{
-                  opacity: isExpanded ? 1 : 0,
-                  maxHeight: isExpanded
-                    ? mode === 'conversing:expanded' ? '200px' : '2000px'
-                    : '0px',
-                  overflow: isExpanded ? undefined : 'hidden',
-                }}
-              />
-            </div>
-          </div>
-        )}
+        {thoughtSection}
         <div ref={messagesEndRef} />
       </div>
       {/* Input */}

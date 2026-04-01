@@ -15,8 +15,10 @@ import {
   CommandPalette,
   ProjectSwitcherRail,
   AssetSidebar,
+  useChatStageManager,
 } from '@nous/ui/components'
 import type { ShellMode, NavigationState } from '@nous/ui/components'
+import { useEventSubscription } from '@nous/transport'
 import { WebChromeShell } from '@/components/shell/web-chrome-shell'
 import { webRailSections } from '@/components/shell/web-rail-config'
 import { createWebShellRoutes } from '@/components/shell/web-shell-routes'
@@ -67,6 +69,26 @@ function ShellLayoutContent({
   const [projectId, setProjectId] = useState<string | null>(null)
   const [dockviewApi, setDockviewApi] = useState<DockviewApi | null>(null)
 
+  // Chat stage state machine (5-state model)
+  const chatStageManager = useChatStageManager()
+
+  // Wire SSE events to chat stage manager signals
+  useEventSubscription({
+    channels: ['inference:stream-start', 'thought:pfc-decision', 'thought:turn-lifecycle'],
+    onEvent: (channel, payload) => {
+      if (channel === 'inference:stream-start') {
+        chatStageManager.signalInferenceStart()
+      } else if (channel === 'thought:pfc-decision') {
+        chatStageManager.signalPfcDecision()
+      } else if (channel === 'thought:turn-lifecycle') {
+        const p = payload as Record<string, unknown>
+        if (p.phase === 'turn-complete') {
+          chatStageManager.signalTurnComplete()
+        }
+      }
+    },
+    enabled: mode === 'simple',
+  })
 
   const searchParams = useSearchParams()
 
@@ -218,6 +240,8 @@ function ShellLayoutContent({
                   />
                 }
                 observe={<ObservePanel />}
+                chatStage={chatStageManager.chatStage}
+                onClickOutside={chatStageManager.handleClickOutside}
                 chatSlot={({ stage, onStageChange }) => <WebConnectedChatSurface stage={stage} onStageChange={onStageChange} />}
               />
             ) : (
