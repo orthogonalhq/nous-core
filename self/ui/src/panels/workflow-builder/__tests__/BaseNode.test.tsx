@@ -22,12 +22,12 @@ const ALL_CATEGORIES: NodeCategory[] = [
 
 const NOUS_TYPE_MAP: Record<NodeCategory, string> = {
   trigger: 'nous.trigger.webhook',
-  agent: 'nous.agent.classify',
-  condition: 'nous.condition.branch',
-  app: 'nous.app.slack-notify',
-  tool: 'nous.tool.vector-search',
+  agent: 'nous.agent.claude',
+  condition: 'nous.condition.if',
+  app: 'nous.app.slack',
+  tool: 'nous.tool.memory-search',
   memory: 'nous.memory.write',
-  governance: 'nous.governance.audit-log',
+  governance: 'nous.governance.witness-checkpoint',
 }
 
 function makeNodeProps(category: NodeCategory, overrides?: Partial<WorkflowBuilderNodeData>) {

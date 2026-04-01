@@ -23,7 +23,7 @@ nodes:
       path: /api/hook
   - id: agent-1
     name: Classify Intent
-    type: nous.agent.classify
+    type: nous.agent.claude
     position: [100, 250]
 connections:
   - from: trigger-1

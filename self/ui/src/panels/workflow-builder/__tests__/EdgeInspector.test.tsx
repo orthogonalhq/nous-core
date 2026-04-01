@@ -37,7 +37,7 @@ const testNodes: WorkflowBuilderNode[] = [
     id: 'n2',
     type: 'builderNode',
     position: { x: 200, y: 0 },
-    data: { label: 'Target Node', category: 'agent', nousType: 'nous.agent.classify' },
+    data: { label: 'Target Node', category: 'agent', nousType: 'nous.agent.claude' },
   },
 ]
 

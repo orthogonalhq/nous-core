@@ -81,6 +81,45 @@ describe('WorkflowBuilderPanel', () => {
     })
   })
 
+  // ─── Tier 2 — Phase 1.2 Props ─────────────────────────────────────────────
+
+  describe('Tier 2 — Phase 1.2 Props', () => {
+    it('renders without crashing when projectId is provided', () => {
+      expect(() =>
+        render(<WorkflowBuilderPanel className="test" projectId="proj-123" />),
+      ).not.toThrow()
+    })
+
+    it('renders without crashing when projectId is not provided (backward compat)', () => {
+      expect(() =>
+        render(<WorkflowBuilderPanel />),
+      ).not.toThrow()
+    })
+
+    it('renders without crashing when both projectId and workflowDefinitionId are provided', () => {
+      expect(() =>
+        render(
+          <WorkflowBuilderPanel
+            className="test"
+            projectId="proj-123"
+            workflowDefinitionId="wf-456"
+          />,
+        ),
+      ).not.toThrow()
+    })
+
+    it('accepts WorkflowBuilderPanelCoreProps with all optional fields', () => {
+      // Type-level verification — if this compiles, the interface is correct
+      const props: WorkflowBuilderPanelCoreProps = {
+        className: 'test',
+        projectId: 'proj-123',
+        workflowDefinitionId: 'wf-456',
+      }
+      expect(props.projectId).toBe('proj-123')
+      expect(props.workflowDefinitionId).toBe('wf-456')
+    })
+  })
+
   // ─── Tier 3 — Phase 2 Authoring Flow ─────────────────────────────────────
 
   describe('Tier 3 — Phase 2 Authoring Flow', () => {
