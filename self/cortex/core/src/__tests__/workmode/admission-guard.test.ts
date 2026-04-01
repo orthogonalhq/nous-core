@@ -239,24 +239,24 @@ describe('WorkmodeAdmissionGuard', () => {
       expect(result.allowed).toBe(true);
     });
 
-    it('treats dispatch_agent as scope-requiring (CF-002 action string alignment)', () => {
+    it('treats dispatch_worker as scope-requiring (CF-002 action string alignment)', () => {
       const result = guard.evaluateScopeGuard({
         sourceActor: 'orchestration_agent',
         targetActor: 'worker_agent',
-        action: 'dispatch_agent',
+        action: 'dispatch_worker',
       });
       expect(result.allowed).toBe(false);
       if (!result.allowed) {
         expect(result.reasonCode).toBe('WMODE-SCOPE-GUARD-VIOLATION');
-        expect(result.evidenceRefs[0]).toContain('dispatch_agent');
+        expect(result.evidenceRefs[0]).toContain('dispatch_worker');
       }
     });
 
-    it('allows dispatch_agent with valid execution context', () => {
+    it('allows dispatch_worker with valid execution context', () => {
       const result = guard.evaluateScopeGuard({
         sourceActor: 'orchestration_agent',
         targetActor: 'worker_agent',
-        action: 'dispatch_agent',
+        action: 'dispatch_worker',
         executionContext: {
           workmodeId: 'system:implementation',
           agentClass: 'Orchestrator',

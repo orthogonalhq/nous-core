@@ -48,7 +48,8 @@ describe('ScopedMcpToolSurface', () => {
     expect(workerTools).toContain('workflow_list');
     expect(workerTools).toContain('workflow_status');
     expect(workerTools).not.toContain('workflow_start');
-    expect(workerTools).not.toContain('dispatch_agent');
+    expect(workerTools).not.toContain('dispatch_orchestrator');
+    expect(workerTools).not.toContain('dispatch_worker');
     expect(workerTools).not.toContain('memory_write');
     expect(workerTools).not.toContain('promoted_memory_promote');
 
@@ -58,7 +59,8 @@ describe('ScopedMcpToolSurface', () => {
     expect(principalTools).toContain('workflow_status');
     expect(principalTools).not.toContain('workflow_start');
     expect(principalTools).not.toContain('task_complete');
-    expect(principalTools).not.toContain('dispatch_agent');
+    expect(principalTools).not.toContain('dispatch_orchestrator');
+    expect(principalTools).not.toContain('dispatch_worker');
     expect(principalTools).not.toContain('promoted_memory_promote');
   });
 
@@ -73,13 +75,13 @@ describe('ScopedMcpToolSurface', () => {
     });
 
     await expect(
-      surface.executeTool('dispatch_agent', {}, {
+      surface.executeTool('dispatch_orchestrator', {}, {
         projectId: PROJECT_ID,
       }),
     ).rejects.toThrow('not available');
   });
 
-  it('rejects Principal execution of dispatch_agent at the surface level', async () => {
+  it('rejects Principal execution of dispatch_orchestrator at the surface level', async () => {
     const surface = createScopedMcpToolSurface({
       agentClass: 'Cortex::Principal',
       agentId: AGENT_ID,
@@ -89,7 +91,7 @@ describe('ScopedMcpToolSurface', () => {
     });
 
     await expect(
-      surface.executeTool('dispatch_agent', {}, {
+      surface.executeTool('dispatch_orchestrator', {}, {
         projectId: PROJECT_ID,
       }),
     ).rejects.toThrow('not available');
@@ -112,10 +114,16 @@ describe('ScopedMcpToolSurface', () => {
   });
 
   it('exposes the same visible catalog through the helper projection', () => {
-    expect(getVisibleInternalMcpTools('Orchestrator')).toContain('dispatch_agent');
+    expect(getVisibleInternalMcpTools('Orchestrator')).toContain('dispatch_orchestrator');
+    expect(getVisibleInternalMcpTools('Orchestrator')).toContain('dispatch_worker');
     expect(getVisibleInternalMcpTools('Orchestrator')).toContain('workflow_list');
-    expect(getVisibleInternalMcpTools('Orchestrator')).not.toContain('workflow_pause');
-    expect(getVisibleInternalMcpTools('Worker')).not.toContain('dispatch_agent');
+    expect(getVisibleInternalMcpTools('Orchestrator')).toContain('workflow_start');
+    expect(getVisibleInternalMcpTools('Orchestrator')).toContain('workflow_pause');
+    expect(getVisibleInternalMcpTools('Orchestrator')).toContain('workflow_resume');
+    expect(getVisibleInternalMcpTools('Worker')).not.toContain('dispatch_orchestrator');
+    expect(getVisibleInternalMcpTools('Worker')).not.toContain('dispatch_worker');
+    expect(getVisibleInternalMcpTools('Cortex::System')).toContain('dispatch_orchestrator');
+    expect(getVisibleInternalMcpTools('Cortex::System')).not.toContain('dispatch_worker');
     expect(getVisibleInternalMcpTools('Cortex::System')).toContain('promoted_memory_promote');
     expect(getVisibleInternalMcpTools('Cortex::System')).toContain('workflow_cancel');
     expect(getVisibleInternalMcpTools('Worker')).not.toContain('promoted_memory_promote');
