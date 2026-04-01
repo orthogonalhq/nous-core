@@ -51,8 +51,14 @@ import {
   type WorkflowLifecycleStatusQuery,
   type WorkflowLifecycleValidateCommand,
   type WorkflowLifecycleFromSpecCommand,
+  type WorkflowLifecycleCreateCommand,
+  type WorkflowLifecycleUpdateCommand,
+  type WorkflowLifecycleDeleteCommand,
   WorkflowLifecycleCancelCommandSchema,
   WorkflowLifecycleFromSpecCommandSchema,
+  WorkflowLifecycleCreateCommandSchema,
+  WorkflowLifecycleUpdateCommandSchema,
+  WorkflowLifecycleDeleteCommandSchema,
   WorkflowLifecycleInspectQuerySchema,
   WorkflowLifecycleListQuerySchema,
   WorkflowLifecyclePauseCommandSchema,
@@ -365,6 +371,24 @@ export function parseWorkflowFromSpecRequest(
   params: unknown,
 ): WorkflowFromSpecRequest {
   return WorkflowLifecycleFromSpecCommandSchema.parse(params ?? {});
+}
+
+export function parseWorkflowCreateRequest(
+  params: unknown,
+): WorkflowLifecycleCreateCommand {
+  return WorkflowLifecycleCreateCommandSchema.parse(params ?? {});
+}
+
+export function parseWorkflowUpdateRequest(
+  params: unknown,
+): WorkflowLifecycleUpdateCommand {
+  return WorkflowLifecycleUpdateCommandSchema.parse(params ?? {});
+}
+
+export function parseWorkflowDeleteRequest(
+  params: unknown,
+): WorkflowLifecycleDeleteCommand {
+  return WorkflowLifecycleDeleteCommandSchema.parse(params ?? {});
 }
 
 export function parseHealthReportRequest(
