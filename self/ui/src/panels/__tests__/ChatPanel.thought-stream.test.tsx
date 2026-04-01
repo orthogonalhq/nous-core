@@ -407,7 +407,7 @@ describe('ChatPanel — Stage-aware rendering', () => {
     fireEvent.click(screen.getByText('Send'))
 
     // Thinking indicator should appear
-    expect(screen.getByTestId('ambient-thinking-indicator')).toBeTruthy()
+    expect(screen.getByTestId('chat-stage-toggle')).toBeTruthy()
     expect(screen.getByText('Thinking...')).toBeTruthy()
   })
 
@@ -443,7 +443,7 @@ describe('ChatPanel — Stage-aware rendering', () => {
 
     expect(container.querySelector('[data-chat-stage="peek"]')).toBeTruthy()
     expect(screen.getByText('Principal \u2194 Cortex')).toBeTruthy()
-    expect(screen.getByTestId('peek-collapse-button')).toBeTruthy()
+    expect(screen.getByTestId('chat-stage-toggle')).toBeTruthy()
   })
 
   it('peek stage collapse button calls onStageChange with ambient', () => {
@@ -455,7 +455,7 @@ describe('ChatPanel — Stage-aware rendering', () => {
 
     render(<ChatPanel chatApi={mockApi} stage="peek" onStageChange={onStageChange} />)
 
-    fireEvent.click(screen.getByTestId('peek-collapse-button'))
+    fireEvent.click(screen.getByTestId('chat-stage-toggle'))
     expect(onStageChange).toHaveBeenCalledWith('ambient')
   })
 

@@ -117,8 +117,8 @@ export function SimpleShellLayout({
     display: 'grid',
     minWidth: 0,
     gridTemplateAreas: [
-      '"rail sidebar content observe"',
-      '"chat chat    content observe"',
+      '"rail    sidebar content observe"',
+      '"chat    chat    content observe"',
     ].join(' '),
     gridTemplateColumns: [
       'var(--nous-project-rail-width)',
@@ -173,7 +173,6 @@ export function SimpleShellLayout({
           minWidth: 0,
           overflowY: 'auto',
           gridArea: 'content',
-          gridRow: '1 / -1',
           background: 'var(--nous-content-bg)',
         }}
       >
@@ -186,7 +185,6 @@ export function SimpleShellLayout({
           minWidth: 0,
           overflow: 'hidden',
           gridArea: 'observe',
-          gridRow: '1 / -1',
           display: showObserve ? 'block' : 'none',
           background: 'var(--nous-observe-bg)',
           borderInlineStart: showObserve

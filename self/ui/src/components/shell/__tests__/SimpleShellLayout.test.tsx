@@ -71,7 +71,7 @@ describe('SimpleShellLayout', () => {
   it('sets grid-template-areas on the container', async () => {
     await renderLayout()
     const layout = container.firstElementChild as HTMLDivElement
-    expect(layout.style.gridTemplateAreas).toBe('"rail sidebar content observe" "chat chat    content observe"')
+    expect(layout.style.gridTemplateAreas).toBe('"rail    sidebar content observe" "chat    chat    content observe"')
   })
 
   it('applies initial widths as CSS custom properties', async () => {

@@ -241,42 +241,50 @@ export function ChatPanel(props: ChatPanelProps | ChatPanelCoreProps) {
     </div>
   )
 
-  // --- Ambient stage: compact thinking indicator + input only ---
+  // --- Stage toggle bar (always visible in ambient/peek) ---
+  const isActive = sending || thoughts.length > 0
+  const stageToggleBar = (isAmbient || isPeek) ? (
+    <div
+      data-testid="chat-stage-toggle"
+      style={{
+        padding: 'var(--nous-space-xs) var(--nous-space-sm)',
+        display: 'flex',
+        alignItems: 'center',
+        gap: 'var(--nous-space-xs)',
+        fontSize: 'var(--nous-font-size-xs)',
+        color: 'var(--nous-fg-muted)',
+        cursor: 'pointer',
+        userSelect: 'none',
+      }}
+      onClick={() => onStageChange?.(isAmbient ? 'peek' : 'ambient')}
+    >
+      {isActive ? (
+        <span style={{ display: 'inline-block' }}>&#x25CF;</span>
+      ) : null}
+      <span>{isActive ? 'Thinking...' : 'Chat'}</span>
+      <button
+        data-testid={isAmbient ? 'ambient-expand-button' : 'peek-collapse-button'}
+        style={{
+          background: 'none',
+          border: 'none',
+          color: 'var(--nous-fg-muted)',
+          cursor: 'pointer',
+          padding: '0 var(--nous-space-xs)',
+          fontSize: 'var(--nous-font-size-xs)',
+          lineHeight: 1,
+        }}
+        title={isAmbient ? 'Expand chat' : 'Collapse chat'}
+      >
+        {isAmbient ? '\u25BE' : '\u25B4'}
+      </button>
+    </div>
+  ) : null
+
+  // --- Ambient stage: stage toggle + input only ---
   if (isAmbient) {
     return (
       <div className={clsx(className)} data-chat-stage="ambient" style={{ display: 'flex', flexDirection: 'column', color: 'var(--nous-fg)' }}>
-        {(sending || thoughts.length > 0) && (
-          <div
-            data-testid="ambient-thinking-indicator"
-            style={{
-              padding: 'var(--nous-space-xs) var(--nous-space-sm)',
-              display: 'flex',
-              alignItems: 'center',
-              gap: 'var(--nous-space-xs)',
-              fontSize: 'var(--nous-font-size-xs)',
-              color: 'var(--nous-fg-muted)',
-            }}
-          >
-            <span style={{ animation: 'spin 1s linear infinite', display: 'inline-block' }}>&#x25E6;</span>
-            <span>Thinking...</span>
-            <button
-              data-testid="ambient-expand-button"
-              onClick={() => onStageChange?.('peek')}
-              style={{
-                background: 'none',
-                border: 'none',
-                color: 'var(--nous-fg-muted)',
-                cursor: 'pointer',
-                padding: '0 var(--nous-space-xs)',
-                fontSize: 'var(--nous-font-size-xs)',
-                lineHeight: 1,
-              }}
-              title="Expand chat"
-            >
-              &#x25BE;
-            </button>
-          </div>
-        )}
+        {stageToggleBar}
         {inputSection}
       </div>
     )
@@ -285,8 +293,10 @@ export function ChatPanel(props: ChatPanelProps | ChatPanelCoreProps) {
   // --- Peek and Full stages ---
   return (
     <div className={clsx(className)} data-chat-stage={effectiveStage} style={{ display: 'flex', flexDirection: 'column', height: '100%', color: 'var(--nous-fg)' }}>
+      {/* Stage toggle bar (peek only — full has no toggle) */}
+      {stageToggleBar}
       {/* Header */}
-      <div style={{ padding: 'var(--nous-space-lg) var(--nous-space-2xl)', borderBottom: '1px solid var(--nous-header-border)', fontSize: 'var(--nous-font-size-sm)', fontWeight: 'var(--nous-font-weight-semibold)' as any, color: 'var(--nous-fg-muted)', display: 'flex', alignItems: 'center', gap: 'var(--nous-space-sm)' }}>
+      <div style={{ padding: 'var(--nous-space-sm) var(--nous-space-xl)', borderBottom: '1px solid var(--nous-header-border)', fontSize: 'var(--nous-font-size-sm)', fontWeight: 'var(--nous-font-weight-semibold)' as any, color: 'var(--nous-fg-muted)', display: 'flex', alignItems: 'center', gap: 'var(--nous-space-sm)' }}>
         <span>{headerText}</span>
         {conversationContext?.isAmbient && (
           <span data-testid="ambient-badge" style={{ background: 'var(--nous-accent-muted)', fontSize: 'var(--nous-font-size-2xs)', borderRadius: 'var(--nous-radius-xs)', padding: '0 var(--nous-space-xs)', fontWeight: 'var(--nous-font-weight-medium)' as any }}>
@@ -297,26 +307,6 @@ export function ChatPanel(props: ChatPanelProps | ChatPanelCoreProps) {
           <span data-testid="thread-indicator" style={{ fontSize: 'var(--nous-font-size-2xs)', color: 'var(--nous-fg-subtle)', fontWeight: 'var(--nous-font-weight-regular)' as any }}>
             {conversationContext.threadId.length > 12 ? conversationContext.threadId.slice(0, 12) + '...' : conversationContext.threadId}
           </span>
-        )}
-        {/* Collapse button for peek stage */}
-        {isPeek && (
-          <button
-            data-testid="peek-collapse-button"
-            onClick={() => onStageChange?.('ambient')}
-            style={{
-              marginLeft: 'auto',
-              background: 'none',
-              border: 'none',
-              color: 'var(--nous-fg-muted)',
-              cursor: 'pointer',
-              padding: 'var(--nous-space-xs)',
-              fontSize: 'var(--nous-font-size-xs)',
-              lineHeight: 1,
-            }}
-            title="Collapse chat"
-          >
-            &#x25B4;
-          </button>
         )}
       </div>
       {/* Messages */}
