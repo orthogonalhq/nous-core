@@ -697,13 +697,6 @@ describe('useBuilderState', () => {
     // Tier 2 — Behavior
 
     describe('Tier 2 — Behavior', () => {
-      beforeEach(() => {
-        // Mock window.prompt for first-save naming prompt
-        vi.spyOn(window, 'prompt').mockReturnValue('Test Workflow')
-      })
-      afterEach(() => {
-        vi.restoreAllMocks()
-      })
       it('saveToServer calls tRPC mutation with correct args and marks clean on success', async () => {
         mockMutateAsync.mockResolvedValue({ definitionId: 'def-123', validation: { valid: true } })
 
@@ -920,13 +913,6 @@ connections: []
     // Tier 3 — Edge Cases
 
     describe('Tier 3 — Edge Cases', () => {
-      beforeEach(() => {
-        vi.spyOn(window, 'prompt').mockReturnValue('Test Workflow')
-      })
-      afterEach(() => {
-        vi.restoreAllMocks()
-      })
-
       it('saveToServer while already saving is guarded by isSaving', async () => {
         let resolveFirst: (value: unknown) => void
         const firstPromise = new Promise((resolve) => {

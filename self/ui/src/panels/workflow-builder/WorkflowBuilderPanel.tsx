@@ -187,21 +187,42 @@ const CanvasDropTarget = forwardRef<
     [mode, onPaneClick, clearInspection],
   )
 
-  // ─── Save handlers ─────────────────────────────────────────────────────
+  // ─── Save handlers with inline naming ──────────────────────────────────
+
+  const [showNameInput, setShowNameInput] = useState(false)
+  const [pendingNameAction, setPendingNameAction] = useState<'save' | 'saveAs' | null>(null)
+  const [nameInputValue, setNameInputValue] = useState('Untitled Workflow')
+
+  const handleNameSubmit = useCallback(() => {
+    const name = nameInputValue.trim() || 'Untitled Workflow'
+    setShowNameInput(false)
+    setPendingNameAction(null)
+    if (pendingNameAction === 'saveAs') {
+      void saveAsNew(name)
+    } else {
+      void saveToServer(name)
+    }
+  }, [nameInputValue, pendingNameAction, saveAsNew, saveToServer])
 
   const handleSave = useCallback(() => {
     if (projectId) {
+      if (!currentDefinitionId) {
+        // First save — ask for name
+        setPendingNameAction('save')
+        setShowNameInput(true)
+        return
+      }
       void saveToServer()
     } else {
-      // Non-project fallback: client-side only
       getCurrentSpec()
       markClean()
     }
-  }, [projectId, saveToServer, getCurrentSpec, markClean])
+  }, [projectId, currentDefinitionId, saveToServer, getCurrentSpec, markClean])
 
   const handleSaveAs = useCallback(() => {
-    void saveAsNew()
-  }, [saveAsNew])
+    setPendingNameAction('saveAs')
+    setShowNameInput(true)
+  }, [])
 
   const handleNewWorkflow = useCallback(() => {
     resetToEmpty()
@@ -558,6 +579,84 @@ const CanvasDropTarget = forwardRef<
         validationErrorCount={validationErrors.length}
         isValidationPanelOpen={isValidationPanelOpen}
       />
+      {/* Inline workflow naming dialog */}
+      {showNameInput && (
+        <div
+          style={{
+            position: 'absolute',
+            top: '50%',
+            left: '50%',
+            transform: 'translate(-50%, -50%)',
+            zIndex: 50,
+            background: 'var(--nous-bg-elevated)',
+            border: '1px solid var(--nous-border-strong)',
+            borderRadius: '8px',
+            padding: 'var(--nous-space-lg)',
+            boxShadow: '0 4px 16px rgba(0, 0, 0, 0.5)',
+            minWidth: 280,
+          }}
+          data-testid="workflow-name-dialog"
+        >
+          <div style={{ fontSize: 'var(--nous-font-size-sm)', fontWeight: 600, color: 'var(--nous-fg)', marginBottom: 'var(--nous-space-sm)' }}>
+            {pendingNameAction === 'saveAs' ? 'Save As New Workflow' : 'Name Your Workflow'}
+          </div>
+          <input
+            type="text"
+            value={nameInputValue}
+            onChange={(e) => setNameInputValue(e.target.value)}
+            onKeyDown={(e) => {
+              if (e.key === 'Enter') handleNameSubmit()
+              if (e.key === 'Escape') { setShowNameInput(false); setPendingNameAction(null) }
+            }}
+            autoFocus
+            style={{
+              width: '100%',
+              padding: 'var(--nous-space-xs) var(--nous-space-sm)',
+              background: 'var(--nous-bg)',
+              border: '1px solid var(--nous-border)',
+              borderRadius: '4px',
+              color: 'var(--nous-fg)',
+              fontSize: 'var(--nous-font-size-sm)',
+              outline: 'none',
+              marginBottom: 'var(--nous-space-sm)',
+            }}
+            data-testid="workflow-name-input"
+          />
+          <div style={{ display: 'flex', gap: 'var(--nous-space-sm)', justifyContent: 'flex-end' }}>
+            <button
+              type="button"
+              onClick={() => { setShowNameInput(false); setPendingNameAction(null) }}
+              style={{
+                background: 'transparent',
+                border: '1px solid var(--nous-border)',
+                borderRadius: '4px',
+                color: 'var(--nous-fg-muted)',
+                cursor: 'pointer',
+                padding: 'var(--nous-space-xs) var(--nous-space-md)',
+                fontSize: 'var(--nous-font-size-xs)',
+              }}
+            >
+              Cancel
+            </button>
+            <button
+              type="button"
+              onClick={handleNameSubmit}
+              style={{
+                background: 'var(--nous-accent)',
+                border: 'none',
+                borderRadius: '4px',
+                color: '#fff',
+                cursor: 'pointer',
+                padding: 'var(--nous-space-xs) var(--nous-space-md)',
+                fontSize: 'var(--nous-font-size-xs)',
+              }}
+              data-testid="workflow-name-submit"
+            >
+              Save
+            </button>
+          </div>
+        </div>
+      )}
       {/* Authoring-only UI — hidden in monitor mode */}
       {mode !== 'monitoring' && (
         <>

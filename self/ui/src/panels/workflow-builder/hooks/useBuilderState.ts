@@ -110,8 +110,8 @@ export interface UseBuilderStateReturn {
   /** Clear the current inspection selection. */
   clearInspection: () => void
 
-  /** Persist workflow to server. Returns the definitionId on success. */
-  saveToServer: () => Promise<{ definitionId: string } | null>
+  /** Persist workflow to server. Returns the definitionId on success. Optional name for first save. */
+  saveToServer: (name?: string) => Promise<{ definitionId: string } | null>
   /** Save as a new workflow (no definitionId, receives new ID). */
   saveAsNew: (name?: string) => Promise<{ definitionId: string } | null>
   /** Reset builder to empty state (new workflow). */
@@ -548,7 +548,7 @@ export function useBuilderState(
 
   // ─── Persistence: save / saveAs / reset ────────────────────────────────
 
-  const saveToServer = useCallback(async (): Promise<{ definitionId: string } | null> => {
+  const saveToServer = useCallback(async (name?: string): Promise<{ definitionId: string } | null> => {
     if (!projectId) return null
 
     const specResult = getCurrentSpec()
@@ -559,24 +559,13 @@ export function useBuilderState(
       return null
     }
 
-    // Prompt for name on first save (no existing definitionId)
-    let saveName: string | undefined
-    if (!currentDefId) {
-      const prompted = typeof window !== 'undefined' && typeof window.prompt === 'function'
-        ? window.prompt('Workflow name:', specResult.spec.name || 'Untitled Workflow')
-        : specResult.spec.name || 'Untitled Workflow'
-      if (prompted === null || prompted === undefined) return null // user cancelled or no prompt available
-      saveName = (typeof prompted === 'string' ? prompted.trim() : '') || 'Untitled Workflow'
-      specMetaRef.current = { ...specMetaRef.current, name: saveName }
-    }
-
     setIsSaving(true)
     try {
       const result = await saveMutation.mutateAsync({
         projectId,
         specYaml: specResult.yaml,
         definitionId: currentDefId ?? undefined,
-        name: saveName,
+        name,
       })
       setCurrentDefId(result.definitionId)
       markClean()
