@@ -846,7 +846,16 @@ function DesktopSimpleShell({
       observe={<ObservePanel />}
       chatStage={chatStageManager.chatStage}
       onClickOutside={chatStageManager.handleClickOutside}
-      chatSlot={({ stage, onStageChange }) => <ConnectedChatSurface stage={stage} onStageChange={onStageChange} />}
+      chatSlot={({ stage }) => (
+        <ConnectedChatSurface
+          stage={stage}
+          onStageChange={(s) => {
+            if (s === 'peek') chatStageManager.expandToPeek()
+            else if (s === 'full') chatStageManager.expandToFull()
+            else if (s === 'small') chatStageManager.collapseToSmall()
+          }}
+        />
+      )}
     />
   )
 }

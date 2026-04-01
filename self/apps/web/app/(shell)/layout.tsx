@@ -242,7 +242,16 @@ function ShellLayoutContent({
                 observe={<ObservePanel />}
                 chatStage={chatStageManager.chatStage}
                 onClickOutside={chatStageManager.handleClickOutside}
-                chatSlot={({ stage, onStageChange }) => <WebConnectedChatSurface stage={stage} onStageChange={onStageChange} />}
+                chatSlot={({ stage }) => (
+                  <WebConnectedChatSurface
+                    stage={stage}
+                    onStageChange={(s) => {
+                      if (s === 'peek') chatStageManager.expandToPeek()
+                      else if (s === 'full') chatStageManager.expandToFull()
+                      else if (s === 'small') chatStageManager.collapseToSmall()
+                    }}
+                  />
+                )}
               />
             ) : (
               <WebDockviewShell onApiReady={setDockviewApi} />

@@ -49,7 +49,9 @@ export function SimpleShellLayout({
   // Use prop if provided (new 5-state model), otherwise fallback to internal state (backwards compat)
   const [internalStage, setInternalStage] = React.useState<ChatStage>('small')
   const chatStage = chatStageProp ?? internalStage
-  const setChatStage = chatStageProp !== undefined ? (() => {}) : setInternalStage
+  // When externally controlled, stage changes come through the prop — don't provide a setter
+  // The app layer passes onStageChange through the chatSlot render function args
+  const internalSetChatStage = chatStageProp !== undefined ? undefined : setInternalStage
 
   const [sidebarWidth, setSidebarWidth] = React.useState(
     clampWidth(
@@ -239,7 +241,7 @@ export function SimpleShellLayout({
           transition: 'max-height 300ms ease',
         }}
       >
-        {chatSlot({ stage: chatStage, onStageChange: setChatStage })}
+        {chatSlot({ stage: chatStage, onStageChange: internalSetChatStage ?? (() => {}) })}
       </div>
 
       <ColumnDivider
