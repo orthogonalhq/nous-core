@@ -3,7 +3,7 @@
 import { useState, useEffect, useRef, useCallback, type KeyboardEvent } from 'react'
 import type { IDockviewPanelProps } from 'dockview-react'
 import { clsx } from 'clsx'
-import type { ConversationContext } from '../components/shell/types'
+import type { ConversationContext, ChatStage } from '../components/shell/types'
 import { useEventSubscription } from '@nous/transport'
 import {
   ThoughtStream,
@@ -30,6 +30,8 @@ export interface ChatPanelCoreProps {
   chatApi?: ChatAPI
   conversationContext?: ConversationContext
   className?: string
+  stage?: ChatStage
+  onStageChange?: (stage: ChatStage) => void
 }
 
 interface BrowserSpeechRecognitionResult {
@@ -75,6 +77,16 @@ export function ChatPanel(props: ChatPanelProps | ChatPanelCoreProps) {
   const chatApi = 'params' in props ? props.params?.chatApi : props.chatApi
   const conversationContext = 'conversationContext' in props ? props.conversationContext : undefined
   const className = 'className' in props ? props.className : undefined
+  const stage: ChatStage | undefined = 'stage' in props ? props.stage : undefined
+  const onStageChange = 'onStageChange' in props ? props.onStageChange : undefined
+
+  // Resolve effective stage: undefined means full (backwards compatible)
+  const effectiveStage = stage ?? 'full'
+  const isAmbient = effectiveStage === 'ambient'
+  const isPeek = effectiveStage === 'peek'
+
+  // In peek mode, only show last 5 messages for performance
+  const visibleMessages = isPeek ? messages.slice(-5) : messages
 
   useEffect(() => {
     if (chatApi?.getHistory) {
@@ -185,8 +197,94 @@ export function ChatPanel(props: ChatPanelProps | ChatPanelCoreProps) {
       ? 'Ambient'
       : 'Principal ↔ Cortex'
 
+  // --- Input section (shared across all stages) ---
+  const inputSection = (
+    <div style={{ padding: 'var(--nous-space-lg) var(--nous-space-xl)', borderTop: isAmbient ? 'none' : '1px solid var(--nous-footer-border)', display: 'flex', gap: 'var(--nous-space-sm)', alignItems: 'flex-end' }}>
+      <textarea
+        value={input}
+        onChange={e => setInput(e.target.value)}
+        onKeyDown={handleKeyDown}
+        onFocus={handleInputFocus}
+        onBlur={handleInputBlur}
+        placeholder="Message Nous... (Enter to send, Shift+Enter for newline)"
+        disabled={sending}
+        style={{
+          flex: 1, resize: 'none', background: 'var(--nous-input-bg)', border: '1px solid transparent',
+          borderRadius: 'var(--nous-radius-md)', padding: 'var(--nous-space-md) var(--nous-space-lg)', color: 'var(--nous-fg)', fontSize: 'var(--nous-font-size-base)',
+          outline: 'none', lineHeight: '1.5', minHeight: '36px', maxHeight: '120px',
+          fontFamily: 'inherit',
+        }}
+        rows={1}
+      />
+      <button
+        onClick={toggleVoice}
+        title={isListening ? 'Stop listening' : 'Voice input'}
+        style={{
+          background: isListening ? 'var(--nous-state-blocked)' : 'var(--nous-input-bg)', border: '1px solid transparent',
+          borderRadius: 'var(--nous-radius-md)', padding: 'var(--nous-space-md)', color: isListening ? 'var(--nous-fg-on-color)' : 'var(--nous-fg-muted)',
+          cursor: 'pointer', display: 'flex', alignItems: 'center',
+        }}
+      >
+        <i className={`codicon ${isListening ? 'codicon-circle-slash' : 'codicon-mic'}`} style={{ fontSize: 'var(--nous-icon-size-sm)' }} />
+      </button>
+      <button
+        onClick={send}
+        disabled={sending || !input.trim() || !chatApi?.send}
+        style={{
+          background: 'var(--nous-btn-primary-bg)', border: 'none', borderRadius: 'var(--nous-radius-md)',
+          padding: 'var(--nous-space-md) var(--nous-space-2xl)', color: 'var(--nous-fg-on-color)', cursor: sending ? 'not-allowed' : 'pointer',
+          fontSize: 'var(--nous-font-size-base)', fontWeight: 'var(--nous-font-weight-medium)' as any, opacity: (sending || !input.trim() || !chatApi?.send) ? 0.5 : 1,
+        }}
+      >
+        Send
+      </button>
+    </div>
+  )
+
+  // --- Ambient stage: compact thinking indicator + input only ---
+  if (isAmbient) {
+    return (
+      <div className={clsx(className)} data-chat-stage="ambient" style={{ display: 'flex', flexDirection: 'column', color: 'var(--nous-fg)' }}>
+        {(sending || thoughts.length > 0) && (
+          <div
+            data-testid="ambient-thinking-indicator"
+            style={{
+              padding: 'var(--nous-space-xs) var(--nous-space-sm)',
+              display: 'flex',
+              alignItems: 'center',
+              gap: 'var(--nous-space-xs)',
+              fontSize: 'var(--nous-font-size-xs)',
+              color: 'var(--nous-fg-muted)',
+            }}
+          >
+            <span style={{ animation: 'spin 1s linear infinite', display: 'inline-block' }}>&#x25E6;</span>
+            <span>Thinking...</span>
+            <button
+              data-testid="ambient-expand-button"
+              onClick={() => onStageChange?.('peek')}
+              style={{
+                background: 'none',
+                border: 'none',
+                color: 'var(--nous-fg-muted)',
+                cursor: 'pointer',
+                padding: '0 var(--nous-space-xs)',
+                fontSize: 'var(--nous-font-size-xs)',
+                lineHeight: 1,
+              }}
+              title="Expand chat"
+            >
+              &#x25BE;
+            </button>
+          </div>
+        )}
+        {inputSection}
+      </div>
+    )
+  }
+
+  // --- Peek and Full stages ---
   return (
-    <div className={clsx(className)} style={{ display: 'flex', flexDirection: 'column', height: '100%', color: 'var(--nous-fg)' }}>
+    <div className={clsx(className)} data-chat-stage={effectiveStage} style={{ display: 'flex', flexDirection: 'column', height: '100%', color: 'var(--nous-fg)' }}>
       {/* Header */}
       <div style={{ padding: 'var(--nous-space-lg) var(--nous-space-2xl)', borderBottom: '1px solid var(--nous-header-border)', fontSize: 'var(--nous-font-size-sm)', fontWeight: 'var(--nous-font-weight-semibold)' as any, color: 'var(--nous-fg-muted)', display: 'flex', alignItems: 'center', gap: 'var(--nous-space-sm)' }}>
         <span>{headerText}</span>
@@ -200,10 +298,30 @@ export function ChatPanel(props: ChatPanelProps | ChatPanelCoreProps) {
             {conversationContext.threadId.length > 12 ? conversationContext.threadId.slice(0, 12) + '...' : conversationContext.threadId}
           </span>
         )}
+        {/* Collapse button for peek stage */}
+        {isPeek && (
+          <button
+            data-testid="peek-collapse-button"
+            onClick={() => onStageChange?.('ambient')}
+            style={{
+              marginLeft: 'auto',
+              background: 'none',
+              border: 'none',
+              color: 'var(--nous-fg-muted)',
+              cursor: 'pointer',
+              padding: 'var(--nous-space-xs)',
+              fontSize: 'var(--nous-font-size-xs)',
+              lineHeight: 1,
+            }}
+            title="Collapse chat"
+          >
+            &#x25B4;
+          </button>
+        )}
       </div>
       {/* Messages */}
       <div style={{ flex: 1, overflowY: 'auto', padding: 'var(--nous-space-2xl)', display: 'flex', flexDirection: 'column', gap: 'var(--nous-space-xl)' }}>
-        {messages.length === 0 && (
+        {visibleMessages.length === 0 && !isPeek && (
           <div style={{ textAlign: 'center', color: 'var(--nous-fg-subtle)', fontSize: 'var(--nous-font-size-base)', marginTop: 'var(--nous-space-4xl)' }}>
             {chatApi?.send ? 'Start a conversation with Nous.' : 'Chat API not connected. Start the web backend with `pnpm dev:web`.'}
           </div>
@@ -213,8 +331,8 @@ export function ChatPanel(props: ChatPanelProps | ChatPanelCoreProps) {
             {historyError}
           </div>
         )}
-        {messages.map((msg, i) => (
-          <div key={i} style={{ display: 'flex', flexDirection: 'column', alignItems: msg.role === 'user' ? 'flex-end' : 'flex-start' }}>
+        {visibleMessages.map((msg, i) => (
+          <div key={isPeek ? `peek-${messages.length - visibleMessages.length + i}` : i} style={{ display: 'flex', flexDirection: 'column', alignItems: msg.role === 'user' ? 'flex-end' : 'flex-start' }}>
             <div style={{
               maxWidth: '80%', padding: 'var(--nous-space-md) var(--nous-space-xl)', borderRadius: 'var(--nous-radius-md)', fontSize: 'var(--nous-font-size-base)', lineHeight: '1.5',
               background: msg.role === 'user' ? 'var(--nous-chat-user-bg)' : 'var(--nous-bg-elevated)',
@@ -253,46 +371,7 @@ export function ChatPanel(props: ChatPanelProps | ChatPanelCoreProps) {
         <div ref={messagesEndRef} />
       </div>
       {/* Input */}
-      <div style={{ padding: 'var(--nous-space-lg) var(--nous-space-xl)', borderTop: '1px solid var(--nous-footer-border)', display: 'flex', gap: 'var(--nous-space-sm)', alignItems: 'flex-end' }}>
-        <textarea
-          value={input}
-          onChange={e => setInput(e.target.value)}
-          onKeyDown={handleKeyDown}
-          onFocus={handleInputFocus}
-          onBlur={handleInputBlur}
-          placeholder="Message Nous... (Enter to send, Shift+Enter for newline)"
-          disabled={sending}
-          style={{
-            flex: 1, resize: 'none', background: 'var(--nous-input-bg)', border: '1px solid transparent',
-            borderRadius: 'var(--nous-radius-md)', padding: 'var(--nous-space-md) var(--nous-space-lg)', color: 'var(--nous-fg)', fontSize: 'var(--nous-font-size-base)',
-            outline: 'none', lineHeight: '1.5', minHeight: '36px', maxHeight: '120px',
-            fontFamily: 'inherit',
-          }}
-          rows={1}
-        />
-        <button
-          onClick={toggleVoice}
-          title={isListening ? 'Stop listening' : 'Voice input'}
-          style={{
-            background: isListening ? 'var(--nous-state-blocked)' : 'var(--nous-input-bg)', border: '1px solid transparent',
-            borderRadius: 'var(--nous-radius-md)', padding: 'var(--nous-space-md)', color: isListening ? 'var(--nous-fg-on-color)' : 'var(--nous-fg-muted)',
-            cursor: 'pointer', display: 'flex', alignItems: 'center',
-          }}
-        >
-          <i className={`codicon ${isListening ? 'codicon-circle-slash' : 'codicon-mic'}`} style={{ fontSize: 'var(--nous-icon-size-sm)' }} />
-        </button>
-        <button
-          onClick={send}
-          disabled={sending || !input.trim() || !chatApi?.send}
-          style={{
-            background: 'var(--nous-btn-primary-bg)', border: 'none', borderRadius: 'var(--nous-radius-md)',
-            padding: 'var(--nous-space-md) var(--nous-space-2xl)', color: 'var(--nous-fg-on-color)', cursor: sending ? 'not-allowed' : 'pointer',
-            fontSize: 'var(--nous-font-size-base)', fontWeight: 'var(--nous-font-weight-medium)' as any, opacity: (sending || !input.trim() || !chatApi?.send) ? 0.5 : 1,
-          }}
-        >
-          Send
-        </button>
-      </div>
+      {inputSection}
     </div>
   )
 }

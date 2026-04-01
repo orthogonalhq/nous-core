@@ -124,10 +124,14 @@ export interface ObservePanelProps {
 export const ChatSurfacePropsSchema = z.object({
   chatApi: z.custom<Record<string, unknown>>(() => true).optional(),
   className: z.string().optional(),
+  stage: z.enum(['ambient', 'peek', 'full']).optional(),
+  onStageChange: z.custom<(stage: 'ambient' | 'peek' | 'full') => void>(() => true).optional(),
 })
 export interface ChatSurfaceProps {
   chatApi?: import('../../panels/ChatPanel').ChatAPI
   className?: string
+  stage?: ChatStage
+  onStageChange?: (stage: ChatStage) => void
 }
 
 /** Props for the HomeScreen landing surface */

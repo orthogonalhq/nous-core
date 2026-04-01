@@ -339,3 +339,166 @@ describe('ChatPanel — Thought Stream', () => {
     expect(stream.style.maxHeight).not.toBe('0px')
   })
 })
+
+describe('ChatPanel — Stage-aware rendering', () => {
+  beforeEach(() => {
+    capturedOnEvent = null
+    localStorage.clear()
+  })
+
+  afterEach(() => {
+    vi.restoreAllMocks()
+  })
+
+  it('renders full mode by default when stage is undefined', () => {
+    const mockApi: ChatAPI = {
+      send: vi.fn().mockResolvedValue({ response: 'ok', traceId: 'trace-1' }),
+      getHistory: async () => [],
+    }
+    const { container } = render(<ChatPanel chatApi={mockApi} />)
+
+    // Full mode: header and messages area should be present
+    expect(container.querySelector('[data-chat-stage="full"]')).toBeTruthy()
+    expect(screen.getByText('Principal \u2194 Cortex')).toBeTruthy()
+  })
+
+  it('renders full mode explicitly when stage="full"', () => {
+    const mockApi: ChatAPI = {
+      send: vi.fn().mockResolvedValue({ response: 'ok', traceId: 'trace-1' }),
+      getHistory: async () => [],
+    }
+    const { container } = render(<ChatPanel chatApi={mockApi} stage="full" />)
+
+    expect(container.querySelector('[data-chat-stage="full"]')).toBeTruthy()
+    expect(screen.getByText('Principal \u2194 Cortex')).toBeTruthy()
+  })
+
+  it('ambient stage hides header and messages, shows only input', () => {
+    const mockApi: ChatAPI = {
+      send: vi.fn().mockResolvedValue({ response: 'ok', traceId: 'trace-1' }),
+      getHistory: async () => [],
+    }
+    const { container } = render(<ChatPanel chatApi={mockApi} stage="ambient" />)
+
+    expect(container.querySelector('[data-chat-stage="ambient"]')).toBeTruthy()
+    // Header text should NOT be present
+    expect(screen.queryByText('Principal \u2194 Cortex')).toBeNull()
+    // Input should still be present
+    expect(screen.getByPlaceholderText(/Message Nous/i)).toBeTruthy()
+    // Send button should still be present
+    expect(screen.getByText('Send')).toBeTruthy()
+  })
+
+  it('ambient stage shows thinking indicator when sending', () => {
+    let resolveSend: ((value: { response: string; traceId: string }) => void) | undefined
+    const sendPromise = new Promise<{ response: string; traceId: string }>((resolve) => {
+      resolveSend = resolve
+    })
+    const mockApi: ChatAPI = {
+      send: () => sendPromise,
+      getHistory: async () => [],
+    }
+
+    render(<ChatPanel chatApi={mockApi} stage="ambient" />)
+
+    // Type and send a message
+    const textarea = screen.getByPlaceholderText(/Message Nous/i)
+    fireEvent.change(textarea, { target: { value: 'Hello' } })
+    fireEvent.click(screen.getByText('Send'))
+
+    // Thinking indicator should appear
+    expect(screen.getByTestId('ambient-thinking-indicator')).toBeTruthy()
+    expect(screen.getByText('Thinking...')).toBeTruthy()
+  })
+
+  it('ambient stage expand button calls onStageChange with peek', () => {
+    let resolveSend: ((value: { response: string; traceId: string }) => void) | undefined
+    const sendPromise = new Promise<{ response: string; traceId: string }>((resolve) => {
+      resolveSend = resolve
+    })
+    const mockApi: ChatAPI = {
+      send: () => sendPromise,
+      getHistory: async () => [],
+    }
+    const onStageChange = vi.fn()
+
+    render(<ChatPanel chatApi={mockApi} stage="ambient" onStageChange={onStageChange} />)
+
+    // Trigger sending state
+    const textarea = screen.getByPlaceholderText(/Message Nous/i)
+    fireEvent.change(textarea, { target: { value: 'Hello' } })
+    fireEvent.click(screen.getByText('Send'))
+
+    // Click expand chevron
+    fireEvent.click(screen.getByTestId('ambient-expand-button'))
+    expect(onStageChange).toHaveBeenCalledWith('peek')
+  })
+
+  it('peek stage shows header with collapse button', () => {
+    const mockApi: ChatAPI = {
+      send: vi.fn().mockResolvedValue({ response: 'ok', traceId: 'trace-1' }),
+      getHistory: async () => [],
+    }
+    const { container } = render(<ChatPanel chatApi={mockApi} stage="peek" />)
+
+    expect(container.querySelector('[data-chat-stage="peek"]')).toBeTruthy()
+    expect(screen.getByText('Principal \u2194 Cortex')).toBeTruthy()
+    expect(screen.getByTestId('peek-collapse-button')).toBeTruthy()
+  })
+
+  it('peek stage collapse button calls onStageChange with ambient', () => {
+    const mockApi: ChatAPI = {
+      send: vi.fn().mockResolvedValue({ response: 'ok', traceId: 'trace-1' }),
+      getHistory: async () => [],
+    }
+    const onStageChange = vi.fn()
+
+    render(<ChatPanel chatApi={mockApi} stage="peek" onStageChange={onStageChange} />)
+
+    fireEvent.click(screen.getByTestId('peek-collapse-button'))
+    expect(onStageChange).toHaveBeenCalledWith('ambient')
+  })
+
+  it('peek stage shows only last 5 messages', async () => {
+    const messages: { role: 'user' | 'assistant'; content: string; timestamp: string }[] = []
+    for (let i = 0; i < 10; i++) {
+      messages.push({ role: 'user', content: `msg-${i}`, timestamp: new Date().toISOString() })
+    }
+    const mockApi: ChatAPI = {
+      send: vi.fn().mockResolvedValue({ response: 'ok', traceId: 'trace-1' }),
+      getHistory: async () => messages,
+    }
+
+    render(<ChatPanel chatApi={mockApi} stage="peek" />)
+
+    // Wait for history to load
+    await act(async () => {})
+
+    // Last 5 messages should be visible
+    expect(screen.getByText('msg-9')).toBeTruthy()
+    expect(screen.getByText('msg-5')).toBeTruthy()
+    // Earlier messages should not be visible
+    expect(screen.queryByText('msg-4')).toBeNull()
+    expect(screen.queryByText('msg-0')).toBeNull()
+  })
+
+  it('full stage shows all messages', async () => {
+    const messages: { role: 'user' | 'assistant'; content: string; timestamp: string }[] = []
+    for (let i = 0; i < 10; i++) {
+      messages.push({ role: 'user', content: `msg-${i}`, timestamp: new Date().toISOString() })
+    }
+    const mockApi: ChatAPI = {
+      send: vi.fn().mockResolvedValue({ response: 'ok', traceId: 'trace-1' }),
+      getHistory: async () => messages,
+    }
+
+    render(<ChatPanel chatApi={mockApi} stage="full" />)
+
+    // Wait for history to load
+    await act(async () => {})
+
+    // All messages should be visible
+    expect(screen.getByText('msg-0')).toBeTruthy()
+    expect(screen.getByText('msg-9')).toBeTruthy()
+  })
+})

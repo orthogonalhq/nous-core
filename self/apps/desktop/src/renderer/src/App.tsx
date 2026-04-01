@@ -704,7 +704,7 @@ export function App() {
             />
           }
           observe={<ObservePanel />}
-          chatSlot={() => <ConnectedChatSurface />}
+          chatSlot={({ stage, onStageChange }) => <ConnectedChatSurface stage={stage} onStageChange={onStageChange} />}
         />
       ) : (
         <DockviewShell

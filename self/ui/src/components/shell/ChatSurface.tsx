@@ -12,6 +12,8 @@ export function ChatSurface(props: ChatSurfaceProps) {
       chatApi={props.chatApi}
       conversationContext={conversation}
       className={props.className}
+      stage={props.stage}
+      onStageChange={props.onStageChange}
     />
   )
 }

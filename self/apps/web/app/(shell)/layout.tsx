@@ -218,7 +218,7 @@ function ShellLayoutContent({
                   />
                 }
                 observe={<ObservePanel />}
-                chatSlot={() => <WebConnectedChatSurface />}
+                chatSlot={({ stage, onStageChange }) => <WebConnectedChatSurface stage={stage} onStageChange={onStageChange} />}
               />
             ) : (
               <WebDockviewShell onApiReady={setDockviewApi} />
