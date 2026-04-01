@@ -1,4 +1,4 @@
-import type { ConversationContext, ObserveRoute, ShellMode } from '../types'
+import type { ChatStage, ConversationContext, ObserveRoute, ShellMode } from '../types'
 import {
   ColumnWidthsSchema,
   ContentRouteSchema,
@@ -20,6 +20,13 @@ import {
   CommandItemSchema,
   CommandGroupSchema,
   CommandPalettePropsSchema,
+  ChatStageSchema,
+  SidebarTopNavItemSchema,
+  AssetSectionItemSchema,
+  AssetSectionSchema,
+  AssetSidebarPropsSchema,
+  ProjectSwitcherRailPropsSchema,
+  SimpleShellLayoutPropsSchema,
 } from '../types'
 
 describe('shell type schemas', () => {
@@ -445,6 +452,273 @@ describe('shell type schemas', () => {
       CommandPalettePropsSchema.safeParse({
         isOpen: true,
         onClose: () => {},
+      }).success,
+    ).toBe(false)
+  })
+
+  // --- Simple Shell Types ---
+
+  it('parses valid ChatStage values and rejects invalid ones', () => {
+    const ambient: ChatStage = 'ambient'
+    expect(ambient).toBe('ambient')
+    expect(ChatStageSchema.safeParse('ambient').success).toBe(true)
+    expect(ChatStageSchema.safeParse('peek').success).toBe(true)
+    expect(ChatStageSchema.safeParse('full').success).toBe(true)
+    expect(ChatStageSchema.options).toEqual(['ambient', 'peek', 'full'])
+    expect(ChatStageSchema.safeParse('minimized').success).toBe(false)
+    expect(ChatStageSchema.safeParse('').success).toBe(false)
+  })
+
+  it('parses valid SidebarTopNavItem and rejects invalid ones', () => {
+    expect(
+      SidebarTopNavItemSchema.safeParse({
+        id: 'nav-1',
+        label: 'Dashboard',
+        icon: 'D',
+        routeId: 'dashboard',
+      }).success,
+    ).toBe(true)
+
+    // Invalid: missing icon
+    expect(
+      SidebarTopNavItemSchema.safeParse({
+        id: 'nav-1',
+        label: 'Dashboard',
+        routeId: 'dashboard',
+      }).success,
+    ).toBe(false)
+
+    // Invalid: empty id
+    expect(
+      SidebarTopNavItemSchema.safeParse({
+        id: '',
+        label: 'Dashboard',
+        icon: 'D',
+        routeId: 'dashboard',
+      }).success,
+    ).toBe(false)
+  })
+
+  it('parses valid AssetSectionItem and rejects invalid ones', () => {
+    expect(
+      AssetSectionItemSchema.safeParse({
+        id: 'item-1',
+        label: 'Deploy v2.1',
+        routeId: 'tasks',
+      }).success,
+    ).toBe(true)
+
+    // Valid with optional fields
+    expect(
+      AssetSectionItemSchema.safeParse({
+        id: 'item-2',
+        label: 'Engineering',
+        icon: 'E',
+        indicatorColor: '#007acc',
+        routeId: 'teams',
+      }).success,
+    ).toBe(true)
+
+    // Invalid: empty label
+    expect(
+      AssetSectionItemSchema.safeParse({
+        id: 'item-3',
+        label: '',
+        routeId: 'tasks',
+      }).success,
+    ).toBe(false)
+
+    // Invalid: missing routeId
+    expect(
+      AssetSectionItemSchema.safeParse({
+        id: 'item-4',
+        label: 'Item',
+      }).success,
+    ).toBe(false)
+  })
+
+  it('parses valid AssetSection and rejects invalid ones', () => {
+    expect(
+      AssetSectionSchema.safeParse({
+        id: 'tasks',
+        label: 'Tasks',
+        items: [{ id: 'task-1', label: 'Deploy v2.1', routeId: 'tasks' }],
+        collapsible: true,
+      }).success,
+    ).toBe(true)
+
+    // Valid with optional fields
+    expect(
+      AssetSectionSchema.safeParse({
+        id: 'agents',
+        label: 'Agents',
+        items: [],
+        collapsible: false,
+        defaultCollapsed: true,
+        disabled: true,
+        onAdd: () => {},
+        onSettings: () => {},
+      }).success,
+    ).toBe(true)
+
+    // Invalid: missing collapsible (required boolean)
+    expect(
+      AssetSectionSchema.safeParse({
+        id: 'tasks',
+        label: 'Tasks',
+        items: [],
+      }).success,
+    ).toBe(false)
+
+    // Invalid: non-function onAdd
+    expect(
+      AssetSectionSchema.safeParse({
+        id: 'tasks',
+        label: 'Tasks',
+        items: [],
+        collapsible: true,
+        onAdd: 'not-a-function',
+      }).success,
+    ).toBe(false)
+  })
+
+  it('parses valid ProjectSwitcherRailProps and rejects invalid ones', () => {
+    expect(
+      ProjectSwitcherRailPropsSchema.safeParse({
+        projects: [{ id: 'p1', name: 'Project One' }],
+        activeProjectId: 'p1',
+        onProjectSelect: () => {},
+      }).success,
+    ).toBe(true)
+
+    // Valid with optional fields
+    expect(
+      ProjectSwitcherRailPropsSchema.safeParse({
+        projects: [{ id: 'p1', name: 'Project One' }],
+        activeProjectId: 'p1',
+        onProjectSelect: () => {},
+        onNewProject: () => {},
+        brandSlot: 'logo',
+      }).success,
+    ).toBe(true)
+
+    // Invalid: missing onProjectSelect
+    expect(
+      ProjectSwitcherRailPropsSchema.safeParse({
+        projects: [],
+        activeProjectId: 'p1',
+      }).success,
+    ).toBe(false)
+
+    // Invalid: non-function onProjectSelect
+    expect(
+      ProjectSwitcherRailPropsSchema.safeParse({
+        projects: [],
+        activeProjectId: 'p1',
+        onProjectSelect: 'not-a-function',
+      }).success,
+    ).toBe(false)
+  })
+
+  it('parses valid AssetSidebarProps and rejects invalid ones', () => {
+    expect(
+      AssetSidebarPropsSchema.safeParse({
+        projectName: 'My Project',
+        topNav: [{ id: 'n1', label: 'Dashboard', icon: 'D', routeId: 'dashboard' }],
+        sections: [
+          { id: 's1', label: 'Tasks', items: [], collapsible: true },
+        ],
+        activeRoute: 'dashboard',
+        onNavigate: () => {},
+        chatSlot: () => null,
+      }).success,
+    ).toBe(true)
+
+    // Invalid: missing chatSlot
+    expect(
+      AssetSidebarPropsSchema.safeParse({
+        projectName: 'My Project',
+        topNav: [],
+        sections: [],
+        activeRoute: 'dashboard',
+        onNavigate: () => {},
+      }).success,
+    ).toBe(false)
+
+    // Invalid: chatSlot is not a function
+    expect(
+      AssetSidebarPropsSchema.safeParse({
+        projectName: 'My Project',
+        topNav: [],
+        sections: [],
+        activeRoute: 'dashboard',
+        onNavigate: () => {},
+        chatSlot: 'not-a-function',
+      }).success,
+    ).toBe(false)
+  })
+
+  it('parses valid SimpleShellLayoutProps and rejects invalid ones', () => {
+    expect(
+      SimpleShellLayoutPropsSchema.safeParse({
+        projectRail: 'rail',
+        sidebar: 'sidebar',
+        content: 'content',
+        observe: 'observe',
+      }).success,
+    ).toBe(true)
+
+    // Valid with all optional fields
+    expect(
+      SimpleShellLayoutPropsSchema.safeParse({
+        projectRail: 'rail',
+        sidebar: 'sidebar',
+        content: 'content',
+        observe: 'observe',
+        breakpoint: 'full',
+        onColumnResize: () => {},
+        initialWidths: { sidebar: 320, observe: 280 },
+      }).success,
+    ).toBe(true)
+
+    // Valid with partial initialWidths
+    expect(
+      SimpleShellLayoutPropsSchema.safeParse({
+        projectRail: 'rail',
+        sidebar: 'sidebar',
+        content: 'content',
+        observe: 'observe',
+        initialWidths: { sidebar: 320 },
+      }).success,
+    ).toBe(true)
+
+    // Invalid: missing required slot (content)
+    expect(
+      SimpleShellLayoutPropsSchema.safeParse({
+        projectRail: 'rail',
+        sidebar: 'sidebar',
+        observe: 'observe',
+      }).success,
+    ).toBe(false)
+
+    // Invalid: null required slot
+    expect(
+      SimpleShellLayoutPropsSchema.safeParse({
+        projectRail: null,
+        sidebar: 'sidebar',
+        content: 'content',
+        observe: 'observe',
+      }).success,
+    ).toBe(false)
+
+    // Invalid: negative initialWidths
+    expect(
+      SimpleShellLayoutPropsSchema.safeParse({
+        projectRail: 'rail',
+        sidebar: 'sidebar',
+        content: 'content',
+        observe: 'observe',
+        initialWidths: { sidebar: -1 },
       }).success,
     ).toBe(false)
   })

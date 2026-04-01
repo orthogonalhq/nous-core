@@ -256,3 +256,91 @@ export interface CommandPaletteProps {
   onClose: () => void
   commands: CommandGroup[]
 }
+
+// --- Simple Shell Types ---
+
+export const ChatStageSchema = z.enum(['ambient', 'peek', 'full'])
+export type ChatStage = z.infer<typeof ChatStageSchema>
+
+export const SidebarTopNavItemSchema = z.object({
+  id: z.string().min(1),
+  label: z.string().min(1),
+  icon: requiredReactNodeSchema,
+  routeId: z.string().min(1),
+})
+export type SidebarTopNavItem = z.infer<typeof SidebarTopNavItemSchema>
+
+export const AssetSectionItemSchema = z.object({
+  id: z.string().min(1),
+  label: z.string().min(1),
+  icon: optionalReactNodeSchema.optional(),
+  indicatorColor: z.string().min(1).optional(),
+  routeId: z.string().min(1),
+})
+export type AssetSectionItem = z.infer<typeof AssetSectionItemSchema>
+
+export const AssetSectionSchema = z.object({
+  id: z.string().min(1),
+  label: z.string().min(1),
+  items: z.array(AssetSectionItemSchema),
+  collapsible: z.boolean(),
+  defaultCollapsed: z.boolean().optional(),
+  disabled: z.boolean().optional(),
+  onAdd: z.custom<() => void>(
+    (value) => typeof value === 'function',
+    'onAdd function is required',
+  ).optional(),
+  onSettings: z.custom<() => void>(
+    (value) => typeof value === 'function',
+    'onSettings function is required',
+  ).optional(),
+})
+export type AssetSection = z.infer<typeof AssetSectionSchema>
+
+export const ProjectSwitcherRailPropsSchema = z.object({
+  projects: z.array(ProjectItemSchema),
+  activeProjectId: z.string().min(1),
+  onProjectSelect: z.custom<(projectId: string) => void>(
+    (value) => typeof value === 'function',
+    'onProjectSelect function is required',
+  ),
+  onNewProject: z.custom<() => void>(
+    (value) => typeof value === 'function',
+    'onNewProject function is required',
+  ).optional(),
+  brandSlot: optionalReactNodeSchema.optional(),
+})
+export type ProjectSwitcherRailProps = z.infer<typeof ProjectSwitcherRailPropsSchema>
+
+export const AssetSidebarPropsSchema = z.object({
+  projectName: z.string().min(1),
+  topNav: z.array(SidebarTopNavItemSchema),
+  sections: z.array(AssetSectionSchema),
+  activeRoute: z.string().min(1),
+  onNavigate: z.custom<(routeId: string) => void>(
+    (value) => typeof value === 'function',
+    'onNavigate function is required',
+  ),
+  chatSlot: z.custom<(props: { stage: ChatStage; onStageChange: (stage: ChatStage) => void }) => ReactNode>(
+    (value) => typeof value === 'function',
+    'chatSlot render function is required',
+  ),
+})
+export type AssetSidebarProps = z.infer<typeof AssetSidebarPropsSchema>
+
+export const SimpleShellLayoutPropsSchema = z.object({
+  projectRail: requiredReactNodeSchema,
+  sidebar: requiredReactNodeSchema,
+  content: requiredReactNodeSchema,
+  observe: requiredReactNodeSchema,
+  breakpoint: ShellBreakpointSchema.optional(),
+  onColumnResize: z.custom<(widths: { sidebar: number; observe: number }) => void>(
+    (value) => typeof value === 'function',
+    'onColumnResize function is required',
+  ).optional(),
+  initialWidths: z.object({
+    sidebar: z.number().nonnegative().optional(),
+    observe: z.number().nonnegative().optional(),
+  }).optional(),
+})
+export type SimpleShellLayoutProps = z.infer<typeof SimpleShellLayoutPropsSchema>

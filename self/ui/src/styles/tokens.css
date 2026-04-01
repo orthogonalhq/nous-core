@@ -188,6 +188,14 @@
   --nous-observe-column-width:  280px;
   --nous-column-divider-width:  1px;
 
+  /* -- Simple shell geometry */
+  --nous-project-rail-width:            48px;
+  --nous-asset-sidebar-default-width:   320px;
+  --nous-asset-sidebar-min-width:       240px;
+  --nous-observe-default-width:         20px;
+  --nous-observe-expanded-width:        280px;
+  --nous-observe-min-width:             20px;
+
   /* ── Shell breakpoints ──────────────────────────────────────────────── */
   --nous-shell-breakpoint-full:   1400px;
   --nous-shell-breakpoint-medium: 1100px;
