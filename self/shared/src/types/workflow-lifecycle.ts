@@ -333,3 +333,32 @@ export const WorkflowLifecycleMutationResultSchema = z
 export type WorkflowLifecycleMutationResult = z.infer<
   typeof WorkflowLifecycleMutationResultSchema
 >;
+
+// ---------------------------------------------------------------------------
+// MCP tool request schemas for workflow node operations
+// ---------------------------------------------------------------------------
+
+export const WorkflowExecuteNodeToolRequestSchema = z
+  .object({
+    runId: WorkflowExecutionIdSchema,
+    nodeDefinitionId: WorkflowNodeDefinitionIdSchema,
+    payload: z.unknown().optional(),
+  })
+  .strict();
+export type WorkflowExecuteNodeToolRequest = z.infer<
+  typeof WorkflowExecuteNodeToolRequestSchema
+>;
+
+export const WorkflowCompleteNodeToolRequestSchema = z
+  .object({
+    runId: WorkflowExecutionIdSchema,
+    nodeDefinitionId: WorkflowNodeDefinitionIdSchema,
+    output: z.unknown().optional(),
+    status: z.enum(['completed', 'failed']).default('completed'),
+    reasonCode: z.string().min(1).optional(),
+    evidenceRefs: z.array(z.string().min(1)).default([]),
+  })
+  .strict();
+export type WorkflowCompleteNodeToolRequest = z.infer<
+  typeof WorkflowCompleteNodeToolRequestSchema
+>;
