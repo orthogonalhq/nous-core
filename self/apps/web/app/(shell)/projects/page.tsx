@@ -61,7 +61,7 @@ function ProjectsPageContent() {
           </Link>
         </div>
       ) : null}
-      <WorkflowBuilderPanel className="flex-1" />
+      <WorkflowBuilderPanel className="flex-1" projectId={projectId} />
     </div>
   );
 }
