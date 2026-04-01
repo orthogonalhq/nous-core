@@ -603,14 +603,21 @@ const CanvasDropTarget = forwardRef<
             {pendingNameAction === 'saveAs' ? 'Save As New Workflow' : 'Name Your Workflow'}
           </div>
           <input
+            ref={(el) => {
+              // Native capture-phase listener to prevent React Flow from eating keystrokes
+              if (el) {
+                el.addEventListener('keydown', (evt) => evt.stopPropagation(), true)
+                el.focus()
+              }
+            }}
             type="text"
             value={nameInputValue}
             onChange={(e) => setNameInputValue(e.target.value)}
             onKeyDown={(e) => {
+              e.stopPropagation()
               if (e.key === 'Enter') handleNameSubmit()
               if (e.key === 'Escape') { setShowNameInput(false); setPendingNameAction(null) }
             }}
-            autoFocus
             style={{
               width: '100%',
               padding: 'var(--nous-space-xs) var(--nous-space-sm)',
@@ -618,9 +625,11 @@ const CanvasDropTarget = forwardRef<
               border: '1px solid var(--nous-border)',
               borderRadius: '4px',
               color: 'var(--nous-fg)',
+              caretColor: 'var(--nous-fg)',
               fontSize: 'var(--nous-font-size-sm)',
               outline: 'none',
               marginBottom: 'var(--nous-space-sm)',
+              boxSizing: 'border-box',
             }}
             data-testid="workflow-name-input"
           />
