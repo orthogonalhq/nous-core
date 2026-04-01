@@ -171,6 +171,73 @@ describe('useChatStageManager', () => {
     expect(result.current.chatStage).toBe('small')
   })
 
+  // --- Pin ---
+
+  it('isPinned defaults to false', () => {
+    const { result } = renderHook(() => useChatStageManager())
+    expect(result.current.isPinned).toBe(false)
+  })
+
+  it('togglePin toggles isPinned on and off', () => {
+    const { result } = renderHook(() => useChatStageManager())
+    act(() => result.current.togglePin())
+    expect(result.current.isPinned).toBe(true)
+    act(() => result.current.togglePin())
+    expect(result.current.isPinned).toBe(false)
+  })
+
+  it('handleClickOutside: pinned + full -> stays full (ignored)', () => {
+    const { result } = renderHook(() => useChatStageManager())
+    act(() => result.current.expandToFull())
+    act(() => result.current.togglePin())
+    act(() => result.current.handleClickOutside())
+    expect(result.current.chatStage).toBe('full')
+  })
+
+  it('handleClickOutside: pinned + ambient_large -> collapses to small (pin only guards full)', () => {
+    const { result } = renderHook(() => useChatStageManager())
+    act(() => result.current.expandToAmbientLarge())
+    act(() => result.current.togglePin())
+    act(() => result.current.handleClickOutside())
+    expect(result.current.chatStage).toBe('small')
+  })
+
+  it('handleClickOutside: not pinned + full -> collapses to small', () => {
+    const { result } = renderHook(() => useChatStageManager())
+    act(() => result.current.expandToFull())
+    act(() => result.current.handleClickOutside())
+    expect(result.current.chatStage).toBe('small')
+  })
+
+  // --- signalInputFocus ---
+
+  it('signalInputFocus: ambient_small -> full', () => {
+    const { result } = renderHook(() => useChatStageManager())
+    act(() => result.current.signalSending()) // small -> ambient_small
+    act(() => result.current.signalInputFocus())
+    expect(result.current.chatStage).toBe('full')
+  })
+
+  it('signalInputFocus: ambient_large -> full', () => {
+    const { result } = renderHook(() => useChatStageManager())
+    act(() => result.current.expandToAmbientLarge())
+    act(() => result.current.signalInputFocus())
+    expect(result.current.chatStage).toBe('full')
+  })
+
+  it('signalInputFocus: small stays small (no-op)', () => {
+    const { result } = renderHook(() => useChatStageManager())
+    act(() => result.current.signalInputFocus())
+    expect(result.current.chatStage).toBe('small')
+  })
+
+  it('signalInputFocus: full stays full (no-op)', () => {
+    const { result } = renderHook(() => useChatStageManager())
+    act(() => result.current.expandToFull())
+    act(() => result.current.signalInputFocus())
+    expect(result.current.chatStage).toBe('full')
+  })
+
   // --- User-initiated states persist (no idle decay) ---
 
   it('full does not decay to small on turn complete', () => {

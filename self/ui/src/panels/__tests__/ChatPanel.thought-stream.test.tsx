@@ -441,7 +441,7 @@ describe('ChatPanel — Stage-aware rendering', () => {
     render(<ChatPanel chatApi={mockApi} stage="small" onStageChange={onStageChange} />)
 
     // Click expand chevron
-    fireEvent.click(screen.getByTestId('small-expand-button'))
+    fireEvent.click(screen.getByTestId('stage-panel-button'))
     expect(onStageChange).toHaveBeenCalledWith('ambient_large')
   })
 
@@ -454,11 +454,11 @@ describe('ChatPanel — Stage-aware rendering', () => {
 
     render(<ChatPanel chatApi={mockApi} stage="ambient_large" onStageChange={onStageChange} />)
 
-    fireEvent.click(screen.getByTestId('ambient-large-expand-full-button'))
+    fireEvent.click(screen.getByTestId('stage-fullscreen-button'))
     expect(onStageChange).toHaveBeenCalledWith('full')
   })
 
-  it('ambient_large stage collapse button calls onStageChange with ambient_small', () => {
+  it('ambient_large stage minimize button calls onStageChange with small', () => {
     const mockApi: ChatAPI = {
       send: vi.fn().mockResolvedValue({ response: 'ok', traceId: 'trace-1' }),
       getHistory: async () => [],
@@ -467,11 +467,11 @@ describe('ChatPanel — Stage-aware rendering', () => {
 
     render(<ChatPanel chatApi={mockApi} stage="ambient_large" onStageChange={onStageChange} />)
 
-    fireEvent.click(screen.getByTestId('ambient-large-collapse-button'))
-    expect(onStageChange).toHaveBeenCalledWith('ambient_small')
+    fireEvent.click(screen.getByTestId('stage-minimize-button'))
+    expect(onStageChange).toHaveBeenCalledWith('small')
   })
 
-  it('full stage minimize button calls onStageChange with ambient_large', () => {
+  it('full stage minimize button calls onStageChange with small', () => {
     const mockApi: ChatAPI = {
       send: vi.fn().mockResolvedValue({ response: 'ok', traceId: 'trace-1' }),
       getHistory: async () => [],
@@ -480,8 +480,63 @@ describe('ChatPanel — Stage-aware rendering', () => {
 
     render(<ChatPanel chatApi={mockApi} stage="full" onStageChange={onStageChange} />)
 
-    fireEvent.click(screen.getByTestId('full-collapse-button'))
+    fireEvent.click(screen.getByTestId('stage-minimize-button'))
+    expect(onStageChange).toHaveBeenCalledWith('small')
+  })
+
+  it('full stage panel button calls onStageChange with ambient_large', () => {
+    const mockApi: ChatAPI = {
+      send: vi.fn().mockResolvedValue({ response: 'ok', traceId: 'trace-1' }),
+      getHistory: async () => [],
+    }
+    const onStageChange = vi.fn()
+
+    render(<ChatPanel chatApi={mockApi} stage="full" onStageChange={onStageChange} />)
+
+    fireEvent.click(screen.getByTestId('stage-panel-button'))
     expect(onStageChange).toHaveBeenCalledWith('ambient_large')
+  })
+
+  it('full stage pin button calls onTogglePin', () => {
+    const mockApi: ChatAPI = {
+      send: vi.fn().mockResolvedValue({ response: 'ok', traceId: 'trace-1' }),
+      getHistory: async () => [],
+    }
+    const onStageChange = vi.fn()
+    const onTogglePin = vi.fn()
+
+    render(<ChatPanel chatApi={mockApi} stage="full" onStageChange={onStageChange} onTogglePin={onTogglePin} />)
+
+    fireEvent.click(screen.getByTestId('stage-pin-button'))
+    expect(onTogglePin).toHaveBeenCalledTimes(1)
+  })
+
+  it('full stage pin button shows pinned state', () => {
+    const mockApi: ChatAPI = {
+      send: vi.fn().mockResolvedValue({ response: 'ok', traceId: 'trace-1' }),
+      getHistory: async () => [],
+    }
+    const onStageChange = vi.fn()
+
+    const { rerender } = render(<ChatPanel chatApi={mockApi} stage="full" onStageChange={onStageChange} isPinned={false} />)
+    expect(screen.getByTestId('stage-pin-button').title).toBe('Pin open')
+
+    rerender(<ChatPanel chatApi={mockApi} stage="full" onStageChange={onStageChange} isPinned={true} />)
+    expect(screen.getByTestId('stage-pin-button').title).toBe('Unpin')
+  })
+
+  it('input focus calls onInputFocus callback', () => {
+    const mockApi: ChatAPI = {
+      send: vi.fn().mockResolvedValue({ response: 'ok', traceId: 'trace-1' }),
+      getHistory: async () => [],
+    }
+    const onInputFocus = vi.fn()
+
+    render(<ChatPanel chatApi={mockApi} stage="ambient_small" onInputFocus={onInputFocus} />)
+
+    const textarea = screen.getByPlaceholderText(/Message Nous/i)
+    fireEvent.focus(textarea)
+    expect(onInputFocus).toHaveBeenCalledTimes(1)
   })
 
   it('ambient_large stage shows only last 5 messages (not visible in ambient_large — thought stream only)', async () => {

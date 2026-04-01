@@ -128,6 +128,8 @@ export type ChatStage = z.infer<typeof ChatStageSchema>
 /** Return type of the useChatStageManager hook */
 export interface ChatStageManagerReturn {
   chatStage: ChatStage
+  /** Whether the chat panel is pinned open (click-outside ignored in full) */
+  isPinned: boolean
   /** User sent a message — small -> ambient_small */
   signalSending: () => void
   /** Agent started an inference call — small -> ambient_small */
@@ -148,6 +150,10 @@ export interface ChatStageManagerReturn {
   collapseToSmall: () => void
   /** Handler for click-outside events */
   handleClickOutside: () => void
+  /** Toggle pin state on/off */
+  togglePin: () => void
+  /** When input is focused in ambient_small or ambient_large, transition to full */
+  signalInputFocus: () => void
 }
 
 /** Props for the ChatSurface adapter */
@@ -157,6 +163,9 @@ export const ChatSurfacePropsSchema = z.object({
   stage: ChatStageSchema.optional(),
   onStageChange: z.custom<(stage: ChatStage) => void>(() => true).optional(),
   onSendStart: z.custom<() => void>(() => true).optional(),
+  isPinned: z.boolean().optional(),
+  onTogglePin: z.custom<() => void>(() => true).optional(),
+  onInputFocus: z.custom<() => void>(() => true).optional(),
 })
 export interface ChatSurfaceProps {
   chatApi?: import('../../panels/ChatPanel').ChatAPI
@@ -164,6 +173,9 @@ export interface ChatSurfaceProps {
   stage?: ChatStage
   onStageChange?: (stage: ChatStage) => void
   onSendStart?: () => void
+  isPinned?: boolean
+  onTogglePin?: () => void
+  onInputFocus?: () => void
 }
 
 /** Props for the HomeScreen landing surface */

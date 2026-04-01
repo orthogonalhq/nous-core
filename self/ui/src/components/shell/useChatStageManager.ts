@@ -19,6 +19,7 @@ const IDLE_AMBIENT_SMALL_TO_SMALL = 3_000
  */
 export function useChatStageManager(): ChatStageManagerReturn {
   const [chatStage, setChatStage] = useState<ChatStage>('small')
+  const [isPinned, setIsPinned] = useState(false)
 
   // Idle timer refs
   const idleTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
@@ -121,16 +122,31 @@ export function useChatStageManager(): ChatStageManagerReturn {
 
   const handleClickOutside = useCallback(() => {
     setChatStage((prev) => {
+      // If pinned and in full mode, ignore click-outside
+      if (isPinned && prev === 'full') return prev
       if (prev !== 'small') {
         clearAllTimers()
         return 'small'
       }
       return prev
     })
+  }, [clearAllTimers, isPinned])
+
+  const togglePin = useCallback(() => {
+    setIsPinned((prev) => !prev)
+  }, [])
+
+  const signalInputFocus = useCallback(() => {
+    clearAllTimers()
+    setChatStage((prev) => {
+      if (prev === 'ambient_small' || prev === 'ambient_large') return 'full'
+      return prev
+    })
   }, [clearAllTimers])
 
   return {
     chatStage,
+    isPinned,
     signalSending,
     signalInferenceStart,
     signalPfcDecision,
@@ -141,5 +157,7 @@ export function useChatStageManager(): ChatStageManagerReturn {
     minimizeToAmbientLarge,
     collapseToSmall,
     handleClickOutside,
+    togglePin,
+    signalInputFocus,
   }
 }

@@ -245,6 +245,7 @@ function ShellLayoutContent({
                 chatSlot={({ stage }) => (
                   <WebConnectedChatSurface
                     stage={stage}
+                    isPinned={chatStageManager.isPinned}
                     onStageChange={(s) => {
                       if (s === 'ambient_large') chatStageManager.expandToAmbientLarge()
                       else if (s === 'ambient_small') chatStageManager.collapseToAmbientSmall()
@@ -252,6 +253,8 @@ function ShellLayoutContent({
                       else if (s === 'small') chatStageManager.collapseToSmall()
                     }}
                     onSendStart={() => chatStageManager.signalSending()}
+                    onTogglePin={() => chatStageManager.togglePin()}
+                    onInputFocus={() => chatStageManager.signalInputFocus()}
                   />
                 )}
               />

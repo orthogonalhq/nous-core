@@ -15,6 +15,9 @@ export function ChatSurface(props: ChatSurfaceProps) {
       stage={props.stage}
       onStageChange={props.onStageChange}
       onSendStart={props.onSendStart}
+      isPinned={props.isPinned}
+      onTogglePin={props.onTogglePin}
+      onInputFocus={props.onInputFocus}
     />
   )
 }

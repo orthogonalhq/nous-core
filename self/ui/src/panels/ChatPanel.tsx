@@ -33,6 +33,9 @@ export interface ChatPanelCoreProps {
   stage?: ChatStage
   onStageChange?: (stage: ChatStage) => void
   onSendStart?: () => void
+  isPinned?: boolean
+  onTogglePin?: () => void
+  onInputFocus?: () => void
 }
 
 interface BrowserSpeechRecognitionResult {
@@ -81,6 +84,9 @@ export function ChatPanel(props: ChatPanelProps | ChatPanelCoreProps) {
   const stage: ChatStage | undefined = 'stage' in props ? props.stage : undefined
   const onStageChange = 'onStageChange' in props ? props.onStageChange : undefined
   const onSendStart = 'onSendStart' in props ? props.onSendStart : undefined
+  const isPinned = 'isPinned' in props ? props.isPinned : undefined
+  const onTogglePin = 'onTogglePin' in props ? props.onTogglePin : undefined
+  const onInputFocusProp = 'onInputFocus' in props ? props.onInputFocus : undefined
 
   // Resolve effective stage: undefined means full (backwards compatible for dockview)
   const effectiveStage = stage ?? 'full'
@@ -263,7 +269,7 @@ export function ChatPanel(props: ChatPanelProps | ChatPanelCoreProps) {
         value={input}
         onChange={e => setInput(e.target.value)}
         onKeyDown={handleKeyDown}
-        onFocus={handleInputFocus}
+        onFocus={() => { handleInputFocus(); onInputFocusProp?.() }}
         onBlur={handleInputBlur}
         placeholder="Message Nous... (Enter to send, Shift+Enter for newline)"
         disabled={sending}
@@ -300,15 +306,19 @@ export function ChatPanel(props: ChatPanelProps | ChatPanelCoreProps) {
     </div>
   )
 
-  // --- Stage toggle bar (visible in small, ambient_small, and ambient_large) ---
-  const chevronButtonStyle = {
+  // --- Icon button style (shared across toggle bar and full header) ---
+  const iconButtonStyle = {
     background: 'none',
     border: 'none',
-    color: 'var(--nous-fg-muted)',
+    color: 'var(--nous-text-tertiary)',
     cursor: 'pointer',
-    padding: '0 var(--nous-space-xs)',
-    fontSize: 'var(--nous-font-size-xs)',
+    padding: '2px 6px',
+    fontSize: '14px',
     lineHeight: 1,
+    borderRadius: 'var(--nous-radius-sm)',
+    display: 'flex',
+    alignItems: 'center',
+    justifyContent: 'center',
   } as const
 
   // Toggle bar label: "Chat" in small, activity indicator in ambient states
@@ -333,36 +343,46 @@ export function ChatPanel(props: ChatPanelProps | ChatPanelCoreProps) {
       <span style={{ cursor: 'default' }}>
         {toggleLabel}
       </span>
-      {/* Expand controls */}
+      {/* Icon controls */}
       <span style={{ marginLeft: 'auto', display: 'flex', gap: '2px' }}>
         {isAmbientLarge ? (
           <>
             <button
-              data-testid="ambient-large-collapse-button"
-              onClick={() => onStageChange?.('ambient_small')}
-              style={chevronButtonStyle}
-              title="Collapse chat"
+              data-testid="stage-minimize-button"
+              onClick={() => onStageChange?.('small')}
+              style={iconButtonStyle}
+              title="Minimize"
             >
-              {'\u25B4'}
+              {'\u2500'}
             </button>
             <button
-              data-testid="ambient-large-expand-full-button"
+              data-testid="stage-fullscreen-button"
               onClick={() => onStageChange?.('full')}
-              style={chevronButtonStyle}
-              title="Maximize chat"
+              style={iconButtonStyle}
+              title="Full screen"
             >
-              {'\u25BE'}
+              {'\u2922'}
             </button>
           </>
         ) : (
-          <button
-            data-testid="small-expand-button"
-            onClick={() => onStageChange?.('ambient_large')}
-            style={chevronButtonStyle}
-            title="Expand chat"
-          >
-            {'\u25BE'}
-          </button>
+          <>
+            <button
+              data-testid="stage-panel-button"
+              onClick={() => onStageChange?.('ambient_large')}
+              style={iconButtonStyle}
+              title="Panel view"
+            >
+              {'\u25EB'}
+            </button>
+            <button
+              data-testid="stage-fullscreen-button"
+              onClick={() => onStageChange?.('full')}
+              style={iconButtonStyle}
+              title="Full screen"
+            >
+              {'\u2922'}
+            </button>
+          </>
         )}
       </span>
     </div>
@@ -444,19 +464,37 @@ export function ChatPanel(props: ChatPanelProps | ChatPanelCoreProps) {
             {conversationContext.threadId.length > 12 ? conversationContext.threadId.slice(0, 12) + '...' : conversationContext.threadId}
           </span>
         )}
-        {/* Minimize from full to ambient_large */}
+        {/* Stage controls in full mode */}
         {onStageChange && (
-          <button
-            data-testid="full-collapse-button"
-            onClick={() => onStageChange('ambient_large')}
-            style={{
-              marginLeft: 'auto',
-              ...chevronButtonStyle,
-            }}
-            title="Minimize chat"
-          >
-            {'\u25B4'}
-          </button>
+          <span style={{ marginLeft: 'auto', display: 'flex', gap: '2px' }}>
+            <button
+              data-testid="stage-minimize-button"
+              onClick={() => onStageChange('small')}
+              style={iconButtonStyle}
+              title="Minimize"
+            >
+              {'\u2500'}
+            </button>
+            <button
+              data-testid="stage-panel-button"
+              onClick={() => onStageChange('ambient_large')}
+              style={iconButtonStyle}
+              title="Panel view"
+            >
+              {'\u25EB'}
+            </button>
+            <button
+              data-testid="stage-pin-button"
+              onClick={() => onTogglePin?.()}
+              style={{
+                ...iconButtonStyle,
+                color: isPinned ? 'var(--nous-fg)' : 'var(--nous-text-tertiary)',
+              }}
+              title={isPinned ? 'Unpin' : 'Pin open'}
+            >
+              {isPinned ? '\uD83D\uDCCC' : '\u2299'}
+            </button>
+          </span>
         )}
       </div>
       {/* Messages */}
