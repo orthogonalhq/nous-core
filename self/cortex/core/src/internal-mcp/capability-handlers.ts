@@ -76,6 +76,9 @@ import {
   parseWorkflowStatusRequest,
   parseWorkflowValidateRequest,
   parseWorkflowFromSpecRequest,
+  parseWorkflowCreateRequest,
+  parseWorkflowUpdateRequest,
+  parseWorkflowDeleteRequest,
 } from './request-normalizers.js';
 import type {
   InternalMcpCapabilityHandler,
@@ -1608,6 +1611,143 @@ export function createCapabilityHandlers(
         },
         0,
       );
+    },
+
+    workflow_create: async (params, execution) => {
+      await requireSystemAgent(context, 'workflow_create', execution);
+      const request = parseWorkflowCreateRequest(params);
+
+      const parseResult = parseWorkflowSpec(request.specYaml);
+      if (!parseResult.success) {
+        return {
+          success: false,
+          output: { valid: false, errors: parseResult.errors },
+          durationMs: 0,
+        };
+      }
+
+      const projectConfig = await resolveProjectConfig(context, request.projectId);
+      let definition = specToWorkflowDefinition(parseResult.data, {
+        projectId: request.projectId,
+      });
+
+      if (request.name) {
+        definition = { ...definition, name: request.name };
+      }
+      definition = { ...definition, specYaml: request.specYaml };
+
+      const updatedConfig = ProjectConfigSchema.parse({
+        ...projectConfig,
+        workflow: {
+          ...projectConfig.workflow,
+          definitions: [
+            ...(projectConfig.workflow?.definitions ?? []),
+            definition,
+          ],
+          defaultWorkflowDefinitionId: definition.id,
+        },
+      });
+
+      if (context.deps.projectStore) {
+        await context.deps.projectStore.update(request.projectId, {
+          workflow: updatedConfig.workflow,
+        });
+      }
+
+      return success(
+        {
+          definitionId: definition.id,
+          definitionName: definition.name,
+        },
+        0,
+      );
+    },
+
+    workflow_update: async (params, execution) => {
+      await requireSystemAgent(context, 'workflow_update', execution);
+      const request = parseWorkflowUpdateRequest(params);
+
+      const parseResult = parseWorkflowSpec(request.specYaml);
+      if (!parseResult.success) {
+        return {
+          success: false,
+          output: { valid: false, errors: parseResult.errors },
+          durationMs: 0,
+        };
+      }
+
+      const projectConfig = await resolveProjectConfig(context, request.projectId);
+      let definition = specToWorkflowDefinition(parseResult.data, {
+        definitionId: request.definitionId,
+        projectId: request.projectId,
+      });
+
+      if (request.name) {
+        definition = { ...definition, name: request.name };
+      }
+      definition = { ...definition, specYaml: request.specYaml };
+
+      const currentDefinitions = projectConfig.workflow?.definitions ?? [];
+      const nextDefinitions = currentDefinitions.some(
+        (d) => d.id === definition.id,
+      )
+        ? currentDefinitions.map((d) =>
+            d.id === definition.id ? definition : d)
+        : [...currentDefinitions, definition];
+
+      const updatedConfig = ProjectConfigSchema.parse({
+        ...projectConfig,
+        workflow: {
+          ...projectConfig.workflow,
+          definitions: nextDefinitions,
+        },
+      });
+
+      if (context.deps.projectStore) {
+        await context.deps.projectStore.update(request.projectId, {
+          workflow: updatedConfig.workflow,
+        });
+      }
+
+      return success(
+        {
+          definitionId: definition.id,
+          definitionName: definition.name,
+        },
+        0,
+      );
+    },
+
+    workflow_delete: async (params, execution) => {
+      await requireSystemAgent(context, 'workflow_delete', execution);
+      const request = parseWorkflowDeleteRequest(params);
+
+      const projectConfig = await resolveProjectConfig(context, request.projectId);
+      const currentDefinitions = projectConfig.workflow?.definitions ?? [];
+      const nextDefinitions = currentDefinitions.filter(
+        (d) => d.id !== request.definitionId,
+      );
+
+      const deleted = nextDefinitions.length < currentDefinitions.length;
+
+      if (deleted && context.deps.projectStore) {
+        const defaultId = projectConfig.workflow?.defaultWorkflowDefinitionId;
+        const updatedConfig = ProjectConfigSchema.parse({
+          ...projectConfig,
+          workflow: {
+            ...projectConfig.workflow,
+            definitions: nextDefinitions,
+            defaultWorkflowDefinitionId:
+              defaultId === request.definitionId ? undefined : defaultId,
+          },
+        });
+
+        await context.deps.projectStore.update(request.projectId, {
+          workflow: updatedConfig.workflow,
+        });
+      }
+
+      return success({ deleted }, 0);
     },
   };
 }

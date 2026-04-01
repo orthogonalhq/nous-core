@@ -43,6 +43,8 @@ import {
 } from '@nous/shared';
 import {
   buildDerivedWorkflowGraph,
+  parseWorkflowSpec,
+  specToWorkflowDefinition,
   validateWorkflowDefinition as validateWorkflowDefinitionShape,
 } from '@nous/subcortex-workflows';
 import { router, publicProcedure } from '../trpc';
@@ -1308,5 +1310,147 @@ export const projectsRouter = router({
         project: updatedProject,
         validation,
       };
+    }),
+
+  /**
+   * Save a workflow definition from a YAML spec string.
+   * Parses, validates, converts via specToWorkflowDefinition, and upserts into definitions[].
+   * When definitionId is provided, upserts the matching definition; otherwise creates a new one.
+   */
+  saveWorkflowSpec: publicProcedure
+    .input(
+      z.object({
+        projectId: ProjectIdSchema,
+        specYaml: z.string().min(1),
+        definitionId: z.string().optional(),
+        name: z.string().min(1).optional(),
+        setAsDefault: z.boolean().default(true),
+      }),
+    )
+    .mutation(async ({ ctx, input }) => {
+      const project = await getProjectOrThrow(ctx, input.projectId);
+
+      const parseResult = parseWorkflowSpec(input.specYaml);
+      if (!parseResult.success) {
+        throw new TRPCError({
+          code: 'BAD_REQUEST',
+          message: parseResult.errors.map((e) => e.message).join('; '),
+        });
+      }
+
+      let definition;
+      try {
+        definition = specToWorkflowDefinition(parseResult.data, {
+          definitionId: input.definitionId,
+          projectId: input.projectId,
+        });
+      } catch (error) {
+        throw new TRPCError({
+          code: 'BAD_REQUEST',
+          message: `Spec conversion failed: ${(error as Error).message}`,
+        });
+      }
+
+      // Override name if provided
+      if (input.name) {
+        definition = { ...definition, name: input.name };
+      }
+
+      // Attach specYaml for round-trip storage
+      definition = { ...definition, specYaml: input.specYaml };
+
+      const currentDefinitions = getWorkflowDefinitions(project);
+      const nextDefinitions = currentDefinitions.some(
+        (d) => d.id === definition.id,
+      )
+        ? currentDefinitions.map((d) =>
+            d.id === definition.id ? definition : d)
+        : [...currentDefinitions, definition];
+
+      await ctx.projectStore.update(input.projectId, {
+        workflow: {
+          definitions: nextDefinitions,
+          packageBindings: project.workflow?.packageBindings ?? [],
+          defaultWorkflowDefinitionId: input.setAsDefault
+            ? definition.id
+            : project.workflow?.defaultWorkflowDefinitionId ?? definition.id,
+        },
+      });
+
+      return {
+        definitionId: definition.id,
+        validation: { valid: true },
+      };
+    }),
+
+  /** List workflow definitions for a project (summary form). */
+  listWorkflowDefinitions: publicProcedure
+    .input(z.object({ projectId: ProjectIdSchema }))
+    .query(async ({ ctx, input }) => {
+      const project = await getProjectOrThrow(ctx, input.projectId);
+      const definitions = getWorkflowDefinitions(project);
+      const defaultId = project.workflow?.defaultWorkflowDefinitionId;
+
+      return definitions.map((d) => ({
+        id: d.id,
+        name: d.name,
+        version: d.version,
+        isDefault: d.id === defaultId,
+      }));
+    }),
+
+  /** Get a single workflow definition by ID, including stored specYaml. */
+  getWorkflowDefinition: publicProcedure
+    .input(
+      z.object({
+        projectId: ProjectIdSchema,
+        definitionId: z.string().min(1),
+      }),
+    )
+    .query(async ({ ctx, input }) => {
+      const project = await getProjectOrThrow(ctx, input.projectId);
+      const definitions = getWorkflowDefinitions(project);
+      const definition = definitions.find((d) => d.id === input.definitionId);
+
+      if (!definition) {
+        throw new TRPCError({
+          code: 'NOT_FOUND',
+          message: `Workflow definition ${input.definitionId} not found`,
+        });
+      }
+
+      return definition;
+    }),
+
+  /** Delete a workflow definition by ID. Clears default if needed. */
+  deleteWorkflowDefinition: publicProcedure
+    .input(
+      z.object({
+        projectId: ProjectIdSchema,
+        definitionId: z.string().min(1),
+      }),
+    )
+    .mutation(async ({ ctx, input }) => {
+      const project = await getProjectOrThrow(ctx, input.projectId);
+      const currentDefinitions = getWorkflowDefinitions(project);
+      const nextDefinitions = currentDefinitions.filter(
+        (d) => d.id !== input.definitionId,
+      );
+
+      const deleted = nextDefinitions.length < currentDefinitions.length;
+
+      if (deleted) {
+        const defaultId = project.workflow?.defaultWorkflowDefinitionId;
+        await ctx.projectStore.update(input.projectId, {
+          workflow: {
+            definitions: nextDefinitions,
+            packageBindings: project.workflow?.packageBindings ?? [],
+            defaultWorkflowDefinitionId:
+              defaultId === input.definitionId ? undefined : defaultId,
+          },
+        });
+      }
+
+      return { deleted };
     }),
 });

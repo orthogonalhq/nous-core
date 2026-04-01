@@ -186,6 +186,39 @@ export type WorkflowLifecycleFromSpecCommand = z.infer<
   typeof WorkflowLifecycleFromSpecCommandSchema
 >;
 
+export const WorkflowLifecycleCreateCommandSchema = z
+  .object({
+    specYaml: z.string().min(1),
+    projectId: ProjectIdSchema,
+    name: z.string().min(1).optional(),
+  })
+  .strict();
+export type WorkflowLifecycleCreateCommand = z.infer<
+  typeof WorkflowLifecycleCreateCommandSchema
+>;
+
+export const WorkflowLifecycleUpdateCommandSchema = z
+  .object({
+    specYaml: z.string().min(1),
+    projectId: ProjectIdSchema,
+    definitionId: WorkflowDefinitionIdSchema,
+    name: z.string().min(1).optional(),
+  })
+  .strict();
+export type WorkflowLifecycleUpdateCommand = z.infer<
+  typeof WorkflowLifecycleUpdateCommandSchema
+>;
+
+export const WorkflowLifecycleDeleteCommandSchema = z
+  .object({
+    projectId: ProjectIdSchema,
+    definitionId: WorkflowDefinitionIdSchema,
+  })
+  .strict();
+export type WorkflowLifecycleDeleteCommand = z.infer<
+  typeof WorkflowLifecycleDeleteCommandSchema
+>;
+
 export const WorkflowLifecycleStatusQuerySchema = z
   .object({
     runId: WorkflowExecutionIdSchema,
