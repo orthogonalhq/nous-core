@@ -1356,7 +1356,7 @@ export const projectsRouter = router({
         definition = { ...definition, name: input.name };
       }
 
-      // Attach specYaml for round-trip storage
+      // Attach specYaml to definition (may survive schema parsing) and store in specYamlStore (guaranteed to survive)
       definition = { ...definition, specYaml: input.specYaml };
 
       const currentDefinitions = getWorkflowDefinitions(project);
@@ -1367,6 +1367,9 @@ export const projectsRouter = router({
             d.id === definition.id ? definition : d)
         : [...currentDefinitions, definition];
 
+      // Store specYaml in dedicated map keyed by definition ID (survives schema parsing)
+      const specYamlStore = { ...(project.workflow?.specYamlStore ?? {}), [definition.id]: input.specYaml };
+
       await ctx.projectStore.update(input.projectId, {
         workflow: {
           definitions: nextDefinitions,
@@ -1374,6 +1377,7 @@ export const projectsRouter = router({
           defaultWorkflowDefinitionId: input.setAsDefault
             ? definition.id
             : project.workflow?.defaultWorkflowDefinitionId ?? definition.id,
+          specYamlStore,
         },
       });
 
@@ -1419,7 +1423,9 @@ export const projectsRouter = router({
         });
       }
 
-      return definition;
+      // Ensure specYaml is present — read from specYamlStore if stripped from definition by schema parsing
+      const specYaml = definition.specYaml ?? project.workflow?.specYamlStore?.[input.definitionId];
+      return { ...definition, specYaml };
     }),
 
   /** Delete a workflow definition by ID. Clears default if needed. */
@@ -1441,12 +1447,16 @@ export const projectsRouter = router({
 
       if (deleted) {
         const defaultId = project.workflow?.defaultWorkflowDefinitionId;
+        // Clean up specYamlStore entry
+        const specYamlStore = { ...(project.workflow?.specYamlStore ?? {}) };
+        delete specYamlStore[input.definitionId];
         await ctx.projectStore.update(input.projectId, {
           workflow: {
             definitions: nextDefinitions,
             packageBindings: project.workflow?.packageBindings ?? [],
             defaultWorkflowDefinitionId:
               defaultId === input.definitionId ? undefined : defaultId,
+            specYamlStore,
           },
         });
       }
