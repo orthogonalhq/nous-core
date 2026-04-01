@@ -5,7 +5,7 @@ import { act } from 'react'
 import { createRoot, type Root } from 'react-dom/client'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { AssetSidebar } from '../AssetSidebar'
-import type { AssetSection, ChatStage, SidebarTopNavItem } from '../types'
+import type { AssetSection, SidebarTopNavItem } from '../types'
 
 let container: HTMLDivElement
 let root: Root
@@ -46,15 +46,6 @@ const SECTIONS: AssetSection[] = [
   },
 ]
 
-function chatSlotSpy(props: { stage: ChatStage; onStageChange: (s: ChatStage) => void }) {
-  return (
-    <div data-testid="chat-slot" data-stage={props.stage}>
-      <button type="button" data-action="go-peek" onClick={() => props.onStageChange('peek')}>peek</button>
-      <button type="button" data-action="go-full" onClick={() => props.onStageChange('full')}>full</button>
-    </div>
-  )
-}
-
 async function renderSidebar(
   overrides: Partial<React.ComponentProps<typeof AssetSidebar>> = {},
 ) {
@@ -64,7 +55,6 @@ async function renderSidebar(
     sections: SECTIONS,
     activeRoute: 'dashboard',
     onNavigate: vi.fn(),
-    chatSlot: chatSlotSpy,
     ...overrides,
   }
   await act(async () => {
@@ -182,55 +172,6 @@ describe('AssetSidebar', () => {
     expect(wfSection?.querySelector('[data-action="settings"]')).toBeTruthy()
   })
 
-  it('renders chat slot with ambient stage by default', async () => {
-    await renderSidebar()
-    const chatSlot = container.querySelector('[data-testid="chat-slot"]')
-    expect(chatSlot?.getAttribute('data-stage')).toBe('ambient')
-  })
-
-  it('transitions chat to peek stage', async () => {
-    await renderSidebar()
-    const peekBtn = container.querySelector('[data-action="go-peek"]') as HTMLButtonElement
-    await act(async () => {
-      peekBtn.click()
-      await flush()
-    })
-    const chatSlot = container.querySelector('[data-testid="chat-slot"]')
-    expect(chatSlot?.getAttribute('data-stage')).toBe('peek')
-  })
-
-  it('transitions chat to full stage and hides sections', async () => {
-    await renderSidebar()
-    const fullBtn = container.querySelector('[data-action="go-full"]') as HTMLButtonElement
-    await act(async () => {
-      fullBtn.click()
-      await flush()
-    })
-    expect(container.querySelector('[data-sidebar-slot="sections"]')).toBeNull()
-    expect(container.querySelector('[data-testid="chat-slot"]')?.getAttribute('data-stage')).toBe('full')
-  })
-
-  it('collapses chat to ambient when navigating', async () => {
-    const props = await renderSidebar()
-    // First go to peek
-    const peekBtn = container.querySelector('[data-action="go-peek"]') as HTMLButtonElement
-    await act(async () => {
-      peekBtn.click()
-      await flush()
-    })
-    expect(container.querySelector('[data-testid="chat-slot"]')?.getAttribute('data-stage')).toBe('peek')
-
-    // Click a nav item
-    const inbox = container.querySelector('[data-nav-item="inbox"]') as HTMLButtonElement
-    await act(async () => {
-      inbox.click()
-      await flush()
-    })
-
-    expect(container.querySelector('[data-testid="chat-slot"]')?.getAttribute('data-stage')).toBe('ambient')
-    expect(props.onNavigate).toHaveBeenCalledWith('inbox')
-  })
-
   it('calls onNavigate when clicking a section item', async () => {
     const props = await renderSidebar()
     const item = container.querySelector('[data-section-item="wf-1"]') as HTMLButtonElement
@@ -241,9 +182,4 @@ describe('AssetSidebar', () => {
     expect(props.onNavigate).toHaveBeenCalledWith('workflow-a')
   })
 
-  it('sets data-chat-stage attribute on container', async () => {
-    await renderSidebar()
-    const sidebar = container.querySelector('[data-shell-component="asset-sidebar"]')
-    expect(sidebar?.getAttribute('data-chat-stage')).toBe('ambient')
-  })
 })

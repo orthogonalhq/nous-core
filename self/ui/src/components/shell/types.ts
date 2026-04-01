@@ -322,10 +322,6 @@ export const AssetSidebarPropsSchema = z.object({
     (value) => typeof value === 'function',
     'onNavigate function is required',
   ),
-  chatSlot: z.custom<(props: { stage: ChatStage; onStageChange: (stage: ChatStage) => void }) => ReactNode>(
-    (value) => typeof value === 'function',
-    'chatSlot render function is required',
-  ),
 })
 export type AssetSidebarProps = z.infer<typeof AssetSidebarPropsSchema>
 
@@ -334,6 +330,10 @@ export const SimpleShellLayoutPropsSchema = z.object({
   sidebar: requiredReactNodeSchema,
   content: requiredReactNodeSchema,
   observe: requiredReactNodeSchema,
+  chatSlot: z.custom<(props: { stage: ChatStage; onStageChange: (stage: ChatStage) => void }) => ReactNode>(
+    (value) => typeof value === 'function',
+    'chatSlot render function is required',
+  ),
   breakpoint: ShellBreakpointSchema.optional(),
   onColumnResize: z.custom<(widths: { sidebar: number; observe: number }) => void>(
     (value) => typeof value === 'function',

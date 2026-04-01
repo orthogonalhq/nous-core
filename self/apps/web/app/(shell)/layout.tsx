@@ -16,7 +16,7 @@ import {
   ProjectSwitcherRail,
   AssetSidebar,
 } from '@nous/ui/components'
-import type { ShellMode, NavigationState, ChatStage } from '@nous/ui/components'
+import type { ShellMode, NavigationState } from '@nous/ui/components'
 import { WebChromeShell } from '@/components/shell/web-chrome-shell'
 import { webRailSections } from '@/components/shell/web-rail-config'
 import { createWebShellRoutes } from '@/components/shell/web-shell-routes'
@@ -208,9 +208,6 @@ function ShellLayoutContent({
                     sections={sidebarSections}
                     activeRoute={activeRoute}
                     onNavigate={handleNavigate}
-                    chatSlot={({ stage, onStageChange }: { stage: ChatStage; onStageChange: (s: ChatStage) => void }) => (
-                      <WebConnectedChatSurface />
-                    )}
                   />
                 }
                 content={
@@ -221,6 +218,7 @@ function ShellLayoutContent({
                   />
                 }
                 observe={<ObservePanel />}
+                chatSlot={() => <WebConnectedChatSurface />}
               />
             ) : (
               <WebDockviewShell onApiReady={setDockviewApi} />

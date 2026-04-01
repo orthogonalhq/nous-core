@@ -4,7 +4,7 @@ import * as React from 'react'
 import { clsx } from 'clsx'
 import { ColumnDivider } from './ColumnDivider'
 import { CollapsibleObserveEdge } from './CollapsibleObserveEdge'
-import type { ShellBreakpoint, SimpleShellLayoutProps } from './types'
+import type { ChatStage, ShellBreakpoint, SimpleShellLayoutProps } from './types'
 
 const DEFAULT_SIDEBAR_WIDTH = 320
 const DEFAULT_OBSERVE_WIDTH = 20
@@ -35,6 +35,7 @@ export function SimpleShellLayout({
   sidebar,
   content,
   observe,
+  chatSlot,
   breakpoint = 'full',
   onColumnResize,
   initialWidths,
@@ -43,6 +44,7 @@ export function SimpleShellLayout({
   ...props
 }: SimpleShellLayoutProps & Omit<React.HTMLAttributes<HTMLDivElement>, 'content'>) {
   const containerRef = React.useRef<HTMLDivElement | null>(null)
+  const [chatStage, setChatStage] = React.useState<ChatStage>('ambient')
 
   const [sidebarWidth, setSidebarWidth] = React.useState(
     clampWidth(
@@ -98,19 +100,33 @@ export function SimpleShellLayout({
   // Cap sidebar width at breakpoint max
   const effectiveSidebarWidth = Math.min(sidebarWidth, BREAKPOINT_SIDEBAR[breakpoint])
 
+  // Chat row height based on stage
+  const chatRowHeight =
+    chatStage === 'full'
+      ? '1fr'
+      : chatStage === 'peek'
+        ? 'minmax(200px, 45%)'
+        : 'auto'
+
+  // Main row shrinks to 0 when chat is full
+  const mainRowHeight = chatStage === 'full' ? '0fr' : '1fr'
+
   const layoutStyle: SimpleShellStyle = {
     '--shell-sidebar-width': `${effectiveSidebarWidth}px`,
     '--shell-observe-width': `${observeWidth}px`,
     display: 'grid',
     minWidth: 0,
-    gridTemplateAreas: '"rail sidebar content observe"',
+    gridTemplateAreas: [
+      '"rail sidebar content observe"',
+      '"chat chat    content observe"',
+    ].join(' '),
     gridTemplateColumns: [
       'var(--nous-project-rail-width)',
       'var(--shell-sidebar-width)',
       '1fr',
       showObserve ? 'var(--shell-observe-width)' : '0px',
     ].join(' '),
-    gridTemplateRows: '1fr',
+    gridTemplateRows: `${mainRowHeight} ${chatRowHeight}`,
     position: 'relative',
     width: '100%',
     height: '100%',
@@ -157,6 +173,7 @@ export function SimpleShellLayout({
           minWidth: 0,
           overflowY: 'auto',
           gridArea: 'content',
+          gridRow: '1 / -1',
           background: 'var(--nous-content-bg)',
         }}
       >
@@ -169,6 +186,7 @@ export function SimpleShellLayout({
           minWidth: 0,
           overflow: 'hidden',
           gridArea: 'observe',
+          gridRow: '1 / -1',
           display: showObserve ? 'block' : 'none',
           background: 'var(--nous-observe-bg)',
           borderInlineStart: showObserve
@@ -182,6 +200,21 @@ export function SimpleShellLayout({
         >
           {observe}
         </CollapsibleObserveEdge>
+      </div>
+
+      {/* Chat spans rail + sidebar columns */}
+      <div
+        data-shell-area="chat"
+        style={{
+          gridArea: 'chat',
+          minWidth: 0,
+          overflow: 'hidden',
+          background: 'var(--nous-bg-surface)',
+          borderTop: '1px solid var(--nous-shell-column-border)',
+          borderRight: '1px solid var(--nous-shell-column-border)',
+        }}
+      >
+        {chatSlot({ stage: chatStage, onStageChange: setChatStage })}
       </div>
 
       <ColumnDivider

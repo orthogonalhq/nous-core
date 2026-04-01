@@ -23,7 +23,8 @@ vi.mock('@nous/ui/components', () => ({
     return React.createElement('div', { 'data-testid': 'shell-layout' }, props.rail, props.chat, props.content, props.observe)
   },
   SimpleShellLayout: (props: any) => {
-    return React.createElement('div', { 'data-testid': 'simple-shell-layout' }, props.projectRail, props.sidebar, props.content, props.observe)
+    const chat = typeof props.chatSlot === 'function' ? props.chatSlot({ stage: 'ambient', onStageChange: () => {} }) : null
+    return React.createElement('div', { 'data-testid': 'simple-shell-layout' }, props.projectRail, props.sidebar, props.content, props.observe, chat)
   },
   NavigationRail: (props: any) => {
     capturedNavigationRailProps = props
@@ -234,7 +235,7 @@ describe('Web Shell Integration', () => {
     expect(screen.getByTestId('project-switcher-rail')).toBeDefined()
     expect(screen.getByTestId('asset-sidebar')).toBeDefined()
     expect(screen.getByTestId('content-router')).toBeDefined()
-    expect(screen.getByTestId('collapsible-observe-edge')).toBeDefined()
+    expect(screen.getByTestId('observe-panel')).toBeDefined()
     expect(screen.getByTestId('web-connected-chat-surface')).toBeDefined()
   })
 

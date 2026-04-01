@@ -6,7 +6,6 @@ import type {
   AssetSection,
   AssetSectionItem,
   AssetSidebarProps,
-  ChatStage,
   SidebarTopNavItem,
 } from './types'
 
@@ -301,38 +300,14 @@ export function AssetSidebar({
   sections,
   activeRoute,
   onNavigate,
-  chatSlot,
   className,
   style,
   ...props
 }: AssetSidebarProps & Omit<React.HTMLAttributes<HTMLDivElement>, 'content'>) {
-  const [chatStage, setChatStage] = React.useState<ChatStage>('ambient')
-
-  const handleNavigate = (routeId: string) => {
-    // Clicking any nav item collapses chat to ambient (per D4)
-    setChatStage('ambient')
-    onNavigate(routeId)
-  }
-
-  const handleStageChange = (stage: ChatStage) => {
-    setChatStage(stage)
-  }
-
-  const showSections = chatStage !== 'full'
-
-  // Chat height allocation per stage
-  const chatFlexBasis =
-    chatStage === 'ambient'
-      ? '100px'
-      : chatStage === 'peek'
-        ? '45%'
-        : '100%'
-
   return (
     <div
       className={clsx('nous-asset-sidebar', className)}
       data-shell-component="asset-sidebar"
-      data-chat-stage={chatStage}
       style={{
         display: 'flex',
         flexDirection: 'column',
@@ -366,78 +341,56 @@ export function AssetSidebar({
         </span>
       </div>
 
-      {/* Sections area — scrollable, shrinks when chat grows */}
-      {showSections ? (
+      {/* Sections area — scrollable */}
+      <div
+        data-sidebar-slot="sections"
+        style={{
+          flex: '1 1 0%',
+          overflowY: 'auto',
+          display: 'flex',
+          flexDirection: 'column',
+          gap: 'var(--nous-space-xs)',
+          padding: 'var(--nous-space-sm) 0',
+          minHeight: 0,
+        }}
+      >
+        {/* Top nav items */}
         <div
-          data-sidebar-slot="sections"
           style={{
-            flex: '1 1 0%',
-            overflowY: 'auto',
+            display: 'flex',
+            flexDirection: 'column',
+            gap: '1px',
+            padding: '0 var(--nous-space-xs)',
+          }}
+        >
+          {topNav.map((item) => (
+            <TopNavItemRow
+              key={item.id}
+              item={item}
+              isActive={item.routeId === activeRoute}
+              onNavigate={onNavigate}
+            />
+          ))}
+        </div>
+
+        {/* Asset sections */}
+        <div
+          style={{
             display: 'flex',
             flexDirection: 'column',
             gap: 'var(--nous-space-xs)',
-            padding: 'var(--nous-space-sm) 0',
-            minHeight: 0,
+            padding: '0 var(--nous-space-xs)',
           }}
         >
-          {/* Top nav items */}
-          <div
-            style={{
-              display: 'flex',
-              flexDirection: 'column',
-              gap: '1px',
-              padding: '0 var(--nous-space-xs)',
-            }}
-          >
-            {topNav.map((item) => (
-              <TopNavItemRow
-                key={item.id}
-                item={item}
-                isActive={item.routeId === activeRoute}
-                onNavigate={handleNavigate}
-              />
-            ))}
-          </div>
-
-          {/* Asset sections */}
-          <div
-            style={{
-              display: 'flex',
-              flexDirection: 'column',
-              gap: 'var(--nous-space-xs)',
-              padding: '0 var(--nous-space-xs)',
-            }}
-          >
-            {sections.map((section) => (
-              <AssetSectionBlock
-                key={section.id}
-                section={section}
-                activeRoute={activeRoute}
-                onNavigate={handleNavigate}
-              />
-            ))}
-          </div>
+          {sections.map((section) => (
+            <AssetSectionBlock
+              key={section.id}
+              section={section}
+              activeRoute={activeRoute}
+              onNavigate={onNavigate}
+            />
+          ))}
         </div>
-      ) : null}
-
-      {/* Chat slot — bottom sheet */}
-      <div
-        data-sidebar-slot="chat"
-        style={{
-          flexShrink: 0,
-          flexGrow: chatStage === 'full' ? 1 : 0,
-          flexBasis: chatFlexBasis,
-          minHeight: chatStage === 'ambient' ? '100px' : undefined,
-          maxHeight: chatStage === 'full' ? '100%' : chatStage === 'peek' ? '50%' : undefined,
-          width: '100%',
-          maxWidth: '100%',
-          borderTop: '1px solid var(--nous-shell-column-border)',
-          overflow: 'hidden',
-          transition: 'flex-basis var(--nous-duration-normal, 200ms) var(--nous-ease-out, ease-out)',
-          position: 'relative',
-        }}
-      >
-        {chatSlot({ stage: chatStage, onStageChange: handleStageChange })}
       </div>
     </div>
   )

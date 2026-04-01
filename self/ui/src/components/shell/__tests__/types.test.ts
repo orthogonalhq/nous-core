@@ -630,30 +630,16 @@ describe('shell type schemas', () => {
         ],
         activeRoute: 'dashboard',
         onNavigate: () => {},
-        chatSlot: () => null,
       }).success,
     ).toBe(true)
 
-    // Invalid: missing chatSlot
+    // Invalid: missing onNavigate
     expect(
       AssetSidebarPropsSchema.safeParse({
         projectName: 'My Project',
         topNav: [],
         sections: [],
         activeRoute: 'dashboard',
-        onNavigate: () => {},
-      }).success,
-    ).toBe(false)
-
-    // Invalid: chatSlot is not a function
-    expect(
-      AssetSidebarPropsSchema.safeParse({
-        projectName: 'My Project',
-        topNav: [],
-        sections: [],
-        activeRoute: 'dashboard',
-        onNavigate: () => {},
-        chatSlot: 'not-a-function',
       }).success,
     ).toBe(false)
   })
@@ -665,6 +651,7 @@ describe('shell type schemas', () => {
         sidebar: 'sidebar',
         content: 'content',
         observe: 'observe',
+        chatSlot: () => null,
       }).success,
     ).toBe(true)
 
@@ -675,6 +662,7 @@ describe('shell type schemas', () => {
         sidebar: 'sidebar',
         content: 'content',
         observe: 'observe',
+        chatSlot: () => null,
         breakpoint: 'full',
         onColumnResize: () => {},
         initialWidths: { sidebar: 320, observe: 280 },
@@ -688,6 +676,7 @@ describe('shell type schemas', () => {
         sidebar: 'sidebar',
         content: 'content',
         observe: 'observe',
+        chatSlot: () => null,
         initialWidths: { sidebar: 320 },
       }).success,
     ).toBe(true)

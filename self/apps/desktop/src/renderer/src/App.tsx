@@ -704,6 +704,7 @@ export function App() {
             />
           }
           observe={<ObservePanel />}
+          chatSlot={() => <ConnectedChatSurface />}
         />
       ) : (
         <DockviewShell
@@ -823,9 +824,6 @@ function DesktopAssetSidebarConnected({ sections }: { sections: import('@nous/ui
       sections={sections}
       activeRoute={activeRoute}
       onNavigate={navigate}
-      chatSlot={(_props: { stage: ChatStage; onStageChange: (s: ChatStage) => void }) => (
-        <ConnectedChatSurface />
-      )}
     />
   )
 }
