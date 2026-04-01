@@ -11,6 +11,7 @@ import {
   useReactFlow,
 } from '@xyflow/react'
 import type { IDockviewPanelProps } from 'dockview-react'
+import { trpc } from '@nous/transport'
 import { ShellContext } from '../../components/shell/ShellContext'
 import type { WorkflowBuilderNode, WorkflowBuilderEdge, ContextMenuState } from '../../types/workflow-builder'
 import { BuilderModeProvider, useBuilderMode } from './context/BuilderModeContext'
@@ -26,6 +27,7 @@ import { NodeSearch } from './NodeSearch'
 import { ValidationPanel } from './ValidationPanel'
 import { nodeTypes } from './nodes'
 import { edgeTypes } from './edges'
+import { WorkflowPicker } from './WorkflowPicker'
 import { ExecutionMonitor } from './monitoring/ExecutionMonitor'
 import { ExecutionHistory } from './monitoring/ExecutionHistory'
 import { GatePanel } from './monitoring/GatePanel'
@@ -59,11 +61,15 @@ const CanvasDropTarget = forwardRef<
     canvasRef: React.RefObject<HTMLDivElement | null>
     canvasHasFocus: boolean
     onFocusedNodeChange: (nodeId: string | null) => void
+    projectId?: string
+    workflowDefinitionId?: string
   }
 >(function CanvasDropTarget({
   canvasRef,
   canvasHasFocus,
   onFocusedNodeChange,
+  projectId,
+  workflowDefinitionId,
 }, ref) {
   const { mode, setMode } = useBuilderMode()
   const {
@@ -98,7 +104,13 @@ const CanvasDropTarget = forwardRef<
     inspectionState,
     setInspectedNode,
     clearInspection,
-  } = useBuilderState(mode)
+    loadSpec,
+    saveToServer,
+    saveAsNew,
+    resetToEmpty,
+    isSaving,
+    currentDefinitionId,
+  } = useBuilderState(mode, { projectId, workflowDefinitionId })
 
   const { screenToFlowPosition, fitView } = useReactFlow()
 
@@ -174,12 +186,46 @@ const CanvasDropTarget = forwardRef<
     [mode, onPaneClick, clearInspection],
   )
 
-  // ─── Save handler (SP 2.5) ─────────────────────────────────────────────
+  // ─── Save handlers ─────────────────────────────────────────────────────
 
   const handleSave = useCallback(() => {
-    getCurrentSpec()
-    markClean()
-  }, [getCurrentSpec, markClean])
+    if (projectId) {
+      void saveToServer()
+    } else {
+      // Non-project fallback: client-side only
+      getCurrentSpec()
+      markClean()
+    }
+  }, [projectId, saveToServer, getCurrentSpec, markClean])
+
+  const handleSaveAs = useCallback(() => {
+    void saveAsNew()
+  }, [saveAsNew])
+
+  const handleNewWorkflow = useCallback(() => {
+    resetToEmpty()
+  }, [resetToEmpty])
+
+  // ─── Select workflow from picker ──────────────────────────────────────
+
+  const utils = trpc.useUtils()
+  const handleSelectWorkflow = useCallback(
+    async (definitionId: string) => {
+      if (!projectId) return
+      try {
+        const definition = await utils.projects.getWorkflowDefinition.fetch({
+          projectId,
+          definitionId,
+        })
+        if (definition.specYaml) {
+          loadSpec(definition.specYaml)
+        }
+      } catch (error) {
+        console.error('[WorkflowBuilder] Failed to load workflow:', error)
+      }
+    },
+    [projectId, utils, loadSpec],
+  )
 
   // ─── Validate toggle handler (SP 2.5) ──────────────────────────────────
 
@@ -498,8 +544,11 @@ const CanvasDropTarget = forwardRef<
         canUndo={canUndo}
         canRedo={canRedo}
         onSave={handleSave}
+        onSaveAs={projectId ? handleSaveAs : undefined}
+        onNewWorkflow={projectId ? handleNewWorkflow : undefined}
         onValidate={handleValidate}
         isDirty={isDirty}
+        isSaving={isSaving}
         validationErrorCount={validationErrors.length}
         isValidationPanelOpen={isValidationPanelOpen}
       />
@@ -507,6 +556,15 @@ const CanvasDropTarget = forwardRef<
       {mode !== 'monitoring' && (
         <>
           <NodePalette containerRef={canvasRef} />
+          {projectId && (
+            <WorkflowPicker
+              projectId={projectId}
+              currentDefinitionId={currentDefinitionId}
+              onSelectWorkflow={(id) => void handleSelectWorkflow(id)}
+              onNewWorkflow={handleNewWorkflow}
+              containerRef={canvasRef}
+            />
+          )}
           <NodeInspector
             selectedNodeId={selectedNodeId}
             nodes={nodes}
@@ -669,6 +727,8 @@ function WorkflowBuilderCanvas({ className, projectId, workflowDefinitionId }: {
             canvasRef={canvasRef}
             canvasHasFocus={canvasHasFocus}
             onFocusedNodeChange={handleFocusedNodeChange}
+            projectId={projectId}
+            workflowDefinitionId={workflowDefinitionId}
           />
         </ReactFlowProvider>
       </BuilderModeProvider>
