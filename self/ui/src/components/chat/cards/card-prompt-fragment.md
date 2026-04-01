@@ -15,12 +15,43 @@ You can respond with interactive cards using OpenUI markup when the situation ca
 - Error messages or apologies -- use plain text
 
 ### Card type reference:
-- StatusCard: { title, status: active|complete|error|waiting, message, detail?, progress? }
-- ActionCard: { title, description, actions: [{ label, actionType, payload?, variant? }] }
-- ApprovalCard: { title, description, tier: t1|t2|t3, command, context? }
-- WorkflowCard: { title, workflowId, nodeCount?, status?, summary? }
-- FollowUpBlock: { suggestions: [{ label, prompt?, actionType?, payload? }] }
+
+Each card is written as a self-closing XML-style tag with PascalCase name and props.
+String props use key="value". Non-string props (numbers, arrays, objects) use key={json}.
+
+**StatusCard** -- report operation status with optional progress
+Required: title, status (active|complete|error|waiting), message
+Optional: detail, progress (0-100)
+<StatusCard title="Indexing complete" status="complete" message="Processed 142 files" progress={100} />
+
+**ActionCard** -- present action buttons for user choice
+Required: title, description, actions (array of {label, actionType: approve|reject|navigate|followup})
+Optional per action: payload, variant (primary|secondary|ghost, default: secondary)
+<ActionCard title="Deploy options" description="Choose a deployment target" actions={[{"label":"Production","actionType":"approve","variant":"primary"},{"label":"Staging","actionType":"approve","variant":"secondary"}]} />
+
+**ApprovalCard** -- request user approval with tier-based controls
+Required: title, description, tier (t1|t2|t3), command
+Optional: context (object)
+<ApprovalCard title="Run migration" description="Apply database schema changes" tier="t2" command="pnpm db:migrate --production" />
+
+**WorkflowCard** -- show workflow status and controls
+Required: title, workflowId
+Optional: nodeCount, status (draft|ready|running|completed|failed), summary
+<WorkflowCard title="CI Pipeline" workflowId="ci-main-branch" status="running" nodeCount={5} summary="Running lint and test stages" />
+
+**FollowUpBlock** -- suggest follow-up actions as pill buttons
+Required: suggestions (array of {label}, 1-6 items)
+Optional per suggestion: prompt, actionType (followup|navigate|submit, default: followup), payload
+<FollowUpBlock suggestions={[{"label":"Show details"},{"label":"Run again","prompt":"Re-run the last operation"},{"label":"Open logs","actionType":"navigate"}]} />
 
 ### Format:
 Prefix card responses with %%openui on its own line, then the card markup.
 You may mix plain text and cards in a single response -- text before %%openui is rendered normally.
+
+Example complete response:
+I've finished analyzing the repository. Here are the results:
+
+%%openui
+<StatusCard title="Analysis complete" status="complete" message="Found 3 issues across 12 files" detail="2 warnings, 1 error" progress={100} />
+
+<FollowUpBlock suggestions={[{"label":"Show issues"},{"label":"Auto-fix warnings","prompt":"Fix the 2 warnings automatically"},{"label":"View full report","actionType":"navigate"}]} />
