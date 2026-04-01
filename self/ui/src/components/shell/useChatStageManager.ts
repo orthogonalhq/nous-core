@@ -20,6 +20,7 @@ const IDLE_AMBIENT_SMALL_TO_SMALL = 3_000
 export function useChatStageManager(): ChatStageManagerReturn {
   const [chatStage, setChatStage] = useState<ChatStage>('small')
   const [isPinned, setIsPinned] = useState(false)
+  const isActiveTurnRef = useRef(false)
 
   // Idle timer refs
   const idleTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
@@ -43,6 +44,7 @@ export function useChatStageManager(): ChatStageManagerReturn {
 
   const signalSending = useCallback(() => {
     clearAllTimers()
+    isActiveTurnRef.current = true
     setChatStage((prev) => {
       if (prev === 'small') return 'ambient_small'
       return prev
@@ -51,6 +53,7 @@ export function useChatStageManager(): ChatStageManagerReturn {
 
   const signalInferenceStart = useCallback(() => {
     clearAllTimers()
+    isActiveTurnRef.current = true
     setChatStage((prev) => {
       if (prev === 'small') return 'ambient_small'
       return prev
@@ -65,6 +68,7 @@ export function useChatStageManager(): ChatStageManagerReturn {
   }, [])
 
   const signalTurnComplete = useCallback(() => {
+    isActiveTurnRef.current = false
     setChatStage((prev) => {
       if (prev === 'ambient_large') {
         // ambient_large -> ambient_small after 5s, then ambient_small -> small after 3s
@@ -126,6 +130,9 @@ export function useChatStageManager(): ChatStageManagerReturn {
       if (isPinned && prev === 'full') return prev
       if (prev !== 'small') {
         clearAllTimers()
+        // If agent is actively working, collapse to ambient_small (not small)
+        // so the user can still see the thinking indicator
+        if (isActiveTurnRef.current) return 'ambient_small'
         return 'small'
       }
       return prev
