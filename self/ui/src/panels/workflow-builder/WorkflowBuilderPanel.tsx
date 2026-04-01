@@ -596,6 +596,8 @@ const CanvasDropTarget = forwardRef<
             minWidth: 280,
           }}
           data-testid="workflow-name-dialog"
+          onKeyDown={(e) => e.stopPropagation()}
+          onMouseDown={(e) => e.stopPropagation()}
         >
           <div style={{ fontSize: 'var(--nous-font-size-sm)', fontWeight: 600, color: 'var(--nous-fg)', marginBottom: 'var(--nous-space-sm)' }}>
             {pendingNameAction === 'saveAs' ? 'Save As New Workflow' : 'Name Your Workflow'}
