@@ -36,6 +36,8 @@ import '@xyflow/react/dist/style.css'
 
 export interface WorkflowBuilderPanelCoreProps {
   className?: string
+  projectId?: string
+  workflowDefinitionId?: string
 }
 
 interface WorkflowBuilderDockviewProps extends IDockviewPanelProps {
@@ -625,7 +627,11 @@ const CanvasDropTarget = forwardRef<
   )
 })
 
-function WorkflowBuilderCanvas({ className }: { className?: string }) {
+function WorkflowBuilderCanvas({ className, projectId, workflowDefinitionId }: {
+  className?: string
+  projectId?: string
+  workflowDefinitionId?: string
+}) {
   const canvasRef = useRef<HTMLDivElement | null>(null)
   const dropTargetRef = useRef<CanvasDropTargetHandle>(null)
   const [canvasHasFocus, setCanvasHasFocus] = useState(false)
@@ -675,6 +681,14 @@ export function WorkflowBuilderPanel(
   props: WorkflowBuilderDockviewProps | WorkflowBuilderPanelCoreProps,
 ) {
   const className = 'className' in props ? props.className : undefined
+  const projectId = 'projectId' in props ? props.projectId : undefined
+  const workflowDefinitionId = 'workflowDefinitionId' in props ? props.workflowDefinitionId : undefined
 
-  return <WorkflowBuilderCanvas className={className} />
+  return (
+    <WorkflowBuilderCanvas
+      className={className}
+      projectId={projectId}
+      workflowDefinitionId={workflowDefinitionId}
+    />
+  )
 }
