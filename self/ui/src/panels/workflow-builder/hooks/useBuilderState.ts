@@ -470,9 +470,11 @@ export function useBuilderState(
   // Helper: fetch a definition by ID and load into builder state
   const fetchAndLoadDefinition = useCallback(
     (pid: string, defId: string) => {
+      console.log('[useBuilderState] fetchAndLoadDefinition:', pid, defId)
       return utils.projects.getWorkflowDefinition
         .fetch({ projectId: pid, definitionId: defId })
         .then((definition) => {
+          console.log('[useBuilderState] fetched definition:', defId, 'specYaml length:', definition.specYaml?.length ?? 'null')
           if (!definition.specYaml) {
             // Legacy definition saved before specYaml storage was added.
             // Load empty canvas but keep the definitionId so the next save
@@ -488,6 +490,9 @@ export function useBuilderState(
             return
           }
           const result = sync.loadSpec(definition.specYaml)
+          if (!result.success) {
+            console.error('[useBuilderState] loadSpec failed for definition', defId, result.errors)
+          }
           if (result.success) {
             setNodes(result.nodes!)
             setEdges(result.edges!)
@@ -600,6 +605,7 @@ export function useBuilderState(
       })
       setCurrentDefId(result.definitionId)
       markClean()
+      void utils.projects.listWorkflowDefinitions.invalidate({ projectId })
       return { definitionId: result.definitionId }
     } catch (error) {
       console.error('[useBuilderState] Save As failed:', error)
@@ -607,7 +613,7 @@ export function useBuilderState(
     } finally {
       setIsSaving(false)
     }
-  }, [projectId, getCurrentSpec, saveMutation, markClean])
+  }, [projectId, getCurrentSpec, saveMutation, markClean, utils])
 
   const resetToEmpty = useCallback(() => {
     setNodes([])
