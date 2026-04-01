@@ -12,6 +12,24 @@ let root: Root
 ;(globalThis as typeof globalThis & { IS_REACT_ACT_ENVIRONMENT?: boolean }).IS_REACT_ACT_ENVIRONMENT =
   true
 
+// Mock ResizeObserver
+class MockResizeObserver {
+  callback: ResizeObserverCallback
+  constructor(callback: ResizeObserverCallback) {
+    this.callback = callback
+  }
+  observe() {}
+  unobserve() {}
+  disconnect() {}
+}
+
+beforeEach(() => {
+  ;(globalThis as any).ResizeObserver = MockResizeObserver
+  container = document.createElement('div')
+  document.body.appendChild(container)
+  root = createRoot(container)
+})
+
 async function flush() {
   await Promise.resolve()
   await new Promise((resolve) => window.setTimeout(resolve, 0))
@@ -44,12 +62,6 @@ function getArea(name: string): HTMLDivElement {
   return element
 }
 
-beforeEach(() => {
-  container = document.createElement('div')
-  document.body.appendChild(container)
-  root = createRoot(container)
-})
-
 afterEach(async () => {
   await act(async () => {
     root.unmount()
@@ -59,20 +71,35 @@ afterEach(async () => {
 })
 
 describe('SimpleShellLayout', () => {
-  it('renders all four named grid areas', async () => {
+  it('renders all four named grid areas plus chat overlay', async () => {
     await renderLayout()
 
     expect(getArea('rail').textContent).toContain('rail')
     expect(getArea('sidebar').textContent).toContain('sidebar')
     expect(getArea('content').textContent).toContain('content')
-    // Observe area wraps content in CollapsibleObserveEdge — at default 20px width it shows the collapse chevron, not the children
     expect(getArea('observe')).toBeTruthy()
+    expect(getArea('chat')).toBeTruthy()
   })
 
-  it('sets grid-template-areas on the container', async () => {
+  it('sets single-row grid-template-areas on the container', async () => {
     await renderLayout()
     const layout = container.firstElementChild as HTMLDivElement
-    expect(layout.style.gridTemplateAreas).toBe('"rail    sidebar content observe" "chat    chat    content observe"')
+    expect(layout.style.gridTemplateAreas).toBe('"rail sidebar content observe"')
+  })
+
+  it('uses single-row grid (1fr)', async () => {
+    await renderLayout()
+    const layout = container.firstElementChild as HTMLDivElement
+    expect(layout.style.gridTemplateRows).toBe('1fr')
+  })
+
+  it('chat overlay is positioned absolutely', async () => {
+    await renderLayout()
+    const chat = getArea('chat')
+    expect(chat.style.position).toBe('absolute')
+    expect(chat.style.bottom).toBe('0px')
+    expect(chat.style.left).toBe('0px')
+    expect(chat.style.zIndex).toBe('10')
   })
 
   it('applies initial widths as CSS custom properties', async () => {
@@ -130,9 +157,19 @@ describe('SimpleShellLayout', () => {
   it('calls onColumnResize when provided', async () => {
     const onResize = vi.fn()
     await renderLayout({ onColumnResize: onResize })
-    // Trigger resize by simulating pointer events on a divider
     const divider = container.querySelector('[aria-label="Resize sidebar column"]') as HTMLElement
     expect(divider).toBeTruthy()
-    // The callback fires on drag — tested via integration; here we verify it accepts the prop
+  })
+
+  it('chat overlay has transition for smooth animation', async () => {
+    await renderLayout()
+    const chat = getArea('chat')
+    expect(chat.style.transition).toBe('height 300ms ease')
+  })
+
+  it('sets data-chat-stage attribute on chat overlay', async () => {
+    await renderLayout({ chatStage: 'large' })
+    const chat = getArea('chat')
+    expect(chat.getAttribute('data-chat-stage')).toBe('large')
   })
 })

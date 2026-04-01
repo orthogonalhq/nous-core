@@ -405,39 +405,20 @@ describe('ChatPanel — Stage-aware rendering', () => {
     expect(screen.getByText('Send')).toBeTruthy()
   })
 
-  it('ambient_small stage shows toggle bar and input', () => {
+  it('large stage shows header with toggle bar and recent messages', () => {
     const mockApi: ChatAPI = {
       send: vi.fn().mockResolvedValue({ response: 'ok', traceId: 'trace-1' }),
       getHistory: async () => [],
     }
-    const { container } = render(<ChatPanel chatApi={mockApi} stage="ambient_small" />)
+    const { container } = render(<ChatPanel chatApi={mockApi} stage="large" />)
 
-    expect(container.querySelector('[data-chat-stage="ambient_small"]')).toBeTruthy()
-    // Header text should NOT be present
-    expect(screen.queryByText('Principal \u2194 Cortex')).toBeNull()
-    // Toggle bar should be present
+    expect(container.querySelector('[data-chat-stage="large"]')).toBeTruthy()
+    expect(screen.getByText('Principal \u2194 Cortex')).toBeTruthy()
     expect(screen.getByTestId('chat-stage-toggle')).toBeTruthy()
-    // Input should still be present
     expect(screen.getByPlaceholderText(/Message Nous/i)).toBeTruthy()
   })
 
-  it('ambient_large stage shows thought stream area but no header or messages', () => {
-    const mockApi: ChatAPI = {
-      send: vi.fn().mockResolvedValue({ response: 'ok', traceId: 'trace-1' }),
-      getHistory: async () => [],
-    }
-    const { container } = render(<ChatPanel chatApi={mockApi} stage="ambient_large" />)
-
-    expect(container.querySelector('[data-chat-stage="ambient_large"]')).toBeTruthy()
-    // Header text should NOT be present
-    expect(screen.queryByText('Principal \u2194 Cortex')).toBeNull()
-    // Toggle bar should be present
-    expect(screen.getByTestId('chat-stage-toggle')).toBeTruthy()
-    // Input should still be present
-    expect(screen.getByPlaceholderText(/Message Nous/i)).toBeTruthy()
-  })
-
-  it('small stage expand button calls onStageChange with peek', () => {
+  it('small stage expand button calls onStageChange with large', () => {
     const mockApi: ChatAPI = {
       send: vi.fn().mockResolvedValue({ response: 'ok', traceId: 'trace-1' }),
       getHistory: async () => [],
@@ -447,36 +428,24 @@ describe('ChatPanel — Stage-aware rendering', () => {
     render(<ChatPanel chatApi={mockApi} stage="small" onStageChange={onStageChange} />)
 
     // Click expand chevron
-    fireEvent.click(screen.getByTestId('ambient-expand-button'))
-    expect(onStageChange).toHaveBeenCalledWith('peek')
+    fireEvent.click(screen.getByTestId('small-expand-button'))
+    expect(onStageChange).toHaveBeenCalledWith('large')
   })
 
-  it('peek stage shows header with toggle bar', () => {
-    const mockApi: ChatAPI = {
-      send: vi.fn().mockResolvedValue({ response: 'ok', traceId: 'trace-1' }),
-      getHistory: async () => [],
-    }
-    const { container } = render(<ChatPanel chatApi={mockApi} stage="peek" />)
-
-    expect(container.querySelector('[data-chat-stage="peek"]')).toBeTruthy()
-    expect(screen.getByText('Principal \u2194 Cortex')).toBeTruthy()
-    expect(screen.getByTestId('chat-stage-toggle')).toBeTruthy()
-  })
-
-  it('peek stage expand button calls onStageChange with full', () => {
+  it('large stage expand button calls onStageChange with full', () => {
     const mockApi: ChatAPI = {
       send: vi.fn().mockResolvedValue({ response: 'ok', traceId: 'trace-1' }),
       getHistory: async () => [],
     }
     const onStageChange = vi.fn()
 
-    render(<ChatPanel chatApi={mockApi} stage="peek" onStageChange={onStageChange} />)
+    render(<ChatPanel chatApi={mockApi} stage="large" onStageChange={onStageChange} />)
 
-    fireEvent.click(screen.getByTestId('peek-expand-full-button'))
+    fireEvent.click(screen.getByTestId('large-expand-full-button'))
     expect(onStageChange).toHaveBeenCalledWith('full')
   })
 
-  it('peek stage shows only last 5 messages', async () => {
+  it('large stage shows only last 5 messages', async () => {
     const messages: { role: 'user' | 'assistant'; content: string; timestamp: string }[] = []
     for (let i = 0; i < 10; i++) {
       messages.push({ role: 'user', content: `msg-${i}`, timestamp: new Date().toISOString() })
@@ -486,7 +455,7 @@ describe('ChatPanel — Stage-aware rendering', () => {
       getHistory: async () => messages,
     }
 
-    render(<ChatPanel chatApi={mockApi} stage="peek" />)
+    render(<ChatPanel chatApi={mockApi} stage="large" />)
 
     // Wait for history to load
     await act(async () => {})

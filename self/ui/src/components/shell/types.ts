@@ -122,7 +122,7 @@ export interface ObservePanelProps {
 
 // --- Chat Stage Types ---
 
-export const ChatStageSchema = z.enum(['small', 'ambient_small', 'ambient_large', 'peek', 'full'])
+export const ChatStageSchema = z.enum(['small', 'large', 'full'])
 export type ChatStage = z.infer<typeof ChatStageSchema>
 
 /** Return type of the useChatStageManager hook */
@@ -132,16 +132,14 @@ export interface ChatStageManagerReturn {
   signalSending: () => void
   /** Agent started an inference call */
   signalInferenceStart: () => void
-  /** PFC emitted a decision thought */
-  signalPfcDecision: () => void
   /** Turn completed — start idle timers */
   signalTurnComplete: () => void
-  /** User clicked expand chevron (any non-full -> peek) */
-  expandToPeek: () => void
-  /** User clicked maximize chevron (peek -> full) */
+  /** Expand to large (any non-full -> large) */
+  expandToLarge: () => void
+  /** Expand to full (any -> full) */
   expandToFull: () => void
-  /** User clicked minimize chevron (full -> peek) */
-  minimizeToPeek: () => void
+  /** Minimize from full to large */
+  minimizeToLarge: () => void
   /** Collapse to small (click outside or explicit dismiss) */
   collapseToSmall: () => void
   /** Handler for click-outside events */

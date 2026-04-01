@@ -14,6 +14,8 @@ const MAX_SIDEBAR_WIDTH = 480
 const MAX_OBSERVE_WIDTH = 400
 const COLLAPSED_THRESHOLD = 60
 
+const CHAT_SMALL_HEIGHT = 60
+
 /** Sidebar width caps per breakpoint */
 const BREAKPOINT_SIDEBAR: Record<ShellBreakpoint, number> = {
   full: DEFAULT_SIDEBAR_WIDTH,
@@ -46,11 +48,10 @@ export function SimpleShellLayout({
   ...props
 }: SimpleShellLayoutProps & Omit<React.HTMLAttributes<HTMLDivElement>, 'content'>) {
   const containerRef = React.useRef<HTMLDivElement | null>(null)
-  // Use prop if provided (new 5-state model), otherwise fallback to internal state (backwards compat)
+  const chatOverlayRef = React.useRef<HTMLDivElement | null>(null)
+  // Use prop if provided, otherwise fallback to internal state (backwards compat)
   const [internalStage, setInternalStage] = React.useState<ChatStage>('small')
   const chatStage = chatStageProp ?? internalStage
-  // When externally controlled, stage changes come through the prop — don't provide a setter
-  // The app layer passes onStageChange through the chatSlot render function args
   const internalSetChatStage = chatStageProp !== undefined ? undefined : setInternalStage
 
   const [sidebarWidth, setSidebarWidth] = React.useState(
@@ -68,6 +69,9 @@ export function SimpleShellLayout({
     ),
   )
 
+  // Track container height for overlay size calculations
+  const [containerHeight, setContainerHeight] = React.useState(0)
+
   const sidebarWidthRef = React.useRef(sidebarWidth)
   const observeWidthRef = React.useRef(observeWidth)
 
@@ -78,6 +82,20 @@ export function SimpleShellLayout({
   React.useEffect(() => {
     observeWidthRef.current = observeWidth
   }, [observeWidth])
+
+  // ResizeObserver to track container height
+  React.useEffect(() => {
+    const el = containerRef.current
+    if (!el) return
+
+    const observer = new ResizeObserver((entries) => {
+      for (const entry of entries) {
+        setContainerHeight(entry.contentRect.height)
+      }
+    })
+    observer.observe(el)
+    return () => observer.disconnect()
+  }, [])
 
   const applySidebarResize = React.useCallback((delta: number) => {
     const nextWidth = clampWidth(sidebarWidthRef.current + delta, MIN_SIDEBAR_WIDTH, MAX_SIDEBAR_WIDTH)
@@ -107,26 +125,22 @@ export function SimpleShellLayout({
   // Cap sidebar width at breakpoint max
   const effectiveSidebarWidth = Math.min(sidebarWidth, BREAKPOINT_SIDEBAR[breakpoint])
 
-  // Chat row height based on stage (5-state model)
-  const chatRowHeight = (() => {
+  // Compute chat overlay height based on stage
+  const chatOverlayHeight = (() => {
     switch (chatStage) {
-      case 'full': return '1fr'
-      case 'peek': return 'minmax(200px, 45%)'
-      case 'ambient_large': return 'minmax(150px, 35%)'
-      case 'ambient_small': return 'auto'
-      case 'small':
-      default: return 'auto'
+      case 'small': return CHAT_SMALL_HEIGHT
+      case 'large': return Math.max(200, Math.round(containerHeight * 0.5))
+      case 'full': return containerHeight || '100%'
+      default: return CHAT_SMALL_HEIGHT
     }
   })()
 
-  // Main row shrinks to 0 when chat is full
-  const mainRowHeight = chatStage === 'full' ? '0fr' : '1fr'
-
-  // Click-outside handler for non-chat areas
-  const handleAreaClick = React.useCallback(() => {
-    if (chatStage !== 'small' && onClickOutside) {
-      onClickOutside()
-    }
+  // Click-outside handler — single handler on the layout container
+  const handleLayoutClick = React.useCallback((e: React.MouseEvent) => {
+    if (chatStage === 'small' || !onClickOutside) return
+    // Check if click target is inside the chat overlay
+    if (chatOverlayRef.current?.contains(e.target as Node)) return
+    onClickOutside()
   }, [chatStage, onClickOutside])
 
   const layoutStyle: SimpleShellStyle = {
@@ -134,17 +148,14 @@ export function SimpleShellLayout({
     '--shell-observe-width': `${observeWidth}px`,
     display: 'grid',
     minWidth: 0,
-    gridTemplateAreas: [
-      '"rail    sidebar content observe"',
-      '"chat    chat    content observe"',
-    ].join(' '),
+    gridTemplateAreas: '"rail sidebar content observe"',
     gridTemplateColumns: [
       'var(--nous-project-rail-width)',
       'var(--shell-sidebar-width)',
       '1fr',
       showObserve ? 'var(--shell-observe-width)' : '0px',
     ].join(' '),
-    gridTemplateRows: `${mainRowHeight} ${chatRowHeight}`,
+    gridTemplateRows: '1fr',
     position: 'relative',
     width: '100%',
     height: '100%',
@@ -158,11 +169,11 @@ export function SimpleShellLayout({
       className={clsx('nous-simple-shell-layout', className)}
       data-breakpoint={breakpoint}
       style={layoutStyle}
+      onClick={handleLayoutClick}
       {...props}
     >
       <div
         data-shell-area="rail"
-        onClick={handleAreaClick}
         style={{
           minWidth: 0,
           minHeight: 0,
@@ -176,7 +187,6 @@ export function SimpleShellLayout({
 
       <div
         data-shell-area="sidebar"
-        onClick={handleAreaClick}
         style={{
           minWidth: 0,
           minHeight: 0,
@@ -191,7 +201,6 @@ export function SimpleShellLayout({
 
       <div
         data-shell-area="content"
-        onClick={handleAreaClick}
         style={{
           minWidth: 0,
           overflowY: 'auto',
@@ -204,7 +213,6 @@ export function SimpleShellLayout({
 
       <div
         data-shell-area="observe"
-        onClick={handleAreaClick}
         style={{
           minWidth: 0,
           overflow: 'hidden',
@@ -224,21 +232,26 @@ export function SimpleShellLayout({
         </CollapsibleObserveEdge>
       </div>
 
-      {/* Chat spans rail + sidebar columns */}
+      {/* Chat overlay — anchored to bottom of rail+sidebar area */}
       <div
+        ref={chatOverlayRef}
         data-shell-area="chat"
         data-chat-stage={chatStage}
         style={{
-          gridArea: 'chat',
-          minWidth: 0,
-          minHeight: 0,
-          overflow: 'hidden',
+          position: 'absolute',
+          bottom: 0,
+          left: 0,
+          width: `calc(var(--nous-project-rail-width) + var(--shell-sidebar-width))`,
+          height: typeof chatOverlayHeight === 'number' ? `${chatOverlayHeight}px` : chatOverlayHeight,
+          zIndex: 10,
+          pointerEvents: 'auto',
           background: 'var(--nous-bg-surface)',
           borderTop: '1px solid var(--nous-shell-column-border)',
           borderRight: '1px solid var(--nous-shell-column-border)',
           display: 'flex',
           flexDirection: 'column',
-          transition: 'max-height 300ms ease',
+          overflow: 'hidden',
+          transition: 'height 300ms ease',
         }}
       >
         {chatSlot({ stage: chatStage, onStageChange: internalSetChatStage ?? (() => {}) })}

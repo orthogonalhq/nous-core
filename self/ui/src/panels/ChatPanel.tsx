@@ -85,16 +85,11 @@ export function ChatPanel(props: ChatPanelProps | ChatPanelCoreProps) {
   // Resolve effective stage: undefined means full (backwards compatible for dockview)
   const effectiveStage = stage ?? 'full'
   const isSmall = effectiveStage === 'small'
-  const isAmbientSmall = effectiveStage === 'ambient_small'
-  const isAmbientLarge = effectiveStage === 'ambient_large'
-  const isPeek = effectiveStage === 'peek'
+  const isLarge = effectiveStage === 'large'
   const isFull = effectiveStage === 'full'
-  // Backwards compat: treat old 'ambient' as 'small' if it somehow slips through
-  const isAmbient = isSmall || isAmbientSmall || isAmbientLarge
-  const isCompactAmbient = isSmall || isAmbientSmall
 
-  // In peek mode, only show last 5 messages for performance
-  const visibleMessages = isPeek ? messages.slice(-5) : messages
+  // In large mode, only show last 5 messages for performance
+  const visibleMessages = isLarge ? messages.slice(-5) : messages
 
   useEffect(() => {
     if (chatApi?.getHistory) {
@@ -132,7 +127,7 @@ export function ChatPanel(props: ChatPanelProps | ChatPanelCoreProps) {
   // Only active when in sidebar mode (stage is defined) — not needed for full/dockview
   // In 5-state model, the app layer drives activity via useChatStageManager,
   // but ChatPanel still tracks agentActive for its own "Thinking..." indicator
-  const trackActivity = stage !== undefined && !isFull
+  const trackActivity = stage !== undefined && isSmall === false
   useEventSubscription({
     channels: ['thought:turn-lifecycle', 'inference:stream-start', 'inference:stream-complete', 'system:turn-ack'],
     onEvent: (channel, payload) => {
@@ -262,7 +257,7 @@ export function ChatPanel(props: ChatPanelProps | ChatPanelCoreProps) {
 
   // --- Input section (shared across all stages) ---
   const inputSection = (
-    <div style={{ padding: 'var(--nous-space-lg) var(--nous-space-xl)', borderTop: isAmbient ? 'none' : '1px solid var(--nous-footer-border)', display: 'flex', gap: 'var(--nous-space-sm)', alignItems: 'flex-end' }}>
+    <div style={{ padding: 'var(--nous-space-lg) var(--nous-space-xl)', borderTop: isSmall ? 'none' : '1px solid var(--nous-footer-border)', display: 'flex', gap: 'var(--nous-space-sm)', alignItems: 'flex-end' }}>
       <textarea
         value={input}
         onChange={e => setInput(e.target.value)}
@@ -304,7 +299,7 @@ export function ChatPanel(props: ChatPanelProps | ChatPanelCoreProps) {
     </div>
   )
 
-  // --- Stage toggle bar (visible in small, ambient_small, ambient_large, peek) ---
+  // --- Stage toggle bar (visible in small and large) ---
   const isActive = isAgentWorking
   const chevronButtonStyle = {
     background: 'none',
@@ -316,7 +311,7 @@ export function ChatPanel(props: ChatPanelProps | ChatPanelCoreProps) {
     lineHeight: 1,
   } as const
 
-  // Toggle bar: shown for all states except full
+  // Toggle bar: shown for small and large states
   const showToggleBar = !isFull
   const stageToggleBar = showToggleBar ? (
     <div
@@ -331,20 +326,17 @@ export function ChatPanel(props: ChatPanelProps | ChatPanelCoreProps) {
         userSelect: 'none',
       }}
     >
-      {isActive && (isAmbientSmall || isAmbientLarge) ? (
-        <span style={{ display: 'inline-block' }}>&#x25CF;</span>
-      ) : null}
       <span
         style={{ cursor: 'pointer' }}
-        onClick={() => onStageChange?.(isPeek ? 'small' : 'peek')}
+        onClick={() => onStageChange?.(isSmall ? 'large' : 'small')}
       >
-        {isActive && (isAmbientSmall || isAmbientLarge) ? 'Thinking...' : 'Chat'}
+        Chat
       </span>
-      {/* Expand controls: all non-full states get expand-to-peek or expand-to-full */}
+      {/* Expand controls */}
       <span style={{ marginLeft: 'auto', display: 'flex', gap: '2px' }}>
-        {isPeek ? (
+        {isLarge ? (
           <button
-            data-testid="peek-expand-full-button"
+            data-testid="large-expand-full-button"
             onClick={() => onStageChange?.('full')}
             style={chevronButtonStyle}
             title="Maximize chat"
@@ -353,8 +345,8 @@ export function ChatPanel(props: ChatPanelProps | ChatPanelCoreProps) {
           </button>
         ) : (
           <button
-            data-testid="ambient-expand-button"
-            onClick={() => onStageChange?.('peek')}
+            data-testid="small-expand-button"
+            onClick={() => onStageChange?.('large')}
             style={chevronButtonStyle}
             title="Expand chat"
           >
@@ -365,7 +357,7 @@ export function ChatPanel(props: ChatPanelProps | ChatPanelCoreProps) {
     </div>
   ) : null
 
-  // --- Thought stream section (reused across ambient_large, peek, full) ---
+  // --- Thought stream section (reused across large and full) ---
   const thoughtSection = thoughts.length > 0 ? (
     <div style={{ display: 'flex', justifyContent: 'flex-start' }}>
       <div style={{ maxWidth: '80%' }}>
@@ -400,34 +392,44 @@ export function ChatPanel(props: ChatPanelProps | ChatPanelCoreProps) {
     )
   }
 
-  // --- Ambient small: toggle bar + input + compact thinking indicator ---
-  if (isAmbientSmall) {
+  // --- Large stage: toggle bar + header + recent messages + thought stream + input ---
+  if (isLarge) {
     return (
-      <div className={clsx(className)} data-chat-stage="ambient_small" style={{ display: 'flex', flexDirection: 'column', color: 'var(--nous-fg)' }}>
+      <div className={clsx(className)} data-chat-stage="large" style={{ display: 'flex', flexDirection: 'column', height: '100%', color: 'var(--nous-fg)' }}>
         {stageToggleBar}
-        {inputSection}
-      </div>
-    )
-  }
-
-  // --- Ambient large: toggle bar + thought stream + input (no header, no messages) ---
-  if (isAmbientLarge) {
-    return (
-      <div className={clsx(className)} data-chat-stage="ambient_large" style={{ display: 'flex', flexDirection: 'column', color: 'var(--nous-fg)', height: '100%' }}>
-        {stageToggleBar}
-        <div style={{ flex: 1, overflowY: 'auto', padding: 'var(--nous-space-lg) var(--nous-space-xl)' }}>
+        {/* Header */}
+        <div style={{ padding: 'var(--nous-space-sm) var(--nous-space-xl)', borderBottom: '1px solid var(--nous-header-border)', fontSize: 'var(--nous-font-size-sm)', fontWeight: 'var(--nous-font-weight-semibold)' as any, color: 'var(--nous-fg-muted)', display: 'flex', alignItems: 'center', gap: 'var(--nous-space-sm)' }}>
+          <span>{headerText}</span>
+          {conversationContext?.isAmbient && (
+            <span data-testid="ambient-badge" style={{ background: 'var(--nous-accent-muted)', fontSize: 'var(--nous-font-size-2xs)', borderRadius: 'var(--nous-radius-xs)', padding: '0 var(--nous-space-xs)', fontWeight: 'var(--nous-font-weight-medium)' as any }}>
+              Ambient
+            </span>
+          )}
+        </div>
+        {/* Recent messages + thought stream */}
+        <div style={{ flex: 1, overflowY: 'auto', padding: 'var(--nous-space-2xl)', display: 'flex', flexDirection: 'column', gap: 'var(--nous-space-xl)' }}>
+          {visibleMessages.map((msg, i) => (
+            <div key={`large-${messages.length - visibleMessages.length + i}`} style={{ display: 'flex', flexDirection: 'column', alignItems: msg.role === 'user' ? 'flex-end' : 'flex-start' }}>
+              <div style={{
+                maxWidth: '80%', padding: 'var(--nous-space-md) var(--nous-space-xl)', borderRadius: 'var(--nous-radius-md)', fontSize: 'var(--nous-font-size-base)', lineHeight: '1.5',
+                background: msg.role === 'user' ? 'var(--nous-chat-user-bg)' : 'var(--nous-bg-elevated)',
+                color: 'var(--nous-fg)',
+              }}>
+                {msg.content}
+              </div>
+            </div>
+          ))}
           {thoughtSection}
+          <div ref={messagesEndRef} />
         </div>
         {inputSection}
       </div>
     )
   }
 
-  // --- Peek and Full stages ---
+  // --- Full stage: header + all messages + thought stream + input ---
   return (
-    <div className={clsx(className)} data-chat-stage={effectiveStage} style={{ display: 'flex', flexDirection: 'column', height: '100%', color: 'var(--nous-fg)' }}>
-      {/* Stage toggle bar (peek only — full has minimize in header) */}
-      {stageToggleBar}
+    <div className={clsx(className)} data-chat-stage="full" style={{ display: 'flex', flexDirection: 'column', height: '100%', color: 'var(--nous-fg)' }}>
       {/* Header */}
       <div style={{ padding: 'var(--nous-space-sm) var(--nous-space-xl)', borderBottom: '1px solid var(--nous-header-border)', fontSize: 'var(--nous-font-size-sm)', fontWeight: 'var(--nous-font-weight-semibold)' as any, color: 'var(--nous-fg-muted)', display: 'flex', alignItems: 'center', gap: 'var(--nous-space-sm)' }}>
         <span>{headerText}</span>
@@ -441,11 +443,11 @@ export function ChatPanel(props: ChatPanelProps | ChatPanelCoreProps) {
             {conversationContext.threadId.length > 12 ? conversationContext.threadId.slice(0, 12) + '...' : conversationContext.threadId}
           </span>
         )}
-        {/* Collapse from full mode */}
-        {isFull && onStageChange && (
+        {/* Minimize from full to large */}
+        {onStageChange && (
           <button
             data-testid="full-collapse-button"
-            onClick={() => onStageChange('peek')}
+            onClick={() => onStageChange('large')}
             style={{
               marginLeft: 'auto',
               ...chevronButtonStyle,
@@ -458,7 +460,7 @@ export function ChatPanel(props: ChatPanelProps | ChatPanelCoreProps) {
       </div>
       {/* Messages */}
       <div style={{ flex: 1, overflowY: 'auto', padding: 'var(--nous-space-2xl)', display: 'flex', flexDirection: 'column', gap: 'var(--nous-space-xl)' }}>
-        {visibleMessages.length === 0 && !isPeek && (
+        {visibleMessages.length === 0 && (
           <div style={{ textAlign: 'center', color: 'var(--nous-fg-subtle)', fontSize: 'var(--nous-font-size-base)', marginTop: 'var(--nous-space-4xl)' }}>
             {chatApi?.send ? 'Start a conversation with Nous.' : 'Chat API not connected. Start the web backend with `pnpm dev:web`.'}
           </div>
@@ -469,7 +471,7 @@ export function ChatPanel(props: ChatPanelProps | ChatPanelCoreProps) {
           </div>
         )}
         {visibleMessages.map((msg, i) => (
-          <div key={isPeek ? `peek-${messages.length - visibleMessages.length + i}` : i} style={{ display: 'flex', flexDirection: 'column', alignItems: msg.role === 'user' ? 'flex-end' : 'flex-start' }}>
+          <div key={i} style={{ display: 'flex', flexDirection: 'column', alignItems: msg.role === 'user' ? 'flex-end' : 'flex-start' }}>
             <div style={{
               maxWidth: '80%', padding: 'var(--nous-space-md) var(--nous-space-xl)', borderRadius: 'var(--nous-radius-md)', fontSize: 'var(--nous-font-size-base)', lineHeight: '1.5',
               background: msg.role === 'user' ? 'var(--nous-chat-user-bg)' : 'var(--nous-bg-elevated)',

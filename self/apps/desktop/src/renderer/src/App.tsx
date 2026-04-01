@@ -816,12 +816,10 @@ function DesktopSimpleShell({
 
   // Wire SSE events to chat stage manager signals
   useEventSubscription({
-    channels: ['inference:stream-start', 'thought:pfc-decision', 'thought:turn-lifecycle'],
+    channels: ['inference:stream-start', 'thought:turn-lifecycle'],
     onEvent: (channel, payload) => {
       if (channel === 'inference:stream-start') {
         chatStageManager.signalInferenceStart()
-      } else if (channel === 'thought:pfc-decision') {
-        chatStageManager.signalPfcDecision()
       } else if (channel === 'thought:turn-lifecycle') {
         const p = payload as Record<string, unknown>
         if (p.phase === 'turn-complete') {
@@ -850,7 +848,7 @@ function DesktopSimpleShell({
         <ConnectedChatSurface
           stage={stage}
           onStageChange={(s) => {
-            if (s === 'peek') chatStageManager.expandToPeek()
+            if (s === 'large') chatStageManager.expandToLarge()
             else if (s === 'full') chatStageManager.expandToFull()
             else if (s === 'small') chatStageManager.collapseToSmall()
           }}
