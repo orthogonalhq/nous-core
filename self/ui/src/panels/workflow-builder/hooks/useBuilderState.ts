@@ -465,47 +465,79 @@ export function useBuilderState(
 
   // ─── Persistence: mount-time fetch ──────────────────────────────────────
 
+  // Helper: fetch a definition by ID and load into builder state
+  const fetchAndLoadDefinition = useCallback(
+    (pid: string, defId: string) => {
+      return utils.projects.getWorkflowDefinition
+        .fetch({ projectId: pid, definitionId: defId })
+        .then((definition) => {
+          if (!definition.specYaml) {
+            console.warn(
+              `[useBuilderState] Definition ${defId} has no specYaml — cannot round-trip. Falling back to empty state.`,
+            )
+            setNodes([])
+            setEdges([])
+            definitionIdRef.current = null
+            return
+          }
+          const result = sync.loadSpec(definition.specYaml)
+          if (result.success) {
+            setNodes(result.nodes!)
+            setEdges(result.edges!)
+            undoRedo.clearHistory()
+            setIsDirty(false)
+            setValidationErrors([])
+            if (result.spec) {
+              specMetaRef.current = {
+                name: result.spec.name,
+                version: result.spec.version,
+              }
+            }
+            definitionIdRef.current = defId
+          }
+        })
+        .catch((error) => {
+          console.warn('[useBuilderState] Failed to fetch workflow definition:', error)
+          setNodes([])
+          setEdges([])
+          definitionIdRef.current = null
+        })
+    },
+    [sync, undoRedo, utils],
+  )
+
   const initFetchedRef = useRef(false)
+
+  // Path 1: Explicit workflowDefinitionId — fetch that specific definition
   useEffect(() => {
     if (initFetchedRef.current) return
     if (!projectId || !workflowDefinitionId) return
     initFetchedRef.current = true
+    fetchAndLoadDefinition(projectId, workflowDefinitionId)
+  }, [projectId, workflowDefinitionId, fetchAndLoadDefinition])
 
-    utils.projects.getWorkflowDefinition
-      .fetch({ projectId, definitionId: workflowDefinitionId })
-      .then((definition) => {
-        if (!definition.specYaml) {
-          console.warn(
-            `[useBuilderState] Definition ${workflowDefinitionId} has no specYaml — cannot round-trip. Falling back to empty state.`,
-          )
-          setNodes([])
-          setEdges([])
-          definitionIdRef.current = null
-          return
-        }
-        const result = sync.loadSpec(definition.specYaml)
-        if (result.success) {
-          setNodes(result.nodes!)
-          setEdges(result.edges!)
-          undoRedo.clearHistory()
-          setIsDirty(false)
-          setValidationErrors([])
-          if (result.spec) {
-            specMetaRef.current = {
-              name: result.spec.name,
-              version: result.spec.version,
-            }
-          }
-          definitionIdRef.current = workflowDefinitionId
-        }
-      })
-      .catch((error) => {
-        console.warn('[useBuilderState] Failed to fetch workflow definition:', error)
-        setNodes([])
-        setEdges([])
-        definitionIdRef.current = null
-      })
-  }, [projectId, workflowDefinitionId, sync, undoRedo, utils])
+  // Path 2: projectId but no workflowDefinitionId — check for project default
+  // Also re-checks when panel is kept mounted (dockview caching) and the user
+  // saves a workflow for the first time (listQuery updates with a new default).
+  const defaultQuery = trpc.projects.listWorkflowDefinitions.useQuery(
+    { projectId: projectId! },
+    { enabled: !!projectId && !workflowDefinitionId },
+  )
+
+  useEffect(() => {
+    if (initFetchedRef.current) return
+    if (!projectId || workflowDefinitionId) return
+    if (defaultQuery.isLoading || !defaultQuery.data) return
+
+    const defaultDef = defaultQuery.data.find(
+      (d: { id: string; isDefault?: boolean }) => d.isDefault,
+    )
+    if (defaultDef && defaultDef.id !== definitionIdRef.current) {
+      initFetchedRef.current = true
+      fetchAndLoadDefinition(projectId, defaultDef.id)
+    }
+    // If no default found, stay with empty state (correct for new projects)
+  }, [projectId, workflowDefinitionId, defaultQuery.data, defaultQuery.isLoading, fetchAndLoadDefinition])
 
   // ─── Persistence: save / saveAs / reset ────────────────────────────────
 
@@ -524,6 +556,8 @@ export function useBuilderState(
       })
       definitionIdRef.current = result.definitionId
       markClean()
+      // Invalidate list query so default lookup stays fresh (dockview caching)
+      void utils.projects.listWorkflowDefinitions.invalidate({ projectId })
       return { definitionId: result.definitionId }
     } catch (error) {
       console.error('[useBuilderState] Save failed:', error)
@@ -531,7 +565,7 @@ export function useBuilderState(
     } finally {
       setIsSaving(false)
     }
-  }, [projectId, getCurrentSpec, saveMutation, markClean])
+  }, [projectId, getCurrentSpec, saveMutation, markClean, utils])
 
   const saveAsNew = useCallback(async (name?: string): Promise<{ definitionId: string } | null> => {
     if (!projectId) return null
