@@ -146,6 +146,7 @@ export function SimpleShellLayout({
         data-shell-area="rail"
         style={{
           minWidth: 0,
+          minHeight: 0,
           overflow: 'hidden',
           gridArea: 'rail',
           background: 'var(--nous-rail-bg)',
@@ -158,6 +159,7 @@ export function SimpleShellLayout({
         data-shell-area="sidebar"
         style={{
           minWidth: 0,
+          minHeight: 0,
           overflow: 'hidden',
           gridArea: 'sidebar',
           background: 'var(--nous-bg-surface)',
@@ -203,13 +205,17 @@ export function SimpleShellLayout({
       {/* Chat spans rail + sidebar columns */}
       <div
         data-shell-area="chat"
+        data-chat-stage={chatStage}
         style={{
           gridArea: 'chat',
           minWidth: 0,
+          minHeight: 0,
           overflow: 'hidden',
           background: 'var(--nous-bg-surface)',
           borderTop: '1px solid var(--nous-shell-column-border)',
           borderRight: '1px solid var(--nous-shell-column-border)',
+          display: 'flex',
+          flexDirection: 'column',
         }}
       >
         {chatSlot({ stage: chatStage, onStageChange: setChatStage })}

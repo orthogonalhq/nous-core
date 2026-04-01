@@ -105,6 +105,11 @@ export function ChatPanel(props: ChatPanelProps | ChatPanelCoreProps) {
     sending,
   })
 
+  // Track whether the agent is actively processing (SSE-driven)
+  const [agentActive, setAgentActive] = useState(false)
+  const agentIdleTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
+  const prevAgentActiveRef = useRef(false)
+
   useEventSubscription({
     channels: ['thought:pfc-decision', 'thought:turn-lifecycle'],
     onEvent: (channel, payload) => {
@@ -115,6 +120,58 @@ export function ChatPanel(props: ChatPanelProps | ChatPanelCoreProps) {
     },
     enabled: true,
   })
+
+  // Subscribe to turn lifecycle + inference events for activity detection
+  // Only active when in sidebar mode (stage is defined) — not needed for full/dockview
+  const trackActivity = stage !== undefined && effectiveStage !== 'full'
+  useEventSubscription({
+    channels: ['thought:turn-lifecycle', 'inference:stream-start', 'inference:stream-complete', 'system:turn-ack'],
+    onEvent: (channel, payload) => {
+      const p = payload as Record<string, unknown>
+
+      // Activity starts
+      if (
+        channel === 'inference:stream-start' ||
+        (channel === 'thought:turn-lifecycle' && p.phase === 'turn-start') ||
+        (channel === 'system:turn-ack')
+      ) {
+        setAgentActive(true)
+        if (agentIdleTimerRef.current) {
+          clearTimeout(agentIdleTimerRef.current)
+          agentIdleTimerRef.current = null
+        }
+      }
+
+      // Activity ends — idle after brief delay to avoid flicker
+      if (
+        (channel === 'thought:turn-lifecycle' && p.phase === 'turn-complete') ||
+        (channel === 'inference:stream-complete')
+      ) {
+        if (agentIdleTimerRef.current) clearTimeout(agentIdleTimerRef.current)
+        agentIdleTimerRef.current = setTimeout(() => {
+          setAgentActive(false)
+          agentIdleTimerRef.current = null
+        }, 2000)
+      }
+    },
+    enabled: trackActivity,
+  })
+
+  // Clean up timer on unmount
+  useEffect(() => {
+    return () => {
+      if (agentIdleTimerRef.current) clearTimeout(agentIdleTimerRef.current)
+    }
+  }, [])
+
+  // Auto-expand: ambient → peek when agent becomes active
+  const isAgentWorking = sending || agentActive || thoughts.length > 0
+  useEffect(() => {
+    if (isAgentWorking && !prevAgentActiveRef.current && isAmbient) {
+      onStageChange?.('peek')
+    }
+    prevAgentActiveRef.current = isAgentWorking
+  }, [isAgentWorking, isAmbient, onStageChange])
 
   const handleToggle = useCallback(() => {
     dispatch({ type: 'TOGGLE_EXPAND' })
@@ -153,7 +210,8 @@ export function ChatPanel(props: ChatPanelProps | ChatPanelCoreProps) {
       setMessages(prev => [...prev, { role: 'assistant', content: 'Error: could not reach Nous.', timestamp: new Date().toISOString() }])
     } finally {
       setSending(false)
-      setThoughts([])
+      // Don't clear thoughts here — let SSE turn-complete / idle timer handle it
+      // so "Thinking..." persists while the agent is still processing downstream
     }
   }
 
@@ -242,7 +300,7 @@ export function ChatPanel(props: ChatPanelProps | ChatPanelCoreProps) {
   )
 
   // --- Stage toggle bar (always visible in ambient/peek) ---
-  const isActive = sending || thoughts.length > 0
+  const isActive = isAgentWorking
   const stageToggleBar = (isAmbient || isPeek) ? (
     <div
       data-testid="chat-stage-toggle"

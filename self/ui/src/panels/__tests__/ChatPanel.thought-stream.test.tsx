@@ -7,12 +7,17 @@ import { ChatPanel } from '../ChatPanel'
 import type { ChatAPI } from '../ChatPanel'
 import type { ThoughtPfcDecisionPayload, ThoughtTurnLifecyclePayload } from '@nous/shared'
 
-// Capture the onEvent callback from useEventSubscription
-let capturedOnEvent: ((channel: string, payload: unknown) => void) | null = null
+// Use refs to always hold the latest onEvent callbacks from useEventSubscription
+// ChatPanel registers multiple subscriptions — we track all active ones by channel set
+const latestCallbacks = new Map<string, (channel: string, payload: unknown) => void>()
 
 vi.mock('@nous/transport', () => ({
-  useEventSubscription: (options: { onEvent: (channel: string, payload: unknown) => void }) => {
-    capturedOnEvent = options.onEvent
+  useEventSubscription: (options: { channels: string[]; onEvent: (channel: string, payload: unknown) => void; enabled?: boolean }) => {
+    if (options.enabled !== false) {
+      // Key by sorted channel list to deduplicate across re-renders
+      const key = [...options.channels].sort().join(',')
+      latestCallbacks.set(key, options.onEvent)
+    }
   },
   trpc: {
     traces: {
@@ -22,6 +27,16 @@ vi.mock('@nous/transport', () => ({
     },
   },
 }))
+
+/** Broadcast an event to all matching enabled subscriptions */
+function emitEvent(channel: string, payload: unknown) {
+  for (const [key, onEvent] of latestCallbacks) {
+    const channels = key.split(',')
+    if (channels.some(c => c === channel || (c.endsWith('*') && channel.startsWith(c.slice(0, -1))))) {
+      onEvent(channel, payload)
+    }
+  }
+}
 
 beforeAll(() => {
   Element.prototype.scrollIntoView = () => {}
@@ -90,7 +105,7 @@ function renderIdlePanel() {
 
 describe('ChatPanel — Thought Stream', () => {
   beforeEach(() => {
-    capturedOnEvent = null
+    latestCallbacks.clear()
     localStorage.clear()
   })
 
@@ -109,7 +124,7 @@ describe('ChatPanel — Thought Stream', () => {
 
     // Emit a thought event while NOT sending
     act(() => {
-      capturedOnEvent!('thought:pfc-decision', makePfcPayload())
+      emitEvent('thought:pfc-decision', makePfcPayload())
     })
 
     // Thought should accumulate even when not sending (sendingRef gate removed)
@@ -121,18 +136,18 @@ describe('ChatPanel — Thought Stream', () => {
     renderSendingPanel()
 
     act(() => {
-      capturedOnEvent!('thought:pfc-decision', makePfcPayload({ sequence: 1 }))
-      capturedOnEvent!('thought:turn-lifecycle', makeLifecyclePayload({ sequence: 2 }))
+      emitEvent('thought:pfc-decision', makePfcPayload({ sequence: 1 }))
+      emitEvent('thought:turn-lifecycle', makeLifecyclePayload({ sequence: 2 }))
     })
 
     expect(screen.getByText('2 thoughts')).toBeTruthy()
   })
 
-  it('ephemeral thoughts clear when turn completes (post-turn transition)', async () => {
+  it('thoughts persist after send completes (SSE idle timer handles cleanup)', async () => {
     const { resolveSend } = renderSendingPanel()
 
     act(() => {
-      capturedOnEvent!('thought:pfc-decision', makePfcPayload())
+      emitEvent('thought:pfc-decision', makePfcPayload())
     })
 
     expect(screen.getByTestId('thought-toggle')).toBeTruthy()
@@ -142,15 +157,16 @@ describe('ChatPanel — Thought Stream', () => {
       resolveSend({ response: 'done', traceId: 'trace-1' })
     })
 
-    // Ephemeral thoughts are cleared after turn completion
-    expect(screen.queryByTestId('thought-toggle')).toBeNull()
+    // Thoughts persist — they are no longer cleared on send completion.
+    // In production, the SSE turn-complete event + idle timer handles cleanup.
+    expect(screen.getByTestId('thought-toggle')).toBeTruthy()
   })
 
   it('collapsed state shows thought count chip and stream is in DOM but hidden', async () => {
     renderSendingPanel()
 
     act(() => {
-      capturedOnEvent!('thought:pfc-decision', makePfcPayload())
+      emitEvent('thought:pfc-decision', makePfcPayload())
     })
 
     // Collapsed by default — toggle visible, stream in DOM but hidden via CSS
@@ -165,7 +181,7 @@ describe('ChatPanel — Thought Stream', () => {
     renderSendingPanel()
 
     act(() => {
-      capturedOnEvent!('thought:pfc-decision', makePfcPayload({
+      emitEvent('thought:pfc-decision', makePfcPayload({
         thoughtType: 'memory-write',
         content: 'MEM-WRITE-APPROVED confidence=0.85',
       }))
@@ -183,7 +199,7 @@ describe('ChatPanel — Thought Stream', () => {
     renderSendingPanel()
 
     act(() => {
-      capturedOnEvent!('thought:turn-lifecycle', makeLifecyclePayload({
+      emitEvent('thought:turn-lifecycle', makeLifecyclePayload({
         phase: 'gateway-run',
         status: 'completed',
         content: 'gateway execution finished',
@@ -200,7 +216,7 @@ describe('ChatPanel — Thought Stream', () => {
     renderSendingPanel()
 
     act(() => {
-      capturedOnEvent!('thought:turn-lifecycle', makeLifecyclePayload({
+      emitEvent('thought:turn-lifecycle', makeLifecyclePayload({
         phase: 'turn-start',
         status: 'started',
         content: undefined,
@@ -217,7 +233,7 @@ describe('ChatPanel — Thought Stream', () => {
     renderSendingPanel()
 
     act(() => {
-      capturedOnEvent!('thought:pfc-decision', makePfcPayload())
+      emitEvent('thought:pfc-decision', makePfcPayload())
     })
 
     // Expand
@@ -235,7 +251,7 @@ describe('ChatPanel — Thought Stream', () => {
     renderSendingPanel()
 
     act(() => {
-      capturedOnEvent!('thought:pfc-decision', makePfcPayload())
+      emitEvent('thought:pfc-decision', makePfcPayload())
     })
 
     // Should be expanded on mount because localStorage says so (detailsAlwaysOn)
@@ -251,7 +267,7 @@ describe('ChatPanel — Thought Stream', () => {
     // Emit 55 events
     act(() => {
       for (let i = 0; i < 55; i++) {
-        capturedOnEvent!('thought:pfc-decision', makePfcPayload({
+        emitEvent('thought:pfc-decision', makePfcPayload({
           sequence: i,
           content: `event-${i}`,
         }))
@@ -273,7 +289,7 @@ describe('ChatPanel — Thought Stream', () => {
     renderSendingPanel()
 
     act(() => {
-      capturedOnEvent!('thought:pfc-decision', makePfcPayload())
+      emitEvent('thought:pfc-decision', makePfcPayload())
     })
 
     // Collapsed by default + sending=true: should show "Thinking..."
@@ -286,7 +302,7 @@ describe('ChatPanel — Thought Stream', () => {
     renderSendingPanel()
 
     act(() => {
-      capturedOnEvent!('thought:pfc-decision', makePfcPayload())
+      emitEvent('thought:pfc-decision', makePfcPayload())
     })
 
     const stream = screen.getByTestId('thought-stream')
@@ -300,7 +316,7 @@ describe('ChatPanel — Thought Stream', () => {
     renderSendingPanel()
 
     act(() => {
-      capturedOnEvent!('thought:pfc-decision', makePfcPayload())
+      emitEvent('thought:pfc-decision', makePfcPayload())
     })
 
     const toggle = screen.getByTestId('thought-toggle')
@@ -317,7 +333,7 @@ describe('ChatPanel — Thought Stream', () => {
     renderSendingPanel()
 
     act(() => {
-      capturedOnEvent!('thought:pfc-decision', makePfcPayload())
+      emitEvent('thought:pfc-decision', makePfcPayload())
     })
 
     // Even when collapsed, ThoughtStream is in the DOM
@@ -328,7 +344,7 @@ describe('ChatPanel — Thought Stream', () => {
     renderSendingPanel()
 
     act(() => {
-      capturedOnEvent!('thought:pfc-decision', makePfcPayload())
+      emitEvent('thought:pfc-decision', makePfcPayload())
     })
 
     // Expand
@@ -342,7 +358,7 @@ describe('ChatPanel — Thought Stream', () => {
 
 describe('ChatPanel — Stage-aware rendering', () => {
   beforeEach(() => {
-    capturedOnEvent = null
+    latestCallbacks.clear()
     localStorage.clear()
   })
 
