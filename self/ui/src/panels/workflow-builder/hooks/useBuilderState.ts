@@ -474,12 +474,17 @@ export function useBuilderState(
         .fetch({ projectId: pid, definitionId: defId })
         .then((definition) => {
           if (!definition.specYaml) {
+            // Legacy definition saved before specYaml storage was added.
+            // Load empty canvas but keep the definitionId so the next save
+            // will re-persist with specYaml (self-healing).
             console.warn(
-              `[useBuilderState] Definition ${defId} has no specYaml — cannot round-trip. Falling back to empty state.`,
+              `[useBuilderState] Definition ${defId} has no specYaml — legacy entry. Next save will populate specYaml.`,
             )
             setNodes([])
             setEdges([])
-            definitionIdRef.current = null
+            definitionIdRef.current = defId
+            setIsDirty(false)
+            specMetaRef.current = { name: definition.name ?? 'Untitled Workflow', version: 1 }
             return
           }
           const result = sync.loadSpec(definition.specYaml)
@@ -548,6 +553,11 @@ export function useBuilderState(
 
     const specResult = getCurrentSpec()
     if (!specResult) return null
+    // WorkflowSpec requires at least 1 node — don't send empty canvas
+    if (specResult.spec.nodes.length === 0) {
+      console.warn('[useBuilderState] Cannot save empty workflow — add at least one node.')
+      return null
+    }
 
     setIsSaving(true)
     try {
@@ -574,13 +584,18 @@ export function useBuilderState(
 
     const specResult = getCurrentSpec()
     if (!specResult) return null
+    // WorkflowSpec requires at least 1 node — don't send empty canvas
+    if (specResult.spec.nodes.length === 0) {
+      console.warn('[useBuilderState] Cannot save empty workflow — add at least one node.')
+      return null
+    }
 
     setIsSaving(true)
     try {
       const result = await saveMutation.mutateAsync({
         projectId,
         specYaml: specResult.yaml,
-        name,
+        name: name ?? specResult.spec.name,
       })
       definitionIdRef.current = result.definitionId
       markClean()
