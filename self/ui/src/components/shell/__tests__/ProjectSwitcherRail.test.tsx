@@ -127,4 +127,37 @@ describe('ProjectSwitcherRail', () => {
     // Different IDs produce different colors
     expect(avatar1.style.background).not.toBe(avatar2.style.background)
   })
+
+  it('renders tooltip (title) on project avatar buttons', async () => {
+    await renderRail()
+    const alpha = container.querySelector('[data-project-id="proj-1"]') as HTMLElement
+    expect(alpha.getAttribute('title')).toBe('Alpha')
+    const beta = container.querySelector('[data-project-id="proj-2"]') as HTMLElement
+    expect(beta.getAttribute('title')).toBe('Beta')
+  })
+
+  it('renders active indicator side bar for active project', async () => {
+    await renderRail({ activeProjectId: 'proj-1' })
+    // The active project wrapper should contain the indicator span
+    const activeAvatar = container.querySelector('[data-project-id="proj-1"]')
+    const wrapper = activeAvatar?.parentElement
+    const indicator = wrapper?.querySelector('[data-active-indicator]') as HTMLElement
+    expect(indicator).toBeTruthy()
+    expect(indicator.style.width).toBe('3px')
+    expect(indicator.style.background).toBe('var(--nous-accent)')
+  })
+
+  it('does not render active indicator for inactive projects', async () => {
+    await renderRail({ activeProjectId: 'proj-1' })
+    const inactiveAvatar = container.querySelector('[data-project-id="proj-2"]')
+    const wrapper = inactiveAvatar?.parentElement
+    const indicator = wrapper?.querySelector('[data-active-indicator]')
+    expect(indicator).toBeNull()
+  })
+
+  it('new project button renders SVG icon instead of text', async () => {
+    await renderRail({ onNewProject: vi.fn() })
+    const btn = container.querySelector('[data-rail-action="new-project"]')
+    expect(btn?.querySelector('svg')).toBeTruthy()
+  })
 })

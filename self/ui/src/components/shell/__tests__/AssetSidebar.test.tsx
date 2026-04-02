@@ -128,8 +128,10 @@ describe('AssetSidebar', () => {
 
   it('collapses section on header click and persists to localStorage', async () => {
     await renderSidebar()
-    // Items visible initially
-    expect(container.querySelector('[data-section-item="wf-1"]')).toBeTruthy()
+    // Items visible initially — wrapper has maxHeight 500px
+    const wrapper = container.querySelector('[data-section-items="workflows"]') as HTMLElement
+    expect(wrapper.style.maxHeight).toBe('500px')
+    expect(wrapper.style.opacity).toBe('1')
 
     // Click collapse
     const header = container.querySelector('[data-section-header="workflows"] button') as HTMLButtonElement
@@ -138,8 +140,10 @@ describe('AssetSidebar', () => {
       await flush()
     })
 
-    // Items hidden
-    expect(container.querySelector('[data-section-item="wf-1"]')).toBeNull()
+    // Items still in DOM but clipped via maxHeight: 0
+    expect(container.querySelector('[data-section-item="wf-1"]')).toBeTruthy()
+    expect(wrapper.style.maxHeight).toBe('0px')
+    expect(wrapper.style.overflow).toBe('hidden')
 
     // localStorage updated
     expect(localStorage.getItem('nous-sidebar-collapse-workflows')).toBe('true')
@@ -148,8 +152,29 @@ describe('AssetSidebar', () => {
   it('restores collapse state from localStorage', async () => {
     localStorage.setItem('nous-sidebar-collapse-workflows', 'true')
     await renderSidebar()
-    // Items should be hidden
-    expect(container.querySelector('[data-section-item="wf-1"]')).toBeNull()
+    // Items in DOM but clipped
+    const wrapper = container.querySelector('[data-section-items="workflows"]') as HTMLElement
+    expect(wrapper.style.maxHeight).toBe('0px')
+  })
+
+  it('renders Lucide SVG icons in section headers and action buttons', async () => {
+    await renderSidebar()
+    // Collapse chevron should render as SVG
+    const chevron = container.querySelector('[data-collapse-chevron]')
+    expect(chevron?.querySelector('svg')).toBeTruthy()
+    // Settings button should render as SVG
+    const settingsBtn = container.querySelector('[data-action="settings"]')
+    expect(settingsBtn?.querySelector('svg')).toBeTruthy()
+    // Add button should render as SVG
+    const addBtn = container.querySelector('[data-action="add"]')
+    expect(addBtn?.querySelector('svg')).toBeTruthy()
+  })
+
+  it('collapse animation wrapper has transition property', async () => {
+    await renderSidebar()
+    const wrapper = container.querySelector('[data-section-items="workflows"]') as HTMLElement
+    expect(wrapper.style.transition).toContain('max-height')
+    expect(wrapper.style.transition).toContain('opacity')
   })
 
   it('disables interaction on disabled sections', async () => {
