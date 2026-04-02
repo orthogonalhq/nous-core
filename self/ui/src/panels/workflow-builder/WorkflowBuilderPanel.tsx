@@ -192,6 +192,14 @@ const CanvasDropTarget = forwardRef<
   const [showNameInput, setShowNameInput] = useState(false)
   const [pendingNameAction, setPendingNameAction] = useState<'save' | 'saveAs' | null>(null)
   const [nameInputValue, setNameInputValue] = useState('Untitled Workflow')
+  const nameInputRef = useRef<HTMLInputElement>(null)
+
+  // Focus the naming input whenever the dialog opens
+  useEffect(() => {
+    if (showNameInput) {
+      requestAnimationFrame(() => nameInputRef.current?.focus())
+    }
+  }, [showNameInput])
 
   const handleNameSubmit = useCallback(() => {
     const name = nameInputValue.trim() || 'Untitled Workflow'
@@ -603,11 +611,7 @@ const CanvasDropTarget = forwardRef<
             {pendingNameAction === 'saveAs' ? 'Save As New Workflow' : 'Name Your Workflow'}
           </div>
           <input
-            ref={(el) => {
-              if (!el) return
-              // Focus on mount
-              requestAnimationFrame(() => el.focus())
-            }}
+            ref={nameInputRef}
             type="text"
             value={nameInputValue}
             onKeyDownCapture={(e) => {
