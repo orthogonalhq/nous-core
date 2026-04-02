@@ -30,6 +30,17 @@ export const mockWorkflowSnapshotResult = {
 /** Mock for useEventSubscription — tracks calls for assertion. */
 export const mockUseEventSubscription = vi.fn()
 
+/** Mock return value for useWorkflowApi. */
+export const mockWorkflowApi = {
+  loadSpec: vi.fn(),
+  saveSpec: vi.fn().mockResolvedValue({ definitionId: 'mock-def-id' }),
+  validateSpec: vi.fn().mockResolvedValue({ valid: true }),
+  specYaml: null as string | null,
+  isLoading: false,
+  error: null,
+  activeDefinitionId: null as string | null,
+}
+
 export const trpcMock = {
   trpc: {
     projects: {
@@ -41,9 +52,13 @@ export const trpcMock = {
       },
       getWorkflowDefinition: {
         query: mockFetch,
+        useQuery: vi.fn().mockImplementation(() => ({ data: null, isLoading: false, error: null })),
       },
       deleteWorkflowDefinition: {
         useMutation: () => ({ mutateAsync: mockDeleteMutateAsync }),
+      },
+      validateWorkflowDefinition: {
+        useMutation: () => ({ mutateAsync: vi.fn().mockResolvedValue({ valid: true, issues: [] }) }),
       },
       workflowSnapshot: {
         useQuery: vi.fn().mockImplementation(() => mockWorkflowSnapshotResult),
@@ -51,11 +66,12 @@ export const trpcMock = {
     },
     useUtils: () => ({
       projects: {
-        getWorkflowDefinition: { fetch: mockFetch },
+        getWorkflowDefinition: { fetch: mockFetch, invalidate: vi.fn() },
         listWorkflowDefinitions: { invalidate: vi.fn() },
         workflowSnapshot: { invalidate: vi.fn() },
       },
     }),
   },
   useEventSubscription: mockUseEventSubscription,
+  useWorkflowApi: vi.fn().mockImplementation(() => mockWorkflowApi),
 }

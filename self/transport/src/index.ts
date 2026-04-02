@@ -25,3 +25,5 @@ export type { UseEventSubscriptionOptions } from './hooks/useEventSubscription';
 export { useChatApi } from './hooks/useChatApi';
 export type { UseChatApiOptions } from './hooks/useChatApi';
 export { usePreferencesApi } from './hooks/usePreferencesApi';
+export { useWorkflowApi } from './hooks/useWorkflowApi';
+export type { UseWorkflowApiOptions } from './hooks/useWorkflowApi';

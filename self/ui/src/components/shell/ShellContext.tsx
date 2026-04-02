@@ -26,7 +26,7 @@ export interface ShellProviderProps extends PropsWithChildren {
   navigation?: NavigationState
   conversation?: ShellContextValue['conversation']
   activeProjectId?: string | null
-  navigate?: (routeId: string) => void
+  navigate?: (routeId: string, params?: Record<string, unknown>) => void
   goBack?: () => void
   onProjectChange?: (projectId: string) => void
 }

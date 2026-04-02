@@ -78,6 +78,7 @@ export const INTERNAL_MCP_TOOL_NAMES = [
   'workflow_create',
   'workflow_update',
   'workflow_delete',
+  'workflow_authoring_reference',
   'health_report',
   'health_heartbeat',
   'credentials_store',

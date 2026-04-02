@@ -99,7 +99,7 @@ export interface ShellContextValue {
   navigation: NavigationState
   conversation: ConversationContext
   activeProjectId: string | null
-  navigate: (routeId: string) => void
+  navigate: (routeId: string, params?: Record<string, unknown>) => void
   goBack: () => void
   onProjectChange?: (projectId: string) => void
 }

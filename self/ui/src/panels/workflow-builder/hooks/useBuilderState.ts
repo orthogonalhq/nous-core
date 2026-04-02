@@ -124,12 +124,31 @@ export interface UseBuilderStateReturn {
   isSaving: boolean
   /** Current stored definitionId (null for unsaved workflows). */
   currentDefinitionId: string | null
+
+  /** Whether the builder is in construction watching mode (agent-driven build in progress). */
+  isWatchingConstruction: boolean
+  /** Set construction watching mode on or off. */
+  setWatchingConstruction: (value: boolean) => void
+  /** Pending notification for dirty-conflict when agent updates arrive during user edits. */
+  pendingNotification: { type: 'dirty-conflict'; definitionId: string } | null
+  /** Dismiss the pending dirty-conflict notification (keep user edits). */
+  dismissNotification: () => void
+  /** Accept the pending dirty-conflict notification (load latest agent spec). */
+  acceptNotification: () => void
 }
 
 /** Options for persistence integration. */
 export interface UseBuilderStateOptions {
   projectId?: string
   workflowDefinitionId?: string
+  /** Workflow API from useWorkflowApi (structural compatibility). */
+  workflowApi?: {
+    loadSpec: (definitionId: string) => void
+    saveSpec: (params: { projectId: string; specYaml: string; definitionId?: string; name?: string }) => Promise<{ definitionId: string }>
+    specYaml: string | null
+    isLoading: boolean
+    activeDefinitionId: string | null
+  }
 }
 
 // ─── Hook ─────────────────────────────────────────────────────────────────────
@@ -151,6 +170,7 @@ export function useBuilderState(
 ): UseBuilderStateReturn {
   const projectId = options?.projectId
   const workflowDefinitionId = options?.workflowDefinitionId
+  const workflowApi = options?.workflowApi
 
   // Determine initial state: demo fallback when no projectId, empty when projectId present
   const hasProjectContext = !!projectId
@@ -167,6 +187,11 @@ export function useBuilderState(
   const [viewport] = useState<Viewport>(DEFAULT_VIEWPORT)
   const [validationErrors, setValidationErrors] = useState<WorkflowSpecValidationError[]>([])
   const [isDirty, setIsDirty] = useState(false)
+  const [isWatchingConstruction, setIsWatchingConstruction] = useState(false)
+  const [pendingNotification, setPendingNotification] = useState<{
+    type: 'dirty-conflict'
+    definitionId: string
+  } | null>(null)
   const [isSaving, setIsSaving] = useState(false)
 
   // Persistence state — use state (not ref) so React re-renders picker highlight
@@ -216,6 +241,49 @@ export function useBuilderState(
     },
     enabled: isMonitoringWithProject,
   })
+
+  // ─── Construction watching mode: auto-apply spec updates from useWorkflowApi ──
+
+  const syncRef = useRef<typeof sync | null>(null)
+
+  // Keep syncRef current so the effect always uses the latest sync instance
+  useEffect(() => {
+    syncRef.current = sync
+  })
+
+  useEffect(() => {
+    if (!workflowApi) return
+    const newSpecYaml = workflowApi.specYaml
+    if (!newSpecYaml) return
+    if (!syncRef.current) return
+
+    if (isDirty && !isWatchingConstruction) {
+      console.log('[useBuilderState] Dirty conflict: showing notification')
+      setPendingNotification({
+        type: 'dirty-conflict',
+        definitionId: workflowApi.activeDefinitionId ?? '',
+      })
+      return
+    }
+
+    if (!isWatchingConstruction) {
+      setIsWatchingConstruction(true)
+    }
+
+    console.log('[useBuilderState] Auto-applying agent spec update')
+    const result = syncRef.current.loadSpec(newSpecYaml)
+    if (result.success) {
+      setNodes(result.nodes!)
+      setEdges(result.edges!)
+      undoRedo.clearHistory()
+      setIsDirty(false)
+      setValidationErrors([])
+      if (result.spec) {
+        specMetaRef.current = { name: result.spec.name, version: result.spec.version }
+      }
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [workflowApi?.specYaml])
 
   // ─── Active run management ────────────────────────────────────────────
 
@@ -629,12 +697,19 @@ export function useBuilderState(
 
     setIsSaving(true)
     try {
-      const result = await saveMutation.mutateAsync({
-        projectId,
-        specYaml: specResult.yaml,
-        definitionId: currentDefId ?? undefined,
-        name,
-      })
+      const result = workflowApi
+        ? await workflowApi.saveSpec({
+            projectId,
+            specYaml: specResult.yaml,
+            definitionId: currentDefId ?? undefined,
+            name,
+          })
+        : await saveMutation.mutateAsync({
+            projectId,
+            specYaml: specResult.yaml,
+            definitionId: currentDefId ?? undefined,
+            name,
+          })
       setCurrentDefId(result.definitionId)
       markClean()
       // Invalidate list query so default lookup stays fresh (dockview caching)
@@ -646,7 +721,7 @@ export function useBuilderState(
     } finally {
       setIsSaving(false)
     }
-  }, [projectId, getCurrentSpec, saveMutation, markClean, utils, currentDefId])
+  }, [projectId, getCurrentSpec, saveMutation, markClean, utils, currentDefId, workflowApi])
 
   const saveAsNew = useCallback(async (name?: string): Promise<{ definitionId: string } | null> => {
     if (!projectId) return null
@@ -661,11 +736,17 @@ export function useBuilderState(
 
     setIsSaving(true)
     try {
-      const result = await saveMutation.mutateAsync({
-        projectId,
-        specYaml: specResult.yaml,
-        name: name ?? specResult.spec.name,
-      })
+      const result = workflowApi
+        ? await workflowApi.saveSpec({
+            projectId,
+            specYaml: specResult.yaml,
+            name: name ?? specResult.spec.name,
+          })
+        : await saveMutation.mutateAsync({
+            projectId,
+            specYaml: specResult.yaml,
+            name: name ?? specResult.spec.name,
+          })
       setCurrentDefId(result.definitionId)
       markClean()
       void utils.projects.listWorkflowDefinitions.invalidate({ projectId })
@@ -676,7 +757,7 @@ export function useBuilderState(
     } finally {
       setIsSaving(false)
     }
-  }, [projectId, getCurrentSpec, saveMutation, markClean, utils])
+  }, [projectId, getCurrentSpec, saveMutation, markClean, utils, workflowApi])
 
   const resetToEmpty = useCallback(() => {
     setNodes([])
@@ -715,6 +796,29 @@ export function useBuilderState(
     setIsDirty(true)
     runOutboundSync(newState.nodes, newState.edges)
   }, [mode, undoRedo, runOutboundSync])
+
+  // ─── Construction watching: notification handlers ───────────────────────
+
+  const dismissNotification = useCallback(() => {
+    setPendingNotification(null)
+  }, [])
+
+  const acceptNotification = useCallback(() => {
+    if (!workflowApi?.specYaml) return
+    const result = sync.loadSpec(workflowApi.specYaml)
+    if (result.success) {
+      setNodes(result.nodes!)
+      setEdges(result.edges!)
+      undoRedo.clearHistory()
+      setIsDirty(false)
+      setValidationErrors([])
+      if (result.spec) {
+        specMetaRef.current = { name: result.spec.name, version: result.spec.version }
+      }
+    }
+    setPendingNotification(null)
+    setIsWatchingConstruction(true)
+  }, [workflowApi?.specYaml, sync, undoRedo])
 
   return {
     nodes,
@@ -763,5 +867,10 @@ export function useBuilderState(
     ),
     isSaving,
     currentDefinitionId: currentDefId,
+    isWatchingConstruction,
+    setWatchingConstruction: setIsWatchingConstruction,
+    pendingNotification,
+    dismissNotification,
+    acceptNotification,
   }
 }
