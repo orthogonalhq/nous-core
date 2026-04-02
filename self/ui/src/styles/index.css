@@ -3,11 +3,14 @@
  *
  * Import via: import '@nous/ui/styles'
  *
+ * 0. Font imports      — @fontsource self-hosted web fonts (must precede tokens)
  * 1. tokens.css        — design primitives (colours, scales, dimensions)
  * 2. interactions.css  — semantic interaction compositions
  * 3. animations.css    — shared keyframes and motion helpers
  * 4. components.css    — semantic aliases (header, tab, menu, card, …)
  */
+@import '@fontsource-variable/inter/wght.css';
+@import '@fontsource/ibm-plex-mono/400.css';
 @import './tokens.css';
 @import './interactions.css';
 @import './animations.css';

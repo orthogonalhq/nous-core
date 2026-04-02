@@ -13,12 +13,14 @@
   --nous-surface:        #030303;  /* outer "table" — panels sit on top of this */
   --nous-surface-nested: #131313;  /* inset surface — nested widget gaps inside a panel */
   --nous-bg:             #131313;
-  --nous-bg-base:        #000000;
-  --nous-bg-surface:     #0a0a0a;
+  --nous-bg-base:        #010101;
+  --nous-bg-surface:     #050505;
   --nous-bg-elevated:    #141414;
   --nous-bg-hover:       #1a1a1a;
   --nous-bg-active:      #222222;
   --nous-bg-input:       #0f0f0f;
+  --nous-rail-surface:   #090909;
+  --nous-ambient-gradient: linear-gradient(to bottom, rgba(9,9,9,1) 60%, rgba(9,9,9,0) 100%);
 
   /* ── Borders ─────────────────────────────────────────────────────────── */
   --nous-border:        #1a1a1a;
@@ -36,6 +38,15 @@
   --nous-text-secondary: rgba(255,255,255,0.60);
   --nous-text-tertiary:  rgba(255,255,255,0.35);
   --nous-text-ghost:     rgba(255,255,255,0.12);
+
+  /* ── Sidebar font colors ────────────────────────────────────────────── */
+  --nous-sidebar-label:          #2C2C2C;
+  --nous-sidebar-chevron:        #606060;
+  --nous-sidebar-group-icon:     #4B4B4B;
+  --nous-sidebar-button-fg:      #A9A9A9;
+  --nous-sidebar-button-icon:    #FFFFFF;
+  --nous-sidebar-title:          #FFFFFF;
+  --nous-sidebar-collapse-icon:  #949494;
 
   /* ── Accent / interactive ────────────────────────────────────────────── */
   --nous-accent:       #007acc;
@@ -118,8 +129,8 @@
   --nous-line-height-normal:  1.4;
 
   /* ── Font family ────────────────────────────────────────────────────── */
-  --nous-font-family:      "Segoe WPC", "Segoe UI", system-ui, -apple-system, Ubuntu, "Droid Sans", sans-serif;
-  --nous-font-family-mono: "Cascadia Code", "Fira Code", monospace;
+  --nous-font-family:      "Inter", "Segoe UI", system-ui, -apple-system, Ubuntu, "Droid Sans", sans-serif;
+  --nous-font-family-mono: "IBM Plex Mono", "Cascadia Code", "Fira Code", monospace;
 
   /* ── Border radius ──────────────────────────────────────────────────── */
   --nous-radius-xs: 4px;
