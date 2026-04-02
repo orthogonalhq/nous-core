@@ -411,6 +411,12 @@ export function parseWorkflowDeleteRequest(
   return WorkflowLifecycleDeleteCommandSchema.parse(params ?? {});
 }
 
+export function parseWorkflowAuthoringReferenceRequest(
+  _params: unknown,
+): Record<string, never> {
+  return {};
+}
+
 export function parseWorkflowExecuteNodeRequest(
   params: unknown,
 ): WorkflowExecuteNodeToolRequest {
