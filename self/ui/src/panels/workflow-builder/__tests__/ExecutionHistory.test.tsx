@@ -19,6 +19,7 @@ function renderHistory(props?: Partial<React.ComponentProps<typeof ExecutionHist
     containerRef,
     onSelectRun,
     activeRunId: null,
+    runs: DEMO_EXECUTION_RUNS,
     ...props,
   }
 
