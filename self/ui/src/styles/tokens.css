@@ -129,7 +129,7 @@
   --nous-line-height-normal:  1.4;
 
   /* ── Font family ────────────────────────────────────────────────────── */
-  --nous-font-family:      "Inter", "Segoe UI", system-ui, -apple-system, Ubuntu, "Droid Sans", sans-serif;
+  --nous-font-family:      "Inter Variable", "Inter", "Segoe UI", system-ui, -apple-system, Ubuntu, "Droid Sans", sans-serif;
   --nous-font-family-mono: "IBM Plex Mono", "Cascadia Code", "Fira Code", monospace;
 
   /* ── Border radius ──────────────────────────────────────────────────── */
