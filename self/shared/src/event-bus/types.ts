@@ -242,6 +242,12 @@ export const WorkflowRunCompletedPayloadSchema = z.object({
 });
 export type WorkflowRunCompletedPayload = z.infer<typeof WorkflowRunCompletedPayloadSchema>;
 
+export const WorkflowSpecUpdatedPayloadSchema = z.object({
+  projectId: z.string(),
+  definitionId: z.string(),
+});
+export type WorkflowSpecUpdatedPayload = z.infer<typeof WorkflowSpecUpdatedPayloadSchema>;
+
 // --- Channel Map ---
 
 export interface EventChannelMap {
@@ -269,6 +275,7 @@ export interface EventChannelMap {
   'inference:accumulator-snapshot': InferenceAccumulatorSnapshotPayload;
   'workflow:node-status-changed': WorkflowNodeStatusChangedPayload;
   'workflow:run-completed': WorkflowRunCompletedPayload;
+  'workflow:spec-updated': WorkflowSpecUpdatedPayload;
 }
 
 /**

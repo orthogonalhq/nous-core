@@ -1381,6 +1381,12 @@ export const projectsRouter = router({
         },
       });
 
+      // Emit SSE signal after persistence completes (signal-to-refetch pattern)
+      ctx.eventBus.publish('workflow:spec-updated', {
+        projectId: input.projectId,
+        definitionId: definition.id,
+      });
+
       return {
         definitionId: definition.id,
         validation: { valid: true },

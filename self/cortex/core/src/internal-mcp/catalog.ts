@@ -489,6 +489,18 @@ export const INTERNAL_MCP_CATALOG: readonly InternalMcpCatalogEntry[] = [
     ),
   },
   {
+    name: 'workflow_authoring_reference',
+    kind: 'capability',
+    definition: defineTool(
+      'workflow_authoring_reference',
+      'Return the complete workflow authoring reference including node catalog, YAML structure, connection syntax, validation rules, example workflow, and dispatch classification. Call before authoring WorkflowSpec YAML.',
+      {},
+      { reference: 'string' },
+      ['read'],
+      'runtime',
+    ),
+  },
+  {
     name: 'health_report',
     kind: 'capability',
     definition: defineTool(

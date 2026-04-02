@@ -31,6 +31,8 @@ import {
   type WorkflowRunState,
   type WorkflowDefinition,
   type DerivedWorkflowGraph,
+  NODE_TYPE_PARAMETER_SCHEMAS,
+  extractNodeCategory,
 } from '@nous/shared';
 import { buildDispatchMetadata } from './dispatch-metadata.js';
 import {
@@ -1898,6 +1900,130 @@ export function createCapabilityHandlers(
       }
 
       return success({ deleted }, 0);
+    },
+
+    workflow_authoring_reference: async (_params, execution) => {
+      // Authorization: allow Cortex::System and Orchestrator only
+      if (context.agentClass !== 'Cortex::System' && context.agentClass !== 'Orchestrator') {
+        return denyWithWitness({
+          context,
+          actionCategory: 'opctl-command',
+          actionRef: 'workflow_authoring_reference',
+          projectId: execution?.projectId,
+          traceId: execution?.traceId,
+          reason: 'workflow_authoring_reference is restricted to Cortex::System and Orchestrator',
+        });
+      }
+
+      const sections: string[] = [];
+
+      // Section 1: WorkflowSpec YAML structure
+      sections.push(`## WorkflowSpec YAML Structure
+
+\`\`\`yaml
+name: "<workflow-name>"
+version: 1
+nodes:
+  - id: "<kebab-case-unique-id>"
+    type: "nous.<category>.<action>"
+    label: "<human-readable-label>"
+    params:
+      <type-specific-parameters>
+connections:
+  - from: "<source-node-id>"
+    to: "<target-node-id>"
+    output: "<branch-name>"   # optional: "true"/"false" for if, case string for switch
+\`\`\``);
+
+      // Section 2: Node type catalog (dynamic from registry)
+      const catalogLines = ['## Node Type Catalog', '', '| Type | Category | Parameters | Description |', '|------|----------|------------|-------------|'];
+      for (const [nodeType, schema] of Object.entries(NODE_TYPE_PARAMETER_SCHEMAS)) {
+        const category = extractNodeCategory(nodeType) ?? 'unknown';
+        const shape = (schema as { shape?: Record<string, { isOptional?: () => boolean }> })?.shape;
+        const paramEntries = shape
+          ? Object.entries(shape).map(([key, val]) => {
+              const isOptional = val?.isOptional?.() ?? false;
+              return `${key}${isOptional ? '?' : ''}`;
+            }).join(', ')
+          : '(any)';
+        catalogLines.push(`| \`${nodeType}\` | ${category} | ${paramEntries} | — |`);
+      }
+      sections.push(catalogLines.join('\n'));
+
+      // Section 3: Connection syntax
+      sections.push(`## Connection Syntax
+
+- \`from\`: source node ID
+- \`to\`: target node ID
+- \`output\` (optional): branch name for conditional nodes
+  - \`nous.condition.if\`: "true" or "false"
+  - \`nous.condition.switch\`: case string matching \`cases\` keys
+  - All other nodes: omit \`output\``);
+
+      // Section 4: Validation rules
+      sections.push(`## Validation Rules
+
+1. Node IDs must be kebab-case and unique within the workflow
+2. Node type must match \`nous.<category>.<action>\` format
+3. Categories: trigger, agent, condition, app, tool, memory, governance
+4. No self-loops (connection from/to same node)
+5. No dangling connections (from/to must reference existing node IDs)
+6. Version must be 1`);
+
+      // Section 5: Example workflow
+      sections.push(`## Example Workflow
+
+\`\`\`yaml
+name: "data-processing-pipeline"
+version: 1
+nodes:
+  - id: "fetch-data"
+    type: "nous.app.http-request"
+    label: "Fetch Data"
+    params:
+      url: "https://api.example.com/data"
+      method: "GET"
+  - id: "analyze-results"
+    type: "nous.agent.claude"
+    label: "Analyze Results"
+    params:
+      systemPrompt: "Analyze the fetched data and summarize findings."
+  - id: "check-quality"
+    type: "nous.condition.if"
+    label: "Quality Check"
+    params:
+      expression: "output.confidence > 0.8"
+  - id: "notify-team"
+    type: "nous.app.slack"
+    label: "Notify Team"
+    params:
+      channel: "#results"
+      message: "Analysis complete."
+connections:
+  - from: "fetch-data"
+    to: "analyze-results"
+  - from: "analyze-results"
+    to: "check-quality"
+  - from: "check-quality"
+    to: "notify-team"
+    output: "true"
+\`\`\``);
+
+      // Section 6: Dispatch classification
+      sections.push(`## Dispatch Classification
+
+| Node Kind | Dispatch Target | Notes |
+|-----------|----------------|-------|
+| \`nous.agent.*\` (model-call) | Worker | Agent executes via Worker dispatch |
+| \`nous.tool.*\` (tool-execution) | Worker | Tool executed via Worker dispatch |
+| \`nous.app.*\` (app-integration) | Worker | HTTP/Slack etc. via Worker dispatch |
+| \`subworkflow\` | Orchestrator | Sub-workflow coordinated by Orchestrator |
+| \`nous.condition.*\` | Engine-internal | Evaluated by workflow engine directly |
+| \`nous.governance.*\` | Engine-internal | Governance gates evaluated by engine |
+| \`nous.memory.*\` | Engine-internal | Memory ops executed by engine |
+| \`nous.trigger.*\` | Engine-internal | Triggers evaluated by scheduler/engine |`);
+
+      return success({ reference: sections.join('\n\n') }, 0);
     },
   };
 }
