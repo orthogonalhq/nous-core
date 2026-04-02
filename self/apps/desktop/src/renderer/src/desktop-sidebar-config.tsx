@@ -12,7 +12,7 @@ import { Network, LayoutDashboard, Inbox } from 'lucide-react'
 export const DESKTOP_TOP_NAV: SidebarTopNavItem[] = [
   { id: 'org-chart', label: 'Organization Chart', icon: <Network size={16} />, routeId: 'org-chart' },
   { id: 'dashboard', label: 'Dashboard', icon: <LayoutDashboard size={16} />, routeId: 'dashboard' },
-  { id: 'inbox', label: 'Inbox', icon: <Inbox size={16} />, routeId: 'inbox' },
+  { id: 'inbox', label: 'Inbox', icon: <Inbox size={16} />, routeId: 'inbox', badge: true },
 ]
 
 // --- Sidebar sections ---

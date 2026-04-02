@@ -313,6 +313,7 @@ export const SidebarTopNavItemSchema = z.object({
   label: z.string().min(1),
   icon: requiredReactNodeSchema,
   routeId: z.string().min(1),
+  badge: z.union([z.number(), z.boolean()]).optional(),
 })
 export type SidebarTopNavItem = z.infer<typeof SidebarTopNavItemSchema>
 

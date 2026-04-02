@@ -74,6 +74,12 @@ function TopNavItemRow({ item, isActive, onNavigate }: TopNavItemRowProps) {
         {item.icon}
       </span>
       <span>{item.label}</span>
+      {item.badge ? (
+        <span style={{
+          width: 6, height: 6, borderRadius: '50%',
+          background: 'var(--nous-accent)', flexShrink: 0, marginLeft: 'auto',
+        }} />
+      ) : null}
     </button>
   )
 }
