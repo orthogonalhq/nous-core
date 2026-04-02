@@ -1,10 +1,10 @@
 'use client'
 
-import { useState, useCallback, useEffect, useRef } from 'react'
+import { useState, useCallback, useEffect, useRef, useMemo } from 'react'
 import { applyNodeChanges, applyEdgeChanges } from '@xyflow/react'
 import type { NodeChange, EdgeChange, Connection, Viewport, XYPosition } from '@xyflow/react'
 import type { WorkflowSpec, WorkflowSpecValidationError } from '@nous/shared'
-import { trpc } from '@nous/transport'
+import { trpc, useEventSubscription } from '@nous/transport'
 import type {
   WorkflowBuilderNode,
   WorkflowBuilderEdge,
@@ -16,7 +16,7 @@ import type {
   InspectionState,
 } from '../../../types/workflow-builder'
 export type { BuilderMode }
-import { DEMO_EXECUTION_RUNS } from '../monitoring/demo-execution-data'
+import { mapSnapshotToExecutionRuns } from '../monitoring/snapshot-to-execution'
 import { getRegistryEntry } from '../nodes/node-registry'
 import { DEMO_WORKFLOW_NODES, DEMO_WORKFLOW_EDGES } from '../demo-workflow'
 import { useWorkflowSync } from './useWorkflowSync'
@@ -98,6 +98,8 @@ export interface UseBuilderStateReturn {
   monitoringState: MonitoringState
   /** Currently active execution run, or null. */
   activeRun: ExecutionRun | null
+  /** List of execution runs for the active workflow (from server snapshot or empty). */
+  executionRuns: ExecutionRun[]
   /** Load an execution run by ID for monitor overlay display. */
   setActiveRun: (runId: string) => void
   /** Clear the active execution run. */
@@ -187,14 +189,75 @@ export function useBuilderState(
     }
   }, [mode])
 
+  // ─── Live monitoring: workflowSnapshot query ──────────────────────────
+
+  const isMonitoringWithProject = mode === 'monitoring' && !!projectId
+
+  const snapshotQuery = trpc.projects.workflowSnapshot.useQuery(
+    { projectId: projectId! },
+    { enabled: isMonitoringWithProject },
+  )
+
+  // Map snapshot data to ExecutionRun[]
+  const executionRuns: ExecutionRun[] = useMemo(() => {
+    if (!snapshotQuery.data) return []
+    const runs = mapSnapshotToExecutionRuns(snapshotQuery.data)
+    console.log(`[useBuilderState] workflowSnapshot loaded: ${runs.length} runs`)
+    return runs
+  }, [snapshotQuery.data])
+
+  // ─── Live monitoring: SSE subscription ────────────────────────────────
+
+  useEventSubscription({
+    channels: ['workflow:node-status-changed', 'workflow:run-completed'],
+    onEvent: () => {
+      // Invalidate snapshot query to trigger refetch with fresh data
+      void utils.projects.workflowSnapshot.invalidate()
+    },
+    enabled: isMonitoringWithProject,
+  })
+
+  // ─── Active run management ────────────────────────────────────────────
+
+  // Track whether auto-selection has been performed for the current snapshot.
+  // Reset when snapshot data identity changes (new fetch) or when leaving monitoring mode.
+  const autoSelectedRef = useRef(false)
+
+  // Reset auto-select flag when leaving monitoring mode
+  useEffect(() => {
+    if (!isMonitoringWithProject) {
+      autoSelectedRef.current = false
+    }
+  }, [isMonitoringWithProject])
+
+  // Auto-select the active run from snapshot when entering monitoring mode (once per snapshot load)
+  useEffect(() => {
+    if (!isMonitoringWithProject) return
+    if (!snapshotQuery.data) return
+    if (autoSelectedRef.current) return // Already auto-selected for this snapshot
+
+    autoSelectedRef.current = true
+
+    const selectedId = snapshotQuery.data.selectedRunId
+    if (selectedId) {
+      const run = executionRuns.find((r) => r.id === selectedId)
+      if (run) {
+        setActiveRunState(run)
+      }
+    } else if (executionRuns.length > 0) {
+      // Auto-select the first (most recent) run
+      setActiveRunState(executionRuns[0])
+    }
+  }, [isMonitoringWithProject, snapshotQuery.data, executionRuns])
+
   const setActiveRun = useCallback(
     (runId: string) => {
-      const run = DEMO_EXECUTION_RUNS.find((r) => r.id === runId)
+      const run = executionRuns.find((r) => r.id === runId)
       if (run) {
         setActiveRunState(run)
       }
     },
-    [],
+    [executionRuns],
   )
 
   const clearActiveRun = useCallback(() => {
@@ -682,6 +745,7 @@ export function useBuilderState(
     canRedo: undoRedo.canRedo,
     monitoringState,
     activeRun,
+    executionRuns,
     setActiveRun,
     clearActiveRun,
     inspectionState,
