@@ -308,6 +308,18 @@ export function validateWorkflowDefinition(
       continue;
     }
 
+    if (node.type === 'loop') {
+      // Loop nodes are allowed to have branched outbound edges
+      // (branchKey 'loop' for continue, 'exit' for break)
+      continue;
+    }
+
+    if (node.type === 'error-handler') {
+      // Error-handler nodes are allowed to have branched outbound edges
+      // (branchKey 'error' for error path, no branchKey for passthrough)
+      continue;
+    }
+
     if (outboundBranchEdges.length > 0) {
       for (const edge of outboundBranchEdges) {
         pushIssue(

@@ -59,6 +59,8 @@ const actionCategoryByNodeType: Record<string, CriticalActionCategory> = {
   subworkflow: 'trace-persist',
   'parallel-split': 'trace-persist',
   'parallel-join': 'trace-persist',
+  loop: 'trace-persist',
+  'error-handler': 'trace-persist',
 };
 
 function buildDefaultGovernanceInput(

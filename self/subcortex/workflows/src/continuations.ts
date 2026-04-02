@@ -274,6 +274,17 @@ export function resolveWorkflowContinuation(
         evidenceRefs,
       };
     }
+    case 'loop_backoff': {
+      // Loop backoff resolved — re-execute the loop node
+      return {
+        outcome: 'completed',
+        governanceDecision: activeAttempt.governanceDecision,
+        sideEffectStatus: 'none',
+        selectedBranchKey: 'loop',
+        reasonCode: 'workflow_loop_backoff_resolved',
+        evidenceRefs,
+      };
+    }
     case 'retry_backoff':
     default:
       return {
