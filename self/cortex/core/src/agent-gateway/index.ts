@@ -4,13 +4,16 @@ export { CorrelationSequencer } from './correlation-sequencer.js';
 export { GatewayInbox, createInboxFrame } from './inbox.js';
 export { GatewayOutbox, InMemoryGatewayOutboxSink } from './outbox.js';
 export {
-  DISPATCH_AGENT_TOOL_NAME,
+  DISPATCH_ORCHESTRATOR_TOOL_NAME,
+  DISPATCH_WORKER_TOOL_NAME,
   FLAG_OBSERVATION_TOOL_NAME,
   REQUEST_ESCALATION_TOOL_NAME,
   TASK_COMPLETE_TOOL_NAME,
   getLifecycleUnavailableMessage,
+  isDispatchToolName,
   isLifecycleToolName,
-  parseDispatchRequest,
+  parseDispatchOrchestratorRequest,
+  parseDispatchWorkerRequest,
   parseEscalationRequest,
   parseObservation,
   parseTaskCompletionRequest,

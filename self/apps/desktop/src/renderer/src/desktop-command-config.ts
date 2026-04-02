@@ -16,6 +16,9 @@ export function buildDesktopCommands(callbacks: {
         { id: 'nav-skills', label: 'Go to Skills', action: () => callbacks.navigate('skills') },
         { id: 'nav-apps', label: 'Go to Apps', action: () => callbacks.navigate('apps') },
         { id: 'nav-settings', label: 'Go to Settings', action: () => callbacks.navigate('settings') },
+        { id: 'nav-dashboard', label: 'Go to Dashboard', action: () => callbacks.navigate('dashboard') },
+        { id: 'nav-org-chart', label: 'Go to Org Chart', action: () => callbacks.navigate('org-chart') },
+        { id: 'nav-inbox', label: 'Go to Inbox', action: () => callbacks.navigate('inbox') },
       ],
     },
     {

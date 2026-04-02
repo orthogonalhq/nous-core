@@ -12,6 +12,12 @@ export function ChatSurface(props: ChatSurfaceProps) {
       chatApi={props.chatApi}
       conversationContext={conversation}
       className={props.className}
+      stage={props.stage}
+      onStageChange={props.onStageChange}
+      onSendStart={props.onSendStart}
+      isPinned={props.isPinned}
+      onTogglePin={props.onTogglePin}
+      onInputFocus={props.onInputFocus}
     />
   )
 }

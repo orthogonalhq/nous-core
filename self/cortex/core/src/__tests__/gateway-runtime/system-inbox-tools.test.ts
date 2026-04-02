@@ -57,7 +57,7 @@ describe('system inbox communication tools', () => {
             pressureTrend: 'stable',
           },
           issueCodes: [],
-          visibleTools: ['dispatch_agent'],
+          visibleTools: ['dispatch_orchestrator'],
         }),
       },
     });

@@ -9,7 +9,7 @@
 
 :root {
   /* ── Shell rail ─────────────────────────────────────────────────────── */
-  --nous-rail-bg:              var(--nous-bg-base);
+  --nous-rail-bg:              var(--nous-rail-surface);
   --nous-rail-fg:              var(--nous-text-secondary);
   --nous-rail-item-active-bg:  var(--nous-bg-active);
   --nous-rail-hover-bg:        var(--nous-bg-hover);
@@ -18,6 +18,15 @@
   /* ── Shell columns ──────────────────────────────────────────────────── */
   --nous-shell-column-border:  var(--nous-border-strong);
   --nous-observe-bg:           var(--nous-bg-surface);
+
+  /* ── Asset sidebar ──────────────────────────────────────────────────── */
+  --nous-sidebar-section-label-fg:   var(--nous-sidebar-label);
+  --nous-sidebar-section-chevron-fg: var(--nous-sidebar-chevron);
+  --nous-sidebar-section-icon-fg:    var(--nous-sidebar-group-icon);
+  --nous-sidebar-item-fg:            var(--nous-sidebar-button-fg);
+  --nous-sidebar-item-icon-fg:       var(--nous-sidebar-button-icon);
+  --nous-sidebar-header-fg:          var(--nous-sidebar-title);
+  --nous-sidebar-collapse-fg:        var(--nous-sidebar-collapse-icon);
 
   /* ── Ambient stream ─────────────────────────────────────────────────── */
   --nous-ambient-fg:           var(--nous-text-tertiary);

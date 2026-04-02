@@ -5,6 +5,8 @@ import {
   GatewayStampedPacketSchema,
   type AgentClass,
   type AgentGatewayConfig,
+  type DispatchOrchestratorRequest,
+  type DispatchWorkerRequest,
   type EscalationContract,
   type GatewayBudget,
   type GatewayLifecycleContext,
@@ -51,15 +53,9 @@ function authorityActorForClass(agentClass: AgentClass) {
   }
 }
 
-function targetAuthorityActorForDispatch(targetClass: 'Orchestrator' | 'Worker') {
-  return targetClass === 'Orchestrator' ? 'orchestration_agent' : 'worker_agent';
-}
-
 function buildChildBudget(
   deps: InternalMcpRuntimeDeps,
-  request: Parameters<
-    NonNullable<NonNullable<AgentGatewayConfig['lifecycleHooks']>['dispatchAgent']>
-  >[0],
+  request: { budget?: Partial<GatewayBudget> },
 ): GatewayBudget {
   if (deps.dispatchRuntime?.buildChildBudget) {
     return deps.dispatchRuntime.buildChildBudget(request);
@@ -300,7 +296,7 @@ async function resolveDispatchTargetNode(args: {
 
   const graph = await args.deps.workflowEngine?.getRunGraph(executionId);
   if (!graph) {
-    throw new ValidationError('Workflow graph is unavailable for dispatch_agent', [
+    throw new ValidationError('Workflow graph is unavailable for dispatch_worker', [
       {
         path: 'execution.executionId',
         message: 'workflow graph not found',
@@ -310,7 +306,7 @@ async function resolveDispatchTargetNode(args: {
 
   const node = graph.nodes[args.nodeDefinitionId]?.definition;
   if (!node) {
-    throw new ValidationError('Workflow node is unavailable for dispatch_agent', [
+    throw new ValidationError('Workflow node is unavailable for dispatch_worker', [
       {
         path: 'request.nodeDefinitionId',
         message: 'workflow node not found',
@@ -380,20 +376,20 @@ export function createLifecycleHandlers(options: {
   };
 
   return {
-    dispatchAgent: toolSet.has('dispatch_agent')
-      ? async (request, lifecycleContext) => {
+    dispatchOrchestrator: toolSet.has('dispatch_orchestrator')
+      ? async (request: DispatchOrchestratorRequest, lifecycleContext) => {
           const runtime = options.deps.dispatchRuntime;
           if (!runtime) {
             throw new NousError(
-              'dispatch_agent requires a dispatch runtime',
+              'dispatch_orchestrator requires a dispatch runtime',
               'SERVICE_UNAVAILABLE',
             );
           }
 
           const admission = options.deps.workmodeAdmissionGuard.evaluateDispatchAdmission({
             sourceActor: authorityActorForClass(options.agentClass),
-            targetActor: targetAuthorityActorForDispatch(request.targetClass),
-            action: 'dispatch_agent',
+            targetActor: 'orchestration_agent',
+            action: 'dispatch_orchestrator',
             projectRunId: lifecycleContext.execution?.executionId,
             workmodeId: lifecycleContext.execution?.workmodeId,
           });
@@ -406,11 +402,91 @@ export function createLifecycleHandlers(options: {
             );
           }
 
-          // Scope guard: validate execution context consistency for dispatch
           const scopeGuard = options.deps.workmodeAdmissionGuard.evaluateScopeGuard?.({
             sourceActor: authorityActorForClass(options.agentClass),
-            targetActor: targetAuthorityActorForDispatch(request.targetClass),
-            action: 'dispatch_agent',
+            targetActor: 'orchestration_agent',
+            action: 'dispatch_orchestrator',
+            projectRunId: lifecycleContext.execution?.executionId,
+            workmodeId: lifecycleContext.execution?.workmodeId,
+            executionContext: lifecycleContext.execution
+              ? {
+                  workmodeId: lifecycleContext.execution.workmodeId,
+                  agentClass: options.agentClass,
+                  nodeDefinitionId: lifecycleContext.execution.nodeDefinitionId,
+                }
+              : undefined,
+          });
+
+          if (scopeGuard && !scopeGuard.allowed) {
+            throw new NousError(
+              scopeGuard.reasonCode,
+              'DISPATCH_ADMISSION_DENIED',
+              { evidenceRefs: scopeGuard.evidenceRefs },
+            );
+          }
+
+          const childBudget = buildChildBudget(options.deps, request);
+          const dispatched = await executeWithWitness({
+            context: handlerContext,
+            lifecycleContext,
+            actionRef: 'dispatch_orchestrator',
+            projectId: lifecycleContext.execution?.projectId,
+            detail: {
+              targetClass: 'Orchestrator',
+              childBudget,
+              dispatchIntent: request.dispatchIntent,
+            },
+            operation: () =>
+              runtime.dispatchChild({
+                request: {
+                  targetClass: 'Orchestrator',
+                  taskInstructions: request.taskInstructions,
+                  dispatchIntent: request.dispatchIntent,
+                },
+                context: lifecycleContext,
+                budget: childBudget,
+              }),
+          });
+
+          return {
+            ...dispatched.value,
+            evidenceRefs: [
+              ...dispatched.value.evidenceRefs,
+              ...(dispatched.evidenceRef ? [dispatched.evidenceRef] : []),
+            ],
+          };
+        }
+      : undefined,
+    dispatchWorker: toolSet.has('dispatch_worker')
+      ? async (request: DispatchWorkerRequest, lifecycleContext) => {
+          const runtime = options.deps.dispatchRuntime;
+          if (!runtime) {
+            throw new NousError(
+              'dispatch_worker requires a dispatch runtime',
+              'SERVICE_UNAVAILABLE',
+            );
+          }
+
+          const admission = options.deps.workmodeAdmissionGuard.evaluateDispatchAdmission({
+            sourceActor: authorityActorForClass(options.agentClass),
+            targetActor: 'worker_agent',
+            action: 'dispatch_worker',
+            projectRunId: lifecycleContext.execution?.executionId,
+            workmodeId: lifecycleContext.execution?.workmodeId,
+          });
+
+          if (!admission.allowed) {
+            throw new NousError(
+              admission.reasonCode,
+              'DISPATCH_ADMISSION_DENIED',
+              { evidenceRefs: admission.evidenceRefs },
+            );
+          }
+
+          const scopeGuard = options.deps.workmodeAdmissionGuard.evaluateScopeGuard?.({
+            sourceActor: authorityActorForClass(options.agentClass),
+            targetActor: 'worker_agent',
+            action: 'dispatch_worker',
             projectRunId: lifecycleContext.execution?.executionId,
             workmodeId: lifecycleContext.execution?.workmodeId,
             executionContext: lifecycleContext.execution
@@ -451,15 +527,21 @@ export function createLifecycleHandlers(options: {
           const dispatched = await executeWithWitness({
             context: handlerContext,
             lifecycleContext,
-            actionRef: 'dispatch_agent',
+            actionRef: 'dispatch_worker',
             projectId: lifecycleContext.execution?.projectId,
             detail: {
-              targetClass: request.targetClass,
+              targetClass: 'Worker',
               childBudget,
+              nodeDefinitionId: request.nodeDefinitionId,
             },
             operation: () =>
               runtime.dispatchChild({
-                request,
+                request: {
+                  targetClass: 'Worker',
+                  taskInstructions: request.taskInstructions,
+                  payload: request.payload,
+                  nodeDefinitionId: request.nodeDefinitionId,
+                },
                 context: lifecycleContext,
                 budget: childBudget,
               }),

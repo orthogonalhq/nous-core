@@ -8,11 +8,12 @@ import type {
   AgentClass,
   AgentInput,
   AgentResult,
+  DispatchOrchestratorRequest,
+  DispatchWorkerRequest,
   GatewayAgentId,
   GatewayBudgetUsage,
   GatewayContextFrame,
   GatewayCorrelation,
-  GatewayDispatchRequest,
   GatewayEscalationRequest,
   GatewayExecutionContext,
   GatewayInboxMessage,
@@ -69,8 +70,12 @@ export interface GatewayTaskCompletionHookResult {
 }
 
 export interface IGatewayLifecycleHooks {
-  dispatchAgent?(
-    request: GatewayDispatchRequest,
+  dispatchOrchestrator?(
+    request: DispatchOrchestratorRequest,
+    context: GatewayLifecycleContext,
+  ): Promise<AgentResult>;
+  dispatchWorker?(
+    request: DispatchWorkerRequest,
     context: GatewayLifecycleContext,
   ): Promise<AgentResult>;
   taskComplete?(

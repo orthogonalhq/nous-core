@@ -12,7 +12,7 @@ import {
 } from '../agent-gateway/helpers.js';
 
 describe('Internal MCP lifecycle handlers', () => {
-  it('rejects dispatch_agent when workmode admission denies the dispatch', async () => {
+  it('rejects dispatch_worker when workmode admission denies the dispatch', async () => {
     const bundle = createInternalMcpSurfaceBundle({
       agentClass: 'Orchestrator',
       agentId: AGENT_ID,
@@ -31,9 +31,8 @@ describe('Internal MCP lifecycle handlers', () => {
     });
 
     await expect(
-      bundle.lifecycleHooks.dispatchAgent!(
+      bundle.lifecycleHooks.dispatchWorker!(
         {
-          targetClass: 'Worker',
           taskInstructions: 'Do work',
         },
         {
@@ -310,7 +309,7 @@ describe('Internal MCP lifecycle handlers', () => {
     ).rejects.toThrow('schema validation');
   });
 
-  it('always calls admission guard when dispatchAgent is invoked (no bypass)', async () => {
+  it('always calls admission guard when dispatchWorker is invoked (no bypass)', async () => {
     const admissionGuard = createWorkmodeAdmissionGuard();
     const bundle = createInternalMcpSurfaceBundle({
       agentClass: 'Orchestrator',
@@ -367,7 +366,7 @@ describe('Internal MCP lifecycle handlers', () => {
       },
     });
 
-    await bundle.lifecycleHooks.dispatchAgent!(
+    await bundle.lifecycleHooks.dispatchWorker!(
       {
         targetClass: 'Worker',
         taskInstructions: 'Do work',
@@ -404,7 +403,7 @@ describe('Internal MCP lifecycle handlers', () => {
     expect(admissionGuard.evaluateDispatchAdmission).toHaveBeenCalledWith({
       sourceActor: 'orchestration_agent',
       targetActor: 'worker_agent',
-      action: 'dispatch_agent',
+      action: 'dispatch_worker',
       projectRunId: undefined,
       workmodeId: 'system:implementation',
     });
@@ -412,7 +411,7 @@ describe('Internal MCP lifecycle handlers', () => {
     expect(admissionGuard.evaluateScopeGuard).toHaveBeenCalledWith({
       sourceActor: 'orchestration_agent',
       targetActor: 'worker_agent',
-      action: 'dispatch_agent',
+      action: 'dispatch_worker',
       projectRunId: undefined,
       workmodeId: 'system:implementation',
       executionContext: {
@@ -423,7 +422,7 @@ describe('Internal MCP lifecycle handlers', () => {
     });
   });
 
-  it('rejects dispatch_agent when scope guard denies (fail-close with witness evidence)', async () => {
+  it('rejects dispatch_worker when scope guard denies (fail-close with witness evidence)', async () => {
     const bundle = createInternalMcpSurfaceBundle({
       agentClass: 'Orchestrator',
       agentId: AGENT_ID,
@@ -432,7 +431,7 @@ describe('Internal MCP lifecycle handlers', () => {
           evaluateScopeGuard: vi.fn().mockReturnValue({
             allowed: false,
             reasonCode: 'WMODE-SCOPE-GUARD-VIOLATION',
-            evidenceRefs: ['scope guard violation: action="dispatch_agent" requires workmodeId in executionContext'],
+            evidenceRefs: ['scope guard violation: action="dispatch_worker" requires workmodeId in executionContext'],
           }),
         }),
         dispatchRuntime: {
@@ -442,9 +441,8 @@ describe('Internal MCP lifecycle handlers', () => {
     });
 
     await expect(
-      bundle.lifecycleHooks.dispatchAgent!(
+      bundle.lifecycleHooks.dispatchWorker!(
         {
-          targetClass: 'Worker',
           taskInstructions: 'Do work',
         },
         {
@@ -536,7 +534,7 @@ describe('Internal MCP lifecycle handlers', () => {
       },
     });
 
-    await bundle.lifecycleHooks.dispatchAgent!(
+    await bundle.lifecycleHooks.dispatchWorker!(
       {
         targetClass: 'Worker',
         taskInstructions: 'Do work',
@@ -572,7 +570,7 @@ describe('Internal MCP lifecycle handlers', () => {
     expect(scopeGuardMock).toHaveBeenCalledOnce();
     expect(scopeGuardMock).toHaveBeenCalledWith(
       expect.objectContaining({
-        action: 'dispatch_agent',
+        action: 'dispatch_worker',
         executionContext: {
           workmodeId: 'system:implementation',
           agentClass: 'Orchestrator',

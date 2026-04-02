@@ -41,4 +41,36 @@ describe('ShellContext', () => {
 
     expect(markup).toContain('developer|medium|catalog|thread')
   })
+
+  it('provides onProjectChange callback when specified', () => {
+    const onProjectChange = (id: string) => id
+
+    function ProjectChangeConsumer() {
+      const context = useShellContext()
+      return <div>{typeof context.onProjectChange}</div>
+    }
+
+    const markup = renderToStaticMarkup(
+      <ShellProvider onProjectChange={onProjectChange}>
+        <ProjectChangeConsumer />
+      </ShellProvider>,
+    )
+
+    expect(markup).toContain('function')
+  })
+
+  it('does not include onProjectChange when not provided', () => {
+    function ProjectChangeConsumer() {
+      const context = useShellContext()
+      return <div>{String(context.onProjectChange)}</div>
+    }
+
+    const markup = renderToStaticMarkup(
+      <ShellProvider>
+        <ProjectChangeConsumer />
+      </ShellProvider>,
+    )
+
+    expect(markup).toContain('undefined')
+  })
 })

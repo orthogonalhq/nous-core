@@ -32,9 +32,9 @@ describe('AgentGateway budgets', () => {
           response: 'spawn worker',
           toolCalls: [
             {
-              name: 'dispatch_agent',
+              name: 'dispatch_orchestrator',
               params: {
-                targetClass: 'Worker',
+                dispatchIntent: { type: 'task' },
                 taskInstructions: 'Analyze the payload.',
                 budget: {
                   maxTurns: 10,
@@ -47,7 +47,7 @@ describe('AgentGateway budgets', () => {
         }),
       ],
       lifecycleHooks: {
-        dispatchAgent: async () => ({
+        dispatchOrchestrator: async () => ({
           status: 'completed',
           output: { done: true },
           v3Packet: createStampedPacket(),

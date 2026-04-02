@@ -21,7 +21,10 @@ import type {
   WorkflowNodeDefinitionId,
   WorkflowEdgeId,
   ProjectId,
+  WorkflowNodeKind,
+  WorkflowNodeDispatchMapping,
 } from '@nous/shared';
+import { WORKFLOW_NODE_DISPATCH_MAP } from '@nous/shared';
 import { extractNodeCategory } from '@nous/shared';
 import { buildDerivedWorkflowGraph } from '../graph-builder.js';
 
@@ -363,4 +366,23 @@ export function buildNodeIdMap(
     map.set(node.id, randomUUID());
   }
   return map;
+}
+
+// ---------------------------------------------------------------------------
+// Dispatch target mapping
+// ---------------------------------------------------------------------------
+
+/**
+ * Return the deterministic dispatch target for a workflow node kind.
+ *
+ * Uses the static WORKFLOW_NODE_DISPATCH_MAP. Returns fail-safe default
+ * ({ executionMode: 'internal', agentClass: null }) for unrecognized kinds.
+ */
+export function mapNodeTypeToDispatchTarget(
+  nodeKind: WorkflowNodeKind,
+): WorkflowNodeDispatchMapping {
+  return (
+    WORKFLOW_NODE_DISPATCH_MAP[nodeKind] ??
+    ({ executionMode: 'internal' as const, agentClass: null })
+  );
 }

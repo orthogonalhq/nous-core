@@ -28,6 +28,7 @@ export interface ShellProviderProps extends PropsWithChildren {
   activeProjectId?: string | null
   navigate?: (routeId: string) => void
   goBack?: () => void
+  onProjectChange?: (projectId: string) => void
 }
 
 export const ShellContext = createContext<ShellContextValue | null>(null)
@@ -42,6 +43,7 @@ export function ShellProvider({
   activeProjectId = null,
   navigate = noop,
   goBack = noop,
+  onProjectChange,
 }: ShellProviderProps) {
   const resolvedActiveRoute = navigation?.activeRoute ?? activeRoute
 
@@ -58,6 +60,7 @@ export function ShellProvider({
     activeProjectId,
     navigate,
     goBack,
+    onProjectChange,
   }
 
   return (

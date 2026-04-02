@@ -13,10 +13,25 @@ export interface ParsedModelOutput {
   response: string;
   toolCalls: Array<{ name: string; params: unknown }>;
   memoryCandidates: MemoryWriteCandidate[];
+  contentType?: 'text' | 'openui';
+}
+
+const OPENUI_PREFIX = '%%openui\n';
+
+/**
+ * Detect and strip the `%%openui\n` prefix from a response string.
+ * Returns the stripped response and contentType.
+ */
+function detectContentType(response: string): { response: string; contentType: 'text' | 'openui' } {
+  if (response.startsWith(OPENUI_PREFIX)) {
+    return { response: response.slice(OPENUI_PREFIX.length), contentType: 'openui' };
+  }
+  return { response, contentType: 'text' };
 }
 
 /**
  * Parses model output. Supports plain text or JSON envelope.
+ * Detects `%%openui\n` prefix and sets `contentType` accordingly.
  */
 export function parseModelOutput(
   output: unknown,
@@ -27,43 +42,52 @@ export function parseModelOutput(
     try {
       const parsed = JSON.parse(output) as Record<string, unknown>;
       if (parsed && typeof parsed.response === 'string') {
+        const detected = detectContentType(parsed.response);
         return {
-          response: parsed.response,
+          response: detected.response,
           toolCalls: parseToolCalls(parsed.toolCalls),
           memoryCandidates: parseMemoryCandidates(
             parsed.memoryCandidates,
             traceId,
             fallbackInput,
           ),
+          contentType: detected.contentType,
         };
       }
     } catch {
       // Not JSON, treat as plain text
     }
+    const detected = detectContentType(output);
     return {
-      response: output,
+      response: detected.response,
       toolCalls: [],
       memoryCandidates: createFallbackCandidate(traceId, fallbackInput),
+      contentType: detected.contentType,
     };
   }
 
   if (output && typeof output === 'object' && 'response' in output) {
     const obj = output as Record<string, unknown>;
+    const rawResponse = typeof obj.response === 'string' ? obj.response : String(output);
+    const detected = detectContentType(rawResponse);
     return {
-      response: typeof obj.response === 'string' ? obj.response : String(output),
+      response: detected.response,
       toolCalls: parseToolCalls(obj.toolCalls),
       memoryCandidates: parseMemoryCandidates(
         obj.memoryCandidates,
         traceId,
         fallbackInput,
       ),
+      contentType: detected.contentType,
     };
   }
 
+  const detected = detectContentType(String(output ?? ''));
   return {
-    response: String(output ?? ''),
+    response: detected.response,
     toolCalls: [],
     memoryCandidates: createFallbackCandidate(traceId, fallbackInput),
+    contentType: detected.contentType,
   };
 }
 
