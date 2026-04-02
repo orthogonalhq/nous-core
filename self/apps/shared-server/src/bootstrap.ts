@@ -722,6 +722,7 @@ export function createNousServices(config?: BootstrapConfig): NousContext {
       codingAgentMaoEvents.push(event);
     },
   });
+  const eventBus = new EventBus();
   const workflowEngine = new DeterministicWorkflowEngine({
     pfcEngine: Cortex,
     modelRouter: router,
@@ -729,6 +730,7 @@ export function createNousServices(config?: BootstrapConfig): NousContext {
     runtime,
     instanceRoot,
     nodeHandlerOverrides: codingAgentNodeHandlerOverrides,
+    eventBus,
   });
   let schedulerIngressGateway = createBootstrapIngressShim();
   const schedulerService = new SchedulerService({
@@ -738,7 +740,6 @@ export function createNousServices(config?: BootstrapConfig): NousContext {
       submit: async (envelope) => schedulerIngressGateway.submit(envelope),
     },
   });
-  const eventBus = new EventBus();
   const providerRegistry = new ProviderRegistry(appConfig, { eventBus });
   const tokenAccumulator = new TokenAccumulatorService(eventBus);
   const inferenceAdapter = new InferenceProjectionAdapter(eventBus);
