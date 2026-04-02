@@ -36,6 +36,8 @@ const ALL_CHANNELS: (keyof EventChannelMap)[] = [
   'inference:stream-start',
   'inference:stream-complete',
   'inference:accumulator-snapshot',
+  'workflow:node-status-changed',
+  'workflow:run-completed',
 ];
 
 const HEARTBEAT_INTERVAL_MS = 30_000;
