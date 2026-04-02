@@ -421,6 +421,7 @@ export const WorkflowNodeWaitKindSchema = z.enum([
   'retry_backoff',
   'checkpoint_commit',
   'parallel_join',
+  'loop_backoff',
 ]);
 export type WorkflowNodeWaitKind = z.infer<typeof WorkflowNodeWaitKindSchema>;
 
