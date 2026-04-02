@@ -152,7 +152,7 @@ export function TitleBar({
             border: 'none',
             cursor: 'default',
             color: 'var(--nous-header-fg)',
-            fontSize: 'var(--nous-font-size-xs)',
+            fontSize: 'var(--nous-font-size-base)',
             transition: 'background var(--nous-duration-micro) var(--nous-ease-in-out)',
           }}
           title="Minimize"
@@ -175,7 +175,7 @@ export function TitleBar({
             border: 'none',
             cursor: 'default',
             color: 'var(--nous-header-fg)',
-            fontSize: 'var(--nous-font-size-xs)',
+            fontSize: 'var(--nous-font-size-base)',
             transition: 'background var(--nous-duration-micro) var(--nous-ease-in-out)',
           }}
           title={isMaximized ? 'Restore' : 'Maximize'}
@@ -198,7 +198,7 @@ export function TitleBar({
             border: 'none',
             cursor: 'default',
             color: btnHover === 'close' ? 'var(--nous-fg-on-color)' : 'var(--nous-header-fg)',
-            fontSize: 'var(--nous-font-size-sm)',
+            fontSize: 'var(--nous-font-size-md)',
             transition: 'background var(--nous-duration-micro) var(--nous-ease-in-out), color var(--nous-duration-micro) var(--nous-ease-in-out)',
           }}
           title="Close"

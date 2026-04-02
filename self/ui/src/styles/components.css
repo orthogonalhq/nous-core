@@ -44,9 +44,9 @@
   --nous-palette-match-fg:   var(--nous-accent);
 
   /* ── Panel header ──────────────────────────────────────────────────── */
-  --nous-header-bg:     var(--nous-surface);
-  --nous-header-fg:     var(--nous-fg-muted);
-  --nous-header-border: var(--nous-border-subtle);
+  --nous-header-bg:     #1a1a1a;
+  --nous-header-fg:     var(--nous-fg);
+  --nous-header-border: var(--nous-border);
 
   /* ── Panel footer ──────────────────────────────────────────────────── */
   --nous-footer-bg:     var(--nous-surface);
