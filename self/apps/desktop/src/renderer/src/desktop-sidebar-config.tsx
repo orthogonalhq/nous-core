@@ -33,6 +33,7 @@ export function buildDesktopSidebarSections(): AssetSection[] {
       collapsible: true,
       disabled: false,
       onAdd: () => {},
+      onSettings: () => {},
     },
     {
       id: 'tasks',
@@ -44,6 +45,7 @@ export function buildDesktopSidebarSections(): AssetSection[] {
       collapsible: true,
       disabled: false,
       onAdd: () => {},
+      onSettings: () => {},
     },
     {
       id: 'teams',
@@ -55,6 +57,7 @@ export function buildDesktopSidebarSections(): AssetSection[] {
       collapsible: true,
       disabled: false,
       onAdd: () => {},
+      onSettings: () => {},
     },
     {
       id: 'agents',
@@ -66,6 +69,7 @@ export function buildDesktopSidebarSections(): AssetSection[] {
       collapsible: true,
       disabled: false,
       onAdd: () => {},
+      onSettings: () => {},
     },
   ]
 }

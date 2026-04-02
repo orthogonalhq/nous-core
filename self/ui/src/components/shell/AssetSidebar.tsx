@@ -64,7 +64,8 @@ function TopNavItemRow({ item, isActive, onNavigate }: TopNavItemRowProps) {
             ? 'var(--nous-bg-hover)'
             : 'transparent',
         color: isActive ? 'var(--nous-text-primary)' : 'var(--nous-sidebar-item-fg)',
-        fontSize: 'var(--nous-font-size-sm)',
+        fontSize: 'var(--nous-font-size-base)',
+        fontFamily: 'var(--nous-font-family)',
         cursor: 'pointer',
         transition: 'var(--nous-hover-button-transition)',
         textAlign: 'left',
@@ -115,6 +116,7 @@ function SectionHeader({ section, isCollapsed, onToggleCollapse }: SectionHeader
           background: 'transparent',
           color: 'var(--nous-sidebar-section-label-fg)',
           fontSize: '10px',
+          fontFamily: 'var(--nous-font-family)',
           fontWeight: 'var(--nous-font-weight-medium, 500)',
           textTransform: 'uppercase',
           letterSpacing: '0.08em',
@@ -225,7 +227,8 @@ function SectionItemRow({ item, isActive, disabled, onNavigate }: SectionItemRow
           : isActive
             ? 'var(--nous-text-primary)'
             : 'var(--nous-sidebar-item-fg)',
-        fontSize: 'var(--nous-font-size-sm)',
+        fontSize: 'var(--nous-font-size-base)',
+        fontFamily: 'var(--nous-font-family)',
         cursor: disabled ? 'not-allowed' : 'pointer',
         opacity: disabled ? 0.5 : 1,
         transition: 'var(--nous-hover-button-transition)',
@@ -344,7 +347,7 @@ export function AssetSidebar({
       <div
         data-sidebar-slot="header"
         style={{
-          padding: 'var(--nous-space-lg) var(--nous-space-md)',
+          padding: 'var(--nous-space-xl) var(--nous-space-md)',
           borderBottom: '1px solid var(--nous-border-subtle)',
           flexShrink: 0,
         }}
@@ -354,6 +357,7 @@ export function AssetSidebar({
             fontSize: 'var(--nous-font-size-md)',
             fontWeight: 'var(--nous-font-weight-semibold, 600)',
             color: 'var(--nous-sidebar-header-fg)',
+            fontFamily: 'var(--nous-font-family)',
           }}
         >
           {projectName}
