@@ -242,6 +242,18 @@ export const WorkflowRunCompletedPayloadSchema = z.object({
 });
 export type WorkflowRunCompletedPayload = z.infer<typeof WorkflowRunCompletedPayloadSchema>;
 
+// --- Cost Domain ---
+
+export const CostBudgetAlertPayloadSchema = z.object({
+  projectId: z.string().min(1),
+  alertLevel: z.enum(['normal', 'soft_threshold', 'hard_ceiling']),
+  currentSpendDollars: z.number().nonnegative(),
+  thresholdDollars: z.number().nonnegative(),
+  percentUsed: z.number().nonnegative(),
+  emittedAt: z.string().datetime(),
+});
+export type CostBudgetAlertPayload = z.infer<typeof CostBudgetAlertPayloadSchema>;
+
 // --- Channel Map ---
 
 export interface EventChannelMap {
@@ -269,6 +281,7 @@ export interface EventChannelMap {
   'inference:accumulator-snapshot': InferenceAccumulatorSnapshotPayload;
   'workflow:node-status-changed': WorkflowNodeStatusChangedPayload;
   'workflow:run-completed': WorkflowRunCompletedPayload;
+  'cost:budget-alert': CostBudgetAlertPayload;
 }
 
 /**
