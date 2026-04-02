@@ -97,8 +97,8 @@ describe('SimpleShellLayout', () => {
     await renderLayout()
     const chat = getArea('chat')
     expect(chat.style.position).toBe('absolute')
-    expect(chat.style.bottom).toBe('0px')
-    expect(chat.style.left).toBe('0px')
+    expect(chat.style.bottom).toBe('6px')
+    expect(chat.style.left).toBe('6px')
     expect(chat.style.zIndex).toBe('10')
   })
 

@@ -202,7 +202,10 @@ export function SimpleShellLayout({
           overflow: 'hidden',
           gridArea: 'sidebar',
           background: 'var(--nous-bg-surface)',
-          borderInlineEnd: '1px solid var(--nous-shell-column-border)',
+          marginTop: 4,
+          marginBottom: 4,
+          borderRadius: 'var(--nous-radius-md)',
+          border: '1px solid var(--nous-border)',
         }}
       >
         {sidebar}
@@ -215,6 +218,10 @@ export function SimpleShellLayout({
           overflowY: 'auto',
           gridArea: 'content',
           background: 'var(--nous-content-bg)',
+          marginTop: 4,
+          marginBottom: 4,
+          borderRadius: 'var(--nous-radius-md)',
+          border: '1px solid var(--nous-border)',
         }}
       >
         {content}
@@ -248,15 +255,15 @@ export function SimpleShellLayout({
         data-chat-stage={chatStage}
         style={{
           position: 'absolute',
-          bottom: 0,
-          left: 0,
-          width: `calc(var(--nous-project-rail-width) + var(--shell-sidebar-width))`,
+          bottom: 6,
+          left: 6,
+          width: `calc(var(--nous-project-rail-width) + var(--shell-sidebar-width) - 12px)`,
           height: typeof chatOverlayHeight === 'number' ? `${chatOverlayHeight}px` : chatOverlayHeight,
           zIndex: 10,
           pointerEvents: 'auto',
-          background: 'var(--nous-bg-surface)',
-          borderTop: '1px solid var(--nous-shell-column-border)',
-          borderRight: '1px solid var(--nous-shell-column-border)',
+          background: 'var(--nous-chat-full-bg)',
+          border: '1px solid var(--nous-border)',
+          borderRadius: 'var(--nous-radius-lg)',
           display: 'flex',
           flexDirection: 'column',
           overflow: 'hidden',
