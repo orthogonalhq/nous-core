@@ -281,7 +281,7 @@ function ChromeShell({
       <div style={{ flex: 1, overflow: 'hidden', minHeight: 0 }}>
         {children}
       </div>
-      <StatusBar mode={mode} />
+      {mode !== 'simple' && <StatusBar mode={mode} />}
     </div>
   )
 }
