@@ -3,6 +3,7 @@ import { ActiveAgentsWidget } from './ActiveAgentsWidget'
 import { ProviderHealthWidget } from './ProviderHealthWidget'
 import { RecentEventsWidget } from './RecentEventsWidget'
 import { TokenUsageWidget } from './TokenUsageWidget'
+import { CostBreakdownWidget } from './CostBreakdownWidget'
 
 export const dashboardWidgets = {
   'system-status': SystemStatusWidget,
@@ -10,6 +11,7 @@ export const dashboardWidgets = {
   'provider-health': ProviderHealthWidget,
   'recent-events': RecentEventsWidget,
   'token-usage': TokenUsageWidget,
+  'cost-breakdown': CostBreakdownWidget,
 }
 
 export type WidgetDef = { id: string; component: string; title: string }
@@ -20,4 +22,5 @@ export const WIDGET_DEFS: WidgetDef[] = [
   { id: 'provider-health', component: 'provider-health', title: 'Provider Health' },
   { id: 'token-usage', component: 'token-usage', title: 'Token Usage' },
   { id: 'recent-events', component: 'recent-events', title: 'Recent Events' },
+  { id: 'cost-breakdown', component: 'cost-breakdown', title: 'Cost Breakdown' },
 ]

@@ -85,6 +85,11 @@ import type {
   MaoEventType,
   MaoRunGraphSnapshot,
   MaoControlAuditHistoryEntry,
+  CostWindow,
+  CostSnapshot,
+  CostAccumulatorEntry,
+  ModelPricingEntry,
+  BudgetStatus,
   GtmGateReportInput,
   GtmGateReport,
   GtmStageLabel,
@@ -1179,4 +1184,24 @@ export interface IGtmGateCalculator {
     report: GtmGateReport,
     targetStage: GtmStageLabel,
   ): boolean;
+}
+
+export interface ICostGovernanceService {
+  /** Get cost snapshot for a project in a specific window. */
+  getProjectCostSnapshot(projectId: string, window: CostWindow): CostSnapshot | null;
+
+  /** Get budget status (spend vs. thresholds). */
+  getBudgetStatus(projectId: string): BudgetStatus | null;
+
+  /** Get per-provider/model cost breakdown. */
+  getProviderBreakdown(projectId: string, window: CostWindow): CostAccumulatorEntry[];
+
+  /** Get the full pricing table. */
+  getPricingTable(): ModelPricingEntry[];
+
+  /** Set or update a pricing entry. */
+  setPricingEntry(entry: ModelPricingEntry): void;
+
+  /** Remove a pricing entry. Returns true if entry existed. */
+  removePricingEntry(providerId: string, modelId: string): boolean;
 }

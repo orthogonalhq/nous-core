@@ -84,7 +84,7 @@ import {
 import { DocumentArtifactStore } from '@nous/subcortex-artifacts';
 import { DocumentEscalationStore, EscalationService } from '@nous/subcortex-escalation';
 import { ModelRouter } from '@nous/subcortex-router';
-import { ProviderRegistry, TokenAccumulatorService } from '@nous/subcortex-providers';
+import { ProviderRegistry, TokenAccumulatorService, ModelPricingRegistry, CostGovernanceService } from '@nous/subcortex-providers';
 import {
   DiscoverProjectsTool,
   EchoTool,
@@ -742,6 +742,24 @@ export function createNousServices(config?: BootstrapConfig): NousContext {
   });
   const providerRegistry = new ProviderRegistry(appConfig, { eventBus });
   const tokenAccumulator = new TokenAccumulatorService(eventBus);
+  const pricingRegistry = new ModelPricingRegistry();
+  // Sync config cache for CostGovernanceService (event-driven, needs sync access).
+  // Populated lazily via async lookups; budget enforcement starts once cached.
+  const projectConfigCache = new Map<string, import('@nous/shared').ProjectConfig>();
+  const costGovernanceService = new CostGovernanceService({
+    eventBus,
+    opctlService,
+    pricingRegistry,
+    getProjectConfig: (projectId: string) => {
+      const cached = projectConfigCache.get(projectId);
+      if (cached) return cached;
+      // Trigger async population (fire-and-forget)
+      projectStore.get(projectId as ProjectId).then((config) => {
+        if (config) projectConfigCache.set(projectId, config);
+      }).catch(() => { /* noop */ });
+      return null;
+    },
+  });
   const inferenceAdapter = new InferenceProjectionAdapter(eventBus);
   const thoughtEmitter = new ThoughtEmitterImpl(eventBus);
   Cortex.setThoughtEmitter(thoughtEmitter);
@@ -1308,6 +1326,7 @@ export function createNousServices(config?: BootstrapConfig): NousContext {
     healthAggregator,
     healthMonitor,
     tokenAccumulator,
+    costGovernanceService,
   };
 
   console.log(`[nous:${runtimeLabel}] bootstrap complete`);

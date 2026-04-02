@@ -49,6 +49,7 @@ export type {
   IOpctlService,
   IMaoProjectionService,
   IGtmGateCalculator,
+  ICostGovernanceService,
   PublicMcpAgentInvokeCommand,
   PublicMcpAgentListQuery,
   PublicMcpSystemInfoQuery,

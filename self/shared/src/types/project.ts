@@ -27,6 +27,7 @@ import {
   MemoryAccessPolicySchema,
 } from './memory.js';
 import { InAppEscalationSurfaceSchema } from './escalation.js';
+import { CostBudgetPolicySchema } from './cost-governance.js';
 import {
   WorkflowDefinitionSchema,
   WorkflowEdgeDefinitionSchema,
@@ -198,6 +199,7 @@ export const ProjectConfigSchema = z.object({
   escalationPreferences: ProjectEscalationPreferencesSchema.default({}),
   workflow: ProjectWorkflowConfigurationSchema.optional(),
   packageDefaultIntake: z.array(ProjectPackageDefaultIntakeSchema).default([]),
+  costBudget: CostBudgetPolicySchema.optional(),
   retrievalBudgetTokens: z.number().positive().default(500),
   createdAt: z.string().datetime(),
   updatedAt: z.string().datetime(),

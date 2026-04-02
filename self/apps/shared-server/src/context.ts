@@ -30,6 +30,7 @@ import type {
   IEventBus,
   IHealthAggregator,
   IHealthMonitor,
+  ICostGovernanceService,
 } from '@nous/shared';
 import type { PanelTranspiler } from '@nous/subcortex-apps';
 import type { ProviderRegistry, TokenAccumulatorService } from '@nous/subcortex-providers';
@@ -108,4 +109,5 @@ export interface NousContext {
   healthAggregator: IHealthAggregator;
   healthMonitor: IHealthMonitor;
   tokenAccumulator: TokenAccumulatorService;
+  costGovernanceService: ICostGovernanceService;
 }
