@@ -99,6 +99,7 @@ const CanvasDropTarget = forwardRef<
     canRedo,
     monitoringState,
     activeRun,
+    executionRuns,
     setActiveRun,
     clearActiveRun,
     inspectionState,
@@ -771,6 +772,7 @@ const CanvasDropTarget = forwardRef<
           containerRef={canvasRef}
           onSelectRun={setActiveRun}
           activeRunId={activeRun?.id ?? null}
+          runs={executionRuns}
         />
       )}
 

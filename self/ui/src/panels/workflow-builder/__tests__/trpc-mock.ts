@@ -18,6 +18,18 @@ export const mockListWorkflowDefinitionsResult = {
   refetch: vi.fn(),
 }
 
+/** Configurable return value for workflowSnapshot.useQuery. */
+export const mockWorkflowSnapshotResult = {
+  data: undefined as unknown,
+  isLoading: false,
+  isError: false,
+  error: null,
+  refetch: vi.fn(),
+}
+
+/** Mock for useEventSubscription — tracks calls for assertion. */
+export const mockUseEventSubscription = vi.fn()
+
 export const trpcMock = {
   trpc: {
     projects: {
@@ -33,12 +45,17 @@ export const trpcMock = {
       deleteWorkflowDefinition: {
         useMutation: () => ({ mutateAsync: mockDeleteMutateAsync }),
       },
+      workflowSnapshot: {
+        useQuery: vi.fn().mockImplementation(() => mockWorkflowSnapshotResult),
+      },
     },
     useUtils: () => ({
       projects: {
         getWorkflowDefinition: { fetch: mockFetch },
         listWorkflowDefinitions: { invalidate: vi.fn() },
+        workflowSnapshot: { invalidate: vi.fn() },
       },
     }),
   },
+  useEventSubscription: mockUseEventSubscription,
 }
