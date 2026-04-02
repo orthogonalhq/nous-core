@@ -31,22 +31,27 @@ export const STUB_APPS: CatalogItem[] = [
 // --- Simple shell sidebar stub data ---
 
 /** @todo stub data placeholding for proper build out */
+export const STUB_CAMPAIGNS: AssetSectionItem[] = [
+  { id: 'campaign-1', label: 'Marketing Campaigns', icon: <span style={{ width: 8, height: 8, borderRadius: '50%', background: '#4CAF50', display: 'inline-block' }} />, routeId: 'campaigns' },
+  { id: 'campaign-2', label: 'Product Management', icon: <span style={{ width: 8, height: 8, borderRadius: '50%', background: '#66BB6A', display: 'inline-block' }} />, routeId: 'campaigns' },
+]
+
+/** @todo stub data placeholding for proper build out */
 export const STUB_TASKS: AssetSectionItem[] = [
-  { id: 'task-1', label: 'Deploy v2.1', routeId: 'tasks' },
-  { id: 'task-2', label: 'Bug triage', routeId: 'tasks' },
-  { id: 'task-3', label: 'Sprint review', routeId: 'tasks' },
+  { id: 'task-1', label: 'Manage Emails', icon: <span style={{ width: 8, height: 8, borderRadius: '50%', background: '#E91E63', display: 'inline-block' }} />, routeId: 'tasks' },
+  { id: 'task-2', label: 'Manage Social Media', icon: <span style={{ width: 8, height: 8, borderRadius: '50%', background: '#F06292', display: 'inline-block' }} />, routeId: 'tasks' },
 ]
 
 /** @todo stub data placeholding for proper build out */
 export const STUB_TEAMS: AssetSectionItem[] = [
-  { id: 'team-1', label: 'Engineering', routeId: 'teams' },
-  { id: 'team-2', label: 'Design', routeId: 'teams' },
-  { id: 'team-3', label: 'Product', routeId: 'teams' },
+  { id: 'team-1', label: 'Marketing', icon: <span style={{ width: 8, height: 8, borderRadius: '50%', background: '#7C4DFF', display: 'inline-block' }} />, routeId: 'teams' },
+  { id: 'team-2', label: 'Customer Service', icon: <span style={{ width: 8, height: 8, borderRadius: '50%', background: '#536DFE', display: 'inline-block' }} />, routeId: 'teams' },
+  { id: 'team-3', label: 'Product', icon: <span style={{ width: 8, height: 8, borderRadius: '50%', background: '#69F0AE', display: 'inline-block' }} />, routeId: 'teams' },
 ]
 
 /** @todo stub data placeholding for proper build out */
 export const STUB_AGENTS: AssetSectionItem[] = [
-  { id: 'agent-1', label: 'Code Reviewer', routeId: 'agents' },
-  { id: 'agent-2', label: 'Test Runner', routeId: 'agents' },
-  { id: 'agent-3', label: 'Deploy Agent', routeId: 'agents' },
+  { id: 'agent-1', label: 'AI Agent', icon: <span style={{ width: 8, height: 8, borderRadius: '50%', background: '#009688', display: 'inline-block' }} />, routeId: 'agents' },
+  { id: 'agent-2', label: 'Project Agent', icon: <span style={{ width: 8, height: 8, borderRadius: '50%', background: '#26A69A', display: 'inline-block' }} />, routeId: 'agents' },
+  { id: 'agent-3', label: 'Communications Agent', icon: <span style={{ width: 8, height: 8, borderRadius: '50%', background: '#4DB6AC', display: 'inline-block' }} />, routeId: 'agents' },
 ]
