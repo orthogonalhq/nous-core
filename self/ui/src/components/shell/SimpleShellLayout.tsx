@@ -136,8 +136,8 @@ export function SimpleShellLayout({
   const chatOverlayHeight = (() => {
     switch (chatStage) {
       case 'small': return CHAT_SMALL_HEIGHT
-      case 'ambient_small': return 100
-      case 'ambient_large': return Math.round(containerHeight * 0.35)
+      case 'ambient_small': return 70
+      case 'ambient_large': return Math.round(containerHeight * 0.55)
       case 'full': return containerHeight || '100%'
       default: return CHAT_SMALL_HEIGHT
     }
@@ -260,7 +260,7 @@ export function SimpleShellLayout({
           display: 'flex',
           flexDirection: 'column',
           overflow: 'hidden',
-          transition: 'height 300ms ease',
+          transition: 'height var(--nous-duration-slow) var(--nous-ease-out)',
         }}
       >
         {chatSlot({ stage: chatStage, onStageChange: internalSetChatStage ?? (() => {}) })}

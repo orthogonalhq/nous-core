@@ -164,7 +164,7 @@ describe('SimpleShellLayout', () => {
   it('chat overlay has transition for smooth animation', async () => {
     await renderLayout()
     const chat = getArea('chat')
-    expect(chat.style.transition).toBe('height 300ms ease')
+    expect(chat.style.transition).toBe('height var(--nous-duration-slow) var(--nous-ease-out)')
   })
 
   it('sets data-chat-stage attribute on chat overlay', async () => {
