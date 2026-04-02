@@ -111,6 +111,10 @@ export function SimpleShellLayout({
     onColumnResize?.({ sidebar: sidebarWidthRef.current, observe: nextWidth })
   }, [onColumnResize])
 
+  // Track whether a toggle animation is in progress (gates grid transition)
+  const [isAnimating, setIsAnimating] = React.useState(false)
+  const animationTimerRef = React.useRef<ReturnType<typeof setTimeout> | null>(null)
+
   /** Snap observe to expanded width — called by CollapsibleObserveEdge */
   const handleObserveExpandToggle = React.useCallback(() => {
     const EXPANDED_WIDTH = 280
@@ -118,6 +122,9 @@ export function SimpleShellLayout({
     observeWidthRef.current = next
     setObserveWidth(next)
     onColumnResize?.({ sidebar: sidebarWidthRef.current, observe: next })
+    setIsAnimating(true)
+    if (animationTimerRef.current) clearTimeout(animationTimerRef.current)
+    animationTimerRef.current = setTimeout(() => setIsAnimating(false), 200)
   }, [onColumnResize])
 
   const showObserve = breakpoint === 'full'
@@ -161,6 +168,7 @@ export function SimpleShellLayout({
     width: '100%',
     height: '100%',
     background: 'var(--nous-bg-base)',
+    transition: isAnimating ? 'grid-template-columns var(--nous-duration-normal) var(--nous-ease-out)' : undefined,
     ...style,
   }
 
