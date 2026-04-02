@@ -17,7 +17,7 @@
   --nous-bg-surface:     #050505;
   --nous-bg-elevated:    #141414;
   --nous-bg-hover:       #1a1a1a;
-  --nous-bg-active:      #222222;
+  --nous-bg-active:      #1A1A1A;
   --nous-bg-input:       #0f0f0f;
   --nous-rail-surface:   #090909;
   --nous-ambient-gradient: linear-gradient(to bottom, rgba(9,9,9,1) 60%, rgba(9,9,9,0) 100%);
@@ -25,7 +25,7 @@
   /* ── Borders ─────────────────────────────────────────────────────────── */
   --nous-border:        #1a1a1a;
   --nous-border-strong: #2a2a2a;
-  --nous-border-subtle: #2d2d2d0a;
+  --nous-border-subtle: transparent;
 
   --nous-nested-panel-border: transparent;
 
@@ -43,7 +43,7 @@
   --nous-sidebar-label:          #666666;
   --nous-sidebar-chevron:        #888888;
   --nous-sidebar-group-icon:     #666666;
-  --nous-sidebar-button-fg:      #A9A9A9;
+  --nous-sidebar-button-fg:      #B0B0B0;
   --nous-sidebar-button-icon:    #A0A0A0;
   --nous-sidebar-title:          #FFFFFF;
   --nous-sidebar-collapse-icon:  #949494;

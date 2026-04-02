@@ -276,3 +276,18 @@
   animation: nous-node-pulse 1.5s ease-in-out infinite;
   will-change: box-shadow;
 }
+
+/* ── Sidebar scrollbar ────────────────────────────────────────────── */
+.nous-asset-sidebar ::-webkit-scrollbar {
+  width: var(--nous-scrollbar-size);
+}
+.nous-asset-sidebar ::-webkit-scrollbar-thumb {
+  background: var(--nous-scrollbar-thumb);
+  border-radius: var(--nous-radius-xs);
+}
+.nous-asset-sidebar ::-webkit-scrollbar-thumb:hover {
+  background: var(--nous-scrollbar-thumb-hover);
+}
+.nous-asset-sidebar ::-webkit-scrollbar-track {
+  background: transparent;
+}
