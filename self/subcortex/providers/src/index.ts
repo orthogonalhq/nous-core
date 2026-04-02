@@ -14,3 +14,6 @@ export { TokenAccumulatorService } from './token-accumulator-service.js';
 export type { WindowSummary, ProviderBreakdownEntry } from './token-accumulator-service.js';
 export { TextModelInputSchema } from './schemas.js';
 export type { TextModelInput } from './schemas.js';
+export { ModelPricingRegistry } from './model-pricing-registry.js';
+export { CostGovernanceService } from './cost-governance-service.js';
+export type { CostGovernanceServiceDeps } from './cost-governance-service.js';
