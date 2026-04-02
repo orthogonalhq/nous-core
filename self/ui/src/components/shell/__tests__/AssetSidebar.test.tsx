@@ -128,9 +128,9 @@ describe('AssetSidebar', () => {
 
   it('collapses section on header click and persists to localStorage', async () => {
     await renderSidebar()
-    // Items visible initially — wrapper has maxHeight 500px
+    // Items visible initially — wrapper has maxHeight 2000px
     const wrapper = container.querySelector('[data-section-items="workflows"]') as HTMLElement
-    expect(wrapper.style.maxHeight).toBe('500px')
+    expect(wrapper.style.maxHeight).toBe('2000px')
     expect(wrapper.style.opacity).toBe('1')
 
     // Click collapse

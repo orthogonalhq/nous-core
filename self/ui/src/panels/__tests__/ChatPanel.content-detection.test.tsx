@@ -159,10 +159,11 @@ describe('ChatPanel — Content Detection and Renderer Branching', () => {
   // Tier 3 — Edge Cases
   // ---------------------------------------------------------------------------
 
-  it('empty messages array: no crash, empty state displayed', async () => {
+  it('empty messages array: no crash, renders cleanly', async () => {
     const api = makeChatApi([])
-    render(<ChatPanel chatApi={api} />)
-    expect(await screen.findByText('Start a conversation with Nous.')).toBeTruthy()
+    const { container } = render(<ChatPanel chatApi={api} />)
+    // Should render without crashing; no empty state text is shown
+    expect(container.querySelector('[data-chat-stage="full"]')).toBeTruthy()
   })
 
   it('rendering never throws even on unexpected input', async () => {

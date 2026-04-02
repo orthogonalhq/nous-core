@@ -84,9 +84,9 @@ function renderSendingPanel() {
   const result = render(<ChatPanel chatApi={mockApi} />)
 
   // Type a message and send to trigger sending=true
-  const textarea = screen.getByPlaceholderText(/Message Nous/i)
+  const textarea = screen.getByPlaceholderText(/What can I help you with/i)
   fireEvent.change(textarea, { target: { value: 'Hello' } })
-  const sendButton = screen.getByText('Send')
+  const sendButton = screen.getByTitle('Send message')
   fireEvent.click(sendButton)
 
   return { ...result, resolveSend: resolveSend! }
@@ -373,9 +373,10 @@ describe('ChatPanel — Stage-aware rendering', () => {
     }
     const { container } = render(<ChatPanel chatApi={mockApi} />)
 
-    // Full mode: header and messages area should be present
+    // Full mode: messages area and input should be present, no header
     expect(container.querySelector('[data-chat-stage="full"]')).toBeTruthy()
-    expect(screen.getByText('Principal \u2194 Cortex')).toBeTruthy()
+    expect(screen.queryByText('Principal \u2194 Cortex')).toBeNull()
+    expect(screen.getByPlaceholderText(/What can I help you with/i)).toBeTruthy()
   })
 
   it('renders full mode explicitly when stage="full"', () => {
@@ -386,7 +387,8 @@ describe('ChatPanel — Stage-aware rendering', () => {
     const { container } = render(<ChatPanel chatApi={mockApi} stage="full" />)
 
     expect(container.querySelector('[data-chat-stage="full"]')).toBeTruthy()
-    expect(screen.getByText('Principal \u2194 Cortex')).toBeTruthy()
+    expect(screen.queryByText('Principal \u2194 Cortex')).toBeNull()
+    expect(screen.getByPlaceholderText(/What can I help you with/i)).toBeTruthy()
   })
 
   it('small stage hides header and messages, shows only input', () => {
@@ -400,12 +402,12 @@ describe('ChatPanel — Stage-aware rendering', () => {
     // Header text should NOT be present
     expect(screen.queryByText('Principal \u2194 Cortex')).toBeNull()
     // Input should still be present
-    expect(screen.getByPlaceholderText(/Message Nous/i)).toBeTruthy()
+    expect(screen.getByPlaceholderText(/What can I help you with/i)).toBeTruthy()
     // Send button should still be present
-    expect(screen.getByText('Send')).toBeTruthy()
+    expect(screen.getByTitle('Send message')).toBeTruthy()
   })
 
-  it('ambient_small stage shows toggle bar with Thinking indicator and input', () => {
+  it('ambient_small stage shows input', () => {
     const mockApi: ChatAPI = {
       send: vi.fn().mockResolvedValue({ response: 'ok', traceId: 'trace-1' }),
       getHistory: async () => [],
@@ -413,13 +415,10 @@ describe('ChatPanel — Stage-aware rendering', () => {
     const { container } = render(<ChatPanel chatApi={mockApi} stage="ambient_small" />)
 
     expect(container.querySelector('[data-chat-stage="ambient_small"]')).toBeTruthy()
-    expect(screen.getByTestId('chat-stage-toggle')).toBeTruthy()
-    expect(screen.getByPlaceholderText(/Message Nous/i)).toBeTruthy()
-    // Should show Thinking indicator
-    expect(screen.getByText(/Thinking\.\.\./)).toBeTruthy()
+    expect(screen.getByPlaceholderText(/What can I help you with/i)).toBeTruthy()
   })
 
-  it('ambient_large stage shows toggle bar with thought stream', () => {
+  it('ambient_large stage shows input', () => {
     const mockApi: ChatAPI = {
       send: vi.fn().mockResolvedValue({ response: 'ok', traceId: 'trace-1' }),
       getHistory: async () => [],
@@ -427,102 +426,7 @@ describe('ChatPanel — Stage-aware rendering', () => {
     const { container } = render(<ChatPanel chatApi={mockApi} stage="ambient_large" />)
 
     expect(container.querySelector('[data-chat-stage="ambient_large"]')).toBeTruthy()
-    expect(screen.getByTestId('chat-stage-toggle')).toBeTruthy()
-    expect(screen.getByPlaceholderText(/Message Nous/i)).toBeTruthy()
-  })
-
-  it('small stage expand button calls onStageChange with ambient_large', () => {
-    const mockApi: ChatAPI = {
-      send: vi.fn().mockResolvedValue({ response: 'ok', traceId: 'trace-1' }),
-      getHistory: async () => [],
-    }
-    const onStageChange = vi.fn()
-
-    render(<ChatPanel chatApi={mockApi} stage="small" onStageChange={onStageChange} />)
-
-    // Click expand chevron
-    fireEvent.click(screen.getByTestId('stage-panel-button'))
-    expect(onStageChange).toHaveBeenCalledWith('ambient_large')
-  })
-
-  it('ambient_large stage expand button calls onStageChange with full', () => {
-    const mockApi: ChatAPI = {
-      send: vi.fn().mockResolvedValue({ response: 'ok', traceId: 'trace-1' }),
-      getHistory: async () => [],
-    }
-    const onStageChange = vi.fn()
-
-    render(<ChatPanel chatApi={mockApi} stage="ambient_large" onStageChange={onStageChange} />)
-
-    fireEvent.click(screen.getByTestId('stage-fullscreen-button'))
-    expect(onStageChange).toHaveBeenCalledWith('full')
-  })
-
-  it('ambient_large stage minimize button calls onStageChange with small', () => {
-    const mockApi: ChatAPI = {
-      send: vi.fn().mockResolvedValue({ response: 'ok', traceId: 'trace-1' }),
-      getHistory: async () => [],
-    }
-    const onStageChange = vi.fn()
-
-    render(<ChatPanel chatApi={mockApi} stage="ambient_large" onStageChange={onStageChange} />)
-
-    fireEvent.click(screen.getByTestId('stage-minimize-button'))
-    expect(onStageChange).toHaveBeenCalledWith('small')
-  })
-
-  it('full stage minimize button calls onStageChange with small', () => {
-    const mockApi: ChatAPI = {
-      send: vi.fn().mockResolvedValue({ response: 'ok', traceId: 'trace-1' }),
-      getHistory: async () => [],
-    }
-    const onStageChange = vi.fn()
-
-    render(<ChatPanel chatApi={mockApi} stage="full" onStageChange={onStageChange} />)
-
-    fireEvent.click(screen.getByTestId('stage-minimize-button'))
-    expect(onStageChange).toHaveBeenCalledWith('small')
-  })
-
-  it('full stage panel button calls onStageChange with ambient_large', () => {
-    const mockApi: ChatAPI = {
-      send: vi.fn().mockResolvedValue({ response: 'ok', traceId: 'trace-1' }),
-      getHistory: async () => [],
-    }
-    const onStageChange = vi.fn()
-
-    render(<ChatPanel chatApi={mockApi} stage="full" onStageChange={onStageChange} />)
-
-    fireEvent.click(screen.getByTestId('stage-panel-button'))
-    expect(onStageChange).toHaveBeenCalledWith('ambient_large')
-  })
-
-  it('full stage pin button calls onTogglePin', () => {
-    const mockApi: ChatAPI = {
-      send: vi.fn().mockResolvedValue({ response: 'ok', traceId: 'trace-1' }),
-      getHistory: async () => [],
-    }
-    const onStageChange = vi.fn()
-    const onTogglePin = vi.fn()
-
-    render(<ChatPanel chatApi={mockApi} stage="full" onStageChange={onStageChange} onTogglePin={onTogglePin} />)
-
-    fireEvent.click(screen.getByTestId('stage-pin-button'))
-    expect(onTogglePin).toHaveBeenCalledTimes(1)
-  })
-
-  it('full stage pin button shows pinned state', () => {
-    const mockApi: ChatAPI = {
-      send: vi.fn().mockResolvedValue({ response: 'ok', traceId: 'trace-1' }),
-      getHistory: async () => [],
-    }
-    const onStageChange = vi.fn()
-
-    const { rerender } = render(<ChatPanel chatApi={mockApi} stage="full" onStageChange={onStageChange} isPinned={false} />)
-    expect(screen.getByTestId('stage-pin-button').title).toBe('Pin open')
-
-    rerender(<ChatPanel chatApi={mockApi} stage="full" onStageChange={onStageChange} isPinned={true} />)
-    expect(screen.getByTestId('stage-pin-button').title).toBe('Unpin')
+    expect(screen.getByPlaceholderText(/What can I help you with/i)).toBeTruthy()
   })
 
   it('input focus calls onInputFocus callback', () => {
@@ -534,7 +438,7 @@ describe('ChatPanel — Stage-aware rendering', () => {
 
     render(<ChatPanel chatApi={mockApi} stage="ambient_small" onInputFocus={onInputFocus} />)
 
-    const textarea = screen.getByPlaceholderText(/Message Nous/i)
+    const textarea = screen.getByPlaceholderText(/What can I help you with/i)
     fireEvent.focus(textarea)
     expect(onInputFocus).toHaveBeenCalledTimes(1)
   })
