@@ -11,8 +11,8 @@ import type { WorkflowBuilderNode } from '../../../types/workflow-builder'
 vi.mock('../nodes/node-registry', () => ({
   getAllRegistryEntries: () => [
     ['nous.trigger.webhook', { category: 'trigger', defaultLabel: 'Webhook Trigger', icon: 'codicon-zap', colorVar: 'var(--c)', width: 200, height: 80, ports: [] }],
-    ['nous.agent.classify', { category: 'agent', defaultLabel: 'Agent Classify', icon: 'codicon-hubot', colorVar: 'var(--c)', width: 200, height: 80, ports: [] }],
-    ['nous.condition.branch', { category: 'condition', defaultLabel: 'Condition Branch', icon: 'codicon-git-compare', colorVar: 'var(--c)', width: 200, height: 80, ports: [] }],
+    ['nous.agent.claude', { category: 'agent', defaultLabel: 'Claude Agent', icon: 'codicon-hubot', colorVar: 'var(--c)', width: 200, height: 80, ports: [] }],
+    ['nous.condition.if', { category: 'condition', defaultLabel: 'If Condition', icon: 'codicon-git-compare', colorVar: 'var(--c)', width: 200, height: 80, ports: [] }],
   ],
 }))
 
@@ -29,7 +29,7 @@ const testNodes: WorkflowBuilderNode[] = [
     id: 'n2',
     type: 'builderNode',
     position: { x: 200, y: 0 },
-    data: { label: 'Classify Agent', category: 'agent', nousType: 'nous.agent.classify' },
+    data: { label: 'Classify Agent', category: 'agent', nousType: 'nous.agent.claude' },
   },
 ]
 
@@ -71,8 +71,8 @@ describe('NodeSearch', () => {
       expect(screen.getByTestId('node-search-result-existing-n2')).toBeTruthy()
       // Add nodes should have add- prefix
       expect(screen.getByTestId('node-search-result-add-nous.trigger.webhook')).toBeTruthy()
-      expect(screen.getByTestId('node-search-result-add-nous.agent.classify')).toBeTruthy()
-      expect(screen.getByTestId('node-search-result-add-nous.condition.branch')).toBeTruthy()
+      expect(screen.getByTestId('node-search-result-add-nous.agent.claude')).toBeTruthy()
+      expect(screen.getByTestId('node-search-result-add-nous.condition.if')).toBeTruthy()
     })
   })
 
@@ -98,8 +98,8 @@ describe('NodeSearch', () => {
       render(<NodeSearch {...defaultProps} />)
       const section = screen.getByTestId('node-search-add-section')
       expect(section.textContent).toContain('Webhook Trigger')
-      expect(section.textContent).toContain('Agent Classify')
-      expect(section.textContent).toContain('Condition Branch')
+      expect(section.textContent).toContain('Claude Agent')
+      expect(section.textContent).toContain('If Condition')
     })
 
     it('typing "web" filters results by label (case-insensitive substring match)', () => {
@@ -111,7 +111,7 @@ describe('NodeSearch', () => {
       expect(screen.getByTestId('node-search-result-add-nous.trigger.webhook')).toBeTruthy()
       // Should NOT show non-matching items
       expect(screen.queryByTestId('node-search-result-existing-n2')).toBeNull()
-      expect(screen.queryByTestId('node-search-result-add-nous.condition.branch')).toBeNull()
+      expect(screen.queryByTestId('node-search-result-add-nous.condition.if')).toBeNull()
     })
 
     it('typing "xyz" shows "No results found" message', () => {
@@ -126,7 +126,7 @@ describe('NodeSearch', () => {
       render(<NodeSearch {...defaultProps} />)
       const input = screen.getByTestId('node-search-input')
       fireEvent.change(input, { target: { value: 'condition' } })
-      expect(screen.getByTestId('node-search-result-add-nous.condition.branch')).toBeTruthy()
+      expect(screen.getByTestId('node-search-result-add-nous.condition.if')).toBeTruthy()
       // Existing nodes don't have "condition" in label, but might in nousType — n1 and n2 don't match
       expect(screen.queryByTestId('node-search-result-existing-n1')).toBeNull()
     })
@@ -163,7 +163,7 @@ describe('NodeSearch', () => {
 
     it('closes after selection (add node)', () => {
       render(<NodeSearch {...defaultProps} />)
-      fireEvent.click(screen.getByTestId('node-search-result-add-nous.agent.classify'))
+      fireEvent.click(screen.getByTestId('node-search-result-add-nous.agent.claude'))
       expect(defaultProps.onClose).toHaveBeenCalledTimes(1)
     })
 
@@ -173,8 +173,8 @@ describe('NodeSearch', () => {
       expect(screen.getByLabelText('Go to Webhook Entry')).toBeTruthy()
       expect(screen.getByLabelText('Go to Classify Agent')).toBeTruthy()
       expect(screen.getByLabelText('Add Webhook Trigger')).toBeTruthy()
-      expect(screen.getByLabelText('Add Agent Classify')).toBeTruthy()
-      expect(screen.getByLabelText('Add Condition Branch')).toBeTruthy()
+      expect(screen.getByLabelText('Add Claude Agent')).toBeTruthy()
+      expect(screen.getByLabelText('Add If Condition')).toBeTruthy()
     })
   })
 
@@ -187,8 +187,8 @@ describe('NodeSearch', () => {
       expect(screen.getByTestId('node-search-result-existing-n1')).toBeTruthy()
       expect(screen.getByTestId('node-search-result-existing-n2')).toBeTruthy()
       expect(screen.getByTestId('node-search-result-add-nous.trigger.webhook')).toBeTruthy()
-      expect(screen.getByTestId('node-search-result-add-nous.agent.classify')).toBeTruthy()
-      expect(screen.getByTestId('node-search-result-add-nous.condition.branch')).toBeTruthy()
+      expect(screen.getByTestId('node-search-result-add-nous.agent.claude')).toBeTruthy()
+      expect(screen.getByTestId('node-search-result-add-nous.condition.if')).toBeTruthy()
     })
 
     it('search with spaces trims and matches correctly', () => {

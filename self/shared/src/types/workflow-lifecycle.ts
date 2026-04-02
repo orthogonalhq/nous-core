@@ -60,6 +60,10 @@ export const WORKFLOW_NODE_DISPATCH_MAP = {
   'transform': { executionMode: 'internal', agentClass: null },
   'quality-gate': { executionMode: 'internal', agentClass: null },
   'human-decision': { executionMode: 'internal', agentClass: null },
+  'parallel-split': { executionMode: 'internal', agentClass: null },
+  'parallel-join': { executionMode: 'internal', agentClass: null },
+  'loop': { executionMode: 'internal', agentClass: null },
+  'error-handler': { executionMode: 'internal', agentClass: null },
 } as const satisfies Record<WorkflowNodeKind, WorkflowNodeDispatchMapping>;
 
 export const WorkflowNodeDispatchMetadataSchema = z
@@ -243,6 +247,39 @@ export const WorkflowLifecycleFromSpecCommandSchema = z
   .strict();
 export type WorkflowLifecycleFromSpecCommand = z.infer<
   typeof WorkflowLifecycleFromSpecCommandSchema
+>;
+
+export const WorkflowLifecycleCreateCommandSchema = z
+  .object({
+    specYaml: z.string().min(1),
+    projectId: ProjectIdSchema,
+    name: z.string().min(1).optional(),
+  })
+  .strict();
+export type WorkflowLifecycleCreateCommand = z.infer<
+  typeof WorkflowLifecycleCreateCommandSchema
+>;
+
+export const WorkflowLifecycleUpdateCommandSchema = z
+  .object({
+    specYaml: z.string().min(1),
+    projectId: ProjectIdSchema,
+    definitionId: WorkflowDefinitionIdSchema,
+    name: z.string().min(1).optional(),
+  })
+  .strict();
+export type WorkflowLifecycleUpdateCommand = z.infer<
+  typeof WorkflowLifecycleUpdateCommandSchema
+>;
+
+export const WorkflowLifecycleDeleteCommandSchema = z
+  .object({
+    projectId: ProjectIdSchema,
+    definitionId: WorkflowDefinitionIdSchema,
+  })
+  .strict();
+export type WorkflowLifecycleDeleteCommand = z.infer<
+  typeof WorkflowLifecycleDeleteCommandSchema
 >;
 
 export const WorkflowLifecycleStatusQuerySchema = z

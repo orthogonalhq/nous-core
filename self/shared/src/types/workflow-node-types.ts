@@ -108,6 +108,36 @@ export type ConditionGovernanceGateParams = z.infer<
   typeof ConditionGovernanceGateParamsSchema
 >;
 
+/** nous.condition.parallel-split */
+export const ConditionParallelSplitParamsSchema = z.object({
+  splitMode: z.enum(['all', 'race']),
+  branches: z.array(z.string().min(1)).optional(),
+});
+export type ConditionParallelSplitParams = z.infer<typeof ConditionParallelSplitParamsSchema>;
+
+/** nous.condition.parallel-join */
+export const ConditionParallelJoinParamsSchema = z.object({
+  joinMode: z.enum(['all', 'any', 'n-of-m']),
+  requiredCount: z.number().int().positive().optional(),
+  timeoutMs: z.number().positive().optional(),
+});
+export type ConditionParallelJoinParams = z.infer<typeof ConditionParallelJoinParamsSchema>;
+
+/** nous.condition.loop */
+export const ConditionLoopParamsSchema = z.object({
+  maxIterations: z.number().int().positive(),
+  exitConditionRef: z.string().min(1),
+  backoffMs: z.number().nonnegative().optional(),
+});
+export type ConditionLoopParams = z.infer<typeof ConditionLoopParamsSchema>;
+
+/** nous.condition.error-handler */
+export const ConditionErrorHandlerParamsSchema = z.object({
+  catchScope: z.enum(['upstream', 'specific']),
+  targetNodeIds: z.array(z.string().min(1)).optional(),
+});
+export type ConditionErrorHandlerParams = z.infer<typeof ConditionErrorHandlerParamsSchema>;
+
 /** nous.memory.read */
 export const MemoryReadParamsSchema = z.object({
   key: z.string().min(1),
@@ -208,6 +238,10 @@ export const NODE_TYPE_PARAMETER_SCHEMAS: Record<string, z.ZodType> = {
   'nous.condition.if': ConditionIfParamsSchema,
   'nous.condition.switch': ConditionSwitchParamsSchema,
   'nous.condition.governance-gate': ConditionGovernanceGateParamsSchema,
+  'nous.condition.parallel-split': ConditionParallelSplitParamsSchema,
+  'nous.condition.parallel-join': ConditionParallelJoinParamsSchema,
+  'nous.condition.loop': ConditionLoopParamsSchema,
+  'nous.condition.error-handler': ConditionErrorHandlerParamsSchema,
   'nous.app.http-request': AppHttpRequestParamsSchema,
   'nous.app.slack': AppSlackParamsSchema,
   'nous.tool.memory-search': ToolMemorySearchParamsSchema,

@@ -11,15 +11,21 @@ export interface BuilderToolbarProps {
   onRedo?: () => void
   canUndo?: boolean
   canRedo?: boolean
-  /** SP 2.5 — Save handler (serialization only, persistence in Phase 3). */
+  /** Save handler. */
   onSave?: () => void
-  /** SP 2.5 — Toggle validation panel and trigger re-validation. */
+  /** Save As handler (creates new workflow definition). */
+  onSaveAs?: () => void
+  /** New Workflow handler (resets to empty state). */
+  onNewWorkflow?: () => void
+  /** Toggle validation panel and trigger re-validation. */
   onValidate?: () => void
-  /** SP 2.5 — Whether builder state has unsaved changes. */
+  /** Whether builder state has unsaved changes. */
   isDirty?: boolean
-  /** SP 2.5 — Number of current validation errors. */
+  /** Whether a save is in-flight (disables save buttons). */
+  isSaving?: boolean
+  /** Number of current validation errors. */
   validationErrorCount?: number
-  /** SP 2.5 — Whether the validation panel is currently open. */
+  /** Whether the validation panel is currently open. */
   isValidationPanelOpen?: boolean
 }
 
@@ -106,8 +112,11 @@ export function BuilderToolbar({
   canUndo = false,
   canRedo = false,
   onSave,
+  onSaveAs,
+  onNewWorkflow,
   onValidate,
   isDirty = false,
+  isSaving = false,
   validationErrorCount = 0,
   isValidationPanelOpen = false,
 }: BuilderToolbarProps) {
@@ -187,20 +196,50 @@ export function BuilderToolbar({
         <i className="codicon codicon-redo" style={{ fontSize: 14 }} />
       </button>
 
-      {/* ── Save (SP 2.5) ── */}
+      {/* ── Save ── */}
       <button
         type="button"
-        title="Serialize workflow (persistence coming in Phase 3)"
+        title="Save workflow (Ctrl+S)"
         aria-label="Save workflow"
         data-testid="toolbar-save"
-        style={isAuthoring && isDirty ? buttonBaseStyle : disabledButtonStyle}
-        disabled={!isAuthoring || !isDirty || !onSave}
+        style={isAuthoring && isDirty && !isSaving ? buttonBaseStyle : disabledButtonStyle}
+        disabled={!isAuthoring || !isDirty || !onSave || isSaving}
         onClick={onSave}
       >
         <i className="codicon codicon-save" style={{ fontSize: 14 }} />
       </button>
 
-      {/* ── Validate (SP 2.5) ── */}
+      {/* ── Save As ── */}
+      {onSaveAs && (
+        <button
+          type="button"
+          title="Save as new workflow"
+          aria-label="Save as new workflow"
+          data-testid="toolbar-save-as"
+          style={isAuthoring && !isSaving ? buttonBaseStyle : disabledButtonStyle}
+          disabled={!isAuthoring || isSaving}
+          onClick={onSaveAs}
+        >
+          <i className="codicon codicon-save-as" style={{ fontSize: 14 }} />
+        </button>
+      )}
+
+      {/* ── New Workflow ── */}
+      {onNewWorkflow && (
+        <button
+          type="button"
+          title="New workflow"
+          aria-label="New workflow"
+          data-testid="toolbar-new-workflow"
+          style={isAuthoring ? buttonBaseStyle : disabledButtonStyle}
+          disabled={!isAuthoring}
+          onClick={onNewWorkflow}
+        >
+          <i className="codicon codicon-new-file" style={{ fontSize: 14 }} />
+        </button>
+      )}
+
+      {/* ── Validate ── */}
       <button
         type="button"
         title="Toggle Validation Panel"

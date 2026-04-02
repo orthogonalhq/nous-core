@@ -12,8 +12,8 @@ import { EdgeContextMenu } from '../context-menu/EdgeContextMenu'
 vi.mock('../nodes/node-registry', () => ({
   getAllRegistryEntries: () => [
     ['nous.trigger.webhook', { category: 'trigger', defaultLabel: 'Webhook Trigger', icon: 'codicon-zap', colorVar: 'var(--c)', width: 200, height: 80, ports: [] }],
-    ['nous.agent.classify', { category: 'agent', defaultLabel: 'Agent Classify', icon: 'codicon-hubot', colorVar: 'var(--c)', width: 200, height: 80, ports: [] }],
-    ['nous.condition.branch', { category: 'condition', defaultLabel: 'Condition Branch', icon: 'codicon-git-compare', colorVar: 'var(--c)', width: 200, height: 80, ports: [] }],
+    ['nous.agent.claude', { category: 'agent', defaultLabel: 'Claude Agent', icon: 'codicon-hubot', colorVar: 'var(--c)', width: 200, height: 80, ports: [] }],
+    ['nous.condition.if', { category: 'condition', defaultLabel: 'If Condition', icon: 'codicon-git-compare', colorVar: 'var(--c)', width: 200, height: 80, ports: [] }],
   ],
 }))
 
@@ -81,8 +81,8 @@ describe('CanvasContextMenu', () => {
       const submenu = screen.getByTestId('add-node-submenu')
       expect(submenu).toBeTruthy()
       expect(screen.getByTestId('add-node-nous.trigger.webhook')).toBeTruthy()
-      expect(screen.getByTestId('add-node-nous.agent.classify')).toBeTruthy()
-      expect(screen.getByTestId('add-node-nous.condition.branch')).toBeTruthy()
+      expect(screen.getByTestId('add-node-nous.agent.claude')).toBeTruthy()
+      expect(screen.getByTestId('add-node-nous.condition.if')).toBeTruthy()
     })
 
     it('selecting an add-node action calls onAddNode with correct nousType', () => {

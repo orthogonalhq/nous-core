@@ -91,9 +91,9 @@ export function createNodeRegistryMock() {
           { id: 'out-0', type: 'source', position: 'bottom', label: 'Out' },
         ],
       }],
-      ['nous.agent.classify', {
+      ['nous.agent.claude', {
         category: 'agent' as const,
-        defaultLabel: 'Agent Classify',
+        defaultLabel: 'Claude Agent',
         icon: 'codicon-hubot',
         colorVar: 'var(--c)',
         width: 200,
@@ -103,9 +103,9 @@ export function createNodeRegistryMock() {
           { id: 'out-0', type: 'source', position: 'bottom', label: 'Out' },
         ],
       }],
-      ['nous.condition.branch', {
+      ['nous.condition.if', {
         category: 'condition' as const,
-        defaultLabel: 'Condition Branch',
+        defaultLabel: 'If Condition',
         icon: 'codicon-git-compare',
         colorVar: 'var(--c)',
         width: 200,

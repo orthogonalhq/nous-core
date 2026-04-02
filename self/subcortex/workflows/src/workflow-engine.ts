@@ -3,6 +3,7 @@ import { resolveInstalledWorkflowDefinition } from '@nous/subcortex-projects';
 import type {
   DerivedWorkflowGraph,
   ICheckpointManager,
+  IEventBus,
   IModelRouter,
   IRuntime,
   IToolExecutor,
@@ -25,6 +26,8 @@ import type {
   WorkflowStartResult,
   WorkflowTransitionInput,
   WorkflowDefinition,
+  WorkflowNodeStatusChangedPayload,
+  WorkflowRunCompletedPayload,
 } from '@nous/shared';
 import {
   WorkflowContinueNodeRequestSchema,
@@ -63,6 +66,8 @@ export interface WorkflowEngineDependencies {
   observer?: WorkflowRuntimeObserver;
   runtime?: IRuntime;
   instanceRoot?: string;
+  /** Optional event bus for publishing workflow state-change events. */
+  eventBus?: IEventBus;
   /** Override or extend the built-in node handler registry (e.g. coding agent handlers). */
   nodeHandlerOverrides?: Map<import('@nous/shared').WorkflowNodeKind, import('@nous/shared').IWorkflowNodeHandler>;
 }
@@ -109,6 +114,56 @@ export class DeterministicWorkflowEngine implements IWorkflowEngine {
   private readonly projectConfigs = new Map<WorkflowExecutionId, ProjectConfig>();
 
   constructor(private readonly deps: WorkflowEngineDependencies = {}) {}
+
+  private emitNodeStatusChanged(
+    runState: WorkflowRunState,
+    nodeDefinitionId: WorkflowNodeDefinitionId,
+    status: WorkflowNodeStatusChangedPayload['status'],
+  ): void {
+    if (!this.deps.eventBus) return;
+    try {
+      this.deps.eventBus.publish('workflow:node-status-changed', {
+        workflowRunId: runState.runId,
+        nodeId: nodeDefinitionId,
+        projectId: runState.projectId,
+        status,
+        emittedAt: new Date().toISOString(),
+      });
+    } catch { /* fire-and-forget */ }
+  }
+
+  private emitRunCompleted(
+    runState: WorkflowRunState,
+    outcome: WorkflowRunCompletedPayload['outcome'],
+  ): void {
+    if (!this.deps.eventBus) return;
+    try {
+      this.deps.eventBus.publish('workflow:run-completed', {
+        workflowRunId: runState.runId,
+        projectId: runState.projectId,
+        outcome,
+        emittedAt: new Date().toISOString(),
+      });
+    } catch { /* fire-and-forget */ }
+  }
+
+  private emitRunTerminalIfNeeded(
+    prevStatus: WorkflowRunState['status'],
+    nextState: WorkflowRunState,
+  ): void {
+    const terminalStatuses = ['completed', 'failed', 'canceled'] as const;
+    if (
+      terminalStatuses.includes(nextState.status as (typeof terminalStatuses)[number]) &&
+      !terminalStatuses.includes(prevStatus as (typeof terminalStatuses)[number])
+    ) {
+      const outcomeMap: Record<string, WorkflowRunCompletedPayload['outcome']> = {
+        completed: 'completed',
+        failed: 'failed',
+        canceled: 'cancelled',
+      };
+      this.emitRunCompleted(nextState, outcomeMap[nextState.status]!);
+    }
+  }
 
   private async resolveInstalledBindingSelection(input: {
     projectConfig: ProjectConfig;
@@ -341,8 +396,10 @@ export class DeterministicWorkflowEngine implements IWorkflowEngine {
     if (!state) {
       throw new Error(`Unknown workflow run id: ${executionId}`);
     }
+    const prevStatus = state.status;
     const nextState = resumeWorkflowRunState(state, transition);
     this.states.set(executionId, nextState);
+    this.emitRunTerminalIfNeeded(prevStatus, nextState);
     return clone(nextState);
   }
 
@@ -367,8 +424,10 @@ export class DeterministicWorkflowEngine implements IWorkflowEngine {
     if (!state) {
       throw new Error(`Unknown workflow run id: ${executionId}`);
     }
+    const prevStatus = state.status;
     const nextState = cancelWorkflowRunState(state, transition);
     this.states.set(executionId, nextState);
+    this.emitRunTerminalIfNeeded(prevStatus, nextState);
     return clone(nextState);
   }
 
@@ -382,6 +441,7 @@ export class DeterministicWorkflowEngine implements IWorkflowEngine {
     if (!state || !graph) {
       throw new Error(`Unknown workflow run id: ${executionId}`);
     }
+    const prevStatus = state.status;
     const nextState = completeWorkflowNodeInRunState(
       state,
       graph,
@@ -389,6 +449,8 @@ export class DeterministicWorkflowEngine implements IWorkflowEngine {
       transition,
     );
     this.states.set(executionId, nextState);
+    this.emitNodeStatusChanged(nextState, nodeDefinitionId, 'completed');
+    this.emitRunTerminalIfNeeded(prevStatus, nextState);
     return clone(nextState);
   }
 
@@ -418,6 +480,8 @@ export class DeterministicWorkflowEngine implements IWorkflowEngine {
         `Workflow node ${parsed.nodeDefinitionId} is missing dispatch lineage`,
       );
     }
+
+    this.emitNodeStatusChanged(state, parsed.nodeDefinitionId, 'running');
 
     const result = await executeWorkflowNode(
       {
@@ -471,7 +535,19 @@ export class DeterministicWorkflowEngine implements IWorkflowEngine {
       lastCommittedCheckpointId: checkpointCapture.lastCommittedCheckpointId,
     });
 
+    const prevStatus = state.status;
     this.states.set(parsed.executionId, nextState);
+
+    // Emit resolved node status from the recorded execution result
+    const resolvedNodeState = nextState.nodeStates[parsed.nodeDefinitionId];
+    if (resolvedNodeState) {
+      const nodeStatus = resolvedNodeState.status as WorkflowNodeStatusChangedPayload['status'];
+      if (nodeStatus !== 'running') {
+        this.emitNodeStatusChanged(nextState, parsed.nodeDefinitionId, nodeStatus);
+      }
+    }
+    this.emitRunTerminalIfNeeded(prevStatus, nextState);
+
     return clone(nextState);
   }
 
@@ -564,7 +640,17 @@ export class DeterministicWorkflowEngine implements IWorkflowEngine {
       lastCommittedCheckpointId: checkpointCommit?.lastCommittedCheckpointId,
     });
 
+    const prevStatus = state.status;
     this.states.set(parsed.executionId, nextState);
+
+    // Emit resolved node status from continuation resolution
+    const resolvedNodeState = nextState.nodeStates[parsed.nodeDefinitionId];
+    if (resolvedNodeState) {
+      const nodeStatus = resolvedNodeState.status as WorkflowNodeStatusChangedPayload['status'];
+      this.emitNodeStatusChanged(nextState, parsed.nodeDefinitionId, nodeStatus);
+    }
+    this.emitRunTerminalIfNeeded(prevStatus, nextState);
+
     return clone(nextState);
   }
 

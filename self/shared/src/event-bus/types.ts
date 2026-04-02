@@ -223,6 +223,25 @@ export const InferenceAccumulatorSnapshotPayloadSchema = z.object({
 });
 export type InferenceAccumulatorSnapshotPayload = z.infer<typeof InferenceAccumulatorSnapshotPayloadSchema>;
 
+// --- Workflow Domain ---
+
+export const WorkflowNodeStatusChangedPayloadSchema = z.object({
+  workflowRunId: z.string().uuid(),
+  nodeId: z.string().uuid(),
+  projectId: z.string().uuid(),
+  status: z.enum(['pending', 'running', 'completed', 'failed', 'skipped']),
+  emittedAt: z.string().datetime(),
+});
+export type WorkflowNodeStatusChangedPayload = z.infer<typeof WorkflowNodeStatusChangedPayloadSchema>;
+
+export const WorkflowRunCompletedPayloadSchema = z.object({
+  workflowRunId: z.string().uuid(),
+  projectId: z.string().uuid(),
+  outcome: z.enum(['completed', 'failed', 'cancelled']),
+  emittedAt: z.string().datetime(),
+});
+export type WorkflowRunCompletedPayload = z.infer<typeof WorkflowRunCompletedPayloadSchema>;
+
 // --- Channel Map ---
 
 export interface EventChannelMap {
@@ -248,6 +267,8 @@ export interface EventChannelMap {
   'inference:stream-start': InferenceStreamStartPayload;
   'inference:stream-complete': InferenceStreamCompletePayload;
   'inference:accumulator-snapshot': InferenceAccumulatorSnapshotPayload;
+  'workflow:node-status-changed': WorkflowNodeStatusChangedPayload;
+  'workflow:run-completed': WorkflowRunCompletedPayload;
 }
 
 /**
