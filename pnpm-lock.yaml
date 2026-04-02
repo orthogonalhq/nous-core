@@ -232,6 +232,9 @@ importers:
       koffi:
         specifier: ^2.9.0
         version: 2.15.2
+      lucide-react:
+        specifier: ^0.469.0
+        version: 0.469.0(react@19.2.3)
       react:
         specifier: ^19.0.0
         version: 19.2.3

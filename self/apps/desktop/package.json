@@ -64,6 +64,7 @@
     "@trpc/server": "^11.0.0-rc.0",
     "@vscode/codicons": "^0.0.44",
     "dockview-react": "^4.2.0",
+    "lucide-react": "^0.469.0",
     "electron-store": "^8.2.0",
     "koffi": "^2.9.0",
     "react": "^19.0.0",
