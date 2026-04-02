@@ -323,10 +323,11 @@ export function ChatPanel(props: ChatPanelProps | ChatPanelCoreProps) {
 
   // --- Input section (shared across all stages) ---
   const inputSection = (
-    <div style={{ padding: 'var(--nous-space-lg)', borderTop: '1px solid var(--nous-border-strong)', display: 'flex', flexDirection: 'column', gap: 'var(--nous-space-sm)' }}>
+    <div style={{ padding: 'var(--nous-space-xl)', display: 'flex', flexDirection: 'column', gap: 'var(--nous-space-sm)' }}>
       <div style={{
         display: 'flex', gap: 'var(--nous-space-sm)', alignItems: 'flex-end',
         background: 'var(--nous-bg-elevated)', borderRadius: 'var(--nous-radius-md)',
+        border: '1px solid var(--nous-border)',
         padding: 'var(--nous-space-xl)',
       }}>
         <button
