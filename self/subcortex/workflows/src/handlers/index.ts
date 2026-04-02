@@ -7,6 +7,8 @@ import type {
 import { ConditionWorkflowNodeHandler } from './condition-handler.js';
 import { HumanDecisionWorkflowNodeHandler } from './human-decision-handler.js';
 import { ModelCallWorkflowNodeHandler } from './model-call-handler.js';
+import { ParallelJoinWorkflowNodeHandler } from './parallel-join-handler.js';
+import { ParallelSplitWorkflowNodeHandler } from './parallel-split-handler.js';
 import { QualityGateWorkflowNodeHandler } from './quality-gate-handler.js';
 import { ToolExecutionWorkflowNodeHandler } from './tool-execution-handler.js';
 import { TransformWorkflowNodeHandler } from './transform-handler.js';
@@ -26,5 +28,7 @@ export function createWorkflowNodeHandlerRegistry(
     ['transform', new TransformWorkflowNodeHandler()],
     ['quality-gate', new QualityGateWorkflowNodeHandler()],
     ['human-decision', new HumanDecisionWorkflowNodeHandler()],
+    ['parallel-split', new ParallelSplitWorkflowNodeHandler()],
+    ['parallel-join', new ParallelJoinWorkflowNodeHandler()],
   ]);
 }

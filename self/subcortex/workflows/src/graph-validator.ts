@@ -302,6 +302,12 @@ export function validateWorkflowDefinition(
       continue;
     }
 
+    if (node.type === 'parallel-split') {
+      // Parallel-split nodes are allowed to have branched outbound edges
+      // (each branch key identifies a parallel branch)
+      continue;
+    }
+
     if (outboundBranchEdges.length > 0) {
       for (const edge of outboundBranchEdges) {
         pushIssue(

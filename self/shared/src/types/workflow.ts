@@ -420,6 +420,7 @@ export const WorkflowNodeWaitKindSchema = z.enum([
   'human_decision',
   'retry_backoff',
   'checkpoint_commit',
+  'parallel_join',
 ]);
 export type WorkflowNodeWaitKind = z.infer<typeof WorkflowNodeWaitKindSchema>;
 
@@ -498,6 +499,13 @@ export const WorkflowNodeAttemptSchema = z.object({
 });
 export type WorkflowNodeAttempt = z.infer<typeof WorkflowNodeAttemptSchema>;
 
+export const JoinProgressSchema = z.object({
+  completedUpstreamNodeIds: z.array(z.string().uuid()),
+  totalUpstreamCount: z.number().int().nonnegative(),
+  requiredCount: z.number().int().positive(),
+}).optional();
+export type JoinProgress = z.infer<typeof JoinProgressSchema>;
+
 export const WorkflowNodeRunStateSchema = z.object({
   id: WorkflowNodeRunIdSchema,
   nodeDefinitionId: WorkflowNodeDefinitionIdSchema,
@@ -512,6 +520,7 @@ export const WorkflowNodeRunStateSchema = z.object({
   reasonCode: z.string().min(1).optional(),
   evidenceRefs: z.array(z.string().min(1)).default([]),
   lastDispatchLineageId: WorkflowDispatchLineageIdSchema.optional(),
+  joinProgress: JoinProgressSchema,
   updatedAt: z.string().datetime(),
 });
 export type WorkflowNodeRunState = z.infer<typeof WorkflowNodeRunStateSchema>;
