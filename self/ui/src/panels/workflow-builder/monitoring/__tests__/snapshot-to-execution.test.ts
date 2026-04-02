@@ -15,12 +15,11 @@ import type {
 
 // ─── Helpers ─────────────────────────────────────────────────────────────────
 
-function makeNodeRunState(
-  overrides: Partial<WorkflowNodeRunState> & { nodeDefinitionId: string },
-): WorkflowNodeRunState {
+// eslint-disable-next-line @typescript-eslint/no-explicit-any -- test helper, branded IDs are opaque strings at runtime
+function makeNodeRunState(overrides: Record<string, any>): WorkflowNodeRunState {
   return {
     id: crypto.randomUUID(),
-    nodeDefinitionId: overrides.nodeDefinitionId,
+    nodeDefinitionId: overrides.nodeDefinitionId ?? 'test-node',
     status: overrides.status ?? 'pending',
     attempts: overrides.attempts ?? [],
     activeAttempt: overrides.activeAttempt ?? null,
@@ -36,7 +35,8 @@ function makeNodeRunState(
   } as WorkflowNodeRunState
 }
 
-function makeRunState(overrides: Partial<WorkflowRunState> = {}): WorkflowRunState {
+// eslint-disable-next-line @typescript-eslint/no-explicit-any -- test helper, branded IDs are opaque strings at runtime
+function makeRunState(overrides: Record<string, any> = {}): WorkflowRunState {
   return {
     runId: overrides.runId ?? crypto.randomUUID(),
     workflowDefinitionId: overrides.workflowDefinitionId ?? crypto.randomUUID(),
@@ -64,9 +64,8 @@ function makeRunState(overrides: Partial<WorkflowRunState> = {}): WorkflowRunSta
   } as WorkflowRunState
 }
 
-function makeSnapshot(
-  overrides: Partial<ProjectWorkflowSurfaceSnapshot> = {},
-): ProjectWorkflowSurfaceSnapshot {
+// eslint-disable-next-line @typescript-eslint/no-explicit-any -- test helper, branded IDs are opaque strings at runtime
+function makeSnapshot(overrides: Record<string, any> = {}): ProjectWorkflowSurfaceSnapshot {
   return {
     project: overrides.project ?? { id: crypto.randomUUID(), name: 'Test Project' },
     workflowDefinition: overrides.workflowDefinition ?? null,
@@ -305,7 +304,7 @@ describe('mapRunStateToExecutionRun', () => {
 
   it('maps artifact refs from node projections when provided', () => {
     const runState = makeRunState()
-    const projections: WorkflowNodeMonitorProjection[] = [
+    const projections = [
       {
         nodeDefinitionId: 'n-1',
         definition: {} as WorkflowNodeMonitorProjection['definition'],
@@ -316,7 +315,7 @@ describe('mapRunStateToExecutionRun', () => {
         traceIds: [],
         deepLinks: [],
       },
-    ]
+    ] as unknown as WorkflowNodeMonitorProjection[]
     const result = mapRunStateToExecutionRun(runState, projections)
     expect(result.artifactRefs!['n-1']).toHaveLength(2)
     expect(result.artifactRefs!['n-1'][0].id).toBe('art-1')
@@ -359,7 +358,7 @@ describe('mapSnapshotToExecutionRuns', () => {
 
   it('enriches active run with node projections', () => {
     const run = makeRunState({ runId: 'r-active' })
-    const projections: WorkflowNodeMonitorProjection[] = [
+    const projections = [
       {
         nodeDefinitionId: 'n-1',
         definition: {} as WorkflowNodeMonitorProjection['definition'],
@@ -370,7 +369,7 @@ describe('mapSnapshotToExecutionRuns', () => {
         traceIds: [],
         deepLinks: [],
       },
-    ]
+    ] as unknown as WorkflowNodeMonitorProjection[]
     const snapshot = makeSnapshot({
       recentRuns: [run],
       selectedRunId: 'r-active',
