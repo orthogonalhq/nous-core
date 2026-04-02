@@ -70,7 +70,7 @@ describe('NodePalette', () => {
       // Webhook Trigger should remain
       expect(screen.getByTestId('palette-item-nous.trigger.webhook')).toBeTruthy()
       // Other items should be filtered out
-      expect(screen.queryByTestId('palette-item-nous.agent.classify')).toBeNull()
+      expect(screen.queryByTestId('palette-item-nous.agent.claude')).toBeNull()
     })
 
     it('search input filters nodes by nousType', () => {
@@ -133,8 +133,8 @@ describe('NodePalette', () => {
 
       // All 7 items should be visible
       expect(screen.getByTestId('palette-item-nous.trigger.webhook')).toBeTruthy()
-      expect(screen.getByTestId('palette-item-nous.agent.classify')).toBeTruthy()
-      expect(screen.getByTestId('palette-item-nous.governance.audit-log')).toBeTruthy()
+      expect(screen.getByTestId('palette-item-nous.agent.claude')).toBeTruthy()
+      expect(screen.getByTestId('palette-item-nous.governance.witness-checkpoint')).toBeTruthy()
     })
 
     it('search with no results hides all categories', () => {

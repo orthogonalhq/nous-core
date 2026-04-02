@@ -26,6 +26,7 @@ export function getActivatedOutboundEdgeIds(
   graph: DerivedWorkflowGraph,
   fromNodeId: WorkflowNodeDefinitionId,
   selectedBranchKey?: string,
+  nodeType?: string,
 ): WorkflowEdgeId[] {
   const outboundEdges = (graph.nodes[fromNodeId]?.outboundEdgeIds ?? [])
     .map((edgeId) => graph.edges[edgeId])
@@ -36,6 +37,11 @@ export function getActivatedOutboundEdgeIds(
         left.id.localeCompare(right.id) ||
         left.to.localeCompare(right.to),
     );
+
+  // Parallel-split activates all outbound edges (including branch-tagged)
+  if (nodeType === 'parallel-split' && !selectedBranchKey) {
+    return outboundEdges.map((edge) => edge.id);
+  }
 
   if (selectedBranchKey) {
     return outboundEdges
@@ -82,6 +88,16 @@ export function getNextReadyNodeIds(
           return false;
         }
 
+        // Parallel-join readiness override: ready when ANY activated inbound source completes
+        // (the join handler evaluates whether the full join condition is met)
+        const candidateNode = graph.nodes[candidateNodeId];
+        if (candidateNode?.definition?.type === 'parallel-join') {
+          return activatedInboundEdgeIds.some((edgeId) =>
+            completed.has(graph.edges[edgeId]?.from as WorkflowNodeDefinitionId),
+          );
+        }
+
+        // Default: all activated inbound sources must be completed
         return activatedInboundEdgeIds.every((edgeId) =>
           completed.has(graph.edges[edgeId]?.from as WorkflowNodeDefinitionId),
         );

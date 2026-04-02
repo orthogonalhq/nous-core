@@ -17,6 +17,9 @@ import { triggerKeyboardShortcut } from './test-utils'
 
 vi.mock('@xyflow/react', () => reactFlowMock)
 
+import { trpcMock } from '../trpc-mock'
+vi.mock('@nous/transport', () => trpcMock)
+
 vi.mock('../../nodes/node-registry', () => ({
   getAllRegistryEntries: () => [
     ['nous.trigger.webhook', {
@@ -28,9 +31,9 @@ vi.mock('../../nodes/node-registry', () => ({
       height: 80,
       ports: [{ id: 'out-0', type: 'source', position: 'bottom', label: 'Out' }],
     }],
-    ['nous.agent.classify', {
+    ['nous.agent.claude', {
       category: 'agent' as const,
-      defaultLabel: 'Agent Classify',
+      defaultLabel: 'Claude Agent',
       icon: 'codicon-hubot',
       colorVar: 'var(--c)',
       width: 200,

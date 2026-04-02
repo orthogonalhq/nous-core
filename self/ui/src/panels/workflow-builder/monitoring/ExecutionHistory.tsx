@@ -3,8 +3,7 @@
 import React from 'react'
 import { FloatingPanel } from '../floating-panel/FloatingPanel'
 import { useFloatingPanel } from '../floating-panel/useFloatingPanel'
-import { DEMO_EXECUTION_RUNS } from './demo-execution-data'
-import type { ExecutionRunStatus } from '../../../types/workflow-builder'
+import type { ExecutionRun, ExecutionRunStatus } from '../../../types/workflow-builder'
 
 // ─── Props ────────────────────────────────────────────────────────────────────
 
@@ -15,6 +14,8 @@ export interface ExecutionHistoryProps {
   onSelectRun: (runId: string) => void
   /** Currently selected run ID, or null. */
   activeRunId: string | null
+  /** Live execution runs from the server snapshot. Empty array = no runs. */
+  runs: ExecutionRun[]
 }
 
 // ─── Status colors ────────────────────────────────────────────────────────────
@@ -56,14 +57,14 @@ function formatTimestamp(iso: string): string {
  * behavior. Lists demo runs sorted by recency. Click to select a run loads
  * it into the monitor overlay.
  */
-export function ExecutionHistory({ containerRef, onSelectRun, activeRunId }: ExecutionHistoryProps) {
+export function ExecutionHistory({ containerRef, onSelectRun, activeRunId, runs }: ExecutionHistoryProps) {
   const panel = useFloatingPanel({
     initialPosition: 'right',
     containerRef,
   })
 
   // Sort runs by startedAt descending (newest first)
-  const sortedRuns = [...DEMO_EXECUTION_RUNS].sort(
+  const sortedRuns = [...runs].sort(
     (a, b) => new Date(b.startedAt).getTime() - new Date(a.startedAt).getTime(),
   )
 

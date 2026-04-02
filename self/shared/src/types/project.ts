@@ -118,6 +118,8 @@ export const ProjectWorkflowConfigurationSchema = z.object({
   definitions: z.array(WorkflowDefinitionSchema).default([]),
   packageBindings: z.array(ProjectWorkflowPackageBindingSchema).default([]),
   defaultWorkflowDefinitionId: WorkflowDefinitionIdSchema.optional(),
+  /** Spec YAML keyed by definition ID for round-trip storage. Stored outside definitions[] to survive schema parsing. */
+  specYamlStore: z.record(z.string(), z.string()).optional(),
 });
 export type ProjectWorkflowConfiguration = z.infer<
   typeof ProjectWorkflowConfigurationSchema

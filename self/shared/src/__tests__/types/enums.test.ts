@@ -109,6 +109,7 @@ describe('NodeTypeSchema', () => {
   const validTypes = [
     'model-call', 'tool-execution', 'quality-gate',
     'human-decision', 'condition', 'transform',
+    'parallel-split', 'parallel-join', 'loop', 'error-handler',
   ];
 
   it.each(validTypes)('accepts "%s"', (type) => {

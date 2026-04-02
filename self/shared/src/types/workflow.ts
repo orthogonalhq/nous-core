@@ -135,6 +135,36 @@ export type WorkflowHumanDecisionNodeConfig = z.infer<
   typeof WorkflowHumanDecisionNodeConfigSchema
 >;
 
+export const WorkflowParallelSplitNodeConfigSchema = z.object({
+  type: z.literal('parallel-split'),
+  splitMode: z.enum(['all', 'race']),
+  branches: z.array(z.string().min(1)).default([]),
+});
+export type WorkflowParallelSplitNodeConfig = z.infer<typeof WorkflowParallelSplitNodeConfigSchema>;
+
+export const WorkflowParallelJoinNodeConfigSchema = z.object({
+  type: z.literal('parallel-join'),
+  joinMode: z.enum(['all', 'any', 'n-of-m']),
+  requiredCount: z.number().int().positive().optional(),
+  timeoutMs: z.number().positive().optional(),
+});
+export type WorkflowParallelJoinNodeConfig = z.infer<typeof WorkflowParallelJoinNodeConfigSchema>;
+
+export const WorkflowLoopNodeConfigSchema = z.object({
+  type: z.literal('loop'),
+  maxIterations: z.number().int().positive(),
+  exitConditionRef: z.string().min(1),
+  backoffMs: z.number().nonnegative().optional(),
+});
+export type WorkflowLoopNodeConfig = z.infer<typeof WorkflowLoopNodeConfigSchema>;
+
+export const WorkflowErrorHandlerNodeConfigSchema = z.object({
+  type: z.literal('error-handler'),
+  catchScope: z.enum(['upstream', 'specific']),
+  targetNodeIds: z.array(z.string().min(1)).optional(),
+});
+export type WorkflowErrorHandlerNodeConfig = z.infer<typeof WorkflowErrorHandlerNodeConfigSchema>;
+
 export const WorkflowSubworkflowNodeConfigSchema = z
   .object({
     type: z.literal('subworkflow'),
@@ -152,6 +182,10 @@ export const WorkflowTypedNodeConfigSchema = z.discriminatedUnion('type', [
   WorkflowTransformNodeConfigSchema,
   WorkflowQualityGateNodeConfigSchema,
   WorkflowHumanDecisionNodeConfigSchema,
+  WorkflowParallelSplitNodeConfigSchema,
+  WorkflowParallelJoinNodeConfigSchema,
+  WorkflowLoopNodeConfigSchema,
+  WorkflowErrorHandlerNodeConfigSchema,
 ]);
 export type WorkflowTypedNodeConfig = z.infer<
   typeof WorkflowTypedNodeConfigSchema
@@ -164,6 +198,10 @@ export const WorkflowNodeConfigSchema = z.discriminatedUnion('type', [
   WorkflowTransformNodeConfigSchema,
   WorkflowQualityGateNodeConfigSchema,
   WorkflowHumanDecisionNodeConfigSchema,
+  WorkflowParallelSplitNodeConfigSchema,
+  WorkflowParallelJoinNodeConfigSchema,
+  WorkflowLoopNodeConfigSchema,
+  WorkflowErrorHandlerNodeConfigSchema,
   WorkflowSubworkflowNodeConfigSchema,
 ]);
 export type WorkflowNodeConfig = z.infer<typeof WorkflowNodeConfigSchema>;
@@ -266,6 +304,7 @@ export const WorkflowDefinitionSchema = z.object({
   entryNodeIds: z.array(WorkflowNodeDefinitionIdSchema).min(1),
   nodes: z.array(WorkflowNodeDefinitionSchema).min(1),
   edges: z.array(WorkflowEdgeDefinitionSchema).default([]),
+  specYaml: z.string().optional(),
 });
 export type WorkflowDefinition = z.infer<typeof WorkflowDefinitionSchema>;
 
@@ -381,6 +420,8 @@ export const WorkflowNodeWaitKindSchema = z.enum([
   'human_decision',
   'retry_backoff',
   'checkpoint_commit',
+  'parallel_join',
+  'loop_backoff',
 ]);
 export type WorkflowNodeWaitKind = z.infer<typeof WorkflowNodeWaitKindSchema>;
 
@@ -459,6 +500,13 @@ export const WorkflowNodeAttemptSchema = z.object({
 });
 export type WorkflowNodeAttempt = z.infer<typeof WorkflowNodeAttemptSchema>;
 
+export const JoinProgressSchema = z.object({
+  completedUpstreamNodeIds: z.array(z.string().uuid()),
+  totalUpstreamCount: z.number().int().nonnegative(),
+  requiredCount: z.number().int().positive(),
+}).optional();
+export type JoinProgress = z.infer<typeof JoinProgressSchema>;
+
 export const WorkflowNodeRunStateSchema = z.object({
   id: WorkflowNodeRunIdSchema,
   nodeDefinitionId: WorkflowNodeDefinitionIdSchema,
@@ -473,6 +521,7 @@ export const WorkflowNodeRunStateSchema = z.object({
   reasonCode: z.string().min(1).optional(),
   evidenceRefs: z.array(z.string().min(1)).default([]),
   lastDispatchLineageId: WorkflowDispatchLineageIdSchema.optional(),
+  joinProgress: JoinProgressSchema,
   updatedAt: z.string().datetime(),
 });
 export type WorkflowNodeRunState = z.infer<typeof WorkflowNodeRunStateSchema>;

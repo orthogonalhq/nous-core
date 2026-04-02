@@ -18,6 +18,21 @@ export interface NodeRegistryEntryInternal extends NodeRegistryEntry {
 // ─── Registry entries ────────────────────────────────────────────────────────
 
 const NODE_REGISTRY = new Map<string, NodeRegistryEntryInternal>([
+  // ─── Trigger (2) — output only, entry points ────────────────────────────────
+  [
+    'nous.trigger.schedule',
+    {
+      category: 'trigger',
+      defaultLabel: 'Schedule Trigger',
+      ports: [
+        { id: 'source', label: 'Output', direction: 'output' },
+      ],
+      colorVar: 'var(--nous-builder-node-trigger)',
+      width: 200,
+      height: 80,
+      icon: 'codicon-clock',
+    },
+  ],
   [
     'nous.trigger.webhook',
     {
@@ -32,11 +47,13 @@ const NODE_REGISTRY = new Map<string, NodeRegistryEntryInternal>([
       icon: 'codicon-zap',
     },
   ],
+
+  // ─── Agent (2) — standard flow ──────────────────────────────────────────────
   [
-    'nous.agent.classify',
+    'nous.agent.claude',
     {
       category: 'agent',
-      defaultLabel: 'Agent Classify',
+      defaultLabel: 'Claude Agent',
       ports: [
         { id: 'target', label: 'Input', direction: 'input' },
         { id: 'source', label: 'Output', direction: 'output' },
@@ -48,10 +65,27 @@ const NODE_REGISTRY = new Map<string, NodeRegistryEntryInternal>([
     },
   ],
   [
-    'nous.condition.branch',
+    'nous.agent.codex',
+    {
+      category: 'agent',
+      defaultLabel: 'Codex Agent',
+      ports: [
+        { id: 'target', label: 'Input', direction: 'input' },
+        { id: 'source', label: 'Output', direction: 'output' },
+      ],
+      colorVar: 'var(--nous-builder-node-agent)',
+      width: 200,
+      height: 80,
+      icon: 'codicon-hubot',
+    },
+  ],
+
+  // ─── Condition (7) — branching, join, dual-output ───────────────────────────
+  [
+    'nous.condition.if',
     {
       category: 'condition',
-      defaultLabel: 'Condition Branch',
+      defaultLabel: 'If Condition',
       ports: [
         { id: 'target', label: 'Input', direction: 'input' },
         { id: 'source', label: 'Output', direction: 'output', multi: true },
@@ -63,10 +97,104 @@ const NODE_REGISTRY = new Map<string, NodeRegistryEntryInternal>([
     },
   ],
   [
-    'nous.app.slack-notify',
+    'nous.condition.switch',
+    {
+      category: 'condition',
+      defaultLabel: 'Switch',
+      ports: [
+        { id: 'target', label: 'Input', direction: 'input' },
+        { id: 'source', label: 'Output', direction: 'output', multi: true },
+      ],
+      colorVar: 'var(--nous-builder-node-condition)',
+      width: 200,
+      height: 80,
+      icon: 'codicon-list-tree',
+    },
+  ],
+  [
+    'nous.condition.governance-gate',
+    {
+      category: 'condition',
+      defaultLabel: 'Governance Gate',
+      ports: [
+        { id: 'target', label: 'Input', direction: 'input' },
+        { id: 'source', label: 'Output', direction: 'output', multi: true },
+      ],
+      colorVar: 'var(--nous-builder-node-condition)',
+      width: 200,
+      height: 80,
+      icon: 'codicon-shield',
+    },
+  ],
+  [
+    'nous.condition.parallel-split',
+    {
+      category: 'condition',
+      defaultLabel: 'Parallel Split',
+      ports: [
+        { id: 'target', label: 'Input', direction: 'input' },
+        { id: 'source', label: 'Output', direction: 'output', multi: true },
+      ],
+      colorVar: 'var(--nous-builder-node-condition)',
+      width: 200,
+      height: 80,
+      icon: 'codicon-split-horizontal',
+    },
+  ],
+  [
+    'nous.condition.parallel-join',
+    {
+      category: 'condition',
+      defaultLabel: 'Parallel Join',
+      ports: [
+        { id: 'target', label: 'Input', direction: 'input', multi: true },
+        { id: 'source', label: 'Output', direction: 'output' },
+      ],
+      colorVar: 'var(--nous-builder-node-condition)',
+      width: 200,
+      height: 80,
+      icon: 'codicon-merge',
+    },
+  ],
+  [
+    'nous.condition.loop',
+    {
+      category: 'condition',
+      defaultLabel: 'Loop',
+      ports: [
+        { id: 'target', label: 'Input', direction: 'input' },
+        { id: 'loop', label: 'Loop', direction: 'output' },
+        { id: 'exit', label: 'Exit', direction: 'output' },
+      ],
+      colorVar: 'var(--nous-builder-node-condition)',
+      width: 200,
+      height: 80,
+      icon: 'codicon-sync',
+    },
+  ],
+  [
+    'nous.condition.error-handler',
+    {
+      category: 'condition',
+      defaultLabel: 'Error Handler',
+      ports: [
+        { id: 'target', label: 'Input', direction: 'input' },
+        { id: 'success', label: 'Success', direction: 'output' },
+        { id: 'error', label: 'Error', direction: 'output' },
+      ],
+      colorVar: 'var(--nous-builder-node-condition)',
+      width: 200,
+      height: 80,
+      icon: 'codicon-warning',
+    },
+  ],
+
+  // ─── App (2) — standard flow ────────────────────────────────────────────────
+  [
+    'nous.app.http-request',
     {
       category: 'app',
-      defaultLabel: 'Slack Notify',
+      defaultLabel: 'HTTP Request',
       ports: [
         { id: 'target', label: 'Input', direction: 'input' },
         { id: 'source', label: 'Output', direction: 'output' },
@@ -74,14 +202,31 @@ const NODE_REGISTRY = new Map<string, NodeRegistryEntryInternal>([
       colorVar: 'var(--nous-builder-node-app)',
       width: 200,
       height: 80,
-      icon: 'codicon-plug',
+      icon: 'codicon-globe',
     },
   ],
   [
-    'nous.tool.vector-search',
+    'nous.app.slack',
+    {
+      category: 'app',
+      defaultLabel: 'Slack',
+      ports: [
+        { id: 'target', label: 'Input', direction: 'input' },
+        { id: 'source', label: 'Output', direction: 'output' },
+      ],
+      colorVar: 'var(--nous-builder-node-app)',
+      width: 200,
+      height: 80,
+      icon: 'codicon-comment-discussion',
+    },
+  ],
+
+  // ─── Tool (2) — standard flow ───────────────────────────────────────────────
+  [
+    'nous.tool.memory-search',
     {
       category: 'tool',
-      defaultLabel: 'Vector Search',
+      defaultLabel: 'Memory Search',
       ports: [
         { id: 'target', label: 'Input', direction: 'input' },
         { id: 'source', label: 'Output', direction: 'output' },
@@ -90,6 +235,38 @@ const NODE_REGISTRY = new Map<string, NodeRegistryEntryInternal>([
       width: 200,
       height: 80,
       icon: 'codicon-search',
+    },
+  ],
+  [
+    'nous.tool.artifact-store',
+    {
+      category: 'tool',
+      defaultLabel: 'Artifact Store',
+      ports: [
+        { id: 'target', label: 'Input', direction: 'input' },
+        { id: 'source', label: 'Output', direction: 'output' },
+      ],
+      colorVar: 'var(--nous-builder-node-tool)',
+      width: 200,
+      height: 80,
+      icon: 'codicon-archive',
+    },
+  ],
+
+  // ─── Memory (3) — standard flow ─────────────────────────────────────────────
+  [
+    'nous.memory.read',
+    {
+      category: 'memory',
+      defaultLabel: 'Memory Read',
+      ports: [
+        { id: 'target', label: 'Input', direction: 'input' },
+        { id: 'source', label: 'Output', direction: 'output' },
+      ],
+      colorVar: 'var(--nous-builder-node-memory)',
+      width: 200,
+      height: 80,
+      icon: 'codicon-book',
     },
   ],
   [
@@ -104,14 +281,46 @@ const NODE_REGISTRY = new Map<string, NodeRegistryEntryInternal>([
       colorVar: 'var(--nous-builder-node-memory)',
       width: 200,
       height: 80,
-      icon: 'codicon-database',
+      icon: 'codicon-edit',
     },
   ],
   [
-    'nous.governance.audit-log',
+    'nous.memory.search',
+    {
+      category: 'memory',
+      defaultLabel: 'Memory Search',
+      ports: [
+        { id: 'target', label: 'Input', direction: 'input' },
+        { id: 'source', label: 'Output', direction: 'output' },
+      ],
+      colorVar: 'var(--nous-builder-node-memory)',
+      width: 200,
+      height: 80,
+      icon: 'codicon-search',
+    },
+  ],
+
+  // ─── Governance (3) — standard flow + multi-output ──────────────────────────
+  [
+    'nous.governance.pfc-gate',
     {
       category: 'governance',
-      defaultLabel: 'Audit Log',
+      defaultLabel: 'PFC Gate',
+      ports: [
+        { id: 'target', label: 'Input', direction: 'input' },
+        { id: 'source', label: 'Output', direction: 'output', multi: true },
+      ],
+      colorVar: 'var(--nous-builder-node-governance)',
+      width: 200,
+      height: 80,
+      icon: 'codicon-verified',
+    },
+  ],
+  [
+    'nous.governance.witness-checkpoint',
+    {
+      category: 'governance',
+      defaultLabel: 'Witness Checkpoint',
       ports: [
         { id: 'target', label: 'Input', direction: 'input' },
         { id: 'source', label: 'Output', direction: 'output' },
@@ -119,7 +328,22 @@ const NODE_REGISTRY = new Map<string, NodeRegistryEntryInternal>([
       colorVar: 'var(--nous-builder-node-governance)',
       width: 200,
       height: 80,
-      icon: 'codicon-shield',
+      icon: 'codicon-eye',
+    },
+  ],
+  [
+    'nous.governance.escalation',
+    {
+      category: 'governance',
+      defaultLabel: 'Escalation',
+      ports: [
+        { id: 'target', label: 'Input', direction: 'input' },
+        { id: 'source', label: 'Output', direction: 'output' },
+      ],
+      colorVar: 'var(--nous-builder-node-governance)',
+      width: 200,
+      height: 80,
+      icon: 'codicon-bell',
     },
   ],
 ])

@@ -453,6 +453,42 @@ export const INTERNAL_MCP_CATALOG: readonly InternalMcpCatalogEntry[] = [
     ),
   },
   {
+    name: 'workflow_create',
+    kind: 'capability',
+    definition: defineTool(
+      'workflow_create',
+      'Create a new persisted workflow definition from a YAML spec. Returns the generated definition ID.',
+      { specYaml: 'string', projectId: 'ProjectId', name: 'string?' },
+      { definitionId: 'string', definitionName: 'string' },
+      ['control'],
+      'runtime',
+    ),
+  },
+  {
+    name: 'workflow_update',
+    kind: 'capability',
+    definition: defineTool(
+      'workflow_update',
+      'Update an existing persisted workflow definition from a YAML spec. Requires the definitionId to upsert.',
+      { specYaml: 'string', projectId: 'ProjectId', definitionId: 'string', name: 'string?' },
+      { definitionId: 'string', definitionName: 'string' },
+      ['control'],
+      'runtime',
+    ),
+  },
+  {
+    name: 'workflow_delete',
+    kind: 'capability',
+    definition: defineTool(
+      'workflow_delete',
+      'Delete a persisted workflow definition by ID. Clears default if the deleted definition was the default.',
+      { projectId: 'ProjectId', definitionId: 'string' },
+      { deleted: 'boolean' },
+      ['control'],
+      'runtime',
+    ),
+  },
+  {
     name: 'health_report',
     kind: 'capability',
     definition: defineTool(

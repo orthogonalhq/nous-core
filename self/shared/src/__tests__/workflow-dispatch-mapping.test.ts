@@ -36,8 +36,8 @@ describe('WORKFLOW_NODE_DISPATCH_MAP', () => {
     }
   });
 
-  it('has exactly 7 entries (one per kind)', () => {
-    expect(Object.keys(WORKFLOW_NODE_DISPATCH_MAP)).toHaveLength(7);
+  it('has exactly 11 entries (one per kind)', () => {
+    expect(Object.keys(WORKFLOW_NODE_DISPATCH_MAP)).toHaveLength(11);
   });
 
   it.each([

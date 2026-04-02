@@ -22,14 +22,14 @@ const MULTI_NODE_SPEC: WorkflowSpec = {
     {
       id: 'agent-1',
       name: 'Classify Intent',
-      type: 'nous.agent.classify',
+      type: 'nous.agent.claude',
       position: [100, 250],
       parameters: {},
     },
     {
       id: 'condition-1',
       name: 'Is Urgent',
-      type: 'nous.condition.branch',
+      type: 'nous.condition.if',
       position: [100, 450],
       parameters: {},
     },
@@ -60,8 +60,8 @@ const DISCONNECTED_SPEC: WorkflowSpec = {
   version: 1,
   nodes: [
     { id: 'a', name: 'Node A', type: 'nous.trigger.webhook', position: [0, 0], parameters: {} },
-    { id: 'b', name: 'Node B', type: 'nous.agent.classify', position: [200, 0], parameters: {} },
-    { id: 'c', name: 'Node C', type: 'nous.tool.vector-search', position: [0, 200], parameters: {} },
+    { id: 'b', name: 'Node B', type: 'nous.agent.claude', position: [200, 0], parameters: {} },
+    { id: 'c', name: 'Node C', type: 'nous.tool.memory-search', position: [0, 200], parameters: {} },
     { id: 'd', name: 'Node D', type: 'nous.memory.write', position: [200, 200], parameters: {} },
   ],
   connections: [
@@ -83,7 +83,7 @@ nodes:
       method: POST
   - id: agent-1
     name: Classify Intent
-    type: nous.agent.classify
+    type: nous.agent.claude
     position: [100, 250]
 connections:
   - from: trigger-1
@@ -427,9 +427,9 @@ describe('useWorkflowSync', () => {
         name: 'Bool Test',
         version: 1,
         nodes: [
-          { id: 'a', name: 'A', type: 'nous.condition.branch', position: [0, 0], parameters: {} },
-          { id: 'b', name: 'B', type: 'nous.agent.classify', position: [100, 0], parameters: {} },
-          { id: 'c', name: 'C', type: 'nous.agent.classify', position: [200, 0], parameters: {} },
+          { id: 'a', name: 'A', type: 'nous.condition.if', position: [0, 0], parameters: {} },
+          { id: 'b', name: 'B', type: 'nous.agent.claude', position: [100, 0], parameters: {} },
+          { id: 'c', name: 'C', type: 'nous.agent.claude', position: [200, 0], parameters: {} },
         ],
         connections: [
           { from: 'a', to: 'b', output: true },

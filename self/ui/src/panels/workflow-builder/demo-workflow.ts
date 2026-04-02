@@ -32,7 +32,7 @@ export const DEMO_WORKFLOW_NODES: WorkflowBuilderNode[] = [
     data: {
       label: 'Classify Intent',
       category: 'agent',
-      nousType: 'nous.agent.classify',
+      nousType: 'nous.agent.claude',
       description: 'Classifies the ticket intent and urgency using LLM analysis',
     },
   },
@@ -43,7 +43,7 @@ export const DEMO_WORKFLOW_NODES: WorkflowBuilderNode[] = [
     data: {
       label: 'Is Urgent?',
       category: 'condition',
-      nousType: 'nous.condition.branch',
+      nousType: 'nous.condition.if',
       description: 'Routes based on urgency classification result',
     },
   },
@@ -54,7 +54,7 @@ export const DEMO_WORKFLOW_NODES: WorkflowBuilderNode[] = [
     data: {
       label: 'Notify Slack Channel',
       category: 'app',
-      nousType: 'nous.app.slack-notify',
+      nousType: 'nous.app.slack',
       description: 'Posts urgent ticket alert to the #support-escalation channel',
     },
   },
@@ -65,7 +65,7 @@ export const DEMO_WORKFLOW_NODES: WorkflowBuilderNode[] = [
     data: {
       label: 'Search Knowledge Base',
       category: 'tool',
-      nousType: 'nous.tool.vector-search',
+      nousType: 'nous.tool.memory-search',
       description: 'Searches documentation for relevant articles',
     },
   },
@@ -87,7 +87,7 @@ export const DEMO_WORKFLOW_NODES: WorkflowBuilderNode[] = [
     data: {
       label: 'Audit Log Entry',
       category: 'governance',
-      nousType: 'nous.governance.audit-log',
+      nousType: 'nous.governance.witness-checkpoint',
       description: 'Records escalation event in the compliance audit trail',
     },
   },

@@ -57,6 +57,10 @@ const actionCategoryByNodeType: Record<string, CriticalActionCategory> = {
   'quality-gate': 'trace-persist',
   'human-decision': 'opctl-command',
   subworkflow: 'trace-persist',
+  'parallel-split': 'trace-persist',
+  'parallel-join': 'trace-persist',
+  loop: 'trace-persist',
+  'error-handler': 'trace-persist',
 };
 
 function buildDefaultGovernanceInput(
