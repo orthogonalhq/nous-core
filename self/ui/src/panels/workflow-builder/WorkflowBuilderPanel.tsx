@@ -11,7 +11,7 @@ import {
   useReactFlow,
 } from '@xyflow/react'
 import type { IDockviewPanelProps } from 'dockview-react'
-import { trpc } from '@nous/transport'
+import { trpc, useWorkflowApi } from '@nous/transport'
 import { ShellContext } from '../../components/shell/ShellContext'
 import type { WorkflowBuilderNode, WorkflowBuilderEdge, ContextMenuState } from '../../types/workflow-builder'
 import { BuilderModeProvider, useBuilderMode } from './context/BuilderModeContext'
@@ -72,6 +72,7 @@ const CanvasDropTarget = forwardRef<
   workflowDefinitionId,
 }, ref) {
   const { mode, setMode } = useBuilderMode()
+  const workflowApi = useWorkflowApi({ projectId })
   const {
     nodes,
     edges,
@@ -112,7 +113,11 @@ const CanvasDropTarget = forwardRef<
     loadFromServer,
     isSaving,
     currentDefinitionId,
-  } = useBuilderState(mode, { projectId, workflowDefinitionId })
+    isWatchingConstruction,
+    pendingNotification,
+    dismissNotification,
+    acceptNotification,
+  } = useBuilderState(mode, { projectId, workflowDefinitionId, workflowApi })
 
   const { screenToFlowPosition, fitView } = useReactFlow()
 
@@ -588,6 +593,46 @@ const CanvasDropTarget = forwardRef<
         validationErrorCount={validationErrors.length}
         isValidationPanelOpen={isValidationPanelOpen}
       />
+      {/* Construction watching mode indicator */}
+      {isWatchingConstruction && (
+        <div
+          style={{
+            position: 'absolute', top: 16, left: '50%', transform: 'translateX(-50%)',
+            zIndex: 40,
+            background: 'var(--nous-bg-elevated)',
+            border: '1px solid var(--nous-accent)',
+            borderRadius: '20px',
+            padding: 'var(--nous-space-xs) var(--nous-space-md)',
+            fontSize: 'var(--nous-font-size-sm)',
+            color: 'var(--nous-accent)',
+          }}
+          data-testid="construction-watching-indicator"
+        >
+          Agent is building...
+        </div>
+      )}
+      {/* Dirty conflict notification */}
+      {pendingNotification?.type === 'dirty-conflict' && (
+        <div
+          style={{
+            position: 'absolute', bottom: 16, right: 16, zIndex: 50,
+            background: 'var(--nous-bg-elevated)',
+            border: '1px solid var(--nous-border-strong)',
+            borderRadius: '8px',
+            padding: 'var(--nous-space-md)',
+            boxShadow: '0 4px 16px rgba(0, 0, 0, 0.5)',
+          }}
+          data-testid="dirty-conflict-notification"
+        >
+          <div style={{ fontSize: 'var(--nous-font-size-sm)', color: 'var(--nous-fg)', marginBottom: 'var(--nous-space-sm)' }}>
+            Agent updated this workflow. Load latest?
+          </div>
+          <div style={{ display: 'flex', gap: 'var(--nous-space-sm)' }}>
+            <button type="button" onClick={dismissNotification}>Keep my edits</button>
+            <button type="button" onClick={acceptNotification}>Load latest</button>
+          </div>
+        </div>
+      )}
       {/* Inline workflow naming dialog */}
       {showNameInput && (
         <div
@@ -873,11 +918,19 @@ export function WorkflowBuilderPanel(
   const shellCtx = useContext(ShellContext)
   const projectId = propProjectId ?? shellCtx?.activeProjectId ?? undefined
 
+  // Navigation params from ContentRouter (chat-to-builder handoff)
+  const navParams = 'params' in props ? (props as unknown as Record<string, unknown>).params as Record<string, unknown> | undefined : undefined
+  const navProjectId = navParams?.projectId as string | undefined
+  const navDefinitionId = navParams?.definitionId as string | undefined
+
+  const effectiveProjectId = navProjectId ?? projectId
+  const effectiveDefinitionId = navDefinitionId ?? workflowDefinitionId
+
   return (
     <WorkflowBuilderCanvas
       className={className}
-      projectId={projectId}
-      workflowDefinitionId={workflowDefinitionId}
+      projectId={effectiveProjectId}
+      workflowDefinitionId={effectiveDefinitionId}
     />
   )
 }

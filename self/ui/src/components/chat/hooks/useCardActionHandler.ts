@@ -26,7 +26,8 @@ export function useCardActionHandler({ chatApi, setMessages }: UseCardActionHand
   return useCallback(
     (action: CardAction, messageIndex: number) => {
       if (action.actionType === 'navigate') {
-        shellContext?.navigate(String(action.payload.panel))
+        const { panel, ...params } = action.payload as Record<string, unknown>
+        shellContext?.navigate(String(panel), Object.keys(params).length > 0 ? params : undefined)
         return
       }
 

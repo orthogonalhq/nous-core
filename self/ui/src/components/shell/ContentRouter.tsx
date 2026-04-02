@@ -7,6 +7,7 @@ export interface ContentRouterRenderProps {
   navigate: (routeId: string) => void
   goBack: () => void
   canGoBack: boolean
+  params?: Record<string, unknown>
 }
 
 export interface ContentRouterProps
@@ -25,6 +26,7 @@ export function ContentRouter({
   ...props
 }: ContentRouterProps) {
   const [stack, setStack] = React.useState<string[]>(activeRoute ? [activeRoute] : [])
+  const [navigationParams, setNavigationParams] = React.useState<Record<string, unknown> | undefined>(undefined)
   const stackRef = React.useRef(stack)
   const lastPropRouteRef = React.useRef(activeRoute)
 
@@ -46,7 +48,7 @@ export function ContentRouter({
     setStack(nextStack)
   }, [activeRoute])
 
-  const navigate = (routeId: string) => {
+  const navigate = (routeId: string, params?: Record<string, unknown>) => {
     if (!routes[routeId]) {
       return
     }
@@ -55,6 +57,7 @@ export function ContentRouter({
     lastPropRouteRef.current = routeId
     stackRef.current = nextStack
     setStack(nextStack)
+    setNavigationParams(params)
     onNavigate?.(routeId)
   }
 
@@ -68,6 +71,7 @@ export function ContentRouter({
     lastPropRouteRef.current = nextRoute
     stackRef.current = nextStack
     setStack(nextStack)
+    setNavigationParams(undefined)
 
     if (nextRoute) {
       onNavigate?.(nextRoute)
@@ -129,6 +133,7 @@ export function ContentRouter({
             navigate={navigate}
             goBack={goBack}
             canGoBack={canGoBack}
+            params={navigationParams}
           />
         ) : null}
       </div>

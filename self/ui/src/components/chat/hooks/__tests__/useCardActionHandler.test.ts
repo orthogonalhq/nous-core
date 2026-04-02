@@ -66,7 +66,45 @@ describe('useCardActionHandler', () => {
       result.current(action, 1)
     })
 
-    expect(mockNavigate).toHaveBeenCalledWith('settings')
+    expect(mockNavigate).toHaveBeenCalledWith('settings', undefined)
+  })
+
+  it('navigate action with extra payload fields forwards them as params', () => {
+    const { result } = renderHook(
+      () => useCardActionHandler({ chatApi, setMessages }),
+      { wrapper: createWrapper() },
+    )
+
+    const action: CardAction = {
+      actionType: 'navigate',
+      cardId: 'card-1',
+      payload: { panel: 'workflow-builder', projectId: 'p1', definitionId: 'd1' },
+    }
+
+    act(() => {
+      result.current(action, 1)
+    })
+
+    expect(mockNavigate).toHaveBeenCalledWith('workflow-builder', { projectId: 'p1', definitionId: 'd1' })
+  })
+
+  it('navigate action with only panel passes undefined params', () => {
+    const { result } = renderHook(
+      () => useCardActionHandler({ chatApi, setMessages }),
+      { wrapper: createWrapper() },
+    )
+
+    const action: CardAction = {
+      actionType: 'navigate',
+      cardId: 'card-1',
+      payload: { panel: 'observe' },
+    }
+
+    act(() => {
+      result.current(action, 1)
+    })
+
+    expect(mockNavigate).toHaveBeenCalledWith('observe', undefined)
   })
 
   it('navigate action does NOT call chatApi.sendAction', () => {
