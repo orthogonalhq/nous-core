@@ -11,6 +11,7 @@ import {
   useReactFlow,
 } from '@xyflow/react'
 import type { IDockviewPanelProps } from 'dockview-react'
+import { trpc } from '@nous/transport'
 import { ShellContext } from '../../components/shell/ShellContext'
 import type { WorkflowBuilderNode, WorkflowBuilderEdge, ContextMenuState } from '../../types/workflow-builder'
 import { BuilderModeProvider, useBuilderMode } from './context/BuilderModeContext'
@@ -26,6 +27,7 @@ import { NodeSearch } from './NodeSearch'
 import { ValidationPanel } from './ValidationPanel'
 import { nodeTypes } from './nodes'
 import { edgeTypes } from './edges'
+import { WorkflowPicker } from './WorkflowPicker'
 import { ExecutionMonitor } from './monitoring/ExecutionMonitor'
 import { ExecutionHistory } from './monitoring/ExecutionHistory'
 import { GatePanel } from './monitoring/GatePanel'
@@ -59,11 +61,15 @@ const CanvasDropTarget = forwardRef<
     canvasRef: React.RefObject<HTMLDivElement | null>
     canvasHasFocus: boolean
     onFocusedNodeChange: (nodeId: string | null) => void
+    projectId?: string
+    workflowDefinitionId?: string
   }
 >(function CanvasDropTarget({
   canvasRef,
   canvasHasFocus,
   onFocusedNodeChange,
+  projectId,
+  workflowDefinitionId,
 }, ref) {
   const { mode, setMode } = useBuilderMode()
   const {
@@ -98,7 +104,14 @@ const CanvasDropTarget = forwardRef<
     inspectionState,
     setInspectedNode,
     clearInspection,
-  } = useBuilderState(mode)
+    loadSpec,
+    saveToServer,
+    saveAsNew,
+    resetToEmpty,
+    loadFromServer,
+    isSaving,
+    currentDefinitionId,
+  } = useBuilderState(mode, { projectId, workflowDefinitionId })
 
   const { screenToFlowPosition, fitView } = useReactFlow()
 
@@ -174,12 +187,80 @@ const CanvasDropTarget = forwardRef<
     [mode, onPaneClick, clearInspection],
   )
 
-  // ─── Save handler (SP 2.5) ─────────────────────────────────────────────
+  // ─── Save handlers with inline naming ──────────────────────────────────
+
+  const [showNameInput, setShowNameInput] = useState(false)
+  const [pendingNameAction, setPendingNameAction] = useState<'save' | 'saveAs' | null>(null)
+  const [nameInputValue, setNameInputValue] = useState('Untitled Workflow')
+  const nameInputRef = useRef<HTMLInputElement>(null)
+
+  // Focus the naming input whenever the dialog opens
+  useEffect(() => {
+    if (showNameInput) {
+      requestAnimationFrame(() => nameInputRef.current?.focus())
+    }
+  }, [showNameInput])
+
+  const handleNameSubmit = useCallback(() => {
+    const name = nameInputValue.trim() || 'Untitled Workflow'
+    setShowNameInput(false)
+    setPendingNameAction(null)
+    if (pendingNameAction === 'saveAs') {
+      void saveAsNew(name)
+    } else {
+      void saveToServer(name)
+    }
+  }, [nameInputValue, pendingNameAction, saveAsNew, saveToServer])
 
   const handleSave = useCallback(() => {
-    getCurrentSpec()
-    markClean()
-  }, [getCurrentSpec, markClean])
+    if (projectId) {
+      if (!currentDefinitionId) {
+        // First save — ask for name
+        setPendingNameAction('save')
+        setShowNameInput(true)
+        return
+      }
+      void saveToServer()
+    } else {
+      getCurrentSpec()
+      markClean()
+    }
+  }, [projectId, currentDefinitionId, saveToServer, getCurrentSpec, markClean])
+
+  const handleSaveAs = useCallback(() => {
+    setPendingNameAction('saveAs')
+    setShowNameInput(true)
+  }, [])
+
+  const handleNewWorkflow = useCallback(() => {
+    resetToEmpty()
+  }, [resetToEmpty])
+
+  // ─── Select workflow from picker ──────────────────────────────────────
+
+  const handleSelectWorkflow = useCallback(
+    async (definitionId: string) => {
+      await loadFromServer(definitionId)
+    },
+    [loadFromServer],
+  )
+
+  // ─── Delete workflow from picker ─────────────────────────────────────
+
+  const deleteMutation = trpc.projects.deleteWorkflowDefinition.useMutation()
+  const trpcUtils = trpc.useUtils()
+  const handleDeleteWorkflow = useCallback(
+    async (definitionId: string) => {
+      if (!projectId) return
+      try {
+        await deleteMutation.mutateAsync({ projectId, definitionId })
+        void trpcUtils.projects.listWorkflowDefinitions.invalidate({ projectId })
+      } catch (error) {
+        console.error('[WorkflowBuilder] Failed to delete workflow:', error)
+      }
+    },
+    [projectId, deleteMutation, trpcUtils],
+  )
 
   // ─── Validate toggle handler (SP 2.5) ──────────────────────────────────
 
@@ -498,15 +579,112 @@ const CanvasDropTarget = forwardRef<
         canUndo={canUndo}
         canRedo={canRedo}
         onSave={handleSave}
+        onSaveAs={projectId ? handleSaveAs : undefined}
+        onNewWorkflow={projectId ? handleNewWorkflow : undefined}
         onValidate={handleValidate}
         isDirty={isDirty}
+        isSaving={isSaving}
         validationErrorCount={validationErrors.length}
         isValidationPanelOpen={isValidationPanelOpen}
       />
+      {/* Inline workflow naming dialog */}
+      {showNameInput && (
+        <div
+          style={{
+            position: 'absolute',
+            top: '50%',
+            left: '50%',
+            transform: 'translate(-50%, -50%)',
+            zIndex: 50,
+            background: 'var(--nous-bg-elevated)',
+            border: '1px solid var(--nous-border-strong)',
+            borderRadius: '8px',
+            padding: 'var(--nous-space-lg)',
+            boxShadow: '0 4px 16px rgba(0, 0, 0, 0.5)',
+            minWidth: 280,
+          }}
+          data-testid="workflow-name-dialog"
+          onKeyDown={(e) => e.stopPropagation()}
+          onMouseDown={(e) => e.stopPropagation()}
+        >
+          <div style={{ fontSize: 'var(--nous-font-size-sm)', fontWeight: 600, color: 'var(--nous-fg)', marginBottom: 'var(--nous-space-sm)' }}>
+            {pendingNameAction === 'saveAs' ? 'Save As New Workflow' : 'Name Your Workflow'}
+          </div>
+          <input
+            ref={nameInputRef}
+            type="text"
+            value={nameInputValue}
+            onKeyDownCapture={(e) => {
+              // Stop at capture phase before React Flow sees it
+              e.stopPropagation()
+              if (e.key === 'Enter') { e.preventDefault(); handleNameSubmit() }
+              if (e.key === 'Escape') { e.preventDefault(); setShowNameInput(false); setPendingNameAction(null) }
+            }}
+            onChange={(e) => setNameInputValue(e.target.value)}
+            style={{
+              width: '100%',
+              padding: 'var(--nous-space-xs) var(--nous-space-sm)',
+              background: 'var(--nous-bg)',
+              border: '1px solid var(--nous-border)',
+              borderRadius: '4px',
+              color: 'var(--nous-fg)',
+              caretColor: 'var(--nous-fg)',
+              fontSize: 'var(--nous-font-size-sm)',
+              outline: 'none',
+              marginBottom: 'var(--nous-space-sm)',
+              boxSizing: 'border-box',
+            }}
+            data-testid="workflow-name-input"
+          />
+          <div style={{ display: 'flex', gap: 'var(--nous-space-sm)', justifyContent: 'flex-end' }}>
+            <button
+              type="button"
+              onClick={() => { setShowNameInput(false); setPendingNameAction(null) }}
+              style={{
+                background: 'transparent',
+                border: '1px solid var(--nous-border)',
+                borderRadius: '4px',
+                color: 'var(--nous-fg-muted)',
+                cursor: 'pointer',
+                padding: 'var(--nous-space-xs) var(--nous-space-md)',
+                fontSize: 'var(--nous-font-size-xs)',
+              }}
+            >
+              Cancel
+            </button>
+            <button
+              type="button"
+              onClick={handleNameSubmit}
+              style={{
+                background: 'var(--nous-accent)',
+                border: 'none',
+                borderRadius: '4px',
+                color: '#fff',
+                cursor: 'pointer',
+                padding: 'var(--nous-space-xs) var(--nous-space-md)',
+                fontSize: 'var(--nous-font-size-xs)',
+              }}
+              data-testid="workflow-name-submit"
+            >
+              Save
+            </button>
+          </div>
+        </div>
+      )}
       {/* Authoring-only UI — hidden in monitor mode */}
       {mode !== 'monitoring' && (
         <>
           <NodePalette containerRef={canvasRef} />
+          {projectId && (
+            <WorkflowPicker
+              projectId={projectId}
+              currentDefinitionId={currentDefinitionId}
+              onSelectWorkflow={(id) => void handleSelectWorkflow(id)}
+              onNewWorkflow={handleNewWorkflow}
+              onDeleteWorkflow={(id) => void handleDeleteWorkflow(id)}
+              containerRef={canvasRef}
+            />
+          )}
           <NodeInspector
             selectedNodeId={selectedNodeId}
             nodes={nodes}
@@ -669,6 +847,8 @@ function WorkflowBuilderCanvas({ className, projectId, workflowDefinitionId }: {
             canvasRef={canvasRef}
             canvasHasFocus={canvasHasFocus}
             onFocusedNodeChange={handleFocusedNodeChange}
+            projectId={projectId}
+            workflowDefinitionId={workflowDefinitionId}
           />
         </ReactFlowProvider>
       </BuilderModeProvider>

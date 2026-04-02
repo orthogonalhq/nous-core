@@ -4,6 +4,7 @@ import { useState, useCallback, useEffect, useRef } from 'react'
 import { applyNodeChanges, applyEdgeChanges } from '@xyflow/react'
 import type { NodeChange, EdgeChange, Connection, Viewport, XYPosition } from '@xyflow/react'
 import type { WorkflowSpec, WorkflowSpecValidationError } from '@nous/shared'
+import { trpc } from '@nous/transport'
 import type {
   WorkflowBuilderNode,
   WorkflowBuilderEdge,
@@ -108,6 +109,25 @@ export interface UseBuilderStateReturn {
   setInspectedNode: (nodeId: string) => void
   /** Clear the current inspection selection. */
   clearInspection: () => void
+
+  /** Persist workflow to server. Returns the definitionId on success. Optional name for first save. */
+  saveToServer: (name?: string) => Promise<{ definitionId: string } | null>
+  /** Save as a new workflow (no definitionId, receives new ID). */
+  saveAsNew: (name?: string) => Promise<{ definitionId: string } | null>
+  /** Reset builder to empty state (new workflow). */
+  resetToEmpty: () => void
+  /** Load a workflow from server by definitionId (fetch + load + track). */
+  loadFromServer: (definitionId: string) => Promise<void>
+  /** Whether a save operation is currently in-flight. */
+  isSaving: boolean
+  /** Current stored definitionId (null for unsaved workflows). */
+  currentDefinitionId: string | null
+}
+
+/** Options for persistence integration. */
+export interface UseBuilderStateOptions {
+  projectId?: string
+  workflowDefinitionId?: string
 }
 
 // ─── Hook ─────────────────────────────────────────────────────────────────────
@@ -123,9 +143,21 @@ const DEFAULT_SPEC_META = { name: 'Untitled Workflow', version: 1 }
  * sync layer. All mutations route through the undo pipeline and trigger
  * outbound sync + validation.
  */
-export function useBuilderState(mode: BuilderMode = 'authoring'): UseBuilderStateReturn {
-  const [nodes, setNodes] = useState<WorkflowBuilderNode[]>(() => [...DEMO_WORKFLOW_NODES])
-  const [edges, setEdges] = useState<WorkflowBuilderEdge[]>(() => [...DEMO_WORKFLOW_EDGES])
+export function useBuilderState(
+  mode: BuilderMode = 'authoring',
+  options?: UseBuilderStateOptions,
+): UseBuilderStateReturn {
+  const projectId = options?.projectId
+  const workflowDefinitionId = options?.workflowDefinitionId
+
+  // Determine initial state: demo fallback when no projectId, empty when projectId present
+  const hasProjectContext = !!projectId
+  const [nodes, setNodes] = useState<WorkflowBuilderNode[]>(() =>
+    hasProjectContext ? [] : [...DEMO_WORKFLOW_NODES],
+  )
+  const [edges, setEdges] = useState<WorkflowBuilderEdge[]>(() =>
+    hasProjectContext ? [] : [...DEMO_WORKFLOW_EDGES],
+  )
   const [selectedNodeId, setSelectedNodeId] = useState<string | null>(null)
   const [selectedEdgeId, setSelectedEdgeId] = useState<string | null>(null)
   const [activeRun, setActiveRunState] = useState<ExecutionRun | null>(null)
@@ -133,9 +165,17 @@ export function useBuilderState(mode: BuilderMode = 'authoring'): UseBuilderStat
   const [viewport] = useState<Viewport>(DEFAULT_VIEWPORT)
   const [validationErrors, setValidationErrors] = useState<WorkflowSpecValidationError[]>([])
   const [isDirty, setIsDirty] = useState(false)
+  const [isSaving, setIsSaving] = useState(false)
+
+  // Persistence state — use state (not ref) so React re-renders picker highlight
+  const [currentDefId, setCurrentDefId] = useState<string | null>(workflowDefinitionId ?? null)
 
   // Spec metadata for outbound serialization
   const specMetaRef = useRef(DEFAULT_SPEC_META)
+
+  // tRPC hooks for persistence
+  const utils = trpc.useUtils()
+  const saveMutation = trpc.projects.saveWorkflowSpec.useMutation()
 
   // ─── Monitoring state helpers ────────────────────────────────────────────
 
@@ -425,6 +465,166 @@ export function useBuilderState(mode: BuilderMode = 'authoring'): UseBuilderStat
     setIsDirty(false)
   }, [])
 
+  // ─── Persistence: mount-time fetch ──────────────────────────────────────
+
+  // Helper: fetch a definition by ID and load into builder state
+  const fetchAndLoadDefinition = useCallback(
+    (pid: string, defId: string) => {
+      console.log('[useBuilderState] fetchAndLoadDefinition:', pid, defId)
+      return utils.projects.getWorkflowDefinition
+        .fetch({ projectId: pid, definitionId: defId })
+        .then((definition) => {
+          console.log('[useBuilderState] fetched definition:', defId, 'specYaml length:', definition.specYaml?.length ?? 'null')
+          if (!definition.specYaml) {
+            // Legacy definition saved before specYaml storage was added.
+            // Load empty canvas but keep the definitionId so the next save
+            // will re-persist with specYaml (self-healing).
+            console.warn(
+              `[useBuilderState] Definition ${defId} has no specYaml — legacy entry. Next save will populate specYaml.`,
+            )
+            setNodes([])
+            setEdges([])
+            setCurrentDefId(defId)
+            setIsDirty(false)
+            specMetaRef.current = { name: definition.name ?? 'Untitled Workflow', version: 1 }
+            return
+          }
+          const result = sync.loadSpec(definition.specYaml)
+          if (!result.success) {
+            console.error('[useBuilderState] loadSpec failed for definition', defId, result.errors)
+          }
+          if (result.success) {
+            setNodes(result.nodes!)
+            setEdges(result.edges!)
+            undoRedo.clearHistory()
+            setIsDirty(false)
+            setValidationErrors([])
+            if (result.spec) {
+              specMetaRef.current = {
+                name: result.spec.name,
+                version: result.spec.version,
+              }
+            }
+            setCurrentDefId(defId)
+          }
+        })
+        .catch((error) => {
+          console.warn('[useBuilderState] Failed to fetch workflow definition:', error)
+          setNodes([])
+          setEdges([])
+          setCurrentDefId(null)
+        })
+    },
+    [sync, undoRedo, utils],
+  )
+
+  const initFetchedRef = useRef(false)
+
+  // Path 1: Explicit workflowDefinitionId — fetch that specific definition
+  useEffect(() => {
+    if (initFetchedRef.current) return
+    if (!projectId || !workflowDefinitionId) return
+    initFetchedRef.current = true
+    fetchAndLoadDefinition(projectId, workflowDefinitionId)
+  }, [projectId, workflowDefinitionId, fetchAndLoadDefinition])
+
+  // Path 2: projectId but no workflowDefinitionId — check for project default
+  // Also re-checks when panel is kept mounted (dockview caching) and the user
+  // saves a workflow for the first time (listQuery updates with a new default).
+  const defaultQuery = trpc.projects.listWorkflowDefinitions.useQuery(
+    { projectId: projectId! },
+    { enabled: !!projectId && !workflowDefinitionId },
+  )
+
+  useEffect(() => {
+    if (initFetchedRef.current) return
+    if (!projectId || workflowDefinitionId) return
+    if (defaultQuery.isLoading || !defaultQuery.data) return
+
+    const defaultDef = defaultQuery.data.find(
+      (d: { id: string; isDefault?: boolean }) => d.isDefault,
+    )
+    if (defaultDef && defaultDef.id !== currentDefId) {
+      initFetchedRef.current = true
+      fetchAndLoadDefinition(projectId, defaultDef.id)
+    }
+    // If no default found, stay with empty state (correct for new projects)
+  }, [projectId, workflowDefinitionId, defaultQuery.data, defaultQuery.isLoading, fetchAndLoadDefinition])
+
+  // ─── Persistence: save / saveAs / reset ────────────────────────────────
+
+  const saveToServer = useCallback(async (name?: string): Promise<{ definitionId: string } | null> => {
+    if (!projectId) return null
+
+    const specResult = getCurrentSpec()
+    if (!specResult) return null
+    // WorkflowSpec requires at least 1 node — don't send empty canvas
+    if (specResult.spec.nodes.length === 0) {
+      console.warn('[useBuilderState] Cannot save empty workflow — add at least one node.')
+      return null
+    }
+
+    setIsSaving(true)
+    try {
+      const result = await saveMutation.mutateAsync({
+        projectId,
+        specYaml: specResult.yaml,
+        definitionId: currentDefId ?? undefined,
+        name,
+      })
+      setCurrentDefId(result.definitionId)
+      markClean()
+      // Invalidate list query so default lookup stays fresh (dockview caching)
+      void utils.projects.listWorkflowDefinitions.invalidate({ projectId })
+      return { definitionId: result.definitionId }
+    } catch (error) {
+      console.error('[useBuilderState] Save failed:', error)
+      return null
+    } finally {
+      setIsSaving(false)
+    }
+  }, [projectId, getCurrentSpec, saveMutation, markClean, utils, currentDefId])
+
+  const saveAsNew = useCallback(async (name?: string): Promise<{ definitionId: string } | null> => {
+    if (!projectId) return null
+
+    const specResult = getCurrentSpec()
+    if (!specResult) return null
+    // WorkflowSpec requires at least 1 node — don't send empty canvas
+    if (specResult.spec.nodes.length === 0) {
+      console.warn('[useBuilderState] Cannot save empty workflow — add at least one node.')
+      return null
+    }
+
+    setIsSaving(true)
+    try {
+      const result = await saveMutation.mutateAsync({
+        projectId,
+        specYaml: specResult.yaml,
+        name: name ?? specResult.spec.name,
+      })
+      setCurrentDefId(result.definitionId)
+      markClean()
+      void utils.projects.listWorkflowDefinitions.invalidate({ projectId })
+      return { definitionId: result.definitionId }
+    } catch (error) {
+      console.error('[useBuilderState] Save As failed:', error)
+      return null
+    } finally {
+      setIsSaving(false)
+    }
+  }, [projectId, getCurrentSpec, saveMutation, markClean, utils])
+
+  const resetToEmpty = useCallback(() => {
+    setNodes([])
+    setEdges([])
+    setCurrentDefId(null)
+    undoRedo.clearHistory()
+    setIsDirty(false)
+    setValidationErrors([])
+    specMetaRef.current = { ...DEFAULT_SPEC_META }
+  }, [undoRedo])
+
   // ─── Undo / Redo ────────────────────────────────────────────────────────
 
   const undo = useCallback(() => {
@@ -487,5 +687,17 @@ export function useBuilderState(mode: BuilderMode = 'authoring'): UseBuilderStat
     inspectionState,
     setInspectedNode,
     clearInspection,
+    saveToServer,
+    saveAsNew,
+    resetToEmpty,
+    loadFromServer: useCallback(
+      async (defId: string) => {
+        if (!projectId) return
+        await fetchAndLoadDefinition(projectId, defId)
+      },
+      [projectId, fetchAndLoadDefinition],
+    ),
+    isSaving,
+    currentDefinitionId: currentDefId,
   }
 }

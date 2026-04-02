@@ -6,6 +6,9 @@ import { reactFlowMock } from '../react-flow-mock'
 
 vi.mock('@xyflow/react', () => reactFlowMock)
 
+import { trpcMock } from '../trpc-mock'
+vi.mock('@nous/transport', () => trpcMock)
+
 import { useBuilderState } from '../../hooks/useBuilderState'
 import type { BuilderMode } from '../../../../types/workflow-builder'
 

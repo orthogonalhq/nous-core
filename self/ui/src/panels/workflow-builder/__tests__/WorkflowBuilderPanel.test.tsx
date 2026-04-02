@@ -7,6 +7,9 @@ import { reactFlowMock } from './react-flow-mock'
 
 vi.mock('@xyflow/react', () => reactFlowMock)
 
+import { trpcMock } from './trpc-mock'
+vi.mock('@nous/transport', () => trpcMock)
+
 import { WorkflowBuilderPanel } from '../WorkflowBuilderPanel'
 import type { WorkflowBuilderPanelCoreProps } from '../WorkflowBuilderPanel'
 
