@@ -57,7 +57,7 @@ function TopNavItemRow({ item, isActive, onNavigate }: TopNavItemRowProps) {
         width: '100%',
         border: 'none',
         borderRadius: 'var(--nous-radius-md)',
-        padding: 'var(--nous-space-xs) var(--nous-space-sm)',
+        padding: 'var(--nous-space-sm) var(--nous-space-sm)',
         background: isActive
           ? 'var(--nous-bg-active)'
           : isHovered
@@ -108,9 +108,10 @@ function SectionHeader({ section, isCollapsed, onToggleCollapse }: SectionHeader
           border: 'none',
           background: 'transparent',
           color: 'var(--nous-sidebar-section-label-fg)',
-          fontSize: 'var(--nous-font-size-xs)',
+          fontSize: '10px',
           fontWeight: 'var(--nous-font-weight-medium, 500)',
           textTransform: 'uppercase',
+          letterSpacing: '0.08em',
           cursor: section.collapsible && !section.disabled ? 'pointer' : 'default',
           padding: 0,
           pointerEvents: section.disabled ? 'none' : 'auto',
@@ -206,8 +207,8 @@ function SectionItemRow({ item, isActive, disabled, onNavigate }: SectionItemRow
         width: '100%',
         border: 'none',
         borderRadius: 'var(--nous-radius-md)',
-        padding: 'var(--nous-space-xs) var(--nous-space-sm)',
-        paddingLeft: 'var(--nous-space-lg, 24px)',
+        padding: '5px var(--nous-space-sm)',
+        paddingLeft: 'var(--nous-space-3xl)',
         background: isActive
           ? 'var(--nous-bg-active)'
           : isHovered && !disabled
@@ -276,7 +277,7 @@ function AssetSectionBlock({ section, activeRoute, onNavigate }: AssetSectionBlo
       <div
         data-section-items={section.id}
         style={{
-          maxHeight: isCollapsed ? '0px' : '500px',
+          maxHeight: isCollapsed ? '0px' : '2000px',
           overflow: 'hidden',
           opacity: isCollapsed ? 0 : 1,
           transition: 'max-height var(--nous-duration-normal) var(--nous-ease-out), opacity var(--nous-duration-fast) var(--nous-ease-out)',
@@ -286,7 +287,7 @@ function AssetSectionBlock({ section, activeRoute, onNavigate }: AssetSectionBlo
           style={{
             display: 'flex',
             flexDirection: 'column',
-            gap: '1px',
+            gap: 'var(--nous-space-2xs)',
           }}
         >
           {section.items.map((item) => (
@@ -337,15 +338,15 @@ export function AssetSidebar({
       <div
         data-sidebar-slot="header"
         style={{
-          padding: 'var(--nous-space-sm) var(--nous-space-md)',
-          borderBottom: '1px solid var(--nous-shell-column-border)',
+          padding: 'var(--nous-space-lg) var(--nous-space-md)',
+          borderBottom: '1px solid var(--nous-border-subtle)',
           flexShrink: 0,
         }}
       >
         <span
           style={{
-            fontSize: 'var(--nous-font-size-sm)',
-            fontWeight: 'var(--nous-font-weight-medium, 500)',
+            fontSize: 'var(--nous-font-size-md)',
+            fontWeight: 'var(--nous-font-weight-semibold, 600)',
             color: 'var(--nous-sidebar-header-fg)',
           }}
         >
@@ -373,6 +374,8 @@ export function AssetSidebar({
             flexDirection: 'column',
             gap: '1px',
             padding: '0 var(--nous-space-xs)',
+            borderBottom: '1px solid var(--nous-shell-column-border)',
+            paddingBottom: 'var(--nous-space-lg)',
           }}
         >
           {topNav.map((item) => (
@@ -390,8 +393,9 @@ export function AssetSidebar({
           style={{
             display: 'flex',
             flexDirection: 'column',
-            gap: 'var(--nous-space-xs)',
+            gap: 'var(--nous-space-lg)',
             padding: '0 var(--nous-space-xs)',
+            marginTop: 'var(--nous-space-sm)',
           }}
         >
           {sections.map((section) => (
