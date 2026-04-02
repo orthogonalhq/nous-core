@@ -3,6 +3,7 @@
 import { useState, useEffect, useRef, useCallback, type KeyboardEvent } from 'react'
 import type { IDockviewPanelProps } from 'dockview-react'
 import { clsx } from 'clsx'
+import { Plus, Send } from 'lucide-react'
 import type { ConversationContext, ChatStage } from '../components/shell/types'
 import { useEventSubscription } from '@nous/transport'
 import {
@@ -59,24 +60,6 @@ export interface ChatPanelCoreProps {
   onInputFocus?: () => void
 }
 
-interface BrowserSpeechRecognitionResult {
-  transcript: string
-}
-
-interface BrowserSpeechRecognitionEvent {
-  results: ArrayLike<ArrayLike<BrowserSpeechRecognitionResult>>
-}
-
-interface BrowserSpeechRecognition {
-  continuous: boolean
-  interimResults: boolean
-  onresult: ((event: BrowserSpeechRecognitionEvent) => void) | null
-  onend: (() => void) | null
-  start: () => void
-  stop: () => void
-}
-
-type BrowserSpeechRecognitionConstructor = new () => BrowserSpeechRecognition
 
 interface ChatPanelProps extends IDockviewPanelProps {
   params: { chatApi?: ChatAPI }
@@ -180,10 +163,8 @@ export function ChatPanel(props: ChatPanelProps | ChatPanelCoreProps) {
   const [messages, setMessages] = useState<ChatMessage[]>([])
   const [input, setInput] = useState('')
   const [sending, setSending] = useState(false)
-  const [isListening, setIsListening] = useState(false)
   const [historyError, setHistoryError] = useState<string | null>(null)
   const messagesEndRef = useRef<HTMLDivElement>(null)
-  const recognitionRef = useRef<BrowserSpeechRecognition | null>(null)
 
   const [thoughts, setThoughts] = useState<ThoughtEvent[]>([])
   const detailsAlwaysOn = useState(
@@ -194,13 +175,10 @@ export function ChatPanel(props: ChatPanelProps | ChatPanelCoreProps) {
   )[0]
 
   const chatApi = 'params' in props ? props.params?.chatApi : props.chatApi
-  const conversationContext = 'conversationContext' in props ? props.conversationContext : undefined
   const className = 'className' in props ? props.className : undefined
   const stage: ChatStage | undefined = 'stage' in props ? props.stage : undefined
   const onStageChange = 'onStageChange' in props ? props.onStageChange : undefined
   const onSendStart = 'onSendStart' in props ? props.onSendStart : undefined
-  const isPinned = 'isPinned' in props ? props.isPinned : undefined
-  const onTogglePin = 'onTogglePin' in props ? props.onTogglePin : undefined
   const onInputFocusProp = 'onInputFocus' in props ? props.onInputFocus : undefined
 
   // Resolve effective stage: undefined means full (backwards compatible for dockview)
@@ -292,10 +270,6 @@ export function ChatPanel(props: ChatPanelProps | ChatPanelCoreProps) {
     }
   }, [])
 
-  // Activity detection for UI indicators (Thinking... dot)
-  // Auto-expand is now handled by useChatStageManager in the app layer
-  const isAgentWorking = sending || agentActive || thoughts.length > 0
-
   const handleToggle = useCallback(() => {
     dispatch({ type: 'TOGGLE_EXPAND' })
     try {
@@ -347,164 +321,61 @@ export function ChatPanel(props: ChatPanelProps | ChatPanelCoreProps) {
     }
   }
 
-  const toggleVoice = () => {
-    const speechRecognitionWindow = window as unknown as {
-      SpeechRecognition?: BrowserSpeechRecognitionConstructor
-      webkitSpeechRecognition?: BrowserSpeechRecognitionConstructor
-    }
-    const speechRecognitionCtor =
-      speechRecognitionWindow.SpeechRecognition ??
-      speechRecognitionWindow.webkitSpeechRecognition
-    if (!speechRecognitionCtor) return
-    if (isListening && recognitionRef.current) {
-      recognitionRef.current.stop()
-      setIsListening(false)
-      return
-    }
-    const recognition = new speechRecognitionCtor()
-    recognition.continuous = false
-    recognition.interimResults = false
-    recognition.onresult = (event) => {
-      const transcript = event.results[0]?.[0]?.transcript ?? ''
-      setInput(prev => prev + transcript)
-    }
-    recognition.onend = () => setIsListening(false)
-    recognitionRef.current = recognition
-    recognition.start()
-    setIsListening(true)
-  }
-
-  const headerText = conversationContext?.threadId
-    ? `Thread: ${conversationContext.threadId.length > 12 ? conversationContext.threadId.slice(0, 12) + '...' : conversationContext.threadId}`
-    : conversationContext?.isAmbient
-      ? 'Ambient'
-      : 'Principal ↔ Cortex'
-
   // --- Input section (shared across all stages) ---
   const inputSection = (
-    <div style={{ padding: 'var(--nous-space-lg) var(--nous-space-xl)', borderTop: (isSmall || isAmbientSmall) ? 'none' : '1px solid var(--nous-footer-border)', display: 'flex', gap: 'var(--nous-space-sm)', alignItems: 'flex-end' }}>
-      <textarea
-        value={input}
-        onChange={e => setInput(e.target.value)}
-        onKeyDown={handleKeyDown}
-        onFocus={() => { handleInputFocus(); onInputFocusProp?.() }}
-        onBlur={handleInputBlur}
-        placeholder="Message Nous... (Enter to send, Shift+Enter for newline)"
-        disabled={sending}
-        style={{
-          flex: 1, resize: 'none', background: 'var(--nous-input-bg)', border: '1px solid transparent',
-          borderRadius: 'var(--nous-radius-md)', padding: 'var(--nous-space-md) var(--nous-space-lg)', color: 'var(--nous-fg)', fontSize: 'var(--nous-font-size-base)',
-          outline: 'none', lineHeight: '1.5', minHeight: '36px', maxHeight: '120px',
-          fontFamily: 'inherit',
-        }}
-        rows={1}
-      />
-      <button
-        onClick={toggleVoice}
-        title={isListening ? 'Stop listening' : 'Voice input'}
-        style={{
-          background: isListening ? 'var(--nous-state-blocked)' : 'var(--nous-input-bg)', border: '1px solid transparent',
-          borderRadius: 'var(--nous-radius-md)', padding: 'var(--nous-space-md)', color: isListening ? 'var(--nous-fg-on-color)' : 'var(--nous-fg-muted)',
-          cursor: 'pointer', display: 'flex', alignItems: 'center',
-        }}
-      >
-        <i className={`codicon ${isListening ? 'codicon-circle-slash' : 'codicon-mic'}`} style={{ fontSize: 'var(--nous-icon-size-sm)' }} />
-      </button>
-      <button
-        onClick={send}
-        disabled={sending || !input.trim() || !chatApi?.send}
-        style={{
-          background: 'var(--nous-btn-primary-bg)', border: 'none', borderRadius: 'var(--nous-radius-md)',
-          padding: 'var(--nous-space-md) var(--nous-space-2xl)', color: 'var(--nous-fg-on-color)', cursor: sending ? 'not-allowed' : 'pointer',
-          fontSize: 'var(--nous-font-size-base)', fontWeight: 'var(--nous-font-weight-medium)' as any, opacity: (sending || !input.trim() || !chatApi?.send) ? 0.5 : 1,
-        }}
-      >
-        Send
-      </button>
+    <div style={{ padding: 'var(--nous-space-lg)', borderTop: '1px solid var(--nous-border-strong)', display: 'flex', flexDirection: 'column', gap: 'var(--nous-space-sm)' }}>
+      <div style={{
+        display: 'flex', gap: 'var(--nous-space-sm)', alignItems: 'flex-end',
+        background: 'var(--nous-bg-elevated)', borderRadius: 'var(--nous-radius-md)',
+        padding: 'var(--nous-space-xl)',
+      }}>
+        <button
+          type="button"
+          title="Attach file"
+          style={{
+            display: 'flex', alignItems: 'center', justifyContent: 'center',
+            width: 32, height: 32, flexShrink: 0,
+            background: 'transparent', border: 'none', borderRadius: 'var(--nous-radius-md)',
+            color: 'var(--nous-fg-muted)', cursor: 'pointer',
+          }}
+        >
+          <Plus size={16} />
+        </button>
+        <textarea
+          value={input}
+          onChange={e => setInput(e.target.value)}
+          onKeyDown={handleKeyDown}
+          onFocus={() => { handleInputFocus(); onInputFocusProp?.() }}
+          onBlur={handleInputBlur}
+          placeholder="What can I help you with?"
+          disabled={sending}
+          style={{
+            flex: 1, resize: 'none', background: 'transparent', border: 'none',
+            color: 'var(--nous-fg)', fontSize: 'var(--nous-font-size-base)',
+            outline: 'none', lineHeight: '1.5', minHeight: '42px', maxHeight: '120px',
+            fontFamily: 'inherit', padding: 0,
+          }}
+          rows={1}
+        />
+        <button
+          type="button"
+          onClick={send}
+          disabled={sending || !input.trim() || !chatApi?.send}
+          title="Send message"
+          style={{
+            display: 'flex', alignItems: 'center', justifyContent: 'center',
+            width: 32, height: 32, flexShrink: 0,
+            background: (sending || !input.trim() || !chatApi?.send) ? 'var(--nous-btn-primary-bg)' : 'var(--nous-btn-primary-bg)',
+            border: 'none', borderRadius: 'var(--nous-radius-md)',
+            color: 'var(--nous-fg-on-color)', cursor: sending ? 'not-allowed' : 'pointer',
+            opacity: (sending || !input.trim() || !chatApi?.send) ? 0.5 : 1,
+          }}
+        >
+          <Send size={16} />
+        </button>
+      </div>
     </div>
   )
-
-  // --- Icon button style (shared across toggle bar and full header) ---
-  const iconButtonStyle = {
-    background: 'none',
-    border: 'none',
-    color: 'var(--nous-text-tertiary)',
-    cursor: 'pointer',
-    padding: '2px 6px',
-    fontSize: '14px',
-    lineHeight: 1,
-    borderRadius: 'var(--nous-radius-sm)',
-    display: 'flex',
-    alignItems: 'center',
-    justifyContent: 'center',
-  } as const
-
-  // Toggle bar label: "Chat" in small, activity indicator in ambient states
-  const isAmbientState = isAmbientSmall || isAmbientLarge
-  const toggleLabel = isAmbientState ? '\u29BF Thinking...' : 'Chat'
-
-  // Toggle bar: shown for small, ambient_small, and ambient_large states
-  const showToggleBar = !isFull
-  const stageToggleBar = showToggleBar ? (
-    <div
-      data-testid="chat-stage-toggle"
-      style={{
-        padding: 'var(--nous-space-xs) var(--nous-space-sm)',
-        display: 'flex',
-        alignItems: 'center',
-        gap: 'var(--nous-space-xs)',
-        fontSize: 'var(--nous-font-size-xs)',
-        color: 'var(--nous-fg-muted)',
-        userSelect: 'none',
-      }}
-    >
-      <span style={{ cursor: 'default' }}>
-        {toggleLabel}
-      </span>
-      {/* Icon controls */}
-      <span style={{ marginLeft: 'auto', display: 'flex', gap: '2px' }}>
-        {isAmbientLarge ? (
-          <>
-            <button
-              data-testid="stage-minimize-button"
-              onClick={() => onStageChange?.('small')}
-              style={iconButtonStyle}
-              title="Minimize"
-            >
-              {'\u2500'}
-            </button>
-            <button
-              data-testid="stage-fullscreen-button"
-              onClick={() => onStageChange?.('full')}
-              style={iconButtonStyle}
-              title="Full screen"
-            >
-              {'\u2922'}
-            </button>
-          </>
-        ) : (
-          <>
-            <button
-              data-testid="stage-panel-button"
-              onClick={() => onStageChange?.('ambient_large')}
-              style={iconButtonStyle}
-              title="Panel view"
-            >
-              {'\u25EB'}
-            </button>
-            <button
-              data-testid="stage-fullscreen-button"
-              onClick={() => onStageChange?.('full')}
-              style={iconButtonStyle}
-              title="Full screen"
-            >
-              {'\u2922'}
-            </button>
-          </>
-        )}
-      </span>
-    </div>
-  ) : null
 
   // --- Thought stream section (reused across large and full) ---
   const thoughtSection = thoughts.length > 0 ? (
@@ -531,31 +402,28 @@ export function ChatPanel(props: ChatPanelProps | ChatPanelCoreProps) {
     </div>
   ) : null
 
-  // --- Small stage: toggle bar + input only ---
+  // --- Small stage: input only ---
   if (isSmall) {
     return (
       <div className={clsx(className)} data-chat-stage="small" style={{ display: 'flex', flexDirection: 'column', color: 'var(--nous-fg)' }}>
-        {stageToggleBar}
         {inputSection}
       </div>
     )
   }
 
-  // --- Ambient Small stage: toggle bar + input only (with activity indicator in toggle) ---
+  // --- Ambient Small stage: input only ---
   if (isAmbientSmall) {
     return (
       <div className={clsx(className)} data-chat-stage="ambient_small" style={{ display: 'flex', flexDirection: 'column', color: 'var(--nous-fg)' }}>
-        {stageToggleBar}
         {inputSection}
       </div>
     )
   }
 
-  // --- Ambient Large stage: toggle bar + thought stream + input ---
+  // --- Ambient Large stage: thought stream + input ---
   if (isAmbientLarge) {
     return (
       <div className={clsx(className)} data-chat-stage="ambient_large" style={{ display: 'flex', flexDirection: 'column', height: '100%', color: 'var(--nous-fg)' }}>
-        {stageToggleBar}
         {/* Thought stream content */}
         <div style={{ flex: 1, overflowY: 'auto', padding: 'var(--nous-space-2xl)', display: 'flex', flexDirection: 'column', gap: 'var(--nous-space-xl)' }}>
           {thoughtSection}
@@ -574,60 +442,14 @@ export function ChatPanel(props: ChatPanelProps | ChatPanelCoreProps) {
     return -1
   })()
 
-  // --- Full stage: header + all messages + thought stream + input ---
+  // --- Full stage: messages + thought stream + input ---
   return (
-    <div className={clsx(className)} data-chat-stage="full" style={{ display: 'flex', flexDirection: 'column', height: '100%', color: 'var(--nous-fg)' }}>
-      {/* Header */}
-      <div style={{ padding: 'var(--nous-space-sm) var(--nous-space-xl)', borderBottom: '1px solid var(--nous-header-border)', fontSize: 'var(--nous-font-size-sm)', fontWeight: 'var(--nous-font-weight-semibold)' as any, color: 'var(--nous-fg-muted)', display: 'flex', alignItems: 'center', gap: 'var(--nous-space-sm)' }}>
-        <span>{headerText}</span>
-        {conversationContext?.isAmbient && (
-          <span data-testid="ambient-badge" style={{ background: 'var(--nous-accent-muted)', fontSize: 'var(--nous-font-size-2xs)', borderRadius: 'var(--nous-radius-xs)', padding: '0 var(--nous-space-xs)', fontWeight: 'var(--nous-font-weight-medium)' as any }}>
-            Ambient
-          </span>
-        )}
-        {conversationContext?.threadId && (
-          <span data-testid="thread-indicator" style={{ fontSize: 'var(--nous-font-size-2xs)', color: 'var(--nous-fg-subtle)', fontWeight: 'var(--nous-font-weight-regular)' as any }}>
-            {conversationContext.threadId.length > 12 ? conversationContext.threadId.slice(0, 12) + '...' : conversationContext.threadId}
-          </span>
-        )}
-        {/* Stage controls in full mode */}
-        {onStageChange && (
-          <span style={{ marginLeft: 'auto', display: 'flex', gap: '2px' }}>
-            <button
-              data-testid="stage-minimize-button"
-              onClick={() => onStageChange('small')}
-              style={iconButtonStyle}
-              title="Minimize"
-            >
-              {'\u2500'}
-            </button>
-            <button
-              data-testid="stage-panel-button"
-              onClick={() => onStageChange('ambient_large')}
-              style={iconButtonStyle}
-              title="Panel view"
-            >
-              {'\u25EB'}
-            </button>
-            <button
-              data-testid="stage-pin-button"
-              onClick={() => onTogglePin?.()}
-              style={{
-                ...iconButtonStyle,
-                color: isPinned ? 'var(--nous-fg)' : 'var(--nous-text-tertiary)',
-              }}
-              title={isPinned ? 'Unpin' : 'Pin open'}
-            >
-              {isPinned ? '\uD83D\uDCCC' : '\u2299'}
-            </button>
-          </span>
-        )}
-      </div>
+    <div className={clsx(className)} data-chat-stage="full" style={{ display: 'flex', flexDirection: 'column', height: '100%', color: 'var(--nous-fg)', background: 'var(--nous-chat-full-bg)' }}>
       {/* Messages */}
       <div style={{ flex: 1, overflowY: 'auto', padding: 'var(--nous-space-2xl)', display: 'flex', flexDirection: 'column', gap: 'var(--nous-space-xl)' }}>
-        {visibleMessages.length === 0 && (
+        {visibleMessages.length === 0 && !chatApi?.send && (
           <div style={{ textAlign: 'center', color: 'var(--nous-fg-subtle)', fontSize: 'var(--nous-font-size-base)', marginTop: 'var(--nous-space-4xl)' }}>
-            {chatApi?.send ? 'Start a conversation with Nous.' : 'Chat API not connected. Start the web backend with `pnpm dev:web`.'}
+            Chat API not connected. Start the web backend with `pnpm dev:web`.
           </div>
         )}
         {historyError && (
