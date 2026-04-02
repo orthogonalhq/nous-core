@@ -2,6 +2,7 @@
 
 import * as React from 'react'
 import { clsx } from 'clsx'
+import { ChevronLeft, ChevronRight } from 'lucide-react'
 
 const COLLAPSED_THRESHOLD = 60
 
@@ -12,6 +13,45 @@ export interface CollapsibleObserveEdgeProps
   /** Called when the user clicks the expand chevron */
   onExpandToggle: () => void
   children: React.ReactNode
+}
+
+interface ExpandCollapseButtonProps {
+  action: 'expand' | 'collapse'
+  label: string
+  onClick: () => void
+  icon: React.ReactNode
+  fullSize?: boolean
+}
+
+function ExpandCollapseButton({ action, label, onClick, icon, fullSize }: ExpandCollapseButtonProps) {
+  const [isHovered, setIsHovered] = React.useState(false)
+
+  return (
+    <button
+      type="button"
+      aria-label={label}
+      data-action={action}
+      onClick={onClick}
+      onMouseEnter={() => setIsHovered(true)}
+      onMouseLeave={() => setIsHovered(false)}
+      style={{
+        display: 'flex',
+        alignItems: 'center',
+        justifyContent: 'center',
+        width: fullSize ? '100%' : 'auto',
+        height: fullSize ? '100%' : 'auto',
+        border: 'none',
+        background: isHovered ? 'var(--nous-bg-hover)' : 'transparent',
+        borderRadius: 'var(--nous-radius-sm)',
+        color: 'var(--nous-text-tertiary)',
+        cursor: 'pointer',
+        padding: fullSize ? 0 : '2px 4px',
+        transition: 'var(--nous-hover-button-transition)',
+      }}
+    >
+      {icon}
+    </button>
+  )
 }
 
 export function CollapsibleObserveEdge({
@@ -39,28 +79,13 @@ export function CollapsibleObserveEdge({
       {...props}
     >
       {isCollapsed ? (
-        <button
-          type="button"
-          aria-label="Expand observe panel"
-          data-action="expand"
+        <ExpandCollapseButton
+          action="expand"
+          label="Expand observe panel"
           onClick={onExpandToggle}
-          style={{
-            display: 'flex',
-            alignItems: 'center',
-            justifyContent: 'center',
-            width: '100%',
-            height: '100%',
-            border: 'none',
-            background: 'transparent',
-            color: 'var(--nous-text-tertiary)',
-            cursor: 'pointer',
-            fontSize: 'var(--nous-font-size-md, 16px)',
-            padding: 0,
-            transition: 'var(--nous-hover-button-transition)',
-          }}
-        >
-          &#x2039;
-        </button>
+          icon={<ChevronLeft size={16} />}
+          fullSize
+        />
       ) : (
         <>
           <div
@@ -72,26 +97,12 @@ export function CollapsibleObserveEdge({
               flexShrink: 0,
             }}
           >
-            <button
-              type="button"
-              aria-label="Collapse observe panel"
-              data-action="collapse"
+            <ExpandCollapseButton
+              action="collapse"
+              label="Collapse observe panel"
               onClick={onExpandToggle}
-              style={{
-                display: 'flex',
-                alignItems: 'center',
-                justifyContent: 'center',
-                border: 'none',
-                background: 'transparent',
-                color: 'var(--nous-text-tertiary)',
-                cursor: 'pointer',
-                fontSize: 'var(--nous-font-size-md, 16px)',
-                padding: '2px 4px',
-                transition: 'var(--nous-hover-button-transition)',
-              }}
-            >
-              &#x203A;
-            </button>
+              icon={<ChevronRight size={16} />}
+            />
           </div>
           <div style={{ flex: '1 1 0%', overflow: 'auto' }}>
             {children}

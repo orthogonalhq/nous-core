@@ -2,6 +2,7 @@
 
 import * as React from 'react'
 import { clsx } from 'clsx'
+import { ChevronDown, ChevronRight, Settings, Plus } from 'lucide-react'
 import type {
   AssetSection,
   AssetSectionItem,
@@ -62,14 +63,14 @@ function TopNavItemRow({ item, isActive, onNavigate }: TopNavItemRowProps) {
           : isHovered
             ? 'var(--nous-bg-hover)'
             : 'transparent',
-        color: isActive ? 'var(--nous-text-primary)' : 'var(--nous-text-secondary)',
+        color: isActive ? 'var(--nous-text-primary)' : 'var(--nous-sidebar-item-fg)',
         fontSize: 'var(--nous-font-size-sm)',
         cursor: 'pointer',
         transition: 'var(--nous-hover-button-transition)',
         textAlign: 'left',
       }}
     >
-      <span style={{ display: 'flex', alignItems: 'center', flexShrink: 0 }}>
+      <span style={{ display: 'flex', alignItems: 'center', flexShrink: 0, color: 'var(--nous-sidebar-item-icon-fg)' }}>
         {item.icon}
       </span>
       <span>{item.label}</span>
@@ -106,7 +107,7 @@ function SectionHeader({ section, isCollapsed, onToggleCollapse }: SectionHeader
           gap: 'var(--nous-space-xs)',
           border: 'none',
           background: 'transparent',
-          color: 'var(--nous-text-secondary)',
+          color: 'var(--nous-sidebar-section-label-fg)',
           fontSize: 'var(--nous-font-size-xs)',
           fontWeight: 'var(--nous-font-weight-medium, 500)',
           textTransform: 'uppercase',
@@ -119,13 +120,14 @@ function SectionHeader({ section, isCollapsed, onToggleCollapse }: SectionHeader
           <span
             data-collapse-chevron
             style={{
-              display: 'inline-block',
+              display: 'inline-flex',
+              alignItems: 'center',
+              color: 'var(--nous-sidebar-section-chevron-fg)',
               transition: 'transform var(--nous-duration-fast, 150ms) var(--nous-ease-out, ease-out)',
               transform: isCollapsed ? 'rotate(-90deg)' : 'rotate(0deg)',
-              fontSize: '10px',
             }}
           >
-            &#x25BE;
+            <ChevronDown size={12} />
           </span>
         ) : null}
         <span>{section.label}</span>
@@ -140,15 +142,16 @@ function SectionHeader({ section, isCollapsed, onToggleCollapse }: SectionHeader
               data-action="settings"
               onClick={section.onSettings}
               style={{
+                display: 'inline-flex',
+                alignItems: 'center',
                 border: 'none',
                 background: 'transparent',
-                color: 'var(--nous-text-tertiary)',
+                color: 'var(--nous-sidebar-section-icon-fg)',
                 cursor: 'pointer',
                 padding: '2px',
-                fontSize: 'var(--nous-font-size-xs)',
               }}
             >
-              &#x2699;
+              <Settings size={12} />
             </button>
           ) : null}
           {section.onAdd ? (
@@ -158,15 +161,16 @@ function SectionHeader({ section, isCollapsed, onToggleCollapse }: SectionHeader
               data-action="add"
               onClick={section.onAdd}
               style={{
+                display: 'inline-flex',
+                alignItems: 'center',
                 border: 'none',
                 background: 'transparent',
-                color: 'var(--nous-text-tertiary)',
+                color: 'var(--nous-sidebar-section-icon-fg)',
                 cursor: 'pointer',
                 padding: '2px',
-                fontSize: 'var(--nous-font-size-xs)',
               }}
             >
-              +
+              <Plus size={12} />
             </button>
           ) : null}
         </div>
@@ -213,7 +217,7 @@ function SectionItemRow({ item, isActive, disabled, onNavigate }: SectionItemRow
           ? 'var(--nous-text-tertiary)'
           : isActive
             ? 'var(--nous-text-primary)'
-            : 'var(--nous-text-secondary)',
+            : 'var(--nous-sidebar-item-fg)',
         fontSize: 'var(--nous-font-size-sm)',
         cursor: disabled ? 'not-allowed' : 'pointer',
         opacity: disabled ? 0.5 : 1,
@@ -222,7 +226,7 @@ function SectionItemRow({ item, isActive, disabled, onNavigate }: SectionItemRow
       }}
     >
       {item.icon ? (
-        <span style={{ display: 'flex', alignItems: 'center', flexShrink: 0 }}>
+        <span style={{ display: 'flex', alignItems: 'center', flexShrink: 0, color: 'var(--nous-sidebar-item-icon-fg)' }}>
           {item.icon}
         </span>
       ) : null}
@@ -269,7 +273,15 @@ function AssetSectionBlock({ section, activeRoute, onNavigate }: AssetSectionBlo
         isCollapsed={isCollapsed}
         onToggleCollapse={toggleCollapse}
       />
-      {!isCollapsed ? (
+      <div
+        data-section-items={section.id}
+        style={{
+          maxHeight: isCollapsed ? '0px' : '500px',
+          overflow: 'hidden',
+          opacity: isCollapsed ? 0 : 1,
+          transition: 'max-height var(--nous-duration-normal) var(--nous-ease-out), opacity var(--nous-duration-fast) var(--nous-ease-out)',
+        }}
+      >
         <div
           style={{
             display: 'flex',
@@ -287,7 +299,7 @@ function AssetSectionBlock({ section, activeRoute, onNavigate }: AssetSectionBlo
             />
           ))}
         </div>
-      ) : null}
+      </div>
     </div>
   )
 }
@@ -334,7 +346,7 @@ export function AssetSidebar({
           style={{
             fontSize: 'var(--nous-font-size-sm)',
             fontWeight: 'var(--nous-font-weight-medium, 500)',
-            color: 'var(--nous-text-primary)',
+            color: 'var(--nous-sidebar-header-fg)',
           }}
         >
           {projectName}

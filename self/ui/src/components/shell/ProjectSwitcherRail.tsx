@@ -2,6 +2,7 @@
 
 import * as React from 'react'
 import { clsx } from 'clsx'
+import { Plus } from 'lucide-react'
 import type { ProjectItem, ProjectSwitcherRailProps } from './types'
 
 const AVATAR_SIZE = 32
@@ -34,37 +35,53 @@ function ProjectAvatar({ project, isActive, onSelect }: ProjectAvatarProps) {
   const bgColor = avatarColorFromId(project.id)
 
   return (
-    <button
-      type="button"
-      aria-label={project.name}
-      aria-current={isActive ? 'true' : undefined}
-      data-project-id={project.id}
-      onClick={() => onSelect(project.id)}
-      onMouseEnter={() => setIsHovered(true)}
-      onMouseLeave={() => setIsHovered(false)}
-      style={{
-        display: 'flex',
-        alignItems: 'center',
-        justifyContent: 'center',
-        width: AVATAR_SIZE,
-        height: AVATAR_SIZE,
-        borderRadius: 'var(--nous-radius-full, 50%)',
-        border: isActive
-          ? '2px solid var(--nous-accent)'
-          : '2px solid transparent',
-        background: bgColor,
-        color: '#fff',
-        fontSize: 'var(--nous-font-size-xs)',
-        fontWeight: 'var(--nous-font-weight-medium, 500)',
-        cursor: 'pointer',
-        transition: 'var(--nous-hover-button-transition)',
-        opacity: isHovered && !isActive ? 0.85 : 1,
-        padding: 0,
-        outline: 'none',
-      }}
-    >
-      {project.icon ?? getInitial(project.name)}
-    </button>
+    <div style={{ position: 'relative', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+      {isActive && (
+        <span
+          data-active-indicator
+          style={{
+            position: 'absolute',
+            left: 0,
+            top: '50%',
+            transform: 'translateY(-50%)',
+            width: '3px',
+            height: '20px',
+            borderRadius: '0 2px 2px 0',
+            background: 'var(--nous-accent)',
+          }}
+        />
+      )}
+      <button
+        type="button"
+        aria-label={project.name}
+        title={project.name}
+        aria-current={isActive ? 'true' : undefined}
+        data-project-id={project.id}
+        onClick={() => onSelect(project.id)}
+        onMouseEnter={() => setIsHovered(true)}
+        onMouseLeave={() => setIsHovered(false)}
+        style={{
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'center',
+          width: AVATAR_SIZE,
+          height: AVATAR_SIZE,
+          borderRadius: 'var(--nous-radius-full, 50%)',
+          border: '2px solid transparent',
+          background: bgColor,
+          color: 'var(--nous-fg-on-color)',
+          fontSize: 'var(--nous-font-size-xs)',
+          fontWeight: 'var(--nous-font-weight-medium, 500)',
+          cursor: 'pointer',
+          transition: 'var(--nous-hover-button-transition)',
+          opacity: isHovered && !isActive ? 0.85 : 1,
+          padding: 0,
+          outline: 'none',
+        }}
+      >
+        {project.icon ?? getInitial(project.name)}
+      </button>
+    </div>
   )
 }
 
@@ -157,7 +174,7 @@ export function ProjectSwitcherRail({
             transition: 'var(--nous-hover-button-transition)',
           }}
         >
-          +
+          <Plus size={14} />
         </button>
       ) : null}
     </div>

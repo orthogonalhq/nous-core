@@ -90,4 +90,29 @@ describe('CollapsibleObserveEdge', () => {
     const btn = container.querySelector('[data-action="expand"]') as HTMLButtonElement
     expect(btn.getAttribute('aria-label')).toBe('Expand observe panel')
   })
+
+  it('renders Lucide SVG icons for expand and collapse buttons', async () => {
+    // Collapsed state — expand button
+    await renderEdge({ width: 20 })
+    const expandBtn = container.querySelector('[data-action="expand"]')
+    expect(expandBtn?.querySelector('svg')).toBeTruthy()
+
+    // Expanded state — collapse button
+    await renderEdge({ width: 280 })
+    const collapseBtn = container.querySelector('[data-action="collapse"]')
+    expect(collapseBtn?.querySelector('svg')).toBeTruthy()
+  })
+
+  it('expand/collapse buttons have hover-capable styles (default transparent background with border-radius)', async () => {
+    await renderEdge({ width: 20 })
+    const expandBtn = container.querySelector('[data-action="expand"]') as HTMLElement
+    // Default background is transparent, ready for hover state
+    expect(expandBtn.style.background).toBe('transparent')
+    expect(expandBtn.style.borderRadius).toBe('var(--nous-radius-sm)')
+
+    await renderEdge({ width: 280 })
+    const collapseBtn = container.querySelector('[data-action="collapse"]') as HTMLElement
+    expect(collapseBtn.style.background).toBe('transparent')
+    expect(collapseBtn.style.borderRadius).toBe('var(--nous-radius-sm)')
+  })
 })
