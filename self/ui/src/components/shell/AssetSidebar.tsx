@@ -408,6 +408,17 @@ export function AssetSidebar({
           ))}
         </div>
       </div>
+
+      {/* Ambient gradient at sidebar bottom */}
+      <div style={{
+        position: 'absolute',
+        bottom: 0,
+        left: 0,
+        right: 0,
+        height: 40,
+        background: 'var(--nous-ambient-gradient)',
+        pointerEvents: 'none',
+      }} />
     </div>
   )
 }

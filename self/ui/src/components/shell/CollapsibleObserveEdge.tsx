@@ -83,7 +83,7 @@ export function CollapsibleObserveEdge({
           action="expand"
           label="Expand observe panel"
           onClick={onExpandToggle}
-          icon={<ChevronLeft size={16} />}
+          icon={<ChevronLeft size={16} style={{ color: 'rgba(255,255,255,0.5)' }} />}
           fullSize
         />
       ) : (
