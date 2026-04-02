@@ -40,13 +40,19 @@
   --nous-text-ghost:     rgba(255,255,255,0.12);
 
   /* ── Sidebar font colors ────────────────────────────────────────────── */
-  --nous-sidebar-label:          #2C2C2C;
-  --nous-sidebar-chevron:        #606060;
-  --nous-sidebar-group-icon:     #4B4B4B;
+  --nous-sidebar-label:          #666666;
+  --nous-sidebar-chevron:        #888888;
+  --nous-sidebar-group-icon:     #666666;
   --nous-sidebar-button-fg:      #A9A9A9;
-  --nous-sidebar-button-icon:    #FFFFFF;
+  --nous-sidebar-button-icon:    #A0A0A0;
   --nous-sidebar-title:          #FFFFFF;
   --nous-sidebar-collapse-icon:  #949494;
+
+  /* ── Search bar ───────────────────────────────────────────────────── */
+  --nous-search-bg:          #1a1a1a;
+  --nous-search-border:      #2a2a2a;
+  --nous-search-placeholder: #6a6a6a;
+  --nous-search-icon:        #6a6a6a;
 
   /* ── Accent / interactive ────────────────────────────────────────────── */
   --nous-accent:       #007acc;
@@ -178,7 +184,7 @@
   --nous-icon-size-lg: 20px;
 
   /* ── Chrome dimensions ─────────────────────────────────────────────── */
-  --nous-titlebar-height:    30px;
+  --nous-titlebar-height:    38px;
   --nous-statusbar-height:   22px;
   --nous-titlebar-btn-width: 46px;
   --nous-dv-tab-height:      35px;

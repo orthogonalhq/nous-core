@@ -54,7 +54,8 @@
   --nous-footer-border: var(--nous-border-subtle);
 
   /* ── Panel content ─────────────────────────────────────────────────── */
-  --nous-content-bg:    var(--nous-bg);
+  --nous-content-bg:    var(--nous-bg-base);
+  --nous-chat-full-bg:  #1A1A1A;
 
   /* ── Tab bar ─────────────────────────────────────────────────────── */
   --nous-tab-bar-bg:      var(--nous-bg);
