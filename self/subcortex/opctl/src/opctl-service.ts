@@ -29,6 +29,7 @@ import type { ProjectControlStateStore } from './project-control-state.js';
 function mapActorToWitness(actor: ControlActorType): WitnessActor {
   if (actor === 'principal') return 'principal';
   if (actor === 'orchestration_agent') return 'orchestration_agent';
+  if (actor === 'system_agent') return 'subcortex';
   return 'worker_agent';
 }
 
