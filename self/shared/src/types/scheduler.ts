@@ -30,10 +30,11 @@ export const ScheduleTriggerSpecSchema = z.discriminatedUnion('kind', [
 ]);
 export type ScheduleTriggerSpec = z.infer<typeof ScheduleTriggerSpecSchema>;
 
-export const ScheduleDefinitionSchema = z.object({
+export const ScheduleDefinitionBaseSchema = z.object({
   id: z.string().uuid(),
   projectId: ProjectIdSchema,
-  workflowDefinitionId: WorkflowDefinitionIdSchema,
+  workflowDefinitionId: WorkflowDefinitionIdSchema.optional(),
+  taskDefinitionId: z.string().uuid().optional(),
   workmodeId: WorkmodeIdSchema,
   trigger: ScheduleTriggerSpecSchema,
   enabled: z.boolean(),
@@ -44,12 +45,28 @@ export const ScheduleDefinitionSchema = z.object({
   createdAt: z.string().datetime(),
   updatedAt: z.string().datetime(),
 });
-export type ScheduleDefinition = z.infer<typeof ScheduleDefinitionSchema>;
+
+export const ScheduleDefinitionSchema = ScheduleDefinitionBaseSchema.refine(
+  (data) => {
+    const hasWorkflow = data.workflowDefinitionId != null;
+    const hasTask = data.taskDefinitionId != null;
+    return (hasWorkflow || hasTask) && !(hasWorkflow && hasTask);
+  },
+  { message: 'Exactly one of workflowDefinitionId or taskDefinitionId must be present' },
+);
+
+// Type derived from base for composition compatibility (ZodEffects does not support .omit/.extend)
+export type ScheduleDefinition = z.infer<typeof ScheduleDefinitionBaseSchema>;
 
 export const ScheduleUpsertInputSchema = z.object({
   id: z.string().uuid().optional(),
   projectId: ProjectIdSchema,
   workflowDefinitionId: WorkflowDefinitionIdSchema.optional(),
+  // Intentionally no exactly-one refinement: upsert input is deliberately looser
+  // because upsert() merges with existing schedule data. Requiring exactly-one at
+  // input time would break partial updates where the caller provides only one field
+  // and the other comes from the existing schedule.
+  taskDefinitionId: z.string().uuid().optional(),
   workmodeId: WorkmodeIdSchema.optional(),
   trigger: ScheduleTriggerSpecSchema,
   enabled: z.boolean().default(true),

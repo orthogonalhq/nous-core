@@ -106,6 +106,8 @@ export const MaoAgentProjectionSchema = z.object({
   project_id: ProjectIdSchema,
   workflow_run_id: WorkflowExecutionIdSchema.optional(),
   workflow_node_definition_id: WorkflowNodeDefinitionIdSchema.optional(),
+  task_definition_id: z.string().uuid().optional(),
+  task_name: z.string().optional(),
   dispatching_task_agent_id: z.string().uuid().nullable(),
   dispatch_origin_ref: z.string().min(1),
   agent_class: AgentClassSchema.optional(),

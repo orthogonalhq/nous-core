@@ -21,6 +21,7 @@ export * from './tools.js';
 export * from './artifacts.js';
 export * from './scheduler.js';
 export * from './sandbox.js';
+export * from './task.js';
 export * from './autonomic.js';
 export * from './escalation.js';
 export * from './evidence.js';

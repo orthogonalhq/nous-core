@@ -10,6 +10,7 @@ import {
   NodeIdSchema,
   WorkflowDefinitionIdSchema,
 } from './ids.js';
+import { TaskDefinitionSchema } from './task.js';
 import {
   NodeTypeSchema,
   ModelRoleSchema,
@@ -198,6 +199,7 @@ export const ProjectConfigSchema = z.object({
   escalationPreferences: ProjectEscalationPreferencesSchema.default({}),
   workflow: ProjectWorkflowConfigurationSchema.optional(),
   packageDefaultIntake: z.array(ProjectPackageDefaultIntakeSchema).default([]),
+  tasks: z.array(TaskDefinitionSchema).default([]),
   retrievalBudgetTokens: z.number().positive().default(500),
   createdAt: z.string().datetime(),
   updatedAt: z.string().datetime(),
