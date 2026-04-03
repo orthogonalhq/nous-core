@@ -961,6 +961,7 @@ function deriveHealthSummary(
   schedules: ScheduleDefinition[],
   escalations: InAppEscalationRecord[],
   controlState: Awaited<ReturnType<typeof getProjectControlState>>,
+  taskSummary?: { enabledTaskCount: number; recentTaskFailureCount: number },
 ) {
   const now = Date.now();
   const blockedNodeCount = workflowSnapshot.activeRunState?.blockedNodeIds.length ?? 0;
@@ -978,6 +979,8 @@ function deriveHealthSummary(
   const urgentEscalationCount = escalations.filter((item) =>
     ['high', 'critical'].includes(item.severity),
   ).length;
+  const enabledTaskCount = taskSummary?.enabledTaskCount ?? 0;
+  const recentTaskFailureCount = taskSummary?.recentTaskFailureCount ?? 0;
 
   let overallStatus: 'healthy' | 'attention_required' | 'blocked' | 'degraded' = 'healthy';
   if (
@@ -999,6 +1002,11 @@ function deriveHealthSummary(
     overallStatus = 'attention_required';
   }
 
+  // Task failure escalation: if recent task failures and not already worse
+  if (recentTaskFailureCount > 0 && overallStatus === 'healthy') {
+    overallStatus = 'attention_required';
+  }
+
   return {
     overallStatus,
     runtimeAvailability: workflowSnapshot.runtimeAvailability,
@@ -1009,6 +1017,8 @@ function deriveHealthSummary(
     overdueScheduleCount,
     openEscalationCount,
     urgentEscalationCount,
+    enabledTaskCount,
+    recentTaskFailureCount,
   } as const;
 }
 
@@ -1038,11 +1048,41 @@ export async function buildProjectDashboardSnapshot(
   const openEscalations = await ctx.escalationService.listProjectQueue(project.id);
   const controlState = await getProjectControlState(ctx, project.id);
   const blockedActions = deriveBlockedActions(controlState);
+
+  // Build task summary
+  const tasks = project.tasks ?? [];
+  const enabledTaskCount = tasks.filter((t) => t.enabled).length;
+
+  // Query recent executions for all project tasks
+  const projectExecutions = await ctx.documentStore.query<import('@nous/shared').TaskExecutionRecord>(
+    'task_executions',
+    { where: { projectId: project.id } },
+  );
+
+  // Sort by triggeredAt descending, take recent 10
+  const sortedRecent = projectExecutions
+    .sort((a, b) => b.triggeredAt.localeCompare(a.triggeredAt))
+    .slice(0, 10);
+
+  const recentFailureCount = sortedRecent.filter((e) => e.status === 'failed').length;
+
+  const taskSummary = {
+    totalCount: tasks.length,
+    enabledCount: enabledTaskCount,
+    recentExecutions: sortedRecent.map((e) => ({
+      taskId: e.taskDefinitionId,
+      taskName: tasks.find((t) => t.id === e.taskDefinitionId)?.name ?? 'Unknown',
+      status: e.status,
+      triggeredAt: e.triggeredAt,
+    })),
+  };
+
   const health = deriveHealthSummary(
     workflowSnapshot,
     schedules,
     openEscalations,
     controlState,
+    { enabledTaskCount, recentTaskFailureCount: recentFailureCount },
   );
 
   return ProjectDashboardSnapshotSchema.parse({
@@ -1054,6 +1094,7 @@ export async function buildProjectDashboardSnapshot(
     openEscalations,
     blockedActions,
     packageDefaultIntake: project.packageDefaultIntake,
+    taskSummary,
     diagnostics: {
       runtimePosture: 'single_process_local',
       degradedReasonCode: workflowSnapshot.diagnostics.degradedReasonCode,
