@@ -21,6 +21,7 @@ import {
   MaoEventTypeSchema,
   MaoSystemSnapshotInputSchema,
   MaoSystemSnapshotSchema,
+  BudgetUtilizationSchema,
 } from '../../types/mao.js';
 import { WorkflowNodeMetadataSchema } from '../../types/workflow.js';
 
@@ -633,5 +634,91 @@ describe('WorkflowNodeMetadataSchema — agentClass', () => {
         agentClass: 'InvalidClass',
       }),
     ).toThrow();
+  });
+});
+
+describe('BudgetUtilizationSchema', () => {
+  it('accepts valid budget utilization data', () => {
+    const parsed = BudgetUtilizationSchema.parse({
+      utilizationPercent: 73.5,
+      currentSpendUsd: 14.70,
+      budgetCeilingUsd: 20.00,
+      softAlertFired: true,
+      hardCeilingFired: false,
+    });
+    expect(parsed.utilizationPercent).toBe(73.5);
+    expect(parsed.softAlertFired).toBe(true);
+  });
+
+  it('rejects missing required fields', () => {
+    expect(() => BudgetUtilizationSchema.parse({ utilizationPercent: 50 })).toThrow();
+  });
+
+  it('rejects negative values', () => {
+    expect(() =>
+      BudgetUtilizationSchema.parse({
+        utilizationPercent: -10,
+        currentSpendUsd: 5,
+        budgetCeilingUsd: 20,
+        softAlertFired: false,
+        hardCeilingFired: false,
+      }),
+    ).toThrow();
+  });
+});
+
+describe('MaoProjectSnapshotSchema — budgetUtilization', () => {
+  const baseSnapshot = {
+    projectId: PROJECT_ID,
+    densityMode: 'D2',
+    controlProjection: {
+      project_id: PROJECT_ID,
+      project_control_state: 'running',
+      active_agent_count: 0,
+      blocked_agent_count: 0,
+      urgent_agent_count: 0,
+      pfc_project_review_status: 'none',
+      pfc_project_recommendation: 'continue',
+    },
+    grid: [],
+    graph: {
+      projectId: PROJECT_ID,
+      nodes: [],
+      edges: [],
+      generatedAt: '2026-04-01T00:00:00.000Z',
+    },
+    urgentOverlay: {
+      urgentAgentIds: [],
+      blockedAgentIds: [],
+      generatedAt: '2026-04-01T00:00:00.000Z',
+    },
+    summary: {
+      activeAgentCount: 0,
+      blockedAgentCount: 0,
+      failedAgentCount: 0,
+      waitingPfcAgentCount: 0,
+      urgentAgentCount: 0,
+    },
+    diagnostics: { runtimePosture: 'single_process_local' },
+    generatedAt: '2026-04-01T00:00:00.000Z',
+  };
+
+  it('accepts snapshot with budgetUtilization field', () => {
+    const parsed = MaoProjectSnapshotSchema.parse({
+      ...baseSnapshot,
+      budgetUtilization: {
+        utilizationPercent: 85,
+        currentSpendUsd: 17.00,
+        budgetCeilingUsd: 20.00,
+        softAlertFired: true,
+        hardCeilingFired: false,
+      },
+    });
+    expect(parsed.budgetUtilization?.utilizationPercent).toBe(85);
+  });
+
+  it('accepts snapshot without budgetUtilization field (backward compat)', () => {
+    const parsed = MaoProjectSnapshotSchema.parse(baseSnapshot);
+    expect(parsed.budgetUtilization).toBeUndefined();
   });
 });
