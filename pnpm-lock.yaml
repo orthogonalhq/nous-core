@@ -341,6 +341,9 @@ importers:
       '@nous/subcortex-communication-gateway':
         specifier: workspace:*
         version: link:../../subcortex/communication-gateway
+      '@nous/subcortex-cost':
+        specifier: workspace:*
+        version: link:../../subcortex/cost
       '@nous/subcortex-endpoint-trust':
         specifier: workspace:*
         version: link:../../subcortex/endpoint-trust

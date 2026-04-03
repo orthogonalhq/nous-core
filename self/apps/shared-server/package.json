@@ -48,6 +48,7 @@
     "@nous/subcortex-tools": "workspace:*",
     "@nous/subcortex-voice-control": "workspace:*",
     "@nous/subcortex-witnessd": "workspace:*",
+    "@nous/subcortex-cost": "workspace:*",
     "@nous/subcortex-workflows": "workspace:*",
     "@trpc/server": "^11.0.0-rc.0",
     "superjson": "^2.2.2",

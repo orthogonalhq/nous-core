@@ -108,6 +108,7 @@ import {
 import { MaoProjectionService, InferenceProjectionAdapter } from '@nous/subcortex-mao';
 import { registerCodingAgentNodeTypes } from '@nous/subcortex-coding-agents';
 import { GtmGateCalculator } from '@nous/subcortex-gtm';
+import { CostGovernanceService, createPricingTable } from '@nous/subcortex-cost';
 import { VoiceControlService } from '@nous/subcortex-voice-control';
 import {
   AppRuntimeService,
@@ -742,6 +743,13 @@ export function createNousServices(config?: BootstrapConfig): NousContext {
   });
   const providerRegistry = new ProviderRegistry(appConfig, { eventBus });
   const tokenAccumulator = new TokenAccumulatorService(eventBus);
+  const pricingTable = createPricingTable();
+  const costGovernanceService = new CostGovernanceService({
+    eventBus,
+    opctlService,
+    pricingTable,
+    getProjectConfig: () => undefined, // V1: policies managed via setBudgetPolicy
+  });
   const inferenceAdapter = new InferenceProjectionAdapter(eventBus);
   const thoughtEmitter = new ThoughtEmitterImpl(eventBus);
   Cortex.setThoughtEmitter(thoughtEmitter);
@@ -1308,6 +1316,7 @@ export function createNousServices(config?: BootstrapConfig): NousContext {
     healthAggregator,
     healthMonitor,
     tokenAccumulator,
+    costGovernanceService,
   };
 
   console.log(`[nous:${runtimeLabel}] bootstrap complete`);

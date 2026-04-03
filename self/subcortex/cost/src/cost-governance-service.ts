@@ -613,6 +613,10 @@ export class CostGovernanceService {
     // Does NOT clear cost data — project state (aggregation buckets, events) remains intact
   }
 
+  getBudgetPolicy(projectId: string): BudgetPolicy | null {
+    return this.budgetPolicies.get(projectId) ?? this.deps.getProjectConfig(projectId)?.budgetPolicy ?? null;
+  }
+
   // -----------------------------------------------------------------------
   // Lifecycle
   // -----------------------------------------------------------------------
