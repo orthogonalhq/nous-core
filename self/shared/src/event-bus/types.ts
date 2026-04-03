@@ -199,6 +199,8 @@ export const InferenceCallCompletePayloadSchema = z.object({
   latencyMs: z.number().nonnegative(),
   routingDecision: z.string().optional(),
   emittedAt: z.string().datetime(),
+  correlationRunId: z.string().optional(),
+  correlationParentId: z.string().optional(),
 });
 export type InferenceCallCompletePayload = z.infer<typeof InferenceCallCompletePayloadSchema>;
 
