@@ -11,6 +11,12 @@
  * UI-push via the event bus.
  */
 import { z } from 'zod';
+import type {
+  CostEvent,
+  BudgetAlertPayload,
+  BudgetExceededPayload,
+  CostSnapshotPayload,
+} from '../types/cost.js';
 
 // --- Health Domain ---
 
@@ -276,6 +282,10 @@ export interface EventChannelMap {
   'workflow:node-status-changed': WorkflowNodeStatusChangedPayload;
   'workflow:run-completed': WorkflowRunCompletedPayload;
   'workflow:spec-updated': WorkflowSpecUpdatedPayload;
+  'cost:event-recorded': CostEvent;
+  'cost:budget-alert': BudgetAlertPayload;
+  'cost:budget-exceeded': BudgetExceededPayload;
+  'cost:snapshot': CostSnapshotPayload;
 }
 
 /**
