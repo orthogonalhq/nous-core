@@ -310,10 +310,28 @@ export class SchedulerService {
   async register(schedule: ScheduleDefinition): Promise<string> {
     const timestamp = this.nowIso();
     const project = await this.loadProject(schedule.projectId);
-    const workflowDefinitionId = this.resolveWorkflowDefinitionId(
-      project,
-      schedule.workflowDefinitionId,
-    );
+
+    let workflowDefinitionId = schedule.workflowDefinitionId;
+
+    // Branch: task schedule vs workflow schedule
+    if (schedule.taskDefinitionId) {
+      // Validate task exists in project
+      const task = (project.tasks ?? []).find(
+        (t) => t.id === schedule.taskDefinitionId,
+      );
+      if (!task) {
+        throw new Error(
+          `Task definition ${schedule.taskDefinitionId} not found in project ${schedule.projectId}`,
+        );
+      }
+      // Skip resolveWorkflowDefinitionId for task schedules
+    } else {
+      // Existing workflow path
+      workflowDefinitionId = this.resolveWorkflowDefinitionId(
+        project,
+        schedule.workflowDefinitionId,
+      );
+    }
 
     const normalized = ScheduleDefinitionSchema.parse({
       ...schedule,
@@ -322,7 +340,7 @@ export class SchedulerService {
       updatedAt: timestamp,
       nextDueAt:
         schedule.nextDueAt ??
-        this.computeInitialNextDueAt(schedule, timestamp),
+        this.computeInitialNextDueAt(schedule as ScheduleDefinition, timestamp),
     });
 
     await this.options.scheduleStore.save(normalized);
@@ -337,15 +355,37 @@ export class SchedulerService {
       ? await this.options.scheduleStore.get(normalizedInput.id)
       : null;
     const project = await this.loadProject(normalizedInput.projectId);
-    const workflowDefinitionId = this.resolveWorkflowDefinitionId(
-      project,
-      normalizedInput.workflowDefinitionId ?? existing?.workflowDefinitionId,
-    );
+
+    // Resolve the effective taskDefinitionId (from input or existing schedule)
+    const effectiveTaskDefinitionId =
+      normalizedInput.taskDefinitionId ?? existing?.taskDefinitionId;
+
+    let workflowDefinitionId: WorkflowDefinitionId | undefined;
+
+    // Branch: task schedule vs workflow schedule
+    if (effectiveTaskDefinitionId) {
+      // Validate task exists in project
+      const task = (project.tasks ?? []).find(
+        (t) => t.id === effectiveTaskDefinitionId,
+      );
+      if (!task) {
+        throw new Error(
+          `Task definition ${effectiveTaskDefinitionId} not found in project ${normalizedInput.projectId}`,
+        );
+      }
+      // Skip resolveWorkflowDefinitionId for task schedules
+    } else {
+      workflowDefinitionId = this.resolveWorkflowDefinitionId(
+        project,
+        normalizedInput.workflowDefinitionId ?? existing?.workflowDefinitionId,
+      );
+    }
 
     const merged = ScheduleDefinitionSchema.parse({
       id: scheduleId,
       projectId: normalizedInput.projectId,
       workflowDefinitionId,
+      taskDefinitionId: effectiveTaskDefinitionId,
       workmodeId:
         normalizedInput.workmodeId ??
         existing?.workmodeId ??
