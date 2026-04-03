@@ -912,6 +912,15 @@ importers:
         specifier: ^2.1.0
         version: 2.1.9(@types/node@20.19.33)(jsdom@26.1.0)(lightningcss@1.30.2)
 
+  self/subcortex/cost:
+    dependencies:
+      '@nous/shared':
+        specifier: workspace:*
+        version: link:../../shared
+      zod:
+        specifier: ^3.24.1
+        version: 3.25.76
+
   self/subcortex/endpoint-trust:
     dependencies:
       '@nous/shared':
