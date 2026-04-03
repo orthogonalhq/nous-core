@@ -176,6 +176,148 @@ describe('ProjectConfigurationUpdateInputSchema', () => {
   });
 });
 
+describe('ProjectHealthSummarySchema — task fields', () => {
+  it('applies defaults for task health fields', () => {
+    const result = ProjectHealthSummarySchema.safeParse({
+      overallStatus: 'healthy',
+      runtimeAvailability: 'live',
+      blockedNodeCount: 0,
+      waitingNodeCount: 0,
+      enabledScheduleCount: 0,
+      overdueScheduleCount: 0,
+      openEscalationCount: 0,
+      urgentEscalationCount: 0,
+    });
+    expect(result.success).toBe(true);
+    if (result.success) {
+      expect(result.data.enabledTaskCount).toBe(0);
+      expect(result.data.recentTaskFailureCount).toBe(0);
+    }
+  });
+
+  it('accepts populated task health fields', () => {
+    const result = ProjectHealthSummarySchema.safeParse({
+      overallStatus: 'attention_required',
+      runtimeAvailability: 'live',
+      blockedNodeCount: 0,
+      waitingNodeCount: 0,
+      enabledScheduleCount: 0,
+      overdueScheduleCount: 0,
+      openEscalationCount: 0,
+      urgentEscalationCount: 0,
+      enabledTaskCount: 3,
+      recentTaskFailureCount: 1,
+    });
+    expect(result.success).toBe(true);
+    if (result.success) {
+      expect(result.data.enabledTaskCount).toBe(3);
+      expect(result.data.recentTaskFailureCount).toBe(1);
+    }
+  });
+});
+
+describe('ProjectDashboardSnapshotSchema — taskSummary field', () => {
+  it('applies default taskSummary when not provided', () => {
+    const result = ProjectDashboardSnapshotSchema.safeParse({
+      project: {
+        id: PROJECT_ID,
+        name: 'Test',
+        type: 'hybrid',
+      },
+      health: {
+        overallStatus: 'healthy',
+        runtimeAvailability: 'live',
+        blockedNodeCount: 0,
+        waitingNodeCount: 0,
+        enabledScheduleCount: 0,
+        overdueScheduleCount: 0,
+        openEscalationCount: 0,
+        urgentEscalationCount: 0,
+      },
+      controlProjection: null,
+      workflowSnapshot: null,
+      diagnostics: {
+        runtimePosture: 'single_process_local',
+      },
+    });
+    expect(result.success).toBe(true);
+    if (result.success) {
+      expect(result.data.taskSummary).toEqual({
+        totalCount: 0,
+        enabledCount: 0,
+        recentExecutions: [],
+      });
+    }
+  });
+
+  it('accepts populated taskSummary', () => {
+    const result = ProjectDashboardSnapshotSchema.safeParse({
+      project: {
+        id: PROJECT_ID,
+        name: 'Test',
+        type: 'hybrid',
+      },
+      health: {
+        overallStatus: 'healthy',
+        runtimeAvailability: 'live',
+        blockedNodeCount: 0,
+        waitingNodeCount: 0,
+        enabledScheduleCount: 0,
+        overdueScheduleCount: 0,
+        openEscalationCount: 0,
+        urgentEscalationCount: 0,
+      },
+      controlProjection: null,
+      workflowSnapshot: null,
+      taskSummary: {
+        totalCount: 2,
+        enabledCount: 1,
+        recentExecutions: [
+          {
+            taskId: '550e8400-e29b-41d4-a716-446655440500',
+            taskName: 'Daily Report',
+            status: 'completed',
+            triggeredAt: NOW,
+          },
+        ],
+      },
+      diagnostics: {
+        runtimePosture: 'single_process_local',
+      },
+    });
+    expect(result.success).toBe(true);
+    if (result.success) {
+      expect(result.data.taskSummary.totalCount).toBe(2);
+      expect(result.data.taskSummary.recentExecutions).toHaveLength(1);
+    }
+  });
+
+  it('z.array(ScheduleDefinitionSchema) parses correctly after base/refined split', async () => {
+    // Verify that ScheduleDefinitionSchema (now ZodEffects) works inside z.array()
+    // This validates the pattern used in ProjectDashboardSnapshotSchema and
+    // ProjectConfigurationSnapshotSchema
+    const { ScheduleDefinitionSchema } = await import('../../types/scheduler.js');
+    const { z } = await import('zod');
+    const arraySchema = z.array(ScheduleDefinitionSchema);
+    const result = arraySchema.safeParse([
+      {
+        id: '550e8400-e29b-41d4-a716-446655440112',
+        projectId: PROJECT_ID,
+        workflowDefinitionId: WORKFLOW_ID,
+        workmodeId: 'system:implementation',
+        enabled: true,
+        createdAt: NOW,
+        updatedAt: NOW,
+        trigger: {
+          kind: 'cron',
+          cron: '0 * * * *',
+        },
+      },
+    ]);
+    expect(result.success).toBe(true);
+  });
+});
+
 describe('MobileOperationsSnapshotSchema', () => {
   it('parses mobile operating snapshots that compose canonical dashboard, queue, voice, and trust truth', () => {
     const result = MobileOperationsSnapshotSchema.safeParse({

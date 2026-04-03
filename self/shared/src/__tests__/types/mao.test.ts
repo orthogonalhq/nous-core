@@ -496,6 +496,50 @@ describe('MaoAgentProjectionSchema — agent_class and display_name', () => {
   });
 });
 
+describe('MaoAgentProjectionSchema — task fields', () => {
+  const base = {
+    agent_id: AGENT_ID,
+    project_id: PROJECT_ID,
+    dispatching_task_agent_id: null,
+    dispatch_origin_ref: 'ref-1',
+    state: 'running' as const,
+    current_step: 'step-1',
+    progress_percent: 50,
+    risk_level: 'low' as const,
+    urgency_level: 'normal' as const,
+    attention_level: 'none' as const,
+    pfc_alert_status: 'none',
+    pfc_mitigation_status: 'none',
+    dispatch_state: 'dispatched',
+    reflection_cycle_count: 0,
+    last_update_at: '2026-02-24T22:00:00.000Z',
+    reasoning_log_preview: null,
+    reasoning_log_redaction_state: 'none' as const,
+  };
+
+  it('accepts projection with task_definition_id and task_name', () => {
+    const result = MaoAgentProjectionSchema.parse({
+      ...base,
+      task_definition_id: '66666666-6666-6666-6666-666666666666',
+      task_name: 'Daily Report',
+    });
+    expect(result.task_definition_id).toBe('66666666-6666-6666-6666-666666666666');
+    expect(result.task_name).toBe('Daily Report');
+  });
+
+  it('allows task_definition_id and task_name to be omitted (backward compat)', () => {
+    const result = MaoAgentProjectionSchema.parse(base);
+    expect(result.task_definition_id).toBeUndefined();
+    expect(result.task_name).toBeUndefined();
+  });
+
+  it('rejects invalid task_definition_id (not UUID)', () => {
+    expect(() =>
+      MaoAgentProjectionSchema.parse({ ...base, task_definition_id: 'not-uuid' }),
+    ).toThrow();
+  });
+});
+
 describe('MaoSystemSnapshotInputSchema', () => {
   it('applies default densityMode of D2', () => {
     const result = MaoSystemSnapshotInputSchema.parse({});
