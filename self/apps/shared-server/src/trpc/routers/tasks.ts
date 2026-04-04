@@ -8,41 +8,44 @@
 import { z } from 'zod';
 import { randomUUID } from 'node:crypto';
 import { TRPCError } from '@trpc/server';
-import {
-  ProjectIdSchema,
-  TaskCreateInputSchema,
-  TaskUpdateInputSchema,
-  TaskTriggerConfigSchema,
-} from '@nous/shared';
+import { ProjectIdSchema } from '@nous/shared';
 import type { TaskDefinition, TaskExecutionRecord, ProjectConfig } from '@nous/shared';
 import { router, publicProcedure } from '../trpc';
 
-// ── Defensive fallback schemas ───────────────────────────────────────────────
-// The desktop backend uses tsx/CJS loader which can fail to resolve barrel
-// re-exports from @nous/shared. Fallbacks must be fully self-contained —
-// they cannot reference other potentially-undefined barrel imports.
+// ── Input schemas defined locally ────────────────────────────────────────────
+// Canonical schemas live in @nous/shared/types/task.ts. They are duplicated
+// here because the desktop backend (tsx/CJS) intermittently fails to resolve
+// new barrel re-exports from @nous/shared. This is safe: the tRPC input
+// schemas only validate incoming requests — the stored data uses
+// TaskDefinitionSchema from @nous/shared via ProjectConfigSchema.
 
-const FallbackTriggerConfigSchema = z.discriminatedUnion('type', [
+const TriggerConfigSchema = z.discriminatedUnion('type', [
   z.object({ type: z.literal('manual') }),
-  z.object({ type: z.literal('heartbeat'), cronExpression: z.string().min(1), timezone: z.string().default('UTC') }),
-  z.object({ type: z.literal('webhook'), pathSegment: z.string().min(1), secret: z.string().min(32) }),
+  z.object({
+    type: z.literal('heartbeat'),
+    cronExpression: z.string().min(1),
+    timezone: z.string().default('UTC'),
+  }),
+  z.object({
+    type: z.literal('webhook'),
+    pathSegment: z.string().min(1),
+    secret: z.string().min(32),
+  }),
 ]);
 
-const ResolvedTriggerConfigSchema = TaskTriggerConfigSchema ?? FallbackTriggerConfigSchema;
-
-const ResolvedTaskCreateInputSchema = TaskCreateInputSchema ?? z.object({
+const TaskCreateInputSchema = z.object({
   name: z.string().min(1).max(100),
   description: z.string().default(''),
-  trigger: ResolvedTriggerConfigSchema,
+  trigger: TriggerConfigSchema,
   orchestratorInstructions: z.string().min(1),
   context: z.record(z.unknown()).optional(),
   enabled: z.boolean().default(false),
 });
 
-const ResolvedTaskUpdateInputSchema = TaskUpdateInputSchema ?? z.object({
+const TaskUpdateInputSchema = z.object({
   name: z.string().min(1).max(100).optional(),
   description: z.string().optional(),
-  trigger: ResolvedTriggerConfigSchema.optional(),
+  trigger: TriggerConfigSchema.optional(),
   orchestratorInstructions: z.string().min(1).optional(),
   context: z.record(z.unknown()).optional(),
   enabled: z.boolean().optional(),
@@ -107,7 +110,7 @@ export const tasksRouter = router({
     }),
 
   create: publicProcedure
-    .input(z.object({ projectId: ProjectIdSchema, task: ResolvedTaskCreateInputSchema }))
+    .input(z.object({ projectId: ProjectIdSchema, task: TaskCreateInputSchema }))
     .mutation(async ({ ctx, input }): Promise<TaskDefinition> => {
       const project = await ctx.projectStore.get(input.projectId);
       if (!project) {
@@ -144,7 +147,7 @@ export const tasksRouter = router({
     .input(z.object({
       projectId: ProjectIdSchema,
       taskId: z.string().uuid(),
-      updates: ResolvedTaskUpdateInputSchema,
+      updates: TaskUpdateInputSchema,
     }))
     .mutation(async ({ ctx, input }): Promise<TaskDefinition> => {
       const project = await ctx.projectStore.get(input.projectId);
