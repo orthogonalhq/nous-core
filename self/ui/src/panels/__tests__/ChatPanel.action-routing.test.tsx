@@ -71,7 +71,7 @@ describe('ChatPanel — Action Routing Integration', () => {
     const api = makeChatApi([
       {
         role: 'assistant',
-        content: '<StatusCard title="Done" status="complete" message="Finished" />',
+        content: '<StatusCard title="Done" status="complete" description="Finished" />',
         timestamp: '2026-01-01T00:00:00Z',
         contentType: 'openui',
         actionOutcome: { actionType: 'approve', label: 'Approved', timestamp: '2026-01-01T00:01:00Z' },
@@ -88,13 +88,13 @@ describe('ChatPanel — Action Routing Integration', () => {
     const api = makeChatApi([
       {
         role: 'assistant',
-        content: '<StatusCard title="First" status="active" message="First card" />',
+        content: '<StatusCard title="First" status="active" description="First card" />',
         timestamp: '2026-01-01T00:00:00Z',
         contentType: 'openui',
       },
       {
         role: 'assistant',
-        content: '<StatusCard title="Second" status="active" message="Second card" />',
+        content: '<StatusCard title="Second" status="active" description="Second card" />',
         timestamp: '2026-01-01T00:01:00Z',
         contentType: 'openui',
       },

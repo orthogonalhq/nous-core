@@ -19,13 +19,35 @@ export interface ParsedModelOutput {
 const OPENUI_PREFIX = '%%openui\n';
 
 /**
- * Detect and strip the `%%openui\n` prefix from a response string.
- * Returns the stripped response and contentType.
+ * Detect whether a response contains OpenUI card content.
+ * Checks for `%%openui\n` prefix (legacy, stripped when present) and
+ * inline card tag patterns (`<StatusCard`, `<ActionCard`, etc.).
+ * Returns the (possibly stripped) response and contentType.
  */
 function detectContentType(response: string): { response: string; contentType: 'text' | 'openui' } {
+  // 1. Strip %%openui\n prefix if present (backward compat)
+  let stripped = response;
+  let hadPrefix = false;
   if (response.startsWith(OPENUI_PREFIX)) {
-    return { response: response.slice(OPENUI_PREFIX.length), contentType: 'openui' };
+    stripped = response.slice(OPENUI_PREFIX.length);
+    hadPrefix = true;
   }
+
+  // 2. Check for registered card tag patterns inline
+  const CARD_TAG_PATTERNS = [
+    '<StatusCard',
+    '<ActionCard',
+    '<ApprovalCard',
+    '<WorkflowCard',
+    '<FollowUpBlock',
+  ];
+  const hasCardTag = CARD_TAG_PATTERNS.some(pattern => stripped.includes(pattern));
+
+  // 3. If prefix was present OR card tags found, it's openui content
+  if (hadPrefix || hasCardTag) {
+    return { response: stripped, contentType: 'openui' };
+  }
+
   return { response, contentType: 'text' };
 }
 

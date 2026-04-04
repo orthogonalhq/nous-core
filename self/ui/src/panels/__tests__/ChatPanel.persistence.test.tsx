@@ -27,7 +27,7 @@ describe('ChatPanel — Persistence Round-Trip', () => {
     const api = makeChatApi([
       {
         role: 'assistant',
-        content: '<StatusCard title="Persisted" status="active" message="From STM" />',
+        content: '<StatusCard title="Persisted" status="active" description="From STM" />',
         timestamp: '2026-01-01T00:00:00Z',
         contentType: 'openui',
       },
@@ -40,7 +40,7 @@ describe('ChatPanel — Persistence Round-Trip', () => {
     const api = makeChatApi([
       {
         role: 'assistant',
-        content: '<StatusCard title="Actioned" status="complete" message="Done" />',
+        content: '<StatusCard title="Actioned" status="complete" description="Done" />',
         timestamp: '2026-01-01T00:00:00Z',
         contentType: 'openui',
         actionOutcome: { actionType: 'approve', label: 'Approved', timestamp: '2026-01-01T00:01:00Z' },
@@ -97,7 +97,7 @@ describe('ChatPanel — Persistence Round-Trip', () => {
       { role: 'user', content: 'First question', timestamp: '2026-01-01T00:00:00Z' },
       {
         role: 'assistant',
-        content: '<StatusCard title="Card1" status="complete" message="Old" />',
+        content: '<StatusCard title="Card1" status="complete" description="Old" />',
         timestamp: '2026-01-01T00:01:00Z',
         contentType: 'openui',
         actionOutcome: { actionType: 'approve', label: 'Done', timestamp: '2026-01-01T00:02:00Z' },

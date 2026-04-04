@@ -13,14 +13,14 @@ function makeProps(
     props: {
       title: 'Test Status',
       status: 'active',
-      message: 'Something is happening',
+      description: 'Something is happening',
       ...overrides,
     },
   }
 }
 
 describe('StatusCard', () => {
-  it('renders title and message', () => {
+  it('renders title and description', () => {
     render(<StatusCard {...makeProps()} />)
     expect(screen.getByText('Test Status')).toBeTruthy()
     expect(screen.getByText('Something is happening')).toBeTruthy()

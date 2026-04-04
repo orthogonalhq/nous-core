@@ -31,20 +31,20 @@ describe('parseModelOutput — contentType detection', () => {
   });
 
   it('%%openui\\n prefixed input: prefix stripped, contentType openui', () => {
-    const input = '%%openui\n<StatusCard title="Test" status="active" message="Hello" />';
+    const input = '%%openui\n<StatusCard title="Test" status="active" description="Hello" />';
     const result = parseModelOutput(input, TRACE_ID);
-    expect(result.response).toBe('<StatusCard title="Test" status="active" message="Hello" />');
+    expect(result.response).toBe('<StatusCard title="Test" status="active" description="Hello" />');
     expect(result.contentType).toBe('openui');
   });
 
   it('JSON envelope with %%openui\\n in response field: prefix stripped, contentType openui', () => {
     const input = JSON.stringify({
-      response: '%%openui\n<StatusCard title="Test" status="active" message="Hi" />',
+      response: '%%openui\n<StatusCard title="Test" status="active" description="Hi" />',
       toolCalls: [],
       memoryCandidates: [],
     });
     const result = parseModelOutput(input, TRACE_ID);
-    expect(result.response).toBe('<StatusCard title="Test" status="active" message="Hi" />');
+    expect(result.response).toBe('<StatusCard title="Test" status="active" description="Hi" />');
     expect(result.contentType).toBe('openui');
   });
 
@@ -78,10 +78,11 @@ describe('parseModelOutput — contentType detection', () => {
   // Tier 3 — Edge Cases
   // ---------------------------------------------------------------------------
 
-  it('%%openui without trailing \\n: treated as plain text', () => {
+  it('%%openui without trailing \\n: prefix not stripped, but inline <StatusCard detected as openui', () => {
     const result = parseModelOutput('%%openui<StatusCard />', TRACE_ID);
+    // Prefix not stripped (no \n), but <StatusCard tag detected inline
     expect(result.response).toBe('%%openui<StatusCard />');
-    expect(result.contentType).toBe('text');
+    expect(result.contentType).toBe('openui');
   });
 
   it('%%openui\\n prefix but no content after: contentType openui, empty response', () => {
@@ -111,5 +112,47 @@ describe('parseModelOutput — contentType detection', () => {
     const result = parseModelOutput({ response: 'Plain text.' }, TRACE_ID);
     expect(result.response).toBe('Plain text.');
     expect(result.contentType).toBe('text');
+  });
+
+  // ---------------------------------------------------------------------------
+  // Tier 2 — Inline card tag detection (Phase 2.1)
+  // ---------------------------------------------------------------------------
+
+  it('inline <StatusCard without prefix: contentType openui, response unchanged', () => {
+    const input = 'Here are results:\n<StatusCard title="Done" status="complete" description="OK" />';
+    const result = parseModelOutput(input, TRACE_ID);
+    expect(result.contentType).toBe('openui');
+    expect(result.response).toBe(input);
+  });
+
+  it('mixed prose with <ActionCard inline: contentType openui', () => {
+    const input = 'Try this:\n<ActionCard title="Go" description="Now" actions={[]} />\nDone.';
+    const result = parseModelOutput(input, TRACE_ID);
+    expect(result.contentType).toBe('openui');
+    expect(result.response).toBe(input);
+  });
+
+  it('%%openui\\n prefix backward compat: prefix stripped, contentType openui', () => {
+    const input = '%%openui\n<StatusCard title="T" status="active" description="M" />';
+    const result = parseModelOutput(input, TRACE_ID);
+    expect(result.contentType).toBe('openui');
+    expect(result.response).toBe('<StatusCard title="T" status="active" description="M" />');
+  });
+
+  it('plain text with no card tags: contentType text', () => {
+    const result = parseModelOutput('Just explaining something.', TRACE_ID);
+    expect(result.contentType).toBe('text');
+    expect(result.response).toBe('Just explaining something.');
+  });
+
+  it('non-registered <SomeComponent> tag: contentType text', () => {
+    const result = parseModelOutput('<SomeComponent prop="val" />', TRACE_ID);
+    expect(result.contentType).toBe('text');
+  });
+
+  it('prefix present but no card tags after stripping: contentType openui (backward compat)', () => {
+    const result = parseModelOutput('%%openui\nJust some text', TRACE_ID);
+    expect(result.contentType).toBe('openui');
+    expect(result.response).toBe('Just some text');
   });
 });

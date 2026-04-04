@@ -1,39 +1,6 @@
-import { parseCardContent, renderCardTree, getCardRegistry } from '../../components/chat/openui-adapter'
-import type { RenderCardContext, CardAction, NousCardElement } from '../../components/chat/openui-adapter'
+import { parseCardContent, renderCardTree } from '../../components/chat/openui-adapter'
+import type { RenderCardContext, CardAction } from '../../components/chat/openui-adapter'
 import type { ChatMessage } from './types'
-
-const OPENUI_PREFIX = '%%openui\n'
-
-/**
- * Determine whether a message should be treated as OpenUI card content.
- * Uses contentType metadata (primary) with %%openui\n prefix fallback (secondary).
- *
- * Validates that all card types in the content are registered. If any
- * unknown/hallucinated types are found, falls back to plain text rendering.
- */
-export function detectCardContent(msg: ChatMessage): { isCard: boolean; content: string } {
-  let candidate: string | null = null
-
-  if (msg.contentType === 'openui') {
-    candidate = msg.content
-  } else if (!msg.contentType && msg.content.startsWith(OPENUI_PREFIX)) {
-    candidate = msg.content.slice(OPENUI_PREFIX.length)
-  }
-
-  if (candidate !== null && containsOnlyRegisteredCards(candidate)) {
-    return { isCard: true, content: candidate }
-  }
-  return { isCard: false, content: msg.content }
-}
-
-/** Parse content and verify every card type exists in the registry. */
-function containsOnlyRegisteredCards(content: string): boolean {
-  const result = parseCardContent(content)
-  if (!result.ok) return false
-
-  const registry = getCardRegistry()
-  return result.tree.every(el => typeof el === 'string' || registry.has((el as NousCardElement).type))
-}
 
 /**
  * Render an OpenUI card message. Falls back to plain text on parse failure.

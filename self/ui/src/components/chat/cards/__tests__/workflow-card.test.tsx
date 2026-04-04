@@ -15,7 +15,7 @@ function makeProps(
       workflowId: 'wf-123',
       status: 'running',
       nodeCount: 5,
-      summary: 'Processing data from input sources',
+      description: 'Processing data from input sources',
       ...overrides,
     },
   }
@@ -68,15 +68,15 @@ describe('WorkflowCard', () => {
     expect(screen.queryByTestId('workflow-node-count')).toBeNull()
   })
 
-  it('renders summary text when provided', () => {
+  it('renders description text when provided', () => {
     render(<WorkflowCard {...makeProps()} />)
-    expect(screen.getByTestId('workflow-summary')).toBeTruthy()
+    expect(screen.getByTestId('workflow-description')).toBeTruthy()
     expect(screen.getByText('Processing data from input sources')).toBeTruthy()
   })
 
-  it('does not render summary when absent', () => {
-    render(<WorkflowCard {...makeProps({ summary: undefined })} />)
-    expect(screen.queryByTestId('workflow-summary')).toBeNull()
+  it('does not render description when absent', () => {
+    render(<WorkflowCard {...makeProps({ description: undefined })} />)
+    expect(screen.queryByTestId('workflow-description')).toBeNull()
   })
 
   it('Run button emits correct CardAction payload', () => {

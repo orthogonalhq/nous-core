@@ -37,7 +37,7 @@ describe('ChatPanel — Content Detection and Renderer Branching', () => {
     const api = makeChatApi([
       {
         role: 'assistant',
-        content: '<StatusCard title="Test" status="active" message="Hi" />',
+        content: '<StatusCard title="Test" status="active" description="Hi" />',
         timestamp: '2026-01-01T00:00:00Z',
         contentType: 'openui',
       },
@@ -50,7 +50,7 @@ describe('ChatPanel — Content Detection and Renderer Branching', () => {
     const api = makeChatApi([
       {
         role: 'assistant',
-        content: '%%openui\n<StatusCard title="Fallback" status="active" message="Fb" />',
+        content: '%%openui\n<StatusCard title="Fallback" status="active" description="Fb" />',
         timestamp: '2026-01-01T00:00:00Z',
       },
     ])
@@ -67,7 +67,7 @@ describe('ChatPanel — Content Detection and Renderer Branching', () => {
     expect(screen.queryByTestId('openui-card-container')).toBeNull()
   })
 
-  it('assistant message with contentType openui and malformed markup: falls back to plain text', async () => {
+  it('assistant message with contentType openui but no card tags: renders as plain text (segment splitter finds no cards)', async () => {
     const api = makeChatApi([
       {
         role: 'assistant',
@@ -77,24 +77,23 @@ describe('ChatPanel — Content Detection and Renderer Branching', () => {
       },
     ])
     render(<ChatPanel chatApi={api} />)
-    // Malformed content cannot parse to valid registered cards → plain text fallback
+    // Segment splitter finds no card tags, so content renders as plain text
     expect(await screen.findByText('this is not valid card markup at all')).toBeTruthy()
     expect(screen.queryByTestId('openui-card-container')).toBeNull()
-    expect(screen.queryByTestId('card-parse-error')).toBeNull()
   })
 
   it('user message: always plain text regardless of content', async () => {
     const api = makeChatApi([
       {
         role: 'user',
-        content: '<StatusCard title="Fake" status="active" message="M" />',
+        content: '<StatusCard title="Fake" status="active" description="M" />',
         timestamp: '2026-01-01T00:00:00Z',
         contentType: 'openui' as any,
       },
     ])
     render(<ChatPanel chatApi={api} />)
     // User messages should render as plain text
-    expect(await screen.findByText('<StatusCard title="Fake" status="active" message="M" />')).toBeTruthy()
+    expect(await screen.findByText('<StatusCard title="Fake" status="active" description="M" />')).toBeTruthy()
     expect(screen.queryByTestId('openui-card-container')).toBeNull()
   })
 
@@ -106,14 +105,14 @@ describe('ChatPanel — Content Detection and Renderer Branching', () => {
     const api = makeChatApi([
       {
         role: 'assistant',
-        content: '<StatusCard title="Old" status="complete" message="Done" />',
+        content: '<StatusCard title="Old" status="complete" description="Done" />',
         timestamp: '2026-01-01T00:00:00Z',
         contentType: 'openui',
       },
       { role: 'user', content: 'next', timestamp: '2026-01-01T00:01:00Z' },
       {
         role: 'assistant',
-        content: '<StatusCard title="New" status="active" message="Current" />',
+        content: '<StatusCard title="New" status="active" description="Current" />',
         timestamp: '2026-01-01T00:02:00Z',
         contentType: 'openui',
       },
@@ -129,7 +128,7 @@ describe('ChatPanel — Content Detection and Renderer Branching', () => {
     const api = makeChatApi([
       {
         role: 'assistant',
-        content: '<StatusCard title="Actioned" status="complete" message="Done" />',
+        content: '<StatusCard title="Actioned" status="complete" description="Done" />',
         timestamp: '2026-01-01T00:00:00Z',
         contentType: 'openui',
         actionOutcome: { actionType: 'approve', label: 'Approved', timestamp: '2026-01-01T00:01:00Z' },
@@ -146,7 +145,7 @@ describe('ChatPanel — Content Detection and Renderer Branching', () => {
     const api = makeChatApi([
       {
         role: 'assistant',
-        content: '<StatusCard title="Live" status="active" message="Current" />',
+        content: '<StatusCard title="Live" status="active" description="Current" />',
         timestamp: '2026-01-01T00:00:00Z',
         contentType: 'openui',
       },
@@ -204,7 +203,7 @@ describe('ChatPanel — Content Detection and Renderer Branching', () => {
     const api = makeChatApi([
       {
         role: 'assistant',
-        content: '<StatusCard title="Old" status="complete" message="Done" />',
+        content: '<StatusCard title="Old" status="complete" description="Done" />',
         timestamp: '2026-01-01T00:00:00Z',
         contentType: 'openui',
         actionOutcome: { actionType: 'approve', label: 'Done', timestamp: '2026-01-01T00:01:00Z' },
@@ -212,7 +211,7 @@ describe('ChatPanel — Content Detection and Renderer Branching', () => {
       { role: 'user', content: 'next', timestamp: '2026-01-01T00:02:00Z' },
       {
         role: 'assistant',
-        content: '<StatusCard title="New" status="active" message="Cur" />',
+        content: '<StatusCard title="New" status="active" description="Cur" />',
         timestamp: '2026-01-01T00:03:00Z',
         contentType: 'openui',
       },

@@ -53,6 +53,7 @@ export function ActionCard({
 }: CardRendererProps<unknown>) {
   const result = ActionCardSchema.safeParse(props)
   if (!result.success) {
+    console.warn('[ActionCard] Validation failed:', result.error.format(), 'Received props:', props)
     return (
       <div
         data-testid="action-card-invalid"

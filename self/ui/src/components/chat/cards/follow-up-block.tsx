@@ -11,6 +11,7 @@ import type { CardRendererProps, CardAction } from '../openui-adapter/types'
 
 export const FollowUpBlockSchema = z
   .object({
+    description: z.string().optional(),
     suggestions: z
       .array(
         z.object({
@@ -43,6 +44,7 @@ export function FollowUpBlock({
 }: CardRendererProps<unknown>) {
   const result = FollowUpBlockSchema.safeParse(props)
   if (!result.success) {
+    console.warn('[FollowUpBlock] Validation failed:', result.error.format(), 'Received props:', props)
     return (
       <div
         data-testid="followup-block-invalid"
@@ -60,14 +62,26 @@ export function FollowUpBlock({
   const data = result.data
 
   return (
-    <div
-      data-testid="followup-block"
-      style={{
-        display: 'flex',
-        flexWrap: 'wrap',
-        gap: 'var(--nous-space-xs)',
-      }}
-    >
+    <div data-testid="followup-block">
+      {data.description && (
+        <div
+          data-testid="followup-description"
+          style={{
+            fontSize: 'var(--nous-font-size-xs)',
+            color: 'var(--nous-fg-muted)',
+            marginBottom: 'var(--nous-space-xs)',
+          }}
+        >
+          {data.description}
+        </div>
+      )}
+      <div
+        style={{
+          display: 'flex',
+          flexWrap: 'wrap',
+          gap: 'var(--nous-space-xs)',
+        }}
+      >
       {stale
         ? data.suggestions.map((suggestion, i) => (
             <Badge
@@ -117,6 +131,7 @@ export function FollowUpBlock({
               {suggestion.label}
             </button>
           ))}
+      </div>
     </div>
   )
 }
