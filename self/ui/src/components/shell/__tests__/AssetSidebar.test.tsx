@@ -208,3 +208,91 @@ describe('AssetSidebar', () => {
   })
 
 })
+
+describe('AssetSidebar — Live Tasks Section', () => {
+  const LIVE_TASKS_SECTIONS: AssetSection[] = [
+    {
+      id: 'workflows',
+      label: 'WORKFLOWS',
+      collapsible: true,
+      items: [{ id: 'wf-1', label: 'Flow A', routeId: 'workflow-a' }],
+    },
+    {
+      id: 'tasks',
+      label: 'TASKS',
+      collapsible: true,
+      disabled: false,
+      items: [
+        { id: 'task-enabled', label: 'Enabled Task', routeId: 'task-detail::task-enabled', indicatorColor: '#22c55e' },
+        { id: 'task-disabled', label: 'Disabled Task', routeId: 'task-detail::task-disabled', indicatorColor: '#9ca3af' },
+      ],
+      onAdd: vi.fn(),
+    },
+    {
+      id: 'teams',
+      label: 'TEAMS',
+      collapsible: true,
+      disabled: true,
+      items: [],
+    },
+    {
+      id: 'agents',
+      label: 'AGENTS',
+      collapsible: true,
+      disabled: true,
+      items: [],
+    },
+  ]
+
+  it('renders tasks section with disabled: false and clickable items', async () => {
+    await renderSidebar({ sections: LIVE_TASKS_SECTIONS })
+    const enabledItem = container.querySelector('[data-section-item="task-enabled"]') as HTMLButtonElement
+    expect(enabledItem).toBeTruthy()
+    expect(enabledItem.disabled).toBe(false)
+  })
+
+  it('shows green indicator for enabled task', async () => {
+    await renderSidebar({ sections: LIVE_TASKS_SECTIONS })
+    const enabledItem = container.querySelector('[data-section-item="task-enabled"]')
+    const dot = enabledItem?.querySelector('[data-indicator]') as HTMLElement
+    expect(dot).toBeTruthy()
+    expect(dot.style.background).toBe('rgb(34, 197, 94)') // #22c55e
+  })
+
+  it('shows gray indicator for disabled task', async () => {
+    await renderSidebar({ sections: LIVE_TASKS_SECTIONS })
+    const disabledItem = container.querySelector('[data-section-item="task-disabled"]')
+    const dot = disabledItem?.querySelector('[data-indicator]') as HTMLElement
+    expect(dot).toBeTruthy()
+    expect(dot.style.background).toBe('rgb(156, 163, 175)') // #9ca3af
+  })
+
+  it('fires onAdd callback when add button is clicked', async () => {
+    await renderSidebar({ sections: LIVE_TASKS_SECTIONS })
+    const taskSection = container.querySelector('[data-asset-section="tasks"]')
+    const addBtn = taskSection?.querySelector('[data-action="add"]') as HTMLButtonElement
+    expect(addBtn).toBeTruthy()
+    await act(async () => {
+      addBtn.click()
+      await flush()
+    })
+    expect(LIVE_TASKS_SECTIONS[1].onAdd).toHaveBeenCalled()
+  })
+
+  it('calls onNavigate with task-detail::taskId routeId on item click', async () => {
+    const props = await renderSidebar({ sections: LIVE_TASKS_SECTIONS })
+    const item = container.querySelector('[data-section-item="task-enabled"]') as HTMLButtonElement
+    await act(async () => {
+      item.click()
+      await flush()
+    })
+    expect(props.onNavigate).toHaveBeenCalledWith('task-detail::task-enabled')
+  })
+
+  it('maintains section order: Workflows, Tasks, Teams, Agents', async () => {
+    await renderSidebar({ sections: LIVE_TASKS_SECTIONS })
+    const sections = container.querySelectorAll('[data-asset-section]')
+    const ids = Array.from(sections).map((s) => s.getAttribute('data-asset-section'))
+    expect(ids).toEqual(['workflows', 'tasks', 'teams', 'agents'])
+  })
+})

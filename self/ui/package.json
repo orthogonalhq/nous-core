@@ -15,6 +15,7 @@
     "./styles/tokens": "./src/styles/tokens.css",
     "./styles/components": "./src/styles/components.css",
     "./styles/nous-dark": "./src/styles/nous-dark.css",
+    "./hooks/useTasks": "./src/hooks/useTasks.ts",
     "./lib/cn": "./src/lib/cn.ts"
   },
   "dependencies": {
