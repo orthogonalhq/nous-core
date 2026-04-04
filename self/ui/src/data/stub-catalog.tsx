@@ -1,3 +1,5 @@
+import * as React from 'react'
+import { Users, Bot, } from 'lucide-react'
 import type { AssetSectionItem, CatalogItem } from '../components/shell/types'
 
 /** @todo stub data placeholding for proper build out */
@@ -32,26 +34,26 @@ export const STUB_APPS: CatalogItem[] = [
 
 /** @todo stub data placeholding for proper build out */
 export const STUB_CAMPAIGNS: AssetSectionItem[] = [
-  { id: 'campaign-1', label: 'Marketing Campaigns', icon: <span style={{ width: 8, height: 8, borderRadius: '50%', background: '#4CAF50', display: 'inline-block' }} />, routeId: 'campaigns' },
-  { id: 'campaign-2', label: 'Product Management', icon: <span style={{ width: 8, height: 8, borderRadius: '50%', background: '#66BB6A', display: 'inline-block' }} />, routeId: 'campaigns' },
+  { id: 'campaign-1', label: 'Marketing Campaigns', indicatorColor: '#4CAF50', routeId: 'campaign-1' },
+  { id: 'campaign-2', label: 'Product Management', indicatorColor: '#66BB6A', routeId: 'campaign-2' },
 ]
 
 /** @todo stub data placeholding for proper build out */
 export const STUB_TASKS: AssetSectionItem[] = [
-  { id: 'task-1', label: 'Manage Emails', icon: <span style={{ width: 8, height: 8, borderRadius: '50%', background: '#E91E63', display: 'inline-block' }} />, routeId: 'tasks' },
-  { id: 'task-2', label: 'Manage Social Media', icon: <span style={{ width: 8, height: 8, borderRadius: '50%', background: '#F06292', display: 'inline-block' }} />, routeId: 'tasks' },
+  { id: 'task-1', label: 'Manage Emails', indicatorColor: '#E91E63', routeId: 'task-1' },
+  { id: 'task-2', label: 'Manage Social Media', indicatorColor: '#F06292', routeId: 'task-2' },
 ]
 
 /** @todo stub data placeholding for proper build out */
 export const STUB_TEAMS: AssetSectionItem[] = [
-  { id: 'team-1', label: 'Marketing', icon: <span style={{ width: 8, height: 8, borderRadius: '50%', background: '#7C4DFF', display: 'inline-block' }} />, routeId: 'teams' },
-  { id: 'team-2', label: 'Customer Service', icon: <span style={{ width: 8, height: 8, borderRadius: '50%', background: '#536DFE', display: 'inline-block' }} />, routeId: 'teams' },
-  { id: 'team-3', label: 'Product', icon: <span style={{ width: 8, height: 8, borderRadius: '50%', background: '#69F0AE', display: 'inline-block' }} />, routeId: 'teams' },
+  { id: 'team-1', label: 'Marketing', icon: <Users />, routeId: 'team-1' },
+  { id: 'team-2', label: 'Customer Service', icon: <Users />, routeId: 'team-2' },
+  { id: 'team-3', label: 'Product', icon: <Users />,  routeId: 'team-3' },
 ]
 
 /** @todo stub data placeholding for proper build out */
 export const STUB_AGENTS: AssetSectionItem[] = [
-  { id: 'agent-1', label: 'AI Agent', icon: <span style={{ width: 8, height: 8, borderRadius: '50%', background: '#009688', display: 'inline-block' }} />, routeId: 'agents' },
-  { id: 'agent-2', label: 'Project Agent', icon: <span style={{ width: 8, height: 8, borderRadius: '50%', background: '#26A69A', display: 'inline-block' }} />, routeId: 'agents' },
-  { id: 'agent-3', label: 'Communications Agent', icon: <span style={{ width: 8, height: 8, borderRadius: '50%', background: '#4DB6AC', display: 'inline-block' }} />, routeId: 'agents' },
+  { id: 'agent-1', label: 'AI Agent', icon: <Bot />, routeId: 'agent-1' },
+  { id: 'agent-2', label: 'Project Agent', icon: <Bot />, routeId: 'agent-2' },
+  { id: 'agent-3', label: 'Communications Agent', icon: <Bot />, routeId: 'agent-3' },
 ]

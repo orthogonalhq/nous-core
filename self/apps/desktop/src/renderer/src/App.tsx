@@ -859,6 +859,8 @@ function DesktopSimpleShell({
           onSendStart={() => chatStageManager.signalSending()}
           onTogglePin={() => chatStageManager.togglePin()}
           onInputFocus={() => chatStageManager.signalInputFocus()}
+          onUnreadMessage={() => chatStageManager.signalUnreadMessage()}
+          onMessagesRead={() => chatStageManager.signalMessagesRead()}
         />
       )}
     />

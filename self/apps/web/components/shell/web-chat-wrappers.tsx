@@ -13,8 +13,8 @@ export function WebChatPanel(props: IDockviewPanelProps) {
 }
 
 /** Wrapper that wires ChatSurface to tRPC via useChatApi (simple mode). */
-export function WebConnectedChatSurface({ stage, onStageChange, onSendStart, isPinned, onTogglePin, onInputFocus }: { stage?: ChatStage; onStageChange?: (stage: ChatStage) => void; onSendStart?: () => void; isPinned?: boolean; onTogglePin?: () => void; onInputFocus?: () => void } = {}) {
+export function WebConnectedChatSurface({ stage, onStageChange, onSendStart, isPinned, onTogglePin, onInputFocus, onUnreadMessage, onMessagesRead }: { stage?: ChatStage; onStageChange?: (stage: ChatStage) => void; onSendStart?: () => void; isPinned?: boolean; onTogglePin?: () => void; onInputFocus?: () => void; onUnreadMessage?: () => void; onMessagesRead?: () => void } = {}) {
   const { activeProjectId } = useShellContext()
   const chatApi = useChatApi({ projectId: activeProjectId ?? undefined })
-  return <ChatSurface chatApi={chatApi} stage={stage} onStageChange={onStageChange} onSendStart={onSendStart} isPinned={isPinned} onTogglePin={onTogglePin} onInputFocus={onInputFocus} />
+  return <ChatSurface chatApi={chatApi} stage={stage} onStageChange={onStageChange} onSendStart={onSendStart} isPinned={isPinned} onTogglePin={onTogglePin} onInputFocus={onInputFocus} onUnreadMessage={onUnreadMessage} onMessagesRead={onMessagesRead} />
 }

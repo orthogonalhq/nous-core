@@ -52,9 +52,7 @@ export function TitleBar({
         alignItems: 'center',
         height: 'var(--nous-titlebar-height)',
         minHeight: 'var(--nous-titlebar-height)',
-        background: 'var(--nous-header-bg)',
-        borderBottom: '1px solid var(--nous-header-border)',
-        WebkitAppRegion: 'drag',
+        background: 'var(--nous-bg-surface)',
         userSelect: 'none',
         flexShrink: 0,
       } as ElectronStyle}
@@ -72,13 +70,13 @@ export function TitleBar({
       >
         <span
           style={{
-            fontSize: 'var(--nous-font-size-md)',
-            fontWeight: 700,
+            fontSize: 'var(--nous-font-size-sm)',
+            fontFamily: 'var(--nous-font-family-mono)',
+            fontWeight: 500,
             color: 'var(--nous-fg)',
-            letterSpacing: '0.15em',
           }}
         >
-          NOUS
+          Agent Name
         </span>
       </div>
 
@@ -103,8 +101,7 @@ export function TitleBar({
           width: 300,
           height: 26,
           padding: '0 var(--nous-space-xl)',
-          background: 'var(--nous-search-bg)',
-          border: '1px solid var(--nous-search-border)',
+          background: 'var(--nous-surface)',
           borderRadius: 'var(--nous-radius-md)',
           WebkitAppRegion: 'no-drag',
           cursor: 'text',

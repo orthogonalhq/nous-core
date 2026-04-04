@@ -85,17 +85,27 @@ export function ColumnDivider({
         position: 'absolute',
         userSelect: 'none',
         insetBlock: 0,
-        width: isVertical ? 'var(--nous-column-divider-width)' : '100%',
-        height: isVertical ? '100%' : 'var(--nous-column-divider-width)',
-        background: isDragging || isHovered
-          ? 'var(--nous-accent)'
-          : 'var(--nous-shell-column-border)',
-        cursor: isVertical ? 'col-resize' : 'row-resize',
+        width: isVertical ? 5 : '90%',
+        height: isVertical ? '90%' : 5,
+        display: 'flex',
+        alignItems: isVertical ? 'stretch' : 'center',
+        justifyContent: isVertical ? 'center' : 'stretch',
+        background: 'transparent',
+        cursor: 'grab',
         touchAction: 'none',
-        transition: 'background var(--nous-duration-fast) var(--nous-ease-out)',
+        top: isVertical ? '50%' : undefined,
+        left: !isVertical ? '50%' : undefined,
+        transform: isVertical ? 'translateY(-50%)' : 'translateX(-50%)',
         ...style,
       }}
       {...props}
-    />
+    >
+      <div style={{
+        width: isVertical ? 1 : '100%',
+        height: isVertical ? '100%' : 1,
+        background: isDragging || isHovered ? 'var(--nous-border-strong)' : 'transparent',
+        transition: 'background var(--nous-duration-fast) var(--nous-ease-out)',
+      }} />
+    </div>
   )
 }

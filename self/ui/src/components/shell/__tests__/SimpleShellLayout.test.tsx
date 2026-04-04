@@ -97,8 +97,8 @@ describe('SimpleShellLayout', () => {
     await renderLayout()
     const chat = getArea('chat')
     expect(chat.style.position).toBe('absolute')
-    expect(chat.style.bottom).toBe('6px')
-    expect(chat.style.left).toBe('6px')
+    expect(chat.style.bottom).toBe('0px')
+    expect(chat.style.left).toBe('0px')
     expect(chat.style.zIndex).toBe('10')
   })
 
@@ -164,7 +164,7 @@ describe('SimpleShellLayout', () => {
   it('chat overlay has transition for smooth animation', async () => {
     await renderLayout()
     const chat = getArea('chat')
-    expect(chat.style.transition).toBe('height var(--nous-duration-slow) var(--nous-ease-out)')
+    expect(chat.style.transition).toBe('height var(--nous-duration-slow) var(--nous-ease-out), background var(--nous-duration-slow) var(--nous-ease-out)')
   })
 
   it('sets data-chat-stage attribute on chat overlay', async () => {

@@ -18,6 +18,8 @@ export function ChatSurface(props: ChatSurfaceProps) {
       isPinned={props.isPinned}
       onTogglePin={props.onTogglePin}
       onInputFocus={props.onInputFocus}
+      onUnreadMessage={props.onUnreadMessage}
+      onMessagesRead={props.onMessagesRead}
     />
   )
 }

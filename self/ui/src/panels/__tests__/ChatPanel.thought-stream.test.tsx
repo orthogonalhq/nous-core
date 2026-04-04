@@ -68,10 +68,9 @@ function makeLifecyclePayload(overrides?: Partial<ThoughtTurnLifecyclePayload>):
 
 /**
  * Creates a ChatPanel that is actively in the "sending" state,
- * so thought events can accumulate and render.
+ * so thought events can accumulate and render inline.
  */
 function renderSendingPanel() {
-  // chatApi.send returns a promise that never resolves, keeping sending=true
   let resolveSend: ((value: { response: string; traceId: string }) => void) | undefined
   const sendPromise = new Promise<{ response: string; traceId: string }>((resolve) => {
     resolveSend = resolve
@@ -103,7 +102,7 @@ function renderIdlePanel() {
   return render(<ChatPanel chatApi={mockApi} />)
 }
 
-describe('ChatPanel — Thought Stream', () => {
+describe('ChatPanel — Inline Thought Stream', () => {
   beforeEach(() => {
     latestCallbacks.clear()
     localStorage.clear()
@@ -113,246 +112,206 @@ describe('ChatPanel — Thought Stream', () => {
     vi.restoreAllMocks()
   })
 
-  it('renders normally without thought events (graceful no-op)', () => {
+  it('renders normally without thought events (no inline groups)', () => {
     render(<ChatPanel />)
-    expect(screen.queryByTestId('thought-toggle')).toBeNull()
-    expect(screen.queryByTestId('thought-stream')).toBeNull()
+    expect(screen.queryByTestId('inline-thought-group')).toBeNull()
+    expect(screen.queryByTestId('ambient-teleprompter')).toBeNull()
   })
 
-  it('accumulates thoughts regardless of sending state', async () => {
-    renderIdlePanel()
-
-    // Emit a thought event while NOT sending
-    act(() => {
-      emitEvent('thought:pfc-decision', makePfcPayload())
-    })
-
-    // Thought should accumulate even when not sending (sendingRef gate removed)
-    expect(screen.getByTestId('thought-toggle')).toBeTruthy()
-    expect(screen.getByText('1 thought')).toBeTruthy()
-  })
-
-  it('shows correct pluralization for multiple thoughts', async () => {
+  it('shows in-progress thought items for active turn (Q2 — inline below user message)', () => {
     renderSendingPanel()
 
+    // gateway-run started → "Thinking…" (Q5 filter)
     act(() => {
-      emitEvent('thought:pfc-decision', makePfcPayload({ sequence: 1 }))
-      emitEvent('thought:turn-lifecycle', makeLifecyclePayload({ sequence: 2 }))
+      emitEvent('thought:turn-lifecycle', makeLifecyclePayload({
+        phase: 'gateway-run',
+        status: 'started',
+      }))
     })
 
-    expect(screen.getByText('2 thoughts')).toBeTruthy()
+    const group = screen.getByTestId('inline-thought-group')
+    expect(group).toBeTruthy()
+    expect(screen.getByText('Thinking\u2026')).toBeTruthy()
   })
 
-  it('thoughts persist after send completes (SSE idle timer handles cleanup)', async () => {
-    const { resolveSend } = renderSendingPanel()
-
-    act(() => {
-      emitEvent('thought:pfc-decision', makePfcPayload())
-    })
-
-    expect(screen.getByTestId('thought-toggle')).toBeTruthy()
-
-    // Resolve the send promise to transition sending to false
-    await act(async () => {
-      resolveSend({ response: 'done', traceId: 'trace-1' })
-    })
-
-    // Thoughts persist — they are no longer cleared on send completion.
-    // In production, the SSE turn-complete event + idle timer handles cleanup.
-    expect(screen.getByTestId('thought-toggle')).toBeTruthy()
-  })
-
-  it('collapsed state shows thought count chip and stream is in DOM but hidden', async () => {
+  it('filters suppressed events per Q5 — confidence-governance not shown', () => {
     renderSendingPanel()
 
+    // confidence-governance is suppressed
     act(() => {
-      emitEvent('thought:pfc-decision', makePfcPayload())
+      emitEvent('thought:pfc-decision', makePfcPayload({
+        thoughtType: 'confidence-governance',
+      }))
     })
 
-    // Collapsed by default — toggle visible, stream in DOM but hidden via CSS
-    expect(screen.getByTestId('thought-toggle')).toBeTruthy()
-    const stream = screen.getByTestId('thought-stream')
-    expect(stream.style.opacity).toBe('0')
-    expect(stream.style.maxHeight).toBe('0px')
-    expect(stream.style.overflow).toBe('hidden')
+    expect(screen.queryByTestId('inline-thought-group')).toBeNull()
   })
 
-  it('expanded state shows thought events with ThoughtCard components', async () => {
+  it('shows tool-execution as "Using [tool name]" (Q5)', () => {
     renderSendingPanel()
 
     act(() => {
       emitEvent('thought:pfc-decision', makePfcPayload({
-        thoughtType: 'memory-write',
-        content: 'MEM-WRITE-APPROVED confidence=0.85',
+        thoughtType: 'tool-execution',
+        content: 'tool=search approved',
       }))
     })
 
-    // Click toggle to expand
-    fireEvent.click(screen.getByTestId('thought-toggle'))
-
-    expect(screen.getByTestId('thought-stream')).toBeTruthy()
-    expect(screen.getByText('[Memory Write]')).toBeTruthy()
-    expect(screen.getByText('MEM-WRITE-APPROVED confidence=0.85')).toBeTruthy()
+    expect(screen.getByText('Using search')).toBeTruthy()
   })
 
-  it('renders lifecycle events with phase label and content/status', async () => {
+  it('shows reflection as "Reflecting…" (Q5)', () => {
+    renderSendingPanel()
+
+    act(() => {
+      emitEvent('thought:pfc-decision', makePfcPayload({
+        thoughtType: 'reflection',
+        content: 'self-check',
+      }))
+    })
+
+    expect(screen.getByText('Reflecting\u2026')).toBeTruthy()
+  })
+
+  it('shows turn-complete as "Done" (Q5)', () => {
     renderSendingPanel()
 
     act(() => {
       emitEvent('thought:turn-lifecycle', makeLifecyclePayload({
-        phase: 'gateway-run',
+        phase: 'turn-complete',
         status: 'completed',
-        content: 'gateway execution finished',
       }))
     })
 
-    fireEvent.click(screen.getByTestId('thought-toggle'))
-
-    expect(screen.getByText('[Gateway Execution]')).toBeTruthy()
-    expect(screen.getByText('gateway execution finished')).toBeTruthy()
+    expect(screen.getByText('Done')).toBeTruthy()
   })
 
-  it('renders lifecycle events with status fallback when content is absent', async () => {
+  it('suppresses turn-start, opctl-check, stm-finalize, trace-record, response-resolved (Q5)', () => {
     renderSendingPanel()
 
     act(() => {
-      emitEvent('thought:turn-lifecycle', makeLifecyclePayload({
-        phase: 'turn-start',
-        status: 'started',
-        content: undefined,
-      }))
+      emitEvent('thought:turn-lifecycle', makeLifecyclePayload({ phase: 'turn-start', status: 'started' }))
+      emitEvent('thought:turn-lifecycle', makeLifecyclePayload({ phase: 'opctl-check', status: 'completed' }))
+      emitEvent('thought:turn-lifecycle', makeLifecyclePayload({ phase: 'stm-finalize', status: 'completed' }))
+      emitEvent('thought:turn-lifecycle', makeLifecyclePayload({ phase: 'trace-record', status: 'completed' }))
+      emitEvent('thought:turn-lifecycle', makeLifecyclePayload({ phase: 'response-resolved', status: 'completed' }))
     })
 
-    fireEvent.click(screen.getByTestId('thought-toggle'))
-
-    expect(screen.getByText('[Turn Started]')).toBeTruthy()
-    expect(screen.getByText('started')).toBeTruthy()
+    // None of these produce inline thought items
+    expect(screen.queryByTestId('inline-thought-group')).toBeNull()
   })
 
-  it('toggle preference persists to localStorage', async () => {
+  it('suppresses memory-write, memory-mutation, escalation PFC decisions (Q5)', () => {
     renderSendingPanel()
 
     act(() => {
-      emitEvent('thought:pfc-decision', makePfcPayload())
+      emitEvent('thought:pfc-decision', makePfcPayload({ thoughtType: 'memory-write' }))
+      emitEvent('thought:pfc-decision', makePfcPayload({ thoughtType: 'memory-mutation' }))
+      emitEvent('thought:pfc-decision', makePfcPayload({ thoughtType: 'escalation' }))
     })
+
+    expect(screen.queryByTestId('inline-thought-group')).toBeNull()
+  })
+
+  it('accumulates multiple inline items for the same turn', () => {
+    renderSendingPanel()
+
+    act(() => {
+      emitEvent('thought:turn-lifecycle', makeLifecyclePayload({ phase: 'gateway-run', status: 'started' }))
+      emitEvent('thought:pfc-decision', makePfcPayload({ thoughtType: 'tool-execution', content: 'tool=search approved', sequence: 2 }))
+      emitEvent('thought:pfc-decision', makePfcPayload({ thoughtType: 'reflection', content: 'self-check', sequence: 3 }))
+    })
+
+    const items = screen.getAllByTestId('inline-thought-item')
+    expect(items.length).toBe(3)
+    expect(screen.getByText('Thinking\u2026')).toBeTruthy()
+    expect(screen.getByText('Using search')).toBeTruthy()
+    expect(screen.getByText('Reflecting\u2026')).toBeTruthy()
+  })
+
+  it('thoughts anchor to completed assistant message after send resolves (Q1)', async () => {
+    const { resolveSend } = renderSendingPanel()
+
+    act(() => {
+      emitEvent('thought:turn-lifecycle', makeLifecyclePayload({ phase: 'gateway-run', status: 'started' }))
+    })
+
+    // Active group exists
+    expect(screen.getByTestId('inline-thought-group')).toBeTruthy()
+
+    // Resolve send — assistant message arrives with traceId
+    await act(async () => {
+      resolveSend({ response: 'Hello!', traceId: 'trace-1' })
+    })
+
+    // Thoughts now anchored to the assistant message (collapsed)
+    const group = screen.getByTestId('inline-thought-group')
+    expect(group).toBeTruthy()
+    // Collapsed: shows "1 action"
+    expect(screen.getByText('1 action')).toBeTruthy()
+  })
+
+  it('collapsed thought group can be expanded to show items (Q3)', async () => {
+    const { resolveSend } = renderSendingPanel()
+
+    act(() => {
+      emitEvent('thought:turn-lifecycle', makeLifecyclePayload({ phase: 'gateway-run', status: 'started' }))
+      emitEvent('thought:pfc-decision', makePfcPayload({ thoughtType: 'tool-execution', content: 'tool=memory approved', sequence: 2 }))
+    })
+
+    await act(async () => {
+      resolveSend({ response: 'Done', traceId: 'trace-1' })
+    })
+
+    // Collapsed: "2 actions"
+    expect(screen.getByText('2 actions')).toBeTruthy()
 
     // Expand
-    fireEvent.click(screen.getByTestId('thought-toggle'))
-    expect(localStorage.getItem('nous:thoughts-expanded')).toBe('true')
+    fireEvent.click(screen.getByTestId('inline-thought-group'))
+    expect(screen.getByText('Thinking\u2026')).toBeTruthy()
+    expect(screen.getByText('Using memory')).toBeTruthy()
+  })
+})
 
-    // Collapse
-    fireEvent.click(screen.getByTestId('thought-toggle'))
-    expect(localStorage.getItem('nous:thoughts-expanded')).toBe('false')
+describe('ChatPanel — Ambient teleprompter (Q4)', () => {
+  beforeEach(() => {
+    latestCallbacks.clear()
+    localStorage.clear()
   })
 
-  it('restores expanded state from localStorage on mount', async () => {
-    localStorage.setItem('nous:thoughts-expanded', 'true')
-
-    renderSendingPanel()
-
-    act(() => {
-      emitEvent('thought:pfc-decision', makePfcPayload())
-    })
-
-    // Should be expanded on mount because localStorage says so (detailsAlwaysOn)
-    const stream = screen.getByTestId('thought-stream')
-    expect(stream.style.opacity).toBe('1')
+  afterEach(() => {
+    vi.restoreAllMocks()
   })
 
-  it('caps at 50 events, truncating older ones', async () => {
-    localStorage.setItem('nous:thoughts-expanded', 'true')
+  it('ambient_large shows teleprompter instead of message list', () => {
+    const mockApi: ChatAPI = {
+      send: vi.fn().mockResolvedValue({ response: 'ok', traceId: 'trace-1' }),
+      getHistory: async () => [],
+    }
 
-    renderSendingPanel()
+    render(<ChatPanel chatApi={mockApi} stage="ambient_large" />)
 
-    // Emit 55 events
-    act(() => {
-      for (let i = 0; i < 55; i++) {
-        emitEvent('thought:pfc-decision', makePfcPayload({
-          sequence: i,
-          content: `event-${i}`,
-        }))
-      }
-    })
-
-    const events = screen.getAllByTestId('thought-event')
-    expect(events.length).toBe(50)
-
-    // The last event should be event-54 (most recent)
-    expect(screen.getByText('event-54')).toBeTruthy()
-    // The first retained event should be event-5 (55 - 50 = 5)
-    expect(screen.getByText('event-5')).toBeTruthy()
-    // event-4 should be truncated
-    expect(screen.queryByText('event-4')).toBeNull()
+    // No message list elements
+    expect(screen.queryByTestId('inline-thought-group')).toBeNull()
+    // Teleprompter renders when items exist
+    expect(screen.queryByTestId('ambient-teleprompter')).toBeNull() // no events yet
   })
 
-  it('ThoughtToggle shows "Thinking..." when sending and collapsed', async () => {
-    renderSendingPanel()
+  it('ambient_large teleprompter shows filtered prose items', () => {
+    const mockApi: ChatAPI = {
+      send: vi.fn().mockResolvedValue({ response: 'ok', traceId: 'trace-1' }),
+      getHistory: async () => [],
+    }
+
+    render(<ChatPanel chatApi={mockApi} stage="ambient_large" />)
 
     act(() => {
-      emitEvent('thought:pfc-decision', makePfcPayload())
+      emitEvent('thought:turn-lifecycle', makeLifecyclePayload({ phase: 'gateway-run', status: 'started' }))
     })
 
-    // Collapsed by default + sending=true: should show "Thinking..."
-    expect(screen.getByText('Thinking...')).toBeTruthy()
-  })
-
-  it('ThoughtStream container has correct ARIA attributes', async () => {
-    localStorage.setItem('nous:thoughts-expanded', 'true')
-
-    renderSendingPanel()
-
-    act(() => {
-      emitEvent('thought:pfc-decision', makePfcPayload())
-    })
-
-    const stream = screen.getByTestId('thought-stream')
-    expect(stream.getAttribute('role')).toBe('log')
-    expect(stream.getAttribute('aria-live')).toBe('polite')
-    expect(stream.getAttribute('aria-label')).toBe('AI thought stream')
-    expect(stream.getAttribute('id')).toBe('thought-stream')
-  })
-
-  it('ThoughtToggle has correct ARIA attributes', async () => {
-    renderSendingPanel()
-
-    act(() => {
-      emitEvent('thought:pfc-decision', makePfcPayload())
-    })
-
-    const toggle = screen.getByTestId('thought-toggle')
-    expect(toggle.getAttribute('aria-expanded')).toBe('false')
-    expect(toggle.getAttribute('aria-controls')).toBe('thought-stream')
-    expect(toggle.getAttribute('aria-label')).toContain('1 event')
-
-    // Expand and verify aria-expanded changes
-    fireEvent.click(toggle)
-    expect(toggle.getAttribute('aria-expanded')).toBe('true')
-  })
-
-  it('ThoughtStream is always in DOM when thoughts exist (always-render pattern)', async () => {
-    renderSendingPanel()
-
-    act(() => {
-      emitEvent('thought:pfc-decision', makePfcPayload())
-    })
-
-    // Even when collapsed, ThoughtStream is in the DOM
-    expect(screen.getByTestId('thought-stream')).toBeTruthy()
-  })
-
-  it('expanded ThoughtStream has opacity 1 and non-zero maxHeight', async () => {
-    renderSendingPanel()
-
-    act(() => {
-      emitEvent('thought:pfc-decision', makePfcPayload())
-    })
-
-    // Expand
-    fireEvent.click(screen.getByTestId('thought-toggle'))
-
-    const stream = screen.getByTestId('thought-stream')
-    expect(stream.style.opacity).toBe('1')
-    expect(stream.style.maxHeight).not.toBe('0px')
+    const teleprompter = screen.getByTestId('ambient-teleprompter')
+    expect(teleprompter).toBeTruthy()
+    expect(screen.getByText('Thinking\u2026')).toBeTruthy()
   })
 })
 
@@ -373,9 +332,7 @@ describe('ChatPanel — Stage-aware rendering', () => {
     }
     const { container } = render(<ChatPanel chatApi={mockApi} />)
 
-    // Full mode: messages area and input should be present, no header
     expect(container.querySelector('[data-chat-stage="full"]')).toBeTruthy()
-    expect(screen.queryByText('Principal \u2194 Cortex')).toBeNull()
     expect(screen.getByPlaceholderText(/What can I help you with/i)).toBeTruthy()
   })
 
@@ -387,7 +344,6 @@ describe('ChatPanel — Stage-aware rendering', () => {
     const { container } = render(<ChatPanel chatApi={mockApi} stage="full" />)
 
     expect(container.querySelector('[data-chat-stage="full"]')).toBeTruthy()
-    expect(screen.queryByText('Principal \u2194 Cortex')).toBeNull()
     expect(screen.getByPlaceholderText(/What can I help you with/i)).toBeTruthy()
   })
 
@@ -399,11 +355,8 @@ describe('ChatPanel — Stage-aware rendering', () => {
     const { container } = render(<ChatPanel chatApi={mockApi} stage="small" />)
 
     expect(container.querySelector('[data-chat-stage="small"]')).toBeTruthy()
-    // Header text should NOT be present
     expect(screen.queryByText('Principal \u2194 Cortex')).toBeNull()
-    // Input should still be present
     expect(screen.getByPlaceholderText(/What can I help you with/i)).toBeTruthy()
-    // Send button should still be present
     expect(screen.getByTitle('Send message')).toBeTruthy()
   })
 
@@ -443,7 +396,7 @@ describe('ChatPanel — Stage-aware rendering', () => {
     expect(onInputFocus).toHaveBeenCalledTimes(1)
   })
 
-  it('ambient_large stage shows only last 5 messages (not visible in ambient_large — thought stream only)', async () => {
+  it('ambient_large stage shows only last 5 messages (not visible in ambient_large — teleprompter only)', async () => {
     const mockApi: ChatAPI = {
       send: vi.fn().mockResolvedValue({ response: 'ok', traceId: 'trace-1' }),
       getHistory: async () => [],
@@ -452,7 +405,6 @@ describe('ChatPanel — Stage-aware rendering', () => {
     const { container } = render(<ChatPanel chatApi={mockApi} stage="ambient_large" />)
 
     expect(container.querySelector('[data-chat-stage="ambient_large"]')).toBeTruthy()
-    // ambient_large shows thought stream, not messages
     expect(screen.queryByText('Principal \u2194 Cortex')).toBeNull()
   })
 
