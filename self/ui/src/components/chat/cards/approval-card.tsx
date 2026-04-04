@@ -113,6 +113,7 @@ export function ApprovalCard({
   )
 
   if (!result.success) {
+    console.warn('[ApprovalCard] Validation failed:', result.error.format(), 'Received props:', props)
     return (
       <div
         data-testid="approval-card-invalid"
