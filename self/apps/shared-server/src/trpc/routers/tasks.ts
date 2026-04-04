@@ -18,14 +18,22 @@ import type { TaskDefinition, TaskExecutionRecord, ProjectConfig } from '@nous/s
 import { router, publicProcedure } from '../trpc';
 
 // ── Defensive fallback schemas ───────────────────────────────────────────────
-// In rare cases (stale dist, bundler tree-shaking) barrel re-exports may
-// resolve to `undefined`. Falling back to inline definitions keeps the
-// router functional while preserving the canonical source in @nous/shared.
+// The desktop backend uses tsx/CJS loader which can fail to resolve barrel
+// re-exports from @nous/shared. Fallbacks must be fully self-contained —
+// they cannot reference other potentially-undefined barrel imports.
+
+const FallbackTriggerConfigSchema = z.discriminatedUnion('type', [
+  z.object({ type: z.literal('manual') }),
+  z.object({ type: z.literal('heartbeat'), cronExpression: z.string().min(1), timezone: z.string().default('UTC') }),
+  z.object({ type: z.literal('webhook'), pathSegment: z.string().min(1), secret: z.string().min(32) }),
+]);
+
+const ResolvedTriggerConfigSchema = TaskTriggerConfigSchema ?? FallbackTriggerConfigSchema;
 
 const ResolvedTaskCreateInputSchema = TaskCreateInputSchema ?? z.object({
   name: z.string().min(1).max(100),
   description: z.string().default(''),
-  trigger: TaskTriggerConfigSchema,
+  trigger: ResolvedTriggerConfigSchema,
   orchestratorInstructions: z.string().min(1),
   context: z.record(z.unknown()).optional(),
   enabled: z.boolean().default(false),
@@ -34,7 +42,7 @@ const ResolvedTaskCreateInputSchema = TaskCreateInputSchema ?? z.object({
 const ResolvedTaskUpdateInputSchema = TaskUpdateInputSchema ?? z.object({
   name: z.string().min(1).max(100).optional(),
   description: z.string().optional(),
-  trigger: TaskTriggerConfigSchema.optional(),
+  trigger: ResolvedTriggerConfigSchema.optional(),
   orchestratorInstructions: z.string().min(1).optional(),
   context: z.record(z.unknown()).optional(),
   enabled: z.boolean().optional(),
