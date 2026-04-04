@@ -53,7 +53,8 @@ describe('CollapsibleObserveEdge', () => {
     const edge = container.querySelector('[data-shell-component="collapsible-observe-edge"]')
     expect(edge?.getAttribute('data-state')).toBe('collapsed')
     expect(container.querySelector('[data-action="expand"]')).toBeTruthy()
-    expect(container.querySelector('[data-testid="observe-content"]')).toBeNull()
+    // Children are always in the DOM now (clipped by overflow:hidden when collapsed)
+    expect(container.querySelector('[data-testid="observe-content"]')).toBeTruthy()
   })
 
   it('renders expanded state with children when width >= threshold', async () => {
@@ -82,7 +83,8 @@ describe('CollapsibleObserveEdge', () => {
   it('shows chevron at width just below threshold (59)', async () => {
     await renderEdge({ width: 59 })
     expect(container.querySelector('[data-action="expand"]')).toBeTruthy()
-    expect(container.querySelector('[data-testid="observe-content"]')).toBeNull()
+    // Children are always in the DOM now (clipped by overflow:hidden when collapsed)
+    expect(container.querySelector('[data-testid="observe-content"]')).toBeTruthy()
   })
 
   it('expand button has accessible label', async () => {
@@ -92,15 +94,16 @@ describe('CollapsibleObserveEdge', () => {
   })
 
   it('renders Lucide SVG icons for expand and collapse buttons', async () => {
-    // Collapsed state — expand button
+    // Collapsed state — expand button has ChevronLeft SVG
     await renderEdge({ width: 20 })
     const expandBtn = container.querySelector('[data-action="expand"]')
     expect(expandBtn?.querySelector('svg')).toBeTruthy()
 
-    // Expanded state — collapse button
+    // Expanded state — at least one collapse button has PanelRightClose SVG
     await renderEdge({ width: 280 })
-    const collapseBtn = container.querySelector('[data-action="collapse"]')
-    expect(collapseBtn?.querySelector('svg')).toBeTruthy()
+    const collapseBtns = container.querySelectorAll('[data-action="collapse"]')
+    const hasSvg = Array.from(collapseBtns).some(btn => btn.querySelector('svg'))
+    expect(hasSvg).toBeTruthy()
   })
 
   it('expand/collapse buttons have hover-capable styles (default transparent background with border-radius)', async () => {
