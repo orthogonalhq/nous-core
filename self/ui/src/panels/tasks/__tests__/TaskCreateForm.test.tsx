@@ -49,7 +49,7 @@ vi.mock('../../../components/shell/ShellContext', () => ({
 }))
 
 // Import after mocks
-import { TaskCreateForm } from '../TaskCreateForm'
+import { TaskCreateForm, SCHEDULE_PRESETS } from '../TaskCreateForm'
 
 let container: HTMLDivElement
 let root: Root
@@ -169,17 +169,151 @@ describe('TaskCreateForm', () => {
     expect(mockLoadTask).toHaveBeenCalledWith('task-edit-1')
   })
 
-  it('shows cron fields only when heartbeat trigger is selected', async () => {
+  it('shows schedule preset dropdown when heartbeat trigger is selected', async () => {
     await renderForm()
 
-    // Initially manual - no cron fields
-    expect(container.querySelector('[data-testid="cron-input"]')).toBeFalsy()
+    // Initially manual - no schedule fields
+    expect(container.querySelector('[data-testid="schedule-preset-select"]')).toBeFalsy()
 
     // Switch to heartbeat
     await setSelectValue('trigger-type-select', 'heartbeat')
 
-    expect(container.querySelector('[data-testid="cron-input"]')).toBeTruthy()
+    // Preset dropdown and timezone should appear; raw cron input should NOT (preset is selected)
+    expect(container.querySelector('[data-testid="schedule-preset-select"]')).toBeTruthy()
     expect(container.querySelector('[data-testid="timezone-input"]')).toBeTruthy()
+    expect(container.querySelector('[data-testid="cron-input"]')).toBeFalsy()
+  })
+
+  it('sets cronExpression to the first preset when switching to heartbeat', async () => {
+    const createdTask: TaskDefinition = {
+      id: 'preset-task',
+      name: 'Preset Task',
+      description: '',
+      trigger: { type: 'heartbeat', cronExpression: '*/5 * * * *', timezone: 'UTC' },
+      orchestratorInstructions: 'Do work',
+      enabled: false,
+      createdAt: '2026-01-01T00:00:00.000Z',
+      updatedAt: '2026-01-01T00:00:00.000Z',
+    }
+    mockCreateTask.mockResolvedValue(createdTask)
+
+    await renderForm()
+
+    await setInputValue('name-input', 'Preset Task')
+    await setInputValue('instructions-input', 'Do work')
+    await setSelectValue('trigger-type-select', 'heartbeat')
+
+    // Submit and verify the cron was set from preset
+    const submitBtn = getButton('submit-button')
+    await act(async () => {
+      submitBtn.click()
+      await flush()
+    })
+
+    expect(mockCreateTask).toHaveBeenCalledWith(
+      expect.objectContaining({
+        trigger: expect.objectContaining({
+          type: 'heartbeat',
+          cronExpression: SCHEDULE_PRESETS[0].cron,
+        }),
+      }),
+    )
+  })
+
+  it('changes cronExpression when a different preset is selected', async () => {
+    const createdTask: TaskDefinition = {
+      id: 'hourly-task',
+      name: 'Hourly Task',
+      description: '',
+      trigger: { type: 'heartbeat', cronExpression: '0 * * * *', timezone: 'UTC' },
+      orchestratorInstructions: 'Run hourly',
+      enabled: false,
+      createdAt: '2026-01-01T00:00:00.000Z',
+      updatedAt: '2026-01-01T00:00:00.000Z',
+    }
+    mockCreateTask.mockResolvedValue(createdTask)
+
+    await renderForm()
+
+    await setInputValue('name-input', 'Hourly Task')
+    await setInputValue('instructions-input', 'Run hourly')
+    await setSelectValue('trigger-type-select', 'heartbeat')
+
+    // Select "Every hour" (index 3)
+    await setSelectValue('schedule-preset-select', '3')
+
+    const submitBtn = getButton('submit-button')
+    await act(async () => {
+      submitBtn.click()
+      await flush()
+    })
+
+    expect(mockCreateTask).toHaveBeenCalledWith(
+      expect.objectContaining({
+        trigger: expect.objectContaining({
+          cronExpression: '0 * * * *',
+        }),
+      }),
+    )
+  })
+
+  it('shows raw cron input when Custom preset is selected', async () => {
+    await renderForm()
+
+    await setSelectValue('trigger-type-select', 'heartbeat')
+
+    // No cron input yet (preset selected)
+    expect(container.querySelector('[data-testid="cron-input"]')).toBeFalsy()
+
+    // Select Custom
+    await setSelectValue('schedule-preset-select', 'custom')
+
+    // Raw cron input should now be visible
+    expect(container.querySelector('[data-testid="cron-input"]')).toBeTruthy()
+  })
+
+  it('resolves preset for known cron when editing a heartbeat task', async () => {
+    mockUseTasksReturn.activeTask = {
+      id: 'edit-heartbeat-1',
+      name: 'Hourly Task',
+      description: '',
+      trigger: { type: 'heartbeat', cronExpression: '0 * * * *', timezone: 'UTC' },
+      orchestratorInstructions: 'Run hourly',
+      enabled: true,
+      createdAt: '2026-01-01T00:00:00.000Z',
+      updatedAt: '2026-01-01T00:00:00.000Z',
+    }
+
+    await renderForm({ taskId: 'edit-heartbeat-1' })
+
+    const presetSelect = getSelect('schedule-preset-select')
+    // "0 * * * *" is index 3 ("Every hour")
+    expect(presetSelect.value).toBe('3')
+    // Raw cron input should NOT be visible
+    expect(container.querySelector('[data-testid="cron-input"]')).toBeFalsy()
+  })
+
+  it('shows Custom and raw cron input when editing a task with non-preset cron', async () => {
+    mockUseTasksReturn.activeTask = {
+      id: 'edit-custom-cron',
+      name: 'Custom Cron Task',
+      description: '',
+      trigger: { type: 'heartbeat', cronExpression: '30 2 */3 * *', timezone: 'America/New_York' },
+      orchestratorInstructions: 'Run on custom schedule',
+      enabled: true,
+      createdAt: '2026-01-01T00:00:00.000Z',
+      updatedAt: '2026-01-01T00:00:00.000Z',
+    }
+
+    await renderForm({ taskId: 'edit-custom-cron' })
+
+    const presetSelect = getSelect('schedule-preset-select')
+    expect(presetSelect.value).toBe('custom')
+
+    // Raw cron input should be visible with the custom expression
+    const cronInput = getInput('cron-input')
+    expect(cronInput).toBeTruthy()
+    expect(cronInput.value).toBe('30 2 */3 * *')
   })
 
   it('shows webhook fields only when webhook trigger is selected', async () => {
@@ -237,13 +371,15 @@ describe('TaskCreateForm', () => {
     expect(mockCreateTask).not.toHaveBeenCalled()
   })
 
-  it('validates cron expression for heartbeat triggers', async () => {
+  it('validates cron expression for heartbeat triggers with custom preset', async () => {
     await renderForm()
 
     await setInputValue('name-input', 'My Task')
     await setInputValue('instructions-input', 'Do things')
     await setSelectValue('trigger-type-select', 'heartbeat')
-    // Leave cron empty
+    // Select Custom, then clear the cron expression
+    await setSelectValue('schedule-preset-select', 'custom')
+    await setInputValue('cron-input', '')
 
     const submitBtn = getButton('submit-button')
     await act(async () => {

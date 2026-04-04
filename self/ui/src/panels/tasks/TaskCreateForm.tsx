@@ -9,6 +9,31 @@ import type { TaskCreateInput, TaskTriggerConfig } from '@nous/shared'
 
 export interface TaskCreateFormProps extends ContentRouterRenderProps {}
 
+// ─── Schedule Presets ────────────────────────────────────────────────────────
+
+export interface SchedulePreset {
+  label: string
+  cron: string
+}
+
+export const SCHEDULE_PRESETS: SchedulePreset[] = [
+  { label: 'Every 5 minutes', cron: '*/5 * * * *' },
+  { label: 'Every 15 minutes', cron: '*/15 * * * *' },
+  { label: 'Every 30 minutes', cron: '*/30 * * * *' },
+  { label: 'Every hour', cron: '0 * * * *' },
+  { label: 'Every 6 hours', cron: '0 */6 * * *' },
+  { label: 'Every 12 hours', cron: '0 */12 * * *' },
+  { label: 'Every day', cron: '0 0 * * *' },
+  { label: 'Every week', cron: '0 0 * * 0' },
+]
+
+/** Find the preset index matching a cron expression, or return 'custom'. */
+function resolvePreset(cronExpression: string): number | 'custom' {
+  if (!cronExpression) return 0
+  const idx = SCHEDULE_PRESETS.findIndex((p) => p.cron === cronExpression)
+  return idx >= 0 ? idx : 'custom'
+}
+
 // ─── Form State ───────────────────────────────────────────────────────────────
 
 interface FormState {
@@ -66,6 +91,7 @@ export function TaskCreateForm({ navigate, goBack, params }: TaskCreateFormProps
   const [errors, setErrors] = useState<FormErrors>({})
   const [submitting, setSubmitting] = useState(false)
   const [populated, setPopulated] = useState(false)
+  const [selectedPreset, setSelectedPreset] = useState<number | 'custom'>(0)
 
   // Load task data for edit mode
   useEffect(() => {
@@ -78,17 +104,19 @@ export function TaskCreateForm({ navigate, goBack, params }: TaskCreateFormProps
   useEffect(() => {
     if (isEditMode && tasksApi.activeTask && !populated) {
       const task = tasksApi.activeTask
+      const cronExpr = task.trigger.type === 'heartbeat' ? task.trigger.cronExpression : ''
       setForm({
         name: task.name,
         description: task.description,
         triggerType: task.trigger.type,
-        cronExpression: task.trigger.type === 'heartbeat' ? task.trigger.cronExpression : '',
+        cronExpression: cronExpr,
         timezone: task.trigger.type === 'heartbeat' ? task.trigger.timezone : 'UTC',
         pathSegment: task.trigger.type === 'webhook' ? task.trigger.pathSegment : '',
         secret: task.trigger.type === 'webhook' ? task.trigger.secret : '',
         orchestratorInstructions: task.orchestratorInstructions,
         context: task.context ? JSON.stringify(task.context, null, 2) : '',
       })
+      setSelectedPreset(resolvePreset(cronExpr))
       setPopulated(true)
     }
   }, [isEditMode, tasksApi.activeTask, populated])
@@ -256,7 +284,14 @@ export function TaskCreateForm({ navigate, goBack, params }: TaskCreateFormProps
             id="trigger-type"
             data-testid="trigger-type-select"
             value={form.triggerType}
-            onChange={(e) => updateField('triggerType', e.target.value as FormState['triggerType'])}
+            onChange={(e) => {
+              const newType = e.target.value as FormState['triggerType']
+              updateField('triggerType', newType)
+              if (newType === 'heartbeat' && !form.cronExpression) {
+                setSelectedPreset(0)
+                updateField('cronExpression', SCHEDULE_PRESETS[0].cron)
+              }
+            }}
             style={selectStyle}
           >
             <option value="manual">Manual</option>
@@ -269,20 +304,49 @@ export function TaskCreateForm({ navigate, goBack, params }: TaskCreateFormProps
         {form.triggerType === 'heartbeat' && (
           <>
             <div style={fieldGroupStyle}>
-              <label htmlFor="cron-expression" style={labelStyle}>Cron Expression *</label>
-              <input
-                id="cron-expression"
-                data-testid="cron-input"
-                type="text"
-                value={form.cronExpression}
-                onChange={(e) => updateField('cronExpression', e.target.value)}
-                placeholder="e.g. 0 */6 * * *"
-                style={inputStyle}
-              />
-              {errors.cronExpression && (
-                <span data-testid="cron-error" style={fieldErrorStyle}>{errors.cronExpression}</span>
-              )}
+              <label htmlFor="schedule-preset" style={labelStyle}>Schedule Interval *</label>
+              <select
+                id="schedule-preset"
+                data-testid="schedule-preset-select"
+                value={selectedPreset === 'custom' ? 'custom' : String(selectedPreset)}
+                onChange={(e) => {
+                  const val = e.target.value
+                  if (val === 'custom') {
+                    setSelectedPreset('custom')
+                    // Keep current cronExpression so user can edit it
+                  } else {
+                    const idx = Number(val)
+                    setSelectedPreset(idx)
+                    updateField('cronExpression', SCHEDULE_PRESETS[idx].cron)
+                  }
+                }}
+                style={selectStyle}
+              >
+                {SCHEDULE_PRESETS.map((preset, idx) => (
+                  <option key={preset.cron} value={String(idx)}>
+                    {preset.label}
+                  </option>
+                ))}
+                <option value="custom">Custom</option>
+              </select>
             </div>
+            {selectedPreset === 'custom' && (
+              <div style={fieldGroupStyle}>
+                <label htmlFor="cron-expression" style={labelStyle}>Cron Expression *</label>
+                <input
+                  id="cron-expression"
+                  data-testid="cron-input"
+                  type="text"
+                  value={form.cronExpression}
+                  onChange={(e) => updateField('cronExpression', e.target.value)}
+                  placeholder="e.g. 0 */6 * * *"
+                  style={inputStyle}
+                />
+                {errors.cronExpression && (
+                  <span data-testid="cron-error" style={fieldErrorStyle}>{errors.cronExpression}</span>
+                )}
+              </div>
+            )}
             <div style={fieldGroupStyle}>
               <label htmlFor="timezone" style={labelStyle}>Timezone</label>
               <input

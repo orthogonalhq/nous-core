@@ -12,9 +12,33 @@ import {
   ProjectIdSchema,
   TaskCreateInputSchema,
   TaskUpdateInputSchema,
+  TaskTriggerConfigSchema,
 } from '@nous/shared';
 import type { TaskDefinition, TaskExecutionRecord, ProjectConfig } from '@nous/shared';
 import { router, publicProcedure } from '../trpc';
+
+// ── Defensive fallback schemas ───────────────────────────────────────────────
+// In rare cases (stale dist, bundler tree-shaking) barrel re-exports may
+// resolve to `undefined`. Falling back to inline definitions keeps the
+// router functional while preserving the canonical source in @nous/shared.
+
+const ResolvedTaskCreateInputSchema = TaskCreateInputSchema ?? z.object({
+  name: z.string().min(1).max(100),
+  description: z.string().default(''),
+  trigger: TaskTriggerConfigSchema,
+  orchestratorInstructions: z.string().min(1),
+  context: z.record(z.unknown()).optional(),
+  enabled: z.boolean().default(false),
+});
+
+const ResolvedTaskUpdateInputSchema = TaskUpdateInputSchema ?? z.object({
+  name: z.string().min(1).max(100).optional(),
+  description: z.string().optional(),
+  trigger: TaskTriggerConfigSchema.optional(),
+  orchestratorInstructions: z.string().min(1).optional(),
+  context: z.record(z.unknown()).optional(),
+  enabled: z.boolean().optional(),
+});
 
 const TASK_EXECUTIONS_COLLECTION = 'task_executions';
 
@@ -75,7 +99,7 @@ export const tasksRouter = router({
     }),
 
   create: publicProcedure
-    .input(z.object({ projectId: ProjectIdSchema, task: TaskCreateInputSchema }))
+    .input(z.object({ projectId: ProjectIdSchema, task: ResolvedTaskCreateInputSchema }))
     .mutation(async ({ ctx, input }): Promise<TaskDefinition> => {
       const project = await ctx.projectStore.get(input.projectId);
       if (!project) {
@@ -112,7 +136,7 @@ export const tasksRouter = router({
     .input(z.object({
       projectId: ProjectIdSchema,
       taskId: z.string().uuid(),
-      updates: TaskUpdateInputSchema,
+      updates: ResolvedTaskUpdateInputSchema,
     }))
     .mutation(async ({ ctx, input }): Promise<TaskDefinition> => {
       const project = await ctx.projectStore.get(input.projectId);
