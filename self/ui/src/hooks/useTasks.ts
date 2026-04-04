@@ -62,14 +62,7 @@ export function useTasks(options: UseTasksOptions): UseTasksReturn {
     { enabled: !!projectId && !!activeExecutionTaskId },
   )
 
-  // --- Logging ---
-
-  if (projectId && listQuery.data) {
-    console.info('[nous:tasks] Task list loaded: %d tasks', listQuery.data.length)
-  }
-  if (projectId && listQuery.error) {
-    console.error('[nous:tasks] Failed to load tasks for project %s', projectId, listQuery.error)
-  }
+  // No render-time logging — causes console spam on every re-render.
 
   // --- Mutations (stable refs) ---
 
@@ -106,40 +99,38 @@ export function useTasks(options: UseTasksOptions): UseTasksReturn {
   const createTask = useCallback(async (input: TaskCreateInput) => {
     if (!projectId) throw new Error('No project context')
     const result = await createRef.current({ projectId, task: input })
-    console.info('[nous:tasks] Task created: %s (%s)', result.name, result.id)
-    void utils.tasks.list.invalidate({ projectId })
+    await utils.tasks.list.invalidate({ projectId })
     return result
   }, [projectId, utils])
 
   const updateTask = useCallback(async (taskId: string, updates: TaskUpdateInput) => {
     if (!projectId) throw new Error('No project context')
     const result = await updateRef.current({ projectId, taskId, updates })
-    void utils.tasks.list.invalidate({ projectId })
-    void utils.tasks.get.invalidate({ projectId, taskId })
+    await utils.tasks.list.invalidate({ projectId })
+    await utils.tasks.get.invalidate({ projectId, taskId })
     return result
   }, [projectId, utils])
 
   const deleteTask = useCallback(async (taskId: string) => {
     if (!projectId) throw new Error('No project context')
     const result = await deleteRef.current({ projectId, taskId })
-    void utils.tasks.list.invalidate({ projectId })
+    await utils.tasks.list.invalidate({ projectId })
     return result
   }, [projectId, utils])
 
   const toggleTask = useCallback(async (taskId: string) => {
     if (!projectId) throw new Error('No project context')
     const result = await toggleRef.current({ projectId, taskId })
-    void utils.tasks.list.invalidate({ projectId })
-    void utils.tasks.get.invalidate({ projectId, taskId })
+    await utils.tasks.list.invalidate({ projectId })
+    await utils.tasks.get.invalidate({ projectId, taskId })
     return result
   }, [projectId, utils])
 
   const triggerTask = useCallback(async (taskId: string) => {
     if (!projectId) throw new Error('No project context')
     const result = await triggerRef.current({ projectId, taskId })
-    console.info('[nous:tasks] Task triggered: %s, executionId=%s', taskId, result.executionId)
-    void utils.tasks.list.invalidate({ projectId })
-    void utils.tasks.executions.invalidate({ projectId, taskId })
+    await utils.tasks.list.invalidate({ projectId })
+    await utils.tasks.executions.invalidate({ projectId, taskId })
     return result
   }, [projectId, utils])
 
