@@ -67,7 +67,7 @@ describe('ChatPanel — Content Detection and Renderer Branching', () => {
     expect(screen.queryByTestId('openui-card-container')).toBeNull()
   })
 
-  it('assistant message with contentType openui and malformed markup: renders parse error fallback', async () => {
+  it('assistant message with contentType openui and malformed markup: falls back to plain text', async () => {
     const api = makeChatApi([
       {
         role: 'assistant',
@@ -77,8 +77,10 @@ describe('ChatPanel — Content Detection and Renderer Branching', () => {
       },
     ])
     render(<ChatPanel chatApi={api} />)
-    expect(await screen.findByTestId('card-parse-error')).toBeTruthy()
-    expect(screen.getByText('Could not render card')).toBeTruthy()
+    // Malformed content cannot parse to valid registered cards → plain text fallback
+    expect(await screen.findByText('this is not valid card markup at all')).toBeTruthy()
+    expect(screen.queryByTestId('openui-card-container')).toBeNull()
+    expect(screen.queryByTestId('card-parse-error')).toBeNull()
   })
 
   it('user message: always plain text regardless of content', async () => {
@@ -155,14 +157,39 @@ describe('ChatPanel — Content Detection and Renderer Branching', () => {
     expect(screen.queryByTestId('stale-card')).toBeNull()
   })
 
+  it('assistant message with contentType openui but hallucinated card type: falls back to plain text', async () => {
+    const hallucinated = '<HaikuCard title="Poetic moment" message="Snowflakes" />'
+    const api = makeChatApi([
+      {
+        role: 'assistant',
+        content: hallucinated,
+        timestamp: '2026-01-01T00:00:00Z',
+        contentType: 'openui',
+      },
+    ])
+    const { container } = render(<ChatPanel chatApi={api} />)
+
+    // Wait for history to load
+    await screen.findByPlaceholderText(/What can I help you with/i)
+    // Allow async getHistory to settle
+    await new Promise(r => setTimeout(r, 50))
+
+    // HaikuCard is not a registered card type → plain text fallback (no card container)
+    expect(screen.queryByTestId('openui-card-container')).toBeNull()
+    expect(screen.queryByTestId('unknown-card-fallback')).toBeNull()
+    // Content appears as raw text
+    expect(container.textContent).toContain('HaikuCard')
+  })
+
   // ---------------------------------------------------------------------------
   // Tier 3 — Edge Cases
   // ---------------------------------------------------------------------------
 
-  it('empty messages array: no crash, empty state displayed', async () => {
+  it('empty messages array: no crash, renders cleanly', async () => {
     const api = makeChatApi([])
-    render(<ChatPanel chatApi={api} />)
-    expect(await screen.findByText('Start a conversation with Nous.')).toBeTruthy()
+    const { container } = render(<ChatPanel chatApi={api} />)
+    // Should render without crashing; no empty state text is shown
+    expect(container.querySelector('[data-chat-stage="full"]')).toBeTruthy()
   })
 
   it('rendering never throws even on unexpected input', async () => {

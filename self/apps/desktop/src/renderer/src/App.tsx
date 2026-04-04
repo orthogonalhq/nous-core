@@ -281,7 +281,7 @@ function ChromeShell({
       <div style={{ flex: 1, overflow: 'hidden', minHeight: 0 }}>
         {children}
       </div>
-      <StatusBar mode={mode} />
+      {mode !== 'simple' && <StatusBar mode={mode} />}
     </div>
   )
 }
@@ -859,6 +859,8 @@ function DesktopSimpleShell({
           onSendStart={() => chatStageManager.signalSending()}
           onTogglePin={() => chatStageManager.togglePin()}
           onInputFocus={() => chatStageManager.signalInputFocus()}
+          onUnreadMessage={() => chatStageManager.signalUnreadMessage()}
+          onMessagesRead={() => chatStageManager.signalMessagesRead()}
         />
       )}
     />

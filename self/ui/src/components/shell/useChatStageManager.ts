@@ -21,6 +21,7 @@ export function useChatStageManager(): ChatStageManagerReturn {
   const [chatStage, setChatStage] = useState<ChatStage>('small')
   const [isPinned, setIsPinned] = useState(false)
   const isActiveTurnRef = useRef(false)
+  const hasUnreadRef = useRef(false)
 
   // Idle timer refs
   const idleTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
@@ -71,7 +72,7 @@ export function useChatStageManager(): ChatStageManagerReturn {
     isActiveTurnRef.current = false
     setChatStage((prev) => {
       if (prev === 'ambient_large') {
-        // ambient_large -> ambient_small after 5s, then ambient_small -> small after 3s
+        // ambient_large -> ambient_small after 5s, then -> small after 3s more
         idleTimerRef.current = setTimeout(() => {
           idleTimerRef.current = null
           setChatStage((current) => {
@@ -88,13 +89,31 @@ export function useChatStageManager(): ChatStageManagerReturn {
         return prev
       }
       if (prev === 'ambient_small') {
-        idleTimerRef.current = setTimeout(() => {
-          idleTimerRef.current = null
-          setChatStage((current) => (current === 'ambient_small' ? 'small' : current))
+        // ambient_small -> small after idle delay
+        secondaryTimerRef.current = setTimeout(() => {
+          secondaryTimerRef.current = null
+          setChatStage((c) => (c === 'ambient_small' ? 'small' : c))
         }, IDLE_AMBIENT_SMALL_TO_SMALL)
-        return prev
       }
       // full persists — no idle decay
+      return prev
+    })
+  }, [])
+
+  const signalUnreadMessage = useCallback(() => {
+    hasUnreadRef.current = true
+  }, [])
+
+  const signalMessagesRead = useCallback(() => {
+    hasUnreadRef.current = false
+    setChatStage((prev) => {
+      if (prev === 'ambient_small') {
+        // Delayed collapse so the badge doesn't vanish abruptly
+        idleTimerRef.current = setTimeout(() => {
+          idleTimerRef.current = null
+          setChatStage((c) => (c === 'ambient_small' ? 'small' : c))
+        }, IDLE_AMBIENT_SMALL_TO_SMALL)
+      }
       return prev
     })
   }, [])
@@ -130,9 +149,8 @@ export function useChatStageManager(): ChatStageManagerReturn {
       if (isPinned && prev === 'full') return prev
       if (prev !== 'small') {
         clearAllTimers()
-        // If agent is actively working, collapse to ambient_small (not small)
-        // so the user can still see the thinking indicator
-        if (isActiveTurnRef.current) return 'ambient_small'
+        // Stay in ambient_small if agent is working or there are unread messages
+        if (isActiveTurnRef.current || hasUnreadRef.current) return 'ambient_small'
         return 'small'
       }
       return prev
@@ -158,6 +176,8 @@ export function useChatStageManager(): ChatStageManagerReturn {
     signalInferenceStart,
     signalPfcDecision,
     signalTurnComplete,
+    signalUnreadMessage,
+    signalMessagesRead,
     expandToAmbientLarge,
     expandToFull,
     collapseToAmbientSmall,

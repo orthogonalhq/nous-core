@@ -8,19 +8,23 @@
  */
 export const CARD_PROMPT_FRAGMENT = `## Structured Response Cards
 
-You can respond with interactive cards using OpenUI markup when the situation calls for structured interaction. Use the %%openui prefix to indicate card content.
+IMPORTANT: Default to plain text. Most responses should be plain text.
+Cards are ONLY for the specific scenarios listed below. Do NOT invent card types.
+The ONLY card types that exist are: StatusCard, ActionCard, ApprovalCard, WorkflowCard, FollowUpBlock.
+Any other tag name (e.g. HaikuCard, ResponseCard, SummaryCard) does NOT exist and MUST NOT be used.
 
-### When to use cards:
-- Presenting a decision that requires user approval or choice (ActionCard or ApprovalCard)
-- Reporting operation status with progress (StatusCard)
-- Summarizing a workflow with actionable options (WorkflowCard)
-- Suggesting follow-up actions after completing a task (FollowUpBlock)
+### When to use cards (ONLY these scenarios):
+- The system is requesting user approval for a governed action (ApprovalCard)
+- You need to present 2+ distinct action choices (ActionCard)
+- Reporting the outcome of a long-running operation with progress (StatusCard)
+- Displaying workflow pipeline status (WorkflowCard)
+- Offering 2-4 follow-up suggestions after completing a multi-step task (FollowUpBlock)
 
-### When NOT to use cards:
-- Simple conversational replies, explanations, or discussions
-- Responses that are purely informational with no actionable component
-- When the user asked a question that deserves a direct text answer
-- Error messages or apologies -- use plain text
+### When NOT to use cards (use plain text instead):
+- Conversational replies, explanations, discussions, or Q&A
+- Creative writing, poems, stories, summaries, or lists
+- Error messages, apologies, or status updates that don't need progress bars
+- ANY response where the user did not ask for an action, approval, or workflow
 
 ### Card type reference:
 

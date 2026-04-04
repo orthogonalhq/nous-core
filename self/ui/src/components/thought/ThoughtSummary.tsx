@@ -53,8 +53,8 @@ export function ThoughtSummary({ traceId, className }: ThoughtSummaryProps) {
         data-testid="thought-summary-loading"
         className={className}
         style={{
-          fontFamily: 'var(--nous-font-mono)',
-          fontSize: 'var(--nous-font-size-xs)',
+          fontFamily: 'var(--nous-font-family-mono)',
+          fontSize: 'var(--nous-font-size-2xs)',
           color: 'var(--nous-fg-subtle)',
           padding: 'var(--nous-space-xs) 0',
         }}
@@ -92,8 +92,8 @@ export function ThoughtSummary({ traceId, className }: ThoughtSummaryProps) {
           border: 'none',
           cursor: 'pointer',
           padding: 'var(--nous-space-xs) 0',
-          fontFamily: 'var(--nous-font-mono)',
-          fontSize: 'var(--nous-font-size-xs)',
+          fontFamily: 'var(--nous-font-family-mono)',
+          fontSize: 'var(--nous-font-size-2xs)',
           color: 'var(--nous-fg-subtle)',
           textAlign: 'left',
           lineHeight: 1.4,

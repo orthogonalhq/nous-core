@@ -1,3 +1,5 @@
+import * as React from 'react'
+import { Users, Bot, } from 'lucide-react'
 import type { AssetSectionItem, CatalogItem } from '../components/shell/types'
 
 /** @todo stub data placeholding for proper build out */
@@ -31,22 +33,27 @@ export const STUB_APPS: CatalogItem[] = [
 // --- Simple shell sidebar stub data ---
 
 /** @todo stub data placeholding for proper build out */
+export const STUB_CAMPAIGNS: AssetSectionItem[] = [
+  { id: 'campaign-1', label: 'Marketing Campaigns', indicatorColor: '#4CAF50', routeId: 'campaign-1' },
+  { id: 'campaign-2', label: 'Product Management', indicatorColor: '#66BB6A', routeId: 'campaign-2' },
+]
+
+/** @todo stub data placeholding for proper build out */
 export const STUB_TASKS: AssetSectionItem[] = [
-  { id: 'task-1', label: 'Deploy v2.1', routeId: 'tasks' },
-  { id: 'task-2', label: 'Bug triage', routeId: 'tasks' },
-  { id: 'task-3', label: 'Sprint review', routeId: 'tasks' },
+  { id: 'task-1', label: 'Manage Emails', indicatorColor: '#E91E63', routeId: 'task-1' },
+  { id: 'task-2', label: 'Manage Social Media', indicatorColor: '#F06292', routeId: 'task-2' },
 ]
 
 /** @todo stub data placeholding for proper build out */
 export const STUB_TEAMS: AssetSectionItem[] = [
-  { id: 'team-1', label: 'Engineering', routeId: 'teams' },
-  { id: 'team-2', label: 'Design', routeId: 'teams' },
-  { id: 'team-3', label: 'Product', routeId: 'teams' },
+  { id: 'team-1', label: 'Marketing', icon: <Users />, routeId: 'team-1' },
+  { id: 'team-2', label: 'Customer Service', icon: <Users />, routeId: 'team-2' },
+  { id: 'team-3', label: 'Product', icon: <Users />,  routeId: 'team-3' },
 ]
 
 /** @todo stub data placeholding for proper build out */
 export const STUB_AGENTS: AssetSectionItem[] = [
-  { id: 'agent-1', label: 'Code Reviewer', routeId: 'agents' },
-  { id: 'agent-2', label: 'Test Runner', routeId: 'agents' },
-  { id: 'agent-3', label: 'Deploy Agent', routeId: 'agents' },
+  { id: 'agent-1', label: 'AI Agent', icon: <Bot />, routeId: 'agent-1' },
+  { id: 'agent-2', label: 'Project Agent', icon: <Bot />, routeId: 'agent-2' },
+  { id: 'agent-3', label: 'Communications Agent', icon: <Bot />, routeId: 'agent-3' },
 ]

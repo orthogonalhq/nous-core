@@ -27,13 +27,13 @@ describe('ChatPanel', () => {
     expect(_props).toBeUndefined()
   })
 
-  // Tier 2 — Behavior
-  it('displays "Principal ↔ Cortex" when no conversationContext (backward compatibility)', () => {
+  // Tier 2 — Behavior (header removed in WR-116 SP 1.2)
+  it('full mode renders without header (no "Principal ↔ Cortex")', () => {
     render(<ChatPanel />)
-    expect(screen.getByText('Principal ↔ Cortex')).toBeTruthy()
+    expect(screen.queryByText('Principal ↔ Cortex')).toBeNull()
   })
 
-  it('displays thread indicator when conversationContext.threadId is non-null', () => {
+  it('accepts conversationContext prop without crashing', () => {
     render(
       <ChatPanel
         conversationContext={{
@@ -44,10 +44,11 @@ describe('ChatPanel', () => {
         }}
       />,
     )
-    expect(screen.getByTestId('thread-indicator')).toBeTruthy()
+    // Header and badges removed — just verify no crash
+    expect(screen.queryByTestId('thread-indicator')).toBeNull()
   })
 
-  it('renders ambient badge when conversationContext.isAmbient is true', () => {
+  it('accepts isAmbient conversationContext without crashing', () => {
     render(
       <ChatPanel
         conversationContext={{
@@ -58,10 +59,11 @@ describe('ChatPanel', () => {
         }}
       />,
     )
-    expect(screen.getByTestId('ambient-badge')).toBeTruthy()
+    // Ambient badge and header removed — just verify no crash
+    expect(screen.queryByTestId('ambient-badge')).toBeNull()
   })
 
-  it('displays header text "Ambient" when isAmbient and no threadId', () => {
+  it('full mode shows no header elements regardless of conversationContext', () => {
     render(
       <ChatPanel
         conversationContext={{
@@ -72,9 +74,8 @@ describe('ChatPanel', () => {
         }}
       />,
     )
-    // "Ambient" appears in both header span and badge — use getAllByText
-    const ambientElements = screen.getAllByText('Ambient')
-    expect(ambientElements.length).toBeGreaterThanOrEqual(1)
+    // Header removed — no ambient text or badge rendered
+    expect(screen.queryByTestId('ambient-badge')).toBeNull()
   })
 
   // Tier 3 — Edge cases
@@ -85,7 +86,8 @@ describe('ChatPanel', () => {
     }
     // Cast to any: dockview IDockviewPanelProps also requires api/containerApi which we cannot construct in unit tests
     render(<ChatPanel {...{ params: { chatApi: mockApi } } as any} />)
-    expect(screen.getByText('Principal ↔ Cortex')).toBeTruthy()
+    // Header removed — just verify it renders the full stage
+    expect(screen.getByPlaceholderText(/What can I help you with/i)).toBeTruthy()
   })
 
   it('does not crash when both conversationContext and chatApi are undefined', () => {

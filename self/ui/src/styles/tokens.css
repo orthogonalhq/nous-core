@@ -15,18 +15,18 @@
   --nous-bg:             #131313;
   --nous-bg-base:        #010101;
   --nous-bg-surface:     #050505;
+  --nous-bg-chat-full:   #0C0C0C;
   --nous-bg-elevated:    #141414;
   --nous-bg-hover:       #1a1a1a;
-  --nous-bg-active:      #222222;
+  --nous-bg-active:      #1A1A1A;
   --nous-bg-input:       #0f0f0f;
   --nous-rail-surface:   #090909;
-  --nous-ambient-gradient: linear-gradient(to bottom, rgba(9,9,9,1) 60%, rgba(9,9,9,0) 100%);
+  --nous-ambient-gradient: linear-gradient(to top, rgba(9,9,9,1) 70%, rgba(9,9,9,0) 100%);
 
   /* ── Borders ─────────────────────────────────────────────────────────── */
+  --nous-border-subtle: #121212;
   --nous-border:        #1a1a1a;
-  --nous-border-strong: #2a2a2a;
-  --nous-border-subtle: #2d2d2d0a;
-
+  --nous-border-strong: #232323;
   --nous-nested-panel-border: transparent;
 
   /* ── Foreground ──────────────────────────────────────────────────────── */
@@ -34,19 +34,25 @@
   --nous-fg-muted:  #bababa;
   --nous-fg-dim:    #858585;
   --nous-fg-subtle: #6a6a6a;
-  --nous-text-primary:   rgba(255,255,255,0.95);
-  --nous-text-secondary: rgba(255,255,255,0.60);
-  --nous-text-tertiary:  rgba(255,255,255,0.35);
-  --nous-text-ghost:     rgba(255,255,255,0.12);
+  --nous-text-primary:   #fefefe;
+  --nous-text-secondary: #A9A9A9;
+  --nous-text-tertiary:  #767676;
+  --nous-text-ghost:     #464646;
 
   /* ── Sidebar font colors ────────────────────────────────────────────── */
-  --nous-sidebar-label:          #2C2C2C;
-  --nous-sidebar-chevron:        #606060;
-  --nous-sidebar-group-icon:     #4B4B4B;
-  --nous-sidebar-button-fg:      #A9A9A9;
-  --nous-sidebar-button-icon:    #FFFFFF;
+  --nous-sidebar-label:          #666666;
+  --nous-sidebar-chevron:        #888888;
+  --nous-sidebar-group-icon:     #666666;
+  --nous-sidebar-button-fg:      #B0B0B0;
+  --nous-sidebar-button-icon:    #A0A0A0;
   --nous-sidebar-title:          #FFFFFF;
   --nous-sidebar-collapse-icon:  #949494;
+
+  /* ── Search bar ───────────────────────────────────────────────────── */
+  --nous-search-bg:          #1a1a1a;
+  --nous-search-border:      var(--nous-border);
+  --nous-search-placeholder: #6a6a6a;
+  --nous-search-icon:        #6a6a6a;
 
   /* ── Accent / interactive ────────────────────────────────────────────── */
   --nous-accent:       #007acc;
@@ -117,6 +123,7 @@
   --nous-font-size-md:  14px;
   --nous-font-size-lg:  16px;
   --nous-font-size-xl:  20px;
+  --nous-font-size-2xl: 24px;
 
   /* ── Font weight ────────────────────────────────────────────────────── */
   --nous-font-weight-regular:  400;
@@ -178,7 +185,7 @@
   --nous-icon-size-lg: 20px;
 
   /* ── Chrome dimensions ─────────────────────────────────────────────── */
-  --nous-titlebar-height:    30px;
+  --nous-titlebar-height:    32px;
   --nous-statusbar-height:   22px;
   --nous-titlebar-btn-width: 46px;
   --nous-dv-tab-height:      35px;
@@ -194,18 +201,27 @@
 
   /* ── Shell geometry ─────────────────────────────────────────────────── */
   --nous-rail-width:            72px;
-  --nous-rail-width-collapsed:  56px;
+  --nous-rail-width-collapsed:  32px;
   --nous-chat-column-width:     320px;
   --nous-observe-column-width:  280px;
   --nous-column-divider-width:  1px;
 
   /* -- Simple shell geometry */
-  --nous-project-rail-width:            48px;
+  --nous-project-rail-width:            62px;
+  --nous-rail-avatar-size:              40px;
+  --nous-rail-indicator-width:          4px;
+  --nous-rail-indicator-height:         30px;
   --nous-asset-sidebar-default-width:   320px;
   --nous-asset-sidebar-min-width:       240px;
-  --nous-observe-default-width:         20px;
+  --nous-observe-collapsed-width:       32px;
   --nous-observe-expanded-width:        280px;
-  --nous-observe-min-width:             20px;
+  --nous-observe-min-width:             32px;
+
+  /* -- Chat overlay heights (per stage) */
+  --nous-chat-height-small:             fit-content;
+  --nous-chat-height-ambient-small:     fit-content;
+  --nous-chat-height-ambient-large:     55%;
+  --nous-chat-height-full:              100%;
 
   /* ── Shell breakpoints ──────────────────────────────────────────────── */
   --nous-shell-breakpoint-full:   1400px;
