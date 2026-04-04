@@ -1,7 +1,8 @@
 import { useRef, useEffect } from 'react'
 import { ThoughtSummary } from '../../components/thought'
 import type { CardAction } from '../../components/chat/openui-adapter'
-import { detectCardContent, ChatCardRenderer } from './ChatCardRenderer'
+import { ChatCardRenderer } from './ChatCardRenderer'
+import { splitMessageSegments } from './message-segments'
 import { InlineThoughtGroup } from './InlineThoughtGroup'
 import type { InlineThoughtItem } from './inline-thoughts'
 import type { ChatMessage } from './types'
@@ -90,7 +91,8 @@ function ChatMessageRow({
         )
     }
 
-    const { isCard, content } = detectCardContent(message)
+    const segments = splitMessageSegments(message.content)
+    const hasCardSegments = segments.some(s => s.type === 'card')
     const isStale = !!message.actionOutcome || !isLastAssistant
 
     return (
@@ -99,13 +101,22 @@ function ChatMessageRow({
                 <InlineThoughtGroup items={thoughts} active={false} />
             )}
             <div style={styles.bubble}>
-                {isCard ? (
-                    <ChatCardRenderer
-                        content={content}
-                        stale={isStale}
-                        actionOutcome={message.actionOutcome}
-                        onAction={isStale ? undefined : onCardAction}
-                    />
+                {hasCardSegments ? (
+                    segments.map((segment, segIdx) =>
+                        segment.type === 'card' ? (
+                            <ChatCardRenderer
+                                key={`seg-${segIdx}`}
+                                content={segment.content}
+                                stale={isStale}
+                                actionOutcome={message.actionOutcome}
+                                onAction={isStale ? undefined : onCardAction}
+                            />
+                        ) : (
+                            <span key={`seg-${segIdx}`} style={{ whiteSpace: 'pre-wrap' }}>
+                                {segment.content}
+                            </span>
+                        )
+                    )
                 ) : (
                     message.content
                 )}
