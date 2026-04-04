@@ -9,7 +9,7 @@ import {
   type ContentRouterRenderProps,
 } from '@nous/ui/components'
 import type { ShellMode } from '@nous/ui/components'
-import { PreferencesPanel } from '@nous/ui/panels'
+import { PreferencesPanel, TaskDetailView, TaskCreateForm } from '@nous/ui/panels'
 import { STUB_THREADS, STUB_WORKFLOWS, STUB_SKILLS, STUB_APPS } from '@nous/ui'
 import { usePreferencesApi } from '@nous/transport'
 
@@ -38,13 +38,40 @@ function SettingsRoute({ onModeChange, currentMode }: {
   )
 }
 
+// ─── Proxy-based route resolver for parameterized routes ──────────────────
+
+const TASK_DETAIL_PREFIX = 'task-detail::'
+
+function createRouteProxy(
+  staticRoutes: Record<string, ComponentType<ContentRouterRenderProps>>,
+): Record<string, ComponentType<ContentRouterRenderProps>> {
+  return new Proxy(staticRoutes, {
+    get(target, prop: string) {
+      if (prop in target) return target[prop]
+      // Handle task-detail::<taskId> pattern
+      if (typeof prop === 'string' && prop.startsWith(TASK_DETAIL_PREFIX)) {
+        const taskId = prop.slice(TASK_DETAIL_PREFIX.length)
+        return (props: ContentRouterRenderProps) => (
+          <TaskDetailView {...props} params={{ ...props.params, taskId }} />
+        )
+      }
+      return undefined
+    },
+    has(target, prop: string) {
+      if (prop in target) return true
+      if (typeof prop === 'string' && prop.startsWith(TASK_DETAIL_PREFIX)) return true
+      return false
+    },
+  })
+}
+
 // ─── Route factory ─────────────────────────────────────────────────────────
 
 export function createWebShellRoutes(params: {
   onModeChange?: (mode: ShellMode) => void
   currentMode?: ShellMode
 }): Record<string, ComponentType<ContentRouterRenderProps>> {
-  return {
+  const staticRoutes: Record<string, ComponentType<ContentRouterRenderProps>> = {
     home: HomeScreen,
     settings: (_props: ContentRouterRenderProps) => (
       <SettingsRoute onModeChange={params.onModeChange} currentMode={params.currentMode} />
@@ -58,8 +85,14 @@ export function createWebShellRoutes(params: {
     inbox: (props: ContentRouterRenderProps) => <PlaceholderRoute {...props} label="Inbox" />,
     'workflow-detail': (props: ContentRouterRenderProps) => <PlaceholderRoute {...props} label="Workflow Detail" />,
     tasks: (props: ContentRouterRenderProps) => <PlaceholderRoute {...props} label="Tasks" />,
-    'task-detail': (props: ContentRouterRenderProps) => <PlaceholderRoute {...props} label="Task Detail" />,
+    'task-detail': TaskDetailView,
+    'task-create': TaskCreateForm,
     agents: (props: ContentRouterRenderProps) => <PlaceholderRoute {...props} label="Agents" />,
     'agent-detail': (props: ContentRouterRenderProps) => <PlaceholderRoute {...props} label="Agent Detail" />,
   }
+
+  return createRouteProxy(staticRoutes)
 }
+
+// Export for testing
+export { createRouteProxy, TASK_DETAIL_PREFIX }

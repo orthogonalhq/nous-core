@@ -19,9 +19,12 @@ export const DESKTOP_TOP_NAV: SidebarTopNavItem[] = [
 /**
  * Build sidebar sections for the desktop app.
  * WORKFLOWS uses stub data for now (tRPC wiring deferred to WR-108).
- * TASKS, TEAMS, AGENTS are disabled stubs.
+ * TASKS is live when a tasksSection is provided; falls back to disabled stub.
+ * TEAMS, AGENTS are disabled stubs.
  */
-export function buildDesktopSidebarSections(): AssetSection[] {
+export function buildDesktopSidebarSections(params?: {
+  tasksSection?: AssetSection
+}): AssetSection[] {
   return [
     {
       id: 'workflows',
@@ -35,7 +38,7 @@ export function buildDesktopSidebarSections(): AssetSection[] {
       collapsible: true,
       disabled: false,
     },
-    {
+    params?.tasksSection ?? {
       id: 'tasks',
       label: 'TASKS',
       items: STUB_TASKS,

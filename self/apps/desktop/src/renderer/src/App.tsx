@@ -42,6 +42,7 @@ import { RAIL_SECTIONS } from './desktop-rail-config'
 import { buildDesktopCommands } from './desktop-command-config'
 import { DESKTOP_TOP_NAV, buildDesktopSidebarSections } from './desktop-sidebar-config'
 import { BASE_SIMPLE_MODE_ROUTES } from './desktop-routes'
+import { useTasks, buildTasksSection } from '@nous/ui/hooks/useTasks'
 import { SettingsRoute } from './desktop-settings-route'
 
 import 'dockview-react/dist/styles/dockview.css'
@@ -569,8 +570,6 @@ export function App() {
     ),
   }), [preferencesPanelParams])
 
-  const desktopSidebarSections = useMemo(() => buildDesktopSidebarSections(), [])
-
   const handleDesktopProjectChange = useCallback((newProjectId: string) => {
     setActiveRoute(DEFAULT_ROUTE) // reset content route on project switch
   }, [])
@@ -698,7 +697,6 @@ export function App() {
           activeRoute={activeRoute}
           handleNavigate={handleNavigate}
           simpleModeRoutes={simpleModeRoutes}
-          desktopSidebarSections={desktopSidebarSections}
         />
       ) : (
         <DockviewShell
@@ -805,12 +803,10 @@ function DesktopSimpleShell({
   activeRoute,
   handleNavigate,
   simpleModeRoutes,
-  desktopSidebarSections,
 }: {
   activeRoute: string
   handleNavigate: (routeId: string) => void
   simpleModeRoutes: Record<string, any>
-  desktopSidebarSections: import('@nous/ui/components').AssetSection[]
 }) {
   const chatStageManager = useChatStageManager()
 
@@ -835,7 +831,7 @@ function DesktopSimpleShell({
   return (
     <SimpleShellLayout
       projectRail={<DesktopProjectRail />}
-      sidebar={<DesktopAssetSidebarConnected sections={desktopSidebarSections} />}
+      sidebar={<DesktopAssetSidebarConnected />}
       content={
         <ContentRouter
           activeRoute={activeRoute}
@@ -867,9 +863,26 @@ function DesktopSimpleShell({
 
 // ─── Desktop Project Rail (wired to tRPC) ──────────────────────────────────
 
-function DesktopAssetSidebarConnected({ sections }: { sections: import('@nous/ui/components').AssetSection[] }) {
+function DesktopAssetSidebarConnected() {
   const { activeProjectId, activeRoute, navigate } = useShellCtx()
   const { data: projectList } = trpc.projects.list.useQuery()
+  const tasksApi = useTasks({ projectId: activeProjectId })
+
+  const tasksSection = useMemo(
+    () => buildTasksSection({
+      tasks: tasksApi.tasks,
+      loading: tasksApi.tasksLoading,
+      error: tasksApi.tasksError,
+      onAdd: () => navigate('task-create'),
+      navigate,
+    }),
+    [tasksApi.tasks, tasksApi.tasksLoading, tasksApi.tasksError, navigate],
+  )
+
+  const sections = useMemo(
+    () => buildDesktopSidebarSections({ tasksSection }),
+    [tasksSection],
+  )
 
   const projectName = useMemo(() => {
     if (!projectList || !activeProjectId) return 'Project'

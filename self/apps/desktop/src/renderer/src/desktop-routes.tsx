@@ -11,8 +11,38 @@ import {
   STUB_SKILLS,
   STUB_APPS,
 } from '@nous/ui'
+import { TaskDetailView, TaskCreateForm } from '@nous/ui/panels'
 
-export const BASE_SIMPLE_MODE_ROUTES: Record<string, React.ComponentType<ContentRouterRenderProps>> = {
+// ─── Proxy-based route resolver for parameterized routes ──────────────────
+
+const TASK_DETAIL_PREFIX = 'task-detail::'
+
+function createRouteProxy(
+  staticRoutes: Record<string, React.ComponentType<ContentRouterRenderProps>>,
+): Record<string, React.ComponentType<ContentRouterRenderProps>> {
+  return new Proxy(staticRoutes, {
+    get(target, prop: string) {
+      if (prop in target) return target[prop]
+      // Handle task-detail::<taskId> pattern
+      if (typeof prop === 'string' && prop.startsWith(TASK_DETAIL_PREFIX)) {
+        const taskId = prop.slice(TASK_DETAIL_PREFIX.length)
+        return (props: ContentRouterRenderProps) => (
+          <TaskDetailView {...props} params={{ ...props.params, taskId }} />
+        )
+      }
+      return undefined
+    },
+    has(target, prop: string) {
+      if (prop in target) return true
+      if (typeof prop === 'string' && prop.startsWith(TASK_DETAIL_PREFIX)) return true
+      return false
+    },
+  })
+}
+
+// ─── Static route definitions ─────────────────────────────────────────────
+
+const STATIC_ROUTES: Record<string, React.ComponentType<ContentRouterRenderProps>> = {
   home: HomeScreen,
   threads: (props: ContentRouterRenderProps) => <CatalogView {...props} items={STUB_THREADS} />,
   workflows: (props: ContentRouterRenderProps) => <CatalogView {...props} items={STUB_WORKFLOWS} />,
@@ -23,7 +53,10 @@ export const BASE_SIMPLE_MODE_ROUTES: Record<string, React.ComponentType<Content
   inbox: (props: ContentRouterRenderProps) => <PlaceholderRoute {...props} label="Inbox" />,
   'workflow-detail': (props: ContentRouterRenderProps) => <PlaceholderRoute {...props} label="Workflow Detail" />,
   tasks: (props: ContentRouterRenderProps) => <PlaceholderRoute {...props} label="Tasks" />,
-  'task-detail': (props: ContentRouterRenderProps) => <PlaceholderRoute {...props} label="Task Detail" />,
+  'task-detail': TaskDetailView,
+  'task-create': TaskCreateForm,
   agents: (props: ContentRouterRenderProps) => <PlaceholderRoute {...props} label="Agents" />,
   'agent-detail': (props: ContentRouterRenderProps) => <PlaceholderRoute {...props} label="Agent Detail" />,
 }
+
+export const BASE_SIMPLE_MODE_ROUTES = createRouteProxy(STATIC_ROUTES)
