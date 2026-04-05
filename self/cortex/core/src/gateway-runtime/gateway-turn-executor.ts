@@ -132,6 +132,12 @@ export interface GatewayBackedTurnExecutorDeps {
   idFactory?: () => string;
 }
 
+/**
+ * @deprecated Use {@link PrincipalSystemGatewayRuntime.handleChatTurn()} for chat turns.
+ * This class is the compatibility bridge for callers still using the ICoreExecutor interface.
+ * `getTrace()` remains functional for trace retrieval during transition.
+ * Will be removed after all callers migrate.
+ */
 export class GatewayBackedTurnExecutor implements ICoreExecutor {
   private readonly gatewayFactory: IAgentGatewayFactory;
   private readonly workmodeAdmissionGuard: IWorkmodeAdmissionGuard;

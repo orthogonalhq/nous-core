@@ -4,6 +4,7 @@ import type {
   AgentGatewayConfig,
   AgentResult,
   GatewayBudget,
+  GatewayContextFrame,
   GatewayOutboxEvent,
   IAgentGateway,
   ICheckpointManager,
@@ -16,16 +17,22 @@ import type {
   IRollbackPolicyEvaluator,
   IngressDispatchOutcome,
   IngressTriggerEnvelope,
+  ProjectId,
   RecoveryOrchestratorContext,
+  StmContext,
   ToolDefinition,
+  TraceEvidenceReference,
+  TraceId,
 } from '@nous/shared';
+import { GatewayContextFrameSchema } from '@nous/shared';
 import { AgentGatewayFactory, createInboxFrame } from '../agent-gateway/index.js';
 import {
   createInternalMcpSurfaceBundle,
   getInternalMcpCatalogEntry,
   getVisibleInternalMcpTools,
 } from '../internal-mcp/index.js';
-import { ORCHESTRATOR_SYSTEM_PROMPT, getOrchestratorPrompt } from '../prompts/index.js';
+import { getOrchestratorPrompt } from '../prompts/index.js';
+import { resolvePromptConfig, composeSystemPromptFromConfig } from './prompt-strategy.js';
 import { RetryPolicyEvaluator } from '../recovery/retry-policy-evaluator.js';
 import { RollbackPolicyEvaluator } from '../recovery/rollback-policy-evaluator.js';
 import { WorkmodeAdmissionGuard } from '../workmode/admission-guard.js';
@@ -39,6 +46,8 @@ import {
   type ISystemInboxSubmissionService,
 } from './system-inbox-tools.js';
 import type {
+  ChatTurnInput,
+  ChatTurnResult,
   CheckpointVisibilityStatus,
   EscalationAuditSummary,
   GatewaySubmissionSource,
@@ -48,6 +57,7 @@ import type {
   SystemSubmissionReceipt,
   SystemTaskSubmission,
 } from './types.js';
+import { ChatTurnInputSchema } from './types.js';
 
 const DEFAULT_TOP_LEVEL_BUDGET: GatewayBudget = {
   maxTurns: 4,
@@ -61,26 +71,9 @@ const DEFAULT_CHILD_BUDGET: GatewayBudget = {
   timeoutMs: 60_000,
 };
 
-const DEFAULT_PRINCIPAL_PROMPT = [
-  'You are Cortex::Principal.',
-  'You are a long-lived conversational gateway.',
-  'You do not dispatch agents or complete workflow tasks.',
-  'Use the System inbox communication tools when work must be delegated.',
-].join('\n');
-
-const DEFAULT_SYSTEM_PROMPT = [
-  'You are Cortex::System.',
-  'You are the long-lived coordination gateway for scheduler, event, and escalation owned work.',
-  'Spawn downstream Orchestrator or Worker agents only through lifecycle tools.',
-  'Each dispatched Orchestrator receives an intent-specific prompt based on its dispatch type (workflow, task, skill, or autonomous).',
-  'Use inbox context and delegated child execution to preserve canonical runtime truth.',
-].join('\n');
-
-const DEFAULT_WORKER_PROMPT = [
-  'You are Worker.',
-  'You execute assigned work and return through task_complete when finished.',
-  'You cannot dispatch child agents.',
-].join('\n');
+// DEFAULT_PRINCIPAL_PROMPT, DEFAULT_SYSTEM_PROMPT, DEFAULT_WORKER_PROMPT
+// Superseded by prompt-strategy.ts (SP 1.1 — WR-124).
+// Use resolvePromptConfig() + composeSystemPromptFromConfig() instead.
 
 class HealthTrackingOutboxSink implements IGatewayOutboxSink {
   constructor(
@@ -240,7 +233,8 @@ implements IPrincipalSystemGatewayRuntime, ISystemInboxSubmissionService {
         toolSurface: principalToolSurface,
         lifecycleHooks: principalBase.lifecycleHooks,
         baseSystemPrompt:
-          this.deps.principalBaseSystemPrompt ?? DEFAULT_PRINCIPAL_PROMPT,
+          this.deps.principalBaseSystemPrompt
+            ?? composeSystemPromptFromConfig(resolvePromptConfig('Cortex::Principal')),
         outbox: new HealthTrackingOutboxSink('Cortex::Principal', this.healthSink, this.deps.eventBus),
       }),
     );
@@ -264,7 +258,8 @@ implements IPrincipalSystemGatewayRuntime, ISystemInboxSubmissionService {
         agentId: systemAgentId,
         toolSurface: systemBundle.toolSurface,
         lifecycleHooks: systemBundle.lifecycleHooks,
-        baseSystemPrompt: this.deps.systemBaseSystemPrompt ?? DEFAULT_SYSTEM_PROMPT,
+        baseSystemPrompt: this.deps.systemBaseSystemPrompt
+          ?? composeSystemPromptFromConfig(resolvePromptConfig('Cortex::System'), this.systemTools),
         outbox: new HealthTrackingOutboxSink('Cortex::System', this.healthSink, this.deps.eventBus),
       }),
     );
@@ -405,6 +400,81 @@ implements IPrincipalSystemGatewayRuntime, ISystemInboxSubmissionService {
       workflow_ref: envelope.workflow_ref ?? envelope.task_ref ?? '',
       policy_ref: `gateway-runtime:policy:${envelope.workmode_id}`,
       evidence_ref: `gateway-runtime:ingress:${envelope.trigger_id}`,
+    };
+  }
+
+  async handleChatTurn(input: ChatTurnInput): Promise<ChatTurnResult> {
+    const parsed = ChatTurnInputSchema.parse(input);
+    const { message, projectId, traceId } = parsed;
+
+    // Opctl gate check
+    if (projectId && this.deps.opctlService) {
+      try {
+        const controlState = await this.deps.opctlService.getProjectControlState(
+          projectId as ProjectId,
+        );
+        if (controlState === 'paused_review' || controlState === 'hard_stopped') {
+          return {
+            response: `[Project blocked by operator control (${controlState}).]`,
+            traceId,
+          };
+        }
+      } catch {
+        // Fail-open: opctl service error should not block chat
+        console.warn('[nous:gateway-runtime] handleChatTurn: opctl gate check failed, allowing execution');
+      }
+    }
+
+    // Load STM context
+    let contextFrames: GatewayContextFrame[] = [];
+    if (projectId && this.deps.stmStore) {
+      try {
+        const stmContext = await this.deps.stmStore.getContext(projectId as ProjectId);
+        contextFrames = this.buildChatContextFrames(stmContext);
+      } catch {
+        console.warn('[nous:gateway-runtime] handleChatTurn: STM context load failed, proceeding without history');
+      }
+    } else if (projectId && !this.deps.stmStore) {
+      console.warn('[nous:gateway-runtime] handleChatTurn: stmStore not available, proceeding without conversation history');
+    }
+
+    // Run Principal gateway
+    const result = await this.principalGateway.run({
+      taskInstructions: 'Handle the current user chat turn. Respond conversationally.',
+      payload: { message },
+      context: contextFrames,
+      budget: DEFAULT_TOP_LEVEL_BUDGET,
+      spawnBudgetCeiling: 0,
+      correlation: {
+        runId: this.nextRunId() as never,
+        parentId: this.principalGateway.agentId,
+        sequence: 0,
+      },
+      execution: {
+        projectId: projectId as never,
+        traceId: traceId as never,
+        workmodeId: 'system:implementation',
+      },
+      modelRequirements: this.deps.defaultModelRequirements,
+    });
+
+    // Resolve response
+    const resolved = this.resolveChatResponse(result);
+
+    // Finalize STM
+    await this.finalizeChatStmTurn(
+      projectId,
+      message,
+      resolved.response,
+      traceId,
+      result.evidenceRefs,
+      resolved.contentType,
+    );
+
+    return {
+      response: resolved.response,
+      traceId,
+      contentType: resolved.contentType,
     };
   }
 
@@ -637,6 +707,92 @@ implements IPrincipalSystemGatewayRuntime, ISystemInboxSubmissionService {
     return result;
   }
 
+  private resolveChatResponse(result: AgentResult): { response: string; contentType?: 'text' | 'openui' } {
+    if (result.status === 'completed') {
+      const output = result.output as { response?: unknown; contentType?: unknown } | string;
+      if (typeof output === 'string') return { response: output };
+      if (typeof output?.response === 'string') {
+        const ct = output.contentType === 'openui' ? 'openui' as const
+                 : output.contentType === 'text' ? 'text' as const
+                 : undefined;
+        return { response: output.response, contentType: ct };
+      }
+      return { response: JSON.stringify(output) };
+    }
+    if (result.status === 'escalated') return { response: `[escalated: ${result.reason}]` };
+    if (result.status === 'budget_exhausted') return { response: '[budget exhausted]' };
+    if (result.status === 'aborted') return { response: `[aborted: ${result.reason}]` };
+    if (result.status === 'suspended') return { response: `[suspended: ${result.reason}]` };
+    return { response: `[error: ${result.reason}]` };
+  }
+
+  private buildChatContextFrames(stmContext: StmContext): GatewayContextFrame[] {
+    const frames: GatewayContextFrame[] = [];
+    if (stmContext.summary) {
+      frames.push(GatewayContextFrameSchema.parse({
+        role: 'system',
+        source: 'initial_context',
+        content: `Summary: ${stmContext.summary}`,
+        createdAt: this.now(),
+      }));
+    }
+    for (const entry of stmContext.entries ?? []) {
+      frames.push(GatewayContextFrameSchema.parse({
+        role: entry.role,
+        source: 'initial_context',
+        content: entry.content,
+        createdAt: entry.timestamp,
+      }));
+    }
+    return frames;
+  }
+
+  private async finalizeChatStmTurn(
+    projectId: string | undefined,
+    userMessage: string,
+    assistantResponse: string,
+    traceId: string,
+    evidenceRefs: TraceEvidenceReference[],
+    contentType?: 'text' | 'openui',
+  ): Promise<void> {
+    if (!projectId || !this.deps.stmStore) return;
+
+    const timestamp = this.now();
+    try {
+      await this.deps.stmStore.append(projectId as ProjectId, {
+        role: 'user',
+        content: userMessage,
+        timestamp,
+      });
+      const entry: { role: 'assistant'; content: string; timestamp: string; metadata?: Record<string, unknown> } = {
+        role: 'assistant',
+        content: assistantResponse,
+        timestamp,
+      };
+      if (contentType && contentType !== 'text') {
+        entry.metadata = { contentType };
+      }
+      await this.deps.stmStore.append(projectId as ProjectId, entry);
+
+      const stmContext = await this.deps.stmStore.getContext(projectId as ProjectId);
+      if (!stmContext.compactionState?.requiresCompaction) return;
+
+      if (this.deps.mwcPipeline) {
+        await this.deps.mwcPipeline.mutate({
+          action: 'compact-stm',
+          actor: 'pfc',
+          projectId: projectId as ProjectId,
+          reason: 'Automatic STM compaction due to token threshold',
+          traceId: traceId as TraceId,
+          evidenceRefs,
+        });
+      }
+    } catch {
+      // Preserve chat-path availability even if STM finalization fails.
+      console.warn('[nous:gateway-runtime] handleChatTurn: STM finalization failed, chat response preserved');
+    }
+  }
+
   private createGatewayConfig(args: {
     agentClass: AgentClass;
     agentId: string;
@@ -756,7 +912,9 @@ implements IPrincipalSystemGatewayRuntime, ISystemInboxSubmissionService {
 
     let baseSystemPrompt: string;
     if (targetClass === 'Worker') {
-      baseSystemPrompt = this.deps.workerBaseSystemPrompt ?? DEFAULT_WORKER_PROMPT;
+      const workerToolDefs = this.catalogDefinitions('Worker');
+      baseSystemPrompt = this.deps.workerBaseSystemPrompt
+        ?? composeSystemPromptFromConfig(resolvePromptConfig('Worker'), workerToolDefs);
     } else if (this.deps.orchestratorBaseSystemPrompt) {
       // Dep-injected override takes precedence over intent-based selection.
       baseSystemPrompt = this.deps.orchestratorBaseSystemPrompt;

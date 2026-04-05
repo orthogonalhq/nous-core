@@ -61,6 +61,11 @@ function createMockContext() {
         acceptedAt: '2026-03-27T00:00:00Z',
         source: 'card-action',
       }),
+      handleChatTurn: vi.fn().mockResolvedValue({
+        response: 'Follow-up response',
+        traceId: 'trace-123',
+        contentType: 'text',
+      }),
       boot: vi.fn(),
       getStatus: vi.fn(),
       getAgentStatus: vi.fn(),
@@ -72,6 +77,37 @@ function createMockContext() {
   } as any;
 }
 
+describe('chat.sendMessage', () => {
+  async function getCaller(ctx: any) {
+    const { chatRouter } = await import('../src/trpc/routers/chat.js');
+    const { router: createRouter } = await import('../src/trpc/trpc.js');
+    const testRouter = createRouter({ chat: chatRouter });
+    return testRouter.createCaller(ctx);
+  }
+
+  it('routes through gatewayRuntime.handleChatTurn', async () => {
+    const ctx = createMockContext();
+    const caller = await getCaller(ctx);
+
+    const result = await caller.chat.sendMessage({ message: 'Hello' });
+
+    expect(ctx.gatewayRuntime.handleChatTurn).toHaveBeenCalledWith(
+      expect.objectContaining({ message: 'Hello' }),
+    );
+    expect(result.response).toBe('Follow-up response');
+    expect(result.traceId).toBe('trace-123');
+  });
+
+  it('does NOT call coreExecutor.executeTurn', async () => {
+    const ctx = createMockContext();
+    const caller = await getCaller(ctx);
+
+    await caller.chat.sendMessage({ message: 'Hello' });
+
+    expect(ctx.coreExecutor.executeTurn).not.toHaveBeenCalled();
+  });
+});
+
 describe('chat.sendAction', () => {
   async function getCaller(ctx: any) {
     const { chatRouter } = await import('../src/trpc/routers/chat.js');
@@ -82,7 +118,7 @@ describe('chat.sendAction', () => {
 
   // ── Tier 2: Behavior Tests ──────────────────────────────────────────────
 
-  it('followup action calls coreExecutor.executeTurn with correct args', async () => {
+  it('followup action calls gatewayRuntime.handleChatTurn with correct args', async () => {
     const ctx = createMockContext();
     const caller = await getCaller(ctx);
 
@@ -90,7 +126,7 @@ describe('chat.sendAction', () => {
       action: { actionType: 'followup', cardId: 'card-1', payload: { prompt: 'Tell me more' } },
     });
 
-    expect(ctx.coreExecutor.executeTurn).toHaveBeenCalledWith(
+    expect(ctx.gatewayRuntime.handleChatTurn).toHaveBeenCalledWith(
       expect.objectContaining({
         message: 'Tell me more',
       }),
@@ -99,6 +135,17 @@ describe('chat.sendAction', () => {
     expect(result.message).toBe('Follow-up response');
     expect(result.traceId).toBe('trace-123');
     expect(result.contentType).toBe('text');
+  });
+
+  it('followup action does NOT call coreExecutor.executeTurn', async () => {
+    const ctx = createMockContext();
+    const caller = await getCaller(ctx);
+
+    await caller.chat.sendAction({
+      action: { actionType: 'followup', cardId: 'card-1', payload: { prompt: 'Details' } },
+    });
+
+    expect(ctx.coreExecutor.executeTurn).not.toHaveBeenCalled();
   });
 
   it('followup action returns normalized ActionResult', async () => {
@@ -203,9 +250,9 @@ describe('chat.sendAction', () => {
 
   // ── Tier 3: Edge Case Tests ─────────────────────────────────────────────
 
-  it('followup action propagates executeTurn error', async () => {
+  it('followup action propagates handleChatTurn error', async () => {
     const ctx = createMockContext();
-    ctx.coreExecutor.executeTurn.mockRejectedValueOnce(new Error('Gateway failure'));
+    ctx.gatewayRuntime.handleChatTurn.mockRejectedValueOnce(new Error('Gateway failure'));
     const caller = await getCaller(ctx);
 
     await expect(
