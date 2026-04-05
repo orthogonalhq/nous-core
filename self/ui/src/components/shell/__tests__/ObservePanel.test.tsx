@@ -113,12 +113,93 @@ describe('ObservePanel', () => {
     expect(screen.getByText('No observe content for this view')).toBeTruthy()
   })
 
-  it('renders default placeholder when activeRoute is skills', () => {
+  it('renders MaoOperatingSurface when activeRoute is skills', () => {
     render(
       <ShellProvider activeRoute="skills">
         <ObservePanel />
       </ShellProvider>,
     )
-    expect(screen.getByText('No observe content for this view')).toBeTruthy()
+    expect(screen.getByText('MAO Operating Surface')).toBeTruthy()
+  })
+
+  it('renders MaoOperatingSurface when activeRoute is tasks', () => {
+    render(
+      <ShellProvider activeRoute="tasks">
+        <ObservePanel />
+      </ShellProvider>,
+    )
+    expect(screen.getByText('MAO Operating Surface')).toBeTruthy()
+  })
+
+  it('renders MaoOperatingSurface when activeRoute is agents', () => {
+    render(
+      <ShellProvider activeRoute="agents">
+        <ObservePanel />
+      </ShellProvider>,
+    )
+    expect(screen.getByText('MAO Operating Surface')).toBeTruthy()
+  })
+
+  it('renders MaoOperatingSurface when activeRoute is agent-detail', () => {
+    render(
+      <ShellProvider activeRoute="agent-detail">
+        <ObservePanel />
+      </ShellProvider>,
+    )
+    expect(screen.getByText('MAO Operating Surface')).toBeTruthy()
+  })
+
+  it('renders MaoOperatingSurface when activeRoute is task-detail', () => {
+    render(
+      <ShellProvider activeRoute="task-detail">
+        <ObservePanel />
+      </ShellProvider>,
+    )
+    expect(screen.getByText('MAO Operating Surface')).toBeTruthy()
+  })
+
+  it('renders MaoOperatingSurface when activeRoute is threads', () => {
+    render(
+      <ShellProvider activeRoute="threads">
+        <ObservePanel />
+      </ShellProvider>,
+    )
+    expect(screen.getByText('MAO Operating Surface')).toBeTruthy()
+  })
+
+  it('renders MaoOperatingSurface when activeRoute is apps', () => {
+    render(
+      <ShellProvider activeRoute="apps">
+        <ObservePanel />
+      </ShellProvider>,
+    )
+    expect(screen.getByText('MAO Operating Surface')).toBeTruthy()
+  })
+
+  it('renders MaoOperatingSurface when activeRoute is dashboard', () => {
+    render(
+      <ShellProvider activeRoute="dashboard">
+        <ObservePanel />
+      </ShellProvider>,
+    )
+    expect(screen.getByText('MAO Operating Surface')).toBeTruthy()
+  })
+
+  it('renders MaoOperatingSurface when activeRoute is org-chart', () => {
+    render(
+      <ShellProvider activeRoute="org-chart">
+        <ObservePanel />
+      </ShellProvider>,
+    )
+    expect(screen.getByText('MAO Operating Surface')).toBeTruthy()
+  })
+
+  it('renders MaoOperatingSurface when activeRoute is inbox', () => {
+    render(
+      <ShellProvider activeRoute="inbox">
+        <ObservePanel />
+      </ShellProvider>,
+    )
+    expect(screen.getByText('MAO Operating Surface')).toBeTruthy()
   })
 })

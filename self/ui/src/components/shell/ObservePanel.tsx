@@ -10,6 +10,16 @@ import type { ObservePanelProps, ObserveRoute } from './types'
 const OBSERVE_ROUTE_MAP: Record<string, ObserveRoute> = {
   workflows: 'mao',
   'workflow-detail': 'mao',
+  threads: 'mao',
+  skills: 'mao',
+  apps: 'mao',
+  dashboard: 'mao',
+  'org-chart': 'mao',
+  inbox: 'mao',
+  tasks: 'mao',
+  'task-detail': 'mao',
+  agents: 'mao',
+  'agent-detail': 'mao',
   'system-activity': 'system-activity',
 }
 
