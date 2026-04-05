@@ -5,6 +5,7 @@ import { act } from 'react'
 import { createRoot, type Root } from 'react-dom/client'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { ProjectSwitcherRail } from '../ProjectSwitcherRail'
+import * as featureFlags from '../feature-flags'
 
 let container: HTMLDivElement
 let root: Root
@@ -159,5 +160,76 @@ describe('ProjectSwitcherRail', () => {
     await renderRail({ onNewProject: vi.fn() })
     const btn = container.querySelector('[data-rail-action="new-project"]')
     expect(btn?.querySelector('svg')).toBeTruthy()
+  })
+
+  // ── Home button tests ──────────────────────────────────────────────────
+
+  describe('home button', () => {
+    beforeEach(() => {
+      vi.spyOn(featureFlags, 'isHomeSidebarEnabled').mockReturnValue(true)
+    })
+
+    afterEach(() => {
+      vi.restoreAllMocks()
+    })
+
+    it('renders home button when feature flag is on and onHomeClick is provided', async () => {
+      await renderRail({ onHomeClick: vi.fn() })
+      const btn = container.querySelector('[data-rail-action="home"]')
+      expect(btn).toBeTruthy()
+      expect(btn?.querySelector('svg')).toBeTruthy()
+    })
+
+    it('does not render home button when onHomeClick is not provided', async () => {
+      await renderRail()
+      const btn = container.querySelector('[data-rail-action="home"]')
+      expect(btn).toBeNull()
+    })
+
+    it('does not render home button when feature flag is off', async () => {
+      vi.spyOn(featureFlags, 'isHomeSidebarEnabled').mockReturnValue(false)
+      await renderRail({ onHomeClick: vi.fn() })
+      const btn = container.querySelector('[data-rail-action="home"]')
+      expect(btn).toBeNull()
+    })
+
+    it('calls onHomeClick when home button is clicked', async () => {
+      const onHomeClick = vi.fn()
+      await renderRail({ onHomeClick })
+      const btn = container.querySelector('[data-rail-action="home"]') as HTMLButtonElement
+      await act(async () => {
+        btn.click()
+        await flush()
+      })
+      expect(onHomeClick).toHaveBeenCalled()
+    })
+
+    it('shows active indicator when isHomeActive is true', async () => {
+      await renderRail({ onHomeClick: vi.fn(), isHomeActive: true })
+      const btn = container.querySelector('[data-rail-action="home"]')
+      const wrapper = btn?.parentElement
+      const indicator = wrapper?.querySelector('[data-active-indicator]')
+      expect(indicator).toBeTruthy()
+    })
+
+    it('does not show active indicator when isHomeActive is false', async () => {
+      await renderRail({ onHomeClick: vi.fn(), isHomeActive: false })
+      const btn = container.querySelector('[data-rail-action="home"]')
+      const wrapper = btn?.parentElement
+      const indicator = wrapper?.querySelector('[data-active-indicator]')
+      expect(indicator).toBeNull()
+    })
+
+    it('renders home button with aria-label "Home"', async () => {
+      await renderRail({ onHomeClick: vi.fn() })
+      const btn = container.querySelector('[data-rail-action="home"]')
+      expect(btn?.getAttribute('aria-label')).toBe('Home')
+    })
+
+    it('sets aria-current on home button when active', async () => {
+      await renderRail({ onHomeClick: vi.fn(), isHomeActive: true })
+      const btn = container.querySelector('[data-rail-action="home"]')
+      expect(btn?.getAttribute('aria-current')).toBe('true')
+    })
   })
 })
