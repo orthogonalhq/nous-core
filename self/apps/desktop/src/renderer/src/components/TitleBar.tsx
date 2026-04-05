@@ -55,6 +55,7 @@ export function TitleBar({
         background: 'var(--nous-bg-surface)',
         userSelect: 'none',
         flexShrink: 0,
+        WebkitAppRegion: 'drag',
       } as ElectronStyle}
     >
       {/* App branding — left anchor, no-drag */}

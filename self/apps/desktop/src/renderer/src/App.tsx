@@ -882,9 +882,21 @@ function DesktopAssetSidebarConnected() {
   const { data: projectList } = trpc.projects.list.useQuery()
   const tasksApi = useTasks({ projectId: activeProjectId })
 
+  // Track the raw sidebar routeId for highlight state.
+  // Encoded items like "task-detail::taskId" resolve to activeRoute "task-detail"
+  // for content routing, but the sidebar needs the full routeId to highlight
+  // the correct item within a group.
+  const [sidebarSelection, setSidebarSelection] = useState(activeRoute)
+
+  // Sync when activeRoute changes externally (e.g. top-nav click, goBack)
+  useEffect(() => {
+    setSidebarSelection(activeRoute)
+  }, [activeRoute])
+
   // Wrap navigate to parse task-detail::<taskId> encoding from sidebar items
   // and forward as navigate('task-detail', { taskId }) with params.
   const handleNavigate = useCallback((routeId: string) => {
+    setSidebarSelection(routeId)
     if (routeId.startsWith(TASK_DETAIL_PREFIX)) {
       const taskId = routeId.slice(TASK_DETAIL_PREFIX.length)
       navigate('task-detail', { taskId })
@@ -920,7 +932,7 @@ function DesktopAssetSidebarConnected() {
       projectName={projectName}
       topNav={DESKTOP_TOP_NAV}
       sections={sections}
-      activeRoute={activeRoute}
+      activeRoute={sidebarSelection}
       onNavigate={handleNavigate}
     />
   )
