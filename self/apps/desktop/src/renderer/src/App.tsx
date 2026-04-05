@@ -927,10 +927,16 @@ function DesktopAssetSidebarConnected() {
       workflows: workflowsApi.workflows,
       loading: workflowsApi.workflowsLoading,
       error: workflowsApi.workflowsError,
-      onAdd: () => navigate('workflow-detail'),
+      onAdd: async () => {
+        if (!activeProjectId) return
+        const newId = await workflowsApi.createWorkflow(activeProjectId)
+        if (newId) {
+          navigate('workflow-detail', { definitionId: newId })
+        }
+      },
       navigate: handleNavigate,
     }),
-    [workflowsApi.workflows, workflowsApi.workflowsLoading, workflowsApi.workflowsError, navigate, handleNavigate],
+    [workflowsApi.workflows, workflowsApi.workflowsLoading, workflowsApi.workflowsError, workflowsApi.createWorkflow, activeProjectId, navigate, handleNavigate],
   )
 
   const sections = useMemo(

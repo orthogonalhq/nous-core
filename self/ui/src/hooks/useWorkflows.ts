@@ -1,5 +1,6 @@
 'use client'
 
+import { useCallback } from 'react'
 import { trpc } from '@nous/transport'
 import type { AssetSection } from '../components/shell/types'
 
@@ -13,6 +14,7 @@ export interface UseWorkflowsReturn {
   workflows: Array<{ id: string; name: string }>
   workflowsLoading: boolean
   workflowsError: unknown
+  createWorkflow: (projectId: string) => Promise<string | null>
 }
 
 export function useWorkflows({ projectId }: UseWorkflowsOptions): UseWorkflowsReturn {
@@ -21,10 +23,40 @@ export function useWorkflows({ projectId }: UseWorkflowsOptions): UseWorkflowsRe
     { enabled: !!projectId },
   )
 
+  const saveSpecMutation = trpc.projects.saveWorkflowSpec.useMutation()
+  const utils = trpc.useUtils()
+
+  const createWorkflow = useCallback(async (targetProjectId: string): Promise<string | null> => {
+    const minimalSpecYaml = [
+      'name: Untitled Workflow',
+      'version: 1',
+      'nodes:',
+      '  - id: start',
+      '    name: Start',
+      '    type: nous.agent.claude',
+      '    position: [250, 200]',
+      '    parameters: {}',
+      'connections: []',
+    ].join('\n')
+
+    try {
+      const result = await saveSpecMutation.mutateAsync({
+        projectId: targetProjectId,
+        specYaml: minimalSpecYaml,
+      })
+      void utils.projects.listWorkflowDefinitions.invalidate({ projectId: targetProjectId })
+      return result.definitionId
+    } catch (error) {
+      console.error('[useWorkflows] createWorkflow failed:', error)
+      return null
+    }
+  }, [saveSpecMutation, utils])
+
   return {
     workflows: data ?? [],
     workflowsLoading: isLoading,
     workflowsError: error,
+    createWorkflow,
   }
 }
 

@@ -1,7 +1,34 @@
 // @vitest-environment jsdom
 
 import { describe, expect, it, vi, beforeEach } from 'vitest'
+import { renderHook, act } from '@testing-library/react'
 import { buildWorkflowsSection } from '../useWorkflows'
+
+// ─── tRPC mock for useWorkflows hook ────────────────────────────────────────
+
+const mockMutateAsync = vi.fn()
+const mockInvalidate = vi.fn()
+
+vi.mock('@nous/transport', () => ({
+  trpc: {
+    projects: {
+      listWorkflowDefinitions: {
+        useQuery: vi.fn().mockReturnValue({ data: [], isLoading: false, error: null }),
+      },
+      saveWorkflowSpec: {
+        useMutation: () => ({ mutateAsync: mockMutateAsync }),
+      },
+    },
+    useUtils: () => ({
+      projects: {
+        listWorkflowDefinitions: { invalidate: mockInvalidate },
+      },
+    }),
+  },
+}))
+
+import { useWorkflows } from '../useWorkflows'
+import type { UseWorkflowsReturn } from '../useWorkflows'
 
 // --- buildWorkflowsSection tests (pure function, no React hooks needed) ---
 
@@ -102,5 +129,67 @@ describe('buildWorkflowsSection', () => {
 
     expect(section.collapsible).toBe(true)
     expect(section.disabled).toBe(false)
+  })
+})
+
+// --- createWorkflow tests (React hook, needs renderHook) ---
+
+describe('useWorkflows — createWorkflow', () => {
+  beforeEach(() => {
+    vi.clearAllMocks()
+  })
+
+  it('UseWorkflowsReturn includes createWorkflow', () => {
+    // Type-level assertion — if this compiles, the interface is correct
+    const _check: UseWorkflowsReturn['createWorkflow'] extends (projectId: string) => Promise<string | null> ? true : never = true
+    expect(_check).toBe(true)
+  })
+
+  it('calls saveWorkflowSpec and returns definitionId', async () => {
+    mockMutateAsync.mockResolvedValueOnce({ definitionId: 'new-def-123' })
+
+    const { result } = renderHook(() => useWorkflows({ projectId: 'proj-1' }))
+
+    let returnedId: string | null = null
+    await act(async () => {
+      returnedId = await result.current.createWorkflow('proj-1')
+    })
+
+    expect(returnedId).toBe('new-def-123')
+    expect(mockMutateAsync).toHaveBeenCalledOnce()
+    expect(mockMutateAsync).toHaveBeenCalledWith({
+      projectId: 'proj-1',
+      specYaml: expect.stringContaining('name: Untitled Workflow'),
+    })
+    // Verify the YAML includes a nous.agent.claude node
+    const calledYaml = mockMutateAsync.mock.calls[0][0].specYaml as string
+    expect(calledYaml).toContain('type: nous.agent.claude')
+    expect(calledYaml).toContain('nodes:')
+    expect(calledYaml).toContain('connections: []')
+
+    // Verify invalidation was called
+    expect(mockInvalidate).toHaveBeenCalledWith({ projectId: 'proj-1' })
+  })
+
+  it('returns null on mutation error', async () => {
+    mockMutateAsync.mockRejectedValueOnce(new Error('Save failed'))
+    const consoleSpy = vi.spyOn(console, 'error').mockImplementation(() => {})
+
+    const { result } = renderHook(() => useWorkflows({ projectId: 'proj-1' }))
+
+    let returnedId: string | null = 'not-null'
+    await act(async () => {
+      returnedId = await result.current.createWorkflow('proj-1')
+    })
+
+    expect(returnedId).toBeNull()
+    expect(consoleSpy).toHaveBeenCalledWith(
+      '[useWorkflows] createWorkflow failed:',
+      expect.any(Error),
+    )
+    // Invalidation should NOT be called on error
+    expect(mockInvalidate).not.toHaveBeenCalled()
+
+    consoleSpy.mockRestore()
   })
 })
