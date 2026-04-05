@@ -1037,7 +1037,10 @@ export function createCapabilityHandlers(
         actionRef: 'scheduler_register',
         projectId,
         traceId: execution?.traceId,
-        detail: { workflowDefinitionId: normalized.workflowDefinitionId },
+        detail: {
+          workflowDefinitionId: normalized.workflowDefinitionId,
+          taskDefinitionId: normalized.taskDefinitionId,
+        },
         operation: () => scheduler.register(normalized),
       });
 

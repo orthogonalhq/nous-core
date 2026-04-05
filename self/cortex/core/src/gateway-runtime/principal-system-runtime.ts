@@ -402,7 +402,7 @@ implements IPrincipalSystemGatewayRuntime, ISystemInboxSubmissionService {
       outcome: 'accepted_dispatched',
       run_id: receipt.runId as never,
       dispatch_ref: receipt.dispatchRef,
-      workflow_ref: envelope.workflow_ref,
+      workflow_ref: envelope.workflow_ref ?? envelope.task_ref ?? '',
       policy_ref: `gateway-runtime:policy:${envelope.workmode_id}`,
       evidence_ref: `gateway-runtime:ingress:${envelope.trigger_id}`,
     };

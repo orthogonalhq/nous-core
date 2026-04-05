@@ -42,6 +42,7 @@ import { RAIL_SECTIONS } from './desktop-rail-config'
 import { buildDesktopCommands } from './desktop-command-config'
 import { DESKTOP_TOP_NAV, buildDesktopSidebarSections } from './desktop-sidebar-config'
 import { BASE_SIMPLE_MODE_ROUTES } from './desktop-routes'
+import { useTasks, buildTasksSection } from '@nous/ui/hooks/useTasks'
 import { SettingsRoute } from './desktop-settings-route'
 
 import 'dockview-react/dist/styles/dockview.css'
@@ -488,8 +489,11 @@ export function App() {
     void initializeApp()
   }, [initializeApp])
 
-  const handleNavigate = useCallback((routeId: string) => {
+  const [navigationParams, setNavigationParams] = useState<Record<string, unknown> | undefined>(undefined)
+
+  const handleNavigate = useCallback((routeId: string, params?: Record<string, unknown>) => {
     setActiveRoute(routeId)
+    setNavigationParams(params)
   }, [])
 
   const handleGoBack = useCallback(() => {
@@ -568,8 +572,6 @@ export function App() {
       <SettingsRoute preferencesPanelParams={preferencesPanelParams} />
     ),
   }), [preferencesPanelParams])
-
-  const desktopSidebarSections = useMemo(() => buildDesktopSidebarSections(), [])
 
   const handleDesktopProjectChange = useCallback((newProjectId: string) => {
     setActiveRoute(DEFAULT_ROUTE) // reset content route on project switch
@@ -698,7 +700,7 @@ export function App() {
           activeRoute={activeRoute}
           handleNavigate={handleNavigate}
           simpleModeRoutes={simpleModeRoutes}
-          desktopSidebarSections={desktopSidebarSections}
+          navigationParams={navigationParams}
         />
       ) : (
         <DockviewShell
@@ -717,6 +719,7 @@ export function App() {
       activeRoute={activeRoute}
       navigation={navigation}
       navigate={handleNavigate}
+      navigationParams={navigationParams}
       goBack={handleGoBack}
       onProjectChange={handleDesktopProjectChange}
     >
@@ -752,6 +755,7 @@ function DesktopShellWithProject({
   activeRoute,
   navigation,
   navigate,
+  navigationParams,
   goBack,
   onProjectChange,
 }: {
@@ -759,7 +763,8 @@ function DesktopShellWithProject({
   mode: ShellMode
   activeRoute: string
   navigation: { activeRoute: string; history: string[]; canGoBack: boolean }
-  navigate: (routeId: string) => void
+  navigate: (routeId: string, params?: Record<string, unknown>) => void
+  navigationParams?: Record<string, unknown>
   goBack: () => void
   onProjectChange?: (projectId: string) => void
 }) {
@@ -805,12 +810,12 @@ function DesktopSimpleShell({
   activeRoute,
   handleNavigate,
   simpleModeRoutes,
-  desktopSidebarSections,
+  navigationParams,
 }: {
   activeRoute: string
-  handleNavigate: (routeId: string) => void
+  handleNavigate: (routeId: string, params?: Record<string, unknown>) => void
   simpleModeRoutes: Record<string, any>
-  desktopSidebarSections: import('@nous/ui/components').AssetSection[]
+  navigationParams?: Record<string, unknown>
 }) {
   const chatStageManager = useChatStageManager()
 
@@ -835,12 +840,13 @@ function DesktopSimpleShell({
   return (
     <SimpleShellLayout
       projectRail={<DesktopProjectRail />}
-      sidebar={<DesktopAssetSidebarConnected sections={desktopSidebarSections} />}
+      sidebar={<DesktopAssetSidebarConnected />}
       content={
         <ContentRouter
           activeRoute={activeRoute}
           routes={simpleModeRoutes}
           onNavigate={handleNavigate}
+          navigationParams={navigationParams}
         />
       }
       observe={<ObservePanel />}
@@ -869,9 +875,39 @@ function DesktopSimpleShell({
 
 // ─── Desktop Project Rail (wired to tRPC) ──────────────────────────────────
 
-function DesktopAssetSidebarConnected({ sections }: { sections: import('@nous/ui/components').AssetSection[] }) {
+const TASK_DETAIL_PREFIX = 'task-detail::'
+
+function DesktopAssetSidebarConnected() {
   const { activeProjectId, activeRoute, navigate } = useShellCtx()
   const { data: projectList } = trpc.projects.list.useQuery()
+  const tasksApi = useTasks({ projectId: activeProjectId })
+
+  // Wrap navigate to parse task-detail::<taskId> encoding from sidebar items
+  // and forward as navigate('task-detail', { taskId }) with params.
+  const handleNavigate = useCallback((routeId: string) => {
+    if (routeId.startsWith(TASK_DETAIL_PREFIX)) {
+      const taskId = routeId.slice(TASK_DETAIL_PREFIX.length)
+      navigate('task-detail', { taskId })
+    } else {
+      navigate(routeId)
+    }
+  }, [navigate])
+
+  const tasksSection = useMemo(
+    () => buildTasksSection({
+      tasks: tasksApi.tasks,
+      loading: tasksApi.tasksLoading,
+      error: tasksApi.tasksError,
+      onAdd: () => navigate('task-create'),
+      navigate: handleNavigate,
+    }),
+    [tasksApi.tasks, tasksApi.tasksLoading, tasksApi.tasksError, navigate, handleNavigate],
+  )
+
+  const sections = useMemo(
+    () => buildDesktopSidebarSections({ tasksSection }),
+    [tasksSection],
+  )
 
   const projectName = useMemo(() => {
     if (!projectList || !activeProjectId) return 'Project'
@@ -885,7 +921,7 @@ function DesktopAssetSidebarConnected({ sections }: { sections: import('@nous/ui
       topNav={DESKTOP_TOP_NAV}
       sections={sections}
       activeRoute={activeRoute}
-      onNavigate={navigate}
+      onNavigate={handleNavigate}
     />
   )
 }

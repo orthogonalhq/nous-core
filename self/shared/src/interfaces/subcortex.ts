@@ -35,6 +35,7 @@ import type {
   ToolDefinition,
   ProjectConfig,
   ProjectState,
+  TaskDefinition,
   ArtifactDeleteRequest,
   ArtifactListFilter,
   ArtifactReadRequest,
@@ -354,6 +355,20 @@ export interface IProjectStore {
 
   /** Archive a project */
   archive(id: ProjectId): Promise<void>;
+}
+
+export interface ITaskStore {
+  /** Save (create or update) a task definition */
+  save(projectId: ProjectId, task: TaskDefinition): Promise<TaskDefinition>;
+
+  /** Get a task by ID */
+  get(projectId: ProjectId, taskId: string): Promise<TaskDefinition | null>;
+
+  /** List all tasks for a project */
+  listByProject(projectId: ProjectId): Promise<TaskDefinition[]>;
+
+  /** Delete a task */
+  delete(projectId: ProjectId, taskId: string): Promise<boolean>;
 }
 
 export interface IArtifactStore {

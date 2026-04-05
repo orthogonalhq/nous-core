@@ -1171,6 +1171,10 @@ export class MaoProjectionService {
       project_id: projectId,
       workflow_run_id: run.runId,
       workflow_node_definition_id: nodeDefinitionId as import('@nous/shared').WorkflowNodeDefinitionId,
+      // Task context fields: populated when the dispatch carries task context
+      // (via SystemTaskSubmission.detail). For workflow-based agents, these remain undefined.
+      task_definition_id: (run as any).triggerContext?.detail?.taskDefinitionId as string | undefined,
+      task_name: (run as any).triggerContext?.detail?.taskName as string | undefined,
       dispatching_task_agent_id: dispatchingTaskAgentId,
       dispatch_origin_ref: nodeState.lastDispatchLineageId ?? `workflow-run:${run.runId}`,
       agent_class: nodeDefinition?.metadata?.agentClass ?? deriveClassFromNodeKind(nodeDefinition),

@@ -25,7 +25,7 @@ export class IngressAuthzEvaluator implements IIngressAuthzEvaluator {
     envelope: IngressTriggerEnvelope,
     auth_context_ref: string,
   ): Promise<IngressAuthzResult> {
-    const { project_id, workflow_ref, event_name, trigger_type } = envelope;
+    const { project_id, workflow_ref, task_ref, event_name, trigger_type } = envelope;
 
     // Scheduler, hook, system_event: internal — allow (policy check only)
     if (
@@ -34,7 +34,8 @@ export class IngressAuthzEvaluator implements IIngressAuthzEvaluator {
       trigger_type === 'system_event'
     ) {
       if (this.options.allowExternalTrigger) {
-        if (!this.options.allowExternalTrigger(project_id, workflow_ref)) {
+        const ref = workflow_ref ?? task_ref ?? '';
+        if (!this.options.allowExternalTrigger(project_id, ref)) {
           return { allowed: false, reason: 'policy_blocked' };
         }
       }
@@ -58,8 +59,9 @@ export class IngressAuthzEvaluator implements IIngressAuthzEvaluator {
       if (!scope.allowed_event_names.includes(event_name)) {
         return { allowed: false, reason: 'event_forbidden' };
       }
+      const ref = workflow_ref ?? task_ref ?? '';
       if (this.options.allowExternalTrigger) {
-        if (!this.options.allowExternalTrigger(project_id, workflow_ref)) {
+        if (!this.options.allowExternalTrigger(project_id, ref)) {
           return { allowed: false, reason: 'policy_blocked' };
         }
       }

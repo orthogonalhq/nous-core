@@ -25,6 +25,7 @@ import { hardwareRouter } from './routers/hardware';
 import { inferenceRouter } from './routers/inference';
 import { costRouter } from './routers/cost';
 import { systemActivityRouter } from './routers/system-activity';
+import { tasksRouter } from './routers/tasks';
 
 export const appRouter = router({
   projects: projectsRouter,
@@ -49,6 +50,7 @@ export const appRouter = router({
   hardware: hardwareRouter,
   systemActivity: systemActivityRouter,
   inference: inferenceRouter,
+  tasks: tasksRouter,
   cost: costRouter,
 });
 

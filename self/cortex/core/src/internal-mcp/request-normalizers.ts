@@ -27,7 +27,7 @@ import {
   PromotedMemorySearchQuerySchema,
   ValidationError,
   WitnessCheckpointReasonSchema,
-  ScheduleDefinitionSchema,
+  ScheduleDefinitionBaseSchema,
   type ArtifactReadRequest,
   type ArtifactWriteRequest,
   type DemotePromotedRecordCommand,
@@ -156,7 +156,7 @@ export const EscalationNotifyRequestSchema = EscalationContractSchema.omit({
 });
 export type EscalationNotifyRequest = Omit<EscalationContract, 'projectId'>;
 
-export const SchedulerRegisterRequestSchema = ScheduleDefinitionSchema.omit({
+export const SchedulerRegisterRequestSchema = ScheduleDefinitionBaseSchema.omit({
   projectId: true,
 });
 export type SchedulerRegisterRequest = Omit<ScheduleDefinition, 'projectId'>;

@@ -7,6 +7,7 @@ import { describe, it, expect } from 'vitest';
 import {
   IngressTriggerTypeSchema,
   IngressDeliveryModeSchema,
+  IngressTriggerEnvelopeBaseSchema,
   IngressTriggerEnvelopeSchema,
   PAYLOAD_REF_SHA256_REGEX,
 } from '../../types/ingress-trigger.js';
@@ -89,6 +90,65 @@ describe('IngressTriggerEnvelopeSchema', () => {
   it('accepts any non-empty payload_ref (schema allows)', () => {
     const withPayload = { ...validEnvelope, payload_ref: 'custom-ref' };
     expect(IngressTriggerEnvelopeSchema.safeParse(withPayload).success).toBe(true);
+  });
+});
+
+describe('IngressTriggerEnvelopeSchema — exactly-one refinement', () => {
+  const envelopeBase = {
+    trigger_id: UUID,
+    trigger_type: 'scheduler' as const,
+    source_id: 'scheduler-1',
+    project_id: UUID,
+    workmode_id: 'system:implementation',
+    event_name: 'scheduled_run',
+    payload_ref: 'sha256:' + 'a'.repeat(64),
+    idempotency_key: 'key-1',
+    nonce: 'nonce-1',
+    occurred_at: NOW,
+    received_at: NOW,
+    auth_context_ref: null,
+    trace_parent: null,
+  };
+
+  it('accepts workflow_ref only', () => {
+    const result = IngressTriggerEnvelopeSchema.safeParse({
+      ...envelopeBase,
+      workflow_ref: 'workflow:test',
+    });
+    expect(result.success).toBe(true);
+  });
+
+  it('accepts task_ref only', () => {
+    const result = IngressTriggerEnvelopeSchema.safeParse({
+      ...envelopeBase,
+      task_ref: 'task:test',
+    });
+    expect(result.success).toBe(true);
+  });
+
+  it('rejects both workflow_ref and task_ref', () => {
+    const result = IngressTriggerEnvelopeSchema.safeParse({
+      ...envelopeBase,
+      workflow_ref: 'workflow:test',
+      task_ref: 'task:test',
+    });
+    expect(result.success).toBe(false);
+  });
+
+  it('rejects neither workflow_ref nor task_ref', () => {
+    const result = IngressTriggerEnvelopeSchema.safeParse(envelopeBase);
+    expect(result.success).toBe(false);
+  });
+
+  it('existing envelopes with workflow_ref still parse (regression)', () => {
+    const result = IngressTriggerEnvelopeSchema.safeParse({
+      ...envelopeBase,
+      workflow_ref: 'workflow:regression-test',
+    });
+    expect(result.success).toBe(true);
+    if (result.success) {
+      expect(result.data.workflow_ref).toBe('workflow:regression-test');
+    }
   });
 });
 

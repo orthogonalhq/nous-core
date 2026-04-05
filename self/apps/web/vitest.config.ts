@@ -16,6 +16,7 @@ export default defineConfig({
       ),
       '@nous/ui/panels': path.resolve(__dirname, '../../ui/src/panels/index.ts'),
       '@nous/ui/components': path.resolve(__dirname, '../../ui/src/components/index.ts'),
+      '@nous/ui/hooks/useTasks': path.resolve(__dirname, '../../ui/src/hooks/useTasks.ts'),
       '@nous/ui': path.resolve(__dirname, '../../ui/src/index.ts'),
       '@nous/subcortex-apps': path.resolve(
         __dirname,

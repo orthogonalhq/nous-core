@@ -14,11 +14,49 @@ let capturedCommandPaletteProps: Record<string, unknown> = {}
 
 // ─── Mocks ──────────────────────────────────────────────────────────────────
 
+vi.mock('@nous/ui/hooks/useTasks', () => ({
+  useTasks: () => ({
+    tasks: [],
+    tasksLoading: false,
+    tasksError: null,
+    activeTask: null,
+    activeTaskLoading: false,
+    activeTaskError: null,
+    loadTask: vi.fn(),
+    executions: [],
+    executionsLoading: false,
+    executionsError: null,
+    loadExecutions: vi.fn(),
+    createTask: vi.fn(),
+    updateTask: vi.fn(),
+    deleteTask: vi.fn(),
+    toggleTask: vi.fn(),
+    triggerTask: vi.fn(),
+  }),
+  buildTasksSection: () => ({
+    id: 'tasks',
+    label: 'TASKS',
+    items: [],
+    collapsible: true,
+    disabled: false,
+  }),
+}))
+
 vi.mock('@nous/ui/components', () => ({
   ShellProvider: (props: any) => {
     capturedShellProviderProps = props
     return React.createElement('div', { 'data-testid': 'shell-provider', 'data-mode': props.mode, 'data-active-route': props.activeRoute }, props.children)
   },
+  useShellContext: () => ({
+    activeProjectId: null,
+    activeRoute: 'home',
+    navigate: vi.fn(),
+    goBack: vi.fn(),
+    mode: 'simple',
+    breakpoint: 'full',
+    navigation: { activeRoute: 'home', history: ['home'], canGoBack: false },
+    conversation: { tier: 'transient', threadId: null, projectId: null, isAmbient: true },
+  }),
   ShellLayout: (props: any) => {
     return React.createElement('div', { 'data-testid': 'shell-layout' }, props.rail, props.chat, props.content, props.observe)
   },
@@ -70,6 +108,28 @@ vi.mock('@nous/ui/components', () => ({
 vi.mock('@nous/transport', () => ({
   useChatApi: () => ({ send: vi.fn(), getHistory: vi.fn().mockResolvedValue([]) }),
   useEventSubscription: () => {},
+  trpc: {
+    projects: {
+      list: { useQuery: () => ({ data: [], isLoading: false, error: null }) },
+    },
+    tasks: {
+      list: { useQuery: () => ({ data: [], isLoading: false, error: null }) },
+      get: { useQuery: () => ({ data: null, isLoading: false, error: null }) },
+      executions: { useQuery: () => ({ data: [], isLoading: false, error: null }) },
+      create: { useMutation: () => ({ mutateAsync: vi.fn() }) },
+      update: { useMutation: () => ({ mutateAsync: vi.fn() }) },
+      delete: { useMutation: () => ({ mutateAsync: vi.fn() }) },
+      toggle: { useMutation: () => ({ mutateAsync: vi.fn() }) },
+      trigger: { useMutation: () => ({ mutateAsync: vi.fn() }) },
+    },
+    useUtils: () => ({
+      tasks: {
+        list: { invalidate: vi.fn() },
+        get: { invalidate: vi.fn() },
+        executions: { invalidate: vi.fn() },
+      },
+    }),
+  },
 }))
 
 vi.mock('@/components/shell/web-chat-wrappers', () => ({

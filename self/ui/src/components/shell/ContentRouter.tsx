@@ -4,7 +4,7 @@ import * as React from 'react'
 import { clsx } from 'clsx'
 
 export interface ContentRouterRenderProps {
-  navigate: (routeId: string) => void
+  navigate: (routeId: string, params?: Record<string, unknown>) => void
   goBack: () => void
   canGoBack: boolean
   params?: Record<string, unknown>
@@ -14,13 +14,16 @@ export interface ContentRouterProps
   extends React.HTMLAttributes<HTMLDivElement> {
   activeRoute: string
   routes: Record<string, React.ComponentType<ContentRouterRenderProps>>
-  onNavigate?: (route: string) => void
+  onNavigate?: (route: string, params?: Record<string, unknown>) => void
+  /** Params to pass to the component when navigation is driven by the activeRoute prop */
+  navigationParams?: Record<string, unknown>
 }
 
 export function ContentRouter({
   activeRoute,
   routes,
   onNavigate,
+  navigationParams: externalParams,
   className,
   style,
   ...props
@@ -46,7 +49,8 @@ export function ContentRouter({
     lastPropRouteRef.current = activeRoute
     stackRef.current = nextStack
     setStack(nextStack)
-  }, [activeRoute])
+    setNavigationParams(externalParams)
+  }, [activeRoute, externalParams])
 
   const navigate = (routeId: string, params?: Record<string, unknown>) => {
     if (!routes[routeId]) {

@@ -11,6 +11,9 @@ import {
   STUB_SKILLS,
   STUB_APPS,
 } from '@nous/ui'
+import { TaskDetailView, TaskCreateForm } from '@nous/ui/panels'
+
+// ─── Static route definitions ─────────────────────────────────────────────
 
 export const BASE_SIMPLE_MODE_ROUTES: Record<string, React.ComponentType<ContentRouterRenderProps>> = {
   home: HomeScreen,
@@ -23,7 +26,8 @@ export const BASE_SIMPLE_MODE_ROUTES: Record<string, React.ComponentType<Content
   inbox: (props: ContentRouterRenderProps) => <PlaceholderRoute {...props} label="Inbox" />,
   'workflow-detail': (props: ContentRouterRenderProps) => <PlaceholderRoute {...props} label="Workflow Detail" />,
   tasks: (props: ContentRouterRenderProps) => <PlaceholderRoute {...props} label="Tasks" />,
-  'task-detail': (props: ContentRouterRenderProps) => <PlaceholderRoute {...props} label="Task Detail" />,
+  'task-detail': TaskDetailView,
+  'task-create': TaskCreateForm,
   agents: (props: ContentRouterRenderProps) => <PlaceholderRoute {...props} label="Agents" />,
   'agent-detail': (props: ContentRouterRenderProps) => <PlaceholderRoute {...props} label="Agent Detail" />,
 }

@@ -16,9 +16,11 @@ import {
   ProjectSwitcherRail,
   AssetSidebar,
   useChatStageManager,
+  useShellContext,
 } from '@nous/ui/components'
 import type { ShellMode, NavigationState } from '@nous/ui/components'
-import { useEventSubscription } from '@nous/transport'
+import { useEventSubscription, trpc } from '@nous/transport'
+import { useTasks, buildTasksSection } from '@nous/ui/hooks/useTasks'
 import { WebChromeShell } from '@/components/shell/web-chrome-shell'
 import { webRailSections } from '@/components/shell/web-rail-config'
 import { createWebShellRoutes } from '@/components/shell/web-shell-routes'
@@ -155,8 +157,6 @@ function ShellLayoutContent({
     setActiveRoute('home') // reset content route on project switch
   }, [])
 
-  const sidebarSections = useMemo(() => buildWebSidebarSections(), [])
-
   // Stub project list for the project rail (tRPC wiring in follow-up)
   const stubProjects = useMemo(() => [
     { id: 'project-1', name: 'Default Project' },
@@ -223,15 +223,7 @@ function ShellLayoutContent({
                     onProjectSelect={handleProjectChange}
                   />
                 }
-                sidebar={
-                  <AssetSidebar
-                    projectName={stubProjects.find((p) => p.id === (projectId ?? 'project-1'))?.name ?? 'Project'}
-                    topNav={WEB_TOP_NAV}
-                    sections={sidebarSections}
-                    activeRoute={activeRoute}
-                    onNavigate={handleNavigate}
-                  />
-                }
+                sidebar={<WebAssetSidebarConnected />}
                 content={
                   <ContentRouter
                     activeRoute={activeRoute}
@@ -269,5 +261,45 @@ function ShellLayoutContent({
         </ProjectProvider>
       </ShellProvider>
     </WebChromeShell>
+  )
+}
+
+// ─── Web Connected Sidebar (lives inside ShellProvider tree) ──────────────
+
+function WebAssetSidebarConnected() {
+  const { activeProjectId, activeRoute, navigate } = useShellContext()
+  const tasksApi = useTasks({ projectId: activeProjectId })
+
+  const tasksSection = useMemo(
+    () => buildTasksSection({
+      tasks: tasksApi.tasks,
+      loading: tasksApi.tasksLoading,
+      error: tasksApi.tasksError,
+      onAdd: () => navigate('task-create'),
+      navigate,
+    }),
+    [tasksApi.tasks, tasksApi.tasksLoading, tasksApi.tasksError, navigate],
+  )
+
+  const sections = useMemo(
+    () => buildWebSidebarSections({ tasksSection }),
+    [tasksSection],
+  )
+
+  const { data: projectList } = trpc.projects.list.useQuery()
+  const projectName = useMemo(() => {
+    if (!projectList || !activeProjectId) return 'Project'
+    const proj = (projectList as Array<{ id: string; name?: string }>).find((p) => p.id === activeProjectId)
+    return proj?.name ?? 'Project'
+  }, [projectList, activeProjectId])
+
+  return (
+    <AssetSidebar
+      projectName={projectName}
+      topNav={WEB_TOP_NAV}
+      sections={sections}
+      activeRoute={activeRoute}
+      onNavigate={navigate}
+    />
   )
 }

@@ -10,6 +10,7 @@ import type {
   IArtifactStore,
   IScheduler,
   IProjectStore,
+  ITaskStore,
   IStmStore,
   IWorkflowEngine,
   IWitnessService,
@@ -72,6 +73,7 @@ export interface NousContext {
   coreExecutor: ICoreExecutor;
   gatewayRuntime: IPrincipalSystemGatewayRuntime;
   projectStore: IProjectStore;
+  taskStore: ITaskStore;
   stmStore: IStmStore;
   mwcPipeline: MwcPipeline;
   documentStore: IDocumentStore;

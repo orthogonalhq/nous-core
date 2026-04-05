@@ -16,6 +16,8 @@ export type { WorkflowBuilderPanelCoreProps } from './workflow-builder'
 export type { PreferencesApi, AvailableModel, ModelSelection, RoleAssignmentDisplayEntry } from './PreferencesPanel'
 export { testStoredProviderKey, formatFeedbackError } from './PreferencesPanel'
 export { SettingsShell } from './settings'
+export { TaskDetailView, TaskCreateForm } from './tasks'
+export type { TaskDetailViewProps, TaskCreateFormProps } from './tasks'
 export type {
   SettingsShellProps,
   SettingsCategory,

@@ -78,6 +78,7 @@ import {
   AppSettingsService,
   DocumentAppConfigStore,
   DocumentProjectStore,
+  DocumentTaskStore,
   PackageInstallService,
   PackageLifecycleOrchestrator,
 } from '@nous/subcortex-projects';
@@ -663,6 +664,7 @@ export function createNousServices(config?: BootstrapConfig): NousContext {
     compactionPolicy: resolveStmCompactionPolicy(resolvedConfig),
   });
   const projectStore = new DocumentProjectStore(documentStore);
+  const taskStore = new DocumentTaskStore(documentStore);
   const appConfigStore = new DocumentAppConfigStore(documentStore);
   const artifactStore = new DocumentArtifactStore(documentStore);
   const scheduleStore = new DocumentScheduleStore(documentStore);
@@ -737,6 +739,7 @@ export function createNousServices(config?: BootstrapConfig): NousContext {
   const schedulerService = new SchedulerService({
     scheduleStore,
     projectStore,
+    taskStore,
     ingressGateway: {
       submit: async (envelope) => schedulerIngressGateway.submit(envelope),
     },
@@ -1281,6 +1284,7 @@ export function createNousServices(config?: BootstrapConfig): NousContext {
     coreExecutor: coreExecutor as NousContext['coreExecutor'],
     gatewayRuntime,
     projectStore,
+    taskStore,
     stmStore,
     mwcPipeline,
     documentStore,

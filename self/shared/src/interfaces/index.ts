@@ -18,6 +18,7 @@ export type {
   WorkflowStartRequest,
   IWorkflowEngine,
   IProjectStore,
+  ITaskStore,
   IArtifactStore,
   IScheduler,
   IEscalationService,
