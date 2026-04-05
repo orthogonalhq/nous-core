@@ -143,8 +143,8 @@ describe('ProjectSwitcherRail', () => {
     const wrapper = activeAvatar?.parentElement
     const indicator = wrapper?.querySelector('[data-active-indicator]') as HTMLElement
     expect(indicator).toBeTruthy()
-    expect(indicator.style.width).toBe('3px')
-    expect(indicator.style.background).toBe('var(--nous-accent)')
+    expect(indicator.style.width).toBe('var(--nous-rail-indicator-width)')
+    expect(indicator.style.background).toBe('var(--nous-fg-muted)')
   })
 
   it('does not render active indicator for inactive projects', async () => {

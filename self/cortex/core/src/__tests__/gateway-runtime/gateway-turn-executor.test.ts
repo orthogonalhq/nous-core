@@ -211,7 +211,7 @@ describe('GatewayBackedTurnExecutor', () => {
     const provider = {
       invoke: vi.fn().mockResolvedValue({
         output: JSON.stringify({
-          response: '%%openui\n<StatusCard title="Test" status="active" message="Hi" />',
+          response: '%%openui\n<StatusCard title="Test" status="active" description="Hi" />',
           toolCalls: [],
           memoryCandidates: [],
         }),
@@ -263,7 +263,7 @@ describe('GatewayBackedTurnExecutor', () => {
     // contentType should be propagated in the return value
     expect(result.contentType).toBe('openui');
     // Prefix should be stripped from response
-    expect(result.response).toBe('<StatusCard title="Test" status="active" message="Hi" />');
+    expect(result.response).toBe('<StatusCard title="Test" status="active" description="Hi" />');
     expect(result.response).not.toContain('%%openui');
 
     // STM assistant entry should have contentType in metadata

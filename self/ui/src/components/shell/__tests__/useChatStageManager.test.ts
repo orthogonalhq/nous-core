@@ -68,7 +68,7 @@ describe('useChatStageManager', () => {
 
   // --- Idle timers ---
 
-  it('signalTurnComplete: ambient_large -> ambient_small after 5s, then small after 3s', () => {
+  it('signalTurnComplete: ambient_large -> ambient_small after 5s, then -> small after 3s', () => {
     const { result } = renderHook(() => useChatStageManager())
     act(() => result.current.signalSending()) // small -> ambient_small
     act(() => result.current.signalPfcDecision()) // ambient_small -> ambient_large
@@ -81,20 +81,28 @@ describe('useChatStageManager', () => {
     act(() => vi.advanceTimersByTime(5000))
     expect(result.current.chatStage).toBe('ambient_small')
 
-    // After 3s more: ambient_small -> small
+    // After 3s more: ambient_small -> small (idle decay)
     act(() => vi.advanceTimersByTime(3000))
     expect(result.current.chatStage).toBe('small')
   })
 
-  it('signalTurnComplete: ambient_small -> small after 3s', () => {
+  it('signalTurnComplete: ambient_small -> small after idle delay', () => {
     const { result } = renderHook(() => useChatStageManager())
     act(() => result.current.signalSending()) // small -> ambient_small
     act(() => result.current.signalTurnComplete())
 
-    // Before timer fires
+    // Stays ambient_small briefly
     expect(result.current.chatStage).toBe('ambient_small')
 
-    // After 3s
+    // After 3s: decays to small
+    act(() => vi.advanceTimersByTime(3000))
+    expect(result.current.chatStage).toBe('small')
+  })
+
+  it('signalMessagesRead: ambient_small -> small after delay (explicit ack)', () => {
+    const { result } = renderHook(() => useChatStageManager())
+    act(() => result.current.signalSending()) // small -> ambient_small
+    act(() => result.current.signalMessagesRead())
     act(() => vi.advanceTimersByTime(3000))
     expect(result.current.chatStage).toBe('small')
   })

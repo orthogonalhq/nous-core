@@ -5,6 +5,7 @@ import type { DockviewApi } from 'dockview-react'
 import type { ShellMode } from '@nous/ui/components'
 import type { PanelDef } from '../App'
 import { AppMenuBar } from './MenuBar'
+import { Search } from 'lucide-react'
 
 // Electron-specific CSS property not in standard CSSProperties
 type ElectronStyle = CSSProperties & { WebkitAppRegion?: 'drag' | 'no-drag' }
@@ -51,60 +52,78 @@ export function TitleBar({
         alignItems: 'center',
         height: 'var(--nous-titlebar-height)',
         minHeight: 'var(--nous-titlebar-height)',
-        background: 'var(--nous-header-bg)',
-        borderBottom: '1px solid var(--nous-header-border)',
-        WebkitAppRegion: 'drag',
+        background: 'var(--nous-bg-surface)',
         userSelect: 'none',
         flexShrink: 0,
       } as ElectronStyle}
     >
-      {/* App icon + name — left anchor, no-drag */}
+      {/* App branding — left anchor, no-drag */}
       <div
         style={{
           display: 'flex',
           alignItems: 'center',
-          gap: 'var(--nous-space-md)',
-          padding: '0 var(--nous-space-lg) 0 var(--nous-space-xl)',
+          padding: '0 var(--nous-space-2xl)',
           WebkitAppRegion: 'no-drag',
           pointerEvents: 'none',
           flexShrink: 0,
         } as ElectronStyle}
       >
-        <span style={{ fontSize: 'var(--nous-font-size-base)', color: 'var(--nous-header-fg)', lineHeight: 'var(--nous-line-height-tight)' }}>◈</span>
         <span
           style={{
             fontSize: 'var(--nous-font-size-sm)',
-            fontWeight: 'var(--nous-font-weight-medium)' as any,
-            color: 'var(--nous-header-fg)',
-            letterSpacing: '0.01em',
+            fontFamily: 'var(--nous-font-family-mono)',
+            fontWeight: 500,
+            color: 'var(--nous-fg)',
           }}
         >
-          Nous
+          Agent Name
         </span>
       </div>
 
+      {/* Menu bar — File / View / Help (hidden in simple mode) */}
+      {mode !== 'simple' && (
+        <AppMenuBar
+          dockviewApi={dockviewApi}
+          panelDefs={panelDefs}
+          mode={mode}
+          onModeToggle={onModeToggle}
+        />
+      )}
+
+      {/* Centered search bar + flex spacers */}
+      <div style={{ flex: 1 }} />
       <div
-        aria-label="Active project"
+        role="search"
         style={{
-          minWidth: 'var(--nous-space-4xl)',
-          paddingRight: 'var(--nous-space-lg)',
-          color: 'var(--nous-fg-subtle)',
-          fontSize: 'var(--nous-font-size-xs)',
+          display: 'flex',
+          alignItems: 'center',
+          gap: 'var(--nous-space-md)',
+          width: 300,
+          height: 26,
+          padding: '0 var(--nous-space-xl)',
+          background: 'var(--nous-surface)',
+          borderRadius: 'var(--nous-radius-md)',
           WebkitAppRegion: 'no-drag',
-          pointerEvents: 'none',
+          cursor: 'text',
           flexShrink: 0,
         } as ElectronStyle}
-      />
-
-      {/* Menu bar — File / View / Help */}
-      <AppMenuBar
-        dockviewApi={dockviewApi}
-        panelDefs={panelDefs}
-        mode={mode}
-        onModeToggle={onModeToggle}
-      />
-
-      {/* Drag region fills the middle */}
+      >
+        <Search
+          size={14}
+          style={{ color: 'var(--nous-search-icon)', flexShrink: 0 }}
+        />
+        <span
+          style={{
+            fontSize: 'var(--nous-font-size-sm)',
+            color: 'var(--nous-search-placeholder)',
+            whiteSpace: 'nowrap',
+            overflow: 'hidden',
+            textOverflow: 'ellipsis',
+          }}
+        >
+          Search everything...
+        </span>
+      </div>
       <div style={{ flex: 1 }} />
 
       {/* Window controls — right side */}
@@ -130,7 +149,7 @@ export function TitleBar({
             border: 'none',
             cursor: 'default',
             color: 'var(--nous-header-fg)',
-            fontSize: 'var(--nous-font-size-xs)',
+            fontSize: 'var(--nous-font-size-base)',
             transition: 'background var(--nous-duration-micro) var(--nous-ease-in-out)',
           }}
           title="Minimize"
@@ -153,7 +172,7 @@ export function TitleBar({
             border: 'none',
             cursor: 'default',
             color: 'var(--nous-header-fg)',
-            fontSize: 'var(--nous-font-size-xs)',
+            fontSize: 'var(--nous-font-size-base)',
             transition: 'background var(--nous-duration-micro) var(--nous-ease-in-out)',
           }}
           title={isMaximized ? 'Restore' : 'Maximize'}
@@ -176,7 +195,7 @@ export function TitleBar({
             border: 'none',
             cursor: 'default',
             color: btnHover === 'close' ? 'var(--nous-fg-on-color)' : 'var(--nous-header-fg)',
-            fontSize: 'var(--nous-font-size-sm)',
+            fontSize: 'var(--nous-font-size-md)',
             transition: 'background var(--nous-duration-micro) var(--nous-ease-in-out), color var(--nous-duration-micro) var(--nous-ease-in-out)',
           }}
           title="Close"

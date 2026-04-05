@@ -84,7 +84,7 @@ describe('SimpleShellLayout', () => {
   it('sets single-row grid-template-areas on the container', async () => {
     await renderLayout()
     const layout = container.firstElementChild as HTMLDivElement
-    expect(layout.style.gridTemplateAreas).toBe('"rail sidebar content observe"')
+    expect(layout.style.gridTemplateAreas).toBe('"rail sidebar . content . observe"')
   })
 
   it('uses single-row grid (1fr)', async () => {
@@ -118,13 +118,17 @@ describe('SimpleShellLayout', () => {
 
   it('hides observe at medium breakpoint', async () => {
     await renderLayout({ breakpoint: 'medium' })
-    expect(getArea('observe').style.display).toBe('none')
-    expect(getArea('sidebar').style.display).not.toBe('none')
+    // Observe area is always in the DOM; grid column shrinks to 0px at non-full breakpoints
+    const layout = container.firstElementChild as HTMLDivElement
+    const columns = layout.style.gridTemplateColumns
+    expect(columns).toContain('0px')
   })
 
   it('hides observe at narrow breakpoint', async () => {
     await renderLayout({ breakpoint: 'narrow' })
-    expect(getArea('observe').style.display).toBe('none')
+    const layout = container.firstElementChild as HTMLDivElement
+    const columns = layout.style.gridTemplateColumns
+    expect(columns).toContain('0px')
   })
 
   it('caps sidebar width per breakpoint', async () => {
@@ -140,10 +144,15 @@ describe('SimpleShellLayout', () => {
     expect(layout.getAttribute('data-breakpoint')).toBe('narrow')
   })
 
-  it('renders ColumnDivider separators', async () => {
+  it('renders sidebar ColumnDivider (observe collapsed by default)', async () => {
     await renderLayout()
     const dividers = container.querySelectorAll('[role="separator"]')
-    // sidebar divider + observe divider
+    expect(dividers.length).toBe(1)
+  })
+
+  it('renders both ColumnDividers when observe is expanded', async () => {
+    await renderLayout({ initialWidths: { observe: 280 } })
+    const dividers = container.querySelectorAll('[role="separator"]')
     expect(dividers.length).toBe(2)
   })
 
@@ -164,7 +173,7 @@ describe('SimpleShellLayout', () => {
   it('chat overlay has transition for smooth animation', async () => {
     await renderLayout()
     const chat = getArea('chat')
-    expect(chat.style.transition).toBe('height 300ms ease')
+    expect(chat.style.transition).toBe('height var(--nous-duration-slow) var(--nous-ease-out), background var(--nous-duration-slow) var(--nous-ease-out)')
   })
 
   it('sets data-chat-stage attribute on chat overlay', async () => {

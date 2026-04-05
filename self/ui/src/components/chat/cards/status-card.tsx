@@ -13,7 +13,7 @@ export const StatusCardSchema = z
   .object({
     title: z.string(),
     status: z.enum(['active', 'complete', 'error', 'waiting']),
-    message: z.string(),
+    description: z.string(),
     detail: z.string().optional(),
     progress: z.number().min(0).max(100).optional(),
   })
@@ -43,6 +43,7 @@ export function StatusCard({
 }: CardRendererProps<unknown>) {
   const result = StatusCardSchema.safeParse(props)
   if (!result.success) {
+    console.warn('[StatusCard] Validation failed:', result.error.format(), 'Received props:', props)
     return (
       <div
         data-testid="status-card-invalid"
@@ -85,7 +86,7 @@ export function StatusCard({
             color: 'var(--nous-text-primary)',
           }}
         >
-          {data.message}
+          {data.description}
         </div>
         {data.detail && (
           <div

@@ -1,0 +1,24 @@
+{
+  "name": "@nous/subcortex-cost",
+  "version": "0.0.1",
+  "private": true,
+  "description": "Cost governance domain — pricing table, cost service, budget enforcement",
+  "type": "module",
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "import": "./dist/index.js",
+      "require": "./dist/index.js",
+      "default": "./dist/index.js"
+    }
+  },
+  "scripts": {
+    "build": "tsc --build",
+    "typecheck": "tsc --noEmit",
+    "clean": "rm -rf dist"
+  },
+  "dependencies": {
+    "@nous/shared": "workspace:*",
+    "zod": "^3.24.1"
+  }
+}

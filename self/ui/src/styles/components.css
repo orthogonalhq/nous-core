@@ -44,9 +44,9 @@
   --nous-palette-match-fg:   var(--nous-accent);
 
   /* ── Panel header ──────────────────────────────────────────────────── */
-  --nous-header-bg:     var(--nous-surface);
-  --nous-header-fg:     var(--nous-fg-muted);
-  --nous-header-border: var(--nous-border-subtle);
+  --nous-header-bg:     #1a1a1a;
+  --nous-header-fg:     var(--nous-fg);
+  --nous-header-border: var(--nous-border);
 
   /* ── Panel footer ──────────────────────────────────────────────────── */
   --nous-footer-bg:     var(--nous-surface);
@@ -54,7 +54,8 @@
   --nous-footer-border: var(--nous-border-subtle);
 
   /* ── Panel content ─────────────────────────────────────────────────── */
-  --nous-content-bg:    var(--nous-bg);
+  --nous-content-bg:    var(--nous-bg-base);
+  --nous-chat-full-bg:  #1A1A1A;
 
   /* ── Tab bar ─────────────────────────────────────────────────────── */
   --nous-tab-bar-bg:      var(--nous-bg);
@@ -274,4 +275,19 @@
 .nous-node-pulse {
   animation: nous-node-pulse 1.5s ease-in-out infinite;
   will-change: box-shadow;
+}
+
+/* ── Sidebar scrollbar ────────────────────────────────────────────── */
+.nous-asset-sidebar ::-webkit-scrollbar {
+  width: var(--nous-scrollbar-size);
+}
+.nous-asset-sidebar ::-webkit-scrollbar-thumb {
+  background: var(--nous-scrollbar-thumb);
+  border-radius: var(--nous-radius-xs);
+}
+.nous-asset-sidebar ::-webkit-scrollbar-thumb:hover {
+  background: var(--nous-scrollbar-thumb-hover);
+}
+.nous-asset-sidebar ::-webkit-scrollbar-track {
+  background: transparent;
 }

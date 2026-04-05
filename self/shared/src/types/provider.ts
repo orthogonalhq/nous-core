@@ -48,6 +48,8 @@ export const ModelRequestSchema = z.object({
   traceId: TraceIdSchema,
   agentClass: ModelRequestAgentClassSchema.optional(),
   abortSignal: AbortSignalSchema.optional(),
+  correlationRunId: z.string().optional(),
+  correlationParentId: z.string().optional(),
 });
 export type ModelRequest = z.infer<typeof ModelRequestSchema>;
 

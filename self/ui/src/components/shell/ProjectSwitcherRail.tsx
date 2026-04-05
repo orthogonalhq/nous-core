@@ -1,182 +1,199 @@
-'use client'
-
 import * as React from 'react'
 import { clsx } from 'clsx'
 import { Plus } from 'lucide-react'
 import type { ProjectItem, ProjectSwitcherRailProps } from './types'
 
-const AVATAR_SIZE = 32
+// ---------------------------------------------------------------------------
+// Helpers
+// ---------------------------------------------------------------------------
 
-/**
- * Deterministic color from project ID.
- * Simple hash → hue in HSL space with fixed saturation and lightness.
- */
+/** Deterministic hue from project ID via simple hash. */
 function avatarColorFromId(id: string): string {
-  let hash = 0
-  for (let i = 0; i < id.length; i++) {
-    hash = (hash * 31 + id.charCodeAt(i)) | 0
-  }
-  const hue = ((hash % 360) + 360) % 360
-  return `hsl(${hue}, 60%, 50%)`
+    let hash = 0
+    for (let i = 0; i < id.length; i++) {
+        hash = (hash * 31 + id.charCodeAt(i)) | 0
+    }
+    const hue = ((hash % 360) + 360) % 360
+    return `hsl(${hue}, 60%, 50%)`
 }
 
 function getInitial(name: string): string {
-  return name.charAt(0).toUpperCase()
+    return name.charAt(0).toUpperCase()
 }
 
-interface ProjectAvatarProps {
-  project: ProjectItem
-  isActive: boolean
-  onSelect: (id: string) => void
+// ---------------------------------------------------------------------------
+// ProjectAvatar
+// ---------------------------------------------------------------------------
+
+function ProjectAvatar({
+    project,
+    isActive,
+    onSelect,
+}: {
+    project: ProjectItem
+    isActive: boolean
+    onSelect: (id: string) => void
+}) {
+    const [hovered, setHovered] = React.useState(false)
+
+    return (
+        <div style={styles.avatarWrap}>
+            {isActive && <span data-active-indicator style={styles.activeIndicator} />}
+            <button
+                type="button"
+                aria-label={project.name}
+                title={project.name}
+                aria-current={isActive ? 'true' : undefined}
+                data-project-id={project.id}
+                onClick={() => onSelect(project.id)}
+                onMouseEnter={() => setHovered(true)}
+                onMouseLeave={() => setHovered(false)}
+                style={{
+                    ...styles.avatarButton,
+                    background: avatarColorFromId(project.id),
+                    opacity: hovered && !isActive ? 0.85 : 1,
+                }}
+            >
+                {project.icon ?? getInitial(project.name)}
+            </button>
+        </div>
+    )
 }
 
-function ProjectAvatar({ project, isActive, onSelect }: ProjectAvatarProps) {
-  const [isHovered, setIsHovered] = React.useState(false)
-  const bgColor = avatarColorFromId(project.id)
-
-  return (
-    <div style={{ position: 'relative', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-      {isActive && (
-        <span
-          data-active-indicator
-          style={{
-            position: 'absolute',
-            left: 0,
-            top: '50%',
-            transform: 'translateY(-50%)',
-            width: '3px',
-            height: '20px',
-            borderRadius: '0 2px 2px 0',
-            background: 'var(--nous-accent)',
-          }}
-        />
-      )}
-      <button
-        type="button"
-        aria-label={project.name}
-        title={project.name}
-        aria-current={isActive ? 'true' : undefined}
-        data-project-id={project.id}
-        onClick={() => onSelect(project.id)}
-        onMouseEnter={() => setIsHovered(true)}
-        onMouseLeave={() => setIsHovered(false)}
-        style={{
-          display: 'flex',
-          alignItems: 'center',
-          justifyContent: 'center',
-          width: AVATAR_SIZE,
-          height: AVATAR_SIZE,
-          borderRadius: 'var(--nous-radius-full, 50%)',
-          border: '2px solid transparent',
-          background: bgColor,
-          color: 'var(--nous-fg-on-color)',
-          fontSize: 'var(--nous-font-size-xs)',
-          fontWeight: 'var(--nous-font-weight-medium, 500)',
-          cursor: 'pointer',
-          transition: 'var(--nous-hover-button-transition)',
-          opacity: isHovered && !isActive ? 0.85 : 1,
-          padding: 0,
-          outline: 'none',
-        }}
-      >
-        {project.icon ?? getInitial(project.name)}
-      </button>
-    </div>
-  )
-}
+// ---------------------------------------------------------------------------
+// ProjectSwitcherRail
+// ---------------------------------------------------------------------------
 
 export function ProjectSwitcherRail({
-  projects,
-  activeProjectId,
-  onProjectSelect,
-  onNewProject,
-  brandSlot,
-  className,
-  style,
-  ...props
+    projects,
+    activeProjectId,
+    onProjectSelect,
+    onNewProject,
+    brandSlot,
+    className,
+    style,
+    ...props
 }: ProjectSwitcherRailProps & React.HTMLAttributes<HTMLDivElement>) {
-  return (
-    <div
-      className={clsx('nous-project-switcher-rail', className)}
-      data-shell-component="project-switcher-rail"
-      style={{
+    return (
+        <div
+            className={clsx('nous-project-switcher-rail', className)}
+            data-shell-component="project-switcher-rail"
+            style={{ ...styles.root, ...style }}
+            {...props}
+        >
+            {brandSlot && (
+                <div data-rail-slot="brand" style={styles.brandSlot}>
+                    {brandSlot}
+                </div>
+            )}
+
+            <div style={styles.projectList}>
+                {projects.map((project) => (
+                    <ProjectAvatar
+                        key={project.id}
+                        project={project}
+                        isActive={project.id === activeProjectId}
+                        onSelect={onProjectSelect}
+                    />
+                ))}
+            </div>
+
+            {onNewProject && (
+                <button
+                    type="button"
+                    aria-label="New project"
+                    data-rail-action="new-project"
+                    onClick={onNewProject}
+                    style={styles.newProjectButton}
+                >
+                    <Plus size={14} />
+                </button>
+            )}
+        </div>
+    )
+}
+
+// ---------------------------------------------------------------------------
+// Styles
+// ---------------------------------------------------------------------------
+
+const styles = {
+    root: {
         display: 'flex',
-        flexDirection: 'column',
+        flexDirection: 'column' as const,
         alignItems: 'center',
         width: 'var(--nous-project-rail-width)',
         minWidth: 'var(--nous-project-rail-width)',
         height: '100%',
-        padding: 'var(--nous-space-sm) 0',
+        padding: 'var(--nous-space-lg) 0',
         gap: 'var(--nous-space-sm)',
         background: 'var(--nous-rail-bg)',
-        borderInlineEnd: '1px solid var(--nous-shell-column-border)',
-        boxSizing: 'border-box',
-        ...style,
-      }}
-      {...props}
-    >
-      {brandSlot ? (
-        <div
-          data-rail-slot="brand"
-          style={{
-            display: 'flex',
-            alignItems: 'center',
-            justifyContent: 'center',
-            width: '100%',
-            paddingBottom: 'var(--nous-space-sm)',
-            borderBottom: '1px solid var(--nous-shell-column-border)',
-          }}
-        >
-          {brandSlot}
-        </div>
-      ) : null}
-
-      <div
-        style={{
-          display: 'flex',
-          flexDirection: 'column',
-          alignItems: 'center',
-          gap: 'var(--nous-space-sm)',
-          flex: '1 1 0%',
-          overflowY: 'auto',
-          width: '100%',
-        }}
-      >
-        {projects.map((project) => (
-          <ProjectAvatar
-            key={project.id}
-            project={project}
-            isActive={project.id === activeProjectId}
-            onSelect={onProjectSelect}
-          />
-        ))}
-      </div>
-
-      {onNewProject ? (
-        <button
-          type="button"
-          aria-label="New project"
-          data-rail-action="new-project"
-          onClick={onNewProject}
-          style={{
-            display: 'flex',
-            alignItems: 'center',
-            justifyContent: 'center',
-            width: AVATAR_SIZE,
-            height: AVATAR_SIZE,
-            borderRadius: 'var(--nous-radius-full, 50%)',
-            border: '1px dashed var(--nous-shell-column-border)',
-            background: 'transparent',
-            color: 'var(--nous-text-secondary)',
-            fontSize: 'var(--nous-font-size-sm)',
-            cursor: 'pointer',
-            padding: 0,
-            transition: 'var(--nous-hover-button-transition)',
-          }}
-        >
-          <Plus size={14} />
-        </button>
-      ) : null}
-    </div>
-  )
-}
+        borderInlineEnd: '1px solid var(--nous-border-subtle)',
+        boxSizing: 'border-box' as const,
+    },
+    brandSlot: {
+        display: 'flex',
+        alignItems: 'center',
+        justifyContent: 'center',
+        width: '100%',
+        paddingBottom: 'var(--nous-space-sm)',
+        borderBottom: '1px solid var(--nous-border-subtle)',
+    },
+    projectList: {
+        display: 'flex',
+        flexDirection: 'column' as const,
+        alignItems: 'center',
+        gap: 'var(--nous-space-sm)',
+        flex: '1 1 0%',
+        overflowY: 'auto' as const,
+        width: '100%',
+    },
+    avatarWrap: {
+        position: 'relative' as const,
+        display: 'flex',
+        alignItems: 'center',
+        justifyContent: 'center',
+        width: '100%',
+    },
+    activeIndicator: {
+        position: 'absolute' as const,
+        left: 0,
+        top: '50%',
+        transform: 'translateY(-50%)',
+        width: 'var(--nous-rail-indicator-width)',
+        height: 'var(--nous-rail-indicator-height)',
+        borderRadius: '0 var(--nous-space-2xs) var(--nous-space-2xs) 0',
+        background: 'var(--nous-fg-muted)',
+    },
+    avatarButton: {
+        display: 'flex',
+        alignItems: 'center',
+        justifyContent: 'center',
+        width: 'var(--nous-rail-avatar-size)',
+        height: 'var(--nous-rail-avatar-size)',
+        borderRadius: 'var(--nous-radius-md)',
+        border: '2px solid transparent',
+        color: 'var(--nous-fg-on-color)',
+        fontSize: 'var(--nous-font-size-2xl)',
+        fontWeight: 700,
+        cursor: 'pointer',
+        transition: 'var(--nous-hover-button-transition)',
+        padding: 0,
+        outline: 'none',
+    },
+    newProjectButton: {
+        display: 'flex',
+        alignItems: 'center',
+        justifyContent: 'center',
+        width: 'var(--nous-rail-avatar-size)',
+        height: 'var(--nous-rail-avatar-size)',
+        borderRadius: 'var(--nous-radius-lg, 10px)',
+        border: '1px dashed var(--nous-border-subtle)',
+        background: 'transparent',
+        color: 'var(--nous-text-secondary)',
+        fontSize: 'var(--nous-font-size-sm)',
+        cursor: 'pointer',
+        padding: 0,
+        transition: 'var(--nous-hover-button-transition)',
+    },
+} as const

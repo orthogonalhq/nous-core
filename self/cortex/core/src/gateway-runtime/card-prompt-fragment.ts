@@ -8,19 +8,23 @@
  */
 export const CARD_PROMPT_FRAGMENT = `## Structured Response Cards
 
-You can respond with interactive cards using OpenUI markup when the situation calls for structured interaction. Use the %%openui prefix to indicate card content.
+IMPORTANT: Default to plain text. Most responses should be plain text.
+Cards are ONLY for the specific scenarios listed below. Do NOT invent card types.
+The ONLY card types that exist are: StatusCard, ActionCard, ApprovalCard, WorkflowCard, FollowUpBlock.
+Any other tag name (e.g. HaikuCard, ResponseCard, SummaryCard) does NOT exist and MUST NOT be used.
 
-### When to use cards:
-- Presenting a decision that requires user approval or choice (ActionCard or ApprovalCard)
-- Reporting operation status with progress (StatusCard)
-- Summarizing a workflow with actionable options (WorkflowCard)
-- Suggesting follow-up actions after completing a task (FollowUpBlock)
+### When to use cards (ONLY these scenarios):
+- The system is requesting user approval for a governed action (ApprovalCard)
+- You need to present 2+ distinct action choices (ActionCard)
+- Reporting the outcome of a long-running operation with progress (StatusCard)
+- Displaying workflow pipeline status (WorkflowCard)
+- Offering 2-4 follow-up suggestions after completing a multi-step task (FollowUpBlock)
 
-### When NOT to use cards:
-- Simple conversational replies, explanations, or discussions
-- Responses that are purely informational with no actionable component
-- When the user asked a question that deserves a direct text answer
-- Error messages or apologies -- use plain text
+### When NOT to use cards (use plain text instead):
+- Conversational replies, explanations, discussions, or Q&A
+- Creative writing, poems, stories, summaries, or lists
+- Error messages, apologies, or status updates that don't need progress bars
+- ANY response where the user did not ask for an action, approval, or workflow
 
 ### Card type reference:
 
@@ -28,9 +32,9 @@ Each card is written as a self-closing XML-style tag with PascalCase name and pr
 String props use key="value". Non-string props (numbers, arrays, objects) use key={json}.
 
 **StatusCard** -- report operation status with optional progress
-Required: title, status (active|complete|error|waiting), message
+Required: title, status (active|complete|error|waiting), description
 Optional: detail, progress (0-100)
-<StatusCard title="Indexing complete" status="complete" message="Processed 142 files" progress={100} />
+<StatusCard title="Indexing complete" status="complete" description="Processed 142 files" progress={100} />
 
 **ActionCard** -- present action buttons for user choice
 Required: title, description, actions (array of {label, actionType: approve|reject|navigate|followup})
@@ -44,22 +48,24 @@ Optional: context (object)
 
 **WorkflowCard** -- show workflow status and controls
 Required: title, workflowId
-Optional: nodeCount, status (draft|ready|running|completed|failed), summary
-<WorkflowCard title="CI Pipeline" workflowId="ci-main-branch" status="running" nodeCount={5} summary="Running lint and test stages" />
+Optional: nodeCount, status (draft|ready|running|completed|failed), description
+<WorkflowCard title="CI Pipeline" workflowId="ci-main-branch" status="running" nodeCount={5} description="Running lint and test stages" />
 
 **FollowUpBlock** -- suggest follow-up actions as pill buttons
 Required: suggestions (array of {label}, 1-6 items)
+Optional: description (introductory text above pills)
 Optional per suggestion: prompt, actionType (followup|navigate|submit, default: followup), payload
 <FollowUpBlock suggestions={[{"label":"Show details"},{"label":"Run again","prompt":"Re-run the last operation"},{"label":"Open logs","actionType":"navigate"}]} />
 
 ### Format:
-Prefix card responses with %%openui on its own line, then the card markup.
-You may mix plain text and cards in a single response -- text before %%openui is rendered normally.
+Place card tags directly inline in your response. No prefix or delimiter is needed.
+You may freely mix plain text and cards in a single response.
 
 Example complete response:
 I've finished analyzing the repository. Here are the results:
 
-%%openui
-<StatusCard title="Analysis complete" status="complete" message="Found 3 issues across 12 files" detail="2 warnings, 1 error" progress={100} />
+<StatusCard title="Analysis complete" status="complete" description="Found 3 issues across 12 files" detail="2 warnings, 1 error" progress={100} />
+
+Would you like to address these issues?
 
 <FollowUpBlock suggestions={[{"label":"Show issues"},{"label":"Auto-fix warnings","prompt":"Fix the 2 warnings automatically"},{"label":"View full report","actionType":"navigate"}]} />`;

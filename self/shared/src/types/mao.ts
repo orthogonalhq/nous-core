@@ -341,6 +341,15 @@ export const MaoRunGraphSnapshotSchema = z.object({
 });
 export type MaoRunGraphSnapshot = z.infer<typeof MaoRunGraphSnapshotSchema>;
 
+export const BudgetUtilizationSchema = z.object({
+  utilizationPercent: z.number().nonnegative(),
+  currentSpendUsd: z.number().nonnegative(),
+  budgetCeilingUsd: z.number().nonnegative(),
+  softAlertFired: z.boolean(),
+  hardCeilingFired: z.boolean(),
+});
+export type BudgetUtilization = z.infer<typeof BudgetUtilizationSchema>;
+
 export const MaoProjectSnapshotSchema = z.object({
   projectId: ProjectIdSchema,
   densityMode: MaoDensityModeSchema,
@@ -351,6 +360,7 @@ export const MaoProjectSnapshotSchema = z.object({
   urgentOverlay: MaoUrgentOverlaySchema,
   summary: MaoProjectSnapshotSummarySchema,
   diagnostics: MaoProjectSnapshotDiagnosticsSchema,
+  budgetUtilization: BudgetUtilizationSchema.optional(),
   generatedAt: z.string().datetime(),
 });
 export type MaoProjectSnapshot = z.infer<typeof MaoProjectSnapshotSchema>;

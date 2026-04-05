@@ -232,6 +232,9 @@ importers:
       koffi:
         specifier: ^2.9.0
         version: 2.15.2
+      lucide-react:
+        specifier: ^0.469.0
+        version: 0.469.0(react@19.2.3)
       react:
         specifier: ^19.0.0
         version: 19.2.3
@@ -341,6 +344,9 @@ importers:
       '@nous/subcortex-communication-gateway':
         specifier: workspace:*
         version: link:../../subcortex/communication-gateway
+      '@nous/subcortex-cost':
+        specifier: workspace:*
+        version: link:../../subcortex/cost
       '@nous/subcortex-endpoint-trust':
         specifier: workspace:*
         version: link:../../subcortex/endpoint-trust
@@ -911,6 +917,15 @@ importers:
       vitest:
         specifier: ^2.1.0
         version: 2.1.9(@types/node@20.19.33)(jsdom@26.1.0)(lightningcss@1.30.2)
+
+  self/subcortex/cost:
+    dependencies:
+      '@nous/shared':
+        specifier: workspace:*
+        version: link:../../shared
+      zod:
+        specifier: ^3.24.1
+        version: 3.25.76
 
   self/subcortex/endpoint-trust:
     dependencies:

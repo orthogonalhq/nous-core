@@ -136,8 +136,12 @@ export interface ChatStageManagerReturn {
   signalInferenceStart: () => void
   /** PFC decision arrived — ambient_small -> ambient_large */
   signalPfcDecision: () => void
-  /** Turn completed — start idle timers */
+  /** Turn completed — decay ambient_large to ambient_small */
   signalTurnComplete: () => void
+  /** An unread assistant message arrived — prevents click-outside from collapsing to small */
+  signalUnreadMessage: () => void
+  /** User has read all pending messages — ambient_small may now decay to small */
+  signalMessagesRead: () => void
   /** Expand to ambient_large (user clicks down-chevron from toggle) */
   expandToAmbientLarge: () => void
   /** Expand to full (any -> full) */
@@ -166,6 +170,8 @@ export const ChatSurfacePropsSchema = z.object({
   isPinned: z.boolean().optional(),
   onTogglePin: z.custom<() => void>(() => true).optional(),
   onInputFocus: z.custom<() => void>(() => true).optional(),
+  onUnreadMessage: z.custom<() => void>(() => true).optional(),
+  onMessagesRead: z.custom<() => void>(() => true).optional(),
 })
 export interface ChatSurfaceProps {
   chatApi?: import('../../panels/ChatPanel').ChatAPI
@@ -176,6 +182,8 @@ export interface ChatSurfaceProps {
   isPinned?: boolean
   onTogglePin?: () => void
   onInputFocus?: () => void
+  onUnreadMessage?: () => void
+  onMessagesRead?: () => void
 }
 
 /** Props for the HomeScreen landing surface */
@@ -313,6 +321,7 @@ export const SidebarTopNavItemSchema = z.object({
   label: z.string().min(1),
   icon: requiredReactNodeSchema,
   routeId: z.string().min(1),
+  badge: z.union([z.number(), z.boolean()]).optional(),
 })
 export type SidebarTopNavItem = z.infer<typeof SidebarTopNavItemSchema>
 

@@ -530,6 +530,13 @@ export interface MaoProjectionServiceDeps {
   healthAggregator?: IHealthAggregator;
   inferenceAdapter?: import('./inference-projection-adapter.js').InferenceProjectionAdapter;
   projectStore?: IProjectStore;
+  getBudgetStatus?: (projectId: string) => {
+    utilizationPercent: number;
+    currentSpendUsd: number;
+    budgetCeilingUsd: number;
+    softAlertFired: boolean;
+    hardCeilingFired: boolean;
+  } | null | undefined;
 }
 
 export class MaoProjectionService {
@@ -608,6 +615,31 @@ export class MaoProjectionService {
     const controlProjection = this.buildProjectControlProjection(context);
     const summary = buildSummary(context.agentProjections);
 
+    // Budget utilization enrichment (additive, optional)
+    let budgetUtilization: {
+      utilizationPercent: number;
+      currentSpendUsd: number;
+      budgetCeilingUsd: number;
+      softAlertFired: boolean;
+      hardCeilingFired: boolean;
+    } | undefined;
+    if (this.deps.getBudgetStatus) {
+      try {
+        const status = this.deps.getBudgetStatus(parsed.projectId);
+        if (status) {
+          budgetUtilization = {
+            utilizationPercent: status.utilizationPercent,
+            currentSpendUsd: status.currentSpendUsd,
+            budgetCeilingUsd: status.budgetCeilingUsd,
+            softAlertFired: status.softAlertFired,
+            hardCeilingFired: status.hardCeilingFired,
+          };
+        }
+      } catch {
+        // Graceful degradation: omit budgetUtilization if cost service fails
+      }
+    }
+
     const snapshot = MaoProjectSnapshotSchema.parse({
       projectId: parsed.projectId,
       densityMode: parsed.densityMode,
@@ -632,6 +664,7 @@ export class MaoProjectionService {
         runtimePosture: 'single_process_local',
         degradedReasonCode: context.degradedReasonCode,
       },
+      budgetUtilization,
       generatedAt: context.generatedAt,
     });
     this.deps.eventBus?.publish('mao:projection-changed', {

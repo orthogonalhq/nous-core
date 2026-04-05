@@ -34,6 +34,7 @@ import type {
 } from '@nous/shared';
 import type { PanelTranspiler } from '@nous/subcortex-apps';
 import type { ProviderRegistry, TokenAccumulatorService } from '@nous/subcortex-providers';
+import type { CostGovernanceService } from '@nous/subcortex-cost';
 import type {
   IPrincipalSystemGatewayRuntime,
   IPublicMcpExecutionBridge,
@@ -110,4 +111,5 @@ export interface NousContext {
   healthAggregator: IHealthAggregator;
   healthMonitor: IHealthMonitor;
   tokenAccumulator: TokenAccumulatorService;
+  costGovernanceService: CostGovernanceService;
 }

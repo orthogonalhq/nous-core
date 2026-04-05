@@ -8,9 +8,9 @@
  */
 export const tokens = {
   colors: {
-    surface:      '#0b0b0b',
-    bg:           '#1e1e1e',
-    bgBase:       '#000000',
+    surface:      '#030303',
+    bg:           '#131313',
+    bgBase:       '#010101',
     bgSurface:    '#0A0A0A',
     bgElevated:   '#141414',
     bgHover:      '#1A1A1A',
@@ -19,10 +19,10 @@ export const tokens = {
 
     border:       '#1A1A1A',
     borderStrong: '#2A2A2A',
-    borderSubtle: '#2d2d2d',
+    borderSubtle: '#2d2d2d0a',
 
-    fg:           '#cccccc',
-    fgMuted:      '#9d9d9d',
+    fg:           '#fafafa',
+    fgMuted:      '#bababa',
     fgDim:        '#858585',
     fgSubtle:     '#6a6a6a',
     textPrimary:   'rgba(255,255,255,0.95)',
@@ -200,7 +200,7 @@ export const tokens = {
   },
 
   chrome: {
-    titlebarHeight:    30,
+    titlebarHeight:    38,
     statusbarHeight:   22,
     titlebarBtnWidth:  46,
     dvTabHeight:       35,

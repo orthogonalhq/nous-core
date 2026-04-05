@@ -169,12 +169,15 @@ export class AgentGateway implements IAgentGateway {
           tools,
         });
 
+        const correlation = sequencer.snapshot();
         const modelResponse = await provider.invoke({
           role: this.config.modelRole ?? DEFAULT_MODEL_ROLE,
           input: { systemPrompt, context, tools },
           projectId,
           traceId,
           agentClass: this.agentClass,
+          correlationRunId: correlation.runId,
+          correlationParentId: correlation.parentId,
         });
 
         budgetTracker.recordModelUsage(modelResponse.usage);

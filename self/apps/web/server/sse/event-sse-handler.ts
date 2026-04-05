@@ -38,6 +38,10 @@ const ALL_CHANNELS: (keyof EventChannelMap)[] = [
   'inference:accumulator-snapshot',
   'workflow:node-status-changed',
   'workflow:run-completed',
+  'cost:event-recorded',
+  'cost:budget-alert',
+  'cost:budget-exceeded',
+  'cost:snapshot',
 ];
 
 const HEARTBEAT_INTERVAL_MS = 30_000;

@@ -16,7 +16,7 @@ describe('StatusCardSchema', () => {
     const result = StatusCardSchema.safeParse({
       title: 'Test',
       status: 'active',
-      message: 'Running',
+      description: 'Running',
     })
     expect(result.success).toBe(true)
   })
@@ -25,7 +25,7 @@ describe('StatusCardSchema', () => {
     const result = StatusCardSchema.safeParse({
       title: 'Test',
       status: 'complete',
-      message: 'Done',
+      description: 'Done',
       detail: 'All tasks finished',
       progress: 100,
     })
@@ -35,7 +35,7 @@ describe('StatusCardSchema', () => {
   it('rejects missing required field: title', () => {
     const result = StatusCardSchema.safeParse({
       status: 'active',
-      message: 'Running',
+      description: 'Running',
     })
     expect(result.success).toBe(false)
   })
@@ -43,7 +43,7 @@ describe('StatusCardSchema', () => {
   it('rejects missing required field: status', () => {
     const result = StatusCardSchema.safeParse({
       title: 'Test',
-      message: 'Running',
+      description: 'Running',
     })
     expect(result.success).toBe(false)
   })
@@ -52,7 +52,7 @@ describe('StatusCardSchema', () => {
     const result = StatusCardSchema.safeParse({
       title: 'Test',
       status: 'invalid',
-      message: 'Running',
+      description: 'Running',
     })
     expect(result.success).toBe(false)
   })
@@ -61,7 +61,7 @@ describe('StatusCardSchema', () => {
     const result = StatusCardSchema.safeParse({
       title: 'Test',
       status: 'active',
-      message: 'Running',
+      description: 'Running',
       progress: 150,
     })
     expect(result.success).toBe(false)
@@ -71,7 +71,7 @@ describe('StatusCardSchema', () => {
     const result = StatusCardSchema.safeParse({
       title: 'Test',
       status: 'active',
-      message: 'Running',
+      description: 'Running',
       progress: -10,
     })
     expect(result.success).toBe(false)
@@ -81,7 +81,7 @@ describe('StatusCardSchema', () => {
     const result = StatusCardSchema.safeParse({
       title: 'Test',
       status: 'active',
-      message: 'Running',
+      description: 'Running',
       extraProp: 'should be stripped',
     })
     expect(result.success).toBe(true)
@@ -267,7 +267,7 @@ describe('WorkflowCardSchema', () => {
       workflowId: 'wf-1',
       nodeCount: 5,
       status: 'running',
-      summary: 'Processing data',
+      description: 'Processing data',
     })
     expect(result.success).toBe(true)
   })

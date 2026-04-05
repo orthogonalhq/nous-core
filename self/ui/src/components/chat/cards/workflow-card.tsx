@@ -19,7 +19,7 @@ export const WorkflowCardSchema = z
     status: z
       .enum(['draft', 'ready', 'running', 'completed', 'failed'])
       .optional(),
-    summary: z.string().optional(),
+    description: z.string().optional(),
   })
   .strip()
 
@@ -59,6 +59,7 @@ export function WorkflowCard({
 }: CardRendererProps<unknown>) {
   const result = WorkflowCardSchema.safeParse(props)
   if (!result.success) {
+    console.warn('[WorkflowCard] Validation failed:', result.error.format(), 'Received props:', props)
     return (
       <div
         data-testid="workflow-card-invalid"
@@ -122,16 +123,16 @@ export function WorkflowCard({
         </div>
       </CardHeader>
       <CardContent>
-        {data.summary && (
+        {data.description && (
           <div
-            data-testid="workflow-summary"
+            data-testid="workflow-description"
             style={{
               fontSize: 'var(--nous-font-size-sm)',
               color: 'var(--nous-text-primary)',
               marginBottom: 'var(--nous-space-sm)',
             }}
           >
-            {data.summary}
+            {data.description}
           </div>
         )}
         <div

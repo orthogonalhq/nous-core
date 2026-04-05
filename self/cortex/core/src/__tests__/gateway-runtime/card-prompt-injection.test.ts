@@ -4,8 +4,8 @@ import { CARD_PROMPT_FRAGMENT } from '../../gateway-runtime/card-prompt-fragment
 describe('CARD_PROMPT_FRAGMENT — content contract', () => {
   // ── Tier 1: Contract Tests ─────────────────────────────────────────────
 
-  it('contains %%openui format instructions', () => {
-    expect(CARD_PROMPT_FRAGMENT).toContain('%%openui');
+  it('contains inline card tag format instructions', () => {
+    expect(CARD_PROMPT_FRAGMENT).toContain('Place card tags directly inline');
   });
 
   it('contains all 5 card type names', () => {
@@ -30,7 +30,7 @@ describe('CARD_PROMPT_FRAGMENT — content contract', () => {
 
   it('contains format section', () => {
     expect(CARD_PROMPT_FRAGMENT).toContain('Format:');
-    expect(CARD_PROMPT_FRAGMENT).toContain('Prefix card responses with %%openui');
+    expect(CARD_PROMPT_FRAGMENT).toContain('Place card tags directly inline');
   });
 
   it('is a non-empty string', () => {
