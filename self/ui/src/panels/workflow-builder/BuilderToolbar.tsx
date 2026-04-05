@@ -27,6 +27,8 @@ export interface BuilderToolbarProps {
   validationErrorCount?: number
   /** Whether the validation panel is currently open. */
   isValidationPanelOpen?: boolean
+  /** Delete workflow handler. Shown conditionally (simple mode). */
+  onDelete?: () => void
 }
 
 const MODES: { value: BuilderMode; label: string; icon: string }[] = [
@@ -119,6 +121,7 @@ export function BuilderToolbar({
   isSaving = false,
   validationErrorCount = 0,
   isValidationPanelOpen = false,
+  onDelete,
 }: BuilderToolbarProps) {
   const { zoomIn, zoomOut, fitView } = useReactFlow()
   const { mode: currentMode } = useBuilderMode()
@@ -236,6 +239,21 @@ export function BuilderToolbar({
           onClick={onNewWorkflow}
         >
           <i className="codicon codicon-new-file" style={{ fontSize: 14 }} />
+        </button>
+      )}
+
+      {/* ── Delete Workflow ── */}
+      {onDelete && (
+        <button
+          type="button"
+          title="Delete workflow"
+          aria-label="Delete workflow"
+          data-testid="toolbar-delete"
+          style={isAuthoring ? buttonBaseStyle : disabledButtonStyle}
+          disabled={!isAuthoring}
+          onClick={onDelete}
+        >
+          <i className="codicon codicon-trash" style={{ fontSize: 14 }} />
         </button>
       )}
 

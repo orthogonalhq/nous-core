@@ -63,6 +63,7 @@ const CanvasDropTarget = forwardRef<
     onFocusedNodeChange: (nodeId: string | null) => void
     projectId?: string
     workflowDefinitionId?: string
+    hideWorkflowPicker?: boolean
   }
 >(function CanvasDropTarget({
   canvasRef,
@@ -70,6 +71,7 @@ const CanvasDropTarget = forwardRef<
   onFocusedNodeChange,
   projectId,
   workflowDefinitionId,
+  hideWorkflowPicker,
 }, ref) {
   const { mode, setMode } = useBuilderMode()
   const workflowApi = useWorkflowApi({ projectId })
@@ -592,6 +594,11 @@ const CanvasDropTarget = forwardRef<
         isSaving={isSaving}
         validationErrorCount={validationErrors.length}
         isValidationPanelOpen={isValidationPanelOpen}
+        onDelete={hideWorkflowPicker && currentDefinitionId ? () => {
+          if (window.confirm('Delete this workflow? This cannot be undone.')) {
+            void handleDeleteWorkflow(currentDefinitionId)
+          }
+        } : undefined}
       />
       {/* Construction watching mode indicator */}
       {isWatchingConstruction && (
@@ -721,7 +728,7 @@ const CanvasDropTarget = forwardRef<
       {mode !== 'monitoring' && (
         <>
           <NodePalette containerRef={canvasRef} />
-          {projectId && (
+          {projectId && !hideWorkflowPicker && (
             <WorkflowPicker
               projectId={projectId}
               currentDefinitionId={currentDefinitionId}
@@ -853,10 +860,11 @@ const CanvasDropTarget = forwardRef<
   )
 })
 
-function WorkflowBuilderCanvas({ className, projectId, workflowDefinitionId }: {
+function WorkflowBuilderCanvas({ className, projectId, workflowDefinitionId, hideWorkflowPicker }: {
   className?: string
   projectId?: string
   workflowDefinitionId?: string
+  hideWorkflowPicker?: boolean
 }) {
   const canvasRef = useRef<HTMLDivElement | null>(null)
   const dropTargetRef = useRef<CanvasDropTargetHandle>(null)
@@ -896,6 +904,7 @@ function WorkflowBuilderCanvas({ className, projectId, workflowDefinitionId }: {
             onFocusedNodeChange={handleFocusedNodeChange}
             projectId={projectId}
             workflowDefinitionId={workflowDefinitionId}
+            hideWorkflowPicker={hideWorkflowPicker}
           />
         </ReactFlowProvider>
       </BuilderModeProvider>
@@ -932,6 +941,7 @@ export function WorkflowBuilderPanel(
         className={className}
         projectId={effectiveProjectId}
         workflowDefinitionId={effectiveDefinitionId}
+        hideWorkflowPicker={!!navParams}
       />
     </div>
   )
