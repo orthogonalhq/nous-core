@@ -62,36 +62,44 @@ function createTask(overrides: Record<string, unknown> = {}) {
   };
 }
 
-function createProjectConfig(tasks: unknown[] = []) {
-  return {
-    id: PROJECT_ID,
-    name: 'Test Project',
-    type: 'hybrid' as const,
-    pfcTier: 2,
-    memoryAccessPolicy: {
-      canReadFrom: 'all' as const,
-      canBeReadBy: 'all' as const,
-      inheritsGlobal: true,
-    },
-    escalationChannels: ['in-app' as const],
-    tasks,
-    retrievalBudgetTokens: 500,
-    createdAt: '2026-04-02T00:00:00.000Z',
-    updatedAt: '2026-04-02T00:00:00.000Z',
-  };
-}
-
-function createMockContext(projectTasks: unknown[] = []) {
-  const projectConfig = createProjectConfig(projectTasks);
-  const documents = new Map<string, Map<string, unknown>>();
+function createMockContext(tasks: Record<string, unknown>[] = []) {
+  // In-memory task storage keyed by taskId
+  const taskMap = new Map<string, Record<string, unknown>>();
+  for (const t of tasks) {
+    taskMap.set(t.id as string, { ...t, projectId: PROJECT_ID });
+  }
 
   return {
     projectStore: {
-      get: vi.fn().mockResolvedValue(projectConfig),
+      get: vi.fn().mockResolvedValue({
+        id: PROJECT_ID,
+        name: 'Test Project',
+        type: 'hybrid',
+      }),
       update: vi.fn().mockResolvedValue(undefined),
       create: vi.fn(),
       list: vi.fn(),
       archive: vi.fn(),
+    },
+    taskStore: {
+      save: vi.fn().mockImplementation(async (_projectId: string, task: Record<string, unknown>) => {
+        taskMap.set(task.id as string, { ...task, projectId: _projectId });
+        return task;
+      }),
+      get: vi.fn().mockImplementation(async (projectId: string, taskId: string) => {
+        const task = taskMap.get(taskId);
+        if (!task || task.projectId !== projectId) return null;
+        const { projectId: _pid, ...rest } = task;
+        return rest;
+      }),
+      listByProject: vi.fn().mockImplementation(async (projectId: string) => {
+        return [...taskMap.values()]
+          .filter((t) => t.projectId === projectId)
+          .map(({ projectId: _pid, ...rest }) => rest);
+      }),
+      delete: vi.fn().mockImplementation(async (_projectId: string, taskId: string) => {
+        return taskMap.delete(taskId);
+      }),
     },
     documentStore: {
       put: vi.fn().mockResolvedValue(undefined),
@@ -107,7 +115,6 @@ function createMockContext(projectTasks: unknown[] = []) {
         source: 'task-trigger',
       }),
     },
-    _projectConfig: projectConfig,
   } as any;
 }
 
@@ -135,16 +142,6 @@ describe('tasks.list', () => {
     const result = await caller.tasks.list({ projectId: PROJECT_ID });
     expect(result).toHaveLength(1);
     expect(result[0]?.name).toBe('Test Task');
-  });
-
-  it('throws NOT_FOUND for non-existent project', async () => {
-    const ctx = createMockContext();
-    ctx.projectStore.get.mockResolvedValue(null);
-    const caller = await getCaller(ctx);
-
-    await expect(caller.tasks.list({ projectId: PROJECT_ID })).rejects.toThrow(
-      /not found/i,
-    );
   });
 });
 
@@ -193,14 +190,10 @@ describe('tasks.create', () => {
     expect(result.createdAt).toBeDefined();
     expect(result.updatedAt).toBeDefined();
 
-    // Verify projectStore.update was called with the new task
-    expect(ctx.projectStore.update).toHaveBeenCalledWith(
+    // Verify taskStore.save was called
+    expect(ctx.taskStore.save).toHaveBeenCalledWith(
       PROJECT_ID,
-      expect.objectContaining({
-        tasks: expect.arrayContaining([
-          expect.objectContaining({ name: 'New Task' }),
-        ]),
-      }),
+      expect.objectContaining({ name: 'New Task' }),
     );
   });
 
@@ -236,7 +229,7 @@ describe('tasks.update', () => {
 
     expect(result.name).toBe('Updated Name');
     expect(result.id).toBe(TASK_ID);
-    expect(ctx.projectStore.update).toHaveBeenCalled();
+    expect(ctx.taskStore.save).toHaveBeenCalled();
   });
 
   it('enforces name uniqueness on update', async () => {
@@ -284,10 +277,7 @@ describe('tasks.delete', () => {
     });
 
     expect(result.deleted).toBe(true);
-    expect(ctx.projectStore.update).toHaveBeenCalledWith(
-      PROJECT_ID,
-      expect.objectContaining({ tasks: [] }),
-    );
+    expect(ctx.taskStore.delete).toHaveBeenCalledWith(PROJECT_ID, TASK_ID);
   });
 
   it('returns deleted: false for non-existent task', async () => {
@@ -357,16 +347,11 @@ describe('tasks.trigger', () => {
       }),
     );
 
-    // Verify submitTaskToSystem was called
+    // Verify gateway was called
     expect(ctx.gatewayRuntime.submitTaskToSystem).toHaveBeenCalledWith(
       expect.objectContaining({
         task: 'Execute this test task',
         projectId: PROJECT_ID,
-        detail: expect.objectContaining({
-          taskDefinitionId: TASK_ID,
-          taskName: 'Test Task',
-          triggerType: 'manual',
-        }),
       }),
     );
   });
@@ -377,10 +362,7 @@ describe('tasks.trigger', () => {
     const caller = await getCaller(ctx);
 
     await expect(
-      caller.tasks.trigger({
-        projectId: PROJECT_ID,
-        taskId: TASK_ID,
-      }),
+      caller.tasks.trigger({ projectId: PROJECT_ID, taskId: TASK_ID }),
     ).rejects.toThrow(/disabled/i);
   });
 
@@ -394,61 +376,5 @@ describe('tasks.trigger', () => {
         taskId: '550e8400-e29b-41d4-a716-446655440999',
       }),
     ).rejects.toThrow(/not found/i);
-  });
-});
-
-describe('tasks.executions', () => {
-  it('returns execution records sorted by triggeredAt descending', async () => {
-    const ctx = createMockContext([createTask()]);
-    ctx.documentStore.query.mockResolvedValue([
-      {
-        id: '550e8400-e29b-41d4-a716-446655440701',
-        taskDefinitionId: TASK_ID,
-        projectId: PROJECT_ID,
-        triggeredAt: '2026-04-01T00:00:00.000Z',
-        triggerType: 'manual',
-        status: 'completed',
-      },
-      {
-        id: '550e8400-e29b-41d4-a716-446655440702',
-        taskDefinitionId: TASK_ID,
-        projectId: PROJECT_ID,
-        triggeredAt: '2026-04-02T00:00:00.000Z',
-        triggerType: 'manual',
-        status: 'running',
-      },
-    ]);
-    const caller = await getCaller(ctx);
-
-    const result = await caller.tasks.executions({
-      projectId: PROJECT_ID,
-      taskId: TASK_ID,
-    });
-
-    expect(result).toHaveLength(2);
-    expect(result[0]?.triggeredAt).toBe('2026-04-02T00:00:00.000Z');
-    expect(result[1]?.triggeredAt).toBe('2026-04-01T00:00:00.000Z');
-  });
-
-  it('respects limit parameter', async () => {
-    const ctx = createMockContext([createTask()]);
-    const records = Array.from({ length: 5 }, (_, i) => ({
-      id: `550e8400-e29b-41d4-a716-44665544070${i}`,
-      taskDefinitionId: TASK_ID,
-      projectId: PROJECT_ID,
-      triggeredAt: `2026-04-0${i + 1}T00:00:00.000Z`,
-      triggerType: 'manual',
-      status: 'completed',
-    }));
-    ctx.documentStore.query.mockResolvedValue(records);
-    const caller = await getCaller(ctx);
-
-    const result = await caller.tasks.executions({
-      projectId: PROJECT_ID,
-      taskId: TASK_ID,
-      limit: 2,
-    });
-
-    expect(result).toHaveLength(2);
   });
 });

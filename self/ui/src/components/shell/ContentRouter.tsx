@@ -4,7 +4,7 @@ import * as React from 'react'
 import { clsx } from 'clsx'
 
 export interface ContentRouterRenderProps {
-  navigate: (routeId: string) => void
+  navigate: (routeId: string, params?: Record<string, unknown>) => void
   goBack: () => void
   canGoBack: boolean
   params?: Record<string, unknown>

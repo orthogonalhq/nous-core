@@ -4,12 +4,15 @@
  * WR-111 — Lightweight Task System.
  * Provides 8 endpoints for task lifecycle management: list, get, create,
  * update, delete, toggle, trigger, and executions.
+ *
+ * Tasks are stored in their own 'tasks' collection via ITaskStore,
+ * independent of ProjectConfig.
  */
 import { z } from 'zod';
 import { randomUUID } from 'node:crypto';
 import { TRPCError } from '@trpc/server';
 import { ProjectIdSchema } from '@nous/shared';
-import type { TaskDefinition, TaskExecutionRecord, ProjectConfig } from '@nous/shared';
+import type { TaskDefinition, TaskExecutionRecord } from '@nous/shared';
 import { router, publicProcedure } from '../trpc';
 
 // ── Input schemas defined locally ────────────────────────────────────────────
@@ -17,7 +20,7 @@ import { router, publicProcedure } from '../trpc';
 // here because the desktop backend (tsx/CJS) intermittently fails to resolve
 // new barrel re-exports from @nous/shared. This is safe: the tRPC input
 // schemas only validate incoming requests — the stored data uses
-// TaskDefinitionSchema from @nous/shared via ProjectConfigSchema.
+// TaskDefinitionSchema from @nous/shared via ITaskStore.
 
 const TriggerConfigSchema = z.discriminatedUnion('type', [
   z.object({ type: z.literal('manual') }),
@@ -53,18 +56,6 @@ const TaskUpdateInputSchema = z.object({
 
 const TASK_EXECUTIONS_COLLECTION = 'task_executions';
 
-/** Find task in project or throw NOT_FOUND. */
-function getTaskOrThrow(project: ProjectConfig, taskId: string): TaskDefinition {
-  const task = (project.tasks ?? []).find((t) => t.id === taskId);
-  if (!task) {
-    throw new TRPCError({
-      code: 'NOT_FOUND',
-      message: `Task ${taskId} not found in project ${project.id}`,
-    });
-  }
-  return task;
-}
-
 /** Check name uniqueness within project tasks. */
 function assertNameUnique(
   tasks: TaskDefinition[],
@@ -86,32 +77,26 @@ export const tasksRouter = router({
   list: publicProcedure
     .input(z.object({ projectId: ProjectIdSchema }))
     .query(async ({ ctx, input }): Promise<TaskDefinition[]> => {
-      const project = await ctx.projectStore.get(input.projectId);
-      if (!project) {
-        throw new TRPCError({
-          code: 'NOT_FOUND',
-          message: `Project ${input.projectId} not found`,
-        });
-      }
-      return project.tasks ?? [];
+      return ctx.taskStore.listByProject(input.projectId);
     }),
 
   get: publicProcedure
     .input(z.object({ projectId: ProjectIdSchema, taskId: z.string().uuid() }))
     .query(async ({ ctx, input }): Promise<TaskDefinition> => {
-      const project = await ctx.projectStore.get(input.projectId);
-      if (!project) {
+      const task = await ctx.taskStore.get(input.projectId, input.taskId);
+      if (!task) {
         throw new TRPCError({
           code: 'NOT_FOUND',
-          message: `Project ${input.projectId} not found`,
+          message: `Task ${input.taskId} not found in project ${input.projectId}`,
         });
       }
-      return getTaskOrThrow(project, input.taskId);
+      return task;
     }),
 
   create: publicProcedure
     .input(z.object({ projectId: ProjectIdSchema, task: TaskCreateInputSchema }))
     .mutation(async ({ ctx, input }): Promise<TaskDefinition> => {
+      // Verify project exists
       const project = await ctx.projectStore.get(input.projectId);
       if (!project) {
         throw new TRPCError({
@@ -120,7 +105,8 @@ export const tasksRouter = router({
         });
       }
 
-      const existingTasks = project.tasks ?? [];
+      // Check name uniqueness
+      const existingTasks = await ctx.taskStore.listByProject(input.projectId);
       assertNameUnique(existingTasks, input.task.name);
 
       const now = new Date().toISOString();
@@ -136,11 +122,7 @@ export const tasksRouter = router({
         updatedAt: now,
       };
 
-      await ctx.projectStore.update(input.projectId, {
-        tasks: [...existingTasks, newTask],
-      });
-
-      return newTask;
+      return ctx.taskStore.save(input.projectId, newTask);
     }),
 
   update: publicProcedure
@@ -150,18 +132,16 @@ export const tasksRouter = router({
       updates: TaskUpdateInputSchema,
     }))
     .mutation(async ({ ctx, input }): Promise<TaskDefinition> => {
-      const project = await ctx.projectStore.get(input.projectId);
-      if (!project) {
+      const task = await ctx.taskStore.get(input.projectId, input.taskId);
+      if (!task) {
         throw new TRPCError({
           code: 'NOT_FOUND',
-          message: `Project ${input.projectId} not found`,
+          message: `Task ${input.taskId} not found in project ${input.projectId}`,
         });
       }
 
-      const existingTasks = project.tasks ?? [];
-      const task = getTaskOrThrow(project, input.taskId);
-
       if (input.updates.name != null && input.updates.name !== task.name) {
+        const existingTasks = await ctx.taskStore.listByProject(input.projectId);
         assertNameUnique(existingTasks, input.updates.name, input.taskId);
       }
 
@@ -174,51 +154,26 @@ export const tasksRouter = router({
         updatedAt: now,
       };
 
-      const updatedTasks = existingTasks.map((t) =>
-        t.id === input.taskId ? updatedTask : t,
-      );
-
-      await ctx.projectStore.update(input.projectId, {
-        tasks: updatedTasks,
-      });
-
-      return updatedTask;
+      return ctx.taskStore.save(input.projectId, updatedTask);
     }),
 
   delete: publicProcedure
     .input(z.object({ projectId: ProjectIdSchema, taskId: z.string().uuid() }))
     .mutation(async ({ ctx, input }): Promise<{ deleted: boolean }> => {
-      const project = await ctx.projectStore.get(input.projectId);
-      if (!project) {
-        throw new TRPCError({
-          code: 'NOT_FOUND',
-          message: `Project ${input.projectId} not found`,
-        });
-      }
-
-      const existingTasks = project.tasks ?? [];
-      const filtered = existingTasks.filter((t) => t.id !== input.taskId);
-
-      await ctx.projectStore.update(input.projectId, {
-        tasks: filtered,
-      });
-
-      return { deleted: filtered.length < existingTasks.length };
+      const deleted = await ctx.taskStore.delete(input.projectId, input.taskId);
+      return { deleted };
     }),
 
   toggle: publicProcedure
     .input(z.object({ projectId: ProjectIdSchema, taskId: z.string().uuid() }))
     .mutation(async ({ ctx, input }): Promise<TaskDefinition> => {
-      const project = await ctx.projectStore.get(input.projectId);
-      if (!project) {
+      const task = await ctx.taskStore.get(input.projectId, input.taskId);
+      if (!task) {
         throw new TRPCError({
           code: 'NOT_FOUND',
-          message: `Project ${input.projectId} not found`,
+          message: `Task ${input.taskId} not found in project ${input.projectId}`,
         });
       }
-
-      const existingTasks = project.tasks ?? [];
-      const task = getTaskOrThrow(project, input.taskId);
 
       const now = new Date().toISOString();
       const toggledTask: TaskDefinition = {
@@ -227,29 +182,19 @@ export const tasksRouter = router({
         updatedAt: now,
       };
 
-      const updatedTasks = existingTasks.map((t) =>
-        t.id === input.taskId ? toggledTask : t,
-      );
-
-      await ctx.projectStore.update(input.projectId, {
-        tasks: updatedTasks,
-      });
-
-      return toggledTask;
+      return ctx.taskStore.save(input.projectId, toggledTask);
     }),
 
   trigger: publicProcedure
     .input(z.object({ projectId: ProjectIdSchema, taskId: z.string().uuid() }))
     .mutation(async ({ ctx, input }): Promise<{ executionId: string; runId: string }> => {
-      const project = await ctx.projectStore.get(input.projectId);
-      if (!project) {
+      const task = await ctx.taskStore.get(input.projectId, input.taskId);
+      if (!task) {
         throw new TRPCError({
           code: 'NOT_FOUND',
-          message: `Project ${input.projectId} not found`,
+          message: `Task ${input.taskId} not found in project ${input.projectId}`,
         });
       }
-
-      const task = getTaskOrThrow(project, input.taskId);
 
       if (!task.enabled) {
         throw new TRPCError({

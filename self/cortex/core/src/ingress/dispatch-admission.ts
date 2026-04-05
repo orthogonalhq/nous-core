@@ -9,6 +9,7 @@ import type {
   AuthorityActor,
   IDocumentStore,
   IProjectStore,
+  ITaskStore,
   IWorkflowEngine,
   IngressDispatchOutcome,
   IngressIdempotencyClaimResult,
@@ -36,6 +37,7 @@ export interface IngressDispatchAdmissionOptions {
   opctl: IOpctlService | null;
   idempotencyStore: IIngressIdempotencyStore;
   projectStore: IProjectStore;
+  taskStore?: ITaskStore;
   workflowEngine: IWorkflowEngine;
   documentStore?: IDocumentStore;
   submitTaskToSystem?: (input: SystemTaskSubmission) => Promise<SystemSubmissionReceipt>;
@@ -159,9 +161,9 @@ export class IngressDispatchAdmission implements IIngressDispatchAdmission {
         );
       }
 
-      const taskDef = (projectConfig.tasks ?? []).find(
-        (t) => t.id === envelope.task_ref,
-      );
+      const taskDef = this.options.taskStore
+        ? await this.options.taskStore.get(envelope.project_id, envelope.task_ref)
+        : null;
       if (!taskDef) {
         return this.rejectAndRelease(
           envelope,

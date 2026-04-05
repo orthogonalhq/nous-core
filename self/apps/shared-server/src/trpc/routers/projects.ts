@@ -1050,7 +1050,7 @@ export async function buildProjectDashboardSnapshot(
   const blockedActions = deriveBlockedActions(controlState);
 
   // Build task summary
-  const tasks = project.tasks ?? [];
+  const tasks = await ctx.taskStore.listByProject(project.id);
   const enabledTaskCount = tasks.filter((t) => t.enabled).length;
 
   // Query recent executions for all project tasks

@@ -2,6 +2,7 @@ import { randomUUID } from 'node:crypto';
 import type {
   IIngressGateway,
   IProjectStore,
+  ITaskStore,
   IngressDispatchOutcome,
   ProjectConfig,
   ProjectId,
@@ -21,6 +22,7 @@ type CronMatcher = (value: number) => boolean;
 export interface SchedulerServiceOptions {
   scheduleStore: DocumentScheduleStore;
   projectStore: IProjectStore;
+  taskStore?: ITaskStore;
   ingressGateway: IIngressGateway;
   envelopeBuilder?: IngressEnvelopeBuilder;
   now?: () => Date;
@@ -315,10 +317,11 @@ export class SchedulerService {
 
     // Branch: task schedule vs workflow schedule
     if (schedule.taskDefinitionId) {
-      // Validate task exists in project
-      const task = (project.tasks ?? []).find(
-        (t) => t.id === schedule.taskDefinitionId,
-      );
+      // Validate task exists via taskStore
+      if (!this.options.taskStore) {
+        throw new Error('taskStore required for task schedules');
+      }
+      const task = await this.options.taskStore.get(schedule.projectId, schedule.taskDefinitionId);
       if (!task) {
         throw new Error(
           `Task definition ${schedule.taskDefinitionId} not found in project ${schedule.projectId}`,
@@ -364,10 +367,11 @@ export class SchedulerService {
 
     // Branch: task schedule vs workflow schedule
     if (effectiveTaskDefinitionId) {
-      // Validate task exists in project
-      const task = (project.tasks ?? []).find(
-        (t) => t.id === effectiveTaskDefinitionId,
-      );
+      // Validate task exists via taskStore
+      if (!this.options.taskStore) {
+        throw new Error('taskStore required for task schedules');
+      }
+      const task = await this.options.taskStore.get(normalizedInput.projectId, effectiveTaskDefinitionId);
       if (!task) {
         throw new Error(
           `Task definition ${effectiveTaskDefinitionId} not found in project ${normalizedInput.projectId}`,

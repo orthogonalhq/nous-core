@@ -63,9 +63,7 @@ export function TaskDetailView({ navigate, goBack, canGoBack, params }: TaskDeta
 
   const handleEdit = useCallback(() => {
     if (taskId) {
-      // ContentRouter.navigate accepts params at runtime (line 51 of ContentRouter.tsx)
-      // but ContentRouterRenderProps types it as (routeId: string) => void.
-      ;(navigate as (routeId: string, params?: Record<string, unknown>) => void)('task-create', { taskId })
+      navigate('task-create', { taskId })
     }
   }, [taskId, navigate])
 
