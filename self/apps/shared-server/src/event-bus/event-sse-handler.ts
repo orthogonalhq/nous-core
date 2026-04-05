@@ -39,6 +39,10 @@ const ALL_CHANNELS: (keyof EventChannelMap)[] = [
   'workflow:node-status-changed',
   'workflow:run-completed',
   'workflow:spec-updated',
+  'cost:event-recorded',
+  'cost:budget-alert',
+  'cost:budget-exceeded',
+  'cost:snapshot',
 ];
 
 const HEARTBEAT_INTERVAL_MS = 30_000;

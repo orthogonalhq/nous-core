@@ -11,6 +11,12 @@
  * UI-push via the event bus.
  */
 import { z } from 'zod';
+import type {
+  CostEvent,
+  BudgetAlertPayload,
+  BudgetExceededPayload,
+  CostSnapshotPayload,
+} from '../types/cost.js';
 
 // --- Health Domain ---
 
@@ -193,6 +199,8 @@ export const InferenceCallCompletePayloadSchema = z.object({
   latencyMs: z.number().nonnegative(),
   routingDecision: z.string().optional(),
   emittedAt: z.string().datetime(),
+  correlationRunId: z.string().optional(),
+  correlationParentId: z.string().optional(),
 });
 export type InferenceCallCompletePayload = z.infer<typeof InferenceCallCompletePayloadSchema>;
 
@@ -276,6 +284,10 @@ export interface EventChannelMap {
   'workflow:node-status-changed': WorkflowNodeStatusChangedPayload;
   'workflow:run-completed': WorkflowRunCompletedPayload;
   'workflow:spec-updated': WorkflowSpecUpdatedPayload;
+  'cost:event-recorded': CostEvent;
+  'cost:budget-alert': BudgetAlertPayload;
+  'cost:budget-exceeded': BudgetExceededPayload;
+  'cost:snapshot': CostSnapshotPayload;
 }
 
 /**

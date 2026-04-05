@@ -52,6 +52,8 @@ export class ObservableProvider implements IModelProvider {
         latencyMs,
         routingDecision: undefined,
         emittedAt: new Date().toISOString(),
+        correlationRunId: request.correlationRunId,
+        correlationParentId: request.correlationParentId,
       });
     } catch { /* fire-and-forget */ }
 
@@ -114,6 +116,8 @@ export class ObservableProvider implements IModelProvider {
                     latencyMs,
                     routingDecision: undefined,
                     emittedAt: new Date().toISOString(),
+                    correlationRunId: request.correlationRunId,
+                    correlationParentId: request.correlationParentId,
                   });
                 } catch { /* fire-and-forget */ }
               }

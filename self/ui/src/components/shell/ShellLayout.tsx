@@ -35,6 +35,7 @@ export interface ShellLayoutProps
   chat: React.ReactNode
   content: React.ReactNode
   observe: React.ReactNode
+  banner?: React.ReactNode
   breakpoint?: ShellBreakpoint
   onColumnResize?: (widths: ColumnWidths) => void
   initialWidths?: Partial<ColumnWidths>
@@ -45,6 +46,7 @@ export function ShellLayout({
   chat,
   content,
   observe,
+  banner,
   breakpoint = 'full',
   onColumnResize,
   initialWidths,
@@ -96,19 +98,23 @@ export function ShellLayout({
   const showChat = breakpoint !== 'narrow'
   const showObserve = breakpoint === 'full'
 
+  const hasBanner = !!banner
+
   const layoutStyle: ShellLayoutStyle = {
     '--shell-chat-width': `${chatWidth}px`,
     '--shell-observe-width': `${observeWidth}px`,
     display: 'grid',
     minWidth: 0,
-    gridTemplateAreas: '"rail chat content observe"',
+    gridTemplateAreas: hasBanner
+      ? '"banner banner banner banner" "rail chat content observe"'
+      : '"rail chat content observe"',
     gridTemplateColumns: [
       'var(--nous-rail-width)',
       showChat ? 'var(--shell-chat-width)' : '0px',
       '1fr',
       showObserve ? 'var(--shell-observe-width)' : '0px',
     ].join(' '),
-    gridTemplateRows: '1fr',
+    gridTemplateRows: hasBanner ? 'auto 1fr' : '1fr',
     position: 'relative',
     width: '100%',
     height: '100%',
@@ -124,6 +130,12 @@ export function ShellLayout({
       style={layoutStyle}
       {...props}
     >
+      {hasBanner && (
+        <div data-shell-area="banner" style={{ gridArea: 'banner', minWidth: 0 }}>
+          {banner}
+        </div>
+      )}
+
       <div
         data-shell-area="rail"
         style={{

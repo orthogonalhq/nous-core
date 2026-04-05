@@ -13,6 +13,7 @@ export default defineWorkspace([
   'self/subcortex/tools',
   'self/subcortex/projects',
   'self/subcortex/stubs',
+  'self/subcortex/cost',
   'self/subcortex/opctl',
   'self/subcortex/witnessd',
   'self/subcortex/mao',
