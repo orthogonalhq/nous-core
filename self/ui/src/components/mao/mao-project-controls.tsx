@@ -57,39 +57,57 @@ export function MaoProjectControls({
     },
   ];
 
+  const cellBase: React.CSSProperties = {
+    borderRadius: 'var(--nous-radius-sm)',
+    border: '1px solid var(--nous-border-subtle)',
+    paddingInline: 'var(--nous-space-md)',
+    paddingBlock: 'var(--nous-space-sm)',
+  };
+
+  const labelStyle: React.CSSProperties = {
+    fontSize: 'var(--nous-font-size-xs)',
+    textTransform: 'uppercase',
+    letterSpacing: '0.05em',
+    color: 'var(--nous-fg-muted)',
+  };
+
+  const evidenceBtnStyle: React.CSSProperties = {
+    borderRadius: 'var(--nous-radius-sm)',
+    border: '1px solid var(--nous-border-subtle)',
+    paddingInline: 'var(--nous-space-sm)',
+    paddingBlock: 'var(--nous-space-2xs)',
+    fontSize: 'var(--nous-font-size-xs)',
+  };
+
   return (
     <Card>
-      <CardHeader className="border-b border-border">
-        <CardTitle className="flex items-center justify-between gap-3 text-base">
+      <CardHeader style={{ borderBottom: '1px solid var(--nous-border-subtle)' }}>
+        <CardTitle style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 'var(--nous-space-md)', fontSize: 'var(--nous-font-size-base)' }}>
           <span>Project controls</span>
-          <div className="flex flex-wrap gap-2">
+          <div style={{ display: 'flex', flexWrap: 'wrap', gap: 'var(--nous-space-sm)' }}>
             <Badge variant="outline">{control.project_control_state}</Badge>
             <Badge variant="outline">{control.pfc_project_recommendation}</Badge>
           </div>
         </CardTitle>
       </CardHeader>
-      <CardContent className="space-y-4 pt-4 text-sm">
-        <div className="grid gap-3 md:grid-cols-2">
-          <div className="rounded-md border border-border px-3 py-2">
-            <div className="text-xs uppercase tracking-wide text-muted-foreground">
-              Resume readiness
-            </div>
-            <div className="mt-1">{control.resume_readiness_status}</div>
+      <CardContent style={{ display: 'flex', flexDirection: 'column', gap: 'var(--nous-space-lg)', paddingTop: 'var(--nous-space-lg)', fontSize: 'var(--nous-font-size-sm)' }}>
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 'var(--nous-space-md)' }}>
+          <div style={cellBase}>
+            <div style={labelStyle}>Resume readiness</div>
+            <div style={{ marginTop: 'var(--nous-space-2xs)' }}>{control.resume_readiness_status}</div>
             {control.resume_readiness_reason_code ? (
-              <div className="mt-1 text-xs text-muted-foreground">
+              <div style={{ marginTop: 'var(--nous-space-2xs)', fontSize: 'var(--nous-font-size-xs)', color: 'var(--nous-fg-muted)' }}>
                 {control.resume_readiness_reason_code}
               </div>
             ) : null}
           </div>
-          <div className="rounded-md border border-border px-3 py-2">
-            <div className="text-xs uppercase tracking-wide text-muted-foreground">
-              Last action
-            </div>
-            <div className="mt-1">
+          <div style={cellBase}>
+            <div style={labelStyle}>Last action</div>
+            <div style={{ marginTop: 'var(--nous-space-2xs)' }}>
               {control.project_last_control_action ?? 'n/a'}
             </div>
             {control.project_last_control_reason ? (
-              <div className="mt-1 text-xs text-muted-foreground">
+              <div style={{ marginTop: 'var(--nous-space-2xs)', fontSize: 'var(--nous-font-size-xs)', color: 'var(--nous-fg-muted)' }}>
                 {control.project_last_control_reason}
               </div>
             ) : null}
@@ -97,11 +115,9 @@ export function MaoProjectControls({
         </div>
 
         {/* B2-a: Cortex review status surface */}
-        <div className="rounded-md border border-border px-3 py-2" data-testid="cortex-review-section">
-          <div className="text-xs uppercase tracking-wide text-muted-foreground">
-            Cortex review
-          </div>
-          <div className="mt-1">
+        <div style={cellBase} data-testid="cortex-review-section">
+          <div style={labelStyle}>Cortex review</div>
+          <div style={{ marginTop: 'var(--nous-space-2xs)' }}>
             {control.pfc_project_review_status === 'none'
               ? 'No active Cortex review'
               : control.pfc_project_review_status}
@@ -111,16 +127,14 @@ export function MaoProjectControls({
         {/* B2-b: Evidence links from resume_readiness_evidence_refs */}
         {control.resume_readiness_evidence_refs &&
         control.resume_readiness_evidence_refs.length > 0 ? (
-          <div className="space-y-1" data-testid="resume-readiness-evidence">
-            <div className="text-xs uppercase tracking-wide text-muted-foreground">
-              Resume readiness evidence
-            </div>
-            <div className="flex flex-wrap gap-1">
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 'var(--nous-space-2xs)' }} data-testid="resume-readiness-evidence">
+            <div style={labelStyle}>Resume readiness evidence</div>
+            <div style={{ display: 'flex', flexWrap: 'wrap', gap: 'var(--nous-space-2xs)' }}>
               {control.resume_readiness_evidence_refs.map((ref) => (
                 <button
                   key={ref}
                   type="button"
-                  className="rounded-md border border-border px-2 py-1 text-xs hover:bg-muted/20"
+                  style={evidenceBtnStyle}
                   data-evidence-ref={ref}
                   onClick={() => {
                     /* V1: in-app evidence link placeholder */
@@ -133,11 +147,9 @@ export function MaoProjectControls({
           </div>
         ) : null}
 
-        <div className="rounded-md border border-border p-3">
-          <div className="text-xs uppercase tracking-wide text-muted-foreground">
-            Impact summary
-          </div>
-          <div className="mt-2 grid gap-2 md:grid-cols-2">
+        <div style={{ ...cellBase, padding: 'var(--nous-space-xl)' }}>
+          <div style={labelStyle}>Impact summary</div>
+          <div style={{ marginTop: 'var(--nous-space-sm)', display: 'flex', flexDirection: 'column', gap: 'var(--nous-space-sm)' }}>
             <div>active runs: {activeRunCount}</div>
             <div>active agents: {snapshot.summary.activeAgentCount}</div>
             <div>blocked agents: {snapshot.summary.blockedAgentCount}</div>
@@ -145,8 +157,8 @@ export function MaoProjectControls({
           </div>
         </div>
 
-        <div className="space-y-2">
-          <label className="text-sm font-medium" htmlFor="mao-control-reason">
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 'var(--nous-space-sm)' }}>
+          <label style={{ fontSize: 'var(--nous-font-size-sm)', fontWeight: 500 }} htmlFor="mao-control-reason">
             Control reason
           </label>
           <textarea
@@ -154,11 +166,19 @@ export function MaoProjectControls({
             value={reason}
             onChange={(event) => setReason(event.target.value)}
             placeholder="Capture the operator reason for this project-scope control."
-            className="min-h-24 w-full rounded-md border border-border bg-background px-3 py-2"
+            style={{
+              minHeight: '6rem',
+              width: '100%',
+              borderRadius: 'var(--nous-radius-sm)',
+              border: '1px solid var(--nous-border-subtle)',
+              backgroundColor: 'var(--nous-bg)',
+              paddingInline: 'var(--nous-space-md)',
+              paddingBlock: 'var(--nous-space-sm)',
+            }}
           />
         </div>
 
-        <div className="flex flex-wrap gap-2">
+        <div style={{ display: 'flex', flexWrap: 'wrap', gap: 'var(--nous-space-sm)' }}>
           {controlButtons.map((button) => (
             <Button
               key={button.action}
@@ -177,23 +197,23 @@ export function MaoProjectControls({
         </div>
 
         {lastResult ? (
-          <div className="rounded-md border border-border px-3 py-2">
-            <div className="flex flex-wrap items-center gap-2">
-              <span className="font-medium">Last result</span>
+          <div style={cellBase}>
+            <div style={{ display: 'flex', flexWrap: 'wrap', alignItems: 'center', gap: 'var(--nous-space-sm)' }}>
+              <span style={{ fontWeight: 500 }}>Last result</span>
               <Badge variant="outline">{lastResult.status}</Badge>
               <Badge variant="outline">{lastResult.to_state}</Badge>
             </div>
-            <div className="mt-1 text-xs text-muted-foreground">
+            <div style={{ marginTop: 'var(--nous-space-2xs)', fontSize: 'var(--nous-font-size-xs)', color: 'var(--nous-fg-muted)' }}>
               {lastResult.reason_code} • {lastResult.decision_ref}
             </div>
             {/* B2-b: Evidence links from lastResult.evidenceRefs */}
             {lastResult.evidenceRefs && lastResult.evidenceRefs.length > 0 ? (
-              <div className="mt-2 flex flex-wrap gap-1" data-testid="last-result-evidence">
+              <div style={{ marginTop: 'var(--nous-space-sm)', display: 'flex', flexWrap: 'wrap', gap: 'var(--nous-space-2xs)' }} data-testid="last-result-evidence">
                 {lastResult.evidenceRefs.map((ref) => (
                   <button
                     key={ref}
                     type="button"
-                    className="rounded-md border border-border px-2 py-1 text-xs hover:bg-muted/20"
+                    style={evidenceBtnStyle}
                     data-evidence-ref={ref}
                     onClick={() => {
                       /* V1: in-app evidence link placeholder */

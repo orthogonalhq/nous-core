@@ -32,33 +32,35 @@ export function MaoAuditTrailPanel({ projectId }: MaoAuditTrailPanelProps) {
 
   const entries = auditQuery.data ?? [];
 
+  const mutedText: React.CSSProperties = { color: 'var(--nous-fg-muted)' };
+
   return (
     <Card>
-      <CardHeader className="border-b border-border">
-        <CardTitle className="flex items-center justify-between gap-3 text-base">
+      <CardHeader style={{ borderBottom: '1px solid var(--nous-border-subtle)' }}>
+        <CardTitle style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 'var(--nous-space-md)', fontSize: 'var(--nous-font-size-base)' }}>
           <span>Audit trail</span>
           {entries.length > 0 ? (
             <Badge variant="outline">{entries.length} entries</Badge>
           ) : null}
         </CardTitle>
       </CardHeader>
-      <CardContent className="space-y-3 pt-4 text-sm">
+      <CardContent style={{ display: 'flex', flexDirection: 'column', gap: 'var(--nous-space-md)', paddingTop: 'var(--nous-space-lg)', fontSize: 'var(--nous-font-size-sm)' }}>
         {isSentinel ? (
-          <p className="text-muted-foreground" data-testid="sentinel-indicator">
+          <p style={mutedText} data-testid="sentinel-indicator">
             System-level agent — audit trail scoped to project context.
           </p>
         ) : auditQuery.isLoading ? (
-          <p className="text-muted-foreground">Loading audit history...</p>
+          <p style={mutedText}>Loading audit history...</p>
         ) : auditQuery.isError ? (
-          <p className="text-muted-foreground">
+          <p style={mutedText}>
             Failed to load audit history.
           </p>
         ) : entries.length === 0 ? (
-          <p className="text-muted-foreground">
+          <p style={mutedText}>
             No control actions have been recorded for this project.
           </p>
         ) : (
-          <div className="space-y-2">
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 'var(--nous-space-sm)' }}>
             {entries.map((entry) => {
               const isExpanded = expandedId === entry.commandId;
 
@@ -66,50 +68,58 @@ export function MaoAuditTrailPanel({ projectId }: MaoAuditTrailPanelProps) {
                 <button
                   key={entry.commandId}
                   type="button"
-                  className="w-full rounded-md border border-border px-3 py-2 text-left transition-colors hover:bg-muted/20"
+                  style={{
+                    width: '100%',
+                    borderRadius: 'var(--nous-radius-sm)',
+                    border: '1px solid var(--nous-border-subtle)',
+                    paddingInline: 'var(--nous-space-md)',
+                    paddingBlock: 'var(--nous-space-sm)',
+                    textAlign: 'left',
+                    transition: 'background-color 0.15s',
+                  }}
                   onClick={() =>
                     setExpandedId(isExpanded ? null : entry.commandId)
                   }
                   aria-expanded={isExpanded}
                 >
-                  <div className="flex items-center justify-between gap-2">
-                    <div className="flex items-center gap-2">
+                  <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 'var(--nous-space-sm)' }}>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: 'var(--nous-space-sm)' }}>
                       <Badge variant="outline">
                         {entry.action.replace(/_/g, ' ')}
                       </Badge>
-                      <span className="text-xs text-muted-foreground">
+                      <span style={{ fontSize: 'var(--nous-font-size-xs)', color: 'var(--nous-fg-muted)' }}>
                         {entry.actorId}
                       </span>
                     </div>
-                    <span className="text-xs text-muted-foreground">
+                    <span style={{ fontSize: 'var(--nous-font-size-xs)', color: 'var(--nous-fg-muted)' }}>
                       {new Date(entry.at).toLocaleString()}
                     </span>
                   </div>
-                  <div className="mt-1 text-xs text-muted-foreground">
+                  <div style={{ marginTop: 'var(--nous-space-2xs)', fontSize: 'var(--nous-font-size-xs)', color: 'var(--nous-fg-muted)' }}>
                     {entry.reason}
                   </div>
 
                   {isExpanded ? (
-                    <div className="mt-3 space-y-1 border-t border-border pt-2 text-xs text-muted-foreground">
+                    <div style={{ marginTop: 'var(--nous-space-xl)', display: 'flex', flexDirection: 'column', gap: 'var(--nous-space-2xs)', borderTop: '1px solid var(--nous-border-subtle)', paddingTop: 'var(--nous-space-sm)', fontSize: 'var(--nous-font-size-xs)', color: 'var(--nous-fg-muted)' }}>
                       <div>
-                        <span className="font-medium">Command ID:</span>{' '}
+                        <span style={{ fontWeight: 500 }}>Command ID:</span>{' '}
                         {entry.commandId}
                       </div>
                       <div>
-                        <span className="font-medium">Reason code:</span>{' '}
+                        <span style={{ fontWeight: 500 }}>Reason code:</span>{' '}
                         {entry.reasonCode}
                       </div>
                       <div>
-                        <span className="font-medium">Resume readiness:</span>{' '}
+                        <span style={{ fontWeight: 500 }}>Resume readiness:</span>{' '}
                         {entry.resumeReadinessStatus}
                       </div>
                       <div>
-                        <span className="font-medium">Decision ref:</span>{' '}
+                        <span style={{ fontWeight: 500 }}>Decision ref:</span>{' '}
                         {entry.decisionRef}
                       </div>
                       {entry.evidenceRefs.length > 0 ? (
                         <div>
-                          <span className="font-medium">Evidence refs:</span>{' '}
+                          <span style={{ fontWeight: 500 }}>Evidence refs:</span>{' '}
                           {entry.evidenceRefs.join(', ')}
                         </div>
                       ) : null}

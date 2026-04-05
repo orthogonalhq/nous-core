@@ -355,8 +355,8 @@ describe('MaoLeaseTree urgent indicators', () => {
       />,
     );
 
-    const rootButton = container.querySelector('[data-agent-id="root-1"]');
-    expect(rootButton?.className).toContain('ring-red-500');
+    const rootButton = container.querySelector('[data-agent-id="root-1"]') as HTMLElement;
+    expect(rootButton?.style.boxShadow).toContain('#ef4444');
   });
 });
 
@@ -454,8 +454,11 @@ describe('MaoLeaseTree state color handling', () => {
       />,
     );
 
-    const dots = container.querySelectorAll('.bg-slate-500');
-    expect(dots.length).toBeGreaterThan(0);
+    const dotSpans = container.querySelectorAll('span[style]');
+    const hasDot = Array.from(dotSpans).some(
+      (el) => (el as HTMLElement).style.backgroundColor === 'var(--nous-state-idle)',
+    );
+    expect(hasDot).toBe(true);
   });
 
   it('renders appropriate dot color for hard_stopped state', () => {
@@ -478,7 +481,10 @@ describe('MaoLeaseTree state color handling', () => {
       />,
     );
 
-    const dots = container.querySelectorAll('.bg-red-700');
-    expect(dots.length).toBeGreaterThan(0);
+    const dotSpans = container.querySelectorAll('span[style]');
+    const hasDot = Array.from(dotSpans).some(
+      (el) => (el as HTMLElement).style.backgroundColor === 'var(--nous-state-blocked)',
+    );
+    expect(hasDot).toBe(true);
   });
 });

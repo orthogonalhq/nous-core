@@ -52,70 +52,70 @@ afterEach(() => {
 });
 
 describe('MaoRunGraph node color-coding', () => {
-  it('renders running node with emerald border', () => {
+  it('renders running node with active tone border', () => {
     const node = createNode({ id: 'n1', label: 'Running Node', state: 'running' });
     const graph = createGraph([node], []);
 
-    const { container } = render(
+    render(
       <MaoRunGraph graph={graph} selectedNodeId={null} onSelectNode={noop} />,
     );
 
-    const nodeEl = screen.getByTestId('run-graph-node');
-    expect(nodeEl.className).toContain('border-emerald-500/40');
-    expect(nodeEl.className).toContain('bg-emerald-500/10');
+    const nodeEl = screen.getByTestId('run-graph-node') as HTMLElement;
+    expect(nodeEl.style.borderColor).toBe('var(--nous-state-active-tone-border)');
+    expect(nodeEl.style.backgroundColor).toBe('var(--nous-state-active-tone-bg)');
   });
 
-  it('renders blocked node with amber border', () => {
+  it('renders blocked node with waiting tone border', () => {
     const node = createNode({ id: 'n1', label: 'Blocked Node', state: 'blocked' });
     const graph = createGraph([node], []);
 
-    const { container } = render(
+    render(
       <MaoRunGraph graph={graph} selectedNodeId={null} onSelectNode={noop} />,
     );
 
-    const nodeEl = screen.getByTestId('run-graph-node');
-    expect(nodeEl.className).toContain('border-amber-500/40');
-    expect(nodeEl.className).toContain('bg-amber-500/10');
+    const nodeEl = screen.getByTestId('run-graph-node') as HTMLElement;
+    expect(nodeEl.style.borderColor).toBe('var(--nous-state-waiting-tone-border)');
+    expect(nodeEl.style.backgroundColor).toBe('var(--nous-state-waiting-tone-bg)');
   });
 
-  it('renders failed node with red border', () => {
+  it('renders failed node with blocked tone border', () => {
     const node = createNode({ id: 'n1', label: 'Failed Node', state: 'failed' });
     const graph = createGraph([node], []);
 
-    const { container } = render(
+    render(
       <MaoRunGraph graph={graph} selectedNodeId={null} onSelectNode={noop} />,
     );
 
-    const nodeEl = screen.getByTestId('run-graph-node');
-    expect(nodeEl.className).toContain('border-red-500/40');
-    expect(nodeEl.className).toContain('bg-red-500/10');
+    const nodeEl = screen.getByTestId('run-graph-node') as HTMLElement;
+    expect(nodeEl.style.borderColor).toBe('var(--nous-state-blocked-tone-border)');
+    expect(nodeEl.style.backgroundColor).toBe('var(--nous-state-blocked-tone-bg)');
   });
 
-  it('renders completed node with slate border', () => {
+  it('renders completed node with complete tone border', () => {
     const node = createNode({ id: 'n1', label: 'Done Node', state: 'completed' });
     const graph = createGraph([node], []);
 
-    const { container } = render(
+    render(
       <MaoRunGraph graph={graph} selectedNodeId={null} onSelectNode={noop} />,
     );
 
-    const nodeEl = screen.getByTestId('run-graph-node');
-    expect(nodeEl.className).toContain('border-slate-500/40');
+    const nodeEl = screen.getByTestId('run-graph-node') as HTMLElement;
+    expect(nodeEl.style.borderColor).toBe('var(--nous-state-complete-tone-border)');
   });
 
   it('renders neutral styling when node state is undefined', () => {
     const node = createNode({ id: 'n1', label: 'No State Node' });
     const graph = createGraph([node], []);
 
-    const { container } = render(
+    render(
       <MaoRunGraph graph={graph} selectedNodeId={null} onSelectNode={noop} />,
     );
 
-    const nodeEl = screen.getByTestId('run-graph-node');
-    expect(nodeEl.className).toContain('border-border');
+    const nodeEl = screen.getByTestId('run-graph-node') as HTMLElement;
+    expect(nodeEl.style.borderColor).toBe('var(--nous-border-subtle)');
   });
 
-  it('selected node overrides state color with border-primary', () => {
+  it('selected node overrides state color with accent border', () => {
     const node = createNode({
       id: 'n1',
       label: 'Selected Node',
@@ -124,13 +124,13 @@ describe('MaoRunGraph node color-coding', () => {
     });
     const graph = createGraph([node], []);
 
-    const { container } = render(
+    render(
       <MaoRunGraph graph={graph} selectedNodeId="wnd-1" onSelectNode={noop} />,
     );
 
-    const nodeEl = screen.getByTestId('run-graph-node');
-    expect(nodeEl.className).toContain('border-primary');
-    expect(nodeEl.className).toContain('bg-primary/10');
+    const nodeEl = screen.getByTestId('run-graph-node') as HTMLElement;
+    expect(nodeEl.style.borderColor).toBe('var(--nous-accent)');
+    expect(nodeEl.style.backgroundColor).toContain('rgba(0');
   });
 });
 
@@ -154,11 +154,11 @@ describe('MaoRunGraph corrective arc emphasis', () => {
       <MaoRunGraph graph={graph} selectedNodeId={null} onSelectNode={noop} />,
     );
 
-    const correctiveArc = screen.getByTestId('corrective-arc');
+    const correctiveArc = screen.getByTestId('corrective-arc') as HTMLElement;
     expect(correctiveArc).toBeTruthy();
-    expect(correctiveArc.className).toContain('border-amber-500/60');
-    expect(correctiveArc.className).toContain('bg-amber-500/5');
-    expect(correctiveArc.className).toContain('border-l-amber-500');
+    expect(correctiveArc.style.borderColor).toContain('rgba(245');
+    expect(correctiveArc.style.backgroundColor).toContain('rgba(245');
+    expect(correctiveArc.style.borderLeftColor).toContain('rgb(245');
   });
 
   it.each([

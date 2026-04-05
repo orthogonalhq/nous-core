@@ -269,10 +269,10 @@ describe('MaoDensityGrid D4 tiny square', () => {
       <MaoDensityGrid snapshot={snapshot} selectedAgentId={null} onSelectTile={noop} />,
     )
 
-    const d4Tile = screen.getByTestId('density-tile-d4')
+    const d4Tile = screen.getByTestId('density-tile-d4') as HTMLElement
     expect(d4Tile).toBeTruthy()
-    expect(d4Tile.className).toContain('w-6')
-    expect(d4Tile.className).toContain('h-6')
+    expect(d4Tile.style.width).toBe('1.5rem')
+    expect(d4Tile.style.height).toBe('1.5rem')
     // No text content at D4
     expect(screen.queryByText('Visible Name')).toBeNull()
     expect(screen.queryByText('dispatched')).toBeNull()
@@ -408,8 +408,10 @@ describe('MaoDensityGrid urgent indicators', () => {
       <MaoDensityGrid snapshot={snapshot} selectedAgentId={null} onSelectTile={noop} />,
     )
 
-    const d3Tile = screen.getByTestId('density-tile-d3')
-    expect(d3Tile.className).toContain('border-red-500')
+    const d3Tile = screen.getByTestId('density-tile-d3') as HTMLElement
+    // Urgent D3 tiles get a 2px solid red border via individual properties
+    expect(d3Tile.style.borderWidth).toBe('2px')
+    expect(d3Tile.style.borderStyle).toBe('solid')
     expect(screen.getByTestId('urgent-icon')).toBeTruthy()
   })
 
@@ -424,8 +426,8 @@ describe('MaoDensityGrid urgent indicators', () => {
       <MaoDensityGrid snapshot={snapshot} selectedAgentId={null} onSelectTile={noop} />,
     )
 
-    const d4Tile = screen.getByTestId('density-tile-d4')
-    expect(d4Tile.className).toContain('ring-red-500')
+    const d4Tile = screen.getByTestId('density-tile-d4') as HTMLElement
+    expect(d4Tile.style.boxShadow).toContain('#ef4444')
   })
 
   it('pins urgent agents to top of grid at D0-D3', () => {
@@ -455,12 +457,13 @@ describe('MaoDensityGrid state color handling', () => {
       <MaoDensityGrid snapshot={snapshot} selectedAgentId={null} onSelectTile={noop} />,
     )
 
-    const button = container.querySelector('[aria-label="Inspect Execute task"]')
-    expect(button?.className).toContain('border-slate-500/40')
-    expect(button?.className).toContain('bg-slate-500/10')
+    const button = container.querySelector('[aria-label="Inspect Execute task"]') as HTMLElement
+    // Canceled state uses idle tone from CSS custom properties
+    expect(button?.style.borderColor).toBe('var(--nous-state-idle-tone-border)')
+    expect(button?.style.backgroundColor).toBe('var(--nous-state-idle-tone-bg)')
   })
 
-  it('renders appropriate tone classes for hard_stopped state (not default)', () => {
+  it('renders appropriate tone styles for hard_stopped state (not default)', () => {
     const tile = createTile({ agent_id: 'stopped-agent', state: 'hard_stopped' })
     const snapshot = createSnapshot('D2', [tile])
 
@@ -468,8 +471,9 @@ describe('MaoDensityGrid state color handling', () => {
       <MaoDensityGrid snapshot={snapshot} selectedAgentId={null} onSelectTile={noop} />,
     )
 
-    const button = container.querySelector('[aria-label="Inspect Execute task"]')
-    expect(button?.className).toContain('border-red-700/40')
-    expect(button?.className).toContain('bg-red-700/10')
+    const button = container.querySelector('[aria-label="Inspect Execute task"]') as HTMLElement
+    // hard_stopped uses blocked tone from CSS custom properties
+    expect(button?.style.borderColor).toBe('var(--nous-state-blocked-tone-border)')
+    expect(button?.style.backgroundColor).toBe('var(--nous-state-blocked-tone-bg)')
   })
 })
