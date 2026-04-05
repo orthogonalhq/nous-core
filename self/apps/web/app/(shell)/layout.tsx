@@ -17,6 +17,9 @@ import {
   AssetSidebar,
   useChatStageManager,
   useShellContext,
+  isHomeSidebarEnabled,
+  HOME_TOP_NAV,
+  buildHomeSidebarSections,
 } from '@nous/ui/components'
 import type { ShellMode, NavigationState } from '@nous/ui/components'
 import { useEventSubscription, trpc } from '@nous/transport'
@@ -221,9 +224,15 @@ function ShellLayoutContent({
                     projects={stubProjects}
                     activeProjectId={projectId ?? 'project-1'}
                     onProjectSelect={handleProjectChange}
+                    onHomeClick={() => handleNavigate('home')}
+                    isHomeActive={activeRoute === 'home'}
                   />
                 }
-                sidebar={<WebAssetSidebarConnected />}
+                sidebar={
+                  activeRoute === 'home' && isHomeSidebarEnabled()
+                    ? <WebHomeSidebar />
+                    : <WebAssetSidebarConnected />
+                }
                 content={
                   <ContentRouter
                     activeRoute={activeRoute}
@@ -297,6 +306,24 @@ function WebAssetSidebarConnected() {
     <AssetSidebar
       projectName={projectName}
       topNav={WEB_TOP_NAV}
+      sections={sections}
+      activeRoute={activeRoute}
+      onNavigate={navigate}
+    />
+  )
+}
+
+// ─── Web Home Sidebar (lives inside ShellProvider tree) ─────────────────
+
+function WebHomeSidebar() {
+  const { activeRoute, navigate } = useShellContext()
+
+  const sections = useMemo(() => buildHomeSidebarSections(), [])
+
+  return (
+    <AssetSidebar
+      projectName="Home"
+      topNav={HOME_TOP_NAV}
       sections={sections}
       activeRoute={activeRoute}
       onNavigate={navigate}

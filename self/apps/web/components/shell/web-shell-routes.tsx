@@ -89,6 +89,8 @@ export function createWebShellRoutes(params: {
     'task-create': TaskCreateForm,
     agents: (props: ContentRouterRenderProps) => <PlaceholderRoute {...props} label="Agents" />,
     'agent-detail': (props: ContentRouterRenderProps) => <PlaceholderRoute {...props} label="Agent Detail" />,
+    usage: (props: ContentRouterRenderProps) => <PlaceholderRoute {...props} label="Usage" />,
+    marketplace: (props: ContentRouterRenderProps) => <PlaceholderRoute {...props} label="Marketplace" />,
   }
 
   return createRouteProxy(staticRoutes)
