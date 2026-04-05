@@ -29,17 +29,20 @@ function getInitial(name: string): string {
 function ProjectAvatar({
     project,
     isActive,
+    isSubdued,
     onSelect,
 }: {
     project: ProjectItem
     isActive: boolean
+    /** When true, show a subtle indicator instead of the full active bar (e.g. home context) */
+    isSubdued?: boolean
     onSelect: (id: string) => void
 }) {
     const [hovered, setHovered] = React.useState(false)
 
     return (
         <div style={styles.avatarWrap}>
-            {isActive && <span data-active-indicator style={styles.activeIndicator} />}
+            {isActive && <span data-active-indicator style={isSubdued ? styles.ghostIndicator : styles.activeIndicator} />}
             <button
                 type="button"
                 aria-label={project.name}
@@ -123,6 +126,7 @@ export function ProjectSwitcherRail({
                         key={project.id}
                         project={project}
                         isActive={project.id === activeProjectId}
+                        isSubdued={isHomeActive}
                         onSelect={onProjectSelect}
                     />
                 ))}
@@ -194,6 +198,17 @@ const styles = {
         height: 'var(--nous-rail-indicator-height)',
         borderRadius: '0 var(--nous-space-2xs) var(--nous-space-2xs) 0',
         background: 'var(--nous-fg-muted)',
+    },
+    ghostIndicator: {
+        position: 'absolute' as const,
+        left: 0,
+        top: '50%',
+        transform: 'translateY(-50%)',
+        width: 'var(--nous-rail-indicator-width)',
+        height: 'var(--nous-rail-indicator-height)',
+        borderRadius: '0 var(--nous-space-2xs) var(--nous-space-2xs) 0',
+        background: 'var(--nous-fg-muted)',
+        opacity: 0.3,
     },
     avatarButton: {
         display: 'flex',
