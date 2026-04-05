@@ -73,6 +73,15 @@ export function MaoOperatingSurface() {
     projectId ? 'projects' : 'system',
   );
 
+  // Auto-switch to projects tab when projectId becomes available after mount
+  const prevProjectId = React.useRef(projectId);
+  React.useEffect(() => {
+    if (prevProjectId.current == null && projectId != null) {
+      setActiveTab('projects');
+    }
+    prevProjectId.current = projectId;
+  }, [projectId]);
+
   const systemTab = useTabState('D2');
   const projectsTab = useTabState('D2');
 

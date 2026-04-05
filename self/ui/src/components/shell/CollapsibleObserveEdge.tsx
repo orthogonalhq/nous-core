@@ -68,6 +68,8 @@ export function CollapsibleObserveEdge({
                         top: '50%',
                         left: 0,
                         transform: 'translateY(-50%)',
+                        zIndex: 5,
+                        height: '100%',
                     } : {}),
                 }}
             >
