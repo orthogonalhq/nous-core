@@ -38,7 +38,11 @@ export function ContentRouter({
   }, [stack])
 
   React.useEffect(() => {
-    if (!activeRoute || activeRoute === lastPropRouteRef.current) {
+    if (!activeRoute) return
+
+    // Same route — only update params (e.g. switching items within the same group)
+    if (activeRoute === lastPropRouteRef.current) {
+      setNavigationParams(externalParams)
       return
     }
 
