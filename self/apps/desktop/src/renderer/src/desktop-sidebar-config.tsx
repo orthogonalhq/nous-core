@@ -25,9 +25,10 @@ export const DESKTOP_TOP_NAV: SidebarTopNavItem[] = [
  */
 export function buildDesktopSidebarSections(params?: {
   tasksSection?: AssetSection
+  workflowsSection?: AssetSection
 }): AssetSection[] {
   return [
-    {
+    params?.workflowsSection ?? {
       id: 'workflows',
       label: 'WORKFLOWS',
       items: STUB_CAMPAIGNS,
