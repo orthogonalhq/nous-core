@@ -31,61 +31,62 @@ export function MaoSystemHealthStrip({ snapshot }: MaoSystemHealthStripProps) {
   ).length;
   const projectCount = Object.keys(snapshot.projectControls).length;
 
+  const cellBase: React.CSSProperties = {
+    borderRadius: 'var(--nous-radius-sm)',
+    border: '1px solid var(--nous-border-subtle)',
+    paddingInline: 'var(--nous-space-md)',
+    paddingBlock: 'var(--nous-space-sm)',
+  };
+
+  const labelStyle: React.CSSProperties = {
+    fontSize: 'var(--nous-font-size-xs)',
+    textTransform: 'uppercase',
+    letterSpacing: '0.05em',
+    color: 'var(--nous-fg-muted)',
+  };
+
+  const valueStyle: React.CSSProperties = {
+    marginTop: 'var(--nous-space-2xs)',
+    fontSize: 'var(--nous-font-size-lg)',
+    fontWeight: 600,
+  };
+
   return (
     <div
-      className="flex flex-wrap gap-3"
+      style={{ display: 'flex', flexWrap: 'wrap', gap: 'var(--nous-space-md)' }}
       data-testid="system-health-strip"
     >
-      <div className="rounded-md border border-border px-3 py-2">
-        <div className="text-xs uppercase tracking-wide text-muted-foreground">
-          Total agents
-        </div>
-        <div className="mt-1 text-lg font-semibold" data-testid="total-agents">
-          {totalAgents}
-        </div>
+      <div style={cellBase}>
+        <div style={labelStyle}>Total agents</div>
+        <div style={valueStyle} data-testid="total-agents">{totalAgents}</div>
       </div>
 
-      <div className="rounded-md border border-emerald-500/40 bg-emerald-500/10 px-3 py-2">
-        <div className="text-xs uppercase tracking-wide text-muted-foreground">
-          Active
-        </div>
-        <div className="mt-1 text-lg font-semibold" data-testid="active-agents">
-          {activeCount}
-        </div>
+      <div style={{ ...cellBase, borderColor: 'rgba(16,185,129,0.4)', backgroundColor: 'rgba(16,185,129,0.1)' }}>
+        <div style={labelStyle}>Active</div>
+        <div style={valueStyle} data-testid="active-agents">{activeCount}</div>
       </div>
 
-      <div className="rounded-md border border-amber-500/40 bg-amber-500/10 px-3 py-2">
-        <div className="text-xs uppercase tracking-wide text-muted-foreground">
-          Blocked
-        </div>
-        <div className="mt-1 text-lg font-semibold" data-testid="blocked-agents">
-          {blockedCount}
-        </div>
+      <div style={{ ...cellBase, borderColor: 'rgba(245,158,11,0.4)', backgroundColor: 'rgba(245,158,11,0.1)' }}>
+        <div style={labelStyle}>Blocked</div>
+        <div style={valueStyle} data-testid="blocked-agents">{blockedCount}</div>
       </div>
 
-      <div className="rounded-md border border-red-500/40 bg-red-500/10 px-3 py-2">
-        <div className="text-xs uppercase tracking-wide text-muted-foreground">
-          Failed
-        </div>
-        <div className="mt-1 text-lg font-semibold" data-testid="failed-agents">
-          {failedCount}
-        </div>
+      <div style={{ ...cellBase, borderColor: 'rgba(239,68,68,0.4)', backgroundColor: 'rgba(239,68,68,0.1)' }}>
+        <div style={labelStyle}>Failed</div>
+        <div style={valueStyle} data-testid="failed-agents">{failedCount}</div>
       </div>
 
-      <div className="rounded-md border border-border px-3 py-2">
-        <div className="text-xs uppercase tracking-wide text-muted-foreground">
-          Projects
-        </div>
-        <div className="mt-1 text-lg font-semibold" data-testid="project-count">
-          {projectCount}
-        </div>
+      <div style={cellBase}>
+        <div style={labelStyle}>Projects</div>
+        <div style={valueStyle} data-testid="project-count">{projectCount}</div>
       </div>
 
-      <div className="rounded-md border border-border px-3 py-2">
-        <div className="text-xs uppercase tracking-wide text-muted-foreground">
-          Snapshot
-        </div>
-        <div className="mt-1 text-sm text-muted-foreground" data-testid="snapshot-freshness">
+      <div style={cellBase}>
+        <div style={labelStyle}>Snapshot</div>
+        <div
+          style={{ marginTop: 'var(--nous-space-2xs)', fontSize: 'var(--nous-font-size-sm)', color: 'var(--nous-fg-muted)' }}
+          data-testid="snapshot-freshness"
+        >
           {formatFreshness(snapshot.generatedAt)}
         </div>
       </div>

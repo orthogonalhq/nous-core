@@ -195,8 +195,8 @@ describe('MaoWorkflowGroupCard', () => {
       />,
     );
 
-    const selectedButton = container.querySelector('[data-agent-id="orch-1"]');
-    expect(selectedButton?.className).toContain('border-primary');
+    const selectedButton = container.querySelector('[data-agent-id="orch-1"]') as HTMLElement;
+    expect(selectedButton?.style.borderColor).toContain('var(--nous-accent)');
   });
 });
 
@@ -275,8 +275,8 @@ describe('MaoWorkflowGroupCard urgent indicators', () => {
       />,
     );
 
-    const orchButton = container.querySelector('[data-agent-id="orch-1"]');
-    expect(orchButton?.className).toContain('ring-red-500');
+    const orchButton = container.querySelector('[data-agent-id="orch-1"]') as HTMLElement;
+    expect(orchButton?.style.boxShadow).toContain('#ef4444');
   });
 });
 
@@ -297,8 +297,8 @@ describe('MaoWorkflowGroupCard D4 hover-expand', () => {
     const orchButton = container.querySelector('[data-agent-id="orch-1"]');
     expect(orchButton).toBeTruthy();
 
-    // Before hover: should be w-6 h-6 (D4)
-    expect(orchButton?.className).toContain('w-6');
+    // Before hover: should be 1.5rem x 1.5rem (D4)
+    expect((orchButton as HTMLElement)?.style.width).toBe('1.5rem');
 
     // Simulate hover
     fireEvent.mouseEnter(orchButton!);
@@ -348,9 +348,12 @@ describe('MaoWorkflowGroupCard state color handling', () => {
       />,
     );
 
-    // The dot span should have bg-slate-500 (not default bg-slate-400)
-    const dots = container.querySelectorAll('.bg-slate-500');
-    expect(dots.length).toBeGreaterThan(0);
+    // The dot span should have backgroundColor from the idle state CSS custom property
+    const dotSpans = container.querySelectorAll('span[style]');
+    const hasDot = Array.from(dotSpans).some(
+      (el) => (el as HTMLElement).style.backgroundColor === 'var(--nous-state-idle)',
+    );
+    expect(hasDot).toBe(true);
   });
 
   it('renders appropriate dot color for hard_stopped state', () => {
@@ -366,8 +369,11 @@ describe('MaoWorkflowGroupCard state color handling', () => {
       />,
     );
 
-    // The dot span should have bg-red-700
-    const dots = container.querySelectorAll('.bg-red-700');
-    expect(dots.length).toBeGreaterThan(0);
+    // The dot span should have backgroundColor from the blocked state CSS custom property
+    const dotSpans = container.querySelectorAll('span[style]');
+    const hasDot = Array.from(dotSpans).some(
+      (el) => (el as HTMLElement).style.backgroundColor === 'var(--nous-state-blocked)',
+    );
+    expect(hasDot).toBe(true);
   });
 });

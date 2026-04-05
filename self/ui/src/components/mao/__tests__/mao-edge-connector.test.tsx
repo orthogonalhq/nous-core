@@ -107,8 +107,7 @@ describe('MaoEdgeConnector', () => {
     );
 
     const svg = screen.getByTestId('edge-connector-svg');
-    // SVG className is an SVGAnimatedString in jsdom; use getAttribute
-    expect(svg.getAttribute('class')).toContain('pointer-events-none');
+    expect(svg.style.pointerEvents).toBe('none');
   });
 
   it('has aria-hidden attribute', () => {

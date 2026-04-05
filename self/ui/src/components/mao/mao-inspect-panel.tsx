@@ -34,11 +34,19 @@ export function MaoInspectPanel({ inspect, isLoading, resolveAgentLabel }: MaoIn
       reasoningRef: inspectData.agent.reasoning_log_preview?.evidenceRef ?? undefined,
     });
 
+    const linkBase: React.CSSProperties = {
+      borderRadius: 'var(--nous-radius-sm)',
+      border: '1px solid var(--nous-border-subtle)',
+      paddingInline: 'var(--nous-space-sm)',
+      paddingBlock: 'var(--nous-space-2xs)',
+      fontSize: 'var(--nous-font-size-xs)',
+    };
+
     if (!href) {
       return (
         <span
           key={`${link.target}-${index}`}
-          className="rounded-md border border-border px-2 py-1 text-xs text-muted-foreground"
+          style={{ ...linkBase, color: 'var(--nous-fg-muted)' }}
         >
           {link.target}
         </span>
@@ -49,31 +57,51 @@ export function MaoInspectPanel({ inspect, isLoading, resolveAgentLabel }: MaoIn
       <Link
         key={`${link.target}-${index}`}
         href={href}
-        className="rounded-md border border-border px-2 py-1 text-xs hover:bg-muted/20"
+        style={linkBase}
       >
         {link.target}
       </Link>
     );
   }
 
+  const cellBase: React.CSSProperties = {
+    borderRadius: 'var(--nous-radius-sm)',
+    border: '1px solid var(--nous-border-subtle)',
+    paddingInline: 'var(--nous-space-md)',
+    paddingBlock: 'var(--nous-space-sm)',
+  };
+
+  const labelStyle: React.CSSProperties = {
+    fontSize: 'var(--nous-font-size-xs)',
+    textTransform: 'uppercase',
+    letterSpacing: '0.05em',
+    color: 'var(--nous-fg-muted)',
+  };
+
+  const sectionStyle: React.CSSProperties = {
+    display: 'flex',
+    flexDirection: 'column',
+    gap: 'var(--nous-space-sm)',
+  };
+
   return (
     <Card>
-      <CardHeader className="border-b border-border">
-        <CardTitle className="text-base">Inspect panel</CardTitle>
+      <CardHeader style={{ borderBottom: '1px solid var(--nous-border-subtle)' }}>
+        <CardTitle style={{ fontSize: 'var(--nous-font-size-base)' }}>Inspect panel</CardTitle>
       </CardHeader>
-      <CardContent className="space-y-4 pt-4 text-sm">
+      <CardContent style={{ display: 'flex', flexDirection: 'column', gap: 'var(--nous-space-lg)', paddingTop: 'var(--nous-space-lg)', fontSize: 'var(--nous-font-size-sm)' }}>
         {isLoading ? (
-          <p className="text-muted-foreground">Loading inspect projection...</p>
+          <p style={{ color: 'var(--nous-fg-muted)' }}>Loading inspect projection...</p>
         ) : !inspect ? (
-          <p className="text-muted-foreground">
+          <p style={{ color: 'var(--nous-fg-muted)' }}>
             Select an MAO tile or graph node to inspect runtime state, reasoning
             previews, and evidence continuity.
           </p>
         ) : (
           <>
-            <div className="space-y-2">
-              <div className="flex flex-wrap items-center gap-2">
-                <span className="text-base font-semibold" data-testid="inspect-primary-label">
+            <div style={sectionStyle}>
+              <div style={{ display: 'flex', flexWrap: 'wrap', alignItems: 'center', gap: 'var(--nous-space-sm)' }}>
+                <span style={{ fontSize: 'var(--nous-font-size-base)', fontWeight: 600 }} data-testid="inspect-primary-label">
                   {resolveAgentLabelFromProjection(inspect.agent as any)}
                 </span>
                 {(() => {
@@ -82,7 +110,7 @@ export function MaoInspectPanel({ inspect, isLoading, resolveAgentLabel }: MaoIn
                   return classKey ? (
                     <Badge
                       variant="outline"
-                      className={classColor.fill}
+                      style={classColor.fillStyle}
                       data-testid="inspect-agent-class-badge"
                     >
                       {classColor.label}
@@ -94,48 +122,40 @@ export function MaoInspectPanel({ inspect, isLoading, resolveAgentLabel }: MaoIn
                 <Badge variant="outline">{inspect.projectControlState}</Badge>
               </div>
               {inspect.agent.dispatching_task_agent_id ? (
-                <div className="text-xs text-muted-foreground" data-testid="inspect-dispatch-lineage">
+                <div style={{ fontSize: 'var(--nous-font-size-xs)', color: 'var(--nous-fg-muted)' }} data-testid="inspect-dispatch-lineage">
                   Dispatched by:{' '}
-                  <span className="font-medium">
+                  <span style={{ fontWeight: 500 }}>
                     {resolveAgentLabel
                       ? resolveAgentLabel(inspect.agent.dispatching_task_agent_id)
                       : formatShortId(inspect.agent.dispatching_task_agent_id)}
                   </span>
                 </div>
               ) : null}
-              <div className="grid gap-2 md:grid-cols-2">
-                <div className="rounded-md border border-border px-3 py-2">
-                  <div className="text-xs uppercase tracking-wide text-muted-foreground">
-                    Agent
-                  </div>
-                  <div className="mt-1">{formatShortId(inspect.agent.agent_id)}</div>
+              <div style={{ display: 'flex', flexDirection: 'column', gap: 'var(--nous-space-sm)' }}>
+                <div style={cellBase}>
+                  <div style={labelStyle}>Agent</div>
+                  <div style={{ marginTop: 'var(--nous-space-2xs)' }}>{formatShortId(inspect.agent.agent_id)}</div>
                 </div>
-                <div className="rounded-md border border-border px-3 py-2">
-                  <div className="text-xs uppercase tracking-wide text-muted-foreground">
-                    Run
-                  </div>
-                  <div className="mt-1">
+                <div style={cellBase}>
+                  <div style={labelStyle}>Run</div>
+                  <div style={{ marginTop: 'var(--nous-space-2xs)' }}>
                     {formatShortId(inspect.workflowRunId ?? inspect.agent.workflow_run_id)}
                   </div>
                 </div>
-                <div className="rounded-md border border-border px-3 py-2">
-                  <div className="text-xs uppercase tracking-wide text-muted-foreground">
-                    Wait posture
-                  </div>
-                  <div className="mt-1">{inspect.waitKind ?? 'n/a'}</div>
+                <div style={cellBase}>
+                  <div style={labelStyle}>Wait posture</div>
+                  <div style={{ marginTop: 'var(--nous-space-2xs)' }}>{inspect.waitKind ?? 'n/a'}</div>
                 </div>
-                <div className="rounded-md border border-border px-3 py-2">
-                  <div className="text-xs uppercase tracking-wide text-muted-foreground">
-                    Run status
-                  </div>
-                  <div className="mt-1">{inspect.runStatus ?? 'n/a'}</div>
+                <div style={cellBase}>
+                  <div style={labelStyle}>Run status</div>
+                  <div style={{ marginTop: 'var(--nous-space-2xs)' }}>{inspect.runStatus ?? 'n/a'}</div>
                 </div>
               </div>
             </div>
 
             {inspect.agent.reasoning_log_preview ? (
-              <div className="space-y-2 rounded-md border border-border p-3">
-                <div className="flex flex-wrap gap-2">
+              <div style={{ display: 'flex', flexDirection: 'column', gap: 'var(--nous-space-sm)', borderRadius: 'var(--nous-radius-sm)', border: '1px solid var(--nous-border-subtle)', padding: 'var(--nous-space-xl)' }}>
+                <div style={{ display: 'flex', flexWrap: 'wrap', gap: 'var(--nous-space-sm)' }}>
                   <Badge variant="outline">
                     {inspect.agent.reasoning_log_preview.class}
                   </Badge>
@@ -147,10 +167,10 @@ export function MaoInspectPanel({ inspect, isLoading, resolveAgentLabel }: MaoIn
                   </Badge>
                 </div>
                 <p>{inspect.agent.reasoning_log_preview.summary}</p>
-                <div className="text-xs text-muted-foreground">
+                <div style={{ fontSize: 'var(--nous-font-size-xs)', color: 'var(--nous-fg-muted)' }}>
                   evidence {inspect.agent.reasoning_log_preview.evidenceRef}
                 </div>
-                <div className="flex flex-wrap gap-2">
+                <div style={{ display: 'flex', flexWrap: 'wrap', gap: 'var(--nous-space-sm)' }}>
                   {inspect.agent.reasoning_log_preview.chatLink
                     ? renderSurfaceLink(
                         inspect.agent.reasoning_log_preview.chatLink,
@@ -169,43 +189,40 @@ export function MaoInspectPanel({ inspect, isLoading, resolveAgentLabel }: MaoIn
               </div>
             ) : null}
 
-            <div className="space-y-2">
-              <div className="font-medium">Latest attempt</div>
+            <div style={sectionStyle}>
+              <div style={{ fontWeight: 500 }}>Latest attempt</div>
               {inspect.latestAttempt ? (
-                <div className="rounded-md border border-border px-3 py-2">
-                  <div className="flex items-center justify-between gap-2">
+                <div style={cellBase}>
+                  <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 'var(--nous-space-sm)' }}>
                     <span>Attempt {inspect.latestAttempt.attempt}</span>
                     <Badge variant="outline">{inspect.latestAttempt.status}</Badge>
                   </div>
-                  <div className="mt-1 text-xs text-muted-foreground">
+                  <div style={{ marginTop: 'var(--nous-space-2xs)', fontSize: 'var(--nous-font-size-xs)', color: 'var(--nous-fg-muted)' }}>
                     {inspect.latestAttempt.reasonCode}
                   </div>
                 </div>
               ) : (
-                <p className="text-muted-foreground">No attempt history is available.</p>
+                <p style={{ color: 'var(--nous-fg-muted)' }}>No attempt history is available.</p>
               )}
             </div>
 
-            <div className="space-y-2">
-              <div className="font-medium">Correction arcs</div>
+            <div style={sectionStyle}>
+              <div style={{ fontWeight: 500 }}>Correction arcs</div>
               {!inspect.correctionArcs.length ? (
-                <p className="text-muted-foreground">
+                <p style={{ color: 'var(--nous-fg-muted)' }}>
                   No corrective arcs have been recorded for this agent.
                 </p>
               ) : (
                 inspect.correctionArcs.map((arc) => (
-                  <div
-                    key={arc.id}
-                    className="rounded-md border border-border px-3 py-2"
-                  >
-                    <div className="flex items-center justify-between gap-2">
+                  <div key={arc.id} style={cellBase}>
+                    <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 'var(--nous-space-sm)' }}>
                       <span>
                         attempt {arc.sourceAttempt}
                         {arc.targetAttempt ? ` -> ${arc.targetAttempt}` : ''}
                       </span>
                       <Badge variant="outline">{arc.type}</Badge>
                     </div>
-                    <div className="mt-1 text-xs text-muted-foreground">
+                    <div style={{ marginTop: 'var(--nous-space-2xs)', fontSize: 'var(--nous-font-size-xs)', color: 'var(--nous-fg-muted)' }}>
                       {arc.reasonCode} • {arc.evidenceRefs[0] ?? 'n/a'}
                     </div>
                   </div>
@@ -213,23 +230,23 @@ export function MaoInspectPanel({ inspect, isLoading, resolveAgentLabel }: MaoIn
               )}
             </div>
 
-            <div className="space-y-2">
-              <div className="font-medium">Deep links</div>
-              <div className="flex flex-wrap gap-2">
+            <div style={sectionStyle}>
+              <div style={{ fontWeight: 500 }}>Deep links</div>
+              <div style={{ display: 'flex', flexWrap: 'wrap', gap: 'var(--nous-space-sm)' }}>
                 {inspect.agent.deepLinks.map((link, index) =>
                   renderSurfaceLink(link, inspect, index),
                 )}
               </div>
             </div>
 
-            <div className="space-y-2">
-              <div className="font-medium">Evidence refs</div>
+            <div style={sectionStyle}>
+              <div style={{ fontWeight: 500 }}>Evidence refs</div>
               {!inspect.evidenceRefs.length ? (
-                <p className="text-muted-foreground">
+                <p style={{ color: 'var(--nous-fg-muted)' }}>
                   No evidence refs are attached to this inspect projection.
                 </p>
               ) : (
-                <div className="flex flex-wrap gap-2">
+                <div style={{ display: 'flex', flexWrap: 'wrap', gap: 'var(--nous-space-sm)' }}>
                   {inspect.evidenceRefs.map((ref) => (
                     <Badge key={ref} variant="outline">
                       {ref}
@@ -239,34 +256,34 @@ export function MaoInspectPanel({ inspect, isLoading, resolveAgentLabel }: MaoIn
               )}
             </div>
 
-            <div className="space-y-2">
+            <div style={sectionStyle}>
               <button
                 type="button"
                 onClick={() => setInferenceHistoryOpen((prev) => !prev)}
-                className="flex w-full items-center justify-between font-medium"
+                style={{ display: 'flex', width: '100%', alignItems: 'center', justifyContent: 'space-between', fontWeight: 500 }}
                 data-testid="inference-history-toggle"
               >
                 <span>Inference History</span>
-                <span className="text-xs text-muted-foreground">
+                <span style={{ fontSize: 'var(--nous-font-size-xs)', color: 'var(--nous-fg-muted)' }}>
                   {inferenceHistoryOpen ? '\u25B2' : '\u25BC'}
                 </span>
               </button>
               {inferenceHistoryOpen ? (
                 !inspect.inference_history?.length ? (
-                  <p className="text-muted-foreground">
+                  <p style={{ color: 'var(--nous-fg-muted)' }}>
                     No inference history available.
                   </p>
                 ) : (
-                  <div className="overflow-x-auto">
-                    <table className="w-full text-xs" data-testid="inference-history-table">
+                  <div style={{ overflowX: 'auto' }}>
+                    <table style={{ width: '100%', fontSize: 'var(--nous-font-size-xs)' }} data-testid="inference-history-table">
                       <thead>
-                        <tr className="border-b border-border text-left text-muted-foreground">
-                          <th className="pb-1 pr-3 font-medium">Timestamp</th>
-                          <th className="pb-1 pr-3 font-medium">Provider</th>
-                          <th className="pb-1 pr-3 font-medium">Model</th>
-                          <th className="pb-1 pr-3 font-medium text-right">In tokens</th>
-                          <th className="pb-1 pr-3 font-medium text-right">Out tokens</th>
-                          <th className="pb-1 font-medium text-right">Latency</th>
+                        <tr style={{ borderBottom: '1px solid var(--nous-border-subtle)', textAlign: 'left', color: 'var(--nous-fg-muted)' }}>
+                          <th style={{ paddingBottom: 'var(--nous-space-2xs)', paddingRight: 'var(--nous-space-xl)', fontWeight: 500 }}>Timestamp</th>
+                          <th style={{ paddingBottom: 'var(--nous-space-2xs)', paddingRight: 'var(--nous-space-xl)', fontWeight: 500 }}>Provider</th>
+                          <th style={{ paddingBottom: 'var(--nous-space-2xs)', paddingRight: 'var(--nous-space-xl)', fontWeight: 500 }}>Model</th>
+                          <th style={{ paddingBottom: 'var(--nous-space-2xs)', paddingRight: 'var(--nous-space-xl)', fontWeight: 500, textAlign: 'right' }}>In tokens</th>
+                          <th style={{ paddingBottom: 'var(--nous-space-2xs)', paddingRight: 'var(--nous-space-xl)', fontWeight: 500, textAlign: 'right' }}>Out tokens</th>
+                          <th style={{ paddingBottom: 'var(--nous-space-2xs)', fontWeight: 500, textAlign: 'right' }}>Latency</th>
                         </tr>
                       </thead>
                       <tbody>
@@ -274,8 +291,8 @@ export function MaoInspectPanel({ inspect, isLoading, resolveAgentLabel }: MaoIn
                           .sort((a, b) => new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime())
                           .slice(0, 50)
                           .map((entry, idx) => (
-                            <tr key={`${entry.traceId}-${idx}`} className="border-b border-border/50">
-                              <td className="py-1 pr-3 whitespace-nowrap">
+                            <tr key={`${entry.traceId}-${idx}`} style={{ borderBottom: '1px solid rgba(18,18,18,0.5)' }}>
+                              <td style={{ paddingBlock: 'var(--nous-space-2xs)', paddingRight: 'var(--nous-space-xl)', whiteSpace: 'nowrap' }}>
                                 {new Date(entry.timestamp).toLocaleString(undefined, {
                                   month: 'short',
                                   day: 'numeric',
@@ -284,15 +301,15 @@ export function MaoInspectPanel({ inspect, isLoading, resolveAgentLabel }: MaoIn
                                   second: '2-digit',
                                 })}
                               </td>
-                              <td className="py-1 pr-3">{entry.providerId}</td>
-                              <td className="py-1 pr-3">{entry.modelId}</td>
-                              <td className="py-1 pr-3 text-right tabular-nums">
+                              <td style={{ paddingBlock: 'var(--nous-space-2xs)', paddingRight: 'var(--nous-space-xl)' }}>{entry.providerId}</td>
+                              <td style={{ paddingBlock: 'var(--nous-space-2xs)', paddingRight: 'var(--nous-space-xl)' }}>{entry.modelId}</td>
+                              <td style={{ paddingBlock: 'var(--nous-space-2xs)', paddingRight: 'var(--nous-space-xl)', textAlign: 'right', fontVariantNumeric: 'tabular-nums' }}>
                                 {entry.inputTokens != null ? entry.inputTokens.toLocaleString() : '\u2014'}
                               </td>
-                              <td className="py-1 pr-3 text-right tabular-nums">
+                              <td style={{ paddingBlock: 'var(--nous-space-2xs)', paddingRight: 'var(--nous-space-xl)', textAlign: 'right', fontVariantNumeric: 'tabular-nums' }}>
                                 {entry.outputTokens != null ? entry.outputTokens.toLocaleString() : '\u2014'}
                               </td>
-                              <td className="py-1 text-right tabular-nums">
+                              <td style={{ paddingBlock: 'var(--nous-space-2xs)', textAlign: 'right', fontVariantNumeric: 'tabular-nums' }}>
                                 {Math.round(entry.latencyMs)}ms
                               </td>
                             </tr>
