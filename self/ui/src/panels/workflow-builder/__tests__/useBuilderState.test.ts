@@ -947,4 +947,148 @@ connections: []
       })
     })
   })
+
+  // ─── Phase 1.2 — Workflow navigation fixes ────────────────────────────────
+
+  describe('Phase 1.2 — Navigation re-fetch and reset', () => {
+    beforeEach(() => {
+      mockMutateAsync.mockReset()
+      mockFetch.mockReset()
+      mockFetch.mockResolvedValue({ specYaml: undefined })
+      mockListWorkflowDefinitionsResult.data = []
+      mockListWorkflowDefinitionsResult.isLoading = false
+    })
+
+    // Tier 2 — Behavior
+
+    it('re-fetches when workflowDefinitionId changes from id-A to id-B', async () => {
+      const TEST_SPEC_A = `
+name: Workflow A
+version: 1
+nodes:
+  - id: trigger-a
+    name: Trigger A
+    type: nous.trigger.webhook
+    position: [100, 50]
+connections: []
+`
+      const TEST_SPEC_B = `
+name: Workflow B
+version: 1
+nodes:
+  - id: trigger-b
+    name: Trigger B
+    type: nous.trigger.webhook
+    position: [200, 50]
+connections: []
+`
+      mockFetch
+        .mockResolvedValueOnce({ specYaml: TEST_SPEC_A })
+        .mockResolvedValueOnce({ specYaml: TEST_SPEC_B })
+
+      const { result, rerender } = renderHook(
+        ({ defId }: { defId?: string }) =>
+          useBuilderState('authoring', { projectId: 'proj-1', workflowDefinitionId: defId }),
+        { initialProps: { defId: 'id-A' } },
+      )
+
+      // Wait for first fetch
+      await act(async () => {
+        await new Promise((resolve) => setTimeout(resolve, 10))
+      })
+
+      expect(mockFetch).toHaveBeenCalledWith(
+        expect.objectContaining({ projectId: 'proj-1', definitionId: 'id-A' }),
+      )
+
+      // Change to id-B
+      rerender({ defId: 'id-B' })
+
+      await act(async () => {
+        await new Promise((resolve) => setTimeout(resolve, 10))
+      })
+
+      expect(mockFetch).toHaveBeenCalledTimes(2)
+      expect(mockFetch).toHaveBeenLastCalledWith(
+        expect.objectContaining({ projectId: 'proj-1', definitionId: 'id-B' }),
+      )
+    })
+
+    it('calls resetToEmpty when workflowDefinitionId transitions to undefined', async () => {
+      const TEST_SPEC = `
+name: Workflow
+version: 1
+nodes:
+  - id: trigger-1
+    name: Trigger
+    type: nous.trigger.webhook
+    position: [100, 50]
+connections: []
+`
+      mockFetch.mockResolvedValue({ specYaml: TEST_SPEC })
+
+      const { result, rerender } = renderHook(
+        ({ defId }: { defId?: string }) =>
+          useBuilderState('authoring', { projectId: 'proj-1', workflowDefinitionId: defId }),
+        { initialProps: { defId: 'id-A' as string | undefined } },
+      )
+
+      // Wait for fetch
+      await act(async () => {
+        await new Promise((resolve) => setTimeout(resolve, 10))
+      })
+
+      expect(result.current.nodes.length).toBeGreaterThan(0)
+
+      // Transition to undefined (+ button)
+      rerender({ defId: undefined })
+
+      await act(async () => {
+        await new Promise((resolve) => setTimeout(resolve, 10))
+      })
+
+      // Should have reset to empty
+      expect(result.current.nodes).toHaveLength(0)
+      expect(result.current.edges).toHaveLength(0)
+      expect(result.current.currentDefinitionId).toBeNull()
+    })
+
+    it('does not call resetToEmpty on initial mount with undefined', () => {
+      const { result } = renderHook(() =>
+        useBuilderState('authoring', { projectId: 'proj-1' }),
+      )
+
+      // Should start empty (no default configured) — not reset from demo
+      expect(result.current.nodes).toHaveLength(0)
+      expect(result.current.edges).toHaveLength(0)
+    })
+
+    // Tier 3 — Edge Case
+
+    it('does not re-fetch when rerendered with same workflowDefinitionId', async () => {
+      mockFetch.mockResolvedValue({ specYaml: undefined })
+
+      const { rerender } = renderHook(
+        ({ defId }: { defId?: string }) =>
+          useBuilderState('authoring', { projectId: 'proj-1', workflowDefinitionId: defId }),
+        { initialProps: { defId: 'id-A' } },
+      )
+
+      await act(async () => {
+        await new Promise((resolve) => setTimeout(resolve, 10))
+      })
+
+      expect(mockFetch).toHaveBeenCalledTimes(1)
+
+      // Rerender with same ID
+      rerender({ defId: 'id-A' })
+
+      await act(async () => {
+        await new Promise((resolve) => setTimeout(resolve, 10))
+      })
+
+      // Should still only have been called once
+      expect(mockFetch).toHaveBeenCalledTimes(1)
+    })
+  })
 })

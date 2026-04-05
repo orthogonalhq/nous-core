@@ -112,3 +112,45 @@ describe('BuilderToolbar — Persistence actions', () => {
     })
   })
 })
+
+describe('BuilderToolbar — Delete action', () => {
+  // Tier 1 — Contract
+
+  describe('Tier 1 — Contract', () => {
+    it('onDelete prop is accepted without error', () => {
+      expect(() => {
+        render(<BuilderToolbar {...defaultProps} onDelete={vi.fn()} />)
+      }).not.toThrow()
+    })
+
+    it('delete button not rendered when onDelete is undefined', () => {
+      render(<BuilderToolbar {...defaultProps} />)
+      expect(screen.queryByTestId('toolbar-delete')).toBeNull()
+    })
+  })
+
+  // Tier 2 — Behavior
+
+  describe('Tier 2 — Behavior', () => {
+    it('delete button renders when onDelete is provided', () => {
+      render(<BuilderToolbar {...defaultProps} onDelete={vi.fn()} />)
+      expect(screen.getByTestId('toolbar-delete')).toBeDefined()
+    })
+
+    it('delete button calls onDelete on click', () => {
+      const onDelete = vi.fn()
+      render(<BuilderToolbar {...defaultProps} onDelete={onDelete} />)
+      fireEvent.click(screen.getByTestId('toolbar-delete'))
+      expect(onDelete).toHaveBeenCalledTimes(1)
+    })
+
+    it('delete button is enabled in authoring mode (context mock default)', () => {
+      // The module-level mock sets useBuilderMode to return 'authoring' mode.
+      // In authoring mode, the delete button should be enabled.
+      const onDelete = vi.fn()
+      render(<BuilderToolbar {...defaultProps} onDelete={onDelete} />)
+      const deleteBtn = screen.getByTestId('toolbar-delete')
+      expect(deleteBtn.hasAttribute('disabled')).toBe(false)
+    })
+  })
+})
