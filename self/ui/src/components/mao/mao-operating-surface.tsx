@@ -375,17 +375,17 @@ export function MaoOperatingSurface() {
     <div style={{ position: 'relative', height: '100%', display: 'flex', flexDirection: 'column' }}>
     <div style={{ flex: 1, minHeight: 0, overflow: 'auto', padding: 'var(--nous-space-4xl)', display: 'flex', flexDirection: 'column', gap: 'var(--nous-space-3xl)' }}>
       {/* Header */}
-      <div className="flex flex-wrap items-start justify-between gap-4">
-        <div className="space-y-1">
-          <h1 className="text-2xl font-semibold">MAO Operating Surface</h1>
-          <p className="text-sm text-muted-foreground">
+      <div style={{ display: 'flex', flexWrap: 'wrap', alignItems: 'flex-start', justifyContent: 'space-between', gap: 'var(--nous-space-2xl)' }}>
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 'var(--nous-space-2xs)' }}>
+          <h1 style={{ fontSize: '1.5rem', fontWeight: 600 }}>MAO Operating Surface</h1>
+          <p style={{ fontSize: 'var(--nous-font-size-sm)', color: 'var(--nous-fg-muted)' }}>
             Inspect density-aware runtime projections, follow evidence-linked
             reasoning previews, and apply governed project-scope controls from
             canonical workflow and opctl truth.
           </p>
         </div>
         {activeTab === 'projects' && snapshot ? (
-          <div className="flex flex-wrap gap-2">
+          <div style={{ display: 'flex', flexWrap: 'wrap', gap: 'var(--nous-space-sm)' }}>
             <Badge variant="outline">
               {snapshot.controlProjection.project_control_state}
             </Badge>
@@ -398,7 +398,7 @@ export function MaoOperatingSurface() {
               </Badge>
             ) : null}
             {snapshot.diagnostics?.degradedReasonCode ? (
-              <Badge variant="outline" className="border-amber-500/40 text-amber-500">
+              <Badge variant="outline" style={{ borderColor: 'rgba(245,158,11,0.4)', color: '#f59e0b' }}>
                 degraded: {snapshot.diagnostics.degradedReasonCode}
               </Badge>
             ) : null}
@@ -408,7 +408,15 @@ export function MaoOperatingSurface() {
 
       {/* Navigation context banner */}
       {linkedRunId || linkedNodeId || linkedAgentId || maoContext || linkedSource === 'marketplace' ? (
-        <div className="rounded-md border border-border bg-muted/20 px-4 py-3 text-sm text-muted-foreground">
+        <div style={{
+          borderRadius: 'var(--nous-radius-sm)',
+          border: '1px solid var(--nous-border-subtle)',
+          backgroundColor: 'rgba(26,26,26,0.2)',
+          paddingInline: 'var(--nous-space-2xl)',
+          paddingBlock: 'var(--nous-space-xl)',
+          fontSize: 'var(--nous-font-size-sm)',
+          color: 'var(--nous-fg-muted)',
+        }}>
           {maoContext ? 'MAO return context is active.' : 'Linked runtime context is active.'}
           {linkedRunId ? ` run ${formatShortId(linkedRunId)}` : ''}
           {linkedNodeId ? ` node ${formatShortId(linkedNodeId)}` : ''}
@@ -420,7 +428,7 @@ export function MaoOperatingSurface() {
           {maoContext ? (
             <Link
               href={buildMaoReturnHref(maoContext)}
-              className="ml-2 underline underline-offset-4"
+              style={{ marginLeft: 'var(--nous-space-sm)', textDecoration: 'underline', textUnderlineOffset: '4px' }}
             >
               Return to MAO root context
             </Link>
@@ -429,7 +437,7 @@ export function MaoOperatingSurface() {
       ) : null}
 
       {/* Tab bar */}
-      <div className="flex gap-2" data-testid="tab-bar">
+      <div style={{ display: 'flex', gap: 'var(--nous-space-sm)' }} data-testid="tab-bar">
         <Button
           variant={activeTab === 'system' ? 'default' : 'outline'}
           onClick={() => setActiveTab('system')}
@@ -447,7 +455,7 @@ export function MaoOperatingSurface() {
       </div>
 
       {/* Density mode selector */}
-      <div className="flex flex-wrap gap-2">
+      <div style={{ display: 'flex', flexWrap: 'wrap', gap: 'var(--nous-space-sm)' }}>
         {DENSITY_MODES.map((mode) => (
           <Button
             key={mode}
@@ -471,8 +479,8 @@ export function MaoOperatingSurface() {
       {activeTab === 'system' ? (
         <div data-testid="system-tab-content">
           {systemSnapshotQuery.isLoading || !systemSnapshot ? (
-            <div className="p-8">
-              <p className="text-muted-foreground">
+            <div style={{ padding: 'var(--nous-space-4xl)' }}>
+              <p style={{ color: 'var(--nous-fg-muted)' }}>
                 Loading system-wide operating surface...
               </p>
             </div>
@@ -488,17 +496,17 @@ export function MaoOperatingSurface() {
       ) : (
         <div data-testid="projects-tab-content">
           {!projectId ? (
-            <div className="flex h-full items-center justify-center p-8">
-              <p className="text-muted-foreground">
+            <div style={{ display: 'flex', height: '100%', alignItems: 'center', justifyContent: 'center', padding: 'var(--nous-space-4xl)' }}>
+              <p style={{ color: 'var(--nous-fg-muted)' }}>
                 Select a project to inspect the MAO operating surface.
               </p>
             </div>
           ) : isProjectsLoading ? (
-            <div className="p-8">
-              <p className="text-muted-foreground">Loading MAO operating surface...</p>
+            <div style={{ padding: 'var(--nous-space-4xl)' }}>
+              <p style={{ color: 'var(--nous-fg-muted)' }}>Loading MAO operating surface...</p>
             </div>
           ) : snapshot ? (
-            <div className="space-y-6">
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 'var(--nous-space-3xl)' }}>
               <MaoDensityGrid
                 snapshot={snapshot}
                 selectedAgentId={projectsTab.selectedTarget?.agentId ?? null}
@@ -529,7 +537,7 @@ export function MaoOperatingSurface() {
       </div>
 
       {/* Bottom strip — pinned below scrollable area */}
-      <div className="space-y-4" data-testid="bottom-strip" style={{ flexShrink: 0, padding: '0 var(--nous-space-4xl) var(--nous-space-4xl)' }}>
+      <div data-testid="bottom-strip" style={{ display: 'flex', flexDirection: 'column', gap: 'var(--nous-space-lg)', flexShrink: 0, padding: '0 var(--nous-space-4xl) var(--nous-space-4xl)' }}>
         <MaoBacklogPressureCard />
         {activeTab === 'system' && systemSnapshot ? (
           <MaoSystemHealthStrip snapshot={systemSnapshot} />
