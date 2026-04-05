@@ -12,6 +12,7 @@ export interface MaoServicesContextValue {
   Link: React.ComponentType<{
     href: string;
     className?: string;
+    style?: React.CSSProperties;
     children: React.ReactNode;
   }>;
   useProject: () => { projectId: string | null; setProjectId: (id: string | null) => void };
