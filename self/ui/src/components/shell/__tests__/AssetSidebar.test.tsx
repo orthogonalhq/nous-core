@@ -249,25 +249,25 @@ describe('AssetSidebar — Live Tasks Section', () => {
 
   it('renders tasks section with disabled: false and clickable items', async () => {
     await renderSidebar({ sections: LIVE_TASKS_SECTIONS })
-    const enabledItem = container.querySelector('[data-section-item="task-enabled"]') as HTMLButtonElement
+    const enabledItem = container.querySelector('[data-list-item="task-enabled"]') as HTMLButtonElement
     expect(enabledItem).toBeTruthy()
     expect(enabledItem.disabled).toBe(false)
   })
 
   it('shows green indicator for enabled task', async () => {
     await renderSidebar({ sections: LIVE_TASKS_SECTIONS })
-    const enabledItem = container.querySelector('[data-section-item="task-enabled"]')
-    const dot = enabledItem?.querySelector('[data-indicator]') as HTMLElement
+    const enabledItem = container.querySelector('[data-list-item="task-enabled"]')
+    const dot = enabledItem?.querySelector('span span') as HTMLElement
     expect(dot).toBeTruthy()
-    expect(dot.style.background).toBe('rgb(34, 197, 94)') // #22c55e
+    expect(dot.style.background).toBe('rgb(34, 197, 94)')
   })
 
   it('shows gray indicator for disabled task', async () => {
     await renderSidebar({ sections: LIVE_TASKS_SECTIONS })
-    const disabledItem = container.querySelector('[data-section-item="task-disabled"]')
-    const dot = disabledItem?.querySelector('[data-indicator]') as HTMLElement
+    const disabledItem = container.querySelector('[data-list-item="task-disabled"]')
+    const dot = disabledItem?.querySelector('span span') as HTMLElement
     expect(dot).toBeTruthy()
-    expect(dot.style.background).toBe('rgb(156, 163, 175)') // #9ca3af
+    expect(dot.style.background).toBe('rgb(156, 163, 175)')
   })
 
   it('fires onAdd callback when add button is clicked', async () => {
@@ -284,7 +284,7 @@ describe('AssetSidebar — Live Tasks Section', () => {
 
   it('calls onNavigate with task-detail::taskId routeId on item click', async () => {
     const props = await renderSidebar({ sections: LIVE_TASKS_SECTIONS })
-    const item = container.querySelector('[data-section-item="task-enabled"]') as HTMLButtonElement
+    const item = container.querySelector('[data-list-item="task-enabled"]') as HTMLButtonElement
     await act(async () => {
       item.click()
       await flush()
