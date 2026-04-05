@@ -463,7 +463,7 @@ describe('TaskCreateForm', () => {
     })
 
     expect(mockCreateTask).toHaveBeenCalled()
-    expect(mockNavigate).toHaveBeenCalledWith('task-detail::new-task-id')
+    expect(mockNavigate).toHaveBeenCalledWith('task-detail', { taskId: 'new-task-id' })
   })
 
   it('shows name conflict error from mutation', async () => {
@@ -507,6 +507,6 @@ describe('TaskCreateForm', () => {
     })
 
     expect(mockUpdateTask).toHaveBeenCalledWith('edit-task-id', expect.any(Object))
-    expect(mockNavigate).toHaveBeenCalledWith('task-detail::edit-task-id')
+    expect(mockNavigate).toHaveBeenCalledWith('task-detail', { taskId: 'edit-task-id' })
   })
 })

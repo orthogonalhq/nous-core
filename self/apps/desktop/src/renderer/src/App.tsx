@@ -489,8 +489,11 @@ export function App() {
     void initializeApp()
   }, [initializeApp])
 
-  const handleNavigate = useCallback((routeId: string) => {
+  const [navigationParams, setNavigationParams] = useState<Record<string, unknown> | undefined>(undefined)
+
+  const handleNavigate = useCallback((routeId: string, params?: Record<string, unknown>) => {
     setActiveRoute(routeId)
+    setNavigationParams(params)
   }, [])
 
   const handleGoBack = useCallback(() => {
@@ -697,6 +700,7 @@ export function App() {
           activeRoute={activeRoute}
           handleNavigate={handleNavigate}
           simpleModeRoutes={simpleModeRoutes}
+          navigationParams={navigationParams}
         />
       ) : (
         <DockviewShell
@@ -715,6 +719,7 @@ export function App() {
       activeRoute={activeRoute}
       navigation={navigation}
       navigate={handleNavigate}
+      navigationParams={navigationParams}
       goBack={handleGoBack}
       onProjectChange={handleDesktopProjectChange}
     >
@@ -750,6 +755,7 @@ function DesktopShellWithProject({
   activeRoute,
   navigation,
   navigate,
+  navigationParams,
   goBack,
   onProjectChange,
 }: {
@@ -757,7 +763,8 @@ function DesktopShellWithProject({
   mode: ShellMode
   activeRoute: string
   navigation: { activeRoute: string; history: string[]; canGoBack: boolean }
-  navigate: (routeId: string) => void
+  navigate: (routeId: string, params?: Record<string, unknown>) => void
+  navigationParams?: Record<string, unknown>
   goBack: () => void
   onProjectChange?: (projectId: string) => void
 }) {
@@ -803,10 +810,12 @@ function DesktopSimpleShell({
   activeRoute,
   handleNavigate,
   simpleModeRoutes,
+  navigationParams,
 }: {
   activeRoute: string
-  handleNavigate: (routeId: string) => void
+  handleNavigate: (routeId: string, params?: Record<string, unknown>) => void
   simpleModeRoutes: Record<string, any>
+  navigationParams?: Record<string, unknown>
 }) {
   const chatStageManager = useChatStageManager()
 
@@ -837,6 +846,7 @@ function DesktopSimpleShell({
           activeRoute={activeRoute}
           routes={simpleModeRoutes}
           onNavigate={handleNavigate}
+          navigationParams={navigationParams}
         />
       }
       observe={<ObservePanel />}
@@ -863,10 +873,23 @@ function DesktopSimpleShell({
 
 // ─── Desktop Project Rail (wired to tRPC) ──────────────────────────────────
 
+const TASK_DETAIL_PREFIX = 'task-detail::'
+
 function DesktopAssetSidebarConnected() {
   const { activeProjectId, activeRoute, navigate } = useShellCtx()
   const { data: projectList } = trpc.projects.list.useQuery()
   const tasksApi = useTasks({ projectId: activeProjectId })
+
+  // Wrap navigate to parse task-detail::<taskId> encoding from sidebar items
+  // and forward as navigate('task-detail', { taskId }) with params.
+  const handleNavigate = useCallback((routeId: string) => {
+    if (routeId.startsWith(TASK_DETAIL_PREFIX)) {
+      const taskId = routeId.slice(TASK_DETAIL_PREFIX.length)
+      navigate('task-detail', { taskId })
+    } else {
+      navigate(routeId)
+    }
+  }, [navigate])
 
   const tasksSection = useMemo(
     () => buildTasksSection({
@@ -874,9 +897,9 @@ function DesktopAssetSidebarConnected() {
       loading: tasksApi.tasksLoading,
       error: tasksApi.tasksError,
       onAdd: () => navigate('task-create'),
-      navigate,
+      navigate: handleNavigate,
     }),
-    [tasksApi.tasks, tasksApi.tasksLoading, tasksApi.tasksError, navigate],
+    [tasksApi.tasks, tasksApi.tasksLoading, tasksApi.tasksError, navigate, handleNavigate],
   )
 
   const sections = useMemo(
@@ -896,7 +919,7 @@ function DesktopAssetSidebarConnected() {
       topNav={DESKTOP_TOP_NAV}
       sections={sections}
       activeRoute={activeRoute}
-      onNavigate={navigate}
+      onNavigate={handleNavigate}
     />
   )
 }

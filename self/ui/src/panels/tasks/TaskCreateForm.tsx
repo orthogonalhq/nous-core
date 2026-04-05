@@ -184,10 +184,8 @@ export function TaskCreateForm({ navigate, goBack, params }: TaskCreateFormProps
 
   const handleSubmit = useCallback(async (e: React.FormEvent) => {
     e.preventDefault()
-    console.info('[nous:tasks] Form submit triggered', { name: form.name, triggerType: form.triggerType })
     const validationErrors = validate()
     if (Object.keys(validationErrors).length > 0) {
-      console.warn('[nous:tasks] Validation errors:', validationErrors)
       setErrors(validationErrors)
       return
     }
@@ -205,20 +203,14 @@ export function TaskCreateForm({ navigate, goBack, params }: TaskCreateFormProps
     }
 
     try {
-      console.info('[nous:tasks] Submitting task:', JSON.stringify(taskInput))
       if (isEditMode && taskId) {
         await tasksApi.updateTask(taskId, taskInput)
-        const route = `task-detail::${taskId}`
-        console.info('[nous:tasks] Navigating to:', route)
-        navigate(route)
+        navigate('task-detail', { taskId })
       } else {
         const created = await tasksApi.createTask(taskInput)
-        const route = `task-detail::${created.id}`
-        console.info('[nous:tasks] Task created:', created.id, '— navigating to:', route)
-        navigate(route)
+        navigate('task-detail', { taskId: created.id })
       }
     } catch (err) {
-      console.error('[nous:tasks] Submit error:', err)
       const msg = String((err as Error)?.message ?? 'Operation failed')
       if (msg.includes('task_name_conflict')) {
         setErrors({ name: 'A task with this name already exists' })
