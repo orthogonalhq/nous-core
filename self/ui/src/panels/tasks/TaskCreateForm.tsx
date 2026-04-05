@@ -208,11 +208,14 @@ export function TaskCreateForm({ navigate, goBack, params }: TaskCreateFormProps
       console.info('[nous:tasks] Submitting task:', JSON.stringify(taskInput))
       if (isEditMode && taskId) {
         await tasksApi.updateTask(taskId, taskInput)
-        navigate(`task-detail::${taskId}`)
+        const route = `task-detail::${taskId}`
+        console.info('[nous:tasks] Navigating to:', route)
+        navigate(route)
       } else {
         const created = await tasksApi.createTask(taskInput)
-        console.info('[nous:tasks] Task created:', created.id)
-        navigate(`task-detail::${created.id}`)
+        const route = `task-detail::${created.id}`
+        console.info('[nous:tasks] Task created:', created.id, '— navigating to:', route)
+        navigate(route)
       }
     } catch (err) {
       console.error('[nous:tasks] Submit error:', err)

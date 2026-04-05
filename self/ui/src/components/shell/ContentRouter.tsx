@@ -49,7 +49,9 @@ export function ContentRouter({
   }, [activeRoute])
 
   const navigate = (routeId: string, params?: Record<string, unknown>) => {
-    if (!routes[routeId]) {
+    const resolved = routes[routeId]
+    if (!resolved) {
+      console.warn('[nous:router] Route not found:', routeId)
       return
     }
 
