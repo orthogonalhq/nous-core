@@ -1,6 +1,7 @@
 'use client'
 
 import { useMemo, useCallback, useContext, useRef, useState, useEffect, useImperativeHandle, forwardRef } from 'react'
+import { createPortal } from 'react-dom'
 import {
   ReactFlow,
   ReactFlowProvider,
@@ -641,10 +642,10 @@ const CanvasDropTarget = forwardRef<
         </div>
       )}
       {/* Inline workflow naming dialog */}
-      {showNameInput && (
+      {showNameInput && createPortal(
         <div
           style={{
-            position: 'absolute',
+            position: 'fixed',
             top: '50%',
             left: '50%',
             transform: 'translate(-50%, -50%)',
@@ -722,7 +723,8 @@ const CanvasDropTarget = forwardRef<
               Save
             </button>
           </div>
-        </div>
+        </div>,
+        document.body,
       )}
       {/* Authoring-only UI — hidden in monitor mode */}
       {mode !== 'monitoring' && (
@@ -921,6 +923,9 @@ export function WorkflowBuilderPanel(
   const propProjectId = 'projectId' in props ? props.projectId : undefined
   const workflowDefinitionId = 'workflowDefinitionId' in props ? props.workflowDefinitionId : undefined
 
+  // ContentRouter always passes navigate/goBack/canGoBack; dockview never does.
+  const isSimpleMode = 'navigate' in props
+
   // Desktop panels are mounted via dockview without explicit props.
   // Fall back to ShellContext.activeProjectId when no projectId prop is provided.
   // useContext returns null when no ShellProvider is present (e.g. in tests/storybook).
@@ -941,7 +946,7 @@ export function WorkflowBuilderPanel(
         className={className}
         projectId={effectiveProjectId}
         workflowDefinitionId={effectiveDefinitionId}
-        hideWorkflowPicker={!!navParams}
+        hideWorkflowPicker={isSimpleMode}
       />
     </div>
   )
