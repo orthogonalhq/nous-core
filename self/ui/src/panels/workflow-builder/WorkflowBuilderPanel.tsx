@@ -927,10 +927,12 @@ export function WorkflowBuilderPanel(
   const effectiveDefinitionId = navDefinitionId ?? workflowDefinitionId
 
   return (
-    <WorkflowBuilderCanvas
-      className={className}
-      projectId={effectiveProjectId}
-      workflowDefinitionId={effectiveDefinitionId}
-    />
+    <div style={{ height: '100%' }}>
+      <WorkflowBuilderCanvas
+        className={className}
+        projectId={effectiveProjectId}
+        workflowDefinitionId={effectiveDefinitionId}
+      />
+    </div>
   )
 }
