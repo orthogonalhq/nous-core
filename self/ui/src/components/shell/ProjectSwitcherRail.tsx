@@ -1,7 +1,8 @@
 import * as React from 'react'
 import { clsx } from 'clsx'
-import { Plus } from 'lucide-react'
+import { Plus, Bot } from 'lucide-react'
 import type { ProjectItem, ProjectSwitcherRailProps } from './types'
+import { isHomeSidebarEnabled } from './feature-flags'
 
 // ---------------------------------------------------------------------------
 // Helpers
@@ -69,11 +70,16 @@ export function ProjectSwitcherRail({
     activeProjectId,
     onProjectSelect,
     onNewProject,
+    onHomeClick,
+    isHomeActive,
     brandSlot,
     className,
     style,
     ...props
 }: ProjectSwitcherRailProps & React.HTMLAttributes<HTMLDivElement>) {
+    const showHomeButton = isHomeSidebarEnabled() && onHomeClick
+    const [homeHovered, setHomeHovered] = React.useState(false)
+
     return (
         <div
             className={clsx('nous-project-switcher-rail', className)}
@@ -84,6 +90,30 @@ export function ProjectSwitcherRail({
             {brandSlot && (
                 <div data-rail-slot="brand" style={styles.brandSlot}>
                     {brandSlot}
+                </div>
+            )}
+
+            {showHomeButton && (
+                <div style={styles.avatarWrap}>
+                    {isHomeActive && <span data-active-indicator style={styles.activeIndicator} />}
+                    <button
+                        type="button"
+                        aria-label="Home"
+                        data-rail-action="home"
+                        aria-current={isHomeActive ? 'true' : undefined}
+                        onClick={onHomeClick}
+                        onMouseEnter={() => setHomeHovered(true)}
+                        onMouseLeave={() => setHomeHovered(false)}
+                        style={{
+                            ...styles.homeButton,
+                            opacity: homeHovered && !isHomeActive ? 0.85 : 1,
+                            background: isHomeActive
+                                ? 'var(--nous-bg-active, rgba(255,255,255,0.1))'
+                                : 'transparent',
+                        }}
+                    >
+                        <Bot size={20} />
+                    </button>
                 </div>
             )}
 
@@ -180,6 +210,19 @@ const styles = {
         transition: 'var(--nous-hover-button-transition)',
         padding: 0,
         outline: 'none',
+    },
+    homeButton: {
+        display: 'flex',
+        alignItems: 'center',
+        justifyContent: 'center',
+        width: 'var(--nous-rail-avatar-size)',
+        height: 'var(--nous-rail-avatar-size)',
+        borderRadius: 'var(--nous-radius-md)',
+        border: '1px solid var(--nous-border-subtle)',
+        color: 'var(--nous-text-secondary)',
+        cursor: 'pointer',
+        padding: 0,
+        transition: 'var(--nous-hover-button-transition)',
     },
     newProjectButton: {
         display: 'flex',

@@ -364,6 +364,11 @@ export const ProjectSwitcherRailPropsSchema = z.object({
     'onNewProject function is required',
   ).optional(),
   brandSlot: optionalReactNodeSchema.optional(),
+  onHomeClick: z.custom<() => void>(
+    (value) => typeof value === 'function',
+    'onHomeClick function is required',
+  ).optional(),
+  isHomeActive: z.boolean().optional(),
 })
 export type ProjectSwitcherRailProps = z.infer<typeof ProjectSwitcherRailPropsSchema>
 
