@@ -34,8 +34,8 @@ export const STUB_APPS: CatalogItem[] = [
 
 /** @todo stub data placeholding for proper build out */
 export const STUB_CAMPAIGNS: AssetSectionItem[] = [
-  { id: 'campaign-1', label: 'Marketing Campaigns', indicatorColor: '#4CAF50', routeId: 'campaign-1' },
-  { id: 'campaign-2', label: 'Product Management', indicatorColor: '#66BB6A', routeId: 'campaign-2' },
+  { id: 'wf-stub-1', label: 'Marketing Campaigns', indicatorColor: '#4CAF50', routeId: 'workflow-detail::wf-stub-1' },
+  { id: 'wf-stub-2', label: 'Product Management', indicatorColor: '#66BB6A', routeId: 'workflow-detail::wf-stub-2' },
 ]
 
 /** @todo stub data placeholding for proper build out */
