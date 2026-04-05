@@ -649,34 +649,35 @@ export function useBuilderState(
     [sync, undoRedo, utils],
   )
 
-  const initFetchedRef = useRef(false)
+  const prevDefIdRef = useRef<string | undefined>(undefined)
 
-  // Path 1: Explicit workflowDefinitionId — fetch that specific definition
+  // Path 1: Explicit workflowDefinitionId — fetch when it changes
   useEffect(() => {
-    if (initFetchedRef.current) return
     if (!projectId || !workflowDefinitionId) return
-    initFetchedRef.current = true
+    if (prevDefIdRef.current === workflowDefinitionId) return
+    prevDefIdRef.current = workflowDefinitionId
     fetchAndLoadDefinition(projectId, workflowDefinitionId)
   }, [projectId, workflowDefinitionId, fetchAndLoadDefinition])
 
   // Path 2: projectId but no workflowDefinitionId — check for project default
-  // Also re-checks when panel is kept mounted (dockview caching) and the user
-  // saves a workflow for the first time (listQuery updates with a new default).
   const defaultQuery = trpc.projects.listWorkflowDefinitions.useQuery(
     { projectId: projectId! },
     { enabled: !!projectId && !workflowDefinitionId },
   )
 
+  const defaultFetchedRef = useRef(false)
+
   useEffect(() => {
-    if (initFetchedRef.current) return
-    if (!projectId || workflowDefinitionId) return
+    if (workflowDefinitionId) return  // Path 1 handles explicit IDs
+    if (!projectId) return
     if (defaultQuery.isLoading || !defaultQuery.data) return
+    if (defaultFetchedRef.current) return  // Only load default once per mount
 
     const defaultDef = defaultQuery.data.find(
       (d: { id: string; isDefault?: boolean }) => d.isDefault,
     )
     if (defaultDef && defaultDef.id !== currentDefId) {
-      initFetchedRef.current = true
+      defaultFetchedRef.current = true
       fetchAndLoadDefinition(projectId, defaultDef.id)
     }
     // If no default found, stay with empty state (correct for new projects)
@@ -768,6 +769,14 @@ export function useBuilderState(
     setValidationErrors([])
     specMetaRef.current = { ...DEFAULT_SPEC_META }
   }, [undoRedo])
+
+  // Path 1b: workflowDefinitionId transitions to undefined → reset to empty
+  useEffect(() => {
+    if (workflowDefinitionId !== undefined) return
+    if (prevDefIdRef.current === undefined) return // no transition — initial mount or already undefined
+    prevDefIdRef.current = undefined
+    resetToEmpty()
+  }, [workflowDefinitionId, resetToEmpty])
 
   // ─── Undo / Redo ────────────────────────────────────────────────────────
 
