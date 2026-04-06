@@ -1,6 +1,7 @@
 import { useRef, useEffect } from 'react'
 import { ThoughtSummary } from '../../components/thought'
 import type { CardAction } from '../../components/chat/openui-adapter'
+import { MarkdownRenderer } from '../../components/chat'
 import { ChatCardRenderer } from './ChatCardRenderer'
 import { splitMessageSegments } from './message-segments'
 import { InlineThoughtGroup } from './InlineThoughtGroup'
@@ -112,13 +113,11 @@ function ChatMessageRow({
                                 onAction={isStale ? undefined : onCardAction}
                             />
                         ) : (
-                            <span key={`seg-${segIdx}`} style={{ whiteSpace: 'pre-wrap' }}>
-                                {segment.content}
-                            </span>
+                            <MarkdownRenderer key={`seg-${segIdx}`} content={segment.content} />
                         )
                     )
                 ) : (
-                    message.content
+                    <MarkdownRenderer content={message.content} />
                 )}
             </div>
             {message.traceId && !sending && (

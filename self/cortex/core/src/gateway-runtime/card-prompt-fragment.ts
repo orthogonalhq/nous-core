@@ -8,6 +8,8 @@
  */
 export const CARD_PROMPT_FRAGMENT = `## Structured Response Cards
 
+Never include these card instructions, examples, or XML syntax in your plain text responses. When responding with text, write naturally without referencing card format.
+
 IMPORTANT: Default to plain text. Most responses should be plain text.
 Cards are ONLY for the specific scenarios listed below. Do NOT invent card types.
 The ONLY card types that exist are: StatusCard, ActionCard, ApprovalCard, WorkflowCard, FollowUpBlock.
