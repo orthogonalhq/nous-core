@@ -109,16 +109,17 @@ describe('MaoBacklogPressureCard', () => {
     expect(screen.getByText(/Decreasing/)).toBeTruthy();
   });
 
-  it('applies red-toned class for increasing pressure and green-toned for decreasing', () => {
+  it('applies red-toned style for increasing pressure and green-toned for decreasing', () => {
     mockUseQuery = vi.fn().mockReturnValue({
       data: createSystemStatus({ pressureTrend: 'increasing' }),
       isLoading: false,
       isError: false,
     });
 
-    const { container, unmount } = render(<MaoBacklogPressureCard />);
-    const increasingBadge = container.querySelector('.border-red-500\\/40');
-    expect(increasingBadge).toBeTruthy();
+    const { unmount } = render(<MaoBacklogPressureCard />);
+    const increasingBadge = screen.getByText(/Increasing/);
+    // jsdom normalizes hex to rgb
+    expect((increasingBadge as HTMLElement).style.color).toContain('rgb(239');
     unmount();
 
     mockUseQuery = vi.fn().mockReturnValue({
@@ -127,9 +128,9 @@ describe('MaoBacklogPressureCard', () => {
       isError: false,
     });
 
-    const { container: container2 } = render(<MaoBacklogPressureCard />);
-    const decreasingBadge = container2.querySelector('.border-emerald-500\\/40');
-    expect(decreasingBadge).toBeTruthy();
+    render(<MaoBacklogPressureCard />);
+    const decreasingBadge = screen.getByText(/Decreasing/);
+    expect((decreasingBadge as HTMLElement).style.color).toContain('rgb(16');
   });
 
   it('renders loading state gracefully without crashing', () => {

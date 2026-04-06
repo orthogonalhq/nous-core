@@ -88,6 +88,18 @@
   --nous-state-approved-fill:      #0d6e5e;
   --nous-state-needs-revision-fill:#6b3d99;
 
+  /* ── Agent / node state — tone (MAO surfaces) ────────────────────────── */
+  --nous-state-active-tone-border:   color-mix(in srgb, var(--nous-state-active) 40%, transparent);
+  --nous-state-active-tone-bg:       color-mix(in srgb, var(--nous-state-active) 10%, transparent);
+  --nous-state-waiting-tone-border:  color-mix(in srgb, var(--nous-state-waiting) 40%, transparent);
+  --nous-state-waiting-tone-bg:      color-mix(in srgb, var(--nous-state-waiting) 10%, transparent);
+  --nous-state-blocked-tone-border:  color-mix(in srgb, var(--nous-state-blocked) 40%, transparent);
+  --nous-state-blocked-tone-bg:      color-mix(in srgb, var(--nous-state-blocked) 10%, transparent);
+  --nous-state-idle-tone-border:     color-mix(in srgb, var(--nous-state-idle) 40%, transparent);
+  --nous-state-idle-tone-bg:         color-mix(in srgb, var(--nous-state-idle) 10%, transparent);
+  --nous-state-complete-tone-border: color-mix(in srgb, var(--nous-state-complete) 40%, transparent);
+  --nous-state-complete-tone-bg:     color-mix(in srgb, var(--nous-state-complete) 10%, transparent);
+
   /* ── Alert colours ───────────────────────────────────────────────────── */
   --nous-alert-critical: #ff2d55;
   --nous-alert-error:    #ff453a;

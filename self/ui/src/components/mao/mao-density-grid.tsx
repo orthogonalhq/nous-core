@@ -1,28 +1,27 @@
 'use client';
 
 import * as React from 'react';
+import type { CSSProperties } from 'react';
 import type { MaoDensityMode, MaoGridTileProjection, MaoProjectSnapshot } from '@nous/shared';
 import { Badge } from '../badge';
 import { Card, CardContent, CardHeader, CardTitle } from '../card';
 import { resolveAgentLabel } from './mao-workflow-group-card';
 import { getStateVisuals, CLUSTER_STATE_ORDER } from './mao-state-utils';
 
-function gridColumnsForDensity(
-  densityMode: MaoProjectSnapshot['densityMode'],
-): string {
+/** Single-column layout since MAO renders at 280-400px where breakpoints never trigger */
+function gridStyleForDensity(densityMode: MaoProjectSnapshot['densityMode']): CSSProperties {
   switch (densityMode) {
     case 'D0':
-      return 'grid-cols-1';
     case 'D1':
-      return 'grid-cols-1 md:grid-cols-2';
+      return { display: 'flex', flexDirection: 'column', gap: 'var(--nous-space-md)' };
     case 'D2':
-      return 'grid-cols-1 md:grid-cols-2 xl:grid-cols-3';
+      return { display: 'flex', flexDirection: 'column', gap: 'var(--nous-space-md)' };
     case 'D3':
-      return 'grid-cols-2 md:grid-cols-3 xl:grid-cols-4';
+      return { display: 'flex', flexWrap: 'wrap', gap: 'var(--nous-space-md)' };
     case 'D4':
-      return 'grid-cols-3 md:grid-cols-4 xl:grid-cols-6';
+      return { display: 'flex', flexWrap: 'wrap', gap: 'var(--nous-space-md)' };
     default:
-      return 'grid-cols-1 md:grid-cols-2 xl:grid-cols-3';
+      return { display: 'flex', flexDirection: 'column', gap: 'var(--nous-space-md)' };
   }
 }
 
@@ -48,9 +47,19 @@ function renderInferenceInfo(
   const tokens = tile.agent.inference_total_tokens;
   const isStreaming = tile.agent.inference_is_streaming;
 
+  const inferenceRowStyle: CSSProperties = {
+    marginTop: 'var(--nous-space-sm)',
+    display: 'flex',
+    flexWrap: 'wrap',
+    alignItems: 'center',
+    gap: '6px',
+    fontSize: 'var(--nous-font-size-xs)',
+    color: 'var(--nous-fg-muted)',
+  };
+
   if (densityMode === 'D2') {
     return (
-      <div className="mt-2 flex items-center gap-1.5 text-xs text-muted-foreground" data-testid="inference-d2">
+      <div style={inferenceRowStyle} data-testid="inference-d2">
         {isStreaming ? <span style={streamingPulseStyle} data-testid="streaming-pulse" /> : null}
         {tokens != null ? <span>{tokens.toLocaleString()} tok</span> : null}
       </div>
@@ -59,11 +68,11 @@ function renderInferenceInfo(
 
   // D0 and D1 share provider, model, latency, tokens
   return (
-    <div className="mt-2 flex flex-wrap items-center gap-1.5 text-xs text-muted-foreground" data-testid={`inference-${densityMode.toLowerCase()}`}>
+    <div style={inferenceRowStyle} data-testid={`inference-${densityMode.toLowerCase()}`}>
       <span>{provider}</span>
-      {model ? <span className="text-muted-foreground/70">{model}</span> : null}
+      {model ? <span style={{ opacity: 0.7 }}>{model}</span> : null}
       {latency != null ? (
-        <Badge variant="outline" className="text-[10px] px-1 py-0">
+        <Badge variant="outline" style={{ fontSize: '10px', paddingInline: 'var(--nous-space-2xs)', paddingBlock: 0 }}>
           {latency}ms
         </Badge>
       ) : null}
@@ -84,7 +93,7 @@ function UrgentIcon() {
       viewBox="0 0 8 8"
       fill="none"
       xmlns="http://www.w3.org/2000/svg"
-      className="text-red-500 shrink-0"
+      style={{ color: '#ef4444', flexShrink: 0 }}
       data-testid="urgent-icon"
       aria-hidden="true"
     >
@@ -108,7 +117,7 @@ function UrgentTimer({ lastUpdateAt }: { lastUpdateAt: string }) {
   }, [lastUpdateAt]);
 
   return (
-    <span className="text-[10px] text-red-500" data-testid="urgent-timer">
+    <span style={{ fontSize: '10px', color: '#ef4444' }} data-testid="urgent-timer">
       {minutes}m
     </span>
   );
@@ -183,10 +192,10 @@ export function MaoDensityGrid({
 
   return (
     <Card>
-      <CardHeader className="border-b border-border">
-        <CardTitle className="flex items-center justify-between gap-3 text-base">
+      <CardHeader style={{ borderBottom: '1px solid var(--nous-border-subtle)' }}>
+        <CardTitle style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 'var(--nous-space-md)', fontSize: 'var(--nous-font-size-base)' }}>
           <span>Density grid</span>
-          <div className="flex flex-wrap gap-2">
+          <div style={{ display: 'flex', flexWrap: 'wrap', gap: 'var(--nous-space-sm)' }}>
             <Badge variant="outline">{snapshot.densityMode}</Badge>
             <Badge variant="outline">
               {snapshot.summary.activeAgentCount} active
@@ -197,20 +206,20 @@ export function MaoDensityGrid({
           </div>
         </CardTitle>
       </CardHeader>
-      <CardContent className="space-y-4 pt-4">
+      <CardContent style={{ display: 'flex', flexDirection: 'column', gap: 'var(--nous-space-lg)', paddingTop: 'var(--nous-space-lg)' }}>
         {!snapshot.grid.length ? (
-          <p className="text-sm text-muted-foreground">
+          <p style={{ fontSize: 'var(--nous-font-size-sm)', color: 'var(--nous-fg-muted)' }}>
             No MAO agent projections are available for the selected project.
           </p>
         ) : densityMode === 'D4' && orderedClusters ? (
           /* D4 clustered rendering */
-          <div className="space-y-3">
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 'var(--nous-space-md)' }}>
             {orderedClusters.map(({ state, tiles }) => (
               <div key={state} data-testid={`cluster-${state}`}>
-                <div className="text-[10px] text-muted-foreground font-medium mb-1 uppercase tracking-wider">
+                <div style={{ fontSize: '10px', color: 'var(--nous-fg-muted)', fontWeight: 500, marginBottom: 'var(--nous-space-2xs)', textTransform: 'uppercase', letterSpacing: '0.05em' }}>
                   {state} ({tiles.length})
                 </div>
-                <div className="flex flex-wrap gap-1">
+                <div style={{ display: 'flex', flexWrap: 'wrap', gap: 'var(--nous-space-2xs)' }}>
                   {tiles.map((tile) => {
                     const isSelected = selectedAgentId === tile.agent.agent_id;
                     const urgent =
@@ -225,9 +234,15 @@ export function MaoDensityGrid({
                         aria-label={`Inspect ${resolveAgentLabel(tile.agent)}`}
                         onClick={() => onSelectTile(tile)}
                         data-testid="density-tile-d4"
-                        className={`w-6 h-6 rounded ${visuals.dot} ${
-                          isSelected ? 'ring-2 ring-primary' : ''
-                        } ${urgent ? 'ring-2 ring-red-500' : ''} ${visuals.pulse}`}
+                        className={visuals.pulse || undefined}
+                        style={{
+                          width: '1.5rem',
+                          height: '1.5rem',
+                          borderRadius: 'var(--nous-radius-xs)',
+                          ...visuals.dotStyle,
+                          ...(isSelected ? { boxShadow: '0 0 0 2px var(--nous-accent)' } : {}),
+                          ...(urgent ? { boxShadow: '0 0 0 2px #ef4444' } : {}),
+                        }}
                       />
                     );
                   })}
@@ -237,9 +252,7 @@ export function MaoDensityGrid({
           </div>
         ) : (
           /* D0-D3 flat rendering */
-          <div
-            className={`grid gap-3 ${gridColumnsForDensity(densityMode)}`}
-          >
+          <div style={gridStyleForDensity(densityMode)}>
             {sortedTiles.map((tile) => {
               const isSelected = selectedAgentId === tile.agent.agent_id;
               const urgent =
@@ -259,12 +272,25 @@ export function MaoDensityGrid({
                     aria-label={`Inspect ${resolveAgentLabel(tile.agent)}`}
                     onClick={() => onSelectTile(tile)}
                     data-testid="density-tile-d3"
-                    className={`inline-flex items-center gap-1 rounded border px-1.5 py-1 text-xs transition-colors hover:bg-muted/30 ${
-                      isSelected ? 'border-primary bg-primary/10' : visuals.tone
-                    } ${urgent ? 'border-red-500 border-2' : ''} ${visuals.pulse}`}
+                    className={visuals.pulse || undefined}
+                    style={{
+                      display: 'inline-flex',
+                      alignItems: 'center',
+                      gap: 'var(--nous-space-2xs)',
+                      borderRadius: 'var(--nous-radius-xs)',
+                      border: '1px solid',
+                      paddingInline: '6px',
+                      paddingBlock: 'var(--nous-space-2xs)',
+                      fontSize: 'var(--nous-font-size-xs)',
+                      transition: 'background-color 0.15s',
+                      ...(isSelected
+                        ? { borderColor: 'var(--nous-accent)', backgroundColor: 'rgba(0,122,204,0.1)' }
+                        : visuals.toneStyle),
+                      ...(urgent ? { borderWidth: '2px', borderStyle: 'solid', borderColor: '#ef4444' } : {}),
+                    }}
                   >
-                    <span className={`inline-block w-2 h-2 rounded-full ${visuals.dot}`} />
-                    <span className="truncate max-w-16">{resolveAgentLabel(tile.agent).slice(0, 16)}</span>
+                    <span style={{ display: 'inline-block', width: '0.5rem', height: '0.5rem', borderRadius: '9999px', ...visuals.dotStyle }} />
+                    <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', maxWidth: '4rem' }}>{resolveAgentLabel(tile.agent).slice(0, 16)}</span>
                     {urgent && <UrgentIcon />}
                   </button>
                 );
@@ -277,23 +303,32 @@ export function MaoDensityGrid({
                   type="button"
                   aria-label={`Inspect ${tile.agent.current_step}`}
                   onClick={() => onSelectTile(tile)}
-                  className={`rounded-lg border p-3 text-left transition-colors hover:bg-muted/20 ${
-                    isSelected ? 'border-primary bg-primary/10' : visuals.tone
-                  } ${urgent ? 'border-red-500 border-2' : ''} ${visuals.pulse}`}
+                  className={visuals.pulse || undefined}
+                  style={{
+                    borderRadius: 'var(--nous-radius-md)',
+                    border: '1px solid',
+                    padding: 'var(--nous-space-xl)',
+                    textAlign: 'left',
+                    transition: 'background-color 0.15s',
+                    ...(isSelected
+                      ? { borderColor: 'var(--nous-accent)', backgroundColor: 'rgba(0,122,204,0.1)' }
+                      : visuals.toneStyle),
+                    ...(urgent ? { borderWidth: '2px', borderStyle: 'solid', borderColor: '#ef4444' } : {}),
+                  }}
                 >
-                  <div className="flex items-start justify-between gap-2">
-                    <div className="min-w-0">
-                      <div className="truncate text-sm font-medium">
+                  <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', gap: 'var(--nous-space-sm)' }}>
+                    <div style={{ minWidth: 0 }}>
+                      <div style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', fontSize: 'var(--nous-font-size-sm)', fontWeight: 500 }}>
                         {tile.agent.current_step}
                       </div>
-                      <div className="mt-1 text-xs text-muted-foreground">
+                      <div style={{ marginTop: 'var(--nous-space-2xs)', fontSize: 'var(--nous-font-size-xs)', color: 'var(--nous-fg-muted)' }}>
                         {tile.agent.dispatch_state}
                       </div>
                     </div>
                     <Badge variant="outline">{tile.agent.state}</Badge>
                   </div>
 
-                  <div className="mt-3 flex flex-wrap gap-2 text-xs">
+                  <div style={{ marginTop: 'var(--nous-space-xl)', display: 'flex', flexWrap: 'wrap', gap: 'var(--nous-space-sm)', fontSize: 'var(--nous-font-size-xs)' }}>
                     <Badge variant="outline">{tile.agent.risk_level}</Badge>
                     <Badge variant="outline">{tile.agent.attention_level}</Badge>
                     {tile.inspectOnly ? (
@@ -302,7 +337,7 @@ export function MaoDensityGrid({
                     {urgent ? (
                       <Badge
                         variant="outline"
-                        className="border-red-500 text-red-500 bg-red-500/10"
+                        style={{ borderColor: '#ef4444', color: '#ef4444', backgroundColor: 'rgba(239,68,68,0.1)' }}
                         data-testid="urgent-indicator"
                       >
                         URGENT
@@ -312,12 +347,12 @@ export function MaoDensityGrid({
                   </div>
 
                   {urgent && tile.agent.last_update_at && (
-                    <div className="mt-1">
+                    <div style={{ marginTop: 'var(--nous-space-2xs)' }}>
                       <UrgentTimer lastUpdateAt={tile.agent.last_update_at} />
                     </div>
                   )}
 
-                  <div className="mt-3 flex items-center justify-between text-xs text-muted-foreground">
+                  <div style={{ marginTop: 'var(--nous-space-xl)', display: 'flex', alignItems: 'center', justifyContent: 'space-between', fontSize: 'var(--nous-font-size-xs)', color: 'var(--nous-fg-muted)' }}>
                     <span>{tile.agent.progress_percent}% complete</span>
                     <span>{tile.agent.reflection_cycle_count} review cycles</span>
                   </div>
@@ -325,7 +360,7 @@ export function MaoDensityGrid({
                   {renderInferenceInfo(tile, snapshot.densityMode)}
 
                   {tile.agent.reasoning_log_preview ? (
-                    <p className="mt-3 line-clamp-2 text-xs text-muted-foreground">
+                    <p style={{ marginTop: 'var(--nous-space-xl)', overflow: 'hidden', display: '-webkit-box', WebkitBoxOrient: 'vertical', WebkitLineClamp: 2, fontSize: 'var(--nous-font-size-xs)', color: 'var(--nous-fg-muted)' }}>
                       {tile.agent.reasoning_log_preview.summary}
                     </p>
                   ) : null}

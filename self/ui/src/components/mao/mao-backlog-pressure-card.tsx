@@ -1,27 +1,28 @@
 'use client';
 
 import * as React from 'react';
+import type { CSSProperties } from 'react';
 import { Badge } from '../badge';
 import { Card, CardContent, CardHeader, CardTitle } from '../card';
 import { trpc, useEventSubscription } from '@nous/transport';
 
-const TREND_CONFIG = {
+const TREND_CONFIG: Record<string, { label: string; arrow: string; style: CSSProperties }> = {
   increasing: {
     label: 'Increasing',
     arrow: '\u2191',
-    className: 'border-red-500/40 bg-red-500/10 text-red-500',
+    style: { borderColor: 'rgba(239,68,68,0.4)', backgroundColor: 'rgba(239,68,68,0.1)', color: '#ef4444' },
   },
   stable: {
     label: 'Stable',
     arrow: '\u2192',
-    className: 'border-border bg-background text-muted-foreground',
+    style: { borderColor: 'var(--nous-border-subtle)', backgroundColor: 'var(--nous-bg)', color: 'var(--nous-fg-muted)' },
   },
   decreasing: {
     label: 'Decreasing',
     arrow: '\u2193',
-    className: 'border-emerald-500/40 bg-emerald-500/10 text-emerald-500',
+    style: { borderColor: 'rgba(16,185,129,0.4)', backgroundColor: 'rgba(16,185,129,0.1)', color: '#10b981' },
   },
-} as const;
+};
 
 export function MaoBacklogPressureCard() {
   const utils = trpc.useUtils();
@@ -39,57 +40,62 @@ export function MaoBacklogPressureCard() {
   const trend = backlog?.pressureTrend;
   const trendConfig = trend ? TREND_CONFIG[trend] : null;
 
+  const cellBase: CSSProperties = {
+    borderRadius: 'var(--nous-radius-sm)',
+    border: '1px solid var(--nous-border-subtle)',
+    paddingInline: 'var(--nous-space-md)',
+    paddingBlock: 'var(--nous-space-sm)',
+  };
+
+  const labelStyle: CSSProperties = {
+    fontSize: 'var(--nous-font-size-xs)',
+    textTransform: 'uppercase',
+    letterSpacing: '0.05em',
+    color: 'var(--nous-fg-muted)',
+  };
+
+  const valueStyle: CSSProperties = {
+    marginTop: 'var(--nous-space-2xs)',
+    fontSize: 'var(--nous-font-size-lg)',
+    fontWeight: 600,
+  };
+
   return (
     <Card>
-      <CardHeader className="border-b border-border">
-        <CardTitle className="flex items-center justify-between gap-3 text-base">
+      <CardHeader style={{ borderBottom: '1px solid var(--nous-border-subtle)' }}>
+        <CardTitle style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 'var(--nous-space-md)', fontSize: 'var(--nous-font-size-base)' }}>
           <span>Backlog pressure</span>
           {trendConfig ? (
-            <Badge
-              variant="outline"
-              className={trendConfig.className}
-            >
+            <Badge variant="outline" style={trendConfig.style}>
               {trendConfig.arrow} {trendConfig.label}
             </Badge>
           ) : null}
         </CardTitle>
       </CardHeader>
-      <CardContent className="space-y-3 pt-4 text-sm">
+      <CardContent style={{ display: 'flex', flexDirection: 'column', gap: 'var(--nous-space-md)', paddingTop: 'var(--nous-space-lg)', fontSize: 'var(--nous-font-size-sm)' }}>
         {statusQuery.isLoading ? (
-          <p className="text-muted-foreground">Loading system status...</p>
+          <p style={{ color: 'var(--nous-fg-muted)' }}>Loading system status...</p>
         ) : statusQuery.isError ? (
-          <p className="text-muted-foreground">
+          <p style={{ color: 'var(--nous-fg-muted)' }}>
             Failed to load system status.
           </p>
         ) : !backlog ? (
-          <p className="text-muted-foreground">
+          <p style={{ color: 'var(--nous-fg-muted)' }}>
             Backlog analytics are not available.
           </p>
         ) : (
-          <div className="grid gap-3 md:grid-cols-3">
-            <div className="rounded-md border border-border px-3 py-2">
-              <div className="text-xs uppercase tracking-wide text-muted-foreground">
-                Queued
-              </div>
-              <div className="mt-1 text-lg font-semibold">
-                {backlog.queuedCount}
-              </div>
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 'var(--nous-space-md)' }}>
+            <div style={cellBase}>
+              <div style={labelStyle}>Queued</div>
+              <div style={valueStyle}>{backlog.queuedCount}</div>
             </div>
-            <div className="rounded-md border border-border px-3 py-2">
-              <div className="text-xs uppercase tracking-wide text-muted-foreground">
-                Active
-              </div>
-              <div className="mt-1 text-lg font-semibold">
-                {backlog.activeCount}
-              </div>
+            <div style={cellBase}>
+              <div style={labelStyle}>Active</div>
+              <div style={valueStyle}>{backlog.activeCount}</div>
             </div>
-            <div className="rounded-md border border-border px-3 py-2">
-              <div className="text-xs uppercase tracking-wide text-muted-foreground">
-                Suspended
-              </div>
-              <div className="mt-1 text-lg font-semibold">
-                {backlog.suspendedCount}
-              </div>
+            <div style={cellBase}>
+              <div style={labelStyle}>Suspended</div>
+              <div style={valueStyle}>{backlog.suspendedCount}</div>
             </div>
           </div>
         )}

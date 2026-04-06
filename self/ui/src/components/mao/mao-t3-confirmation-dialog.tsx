@@ -121,93 +121,106 @@ export function MaoT3ConfirmationDialog({
     }
   };
 
+  const overlayBase: React.CSSProperties = {
+    position: 'fixed',
+    inset: 0,
+    display: 'flex',
+    alignItems: 'center',
+    justifyContent: 'center',
+    zIndex: 300,
+    animation: 'var(--nous-modal-enter)',
+  };
+
+  const backdropStyle: React.CSSProperties = {
+    position: 'absolute',
+    inset: 0,
+    backgroundColor: 'rgba(0,0,0,0.5)',
+  };
+
+  const panelStyle: React.CSSProperties = {
+    position: 'relative',
+    marginInline: 'var(--nous-space-2xl)',
+    width: '100%',
+    maxWidth: '28rem',
+    borderRadius: 'var(--nous-radius-md)',
+    border: '1px solid var(--nous-border-subtle)',
+    backgroundColor: 'var(--nous-bg)',
+    padding: 'var(--nous-space-3xl)',
+    boxShadow: 'var(--nous-shadow-lg)',
+  };
+
+  const cellBase: React.CSSProperties = {
+    borderRadius: 'var(--nous-radius-sm)',
+    border: '1px solid var(--nous-border-subtle)',
+    paddingInline: 'var(--nous-space-md)',
+    paddingBlock: 'var(--nous-space-sm)',
+  };
+
+  const labelStyle: React.CSSProperties = {
+    fontSize: 'var(--nous-font-size-xs)',
+    textTransform: 'uppercase',
+    letterSpacing: '0.05em',
+    color: 'var(--nous-fg-muted)',
+  };
+
   // Proof display view — shown after confirmation proof is obtained
   if (confirmedProof) {
     return (
-      <div
-        className="fixed inset-0 flex items-center justify-center"
-        style={{
-          zIndex: 300,
-          animation: 'var(--nous-modal-enter)',
-        }}
-        data-testid="t3-confirmation-dialog"
-      >
-        <div
-          className="absolute inset-0 bg-black/50"
-          onClick={onCancel}
-          aria-hidden="true"
-        />
-        <div className="relative mx-4 w-full max-w-md rounded-lg border border-border bg-background p-6 shadow-lg">
-          <h2 className="text-lg font-semibold">
+      <div style={overlayBase} data-testid="t3-confirmation-dialog">
+        <div style={backdropStyle} onClick={onCancel} aria-hidden="true" />
+        <div style={panelStyle}>
+          <h2 style={{ fontSize: 'var(--nous-font-size-lg)', fontWeight: 600 }}>
             Proof confirmed
           </h2>
-          <p className="mt-2 text-sm text-muted-foreground">
+          <p style={{ marginTop: 'var(--nous-space-sm)', fontSize: 'var(--nous-font-size-sm)', color: 'var(--nous-fg-muted)' }}>
             Confirmation proof obtained. Review details below, then click Done to
             execute the control action.
           </p>
 
-          <div className="mt-4 space-y-2" data-testid="proof-details">
-            <div className="rounded-md border border-border px-3 py-2">
-              <div className="text-xs uppercase tracking-wide text-muted-foreground">
-                Proof ID
-              </div>
-              <div className="mt-1 font-mono text-xs" data-testid="proof-id">
+          <div style={{ marginTop: 'var(--nous-space-2xl)', display: 'flex', flexDirection: 'column', gap: 'var(--nous-space-sm)' }} data-testid="proof-details">
+            <div style={cellBase}>
+              <div style={labelStyle}>Proof ID</div>
+              <div style={{ marginTop: 'var(--nous-space-2xs)', fontFamily: 'var(--nous-font-family-mono)', fontSize: 'var(--nous-font-size-xs)' }} data-testid="proof-id">
                 {confirmedProof.proof_id}
               </div>
             </div>
-            <div className="grid gap-2 md:grid-cols-2">
-              <div className="rounded-md border border-border px-3 py-2">
-                <div className="text-xs uppercase tracking-wide text-muted-foreground">
-                  Issued at
-                </div>
-                <div className="mt-1 text-xs">
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 'var(--nous-space-sm)' }}>
+              <div style={cellBase}>
+                <div style={labelStyle}>Issued at</div>
+                <div style={{ marginTop: 'var(--nous-space-2xs)', fontSize: 'var(--nous-font-size-xs)' }}>
                   {new Date(confirmedProof.issued_at).toLocaleString()}
                 </div>
               </div>
-              <div className="rounded-md border border-border px-3 py-2">
-                <div className="text-xs uppercase tracking-wide text-muted-foreground">
-                  Expires at
-                </div>
-                <div className="mt-1 text-xs">
+              <div style={cellBase}>
+                <div style={labelStyle}>Expires at</div>
+                <div style={{ marginTop: 'var(--nous-space-2xs)', fontSize: 'var(--nous-font-size-xs)' }}>
                   {new Date(confirmedProof.expires_at).toLocaleString()}
                 </div>
               </div>
             </div>
-            <div className="grid gap-2 md:grid-cols-2">
-              <div className="rounded-md border border-border px-3 py-2">
-                <div className="text-xs uppercase tracking-wide text-muted-foreground">
-                  Tier
-                </div>
-                <div className="mt-1">{confirmedProof.tier}</div>
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 'var(--nous-space-sm)' }}>
+              <div style={cellBase}>
+                <div style={labelStyle}>Tier</div>
+                <div style={{ marginTop: 'var(--nous-space-2xs)' }}>{confirmedProof.tier}</div>
               </div>
-              <div className="rounded-md border border-border px-3 py-2">
-                <div className="text-xs uppercase tracking-wide text-muted-foreground">
-                  Action
-                </div>
-                <div className="mt-1">{confirmedProof.action}</div>
+              <div style={cellBase}>
+                <div style={labelStyle}>Action</div>
+                <div style={{ marginTop: 'var(--nous-space-2xs)' }}>{confirmedProof.action}</div>
               </div>
             </div>
-            <div className="rounded-md border border-border px-3 py-2">
-              <div className="text-xs uppercase tracking-wide text-muted-foreground">
-                Scope hash
-              </div>
-              <div className="mt-1 truncate font-mono text-xs">
+            <div style={cellBase}>
+              <div style={labelStyle}>Scope hash</div>
+              <div style={{ marginTop: 'var(--nous-space-2xs)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', fontFamily: 'var(--nous-font-family-mono)', fontSize: 'var(--nous-font-size-xs)' }}>
                 {confirmedProof.scope_hash}
               </div>
             </div>
           </div>
 
-          <div className="mt-6 flex justify-end gap-3">
-            <Button
-              variant="outline"
-              onClick={onCancel}
-            >
+          <div style={{ marginTop: 'var(--nous-space-3xl)', display: 'flex', justifyContent: 'flex-end', gap: 'var(--nous-space-md)' }}>
+            <Button variant="outline" onClick={onCancel}>
               Cancel
             </Button>
-            <Button
-              onClick={handleDone}
-              data-testid="proof-done-button"
-            >
+            <Button onClick={handleDone} data-testid="proof-done-button">
               Done
             </Button>
           </div>
@@ -217,53 +230,36 @@ export function MaoT3ConfirmationDialog({
   }
 
   return (
-    <div
-      className="fixed inset-0 flex items-center justify-center"
-      style={{
-        zIndex: 300,
-        animation: 'var(--nous-modal-enter)',
-      }}
-      data-testid="t3-confirmation-dialog"
-    >
-      <div
-        className="absolute inset-0 bg-black/50"
-        onClick={onCancel}
-        aria-hidden="true"
-      />
-      <div className="relative mx-4 w-full max-w-md rounded-lg border border-border bg-background p-6 shadow-lg">
-        <h2 className="text-lg font-semibold">
+    <div style={overlayBase} data-testid="t3-confirmation-dialog">
+      <div style={backdropStyle} onClick={onCancel} aria-hidden="true" />
+      <div style={panelStyle}>
+        <h2 style={{ fontSize: 'var(--nous-font-size-lg)', fontWeight: 600 }}>
           Confirm T3 action
         </h2>
-        <p className="mt-2 text-sm text-muted-foreground">
+        <p style={{ marginTop: 'var(--nous-space-sm)', fontSize: 'var(--nous-font-size-sm)', color: 'var(--nous-fg-muted)' }}>
           This action requires explicit confirmation before it can proceed.
         </p>
 
-        <div className="mt-4 space-y-3">
-          <div className="rounded-md border border-border px-3 py-2">
-            <div className="text-xs uppercase tracking-wide text-muted-foreground">
-              Action
-            </div>
-            <div className="mt-1 font-medium">{actionLabel}</div>
+        <div style={{ marginTop: 'var(--nous-space-2xl)', display: 'flex', flexDirection: 'column', gap: 'var(--nous-space-md)' }}>
+          <div style={cellBase}>
+            <div style={labelStyle}>Action</div>
+            <div style={{ marginTop: 'var(--nous-space-2xs)', fontWeight: 500 }}>{actionLabel}</div>
           </div>
 
           {projectName ? (
-            <div className="rounded-md border border-border px-3 py-2">
-              <div className="text-xs uppercase tracking-wide text-muted-foreground">
-                Project
-              </div>
-              <div className="mt-1">{projectName}</div>
+            <div style={cellBase}>
+              <div style={labelStyle}>Project</div>
+              <div style={{ marginTop: 'var(--nous-space-2xs)' }}>{projectName}</div>
             </div>
           ) : null}
 
-          <div className="rounded-md border border-border px-3 py-2">
-            <div className="text-xs uppercase tracking-wide text-muted-foreground">
-              Impact
-            </div>
-            <div className="mt-1 text-sm">
+          <div style={cellBase}>
+            <div style={labelStyle}>Impact</div>
+            <div style={{ marginTop: 'var(--nous-space-2xs)', fontSize: 'var(--nous-font-size-sm)' }}>
               {IMPACT_LABELS[action]}
             </div>
             {impactSummary ? (
-              <div className="mt-2 grid grid-cols-2 gap-1 text-xs text-muted-foreground">
+              <div style={{ marginTop: 'var(--nous-space-sm)', display: 'flex', flexDirection: 'column', gap: 'var(--nous-space-2xs)', fontSize: 'var(--nous-font-size-xs)', color: 'var(--nous-fg-muted)' }}>
                 <span>active runs: {impactSummary.activeRunCount}</span>
                 <span>active agents: {impactSummary.activeAgentCount}</span>
                 <span>blocked agents: {impactSummary.blockedAgentCount}</span>
@@ -274,12 +270,12 @@ export function MaoT3ConfirmationDialog({
         </div>
 
         {proofMutation.isError ? (
-          <div className="mt-3 rounded-md border border-red-500/40 bg-red-500/10 px-3 py-2 text-sm text-red-500">
+          <div style={{ marginTop: 'var(--nous-space-md)', borderRadius: 'var(--nous-radius-sm)', border: '1px solid rgba(239,68,68,0.4)', backgroundColor: 'rgba(239,68,68,0.1)', paddingInline: 'var(--nous-space-md)', paddingBlock: 'var(--nous-space-sm)', fontSize: 'var(--nous-font-size-sm)', color: '#ef4444' }}>
             Failed to obtain confirmation proof. Please try again.
           </div>
         ) : null}
 
-        <div className="mt-6 flex justify-end gap-3">
+        <div style={{ marginTop: 'var(--nous-space-3xl)', display: 'flex', justifyContent: 'flex-end', gap: 'var(--nous-space-md)' }}>
           <Button
             variant="outline"
             onClick={onCancel}

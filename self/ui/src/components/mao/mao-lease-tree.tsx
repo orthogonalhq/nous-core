@@ -1,6 +1,7 @@
 'use client';
 
 import * as React from 'react';
+import type { CSSProperties } from 'react';
 import type { MaoAgentProjection, MaoDensityMode, MaoSystemSnapshot } from '@nous/shared';
 import { MaoWorkflowGroupCard, resolveAgentLabel, AGENT_CLASS_COLORS, FALLBACK_CLASS_COLOR } from './mao-workflow-group-card';
 import { MaoEdgeConnector, type EdgeDef } from './mao-edge-connector';
@@ -152,24 +153,24 @@ function collectEdges(roots: LeaseTreeNode[]): EdgeDef[] {
 // Tile size helpers
 // ---------------------------------------------------------------------------
 
-function rootTileSizeClasses(densityMode: MaoDensityMode): string {
+function rootTileSizeStyle(densityMode: MaoDensityMode): CSSProperties {
   switch (densityMode) {
     case 'D0':
     case 'D1':
-      return 'min-w-64 p-4';
+      return { minWidth: '16rem', padding: 'var(--nous-space-2xl)' };
     case 'D2':
-      return 'min-w-48 p-3';
+      return { minWidth: '12rem', padding: 'var(--nous-space-xl)' };
     case 'D3':
-      return 'min-w-16 p-1.5';
+      return { minWidth: '4rem', padding: '6px' };
     case 'D4':
-      return 'w-6 h-6';
+      return { width: '1.5rem', height: '1.5rem' };
     default:
-      return 'min-w-48 p-3';
+      return { minWidth: '12rem', padding: 'var(--nous-space-xl)' };
   }
 }
 
-function getClassFill(agent: MaoAgentProjection): string {
-  return (AGENT_CLASS_COLORS[agent.agent_class ?? ''] ?? FALLBACK_CLASS_COLOR).fill;
+function getClassFillStyle(agent: MaoAgentProjection): CSSProperties {
+  return (AGENT_CLASS_COLORS[agent.agent_class ?? ''] ?? FALLBACK_CLASS_COLOR).fillStyle;
 }
 
 /** Small SVG exclamation icon for urgent indicators at D3 */
@@ -181,7 +182,7 @@ function UrgentIcon() {
       viewBox="0 0 8 8"
       fill="none"
       xmlns="http://www.w3.org/2000/svg"
-      className="text-red-500 shrink-0"
+      style={{ color: '#ef4444', flexShrink: 0 }}
       aria-hidden="true"
     >
       <circle cx="4" cy="4" r="4" fill="currentColor" />
@@ -219,8 +220,8 @@ export function MaoLeaseTree({
 
   if (snapshot.agents.length === 0) {
     return (
-      <div data-testid="lease-tree-empty" className="flex items-center justify-center p-8">
-        <p className="text-sm text-muted-foreground">
+      <div data-testid="lease-tree-empty" style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 'var(--nous-space-4xl)' }}>
+        <p style={{ fontSize: 'var(--nous-font-size-sm)', color: 'var(--nous-fg-muted)' }}>
           No agents are currently active across the system.
         </p>
       </div>
@@ -231,15 +232,15 @@ export function MaoLeaseTree({
   const maxDepth = densityMode === 'D1' ? 1 : Infinity;
 
   return (
-    <div className="relative" data-testid="lease-tree">
-      <div className="flex flex-col gap-6">
+    <div style={{ position: 'relative' }} data-testid="lease-tree">
+      <div style={{ display: 'flex', flexDirection: 'column', gap: 'var(--nous-space-3xl)' }}>
         {depthRows
           .filter((row) => row.depth <= maxDepth)
           .map((row) => (
             <div key={`depth-${row.depth}`}>
               {row.depth === 0 ? (
                 <div
-                  className="flex flex-wrap gap-4"
+                  style={{ display: 'flex', flexWrap: 'wrap', gap: 'var(--nous-space-2xl)' }}
                   data-testid="lease-root-row"
                 >
                   {row.rootTiles.map((agent) => {
@@ -252,6 +253,7 @@ export function MaoLeaseTree({
                         : densityMode;
                     const visuals = getStateVisuals(agent.state);
                     const isUrgent = agent.urgency_level === 'urgent';
+                    const isSelected = selectedAgentId === agent.agent_id;
 
                     if (effectiveDensity === 'D4') {
                       return (
@@ -260,11 +262,16 @@ export function MaoLeaseTree({
                           type="button"
                           data-agent-id={agent.agent_id}
                           onClick={() => onSelectAgent(agent)}
-                          className={`w-6 h-6 rounded ${visuals.dot} ${
-                            selectedAgentId === agent.agent_id
-                              ? 'ring-2 ring-primary'
-                              : ''
-                          } ${isUrgent ? 'ring-2 ring-red-500' : ''} ${getClassFill(agent)} ${visuals.pulse}`}
+                          className={visuals.pulse || undefined}
+                          style={{
+                            width: '1.5rem',
+                            height: '1.5rem',
+                            borderRadius: 'var(--nous-radius-xs)',
+                            ...visuals.dotStyle,
+                            ...getClassFillStyle(agent),
+                            ...(isSelected ? { boxShadow: '0 0 0 2px var(--nous-accent)' } : {}),
+                            ...(isUrgent ? { boxShadow: '0 0 0 2px #ef4444' } : {}),
+                          }}
                           aria-label={resolveAgentLabel(agent)}
                           onMouseEnter={() => setHoveredId(agent.agent_id)}
                           onMouseLeave={() => setHoveredId(null)}
@@ -280,19 +287,28 @@ export function MaoLeaseTree({
                           type="button"
                           data-agent-id={agent.agent_id}
                           onClick={() => onSelectAgent(agent)}
-                          className={`flex items-center gap-1 rounded border px-1.5 py-1 text-xs transition-colors hover:bg-muted/30 ${
-                            selectedAgentId === agent.agent_id
-                              ? 'border-primary bg-primary/10'
-                              : getClassFill(agent)
-                          } ${isUrgent ? 'border-2 border-red-500' : ''} ${visuals.pulse}`}
+                          className={visuals.pulse || undefined}
+                          style={{
+                            display: 'flex',
+                            alignItems: 'center',
+                            gap: 'var(--nous-space-2xs)',
+                            borderRadius: 'var(--nous-radius-xs)',
+                            border: '1px solid',
+                            paddingInline: '6px',
+                            paddingBlock: 'var(--nous-space-2xs)',
+                            fontSize: 'var(--nous-font-size-xs)',
+                            transition: 'background-color 0.15s',
+                            ...(isSelected
+                              ? { borderColor: 'var(--nous-accent)', backgroundColor: 'rgba(0,122,204,0.1)' }
+                              : getClassFillStyle(agent)),
+                            ...(isUrgent ? { borderWidth: '2px', borderStyle: 'solid', borderColor: '#ef4444' } : {}),
+                          }}
                           aria-label={resolveAgentLabel(agent)}
                           onMouseEnter={() => setHoveredId(agent.agent_id)}
                           onMouseLeave={() => setHoveredId(null)}
                         >
-                          <span
-                            className={`inline-block w-2 h-2 rounded-full ${visuals.dot}`}
-                          />
-                          <span className="truncate max-w-24">
+                          <span style={{ display: 'inline-block', width: '0.5rem', height: '0.5rem', borderRadius: '9999px', ...visuals.dotStyle }} />
+                          <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', maxWidth: '6rem' }}>
                             {resolveAgentLabel(agent)}
                           </span>
                           {isUrgent && (
@@ -309,42 +325,56 @@ export function MaoLeaseTree({
                         type="button"
                         data-agent-id={agent.agent_id}
                         onClick={() => onSelectAgent(agent)}
-                        className={`rounded-lg border text-left transition-colors hover:bg-muted/20 ${rootTileSizeClasses(effectiveDensity)} ${
-                          selectedAgentId === agent.agent_id
-                            ? 'border-primary bg-primary/10'
-                            : `border-border bg-background`
-                        } ${visuals.pulse}`}
+                        className={visuals.pulse || undefined}
+                        style={{
+                          borderRadius: 'var(--nous-radius-md)',
+                          border: '1px solid',
+                          textAlign: 'left',
+                          transition: 'background-color 0.15s',
+                          ...rootTileSizeStyle(effectiveDensity),
+                          ...(isSelected
+                            ? { borderColor: 'var(--nous-accent)', backgroundColor: 'rgba(0,122,204,0.1)' }
+                            : { borderColor: 'var(--nous-border-subtle)', backgroundColor: 'var(--nous-bg)' }),
+                        }}
                         aria-label={resolveAgentLabel(agent)}
                         onMouseEnter={() => setHoveredId(agent.agent_id)}
                         onMouseLeave={() => setHoveredId(null)}
                       >
-                        <div className="flex items-start justify-between gap-2">
-                          <div className="min-w-0">
-                            <div className="flex items-center gap-1.5 truncate text-sm font-medium">
+                        <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', gap: 'var(--nous-space-sm)' }}>
+                          <div style={{ minWidth: 0 }}>
+                            <div style={{ display: 'flex', alignItems: 'center', gap: '6px', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', fontSize: 'var(--nous-font-size-sm)', fontWeight: 500 }}>
                               {resolveAgentLabel(agent)}
                               {agent.agent_class && (
                                 <span
-                                  className={`inline-flex items-center rounded-sm px-1 py-0.5 text-[10px] font-medium leading-none ${(AGENT_CLASS_COLORS[agent.agent_class] ?? FALLBACK_CLASS_COLOR).fill}`}
+                                  style={{
+                                    display: 'inline-flex',
+                                    alignItems: 'center',
+                                    borderRadius: 'var(--nous-radius-xs)',
+                                    paddingInline: 'var(--nous-space-2xs)',
+                                    paddingBlock: '2px',
+                                    fontSize: '10px',
+                                    fontWeight: 500,
+                                    lineHeight: 1,
+                                    ...(AGENT_CLASS_COLORS[agent.agent_class] ?? FALLBACK_CLASS_COLOR).fillStyle,
+                                  }}
                                   data-testid="agent-class-badge"
                                 >
                                   {(AGENT_CLASS_COLORS[agent.agent_class] ?? FALLBACK_CLASS_COLOR).label}
                                 </span>
                               )}
                             </div>
-                            <div className="mt-1 text-xs text-muted-foreground">
+                            <div style={{ marginTop: 'var(--nous-space-2xs)', fontSize: 'var(--nous-font-size-xs)', color: 'var(--nous-fg-muted)' }}>
                               {agent.state}
                             </div>
                           </div>
-                          <span
-                            className={`inline-block w-2.5 h-2.5 rounded-full mt-1 ${visuals.dot}`}
-                          />
+                          <span style={{ display: 'inline-block', width: '0.625rem', height: '0.625rem', borderRadius: '9999px', marginTop: 'var(--nous-space-2xs)', ...visuals.dotStyle }} />
                         </div>
                       </button>
                     );
                   })}
                 </div>
               ) : (
-                <div className="flex flex-wrap gap-4">
+                <div style={{ display: 'flex', flexWrap: 'wrap', gap: 'var(--nous-space-2xl)' }}>
                   {row.groups.map((group) => (
                     <MaoWorkflowGroupCard
                       key={group.parentId ?? 'orphan'}

@@ -28,7 +28,7 @@ export interface MaoEdgeConnectorProps {
 interface ComputedEdge {
   key: string;
   path: string;
-  strokeClass: string;
+  strokeColor: string;
 }
 
 function computeEdgePath(
@@ -45,9 +45,9 @@ function computeEdgePath(
   return `M ${x1} ${y1} L ${x1} ${yMid} L ${x2} ${yMid} L ${x2} ${y2}`;
 }
 
-function getStrokeClass(parentAgentClass?: string): string {
+function getStrokeColor(parentAgentClass?: string): string {
   const color = AGENT_CLASS_COLORS[parentAgentClass ?? ''];
-  return color ? color.stroke : FALLBACK_CLASS_COLOR.stroke;
+  return color ? color.strokeColor : FALLBACK_CLASS_COLOR.strokeColor;
 }
 
 export function MaoEdgeConnector({
@@ -93,7 +93,7 @@ export function MaoEdgeConnector({
         result.push({
           key: `${edge.parentId}-${edge.childId}`,
           path: computeEdgePath(parentRect, childRect, containerRect),
-          strokeClass: getStrokeClass(edge.parentAgentClass),
+          strokeColor: getStrokeColor(edge.parentAgentClass),
         });
       }
 
@@ -122,16 +122,21 @@ export function MaoEdgeConnector({
       ref={svgRef}
       data-testid="edge-connector-svg"
       data-animation-state={animationState}
-      className="absolute inset-0 pointer-events-none z-0"
-      style={hidden ? { display: 'none' } : undefined}
+      style={{
+        position: 'absolute',
+        inset: 0,
+        pointerEvents: 'none',
+        zIndex: 0,
+        ...(hidden ? { display: 'none' } : {}),
+      }}
       aria-hidden="true"
     >
       {computedEdges.map((edge) => (
         <path
           key={edge.key}
           d={edge.path}
-          className={edge.strokeClass}
           fill="none"
+          stroke={edge.strokeColor}
           strokeWidth={1.5}
           opacity={0.6}
           data-testid="edge-path"

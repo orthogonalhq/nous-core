@@ -201,7 +201,7 @@ export function SimpleShellLayout({
 
             <div
                 data-shell-area="observe"
-                style={{ gridArea: 'observe', overflow: 'hidden' }}
+                style={{ gridArea: 'observe', overflow: 'hidden', position: 'relative', zIndex: 1 }}
             >
                 <CollapsibleObserveEdge
                     width={observeWidth}

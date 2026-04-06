@@ -1,13 +1,21 @@
+import type { CSSProperties } from 'react';
 import type { MaoAgentLifecycleState } from '@nous/shared';
 
+/**
+ * Visual properties for a given MAO agent lifecycle state.
+ * All colour values reference CSS custom properties from tokens.css.
+ */
 export interface StateColorResult {
-  /** Tailwind bg class for dot/square */
-  dot: string;
-  /** Tailwind border + bg classes for tile tone */
-  tone: string;
-  /** CSS utility class for motion pulse (empty string = no pulse) */
+  /** Inline style for state dot/square: { backgroundColor: 'var(--nous-state-*)' } */
+  dotStyle: CSSProperties;
+  /**
+   * Inline style for tile tone surface:
+   * { borderColor: 'var(--nous-state-*-tone-border)', backgroundColor: 'var(--nous-state-*-tone-bg)' }
+   */
+  toneStyle: CSSProperties;
+  /** CSS utility class for motion pulse animation. Empty string means no pulse. */
   pulse: string;
-  /** true for completed, canceled, hard_stopped */
+  /** True for terminal states: completed, canceled, hard_stopped. */
   isTerminal: boolean;
 }
 
@@ -21,52 +29,73 @@ export function getStateVisuals(state: MaoAgentLifecycleState): StateColorResult
     case 'running':
     case 'resuming':
       return {
-        dot: 'bg-emerald-500',
-        tone: 'border-emerald-500/40 bg-emerald-500/10',
+        dotStyle: { backgroundColor: 'var(--nous-state-active)' },
+        toneStyle: {
+          borderColor: 'var(--nous-state-active-tone-border)',
+          backgroundColor: 'var(--nous-state-active-tone-bg)',
+        },
         pulse: 'nous-state-pulse-subtle',
         isTerminal: false,
       };
     case 'blocked':
     case 'waiting_pfc':
       return {
-        dot: 'bg-amber-500',
-        tone: 'border-amber-500/40 bg-amber-500/10',
+        dotStyle: { backgroundColor: 'var(--nous-state-waiting)' },
+        toneStyle: {
+          borderColor: 'var(--nous-state-waiting-tone-border)',
+          backgroundColor: 'var(--nous-state-waiting-tone-bg)',
+        },
         pulse: 'nous-state-pulse-strong',
         isTerminal: false,
       };
     case 'failed':
       return {
-        dot: 'bg-red-500',
-        tone: 'border-red-500/40 bg-red-500/10',
+        dotStyle: { backgroundColor: 'var(--nous-state-blocked)' },
+        toneStyle: {
+          borderColor: 'var(--nous-state-blocked-tone-border)',
+          backgroundColor: 'var(--nous-state-blocked-tone-bg)',
+        },
         pulse: 'nous-state-pulse-strong',
         isTerminal: false,
       };
     case 'completed':
       return {
-        dot: 'bg-slate-400',
-        tone: 'border-slate-500/40 bg-slate-500/10',
+        dotStyle: { backgroundColor: 'var(--nous-state-complete)' },
+        toneStyle: {
+          borderColor: 'var(--nous-state-complete-tone-border)',
+          backgroundColor: 'var(--nous-state-complete-tone-bg)',
+        },
         pulse: '',
         isTerminal: true,
       };
     case 'canceled':
       return {
-        dot: 'bg-slate-500',
-        tone: 'border-slate-500/40 bg-slate-500/10',
+        dotStyle: { backgroundColor: 'var(--nous-state-idle)' },
+        toneStyle: {
+          borderColor: 'var(--nous-state-idle-tone-border)',
+          backgroundColor: 'var(--nous-state-idle-tone-bg)',
+        },
         pulse: '',
         isTerminal: true,
       };
     case 'hard_stopped':
       return {
-        dot: 'bg-red-700',
-        tone: 'border-red-700/40 bg-red-700/10',
+        dotStyle: { backgroundColor: 'var(--nous-state-blocked)' },
+        toneStyle: {
+          borderColor: 'var(--nous-state-blocked-tone-border)',
+          backgroundColor: 'var(--nous-state-blocked-tone-bg)',
+        },
         pulse: '',
         isTerminal: true,
       };
     default:
       // paused, queued, ready, waiting_async
       return {
-        dot: 'bg-slate-400',
-        tone: 'border-border bg-background',
+        dotStyle: { backgroundColor: 'var(--nous-state-idle)' },
+        toneStyle: {
+          borderColor: 'var(--nous-state-idle-tone-border)',
+          backgroundColor: 'var(--nous-state-idle-tone-bg)',
+        },
         pulse: '',
         isTerminal: false,
       };

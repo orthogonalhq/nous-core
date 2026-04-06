@@ -1,42 +1,45 @@
 'use client';
 
 import * as React from 'react';
+import type { CSSProperties } from 'react';
 import type { MaoAgentProjection, MaoDensityMode } from '@nous/shared';
 import { getStateVisuals } from './mao-state-utils';
 
 /** Agent class color mapping for edge connectors and tile accents */
 export interface AgentClassColor {
-  stroke: string;
-  fill: string;
+  /** SVG stroke color value */
+  strokeColor: string;
+  /** Inline style for tile fill surface */
+  fillStyle: CSSProperties;
   label: string;
 }
 
 export const AGENT_CLASS_COLORS: Record<string, AgentClassColor> = {
   'Cortex::Principal': {
-    stroke: 'stroke-blue-500',
-    fill: 'bg-blue-500/10 border-blue-500/40',
+    strokeColor: '#3b82f6',
+    fillStyle: { backgroundColor: 'rgba(59,130,246,0.1)', borderColor: 'rgba(59,130,246,0.4)' },
     label: 'Principal',
   },
   'Cortex::System': {
-    stroke: 'stroke-violet-500',
-    fill: 'bg-violet-500/10 border-violet-500/40',
+    strokeColor: '#8b5cf6',
+    fillStyle: { backgroundColor: 'rgba(139,92,246,0.1)', borderColor: 'rgba(139,92,246,0.4)' },
     label: 'System',
   },
   Orchestrator: {
-    stroke: 'stroke-amber-500',
-    fill: 'bg-amber-500/10 border-amber-500/40',
+    strokeColor: '#f59e0b',
+    fillStyle: { backgroundColor: 'rgba(245,158,11,0.1)', borderColor: 'rgba(245,158,11,0.4)' },
     label: 'Orchestrator',
   },
   Worker: {
-    stroke: 'stroke-emerald-500',
-    fill: 'bg-emerald-500/10 border-emerald-500/40',
+    strokeColor: '#10b981',
+    fillStyle: { backgroundColor: 'rgba(16,185,129,0.1)', borderColor: 'rgba(16,185,129,0.4)' },
     label: 'Worker',
   },
 };
 
 export const FALLBACK_CLASS_COLOR: AgentClassColor = {
-  stroke: 'stroke-slate-400',
-  fill: 'bg-slate-500/10 border-slate-500/40',
+  strokeColor: '#94a3b8',
+  fillStyle: { backgroundColor: 'rgba(100,116,139,0.1)', borderColor: 'rgba(100,116,139,0.4)' },
   label: 'Agent',
 };
 
@@ -54,19 +57,19 @@ function getClassColor(agent: MaoAgentProjection): AgentClassColor {
   return AGENT_CLASS_COLORS[agent.agent_class ?? ''] ?? FALLBACK_CLASS_COLOR;
 }
 
-function tileSizeClasses(densityMode: MaoDensityMode): string {
+function tileSizeStyle(densityMode: MaoDensityMode): CSSProperties {
   switch (densityMode) {
     case 'D0':
     case 'D1':
-      return 'min-w-64 p-4';
+      return { minWidth: '16rem', padding: 'var(--nous-space-2xl)' };
     case 'D2':
-      return 'min-w-48 p-3';
+      return { minWidth: '12rem', padding: 'var(--nous-space-xl)' };
     case 'D3':
-      return 'min-w-16 p-1.5';
+      return { minWidth: '4rem', padding: '6px' };
     case 'D4':
-      return 'w-6 h-6';
+      return { width: '1.5rem', height: '1.5rem' };
     default:
-      return 'min-w-48 p-3';
+      return { minWidth: '12rem', padding: 'var(--nous-space-xl)' };
   }
 }
 
@@ -79,7 +82,7 @@ function UrgentIcon() {
       viewBox="0 0 8 8"
       fill="none"
       xmlns="http://www.w3.org/2000/svg"
-      className="text-red-500 shrink-0"
+      style={{ color: '#ef4444', flexShrink: 0 }}
       aria-hidden="true"
     >
       <circle cx="4" cy="4" r="4" fill="currentColor" />
@@ -109,7 +112,13 @@ export function MaoWorkflowGroupCard({
   if (densityMode === 'D4') {
     return (
       <div
-        className={`relative rounded border ${classColor.fill} p-1`}
+        style={{
+          position: 'relative',
+          borderRadius: 'var(--nous-radius-xs)',
+          border: '1px solid',
+          padding: 'var(--nous-space-2xs)',
+          ...classColor.fillStyle,
+        }}
         data-testid="workflow-group-card"
       >
         {/* Orchestrator tile — D4 with hover-expand to D3 */}
@@ -119,22 +128,32 @@ export function MaoWorkflowGroupCard({
           const orchUrgent = orchestrator.urgency_level === 'urgent';
 
           if (isHovered) {
-            // Hover-expand: render D3 compact markup
             return (
               <button
                 type="button"
                 data-agent-id={orchestrator.agent_id}
                 onClick={() => onSelectAgent(orchestrator)}
-                className={`inline-flex items-center gap-1 rounded px-1 py-0.5 text-xs font-medium transition-colors hover:bg-muted/30 ${
-                  selectedAgentId === orchestrator.agent_id ? 'ring-1 ring-primary' : ''
-                } ${orchUrgent ? 'border-2 border-red-500' : ''} ${orchVisuals.pulse}`}
+                className={orchVisuals.pulse || undefined}
+                style={{
+                  display: 'inline-flex',
+                  alignItems: 'center',
+                  gap: 'var(--nous-space-2xs)',
+                  borderRadius: 'var(--nous-radius-xs)',
+                  paddingInline: 'var(--nous-space-2xs)',
+                  paddingBlock: '2px',
+                  fontSize: 'var(--nous-font-size-xs)',
+                  fontWeight: 500,
+                  transition: 'background-color 0.15s',
+                  ...(selectedAgentId === orchestrator.agent_id ? { boxShadow: '0 0 0 1px var(--nous-accent)' } : {}),
+                  ...(orchUrgent ? { borderWidth: '2px', borderStyle: 'solid', borderColor: '#ef4444' } : {}),
+                }}
                 aria-label={resolveAgentLabel(orchestrator)}
                 onMouseEnter={() => setHoveredId(orchestrator.agent_id)}
                 onMouseLeave={() => setHoveredId(null)}
                 data-testid="hover-expand-tile"
               >
-                <span className={`inline-block w-2 h-2 rounded-full ${orchVisuals.dot}`} />
-                <span className="truncate max-w-24">
+                <span style={{ display: 'inline-block', width: '0.5rem', height: '0.5rem', borderRadius: '9999px', ...orchVisuals.dotStyle }} />
+                <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', maxWidth: '6rem' }}>
                   {resolveAgentLabel(orchestrator)}
                 </span>
                 {orchUrgent && <UrgentIcon />}
@@ -147,9 +166,15 @@ export function MaoWorkflowGroupCard({
               type="button"
               data-agent-id={orchestrator.agent_id}
               onClick={() => onSelectAgent(orchestrator)}
-              className={`w-6 h-6 rounded ${orchVisuals.dot} ${
-                selectedAgentId === orchestrator.agent_id ? 'ring-2 ring-primary' : ''
-              } ${orchUrgent ? 'ring-2 ring-red-500' : ''} ${orchVisuals.pulse}`}
+              className={orchVisuals.pulse || undefined}
+              style={{
+                width: '1.5rem',
+                height: '1.5rem',
+                borderRadius: 'var(--nous-radius-xs)',
+                ...orchVisuals.dotStyle,
+                ...(selectedAgentId === orchestrator.agent_id ? { boxShadow: '0 0 0 2px var(--nous-accent)' } : {}),
+                ...(orchUrgent ? { boxShadow: '0 0 0 2px #ef4444' } : {}),
+              }}
               aria-label={resolveAgentLabel(orchestrator)}
               onMouseEnter={() => setHoveredId(orchestrator.agent_id)}
               onMouseLeave={() => setHoveredId(null)}
@@ -157,30 +182,39 @@ export function MaoWorkflowGroupCard({
           );
         })()}
 
-        <div className="flex flex-wrap gap-0.5 mt-0.5">
+        <div style={{ display: 'flex', flexWrap: 'wrap', gap: '2px', marginTop: '2px' }}>
           {workers.map((w) => {
             const isHovered = hoveredId === w.agent_id;
             const wVisuals = getStateVisuals(w.state);
             const wUrgent = w.urgency_level === 'urgent';
 
             if (isHovered) {
-              // Hover-expand: render D3 compact markup
               return (
-                <div key={w.agent_id} className="relative">
+                <div key={w.agent_id} style={{ position: 'relative' }}>
                   <button
                     type="button"
                     data-agent-id={w.agent_id}
                     onClick={() => onSelectAgent(w)}
-                    className={`inline-flex items-center gap-1 rounded px-1 py-0.5 text-xs transition-colors hover:bg-muted/30 ${
-                      selectedAgentId === w.agent_id ? 'ring-1 ring-primary' : ''
-                    } ${wUrgent ? 'border-2 border-red-500' : ''} ${wVisuals.pulse}`}
+                    className={wVisuals.pulse || undefined}
+                    style={{
+                      display: 'inline-flex',
+                      alignItems: 'center',
+                      gap: 'var(--nous-space-2xs)',
+                      borderRadius: 'var(--nous-radius-xs)',
+                      paddingInline: 'var(--nous-space-2xs)',
+                      paddingBlock: '2px',
+                      fontSize: 'var(--nous-font-size-xs)',
+                      transition: 'background-color 0.15s',
+                      ...(selectedAgentId === w.agent_id ? { boxShadow: '0 0 0 1px var(--nous-accent)' } : {}),
+                      ...(wUrgent ? { borderWidth: '2px', borderStyle: 'solid', borderColor: '#ef4444' } : {}),
+                    }}
                     aria-label={resolveAgentLabel(w)}
                     onMouseEnter={() => setHoveredId(w.agent_id)}
                     onMouseLeave={() => setHoveredId(null)}
                     data-testid="hover-expand-tile"
                   >
-                    <span className={`inline-block w-2 h-2 rounded-full ${wVisuals.dot}`} />
-                    <span className="truncate max-w-24 text-[10px]">{resolveAgentLabel(w)}</span>
+                    <span style={{ display: 'inline-block', width: '0.5rem', height: '0.5rem', borderRadius: '9999px', ...wVisuals.dotStyle }} />
+                    <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', maxWidth: '6rem', fontSize: '10px' }}>{resolveAgentLabel(w)}</span>
                     {wUrgent && <UrgentIcon />}
                   </button>
                 </div>
@@ -188,14 +222,20 @@ export function MaoWorkflowGroupCard({
             }
 
             return (
-              <div key={w.agent_id} className="relative">
+              <div key={w.agent_id} style={{ position: 'relative' }}>
                 <button
                   type="button"
                   data-agent-id={w.agent_id}
                   onClick={() => onSelectAgent(w)}
-                  className={`w-6 h-6 rounded ${wVisuals.dot} ${
-                    selectedAgentId === w.agent_id ? 'ring-2 ring-primary' : ''
-                  } ${wUrgent ? 'ring-2 ring-red-500' : ''} ${wVisuals.pulse}`}
+                  className={wVisuals.pulse || undefined}
+                  style={{
+                    width: '1.5rem',
+                    height: '1.5rem',
+                    borderRadius: 'var(--nous-radius-xs)',
+                    ...wVisuals.dotStyle,
+                    ...(selectedAgentId === w.agent_id ? { boxShadow: '0 0 0 2px var(--nous-accent)' } : {}),
+                    ...(wUrgent ? { boxShadow: '0 0 0 2px #ef4444' } : {}),
+                  }}
                   aria-label={resolveAgentLabel(w)}
                   onMouseEnter={() => setHoveredId(w.agent_id)}
                   onMouseLeave={() => setHoveredId(null)}
@@ -204,7 +244,7 @@ export function MaoWorkflowGroupCard({
             );
           })}
         </div>
-        <span className="text-[10px] text-muted-foreground">
+        <span style={{ fontSize: '10px', color: 'var(--nous-fg-muted)' }}>
           {workers.length + 1}
         </span>
       </div>
@@ -214,7 +254,12 @@ export function MaoWorkflowGroupCard({
   if (densityMode === 'D3') {
     return (
       <div
-        className={`rounded border ${classColor.fill} p-1.5`}
+        style={{
+          borderRadius: 'var(--nous-radius-xs)',
+          border: '1px solid',
+          padding: '6px',
+          ...classColor.fillStyle,
+        }}
         data-testid="workflow-group-card"
       >
         {(() => {
@@ -225,15 +270,26 @@ export function MaoWorkflowGroupCard({
               type="button"
               data-agent-id={orchestrator.agent_id}
               onClick={() => onSelectAgent(orchestrator)}
-              className={`flex items-center gap-1 rounded px-1 py-0.5 text-xs font-medium transition-colors hover:bg-muted/30 ${
-                selectedAgentId === orchestrator.agent_id ? 'ring-1 ring-primary' : ''
-              } ${orchUrgent ? 'border-2 border-red-500' : ''} ${orchVisuals.pulse}`}
+              className={orchVisuals.pulse || undefined}
+              style={{
+                display: 'flex',
+                alignItems: 'center',
+                gap: 'var(--nous-space-2xs)',
+                borderRadius: 'var(--nous-radius-xs)',
+                paddingInline: 'var(--nous-space-2xs)',
+                paddingBlock: '2px',
+                fontSize: 'var(--nous-font-size-xs)',
+                fontWeight: 500,
+                transition: 'background-color 0.15s',
+                ...(selectedAgentId === orchestrator.agent_id ? { boxShadow: '0 0 0 1px var(--nous-accent)' } : {}),
+                ...(orchUrgent ? { borderWidth: '2px', borderStyle: 'solid', borderColor: '#ef4444' } : {}),
+              }}
               aria-label={resolveAgentLabel(orchestrator)}
               onMouseEnter={() => setHoveredId(orchestrator.agent_id)}
               onMouseLeave={() => setHoveredId(null)}
             >
-              <span className={`inline-block w-2 h-2 rounded-full ${orchVisuals.dot}`} />
-              <span className="truncate max-w-24">
+              <span style={{ display: 'inline-block', width: '0.5rem', height: '0.5rem', borderRadius: '9999px', ...orchVisuals.dotStyle }} />
+              <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', maxWidth: '6rem' }}>
                 {hoveredId === orchestrator.agent_id
                   ? resolveAgentLabel(orchestrator)
                   : resolveAgentLabel(orchestrator).slice(0, 12)}
@@ -244,7 +300,7 @@ export function MaoWorkflowGroupCard({
             </button>
           );
         })()}
-        <div className="flex flex-wrap gap-1 mt-1">
+        <div style={{ display: 'flex', flexWrap: 'wrap', gap: 'var(--nous-space-2xs)', marginTop: 'var(--nous-space-2xs)' }}>
           {workers.map((w) => {
             const wVisuals = getStateVisuals(w.state);
             const wUrgent = w.urgency_level === 'urgent';
@@ -254,16 +310,26 @@ export function MaoWorkflowGroupCard({
                 type="button"
                 data-agent-id={w.agent_id}
                 onClick={() => onSelectAgent(w)}
-                className={`inline-flex items-center gap-1 rounded px-1 py-0.5 text-xs transition-colors hover:bg-muted/30 ${
-                  selectedAgentId === w.agent_id ? 'ring-1 ring-primary' : ''
-                } ${wUrgent ? 'border-2 border-red-500' : ''} ${wVisuals.pulse}`}
+                className={wVisuals.pulse || undefined}
+                style={{
+                  display: 'inline-flex',
+                  alignItems: 'center',
+                  gap: 'var(--nous-space-2xs)',
+                  borderRadius: 'var(--nous-radius-xs)',
+                  paddingInline: 'var(--nous-space-2xs)',
+                  paddingBlock: '2px',
+                  fontSize: 'var(--nous-font-size-xs)',
+                  transition: 'background-color 0.15s',
+                  ...(selectedAgentId === w.agent_id ? { boxShadow: '0 0 0 1px var(--nous-accent)' } : {}),
+                  ...(wUrgent ? { borderWidth: '2px', borderStyle: 'solid', borderColor: '#ef4444' } : {}),
+                }}
                 aria-label={resolveAgentLabel(w)}
                 onMouseEnter={() => setHoveredId(w.agent_id)}
                 onMouseLeave={() => setHoveredId(null)}
               >
-                <span className={`inline-block w-2 h-2 rounded-full ${wVisuals.dot}`} />
+                <span style={{ display: 'inline-block', width: '0.5rem', height: '0.5rem', borderRadius: '9999px', ...wVisuals.dotStyle }} />
                 {hoveredId === w.agent_id && (
-                  <span className="truncate max-w-24 text-[10px]">{resolveAgentLabel(w)}</span>
+                  <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', maxWidth: '6rem', fontSize: '10px' }}>{resolveAgentLabel(w)}</span>
                 )}
                 {wUrgent && (
                   <span data-testid="urgent-indicator"><UrgentIcon /></span>
@@ -278,38 +344,52 @@ export function MaoWorkflowGroupCard({
 
   // D0, D1, D2 — full card rendering
   const isLarge = densityMode === 'D1' || densityMode === 'D0';
-  const tileSize = tileSizeClasses(densityMode);
+  const tileSize = tileSizeStyle(densityMode);
 
   return (
     <div
-      className={`rounded-lg border ${classColor.fill} ${isLarge ? 'p-4' : 'p-3'}`}
+      style={{
+        borderRadius: 'var(--nous-radius-md)',
+        border: '1px solid',
+        padding: isLarge ? 'var(--nous-space-2xl)' : 'var(--nous-space-xl)',
+        ...classColor.fillStyle,
+      }}
       data-testid="workflow-group-card"
     >
       {/* Orchestrator — header */}
       {(() => {
         const orchVisuals = getStateVisuals(orchestrator.state);
+        const isSelected = selectedAgentId === orchestrator.agent_id;
         return (
           <button
             type="button"
             data-agent-id={orchestrator.agent_id}
             onClick={() => onSelectAgent(orchestrator)}
-            className={`w-full rounded-lg border p-3 text-left transition-colors hover:bg-muted/20 ${
-              selectedAgentId === orchestrator.agent_id
-                ? 'border-primary bg-primary/10'
-                : 'border-border bg-background'
-            } ${tileSize} ${orchVisuals.pulse}`}
+            className={orchVisuals.pulse || undefined}
+            style={{
+              width: '100%',
+              borderRadius: 'var(--nous-radius-md)',
+              border: '1px solid',
+              padding: 'var(--nous-space-xl)',
+              textAlign: 'left',
+              transition: 'background-color 0.15s',
+              ...(isSelected
+                ? { borderColor: 'var(--nous-accent)', backgroundColor: 'rgba(0,122,204,0.1)' }
+                : { borderColor: 'var(--nous-border-subtle)', backgroundColor: 'var(--nous-bg)' }),
+              ...tileSize,
+            }}
             aria-label={resolveAgentLabel(orchestrator)}
           >
-            <div className="flex items-start justify-between gap-2">
-              <div className="min-w-0">
-                <div className="truncate text-sm font-medium">
+            <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', gap: 'var(--nous-space-sm)' }}>
+              <div style={{ minWidth: 0 }}>
+                <div style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', fontSize: 'var(--nous-font-size-sm)', fontWeight: 500 }}>
                   {resolveAgentLabel(orchestrator)}
                 </div>
-                <div className="mt-1 text-xs text-muted-foreground">
+                <div style={{ marginTop: 'var(--nous-space-2xs)', fontSize: 'var(--nous-font-size-xs)', color: 'var(--nous-fg-muted)' }}>
                   {orchestrator.state}
                 </div>
               </div>
-              <span className={`inline-block w-2.5 h-2.5 rounded-full mt-1 ${orchVisuals.dot}`} />
+              <span style={{ display: 'inline-block', width: '0.625rem', height: '0.625rem', borderRadius: '9999px', marginTop: 'var(--nous-space-2xs)', ...orchVisuals.dotStyle }} />
             </div>
           </button>
         );
@@ -317,32 +397,40 @@ export function MaoWorkflowGroupCard({
 
       {/* Workers — horizontal flex-wrap */}
       {workers.length > 0 && (
-        <div className="flex flex-wrap gap-2 mt-2" data-testid="workers-container">
+        <div style={{ display: 'flex', flexWrap: 'wrap', gap: 'var(--nous-space-sm)', marginTop: 'var(--nous-space-sm)' }} data-testid="workers-container">
           {workers.map((w) => {
             const wVisuals = getStateVisuals(w.state);
+            const isSelected = selectedAgentId === w.agent_id;
             return (
               <button
                 key={w.agent_id}
                 type="button"
                 data-agent-id={w.agent_id}
                 onClick={() => onSelectAgent(w)}
-                className={`rounded-lg border p-2 text-left transition-colors hover:bg-muted/20 ${
-                  selectedAgentId === w.agent_id
-                    ? 'border-primary bg-primary/10'
-                    : 'border-border bg-background'
-                } ${tileSize} ${wVisuals.pulse}`}
+                className={wVisuals.pulse || undefined}
+                style={{
+                  borderRadius: 'var(--nous-radius-md)',
+                  border: '1px solid',
+                  padding: 'var(--nous-space-sm)',
+                  textAlign: 'left',
+                  transition: 'background-color 0.15s',
+                  ...(isSelected
+                    ? { borderColor: 'var(--nous-accent)', backgroundColor: 'rgba(0,122,204,0.1)' }
+                    : { borderColor: 'var(--nous-border-subtle)', backgroundColor: 'var(--nous-bg)' }),
+                  ...tileSize,
+                }}
                 aria-label={resolveAgentLabel(w)}
               >
-                <div className="flex items-start justify-between gap-2">
-                  <div className="min-w-0">
-                    <div className="truncate text-sm font-medium">
+                <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', gap: 'var(--nous-space-sm)' }}>
+                  <div style={{ minWidth: 0 }}>
+                    <div style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', fontSize: 'var(--nous-font-size-sm)', fontWeight: 500 }}>
                       {resolveAgentLabel(w)}
                     </div>
-                    <div className="mt-1 text-xs text-muted-foreground">
+                    <div style={{ marginTop: 'var(--nous-space-2xs)', fontSize: 'var(--nous-font-size-xs)', color: 'var(--nous-fg-muted)' }}>
                       {w.state}
                     </div>
                   </div>
-                  <span className={`inline-block w-2 h-2 rounded-full mt-1 ${wVisuals.dot}`} />
+                  <span style={{ display: 'inline-block', width: '0.5rem', height: '0.5rem', borderRadius: '9999px', marginTop: 'var(--nous-space-2xs)', ...wVisuals.dotStyle }} />
                 </div>
               </button>
             );

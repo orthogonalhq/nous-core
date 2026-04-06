@@ -8,9 +8,9 @@ import { MaoServicesProvider } from './mao-services-context';
 import type { MaoServicesContextValue } from './mao-services-context';
 
 /** Inert link — MAO deep links are rendered as plain text in panel context. */
-function InertLink(props: { href: string; className?: string; children: React.ReactNode }) {
+function InertLink(props: { href: string; className?: string; style?: React.CSSProperties; children: React.ReactNode }) {
   return (
-    <span className={props.className} style={{ cursor: 'default' }}>
+    <span className={props.className} style={{ cursor: 'default', ...props.style }}>
       {props.children}
     </span>
   );

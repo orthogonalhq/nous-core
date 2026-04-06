@@ -22,22 +22,35 @@ export function MaoRunGraph({
   selectedNodeId,
   onSelectNode,
 }: MaoRunGraphProps) {
+  const sectionStyle: React.CSSProperties = {
+    display: 'flex',
+    flexDirection: 'column',
+    gap: 'var(--nous-space-sm)',
+  };
+
+  const cellBase: React.CSSProperties = {
+    borderRadius: 'var(--nous-radius-sm)',
+    border: '1px solid var(--nous-border-subtle)',
+    paddingInline: 'var(--nous-space-md)',
+    paddingBlock: 'var(--nous-space-sm)',
+  };
+
   return (
     <Card>
-      <CardHeader className="border-b border-border">
-        <CardTitle className="flex items-center justify-between gap-3 text-base">
+      <CardHeader style={{ borderBottom: '1px solid var(--nous-border-subtle)' }}>
+        <CardTitle style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 'var(--nous-space-md)', fontSize: 'var(--nous-font-size-base)' }}>
           <span>Run graph</span>
-          <div className="flex flex-wrap gap-2">
+          <div style={{ display: 'flex', flexWrap: 'wrap', gap: 'var(--nous-space-sm)' }}>
             <Badge variant="outline">{graph.nodes.length} nodes</Badge>
             <Badge variant="outline">{graph.edges.length} edges</Badge>
           </div>
         </CardTitle>
       </CardHeader>
-      <CardContent className="grid gap-4 pt-4 xl:grid-cols-[minmax(0,1fr)_minmax(0,1fr)]">
-        <div className="space-y-2">
-          <div className="text-sm font-medium">Nodes</div>
+      <CardContent style={{ display: 'flex', flexDirection: 'column', gap: 'var(--nous-space-lg)', paddingTop: 'var(--nous-space-lg)' }}>
+        <div style={sectionStyle}>
+          <div style={{ fontSize: 'var(--nous-font-size-sm)', fontWeight: 500 }}>Nodes</div>
           {!graph.nodes.length ? (
-            <p className="text-sm text-muted-foreground">
+            <p style={{ fontSize: 'var(--nous-font-size-sm)', color: 'var(--nous-fg-muted)' }}>
               No graph nodes are available for the selected run.
             </p>
           ) : (
@@ -47,15 +60,14 @@ export function MaoRunGraph({
                 (selectedNodeId === node.workflowNodeDefinitionId ||
                   selectedNodeId === node.id);
 
-              // State-based color coding for nodes
-              const stateClasses = node.state
+              const stateVisuals = node.state
                 ? getStateVisuals(node.state)
                 : null;
-              const nodeClasses = active
-                ? 'border-primary bg-primary/10'
-                : stateClasses
-                  ? `${stateClasses.tone} hover:bg-muted/20`
-                  : 'border-border hover:bg-muted/20';
+              const nodeStyle: React.CSSProperties = active
+                ? { borderColor: 'var(--nous-accent)', backgroundColor: 'rgba(0,122,204,0.1)' }
+                : stateVisuals
+                  ? { ...stateVisuals.toneStyle }
+                  : { borderColor: 'var(--nous-border-subtle)' };
 
               return (
                 <button
@@ -69,16 +81,24 @@ export function MaoRunGraph({
                       agentId: node.agentId,
                     })
                   }
-                  className={`w-full rounded-md border px-3 py-2 text-left ${nodeClasses}`}
+                  style={{
+                    width: '100%',
+                    borderRadius: 'var(--nous-radius-sm)',
+                    border: '1px solid',
+                    paddingInline: 'var(--nous-space-md)',
+                    paddingBlock: 'var(--nous-space-sm)',
+                    textAlign: 'left',
+                    ...nodeStyle,
+                  }}
                 >
-                  <div className="flex items-center justify-between gap-2">
-                    <span className="font-medium">{node.label}</span>
-                    <div className="flex flex-wrap gap-2">
+                  <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 'var(--nous-space-sm)' }}>
+                    <span style={{ fontWeight: 500 }}>{node.label}</span>
+                    <div style={{ display: 'flex', flexWrap: 'wrap', gap: 'var(--nous-space-sm)' }}>
                       <Badge variant="outline">{node.kind}</Badge>
                       {node.state ? <Badge variant="outline">{node.state}</Badge> : null}
                     </div>
                   </div>
-                  <div className="mt-1 text-xs text-muted-foreground">
+                  <div style={{ marginTop: 'var(--nous-space-2xs)', fontSize: 'var(--nous-font-size-xs)', color: 'var(--nous-fg-muted)' }}>
                     node {formatShortId(node.workflowNodeDefinitionId ?? node.id)} •
                     evidence {node.evidenceRefs[0] ?? 'n/a'}
                   </div>
@@ -88,10 +108,10 @@ export function MaoRunGraph({
           )}
         </div>
 
-        <div className="space-y-2">
-          <div className="text-sm font-medium">Edges</div>
+        <div style={sectionStyle}>
+          <div style={{ fontSize: 'var(--nous-font-size-sm)', fontWeight: 500 }}>Edges</div>
           {!graph.edges.length ? (
-            <p className="text-sm text-muted-foreground">
+            <p style={{ fontSize: 'var(--nous-font-size-sm)', color: 'var(--nous-fg-muted)' }}>
               No dispatch or corrective arcs are available.
             </p>
           ) : (
@@ -102,25 +122,30 @@ export function MaoRunGraph({
                 <div
                   key={edge.id}
                   data-testid={isCorrective ? 'corrective-arc' : undefined}
-                  className={`rounded-md border px-3 py-2 text-sm ${
-                    isCorrective
-                      ? 'border-amber-500/60 bg-amber-500/5 border-l-2 border-l-amber-500'
-                      : 'border-border'
-                  }`}
+                  style={{
+                    borderRadius: 'var(--nous-radius-sm)',
+                    border: '1px solid',
+                    paddingInline: 'var(--nous-space-md)',
+                    paddingBlock: 'var(--nous-space-sm)',
+                    fontSize: 'var(--nous-font-size-sm)',
+                    ...(isCorrective
+                      ? { borderColor: 'rgba(245,158,11,0.6)', backgroundColor: 'rgba(245,158,11,0.05)', borderLeftWidth: '2px', borderLeftColor: '#f59e0b' }
+                      : { borderColor: 'var(--nous-border-subtle)' }),
+                  }}
                 >
-                  <div className="flex items-center justify-between gap-2">
-                    <span className="font-medium">
+                  <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 'var(--nous-space-sm)' }}>
+                    <span style={{ fontWeight: 500 }}>
                       {formatShortId(edge.fromNodeId)} {'->'}{' '}
                       {formatShortId(edge.toNodeId)}
                     </span>
                     <Badge
                       variant="outline"
-                      className={isCorrective ? 'border-amber-500 text-amber-500' : ''}
+                      style={isCorrective ? { borderColor: '#f59e0b', color: '#f59e0b' } : {}}
                     >
                       {edge.kind}
                     </Badge>
                   </div>
-                  <div className="mt-1 text-xs text-muted-foreground">
+                  <div style={{ marginTop: 'var(--nous-space-2xs)', fontSize: 'var(--nous-font-size-xs)', color: 'var(--nous-fg-muted)' }}>
                     {edge.reasonCode} • {edge.evidenceRefs[0]}
                   </div>
                 </div>
