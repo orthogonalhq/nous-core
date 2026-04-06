@@ -1,6 +1,7 @@
 import * as React from 'react'
+import { createPortal } from 'react-dom'
 import { clsx } from 'clsx'
-import { ChevronDown, Settings, Plus, PanelLeftClose } from 'lucide-react'
+import { ChevronDown, Settings, Plus, PanelLeftClose, MoreHorizontal } from 'lucide-react'
 import type {
     AssetSection,
     AssetSidebarProps,
@@ -27,6 +28,113 @@ function writeCollapseState(sectionId: string, collapsed: boolean): void {
 }
 
 // ---------------------------------------------------------------------------
+// SidebarContextMenu — portal-based context menu (follows NodeContextMenu pattern)
+// ---------------------------------------------------------------------------
+
+function SidebarContextMenu({
+    position,
+    itemId,
+    itemLabel,
+    onRename,
+    onClose,
+}: {
+    position: { x: number; y: number }
+    itemId: string
+    itemLabel: string
+    onRename: (itemId: string, newName: string) => void
+    onClose: () => void
+}) {
+    const menuRef = React.useRef<HTMLDivElement>(null)
+    const [clampedPosition, setClampedPosition] = React.useState(position)
+
+    // Clamp position to viewport bounds after render
+    React.useEffect(() => {
+        if (!menuRef.current) return
+        const rect = menuRef.current.getBoundingClientRect()
+        setClampedPosition({
+            x: Math.min(position.x, window.innerWidth - rect.width - 8),
+            y: Math.min(position.y, window.innerHeight - rect.height - 8),
+        })
+    }, [position])
+
+    // Click outside dismissal
+    React.useEffect(() => {
+        const handler = (e: MouseEvent) => {
+            if (menuRef.current && !menuRef.current.contains(e.target as Node)) {
+                onClose()
+            }
+        }
+        document.addEventListener('mousedown', handler)
+        return () => document.removeEventListener('mousedown', handler)
+    }, [onClose])
+
+    // Escape key dismissal
+    React.useEffect(() => {
+        const handler = (e: KeyboardEvent) => {
+            if (e.key === 'Escape') {
+                onClose()
+            }
+        }
+        document.addEventListener('keydown', handler)
+        return () => document.removeEventListener('keydown', handler)
+    }, [onClose])
+
+    const handleRename = React.useCallback(() => {
+        const result = window.prompt('Rename workflow', itemLabel)
+        if (result !== null && result.trim() !== '') {
+            onRename(itemId, result.trim())
+        }
+        onClose()
+    }, [itemId, itemLabel, onRename, onClose])
+
+    return createPortal(
+        <div
+            ref={menuRef}
+            style={{
+                position: 'fixed',
+                zIndex: 50,
+                left: clampedPosition.x,
+                top: clampedPosition.y,
+                background: 'var(--nous-bg-elevated)',
+                border: '1px solid var(--nous-border)',
+                borderRadius: 'var(--nous-radius-sm)',
+                padding: '4px 0',
+                minWidth: 140,
+                boxShadow: '0 4px 12px rgba(0, 0, 0, 0.3)',
+                fontSize: 'var(--nous-font-size-xs)',
+                color: 'var(--nous-fg)',
+            }}
+            data-testid="sidebar-context-menu"
+            role="menu"
+            aria-label="Sidebar item context menu"
+        >
+            <button
+                type="button"
+                style={{
+                    display: 'flex',
+                    alignItems: 'center',
+                    gap: 8,
+                    padding: '6px 12px',
+                    cursor: 'pointer',
+                    background: 'transparent',
+                    border: 'none',
+                    color: 'inherit',
+                    fontSize: 'inherit',
+                    width: '100%',
+                    textAlign: 'left',
+                }}
+                onClick={handleRename}
+                role="menuitem"
+                data-testid="context-menu-rename"
+            >
+                Rename
+            </button>
+        </div>,
+        document.body,
+    )
+}
+
+// ---------------------------------------------------------------------------
 // ListItem — single composable button for all sidebar items
 // ---------------------------------------------------------------------------
 
@@ -41,6 +149,7 @@ function ListItem({
     disabled,
     onNavigate,
     onItemRename,
+    onContextMenu: onContextMenuProp,
 }: {
     id: string
     label: string
@@ -52,71 +161,27 @@ function ListItem({
     disabled?: boolean
     onNavigate: (routeId: string) => void
     onItemRename?: (itemId: string, newName: string) => void
+    onContextMenu?: (info: { itemId: string; itemLabel: string; x: number; y: number }) => void
 }) {
     const [hovered, setHovered] = React.useState(false)
-    const [isEditing, setIsEditing] = React.useState(false)
-    const [editValue, setEditValue] = React.useState(label)
-    const inputRef = React.useRef<HTMLInputElement>(null)
-    const clickTimerRef = React.useRef<ReturnType<typeof setTimeout> | null>(null)
-
-    React.useEffect(() => {
-        if (isEditing && inputRef.current) {
-            inputRef.current.focus()
-            inputRef.current.select()
-        }
-    }, [isEditing])
-
-    const commitRename = React.useCallback(() => {
-        const trimmed = editValue.trim()
-        setIsEditing(false)
-        if (trimmed && trimmed !== label && onItemRename) {
-            onItemRename(id, trimmed)
-        } else {
-            setEditValue(label)
-        }
-    }, [editValue, label, id, onItemRename])
-
-    const cancelRename = React.useCallback(() => {
-        setIsEditing(false)
-        setEditValue(label)
-    }, [label])
 
     const handleClick = React.useCallback(() => {
-        if (disabled || isEditing) return
-        if (onItemRename) {
-            // Delay single click to allow double-click disambiguation
-            if (clickTimerRef.current) {
-                clearTimeout(clickTimerRef.current)
-                clickTimerRef.current = null
-            }
-            clickTimerRef.current = setTimeout(() => {
-                clickTimerRef.current = null
-                onNavigate(routeId)
-            }, 250)
-        } else {
-            onNavigate(routeId)
-        }
-    }, [disabled, isEditing, onItemRename, onNavigate, routeId])
+        if (disabled) return
+        onNavigate(routeId)
+    }, [disabled, onNavigate, routeId])
 
-    const handleDoubleClick = React.useCallback(() => {
-        if (disabled || !onItemRename) return
-        // Cancel pending single-click navigation
-        if (clickTimerRef.current) {
-            clearTimeout(clickTimerRef.current)
-            clickTimerRef.current = null
-        }
-        setEditValue(label)
-        setIsEditing(true)
-    }, [disabled, onItemRename, label])
+    const handleContextMenu = React.useCallback((e: React.MouseEvent) => {
+        if (!onContextMenuProp || !onItemRename) return
+        e.preventDefault()
+        onContextMenuProp({ itemId: id, itemLabel: label, x: e.clientX, y: e.clientY })
+    }, [onContextMenuProp, onItemRename, id, label])
 
-    // Cleanup timer on unmount
-    React.useEffect(() => {
-        return () => {
-            if (clickTimerRef.current) {
-                clearTimeout(clickTimerRef.current)
-            }
-        }
-    }, [])
+    const handleDotsClick = React.useCallback((e: React.MouseEvent) => {
+        e.stopPropagation()
+        if (!onContextMenuProp) return
+        const rect = (e.currentTarget as HTMLElement).getBoundingClientRect()
+        onContextMenuProp({ itemId: id, itemLabel: label, x: rect.left, y: rect.bottom })
+    }, [onContextMenuProp, id, label])
 
     return (
         <button
@@ -126,7 +191,7 @@ function ListItem({
             aria-current={isActive ? 'page' : undefined}
             disabled={disabled}
             onClick={handleClick}
-            onDoubleClick={handleDoubleClick}
+            onContextMenu={handleContextMenu}
             onMouseEnter={() => setHovered(true)}
             onMouseLeave={() => setHovered(false)}
             style={{
@@ -154,42 +219,25 @@ function ListItem({
                     }
                 </span>
             )}
-            {isEditing ? (
-                <input
-                    ref={inputRef}
-                    data-testid={`rename-input-${id}`}
-                    type="text"
-                    value={editValue}
-                    onChange={(e) => setEditValue(e.target.value)}
-                    onKeyDown={(e) => {
-                        e.stopPropagation()
-                        if (e.key === 'Enter') {
-                            e.preventDefault()
-                            commitRename()
-                        } else if (e.key === 'Escape') {
-                            e.preventDefault()
-                            cancelRename()
-                        }
-                    }}
-                    onBlur={commitRename}
-                    onClick={(e) => e.stopPropagation()}
-                    onDoubleClick={(e) => e.stopPropagation()}
+            <span style={s.listItemLabel}>{label}</span>
+            {onItemRename && hovered && (
+                <span
+                    data-testid={`dots-button-${id}`}
+                    role="button"
+                    tabIndex={-1}
+                    onClick={handleDotsClick}
                     style={{
-                        flex: '1 1 0%',
-                        minWidth: 0,
-                        fontFamily: 'var(--nous-font-family)',
-                        fontSize: 'var(--nous-font-size-md)',
-                        color: 'inherit',
-                        background: 'transparent',
-                        border: 'none',
-                        outline: 'none',
-                        padding: 0,
-                        margin: 0,
-                        lineHeight: 'inherit',
+                        display: 'inline-flex',
+                        alignItems: 'center',
+                        flexShrink: 0,
+                        marginLeft: 'auto',
+                        padding: 2,
+                        cursor: 'pointer',
+                        color: 'var(--nous-text-tertiary)',
                     }}
-                />
-            ) : (
-                <span style={s.listItemLabel}>{label}</span>
+                >
+                    <MoreHorizontal size={14} />
+                </span>
             )}
             {badge ? <span style={s.listItemBadge} /> : null}
         </button>
@@ -277,12 +325,25 @@ function AssetSectionBlock({
     const [isCollapsed, setIsCollapsed] = React.useState(() =>
         readCollapseState(section.id, section.defaultCollapsed ?? false),
     )
+    const [contextMenu, setContextMenu] = React.useState<{
+        itemId: string
+        itemLabel: string
+        position: { x: number; y: number }
+    } | null>(null)
 
     const toggleCollapse = () => {
         const next = !isCollapsed
         setIsCollapsed(next)
         writeCollapseState(section.id, next)
     }
+
+    const handleOpenContextMenu = React.useCallback((info: { itemId: string; itemLabel: string; x: number; y: number }) => {
+        setContextMenu({ itemId: info.itemId, itemLabel: info.itemLabel, position: { x: info.x, y: info.y } })
+    }, [])
+
+    const handleCloseContextMenu = React.useCallback(() => {
+        setContextMenu(null)
+    }, [])
 
     return (
         <div data-asset-section={section.id}>
@@ -308,10 +369,20 @@ function AssetSectionBlock({
                             disabled={!!section.disabled}
                             onNavigate={onNavigate}
                             onItemRename={section.onItemRename}
+                            onContextMenu={section.onItemRename ? handleOpenContextMenu : undefined}
                         />
                     ))}
                 </div>
             </div>
+            {contextMenu && section.onItemRename && (
+                <SidebarContextMenu
+                    position={contextMenu.position}
+                    itemId={contextMenu.itemId}
+                    itemLabel={contextMenu.itemLabel}
+                    onRename={section.onItemRename}
+                    onClose={handleCloseContextMenu}
+                />
+            )}
         </div>
     )
 }

@@ -96,6 +96,7 @@ export interface ShellContextValue {
   mode: ShellMode
   breakpoint: ShellBreakpoint
   activeRoute: string
+  navigationParams?: Record<string, unknown>
   navigation: NavigationState
   conversation: ConversationContext
   activeProjectId: string | null
