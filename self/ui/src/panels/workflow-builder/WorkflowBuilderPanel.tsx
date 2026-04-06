@@ -199,7 +199,7 @@ const CanvasDropTarget = forwardRef<
   // ─── Save handlers with inline naming ──────────────────────────────────
 
   const [showNameInput, setShowNameInput] = useState(false)
-  const [pendingNameAction, setPendingNameAction] = useState<'save' | 'saveAs' | null>(null)
+  const [pendingNameAction, setPendingNameAction] = useState<'save' | null>(null)
   const [nameInputValue, setNameInputValue] = useState('Untitled Workflow')
   const nameInputRef = useRef<HTMLInputElement>(null)
 
@@ -214,12 +214,8 @@ const CanvasDropTarget = forwardRef<
     const name = nameInputValue.trim() || 'Untitled Workflow'
     setShowNameInput(false)
     setPendingNameAction(null)
-    if (pendingNameAction === 'saveAs') {
-      void saveAsNew(name)
-    } else {
-      void saveToServer(name)
-    }
-  }, [nameInputValue, pendingNameAction, saveAsNew, saveToServer])
+    void saveToServer(name)
+  }, [nameInputValue, saveToServer])
 
   const handleSave = useCallback(() => {
     if (projectId) {
@@ -235,11 +231,6 @@ const CanvasDropTarget = forwardRef<
       markClean()
     }
   }, [projectId, currentDefinitionId, saveToServer, getCurrentSpec, markClean])
-
-  const handleSaveAs = useCallback(() => {
-    setPendingNameAction('saveAs')
-    setShowNameInput(true)
-  }, [])
 
   const handleNewWorkflow = useCallback(() => {
     resetToEmpty()
@@ -588,7 +579,6 @@ const CanvasDropTarget = forwardRef<
         canUndo={canUndo}
         canRedo={canRedo}
         onSave={handleSave}
-        onSaveAs={projectId ? handleSaveAs : undefined}
         onNewWorkflow={projectId ? handleNewWorkflow : undefined}
         onValidate={handleValidate}
         isDirty={isDirty}
@@ -662,7 +652,7 @@ const CanvasDropTarget = forwardRef<
           onMouseDown={(e) => e.stopPropagation()}
         >
           <div style={{ fontSize: 'var(--nous-font-size-sm)', fontWeight: 600, color: 'var(--nous-fg)', marginBottom: 'var(--nous-space-sm)' }}>
-            {pendingNameAction === 'saveAs' ? 'Save As New Workflow' : 'Name Your Workflow'}
+            {'Name Your Workflow'}
           </div>
           <input
             ref={nameInputRef}

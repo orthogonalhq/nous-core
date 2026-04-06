@@ -13,8 +13,6 @@ export interface BuilderToolbarProps {
   canRedo?: boolean
   /** Save handler. */
   onSave?: () => void
-  /** Save As handler (creates new workflow definition). */
-  onSaveAs?: () => void
   /** New Workflow handler (resets to empty state). */
   onNewWorkflow?: () => void
   /** Toggle validation panel and trigger re-validation. */
@@ -114,7 +112,6 @@ export function BuilderToolbar({
   canUndo = false,
   canRedo = false,
   onSave,
-  onSaveAs,
   onNewWorkflow,
   onValidate,
   isDirty = false,
@@ -211,21 +208,6 @@ export function BuilderToolbar({
       >
         <i className="codicon codicon-save" style={{ fontSize: 14 }} />
       </button>
-
-      {/* ── Save As ── */}
-      {onSaveAs && (
-        <button
-          type="button"
-          title="Save as new workflow"
-          aria-label="Save as new workflow"
-          data-testid="toolbar-save-as"
-          style={isAuthoring && !isSaving ? buttonBaseStyle : disabledButtonStyle}
-          disabled={!isAuthoring || isSaving}
-          onClick={onSaveAs}
-        >
-          <i className="codicon codicon-save-as" style={{ fontSize: 14 }} />
-        </button>
-      )}
 
       {/* ── New Workflow ── */}
       {onNewWorkflow && (

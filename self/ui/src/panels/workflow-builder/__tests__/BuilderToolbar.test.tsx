@@ -39,13 +39,12 @@ describe('BuilderToolbar — Persistence actions', () => {
       expect(saveBtn.hasAttribute('disabled')).toBe(true)
     })
 
-    it('new props onSaveAs, onNewWorkflow, isSaving are accepted', () => {
+    it('new props onNewWorkflow, isSaving are accepted', () => {
       // Renders without error
       expect(() => {
         render(
           <BuilderToolbar
             {...defaultProps}
-            onSaveAs={vi.fn()}
             onNewWorkflow={vi.fn()}
             isSaving={false}
           />,
@@ -64,14 +63,6 @@ describe('BuilderToolbar — Persistence actions', () => {
       expect(saveBtn.getAttribute('title')).not.toContain('Phase 3')
     })
 
-    it('"Save As" button renders and calls onSaveAs on click', () => {
-      const onSaveAs = vi.fn()
-      render(<BuilderToolbar {...defaultProps} onSaveAs={onSaveAs} />)
-      const saveAsBtn = screen.getByTestId('toolbar-save-as')
-      fireEvent.click(saveAsBtn)
-      expect(onSaveAs).toHaveBeenCalledTimes(1)
-    })
-
     it('"New Workflow" button renders and calls onNewWorkflow on click', () => {
       const onNewWorkflow = vi.fn()
       render(<BuilderToolbar {...defaultProps} onNewWorkflow={onNewWorkflow} />)
@@ -80,34 +71,19 @@ describe('BuilderToolbar — Persistence actions', () => {
       expect(onNewWorkflow).toHaveBeenCalledTimes(1)
     })
 
-    it('Save and Save As disabled when isSaving is true', () => {
+    it('Save disabled when isSaving is true', () => {
       render(
         <BuilderToolbar
           {...defaultProps}
           isDirty={true}
           isSaving={true}
-          onSaveAs={vi.fn()}
         />,
       )
       expect(screen.getByTestId('toolbar-save').hasAttribute('disabled')).toBe(true)
-      expect(screen.getByTestId('toolbar-save-as').hasAttribute('disabled')).toBe(true)
     })
 
-    it('Save As button not disabled when isDirty is false (always available in authoring)', () => {
-      render(
-        <BuilderToolbar
-          {...defaultProps}
-          isDirty={false}
-          isSaving={false}
-          onSaveAs={vi.fn()}
-        />,
-      )
-      expect(screen.getByTestId('toolbar-save-as').hasAttribute('disabled')).toBe(false)
-    })
-
-    it('Save As and New Workflow buttons hidden when callbacks not provided', () => {
+    it('New Workflow button hidden when callback not provided', () => {
       render(<BuilderToolbar {...defaultProps} />)
-      expect(screen.queryByTestId('toolbar-save-as')).toBeNull()
       expect(screen.queryByTestId('toolbar-new-workflow')).toBeNull()
     })
   })
