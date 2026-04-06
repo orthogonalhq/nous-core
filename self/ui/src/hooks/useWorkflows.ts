@@ -15,6 +15,7 @@ export interface UseWorkflowsReturn {
   workflowsLoading: boolean
   workflowsError: unknown
   createWorkflow: (projectId: string) => Promise<string | null>
+  renameWorkflow: (definitionId: string, name: string) => Promise<void>
 }
 
 export function useWorkflows({ projectId }: UseWorkflowsOptions): UseWorkflowsReturn {
@@ -24,6 +25,7 @@ export function useWorkflows({ projectId }: UseWorkflowsOptions): UseWorkflowsRe
   )
 
   const saveSpecMutation = trpc.projects.saveWorkflowSpec.useMutation()
+  const renameWorkflowMutation = trpc.projects.renameWorkflowDefinition.useMutation()
   const utils = trpc.useUtils()
 
   const createWorkflow = useCallback(async (targetProjectId: string): Promise<string | null> => {
@@ -52,11 +54,22 @@ export function useWorkflows({ projectId }: UseWorkflowsOptions): UseWorkflowsRe
     }
   }, [saveSpecMutation, utils])
 
+  const renameWorkflow = useCallback(async (definitionId: string, name: string) => {
+    if (!projectId) return
+    try {
+      await renameWorkflowMutation.mutateAsync({ projectId, definitionId, name })
+      void utils.projects.listWorkflowDefinitions.invalidate({ projectId })
+    } catch (error) {
+      console.error('[useWorkflows] renameWorkflow failed:', error)
+    }
+  }, [projectId, renameWorkflowMutation, utils])
+
   return {
     workflows: data ?? [],
     workflowsLoading: isLoading,
     workflowsError: error,
     createWorkflow,
+    renameWorkflow,
   }
 }
 
@@ -68,6 +81,7 @@ export function buildWorkflowsSection(params: {
   error: unknown
   onAdd: () => void
   navigate: (routeId: string, navParams?: Record<string, unknown>) => void
+  onItemRename?: (itemId: string, newName: string) => void
 }): AssetSection {
   return {
     id: 'workflows',
@@ -81,5 +95,6 @@ export function buildWorkflowsSection(params: {
     collapsible: true,
     disabled: false,
     onAdd: params.onAdd,
+    onItemRename: params.onItemRename,
   }
 }

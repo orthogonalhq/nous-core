@@ -935,8 +935,11 @@ function DesktopAssetSidebarConnected() {
         }
       },
       navigate: handleNavigate,
+      onItemRename: (itemId, newName) => {
+        void workflowsApi.renameWorkflow(itemId, newName)
+      },
     }),
-    [workflowsApi.workflows, workflowsApi.workflowsLoading, workflowsApi.workflowsError, workflowsApi.createWorkflow, activeProjectId, navigate, handleNavigate],
+    [workflowsApi.workflows, workflowsApi.workflowsLoading, workflowsApi.workflowsError, workflowsApi.createWorkflow, workflowsApi.renameWorkflow, activeProjectId, navigate, handleNavigate],
   )
 
   const sections = useMemo(

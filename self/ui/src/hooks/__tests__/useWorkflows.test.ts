@@ -9,6 +9,8 @@ import { buildWorkflowsSection } from '../useWorkflows'
 const mockMutateAsync = vi.fn()
 const mockInvalidate = vi.fn()
 
+const mockRenameMutateAsync = vi.fn()
+
 vi.mock('@nous/transport', () => ({
   trpc: {
     projects: {
@@ -17,6 +19,9 @@ vi.mock('@nous/transport', () => ({
       },
       saveWorkflowSpec: {
         useMutation: () => ({ mutateAsync: mockMutateAsync }),
+      },
+      renameWorkflowDefinition: {
+        useMutation: () => ({ mutateAsync: mockRenameMutateAsync }),
       },
     },
     useUtils: () => ({
@@ -185,6 +190,58 @@ describe('useWorkflows — createWorkflow', () => {
     expect(returnedId).toBeNull()
     expect(consoleSpy).toHaveBeenCalledWith(
       '[useWorkflows] createWorkflow failed:',
+      expect.any(Error),
+    )
+    // Invalidation should NOT be called on error
+    expect(mockInvalidate).not.toHaveBeenCalled()
+
+    consoleSpy.mockRestore()
+  })
+})
+
+// --- renameWorkflow tests ---
+
+describe('useWorkflows — renameWorkflow', () => {
+  beforeEach(() => {
+    vi.clearAllMocks()
+  })
+
+  it('UseWorkflowsReturn includes renameWorkflow', () => {
+    // Type-level assertion — if this compiles, the interface is correct
+    const _check: UseWorkflowsReturn['renameWorkflow'] extends (definitionId: string, name: string) => Promise<void> ? true : never = true
+    expect(_check).toBe(true)
+  })
+
+  it('calls mutation and invalidates query', async () => {
+    mockRenameMutateAsync.mockResolvedValueOnce({ renamed: true })
+
+    const { result } = renderHook(() => useWorkflows({ projectId: 'proj-1' }))
+
+    await act(async () => {
+      await result.current.renameWorkflow('def-123', 'New Name')
+    })
+
+    expect(mockRenameMutateAsync).toHaveBeenCalledOnce()
+    expect(mockRenameMutateAsync).toHaveBeenCalledWith({
+      projectId: 'proj-1',
+      definitionId: 'def-123',
+      name: 'New Name',
+    })
+    expect(mockInvalidate).toHaveBeenCalledWith({ projectId: 'proj-1' })
+  })
+
+  it('handles error gracefully', async () => {
+    mockRenameMutateAsync.mockRejectedValueOnce(new Error('Rename failed'))
+    const consoleSpy = vi.spyOn(console, 'error').mockImplementation(() => {})
+
+    const { result } = renderHook(() => useWorkflows({ projectId: 'proj-1' }))
+
+    await act(async () => {
+      await result.current.renameWorkflow('def-123', 'New Name')
+    })
+
+    expect(consoleSpy).toHaveBeenCalledWith(
+      '[useWorkflows] renameWorkflow failed:',
       expect.any(Error),
     )
     // Invalidation should NOT be called on error
