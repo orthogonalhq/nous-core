@@ -33,6 +33,7 @@ import {
   getVisibleInternalMcpTools,
 } from '../internal-mcp/index.js';
 import { detectAndStripNarration, parseModelOutput } from '../output-parser.js';
+import { CARD_PROMPT_FRAGMENT } from './card-prompt-fragment.js';
 import { getOrchestratorPrompt } from '../prompts/index.js';
 import { resolvePromptConfig, composeSystemPromptFromConfig } from './prompt-strategy.js';
 import { RetryPolicyEvaluator } from '../recovery/retry-policy-evaluator.js';
@@ -448,7 +449,7 @@ implements IPrincipalSystemGatewayRuntime, ISystemInboxSubmissionService {
 
     // Run Principal gateway
     const result = await this.principalGateway.run({
-      taskInstructions: 'Handle the current user chat turn. Respond conversationally.',
+      taskInstructions: `Handle the current user chat turn. Respond conversationally.\n\n${CARD_PROMPT_FRAGMENT}`,
       payload: { message },
       context: contextFrames,
       budget: DEFAULT_CHAT_TURN_BUDGET,
