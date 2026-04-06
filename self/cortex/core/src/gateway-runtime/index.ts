@@ -26,7 +26,13 @@ export {
 export { SystemContextReplicaProvider } from './system-context-replica.js';
 export { GatewayRuntimeHealthSink } from './runtime-health.js';
 export { GatewayTraceRecorder } from './trace-recorder.js';
+export {
+  ChatTurnInputSchema,
+  ChatTurnResultSchema,
+} from './types.js';
 export type {
+  ChatTurnInput,
+  ChatTurnResult,
   GatewayAppSessionHealthProjection,
   GatewayBootSnapshot,
   GatewayBootStatus,
@@ -34,6 +40,7 @@ export type {
   GatewayHealthSnapshot,
   GatewaySubmissionSource,
   IPrincipalSystemGatewayRuntime,
+  MwcPipelineLike,
   PrincipalSystemGatewayRuntimeDeps,
   SystemContextReplica,
   SystemDirectiveInjection,

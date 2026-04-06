@@ -1241,6 +1241,9 @@ export function createNousServices(config?: BootstrapConfig): NousContext {
     appCredentialInstallService,
     instanceRoot,
     outputSchemaValidator: new DefaultSchemaRefValidator(),
+    // STM and MWC dependencies (SP 1.2 — WR-124)
+    stmStore,
+    mwcPipeline,
     // Model routing: Principal uses 'thinking' profile (Opus 4.6),
     // System uses 'fast' profile (Sonnet). The defaultModelRequirements
     // applies to System gateway execution. Principal gateway uses its own
