@@ -259,6 +259,29 @@ export async function detectOllama(baseUrl?: string): Promise<OllamaStatus> {
 }
 
 /**
+ * Delete an Ollama model via the HTTP API.
+ */
+export async function deleteOllamaModel(
+  name: string,
+  options?: { baseUrl?: string },
+): Promise<void> {
+  const normalizedBaseUrl = normalizeOllamaBaseUrl(options?.baseUrl);
+  const response = await fetch(`${normalizedBaseUrl}/api/delete`, {
+    method: 'DELETE',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ name }),
+    signal: AbortSignal.timeout(OLLAMA_COMMAND_TIMEOUT_MS),
+  });
+
+  if (!response.ok) {
+    const detail = (await response.text()).trim();
+    throw new Error(
+      `Ollama model delete failed with HTTP ${response.status}${detail ? `: ${detail.slice(0, 200)}` : ''}`,
+    );
+  }
+}
+
+/**
  * Pull an Ollama model over the HTTP API and stream NDJSON progress updates.
  */
 export async function pullOllamaModel(
