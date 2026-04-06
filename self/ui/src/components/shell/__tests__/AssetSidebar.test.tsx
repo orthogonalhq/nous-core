@@ -376,9 +376,7 @@ describe('AssetSidebar — Context Menu Rename', () => {
     expect(renameBtn?.textContent).toContain('Rename')
   })
 
-  it('clicking Rename in context menu triggers window.prompt and calls onItemRename', async () => {
-    const promptSpy = vi.spyOn(window, 'prompt').mockReturnValue('New Name')
-
+  it('clicking Rename shows inline input that commits on Enter', async () => {
     await renderSidebar({ sections: RENAME_SECTIONS })
     const item = container.querySelector('[data-list-item="wf-1"]') as HTMLElement
 
@@ -395,15 +393,27 @@ describe('AssetSidebar — Context Menu Rename', () => {
       await flush()
     })
 
-    expect(promptSpy).toHaveBeenCalledWith('Rename workflow', 'Flow A')
+    const input = document.querySelector('[data-testid="context-menu-rename-input"]') as HTMLInputElement
+    expect(input).toBeTruthy()
+    expect(input.value).toBe('Flow A')
+
+    await act(async () => {
+      // Simulate typing a new name
+      const nativeInputValueSetter = Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, 'value')!.set!
+      nativeInputValueSetter.call(input, 'New Name')
+      input.dispatchEvent(new Event('input', { bubbles: true }))
+      await flush()
+    })
+
+    await act(async () => {
+      input.dispatchEvent(new KeyboardEvent('keydown', { key: 'Enter', bubbles: true }))
+      await flush()
+    })
+
     expect(onItemRename).toHaveBeenCalledWith('wf-1', 'New Name')
-
-    promptSpy.mockRestore()
   })
 
-  it('cancelling prompt does not call onItemRename', async () => {
-    const promptSpy = vi.spyOn(window, 'prompt').mockReturnValue(null)
-
+  it('pressing Escape in rename input cancels without calling onItemRename', async () => {
     await renderSidebar({ sections: RENAME_SECTIONS })
     const item = container.querySelector('[data-list-item="wf-1"]') as HTMLElement
 
@@ -419,14 +429,18 @@ describe('AssetSidebar — Context Menu Rename', () => {
       await flush()
     })
 
-    expect(onItemRename).not.toHaveBeenCalled()
+    const input = document.querySelector('[data-testid="context-menu-rename-input"]') as HTMLInputElement
+    expect(input).toBeTruthy()
 
-    promptSpy.mockRestore()
+    await act(async () => {
+      input.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape', bubbles: true }))
+      await flush()
+    })
+
+    expect(onItemRename).not.toHaveBeenCalled()
   })
 
-  it('window.prompt returning empty string does not call onItemRename', async () => {
-    const promptSpy = vi.spyOn(window, 'prompt').mockReturnValue('  ')
-
+  it('submitting unchanged name does not call onItemRename', async () => {
     await renderSidebar({ sections: RENAME_SECTIONS })
     const item = container.querySelector('[data-list-item="wf-1"]') as HTMLElement
 
@@ -442,9 +456,15 @@ describe('AssetSidebar — Context Menu Rename', () => {
       await flush()
     })
 
-    expect(onItemRename).not.toHaveBeenCalled()
+    const input = document.querySelector('[data-testid="context-menu-rename-input"]') as HTMLInputElement
 
-    promptSpy.mockRestore()
+    // Submit without changing the value
+    await act(async () => {
+      input.dispatchEvent(new KeyboardEvent('keydown', { key: 'Enter', bubbles: true }))
+      await flush()
+    })
+
+    expect(onItemRename).not.toHaveBeenCalled()
   })
 
   it('context menu closes on Escape', async () => {

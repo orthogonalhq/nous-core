@@ -79,27 +79,40 @@ function SidebarContextMenu({
         return () => document.removeEventListener('keydown', handler)
     }, [onClose])
 
-    const handleRename = React.useCallback(() => {
-        const result = window.prompt('Rename workflow', itemLabel)
-        if (result !== null && result.trim() !== '') {
-            onRename(itemId, result.trim())
+    const [isRenaming, setIsRenaming] = React.useState(false)
+    const [renameValue, setRenameValue] = React.useState(itemLabel)
+    const renameInputRef = React.useRef<HTMLInputElement>(null)
+
+    React.useEffect(() => {
+        if (isRenaming) {
+            requestAnimationFrame(() => {
+                renameInputRef.current?.focus()
+                renameInputRef.current?.select()
+            })
+        }
+    }, [isRenaming])
+
+    const commitRename = React.useCallback(() => {
+        const trimmed = renameValue.trim()
+        if (trimmed !== '' && trimmed !== itemLabel) {
+            onRename(itemId, trimmed)
         }
         onClose()
-    }, [itemId, itemLabel, onRename, onClose])
+    }, [renameValue, itemLabel, itemId, onRename, onClose])
 
     return createPortal(
         <div
             ref={menuRef}
             style={{
                 position: 'fixed',
-                zIndex: 50,
+                zIndex: 99999,
                 left: clampedPosition.x,
                 top: clampedPosition.y,
                 background: 'var(--nous-bg-elevated)',
                 border: '1px solid var(--nous-border)',
                 borderRadius: 'var(--nous-radius-sm)',
                 padding: '4px 0',
-                minWidth: 140,
+                minWidth: 180,
                 boxShadow: '0 4px 12px rgba(0, 0, 0, 0.3)',
                 fontSize: 'var(--nous-font-size-xs)',
                 color: 'var(--nous-fg)',
@@ -108,27 +121,55 @@ function SidebarContextMenu({
             role="menu"
             aria-label="Sidebar item context menu"
         >
-            <button
-                type="button"
-                style={{
-                    display: 'flex',
-                    alignItems: 'center',
-                    gap: 8,
-                    padding: '6px 12px',
-                    cursor: 'pointer',
-                    background: 'transparent',
-                    border: 'none',
-                    color: 'inherit',
-                    fontSize: 'inherit',
-                    width: '100%',
-                    textAlign: 'left',
-                }}
-                onClick={handleRename}
-                role="menuitem"
-                data-testid="context-menu-rename"
-            >
-                Rename
-            </button>
+            {isRenaming ? (
+                <div style={{ padding: '4px 8px' }}>
+                    <input
+                        ref={renameInputRef}
+                        type="text"
+                        value={renameValue}
+                        onChange={(e) => setRenameValue(e.target.value)}
+                        onKeyDown={(e) => {
+                            e.stopPropagation()
+                            if (e.key === 'Enter') { e.preventDefault(); commitRename() }
+                            if (e.key === 'Escape') { e.preventDefault(); onClose() }
+                        }}
+                        onBlur={commitRename}
+                        style={{
+                            width: '100%',
+                            background: 'var(--nous-bg)',
+                            border: '1px solid var(--nous-border)',
+                            borderRadius: 'var(--nous-radius-sm)',
+                            padding: '4px 8px',
+                            color: 'var(--nous-fg)',
+                            fontSize: 'inherit',
+                            outline: 'none',
+                        }}
+                        data-testid="context-menu-rename-input"
+                    />
+                </div>
+            ) : (
+                <button
+                    type="button"
+                    style={{
+                        display: 'flex',
+                        alignItems: 'center',
+                        gap: 8,
+                        padding: '6px 12px',
+                        cursor: 'pointer',
+                        background: 'transparent',
+                        border: 'none',
+                        color: 'inherit',
+                        fontSize: 'inherit',
+                        width: '100%',
+                        textAlign: 'left',
+                    }}
+                    onClick={() => setIsRenaming(true)}
+                    role="menuitem"
+                    data-testid="context-menu-rename"
+                >
+                    Rename
+                </button>
+            )}
         </div>,
         document.body,
     )
