@@ -1,5 +1,6 @@
 export * from './badge'
 export * from './button'
+export * from './chat'
 export * from './card'
 export * from './collapsible'
 export * from './input'
