@@ -31,6 +31,7 @@ import {
   getInternalMcpCatalogEntry,
   getVisibleInternalMcpTools,
 } from '../internal-mcp/index.js';
+import { detectAndStripNarration } from '../output-parser.js';
 import { getOrchestratorPrompt } from '../prompts/index.js';
 import { resolvePromptConfig, composeSystemPromptFromConfig } from './prompt-strategy.js';
 import { RetryPolicyEvaluator } from '../recovery/retry-policy-evaluator.js';
@@ -461,18 +462,25 @@ implements IPrincipalSystemGatewayRuntime, ISystemInboxSubmissionService {
     // Resolve response
     const resolved = this.resolveChatResponse(result);
 
+    // Normalize — strip chain-of-thought narration if detected
+    const normalized = detectAndStripNarration(resolved.response);
+    if (normalized.wasNarrated) {
+      console.debug('[nous:gateway-runtime] handleChatTurn: narration detected and stripped');
+    }
+    const responseText = normalized.cleaned;
+
     // Finalize STM
     await this.finalizeChatStmTurn(
       projectId,
       message,
-      resolved.response,
+      responseText,
       traceId,
       result.evidenceRefs,
       resolved.contentType,
     );
 
     return {
-      response: resolved.response,
+      response: responseText,
       traceId,
       contentType: resolved.contentType,
     };
@@ -707,23 +715,55 @@ implements IPrincipalSystemGatewayRuntime, ISystemInboxSubmissionService {
     return result;
   }
 
-  private resolveChatResponse(result: AgentResult): { response: string; contentType?: 'text' | 'openui' } {
+  private resolveChatResponse(result: AgentResult): { response: string; contentType: 'text' | 'openui' } {
     if (result.status === 'completed') {
-      const output = result.output as { response?: unknown; contentType?: unknown } | string;
-      if (typeof output === 'string') return { response: output };
+      const output = result.output as { response?: unknown; output?: unknown; contentType?: unknown } | string;
+
+      // 1. Direct string — use as-is
+      if (typeof output === 'string') return { response: output, contentType: 'text' };
+
+      // 2. { response: string } — extract .response
       if (typeof output?.response === 'string') {
-        const ct = output.contentType === 'openui' ? 'openui' as const
-                 : output.contentType === 'text' ? 'text' as const
-                 : undefined;
+        const ct = output.contentType === 'openui' ? 'openui' as const : 'text' as const;
         return { response: output.response, contentType: ct };
       }
-      return { response: JSON.stringify(output) };
+
+      // 3. Recursive one-level unwrap: { output: { response: string } }
+      if (
+        output &&
+        typeof output === 'object' &&
+        typeof (output as { output?: { response?: unknown } }).output === 'object' &&
+        (output as { output?: { response?: unknown } }).output !== null &&
+        typeof ((output as { output: { response?: unknown } }).output).response === 'string'
+      ) {
+        return {
+          response: ((output as { output: { response: string } }).output).response,
+          contentType: 'text',
+        };
+      }
+
+      // 4. Single-string-key extraction: object with exactly one key whose value is a string
+      if (output && typeof output === 'object') {
+        const keys = Object.keys(output as object);
+        if (keys.length === 1) {
+          const value = (output as Record<string, unknown>)[keys[0]];
+          if (typeof value === 'string') {
+            return { response: value, contentType: 'text' };
+          }
+        }
+      }
+
+      // 5. Fallback — pretty-printed JSON wrapped in code block
+      return {
+        response: '```json\n' + JSON.stringify(output, null, 2) + '\n```',
+        contentType: 'text',
+      };
     }
-    if (result.status === 'escalated') return { response: `[escalated: ${result.reason}]` };
-    if (result.status === 'budget_exhausted') return { response: '[budget exhausted]' };
-    if (result.status === 'aborted') return { response: `[aborted: ${result.reason}]` };
-    if (result.status === 'suspended') return { response: `[suspended: ${result.reason}]` };
-    return { response: `[error: ${result.reason}]` };
+    if (result.status === 'escalated') return { response: `[escalated: ${result.reason}]`, contentType: 'text' };
+    if (result.status === 'budget_exhausted') return { response: '[budget exhausted]', contentType: 'text' };
+    if (result.status === 'aborted') return { response: `[aborted: ${result.reason}]`, contentType: 'text' };
+    if (result.status === 'suspended') return { response: `[suspended: ${result.reason}]`, contentType: 'text' };
+    return { response: `[error: ${result.reason}]`, contentType: 'text' };
   }
 
   private buildChatContextFrames(stmContext: StmContext): GatewayContextFrame[] {
