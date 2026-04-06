@@ -202,4 +202,22 @@ describe('ObservePanel', () => {
     )
     expect(screen.getByText('MAO Operating Surface')).toBeTruthy()
   })
+
+  it('renders MaoOperatingSurface for dynamic sidebar routeIds (e.g. campaign-1)', () => {
+    render(
+      <ShellProvider activeRoute="campaign-1">
+        <ObservePanel />
+      </ShellProvider>,
+    )
+    expect(screen.getByText('MAO Operating Surface')).toBeTruthy()
+  })
+
+  it('renders MaoOperatingSurface for unknown routes (defaults to mao)', () => {
+    render(
+      <ShellProvider activeRoute="some-unknown-route">
+        <ObservePanel />
+      </ShellProvider>,
+    )
+    expect(screen.getByText('MAO Operating Surface')).toBeTruthy()
+  })
 })

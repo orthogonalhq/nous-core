@@ -6,27 +6,16 @@ import { MaoPanel } from '../mao'
 import { SystemActivitySurface } from './SystemActivitySurface'
 import type { ObservePanelProps, ObserveRoute } from './types'
 
-/** Map content routes to observe sub-panel routes */
-const OBSERVE_ROUTE_MAP: Record<string, ObserveRoute> = {
-  workflows: 'mao',
-  'workflow-detail': 'mao',
-  threads: 'mao',
-  skills: 'mao',
-  apps: 'mao',
-  dashboard: 'mao',
-  'org-chart': 'mao',
-  inbox: 'mao',
-  tasks: 'mao',
-  'task-detail': 'mao',
-  agents: 'mao',
-  'agent-detail': 'mao',
+/** Routes that get special observe content (non-MAO). Everything else defaults to MAO. */
+const OBSERVE_ROUTE_OVERRIDES: Record<string, ObserveRoute> = {
+  home: 'default',
   'system-activity': 'system-activity',
 }
 
 export function ObservePanel(props: ObservePanelProps) {
   const { activeRoute } = useShellContext()
 
-  const observeRoute: ObserveRoute = OBSERVE_ROUTE_MAP[activeRoute] ?? 'default'
+  const observeRoute: ObserveRoute = OBSERVE_ROUTE_OVERRIDES[activeRoute] ?? 'mao'
 
   return (
     <div
