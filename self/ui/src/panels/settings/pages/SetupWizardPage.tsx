@@ -4,7 +4,7 @@ import { useState } from 'react'
 import type { PreferencesApi, FeedbackState } from '../types'
 import { sectionStyle, sectionTitleStyle, cardStyle, btnStyle, helperTextStyle, feedbackStyle } from '../styles'
 import { formatFeedbackError } from './helpers'
-import { ConfirmDeleteDialog } from '../../components'
+import { ConfirmDeleteDialog } from '../../../components'
 
 export interface SetupWizardPageProps {
   api: Pick<PreferencesApi, 'resetWizard'>

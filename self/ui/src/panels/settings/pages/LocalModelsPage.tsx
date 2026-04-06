@@ -12,7 +12,7 @@ import {
   inputStyle,
 } from '../styles'
 import { formatFeedbackError } from './helpers'
-import { ConfirmDeleteDialog } from '../../components'
+import { ConfirmDeleteDialog } from '../../../components'
 
 export interface LocalModelsPageProps {
   api: Pick<PreferencesApi, 'listOllamaModels' | 'pullOllamaModel' | 'deleteOllamaModel' | 'getSystemStatus'>
