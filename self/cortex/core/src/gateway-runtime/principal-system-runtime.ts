@@ -32,7 +32,7 @@ import {
   getInternalMcpCatalogEntry,
   getVisibleInternalMcpTools,
 } from '../internal-mcp/index.js';
-import { detectAndStripNarration } from '../output-parser.js';
+import { detectAndStripNarration, parseModelOutput } from '../output-parser.js';
 import { getOrchestratorPrompt } from '../prompts/index.js';
 import { resolvePromptConfig, composeSystemPromptFromConfig } from './prompt-strategy.js';
 import { RetryPolicyEvaluator } from '../recovery/retry-policy-evaluator.js';
@@ -851,7 +851,12 @@ implements IPrincipalSystemGatewayRuntime, ISystemInboxSubmissionService {
     const rawProvider = this.deps.modelProviderByClass?.[args.agentClass];
     // Wrap provider to transform gateway input ({ systemPrompt, context, tools })
     // into the provider-expected format ({ messages }) before validation.
-    const provider = rawProvider ? this.wrapProviderWithInputTransform(rawProvider) : undefined;
+    // For Principal: also synthesize task_complete since Principal has no task_complete
+    // tool (read-only agent) but the gateway loop requires it to exit.
+    const synthesize = args.agentClass === 'Cortex::Principal';
+    const provider = rawProvider
+      ? this.wrapProviderWithInputTransform(rawProvider, { synthesizeTaskComplete: synthesize })
+      : undefined;
     return {
       agentClass: args.agentClass,
       agentId: args.agentId as AgentGatewayConfig['agentId'],
@@ -866,7 +871,7 @@ implements IPrincipalSystemGatewayRuntime, ISystemInboxSubmissionService {
       getProvider: rawProvider ? undefined : this.deps.getProvider
         ? (providerId: string) => {
             const p = this.deps.getProvider!(providerId);
-            return p ? this.wrapProviderWithInputTransform(p) : null;
+            return p ? this.wrapProviderWithInputTransform(p, { synthesizeTaskComplete: synthesize }) : null;
           }
         : undefined,
       now: this.now,
@@ -875,14 +880,45 @@ implements IPrincipalSystemGatewayRuntime, ISystemInboxSubmissionService {
     };
   }
 
-  private wrapProviderWithInputTransform(provider: import('@nous/shared').IModelProvider): import('@nous/shared').IModelProvider {
+  private wrapProviderWithInputTransform(
+    provider: import('@nous/shared').IModelProvider,
+    options?: { synthesizeTaskComplete?: boolean },
+  ): import('@nous/shared').IModelProvider {
     return {
       ...provider,
       invoke: async (request) => {
-        return provider.invoke({
+        const response = await provider.invoke({
           ...request,
           input: transformGatewayInput(request.input),
         });
+
+        if (!options?.synthesizeTaskComplete) return response;
+
+        // Synthesize task_complete for agents that produce text responses
+        // without calling task_complete (e.g. Principal is read-only and
+        // has no task_complete tool). Without this, the gateway loop spins
+        // until budget exhaustion.
+        const parsed = parseModelOutput(response.output, response.traceId);
+        if (parsed.toolCalls.some((tc: { name: string }) => tc.name === 'task_complete')) {
+          return response;
+        }
+        const finalResponse = parsed.response.trim() || String(response.output ?? '');
+        return {
+          ...response,
+          output: JSON.stringify({
+            response: '',
+            toolCalls: [
+              {
+                name: 'task_complete',
+                params: {
+                  output: { response: finalResponse, contentType: parsed.contentType },
+                  summary: 'chat turn completed',
+                },
+              },
+            ],
+            memoryCandidates: [],
+          }),
+        };
       },
       stream: provider.stream.bind(provider),
     };
