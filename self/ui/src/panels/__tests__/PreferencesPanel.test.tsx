@@ -388,7 +388,6 @@ describe('PreferencesPanel setup wizard', () => {
   it('renders the re-run wizard control and calls reset + callback', async () => {
     const resetWizard = vi.fn(async () => ({ complete: false }))
     const onWizardReset = vi.fn()
-    vi.spyOn(window, 'confirm').mockReturnValue(true)
 
     const api = createBaseApi({
       resetWizard,
@@ -399,6 +398,24 @@ describe('PreferencesPanel setup wizard', () => {
     await renderPanel(api, { onWizardReset })
     await navigateToPage('setup-wizard')
     await click(getButton('Re-run Setup Wizard'))
+
+    // ConfirmDeleteDialog should be open — type RESET and submit
+    const input = document.querySelector('[data-testid="confirm-delete-input"]') as HTMLInputElement
+    await act(async () => {
+      input.focus()
+      Object.getOwnPropertyDescriptor(
+        HTMLInputElement.prototype, 'value',
+      )!.set!.call(input, 'RESET')
+      input.dispatchEvent(new Event('input', { bubbles: true }))
+      input.dispatchEvent(new Event('change', { bubbles: true }))
+      await flush()
+    })
+
+    const submitBtn = document.querySelector('[data-testid="confirm-delete-submit"]') as HTMLButtonElement
+    await act(async () => {
+      submitBtn.click()
+      await flush()
+    })
 
     expect(resetWizard).toHaveBeenCalledTimes(1)
     expect(onWizardReset).toHaveBeenCalledTimes(1)
