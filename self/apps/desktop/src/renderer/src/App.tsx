@@ -860,7 +860,7 @@ function DesktopSimpleShell({
       sidebar={
         showHomeSidebar
           ? <DesktopHomeSidebar />
-          : <DesktopAssetSidebarConnected />
+          : <DesktopAssetSidebarConnected chatStage={chatStageManager.chatStage} />
       }
       content={
         <ContentRouter
@@ -899,7 +899,7 @@ function DesktopSimpleShell({
 const TASK_DETAIL_PREFIX = 'task-detail::'
 const WORKFLOW_DETAIL_PREFIX = 'workflow-detail::'
 
-function DesktopAssetSidebarConnected() {
+function DesktopAssetSidebarConnected({ chatStage }: { chatStage?: ChatStage }) {
   const { activeProjectId, activeRoute, navigationParams, navigate } = useShellCtx()
   const { data: projectList } = trpc.projects.list.useQuery()
   const tasksApi = useTasks({ projectId: activeProjectId })
@@ -1045,6 +1045,8 @@ function DesktopAssetSidebarConnected() {
         sections={sections}
         activeRoute={sidebarSelection}
         onNavigate={handleNavigate}
+        chatStage={chatStage}
+        onSettingsClick={() => navigate('settings')}
       />
       <ConfirmDeleteDialog
         isOpen={deleteConfirm !== null}
