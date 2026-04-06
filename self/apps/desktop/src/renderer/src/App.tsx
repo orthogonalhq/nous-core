@@ -47,6 +47,8 @@ import { DESKTOP_TOP_NAV, buildDesktopSidebarSections } from './desktop-sidebar-
 import { BASE_SIMPLE_MODE_ROUTES } from './desktop-routes'
 import { useTasks, buildTasksSection } from '@nous/ui/hooks/useTasks'
 import { useWorkflows, buildWorkflowsSection } from '@nous/ui/hooks/useWorkflows'
+import { ConfirmDeleteDialog } from '@nous/ui/components'
+import type { ContextMenuAction } from '@nous/ui/components'
 import { SettingsRoute } from './desktop-settings-route'
 
 import 'dockview-react/dist/styles/dockview.css'
@@ -908,6 +910,11 @@ function DesktopAssetSidebarConnected() {
   // for content routing, but the sidebar needs the full routeId to highlight
   // the correct item within a group.
   const [sidebarSelection, setSidebarSelection] = useState(activeRoute)
+  const [deleteConfirm, setDeleteConfirm] = useState<{
+    itemId: string
+    itemName: string
+    itemType: 'task' | 'workflow'
+  } | null>(null)
 
   // Sync when activeRoute changes externally (e.g. top-nav click, goBack)
   // Reconstruct the full encoded routeId from params when navigating within
@@ -937,6 +944,38 @@ function DesktopAssetSidebarConnected() {
     }
   }, [navigate])
 
+  const taskContextMenuActions: ContextMenuAction[] = useMemo(() => [
+    {
+      id: 'delete',
+      label: 'Delete',
+      variant: 'danger' as const,
+      handler: (itemId: string) => {
+        const task = tasksApi.tasks.find(t => t.id === itemId)
+        setDeleteConfirm({
+          itemId,
+          itemName: task?.name ?? 'this task',
+          itemType: 'task',
+        })
+      },
+    },
+  ], [tasksApi.tasks])
+
+  const workflowContextMenuActions: ContextMenuAction[] = useMemo(() => [
+    {
+      id: 'delete',
+      label: 'Delete',
+      variant: 'danger' as const,
+      handler: (itemId: string) => {
+        const wf = workflowsApi.workflows.find(w => w.id === itemId)
+        setDeleteConfirm({
+          itemId,
+          itemName: wf?.name ?? 'this workflow',
+          itemType: 'workflow',
+        })
+      },
+    },
+  ], [workflowsApi.workflows])
+
   const tasksSection = useMemo(
     () => buildTasksSection({
       tasks: tasksApi.tasks,
@@ -944,8 +983,12 @@ function DesktopAssetSidebarConnected() {
       error: tasksApi.tasksError,
       onAdd: () => navigate('task-create'),
       navigate: handleNavigate,
+      onItemRename: (itemId, newName) => {
+        void tasksApi.updateTask(itemId, { name: newName })
+      },
+      contextMenuActions: taskContextMenuActions,
     }),
-    [tasksApi.tasks, tasksApi.tasksLoading, tasksApi.tasksError, navigate, handleNavigate],
+    [tasksApi.tasks, tasksApi.tasksLoading, tasksApi.tasksError, tasksApi.updateTask, navigate, handleNavigate, taskContextMenuActions],
   )
 
   const workflowsSection = useMemo(
@@ -964,14 +1007,29 @@ function DesktopAssetSidebarConnected() {
       onItemRename: (itemId, newName) => {
         void workflowsApi.renameWorkflow(itemId, newName)
       },
+      contextMenuActions: workflowContextMenuActions,
     }),
-    [workflowsApi.workflows, workflowsApi.workflowsLoading, workflowsApi.workflowsError, workflowsApi.createWorkflow, workflowsApi.renameWorkflow, activeProjectId, navigate, handleNavigate],
+    [workflowsApi.workflows, workflowsApi.workflowsLoading, workflowsApi.workflowsError, workflowsApi.createWorkflow, workflowsApi.renameWorkflow, activeProjectId, navigate, handleNavigate, workflowContextMenuActions],
   )
 
   const sections = useMemo(
     () => buildDesktopSidebarSections({ tasksSection, workflowsSection }),
     [tasksSection, workflowsSection],
   )
+
+  const handleDeleteConfirm = useCallback(async () => {
+    if (!deleteConfirm) return
+    try {
+      if (deleteConfirm.itemType === 'task') {
+        await tasksApi.deleteTask(deleteConfirm.itemId)
+      } else {
+        await workflowsApi.deleteWorkflow(deleteConfirm.itemId)
+      }
+    } catch (error) {
+      console.error(`[DesktopAssetSidebarConnected] delete ${deleteConfirm.itemType} failed:`, error)
+    }
+    setDeleteConfirm(null)
+  }, [deleteConfirm, tasksApi, workflowsApi])
 
   const projectName = useMemo(() => {
     if (!projectList || !activeProjectId) return 'Project'
@@ -980,13 +1038,22 @@ function DesktopAssetSidebarConnected() {
   }, [projectList, activeProjectId])
 
   return (
-    <AssetSidebar
-      projectName={projectName}
-      topNav={DESKTOP_TOP_NAV}
-      sections={sections}
-      activeRoute={sidebarSelection}
-      onNavigate={handleNavigate}
-    />
+    <>
+      <AssetSidebar
+        projectName={projectName}
+        topNav={DESKTOP_TOP_NAV}
+        sections={sections}
+        activeRoute={sidebarSelection}
+        onNavigate={handleNavigate}
+      />
+      <ConfirmDeleteDialog
+        isOpen={deleteConfirm !== null}
+        onConfirm={handleDeleteConfirm}
+        onCancel={() => setDeleteConfirm(null)}
+        itemName={deleteConfirm?.itemName ?? ''}
+        itemType={deleteConfirm?.itemType}
+      />
+    </>
   )
 }
 
