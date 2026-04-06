@@ -26,6 +26,7 @@ import type {
 } from '@nous/shared';
 import { GatewayContextFrameSchema } from '@nous/shared';
 import { AgentGatewayFactory, createInboxFrame } from '../agent-gateway/index.js';
+import { transformGatewayInput } from './gateway-turn-executor.js';
 import {
   createInternalMcpSurfaceBundle,
   getInternalMcpCatalogEntry,
@@ -841,7 +842,10 @@ implements IPrincipalSystemGatewayRuntime, ISystemInboxSubmissionService {
     baseSystemPrompt: string;
     outbox?: IGatewayOutboxSink;
   }): AgentGatewayConfig {
-    const provider = this.deps.modelProviderByClass?.[args.agentClass];
+    const rawProvider = this.deps.modelProviderByClass?.[args.agentClass];
+    // Wrap provider to transform gateway input ({ systemPrompt, context, tools })
+    // into the provider-expected format ({ messages }) before validation.
+    const provider = rawProvider ? this.wrapProviderWithInputTransform(rawProvider) : undefined;
     return {
       agentClass: args.agentClass,
       agentId: args.agentId as AgentGatewayConfig['agentId'],
@@ -852,11 +856,29 @@ implements IPrincipalSystemGatewayRuntime, ISystemInboxSubmissionService {
       defaultModelRequirements: this.deps.defaultModelRequirements,
       witnessService: this.deps.witnessService,
       modelProvider: provider,
-      modelRouter: provider ? undefined : this.deps.modelRouter,
-      getProvider: provider ? undefined : this.deps.getProvider,
+      modelRouter: rawProvider ? undefined : this.deps.modelRouter,
+      getProvider: rawProvider ? undefined : this.deps.getProvider
+        ? (providerId: string) => {
+            const p = this.deps.getProvider!(providerId);
+            return p ? this.wrapProviderWithInputTransform(p) : null;
+          }
+        : undefined,
       now: this.now,
       nowMs: this.nowMs,
       idFactory: this.idFactory,
+    };
+  }
+
+  private wrapProviderWithInputTransform(provider: import('@nous/shared').IModelProvider): import('@nous/shared').IModelProvider {
+    return {
+      ...provider,
+      invoke: async (request) => {
+        return provider.invoke({
+          ...request,
+          input: transformGatewayInput(request.input),
+        });
+      },
+      stream: provider.stream.bind(provider),
     };
   }
 
