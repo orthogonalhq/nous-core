@@ -15,6 +15,7 @@ import type {
   IProjectStore,
   IRecoveryLedgerStore,
   IRecoveryOrchestrator,
+  IStmStore,
   IToolExecutor,
   IWorkmodeAdmissionGuard,
   IPfcEngine,
@@ -30,6 +31,7 @@ import type {
   IOpctlService,
   IngressDispatchOutcome,
   IngressTriggerEnvelope,
+  MemoryMutationRequest,
   ModelRequirements,
   ProjectId,
   ToolDefinition,
@@ -177,6 +179,33 @@ export const SystemContextReplicaSchema = z
   .strict();
 export type SystemContextReplica = z.infer<typeof SystemContextReplicaSchema>;
 
+// --- Chat Turn schemas (SP 1.2 — WR-124) ---
+
+export const ChatTurnInputSchema = z.object({
+  message: z.string().min(1),
+  projectId: z.string().uuid().optional(),
+  traceId: z.string().uuid(),
+}).strict();
+export type ChatTurnInput = z.infer<typeof ChatTurnInputSchema>;
+
+export const ChatTurnResultSchema = z.object({
+  response: z.string(),
+  traceId: z.string(),
+  contentType: z.enum(['text', 'openui']).optional(),
+}).strict();
+export type ChatTurnResult = z.infer<typeof ChatTurnResultSchema>;
+
+/**
+ * Lightweight interface for MWC compaction — avoids direct dependency on @nous/memory-mwc.
+ * Mirrors the shape from gateway-turn-executor.ts.
+ */
+export interface MwcPipelineLike {
+  mutate(
+    request: MemoryMutationRequest,
+    projectId?: ProjectId,
+  ): Promise<{ applied: boolean; reason: string; reasonCode: string }>;
+}
+
 export interface SystemSubmissionReceipt {
   runId: string;
   dispatchRef: string;
@@ -229,6 +258,9 @@ export interface PrincipalSystemGatewayRuntimeDeps {
   defaultModelRequirements?: ModelRequirements;
   backlogConfig?: Partial<BacklogQueueConfig>;
   eventBus?: IEventBus;
+  // STM and MWC dependencies (SP 1.2 — WR-124)
+  stmStore?: IStmStore;
+  mwcPipeline?: MwcPipelineLike;
   // Recovery component slots (Phase 1.1 — WR-072, wired in Phase 1.2)
   checkpointManager?: ICheckpointManager;
   recoveryLedgerStore?: IRecoveryLedgerStore;
@@ -258,6 +290,7 @@ export interface IPrincipalSystemGatewayRuntime {
   submitIngressEnvelope(envelope: IngressTriggerEnvelope): Promise<IngressDispatchOutcome>;
   listBacklogEntries(filter?: { status?: BacklogEntryStatus }): Promise<BacklogEntry[]>;
   notifyLeaseReleased(event: LaneLeaseReleasedEvent): Promise<void>;
+  handleChatTurn(input: ChatTurnInput): Promise<ChatTurnResult>;
   whenIdle(): Promise<void>;
 }
 

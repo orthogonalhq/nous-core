@@ -61,6 +61,7 @@ export interface IPfcEngine {
  * @deprecated Use {@link AgentGateway.run()} for new code.
  * `GatewayBackedTurnExecutor` is the sole implementation and serves as
  * the compatibility bridge for callers still using this interface.
+ * `getTrace()` remains functional for trace retrieval during transition.
  * This interface will be removed in a future sprint after caller migration.
  */
 export interface ICoreExecutor {
