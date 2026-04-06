@@ -55,7 +55,7 @@ export {
 } from './recovery/index.js';
 
 // ── 5. Output parsing ────────────────────────────────────────────────────────
-export { parseModelOutput } from './output-parser.js';
+export { parseModelOutput, detectAndStripNarration } from './output-parser.js';
 export type { ParsedModelOutput } from './output-parser.js';
 
 // ── 6. AgentGateway ──────────────────────────────────────────────────────────
