@@ -3,7 +3,7 @@
 import { useMemo, useRef, useCallback, useState } from 'react'
 import { trpc } from '@nous/transport'
 import type { TaskDefinition, TaskCreateInput, TaskUpdateInput, TaskExecutionRecord } from '@nous/shared'
-import type { AssetSection } from '../components/shell/types'
+import type { AssetSection, ContextMenuAction } from '../components/shell/types'
 
 // ─── Hook Types ───────────────────────────────────────────────────────────────
 
@@ -175,6 +175,8 @@ export function buildTasksSection(params: {
   error: unknown
   onAdd: () => void
   navigate: (routeId: string, navParams?: Record<string, unknown>) => void
+  onItemRename?: (itemId: string, newName: string) => void
+  contextMenuActions?: ContextMenuAction[]
 }): AssetSection {
   return {
     id: 'tasks',
@@ -188,5 +190,7 @@ export function buildTasksSection(params: {
     collapsible: true,
     disabled: false,
     onAdd: params.onAdd,
+    onItemRename: params.onItemRename,
+    contextMenuActions: params.contextMenuActions,
   }
 }

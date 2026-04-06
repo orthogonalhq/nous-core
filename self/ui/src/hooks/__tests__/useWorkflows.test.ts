@@ -10,6 +10,7 @@ const mockMutateAsync = vi.fn()
 const mockInvalidate = vi.fn()
 
 const mockRenameMutateAsync = vi.fn()
+const mockDeleteMutateAsync = vi.fn()
 
 vi.mock('@nous/transport', () => ({
   trpc: {
@@ -22,6 +23,9 @@ vi.mock('@nous/transport', () => ({
       },
       renameWorkflowDefinition: {
         useMutation: () => ({ mutateAsync: mockRenameMutateAsync }),
+      },
+      deleteWorkflowDefinition: {
+        useMutation: () => ({ mutateAsync: mockDeleteMutateAsync }),
       },
     },
     useUtils: () => ({
