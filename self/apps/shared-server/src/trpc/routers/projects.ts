@@ -1510,4 +1510,41 @@ export const projectsRouter = router({
 
       return { deleted };
     }),
+
+  /** Rename a workflow definition by ID. */
+  renameWorkflowDefinition: publicProcedure
+    .input(
+      z.object({
+        projectId: ProjectIdSchema,
+        definitionId: z.string().min(1),
+        name: z.string().min(1),
+      }),
+    )
+    .mutation(async ({ ctx, input }) => {
+      const project = await getProjectOrThrow(ctx, input.projectId);
+      const currentDefinitions = getWorkflowDefinitions(project);
+      const target = currentDefinitions.find((d) => d.id === input.definitionId);
+
+      if (!target) {
+        throw new TRPCError({
+          code: 'NOT_FOUND',
+          message: `Workflow definition ${input.definitionId} not found`,
+        });
+      }
+
+      const nextDefinitions = currentDefinitions.map((d) =>
+        d.id === input.definitionId ? { ...d, name: input.name } : d,
+      );
+
+      await ctx.projectStore.update(input.projectId, {
+        workflow: {
+          definitions: nextDefinitions,
+          packageBindings: project.workflow?.packageBindings ?? [],
+          defaultWorkflowDefinitionId: project.workflow?.defaultWorkflowDefinitionId,
+          specYamlStore: project.workflow?.specYamlStore ?? {},
+        },
+      });
+
+      return { renamed: true };
+    }),
 });
