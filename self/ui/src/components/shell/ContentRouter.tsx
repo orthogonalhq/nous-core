@@ -19,6 +19,12 @@ export interface ContentRouterProps
   navigationParams?: Record<string, unknown>
 }
 
+type StackEntry = { route: string; params?: Record<string, unknown> }
+
+function stackEntryEquals(a: StackEntry, b: StackEntry): boolean {
+  return a.route === b.route && JSON.stringify(a.params) === JSON.stringify(b.params)
+}
+
 export function ContentRouter({
   activeRoute,
   routes,
@@ -28,10 +34,10 @@ export function ContentRouter({
   style,
   ...props
 }: ContentRouterProps) {
-  const [stack, setStack] = React.useState<string[]>(activeRoute ? [activeRoute] : [])
-  const [navigationParams, setNavigationParams] = React.useState<Record<string, unknown> | undefined>(undefined)
+  const [stack, setStack] = React.useState<StackEntry[]>(activeRoute ? [{ route: activeRoute, params: externalParams }] : [])
+  const [navigationParams, setNavigationParams] = React.useState<Record<string, unknown> | undefined>(externalParams)
   const stackRef = React.useRef(stack)
-  const lastPropRouteRef = React.useRef(activeRoute)
+  const lastPropEntryRef = React.useRef<StackEntry>({ route: activeRoute, params: externalParams })
 
   React.useEffect(() => {
     stackRef.current = stack
@@ -40,17 +46,19 @@ export function ContentRouter({
   React.useEffect(() => {
     if (!activeRoute) return
 
-    // Same route — only update params (e.g. switching items within the same group)
-    if (activeRoute === lastPropRouteRef.current) {
-      setNavigationParams(externalParams)
+    const incoming: StackEntry = { route: activeRoute, params: externalParams }
+
+    // Same route + same params — no-op
+    if (stackEntryEquals(incoming, lastPropEntryRef.current)) {
       return
     }
 
+    const top = stackRef.current[stackRef.current.length - 1]
     const nextStack =
-      stackRef.current.at(-1) === activeRoute
+      top && stackEntryEquals(top, incoming)
         ? stackRef.current
-        : [...stackRef.current, activeRoute]
-    lastPropRouteRef.current = activeRoute
+        : [...stackRef.current, incoming]
+    lastPropEntryRef.current = incoming
     stackRef.current = nextStack
     setStack(nextStack)
     setNavigationParams(externalParams)
@@ -61,8 +69,9 @@ export function ContentRouter({
       return
     }
 
-    const nextStack = [...stackRef.current, routeId]
-    lastPropRouteRef.current = routeId
+    const entry: StackEntry = { route: routeId, params }
+    const nextStack = [...stackRef.current, entry]
+    lastPropEntryRef.current = entry
     stackRef.current = nextStack
     setStack(nextStack)
     setNavigationParams(params)
@@ -75,18 +84,20 @@ export function ContentRouter({
     }
 
     const nextStack = stackRef.current.slice(0, -1)
-    const nextRoute = nextStack[nextStack.length - 1] ?? ''
-    lastPropRouteRef.current = nextRoute
+    const previousEntry = nextStack[nextStack.length - 1]
+    const nextRoute = previousEntry?.route ?? ''
+    const restoredParams = previousEntry?.params
+    lastPropEntryRef.current = previousEntry ?? { route: '' }
     stackRef.current = nextStack
     setStack(nextStack)
-    setNavigationParams(undefined)
+    setNavigationParams(restoredParams)
 
     if (nextRoute) {
-      onNavigate?.(nextRoute)
+      onNavigate?.(nextRoute, restoredParams)
     }
   }
 
-  const currentRoute = stack[stack.length - 1] ?? ''
+  const currentRoute = stack[stack.length - 1]?.route ?? ''
   const ActiveRoute = routes[currentRoute]
   const canGoBack = stack.length > 1
 
