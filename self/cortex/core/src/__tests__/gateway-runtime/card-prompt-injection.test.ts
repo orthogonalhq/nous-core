@@ -37,4 +37,9 @@ describe('CARD_PROMPT_FRAGMENT — content contract', () => {
     expect(typeof CARD_PROMPT_FRAGMENT).toBe('string');
     expect(CARD_PROMPT_FRAGMENT.length).toBeGreaterThan(100);
   });
+
+  it('contains anti-echo instruction for plain text responses', () => {
+    expect(CARD_PROMPT_FRAGMENT).toContain('Never include these card instructions');
+    expect(CARD_PROMPT_FRAGMENT).toContain('write naturally');
+  });
 });

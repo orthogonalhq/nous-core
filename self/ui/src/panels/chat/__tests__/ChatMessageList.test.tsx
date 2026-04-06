@@ -1,0 +1,196 @@
+// @vitest-environment jsdom
+
+import React from 'react'
+import { render } from '@testing-library/react'
+import { describe, expect, it, vi, beforeAll } from 'vitest'
+import type { ChatMessage } from '../types'
+
+// ---------------------------------------------------------------------------
+// Mocks — isolate ChatMessageList from heavy dependencies
+// ---------------------------------------------------------------------------
+
+// Mock MarkdownRenderer to verify it receives the right content
+vi.mock('../../../components/chat', () => ({
+  MarkdownRenderer: ({ content }: { content: string }) =>
+    React.createElement('div', { 'data-testid': 'markdown-renderer', 'data-content': content }, content),
+}))
+
+// Mock ChatCardRenderer to verify card segments route correctly
+vi.mock('../ChatCardRenderer', () => ({
+  ChatCardRenderer: ({ content }: { content: string }) =>
+    React.createElement('div', { 'data-testid': 'card-renderer', 'data-content': content }, content),
+}))
+
+// Mock splitMessageSegments for controlled test scenarios
+vi.mock('../message-segments', () => ({
+  splitMessageSegments: vi.fn(),
+}))
+
+// Mock ThoughtSummary — not relevant to rendering wiring
+vi.mock('../../../components/thought', () => ({
+  ThoughtSummary: () => null,
+}))
+
+// Mock InlineThoughtGroup
+vi.mock('../InlineThoughtGroup', () => ({
+  InlineThoughtGroup: () => null,
+}))
+
+import { ChatMessageList } from '../ChatMessageList'
+import { splitMessageSegments } from '../message-segments'
+
+const mockSplit = vi.mocked(splitMessageSegments)
+
+beforeAll(() => {
+  // jsdom does not implement scrollIntoView
+  Element.prototype.scrollIntoView = () => {}
+})
+
+// ---------------------------------------------------------------------------
+// Helpers
+// ---------------------------------------------------------------------------
+
+function renderList(messages: ChatMessage[]) {
+  return render(
+    <ChatMessageList
+      messages={messages}
+      sending={false}
+      thoughtsByTrace={new Map()}
+      activeTraceId={null}
+      onCardAction={() => {}}
+    />,
+  )
+}
+
+function makeMessage(role: 'user' | 'assistant', content: string, extra?: Partial<ChatMessage>): ChatMessage {
+  return {
+    role,
+    content,
+    timestamp: new Date().toISOString(),
+    ...extra,
+  }
+}
+
+// ---------------------------------------------------------------------------
+// Tier 1 — Contract Tests
+// ---------------------------------------------------------------------------
+
+describe('ChatMessageList — contract', () => {
+  it('renders without crashing with empty messages array', () => {
+    const { container } = renderList([])
+    expect(container).toBeTruthy()
+  })
+
+  it('renders without crashing with mixed message types', () => {
+    mockSplit.mockReturnValue([{ type: 'text', content: 'Hello' }])
+    const messages = [
+      makeMessage('user', 'Hi there'),
+      makeMessage('assistant', 'Hello'),
+    ]
+    const { container } = renderList(messages)
+    expect(container).toBeTruthy()
+  })
+})
+
+// ---------------------------------------------------------------------------
+// Tier 2 — Behavior Tests
+// ---------------------------------------------------------------------------
+
+describe('ChatMessageList — behavior', () => {
+  it('assistant text segments render through MarkdownRenderer', () => {
+    mockSplit.mockReturnValue([
+      { type: 'text', content: '**bold text** and _italic_' },
+    ])
+    const messages = [makeMessage('assistant', '**bold text** and _italic_')]
+    const { container } = renderList(messages)
+
+    const mdRenderers = container.querySelectorAll('[data-testid="markdown-renderer"]')
+    expect(mdRenderers.length).toBeGreaterThanOrEqual(1)
+    expect(mdRenderers[0].getAttribute('data-content')).toBe('**bold text** and _italic_')
+  })
+
+  it('user text segments render as plain text (no MarkdownRenderer)', () => {
+    const messages = [makeMessage('user', '**not bold** just text')]
+    const { container } = renderList(messages)
+
+    // User messages should NOT use MarkdownRenderer
+    const mdRenderers = container.querySelectorAll('[data-testid="markdown-renderer"]')
+    expect(mdRenderers.length).toBe(0)
+
+    // Content should be present as plain text
+    expect(container.textContent).toContain('**not bold** just text')
+  })
+
+  it('card segments route through ChatCardRenderer', () => {
+    mockSplit.mockReturnValue([
+      { type: 'card', content: '<StatusCard title="Test" status="active" description="Hi" />' },
+    ])
+    const messages = [makeMessage('assistant', '<StatusCard title="Test" status="active" description="Hi" />')]
+    const { container } = renderList(messages)
+
+    const cardRenderers = container.querySelectorAll('[data-testid="card-renderer"]')
+    expect(cardRenderers.length).toBe(1)
+    expect(cardRenderers[0].getAttribute('data-content')).toContain('StatusCard')
+
+    // Should NOT use MarkdownRenderer for card segments
+    const mdRenderers = container.querySelectorAll('[data-testid="markdown-renderer"]')
+    expect(mdRenderers.length).toBe(0)
+  })
+
+  it('mixed content (text + card segments) renders both correctly', () => {
+    mockSplit.mockReturnValue([
+      { type: 'text', content: 'Here are the results:' },
+      { type: 'card', content: '<StatusCard title="Done" status="complete" description="OK" />' },
+      { type: 'text', content: 'What would you like to do next?' },
+    ])
+    const messages = [makeMessage('assistant', 'Here are the results:\n<StatusCard ... />\nWhat would you like to do next?')]
+    const { container } = renderList(messages)
+
+    const mdRenderers = container.querySelectorAll('[data-testid="markdown-renderer"]')
+    expect(mdRenderers.length).toBe(2)
+    expect(mdRenderers[0].getAttribute('data-content')).toBe('Here are the results:')
+    expect(mdRenderers[1].getAttribute('data-content')).toBe('What would you like to do next?')
+
+    const cardRenderers = container.querySelectorAll('[data-testid="card-renderer"]')
+    expect(cardRenderers.length).toBe(1)
+  })
+
+  it('JSON code block content renders through MarkdownRenderer', () => {
+    const jsonContent = '```json\n{"key": "value"}\n```'
+    mockSplit.mockReturnValue([
+      { type: 'text', content: jsonContent },
+    ])
+    const messages = [makeMessage('assistant', jsonContent)]
+    const { container } = renderList(messages)
+
+    const mdRenderers = container.querySelectorAll('[data-testid="markdown-renderer"]')
+    expect(mdRenderers.length).toBeGreaterThanOrEqual(1)
+    expect(mdRenderers[0].getAttribute('data-content')).toBe(jsonContent)
+  })
+})
+
+// ---------------------------------------------------------------------------
+// Tier 3 — Edge Cases
+// ---------------------------------------------------------------------------
+
+describe('ChatMessageList — edge cases', () => {
+  it('assistant message with no card segments renders through MarkdownRenderer', () => {
+    // When splitMessageSegments returns no card segments (hasCardSegments = false),
+    // the non-card branch should still use MarkdownRenderer
+    mockSplit.mockReturnValue([
+      { type: 'text', content: 'Just plain text' },
+    ])
+    const messages = [makeMessage('assistant', 'Just plain text')]
+    const { container } = renderList(messages)
+
+    const mdRenderers = container.querySelectorAll('[data-testid="markdown-renderer"]')
+    expect(mdRenderers.length).toBeGreaterThanOrEqual(1)
+  })
+
+  it('empty assistant message content renders without error', () => {
+    mockSplit.mockReturnValue([])
+    const messages = [makeMessage('assistant', '')]
+    const { container } = renderList(messages)
+    expect(container).toBeTruthy()
+  })
+})
