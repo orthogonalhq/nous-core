@@ -67,6 +67,12 @@ const DEFAULT_TOP_LEVEL_BUDGET: GatewayBudget = {
   timeoutMs: 120_000,
 };
 
+const DEFAULT_CHAT_TURN_BUDGET: GatewayBudget = {
+  maxTurns: 8,
+  maxTokens: 4096,
+  timeoutMs: 120_000,
+};
+
 const DEFAULT_CHILD_BUDGET: GatewayBudget = {
   maxTurns: 3,
   maxTokens: 600,
@@ -445,7 +451,7 @@ implements IPrincipalSystemGatewayRuntime, ISystemInboxSubmissionService {
       taskInstructions: 'Handle the current user chat turn. Respond conversationally.',
       payload: { message },
       context: contextFrames,
-      budget: DEFAULT_TOP_LEVEL_BUDGET,
+      budget: DEFAULT_CHAT_TURN_BUDGET,
       spawnBudgetCeiling: 0,
       correlation: {
         runId: this.nextRunId() as never,
