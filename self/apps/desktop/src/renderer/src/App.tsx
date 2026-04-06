@@ -794,6 +794,7 @@ function DesktopShellWithProject({
     <ShellProvider
       mode={mode}
       activeRoute={activeRoute}
+      navigationParams={navigationParams}
       navigation={navigation}
       navigate={navigate}
       goBack={goBack}
@@ -880,7 +881,7 @@ const TASK_DETAIL_PREFIX = 'task-detail::'
 const WORKFLOW_DETAIL_PREFIX = 'workflow-detail::'
 
 function DesktopAssetSidebarConnected() {
-  const { activeProjectId, activeRoute, navigate } = useShellCtx()
+  const { activeProjectId, activeRoute, navigationParams, navigate } = useShellCtx()
   const { data: projectList } = trpc.projects.list.useQuery()
   const tasksApi = useTasks({ projectId: activeProjectId })
   const workflowsApi = useWorkflows({ projectId: activeProjectId })
@@ -892,9 +893,17 @@ function DesktopAssetSidebarConnected() {
   const [sidebarSelection, setSidebarSelection] = useState(activeRoute)
 
   // Sync when activeRoute changes externally (e.g. top-nav click, goBack)
+  // Reconstruct the full encoded routeId from params when navigating within
+  // same-route groups (e.g. goBack restoring workflow-detail with definitionId).
   useEffect(() => {
-    setSidebarSelection(activeRoute)
-  }, [activeRoute])
+    if (activeRoute.startsWith('workflow-detail') && navigationParams?.definitionId) {
+      setSidebarSelection(`${WORKFLOW_DETAIL_PREFIX}${navigationParams.definitionId}`)
+    } else if (activeRoute.startsWith('task-detail') && navigationParams?.taskId) {
+      setSidebarSelection(`${TASK_DETAIL_PREFIX}${navigationParams.taskId}`)
+    } else {
+      setSidebarSelection(activeRoute)
+    }
+  }, [activeRoute, navigationParams])
 
   // Wrap navigate to parse task-detail::<taskId> encoding from sidebar items
   // and forward as navigate('task-detail', { taskId }) with params.
