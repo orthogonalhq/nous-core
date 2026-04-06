@@ -96,6 +96,7 @@ export interface ShellContextValue {
   mode: ShellMode
   breakpoint: ShellBreakpoint
   activeRoute: string
+  navigationParams?: Record<string, unknown>
   navigation: NavigationState
   conversation: ConversationContext
   activeProjectId: string | null
@@ -348,6 +349,10 @@ export const AssetSectionSchema = z.object({
   onSettings: z.custom<() => void>(
     (value) => typeof value === 'function',
     'onSettings function is required',
+  ).optional(),
+  onItemRename: z.custom<(itemId: string, newName: string) => void>(
+    (value) => typeof value === 'function',
+    'onItemRename function is required',
   ).optional(),
 })
 export type AssetSection = z.infer<typeof AssetSectionSchema>

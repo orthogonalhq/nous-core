@@ -13,8 +13,6 @@ export interface BuilderToolbarProps {
   canRedo?: boolean
   /** Save handler. */
   onSave?: () => void
-  /** Save As handler (creates new workflow definition). */
-  onSaveAs?: () => void
   /** New Workflow handler (resets to empty state). */
   onNewWorkflow?: () => void
   /** Toggle validation panel and trigger re-validation. */
@@ -27,6 +25,8 @@ export interface BuilderToolbarProps {
   validationErrorCount?: number
   /** Whether the validation panel is currently open. */
   isValidationPanelOpen?: boolean
+  /** Delete workflow handler. Shown conditionally (simple mode). */
+  onDelete?: () => void
 }
 
 const MODES: { value: BuilderMode; label: string; icon: string }[] = [
@@ -112,13 +112,13 @@ export function BuilderToolbar({
   canUndo = false,
   canRedo = false,
   onSave,
-  onSaveAs,
   onNewWorkflow,
   onValidate,
   isDirty = false,
   isSaving = false,
   validationErrorCount = 0,
   isValidationPanelOpen = false,
+  onDelete,
 }: BuilderToolbarProps) {
   const { zoomIn, zoomOut, fitView } = useReactFlow()
   const { mode: currentMode } = useBuilderMode()
@@ -209,21 +209,6 @@ export function BuilderToolbar({
         <i className="codicon codicon-save" style={{ fontSize: 14 }} />
       </button>
 
-      {/* ── Save As ── */}
-      {onSaveAs && (
-        <button
-          type="button"
-          title="Save as new workflow"
-          aria-label="Save as new workflow"
-          data-testid="toolbar-save-as"
-          style={isAuthoring && !isSaving ? buttonBaseStyle : disabledButtonStyle}
-          disabled={!isAuthoring || isSaving}
-          onClick={onSaveAs}
-        >
-          <i className="codicon codicon-save-as" style={{ fontSize: 14 }} />
-        </button>
-      )}
-
       {/* ── New Workflow ── */}
       {onNewWorkflow && (
         <button
@@ -236,6 +221,21 @@ export function BuilderToolbar({
           onClick={onNewWorkflow}
         >
           <i className="codicon codicon-new-file" style={{ fontSize: 14 }} />
+        </button>
+      )}
+
+      {/* ── Delete Workflow ── */}
+      {onDelete && (
+        <button
+          type="button"
+          title="Delete workflow"
+          aria-label="Delete workflow"
+          data-testid="toolbar-delete"
+          style={isAuthoring ? buttonBaseStyle : disabledButtonStyle}
+          disabled={!isAuthoring}
+          onClick={onDelete}
+        >
+          <i className="codicon codicon-trash" style={{ fontSize: 14 }} />
         </button>
       )}
 

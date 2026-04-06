@@ -16,6 +16,7 @@
     "./styles/components": "./src/styles/components.css",
     "./styles/nous-dark": "./src/styles/nous-dark.css",
     "./hooks/useTasks": "./src/hooks/useTasks.ts",
+    "./hooks/useWorkflows": "./src/hooks/useWorkflows.ts",
     "./lib/cn": "./src/lib/cn.ts"
   },
   "dependencies": {

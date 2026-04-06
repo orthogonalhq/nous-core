@@ -299,3 +299,203 @@ describe('AssetSidebar — Live Tasks Section', () => {
     expect(ids).toEqual(['workflows', 'tasks', 'teams', 'agents'])
   })
 })
+
+describe('AssetSidebar — Context Menu Rename', () => {
+  const onItemRename = vi.fn()
+
+  const RENAME_SECTIONS: AssetSection[] = [
+    {
+      id: 'workflows',
+      label: 'WORKFLOWS',
+      collapsible: true,
+      items: [
+        { id: 'wf-1', label: 'Flow A', routeId: 'workflow-a' },
+        { id: 'wf-2', label: 'Flow B', routeId: 'workflow-b' },
+      ],
+      onItemRename,
+    },
+  ]
+
+  const NO_RENAME_SECTIONS: AssetSection[] = [
+    {
+      id: 'workflows',
+      label: 'WORKFLOWS',
+      collapsible: true,
+      items: [
+        { id: 'wf-1', label: 'Flow A', routeId: 'workflow-a' },
+      ],
+    },
+  ]
+
+  beforeEach(() => {
+    vi.clearAllMocks()
+  })
+
+  it('three-dots button appears on hover for items with onItemRename', async () => {
+    await renderSidebar({ sections: RENAME_SECTIONS })
+    const item = container.querySelector('[data-list-item="wf-1"]') as HTMLElement
+    expect(item).toBeTruthy()
+
+    // Before hover, no dots button
+    expect(container.querySelector('[data-testid="dots-button-wf-1"]')).toBeNull()
+
+    // Hover — use pointerover + mouseover (React listens on mouseover for onMouseEnter)
+    await act(async () => {
+      item.dispatchEvent(new MouseEvent('mouseover', { bubbles: true }))
+      await flush()
+    })
+
+    expect(container.querySelector('[data-testid="dots-button-wf-1"]')).toBeTruthy()
+  })
+
+  it('three-dots button does not appear for items without onItemRename', async () => {
+    await renderSidebar({ sections: NO_RENAME_SECTIONS })
+    const item = container.querySelector('[data-list-item="wf-1"]') as HTMLElement
+
+    await act(async () => {
+      item.dispatchEvent(new MouseEvent('mouseover', { bubbles: true }))
+      await flush()
+    })
+
+    expect(container.querySelector('[data-testid="dots-button-wf-1"]')).toBeNull()
+  })
+
+  it('right-click opens context menu with Rename option', async () => {
+    await renderSidebar({ sections: RENAME_SECTIONS })
+    const item = container.querySelector('[data-list-item="wf-1"]') as HTMLElement
+
+    await act(async () => {
+      item.dispatchEvent(new MouseEvent('contextmenu', { bubbles: true, clientX: 100, clientY: 200 }))
+      await flush()
+    })
+
+    const contextMenu = document.querySelector('[data-testid="sidebar-context-menu"]')
+    expect(contextMenu).toBeTruthy()
+    const renameBtn = document.querySelector('[data-testid="context-menu-rename"]')
+    expect(renameBtn).toBeTruthy()
+    expect(renameBtn?.textContent).toContain('Rename')
+  })
+
+  it('clicking Rename shows inline input that commits on Enter', async () => {
+    await renderSidebar({ sections: RENAME_SECTIONS })
+    const item = container.querySelector('[data-list-item="wf-1"]') as HTMLElement
+
+    await act(async () => {
+      item.dispatchEvent(new MouseEvent('contextmenu', { bubbles: true, clientX: 100, clientY: 200 }))
+      await flush()
+    })
+
+    const renameBtn = document.querySelector('[data-testid="context-menu-rename"]') as HTMLElement
+    expect(renameBtn).toBeTruthy()
+
+    await act(async () => {
+      renameBtn.click()
+      await flush()
+    })
+
+    const input = document.querySelector('[data-testid="context-menu-rename-input"]') as HTMLInputElement
+    expect(input).toBeTruthy()
+    expect(input.value).toBe('Flow A')
+
+    await act(async () => {
+      // Simulate typing a new name
+      const nativeInputValueSetter = Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, 'value')!.set!
+      nativeInputValueSetter.call(input, 'New Name')
+      input.dispatchEvent(new Event('input', { bubbles: true }))
+      await flush()
+    })
+
+    await act(async () => {
+      input.dispatchEvent(new KeyboardEvent('keydown', { key: 'Enter', bubbles: true }))
+      await flush()
+    })
+
+    expect(onItemRename).toHaveBeenCalledWith('wf-1', 'New Name')
+  })
+
+  it('pressing Escape in rename input cancels without calling onItemRename', async () => {
+    await renderSidebar({ sections: RENAME_SECTIONS })
+    const item = container.querySelector('[data-list-item="wf-1"]') as HTMLElement
+
+    await act(async () => {
+      item.dispatchEvent(new MouseEvent('contextmenu', { bubbles: true, clientX: 100, clientY: 200 }))
+      await flush()
+    })
+
+    const renameBtn = document.querySelector('[data-testid="context-menu-rename"]') as HTMLElement
+
+    await act(async () => {
+      renameBtn.click()
+      await flush()
+    })
+
+    const input = document.querySelector('[data-testid="context-menu-rename-input"]') as HTMLInputElement
+    expect(input).toBeTruthy()
+
+    await act(async () => {
+      input.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape', bubbles: true }))
+      await flush()
+    })
+
+    expect(onItemRename).not.toHaveBeenCalled()
+  })
+
+  it('submitting unchanged name does not call onItemRename', async () => {
+    await renderSidebar({ sections: RENAME_SECTIONS })
+    const item = container.querySelector('[data-list-item="wf-1"]') as HTMLElement
+
+    await act(async () => {
+      item.dispatchEvent(new MouseEvent('contextmenu', { bubbles: true, clientX: 100, clientY: 200 }))
+      await flush()
+    })
+
+    const renameBtn = document.querySelector('[data-testid="context-menu-rename"]') as HTMLElement
+
+    await act(async () => {
+      renameBtn.click()
+      await flush()
+    })
+
+    const input = document.querySelector('[data-testid="context-menu-rename-input"]') as HTMLInputElement
+
+    // Submit without changing the value
+    await act(async () => {
+      input.dispatchEvent(new KeyboardEvent('keydown', { key: 'Enter', bubbles: true }))
+      await flush()
+    })
+
+    expect(onItemRename).not.toHaveBeenCalled()
+  })
+
+  it('context menu closes on Escape', async () => {
+    await renderSidebar({ sections: RENAME_SECTIONS })
+    const item = container.querySelector('[data-list-item="wf-1"]') as HTMLElement
+
+    await act(async () => {
+      item.dispatchEvent(new MouseEvent('contextmenu', { bubbles: true, clientX: 100, clientY: 200 }))
+      await flush()
+    })
+
+    expect(document.querySelector('[data-testid="sidebar-context-menu"]')).toBeTruthy()
+
+    await act(async () => {
+      document.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape', bubbles: true }))
+      await flush()
+    })
+
+    expect(document.querySelector('[data-testid="sidebar-context-menu"]')).toBeNull()
+  })
+
+  it('single-click navigates immediately (no delay) when onItemRename is provided', async () => {
+    const props = await renderSidebar({ sections: RENAME_SECTIONS })
+    const item = container.querySelector('[data-list-item="wf-1"]') as HTMLButtonElement
+
+    await act(async () => {
+      item.click()
+      await flush()
+    })
+
+    // Should navigate immediately — no setTimeout delay
+    expect(props.onNavigate).toHaveBeenCalledWith('workflow-a')
+  })
+})

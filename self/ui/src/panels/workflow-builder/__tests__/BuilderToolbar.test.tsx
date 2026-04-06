@@ -39,13 +39,12 @@ describe('BuilderToolbar — Persistence actions', () => {
       expect(saveBtn.hasAttribute('disabled')).toBe(true)
     })
 
-    it('new props onSaveAs, onNewWorkflow, isSaving are accepted', () => {
+    it('new props onNewWorkflow, isSaving are accepted', () => {
       // Renders without error
       expect(() => {
         render(
           <BuilderToolbar
             {...defaultProps}
-            onSaveAs={vi.fn()}
             onNewWorkflow={vi.fn()}
             isSaving={false}
           />,
@@ -64,14 +63,6 @@ describe('BuilderToolbar — Persistence actions', () => {
       expect(saveBtn.getAttribute('title')).not.toContain('Phase 3')
     })
 
-    it('"Save As" button renders and calls onSaveAs on click', () => {
-      const onSaveAs = vi.fn()
-      render(<BuilderToolbar {...defaultProps} onSaveAs={onSaveAs} />)
-      const saveAsBtn = screen.getByTestId('toolbar-save-as')
-      fireEvent.click(saveAsBtn)
-      expect(onSaveAs).toHaveBeenCalledTimes(1)
-    })
-
     it('"New Workflow" button renders and calls onNewWorkflow on click', () => {
       const onNewWorkflow = vi.fn()
       render(<BuilderToolbar {...defaultProps} onNewWorkflow={onNewWorkflow} />)
@@ -80,35 +71,62 @@ describe('BuilderToolbar — Persistence actions', () => {
       expect(onNewWorkflow).toHaveBeenCalledTimes(1)
     })
 
-    it('Save and Save As disabled when isSaving is true', () => {
+    it('Save disabled when isSaving is true', () => {
       render(
         <BuilderToolbar
           {...defaultProps}
           isDirty={true}
           isSaving={true}
-          onSaveAs={vi.fn()}
         />,
       )
       expect(screen.getByTestId('toolbar-save').hasAttribute('disabled')).toBe(true)
-      expect(screen.getByTestId('toolbar-save-as').hasAttribute('disabled')).toBe(true)
     })
 
-    it('Save As button not disabled when isDirty is false (always available in authoring)', () => {
-      render(
-        <BuilderToolbar
-          {...defaultProps}
-          isDirty={false}
-          isSaving={false}
-          onSaveAs={vi.fn()}
-        />,
-      )
-      expect(screen.getByTestId('toolbar-save-as').hasAttribute('disabled')).toBe(false)
-    })
-
-    it('Save As and New Workflow buttons hidden when callbacks not provided', () => {
+    it('New Workflow button hidden when callback not provided', () => {
       render(<BuilderToolbar {...defaultProps} />)
-      expect(screen.queryByTestId('toolbar-save-as')).toBeNull()
       expect(screen.queryByTestId('toolbar-new-workflow')).toBeNull()
+    })
+  })
+})
+
+describe('BuilderToolbar — Delete action', () => {
+  // Tier 1 — Contract
+
+  describe('Tier 1 — Contract', () => {
+    it('onDelete prop is accepted without error', () => {
+      expect(() => {
+        render(<BuilderToolbar {...defaultProps} onDelete={vi.fn()} />)
+      }).not.toThrow()
+    })
+
+    it('delete button not rendered when onDelete is undefined', () => {
+      render(<BuilderToolbar {...defaultProps} />)
+      expect(screen.queryByTestId('toolbar-delete')).toBeNull()
+    })
+  })
+
+  // Tier 2 — Behavior
+
+  describe('Tier 2 — Behavior', () => {
+    it('delete button renders when onDelete is provided', () => {
+      render(<BuilderToolbar {...defaultProps} onDelete={vi.fn()} />)
+      expect(screen.getByTestId('toolbar-delete')).toBeDefined()
+    })
+
+    it('delete button calls onDelete on click', () => {
+      const onDelete = vi.fn()
+      render(<BuilderToolbar {...defaultProps} onDelete={onDelete} />)
+      fireEvent.click(screen.getByTestId('toolbar-delete'))
+      expect(onDelete).toHaveBeenCalledTimes(1)
+    })
+
+    it('delete button is enabled in authoring mode (context mock default)', () => {
+      // The module-level mock sets useBuilderMode to return 'authoring' mode.
+      // In authoring mode, the delete button should be enabled.
+      const onDelete = vi.fn()
+      render(<BuilderToolbar {...defaultProps} onDelete={onDelete} />)
+      const deleteBtn = screen.getByTestId('toolbar-delete')
+      expect(deleteBtn.hasAttribute('disabled')).toBe(false)
     })
   })
 })

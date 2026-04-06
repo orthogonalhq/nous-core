@@ -123,6 +123,51 @@ describe('WorkflowBuilderPanel', () => {
     })
   })
 
+  // ─── Tier 2 — Phase 1.3 ContentRouter Integration ─────────────────────────
+
+  describe('Tier 2 — Phase 1.3 ContentRouter Integration', () => {
+    it('hides WorkflowPicker when rendered with ContentRouter props (no params)', () => {
+      // ContentRouter always passes navigate/goBack/canGoBack — dockview never does.
+      // When these props are present, hideWorkflowPicker should be true and
+      // WorkflowPicker must not render, even without params.
+      // Cast to any — ContentRouter injects navigate/goBack/canGoBack at runtime
+      // but they are not part of the static type union.
+      const ContentRouterProps = {
+        navigate: vi.fn(),
+        goBack: vi.fn(),
+        canGoBack: false,
+      } as Record<string, unknown>
+      const { container } = render(
+        <WorkflowBuilderPanel {...ContentRouterProps} />,
+      )
+      expect(container.querySelector('[data-testid="workflow-picker"]')).toBeNull()
+    })
+
+    it('name dialog renders in portal (document.body)', () => {
+      // Render the panel with a projectId so that Save triggers the name dialog
+      // (first save with no currentDefinitionId prompts for a name).
+      const { container } = render(
+        <WorkflowBuilderPanel projectId="proj-123" />,
+      )
+
+      // Before saving, the name dialog should not exist anywhere
+      expect(document.body.querySelector('[data-testid="workflow-name-dialog"]')).toBeNull()
+
+      // Trigger save via Ctrl+S keyboard shortcut — this bypasses the
+      // disabled Save button and invokes handleSave directly. With projectId
+      // set and no currentDefinitionId, handleSave opens the name dialog.
+      fireEvent.keyDown(window, { key: 's', ctrlKey: true })
+
+      // The name dialog should be in document.body (via createPortal), not
+      // inside the panel's own DOM tree.
+      const dialog = document.body.querySelector('[data-testid="workflow-name-dialog"]')
+      expect(dialog).toBeTruthy()
+
+      // Verify it is NOT inside the panel container
+      expect(container.querySelector('[data-testid="workflow-name-dialog"]')).toBeNull()
+    })
+  })
+
   // ─── Tier 3 — Phase 2 Authoring Flow ─────────────────────────────────────
 
   describe('Tier 3 — Phase 2 Authoring Flow', () => {

@@ -43,6 +43,7 @@ import { buildDesktopCommands } from './desktop-command-config'
 import { DESKTOP_TOP_NAV, buildDesktopSidebarSections } from './desktop-sidebar-config'
 import { BASE_SIMPLE_MODE_ROUTES } from './desktop-routes'
 import { useTasks, buildTasksSection } from '@nous/ui/hooks/useTasks'
+import { useWorkflows, buildWorkflowsSection } from '@nous/ui/hooks/useWorkflows'
 import { SettingsRoute } from './desktop-settings-route'
 
 import 'dockview-react/dist/styles/dockview.css'
@@ -793,6 +794,7 @@ function DesktopShellWithProject({
     <ShellProvider
       mode={mode}
       activeRoute={activeRoute}
+      navigationParams={navigationParams}
       navigation={navigation}
       navigate={navigate}
       goBack={goBack}
@@ -876,11 +878,13 @@ function DesktopSimpleShell({
 // ─── Desktop Project Rail (wired to tRPC) ──────────────────────────────────
 
 const TASK_DETAIL_PREFIX = 'task-detail::'
+const WORKFLOW_DETAIL_PREFIX = 'workflow-detail::'
 
 function DesktopAssetSidebarConnected() {
-  const { activeProjectId, activeRoute, navigate } = useShellCtx()
+  const { activeProjectId, activeRoute, navigationParams, navigate } = useShellCtx()
   const { data: projectList } = trpc.projects.list.useQuery()
   const tasksApi = useTasks({ projectId: activeProjectId })
+  const workflowsApi = useWorkflows({ projectId: activeProjectId })
 
   // Track the raw sidebar routeId for highlight state.
   // Encoded items like "task-detail::taskId" resolve to activeRoute "task-detail"
@@ -889,9 +893,17 @@ function DesktopAssetSidebarConnected() {
   const [sidebarSelection, setSidebarSelection] = useState(activeRoute)
 
   // Sync when activeRoute changes externally (e.g. top-nav click, goBack)
+  // Reconstruct the full encoded routeId from params when navigating within
+  // same-route groups (e.g. goBack restoring workflow-detail with definitionId).
   useEffect(() => {
-    setSidebarSelection(activeRoute)
-  }, [activeRoute])
+    if (activeRoute.startsWith('workflow-detail') && navigationParams?.definitionId) {
+      setSidebarSelection(`${WORKFLOW_DETAIL_PREFIX}${navigationParams.definitionId}`)
+    } else if (activeRoute.startsWith('task-detail') && navigationParams?.taskId) {
+      setSidebarSelection(`${TASK_DETAIL_PREFIX}${navigationParams.taskId}`)
+    } else {
+      setSidebarSelection(activeRoute)
+    }
+  }, [activeRoute, navigationParams])
 
   // Wrap navigate to parse task-detail::<taskId> encoding from sidebar items
   // and forward as navigate('task-detail', { taskId }) with params.
@@ -900,6 +912,9 @@ function DesktopAssetSidebarConnected() {
     if (routeId.startsWith(TASK_DETAIL_PREFIX)) {
       const taskId = routeId.slice(TASK_DETAIL_PREFIX.length)
       navigate('task-detail', { taskId })
+    } else if (routeId.startsWith(WORKFLOW_DETAIL_PREFIX)) {
+      const definitionId = routeId.slice(WORKFLOW_DETAIL_PREFIX.length)
+      navigate('workflow-detail', { definitionId })
     } else {
       navigate(routeId)
     }
@@ -916,9 +931,29 @@ function DesktopAssetSidebarConnected() {
     [tasksApi.tasks, tasksApi.tasksLoading, tasksApi.tasksError, navigate, handleNavigate],
   )
 
+  const workflowsSection = useMemo(
+    () => buildWorkflowsSection({
+      workflows: workflowsApi.workflows,
+      loading: workflowsApi.workflowsLoading,
+      error: workflowsApi.workflowsError,
+      onAdd: async () => {
+        if (!activeProjectId) return
+        const newId = await workflowsApi.createWorkflow(activeProjectId)
+        if (newId) {
+          navigate('workflow-detail', { definitionId: newId })
+        }
+      },
+      navigate: handleNavigate,
+      onItemRename: (itemId, newName) => {
+        void workflowsApi.renameWorkflow(itemId, newName)
+      },
+    }),
+    [workflowsApi.workflows, workflowsApi.workflowsLoading, workflowsApi.workflowsError, workflowsApi.createWorkflow, workflowsApi.renameWorkflow, activeProjectId, navigate, handleNavigate],
+  )
+
   const sections = useMemo(
-    () => buildDesktopSidebarSections({ tasksSection }),
-    [tasksSection],
+    () => buildDesktopSidebarSections({ tasksSection, workflowsSection }),
+    [tasksSection, workflowsSection],
   )
 
   const projectName = useMemo(() => {

@@ -1,6 +1,7 @@
 'use client'
 
 import { useMemo, useCallback, useContext, useRef, useState, useEffect, useImperativeHandle, forwardRef } from 'react'
+import { createPortal } from 'react-dom'
 import {
   ReactFlow,
   ReactFlowProvider,
@@ -63,6 +64,7 @@ const CanvasDropTarget = forwardRef<
     onFocusedNodeChange: (nodeId: string | null) => void
     projectId?: string
     workflowDefinitionId?: string
+    hideWorkflowPicker?: boolean
   }
 >(function CanvasDropTarget({
   canvasRef,
@@ -70,6 +72,7 @@ const CanvasDropTarget = forwardRef<
   onFocusedNodeChange,
   projectId,
   workflowDefinitionId,
+  hideWorkflowPicker,
 }, ref) {
   const { mode, setMode } = useBuilderMode()
   const workflowApi = useWorkflowApi({ projectId })
@@ -196,7 +199,7 @@ const CanvasDropTarget = forwardRef<
   // ─── Save handlers with inline naming ──────────────────────────────────
 
   const [showNameInput, setShowNameInput] = useState(false)
-  const [pendingNameAction, setPendingNameAction] = useState<'save' | 'saveAs' | null>(null)
+  const [pendingNameAction, setPendingNameAction] = useState<'save' | null>(null)
   const [nameInputValue, setNameInputValue] = useState('Untitled Workflow')
   const nameInputRef = useRef<HTMLInputElement>(null)
 
@@ -211,12 +214,8 @@ const CanvasDropTarget = forwardRef<
     const name = nameInputValue.trim() || 'Untitled Workflow'
     setShowNameInput(false)
     setPendingNameAction(null)
-    if (pendingNameAction === 'saveAs') {
-      void saveAsNew(name)
-    } else {
-      void saveToServer(name)
-    }
-  }, [nameInputValue, pendingNameAction, saveAsNew, saveToServer])
+    void saveToServer(name)
+  }, [nameInputValue, saveToServer])
 
   const handleSave = useCallback(() => {
     if (projectId) {
@@ -232,11 +231,6 @@ const CanvasDropTarget = forwardRef<
       markClean()
     }
   }, [projectId, currentDefinitionId, saveToServer, getCurrentSpec, markClean])
-
-  const handleSaveAs = useCallback(() => {
-    setPendingNameAction('saveAs')
-    setShowNameInput(true)
-  }, [])
 
   const handleNewWorkflow = useCallback(() => {
     resetToEmpty()
@@ -585,13 +579,17 @@ const CanvasDropTarget = forwardRef<
         canUndo={canUndo}
         canRedo={canRedo}
         onSave={handleSave}
-        onSaveAs={projectId ? handleSaveAs : undefined}
         onNewWorkflow={projectId ? handleNewWorkflow : undefined}
         onValidate={handleValidate}
         isDirty={isDirty}
         isSaving={isSaving}
         validationErrorCount={validationErrors.length}
         isValidationPanelOpen={isValidationPanelOpen}
+        onDelete={hideWorkflowPicker && currentDefinitionId ? () => {
+          if (window.confirm('Delete this workflow? This cannot be undone.')) {
+            void handleDeleteWorkflow(currentDefinitionId)
+          }
+        } : undefined}
       />
       {/* Construction watching mode indicator */}
       {isWatchingConstruction && (
@@ -634,10 +632,10 @@ const CanvasDropTarget = forwardRef<
         </div>
       )}
       {/* Inline workflow naming dialog */}
-      {showNameInput && (
+      {showNameInput && createPortal(
         <div
           style={{
-            position: 'absolute',
+            position: 'fixed',
             top: '50%',
             left: '50%',
             transform: 'translate(-50%, -50%)',
@@ -654,7 +652,7 @@ const CanvasDropTarget = forwardRef<
           onMouseDown={(e) => e.stopPropagation()}
         >
           <div style={{ fontSize: 'var(--nous-font-size-sm)', fontWeight: 600, color: 'var(--nous-fg)', marginBottom: 'var(--nous-space-sm)' }}>
-            {pendingNameAction === 'saveAs' ? 'Save As New Workflow' : 'Name Your Workflow'}
+            {'Name Your Workflow'}
           </div>
           <input
             ref={nameInputRef}
@@ -715,13 +713,14 @@ const CanvasDropTarget = forwardRef<
               Save
             </button>
           </div>
-        </div>
+        </div>,
+        document.body,
       )}
       {/* Authoring-only UI — hidden in monitor mode */}
       {mode !== 'monitoring' && (
         <>
           <NodePalette containerRef={canvasRef} />
-          {projectId && (
+          {projectId && !hideWorkflowPicker && (
             <WorkflowPicker
               projectId={projectId}
               currentDefinitionId={currentDefinitionId}
@@ -853,10 +852,11 @@ const CanvasDropTarget = forwardRef<
   )
 })
 
-function WorkflowBuilderCanvas({ className, projectId, workflowDefinitionId }: {
+function WorkflowBuilderCanvas({ className, projectId, workflowDefinitionId, hideWorkflowPicker }: {
   className?: string
   projectId?: string
   workflowDefinitionId?: string
+  hideWorkflowPicker?: boolean
 }) {
   const canvasRef = useRef<HTMLDivElement | null>(null)
   const dropTargetRef = useRef<CanvasDropTargetHandle>(null)
@@ -896,6 +896,7 @@ function WorkflowBuilderCanvas({ className, projectId, workflowDefinitionId }: {
             onFocusedNodeChange={handleFocusedNodeChange}
             projectId={projectId}
             workflowDefinitionId={workflowDefinitionId}
+            hideWorkflowPicker={hideWorkflowPicker}
           />
         </ReactFlowProvider>
       </BuilderModeProvider>
@@ -912,6 +913,9 @@ export function WorkflowBuilderPanel(
   const propProjectId = 'projectId' in props ? props.projectId : undefined
   const workflowDefinitionId = 'workflowDefinitionId' in props ? props.workflowDefinitionId : undefined
 
+  // ContentRouter always passes navigate/goBack/canGoBack; dockview never does.
+  const isSimpleMode = 'navigate' in props
+
   // Desktop panels are mounted via dockview without explicit props.
   // Fall back to ShellContext.activeProjectId when no projectId prop is provided.
   // useContext returns null when no ShellProvider is present (e.g. in tests/storybook).
@@ -927,10 +931,13 @@ export function WorkflowBuilderPanel(
   const effectiveDefinitionId = navDefinitionId ?? workflowDefinitionId
 
   return (
-    <WorkflowBuilderCanvas
-      className={className}
-      projectId={effectiveProjectId}
-      workflowDefinitionId={effectiveDefinitionId}
-    />
+    <div style={{ height: '100%' }}>
+      <WorkflowBuilderCanvas
+        className={className}
+        projectId={effectiveProjectId}
+        workflowDefinitionId={effectiveDefinitionId}
+        hideWorkflowPicker={isSimpleMode}
+      />
+    </div>
   )
 }

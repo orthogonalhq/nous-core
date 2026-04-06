@@ -23,6 +23,7 @@ export interface ShellProviderProps extends PropsWithChildren {
   mode?: ShellMode
   breakpoint?: ShellBreakpoint
   activeRoute?: string
+  navigationParams?: Record<string, unknown>
   navigation?: NavigationState
   conversation?: ShellContextValue['conversation']
   activeProjectId?: string | null
@@ -38,6 +39,7 @@ export function ShellProvider({
   mode = 'simple',
   breakpoint = 'full',
   activeRoute = DEFAULT_ACTIVE_ROUTE,
+  navigationParams,
   navigation,
   conversation = defaultConversationContext,
   activeProjectId = null,
@@ -51,6 +53,7 @@ export function ShellProvider({
     mode,
     breakpoint,
     activeRoute: resolvedActiveRoute,
+    navigationParams,
     navigation: navigation ?? {
       ...DEFAULT_NAVIGATION,
       activeRoute: resolvedActiveRoute,
