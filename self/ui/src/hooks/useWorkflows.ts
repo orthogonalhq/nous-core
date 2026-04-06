@@ -2,7 +2,7 @@
 
 import { useCallback } from 'react'
 import { trpc } from '@nous/transport'
-import type { AssetSection } from '../components/shell/types'
+import type { AssetSection, ContextMenuAction } from '../components/shell/types'
 
 // ─── Hook ────────────────────────────────────────────────────────────────────
 
@@ -16,6 +16,7 @@ export interface UseWorkflowsReturn {
   workflowsError: unknown
   createWorkflow: (projectId: string) => Promise<string | null>
   renameWorkflow: (definitionId: string, name: string) => Promise<void>
+  deleteWorkflow: (definitionId: string) => Promise<void>
 }
 
 export function useWorkflows({ projectId }: UseWorkflowsOptions): UseWorkflowsReturn {
@@ -26,6 +27,7 @@ export function useWorkflows({ projectId }: UseWorkflowsOptions): UseWorkflowsRe
 
   const saveSpecMutation = trpc.projects.saveWorkflowSpec.useMutation()
   const renameWorkflowMutation = trpc.projects.renameWorkflowDefinition.useMutation()
+  const deleteWorkflowMutation = trpc.projects.deleteWorkflowDefinition.useMutation()
   const utils = trpc.useUtils()
 
   const createWorkflow = useCallback(async (targetProjectId: string): Promise<string | null> => {
@@ -64,12 +66,23 @@ export function useWorkflows({ projectId }: UseWorkflowsOptions): UseWorkflowsRe
     }
   }, [projectId, renameWorkflowMutation, utils])
 
+  const deleteWorkflow = useCallback(async (definitionId: string) => {
+    if (!projectId) return
+    try {
+      await deleteWorkflowMutation.mutateAsync({ projectId, definitionId })
+      void utils.projects.listWorkflowDefinitions.invalidate({ projectId })
+    } catch (error) {
+      console.error('[useWorkflows] deleteWorkflow failed:', error)
+    }
+  }, [projectId, deleteWorkflowMutation, utils])
+
   return {
     workflows: data ?? [],
     workflowsLoading: isLoading,
     workflowsError: error,
     createWorkflow,
     renameWorkflow,
+    deleteWorkflow,
   }
 }
 
@@ -82,6 +95,7 @@ export function buildWorkflowsSection(params: {
   onAdd: () => void
   navigate: (routeId: string, navParams?: Record<string, unknown>) => void
   onItemRename?: (itemId: string, newName: string) => void
+  contextMenuActions?: ContextMenuAction[]
 }): AssetSection {
   return {
     id: 'workflows',
@@ -96,5 +110,6 @@ export function buildWorkflowsSection(params: {
     disabled: false,
     onAdd: params.onAdd,
     onItemRename: params.onItemRename,
+    contextMenuActions: params.contextMenuActions,
   }
 }
