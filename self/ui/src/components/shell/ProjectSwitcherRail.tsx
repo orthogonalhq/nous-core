@@ -1,7 +1,8 @@
 import * as React from 'react'
 import { clsx } from 'clsx'
-import { Plus } from 'lucide-react'
+import { Plus, Bot } from 'lucide-react'
 import type { ProjectItem, ProjectSwitcherRailProps } from './types'
+import { isHomeSidebarEnabled } from './feature-flags'
 
 // ---------------------------------------------------------------------------
 // Helpers
@@ -28,17 +29,20 @@ function getInitial(name: string): string {
 function ProjectAvatar({
     project,
     isActive,
+    isSubdued,
     onSelect,
 }: {
     project: ProjectItem
     isActive: boolean
+    /** When true, show a subtle indicator instead of the full active bar (e.g. home context) */
+    isSubdued?: boolean
     onSelect: (id: string) => void
 }) {
     const [hovered, setHovered] = React.useState(false)
 
     return (
         <div style={styles.avatarWrap}>
-            {isActive && <span data-active-indicator style={styles.activeIndicator} />}
+            {isActive && <span data-active-indicator style={isSubdued ? styles.ghostIndicator : styles.activeIndicator} />}
             <button
                 type="button"
                 aria-label={project.name}
@@ -69,11 +73,16 @@ export function ProjectSwitcherRail({
     activeProjectId,
     onProjectSelect,
     onNewProject,
+    onHomeClick,
+    isHomeActive,
     brandSlot,
     className,
     style,
     ...props
 }: ProjectSwitcherRailProps & React.HTMLAttributes<HTMLDivElement>) {
+    const showHomeButton = isHomeSidebarEnabled() && onHomeClick
+    const [homeHovered, setHomeHovered] = React.useState(false)
+
     return (
         <div
             className={clsx('nous-project-switcher-rail', className)}
@@ -87,12 +96,37 @@ export function ProjectSwitcherRail({
                 </div>
             )}
 
+            {showHomeButton && (
+                <div style={styles.avatarWrap}>
+                    {isHomeActive && <span data-active-indicator style={styles.activeIndicator} />}
+                    <button
+                        type="button"
+                        aria-label="Home"
+                        data-rail-action="home"
+                        aria-current={isHomeActive ? 'true' : undefined}
+                        onClick={onHomeClick}
+                        onMouseEnter={() => setHomeHovered(true)}
+                        onMouseLeave={() => setHomeHovered(false)}
+                        style={{
+                            ...styles.homeButton,
+                            opacity: homeHovered && !isHomeActive ? 0.85 : 1,
+                            background: isHomeActive
+                                ? 'var(--nous-bg-active, rgba(255,255,255,0.1))'
+                                : 'transparent',
+                        }}
+                    >
+                        <Bot size={20} />
+                    </button>
+                </div>
+            )}
+
             <div style={styles.projectList}>
                 {projects.map((project) => (
                     <ProjectAvatar
                         key={project.id}
                         project={project}
                         isActive={project.id === activeProjectId}
+                        isSubdued={isHomeActive}
                         onSelect={onProjectSelect}
                     />
                 ))}
@@ -165,6 +199,17 @@ const styles = {
         borderRadius: '0 var(--nous-space-2xs) var(--nous-space-2xs) 0',
         background: 'var(--nous-fg-muted)',
     },
+    ghostIndicator: {
+        position: 'absolute' as const,
+        left: 0,
+        top: '50%',
+        transform: 'translateY(-50%)',
+        width: 'var(--nous-rail-indicator-width)',
+        height: 'var(--nous-rail-indicator-height)',
+        borderRadius: '0 var(--nous-space-2xs) var(--nous-space-2xs) 0',
+        background: 'var(--nous-fg-muted)',
+        opacity: 0.3,
+    },
     avatarButton: {
         display: 'flex',
         alignItems: 'center',
@@ -180,6 +225,19 @@ const styles = {
         transition: 'var(--nous-hover-button-transition)',
         padding: 0,
         outline: 'none',
+    },
+    homeButton: {
+        display: 'flex',
+        alignItems: 'center',
+        justifyContent: 'center',
+        width: 'var(--nous-rail-avatar-size)',
+        height: 'var(--nous-rail-avatar-size)',
+        borderRadius: 'var(--nous-radius-md)',
+        border: '1px solid var(--nous-border-subtle)',
+        color: 'var(--nous-text-secondary)',
+        cursor: 'pointer',
+        padding: 0,
+        transition: 'var(--nous-hover-button-transition)',
     },
     newProjectButton: {
         display: 'flex',

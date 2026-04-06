@@ -1,6 +1,7 @@
 'use client'
 
 import type { HomeScreenProps } from './types'
+import { isHomeSidebarEnabled } from './feature-flags'
 
 function getGreeting(): string {
   const hour = new Date().getHours()
@@ -26,6 +27,7 @@ export function HomeScreen(props: HomeScreenProps) {
 
   const displayGreeting = greeting ?? getGreeting()
   const displayActivity = recentActivity ?? STUB_RECENT_ACTIVITY
+  const showQuickActions = !isHomeSidebarEnabled()
 
   return (
     <div
@@ -94,48 +96,50 @@ export function HomeScreen(props: HomeScreenProps) {
         </ul>
       </section>
 
-      {/* Quick Actions */}
-      <section>
-        <h3
-          style={{
-            fontSize: 'var(--nous-font-size-sm)',
-            fontWeight: 'var(--nous-font-weight-semibold)' as any,
-            color: 'var(--nous-fg-muted)',
-            margin: '0 0 var(--nous-space-md) 0',
-            textTransform: 'uppercase',
-            letterSpacing: '0.04em',
-          }}
-        >
-          Quick Actions
-        </h3>
-        <div
-          style={{
-            display: 'flex',
-            gap: 'var(--nous-space-md)',
-            flexWrap: 'wrap',
-          }}
-        >
-          {QUICK_ACTIONS.map((action) => (
-            <button
-              key={action.id}
-              type="button"
-              onClick={() => navigate(action.routeId)}
-              style={{
-                background: 'var(--nous-bg-elevated)',
-                border: '1px solid var(--nous-border-subtle)',
-                borderRadius: 'var(--nous-radius-md)',
-                padding: 'var(--nous-space-md) var(--nous-space-xl)',
-                color: 'var(--nous-fg)',
-                fontSize: 'var(--nous-font-size-base)',
-                cursor: 'pointer',
-                fontFamily: 'inherit',
-              }}
-            >
-              {action.label}
-            </button>
-          ))}
-        </div>
-      </section>
+      {/* Quick Actions — hidden when home sidebar feature is enabled */}
+      {showQuickActions && (
+        <section>
+          <h3
+            style={{
+              fontSize: 'var(--nous-font-size-sm)',
+              fontWeight: 'var(--nous-font-weight-semibold)' as any,
+              color: 'var(--nous-fg-muted)',
+              margin: '0 0 var(--nous-space-md) 0',
+              textTransform: 'uppercase',
+              letterSpacing: '0.04em',
+            }}
+          >
+            Quick Actions
+          </h3>
+          <div
+            style={{
+              display: 'flex',
+              gap: 'var(--nous-space-md)',
+              flexWrap: 'wrap',
+            }}
+          >
+            {QUICK_ACTIONS.map((action) => (
+              <button
+                key={action.id}
+                type="button"
+                onClick={() => navigate(action.routeId)}
+                style={{
+                  background: 'var(--nous-bg-elevated)',
+                  border: '1px solid var(--nous-border-subtle)',
+                  borderRadius: 'var(--nous-radius-md)',
+                  padding: 'var(--nous-space-md) var(--nous-space-xl)',
+                  color: 'var(--nous-fg)',
+                  fontSize: 'var(--nous-font-size-base)',
+                  cursor: 'pointer',
+                  fontFamily: 'inherit',
+                }}
+              >
+                {action.label}
+              </button>
+            ))}
+          </div>
+        </section>
+      )}
     </div>
   )
 }

@@ -43,6 +43,9 @@ vi.mock('@nous/ui/hooks/useTasks', () => ({
 }))
 
 vi.mock('@nous/ui/components', () => ({
+  isHomeSidebarEnabled: () => false,
+  HOME_TOP_NAV: [],
+  buildHomeSidebarSections: () => [],
   ShellProvider: (props: any) => {
     capturedShellProviderProps = props
     return React.createElement('div', { 'data-testid': 'shell-provider', 'data-mode': props.mode, 'data-active-route': props.activeRoute }, props.children)

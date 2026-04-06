@@ -25,6 +25,9 @@ import {
   ProjectSwitcherRail,
   AssetSidebar,
   useChatStageManager,
+  isHomeSidebarEnabled,
+  HOME_TOP_NAV,
+  buildHomeSidebarSections,
   type ContentRouterRenderProps,
   type ShellMode,
   type CommandGroup,
@@ -299,6 +302,7 @@ export function App() {
   const [appPanels, setAppPanels] = useState<AppPanelSnapshot[]>([])
   const [mode, setMode] = useState<ShellMode>('simple')
   const [activeRoute, setActiveRoute] = useState(DEFAULT_ROUTE)
+  const [isHomeContext, setIsHomeContext] = useState(false)
   const [commandPaletteOpen, setCommandPaletteOpen] = useState(false)
   const [backendPort, setBackendPort] = useState<number | null>(null)
 
@@ -575,6 +579,7 @@ export function App() {
   }), [preferencesPanelParams])
 
   const handleDesktopProjectChange = useCallback((newProjectId: string) => {
+    setIsHomeContext(false)
     setActiveRoute(DEFAULT_ROUTE) // reset content route on project switch
   }, [])
 
@@ -702,6 +707,8 @@ export function App() {
           handleNavigate={handleNavigate}
           simpleModeRoutes={simpleModeRoutes}
           navigationParams={navigationParams}
+          isHomeContext={isHomeContext}
+          setIsHomeContext={setIsHomeContext}
         />
       ) : (
         <DockviewShell
@@ -813,11 +820,15 @@ function DesktopSimpleShell({
   handleNavigate,
   simpleModeRoutes,
   navigationParams,
+  isHomeContext,
+  setIsHomeContext,
 }: {
   activeRoute: string
   handleNavigate: (routeId: string, params?: Record<string, unknown>) => void
   simpleModeRoutes: Record<string, any>
   navigationParams?: Record<string, unknown>
+  isHomeContext: boolean
+  setIsHomeContext: (value: boolean) => void
 }) {
   const chatStageManager = useChatStageManager()
 
@@ -839,10 +850,16 @@ function DesktopSimpleShell({
     enabled: true,
   })
 
+  const showHomeSidebar = isHomeContext && isHomeSidebarEnabled()
+
   return (
     <SimpleShellLayout
-      projectRail={<DesktopProjectRail />}
-      sidebar={<DesktopAssetSidebarConnected />}
+      projectRail={<DesktopProjectRail isHomeContext={isHomeContext} setIsHomeContext={setIsHomeContext} />}
+      sidebar={
+        showHomeSidebar
+          ? <DesktopHomeSidebar />
+          : <DesktopAssetSidebarConnected />
+      }
       content={
         <ContentRouter
           activeRoute={activeRoute}
@@ -973,8 +990,8 @@ function DesktopAssetSidebarConnected() {
   )
 }
 
-function DesktopProjectRail() {
-  const { activeProjectId, onProjectChange } = useShellCtx()
+function DesktopProjectRail({ isHomeContext, setIsHomeContext }: { isHomeContext: boolean; setIsHomeContext: (v: boolean) => void }) {
+  const { activeProjectId, activeRoute, navigate, onProjectChange } = useShellCtx()
   const { data: projectList } = trpc.projects.list.useQuery()
 
   const projects = useMemo(
@@ -982,11 +999,39 @@ function DesktopProjectRail() {
     [projectList],
   )
 
+  const handleHomeClick = useCallback(() => {
+    setIsHomeContext(true)
+    navigate('home')
+  }, [navigate, setIsHomeContext])
+
+  const handleProjectSelect = useCallback((id: string) => {
+    setIsHomeContext(false)
+    onProjectChange?.(id)
+  }, [onProjectChange, setIsHomeContext])
+
   return (
     <ProjectSwitcherRail
       projects={projects}
       activeProjectId={activeProjectId ?? ''}
-      onProjectSelect={(id) => onProjectChange?.(id)}
+      onProjectSelect={handleProjectSelect}
+      onHomeClick={handleHomeClick}
+      isHomeActive={isHomeContext}
+    />
+  )
+}
+
+function DesktopHomeSidebar() {
+  const { activeRoute, navigate } = useShellCtx()
+
+  const sections = useMemo(() => buildHomeSidebarSections(), [])
+
+  return (
+    <AssetSidebar
+      projectName="Home"
+      topNav={HOME_TOP_NAV}
+      sections={sections}
+      activeRoute={activeRoute}
+      onNavigate={navigate}
     />
   )
 }

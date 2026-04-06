@@ -17,6 +17,9 @@ import {
   AssetSidebar,
   useChatStageManager,
   useShellContext,
+  isHomeSidebarEnabled,
+  HOME_TOP_NAV,
+  buildHomeSidebarSections,
 } from '@nous/ui/components'
 import type { ShellMode, NavigationState } from '@nous/ui/components'
 import { useEventSubscription, trpc } from '@nous/transport'
@@ -67,6 +70,7 @@ function ShellLayoutContent({
 }) {
   const [mode, setMode] = useState<ShellMode>('simple')
   const [activeRoute, setActiveRoute] = useState('home')
+  const [isHomeContext, setIsHomeContext] = useState(false)
   const [commandPaletteOpen, setCommandPaletteOpen] = useState(false)
   const [projectId, setProjectId] = useState<string | null>(null)
   const [dockviewApi, setDockviewApi] = useState<DockviewApi | null>(null)
@@ -154,6 +158,7 @@ function ShellLayoutContent({
 
   const handleProjectChange = useCallback((newProjectId: string) => {
     setProjectId(newProjectId)
+    setIsHomeContext(false)
     setActiveRoute('home') // reset content route on project switch
   }, [])
 
@@ -220,10 +225,22 @@ function ShellLayoutContent({
                   <ProjectSwitcherRail
                     projects={stubProjects}
                     activeProjectId={projectId ?? 'project-1'}
-                    onProjectSelect={handleProjectChange}
+                    onProjectSelect={(id) => {
+                      setIsHomeContext(false)
+                      handleProjectChange(id)
+                    }}
+                    onHomeClick={() => {
+                      setIsHomeContext(true)
+                      handleNavigate('home')
+                    }}
+                    isHomeActive={isHomeContext}
                   />
                 }
-                sidebar={<WebAssetSidebarConnected />}
+                sidebar={
+                  isHomeContext && isHomeSidebarEnabled()
+                    ? <WebHomeSidebar />
+                    : <WebAssetSidebarConnected />
+                }
                 content={
                   <ContentRouter
                     activeRoute={activeRoute}
@@ -297,6 +314,24 @@ function WebAssetSidebarConnected() {
     <AssetSidebar
       projectName={projectName}
       topNav={WEB_TOP_NAV}
+      sections={sections}
+      activeRoute={activeRoute}
+      onNavigate={navigate}
+    />
+  )
+}
+
+// ─── Web Home Sidebar (lives inside ShellProvider tree) ─────────────────
+
+function WebHomeSidebar() {
+  const { activeRoute, navigate } = useShellContext()
+
+  const sections = useMemo(() => buildHomeSidebarSections(), [])
+
+  return (
+    <AssetSidebar
+      projectName="Home"
+      topNav={HOME_TOP_NAV}
       sections={sections}
       activeRoute={activeRoute}
       onNavigate={navigate}

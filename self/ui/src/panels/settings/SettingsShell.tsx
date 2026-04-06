@@ -26,8 +26,9 @@ const shellContainerStyle: React.CSSProperties = {
 const navColumnStyle: React.CSSProperties = {
   width: '200px',
   minWidth: '200px',
-  borderRight: '1px solid var(--nous-header-border)',
+  borderRight: '1px solid var(--nous-border-subtle)',
   overflow: 'auto',
+  background: 'var(--nous-bg-surface)',
 }
 
 const contentColumnStyle: React.CSSProperties = {

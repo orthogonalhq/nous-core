@@ -30,4 +30,6 @@ export const BASE_SIMPLE_MODE_ROUTES: Record<string, React.ComponentType<Content
   'task-create': TaskCreateForm,
   agents: (props: ContentRouterRenderProps) => <PlaceholderRoute {...props} label="Agents" />,
   'agent-detail': (props: ContentRouterRenderProps) => <PlaceholderRoute {...props} label="Agent Detail" />,
+  usage: (props: ContentRouterRenderProps) => <PlaceholderRoute {...props} label="Usage" />,
+  marketplace: (props: ContentRouterRenderProps) => <PlaceholderRoute {...props} label="Marketplace" />,
 }
