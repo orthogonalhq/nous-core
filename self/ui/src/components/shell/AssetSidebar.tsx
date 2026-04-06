@@ -40,6 +40,7 @@ function ListItem({
     isActive,
     disabled,
     onNavigate,
+    onItemRename,
 }: {
     id: string
     label: string
@@ -50,8 +51,72 @@ function ListItem({
     isActive: boolean
     disabled?: boolean
     onNavigate: (routeId: string) => void
+    onItemRename?: (itemId: string, newName: string) => void
 }) {
     const [hovered, setHovered] = React.useState(false)
+    const [isEditing, setIsEditing] = React.useState(false)
+    const [editValue, setEditValue] = React.useState(label)
+    const inputRef = React.useRef<HTMLInputElement>(null)
+    const clickTimerRef = React.useRef<ReturnType<typeof setTimeout> | null>(null)
+
+    React.useEffect(() => {
+        if (isEditing && inputRef.current) {
+            inputRef.current.focus()
+            inputRef.current.select()
+        }
+    }, [isEditing])
+
+    const commitRename = React.useCallback(() => {
+        const trimmed = editValue.trim()
+        setIsEditing(false)
+        if (trimmed && trimmed !== label && onItemRename) {
+            onItemRename(id, trimmed)
+        } else {
+            setEditValue(label)
+        }
+    }, [editValue, label, id, onItemRename])
+
+    const cancelRename = React.useCallback(() => {
+        setIsEditing(false)
+        setEditValue(label)
+    }, [label])
+
+    const handleClick = React.useCallback(() => {
+        if (disabled || isEditing) return
+        if (onItemRename) {
+            // Delay single click to allow double-click disambiguation
+            if (clickTimerRef.current) {
+                clearTimeout(clickTimerRef.current)
+                clickTimerRef.current = null
+            }
+            clickTimerRef.current = setTimeout(() => {
+                clickTimerRef.current = null
+                onNavigate(routeId)
+            }, 250)
+        } else {
+            onNavigate(routeId)
+        }
+    }, [disabled, isEditing, onItemRename, onNavigate, routeId])
+
+    const handleDoubleClick = React.useCallback(() => {
+        if (disabled || !onItemRename) return
+        // Cancel pending single-click navigation
+        if (clickTimerRef.current) {
+            clearTimeout(clickTimerRef.current)
+            clickTimerRef.current = null
+        }
+        setEditValue(label)
+        setIsEditing(true)
+    }, [disabled, onItemRename, label])
+
+    // Cleanup timer on unmount
+    React.useEffect(() => {
+        return () => {
+            if (clickTimerRef.current) {
+                clearTimeout(clickTimerRef.current)
+            }
+        }
+    }, [])
 
     return (
         <button
@@ -60,7 +125,8 @@ function ListItem({
             data-state={isActive ? 'active' : 'inactive'}
             aria-current={isActive ? 'page' : undefined}
             disabled={disabled}
-            onClick={() => !disabled && onNavigate(routeId)}
+            onClick={handleClick}
+            onDoubleClick={handleDoubleClick}
             onMouseEnter={() => setHovered(true)}
             onMouseLeave={() => setHovered(false)}
             style={{
@@ -88,7 +154,43 @@ function ListItem({
                     }
                 </span>
             )}
-            <span style={s.listItemLabel}>{label}</span>
+            {isEditing ? (
+                <input
+                    ref={inputRef}
+                    data-testid={`rename-input-${id}`}
+                    type="text"
+                    value={editValue}
+                    onChange={(e) => setEditValue(e.target.value)}
+                    onKeyDown={(e) => {
+                        e.stopPropagation()
+                        if (e.key === 'Enter') {
+                            e.preventDefault()
+                            commitRename()
+                        } else if (e.key === 'Escape') {
+                            e.preventDefault()
+                            cancelRename()
+                        }
+                    }}
+                    onBlur={commitRename}
+                    onClick={(e) => e.stopPropagation()}
+                    onDoubleClick={(e) => e.stopPropagation()}
+                    style={{
+                        flex: '1 1 0%',
+                        minWidth: 0,
+                        fontFamily: 'var(--nous-font-family)',
+                        fontSize: 'var(--nous-font-size-md)',
+                        color: 'inherit',
+                        background: 'transparent',
+                        border: 'none',
+                        outline: 'none',
+                        padding: 0,
+                        margin: 0,
+                        lineHeight: 'inherit',
+                    }}
+                />
+            ) : (
+                <span style={s.listItemLabel}>{label}</span>
+            )}
             {badge ? <span style={s.listItemBadge} /> : null}
         </button>
     )
@@ -205,6 +307,7 @@ function AssetSectionBlock({
                             isActive={item.routeId === activeRoute}
                             disabled={!!section.disabled}
                             onNavigate={onNavigate}
+                            onItemRename={section.onItemRename}
                         />
                     ))}
                 </div>

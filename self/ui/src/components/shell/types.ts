@@ -349,6 +349,10 @@ export const AssetSectionSchema = z.object({
     (value) => typeof value === 'function',
     'onSettings function is required',
   ).optional(),
+  onItemRename: z.custom<(itemId: string, newName: string) => void>(
+    (value) => typeof value === 'function',
+    'onItemRename function is required',
+  ).optional(),
 })
 export type AssetSection = z.infer<typeof AssetSectionSchema>
 

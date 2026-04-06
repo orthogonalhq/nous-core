@@ -299,3 +299,175 @@ describe('AssetSidebar — Live Tasks Section', () => {
     expect(ids).toEqual(['workflows', 'tasks', 'teams', 'agents'])
   })
 })
+
+describe('AssetSidebar — Inline Rename', () => {
+  const onItemRename = vi.fn()
+
+  const RENAME_SECTIONS: AssetSection[] = [
+    {
+      id: 'workflows',
+      label: 'WORKFLOWS',
+      collapsible: true,
+      items: [
+        { id: 'wf-1', label: 'Flow A', routeId: 'workflow-a' },
+        { id: 'wf-2', label: 'Flow B', routeId: 'workflow-b' },
+      ],
+      onItemRename,
+    },
+  ]
+
+  const NO_RENAME_SECTIONS: AssetSection[] = [
+    {
+      id: 'workflows',
+      label: 'WORKFLOWS',
+      collapsible: true,
+      items: [
+        { id: 'wf-1', label: 'Flow A', routeId: 'workflow-a' },
+      ],
+    },
+  ]
+
+  beforeEach(() => {
+    vi.clearAllMocks()
+  })
+
+  it('double-click on item label enters edit mode with input pre-filled', async () => {
+    await renderSidebar({ sections: RENAME_SECTIONS })
+    const item = container.querySelector('[data-list-item="wf-1"]') as HTMLElement
+    expect(item).toBeTruthy()
+
+    await act(async () => {
+      item.dispatchEvent(new MouseEvent('dblclick', { bubbles: true }))
+      await flush()
+    })
+
+    const input = container.querySelector('[data-testid="rename-input-wf-1"]') as HTMLInputElement
+    expect(input).toBeTruthy()
+    expect(input.value).toBe('Flow A')
+  })
+
+  it('pressing Enter commits rename and calls onItemRename', async () => {
+    await renderSidebar({ sections: RENAME_SECTIONS })
+    const item = container.querySelector('[data-list-item="wf-1"]') as HTMLElement
+
+    await act(async () => {
+      item.dispatchEvent(new MouseEvent('dblclick', { bubbles: true }))
+      await flush()
+    })
+
+    const input = container.querySelector('[data-testid="rename-input-wf-1"]') as HTMLInputElement
+    expect(input).toBeTruthy()
+
+    // Change value using native input value setter to trigger React's onChange
+    const nativeInputValueSetter = Object.getOwnPropertyDescriptor(
+      window.HTMLInputElement.prototype, 'value',
+    )!.set!
+    await act(async () => {
+      nativeInputValueSetter.call(input, 'Renamed Flow')
+      input.dispatchEvent(new Event('input', { bubbles: true }))
+      await flush()
+    })
+
+    await act(async () => {
+      input.dispatchEvent(new KeyboardEvent('keydown', { key: 'Enter', bubbles: true }))
+      await flush()
+    })
+
+    expect(onItemRename).toHaveBeenCalledWith('wf-1', 'Renamed Flow')
+  })
+
+  it('pressing Escape cancels edit mode without calling onItemRename', async () => {
+    await renderSidebar({ sections: RENAME_SECTIONS })
+    const item = container.querySelector('[data-list-item="wf-1"]') as HTMLElement
+
+    await act(async () => {
+      item.dispatchEvent(new MouseEvent('dblclick', { bubbles: true }))
+      await flush()
+    })
+
+    const input = container.querySelector('[data-testid="rename-input-wf-1"]') as HTMLInputElement
+    expect(input).toBeTruthy()
+
+    await act(async () => {
+      input.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape', bubbles: true }))
+      await flush()
+    })
+
+    expect(onItemRename).not.toHaveBeenCalled()
+    // Label should be restored
+    const label = container.querySelector('[data-list-item="wf-1"]')?.querySelector('span')
+    expect(label?.textContent).toBe('Flow A')
+  })
+
+  it('blur commits rename', async () => {
+    await renderSidebar({ sections: RENAME_SECTIONS })
+    const item = container.querySelector('[data-list-item="wf-1"]') as HTMLElement
+
+    await act(async () => {
+      item.dispatchEvent(new MouseEvent('dblclick', { bubbles: true }))
+      await flush()
+    })
+
+    const input = container.querySelector('[data-testid="rename-input-wf-1"]') as HTMLInputElement
+    expect(input).toBeTruthy()
+
+    const nativeInputValueSetter = Object.getOwnPropertyDescriptor(
+      window.HTMLInputElement.prototype, 'value',
+    )!.set!
+    await act(async () => {
+      nativeInputValueSetter.call(input, 'Blur Renamed')
+      input.dispatchEvent(new Event('input', { bubbles: true }))
+      await flush()
+    })
+
+    await act(async () => {
+      // React listens on focusout (which bubbles), not blur
+      input.dispatchEvent(new FocusEvent('focusout', { bubbles: true }))
+      await flush()
+    })
+
+    expect(onItemRename).toHaveBeenCalledWith('wf-1', 'Blur Renamed')
+  })
+
+  it('empty input on blur cancels rename', async () => {
+    await renderSidebar({ sections: RENAME_SECTIONS })
+    const item = container.querySelector('[data-list-item="wf-1"]') as HTMLElement
+
+    await act(async () => {
+      item.dispatchEvent(new MouseEvent('dblclick', { bubbles: true }))
+      await flush()
+    })
+
+    const input = container.querySelector('[data-testid="rename-input-wf-1"]') as HTMLInputElement
+    expect(input).toBeTruthy()
+
+    const nativeInputValueSetter = Object.getOwnPropertyDescriptor(
+      window.HTMLInputElement.prototype, 'value',
+    )!.set!
+    await act(async () => {
+      nativeInputValueSetter.call(input, '')
+      input.dispatchEvent(new Event('input', { bubbles: true }))
+      await flush()
+    })
+
+    await act(async () => {
+      input.dispatchEvent(new FocusEvent('focusout', { bubbles: true }))
+      await flush()
+    })
+
+    expect(onItemRename).not.toHaveBeenCalled()
+  })
+
+  it('items without onItemRename do not enter edit mode on double-click', async () => {
+    await renderSidebar({ sections: NO_RENAME_SECTIONS })
+    const item = container.querySelector('[data-list-item="wf-1"]') as HTMLElement
+
+    await act(async () => {
+      item.dispatchEvent(new MouseEvent('dblclick', { bubbles: true }))
+      await flush()
+    })
+
+    const input = container.querySelector('[data-testid="rename-input-wf-1"]')
+    expect(input).toBeNull()
+  })
+})
