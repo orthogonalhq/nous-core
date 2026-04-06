@@ -64,7 +64,7 @@ describe('PrincipalSystemGatewayRuntime', () => {
     expect(principalTools).toContain('inject_directive_to_system');
     expect(principalTools).not.toContain('dispatch_orchestrator');
     expect(principalTools).not.toContain('dispatch_worker');
-    expect(principalTools).not.toContain('task_complete');
+    expect(principalTools).toContain('task_complete');
     expect(principalTools).not.toContain('request_escalation');
     expect(principalTools).not.toContain('flag_observation');
   });

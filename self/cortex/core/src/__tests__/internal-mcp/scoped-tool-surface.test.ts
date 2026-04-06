@@ -62,7 +62,7 @@ describe('ScopedMcpToolSurface', () => {
     expect(principalTools).not.toContain('workflow_start');
     expect(principalTools).not.toContain('workflow_execute_node');
     expect(principalTools).not.toContain('workflow_complete_node');
-    expect(principalTools).not.toContain('task_complete');
+    expect(principalTools).toContain('task_complete');
     expect(principalTools).not.toContain('dispatch_orchestrator');
     expect(principalTools).not.toContain('dispatch_worker');
     expect(principalTools).not.toContain('promoted_memory_promote');
