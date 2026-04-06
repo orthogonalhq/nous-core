@@ -15,7 +15,7 @@ const MAX_OBSERVE_WIDTH = 400
 const COLLAPSED_THRESHOLD = 60
 
 /** Maps chat stage → design-token for overlay height */
-const CHAT_STAGE_HEIGHT: Record<ChatStage, string> = {
+export const CHAT_STAGE_HEIGHT: Record<ChatStage, string> = {
     small: 'var(--nous-chat-height-small)',
     ambient_small: 'var(--nous-chat-height-ambient-small)',
     ambient_large: 'var(--nous-chat-height-ambient-large)',

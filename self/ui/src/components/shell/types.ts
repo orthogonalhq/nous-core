@@ -402,6 +402,11 @@ export const AssetSidebarPropsSchema = z.object({
     (value) => typeof value === 'function',
     'onNavigate function is required',
   ),
+  chatStage: ChatStageSchema.optional(),
+  onSettingsClick: z.custom<() => void>(
+    (value) => typeof value === 'function',
+    'onSettingsClick function is required',
+  ).optional(),
 })
 export type AssetSidebarProps = z.infer<typeof AssetSidebarPropsSchema>
 

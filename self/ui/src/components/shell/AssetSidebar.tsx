@@ -7,6 +7,7 @@ import type {
     AssetSidebarProps,
     ContextMenuAction,
 } from './types'
+import { CHAT_STAGE_HEIGHT } from './SimpleShellLayout'
 
 // ---------------------------------------------------------------------------
 // Collapse persistence
@@ -504,10 +505,16 @@ export function AssetSidebar({
     sections,
     activeRoute,
     onNavigate,
+    chatStage,
+    onSettingsClick,
     className,
     style,
     ...props
 }: AssetSidebarProps & Omit<React.HTMLAttributes<HTMLDivElement>, 'content'>) {
+    const scrollPaddingBottom = chatStage
+        ? CHAT_STAGE_HEIGHT[chatStage]
+        : CHAT_STAGE_HEIGHT['ambient_large'] // safe default: largest resting state
+
     return (
         <div
             className={clsx('nous-asset-sidebar', className)}
@@ -518,11 +525,23 @@ export function AssetSidebar({
             {/* Project header */}
             <div data-sidebar-slot="header" style={s.header}>
                 <span style={s.headerProjectName}>{projectName}</span>
-                <PanelLeftClose size={16} style={s.headerCollapseIcon} />
+                <div style={{ display: 'flex', alignItems: 'center', gap: 'var(--nous-space-xs)' }}>
+                    {onSettingsClick && (
+                        <button
+                            type="button"
+                            aria-label="Project settings"
+                            onClick={onSettingsClick}
+                            style={s.sectionActionButton}
+                        >
+                            <Settings size={16} />
+                        </button>
+                    )}
+                    <PanelLeftClose size={16} style={s.headerCollapseIcon} />
+                </div>
             </div>
 
             {/* Scrollable sections */}
-            <div data-sidebar-slot="sections" style={s.scrollArea}>
+            <div data-sidebar-slot="sections" style={{ ...s.scrollArea, paddingBottom: scrollPaddingBottom }}>
                 <div style={s.topNavGroup}>
                     {topNav.map((item) => (
                         <ListItem
