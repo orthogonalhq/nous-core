@@ -52,11 +52,23 @@ export class OllamaProvider implements IModelProvider {
       await this.handleError(response);
     }
 
-    const data = (await response.json()) as OllamaGenerateResponse;
+    const data = (await response.json()) as OllamaGenerateResponse & OllamaChatResponse;
     const usage = this.extractUsage(data, start);
 
+    // When tool_calls are present (done_reason: 'tool_calls' or message.tool_calls),
+    // return the full message object so the adapter can extract structured tool calls.
+    const chatMsg = data.message;
+    const toolCallsArr = chatMsg?.tool_calls;
+    const hasToolCalls =
+      (Array.isArray(toolCallsArr) && toolCallsArr.length > 0) ||
+      data.done_reason === 'tool_calls';
+
+    const output = hasToolCalls && chatMsg
+      ? chatMsg
+      : data.response ?? chatMsg?.content ?? '';
+
     return {
-      output: data.response ?? (data as OllamaChatResponse).message?.content ?? '',
+      output,
       providerId: this.config.id,
       usage,
       traceId: request.traceId,
@@ -121,7 +133,11 @@ export class OllamaProvider implements IModelProvider {
     }
   }
 
-  private validateInput(input: unknown): { prompt?: string; messages?: Array<{ role: string; content: string }> } {
+  private validateInput(input: unknown): {
+    prompt?: string;
+    messages?: Array<{ role: string; content: string }>;
+    tools?: Array<{ name: string; description: string; input_schema: Record<string, unknown> }>;
+  } {
     const result = TextModelInputSchema.safeParse(input);
     if (!result.success) {
       const errors = result.error.errors.map((e) => ({
@@ -134,13 +150,31 @@ export class OllamaProvider implements IModelProvider {
   }
 
   private buildRequestBody(
-    input: { prompt?: string; messages?: Array<{ role: string; content: string }> },
+    input: {
+      prompt?: string;
+      messages?: Array<{ role: string; content: string }>;
+      tools?: Array<{ name: string; description: string; input_schema: Record<string, unknown> }>;
+    },
   ): Record<string, unknown> {
-    const base = { model: this.config.modelId };
+    const base: Record<string, unknown> = { model: this.config.modelId };
     if (input.prompt) {
       return { ...base, prompt: input.prompt };
     }
-    return { ...base, messages: input.messages };
+    const body: Record<string, unknown> = { ...base, messages: input.messages };
+
+    // Pass tools to Ollama /api/chat in OpenAI-compatible format
+    if (input.tools && input.tools.length > 0) {
+      body.tools = input.tools.map((t) => ({
+        type: 'function',
+        function: {
+          name: t.name,
+          description: t.description,
+          parameters: t.input_schema,
+        },
+      }));
+    }
+
+    return body;
   }
 
   private getUrl(body: Record<string, unknown>): string {
@@ -220,13 +254,25 @@ export class OllamaProvider implements IModelProvider {
 interface OllamaGenerateResponse {
   response?: string;
   done?: boolean;
+  done_reason?: string;
   eval_count?: number;
   prompt_eval_count?: number;
 }
 
+interface OllamaToolCall {
+  function: { name: string; arguments: Record<string, unknown> };
+}
+
 interface OllamaChatResponse {
-  message?: { content?: string; role?: string };
+  message?: {
+    content?: string;
+    role?: string;
+    tool_calls?: OllamaToolCall[];
+    /** Thinking/reasoning content from models that support it (e.g. Gemma 4) */
+    thinking?: string;
+  };
   done?: boolean;
+  done_reason?: string;
   eval_count?: number;
   prompt_eval_count?: number;
 }
