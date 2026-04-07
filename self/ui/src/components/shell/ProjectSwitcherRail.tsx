@@ -120,6 +120,10 @@ export function ProjectSwitcherRail({
                 </div>
             )}
 
+            {showHomeButton && projects.length > 0 && (
+                <span data-rail-divider style={styles.divider} />
+            )}
+
             <div style={styles.projectList}>
                 {projects.map((project) => (
                     <ProjectAvatar
@@ -172,6 +176,14 @@ const styles = {
         width: '100%',
         paddingBottom: 'var(--nous-space-sm)',
         borderBottom: '1px solid var(--nous-border-subtle)',
+    },
+    divider: {
+        display: 'block',
+        width: '60%',
+        height: '2px',
+        borderRadius: '1px',
+        background: 'var(--nous-border-subtle)',
+        flexShrink: 0,
     },
     projectList: {
         display: 'flex',
