@@ -186,13 +186,25 @@ export class AgentGateway implements IAgentGateway {
 
         const correlation = sequencer.snapshot();
 
-        // Build provider input: when no harness, transform gateway format
-        // ({ systemPrompt, context, tools }) into provider format ({ messages })
-        // using the same transform the old wrapProviderWithInputTransform used.
-        const rawInput = { systemPrompt, context, tools };
-        const providerInput = this.config.harness
-          ? rawInput // harness adapter handles formatting at a higher level
-          : transformGatewayInput(rawInput);
+        // Build provider input in provider-compatible format.
+        // The gateway produces { systemPrompt, context, tools } internally,
+        // but providers expect { prompt } or { messages }.
+        //
+        // With harness: use transformGatewayInput (same transform as the
+        // old wrapProviderWithInputTransform). The harness promptFormatter
+        // already composed the systemPrompt; the adapter's parseResponse
+        // handles the output. The input transform is still needed because
+        // providers validate against TextModelInputSchema.
+        //
+        // Without harness: same transform (backward compat).
+        const providerInput = transformGatewayInput({ systemPrompt, context, tools });
+
+        console.debug('[nous:gateway] invoke provider', {
+          agentClass: this.agentClass,
+          hasHarness: !!this.config.harness,
+          inputKeys: Object.keys(providerInput as Record<string, unknown>),
+          providerInputType: typeof providerInput,
+        });
 
         const modelResponse = await provider.invoke({
           role: this.config.modelRole ?? DEFAULT_MODEL_ROLE,
@@ -206,10 +218,27 @@ export class AgentGateway implements IAgentGateway {
 
         budgetTracker.recordModelUsage(modelResponse.usage);
 
+        console.debug('[nous:gateway] model response received', {
+          agentClass: this.agentClass,
+          outputType: typeof modelResponse.output,
+          outputLength: typeof modelResponse.output === 'string' ? modelResponse.output.length : 'non-string',
+          hasUsage: !!modelResponse.usage,
+        });
+
         // Strategy delegation: responseParser (harness) or parseModelOutput (built-in)
         const parsedOutput: ParsedModelOutput = this.config.harness?.responseParser
           ? (this.config.harness.responseParser(modelResponse.output, traceId) as ParsedModelOutput)
           : parseModelOutput(modelResponse.output, traceId);
+
+        console.debug('[nous:gateway] parsed output', {
+          agentClass: this.agentClass,
+          responseLength: parsedOutput.response.length,
+          toolCallCount: parsedOutput.toolCalls.length,
+          contentType: parsedOutput.contentType,
+          hasThinking: !!parsedOutput.thinkingContent,
+          singleTurn: !!this.config.harness?.loopConfig?.singleTurn,
+        });
+
         if (parsedOutput.response.trim()) {
           context.push(
             this.createContextFrame('assistant', 'model_output', parsedOutput.response),
@@ -219,6 +248,7 @@ export class AgentGateway implements IAgentGateway {
         // Single-turn exit: return immediately after one model invocation.
         // No tool handling, no task_complete required.
         if (this.config.harness?.loopConfig?.singleTurn) {
+          console.debug('[nous:gateway] single-turn exit', { agentClass: this.agentClass });
           budgetTracker.recordTurn();
           return this.finalizeTerminalResult(
             this.buildSingleTurnResult(
@@ -287,6 +317,13 @@ export class AgentGateway implements IAgentGateway {
         }
       }
     } catch (error) {
+      console.error('[nous:gateway] run() error', {
+        agentClass: this.agentClass,
+        errorName: (error as Error).name,
+        errorMessage: (error as Error).message,
+        errorCode: (error as NousError).code,
+        hasHarness: !!this.config.harness,
+      });
       const result =
         error instanceof NousError && error.code === 'LEASE_HELD'
           ? this.buildSuspendedResult(
