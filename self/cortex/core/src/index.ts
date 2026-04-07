@@ -71,6 +71,14 @@ export {
   createInboxFrame,
   estimateBudgetUnits,
   estimateUsageUnits,
+  resolveAdapter,
+} from './agent-gateway/index.js';
+export type {
+  AdapterCapabilities,
+  AdapterFormatInput,
+  AdapterFormattedRequest,
+  AdapterRegistry,
+  ProviderAdapter,
 } from './agent-gateway/index.js';
 
 // ── 7. Internal MCP — tool surface, authorization, lifecycle/capability ──────
