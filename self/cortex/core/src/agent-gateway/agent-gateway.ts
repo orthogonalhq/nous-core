@@ -54,6 +54,7 @@ import {
 } from './lifecycle-hooks.js';
 import { GatewayOutbox } from './outbox.js';
 import { composeSystemPrompt } from './system-prompt-composer.js';
+import { transformGatewayInput } from '../gateway-runtime/gateway-turn-executor.js';
 
 const DEFAULT_MODEL_ROLE: ModelRole = 'reasoner';
 const DEFAULT_MODEL_REQUIREMENTS = {
@@ -184,9 +185,18 @@ export class AgentGateway implements IAgentGateway {
         }
 
         const correlation = sequencer.snapshot();
+
+        // Build provider input: when no harness, transform gateway format
+        // ({ systemPrompt, context, tools }) into provider format ({ messages })
+        // using the same transform the old wrapProviderWithInputTransform used.
+        const rawInput = { systemPrompt, context, tools };
+        const providerInput = this.config.harness
+          ? rawInput // harness adapter handles formatting at a higher level
+          : transformGatewayInput(rawInput);
+
         const modelResponse = await provider.invoke({
           role: this.config.modelRole ?? DEFAULT_MODEL_ROLE,
-          input: { systemPrompt, context, tools },
+          input: providerInput,
           projectId,
           traceId,
           agentClass: this.agentClass,
