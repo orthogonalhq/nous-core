@@ -573,12 +573,22 @@ export function App() {
 
   const buildPreferencesPanelParams = useCallback(() => preferencesPanelParams, [preferencesPanelParams])
 
+  // Stable ref for preferencesPanelParams — prevents SettingsShell remount
+  // when params change identity (which resets active tab to first page).
+  const preferencesPanelParamsRef = useRef(preferencesPanelParams)
+  preferencesPanelParamsRef.current = preferencesPanelParams
+
+  const SettingsRouteRenderer = useCallback(
+    (_props: ContentRouterRenderProps) => (
+      <SettingsRoute preferencesPanelParams={preferencesPanelParamsRef.current} />
+    ),
+    [],
+  )
+
   const simpleModeRoutes = useMemo(() => ({
     ...BASE_SIMPLE_MODE_ROUTES,
-    settings: (_props: ContentRouterRenderProps) => (
-      <SettingsRoute preferencesPanelParams={preferencesPanelParams} />
-    ),
-  }), [preferencesPanelParams])
+    settings: SettingsRouteRenderer,
+  }), [SettingsRouteRenderer])
 
   const handleDesktopProjectChange = useCallback((newProjectId: string) => {
     setIsHomeContext(false)
