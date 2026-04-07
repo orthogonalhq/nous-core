@@ -437,13 +437,13 @@ describe('SetupWizardPage', () => {
       resetWizard: vi.fn().mockResolvedValue(undefined),
     }
     const onWizardReset = vi.fn()
-    vi.spyOn(window, 'confirm').mockReturnValue(true)
 
     await act(async () => {
       root.render(<SetupWizardPage api={api} onWizardReset={onWizardReset} />)
       await flush()
     })
 
+    // Click the button to open ConfirmDeleteDialog
     const button = Array.from(container.querySelectorAll('button')).find(
       (b) => b.textContent === 'Re-run Setup Wizard',
     )!
@@ -452,22 +452,44 @@ describe('SetupWizardPage', () => {
       await flush()
     })
 
-    expect(window.confirm).toHaveBeenCalled()
+    // ConfirmDeleteDialog should be open
+    const dialog = document.querySelector('[data-testid="confirm-delete-dialog"]')
+    expect(dialog).not.toBeNull()
+
+    // Type the confirm word and submit
+    const input = document.querySelector('[data-testid="confirm-delete-input"]') as HTMLInputElement
+    await act(async () => {
+      input.focus()
+      // Simulate typing "RESET"
+      Object.getOwnPropertyDescriptor(
+        HTMLInputElement.prototype, 'value',
+      )!.set!.call(input, 'RESET')
+      input.dispatchEvent(new Event('input', { bubbles: true }))
+      input.dispatchEvent(new Event('change', { bubbles: true }))
+      await flush()
+    })
+
+    const submitBtn = document.querySelector('[data-testid="confirm-delete-submit"]') as HTMLButtonElement
+    await act(async () => {
+      submitBtn.click()
+      await flush()
+    })
+
     expect(api.resetWizard).toHaveBeenCalled()
     expect(onWizardReset).toHaveBeenCalled()
   })
 
-  it('does not call resetWizard when confirm is cancelled', async () => {
+  it('does not call resetWizard when confirm dialog is cancelled', async () => {
     const api = {
       resetWizard: vi.fn().mockResolvedValue(undefined),
     }
-    vi.spyOn(window, 'confirm').mockReturnValue(false)
 
     await act(async () => {
       root.render(<SetupWizardPage api={api} />)
       await flush()
     })
 
+    // Click the button to open dialog
     const button = Array.from(container.querySelectorAll('button')).find(
       (b) => b.textContent === 'Re-run Setup Wizard',
     )!
@@ -476,10 +498,19 @@ describe('SetupWizardPage', () => {
       await flush()
     })
 
+    // Cancel the dialog by clicking the Cancel button
+    const cancelBtn = Array.from(document.querySelectorAll('button')).find(
+      (b) => b.textContent === 'Cancel',
+    )!
+    await act(async () => {
+      cancelBtn.click()
+      await flush()
+    })
+
     expect(api.resetWizard).not.toHaveBeenCalled()
   })
 
-  it('returns null when resetWizard is undefined', async () => {
+  it('renders fallback UI when resetWizard is undefined', async () => {
     const api = {
       resetWizard: undefined,
     }
@@ -489,6 +520,12 @@ describe('SetupWizardPage', () => {
     })
 
     const el = container.querySelector('[data-testid="settings-page-setup-wizard"]')
-    expect(el).toBeNull()
+    expect(el).not.toBeNull()
+    // Button should be present but disabled
+    const button = Array.from(container.querySelectorAll('button')).find(
+      (b) => b.textContent === 'Re-run Setup Wizard',
+    )
+    expect(button).not.toBeUndefined()
+    expect(button!.disabled).toBe(true)
   })
 })

@@ -4,6 +4,7 @@ import { useState } from 'react'
 import type { PreferencesApi, FeedbackState } from '../types'
 import { sectionStyle, sectionTitleStyle, cardStyle, btnStyle, helperTextStyle, feedbackStyle } from '../styles'
 import { formatFeedbackError } from './helpers'
+import { ConfirmDeleteDialog } from '../../../components'
 
 export interface SetupWizardPageProps {
   api: Pick<PreferencesApi, 'resetWizard'>
@@ -13,21 +14,12 @@ export interface SetupWizardPageProps {
 export function SetupWizardPage({ api, onWizardReset }: SetupWizardPageProps) {
   const [resettingWizard, setResettingWizard] = useState(false)
   const [wizardFeedback, setWizardFeedback] = useState<FeedbackState | null>(null)
+  const [showResetConfirm, setShowResetConfirm] = useState(false)
 
-  if (!api.resetWizard) {
-    return null
-  }
+  const hasResetWizard = typeof api.resetWizard === 'function'
 
   const handleResetWizard = async () => {
     if (!api.resetWizard || resettingWizard) {
-      return
-    }
-
-    const confirmed = window.confirm(
-      'Re-run the setup wizard from the beginning? This resets the onboarding flow so you can reconfigure your local runtime.',
-    )
-
-    if (!confirmed) {
       return
     }
 
@@ -65,18 +57,19 @@ export function SetupWizardPage({ api, onWizardReset }: SetupWizardPageProps) {
             Re-run local setup
           </div>
           <div style={{ ...helperTextStyle, marginBottom: 'var(--nous-space-md)' }}>
-            Use this if your hardware changed, you want to reconfigure providers from scratch,
-            or you need to troubleshoot the onboarding flow again.
+            {hasResetWizard
+              ? 'Use this if your hardware changed, you want to reconfigure providers from scratch, or you need to troubleshoot the onboarding flow again.'
+              : 'The setup wizard reset function is not available in this environment.'}
           </div>
           <div style={{ display: 'flex', justifyContent: 'flex-start' }}>
             <button
               style={{
                 ...btnStyle('ghost'),
-                opacity: resettingWizard ? 0.5 : 1,
-                cursor: resettingWizard ? 'not-allowed' : 'pointer',
+                opacity: !hasResetWizard || resettingWizard ? 0.5 : 1,
+                cursor: !hasResetWizard || resettingWizard ? 'not-allowed' : 'pointer',
               }}
-              onClick={handleResetWizard}
-              disabled={resettingWizard}
+              onClick={() => setShowResetConfirm(true)}
+              disabled={!hasResetWizard || resettingWizard}
             >
               {resettingWizard ? 'Resetting...' : 'Re-run Setup Wizard'}
             </button>
@@ -89,6 +82,19 @@ export function SetupWizardPage({ api, onWizardReset }: SetupWizardPageProps) {
           </div>
         )}
       </div>
+
+      <ConfirmDeleteDialog
+        isOpen={showResetConfirm}
+        onConfirm={() => {
+          setShowResetConfirm(false)
+          handleResetWizard()
+        }}
+        onCancel={() => setShowResetConfirm(false)}
+        itemName="Setup Wizard"
+        confirmWord="RESET"
+        title="Reset Setup Wizard?"
+        description="This will reset the onboarding flow so you can reconfigure your local runtime from scratch. Type RESET to confirm."
+      />
     </div>
   )
 }

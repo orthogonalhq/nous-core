@@ -256,6 +256,25 @@ export const WorkflowSpecUpdatedPayloadSchema = z.object({
 });
 export type WorkflowSpecUpdatedPayload = z.infer<typeof WorkflowSpecUpdatedPayloadSchema>;
 
+// --- Ollama Domain ---
+
+/**
+ * SSE payload for Ollama model pull progress.
+ *
+ * Extends the shape of OllamaModelPullProgress from ollama-detection.ts
+ * with a `model` field so the UI can correlate progress events to the
+ * model being pulled.
+ */
+export const OllamaPullProgressPayloadSchema = z.object({
+  model: z.string(),
+  status: z.string(),
+  digest: z.string().optional(),
+  total: z.number().optional(),
+  completed: z.number().optional(),
+  percent: z.number().optional(),
+});
+export type OllamaPullProgressPayload = z.infer<typeof OllamaPullProgressPayloadSchema>;
+
 // --- Channel Map ---
 
 export interface EventChannelMap {
@@ -288,6 +307,7 @@ export interface EventChannelMap {
   'cost:budget-alert': BudgetAlertPayload;
   'cost:budget-exceeded': BudgetExceededPayload;
   'cost:snapshot': CostSnapshotPayload;
+  'ollama:pull-progress': OllamaPullProgressPayload;
 }
 
 /**
