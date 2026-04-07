@@ -34,6 +34,9 @@ import type {
   ToolDefinition,
   TraceEvidenceReference,
   TraceId,
+  HarnessStrategies,
+  PromptFormatterInput,
+  IModelProvider,
 } from '@nous/shared';
 import { GatewayContextFrameSchema } from '@nous/shared';
 import { AgentGatewayFactory, createInboxFrame } from '../agent-gateway/index.js';
@@ -45,7 +48,10 @@ import {
 import { detectAndStripNarration } from '../output-parser.js';
 import { CARD_PROMPT_FRAGMENT } from './card-prompt-fragment.js';
 import { getOrchestratorPrompt } from '../prompts/index.js';
-import { resolvePromptConfig, composeSystemPromptFromConfig } from './prompt-strategy.js';
+import { resolvePromptConfig, composeSystemPromptFromConfig, resolveAgentProfile } from './prompt-strategy.js';
+import { resolveAdapter } from '../agent-gateway/adapters/index.js';
+import { composeFromProfile } from './prompt-composer.js';
+import { resolveContextBudget } from './context-budget-resolver.js';
 import { RetryPolicyEvaluator } from '../recovery/retry-policy-evaluator.js';
 import { RollbackPolicyEvaluator } from '../recovery/rollback-policy-evaluator.js';
 import { WorkmodeAdmissionGuard } from '../workmode/admission-guard.js';
@@ -870,6 +876,9 @@ implements IPrincipalSystemGatewayRuntime, ISystemInboxSubmissionService {
     outbox?: IGatewayOutboxSink;
   }): AgentGatewayConfig {
     const provider = this.deps.modelProviderByClass?.[args.agentClass];
+    const providerType = this.resolveProviderType(provider);
+    const harness = this.composeHarnessStrategies(args.agentClass, providerType);
+
     return {
       agentClass: args.agentClass,
       agentId: args.agentId as AgentGatewayConfig['agentId'],
@@ -877,6 +886,7 @@ implements IPrincipalSystemGatewayRuntime, ISystemInboxSubmissionService {
       lifecycleHooks: args.lifecycleHooks,
       outbox: args.outbox,
       baseSystemPrompt: args.baseSystemPrompt,
+      harness,
       defaultModelRequirements: this.deps.defaultModelRequirements,
       witnessService: this.deps.witnessService,
       modelProvider: provider,
@@ -885,6 +895,57 @@ implements IPrincipalSystemGatewayRuntime, ISystemInboxSubmissionService {
       now: this.now,
       nowMs: this.nowMs,
       idFactory: this.idFactory,
+    };
+  }
+
+  /**
+   * Resolve the provider vendor type string (e.g. 'anthropic', 'openai', 'ollama')
+   * from the provider's config name. Falls back to 'text' for unknown providers,
+   * which uses the text adapter (preserving current behavior).
+   */
+  private resolveProviderType(provider?: IModelProvider): string {
+    if (!provider) return 'text';
+    try {
+      const config = provider.getConfig();
+      const name = config.name?.toLowerCase() ?? '';
+      if (name.includes('anthropic') || name.includes('claude')) return 'anthropic';
+      if (name.includes('openai') || name.includes('gpt')) return 'openai';
+      if (name.includes('ollama')) return 'ollama';
+      return 'text';
+    } catch {
+      return 'text';
+    }
+  }
+
+  /**
+   * Compose harness strategies for the given agent class and provider type.
+   * This replaces the old wrapProviderWithInputTransform and synthesizeTaskComplete
+   * hacks with the composable adapter pattern.
+   */
+  private composeHarnessStrategies(
+    agentClass: AgentClass,
+    providerType: string,
+  ): HarnessStrategies {
+    const profile = resolveAgentProfile(agentClass, providerType);
+    const adapter = resolveAdapter(providerType);
+
+    return {
+      promptFormatter: (input: PromptFormatterInput) =>
+        composeFromProfile(profile, adapter.capabilities, input),
+      responseParser: (output: unknown, traceId: TraceId) =>
+        adapter.parseResponse(output, traceId),
+      contextStrategy: profile.contextBudget
+        ? {
+            getDefaults: () =>
+              resolveContextBudget(
+                { agentClass },
+                profile.contextBudget!,
+              ),
+          }
+        : undefined,
+      loopConfig: profile.loopShape
+        ? { singleTurn: profile.loopShape === 'single-turn' }
+        : undefined,
     };
   }
 
