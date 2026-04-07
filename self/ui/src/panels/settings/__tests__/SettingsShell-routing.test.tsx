@@ -40,6 +40,9 @@ function makeApi() {
       advisory: '',
     }),
     setRoleAssignment: vi.fn().mockResolvedValue({ success: true }),
+    listOllamaModels: vi.fn().mockResolvedValue({ models: [] }),
+    pullOllamaModel: vi.fn().mockResolvedValue({ success: true }),
+    deleteOllamaModel: vi.fn().mockResolvedValue({ success: true }),
   }
 }
 
