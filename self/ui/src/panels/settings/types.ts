@@ -84,6 +84,12 @@ export interface HardwareRecommendations {
   advisory: string
 }
 
+export interface OllamaModelEntry {
+  name: string
+  size: number
+  modifiedAt: string
+}
+
 /** API surface the host must provide via panel params. */
 export interface PreferencesApi {
   getApiKeys: () => Promise<ApiKeyEntry[]>
@@ -100,6 +106,9 @@ export interface PreferencesApi {
   setRoleAssignment?: (
     input: { role: string; modelSpec: string },
   ) => Promise<{ success: boolean; error?: string }>
+  listOllamaModels?: () => Promise<{ models: OllamaModelEntry[] }>
+  pullOllamaModel?: (name: string) => Promise<{ success: boolean }>
+  deleteOllamaModel?: (name: string) => Promise<{ success: boolean }>
 }
 
 // ─── Constants ─────────────────────────────────────────────────────────────────

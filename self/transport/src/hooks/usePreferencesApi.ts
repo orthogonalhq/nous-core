@@ -17,6 +17,9 @@ export function usePreferencesApi() {
   const testApiKey = trpc.preferences.testApiKey.useMutation()
   const setModelSelection = trpc.preferences.setModelSelection.useMutation()
   const setRoleAssignment = trpc.preferences.setRoleAssignment.useMutation()
+  const resetWizardMutation = trpc.firstRun.resetWizard.useMutation()
+  const pullOllamaModel = trpc.ollama.pullModel.useMutation()
+  const deleteOllamaModel = trpc.ollama.deleteModel.useMutation()
 
   const utilsRef = useRef(utils)
   utilsRef.current = utils
@@ -30,6 +33,12 @@ export function usePreferencesApi() {
   setModelSelectionRef.current = setModelSelection.mutateAsync
   const setRoleAssignmentRef = useRef(setRoleAssignment.mutateAsync)
   setRoleAssignmentRef.current = setRoleAssignment.mutateAsync
+  const resetWizardRef = useRef(resetWizardMutation.mutateAsync)
+  resetWizardRef.current = resetWizardMutation.mutateAsync
+  const pullOllamaModelRef = useRef(pullOllamaModel.mutateAsync)
+  pullOllamaModelRef.current = pullOllamaModel.mutateAsync
+  const deleteOllamaModelRef = useRef(deleteOllamaModel.mutateAsync)
+  deleteOllamaModelRef.current = deleteOllamaModel.mutateAsync
 
   return useMemo(
     () => ({
@@ -68,6 +77,20 @@ export function usePreferencesApi() {
       },
       setRoleAssignment: async (input: { role: string; modelSpec: string }) => {
         return setRoleAssignmentRef.current(input as any)
+      },
+      // Setup wizard
+      resetWizard: async () => {
+        return resetWizardRef.current()
+      },
+      // Ollama model management
+      listOllamaModels: async () => {
+        return utilsRef.current.ollama.listModels.fetch()
+      },
+      pullOllamaModel: async (name: string) => {
+        return pullOllamaModelRef.current({ model: name })
+      },
+      deleteOllamaModel: async (name: string) => {
+        return deleteOllamaModelRef.current({ name })
       },
     }),
     // No dependencies — object is created once per mount.

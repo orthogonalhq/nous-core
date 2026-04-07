@@ -335,6 +335,21 @@ export const AssetSectionItemSchema = z.object({
 })
 export type AssetSectionItem = z.infer<typeof AssetSectionItemSchema>
 
+export const ContextMenuActionSchema = z.object({
+  id: z.string().min(1),
+  label: z.string().min(1),
+  icon: z.custom<import('react').ComponentType<Record<string, unknown>>>(
+    (value) => typeof value === 'function',
+    'Icon component type is required',
+  ).optional(),
+  handler: z.custom<(itemId: string) => void>(
+    (value) => typeof value === 'function',
+    'Handler function is required',
+  ),
+  variant: z.enum(['default', 'danger']).optional(),
+})
+export type ContextMenuAction = z.infer<typeof ContextMenuActionSchema>
+
 export const AssetSectionSchema = z.object({
   id: z.string().min(1),
   label: z.string().min(1),
@@ -354,6 +369,7 @@ export const AssetSectionSchema = z.object({
     (value) => typeof value === 'function',
     'onItemRename function is required',
   ).optional(),
+  contextMenuActions: z.array(ContextMenuActionSchema).optional(),
 })
 export type AssetSection = z.infer<typeof AssetSectionSchema>
 
@@ -386,6 +402,11 @@ export const AssetSidebarPropsSchema = z.object({
     (value) => typeof value === 'function',
     'onNavigate function is required',
   ),
+  chatStage: ChatStageSchema.optional(),
+  onSettingsClick: z.custom<() => void>(
+    (value) => typeof value === 'function',
+    'onSettingsClick function is required',
+  ).optional(),
 })
 export type AssetSidebarProps = z.infer<typeof AssetSidebarPropsSchema>
 

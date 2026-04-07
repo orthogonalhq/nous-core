@@ -199,3 +199,52 @@ describe('detectOllama', () => {
     }
   });
 });
+
+describe('deleteOllamaModel', () => {
+  beforeEach(() => {
+    vi.resetModules();
+    execFileMock.mockReset();
+    mockExecFile(false);
+  });
+
+  afterEach(() => {
+    vi.restoreAllMocks();
+  });
+
+  it('resolves successfully when Ollama returns 200', async () => {
+    const { deleteOllamaModel } = await loadModule();
+    const { server, port } = await startMockServer((req, res) => {
+      if (req.method === 'DELETE' && req.url === '/api/delete') {
+        res.writeHead(200);
+        res.end();
+      } else {
+        res.writeHead(404);
+        res.end();
+      }
+    });
+
+    try {
+      await expect(
+        deleteOllamaModel('llama3.2:3b', { baseUrl: `http://127.0.0.1:${port}` }),
+      ).resolves.toBeUndefined();
+    } finally {
+      await stopServer(server);
+    }
+  });
+
+  it('throws an error when Ollama returns non-200 status', async () => {
+    const { deleteOllamaModel } = await loadModule();
+    const { server, port } = await startMockServer((req, res) => {
+      res.writeHead(404);
+      res.end('model not found');
+    });
+
+    try {
+      await expect(
+        deleteOllamaModel('nonexistent-model', { baseUrl: `http://127.0.0.1:${port}` }),
+      ).rejects.toThrow('Ollama model delete failed with HTTP 404');
+    } finally {
+      await stopServer(server);
+    }
+  });
+});

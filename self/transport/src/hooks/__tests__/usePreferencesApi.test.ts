@@ -10,6 +10,7 @@ const mockFetch = {
   getModelSelection: vi.fn(),
   getRoleAssignments: vi.fn(),
   getSystemStatus: vi.fn(),
+  listOllamaModels: vi.fn(),
 }
 
 const mockMutateAsync = {
@@ -18,6 +19,9 @@ const mockMutateAsync = {
   testApiKey: vi.fn(),
   setModelSelection: vi.fn(),
   setRoleAssignment: vi.fn(),
+  resetWizard: vi.fn(),
+  pullOllamaModel: vi.fn(),
+  deleteOllamaModel: vi.fn(),
 }
 
 vi.mock('../../client', () => ({
@@ -30,6 +34,9 @@ vi.mock('../../client', () => ({
         getRoleAssignments: { fetch: mockFetch.getRoleAssignments },
         getSystemStatus: { fetch: mockFetch.getSystemStatus },
       },
+      ollama: {
+        listModels: { fetch: mockFetch.listOllamaModels },
+      },
     }),
     preferences: {
       setApiKey: { useMutation: () => ({ mutateAsync: mockMutateAsync.setApiKey }) },
@@ -37,6 +44,13 @@ vi.mock('../../client', () => ({
       testApiKey: { useMutation: () => ({ mutateAsync: mockMutateAsync.testApiKey }) },
       setModelSelection: { useMutation: () => ({ mutateAsync: mockMutateAsync.setModelSelection }) },
       setRoleAssignment: { useMutation: () => ({ mutateAsync: mockMutateAsync.setRoleAssignment }) },
+    },
+    firstRun: {
+      resetWizard: { useMutation: () => ({ mutateAsync: mockMutateAsync.resetWizard }) },
+    },
+    ollama: {
+      pullModel: { useMutation: () => ({ mutateAsync: mockMutateAsync.pullOllamaModel }) },
+      deleteModel: { useMutation: () => ({ mutateAsync: mockMutateAsync.deleteOllamaModel }) },
     },
   },
 }))
@@ -71,6 +85,10 @@ describe('usePreferencesApi', () => {
       expect(typeof api.setModelSelection).toBe('function')
       expect(typeof api.getRoleAssignments).toBe('function')
       expect(typeof api.setRoleAssignment).toBe('function')
+      expect(typeof api.resetWizard).toBe('function')
+      expect(typeof api.listOllamaModels).toBe('function')
+      expect(typeof api.pullOllamaModel).toBe('function')
+      expect(typeof api.deleteOllamaModel).toBe('function')
     })
 
     it('returned object is referentially stable across re-renders', () => {

@@ -8,6 +8,7 @@ import {
   AboutPage,
   ApiKeysPage,
   AppSettingsPage,
+  LocalModelsPage,
   ModelConfigPage,
   RoleAssignmentsPage,
   SetupWizardPage,
@@ -132,6 +133,8 @@ export function SettingsShell({
         return <SystemStatusPage api={api} />
       case PAGE_IDS.SETUP_WIZARD:
         return <SetupWizardPage api={api} onWizardReset={onWizardReset} />
+      case PAGE_IDS.LOCAL_MODELS:
+        return <LocalModelsPage api={api} />
       default: {
         // Check if this is an app settings page
         const appContext = appSettingsContext?.[activePageId]

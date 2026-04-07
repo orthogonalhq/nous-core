@@ -5,7 +5,9 @@ import { ChevronDown, Settings, Plus, PanelLeftClose, MoreHorizontal } from 'luc
 import type {
     AssetSection,
     AssetSidebarProps,
+    ContextMenuAction,
 } from './types'
+import { CHAT_STAGE_HEIGHT } from './SimpleShellLayout'
 
 // ---------------------------------------------------------------------------
 // Collapse persistence
@@ -36,12 +38,14 @@ function SidebarContextMenu({
     itemId,
     itemLabel,
     onRename,
+    contextMenuActions,
     onClose,
 }: {
     position: { x: number; y: number }
     itemId: string
     itemLabel: string
-    onRename: (itemId: string, newName: string) => void
+    onRename?: (itemId: string, newName: string) => void
+    contextMenuActions?: ContextMenuAction[]
     onClose: () => void
 }) {
     const menuRef = React.useRef<HTMLDivElement>(null)
@@ -93,6 +97,7 @@ function SidebarContextMenu({
     }, [isRenaming])
 
     const commitRename = React.useCallback(() => {
+        if (!onRename) return
         const trimmed = renameValue.trim()
         if (trimmed !== '' && trimmed !== itemLabel) {
             onRename(itemId, trimmed)
@@ -148,27 +153,85 @@ function SidebarContextMenu({
                     />
                 </div>
             ) : (
-                <button
-                    type="button"
-                    style={{
-                        display: 'flex',
-                        alignItems: 'center',
-                        gap: 8,
-                        padding: '6px 12px',
-                        cursor: 'pointer',
-                        background: 'transparent',
-                        border: 'none',
-                        color: 'inherit',
-                        fontSize: 'inherit',
-                        width: '100%',
-                        textAlign: 'left',
-                    }}
-                    onClick={() => setIsRenaming(true)}
-                    role="menuitem"
-                    data-testid="context-menu-rename"
-                >
-                    Rename
-                </button>
+                <>
+                    {onRename && (
+                        <button
+                            type="button"
+                            style={{
+                                display: 'flex',
+                                alignItems: 'center',
+                                gap: 8,
+                                padding: '6px 12px',
+                                cursor: 'pointer',
+                                background: 'transparent',
+                                border: 'none',
+                                color: 'inherit',
+                                fontSize: 'inherit',
+                                width: '100%',
+                                textAlign: 'left',
+                            }}
+                            onClick={() => setIsRenaming(true)}
+                            role="menuitem"
+                            data-testid="context-menu-rename"
+                        >
+                            Rename
+                        </button>
+                    )}
+                    {contextMenuActions?.filter(a => a.variant !== 'danger').map(action => (
+                        <button
+                            key={action.id}
+                            type="button"
+                            style={{
+                                display: 'flex',
+                                alignItems: 'center',
+                                gap: 8,
+                                padding: '6px 12px',
+                                cursor: 'pointer',
+                                background: 'transparent',
+                                border: 'none',
+                                color: 'inherit',
+                                fontSize: 'inherit',
+                                width: '100%',
+                                textAlign: 'left',
+                            }}
+                            onClick={() => { action.handler(itemId); onClose() }}
+                            role="menuitem"
+                            data-testid={`context-menu-action-${action.id}`}
+                        >
+                            {action.label}
+                        </button>
+                    ))}
+                    {contextMenuActions?.some(a => a.variant === 'danger') && (
+                        <div style={{
+                            borderTop: '1px solid var(--nous-border-subtle)',
+                            margin: '4px 0',
+                        }} />
+                    )}
+                    {contextMenuActions?.filter(a => a.variant === 'danger').map(action => (
+                        <button
+                            key={action.id}
+                            type="button"
+                            style={{
+                                display: 'flex',
+                                alignItems: 'center',
+                                gap: 8,
+                                padding: '6px 12px',
+                                cursor: 'pointer',
+                                background: 'transparent',
+                                border: 'none',
+                                color: 'var(--nous-alert-error)',
+                                fontSize: 'inherit',
+                                width: '100%',
+                                textAlign: 'left',
+                            }}
+                            onClick={() => { action.handler(itemId); onClose() }}
+                            role="menuitem"
+                            data-testid={`context-menu-action-${action.id}`}
+                        >
+                            {action.label}
+                        </button>
+                    ))}
+                </>
             )}
         </div>,
         document.body,
@@ -190,6 +253,7 @@ function ListItem({
     disabled,
     onNavigate,
     onItemRename,
+    hasContextActions,
     onContextMenu: onContextMenuProp,
 }: {
     id: string
@@ -202,6 +266,7 @@ function ListItem({
     disabled?: boolean
     onNavigate: (routeId: string) => void
     onItemRename?: (itemId: string, newName: string) => void
+    hasContextActions?: boolean
     onContextMenu?: (info: { itemId: string; itemLabel: string; x: number; y: number }) => void
 }) {
     const [hovered, setHovered] = React.useState(false)
@@ -212,10 +277,10 @@ function ListItem({
     }, [disabled, onNavigate, routeId])
 
     const handleContextMenu = React.useCallback((e: React.MouseEvent) => {
-        if (!onContextMenuProp || !onItemRename) return
+        if (!onContextMenuProp) return
         e.preventDefault()
         onContextMenuProp({ itemId: id, itemLabel: label, x: e.clientX, y: e.clientY })
-    }, [onContextMenuProp, onItemRename, id, label])
+    }, [onContextMenuProp, id, label])
 
     const handleDotsClick = React.useCallback((e: React.MouseEvent) => {
         e.stopPropagation()
@@ -261,7 +326,7 @@ function ListItem({
                 </span>
             )}
             <span style={s.listItemLabel}>{label}</span>
-            {onItemRename && hovered && (
+            {(onItemRename || hasContextActions) && hovered && (
                 <span
                     data-testid={`dots-button-${id}`}
                     role="button"
@@ -410,17 +475,19 @@ function AssetSectionBlock({
                             disabled={!!section.disabled}
                             onNavigate={onNavigate}
                             onItemRename={section.onItemRename}
-                            onContextMenu={section.onItemRename ? handleOpenContextMenu : undefined}
+                            hasContextActions={!!section.contextMenuActions?.length}
+                            onContextMenu={(section.onItemRename || section.contextMenuActions?.length) ? handleOpenContextMenu : undefined}
                         />
                     ))}
                 </div>
             </div>
-            {contextMenu && section.onItemRename && (
+            {contextMenu && (section.onItemRename || section.contextMenuActions?.length) && (
                 <SidebarContextMenu
                     position={contextMenu.position}
                     itemId={contextMenu.itemId}
                     itemLabel={contextMenu.itemLabel}
                     onRename={section.onItemRename}
+                    contextMenuActions={section.contextMenuActions}
                     onClose={handleCloseContextMenu}
                 />
             )}
@@ -438,10 +505,16 @@ export function AssetSidebar({
     sections,
     activeRoute,
     onNavigate,
+    chatStage,
+    onSettingsClick,
     className,
     style,
     ...props
 }: AssetSidebarProps & Omit<React.HTMLAttributes<HTMLDivElement>, 'content'>) {
+    const scrollPaddingBottom = chatStage
+        ? CHAT_STAGE_HEIGHT[chatStage]
+        : CHAT_STAGE_HEIGHT['ambient_large'] // safe default: largest resting state
+
     return (
         <div
             className={clsx('nous-asset-sidebar', className)}
@@ -452,11 +525,23 @@ export function AssetSidebar({
             {/* Project header */}
             <div data-sidebar-slot="header" style={s.header}>
                 <span style={s.headerProjectName}>{projectName}</span>
-                <PanelLeftClose size={16} style={s.headerCollapseIcon} />
+                <div style={{ display: 'flex', alignItems: 'center', gap: 'var(--nous-space-xs)' }}>
+                    {onSettingsClick && (
+                        <button
+                            type="button"
+                            aria-label="Project settings"
+                            onClick={onSettingsClick}
+                            style={s.sectionActionButton}
+                        >
+                            <Settings size={16} />
+                        </button>
+                    )}
+                    <PanelLeftClose size={16} style={s.headerCollapseIcon} />
+                </div>
             </div>
 
             {/* Scrollable sections */}
-            <div data-sidebar-slot="sections" style={s.scrollArea}>
+            <div data-sidebar-slot="sections" style={{ ...s.scrollArea, paddingBottom: scrollPaddingBottom }}>
                 <div style={s.topNavGroup}>
                     {topNav.map((item) => (
                         <ListItem

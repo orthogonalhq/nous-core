@@ -40,6 +40,9 @@ function makeApi() {
       advisory: '',
     }),
     setRoleAssignment: vi.fn().mockResolvedValue({ success: true }),
+    listOllamaModels: vi.fn().mockResolvedValue({ models: [] }),
+    pullOllamaModel: vi.fn().mockResolvedValue({ success: true }),
+    deleteOllamaModel: vi.fn().mockResolvedValue({ success: true }),
   }
 }
 
@@ -132,6 +135,26 @@ describe('SettingsShell page routing', () => {
     expect(page).not.toBeNull()
   })
 
+  it('clicking Local Models nav item renders LocalModelsPage', async () => {
+    const api = makeApi()
+    api.listOllamaModels = vi.fn().mockResolvedValue({ models: [] })
+    api.pullOllamaModel = vi.fn().mockResolvedValue({ success: true })
+    api.deleteOllamaModel = vi.fn().mockResolvedValue({ success: true })
+
+    await renderShell({ api })
+
+    const button = container.querySelector('[data-testid="page-local-models"]')
+    expect(button).not.toBeNull()
+
+    await act(async () => {
+      button!.dispatchEvent(new MouseEvent('click', { bubbles: true }))
+      await flush()
+    })
+
+    const page = container.querySelector('[data-testid="settings-page-local-models"]')
+    expect(page).not.toBeNull()
+  })
+
   it('clicking Setup Wizard nav item renders SetupWizardPage', async () => {
     await renderShell({ api: makeApi() })
 
@@ -205,7 +228,6 @@ describe('SettingsShell page routing', () => {
 
   it('onWizardReset prop threads to SetupWizardPage', async () => {
     const onWizardReset = vi.fn()
-    vi.spyOn(window, 'confirm').mockReturnValue(true)
 
     await renderShell({
       api: makeApi(),
@@ -213,11 +235,30 @@ describe('SettingsShell page routing', () => {
       defaultPageId: 'setup-wizard',
     })
 
+    // Click the button to open ConfirmDeleteDialog
     const button = Array.from(container.querySelectorAll('button')).find(
       (b) => b.textContent === 'Re-run Setup Wizard',
     )!
     await act(async () => {
       button.click()
+      await flush()
+    })
+
+    // Type the confirm word and submit via ConfirmDeleteDialog
+    const input = document.querySelector('[data-testid="confirm-delete-input"]') as HTMLInputElement
+    await act(async () => {
+      input.focus()
+      Object.getOwnPropertyDescriptor(
+        HTMLInputElement.prototype, 'value',
+      )!.set!.call(input, 'RESET')
+      input.dispatchEvent(new Event('input', { bubbles: true }))
+      input.dispatchEvent(new Event('change', { bubbles: true }))
+      await flush()
+    })
+
+    const submitBtn = document.querySelector('[data-testid="confirm-delete-submit"]') as HTMLButtonElement
+    await act(async () => {
+      submitBtn.click()
       await flush()
     })
 
