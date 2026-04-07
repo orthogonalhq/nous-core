@@ -15,10 +15,12 @@ describe('resolveAdapter', () => {
     expect(adapter.capabilities.nativeToolUse).toBe(true);
   });
 
-  it('throws for anthropic with descriptive error', () => {
-    expect(() => resolveAdapter('anthropic')).toThrow(
-      'Anthropic adapter not yet implemented',
-    );
+  it('returns Anthropic adapter for anthropic (all capabilities true)', () => {
+    const adapter = resolveAdapter('anthropic');
+    expect(adapter.capabilities.nativeToolUse).toBe(true);
+    expect(adapter.capabilities.cacheControl).toBe(true);
+    expect(adapter.capabilities.extendedThinking).toBe(true);
+    expect(adapter.capabilities.streaming).toBe(true);
   });
 
   it('returns text adapter for unknown provider type (fallback)', () => {

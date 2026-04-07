@@ -74,6 +74,7 @@ export {
   resolveAdapter,
   createTextAdapter,
   createOpenAiAdapter,
+  createAnthropicAdapter,
 } from './agent-gateway/index.js';
 export type {
   AdapterCapabilities,
@@ -136,6 +137,8 @@ export {
 
 // ── 10. Gateway runtime — boot, turn executor bridge, backlog, health ────────
 export {
+  CortexRuntime,
+  createCortexRuntime,
   createPrincipalSystemGatewayRuntime,
   DocumentBacklogStore,
   GatewayRuntimeIngressAdapter,

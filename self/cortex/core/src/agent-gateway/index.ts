@@ -21,7 +21,7 @@ export {
 export { composeSystemPrompt } from './system-prompt-composer.js';
 
 // WR-127 adapter types and implementations
-export { resolveAdapter, createTextAdapter, createOpenAiAdapter } from './adapters/index.js';
+export { resolveAdapter, createTextAdapter, createOpenAiAdapter, createAnthropicAdapter } from './adapters/index.js';
 export type {
   AdapterCapabilities,
   AdapterFormatInput,

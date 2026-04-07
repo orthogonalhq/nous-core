@@ -133,7 +133,7 @@ export interface GatewayBackedTurnExecutorDeps {
 }
 
 /**
- * @deprecated Use {@link PrincipalSystemGatewayRuntime.handleChatTurn()} for chat turns.
+ * @deprecated Use {@link CortexRuntime.handleChatTurn()} for chat turns.
  * This class is the compatibility bridge for callers still using the ICoreExecutor interface.
  * `getTrace()` remains functional for trace retrieval during transition.
  * Will be removed after all callers migrate.

@@ -1,4 +1,4 @@
-export { createPrincipalSystemGatewayRuntime, PrincipalSystemGatewayRuntime } from './principal-system-runtime.js';
+export { CortexRuntime, createCortexRuntime, createPrincipalSystemGatewayRuntime, PrincipalSystemGatewayRuntime } from './cortex-runtime.js';
 export { GatewayRuntimeIngressAdapter } from './ingress-adapter.js';
 export { DocumentBacklogStore } from './backlog-store.js';
 export { SystemBacklogQueue } from './backlog-queue.js';
