@@ -1,4 +1,15 @@
-export { CortexRuntime, createCortexRuntime, createPrincipalSystemGatewayRuntime, PrincipalSystemGatewayRuntime } from './cortex-runtime.js';
+// Use the original PrincipalSystemGatewayRuntime until HarnessGatewayFactory
+// is fully wired into CortexRuntime. CortexRuntime removed the provider
+// wrapping hacks but doesn't yet inject harness strategies to replace them.
+export {
+  PrincipalSystemGatewayRuntime,
+  createPrincipalSystemGatewayRuntime,
+} from './principal-system-runtime.js';
+
+// CortexRuntime is available for direct use but NOT the default export.
+// It will replace PrincipalSystemGatewayRuntime once the harness is
+// wired into its createGatewayConfig path.
+export { CortexRuntime, createCortexRuntime } from './cortex-runtime.js';
 export { GatewayRuntimeIngressAdapter } from './ingress-adapter.js';
 export { DocumentBacklogStore } from './backlog-store.js';
 export { SystemBacklogQueue } from './backlog-queue.js';
