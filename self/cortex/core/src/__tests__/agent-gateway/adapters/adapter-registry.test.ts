@@ -2,12 +2,12 @@ import { describe, expect, it } from 'vitest';
 import { resolveAdapter } from '../../../agent-gateway/adapters/index.js';
 
 describe('resolveAdapter', () => {
-  it('returns text adapter for ollama (capabilities all false)', () => {
+  it('returns Ollama adapter for ollama (nativeToolUse + extendedThinking)', () => {
     const adapter = resolveAdapter('ollama');
-    expect(adapter.capabilities.nativeToolUse).toBe(false);
+    expect(adapter.capabilities.nativeToolUse).toBe(true);
     expect(adapter.capabilities.cacheControl).toBe(false);
-    expect(adapter.capabilities.extendedThinking).toBe(false);
-    expect(adapter.capabilities.streaming).toBe(false);
+    expect(adapter.capabilities.extendedThinking).toBe(true);
+    expect(adapter.capabilities.streaming).toBe(true);
   });
 
   it('returns OpenAI adapter for openai (nativeToolUse true)', () => {

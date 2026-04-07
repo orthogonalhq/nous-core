@@ -14,16 +14,18 @@ export type {
 export { createTextAdapter } from './text-adapter.js';
 export { createOpenAiAdapter } from './openai-adapter.js';
 export { createAnthropicAdapter } from './anthropic-adapter.js';
+export { createOllamaAdapter, isToolCapableModel } from './ollama-adapter.js';
 
 import type { ProviderAdapter } from './types.js';
 import { createTextAdapter } from './text-adapter.js';
 import { createOpenAiAdapter } from './openai-adapter.js';
 import { createAnthropicAdapter } from './anthropic-adapter.js';
+import { createOllamaAdapter } from './ollama-adapter.js';
 
 const ADAPTER_REGISTRY: Record<string, () => ProviderAdapter> = {
   anthropic: () => createAnthropicAdapter(),
   openai: () => createOpenAiAdapter(),
-  ollama: () => createTextAdapter(),
+  ollama: () => createOllamaAdapter(),
 };
 
 /**
