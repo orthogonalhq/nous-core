@@ -63,3 +63,14 @@ export type {
   PublicMcpRuntimeInvocation,
   PublicMcpRuntimeInvocationResult,
 } from './public-mcp-runtime-adapter.js';
+
+// WR-127 SP 1.2 — factory, resolver, composer
+export { HarnessGatewayFactory } from './harness-gateway-factory.js';
+export type { HarnessGatewayFactoryDeps, HarnessGatewayCreateArgs } from './harness-gateway-factory.js';
+export { resolveContextBudget } from './context-budget-resolver.js';
+export type {
+  ContextBudgetResolutionContext,
+  ContextBudgetSettings,
+  ContextBudgetSettingsSource,
+} from './context-budget-resolver.js';
+export { composeFromProfile } from './prompt-composer.js';

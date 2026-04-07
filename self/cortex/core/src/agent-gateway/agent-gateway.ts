@@ -30,7 +30,7 @@ import {
   type WitnessActor,
   type WitnessEventId,
 } from '@nous/shared';
-import { parseModelOutput } from '../output-parser.js';
+import { parseModelOutput, type ParsedModelOutput } from '../output-parser.js';
 import {
   BudgetTracker,
   estimateBudgetUnits,
@@ -161,13 +161,27 @@ export class AgentGateway implements IAgentGateway {
 
         const tools = await this.config.toolSurface.listTools();
         const provider = await this.resolveProvider(validInput, traceId);
-        const systemPrompt = composeSystemPrompt({
-          agentClass: this.agentClass,
-          taskInstructions: validInput.taskInstructions,
-          baseSystemPrompt: this.config.baseSystemPrompt,
-          execution: validInput.execution,
-          tools,
-        });
+
+        // Strategy delegation: promptFormatter (harness) or composeSystemPrompt (built-in)
+        let systemPrompt: string | string[];
+        if (this.config.harness?.promptFormatter) {
+          const formatted = this.config.harness.promptFormatter({
+            agentClass: this.agentClass,
+            taskInstructions: validInput.taskInstructions,
+            baseSystemPrompt: this.config.baseSystemPrompt,
+            execution: validInput.execution,
+            tools,
+          });
+          systemPrompt = formatted.systemPrompt;
+        } else {
+          systemPrompt = composeSystemPrompt({
+            agentClass: this.agentClass,
+            taskInstructions: validInput.taskInstructions,
+            baseSystemPrompt: this.config.baseSystemPrompt,
+            execution: validInput.execution,
+            tools,
+          });
+        }
 
         const correlation = sequencer.snapshot();
         const modelResponse = await provider.invoke({
@@ -181,10 +195,29 @@ export class AgentGateway implements IAgentGateway {
         });
 
         budgetTracker.recordModelUsage(modelResponse.usage);
-        const parsedOutput = parseModelOutput(modelResponse.output, traceId);
+
+        // Strategy delegation: responseParser (harness) or parseModelOutput (built-in)
+        const parsedOutput: ParsedModelOutput = this.config.harness?.responseParser
+          ? (this.config.harness.responseParser(modelResponse.output, traceId) as ParsedModelOutput)
+          : parseModelOutput(modelResponse.output, traceId);
         if (parsedOutput.response.trim()) {
           context.push(
             this.createContextFrame('assistant', 'model_output', parsedOutput.response),
+          );
+        }
+
+        // Single-turn exit: return immediately after one model invocation.
+        // No tool handling, no task_complete required.
+        if (this.config.harness?.loopConfig?.singleTurn) {
+          budgetTracker.recordTurn();
+          return this.finalizeTerminalResult(
+            this.buildSingleTurnResult(
+              parsedOutput, sequencer, budgetTracker, evidenceRefs,
+              validInput, context.length, startedAt,
+            ),
+            'gateway:completed',
+            traceId,
+            projectId,
           );
         }
 
@@ -1011,6 +1044,75 @@ export class AgentGateway implements IAgentGateway {
       status: 'error',
       reason,
       detail,
+      correlation,
+      usage: budgetTracker.getUsage(),
+      evidenceRefs: [...evidenceRefs],
+    });
+  }
+
+  private buildSingleTurnResult(
+    parsedOutput: ParsedModelOutput,
+    sequencer: CorrelationSequencer,
+    budgetTracker: BudgetTracker,
+    evidenceRefs: TraceEvidenceReference[],
+    input: AgentInput,
+    contextLength: number,
+    startedAt: string,
+  ): AgentResult {
+    const now = this.now();
+    const nowMs = this.nowMs();
+    const correlation = sequencer.snapshot();
+    return AgentResultSchema.parse({
+      status: 'completed' as const,
+      output: {
+        response: parsedOutput.response,
+        contentType: parsedOutput.contentType,
+      },
+      v3Packet: {
+        nous: { v: 3 as const },
+        route: {
+          emitter: { id: `gateway::agent::${this.agentId}::single-turn` },
+          target: { id: `gateway::agent::${this.agentId}::single-turn-response` },
+        },
+        envelope: {
+          direction: 'internal' as const,
+          type: 'response_packet' as const,
+        },
+        correlation: {
+          handoff_id: this.idFactory(),
+          correlation_id: correlation.runId,
+          cycle: 'n/a',
+          emitted_at_utc: now,
+          emitted_at_unix_ms: String(nowMs),
+          sequence_in_run: String(correlation.sequence),
+        },
+        payload: {
+          schema: 'gateway:single-turn-response',
+          artifact_type: 'single-turn-response',
+          data: { response: parsedOutput.response },
+        },
+        retry: {
+          policy: 'value-proportional' as const,
+          depth: 'lightweight' as const,
+          importance_tier: 'standard' as const,
+          expected_quality_gain: 'n/a',
+          estimated_tokens: 'n/a',
+          estimated_compute_minutes: 'n/a',
+          token_price_ref: 'runtime:gateway',
+          compute_price_ref: 'runtime:gateway',
+          decision: 'accept' as const,
+          decision_log_ref: 'runtime:gateway/single-turn',
+          benchmark_tier: 'n/a' as const,
+          self_repair: {
+            required_on_fail_close: true as const,
+            orchestration_state: 'deferred' as const,
+            approval_role: 'Cortex:System',
+            implementation_mode: 'direct' as const,
+            plan_ref: 'runtime:gateway/self-repair',
+          },
+        },
+      },
+      summary: 'single-turn response',
       correlation,
       usage: budgetTracker.getUsage(),
       evidenceRefs: [...evidenceRefs],

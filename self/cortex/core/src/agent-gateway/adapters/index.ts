@@ -1,8 +1,7 @@
 /**
  * Adapter module barrel export.
  *
- * WR-127 Phase 1.1 — types and registry signature only.
- * Concrete adapter implementations are SP 1.3 scope.
+ * WR-127 Phase 1.2 — concrete adapter implementations and registry.
  */
 export type {
   AdapterCapabilities,
@@ -12,19 +11,30 @@ export type {
   ProviderAdapter,
 } from './types.js';
 
+export { createTextAdapter } from './text-adapter.js';
+export { createOpenAiAdapter } from './openai-adapter.js';
+
+import type { ProviderAdapter } from './types.js';
+import { createTextAdapter } from './text-adapter.js';
+import { createOpenAiAdapter } from './openai-adapter.js';
+
+const ADAPTER_REGISTRY: Record<string, () => ProviderAdapter> = {
+  anthropic: () => {
+    throw new Error(
+      'resolveAdapter: Anthropic adapter not yet implemented. ' +
+      'Concrete implementation arrives in SP 1.3.',
+    );
+  },
+  openai: () => createOpenAiAdapter(),
+  ollama: () => createTextAdapter(),
+};
+
 /**
  * Resolves a ProviderAdapter for the given provider type.
- *
- * SP 1.1: signature-only export. Throws until SP 1.3 registers concrete adapters.
- * Unknown provider types will fall back to textAdapter (preserving current behavior).
- *
- * @param providerType - Provider type string from ModelProviderConfig.type
- * @returns The resolved ProviderAdapter
+ * Unknown provider types fall back to text adapter (preserving current behavior).
  */
-export function resolveAdapter(providerType: string): never {
-  throw new Error(
-    `resolveAdapter: no adapters registered (SP 1.1 types-only). ` +
-    `Requested provider type: "${providerType}". ` +
-    `Concrete adapters will be registered in SP 1.3.`,
-  );
+export function resolveAdapter(providerType: string): ProviderAdapter {
+  const factory = ADAPTER_REGISTRY[providerType];
+  if (factory) return factory();
+  return createTextAdapter();
 }

@@ -72,6 +72,8 @@ export {
   estimateBudgetUnits,
   estimateUsageUnits,
   resolveAdapter,
+  createTextAdapter,
+  createOpenAiAdapter,
 } from './agent-gateway/index.js';
 export type {
   AdapterCapabilities,
@@ -149,6 +151,9 @@ export {
   SUBMIT_TASK_TO_SYSTEM_TOOL_NAME,
   SystemContextReplicaProvider,
   GatewayRuntimeHealthSink,
+  HarnessGatewayFactory,
+  resolveContextBudget,
+  composeFromProfile,
 } from './gateway-runtime/index.js';
 export type {
   GatewayAppSessionHealthProjection,
@@ -172,4 +177,9 @@ export type {
   SystemDirectiveInjection,
   SystemSubmissionReceipt,
   SystemTaskSubmission,
+  HarnessGatewayFactoryDeps,
+  HarnessGatewayCreateArgs,
+  ContextBudgetResolutionContext,
+  ContextBudgetSettings,
+  ContextBudgetSettingsSource,
 } from './gateway-runtime/index.js';

@@ -20,8 +20,8 @@ export {
 } from './lifecycle-hooks.js';
 export { composeSystemPrompt } from './system-prompt-composer.js';
 
-// WR-127 adapter types
-export { resolveAdapter } from './adapters/index.js';
+// WR-127 adapter types and implementations
+export { resolveAdapter, createTextAdapter, createOpenAiAdapter } from './adapters/index.js';
 export type {
   AdapterCapabilities,
   AdapterFormatInput,
