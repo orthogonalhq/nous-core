@@ -132,6 +132,26 @@ describe('SettingsShell page routing', () => {
     expect(page).not.toBeNull()
   })
 
+  it('clicking Local Models nav item renders LocalModelsPage', async () => {
+    const api = makeApi()
+    api.listOllamaModels = vi.fn().mockResolvedValue({ models: [] })
+    api.pullOllamaModel = vi.fn().mockResolvedValue({ success: true })
+    api.deleteOllamaModel = vi.fn().mockResolvedValue({ success: true })
+
+    await renderShell({ api })
+
+    const button = container.querySelector('[data-testid="page-local-models"]')
+    expect(button).not.toBeNull()
+
+    await act(async () => {
+      button!.dispatchEvent(new MouseEvent('click', { bubbles: true }))
+      await flush()
+    })
+
+    const page = container.querySelector('[data-testid="settings-page-local-models"]')
+    expect(page).not.toBeNull()
+  })
+
   it('clicking Setup Wizard nav item renders SetupWizardPage', async () => {
     await renderShell({ api: makeApi() })
 
