@@ -265,6 +265,23 @@ export class AgentGateway implements IAgentGateway {
           );
         }
 
+        // Conversational exit: if the model responded with text and no tool
+        // calls, the turn is complete. Only continue looping when there are
+        // pending tool calls to execute.
+        if (parsedOutput.toolCalls.length === 0 && parsedOutput.response.trim()) {
+          console.debug('[nous:gateway] conversational exit (no tool calls)', { agentClass: this.agentClass });
+          budgetTracker.recordTurn();
+          return this.finalizeTerminalResult(
+            this.buildSingleTurnResult(
+              parsedOutput, sequencer, budgetTracker, evidenceRefs,
+              validInput, context.length, startedAt,
+            ),
+            'gateway:completed',
+            traceId,
+            projectId,
+          );
+        }
+
         const handledTurn = await this.handleToolCalls({
           input: validInput,
           toolCalls: parsedOutput.toolCalls,
