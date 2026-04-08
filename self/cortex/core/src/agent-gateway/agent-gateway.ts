@@ -223,6 +223,7 @@ export class AgentGateway implements IAgentGateway {
           outputType: typeof modelResponse.output,
           outputLength: typeof modelResponse.output === 'string' ? modelResponse.output.length : 'non-string',
           hasUsage: !!modelResponse.usage,
+          rawOutput: modelResponse.output,
         });
 
         // Strategy delegation: responseParser (harness) or parseModelOutput (built-in)
