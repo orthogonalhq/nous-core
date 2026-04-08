@@ -86,7 +86,7 @@ const DEFAULT_TOP_LEVEL_BUDGET: GatewayBudget = {
 
 const DEFAULT_CHAT_TURN_BUDGET: GatewayBudget = {
   maxTurns: 8,
-  maxTokens: 4096,
+  maxTokens: 65_536,
   timeoutMs: 120_000,
 };
 
