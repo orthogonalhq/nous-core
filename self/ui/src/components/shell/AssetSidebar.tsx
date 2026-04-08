@@ -511,9 +511,11 @@ export function AssetSidebar({
     style,
     ...props
 }: AssetSidebarProps & Omit<React.HTMLAttributes<HTMLDivElement>, 'content'>) {
-    const scrollPaddingBottom = chatStage
-        ? CHAT_STAGE_HEIGHT[chatStage]
-        : CHAT_STAGE_HEIGHT['ambient_large'] // safe default: largest resting state
+    const scrollPaddingBottom = chatStage === 'full'
+        ? 0 // overlay covers sidebar entirely in full mode
+        : chatStage
+            ? CHAT_STAGE_HEIGHT[chatStage]
+            : CHAT_STAGE_HEIGHT['ambient_large'] // safe default: largest resting state
 
     return (
         <div

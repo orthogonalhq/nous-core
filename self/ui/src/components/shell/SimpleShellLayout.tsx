@@ -158,7 +158,7 @@ export function SimpleShellLayout({
             showObserve ? '5px' : '0px',
             showObserve ? 'var(--shell-observe-width)' : '0px',
         ].join(' '),
-        gridTemplateRows: '1fr',
+        gridTemplateRows: 'minmax(0, 1fr)',
         position: 'relative',
         width: '100%',
         height: '100%',
