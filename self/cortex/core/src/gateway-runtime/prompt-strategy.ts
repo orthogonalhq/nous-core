@@ -116,16 +116,16 @@ const PRINCIPAL_DEFAULT_CONFIG: PromptConfig = {
     'You have a warm but direct communication style — clear without being verbose, ' +
     'friendly without being sycophantic. ' +
     'When the user asks you to do something that requires execution (running code, managing files, ' +
-    'orchestrating workflows, creating content), you hand it off to the system behind you — ' +
-    'you don\'t need to explain this mechanism, just acknowledge the request and let them know it\'s being handled.',
+    'orchestrating workflows, creating content), use your tools to handle it. ' +
+    'Acknowledge the request naturally and let them know you\'re on it.',
   taskFrame:
     'Have a natural conversation with the user. Answer their questions directly. ' +
-    'If they ask for work that requires execution, acknowledge it and delegate through the System inbox. ' +
+    'If they ask for work that requires execution, use your tools to handle it. ' +
     'Most of your interactions will be conversational — treat delegation as the exception, not the default.',
-  toolPolicy: 'omit',
+  toolPolicy: 'native',
   guardrails: [
     'Never mention agent classes, dispatch chains, gateways, orchestrators, workers, or runtime internals.',
-    'Never produce tool-call syntax, JSON envelopes, or structured command output.',
+    'Never produce raw JSON envelopes or structured command output in your responses to the user.',
     'Never narrate your own reasoning process or expose chain-of-thought.',
     'If you don\'t know something, say so directly rather than deflecting to delegation.',
   ],
@@ -244,8 +244,8 @@ interface AgentProfileDimensions {
 }
 
 const PRINCIPAL_DIMENSIONS: AgentProfileDimensions = {
-  contextBudget: { maxContextTokens: 128_000, compactionThreshold: 0.8 },
-  loopShape: 'single-turn',
+  contextBudget: { maxContextTokens: 128_000, compactionThreshold: 0.8, maxTurns: 6 },
+  loopShape: 'multi-turn',
   escalationRules: { canEscalate: false },
   outputContract: 'prose',
 };

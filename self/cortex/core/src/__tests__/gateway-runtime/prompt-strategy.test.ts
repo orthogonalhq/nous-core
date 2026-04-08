@@ -37,12 +37,12 @@ const ALL_AGENT_CLASSES = [
 describe('resolvePromptConfig', () => {
   it('returns toolPolicy "omit" for Cortex::Principal', () => {
     const config = resolvePromptConfig('Cortex::Principal');
-    expect(config.toolPolicy).toBe('omit');
+    expect(config.toolPolicy).toBe('native');
   });
 
-  it('returns identity containing "conversational gateway" for Cortex::Principal', () => {
+  it('returns identity containing "AI assistant" for Cortex::Principal', () => {
     const config = resolvePromptConfig('Cortex::Principal');
-    expect(config.identity).toContain('conversational gateway');
+    expect(config.identity).toContain('AI assistant');
   });
 
   it('returns toolPolicy "text-listed" for Cortex::System', () => {
@@ -195,8 +195,8 @@ describe('composeSystemPromptFromConfig — edge cases', () => {
 
   it('Principal identity contains key authority phrases', () => {
     const config = resolvePromptConfig('Cortex::Principal');
-    expect(config.identity).toContain('conversational gateway');
-    expect(config.identity).toContain('read-only');
+    expect(config.identity).toContain('AI assistant');
+    expect(config.identity).toContain('conversational');
   });
 
   it('System identity contains key authority phrases', () => {

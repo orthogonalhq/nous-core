@@ -90,7 +90,7 @@ describe('SimpleShellLayout', () => {
   it('uses single-row grid (1fr)', async () => {
     await renderLayout()
     const layout = container.firstElementChild as HTMLDivElement
-    expect(layout.style.gridTemplateRows).toBe('1fr')
+    expect(layout.style.gridTemplateRows).toBe('minmax(0, 1fr)')
   })
 
   it('chat overlay is positioned absolutely', async () => {
