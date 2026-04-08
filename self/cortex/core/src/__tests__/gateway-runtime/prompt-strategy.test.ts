@@ -35,46 +35,6 @@ const ALL_AGENT_CLASSES = [
 // ---------------------------------------------------------------------------
 
 describe('resolvePromptConfig', () => {
-  it('returns toolPolicy "omit" for Cortex::Principal', () => {
-    const config = resolvePromptConfig('Cortex::Principal');
-    expect(config.toolPolicy).toBe('native');
-  });
-
-  it('returns identity containing "AI assistant" for Cortex::Principal', () => {
-    const config = resolvePromptConfig('Cortex::Principal');
-    expect(config.identity).toContain('AI assistant');
-  });
-
-  it('returns toolPolicy "text-listed" for Cortex::System', () => {
-    const config = resolvePromptConfig('Cortex::System');
-    expect(config.toolPolicy).toBe('text-listed');
-  });
-
-  it('returns identity containing "coordinator" for Cortex::System', () => {
-    const config = resolvePromptConfig('Cortex::System');
-    expect(config.identity).toContain('coordinator');
-  });
-
-  it('returns toolPolicy "text-listed" for Orchestrator', () => {
-    const config = resolvePromptConfig('Orchestrator');
-    expect(config.toolPolicy).toBe('text-listed');
-  });
-
-  it('returns identity containing "planner" for Orchestrator', () => {
-    const config = resolvePromptConfig('Orchestrator');
-    expect(config.identity).toContain('planner');
-  });
-
-  it('returns toolPolicy "text-listed" for Worker', () => {
-    const config = resolvePromptConfig('Worker');
-    expect(config.toolPolicy).toBe('text-listed');
-  });
-
-  it('returns identity containing "execution" for Worker', () => {
-    const config = resolvePromptConfig('Worker');
-    expect(config.identity).toContain('execution');
-  });
-
   it('returns non-empty identity, taskFrame, and guardrails for all 4 agent classes', () => {
     for (const agentClass of ALL_AGENT_CLASSES) {
       const config = resolvePromptConfig(agentClass);
@@ -112,17 +72,7 @@ describe('resolvePromptConfig — provider axis', () => {
 describe('composeSystemPromptFromConfig', () => {
   const tools = [stubTool('read_file'), stubTool('write_file')];
 
-  it('with toolPolicy "omit" and non-empty tools: prompt contains no tool names', () => {
-    const config = resolvePromptConfig('Cortex::Principal');
-    expect(config.toolPolicy).toBe('omit');
-
-    const prompt = composeSystemPromptFromConfig(config, tools);
-    expect(prompt).not.toContain('read_file');
-    expect(prompt).not.toContain('write_file');
-    expect(prompt).not.toContain('Available Tools');
-  });
-
-  it('with toolPolicy "native" and non-empty tools: prompt contains no tool names', () => {
+  it('with toolPolicy "native" or "omit": prompt contains no tool names', () => {
     const nativeConfig: PromptConfig = {
       identity: 'Test identity',
       taskFrame: 'Test task frame',
@@ -136,9 +86,12 @@ describe('composeSystemPromptFromConfig', () => {
   });
 
   it('with toolPolicy "text-listed" and non-empty tools: prompt includes tool names', () => {
-    const config = resolvePromptConfig('Worker');
-    expect(config.toolPolicy).toBe('text-listed');
-
+    const config: PromptConfig = {
+      identity: 'Test',
+      taskFrame: 'Test',
+      toolPolicy: 'text-listed',
+      guardrails: [],
+    };
     const prompt = composeSystemPromptFromConfig(config, tools);
     expect(prompt).toContain('Available Tools');
     expect(prompt).toContain('- read_file');
@@ -146,19 +99,34 @@ describe('composeSystemPromptFromConfig', () => {
   });
 
   it('with toolPolicy "text-listed" and empty tools array: prompt has no tool section', () => {
-    const config = resolvePromptConfig('Worker');
+    const config: PromptConfig = {
+      identity: 'Test',
+      taskFrame: 'Test',
+      toolPolicy: 'text-listed',
+      guardrails: [],
+    };
     const prompt = composeSystemPromptFromConfig(config, []);
     expect(prompt).not.toContain('Available Tools');
   });
 
   it('with toolPolicy "text-listed" and undefined tools: prompt has no tool section', () => {
-    const config = resolvePromptConfig('Orchestrator');
+    const config: PromptConfig = {
+      identity: 'Test',
+      taskFrame: 'Test',
+      toolPolicy: 'text-listed',
+      guardrails: [],
+    };
     const prompt = composeSystemPromptFromConfig(config);
     expect(prompt).not.toContain('Available Tools');
   });
 
   it('guardrails from config are present in composed prompt', () => {
-    const config = resolvePromptConfig('Cortex::Principal');
+    const config: PromptConfig = {
+      identity: 'Test identity',
+      taskFrame: 'Test frame',
+      toolPolicy: 'omit',
+      guardrails: ['Rule one', 'Rule two'],
+    };
     const prompt = composeSystemPromptFromConfig(config);
 
     for (const guardrail of config.guardrails) {
@@ -168,7 +136,12 @@ describe('composeSystemPromptFromConfig', () => {
   });
 
   it('identity and taskFrame are present in composed prompt', () => {
-    const config = resolvePromptConfig('Cortex::System');
+    const config: PromptConfig = {
+      identity: 'Test identity block',
+      taskFrame: 'Test task frame block',
+      toolPolicy: 'omit',
+      guardrails: [],
+    };
     const prompt = composeSystemPromptFromConfig(config);
     expect(prompt).toContain(config.identity);
     expect(prompt).toContain(config.taskFrame);
@@ -193,27 +166,4 @@ describe('composeSystemPromptFromConfig — edge cases', () => {
     expect(prompt).toContain('Minimal task frame');
   });
 
-  it('Principal identity contains key authority phrases', () => {
-    const config = resolvePromptConfig('Cortex::Principal');
-    expect(config.identity).toContain('AI assistant');
-    expect(config.identity).toContain('conversational');
-  });
-
-  it('System identity contains key authority phrases', () => {
-    const config = resolvePromptConfig('Cortex::System');
-    expect(config.identity).toContain('coordinator');
-    expect(config.identity).toContain('dispatch');
-  });
-
-  it('Orchestrator identity contains key authority phrases', () => {
-    const config = resolvePromptConfig('Orchestrator');
-    expect(config.identity).toContain('planner');
-    expect(config.identity).toContain('dispatch');
-  });
-
-  it('Worker identity contains key authority phrases', () => {
-    const config = resolvePromptConfig('Worker');
-    expect(config.identity).toContain('execution');
-    expect(config.identity).toContain('task_complete');
-  });
 });

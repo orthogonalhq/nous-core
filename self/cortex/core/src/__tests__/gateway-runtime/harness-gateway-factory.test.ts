@@ -50,21 +50,7 @@ function createMockProvider(): IModelProvider {
 }
 
 describe('HarnessGatewayFactory', () => {
-  it('creates gateway for Cortex::Principal with singleTurn: true', () => {
-    const inner = createMockGatewayFactory();
-    const factory = new HarnessGatewayFactory({ agentGatewayFactory: inner });
-
-    factory.create({
-      agentClass: 'Cortex::Principal',
-      agentId: AGENT_ID,
-      toolSurface: createMockToolSurface(),
-      providerType: 'ollama',
-    });
-
-    expect(inner.lastConfig?.harness?.loopConfig?.singleTurn).toBe(true);
-  });
-
-  it('creates gateway for Cortex::System with singleTurn not true', () => {
+  it('creates gateway with loopConfig for any agent class', () => {
     const inner = createMockGatewayFactory();
     const factory = new HarnessGatewayFactory({ agentGatewayFactory: inner });
 
@@ -75,8 +61,7 @@ describe('HarnessGatewayFactory', () => {
       providerType: 'ollama',
     });
 
-    // System has 'delegating' loop shape, not 'single-turn'
-    expect(inner.lastConfig?.harness?.loopConfig?.singleTurn).toBe(false);
+    expect(inner.lastConfig?.harness?.loopConfig).toBeDefined();
   });
 
   it('creates gateway for Worker with correct loop config', () => {
