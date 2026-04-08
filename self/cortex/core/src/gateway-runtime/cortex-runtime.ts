@@ -472,9 +472,9 @@ implements IPrincipalSystemGatewayRuntime, ISystemInboxSubmissionService {
       ...contextFrames,
       {
         role: 'user' as const,
-        source: 'chat_input' as const,
+        source: 'runtime' as const,
         content: message,
-        timestamp: this.now(),
+        createdAt: this.now(),
       },
     ];
 
