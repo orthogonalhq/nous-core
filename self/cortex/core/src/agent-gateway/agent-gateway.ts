@@ -165,6 +165,7 @@ export class AgentGateway implements IAgentGateway {
 
         // Strategy delegation: promptFormatter (harness) or composeSystemPrompt (built-in)
         let systemPrompt: string | string[];
+        let toolDefinitions: typeof tools | undefined;
         if (this.config.harness?.promptFormatter) {
           const formatted = this.config.harness.promptFormatter({
             agentClass: this.agentClass,
@@ -174,6 +175,7 @@ export class AgentGateway implements IAgentGateway {
             tools,
           });
           systemPrompt = formatted.systemPrompt;
+          toolDefinitions = formatted.toolDefinitions ?? tools;
         } else {
           systemPrompt = composeSystemPrompt({
             agentClass: this.agentClass,
@@ -182,22 +184,18 @@ export class AgentGateway implements IAgentGateway {
             execution: validInput.execution,
             tools,
           });
+          toolDefinitions = tools;
         }
 
         const correlation = sequencer.snapshot();
 
         // Build provider input in provider-compatible format.
-        // The gateway produces { systemPrompt, context, tools } internally,
-        // but providers expect { prompt } or { messages }.
-        //
-        // With harness: use transformGatewayInput (same transform as the
-        // old wrapProviderWithInputTransform). The harness promptFormatter
-        // already composed the systemPrompt; the adapter's parseResponse
-        // handles the output. The input transform is still needed because
-        // providers validate against TextModelInputSchema.
-        //
-        // Without harness: same transform (backward compat).
-        const providerInput = transformGatewayInput({ systemPrompt, context, tools });
+        // With harness: use requestFormatter (adapter.formatRequest) which
+        // handles tools natively for capable providers.
+        // Without harness: fall back to transformGatewayInput (backward compat).
+        const providerInput = this.config.harness?.requestFormatter
+          ? this.config.harness.requestFormatter({ systemPrompt, context, toolDefinitions })
+          : transformGatewayInput({ systemPrompt, context, tools });
 
         // Extract the last user message from context for logging
         const lastUserFrame = [...context].reverse().find(f => f.role === 'user');

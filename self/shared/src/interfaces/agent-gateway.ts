@@ -121,6 +121,16 @@ export type PromptFormatter = (input: PromptFormatterInput) => PromptFormatterOu
  */
 export type ResponseParser = (output: unknown, traceId: TraceId) => unknown;
 
+/** Input to the request formatter — canonical prompt output + context */
+export interface RequestFormatterInput {
+  readonly systemPrompt: string | string[];
+  readonly context: readonly GatewayContextFrame[];
+  readonly toolDefinitions?: readonly ToolDefinition[];
+}
+
+/** Request formatting strategy — converts canonical prompt output to provider-specific input */
+export type RequestFormatter = (input: RequestFormatterInput) => unknown;
+
 /** Context budget defaults */
 export interface ContextDefaults {
   readonly maxContextTokens?: number;
@@ -147,6 +157,8 @@ export interface LoopConfig {
 export interface HarnessStrategies {
   /** Composes system prompt from agent profile + personality + tools. */
   readonly promptFormatter?: PromptFormatter;
+  /** Formats the full provider request (system prompt + context + tools → provider input). */
+  readonly requestFormatter?: RequestFormatter;
   /** Parses provider-specific model output into canonical ParsedModelOutput. */
   readonly responseParser?: ResponseParser;
   /** Per-profile context budget defaults and compaction strategy selection. */

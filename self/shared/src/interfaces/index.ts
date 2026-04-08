@@ -96,6 +96,8 @@ export type {
   PromptFormatter,
   PromptFormatterInput,
   PromptFormatterOutput,
+  RequestFormatter,
+  RequestFormatterInput,
   ResponseParser,
   ContextDefaults,
   ContextStrategy,

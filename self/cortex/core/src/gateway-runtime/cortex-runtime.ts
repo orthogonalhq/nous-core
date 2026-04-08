@@ -944,6 +944,7 @@ implements IPrincipalSystemGatewayRuntime, ISystemInboxSubmissionService {
     return {
       promptFormatter: (input: PromptFormatterInput) =>
         composeFromProfile(profile, adapter.capabilities, input),
+      requestFormatter: (input) => adapter.formatRequest(input).input,
       responseParser: (output: unknown, traceId: TraceId) =>
         adapter.parseResponse(output, traceId),
       contextStrategy: profile.contextBudget
