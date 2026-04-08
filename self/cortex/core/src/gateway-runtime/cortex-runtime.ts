@@ -465,11 +465,23 @@ implements IPrincipalSystemGatewayRuntime, ISystemInboxSubmissionService {
       console.warn('[nous:gateway-runtime] handleChatTurn: stmStore not available, proceeding without conversation history');
     }
 
+    // Add the user message as a plain-text user frame, not as a JSON payload.
+    // The payload field stringifies objects, causing the model to see
+    // '{"message":"..."}' instead of the natural user message.
+    const chatContext: GatewayContextFrame[] = [
+      ...contextFrames,
+      {
+        role: 'user' as const,
+        source: 'chat_input' as const,
+        content: message,
+        timestamp: this.now(),
+      },
+    ];
+
     // Run Principal gateway
     const result = await this.principalGateway.run({
       taskInstructions: `Handle the current user chat turn. Respond conversationally.\n\n${CARD_PROMPT_FRAGMENT}`,
-      payload: { message },
-      context: contextFrames,
+      context: chatContext,
       budget: DEFAULT_CHAT_TURN_BUDGET,
       spawnBudgetCeiling: 0,
       correlation: {
