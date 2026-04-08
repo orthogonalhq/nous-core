@@ -199,11 +199,14 @@ export class AgentGateway implements IAgentGateway {
         // Without harness: same transform (backward compat).
         const providerInput = transformGatewayInput({ systemPrompt, context, tools });
 
+        // Extract the last user message from context for logging
+        const lastUserFrame = [...context].reverse().find(f => f.role === 'user');
+
         console.debug('[nous:gateway] invoke provider', {
           agentClass: this.agentClass,
           hasHarness: !!this.config.harness,
           inputKeys: Object.keys(providerInput as Record<string, unknown>),
-          providerInputType: typeof providerInput,
+          userMessage: lastUserFrame?.content?.slice(0, 500) ?? '(no user message)',
         });
 
         const modelResponse = await provider.invoke({
