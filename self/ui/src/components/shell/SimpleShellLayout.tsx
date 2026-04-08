@@ -230,7 +230,7 @@ export function SimpleShellLayout({
                     borderRadius: '0px',
                     display: 'flex',
                     flexDirection: 'column',
-                    overflow: chatStage === 'full' ? 'hidden' : 'visible',
+                    overflow: 'visible',
                     transition: 'height var(--nous-duration-slow) var(--nous-ease-out), background var(--nous-duration-slow) var(--nous-ease-out)',
                 }}
             >
