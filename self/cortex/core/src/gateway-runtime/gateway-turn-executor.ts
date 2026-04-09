@@ -81,7 +81,7 @@ export function transformGatewayInput(input: unknown): unknown {
     return input;
   }
 
-  return {
+  const result: Record<string, unknown> = {
     messages: [
       {
         role: 'system' as const,
@@ -93,6 +93,20 @@ export function transformGatewayInput(input: unknown): unknown {
       })),
     ],
   };
+
+  // Pass tools through to the provider when present.
+  // Transform from ToolDefinition shape (camelCase: inputSchema) to
+  // provider schema shape (snake_case: input_schema) for TextModelInputSchema.
+  const tools = (input as Record<string, unknown>).tools;
+  if (Array.isArray(tools) && tools.length > 0) {
+    result.tools = tools.map((t: Record<string, unknown>) => ({
+      name: t.name,
+      description: t.description ?? '',
+      input_schema: t.inputSchema ?? t.input_schema ?? {},
+    }));
+  }
+
+  return result;
 }
 
 interface MwcPipelineLike {
