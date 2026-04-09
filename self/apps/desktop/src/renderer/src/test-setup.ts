@@ -14,6 +14,14 @@ type OllamaModelPullProgress = Parameters<ElectronAPI['ollama']['onPullProgress'
 ) => void
   ? T
   : never
+type OllamaUpdateCheckResult = Awaited<ReturnType<ElectronAPI['ollama']['checkUpdate']>>
+type OllamaUpdateResult = Awaited<ReturnType<ElectronAPI['ollama']['update']>>
+type OllamaVersionInfoPayload = Awaited<ReturnType<ElectronAPI['ollama']['getVersion']>>
+type OllamaUpdateProgressPayload = Parameters<ElectronAPI['ollama']['onUpdateProgress']>[0] extends (
+  progress: infer T,
+) => void
+  ? T
+  : never
 
 export const DEFAULT_OLLAMA_STATUS: OllamaStatus = {
   installed: true,
