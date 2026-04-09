@@ -916,17 +916,43 @@ implements IPrincipalSystemGatewayRuntime, ISystemInboxSubmissionService {
    * which uses the text adapter (preserving current behavior).
    */
   private resolveProviderType(provider?: IModelProvider): string {
-    if (!provider) return 'text';
-    try {
-      const config = provider.getConfig();
-      const name = config.name?.toLowerCase() ?? '';
-      if (name.includes('anthropic') || name.includes('claude')) return 'anthropic';
-      if (name.includes('openai') || name.includes('gpt')) return 'openai';
-      if (name.includes('ollama')) return 'ollama';
-      return 'text';
-    } catch {
-      return 'text';
+    const resolve = (p: IModelProvider): string | null => {
+      try {
+        const config = p.getConfig();
+        const name = (config.name ?? config.type ?? '').toLowerCase();
+        if (name.includes('anthropic') || name.includes('claude')) return 'anthropic';
+        if (name.includes('openai') || name.includes('gpt')) return 'openai';
+        if (name.includes('ollama')) return 'ollama';
+        return null;
+      } catch {
+        return null;
+      }
+    };
+
+    // Try direct provider first
+    if (provider) {
+      return resolve(provider) ?? 'text';
     }
+
+    // No direct provider mapped — probe registered providers via getProvider.
+    // This handles the common case where bootstrap uses modelRouter + getProvider
+    // instead of modelProviderByClass.
+    if (this.deps.getProvider) {
+      const WELL_KNOWN_IDS = [
+        '10000000-0000-0000-0000-000000000003', // ollama
+        '10000000-0000-0000-0000-000000000001', // anthropic
+        '10000000-0000-0000-0000-000000000002', // openai
+      ];
+      for (const id of WELL_KNOWN_IDS) {
+        const p = this.deps.getProvider(id);
+        if (p) {
+          const type = resolve(p);
+          if (type) return type;
+        }
+      }
+    }
+
+    return 'text';
   }
 
   /**
