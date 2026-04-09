@@ -394,7 +394,7 @@ describe('AgentGateway dispatch chain integration', () => {
       outputs: [
         JSON.stringify({
           response: 'working',
-          toolCalls: [],
+          toolCalls: [{ name: 'lookup_status', params: {} }],
         }),
         JSON.stringify({
           response: 'done',
