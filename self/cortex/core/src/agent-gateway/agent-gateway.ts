@@ -1135,6 +1135,7 @@ export class AgentGateway implements IAgentGateway {
       output: {
         response: parsedOutput.response,
         contentType: parsedOutput.contentType,
+        thinkingContent: parsedOutput.thinkingContent,
       },
       v3Packet: {
         nous: { v: 3 as const },
