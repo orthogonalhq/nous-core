@@ -221,9 +221,18 @@ export class AgentGateway implements IAgentGateway {
         });
 
         // Strategy delegation: responseParser (harness) or parseModelOutput (built-in)
-        const parsedOutput: ParsedModelOutput = this.config.harness?.responseParser
-          ? (this.config.harness.responseParser(modelResponse.output, traceId) as ParsedModelOutput)
+        const usingHarnessParser = !!this.config.harness?.responseParser;
+        const parsedOutput: ParsedModelOutput = usingHarnessParser
+          ? (this.config.harness!.responseParser!(modelResponse.output, traceId) as ParsedModelOutput)
           : parseModelOutput(modelResponse.output, traceId);
+
+        console.debug('[nous:gateway] parser selection', {
+          usingHarnessParser,
+          outputType: typeof modelResponse.output,
+          parsedResponse: parsedOutput.response.slice(0, 100),
+          parsedToolCalls: parsedOutput.toolCalls.length,
+          parsedThinking: !!parsedOutput.thinkingContent,
+        });
 
         console.debug('[nous:gateway] parsed output', {
           agentClass: this.agentClass,
