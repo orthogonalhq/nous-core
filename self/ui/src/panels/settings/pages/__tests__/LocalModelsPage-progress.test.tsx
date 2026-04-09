@@ -100,10 +100,10 @@ describe('LocalModelsPage pull progress', () => {
       fireEvent.click(pullButton);
     });
 
-    // Should show fallback "Pulling..." text
+    // Should show fallback "Downloading..." text
     await waitFor(() => {
       expect(screen.getByTestId('pull-status')).toBeDefined();
-      expect(screen.getByTestId('pull-status').textContent).toBe('Pulling...');
+      expect(screen.getByTestId('pull-status').textContent).toBe('Downloading...');
     });
   });
 
