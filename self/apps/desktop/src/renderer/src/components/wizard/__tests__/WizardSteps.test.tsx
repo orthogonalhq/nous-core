@@ -1,5 +1,5 @@
 import { useState } from 'react'
-import { fireEvent, render, screen, waitFor } from '@testing-library/react'
+import { act, fireEvent, render, screen, waitFor } from '@testing-library/react'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import {
   createElectronAPIMock,
@@ -71,7 +71,7 @@ describe('Wizard step components', () => {
     expect(screen.getByText(/RTX 4080/)).toBeInTheDocument()
   })
 
-  it('shows download guidance when Ollama is not installed', () => {
+  it('shows install button when Ollama is not installed', () => {
     installMock()
     const props = createStepProps()
 
@@ -89,7 +89,135 @@ describe('Wizard step components', () => {
       />,
     )
 
-    expect(screen.getByRole('link', { name: 'Download Ollama' })).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: 'Install Ollama' })).toBeInTheDocument()
+  })
+
+  it('triggers IPC install flow when Install Ollama is clicked', async () => {
+    const mock = installMock()
+    const props = createStepProps()
+
+    render(
+      <WizardStepOllamaSetup
+        {...props}
+        ollamaStatus={{
+          installed: false,
+          running: false,
+          state: 'not_installed',
+          models: [],
+          defaultModel: null,
+        }}
+        refreshOllamaStatus={vi.fn(async () => {})}
+      />,
+    )
+
+    fireEvent.click(screen.getByRole('button', { name: 'Install Ollama' }))
+
+    await waitFor(() => {
+      expect(mock.ollama.install).toHaveBeenCalled()
+      expect(mock.ollama.onInstallProgress).toHaveBeenCalled()
+    })
+  })
+
+  it('displays install progress phases', async () => {
+    const mock = installMock()
+    const props = createStepProps()
+
+    let progressCallback: ((progress: { phase: string; message?: string }) => void) | null = null
+    mock.ollama.onInstallProgress.mockImplementation((cb: (progress: { phase: string; message?: string }) => void) => {
+      progressCallback = cb
+      return () => {}
+    })
+    // Make install hang so we can observe progress
+    mock.ollama.install.mockImplementation(() => new Promise(() => {}))
+
+    render(
+      <WizardStepOllamaSetup
+        {...props}
+        ollamaStatus={{
+          installed: false,
+          running: false,
+          state: 'not_installed',
+          models: [],
+          defaultModel: null,
+        }}
+        refreshOllamaStatus={vi.fn(async () => {})}
+      />,
+    )
+
+    fireEvent.click(screen.getByRole('button', { name: 'Install Ollama' }))
+
+    await waitFor(() => {
+      expect(progressCallback).not.toBeNull()
+    })
+
+    act(() => {
+      progressCallback!({ phase: 'downloading' })
+    })
+
+    await waitFor(() => {
+      expect(screen.getByText('downloading...')).toBeInTheDocument()
+    })
+  })
+
+  it('displays error state with fallback link on install failure', async () => {
+    const mock = installMock()
+    const props = createStepProps()
+
+    mock.ollama.install.mockResolvedValue({ success: false, error: 'Install failed' } as Record<string, unknown>)
+
+    render(
+      <WizardStepOllamaSetup
+        {...props}
+        ollamaStatus={{
+          installed: false,
+          running: false,
+          state: 'not_installed',
+          models: [],
+          defaultModel: null,
+        }}
+        refreshOllamaStatus={vi.fn(async () => {})}
+      />,
+    )
+
+    fireEvent.click(screen.getByRole('button', { name: 'Install Ollama' }))
+
+    await waitFor(() => {
+      expect(screen.getByText('Install failed')).toBeInTheDocument()
+      expect(screen.getByRole('link', { name: 'download Ollama manually' })).toBeInTheDocument()
+    })
+  })
+
+  it('displays elevation error with catch-and-instruct message', async () => {
+    const mock = installMock()
+    const props = createStepProps()
+
+    mock.ollama.install.mockResolvedValue({
+      success: false,
+      elevationError: true,
+      error: 'Installation requires elevated permissions.',
+    } as Record<string, unknown>)
+
+    render(
+      <WizardStepOllamaSetup
+        {...props}
+        ollamaStatus={{
+          installed: false,
+          running: false,
+          state: 'not_installed',
+          models: [],
+          defaultModel: null,
+        }}
+        refreshOllamaStatus={vi.fn(async () => {})}
+      />,
+    )
+
+    fireEvent.click(screen.getByRole('button', { name: 'Install Ollama' }))
+
+    await waitFor(() => {
+      expect(screen.getByText('Installation requires elevated permissions.')).toBeInTheDocument()
+      expect(screen.getByText(/The installer needs elevated permissions/)).toBeInTheDocument()
+      expect(screen.getByRole('link', { name: 'download it from the official site' })).toBeInTheDocument()
+    })
   })
 
   it('shows a start button when Ollama is installed but stopped', () => {

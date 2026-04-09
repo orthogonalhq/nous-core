@@ -213,6 +213,13 @@ export function createElectronAPIMock() {
           ollamaStateListeners.delete(callback)
         }
       }),
+      install: vi.fn(async (): Promise<unknown> => ({ success: true })),
+      onInstallProgress: vi.fn((_callback: (progress: { phase: string; message?: string }) => void) => {
+        return () => {}
+      }),
+      checkUpdate: vi.fn(async () => ({})),
+      update: vi.fn(async () => ({})),
+      getVersion: vi.fn(async () => null),
     },
   } satisfies ElectronAPI
 

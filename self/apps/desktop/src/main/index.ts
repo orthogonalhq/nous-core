@@ -1,4 +1,4 @@
-import { app, BrowserWindow, ipcMain } from 'electron'
+import { app, BrowserWindow, ipcMain, shell } from 'electron'
 import { join } from 'node:path'
 import { createServer } from 'node:net'
 import { execFile, fork, spawn, type ChildProcess } from 'node:child_process'
@@ -14,6 +14,7 @@ import {
   type OllamaStatus,
 } from '../../../shared-server/src/ollama-detection'
 import { initOrphanGuard, registerChild } from './orphan-guard'
+import { installOllama } from './ollama-installer'
 
 interface StoredLayout {
   version: 1
@@ -1241,6 +1242,28 @@ ipcMain.handle('ollama:pullModel', async (_event, modelId: string) => {
     .finally(() => {
       activeOllamaPull = null
     })
+})
+
+ipcMain.handle('ollama:install', async () => {
+  const result = await installOllama(
+    (progress) => {
+      win?.webContents.send('ollama:install-progress', progress)
+    },
+    (pid) => {
+      registerChild(pid)
+    },
+  )
+
+  if (result.packageManagerMissing) {
+    shell.openExternal('https://ollama.com/download')
+    return result
+  }
+
+  if (result.success) {
+    await refreshOllamaStatus().catch(() => undefined)
+  }
+
+  return result
 })
 
 // ━━━ Window Creation ━━━

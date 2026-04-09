@@ -1,3 +1,4 @@
+import { useEffect, useRef, useState } from 'react'
 import {
   formatLifecycleState,
   type FirstRunState,
@@ -35,6 +36,60 @@ export function WizardStepOllamaSetup({
 }: WizardStepOllamaSetupProps) {
   const state = ollamaStatus?.state ?? null
   const canContinue = state === 'running'
+
+  const [installPhase, setInstallPhase] = useState<string | null>(null)
+  const [installError, setInstallError] = useState<string | null>(null)
+  const [installElevationError, setInstallElevationError] = useState(false)
+  const cleanupRef = useRef<(() => void) | null>(null)
+
+  // Cleanup progress listener on unmount
+  useEffect(() => {
+    return () => {
+      cleanupRef.current?.()
+    }
+  }, [])
+
+  const handleInstall = async () => {
+    setInstallError(null)
+    setInstallElevationError(false)
+    setActionError(null)
+    setActionInProgress(true)
+
+    // Subscribe to progress events
+    const unsubscribe = window.electronAPI.ollama.onInstallProgress((progress) => {
+      setInstallPhase(progress.phase)
+    })
+    cleanupRef.current = unsubscribe
+
+    try {
+      const result = (await window.electronAPI.ollama.install()) as {
+        success: boolean
+        error?: string
+        elevationError?: boolean
+        packageManagerMissing?: boolean
+      }
+
+      if (result.success) {
+        setInstallPhase(null)
+        await refreshOllamaStatus()
+      } else if (result.elevationError) {
+        setInstallPhase(null)
+        setInstallElevationError(true)
+        setInstallError(result.error ?? 'Installation requires elevated permissions.')
+      } else {
+        setInstallPhase(null)
+        setInstallError(result.error ?? 'Installation failed.')
+      }
+    } catch (error) {
+      setInstallPhase(null)
+      const message = error instanceof Error ? error.message : String(error)
+      setInstallError(message)
+    } finally {
+      unsubscribe()
+      cleanupRef.current = null
+      setActionInProgress(false)
+    }
+  }
 
   const handleRefresh = async () => {
     setActionError(null)
@@ -87,7 +142,7 @@ export function WizardStepOllamaSetup({
   let description = 'Checking whether Ollama is available on this desktop…'
   if (state === 'not_installed') {
     description =
-      'Ollama is not installed yet. Download it first, then return here and re-check the status.'
+      'Ollama is not installed yet. Click "Install Ollama" to set it up automatically, or install it manually.'
   } else if (state === 'installed_stopped') {
     description =
       'Ollama is installed, but the local runtime is not running yet. Start it here, or launch it manually.'
@@ -150,20 +205,51 @@ export function WizardStepOllamaSetup({
         <section className="nous-wizard__card">
           <h2 className="nous-wizard__section-title">What to do next</h2>
           <p className="nous-wizard__section-copy">
-            Download Ollama if you do not have it yet, or start the runtime and
+            Install Ollama if you do not have it yet, or start the runtime and
             wait for this step to show a running state.
           </p>
 
+          {installPhase ? (
+            <div className="nous-wizard__meta-list">
+              <div className="nous-wizard__meta-item">
+                <span className="nous-wizard__meta-label">Progress</span>
+                <span className="nous-wizard__meta-value">{installPhase}...</span>
+              </div>
+            </div>
+          ) : null}
+
+          {installError ? (
+            <div className="nous-wizard__alert" role="alert">
+              <p>{installError}</p>
+              {installElevationError ? (
+                <p>
+                  The installer needs elevated permissions. Please install Ollama manually
+                  using the instructions above, or{' '}
+                  <a href="https://ollama.com/download" target="_blank" rel="noreferrer">
+                    download it from the official site
+                  </a>.
+                </p>
+              ) : (
+                <p>
+                  You can also{' '}
+                  <a href="https://ollama.com/download" target="_blank" rel="noreferrer">
+                    download Ollama manually
+                  </a>.
+                </p>
+              )}
+            </div>
+          ) : null}
+
           <div className="nous-wizard__button-row">
-            {state === 'not_installed' ? (
-              <a
+            {state === 'not_installed' && !installPhase ? (
+              <button
+                type="button"
                 className="nous-wizard__button nous-wizard__button--primary"
-                href="https://ollama.com/download"
-                target="_blank"
-                rel="noreferrer"
+                onClick={handleInstall}
+                disabled={actionInProgress}
               >
-                Download Ollama
-              </a>
+                {actionInProgress ? 'Installing...' : 'Install Ollama'}
+              </button>
             ) : null}
 
             {state === 'installed_stopped' ? (
