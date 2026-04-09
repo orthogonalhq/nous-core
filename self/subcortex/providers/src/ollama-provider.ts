@@ -55,17 +55,11 @@ export class OllamaProvider implements IModelProvider {
     const data = (await response.json()) as OllamaGenerateResponse & OllamaChatResponse;
     const usage = this.extractUsage(data, start);
 
-    // When tool_calls are present (done_reason: 'tool_calls' or message.tool_calls),
-    // return the full message object so the adapter can extract structured tool calls.
+    // Return the full message object when available — preserves tool_calls,
+    // thinking, and any other structured fields the adapter needs.
+    // Fall back to plain string only for /api/generate responses (no message).
     const chatMsg = data.message;
-    const toolCallsArr = chatMsg?.tool_calls;
-    const hasToolCalls =
-      (Array.isArray(toolCallsArr) && toolCallsArr.length > 0) ||
-      data.done_reason === 'tool_calls';
-
-    const output = hasToolCalls && chatMsg
-      ? chatMsg
-      : data.response ?? chatMsg?.content ?? '';
+    const output = chatMsg ?? data.response ?? '';
 
     return {
       output,
