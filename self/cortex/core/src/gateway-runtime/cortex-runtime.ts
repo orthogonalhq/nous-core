@@ -969,16 +969,29 @@ implements IPrincipalSystemGatewayRuntime, ISystemInboxSubmissionService {
    */
   private composeHarnessStrategies(
     agentClass: AgentClass,
-    providerType: string,
+    _providerType: string,
   ): HarnessStrategies {
-    const profile = resolveAgentProfile(agentClass, providerType);
-    const adapter = resolveAdapter(providerType);
+    // Resolve adapter lazily — providers may not be registered yet at
+    // construction time (bootstrap registers them after runtime creation).
+    let cachedAdapter: ReturnType<typeof resolveAdapter> | null = null;
+    const getAdapter = () => {
+      if (!cachedAdapter) {
+        const resolvedType = this.resolveProviderType(
+          this.deps.modelProviderByClass?.[agentClass],
+        );
+        cachedAdapter = resolveAdapter(resolvedType);
+        console.debug('[nous:cortex-runtime] lazy adapter resolved', { agentClass, resolvedType });
+      }
+      return cachedAdapter;
+    };
+
+    const profile = resolveAgentProfile(agentClass);
 
     return {
       promptFormatter: (input: PromptFormatterInput) =>
-        composeFromProfile(profile, adapter.capabilities, input),
+        composeFromProfile(profile, getAdapter().capabilities, input),
       responseParser: (output: unknown, traceId: TraceId) =>
-        adapter.parseResponse(output, traceId),
+        getAdapter().parseResponse(output, traceId),
       contextStrategy: profile.contextBudget
         ? {
             getDefaults: () =>
