@@ -61,6 +61,16 @@ export class OllamaProvider implements IModelProvider {
     const chatMsg = data.message;
     const output = chatMsg ?? data.response ?? '';
 
+    console.debug('[nous:ollama-provider] invoke response shape', {
+      url,
+      hasMessage: !!chatMsg,
+      messageKeys: chatMsg && typeof chatMsg === 'object' ? Object.keys(chatMsg) : 'n/a',
+      hasThinking: chatMsg && typeof chatMsg === 'object' ? 'thinking' in chatMsg : false,
+      hasResponse: !!data.response,
+      outputType: typeof output,
+      dataKeys: Object.keys(data),
+    });
+
     return {
       output,
       providerId: this.config.id,
