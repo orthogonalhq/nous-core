@@ -20,6 +20,7 @@ export function usePreferencesApi() {
   const resetWizardMutation = trpc.firstRun.resetWizard.useMutation()
   const pullOllamaModel = trpc.ollama.pullModel.useMutation()
   const deleteOllamaModel = trpc.ollama.deleteModel.useMutation()
+  const setOllamaEndpoint = trpc.ollama.setEndpoint.useMutation()
 
   const utilsRef = useRef(utils)
   utilsRef.current = utils
@@ -39,6 +40,8 @@ export function usePreferencesApi() {
   pullOllamaModelRef.current = pullOllamaModel.mutateAsync
   const deleteOllamaModelRef = useRef(deleteOllamaModel.mutateAsync)
   deleteOllamaModelRef.current = deleteOllamaModel.mutateAsync
+  const setOllamaEndpointRef = useRef(setOllamaEndpoint.mutateAsync)
+  setOllamaEndpointRef.current = setOllamaEndpoint.mutateAsync
 
   return useMemo(
     () => ({
@@ -91,6 +94,13 @@ export function usePreferencesApi() {
       },
       deleteOllamaModel: async (name: string) => {
         return deleteOllamaModelRef.current({ name })
+      },
+      // Ollama endpoint configuration
+      getOllamaEndpoint: async () => {
+        return utilsRef.current.ollama.getEndpoint.fetch()
+      },
+      setOllamaEndpoint: async (endpoint: string | null) => {
+        return setOllamaEndpointRef.current({ endpoint })
       },
     }),
     // No dependencies — object is created once per mount.

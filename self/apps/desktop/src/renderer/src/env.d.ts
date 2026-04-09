@@ -76,6 +76,11 @@ interface ElectronAPI {
     pullModel: (modelId: string) => Promise<void>
     onPullProgress: (callback: (progress: OllamaModelPullProgress) => void) => () => void
     onStateChange: (callback: (status: OllamaStatus) => void) => () => void
+    install: () => Promise<unknown>
+    onInstallProgress: (callback: (progress: { phase: string; message?: string }) => void) => () => void
+    checkUpdate: () => Promise<unknown>
+    update: () => Promise<unknown>
+    getVersion: () => Promise<unknown>
   }
 }
 

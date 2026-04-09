@@ -376,12 +376,13 @@ export function buildProviderConfig(
 export function buildOllamaProviderConfig(
   modelId: string,
   providerId: ProviderId = OLLAMA_WELL_KNOWN_PROVIDER_ID,
+  endpoint?: string,
 ): ModelProviderConfig {
   return {
     id: providerId,
     name: 'ollama',
     type: 'text',
-    endpoint: 'http://localhost:11434',
+    endpoint: endpoint ?? 'http://localhost:11434',
     modelId,
     isLocal: true,
     capabilities: ['chat', 'streaming'],

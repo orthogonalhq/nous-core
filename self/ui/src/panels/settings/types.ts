@@ -109,6 +109,8 @@ export interface PreferencesApi {
   listOllamaModels?: () => Promise<{ models: OllamaModelEntry[] }>
   pullOllamaModel?: (name: string) => Promise<{ success: boolean }>
   deleteOllamaModel?: (name: string) => Promise<{ success: boolean }>
+  getOllamaEndpoint?: () => Promise<{ endpoint: string }>
+  setOllamaEndpoint?: (endpoint: string | null) => Promise<{ success: boolean }>
 }
 
 // ─── Constants ─────────────────────────────────────────────────────────────────
