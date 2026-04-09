@@ -258,6 +258,7 @@ export async function installOllama(
           '--id',
           'Ollama.Ollama',
           '--exact',
+          '--silent',
           '--accept-package-agreements',
           '--accept-source-agreements',
           '--disable-interactivity',

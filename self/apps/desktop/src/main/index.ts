@@ -1255,7 +1255,37 @@ ipcMain.handle('ollama:install', async () => {
   }
 
   if (result.success) {
-    await refreshOllamaStatus().catch(() => undefined)
+    // Post-install: poll for binary detection, then auto-start the runtime.
+    // After winget completes, the binary may take a moment to appear on PATH
+    // and the API server is not yet running. We wait briefly, then start it
+    // automatically so the wizard can advance without a manual "Check again".
+    win?.webContents.send('ollama:install-progress', { phase: 'verifying' })
+
+    const POLL_INTERVAL_MS = 1_000
+    const POLL_TIMEOUT_MS = 30_000
+    const startTime = Date.now()
+    let detected = false
+
+    while (Date.now() - startTime < POLL_TIMEOUT_MS) {
+      const status = await refreshOllamaStatus().catch(() => null)
+      if (status?.installed) {
+        detected = true
+        break
+      }
+      await new Promise((resolve) => setTimeout(resolve, POLL_INTERVAL_MS))
+    }
+
+    if (detected) {
+      // Auto-start so the wizard can advance to model download
+      try {
+        await startOllama()
+      } catch (err) {
+        console.error('[nous:desktop] ollama-installer: auto-start after install failed:', err)
+        // Non-fatal — user can still click "Start Ollama" manually
+      }
+    } else {
+      console.warn('[nous:desktop] ollama-installer: binary not detected within 30s post-install')
+    }
   }
 
   return result
