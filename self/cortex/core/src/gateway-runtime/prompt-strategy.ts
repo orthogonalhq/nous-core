@@ -42,6 +42,67 @@ export interface PromptConfig {
 
   /** Anti-narration, format constraints, behavioral guardrails */
   readonly guardrails: readonly string[];
+
+  /**
+   * User-configured personality input (WR-128).
+   * Affects identity wording and prose output style only.
+   * Shape TBD — WR-128 delivers the concrete type.
+   */
+  readonly personalityConfig?: unknown;
+}
+
+// ── Agent Profile types (WR-127) ─────────────────────────────────────
+
+/** Context budget defaults for an agent class */
+export interface ContextBudgetDefaults {
+  /** Maximum context tokens before compaction triggers */
+  readonly maxContextTokens?: number;
+  /** Compaction threshold as ratio of context window (0-1) */
+  readonly compactionThreshold?: number;
+  /** Default turn budget */
+  readonly maxTurns?: number;
+}
+
+/** Loop behavior variants */
+export type LoopShape = 'single-turn' | 'multi-turn' | 'delegating';
+
+/** Tool execution concurrency model */
+export interface ToolConcurrencyConfig {
+  /** Maximum parallel tool executions */
+  readonly maxConcurrent?: number;
+  /** Whether to partition by tool safety (read-only = parallel, write = serial) */
+  readonly partitionBySafety?: boolean;
+}
+
+/** Escalation configuration */
+export interface EscalationConfig {
+  /** Whether this agent class can escalate */
+  readonly canEscalate: boolean;
+  /** Auto-escalate after N consecutive failures */
+  readonly autoEscalateAfterFailures?: number;
+}
+
+/** Output shape contract */
+export type OutputContract = 'prose' | 'structured' | 'mixed';
+
+/**
+ * Full behavioral profile for an agent class.
+ * Extends PromptConfig with operational/mechanical dimensions.
+ * Immutable after construction — all fields readonly.
+ */
+export interface AgentProfile extends PromptConfig {
+  /** Per-class context budget defaults */
+  readonly contextBudget?: ContextBudgetDefaults;
+  /** Compaction strategy identifier */
+  readonly compactionStrategy?: string;
+  /** How the gateway loop behaves for this agent class */
+  readonly loopShape?: LoopShape;
+  /** Tool execution concurrency model */
+  readonly toolConcurrency?: ToolConcurrencyConfig;
+  /** When/how this agent class escalates */
+  readonly escalationRules?: EscalationConfig;
+  /** Expected output shape */
+  readonly outputContract?: OutputContract;
 }
 
 // ---------------------------------------------------------------------------
@@ -50,18 +111,23 @@ export interface PromptConfig {
 
 const PRINCIPAL_DEFAULT_CONFIG: PromptConfig = {
   identity:
-    'You are the conversational gateway for Nous. You respond naturally to the user. ' +
-    'You are read-only — you do not execute tools or dispatch agents directly. ' +
-    'When the user requests work that requires execution, delegate it through the System inbox.',
+    'You are the user\'s AI assistant. You are helpful, knowledgeable, and conversational. ' +
+    'You answer questions, discuss ideas, help with planning, explain concepts, and engage naturally. ' +
+    'You have a warm but direct communication style — clear without being verbose, ' +
+    'friendly without being sycophantic. ' +
+    'When the user asks you to do something that requires execution (running code, managing files, ' +
+    'orchestrating workflows, creating content), use your tools to handle it. ' +
+    'Acknowledge the request naturally and let them know you\'re on it.',
   taskFrame:
-    'Respond to the user conversationally. If the request requires task execution, ' +
-    'delegate the work through the System inbox. Never attempt to execute tasks yourself.',
-  toolPolicy: 'omit',
+    'Have a natural conversation with the user. Answer their questions directly. ' +
+    'If they ask for work that requires execution, use your tools to handle it. ' +
+    'Most of your interactions will be conversational — treat delegation as the exception, not the default.',
+  toolPolicy: 'native',
   guardrails: [
-    'Do not reference internal framework concepts, agent classes, or runtime architecture.',
-    'Do not emit tool-call syntax or structured tool invocations.',
-    'Do not expose reasoning chains, planning steps, or internal deliberation.',
-    'Respond without blocking — never wait for internal results before replying to the user.',
+    'Never mention agent classes, dispatch chains, gateways, orchestrators, workers, or runtime internals.',
+    'Never produce raw JSON envelopes or structured command output in your responses to the user.',
+    'Never narrate your own reasoning process or expose chain-of-thought.',
+    'If you don\'t know something, say so directly rather than deflecting to delegation.',
   ],
 };
 
@@ -164,6 +230,126 @@ export function resolvePromptConfig(
       );
     }
   }
+}
+
+// ── Default agent profile dimensions (WR-127) ────────────────────────
+
+interface AgentProfileDimensions {
+  contextBudget: ContextBudgetDefaults;
+  compactionStrategy?: string;
+  loopShape: LoopShape;
+  toolConcurrency?: ToolConcurrencyConfig;
+  escalationRules: EscalationConfig;
+  outputContract: OutputContract;
+}
+
+const PRINCIPAL_DIMENSIONS: AgentProfileDimensions = {
+  contextBudget: { maxContextTokens: 128_000, compactionThreshold: 0.8, maxTurns: 6 },
+  loopShape: 'multi-turn',
+  escalationRules: { canEscalate: false },
+  outputContract: 'prose',
+};
+
+const SYSTEM_DIMENSIONS: AgentProfileDimensions = {
+  contextBudget: { maxContextTokens: 32_000, compactionThreshold: 0.7, maxTurns: 50 },
+  loopShape: 'delegating',
+  toolConcurrency: { maxConcurrent: 1 },
+  escalationRules: { canEscalate: false },
+  outputContract: 'mixed',
+};
+
+const ORCHESTRATOR_DIMENSIONS: AgentProfileDimensions = {
+  contextBudget: { maxContextTokens: 32_000, compactionThreshold: 0.7, maxTurns: 30 },
+  loopShape: 'delegating',
+  toolConcurrency: { maxConcurrent: 1 },
+  escalationRules: { canEscalate: true, autoEscalateAfterFailures: 3 },
+  outputContract: 'mixed',
+};
+
+const WORKER_DIMENSIONS: AgentProfileDimensions = {
+  contextBudget: { maxContextTokens: 16_000, compactionThreshold: 0.6, maxTurns: 10 },
+  loopShape: 'multi-turn',
+  toolConcurrency: { maxConcurrent: 1 },
+  escalationRules: { canEscalate: true, autoEscalateAfterFailures: 2 },
+  outputContract: 'structured',
+};
+
+const DIMENSIONS_BY_CLASS: Record<AgentClass, AgentProfileDimensions> = {
+  'Cortex::Principal': PRINCIPAL_DIMENSIONS,
+  'Cortex::System': SYSTEM_DIMENSIONS,
+  Orchestrator: ORCHESTRATOR_DIMENSIONS,
+  Worker: WORKER_DIMENSIONS,
+};
+
+// ── resolveAgentProfile ──────────────────────────────────────────────
+
+/**
+ * Resolves a full AgentProfile for the given agent class.
+ * Extends resolvePromptConfig — returns all 4 prompt dimensions
+ * plus 6 behavioral dimensions.
+ *
+ * @param agentClass - One of the four canonical agent classes
+ * @param providerId - Optional provider for per-provider prompt overrides
+ * @param personalityConfig - Optional user personality config (WR-128)
+ * @returns Immutable AgentProfile
+ */
+export function resolveAgentProfile(
+  agentClass: AgentClass,
+  providerId?: string,
+  personalityConfig?: unknown,
+): AgentProfile {
+  const promptConfig = resolvePromptConfig(agentClass, providerId);
+  const dimensions = DIMENSIONS_BY_CLASS[agentClass];
+
+  // Personality application: affects identity and outputContract only.
+  // guardrails and mechanical dimensions are never personality-affected.
+  const identity = personalityConfig != null
+    ? applyPersonalityToIdentity(promptConfig.identity, personalityConfig)
+    : promptConfig.identity;
+  const outputContract = personalityConfig != null
+    ? applyPersonalityToOutputContract(dimensions.outputContract, personalityConfig)
+    : dimensions.outputContract;
+
+  return {
+    identity,
+    taskFrame: promptConfig.taskFrame,
+    toolPolicy: promptConfig.toolPolicy,
+    guardrails: promptConfig.guardrails,
+    personalityConfig,
+    contextBudget: dimensions.contextBudget,
+    compactionStrategy: dimensions.compactionStrategy,
+    loopShape: dimensions.loopShape,
+    toolConcurrency: dimensions.toolConcurrency,
+    escalationRules: dimensions.escalationRules,
+    outputContract,
+  };
+}
+
+/**
+ * Apply personality overrides to the identity block.
+ * WR-128 will define the concrete personality shape.
+ * For now, returns the base identity unchanged (no-op until WR-128).
+ */
+function applyPersonalityToIdentity(
+  baseIdentity: string,
+  _personalityConfig: unknown,
+): string {
+  // WR-128: when concrete type is available, extract name/style overrides
+  // and merge into the identity string.
+  return baseIdentity;
+}
+
+/**
+ * Apply personality overrides to the output contract.
+ * WR-128 will define whether personality can shift output style.
+ * For now, returns the base output contract unchanged (no-op until WR-128).
+ */
+function applyPersonalityToOutputContract(
+  baseContract: OutputContract,
+  _personalityConfig: unknown,
+): OutputContract {
+  // WR-128: when concrete type is available, check for prose style preference.
+  return baseContract;
 }
 
 // ---------------------------------------------------------------------------

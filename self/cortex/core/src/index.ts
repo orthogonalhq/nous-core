@@ -71,6 +71,17 @@ export {
   createInboxFrame,
   estimateBudgetUnits,
   estimateUsageUnits,
+  resolveAdapter,
+  createTextAdapter,
+  createOpenAiAdapter,
+  createAnthropicAdapter,
+} from './agent-gateway/index.js';
+export type {
+  AdapterCapabilities,
+  AdapterFormatInput,
+  AdapterFormattedRequest,
+  AdapterRegistry,
+  ProviderAdapter,
 } from './agent-gateway/index.js';
 
 // ── 7. Internal MCP — tool surface, authorization, lifecycle/capability ──────
@@ -126,6 +137,8 @@ export {
 
 // ── 10. Gateway runtime — boot, turn executor bridge, backlog, health ────────
 export {
+  CortexRuntime,
+  createCortexRuntime,
   createPrincipalSystemGatewayRuntime,
   DocumentBacklogStore,
   GatewayRuntimeIngressAdapter,
@@ -141,6 +154,9 @@ export {
   SUBMIT_TASK_TO_SYSTEM_TOOL_NAME,
   SystemContextReplicaProvider,
   GatewayRuntimeHealthSink,
+  HarnessGatewayFactory,
+  resolveContextBudget,
+  composeFromProfile,
 } from './gateway-runtime/index.js';
 export type {
   GatewayAppSessionHealthProjection,
@@ -164,4 +180,9 @@ export type {
   SystemDirectiveInjection,
   SystemSubmissionReceipt,
   SystemTaskSubmission,
+  HarnessGatewayFactoryDeps,
+  HarnessGatewayCreateArgs,
+  ContextBudgetResolutionContext,
+  ContextBudgetSettings,
+  ContextBudgetSettingsSource,
 } from './gateway-runtime/index.js';

@@ -14,8 +14,9 @@ const DEFAULT_MAX_TOKENS = 4096;
 const ANTHROPIC_VERSION = '2023-06-01';
 
 interface AnthropicMessageResponse {
-  content?: Array<{ type?: string; text?: string }>;
+  content?: Array<{ type?: string; text?: string; name?: string; input?: unknown; thinking?: string }>;
   usage?: { input_tokens?: number; output_tokens?: number };
+  stop_reason?: string;
 }
 
 interface AnthropicStreamEvent {
@@ -31,8 +32,9 @@ interface AnthropicStreamEvent {
 }
 
 interface AnthropicFormattedInput {
-  system?: string;
+  system?: string | Array<{ type: 'text'; text: string; cache_control?: { type: 'ephemeral' } }>;
   messages: Array<{ role: 'user' | 'assistant'; content: string }>;
+  tools?: Array<{ name: string; description: string; input_schema: Record<string, unknown> }>;
 }
 
 export class AnthropicProvider implements IModelProvider {
@@ -76,12 +78,21 @@ export class AnthropicProvider implements IModelProvider {
     await this.throwForResponseError(response);
 
     const data = (await response.json()) as AnthropicMessageResponse;
-    const content =
-      data.content?.find((part) => part.type === 'text' || part.text != null)?.text
-      ?? '';
+
+    // When response contains only text blocks (no tool_use, no thinking),
+    // return plain string for backward compatibility.
+    // When response contains structured blocks, return the full response object
+    // so the adapter can parse tool_use, thinking, etc.
+    const hasStructuredBlocks = data.content?.some(
+      (part) => part.type === 'tool_use' || part.type === 'thinking',
+    );
+
+    const output = hasStructuredBlocks
+      ? { content: data.content, stop_reason: data.stop_reason }
+      : (data.content?.find((part) => part.type === 'text' || part.text != null)?.text ?? '');
 
     return {
-      output: content,
+      output,
       providerId: this.config.id,
       usage: {
         inputTokens: data.usage?.input_tokens,
@@ -194,11 +205,18 @@ export class AnthropicProvider implements IModelProvider {
   }
 
   private toAnthropicFormat(input: TextModelInput): AnthropicFormattedInput {
+    const result: AnthropicFormattedInput = { messages: [] };
+
+    // Pass through tools if present
+    if (input.tools && input.tools.length > 0) {
+      result.tools = input.tools;
+    }
+
     if ('messages' in input && Array.isArray(input.messages)) {
       const systemMessages = input.messages
         .filter((message) => message.role === 'system')
         .map((message) => message.content);
-      const messages = input.messages
+      result.messages = input.messages
         .filter(
           (message): message is { role: 'user' | 'assistant'; content: string } =>
             message.role === 'user' || message.role === 'assistant',
@@ -208,20 +226,41 @@ export class AnthropicProvider implements IModelProvider {
           content: message.content,
         }));
 
-      return {
-        system: systemMessages.length > 0 ? systemMessages.join('\n') : undefined,
-        messages,
-      };
+      // systemSegments override single system string when present
+      if (input.systemSegments && input.systemSegments.length > 0) {
+        result.system = input.systemSegments.map((segment, index) => ({
+          type: 'text' as const,
+          text: segment,
+          ...(index === input.systemSegments!.length - 1
+            ? { cache_control: { type: 'ephemeral' as const } }
+            : {}),
+        }));
+      } else {
+        result.system = systemMessages.length > 0 ? systemMessages.join('\n') : undefined;
+      }
+
+      return result;
     }
 
-    return {
-      messages: [
-        {
-          role: 'user',
-          content: 'prompt' in input ? input.prompt : '',
-        },
-      ],
-    };
+    // systemSegments for prompt-style input
+    if (input.systemSegments && input.systemSegments.length > 0) {
+      result.system = input.systemSegments.map((segment, index) => ({
+        type: 'text' as const,
+        text: segment,
+        ...(index === input.systemSegments!.length - 1
+          ? { cache_control: { type: 'ephemeral' as const } }
+          : {}),
+      }));
+    }
+
+    result.messages = [
+      {
+        role: 'user',
+        content: 'prompt' in input ? input.prompt : '',
+      },
+    ];
+
+    return result;
   }
 
   private buildRequestBody(
@@ -233,6 +272,7 @@ export class AnthropicProvider implements IModelProvider {
       max_tokens: this.config.maxTokens ?? DEFAULT_MAX_TOKENS,
       messages: formatted.messages,
       ...(formatted.system ? { system: formatted.system } : {}),
+      ...(formatted.tools && formatted.tools.length > 0 ? { tools: formatted.tools } : {}),
       stream,
     };
   }

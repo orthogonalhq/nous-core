@@ -4,7 +4,20 @@ import { createBaseInput, createGatewayHarness, createStampedPacket } from './he
 describe('AgentGateway budgets', () => {
   it('returns budget_exhausted when max turns are reached without completion', async () => {
     const { gateway, outbox } = createGatewayHarness({
-      outputs: ['still working', 'still working', 'still working'],
+      outputs: [
+        JSON.stringify({
+          response: 'still working',
+          toolCalls: [{ name: 'lookup_status', params: {} }],
+        }),
+        JSON.stringify({
+          response: 'still working',
+          toolCalls: [{ name: 'lookup_status', params: {} }],
+        }),
+        JSON.stringify({
+          response: 'still working',
+          toolCalls: [{ name: 'lookup_status', params: {} }],
+        }),
+      ],
     });
 
     const result = await gateway.run(

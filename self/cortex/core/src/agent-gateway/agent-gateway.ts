@@ -30,7 +30,7 @@ import {
   type WitnessActor,
   type WitnessEventId,
 } from '@nous/shared';
-import { parseModelOutput } from '../output-parser.js';
+import { parseModelOutput, type ParsedModelOutput } from '../output-parser.js';
 import {
   BudgetTracker,
   estimateBudgetUnits,
@@ -54,6 +54,7 @@ import {
 } from './lifecycle-hooks.js';
 import { GatewayOutbox } from './outbox.js';
 import { composeSystemPrompt } from './system-prompt-composer.js';
+import { transformGatewayInput } from '../gateway-runtime/gateway-turn-executor.js';
 
 const DEFAULT_MODEL_ROLE: ModelRole = 'reasoner';
 const DEFAULT_MODEL_REQUIREMENTS = {
@@ -161,18 +162,47 @@ export class AgentGateway implements IAgentGateway {
 
         const tools = await this.config.toolSurface.listTools();
         const provider = await this.resolveProvider(validInput, traceId);
-        const systemPrompt = composeSystemPrompt({
-          agentClass: this.agentClass,
-          taskInstructions: validInput.taskInstructions,
-          baseSystemPrompt: this.config.baseSystemPrompt,
-          execution: validInput.execution,
-          tools,
-        });
+
+        // Strategy delegation: promptFormatter (harness) or composeSystemPrompt (built-in)
+        let systemPrompt: string | string[];
+        if (this.config.harness?.promptFormatter) {
+          const formatted = this.config.harness.promptFormatter({
+            agentClass: this.agentClass,
+            taskInstructions: validInput.taskInstructions,
+            baseSystemPrompt: this.config.baseSystemPrompt,
+            execution: validInput.execution,
+            tools,
+          });
+          systemPrompt = formatted.systemPrompt;
+        } else {
+          systemPrompt = composeSystemPrompt({
+            agentClass: this.agentClass,
+            taskInstructions: validInput.taskInstructions,
+            baseSystemPrompt: this.config.baseSystemPrompt,
+            execution: validInput.execution,
+            tools,
+          });
+        }
 
         const correlation = sequencer.snapshot();
+
+        // ALWAYS use transformGatewayInput — converts { systemPrompt, context, tools }
+        // into provider-compatible format ({ messages, tools }).
+        const providerInput = transformGatewayInput({ systemPrompt, context, tools });
+
+        // Extract the last user message from context for logging
+        const lastUserFrame = [...context].reverse().find(f => f.role === 'user');
+
+        console.debug('[nous:gateway] invoke provider', {
+          agentClass: this.agentClass,
+          hasHarness: !!this.config.harness,
+          inputKeys: Object.keys(providerInput as Record<string, unknown>),
+          userMessage: lastUserFrame?.content?.slice(0, 500) ?? '(no user message)',
+        });
+
         const modelResponse = await provider.invoke({
           role: this.config.modelRole ?? DEFAULT_MODEL_ROLE,
-          input: { systemPrompt, context, tools },
+          input: providerInput,
           projectId,
           traceId,
           agentClass: this.agentClass,
@@ -181,10 +211,74 @@ export class AgentGateway implements IAgentGateway {
         });
 
         budgetTracker.recordModelUsage(modelResponse.usage);
-        const parsedOutput = parseModelOutput(modelResponse.output, traceId);
+
+        console.debug('[nous:gateway] model response received', {
+          agentClass: this.agentClass,
+          outputType: typeof modelResponse.output,
+          outputLength: typeof modelResponse.output === 'string' ? modelResponse.output.length : 'non-string',
+          hasUsage: !!modelResponse.usage,
+          rawOutput: modelResponse.output,
+        });
+
+        // Strategy delegation: responseParser (harness) or parseModelOutput (built-in)
+        const usingHarnessParser = !!this.config.harness?.responseParser;
+        const parsedOutput: ParsedModelOutput = usingHarnessParser
+          ? (this.config.harness!.responseParser!(modelResponse.output, traceId) as ParsedModelOutput)
+          : parseModelOutput(modelResponse.output, traceId);
+
+        console.debug('[nous:gateway] parser selection', {
+          usingHarnessParser,
+          outputType: typeof modelResponse.output,
+          parsedResponse: parsedOutput.response.slice(0, 100),
+          parsedToolCalls: parsedOutput.toolCalls.length,
+          parsedThinking: !!parsedOutput.thinkingContent,
+        });
+
+        console.debug('[nous:gateway] parsed output', {
+          agentClass: this.agentClass,
+          responseLength: parsedOutput.response.length,
+          toolCallCount: parsedOutput.toolCalls.length,
+          contentType: parsedOutput.contentType,
+          hasThinking: !!parsedOutput.thinkingContent,
+          singleTurn: !!this.config.harness?.loopConfig?.singleTurn,
+        });
+
         if (parsedOutput.response.trim()) {
           context.push(
             this.createContextFrame('assistant', 'model_output', parsedOutput.response),
+          );
+        }
+
+        // Single-turn exit: return immediately after one model invocation.
+        // No tool handling, no task_complete required.
+        if (this.config.harness?.loopConfig?.singleTurn) {
+          console.debug('[nous:gateway] single-turn exit', { agentClass: this.agentClass });
+          budgetTracker.recordTurn();
+          return this.finalizeTerminalResult(
+            this.buildSingleTurnResult(
+              parsedOutput, sequencer, budgetTracker, evidenceRefs,
+              validInput, context.length, startedAt,
+            ),
+            'gateway:completed',
+            traceId,
+            projectId,
+          );
+        }
+
+        // Conversational exit: if the model responded with text and no tool
+        // calls, the turn is complete. Only continue looping when there are
+        // pending tool calls to execute.
+        if (parsedOutput.toolCalls.length === 0 && parsedOutput.response.trim()) {
+          console.debug('[nous:gateway] conversational exit (no tool calls)', { agentClass: this.agentClass });
+          budgetTracker.recordTurn();
+          return this.finalizeTerminalResult(
+            this.buildSingleTurnResult(
+              parsedOutput, sequencer, budgetTracker, evidenceRefs,
+              validInput, context.length, startedAt,
+            ),
+            'gateway:completed',
+            traceId,
+            projectId,
           );
         }
 
@@ -244,6 +338,13 @@ export class AgentGateway implements IAgentGateway {
         }
       }
     } catch (error) {
+      console.error('[nous:gateway] run() error', {
+        agentClass: this.agentClass,
+        errorName: (error as Error).name,
+        errorMessage: (error as Error).message,
+        errorCode: (error as NousError).code,
+        hasHarness: !!this.config.harness,
+      });
       const result =
         error instanceof NousError && error.code === 'LEASE_HELD'
           ? this.buildSuspendedResult(
@@ -1011,6 +1112,76 @@ export class AgentGateway implements IAgentGateway {
       status: 'error',
       reason,
       detail,
+      correlation,
+      usage: budgetTracker.getUsage(),
+      evidenceRefs: [...evidenceRefs],
+    });
+  }
+
+  private buildSingleTurnResult(
+    parsedOutput: ParsedModelOutput,
+    sequencer: CorrelationSequencer,
+    budgetTracker: BudgetTracker,
+    evidenceRefs: TraceEvidenceReference[],
+    input: AgentInput,
+    contextLength: number,
+    startedAt: string,
+  ): AgentResult {
+    const now = this.now();
+    const nowMs = this.nowMs();
+    const correlation = sequencer.snapshot();
+    return AgentResultSchema.parse({
+      status: 'completed' as const,
+      output: {
+        response: parsedOutput.response,
+        contentType: parsedOutput.contentType,
+        thinkingContent: parsedOutput.thinkingContent,
+      },
+      v3Packet: {
+        nous: { v: 3 as const },
+        route: {
+          emitter: { id: `gateway::agent::${this.agentId}::single-turn` },
+          target: { id: `gateway::agent::${this.agentId}::single-turn-response` },
+        },
+        envelope: {
+          direction: 'internal' as const,
+          type: 'response_packet' as const,
+        },
+        correlation: {
+          handoff_id: this.idFactory(),
+          correlation_id: correlation.runId,
+          cycle: 'n/a',
+          emitted_at_utc: now,
+          emitted_at_unix_ms: String(nowMs),
+          sequence_in_run: String(correlation.sequence),
+        },
+        payload: {
+          schema: 'gateway:single-turn-response',
+          artifact_type: 'single-turn-response',
+          data: { response: parsedOutput.response },
+        },
+        retry: {
+          policy: 'value-proportional' as const,
+          depth: 'lightweight' as const,
+          importance_tier: 'standard' as const,
+          expected_quality_gain: 'n/a',
+          estimated_tokens: 'n/a',
+          estimated_compute_minutes: 'n/a',
+          token_price_ref: 'runtime:gateway',
+          compute_price_ref: 'runtime:gateway',
+          decision: 'accept' as const,
+          decision_log_ref: 'runtime:gateway/single-turn',
+          benchmark_tier: 'n/a' as const,
+          self_repair: {
+            required_on_fail_close: true as const,
+            orchestration_state: 'deferred' as const,
+            approval_role: 'Cortex:System',
+            implementation_mode: 'direct' as const,
+            plan_ref: 'runtime:gateway/self-repair',
+          },
+        },
+      },
+      summary: 'single-turn response',
       correlation,
       usage: budgetTracker.getUsage(),
       evidenceRefs: [...evidenceRefs],

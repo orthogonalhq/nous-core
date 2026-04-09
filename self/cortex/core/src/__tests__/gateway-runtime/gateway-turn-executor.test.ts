@@ -38,9 +38,11 @@ describe('GatewayBackedTurnExecutor', () => {
         { role: 'assistant', content: 'First answer' },
         { role: 'user', content: 'tool output' },
       ],
+      tools: [
+        { name: 'task_complete', description: '', input_schema: {} },
+      ],
     });
     expect(TextModelInputSchema.safeParse(transformed).success).toBe(true);
-    expect(transformed).not.toHaveProperty('tools');
   });
 
   it('passes through existing provider input shapes unchanged', () => {
@@ -133,7 +135,7 @@ describe('GatewayBackedTurnExecutor', () => {
     expect(provider.invoke).toHaveBeenCalledOnce();
     expect(provider.invoke).toHaveBeenCalledWith(
       expect.objectContaining({
-        input: {
+        input: expect.objectContaining({
           messages: [
             expect.objectContaining({
               role: 'system',
@@ -143,7 +145,7 @@ describe('GatewayBackedTurnExecutor', () => {
               content: '{\n  "message": "Hello gateway executor"\n}',
             }),
           ],
-        },
+        }),
       }),
     );
 

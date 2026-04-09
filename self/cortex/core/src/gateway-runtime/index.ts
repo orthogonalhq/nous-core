@@ -1,4 +1,14 @@
-export { createPrincipalSystemGatewayRuntime, PrincipalSystemGatewayRuntime } from './principal-system-runtime.js';
+// SP 1.5 — CortexRuntime replaces PrincipalSystemGatewayRuntime as the
+// default export. The harness is now wired into createGatewayConfig(),
+// providing equivalent behavior through the composable adapter pattern
+// instead of the old wrapProviderWithInputTransform/synthesizeTaskComplete hacks.
+export {
+  CortexRuntime as PrincipalSystemGatewayRuntime,
+  createCortexRuntime as createPrincipalSystemGatewayRuntime,
+} from './cortex-runtime.js';
+
+// Named CortexRuntime exports for direct use.
+export { CortexRuntime, createCortexRuntime } from './cortex-runtime.js';
 export { GatewayRuntimeIngressAdapter } from './ingress-adapter.js';
 export { DocumentBacklogStore } from './backlog-store.js';
 export { SystemBacklogQueue } from './backlog-queue.js';
@@ -63,3 +73,14 @@ export type {
   PublicMcpRuntimeInvocation,
   PublicMcpRuntimeInvocationResult,
 } from './public-mcp-runtime-adapter.js';
+
+// WR-127 SP 1.2 — factory, resolver, composer
+export { HarnessGatewayFactory } from './harness-gateway-factory.js';
+export type { HarnessGatewayFactoryDeps, HarnessGatewayCreateArgs } from './harness-gateway-factory.js';
+export { resolveContextBudget } from './context-budget-resolver.js';
+export type {
+  ContextBudgetResolutionContext,
+  ContextBudgetSettings,
+  ContextBudgetSettingsSource,
+} from './context-budget-resolver.js';
+export { composeFromProfile } from './prompt-composer.js';

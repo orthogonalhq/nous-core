@@ -101,6 +101,14 @@ function ChatMessageRow({
             {thoughts && thoughts.length > 0 && (
                 <InlineThoughtGroup items={thoughts} active={false} />
             )}
+            {message.thinkingContent && (
+                <details style={styles.thinkingDetails}>
+                    <summary style={styles.thinkingSummary}>Thinking</summary>
+                    <div style={styles.thinkingBody}>
+                        <MarkdownRenderer content={message.thinkingContent} />
+                    </div>
+                </details>
+            )}
             <div style={styles.bubble}>
                 {hasCardSegments ? (
                     segments.map((segment, segIdx) =>
@@ -177,5 +185,25 @@ const styles = {
         padding: 'var(--nous-space-md) var(--nous-space-xl)',
         background: 'var(--nous-surface-nested)',
         border: '1px solid var(--nous-border)'
+    },
+    thinkingDetails: {
+        maxWidth: '100%',
+        borderRadius: 'var(--nous-radius-md)',
+        border: '1px solid var(--nous-border)',
+        background: 'var(--nous-surface-nested)',
+        marginBottom: 'var(--nous-space-sm)',
+        fontSize: 'var(--nous-font-size-xs)',
+    },
+    thinkingSummary: {
+        cursor: 'pointer',
+        padding: 'var(--nous-space-sm) var(--nous-space-md)',
+        fontFamily: 'var(--nous-font-family-mono)',
+        color: 'var(--nous-fg-muted)',
+        userSelect: 'none' as const,
+    },
+    thinkingBody: {
+        padding: '0 var(--nous-space-md) var(--nous-space-sm)',
+        color: 'var(--nous-fg-subtle)',
+        lineHeight: '1.5',
     },
 } as const
