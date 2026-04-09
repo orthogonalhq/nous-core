@@ -408,6 +408,14 @@
   }
 }
 
+/* Back navigation row below the step indicator */
+.nous-wizard__back-row {
+  display: flex;
+  justify-content: flex-start;
+  margin-top: var(--nous-space-md);
+  margin-bottom: var(--nous-space-sm);
+}
+
 /* Indeterminate progress bar for install/download phases */
 .nous-wizard__progress {
   margin-top: var(--nous-space-md);
