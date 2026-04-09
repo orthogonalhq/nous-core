@@ -65,6 +65,55 @@ interface PullProgress {
   percent?: number
 }
 
+// ━━━ Structural types for the Ollama update/version channels ━━━
+//
+// `self/ui` is compiled independently from `self/apps/desktop/src/renderer`
+// and therefore cannot rely on the ambient types in the renderer's env.d.ts.
+// These shapes mirror the structural types declared in that env.d.ts and the
+// payload types exported from `@nous/shared`.
+interface OllamaVersionInfoPayload {
+  version: string
+  meetsMinimum: boolean
+  minimumVersion?: string
+}
+
+interface OllamaUpdateCheckResult {
+  state: 'available' | 'up-to-date' | 'unknown'
+  installedVersion?: string
+  latestVersion?: string
+  detail: string
+}
+
+interface OllamaUpdateResult {
+  success: boolean
+  alreadyUpToDate?: boolean
+  error?: string
+  elevationError?: boolean
+  packageManagerMissing?: boolean
+}
+
+interface OllamaUpdateProgressPayload {
+  phase: 'checking' | 'downloading' | 'installing' | 'verifying' | 'complete' | 'error'
+  currentVersion?: string
+  targetVersion?: string
+  message?: string
+}
+
+interface OllamaElectronBridge {
+  getVersion?: () => Promise<OllamaVersionInfoPayload>
+  checkUpdate?: () => Promise<OllamaUpdateCheckResult>
+  update?: () => Promise<OllamaUpdateResult>
+  onUpdateProgress?: (
+    callback: (progress: OllamaUpdateProgressPayload) => void,
+  ) => () => void
+}
+
+function getOllamaBridge(): OllamaElectronBridge | undefined {
+  if (typeof window === 'undefined') return undefined
+  const api = (window as unknown as { electronAPI?: { ollama?: OllamaElectronBridge } }).electronAPI
+  return api?.ollama
+}
+
 export function LocalModelsPage({ api }: LocalModelsPageProps) {
   const [models, setModels] = useState<OllamaModelEntry[]>([])
   const [loading, setLoading] = useState(true)
@@ -80,6 +129,15 @@ export function LocalModelsPage({ api }: LocalModelsPageProps) {
   const [endpointLoading, setEndpointLoading] = useState(false)
   const [endpointSaving, setEndpointSaving] = useState(false)
   const [endpointFeedback, setEndpointFeedback] = useState<FeedbackState | null>(null)
+
+  // Version + update state
+  const [ollamaVersion, setOllamaVersion] = useState<OllamaVersionInfoPayload | null>(null)
+  const [, setVersionLoading] = useState(false)
+  const [updateCheck, setUpdateCheck] = useState<OllamaUpdateCheckResult | null>(null)
+  const [, setUpdateCheckLoading] = useState(false)
+  const [updating, setUpdating] = useState(false)
+  const [updateProgress, setUpdateProgress] = useState<OllamaUpdateProgressPayload | null>(null)
+  const [updateFeedback, setUpdateFeedback] = useState<FeedbackState | null>(null)
 
   const calculateSpeed = useSpeedCalculator()
   const [downloadSpeed, setDownloadSpeed] = useState(0)
@@ -120,6 +178,48 @@ export function LocalModelsPage({ api }: LocalModelsPageProps) {
   useEffect(() => {
     loadModels()
   }, [loadModels])
+
+  // Version fetch — independent of loadModels so a failure does not suppress
+  // the rest of the UI (I10 independence).
+  useEffect(() => {
+    const bridge = getOllamaBridge()
+    if (!bridge?.getVersion) return
+    setVersionLoading(true)
+    bridge.getVersion()
+      .then((v) => setOllamaVersion(v))
+      .catch(() => {
+        // Silent: version row falls back to "Unknown".
+      })
+      .finally(() => setVersionLoading(false))
+  }, [])
+
+  // Update check — independent of loadModels and version fetch.
+  useEffect(() => {
+    const bridge = getOllamaBridge()
+    if (!bridge?.checkUpdate) return
+    setUpdateCheckLoading(true)
+    bridge.checkUpdate()
+      .then((r) => setUpdateCheck(r))
+      .catch((err) => {
+        console.warn('[LocalModelsPage] update check failed:', err)
+      })
+      .finally(() => setUpdateCheckLoading(false))
+  }, [])
+
+  // Update-progress subscription — active only while `updating === true`.
+  useEffect(() => {
+    const bridge = getOllamaBridge()
+    if (!updating || !bridge?.onUpdateProgress) return
+    const unsubscribe = bridge.onUpdateProgress((p) => {
+      setUpdateProgress(p)
+      if (p.phase === 'complete') {
+        setUpdating(false)
+        setUpdateCheck({ state: 'up-to-date', detail: 'Up to date' })
+        bridge.getVersion?.().then(setOllamaVersion).catch(() => undefined)
+      }
+    })
+    return unsubscribe
+  }, [updating])
 
   // Subscribe to SSE pull-progress events via transport hook
   useEventSubscription({
@@ -213,6 +313,37 @@ export function LocalModelsPage({ api }: LocalModelsPageProps) {
       setEndpointFeedback(formatFeedbackError(err))
     } finally {
       setEndpointSaving(false)
+    }
+  }
+
+  const handleUpdate = async () => {
+    const bridge = getOllamaBridge()
+    if (updating || !bridge?.update) return
+    setUpdating(true)
+    setUpdateFeedback(null)
+    setUpdateProgress({ phase: 'checking', message: 'Starting update...' })
+    try {
+      const result = await bridge.update()
+      if (result.success) {
+        setUpdateFeedback({ message: 'Ollama updated successfully.', success: true })
+      } else if (result.packageManagerMissing) {
+        setUpdateFeedback({
+          message: 'Package manager not found. Opening ollama.com/download...',
+          success: false,
+        })
+      } else if (result.elevationError) {
+        setUpdateFeedback({
+          message: result.error ?? 'Update requires elevated permissions.',
+          success: false,
+        })
+      } else {
+        setUpdateFeedback({ message: result.error ?? 'Update failed.', success: false })
+      }
+    } catch (err) {
+      setUpdateFeedback(formatFeedbackError(err))
+    } finally {
+      setUpdating(false)
+      setUpdateProgress(null)
     }
   }
 
@@ -396,6 +527,72 @@ export function LocalModelsPage({ api }: LocalModelsPageProps) {
           </div>
         )}
 
+        {/* Version row — always rendered inside the running-state branch */}
+        <div style={{ ...helperTextStyle, marginBottom: 'var(--nous-space-xs)' }} data-testid="ollama-version-row">
+          Ollama {ollamaVersion?.version && ollamaVersion.version !== 'unknown' ? ollamaVersion.version : 'Unknown'}
+        </div>
+
+        {/* Version-floor warning banner */}
+        {ollamaVersion && ollamaVersion.meetsMinimum === false && (
+          <div style={{ ...feedbackStyle(false), marginBottom: 'var(--nous-space-sm)' }} data-testid="version-floor-warning">
+            Native tool calling may not work reliably on this Ollama version (minimum recommended: {ollamaVersion.minimumVersion ?? '0.3.12'}). Update below to the latest version.
+          </div>
+        )}
+
+        {/* Update-available banner */}
+        {updateCheck?.state === 'available' && (
+          <div style={{ ...cardStyle, marginBottom: 'var(--nous-space-md)' }} data-testid="update-available-banner">
+            <div style={{ fontSize: 'var(--nous-font-size-sm)', fontWeight: 'var(--nous-font-weight-semibold)' as never, color: 'var(--nous-fg)', marginBottom: 'var(--nous-space-xs)' }}>
+              Ollama update available
+            </div>
+            {(updateCheck.installedVersion || updateCheck.latestVersion) && (
+              <div style={{ ...helperTextStyle, marginBottom: 'var(--nous-space-xs)' }}>
+                {updateCheck.installedVersion ? `Installed ${updateCheck.installedVersion}` : ''}
+                {updateCheck.installedVersion && updateCheck.latestVersion ? ' → ' : ''}
+                {updateCheck.latestVersion ? `Latest ${updateCheck.latestVersion}` : ''}
+              </div>
+            )}
+            <div style={{ ...helperTextStyle, marginBottom: 'var(--nous-space-sm)' }}>
+              Updating will briefly stop Ollama. Any active chat or agent task will be interrupted.
+            </div>
+            <div style={{ display: 'flex', gap: 'var(--nous-space-sm)', alignItems: 'center', flexWrap: 'wrap' }}>
+              <button
+                style={{
+                  ...btnStyle('primary'),
+                  opacity: updating ? 0.5 : 1,
+                  cursor: updating ? 'not-allowed' : 'pointer',
+                }}
+                onClick={handleUpdate}
+                disabled={updating}
+                data-testid="update-ollama-button"
+              >
+                {updating ? 'Updating...' : 'Update'}
+              </button>
+              {updating && updateProgress && (
+                <div data-testid="update-progress" style={{ ...helperTextStyle, display: 'flex', alignItems: 'center', gap: 'var(--nous-space-xs)' }}>
+                  <span
+                    style={{
+                      display: 'inline-block',
+                      width: '10px',
+                      height: '10px',
+                      border: '2px solid var(--nous-fg-muted, #888)',
+                      borderTopColor: 'var(--nous-accent, #4a9eff)',
+                      borderRadius: '50%',
+                      animation: 'nousSpin 0.8s linear infinite',
+                    }}
+                  />
+                  <span>{updateProgress.phase}{updateProgress.message ? ` — ${updateProgress.message}` : ''}</span>
+                </div>
+              )}
+            </div>
+            {updateFeedback && (
+              <div style={{ ...feedbackStyle(updateFeedback.success), marginTop: 'var(--nous-space-xs)' }}>
+                {updateFeedback.message}
+              </div>
+            )}
+          </div>
+        )}
+
         {/* Pull section */}
         <div style={{ ...cardStyle, display: 'flex', gap: 'var(--nous-space-sm)', alignItems: 'center', flexWrap: 'wrap' }}>
           <input
@@ -421,6 +618,22 @@ export function LocalModelsPage({ api }: LocalModelsPageProps) {
             {pulling ? 'Downloading...' : 'Download Model'}
           </button>
           {renderPullStatus()}
+        </div>
+
+        {/* Model library info link */}
+        <div style={{ ...cardStyle, marginTop: 'var(--nous-space-sm)' }} data-testid="model-library-info-link">
+          <div style={helperTextStyle}>
+            Looking for models? Browse the Ollama library at{' '}
+            <a
+              href="https://ollama.com/library"
+              target="_blank"
+              rel="noopener noreferrer"
+              style={{ color: 'var(--nous-accent, #4a9eff)' }}
+            >
+              ollama.com/library
+            </a>
+            .
+          </div>
         </div>
 
         {/* Feedback */}

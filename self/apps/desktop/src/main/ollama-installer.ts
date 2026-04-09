@@ -30,6 +30,51 @@ export type InstallProgress = {
 /** Callback for streaming progress to the renderer */
 export type InstallProgressCallback = (progress: InstallProgress) => void
 
+// ━━━ Update domain types ━━━
+
+/** State returned by the update check */
+export type UpdateCheckState = 'available' | 'up-to-date' | 'unknown'
+
+/** Result of the update check operation */
+export type UpdateCheckResult = {
+  state: UpdateCheckState
+  installedVersion?: string
+  latestVersion?: string
+  detail: string
+}
+
+/** Phases of the update lifecycle, displayed to the user */
+export type UpdatePhase =
+  | 'checking'
+  | 'downloading'
+  | 'installing'
+  | 'verifying'
+  | 'complete'
+  | 'error'
+
+/** Progress payload sent via IPC during an update */
+export type UpdateProgress = {
+  phase: UpdatePhase
+  currentVersion?: string
+  targetVersion?: string
+  message?: string
+}
+
+/** Callback for streaming update progress to the renderer */
+export type UpdateProgressCallback = (progress: UpdateProgress) => void
+
+/** Result of the update operation */
+export type UpdateResult = {
+  success: boolean
+  /** True when the package manager reported no available upgrade */
+  alreadyUpToDate?: boolean
+  error?: string
+  /** True when the error was a permission/elevation failure */
+  elevationError?: boolean
+  /** True when the package manager was not found */
+  packageManagerMissing?: boolean
+}
+
 // ━━━ Internal exec types (adapted from CLI) ━━━
 
 type ExecOptions = {
@@ -49,6 +94,22 @@ type ExecResult = {
 
 const INSTALL_TIMEOUT_MS = 15 * 60_000
 const PROBE_TIMEOUT_MS = 8_000
+/** Timeout for a single update-check command (mirrors CLI `COMMAND_TIMEOUTS_MS.updateCheck`) */
+const UPDATE_CHECK_TIMEOUT_MS = 20_000
+/** winget package id for Ollama */
+const OLLAMA_WINGET_ID = 'Ollama.Ollama'
+
+/**
+ * Patterns that indicate an update command concluded with "nothing to do"
+ * (already at the latest version). Checked on both zero and non-zero exit
+ * because winget sometimes returns non-zero for this case.
+ */
+const ALREADY_UP_TO_DATE_PATTERNS: RegExp[] = [
+  /no available upgrade found/i,
+  /no applicable update found/i,
+  /already up-to-date/i,
+  /already installed/i,
+]
 
 /** Elevation error detection patterns per platform */
 const ELEVATION_PATTERNS: Record<string, RegExp[]> = {
@@ -176,9 +237,61 @@ function validateInstallResult(value: unknown): InstallResult {
   }
 }
 
+function validateUpdateResult(value: unknown): UpdateResult {
+  if (typeof value !== 'object' || value === null) {
+    return { success: false, error: 'Internal error: invalid update result' }
+  }
+  const obj = value as Record<string, unknown>
+  return {
+    success: Boolean(obj.success),
+    ...(typeof obj.alreadyUpToDate === 'boolean' ? { alreadyUpToDate: obj.alreadyUpToDate } : {}),
+    ...(typeof obj.error === 'string' ? { error: obj.error } : {}),
+    ...(typeof obj.elevationError === 'boolean' ? { elevationError: obj.elevationError } : {}),
+    ...(typeof obj.packageManagerMissing === 'boolean' ? { packageManagerMissing: obj.packageManagerMissing } : {}),
+  }
+}
+
+function escapeRegExp(value: string): string {
+  return value.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')
+}
+
+function parseWingetVersion(output: string, packageId: string): string | null {
+  const pattern = new RegExp(`${escapeRegExp(packageId)}\\s+([^\\s]+)`, 'i')
+  const match = output.match(pattern)
+  return match?.[1] ?? null
+}
+
 // ━━━ Singleton guard ━━━
 
-let activeInstall: Promise<InstallResult> | null = null
+type ActiveOpKind = 'install' | 'update'
+
+let activeOp: { kind: ActiveOpKind; promise: Promise<unknown> } | null = null
+
+/**
+ * Decide whether to reject a new install/update attempt because an operation
+ * is already in flight. Returns an empty string when the requested operation
+ * can proceed, or a human-readable rejection message otherwise.
+ *
+ * The rejection message for install-vs-install preserves the exact substring
+ * `'install is already in progress'` to remain backward-compatible with the
+ * existing concurrency test in `ollama-installer.test.ts`.
+ *
+ * `_requested` is reserved for future differentiation; the current matrix is
+ * symmetric — the active op's kind alone determines the rejection message.
+ */
+function rejectConcurrent(_requested: ActiveOpKind): { message: string } {
+  if (!activeOp) {
+    return { message: '' }
+  }
+
+  if (activeOp.kind === 'install') {
+    // Existing install blocks both install and update attempts.
+    return { message: 'An install is already in progress.' }
+  }
+
+  // Existing update blocks both update and install attempts.
+  return { message: 'An update is already in progress.' }
+}
 
 // ━━━ Exported: isPackageManagerAvailable ━━━
 
@@ -228,9 +341,10 @@ export async function isPackageManagerAvailable(): Promise<boolean> {
 export async function installOllama(
   onProgress: InstallProgressCallback,
 ): Promise<InstallResult> {
-  // Singleton guard — reject concurrent installs
-  if (activeInstall) {
-    return { success: false, error: 'An install is already in progress.' }
+  // Singleton guard — reject concurrent install/update attempts
+  const rejection = rejectConcurrent('install')
+  if (rejection.message) {
+    return { success: false, error: rejection.message }
   }
 
   const doInstall = async (): Promise<InstallResult> => {
@@ -397,11 +511,381 @@ export async function installOllama(
     return validateInstallResult({ success: true })
   }
 
-  activeInstall = doInstall().finally(() => {
-    activeInstall = null
+  const promise = doInstall().finally(() => {
+    activeOp = null
   })
+  activeOp = { kind: 'install', promise }
+  return promise
+}
 
-  return activeInstall
+// ━━━ Exported: checkOllamaUpdate ━━━
+
+/**
+ * Check whether an Ollama update is available.
+ *
+ * Never throws (I8). All failure paths are caught and returned as
+ * `{ state: 'unknown', detail }`.
+ *
+ * Platform semantics:
+ *   - win32:  two sequential `winget list` + `winget search` calls; compares
+ *             installed and latest versions.
+ *   - darwin: `brew outdated --formula ollama`; stdout containing a line
+ *             equal to `ollama` means an update is available.
+ *   - linux:  no canonical check — always returns `unknown`.
+ */
+export async function checkOllamaUpdate(): Promise<UpdateCheckResult> {
+  const platform = process.platform
+  console.log(`[nous:desktop] ollama-installer: checking for update (${platform})`)
+
+  try {
+    if (platform === 'win32') {
+      const installed = await exec(
+        'winget',
+        ['list', '--id', OLLAMA_WINGET_ID, '--exact'],
+        { timeoutMs: UPDATE_CHECK_TIMEOUT_MS },
+      )
+      if (installed.timedOut) {
+        const result: UpdateCheckResult = {
+          state: 'unknown',
+          detail: `winget list timed out after ${UPDATE_CHECK_TIMEOUT_MS / 1000}s`,
+        }
+        console.log(
+          `[nous:desktop] ollama-installer: update check complete (state=${result.state})`,
+        )
+        return result
+      }
+      if (installed.exitCode !== 0) {
+        const result: UpdateCheckResult = {
+          state: 'unknown',
+          detail: `winget list exited ${installed.exitCode}`,
+        }
+        console.log(
+          `[nous:desktop] ollama-installer: update check complete (state=${result.state})`,
+        )
+        return result
+      }
+
+      const available = await exec(
+        'winget',
+        ['search', '--id', OLLAMA_WINGET_ID, '--exact'],
+        { timeoutMs: UPDATE_CHECK_TIMEOUT_MS },
+      )
+      if (available.timedOut) {
+        const result: UpdateCheckResult = {
+          state: 'unknown',
+          detail: `winget search timed out after ${UPDATE_CHECK_TIMEOUT_MS / 1000}s`,
+        }
+        console.log(
+          `[nous:desktop] ollama-installer: update check complete (state=${result.state})`,
+        )
+        return result
+      }
+      if (available.exitCode !== 0) {
+        const result: UpdateCheckResult = {
+          state: 'unknown',
+          detail: `winget search exited ${available.exitCode}`,
+        }
+        console.log(
+          `[nous:desktop] ollama-installer: update check complete (state=${result.state})`,
+        )
+        return result
+      }
+
+      const installedVersion = parseWingetVersion(installed.stdout, OLLAMA_WINGET_ID)
+      const latestVersion = parseWingetVersion(available.stdout, OLLAMA_WINGET_ID)
+
+      if (!installedVersion || !latestVersion) {
+        const result: UpdateCheckResult = {
+          state: 'unknown',
+          detail: 'Unable to parse installed/latest Ollama version',
+        }
+        console.log(
+          `[nous:desktop] ollama-installer: update check complete (state=${result.state})`,
+        )
+        return result
+      }
+
+      if (installedVersion === latestVersion) {
+        const result: UpdateCheckResult = {
+          state: 'up-to-date',
+          installedVersion,
+          detail: `Installed ${installedVersion}`,
+        }
+        console.log(
+          `[nous:desktop] ollama-installer: update check complete (state=${result.state}, installed=${installedVersion})`,
+        )
+        return result
+      }
+
+      const result: UpdateCheckResult = {
+        state: 'available',
+        installedVersion,
+        latestVersion,
+        detail: `Installed ${installedVersion}, latest ${latestVersion}`,
+      }
+      console.log(
+        `[nous:desktop] ollama-installer: update check complete (state=${result.state}, installed=${installedVersion}, latest=${latestVersion})`,
+      )
+      return result
+    }
+
+    if (platform === 'darwin') {
+      const { exitCode, stdout, stderr, timedOut } = await exec(
+        'brew',
+        ['outdated', '--formula', 'ollama'],
+        { timeoutMs: UPDATE_CHECK_TIMEOUT_MS },
+      )
+      if (timedOut) {
+        const result: UpdateCheckResult = {
+          state: 'unknown',
+          detail: `brew outdated timed out after ${UPDATE_CHECK_TIMEOUT_MS / 1000}s`,
+        }
+        console.log(
+          `[nous:desktop] ollama-installer: update check complete (state=${result.state})`,
+        )
+        return result
+      }
+      if (exitCode !== 0) {
+        const detail = stderr.trim() || `brew exited ${exitCode}`
+        const result: UpdateCheckResult = { state: 'unknown', detail }
+        console.log(
+          `[nous:desktop] ollama-installer: update check complete (state=${result.state})`,
+        )
+        return result
+      }
+      const hasOllama = stdout.split(/\r?\n/).some((line) => line.trim() === 'ollama')
+      if (hasOllama) {
+        const result: UpdateCheckResult = {
+          state: 'available',
+          detail: 'Update available via Homebrew',
+        }
+        console.log(
+          `[nous:desktop] ollama-installer: update check complete (state=${result.state})`,
+        )
+        return result
+      }
+      const result: UpdateCheckResult = {
+        state: 'up-to-date',
+        detail: 'No newer Ollama package detected',
+      }
+      console.log(
+        `[nous:desktop] ollama-installer: update check complete (state=${result.state})`,
+      )
+      return result
+    }
+
+    // linux and other platforms: no canonical check
+    const result: UpdateCheckResult = {
+      state: 'unknown',
+      detail: 'Automatic update check not available on this platform',
+    }
+    console.log(
+      `[nous:desktop] ollama-installer: update check complete (state=${result.state})`,
+    )
+    return result
+  } catch (err) {
+    const message = err instanceof Error ? err.message : String(err)
+    console.error(`[nous:desktop] ollama-installer: update check threw: ${message}`)
+    return { state: 'unknown', detail: `Update check failed: ${message}` }
+  }
+}
+
+// ━━━ Exported: updateOllama ━━━
+
+/**
+ * Update Ollama using the platform-appropriate package manager.
+ * Streams progress via the callback. Never throws (I9); every failure mode
+ * returns an `UpdateResult` with success=false and a classification flag.
+ */
+export async function updateOllama(
+  onProgress: UpdateProgressCallback,
+): Promise<UpdateResult> {
+  // Singleton guard — reject concurrent install/update attempts
+  const rejection = rejectConcurrent('update')
+  if (rejection.message) {
+    return validateUpdateResult({ success: false, error: rejection.message })
+  }
+
+  const doUpdate = async (): Promise<UpdateResult> => {
+    const platform = process.platform
+
+    try {
+      onProgress({ phase: 'checking', message: 'Checking package manager availability...' })
+      const pmAvailable = await isPackageManagerAvailable()
+      if (!pmAvailable) {
+        console.warn(
+          '[nous:desktop] ollama-installer: update package manager not found',
+        )
+        return validateUpdateResult({ success: false, packageManagerMissing: true })
+      }
+
+      console.log('[nous:desktop] ollama-installer: update started')
+      onProgress({ phase: 'downloading', message: 'Downloading update...' })
+
+      // Select platform command
+      let cmd: string
+      let args: string[]
+      switch (platform) {
+        case 'win32':
+          cmd = 'winget'
+          args = [
+            'upgrade',
+            '--id',
+            OLLAMA_WINGET_ID,
+            '--exact',
+            '--accept-package-agreements',
+            '--accept-source-agreements',
+            '--disable-interactivity',
+          ]
+          break
+        case 'darwin':
+          cmd = 'brew'
+          args = ['upgrade', 'ollama']
+          break
+        case 'linux':
+          cmd = 'sh'
+          args = ['-c', 'curl -fsSL https://ollama.com/install.sh | sh']
+          break
+        default:
+          return validateUpdateResult({
+            success: false,
+            error: `Unsupported platform: ${platform}`,
+          })
+      }
+
+      onProgress({ phase: 'installing', message: 'Installing update...' })
+
+      const startTime = Date.now()
+
+      // Execute update command using spawn directly for PID access (mirrors installOllama)
+      const result = await new Promise<ExecResult>((resolve) => {
+        const proc = spawn(cmd, args, {
+          shell: false,
+          stdio: ['ignore', 'pipe', 'pipe'],
+          env: process.env,
+        })
+
+        if (proc.pid != null) {
+          console.log(`[nous:desktop] ollama-installer: update started (pid=${proc.pid})`)
+        }
+
+        let stdout = ''
+        let stderr = ''
+        let settled = false
+        let timedOut = false
+        let timeoutHandle: NodeJS.Timeout | null = null
+
+        const finish = (res: ExecResult) => {
+          if (settled) return
+          settled = true
+          if (timeoutHandle) clearTimeout(timeoutHandle)
+          resolve(res)
+        }
+
+        proc.stdout?.on('data', (d: Buffer) => (stdout += d.toString()))
+        proc.stderr?.on('data', (d: Buffer) => (stderr += d.toString()))
+        proc.on('error', (err) => {
+          const message = err instanceof Error ? err.message : String(err)
+          finish({
+            exitCode: -1,
+            stdout,
+            stderr: stderr ? `${stderr}\n${message}` : message,
+            timedOut,
+          })
+        })
+        proc.on('close', (code) => {
+          finish({ exitCode: code ?? -1, stdout, stderr, timedOut })
+        })
+
+        timeoutHandle = setTimeout(() => {
+          timedOut = true
+          killProcessTree(proc)
+          const timeoutMessage = `Command "${cmd}" timed out after ${INSTALL_TIMEOUT_MS}ms`
+          finish({
+            exitCode: -1,
+            stdout,
+            stderr: stderr ? `${stderr}\n${timeoutMessage}` : timeoutMessage,
+            timedOut,
+          })
+        }, INSTALL_TIMEOUT_MS)
+        timeoutHandle.unref()
+      })
+
+      const elapsed = Date.now() - startTime
+      const combined = `${result.stdout}\n${result.stderr}`
+
+      // Timeout path
+      if (result.timedOut) {
+        console.error(
+          `[nous:desktop] ollama-installer: update failed (exit=${result.exitCode}, timedOut=true)`,
+        )
+        onProgress({ phase: 'error', message: 'Timed out' })
+        return validateUpdateResult({
+          success: false,
+          error: `Update timed out after ${Math.round(elapsed / 1000)}s. You can install manually from https://ollama.com/download`,
+        })
+      }
+
+      // Non-zero exit path
+      if (result.exitCode !== 0) {
+        // winget sometimes returns non-zero for "no available upgrade found"
+        if (ALREADY_UP_TO_DATE_PATTERNS.some((re) => re.test(combined))) {
+          console.log('[nous:desktop] ollama-installer: already up to date detected')
+          onProgress({ phase: 'verifying', message: 'Already up to date.' })
+          return validateUpdateResult({ success: true, alreadyUpToDate: true })
+        }
+
+        const elevationPatterns = ELEVATION_PATTERNS[platform] ?? []
+        const isElevation = elevationPatterns.some((re) => re.test(combined))
+        if (isElevation) {
+          console.error(
+            `[nous:desktop] ollama-installer: update failed (exit=${result.exitCode}, elevation=true)`,
+          )
+          const msg = `Update requires elevated permissions. ${getElevationInstruction(platform)}`
+          onProgress({ phase: 'error', message: 'Requires elevated permissions' })
+          return validateUpdateResult({
+            success: false,
+            elevationError: true,
+            error: msg,
+          })
+        }
+
+        console.error(
+          `[nous:desktop] ollama-installer: update failed (exit=${result.exitCode}, elevation=false)`,
+        )
+        const stderrExcerpt = result.stderr.slice(0, 500)
+        onProgress({ phase: 'error', message: 'Update failed' })
+        return validateUpdateResult({
+          success: false,
+          error: `Update failed (exit code ${result.exitCode}). ${stderrExcerpt || 'No error details available.'}`,
+        })
+      }
+
+      // Zero exit path — also check for "already up to date" (winget can return 0 for this)
+      if (ALREADY_UP_TO_DATE_PATTERNS.some((re) => re.test(combined))) {
+        console.log('[nous:desktop] ollama-installer: already up to date detected')
+        onProgress({ phase: 'verifying', message: 'Already up to date.' })
+        return validateUpdateResult({ success: true, alreadyUpToDate: true })
+      }
+
+      console.log(
+        `[nous:desktop] ollama-installer: update completed (exit=${result.exitCode}, elapsed=${elapsed}ms)`,
+      )
+      onProgress({ phase: 'verifying', message: 'Verifying update...' })
+      return validateUpdateResult({ success: true })
+    } catch (err) {
+      const message = err instanceof Error ? err.message : String(err)
+      console.error(`[nous:desktop] ollama-installer: update threw: ${message}`)
+      onProgress({ phase: 'error', message: 'Unexpected error' })
+      return validateUpdateResult({ success: false, error: message })
+    }
+  }
+
+  const promise = doUpdate().finally(() => {
+    activeOp = null
+  })
+  activeOp = { kind: 'update', promise }
+  return promise
 }
 
 // ━━━ Tray-app suppression ━━━

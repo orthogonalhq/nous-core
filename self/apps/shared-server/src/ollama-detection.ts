@@ -54,6 +54,122 @@ export const OllamaBinaryResolutionSchema = z.object({
 
 export type OllamaBinaryResolution = z.infer<typeof OllamaBinaryResolutionSchema>;
 
+export const OllamaVersionParsedSchema = z.object({
+  major: z.number().int().nonnegative(),
+  minor: z.number().int().nonnegative(),
+  patch: z.number().int().nonnegative(),
+});
+
+export type OllamaVersionParsed = z.infer<typeof OllamaVersionParsedSchema>;
+
+export const OllamaVersionResultSchema = z.object({
+  raw: z.string(),
+  parsed: OllamaVersionParsedSchema.nullable(),
+});
+
+export type OllamaVersionResult = z.infer<typeof OllamaVersionResultSchema>;
+
+/**
+ * Minimum Ollama version considered "known good" for native tool calling.
+ *
+ * Rationale (RT-5): 0.3.12 is at least 6 months old at write-time (April 2026)
+ * and is the oldest version confirmed to support the native tool-calling API
+ * used by the Cortex layer. Versions below this floor trigger an informational
+ * warning banner in the UI; they do not block usage (bias-to-pass per D6).
+ *
+ * Revision policy: single source of truth — this constant lives in exactly one
+ * file. Adjust upward only when a hard dependency bump is required; verify the
+ * chosen value is at least 6 months old against the Ollama release history at
+ * https://github.com/ollama/ollama/releases.
+ */
+export const MINIMUM_OLLAMA_VERSION = '0.3.12' as const;
+
+const VERSION_REGEX = /ollama\s+version\s+v?(\d+)\.(\d+)\.(\d+)(?:[-+][\w.]+)?/i;
+
+function parseVersionLine(stdout: string): OllamaVersionParsed | null {
+  if (!stdout || typeof stdout !== 'string') {
+    return null;
+  }
+
+  const match = stdout.match(VERSION_REGEX);
+  if (!match) {
+    return null;
+  }
+
+  const major = Number.parseInt(match[1] ?? '', 10);
+  const minor = Number.parseInt(match[2] ?? '', 10);
+  const patch = Number.parseInt(match[3] ?? '', 10);
+
+  if (
+    Number.isNaN(major) ||
+    Number.isNaN(minor) ||
+    Number.isNaN(patch)
+  ) {
+    return null;
+  }
+
+  return { major, minor, patch };
+}
+
+/**
+ * Test whether a raw `ollama --version` output indicates a version at or above
+ * the minimum-supported floor ({@link MINIMUM_OLLAMA_VERSION}).
+ *
+ * Bias-to-pass (D6): returns `true` on any input that cannot be parsed — this
+ * keeps users on fringe builds (e.g., future releases, custom builds) from
+ * being blocked by an unsupported-version warning. The floor check uses
+ * major/minor with strict `>` semantics and `>=` on patch.
+ */
+export function meetsMinimumVersion(raw: string): boolean {
+  const current = parseVersionLine(raw);
+  if (!current) {
+    return true;
+  }
+
+  const floor = parseVersionLine('ollama version ' + MINIMUM_OLLAMA_VERSION);
+  if (!floor) {
+    return true;
+  }
+
+  if (current.major !== floor.major) {
+    return current.major > floor.major;
+  }
+  if (current.minor !== floor.minor) {
+    return current.minor > floor.minor;
+  }
+  return current.patch >= floor.patch;
+}
+
+/**
+ * Probe the Ollama binary for its version via `ollama --version`, returning
+ * the raw stdout and a parsed triple when possible.
+ *
+ * Never throws (I7). All four failure modes are caught and returned as a
+ * graceful fallback:
+ *   1. Missing binary (`resolveOllamaBinary()` returns `found: false`)
+ *   2. Command execution error (non-zero exit, ENOENT, etc.)
+ *   3. Timeout
+ *   4. Unparseable stdout
+ */
+export async function getOllamaVersion(): Promise<OllamaVersionResult> {
+  try {
+    const resolution = await resolveOllamaBinary();
+    if (!resolution.found || !resolution.command) {
+      return { raw: '', parsed: null };
+    }
+
+    const stdout = (await probeOllamaCommandWithOutput(resolution.command)).trim();
+    if (!stdout) {
+      return { raw: '', parsed: null };
+    }
+
+    const parsed = parseVersionLine(stdout);
+    return { raw: stdout, parsed };
+  } catch {
+    return { raw: '', parsed: null };
+  }
+}
+
 export const OllamaModelPullRequestSchema = z.object({
   model: z.string().min(1),
 });
@@ -141,6 +257,33 @@ function probeOllamaCommand(command: string): Promise<boolean> {
       },
       (error) => {
         resolve(!error);
+      },
+    );
+  });
+}
+
+/**
+ * Sibling of {@link probeOllamaCommand} that captures stdout instead of
+ * discarding it. Used by {@link getOllamaVersion} to read `ollama --version`.
+ *
+ * Never throws. Resolves with the raw stdout string on exit code 0, or the
+ * empty string on any error, non-zero exit, or timeout.
+ */
+function probeOllamaCommandWithOutput(command: string): Promise<string> {
+  return new Promise((resolve) => {
+    execFile(
+      command,
+      ['--version'],
+      {
+        timeout: OLLAMA_COMMAND_TIMEOUT_MS,
+        windowsHide: true,
+      },
+      (error, stdout) => {
+        if (error) {
+          resolve('');
+          return;
+        }
+        resolve(typeof stdout === 'string' ? stdout : '');
       },
     );
   });

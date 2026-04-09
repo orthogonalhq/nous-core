@@ -218,6 +218,14 @@ export function WizardStepModelDownload({
             />
           </label>
 
+          <p className="nous-wizard__helper-text" data-testid="wizard-model-library-info-link">
+            Don&rsquo;t see what you want?{' '}
+            <a href="https://ollama.com/library" target="_blank" rel="noopener noreferrer">
+              Browse the Ollama library
+            </a>
+            .
+          </p>
+
           <div className="nous-wizard__summary-list">
             <div className="nous-wizard__summary-item">
               <span>Provider spec</span>

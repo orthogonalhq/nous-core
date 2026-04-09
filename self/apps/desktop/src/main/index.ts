@@ -6,15 +6,27 @@ import { promisify } from 'node:util'
 import { readdir, readFile } from 'node:fs/promises'
 import Store from 'electron-store'
 import {
+  MINIMUM_OLLAMA_VERSION,
   detectOllama,
+  getOllamaVersion,
+  meetsMinimumVersion,
   pullOllamaModel,
   resolveOllamaBinary,
   type OllamaLifecycleState,
   type OllamaModelPullProgress,
   type OllamaStatus,
 } from '../../../shared-server/src/ollama-detection'
+import type { OllamaVersionInfoPayload } from '../../../../shared/src/event-bus/types'
 import { initOrphanGuard, registerChild } from './orphan-guard'
-import { installOllama, killOllamaTrayApp } from './ollama-installer'
+import {
+  checkOllamaUpdate,
+  installOllama,
+  killOllamaTrayApp,
+  updateOllama,
+  type UpdateCheckResult,
+  type UpdateProgress,
+  type UpdateResult,
+} from './ollama-installer'
 
 interface StoredLayout {
   version: 1
@@ -1293,6 +1305,65 @@ ipcMain.handle('ollama:install', async () => {
     } else {
       console.warn('[nous:desktop] ollama-installer: binary not detected within 30s post-install')
     }
+  }
+
+  return result
+})
+
+ipcMain.handle('ollama:getVersion', async (): Promise<OllamaVersionInfoPayload> => {
+  const result = await getOllamaVersion()
+  const meetsMin = meetsMinimumVersion(result.raw)
+  return {
+    version: result.raw || 'unknown',
+    meetsMinimum: meetsMin,
+    minimumVersion: MINIMUM_OLLAMA_VERSION,
+  }
+})
+
+ipcMain.handle('ollama:checkUpdate', async (): Promise<UpdateCheckResult> => {
+  return await checkOllamaUpdate()
+})
+
+ipcMain.handle('ollama:update', async (): Promise<UpdateResult> => {
+  const wasRunning = ollamaState === 'running' && isOllamaManaged
+
+  if (wasRunning) {
+    try {
+      await stopOllama()
+    } catch {
+      // Non-fatal: proceed with update attempt even if stop fails.
+    }
+  }
+
+  const result = await updateOllama((progress) => {
+    win?.webContents.send('ollama:update-progress', progress)
+  })
+
+  if (result.packageManagerMissing) {
+    shell.openExternal('https://ollama.com/download')
+    if (wasRunning) {
+      await startOllama().catch(() => undefined)
+    }
+    return result
+  }
+
+  if (result.success) {
+    // Kill the Ollama tray GUI that the package manager may have relaunched.
+    await killOllamaTrayApp().catch(() => undefined)
+    try {
+      await startOllama()
+    } catch (err) {
+      console.error('[nous:desktop] ollama-update: auto-restart failed:', err)
+    }
+    // Tray app may reappear after `ollama serve` is restarted — kill again.
+    await killOllamaTrayApp().catch(() => undefined)
+    win?.webContents.send('ollama:update-progress', {
+      phase: 'complete',
+      message: 'Update complete.',
+    } satisfies UpdateProgress)
+  } else if (wasRunning) {
+    // Update failed — best-effort restart to restore prior state.
+    await startOllama().catch(() => undefined)
   }
 
   return result

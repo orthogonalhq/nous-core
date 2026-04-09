@@ -30,6 +30,34 @@ type OllamaOperationResult = {
   error?: string
 }
 
+type OllamaVersionInfoPayload = {
+  version: string
+  meetsMinimum: boolean
+  minimumVersion?: string
+}
+
+type OllamaUpdateProgressPayload = {
+  phase: 'checking' | 'downloading' | 'installing' | 'verifying' | 'complete' | 'error'
+  currentVersion?: string
+  targetVersion?: string
+  message?: string
+}
+
+type OllamaUpdateCheckResult = {
+  state: 'available' | 'up-to-date' | 'unknown'
+  installedVersion?: string
+  latestVersion?: string
+  detail: string
+}
+
+type OllamaUpdateResult = {
+  success: boolean
+  alreadyUpToDate?: boolean
+  error?: string
+  elevationError?: boolean
+  packageManagerMissing?: boolean
+}
+
 interface ElectronAPI {
   layout: {
     get: () => Promise<unknown>
@@ -78,9 +106,10 @@ interface ElectronAPI {
     onStateChange: (callback: (status: OllamaStatus) => void) => () => void
     install: () => Promise<unknown>
     onInstallProgress: (callback: (progress: { phase: string; message?: string }) => void) => () => void
-    checkUpdate: () => Promise<unknown>
-    update: () => Promise<unknown>
-    getVersion: () => Promise<unknown>
+    checkUpdate: () => Promise<OllamaUpdateCheckResult>
+    update: () => Promise<OllamaUpdateResult>
+    getVersion: () => Promise<OllamaVersionInfoPayload>
+    onUpdateProgress: (callback: (progress: OllamaUpdateProgressPayload) => void) => () => void
   }
 }
 

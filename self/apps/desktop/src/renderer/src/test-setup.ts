@@ -217,9 +217,19 @@ export function createElectronAPIMock() {
       onInstallProgress: vi.fn((_callback: (progress: { phase: string; message?: string }) => void) => {
         return () => {}
       }),
-      checkUpdate: vi.fn(async () => ({})),
-      update: vi.fn(async () => ({})),
-      getVersion: vi.fn(async () => null),
+      checkUpdate: vi.fn(async (): Promise<OllamaUpdateCheckResult> => ({
+        state: 'unknown',
+        detail: 'test mock',
+      })),
+      update: vi.fn(async (): Promise<OllamaUpdateResult> => ({ success: true })),
+      getVersion: vi.fn(async (): Promise<OllamaVersionInfoPayload> => ({
+        version: '0.3.14',
+        meetsMinimum: true,
+        minimumVersion: '0.3.12',
+      })),
+      onUpdateProgress: vi.fn((_callback: (progress: OllamaUpdateProgressPayload) => void) => {
+        return () => {}
+      }),
     },
   } satisfies ElectronAPI
 
