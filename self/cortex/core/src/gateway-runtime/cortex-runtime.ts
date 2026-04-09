@@ -937,6 +937,11 @@ implements IPrincipalSystemGatewayRuntime, ISystemInboxSubmissionService {
     // No direct provider mapped — probe registered providers via getProvider.
     // This handles the common case where bootstrap uses modelRouter + getProvider
     // instead of modelProviderByClass.
+    console.debug('[nous:cortex-runtime] resolveProviderType: no direct provider, probing deps', {
+      hasGetProvider: !!this.deps.getProvider,
+      hasModelRouter: !!this.deps.modelRouter,
+      hasModelProviderByClass: !!this.deps.modelProviderByClass,
+    });
     if (this.deps.getProvider) {
       const WELL_KNOWN_IDS = [
         '10000000-0000-0000-0000-000000000003', // ollama
@@ -945,6 +950,7 @@ implements IPrincipalSystemGatewayRuntime, ISystemInboxSubmissionService {
       ];
       for (const id of WELL_KNOWN_IDS) {
         const p = this.deps.getProvider(id);
+        console.debug('[nous:cortex-runtime] probing provider', { id, found: !!p, config: p ? p.getConfig() : null });
         if (p) {
           const type = resolve(p);
           if (type) return type;
@@ -952,6 +958,7 @@ implements IPrincipalSystemGatewayRuntime, ISystemInboxSubmissionService {
       }
     }
 
+    console.debug('[nous:cortex-runtime] resolveProviderType: falling back to text');
     return 'text';
   }
 
