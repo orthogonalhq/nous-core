@@ -284,7 +284,8 @@ export function createOllamaAdapter(modelId?: string): ProviderAdapter {
     parseResponse(output: unknown, _traceId: TraceId): ParsedModelOutput {
       try {
         return parseOllamaResponse(output);
-      } catch {
+      } catch (err) {
+        console.error('[nous:ollama-adapter] parseResponse error:', err, 'output type:', typeof output);
         // Never throw — return text fallback
         return {
           response: String(output ?? ''),
