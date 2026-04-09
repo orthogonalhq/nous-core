@@ -2,6 +2,7 @@
 
 import { useState, useEffect, useCallback, useRef } from 'react'
 import type { PreferencesApi, OllamaModelEntry, FeedbackState } from '../types'
+import { useEventSubscription } from '@nous/transport'
 import {
   sectionStyle,
   sectionTitleStyle,
@@ -82,7 +83,7 @@ export function LocalModelsPage({ api }: LocalModelsPageProps) {
 
   const calculateSpeed = useSpeedCalculator()
   const [downloadSpeed, setDownloadSpeed] = useState(0)
-  const eventSourceRef = useRef<EventSource | null>(null)
+  const pullingModelRef = useRef('')
 
   // Load endpoint on mount
   useEffect(() => {
@@ -120,77 +121,49 @@ export function LocalModelsPage({ api }: LocalModelsPageProps) {
     loadModels()
   }, [loadModels])
 
-  // Subscribe to SSE pull-progress events during a pull
-  useEffect(() => {
-    if (!pulling) {
-      setPullProgress(null)
-      setDownloadSpeed(0)
-      if (eventSourceRef.current) {
-        eventSourceRef.current.close()
-        eventSourceRef.current = null
-      }
-      return
-    }
-
-    // Attempt SSE subscription for pull progress
-    try {
-      const es = new EventSource('/api/events')
-      eventSourceRef.current = es
-
-      es.addEventListener('ollama:pull-progress', (event) => {
-        try {
-          const data = JSON.parse(event.data)
-          // Only show progress for the model being pulled
-          if (data.model === pullInput.trim()) {
-            setPullProgress({
-              status: data.status,
-              total: data.total,
-              completed: data.completed,
-              percent: data.percent,
-            })
-            if (typeof data.completed === 'number') {
-              const speed = calculateSpeed(data.completed)
-              setDownloadSpeed(speed)
-            }
-          }
-        } catch {
-          // Ignore malformed events
+  // Subscribe to SSE pull-progress events via transport hook
+  useEventSubscription({
+    channels: ['ollama:pull-progress'],
+    enabled: pulling,
+    onEvent: useCallback((_channel: string, payload: unknown) => {
+      const data = payload as { model?: string; status?: string; total?: number; completed?: number; percent?: number }
+      if (data.model && data.model === pullingModelRef.current) {
+        setPullProgress({
+          status: data.status ?? 'downloading',
+          total: data.total,
+          completed: data.completed,
+          percent: data.percent,
+        })
+        if (typeof data.completed === 'number') {
+          const speed = calculateSpeed(data.completed)
+          setDownloadSpeed(speed)
         }
-      })
-
-      es.onerror = () => {
-        // SSE not available — fall back to static text
-        es.close()
-        eventSourceRef.current = null
       }
-    } catch {
-      // SSE not supported — fall back to static text
-    }
-
-    return () => {
-      if (eventSourceRef.current) {
-        eventSourceRef.current.close()
-        eventSourceRef.current = null
-      }
-    }
-  }, [pulling, pullInput, calculateSpeed])
+    }, [calculateSpeed]),
+  })
 
   const handlePull = async () => {
     if (!pullInput.trim() || pulling || !api.pullOllamaModel) return
 
+    const modelName = pullInput.trim()
+    pullingModelRef.current = modelName
     setPulling(true)
     setPullProgress(null)
+    setDownloadSpeed(0)
     setFeedback(null)
 
     try {
-      await api.pullOllamaModel(pullInput.trim())
+      await api.pullOllamaModel(modelName)
       setPullInput('')
-      setFeedback({ message: `Successfully pulled ${pullInput.trim()}`, success: true })
+      setFeedback({ message: `Successfully downloaded ${modelName}`, success: true })
       await loadModels()
     } catch (err) {
       setFeedback(formatFeedbackError(err))
     } finally {
       setPulling(false)
+      setPullProgress(null)
+      setDownloadSpeed(0)
+      pullingModelRef.current = ''
     }
   }
 
@@ -218,6 +191,7 @@ export function LocalModelsPage({ api }: LocalModelsPageProps) {
     try {
       await api.setOllamaEndpoint(endpointInput.trim())
       setEndpointFeedback({ message: 'Endpoint saved', success: true })
+      await loadModels()
     } catch (err) {
       setEndpointFeedback(formatFeedbackError(err))
     } finally {
@@ -234,6 +208,7 @@ export function LocalModelsPage({ api }: LocalModelsPageProps) {
       await api.setOllamaEndpoint(null)
       setEndpointInput(DEFAULT_ENDPOINT)
       setEndpointFeedback({ message: 'Endpoint reset to default', success: true })
+      await loadModels()
     } catch (err) {
       setEndpointFeedback(formatFeedbackError(err))
     } finally {
@@ -297,7 +272,7 @@ export function LocalModelsPage({ api }: LocalModelsPageProps) {
     // Fallback to static text when no SSE events arrive
     return (
       <div style={helperTextStyle} data-testid="pull-status">
-        Pulling...
+        Downloading...
       </div>
     )
   }
@@ -428,7 +403,7 @@ export function LocalModelsPage({ api }: LocalModelsPageProps) {
             value={pullInput}
             onChange={(e) => setPullInput(e.target.value)}
             onKeyDown={(e) => { if (e.key === 'Enter') handlePull() }}
-            placeholder="Model name (e.g. llama3.2)"
+            placeholder="Model name (e.g., llama3.2)"
             disabled={pulling}
             style={{ ...inputStyle, minWidth: '200px' }}
             data-testid="pull-model-input"
@@ -443,7 +418,7 @@ export function LocalModelsPage({ api }: LocalModelsPageProps) {
             disabled={!pullInput.trim() || pulling}
             data-testid="pull-model-button"
           >
-            {pulling ? 'Pulling...' : 'Pull Model'}
+            {pulling ? 'Downloading...' : 'Download Model'}
           </button>
           {renderPullStatus()}
         </div>
@@ -458,7 +433,7 @@ export function LocalModelsPage({ api }: LocalModelsPageProps) {
         {/* Model cards */}
         {models.length === 0 ? (
           <div style={{ ...helperTextStyle, marginTop: 'var(--nous-space-md)' }}>
-            No models installed. Pull a model to get started.
+            No models installed. Download a model to get started.
           </div>
         ) : (
           models.map((model) => (
