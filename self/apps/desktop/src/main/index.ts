@@ -14,7 +14,7 @@ import {
   type OllamaStatus,
 } from '../../../shared-server/src/ollama-detection'
 import { initOrphanGuard, registerChild } from './orphan-guard'
-import { installOllama } from './ollama-installer'
+import { installOllama, killOllamaTrayApp } from './ollama-installer'
 
 interface StoredLayout {
   version: 1
@@ -1276,6 +1276,10 @@ ipcMain.handle('ollama:install', async () => {
     }
 
     if (detected) {
+      // Kill the Ollama tray GUI that the Windows installer auto-launches.
+      // We only want the headless `ollama serve` process under our control.
+      await killOllamaTrayApp().catch(() => undefined)
+
       // Auto-start so the wizard can advance to model download
       try {
         await startOllama()
@@ -1283,6 +1287,9 @@ ipcMain.handle('ollama:install', async () => {
         console.error('[nous:desktop] ollama-installer: auto-start after install failed:', err)
         // Non-fatal — user can still click "Start Ollama" manually
       }
+
+      // Kill the tray again after start, in case Ollama spawned it during serve startup
+      await killOllamaTrayApp().catch(() => undefined)
     } else {
       console.warn('[nous:desktop] ollama-installer: binary not detected within 30s post-install')
     }

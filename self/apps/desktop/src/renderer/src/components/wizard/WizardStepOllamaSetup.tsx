@@ -154,20 +154,28 @@ export function WizardStepOllamaSetup({
     }
   }
 
+  // State-driven hero content. The title shifts dramatically per state so the
+  // user immediately sees where they are in the install/start lifecycle.
+  let heroTitle = 'Setting up Ollama…'
   let description = 'Checking whether Ollama is available on this desktop…'
   if (state === 'not_installed') {
+    heroTitle = 'Install Ollama to continue'
     description =
-      'Ollama is not installed yet. Click "Install Ollama" to set it up automatically, or install it manually.'
+      'Ollama runs language models locally on this machine. Click "Install Ollama" below — Nous will install it silently in the background.'
   } else if (state === 'installed_stopped') {
+    heroTitle = 'Start the Ollama runtime'
     description =
-      'Ollama is installed, but the local runtime is not running yet. Start it here, or launch it manually.'
+      'Ollama is installed but not running yet. Click "Start Ollama" to launch the local runtime.'
   } else if (state === 'starting') {
-    description = 'Ollama is starting. Leave this step open while the runtime comes online.'
+    heroTitle = 'Starting Ollama…'
+    description = 'The local runtime is coming online. This usually takes a few seconds.'
   } else if (state === 'running') {
-    description = 'Ollama is ready. You can move to model download whenever you are ready.'
+    heroTitle = 'Ollama is ready'
+    description = 'The local runtime is up and responding. You can continue to model download.'
   } else if (state === 'error') {
+    heroTitle = 'Ollama hit an error'
     description =
-      'Ollama reported an error. Re-check the status after fixing the local runtime.'
+      'Something went wrong with the local runtime. See details below, then try again.'
   }
 
   return (
@@ -177,17 +185,21 @@ export function WizardStepOllamaSetup({
           <span className="nous-wizard__status-dot" />
           <span>{formatLifecycleState(ollamaStatus?.state ?? 'not_installed')}</span>
         </div>
-        <h1 className="nous-wizard__title">Make sure Ollama is installed and running.</h1>
+        <h1 className="nous-wizard__title">{heroTitle}</h1>
         <p className="nous-wizard__subtitle">{description}</p>
       </section>
 
       <div className="nous-wizard__grid">
         <section className="nous-wizard__card">
           <h2 className="nous-wizard__section-title">Current status</h2>
-          <p className="nous-wizard__section-copy">
-            This step stays reactive while you install or start Ollama outside the
-            app. The status below updates through the preload subscription.
-          </p>
+          <p className="nous-wizard__section-copy">{
+            state === 'running' ? 'Ollama is running and the API is responding.' :
+            state === 'not_installed' ? 'Ollama is not installed on this machine yet.' :
+            state === 'installed_stopped' ? 'Ollama is installed but the runtime is not running.' :
+            state === 'starting' ? 'The Ollama runtime is starting up.' :
+            state === 'error' ? 'Ollama reported an error. See details below.' :
+            'Detecting Ollama on this machine…'
+          }</p>
 
           <div className="nous-wizard__meta-list">
             <div className="nous-wizard__meta-item">
@@ -218,11 +230,22 @@ export function WizardStepOllamaSetup({
         </section>
 
         <section className="nous-wizard__card">
-          <h2 className="nous-wizard__section-title">What to do next</h2>
-          <p className="nous-wizard__section-copy">
-            Install Ollama if you do not have it yet, or start the runtime and
-            wait for this step to show a running state.
-          </p>
+          <h2 className="nous-wizard__section-title">{
+            state === 'running' ? 'Ready to continue' :
+            state === 'not_installed' ? 'Install Ollama' :
+            state === 'installed_stopped' ? 'Start the runtime' :
+            state === 'starting' ? 'Waiting for runtime' :
+            state === 'error' ? 'Resolve the error' :
+            'Next steps'
+          }</h2>
+          <p className="nous-wizard__section-copy">{
+            state === 'running' ? 'Everything is set up. Click "Continue" to move on to model download.' :
+            state === 'not_installed' ? 'Nous will install Ollama silently using your system package manager (winget on Windows, brew on macOS, curl on Linux).' :
+            state === 'installed_stopped' ? 'The Ollama binary is installed. Click "Start Ollama" to launch the local API server.' :
+            state === 'starting' ? 'The runtime is coming online. This page will update automatically when it is ready.' :
+            state === 'error' ? 'Check the error details on the left, then click "Check again" or restart the install.' :
+            'Setting up Ollama…'
+          }</p>
 
           {installPhase ? (
             <div className="nous-wizard__progress" data-testid="install-progress">

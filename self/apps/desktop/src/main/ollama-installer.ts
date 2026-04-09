@@ -4,7 +4,7 @@
  * Adapts platform commands from `scripts/install/src/ollama.ts` (RT-1: adapt, not import).
  * Streams phased progress via callback. Does not import from `main/index.ts`.
  */
-import { spawn } from 'node:child_process'
+import { spawn, execFile } from 'node:child_process'
 
 // ━━━ Types ━━━
 
@@ -402,6 +402,44 @@ export async function installOllama(
   })
 
   return activeInstall
+}
+
+// ━━━ Tray-app suppression ━━━
+
+/**
+ * Kill the Ollama tray GUI process if it's running.
+ *
+ * Ollama's Inno Setup installer (Windows) launches `ollama app.exe` after install
+ * via a `[Run]` section. We don't want the tray app — we manage `ollama serve`
+ * (the headless API server) ourselves. This kills the GUI without affecting
+ * our managed serve process.
+ *
+ * Safe to call even if the tray app isn't running.
+ */
+export async function killOllamaTrayApp(): Promise<void> {
+  if (process.platform !== 'win32') {
+    return // Tray app only exists on Windows
+  }
+
+  return new Promise((resolve) => {
+    // Use taskkill to terminate the tray app by image name.
+    // /F forces termination, /IM matches by image name.
+    // We don't /T (tree kill) because we want to leave child processes alone.
+    execFile('taskkill', ['/F', '/IM', 'ollama app.exe'], (err, stdout, stderr) => {
+      if (err) {
+        // Exit code 128 means "process not found" — that's fine, the tray wasn't running
+        const combined = `${stdout}\n${stderr}`
+        if (/not found|not running/i.test(combined)) {
+          console.log('[nous:desktop] ollama-installer: tray app not running (nothing to kill)')
+        } else {
+          console.warn('[nous:desktop] ollama-installer: failed to kill tray app:', err.message)
+        }
+      } else {
+        console.log('[nous:desktop] ollama-installer: killed Ollama tray app (ollama app.exe)')
+      }
+      resolve()
+    })
+  })
 }
 
 // ━━━ Helpers ━━━
