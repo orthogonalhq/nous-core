@@ -167,6 +167,14 @@ function parseOllamaToolCalls(
  * 3. Plain string (generate endpoint or passthrough)
  */
 function parseOllamaResponse(output: unknown): ParsedModelOutput {
+  console.debug('[nous:ollama-adapter] parseOllamaResponse input:', {
+    type: typeof output,
+    isNull: output === null,
+    keys: output && typeof output === 'object' ? Object.keys(output) : 'n/a',
+    hasToolCalls: output && typeof output === 'object' ? 'tool_calls' in output : false,
+    hasContent: output && typeof output === 'object' ? 'content' in output : false,
+  });
+
   // Handle plain string responses
   if (typeof output === 'string') {
     const { cleanContent, thinkingContent } = extractThinking(output);
