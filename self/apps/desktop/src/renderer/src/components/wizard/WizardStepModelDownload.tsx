@@ -6,6 +6,7 @@ import {
   parseModelSpec,
   toOllamaModelSpec,
   type FirstRunActionResult,
+  type FirstRunState,
   type WizardStepProps,
 } from './types'
 import { trpcMutate } from './trpc-fetch'
@@ -97,6 +98,30 @@ export function WizardStepModelDownload({
       }
 
       onStepComplete(providerResult.state)
+    } catch (error) {
+      finalizeRef.current = false
+      const message = error instanceof Error ? error.message : String(error)
+      setLocalError(message)
+      setActionError(message)
+      setActionInProgress(false)
+    }
+  }
+
+  const handleSkip = async () => {
+    finalizeRef.current = true
+    setActionError(null)
+    setLocalError(null)
+    setActionInProgress(true)
+
+    try {
+      // Skip both model_download and provider_config — without a downloaded
+      // model there's no provider to configure. User can add models later via
+      // Settings > Local Models.
+      await trpcMutate<FirstRunState>('firstRun.completeStep', { step: 'model_download' })
+      const nextState = await trpcMutate<FirstRunState>('firstRun.completeStep', {
+        step: 'provider_config',
+      })
+      onStepComplete(nextState)
     } catch (error) {
       finalizeRef.current = false
       const message = error instanceof Error ? error.message : String(error)
@@ -271,6 +296,20 @@ export function WizardStepModelDownload({
                 {actionInProgress ? 'Working…' : 'Download model'}
               </button>
             )}
+
+            {!modelAlreadyDownloaded && !downloadRequested ? (
+              <button
+                type="button"
+                className="nous-wizard__button nous-wizard__button--secondary"
+                onClick={() => {
+                  void handleSkip()
+                }}
+                disabled={actionInProgress}
+                title="Skip model download. You can add models later from Settings > Local Models."
+              >
+                Skip — I&rsquo;ll add models later
+              </button>
+            ) : null}
           </div>
         </section>
       </div>

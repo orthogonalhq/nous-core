@@ -154,6 +154,19 @@ export function WizardStepOllamaSetup({
     }
   }
 
+  const handleSkip = async () => {
+    setActionError(null)
+    setActionInProgress(true)
+    try {
+      const nextState = await trpcMutate<FirstRunState>('firstRun.completeStep', { step: 'ollama_check' })
+      onStepComplete(nextState)
+    } catch (error) {
+      const message = error instanceof Error ? error.message : String(error)
+      setActionError(message)
+      setActionInProgress(false)
+    }
+  }
+
   // State-driven hero content. The title shifts dramatically per state so the
   // user immediately sees where they are in the install/start lifecycle.
   let heroTitle = 'Setting up Ollama…'
@@ -309,6 +322,18 @@ export function WizardStepOllamaSetup({
             >
               Check again
             </button>
+
+            {state !== 'running' && !installPhase ? (
+              <button
+                type="button"
+                className="nous-wizard__button nous-wizard__button--secondary"
+                onClick={handleSkip}
+                disabled={actionInProgress}
+                title="Skip Ollama setup. You can configure cloud providers (Anthropic, OpenAI, etc.) instead, and add Ollama later from Settings."
+              >
+                Skip — I&rsquo;ll use cloud providers
+              </button>
+            ) : null}
 
             <button
               type="button"
