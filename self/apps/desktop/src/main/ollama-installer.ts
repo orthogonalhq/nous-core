@@ -220,11 +220,13 @@ export async function isPackageManagerAvailable(): Promise<boolean> {
  * success or failure with error classification.
  *
  * @param onProgress - Callback for streaming progress phases to the renderer
- * @param onChildPid - Optional callback invoked with the child process PID for orphan-guard registration
+ *
+ * Note: child process is intentionally NOT registered with orphan-guard.
+ * The install is awaited and short-lived; if Electron dies mid-install,
+ * we want the package manager to keep running rather than killing it.
  */
 export async function installOllama(
   onProgress: InstallProgressCallback,
-  onChildPid?: (pid: number) => void,
 ): Promise<InstallResult> {
   // Singleton guard — reject concurrent installs
   if (activeInstall) {
@@ -294,10 +296,8 @@ export async function installOllama(
         env: process.env,
       })
 
-      // Register child PID with orphan guard
       if (proc.pid != null) {
         console.log(`[nous:desktop] ollama-installer: install started (pid=${proc.pid})`)
-        onChildPid?.(proc.pid)
       }
 
       let stdout = ''

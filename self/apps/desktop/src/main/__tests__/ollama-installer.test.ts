@@ -334,20 +334,6 @@ describe('ollama-installer', () => {
       await firstInstall
     })
 
-    it('calls onChildPid with the spawned process PID', async () => {
-      setPlatform('win32')
-      mockSpawn
-        .mockReturnValueOnce(createFakeProcess({ exitCode: 0 })) // probe
-        .mockReturnValueOnce(createFakeProcess({ exitCode: 0, pid: 5678 })) // install
-
-      const { installOllama } = await loadModule()
-      const onProgress = vi.fn()
-      const onChildPid = vi.fn()
-      await installOllama(onProgress, onChildPid)
-
-      expect(onChildPid).toHaveBeenCalledWith(expect.any(Number))
-    })
-
     it('returns error on spawn failure', async () => {
       setPlatform('win32')
       mockSpawn

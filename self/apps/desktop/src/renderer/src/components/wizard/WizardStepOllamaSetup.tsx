@@ -12,6 +12,21 @@ export interface WizardStepOllamaSetupProps extends WizardStepProps {
   refreshOllamaStatus: () => Promise<void>
 }
 
+function formatInstallPhase(phase: string): string {
+  switch (phase) {
+    case 'checking':
+      return 'Checking package manager...'
+    case 'downloading':
+      return 'Downloading Ollama...'
+    case 'installing':
+      return 'Installing Ollama...'
+    case 'verifying':
+      return 'Verifying installation...'
+    default:
+      return `${phase}...`
+  }
+}
+
 function getStatusTone(state: OllamaStatus['state'] | null): string {
   switch (state) {
     case 'running':
@@ -210,10 +225,10 @@ export function WizardStepOllamaSetup({
           </p>
 
           {installPhase ? (
-            <div className="nous-wizard__meta-list">
-              <div className="nous-wizard__meta-item">
-                <span className="nous-wizard__meta-label">Progress</span>
-                <span className="nous-wizard__meta-value">{installPhase}...</span>
+            <div className="nous-wizard__progress" data-testid="install-progress">
+              <span className="nous-wizard__progress-label">{formatInstallPhase(installPhase)}</span>
+              <div className="nous-wizard__progress-track">
+                <div className="nous-wizard__progress-bar" />
               </div>
             </div>
           ) : null}

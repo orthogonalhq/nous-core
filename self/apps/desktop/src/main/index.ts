@@ -1245,14 +1245,9 @@ ipcMain.handle('ollama:pullModel', async (_event, modelId: string) => {
 })
 
 ipcMain.handle('ollama:install', async () => {
-  const result = await installOllama(
-    (progress) => {
-      win?.webContents.send('ollama:install-progress', progress)
-    },
-    (pid) => {
-      registerChild(pid)
-    },
-  )
+  const result = await installOllama((progress) => {
+    win?.webContents.send('ollama:install-progress', progress)
+  })
 
   if (result.packageManagerMissing) {
     shell.openExternal('https://ollama.com/download')
