@@ -50,6 +50,22 @@ describe('createTextAdapter', () => {
     });
   });
 
+  describe('never-throw contract', () => {
+    it.each([
+      ['null', null, ''],
+      ['undefined', undefined, ''],
+      ['empty string', '', ''],
+      ['number', 42, '42'],
+      ['unexpected object', { unexpected: true }, '[object Object]'],
+    ])('returns text-mode fallback for %s input', (_label, input, expectedResponse) => {
+      expect(() => adapter.parseResponse(input, TRACE_ID)).not.toThrow();
+      const result = adapter.parseResponse(input, TRACE_ID);
+      expect(result.response).toBe(expectedResponse);
+      expect(result.toolCalls).toEqual([]);
+      expect(result.contentType).toBe('text');
+    });
+  });
+
   describe('formatRequest', () => {
     it('passes through string systemPrompt', () => {
       const result = adapter.formatRequest({

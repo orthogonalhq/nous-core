@@ -373,6 +373,22 @@ describe('createOllamaAdapter', () => {
       expect(result.toolCalls).toEqual([{ name: 'valid', params: {} }]);
     });
 
+    it('returns text-mode fallback for empty string input', () => {
+      expect(() => adapter.parseResponse('', TRACE_ID)).not.toThrow();
+      const result = adapter.parseResponse('', TRACE_ID);
+      expect(result.response).toBe('');
+      expect(result.toolCalls).toEqual([]);
+      expect(result.contentType).toBe('text');
+    });
+
+    it('returns text-mode fallback for unexpected object input', () => {
+      expect(() => adapter.parseResponse({ unexpected: true }, TRACE_ID)).not.toThrow();
+      const result = adapter.parseResponse({ unexpected: true }, TRACE_ID);
+      expect(typeof result.response).toBe('string');
+      expect(result.toolCalls).toEqual([]);
+      expect(result.contentType).toBe('text');
+    });
+
     it('returns empty thinkingContent for empty thinking field', () => {
       const output = {
         content: 'Response',

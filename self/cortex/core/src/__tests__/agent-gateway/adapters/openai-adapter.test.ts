@@ -134,6 +134,30 @@ describe('createOpenAiAdapter', () => {
       expect(result.contentType).toBe('text');
     });
 
+    it('returns text-mode fallback for undefined input', () => {
+      expect(() => adapter.parseResponse(undefined, TRACE_ID)).not.toThrow();
+      const result = adapter.parseResponse(undefined, TRACE_ID);
+      expect(result.response).toBe('');
+      expect(result.toolCalls).toEqual([]);
+      expect(result.contentType).toBe('text');
+    });
+
+    it('returns text-mode fallback for empty string input', () => {
+      expect(() => adapter.parseResponse('', TRACE_ID)).not.toThrow();
+      const result = adapter.parseResponse('', TRACE_ID);
+      expect(result.response).toBe('');
+      expect(result.toolCalls).toEqual([]);
+      expect(result.contentType).toBe('text');
+    });
+
+    it('returns text-mode fallback for unexpected object input', () => {
+      expect(() => adapter.parseResponse({ unexpected: true }, TRACE_ID)).not.toThrow();
+      const result = adapter.parseResponse({ unexpected: true }, TRACE_ID);
+      expect(typeof result.response).toBe('string');
+      expect(result.toolCalls).toEqual([]);
+      expect(result.contentType).toBe('text');
+    });
+
     it('handles null input gracefully', () => {
       const result = adapter.parseResponse(null, TRACE_ID);
       expect(result.response).toBe('');

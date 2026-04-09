@@ -241,6 +241,22 @@ describe('createAnthropicAdapter', () => {
       expect(result.toolCalls).toEqual([{ name: 'noop', params: {} }]);
     });
 
+    it('returns text-mode fallback for empty string input', () => {
+      expect(() => adapter.parseResponse('', traceId)).not.toThrow();
+      const result = adapter.parseResponse('', traceId);
+      expect(result.response).toBe('');
+      expect(result.toolCalls).toEqual([]);
+      expect(result.contentType).toBe('text');
+    });
+
+    it('returns text-mode fallback for unexpected object input', () => {
+      expect(() => adapter.parseResponse({ unexpected: true }, traceId)).not.toThrow();
+      const result = adapter.parseResponse({ unexpected: true }, traceId);
+      expect(typeof result.response).toBe('string');
+      expect(result.toolCalls).toEqual([]);
+      expect(result.contentType).toBe('text');
+    });
+
     it('never throws on malformed output', () => {
       expect(() => adapter.parseResponse({ content: 'not-an-array' }, traceId)).not.toThrow();
       expect(() => adapter.parseResponse(42, traceId)).not.toThrow();

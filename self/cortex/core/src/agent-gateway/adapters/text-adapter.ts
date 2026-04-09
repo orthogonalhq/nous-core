@@ -27,7 +27,18 @@ export function createTextAdapter(): ProviderAdapter {
     },
     parseResponse(output: unknown, traceId: TraceId): ParsedModelOutput {
       // Delegates directly to existing parseModelOutput — identical behavior to pre-harness.
-      return parseModelOutput(output, traceId);
+      // Top-level try/catch enforces the never-throw adapter contract (matches Ollama/Anthropic/OpenAI pattern).
+      try {
+        return parseModelOutput(output, traceId);
+      } catch (err) {
+        console.warn('[nous:text-adapter] parseResponse caught unexpected error, falling back to text-mode', err);
+        return {
+          response: String(output ?? ''),
+          toolCalls: [],
+          memoryCandidates: [],
+          contentType: 'text',
+        };
+      }
     },
   };
 }
