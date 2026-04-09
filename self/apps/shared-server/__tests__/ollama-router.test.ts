@@ -188,7 +188,7 @@ describe('ollama tRPC router', () => {
       const result = await caller.ollama.pullModel({ model: 'llama3.2:3b' });
 
       expect(result).toEqual({ success: true });
-      expect(mockPullOllamaModel).toHaveBeenCalledWith('llama3.2:3b', expect.objectContaining({ onProgress: expect.any(Function) }));
+      expect(mockPullOllamaModel).toHaveBeenCalledWith('llama3.2:3b', expect.objectContaining({ onProgress: expect.any(Function), baseUrl: expect.any(String) }));
       expect(ctx.eventBus.publish).toHaveBeenCalledWith('ollama:pull-progress', {
         model: 'llama3.2:3b',
         status: 'downloading',
@@ -220,7 +220,7 @@ describe('ollama tRPC router', () => {
       const result = await caller.ollama.deleteModel({ name: 'llama3.2:3b' });
 
       expect(result).toEqual({ success: true });
-      expect(mockDeleteOllamaModel).toHaveBeenCalledWith('llama3.2:3b');
+      expect(mockDeleteOllamaModel).toHaveBeenCalledWith('llama3.2:3b', expect.objectContaining({ baseUrl: expect.any(String) }));
     });
 
     it('throws when deleteOllamaModel errors', async () => {
