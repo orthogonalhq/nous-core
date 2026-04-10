@@ -193,6 +193,7 @@ export const ChatTurnResultSchema = z.object({
   response: z.string(),
   traceId: z.string(),
   contentType: z.enum(['text', 'openui']).optional(),
+  thinkingContent: z.string().optional(),
 }).strict();
 export type ChatTurnResult = z.infer<typeof ChatTurnResultSchema>;
 
