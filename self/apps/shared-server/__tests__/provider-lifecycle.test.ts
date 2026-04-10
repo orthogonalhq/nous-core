@@ -9,15 +9,12 @@ import {
   OLLAMA_WELL_KNOWN_PROVIDER_ID,
   WELL_KNOWN_PROVIDER_IDS,
   createNousServices,
-  loadModelSelection,
   loadStoredApiKeys,
   registerStoredProviders,
 } from '../src/bootstrap';
 import { preferencesRouter } from '../src/trpc/routers/preferences';
 
 const SYSTEM_APP_ID = 'nous:system';
-const MODEL_SELECTION_COLLECTION = 'nous:model_selection';
-const MODEL_SELECTION_ID = 'current';
 
 type ConfigState = {
   profile: (typeof DEFAULT_PROFILES)[keyof typeof DEFAULT_PROFILES] & {
@@ -273,65 +270,8 @@ describe('provider lifecycle wiring', () => {
     expect(state.providers[0]!.id).toBe(WELL_KNOWN_PROVIDER_IDS.openai);
     expect(state.modelRoleAssignments).toEqual([
       {
-        role: 'reasoner',
+        role: 'cortex-chat',
         providerId: WELL_KNOWN_PROVIDER_IDS.openai,
-      },
-    ]);
-  });
-
-  it('loadModelSelection applies saved model selections to config', async () => {
-    const { ctx, state, documentStore } = createLifecycleContext();
-    process.env.OPENAI_API_KEY = 'sk-test-openai';
-    process.env.ANTHROPIC_API_KEY = 'sk-test-anthropic';
-
-    await registerStoredProviders(ctx);
-    await documentStore.put(MODEL_SELECTION_COLLECTION, MODEL_SELECTION_ID, {
-      principal: 'openai:gpt-4o-mini',
-      system: 'anthropic:claude-opus-4-20250514',
-    });
-
-    await loadModelSelection(ctx);
-
-    expect(
-      state.providers.find((provider) => provider.id === WELL_KNOWN_PROVIDER_IDS.openai)
-        ?.modelId,
-    ).toBe('gpt-4o-mini');
-    expect(
-      state.providers.find((provider) => provider.id === WELL_KNOWN_PROVIDER_IDS.anthropic)
-        ?.modelId,
-    ).toBe('claude-opus-4-20250514');
-    expect(state.modelRoleAssignments).toEqual([
-      {
-        role: 'reasoner',
-        providerId: WELL_KNOWN_PROVIDER_IDS.openai,
-        fallbackProviderId: WELL_KNOWN_PROVIDER_IDS.anthropic,
-      },
-    ]);
-  });
-
-  it('loadModelSelection restores persisted ollama selections without cloud credentials', async () => {
-    const { ctx, state, documentStore } = createLifecycleContext();
-
-    await documentStore.put(MODEL_SELECTION_COLLECTION, MODEL_SELECTION_ID, {
-      principal: 'ollama:llama3.2:3b',
-      system: null,
-    });
-
-    await loadModelSelection(ctx);
-
-    expect(
-      state.providers.find((provider) => provider.id === OLLAMA_WELL_KNOWN_PROVIDER_ID),
-    ).toMatchObject({
-      id: OLLAMA_WELL_KNOWN_PROVIDER_ID,
-      name: 'ollama',
-      modelId: 'llama3.2:3b',
-      isLocal: true,
-      providerClass: 'local_text',
-    });
-    expect(state.modelRoleAssignments).toEqual([
-      {
-        role: 'reasoner',
-        providerId: OLLAMA_WELL_KNOWN_PROVIDER_ID,
       },
     ]);
   });
@@ -353,7 +293,7 @@ describe('provider lifecycle wiring', () => {
     );
     expect(state.modelRoleAssignments).toEqual([
       {
-        role: 'reasoner',
+        role: 'cortex-chat',
         providerId: WELL_KNOWN_PROVIDER_IDS.openai,
       },
     ]);

@@ -28,7 +28,7 @@ describe('WitnessService', () => {
       actionRef: 'reasoner',
       actor: 'core',
       status: 'approved',
-      detail: { role: 'reasoner' },
+      detail: { role: 'cortex-chat' },
     });
 
     const completion = await service.appendCompletion({

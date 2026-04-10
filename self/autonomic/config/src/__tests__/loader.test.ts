@@ -111,7 +111,7 @@ describe('loadConfig', () => {
       ],
       modelRoleAssignments: [
         {
-          role: 'reasoner',
+          role: 'cortex-chat',
           providerId: 'ollama-default',
         },
       ],

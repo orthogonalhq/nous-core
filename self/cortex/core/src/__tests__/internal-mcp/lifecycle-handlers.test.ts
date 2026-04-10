@@ -107,7 +107,7 @@ describe('Internal MCP lifecycle handlers', () => {
               executionModel: 'sync',
               config: {
                 type: 'model-call',
-                modelRole: 'reasoner',
+                modelRole: 'cortex-chat',
                 promptRef: 'prompt://complete',
                 outputSchemaRef: 'schema://completion',
               },

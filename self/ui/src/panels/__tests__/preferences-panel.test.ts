@@ -7,7 +7,6 @@ import {
 import type {
   PreferencesApi,
   AvailableModel,
-  ModelSelection,
   RoleAssignmentDisplayEntry,
 } from '../PreferencesPanel.js';
 
@@ -231,14 +230,9 @@ describe('Model selector API contract', () => {
           { id: 'openai:gpt-4o', name: 'GPT-4o', provider: 'openai', available: true },
         ],
       }),
-      getModelSelection: async () => ({
-        principal: 'anthropic:claude-opus-4-20250514',
-        system: 'anthropic:claude-sonnet-4-20250514',
-      }),
-      setModelSelection: async () => ({ success: true }),
       getRoleAssignments: async () => ([
         {
-          role: 'orchestrator',
+          role: 'orchestrators',
           providerId: '10000000-0000-0000-0000-000000000003',
         },
       ]),
@@ -249,8 +243,6 @@ describe('Model selector API contract', () => {
   it('PreferencesApi shape supports optional model selector methods', () => {
     const api = createFullApi();
     expect(typeof api.getAvailableModels).toBe('function');
-    expect(typeof api.getModelSelection).toBe('function');
-    expect(typeof api.setModelSelection).toBe('function');
     expect(typeof api.getRoleAssignments).toBe('function');
     expect(typeof api.setRoleAssignment).toBe('function');
   });
@@ -266,38 +258,6 @@ describe('Model selector API contract', () => {
     expect(providers.has('openai')).toBe(true);
   });
 
-  it('getModelSelection returns principal and system roles', async () => {
-    const api = createFullApi();
-    const selection = await api.getModelSelection!();
-    expect(selection.principal).toBe('anthropic:claude-opus-4-20250514');
-    expect(selection.system).toBe('anthropic:claude-sonnet-4-20250514');
-  });
-
-  it('getModelSelection returns null when nothing saved', async () => {
-    const api: PreferencesApi = {
-      ...createFullApi(),
-      getModelSelection: async () => ({ principal: null, system: null }),
-    };
-
-    const selection = await api.getModelSelection!();
-    expect(selection.principal).toBeNull();
-    expect(selection.system).toBeNull();
-  });
-
-  it('setModelSelection accepts partial input', async () => {
-    let captured: { principal?: string; system?: string } | null = null;
-    const api: PreferencesApi = {
-      ...createFullApi(),
-      setModelSelection: async (input) => {
-        captured = input;
-        return { success: true };
-      },
-    };
-
-    await api.setModelSelection!({ principal: 'openai:o3' });
-    expect(captured).toEqual({ principal: 'openai:o3' });
-  });
-
   it('model IDs follow provider:model-name format', async () => {
     const api = createFullApi();
     const result = await api.getAvailableModels!();
@@ -308,7 +268,7 @@ describe('Model selector API contract', () => {
     }
   });
 
-  it('AvailableModel and ModelSelection types are structurally sound', () => {
+  it('AvailableModel and RoleAssignmentDisplayEntry types are structurally sound', () => {
     const model: AvailableModel = {
       id: 'ollama:llama3.2:3b',
       name: 'llama3.2:3b',
@@ -318,18 +278,11 @@ describe('Model selector API contract', () => {
     expect(model.id).toBeTruthy();
     expect(typeof model.available).toBe('boolean');
 
-    const selection: ModelSelection = {
-      principal: 'anthropic:claude-opus-4-20250514',
-      system: null,
-    };
-    expect(selection.principal).toBeTruthy();
-    expect(selection.system).toBeNull();
-
     const roleAssignment: RoleAssignmentDisplayEntry = {
-      role: 'orchestrator',
+      role: 'orchestrators',
       providerId: '10000000-0000-0000-0000-000000000003',
     };
-    expect(roleAssignment.role).toBe('orchestrator');
+    expect(roleAssignment.role).toBe('orchestrators');
     expect(roleAssignment.providerId).toBeTruthy();
   });
 
@@ -339,7 +292,7 @@ describe('Model selector API contract', () => {
 
     expect(assignments).toEqual([
       {
-        role: 'orchestrator',
+        role: 'orchestrators',
         providerId: '10000000-0000-0000-0000-000000000003',
       },
     ]);
@@ -356,12 +309,12 @@ describe('Model selector API contract', () => {
     };
 
     await api.setRoleAssignment!({
-      role: 'vision',
+      role: 'cortex-chat',
       modelSpec: 'openai:gpt-4o',
     });
 
     expect(captured).toEqual({
-      role: 'vision',
+      role: 'cortex-chat',
       modelSpec: 'openai:gpt-4o',
     });
   });

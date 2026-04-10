@@ -39,7 +39,7 @@ const projectConfig = {
             executionModel: 'synchronous' as const,
             config: {
               type: 'model-call' as const,
-              modelRole: 'reasoner' as const,
+              modelRole: 'cortex-chat' as const,
               promptRef: 'prompt://a',
               outputSchemaRef: 'schema://node-output/a',
             },
