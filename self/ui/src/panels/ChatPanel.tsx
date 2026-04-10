@@ -156,7 +156,7 @@ export function ChatPanel(props: ChatPanelProps) {
             }
         }
         prevMessageCountRef.current = messages.length
-    }, [messages, stage])
+    }, [messages, stage, onUnreadMessage])
 
     // Clear unread when the user opens full view
     useEffect(() => {
