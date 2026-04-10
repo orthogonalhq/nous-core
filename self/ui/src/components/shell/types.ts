@@ -407,6 +407,12 @@ export const AssetSidebarPropsSchema = z.object({
     (value) => typeof value === 'function',
     'onSettingsClick function is required',
   ).optional(),
+  // --- WR-141 additive fields (whole-sidebar collapse) ---
+  collapsed: z.boolean().optional(),
+  onToggleCollapse: z.custom<() => void>(
+    (value) => typeof value === 'function',
+    'onToggleCollapse function is required',
+  ).optional(),
 })
 export type AssetSidebarProps = z.infer<typeof AssetSidebarPropsSchema>
 
@@ -433,5 +439,11 @@ export const SimpleShellLayoutPropsSchema = z.object({
     sidebar: z.number().nonnegative().optional(),
     observe: z.number().nonnegative().optional(),
   }).optional(),
+  // --- WR-141 additive fields (whole-sidebar collapse) ---
+  sidebarCollapsed: z.boolean().optional(),
+  onSidebarCollapseChange: z.custom<(collapsed: boolean) => void>(
+    (value) => typeof value === 'function',
+    'onSidebarCollapseChange function is required',
+  ).optional(),
 })
 export type SimpleShellLayoutProps = z.infer<typeof SimpleShellLayoutPropsSchema>

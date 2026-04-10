@@ -49,6 +49,8 @@ export function SimpleShellLayout({
     breakpoint = 'full',
     onColumnResize,
     initialWidths,
+    sidebarCollapsed,
+    onSidebarCollapseChange: _onSidebarCollapseChange,
     className,
     style,
     ...props
@@ -134,6 +136,14 @@ export function SimpleShellLayout({
     // Cap sidebar width at breakpoint max
     const effectiveSidebarWidth = Math.min(sidebarWidth, BREAKPOINT_SIDEBAR[breakpoint])
 
+    // WR-141 — when the sidebar is collapsed, substitute the fixed collapsed-width
+    // CSS token in place of the effective width. This is a pure view transformation:
+    // `sidebarWidth` state and `sidebarWidthRef.current` are untouched, so expand
+    // restores the prior width (SC-4). Instant snap — no `isAnimating` trigger (INV-4).
+    const resolvedSidebarWidthCss = sidebarCollapsed
+        ? 'var(--nous-asset-sidebar-collapsed-width)'
+        : `${effectiveSidebarWidth}px`
+
     const chatOverlayHeight = CHAT_STAGE_HEIGHT[chatStage]
 
     // Click-outside handler — single handler on the layout container
@@ -145,7 +155,7 @@ export function SimpleShellLayout({
     }, [chatStage, onClickOutside])
 
     const layoutStyle: SimpleShellStyle = {
-        '--shell-sidebar-width': `${effectiveSidebarWidth}px`,
+        '--shell-sidebar-width': resolvedSidebarWidthCss,
         '--shell-observe-width': `${observeWidth}px`,
         display: 'grid',
         minWidth: 0,
@@ -222,6 +232,10 @@ export function SimpleShellLayout({
                     bottom: 0,
                     left: 0,
                     width: `calc(var(--nous-project-rail-width) + var(--shell-sidebar-width))`,
+                    // WR-141 — unconditional floor so the overlay does not visually break
+                    // in `chat:small` when the sidebar collapses to 32px (rail+sidebar = 94px).
+                    // Overhang into the content area is accepted; bubble mode is deferred to WR-143.
+                    minWidth: 'var(--nous-chat-overlay-min-width)',
                     height: chatOverlayHeight,
                     zIndex: 10,
                     pointerEvents: 'auto',
@@ -237,13 +251,15 @@ export function SimpleShellLayout({
                 {chatSlot({ stage: chatStage, onStageChange: internalSetChatStage ?? (() => { }) })}
             </div>
 
-            <ColumnDivider
-                aria-label="Resize sidebar column"
-                onResize={applySidebarResize}
-                style={{
-                    left: 'calc(var(--nous-project-rail-width) + var(--shell-sidebar-width))',
-                }}
-            />
+            {!sidebarCollapsed ? (
+                <ColumnDivider
+                    aria-label="Resize sidebar column"
+                    onResize={applySidebarResize}
+                    style={{
+                        left: 'calc(var(--nous-project-rail-width) + var(--shell-sidebar-width))',
+                    }}
+                />
+            ) : null}
 
             {observeExpanded ? (
                 <ColumnDivider
