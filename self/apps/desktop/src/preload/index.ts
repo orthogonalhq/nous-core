@@ -1,5 +1,40 @@
 import { contextBridge, ipcRenderer } from 'electron'
 
+// ━━━ Structural types for Ollama update/version channels ━━━
+//
+// Declared inline (not imported from `@nous/shared`) so that the preload bundle
+// stays free of package resolution concerns per D3. The shapes mirror
+// `OllamaVersionInfoPayload` / `UpdateCheckResult` / `UpdateResult` /
+// `UpdateProgress` defined in the main process, and the ambient types
+// declared in `src/renderer/src/env.d.ts`.
+type OllamaVersionInfo = {
+  version: string
+  meetsMinimum: boolean
+  minimumVersion?: string
+}
+
+type OllamaUpdateCheck = {
+  state: 'available' | 'up-to-date' | 'unknown'
+  installedVersion?: string
+  latestVersion?: string
+  detail: string
+}
+
+type OllamaUpdateOutcome = {
+  success: boolean
+  alreadyUpToDate?: boolean
+  error?: string
+  elevationError?: boolean
+  packageManagerMissing?: boolean
+}
+
+type OllamaUpdateProgress = {
+  phase: 'checking' | 'downloading' | 'installing' | 'verifying' | 'complete' | 'error'
+  currentVersion?: string
+  targetVersion?: string
+  message?: string
+}
+
 contextBridge.exposeInMainWorld('electronAPI', {
   layout: {
     get: (): Promise<unknown> => ipcRenderer.invoke('layout:get'),
@@ -108,9 +143,19 @@ contextBridge.exposeInMainWorld('electronAPI', {
         ipcRenderer.removeListener('ollama:install-progress', listener)
       }
     },
-    checkUpdate: (): Promise<unknown> => ipcRenderer.invoke('ollama:checkUpdate'),
-    update: (): Promise<unknown> => ipcRenderer.invoke('ollama:update'),
-    getVersion: (): Promise<unknown> => ipcRenderer.invoke('ollama:getVersion'),
+    checkUpdate: (): Promise<OllamaUpdateCheck> => ipcRenderer.invoke('ollama:checkUpdate'),
+    update: (): Promise<OllamaUpdateOutcome> => ipcRenderer.invoke('ollama:update'),
+    getVersion: (): Promise<OllamaVersionInfo> => ipcRenderer.invoke('ollama:getVersion'),
+    onUpdateProgress: (
+      callback: (progress: OllamaUpdateProgress) => void,
+    ): (() => void) => {
+      const listener = (_event: Electron.IpcRendererEvent, progress: OllamaUpdateProgress) =>
+        callback(progress)
+      ipcRenderer.on('ollama:update-progress', listener)
+      return () => {
+        ipcRenderer.removeListener('ollama:update-progress', listener)
+      }
+    },
   },
   mode: {
     get: (): Promise<string | null> => ipcRenderer.invoke('mode:get'),

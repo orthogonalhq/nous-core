@@ -14,6 +14,14 @@ type OllamaModelPullProgress = Parameters<ElectronAPI['ollama']['onPullProgress'
 ) => void
   ? T
   : never
+type OllamaUpdateCheckResult = Awaited<ReturnType<ElectronAPI['ollama']['checkUpdate']>>
+type OllamaUpdateResult = Awaited<ReturnType<ElectronAPI['ollama']['update']>>
+type OllamaVersionInfoPayload = Awaited<ReturnType<ElectronAPI['ollama']['getVersion']>>
+type OllamaUpdateProgressPayload = Parameters<ElectronAPI['ollama']['onUpdateProgress']>[0] extends (
+  progress: infer T,
+) => void
+  ? T
+  : never
 
 export const DEFAULT_OLLAMA_STATUS: OllamaStatus = {
   installed: true,
@@ -219,9 +227,21 @@ export function createElectronAPIMock() {
           return () => {}
         },
       ),
-      checkUpdate: vi.fn(async (): Promise<unknown> => ({})),
-      update: vi.fn(async (): Promise<unknown> => ({})),
-      getVersion: vi.fn(async (): Promise<unknown> => null),
+      checkUpdate: vi.fn(async (): Promise<OllamaUpdateCheckResult> => ({
+        state: 'unknown',
+        detail: 'test mock',
+      })),
+      update: vi.fn(async (): Promise<OllamaUpdateResult> => ({ success: true })),
+      getVersion: vi.fn(async (): Promise<OllamaVersionInfoPayload> => ({
+        version: '0.3.14',
+        meetsMinimum: true,
+        minimumVersion: '0.3.12',
+      })),
+      onUpdateProgress: vi.fn(
+        (_callback: (progress: OllamaUpdateProgressPayload) => void) => {
+          return () => {}
+        },
+      ),
     },
   } satisfies ElectronAPI
 

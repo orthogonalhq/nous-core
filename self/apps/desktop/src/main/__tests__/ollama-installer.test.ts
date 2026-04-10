@@ -372,4 +372,321 @@ describe('ollama-installer', () => {
       expect(phases).toEqual(['checking', 'downloading', 'installing', 'verifying'])
     })
   })
+
+  describe('checkOllamaUpdate', () => {
+    it('returns available when winget list and search return different versions (win32)', async () => {
+      setPlatform('win32')
+      mockSpawn
+        .mockImplementationOnce(() =>
+          createFakeProcess({ exitCode: 0, stdout: 'Ollama.Ollama 0.3.10' }),
+        )
+        .mockImplementationOnce(() =>
+          createFakeProcess({ exitCode: 0, stdout: 'Ollama.Ollama 0.3.14' }),
+        )
+      const { checkOllamaUpdate } = await loadModule()
+      const result = await checkOllamaUpdate()
+      expect(result.state).toBe('available')
+      expect(result.installedVersion).toBe('0.3.10')
+      expect(result.latestVersion).toBe('0.3.14')
+    })
+
+    it('returns up-to-date when installed equals latest (win32)', async () => {
+      setPlatform('win32')
+      mockSpawn
+        .mockImplementationOnce(() =>
+          createFakeProcess({ exitCode: 0, stdout: 'Ollama.Ollama 0.3.14' }),
+        )
+        .mockImplementationOnce(() =>
+          createFakeProcess({ exitCode: 0, stdout: 'Ollama.Ollama 0.3.14' }),
+        )
+      const { checkOllamaUpdate } = await loadModule()
+      const result = await checkOllamaUpdate()
+      expect(result.state).toBe('up-to-date')
+      expect(result.installedVersion).toBe('0.3.14')
+    })
+
+    it('returns unknown when winget parse fails (win32)', async () => {
+      setPlatform('win32')
+      mockSpawn
+        .mockImplementationOnce(() =>
+          createFakeProcess({ exitCode: 0, stdout: 'no match here' }),
+        )
+        .mockImplementationOnce(() =>
+          createFakeProcess({ exitCode: 0, stdout: 'also nothing' }),
+        )
+      const { checkOllamaUpdate } = await loadModule()
+      const result = await checkOllamaUpdate()
+      expect(result.state).toBe('unknown')
+    })
+
+    it('returns available on brew outdated output containing ollama (darwin)', async () => {
+      setPlatform('darwin')
+      mockSpawn.mockReturnValueOnce(
+        createFakeProcess({ exitCode: 0, stdout: 'ollama\n' }),
+      )
+      const { checkOllamaUpdate } = await loadModule()
+      const result = await checkOllamaUpdate()
+      expect(result.state).toBe('available')
+    })
+
+    it('returns up-to-date on empty brew outdated stdout (darwin)', async () => {
+      setPlatform('darwin')
+      mockSpawn.mockReturnValueOnce(createFakeProcess({ exitCode: 0, stdout: '' }))
+      const { checkOllamaUpdate } = await loadModule()
+      const result = await checkOllamaUpdate()
+      expect(result.state).toBe('up-to-date')
+    })
+
+    it('returns unknown on linux (no canonical check)', async () => {
+      setPlatform('linux')
+      const { checkOllamaUpdate } = await loadModule()
+      const result = await checkOllamaUpdate()
+      expect(result.state).toBe('unknown')
+      // No spawn call on linux
+      expect(mockSpawn).not.toHaveBeenCalled()
+    })
+
+    it('never throws on any failure path', async () => {
+      setPlatform('win32')
+      // First variant — list exit non-zero
+      mockSpawn
+        .mockReturnValueOnce(
+          createFakeProcess({ exitCode: 1, stderr: 'list failed' }),
+        )
+      const { checkOllamaUpdate } = await loadModule()
+      await expect(checkOllamaUpdate()).resolves.not.toThrow()
+    })
+  })
+
+  describe('updateOllama', () => {
+    it('selects winget upgrade on win32', async () => {
+      setPlatform('win32')
+      mockSpawn
+        .mockImplementationOnce(() => createFakeProcess({ exitCode: 0 })) // probe
+        .mockImplementationOnce(() => createFakeProcess({ exitCode: 0 })) // upgrade
+      const { updateOllama } = await loadModule()
+      const onProgress = vi.fn()
+      const result = await updateOllama(onProgress)
+      expect(result.success).toBe(true)
+      expect(mockSpawn.mock.calls[1][0]).toBe('winget')
+      expect(mockSpawn.mock.calls[1][1]).toContain('upgrade')
+      expect(mockSpawn.mock.calls[1][1]).toContain('Ollama.Ollama')
+    })
+
+    it('selects brew upgrade on darwin', async () => {
+      setPlatform('darwin')
+      mockSpawn
+        .mockImplementationOnce(() => createFakeProcess({ exitCode: 0 })) // probe
+        .mockImplementationOnce(() => createFakeProcess({ exitCode: 0 })) // upgrade
+      const { updateOllama } = await loadModule()
+      const result = await updateOllama(vi.fn())
+      expect(result.success).toBe(true)
+      expect(mockSpawn.mock.calls[1][0]).toBe('brew')
+      expect(mockSpawn.mock.calls[1][1]).toEqual(['upgrade', 'ollama'])
+    })
+
+    it('selects sh -c curl on linux', async () => {
+      setPlatform('linux')
+      mockSpawn
+        .mockImplementationOnce(() => createFakeProcess({ exitCode: 0 })) // probe
+        .mockImplementationOnce(() => createFakeProcess({ exitCode: 0 })) // upgrade
+      const { updateOllama } = await loadModule()
+      const result = await updateOllama(vi.fn())
+      expect(result.success).toBe(true)
+      expect(mockSpawn.mock.calls[1][0]).toBe('sh')
+      expect(mockSpawn.mock.calls[1][1]).toEqual([
+        '-c',
+        'curl -fsSL https://ollama.com/install.sh | sh',
+      ])
+    })
+
+    it('emits phases checking → downloading → installing → verifying on success', async () => {
+      setPlatform('darwin')
+      mockSpawn
+        .mockImplementationOnce(() => createFakeProcess({ exitCode: 0 })) // probe
+        .mockImplementationOnce(() => createFakeProcess({ exitCode: 0 })) // upgrade
+      const { updateOllama } = await loadModule()
+      const phases: string[] = []
+      await updateOllama((p: { phase: string }) => phases.push(p.phase))
+      expect(phases).toEqual(['checking', 'downloading', 'installing', 'verifying'])
+    })
+
+    it('returns alreadyUpToDate:true when winget stdout matches patterns (exit 0)', async () => {
+      setPlatform('win32')
+      mockSpawn
+        .mockImplementationOnce(() => createFakeProcess({ exitCode: 0 })) // probe
+        .mockImplementationOnce(() =>
+          createFakeProcess({ exitCode: 0, stdout: 'No available upgrade found' }),
+        ) // upgrade
+      const { updateOllama } = await loadModule()
+      const phases: string[] = []
+      const result = await updateOllama((p: { phase: string; message?: string }) =>
+        phases.push(`${p.phase}:${p.message ?? ''}`),
+      )
+      expect(result.success).toBe(true)
+      expect(result.alreadyUpToDate).toBe(true)
+      // verifying phase should be emitted with "Already up to date"
+      expect(phases.some((p) => p.startsWith('verifying') && /already/i.test(p))).toBe(true)
+    })
+
+    it('returns alreadyUpToDate:true when winget exit non-zero with pattern match', async () => {
+      setPlatform('win32')
+      mockSpawn
+        .mockImplementationOnce(() => createFakeProcess({ exitCode: 0 })) // probe
+        .mockImplementationOnce(() =>
+          createFakeProcess({
+            exitCode: 1,
+            stdout: 'No applicable update found',
+          }),
+        )
+      const { updateOllama } = await loadModule()
+      const result = await updateOllama(vi.fn())
+      expect(result.success).toBe(true)
+      expect(result.alreadyUpToDate).toBe(true)
+    })
+
+    it('returns elevationError on win32 access denied stderr', async () => {
+      setPlatform('win32')
+      mockSpawn
+        .mockImplementationOnce(() => createFakeProcess({ exitCode: 0 })) // probe
+        .mockImplementationOnce(() =>
+          createFakeProcess({ exitCode: 1, stderr: 'Access is denied' }),
+        )
+      const { updateOllama } = await loadModule()
+      const result = await updateOllama(vi.fn())
+      expect(result.success).toBe(false)
+      expect(result.elevationError).toBe(true)
+      expect(result.error).toContain('elevated permissions')
+    })
+
+    it('returns packageManagerMissing when isPackageManagerAvailable returns false', async () => {
+      setPlatform('win32')
+      mockSpawn.mockImplementationOnce(() => createFakeProcess({ exitCode: 1 })) // probe fails
+      const { updateOllama } = await loadModule()
+      const result = await updateOllama(vi.fn())
+      expect(result.success).toBe(false)
+      expect(result.packageManagerMissing).toBe(true)
+    })
+
+    it('returns generic failure with stderr excerpt on unknown exit error', async () => {
+      setPlatform('win32')
+      mockSpawn
+        .mockImplementationOnce(() => createFakeProcess({ exitCode: 0 })) // probe
+        .mockImplementationOnce(() =>
+          createFakeProcess({ exitCode: 2, stderr: 'generic error details' }),
+        )
+      const { updateOllama } = await loadModule()
+      const result = await updateOllama(vi.fn())
+      expect(result.success).toBe(false)
+      expect(result.error).toContain('generic error details')
+    })
+
+    it('never throws on any failure path', async () => {
+      setPlatform('freebsd')
+      const { updateOllama } = await loadModule()
+      await expect(updateOllama(vi.fn())).resolves.not.toThrow()
+    })
+  })
+
+  describe('activeOp singleton guard', () => {
+    it('rejects concurrent update while update is in progress', async () => {
+      setPlatform('win32')
+
+      // Hanging upgrade process
+      const hangingProc = new EventEmitter() as EventEmitter & {
+        pid: number | undefined
+        stdout: EventEmitter | null
+        stderr: EventEmitter | null
+        kill: ReturnType<typeof vi.fn>
+        unref: ReturnType<typeof vi.fn>
+      }
+      hangingProc.pid = 9999
+      hangingProc.stdout = new EventEmitter()
+      hangingProc.stderr = new EventEmitter()
+      hangingProc.kill = vi.fn()
+      hangingProc.unref = vi.fn()
+
+      mockSpawn
+        .mockImplementationOnce(() => createFakeProcess({ exitCode: 0 })) // probe
+        .mockImplementationOnce(() => hangingProc) // hanging upgrade
+
+      const { updateOllama } = await loadModule()
+
+      const first = updateOllama(vi.fn())
+      await new Promise((r) => setTimeout(r, 50))
+
+      const second = await updateOllama(vi.fn())
+      expect(second.success).toBe(false)
+      expect(second.error).toMatch(/update is already in progress/i)
+
+      hangingProc.emit('close', 0)
+      await first
+    })
+
+    it('rejects update while install is in progress', async () => {
+      setPlatform('win32')
+
+      const hangingProc = new EventEmitter() as EventEmitter & {
+        pid: number | undefined
+        stdout: EventEmitter | null
+        stderr: EventEmitter | null
+        kill: ReturnType<typeof vi.fn>
+        unref: ReturnType<typeof vi.fn>
+      }
+      hangingProc.pid = 9999
+      hangingProc.stdout = new EventEmitter()
+      hangingProc.stderr = new EventEmitter()
+      hangingProc.kill = vi.fn()
+      hangingProc.unref = vi.fn()
+
+      mockSpawn
+        .mockReturnValueOnce(createFakeProcess({ exitCode: 0 })) // probe
+        .mockReturnValueOnce(hangingProc) // hanging install
+
+      const { installOllama, updateOllama } = await loadModule()
+
+      const first = installOllama(vi.fn())
+      await new Promise((r) => setTimeout(r, 50))
+
+      const second = await updateOllama(vi.fn())
+      expect(second.success).toBe(false)
+      expect(second.error).toMatch(/install is already in progress/i)
+
+      hangingProc.emit('close', 0)
+      await first
+    })
+
+    it('rejects install while update is in progress', async () => {
+      setPlatform('win32')
+
+      const hangingProc = new EventEmitter() as EventEmitter & {
+        pid: number | undefined
+        stdout: EventEmitter | null
+        stderr: EventEmitter | null
+        kill: ReturnType<typeof vi.fn>
+        unref: ReturnType<typeof vi.fn>
+      }
+      hangingProc.pid = 9999
+      hangingProc.stdout = new EventEmitter()
+      hangingProc.stderr = new EventEmitter()
+      hangingProc.kill = vi.fn()
+      hangingProc.unref = vi.fn()
+
+      mockSpawn
+        .mockImplementationOnce(() => createFakeProcess({ exitCode: 0 })) // probe
+        .mockImplementationOnce(() => hangingProc) // hanging upgrade
+
+      const { installOllama, updateOllama } = await loadModule()
+
+      const first = updateOllama(vi.fn())
+      await new Promise((r) => setTimeout(r, 50))
+
+      const second = await installOllama(vi.fn())
+      expect(second.success).toBe(false)
+      expect(second.error).toMatch(/update is already in progress/i)
+
+      hangingProc.emit('close', 0)
+      await first
+    })
+  })
 })

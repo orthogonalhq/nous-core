@@ -282,6 +282,27 @@ describe('Wizard step components', () => {
     expect(screen.getByText(/Detected a high-spec desktop profile/)).toBeInTheDocument()
   })
 
+  it('renders model library info link with external anchor', () => {
+    installMock()
+    const props = createStepProps()
+
+    render(
+      <WizardStepModelDownload
+        {...props}
+        selectedModelSpec="ollama:qwen2.5:7b"
+        setSelectedModelSpec={vi.fn()}
+      />,
+    )
+
+    const helper = screen.getByTestId('wizard-model-library-info-link')
+    expect(helper).toBeInTheDocument()
+    const anchor = helper.querySelector('a')
+    expect(anchor).not.toBeNull()
+    expect(anchor?.getAttribute('href')).toBe('https://ollama.com/library')
+    expect(anchor?.getAttribute('target')).toBe('_blank')
+    expect(anchor?.getAttribute('rel')).toBe('noopener noreferrer')
+  })
+
   it('runs the download flow and finalizes provider configuration on success', async () => {
     const mock = installMock()
     const props = createStepProps()
