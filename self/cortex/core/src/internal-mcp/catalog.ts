@@ -36,6 +36,7 @@ export const INTERNAL_MCP_CATALOG: readonly InternalMcpCatalogEntry[] = [
   {
     name: 'memory_search',
     kind: 'capability',
+    domain: 'agent',
     definition: defineTool(
       'memory_search',
       'Search or retrieve scoped project memory.',
@@ -48,6 +49,7 @@ export const INTERNAL_MCP_CATALOG: readonly InternalMcpCatalogEntry[] = [
   {
     name: 'memory_write',
     kind: 'capability',
+    domain: 'agent',
     definition: defineTool(
       'memory_write',
       'Submit a governed memory write candidate.',
@@ -60,6 +62,7 @@ export const INTERNAL_MCP_CATALOG: readonly InternalMcpCatalogEntry[] = [
   {
     name: 'external_memory_put',
     kind: 'capability',
+    domain: 'bridge',
     definition: defineTool(
       'external_memory_put',
       'Execute a public external-memory append or supersede write.',
@@ -72,6 +75,7 @@ export const INTERNAL_MCP_CATALOG: readonly InternalMcpCatalogEntry[] = [
   {
     name: 'external_memory_get',
     kind: 'capability',
+    domain: 'bridge',
     definition: defineTool(
       'external_memory_get',
       'Read one public external-memory entry.',
@@ -84,6 +88,7 @@ export const INTERNAL_MCP_CATALOG: readonly InternalMcpCatalogEntry[] = [
   {
     name: 'external_memory_search',
     kind: 'capability',
+    domain: 'bridge',
     definition: defineTool(
       'external_memory_search',
       'Search public external-memory entries.',
@@ -96,6 +101,7 @@ export const INTERNAL_MCP_CATALOG: readonly InternalMcpCatalogEntry[] = [
   {
     name: 'external_memory_delete',
     kind: 'capability',
+    domain: 'bridge',
     definition: defineTool(
       'external_memory_delete',
       'Soft-delete one public external-memory entry.',
@@ -108,6 +114,7 @@ export const INTERNAL_MCP_CATALOG: readonly InternalMcpCatalogEntry[] = [
   {
     name: 'external_memory_compact',
     kind: 'capability',
+    domain: 'bridge',
     definition: defineTool(
       'external_memory_compact',
       'Compact source-local public external memory.',
@@ -120,6 +127,7 @@ export const INTERNAL_MCP_CATALOG: readonly InternalMcpCatalogEntry[] = [
   {
     name: 'public_agent_list',
     kind: 'capability',
+    domain: 'bridge',
     definition: defineTool(
       'public_agent_list',
       'List externally visible public agents.',
@@ -132,6 +140,7 @@ export const INTERNAL_MCP_CATALOG: readonly InternalMcpCatalogEntry[] = [
   {
     name: 'public_agent_invoke',
     kind: 'capability',
+    domain: 'bridge',
     definition: defineTool(
       'public_agent_invoke',
       'Invoke a public agent through the canonical AgentGateway seam.',
@@ -144,6 +153,7 @@ export const INTERNAL_MCP_CATALOG: readonly InternalMcpCatalogEntry[] = [
   {
     name: 'public_system_info',
     kind: 'capability',
+    domain: 'bridge',
     definition: defineTool(
       'public_system_info',
       'Project public-safe system and task-support metadata.',
@@ -156,6 +166,7 @@ export const INTERNAL_MCP_CATALOG: readonly InternalMcpCatalogEntry[] = [
   {
     name: 'promoted_memory_promote',
     kind: 'capability',
+    domain: 'agent',
     definition: defineTool(
       'promoted_memory_promote',
       'Promote one external source record into the internal promoted tier.',
@@ -168,6 +179,7 @@ export const INTERNAL_MCP_CATALOG: readonly InternalMcpCatalogEntry[] = [
   {
     name: 'promoted_memory_demote',
     kind: 'capability',
+    domain: 'agent',
     definition: defineTool(
       'promoted_memory_demote',
       'Soft-delete one promoted-tier record while preserving audit lineage.',
@@ -180,6 +192,7 @@ export const INTERNAL_MCP_CATALOG: readonly InternalMcpCatalogEntry[] = [
   {
     name: 'promoted_memory_get',
     kind: 'capability',
+    domain: 'agent',
     definition: defineTool(
       'promoted_memory_get',
       'Read one promoted-tier record by promoted ID.',
@@ -192,6 +205,7 @@ export const INTERNAL_MCP_CATALOG: readonly InternalMcpCatalogEntry[] = [
   {
     name: 'promoted_memory_search',
     kind: 'capability',
+    domain: 'agent',
     definition: defineTool(
       'promoted_memory_search',
       'Search promoted-tier records without querying external source tables.',
@@ -204,6 +218,7 @@ export const INTERNAL_MCP_CATALOG: readonly InternalMcpCatalogEntry[] = [
   {
     name: 'project_discover',
     kind: 'capability',
+    domain: 'agent',
     definition: defineTool(
       'project_discover',
       'Read current project configuration and state.',
@@ -216,6 +231,7 @@ export const INTERNAL_MCP_CATALOG: readonly InternalMcpCatalogEntry[] = [
   {
     name: 'artifact_store',
     kind: 'capability',
+    domain: 'agent',
     definition: defineTool(
       'artifact_store',
       'Persist a versioned project artifact.',
@@ -228,6 +244,7 @@ export const INTERNAL_MCP_CATALOG: readonly InternalMcpCatalogEntry[] = [
   {
     name: 'artifact_retrieve',
     kind: 'capability',
+    domain: 'agent',
     definition: defineTool(
       'artifact_retrieve',
       'Retrieve a versioned project artifact.',
@@ -240,6 +257,7 @@ export const INTERNAL_MCP_CATALOG: readonly InternalMcpCatalogEntry[] = [
   {
     name: 'tool_execute',
     kind: 'capability',
+    domain: 'agent',
     definition: defineTool(
       'tool_execute',
       'Execute an external project tool.',
@@ -252,6 +270,7 @@ export const INTERNAL_MCP_CATALOG: readonly InternalMcpCatalogEntry[] = [
   {
     name: 'tool_list',
     kind: 'capability',
+    domain: 'agent',
     definition: defineTool(
       'tool_list',
       'List external project tools.',
@@ -264,6 +283,7 @@ export const INTERNAL_MCP_CATALOG: readonly InternalMcpCatalogEntry[] = [
   {
     name: 'witness_checkpoint',
     kind: 'capability',
+    domain: 'agent',
     definition: defineTool(
       'witness_checkpoint',
       'Create a witness ledger checkpoint.',
@@ -276,6 +296,7 @@ export const INTERNAL_MCP_CATALOG: readonly InternalMcpCatalogEntry[] = [
   {
     name: 'escalation_notify',
     kind: 'capability',
+    domain: 'agent',
     definition: defineTool(
       'escalation_notify',
       'Create a canonical in-app escalation.',
@@ -288,6 +309,7 @@ export const INTERNAL_MCP_CATALOG: readonly InternalMcpCatalogEntry[] = [
   {
     name: 'scheduler_register',
     kind: 'capability',
+    domain: 'agent',
     definition: defineTool(
       'scheduler_register',
       'Register a project schedule.',
@@ -300,6 +322,7 @@ export const INTERNAL_MCP_CATALOG: readonly InternalMcpCatalogEntry[] = [
   {
     name: 'workflow_list',
     kind: 'capability',
+    domain: 'agent',
     definition: defineTool(
       'workflow_list',
       'List installed workflow definitions and known workflow runs.',
@@ -318,6 +341,7 @@ export const INTERNAL_MCP_CATALOG: readonly InternalMcpCatalogEntry[] = [
   {
     name: 'workflow_inspect',
     kind: 'capability',
+    domain: 'agent',
     definition: defineTool(
       'workflow_inspect',
       'Inspect one installed workflow package manifest, flow, steps, and dependencies.',
@@ -330,6 +354,7 @@ export const INTERNAL_MCP_CATALOG: readonly InternalMcpCatalogEntry[] = [
   {
     name: 'workflow_start',
     kind: 'capability',
+    domain: 'agent',
     definition: defineTool(
       'workflow_start',
       'Resolve, preflight, and start one workflow run in a project context.',
@@ -348,6 +373,7 @@ export const INTERNAL_MCP_CATALOG: readonly InternalMcpCatalogEntry[] = [
   {
     name: 'workflow_status',
     kind: 'capability',
+    domain: 'agent',
     definition: defineTool(
       'workflow_status',
       'Inspect the canonical status projection for one workflow run.',
@@ -360,6 +386,7 @@ export const INTERNAL_MCP_CATALOG: readonly InternalMcpCatalogEntry[] = [
   {
     name: 'workflow_pause',
     kind: 'capability',
+    domain: 'agent',
     definition: defineTool(
       'workflow_pause',
       'Pause a workflow run while preserving canonical run-state truth.',
@@ -372,6 +399,7 @@ export const INTERNAL_MCP_CATALOG: readonly InternalMcpCatalogEntry[] = [
   {
     name: 'workflow_resume',
     kind: 'capability',
+    domain: 'agent',
     definition: defineTool(
       'workflow_resume',
       'Resume a paused workflow run after canonical dependency preflight.',
@@ -384,6 +412,7 @@ export const INTERNAL_MCP_CATALOG: readonly InternalMcpCatalogEntry[] = [
   {
     name: 'workflow_cancel',
     kind: 'capability',
+    domain: 'agent',
     definition: defineTool(
       'workflow_cancel',
       'Cancel an in-flight workflow run without rewriting history.',
@@ -396,6 +425,7 @@ export const INTERNAL_MCP_CATALOG: readonly InternalMcpCatalogEntry[] = [
   {
     name: 'workflow_validate',
     kind: 'capability',
+    domain: 'agent',
     definition: defineTool(
       'workflow_validate',
       'Validate a YAML workflow spec without executing it.',
@@ -408,6 +438,7 @@ export const INTERNAL_MCP_CATALOG: readonly InternalMcpCatalogEntry[] = [
   {
     name: 'workflow_execute_node',
     kind: 'capability',
+    domain: 'agent',
     definition: defineTool(
       'workflow_execute_node',
       'Execute an engine-internal ready node (condition, transform, quality-gate) in a running workflow.',
@@ -424,6 +455,7 @@ export const INTERNAL_MCP_CATALOG: readonly InternalMcpCatalogEntry[] = [
   {
     name: 'workflow_complete_node',
     kind: 'capability',
+    domain: 'agent',
     definition: defineTool(
       'workflow_complete_node',
       'Record external node completion (from Worker/Orchestrator dispatch) and advance workflow state.',
@@ -443,6 +475,7 @@ export const INTERNAL_MCP_CATALOG: readonly InternalMcpCatalogEntry[] = [
   {
     name: 'workflow_from_spec',
     kind: 'capability',
+    domain: 'agent',
     definition: defineTool(
       'workflow_from_spec',
       'Create a persisted workflow definition from a YAML spec without starting it.',
@@ -455,6 +488,7 @@ export const INTERNAL_MCP_CATALOG: readonly InternalMcpCatalogEntry[] = [
   {
     name: 'workflow_create',
     kind: 'capability',
+    domain: 'agent',
     definition: defineTool(
       'workflow_create',
       'Create a new persisted workflow definition from a YAML spec. Returns the generated definition ID.',
@@ -467,6 +501,7 @@ export const INTERNAL_MCP_CATALOG: readonly InternalMcpCatalogEntry[] = [
   {
     name: 'workflow_update',
     kind: 'capability',
+    domain: 'agent',
     definition: defineTool(
       'workflow_update',
       'Update an existing persisted workflow definition from a YAML spec. Requires the definitionId to upsert.',
@@ -479,6 +514,7 @@ export const INTERNAL_MCP_CATALOG: readonly InternalMcpCatalogEntry[] = [
   {
     name: 'workflow_delete',
     kind: 'capability',
+    domain: 'agent',
     definition: defineTool(
       'workflow_delete',
       'Delete a persisted workflow definition by ID. Clears default if the deleted definition was the default.',
@@ -491,6 +527,7 @@ export const INTERNAL_MCP_CATALOG: readonly InternalMcpCatalogEntry[] = [
   {
     name: 'workflow_authoring_reference',
     kind: 'capability',
+    domain: 'agent',
     definition: defineTool(
       'workflow_authoring_reference',
       'Return the complete workflow authoring reference including node catalog, YAML structure, connection syntax, validation rules, example workflow, and dispatch classification. Call before authoring WorkflowSpec YAML.',
@@ -503,6 +540,7 @@ export const INTERNAL_MCP_CATALOG: readonly InternalMcpCatalogEntry[] = [
   {
     name: 'health_report',
     kind: 'capability',
+    domain: 'app',
     definition: defineTool(
       'health_report',
       'Publish a canonical app-runtime health snapshot.',
@@ -515,6 +553,7 @@ export const INTERNAL_MCP_CATALOG: readonly InternalMcpCatalogEntry[] = [
   {
     name: 'health_heartbeat',
     kind: 'capability',
+    domain: 'app',
     definition: defineTool(
       'health_heartbeat',
       'Publish an app-runtime heartbeat signal.',
@@ -527,6 +566,7 @@ export const INTERNAL_MCP_CATALOG: readonly InternalMcpCatalogEntry[] = [
   {
     name: 'credentials_store',
     kind: 'capability',
+    domain: 'app',
     definition: defineTool(
       'credentials_store',
       'Store one app-scoped credential without exposing it back to the app.',
@@ -547,6 +587,7 @@ export const INTERNAL_MCP_CATALOG: readonly InternalMcpCatalogEntry[] = [
   {
     name: 'credentials_inject',
     kind: 'capability',
+    domain: 'app',
     definition: defineTool(
       'credentials_inject',
       'Execute one outbound request with a credential injected by infrastructure.',
@@ -562,6 +603,7 @@ export const INTERNAL_MCP_CATALOG: readonly InternalMcpCatalogEntry[] = [
   {
     name: 'credentials_revoke',
     kind: 'capability',
+    domain: 'app',
     definition: defineTool(
       'credentials_revoke',
       'Revoke one app-scoped credential and remove it from the vault.',
@@ -572,8 +614,126 @@ export const INTERNAL_MCP_CATALOG: readonly InternalMcpCatalogEntry[] = [
     ),
   },
   {
+    name: 'task_list',
+    kind: 'capability',
+    domain: 'agent',
+    definition: defineTool(
+      'task_list',
+      'List task definitions for a project.',
+      { projectId: 'ProjectId' },
+      { tasks: 'TaskDefinition[]' },
+      ['read'],
+      'project',
+    ),
+  },
+  {
+    name: 'task_get',
+    kind: 'capability',
+    domain: 'agent',
+    definition: defineTool(
+      'task_get',
+      'Get a task definition by ID.',
+      { projectId: 'ProjectId', taskId: 'string (UUID)' },
+      { task: 'TaskDefinition' },
+      ['read'],
+      'project',
+    ),
+  },
+  {
+    name: 'task_create',
+    kind: 'capability',
+    domain: 'agent',
+    definition: defineTool(
+      'task_create',
+      'Create a new task definition.',
+      { projectId: 'ProjectId', task: 'TaskCreateInput' },
+      { task: 'TaskDefinition' },
+      ['write'],
+      'project',
+    ),
+  },
+  {
+    name: 'task_update',
+    kind: 'capability',
+    domain: 'agent',
+    definition: defineTool(
+      'task_update',
+      'Update an existing task definition.',
+      { projectId: 'ProjectId', taskId: 'string (UUID)', updates: 'TaskUpdateInput' },
+      { task: 'TaskDefinition' },
+      ['write'],
+      'project',
+    ),
+  },
+  {
+    name: 'task_delete',
+    kind: 'capability',
+    domain: 'agent',
+    definition: defineTool(
+      'task_delete',
+      'Delete a task definition by ID.',
+      { projectId: 'ProjectId', taskId: 'string (UUID)' },
+      { deleted: 'boolean' },
+      ['write'],
+      'project',
+    ),
+  },
+  {
+    name: 'task_toggle',
+    kind: 'capability',
+    domain: 'agent',
+    definition: defineTool(
+      'task_toggle',
+      'Toggle the enabled state of a task definition.',
+      { projectId: 'ProjectId', taskId: 'string (UUID)' },
+      { task: 'TaskDefinition' },
+      ['write'],
+      'project',
+    ),
+  },
+  {
+    name: 'task_trigger',
+    kind: 'capability',
+    domain: 'agent',
+    definition: defineTool(
+      'task_trigger',
+      'Manually trigger execution of an enabled task definition.',
+      { projectId: 'ProjectId', taskId: 'string (UUID)' },
+      { executionId: 'string', runId: 'string' },
+      ['execute'],
+      'project',
+    ),
+  },
+  {
+    name: 'task_history',
+    kind: 'capability',
+    domain: 'agent',
+    definition: defineTool(
+      'task_history',
+      'List execution history for a task definition.',
+      { projectId: 'ProjectId', taskId: 'string (UUID)', limit: 'number?' },
+      { executions: 'TaskExecutionRecord[]' },
+      ['read'],
+      'project',
+    ),
+  },
+  {
+    name: 'workflow_history',
+    kind: 'capability',
+    domain: 'agent',
+    definition: defineTool(
+      'workflow_history',
+      'List workflow execution history for a project. (V1 stub — returns empty array)',
+      { projectId: 'ProjectId', limit: 'number?' },
+      { executions: '[]' },
+      ['read'],
+      'project',
+    ),
+  },
+  {
     name: DISPATCH_ORCHESTRATOR_TOOL_NAME,
     kind: 'lifecycle',
+    domain: 'agent',
     definition: defineTool(
       DISPATCH_ORCHESTRATOR_TOOL_NAME,
       'Dispatch an Orchestrator-class agent with a structured intent.',
@@ -590,6 +750,7 @@ export const INTERNAL_MCP_CATALOG: readonly InternalMcpCatalogEntry[] = [
   {
     name: DISPATCH_WORKER_TOOL_NAME,
     kind: 'lifecycle',
+    domain: 'agent',
     definition: defineTool(
       DISPATCH_WORKER_TOOL_NAME,
       'Dispatch a Worker-class agent for task execution.',
@@ -607,6 +768,7 @@ export const INTERNAL_MCP_CATALOG: readonly InternalMcpCatalogEntry[] = [
   {
     name: TASK_COMPLETE_TOOL_NAME,
     kind: 'lifecycle',
+    domain: 'agent',
     definition: defineTool(
       TASK_COMPLETE_TOOL_NAME,
       'Complete the current task with a gateway-stamped packet.',
@@ -619,6 +781,7 @@ export const INTERNAL_MCP_CATALOG: readonly InternalMcpCatalogEntry[] = [
   {
     name: REQUEST_ESCALATION_TOOL_NAME,
     kind: 'lifecycle',
+    domain: 'agent',
     definition: defineTool(
       REQUEST_ESCALATION_TOOL_NAME,
       'Block and request escalation.',
@@ -631,6 +794,7 @@ export const INTERNAL_MCP_CATALOG: readonly InternalMcpCatalogEntry[] = [
   {
     name: FLAG_OBSERVATION_TOOL_NAME,
     kind: 'lifecycle',
+    domain: 'agent',
     definition: defineTool(
       FLAG_OBSERVATION_TOOL_NAME,
       'Emit a non-blocking observation.',
@@ -695,4 +859,10 @@ export function listDynamicInternalMcpToolEntries(
   return agentClass
     ? entries.filter((entry) => entry.visibleTo.includes(agentClass))
     : entries;
+}
+
+export function getToolsByDomain(
+  domain: 'agent' | 'app' | 'bridge',
+): readonly InternalMcpCatalogEntry[] {
+  return INTERNAL_MCP_CATALOG.filter((entry) => entry.domain === domain);
 }

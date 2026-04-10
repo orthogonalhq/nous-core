@@ -15,7 +15,17 @@ export class ScopedMcpToolSurface implements IScopedMcpToolSurface {
   private readonly handlers;
 
   constructor(private readonly options: InternalMcpScopedToolSurfaceOptions) {
-    this.allowed = getAuthorizedInternalMcpTools(this.options.agentClass);
+    const baseline = getAuthorizedInternalMcpTools(this.options.agentClass);
+    const leaseGrants = this.options.lease?.granted_tools ?? [];
+    if (leaseGrants.length > 0) {
+      const merged = new Set<string>(baseline);
+      for (const tool of leaseGrants) {
+        merged.add(tool);
+      }
+      this.allowed = merged;
+    } else {
+      this.allowed = baseline;
+    }
     this.handlers = createCapabilityHandlers({
       agentClass: this.options.agentClass,
       agentId: this.options.agentId,

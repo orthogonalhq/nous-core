@@ -8,6 +8,23 @@ import {
   type SystemTaskSubmission,
 } from './types.js';
 
+/**
+ * Principal Communication Bypass Tools
+ *
+ * `submit_task_to_system` and `inject_directive_to_system` are intentionally
+ * outside the internal MCP catalog (`INTERNAL_MCP_CATALOG`) and the
+ * authorization matrix (`MATRIX`). They are security-load-bearing bypasses
+ * that allow the Cortex::Principal to communicate directly with the System
+ * inbox without traversing the standard agent tool surface.
+ *
+ * These tools are registered on the Principal's tool surface via
+ * `getPrincipalCommunicationToolDefinitions()` and executed through
+ * `executePrincipalCommunicationTool()`. They must NOT be added to the
+ * catalog or matrix — doing so would expose them to non-Principal agent
+ * classes through the standard `ScopedMcpToolSurface` filtering.
+ *
+ * Reference: .architecture/.decisions/2026-04-09-mcp-audit/principal-bypass-disposition-v1.md
+ */
 export const SUBMIT_TASK_TO_SYSTEM_TOOL_NAME = 'submit_task_to_system';
 export const INJECT_DIRECTIVE_TO_SYSTEM_TOOL_NAME = 'inject_directive_to_system';
 

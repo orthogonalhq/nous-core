@@ -1014,6 +1014,9 @@ implements IPrincipalSystemGatewayRuntime, ISystemInboxSubmissionService {
       pfc: this.deps.pfc,
       promotedMemoryBridgeService: this.deps.promotedMemoryBridgeService,
       workflowEngine: this.deps.workflowEngine,
+      taskStore: this.deps.taskStore,
+      documentStore: this.deps.documentStore,
+      submitTaskToSystem: (input: import('./types.js').SystemTaskSubmission) => this.submitTaskToSystem(input),
       projectStore: this.deps.projectStore,
       scheduler: this.deps.scheduler,
       escalationService: this.deps.escalationService,
@@ -1036,6 +1039,7 @@ implements IPrincipalSystemGatewayRuntime, ISystemInboxSubmissionService {
             payload?: unknown;
             nodeDefinitionId?: string;
             dispatchIntent?: import('@nous/shared').DispatchIntent;
+            granted_tools?: string[];
           };
           context: {
             agentId: string;
@@ -1046,7 +1050,11 @@ implements IPrincipalSystemGatewayRuntime, ISystemInboxSubmissionService {
           };
           budget: GatewayBudget;
         }) => {
-          const child = this.createChildGateway(dispatchArgs.request.targetClass, dispatchArgs.request.dispatchIntent);
+          const child = this.createChildGateway(
+            dispatchArgs.request.targetClass,
+            dispatchArgs.request.dispatchIntent,
+            dispatchArgs.request.granted_tools,
+          );
           const childRunId = this.nextRunId();
           const childTraceId = this.nextRunId();
           return child.run({
@@ -1089,12 +1097,31 @@ implements IPrincipalSystemGatewayRuntime, ISystemInboxSubmissionService {
   private createChildGateway(
     targetClass: 'Orchestrator' | 'Worker',
     dispatchIntent?: import('@nous/shared').DispatchIntent,
+    grantedTools?: string[],
   ): IAgentGateway {
     const childAgentId = this.nextGatewayId();
+    const lease = grantedTools && grantedTools.length > 0
+      ? {
+          lease_id: this.idFactory() as import('@nous/shared').LeaseContract['lease_id'],
+          project_run_id: this.idFactory(),
+          workmode_id: 'system:implementation' as import('@nous/shared').LeaseContract['workmode_id'],
+          entrypoint_ref: 'dispatch-grant',
+          sop_ref: 'dispatch-grant',
+          scope_ref: 'dispatch-grant',
+          context_profile: 'dispatch-grant',
+          ttl: 3600,
+          issued_by: 'nous_cortex' as const,
+          issued_at: this.now(),
+          expires_at: new Date(Date.now() + 3600 * 1000).toISOString(),
+          revocation_ref: null,
+          granted_tools: grantedTools,
+        }
+      : undefined;
     const bundle = createInternalMcpSurfaceBundle({
       agentClass: targetClass,
       agentId: childAgentId as AgentGatewayConfig['agentId'],
       deps: this.createInternalMcpDeps(),
+      lease,
     });
 
     let baseSystemPrompt: string;
