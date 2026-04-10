@@ -1,74 +1,10 @@
 import { describe, expect, it, vi } from 'vitest';
 import { NousError } from '@nous/shared';
 import { GatewayBackedTurnExecutor } from '../../gateway-runtime/index.js';
-import { transformGatewayInput } from '../../gateway-runtime/gateway-turn-executor.js';
-import { TextModelInputSchema } from '../../../../../subcortex/providers/src/schemas.js';
 
 describe('GatewayBackedTurnExecutor', () => {
-  it('transforms gateway-format input into provider-compatible messages', () => {
-    const transformed = transformGatewayInput({
-      systemPrompt: 'Follow the system instructions',
-      context: [
-        {
-          role: 'user',
-          source: 'initial_context',
-          content: 'First question',
-          createdAt: '2026-03-21T23:00:00.000Z',
-        },
-        {
-          role: 'assistant',
-          source: 'model_output',
-          content: 'First answer',
-          createdAt: '2026-03-21T23:00:01.000Z',
-        },
-        {
-          role: 'tool',
-          source: 'tool_result',
-          content: 'tool output',
-          createdAt: '2026-03-21T23:00:02.000Z',
-        },
-      ],
-      tools: [{ name: 'task_complete' }],
-    });
-
-    expect(transformed).toEqual({
-      messages: [
-        { role: 'system', content: 'Follow the system instructions' },
-        { role: 'user', content: 'First question' },
-        { role: 'assistant', content: 'First answer' },
-        { role: 'user', content: 'tool output' },
-      ],
-      tools: [
-        { name: 'task_complete', description: '', input_schema: {} },
-      ],
-    });
-    expect(TextModelInputSchema.safeParse(transformed).success).toBe(true);
-  });
-
-  it('passes through existing provider input shapes unchanged', () => {
-    const promptInput = { prompt: 'Summarize this' };
-    const messagesInput = {
-      messages: [{ role: 'user', content: 'Already in provider format' }],
-    };
-    const randomInput = { foo: 'bar' };
-
-    expect(transformGatewayInput(promptInput)).toBe(promptInput);
-    expect(transformGatewayInput(messagesInput)).toBe(messagesInput);
-    expect(transformGatewayInput(randomInput)).toBe(randomInput);
-  });
-
-  it('keeps empty system prompts and empty context arrays valid', () => {
-    const transformed = transformGatewayInput({
-      systemPrompt: '',
-      context: [],
-      tools: [],
-    });
-
-    expect(transformed).toEqual({
-      messages: [{ role: 'system', content: '' }],
-    });
-    expect(TextModelInputSchema.safeParse(transformed).success).toBe(true);
-  });
+  // Legacy transformGatewayInput tests removed — function replaced by adapter.formatRequest()
+  // per WR-139.1 Adapter Format Wiring.
 
   it('satisfies the turn/trace seam through a gateway-backed execution path', async () => {
     const traces = new Map<string, unknown>();
@@ -133,20 +69,17 @@ describe('GatewayBackedTurnExecutor', () => {
 
     expect(result.response).toBe('Gateway-backed reply');
     expect(provider.invoke).toHaveBeenCalledOnce();
-    expect(provider.invoke).toHaveBeenCalledWith(
-      expect.objectContaining({
-        input: expect.objectContaining({
-          messages: [
-            expect.objectContaining({
-              role: 'system',
-            }),
-            expect.objectContaining({
-              role: 'user',
-              content: '{\n  "message": "Hello gateway executor"\n}',
-            }),
-          ],
+    // Text adapter produces { prompt, context } format (not { messages })
+    const invokedInput = provider.invoke.mock.calls[0][0].input;
+    expect(invokedInput).toHaveProperty('prompt');
+    expect(invokedInput).toHaveProperty('context');
+    expect(invokedInput.context).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          role: 'user',
+          content: '{\n  "message": "Hello gateway executor"\n}',
         }),
-      }),
+      ]),
     );
 
     const trace = await executor.getTrace(traceId);
