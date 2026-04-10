@@ -76,6 +76,47 @@ describe('createOpenAiAdapter', () => {
       const messages = input.messages as Array<{ role: string; content: string }>;
       expect(messages[0].content).toBe('Part A.\n\nPart B.');
     });
+
+    it('emits tool result message for tool frame with metadata.tool_call_id', () => {
+      const result = adapter.formatRequest({
+        systemPrompt: 'test',
+        context: [
+          {
+            role: 'tool' as const,
+            content: 'weather data',
+            source: 'tool_result' as const,
+            createdAt: '2026-01-01T00:00:00Z',
+            metadata: { tool_call_id: 'call_xyz' },
+          },
+        ],
+      });
+      const input = result.input as Record<string, unknown>;
+      const messages = input.messages as Array<Record<string, unknown>>;
+      // System message + tool result
+      expect(messages).toHaveLength(2);
+      expect(messages[1]).toEqual({
+        role: 'tool',
+        content: 'weather data',
+        tool_call_id: 'call_xyz',
+      });
+    });
+
+    it('falls back to role: user for tool frame without metadata.tool_call_id', () => {
+      const result = adapter.formatRequest({
+        systemPrompt: 'test',
+        context: [
+          {
+            role: 'tool' as const,
+            content: 'tool output',
+            source: 'tool_result' as const,
+            createdAt: '2026-01-01T00:00:00Z',
+          },
+        ],
+      });
+      const input = result.input as Record<string, unknown>;
+      const messages = input.messages as Array<Record<string, unknown>>;
+      expect(messages[1]).toEqual({ role: 'user', content: 'tool output' });
+    });
   });
 
   describe('parseResponse', () => {
@@ -94,6 +135,7 @@ describe('createOpenAiAdapter', () => {
           message: {
             content: '',
             tool_calls: [{
+              id: 'call_456',
               function: {
                 name: 'get_weather',
                 arguments: '{"city":"NYC"}',
@@ -104,8 +146,24 @@ describe('createOpenAiAdapter', () => {
       };
       const result = adapter.parseResponse(output, TRACE_ID);
       expect(result.toolCalls).toEqual([
-        { name: 'get_weather', params: { city: 'NYC' } },
+        { name: 'get_weather', params: { city: 'NYC' }, id: 'call_456' },
       ]);
+    });
+
+    it('preserves tool call id from tool_calls', () => {
+      const output = {
+        choices: [{
+          message: {
+            content: '',
+            tool_calls: [{
+              id: 'call_789',
+              function: { name: 'test', arguments: '{}' },
+            }],
+          },
+        }],
+      };
+      const result = adapter.parseResponse(output, TRACE_ID);
+      expect(result.toolCalls[0].id).toBe('call_789');
     });
 
     it('handles direct content/tool_calls (no choices wrapper)', () => {

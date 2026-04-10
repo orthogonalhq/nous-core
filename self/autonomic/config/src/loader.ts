@@ -10,6 +10,7 @@ import JSON5 from 'json5';
 import { ConfigError } from '@nous/shared';
 import { SystemConfigSchema, type SystemConfig } from './schema.js';
 import { DEFAULT_SYSTEM_CONFIG } from './defaults.js';
+import { migrateSystemConfigModelRoleAssignments } from './migrate.js';
 
 /**
  * Load and validate system configuration.
@@ -43,7 +44,8 @@ export function loadConfig(path?: string): SystemConfig {
     });
   }
 
-  const result = SystemConfigSchema.safeParse(parsed);
+  const migrated = migrateSystemConfigModelRoleAssignments(parsed);
+  const result = SystemConfigSchema.safeParse(migrated);
   if (!result.success) {
     const fieldErrors = result.error.issues.map((issue) => ({
       path: issue.path.join('.'),

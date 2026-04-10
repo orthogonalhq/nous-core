@@ -39,7 +39,7 @@ const createProjectConfig = () => ({
             executionModel: 'synchronous' as const,
             config: {
               type: 'model-call',
-              modelRole: 'reasoner' as const,
+              modelRole: 'cortex-chat' as const,
               promptRef: 'prompt://draft',
             },
           },
@@ -154,7 +154,7 @@ describe('DocumentProjectStore', () => {
                 executionModel: 'synchronous',
                 config: {
                   type: 'model-call',
-                  modelRole: 'reasoner',
+                  modelRole: 'cortex-chat',
                   promptRef: 'prompt://draft-v2',
                 },
               },
@@ -170,7 +170,7 @@ describe('DocumentProjectStore', () => {
     expect(got?.workflow?.definitions[0]?.version).toBe('1.0.1');
     expect(got?.workflow?.definitions[0]?.nodes[0]?.config).toEqual({
       type: 'model-call',
-      modelRole: 'reasoner',
+      modelRole: 'cortex-chat',
       promptRef: 'prompt://draft-v2',
     });
   });

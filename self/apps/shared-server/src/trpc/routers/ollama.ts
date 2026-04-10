@@ -1,15 +1,21 @@
 /**
- * Ollama tRPC router — model lifecycle management (list, pull, delete).
+ * Ollama tRPC router — model lifecycle management (list, pull, delete)
+ * and endpoint configuration (get, set).
  *
- * Proxies to the local Ollama HTTP API (localhost:11434).
+ * Proxies to the local Ollama HTTP API. The base URL is read from the
+ * provider config via getOllamaEndpointFromContext(), falling back to
+ * http://localhost:11434 when no custom endpoint is configured.
+ *
  * Pull progress is emitted via the event bus on the 'ollama:pull-progress'
  * SSE channel so the UI can display live progress.
  */
 import { z } from 'zod';
 import { router, publicProcedure } from '../trpc';
 import { pullOllamaModel, deleteOllamaModel } from '../../ollama-detection';
+import { getOllamaEndpointFromContext, DEFAULT_OLLAMA_BASE_URL } from '../../ollama-config';
+import { OLLAMA_WELL_KNOWN_PROVIDER_ID, buildOllamaProviderConfig, upsertProviderConfig } from '../../bootstrap';
+import type { ModelProviderConfig } from '@nous/shared';
 
-const DEFAULT_OLLAMA_BASE_URL = 'http://localhost:11434';
 const OLLAMA_LIST_TIMEOUT_MS = 5000;
 
 /**
@@ -33,9 +39,11 @@ export const ollamaRouter = router({
   /**
    * List installed Ollama models with size and modification date.
    */
-  listModels: publicProcedure.query(async () => {
+  listModels: publicProcedure.query(async ({ ctx }) => {
+    const endpoint = getOllamaEndpointFromContext(ctx);
+    console.log(`[nous:ollama] listModels: using endpoint ${endpoint}`);
     try {
-      const response = await fetch(`${DEFAULT_OLLAMA_BASE_URL}/api/tags`, {
+      const response = await fetch(`${endpoint}/api/tags`, {
         signal: AbortSignal.timeout(OLLAMA_LIST_TIMEOUT_MS),
       });
 
@@ -75,10 +83,12 @@ export const ollamaRouter = router({
   pullModel: publicProcedure
     .input(z.object({ model: z.string().min(1) }))
     .mutation(async ({ input, ctx }) => {
+      const endpoint = getOllamaEndpointFromContext(ctx);
       console.log(`[nous:ollama] pullModel: started ${input.model}`);
 
       try {
         await pullOllamaModel(input.model, {
+          baseUrl: endpoint,
           onProgress: (progress) => {
             ctx.eventBus.publish('ollama:pull-progress', {
               model: input.model,
@@ -107,11 +117,12 @@ export const ollamaRouter = router({
    */
   deleteModel: publicProcedure
     .input(z.object({ name: z.string().min(1) }))
-    .mutation(async ({ input }) => {
+    .mutation(async ({ input, ctx }) => {
+      const endpoint = getOllamaEndpointFromContext(ctx);
       console.log(`[nous:ollama] deleteModel: deleting ${input.name}`);
 
       try {
-        await deleteOllamaModel(input.name);
+        await deleteOllamaModel(input.name, { baseUrl: endpoint });
         console.log(`[nous:ollama] deleteModel: deleted ${input.name}`);
         return { success: true };
       } catch (err) {
@@ -119,5 +130,49 @@ export const ollamaRouter = router({
         console.log(`[nous:ollama] deleteModel: failed ${input.name} — ${message}`);
         throw err;
       }
+    }),
+
+  /**
+   * Get the currently configured Ollama endpoint (or default).
+   */
+  getEndpoint: publicProcedure.query(async ({ ctx }) => {
+    const endpoint = getOllamaEndpointFromContext(ctx);
+    return { endpoint };
+  }),
+
+  /**
+   * Set (or reset) the Ollama endpoint.
+   *
+   * Pass a valid URL string to set a custom endpoint, or `null` to reset
+   * to the default (http://localhost:11434).
+   */
+  setEndpoint: publicProcedure
+    .input(z.object({ endpoint: z.string().url().nullable() }))
+    .mutation(async ({ ctx, input }) => {
+      const config = ctx.config.get() as {
+        providers?: Array<{ id?: string; endpoint?: string; isLocal?: boolean; modelId?: string }>;
+      };
+      const existingProvider = config.providers?.find(
+        (p) => p.id === OLLAMA_WELL_KNOWN_PROVIDER_ID || p.isLocal,
+      );
+
+      // Build the provider config with the new (or cleared) endpoint
+      const endpointValue = input.endpoint ?? undefined;
+      const baseConfig = existingProvider
+        ? {
+            ...buildOllamaProviderConfig(existingProvider.modelId ?? 'unknown'),
+            ...existingProvider,
+            endpoint: endpointValue ?? DEFAULT_OLLAMA_BASE_URL,
+          }
+        : {
+            ...buildOllamaProviderConfig('unknown'),
+            endpoint: endpointValue ?? DEFAULT_OLLAMA_BASE_URL,
+          };
+
+      await upsertProviderConfig(ctx, baseConfig as ModelProviderConfig);
+
+      const effectiveEndpoint = endpointValue ?? DEFAULT_OLLAMA_BASE_URL;
+      console.log(`[nous:ollama] endpoint configured: ${effectiveEndpoint}`);
+      return { success: true };
     }),
 });

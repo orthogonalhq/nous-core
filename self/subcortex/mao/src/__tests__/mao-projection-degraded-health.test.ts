@@ -181,7 +181,7 @@ function createGraph(runState: WorkflowRunState) {
           type: 'model-call',
           governance: 'must',
           executionModel: 'synchronous',
-          config: { type: 'model-call', modelRole: 'reasoner', promptRef: 'prompt://draft' },
+          config: { type: 'model-call', modelRole: 'cortex-chat', promptRef: 'prompt://draft' },
         },
         inboundEdgeIds: [],
         outboundEdgeIds: ['edge-1'],

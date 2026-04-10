@@ -24,7 +24,7 @@ export const chatRouter = router({
         traceId,
       });
 
-      return { response: result.response, traceId: result.traceId, contentType: result.contentType };
+      return { response: result.response, traceId: result.traceId, contentType: result.contentType, thinkingContent: result.thinkingContent };
     }),
 
   getHistory: publicProcedure

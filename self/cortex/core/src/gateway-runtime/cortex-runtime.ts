@@ -47,6 +47,7 @@ import {
 } from '../internal-mcp/index.js';
 import { detectAndStripNarration } from '../output-parser.js';
 import { CARD_PROMPT_FRAGMENT } from './card-prompt-fragment.js';
+import { WORKFLOW_PROMPT_FRAGMENT } from './workflow-prompt-fragment.js';
 import { getOrchestratorPrompt } from '../prompts/index.js';
 import { resolvePromptConfig, composeSystemPromptFromConfig, resolveAgentProfile } from './prompt-strategy.js';
 import { resolveAdapter } from '../agent-gateway/adapters/index.js';
@@ -480,7 +481,7 @@ implements IPrincipalSystemGatewayRuntime, ISystemInboxSubmissionService {
 
     // Run Principal gateway
     const result = await this.principalGateway.run({
-      taskInstructions: `Handle the current user chat turn. Respond conversationally.\n\n${CARD_PROMPT_FRAGMENT}`,
+      taskInstructions: `Handle the current user chat turn. Respond conversationally.\n\n${WORKFLOW_PROMPT_FRAGMENT}\n\n${CARD_PROMPT_FRAGMENT}`,
       context: chatContext,
       budget: DEFAULT_CHAT_TURN_BUDGET,
       spawnBudgetCeiling: 0,
@@ -521,6 +522,7 @@ implements IPrincipalSystemGatewayRuntime, ISystemInboxSubmissionService {
       response: responseText,
       traceId,
       contentType: resolved.contentType,
+      thinkingContent: resolved.thinkingContent,
     };
   }
 
@@ -753,9 +755,14 @@ implements IPrincipalSystemGatewayRuntime, ISystemInboxSubmissionService {
     return result;
   }
 
-  private resolveChatResponse(result: AgentResult): { response: string; contentType: 'text' | 'openui' } {
+  private resolveChatResponse(result: AgentResult): { response: string; contentType: 'text' | 'openui'; thinkingContent?: string } {
     if (result.status === 'completed') {
-      const output = result.output as { response?: unknown; output?: unknown; contentType?: unknown } | string;
+      const output = result.output as { response?: unknown; output?: unknown; contentType?: unknown; thinkingContent?: unknown } | string;
+
+      // Extract thinkingContent from structured output (undefined for direct-string outputs)
+      const thinkingContent = (typeof output === 'object' && output !== null && typeof output.thinkingContent === 'string')
+        ? output.thinkingContent
+        : undefined;
 
       // 1. Direct string — use as-is
       if (typeof output === 'string') return { response: output, contentType: 'text' };
@@ -763,7 +770,7 @@ implements IPrincipalSystemGatewayRuntime, ISystemInboxSubmissionService {
       // 2. { response: string } — extract .response
       if (typeof output?.response === 'string') {
         const ct = output.contentType === 'openui' ? 'openui' as const : 'text' as const;
-        return { response: output.response, contentType: ct };
+        return { response: output.response, contentType: ct, thinkingContent };
       }
 
       // 3. Recursive one-level unwrap: { output: { response: string } }
@@ -777,6 +784,7 @@ implements IPrincipalSystemGatewayRuntime, ISystemInboxSubmissionService {
         return {
           response: ((output as { output: { response: string } }).output).response,
           contentType: 'text',
+          thinkingContent,
         };
       }
 
@@ -786,7 +794,7 @@ implements IPrincipalSystemGatewayRuntime, ISystemInboxSubmissionService {
         if (keys.length === 1) {
           const value = (output as Record<string, unknown>)[keys[0]];
           if (typeof value === 'string') {
-            return { response: value, contentType: 'text' };
+            return { response: value, contentType: 'text', thinkingContent };
           }
         }
       }
@@ -795,6 +803,7 @@ implements IPrincipalSystemGatewayRuntime, ISystemInboxSubmissionService {
       return {
         response: '```json\n' + JSON.stringify(output, null, 2) + '\n```',
         contentType: 'text',
+        thinkingContent,
       };
     }
     if (result.status === 'escalated') return { response: `[escalated: ${result.reason}]`, contentType: 'text' };
@@ -1014,6 +1023,9 @@ implements IPrincipalSystemGatewayRuntime, ISystemInboxSubmissionService {
       pfc: this.deps.pfc,
       promotedMemoryBridgeService: this.deps.promotedMemoryBridgeService,
       workflowEngine: this.deps.workflowEngine,
+      taskStore: this.deps.taskStore,
+      documentStore: this.deps.documentStore,
+      submitTaskToSystem: (input: import('./types.js').SystemTaskSubmission) => this.submitTaskToSystem(input),
       projectStore: this.deps.projectStore,
       scheduler: this.deps.scheduler,
       escalationService: this.deps.escalationService,
@@ -1036,6 +1048,7 @@ implements IPrincipalSystemGatewayRuntime, ISystemInboxSubmissionService {
             payload?: unknown;
             nodeDefinitionId?: string;
             dispatchIntent?: import('@nous/shared').DispatchIntent;
+            granted_tools?: string[];
           };
           context: {
             agentId: string;
@@ -1046,7 +1059,11 @@ implements IPrincipalSystemGatewayRuntime, ISystemInboxSubmissionService {
           };
           budget: GatewayBudget;
         }) => {
-          const child = this.createChildGateway(dispatchArgs.request.targetClass, dispatchArgs.request.dispatchIntent);
+          const child = this.createChildGateway(
+            dispatchArgs.request.targetClass,
+            dispatchArgs.request.dispatchIntent,
+            dispatchArgs.request.granted_tools,
+          );
           const childRunId = this.nextRunId();
           const childTraceId = this.nextRunId();
           return child.run({
@@ -1089,12 +1106,31 @@ implements IPrincipalSystemGatewayRuntime, ISystemInboxSubmissionService {
   private createChildGateway(
     targetClass: 'Orchestrator' | 'Worker',
     dispatchIntent?: import('@nous/shared').DispatchIntent,
+    grantedTools?: string[],
   ): IAgentGateway {
     const childAgentId = this.nextGatewayId();
+    const lease = grantedTools && grantedTools.length > 0
+      ? {
+          lease_id: this.idFactory() as import('@nous/shared').LeaseContract['lease_id'],
+          project_run_id: this.idFactory(),
+          workmode_id: 'system:implementation' as import('@nous/shared').LeaseContract['workmode_id'],
+          entrypoint_ref: 'dispatch-grant',
+          sop_ref: 'dispatch-grant',
+          scope_ref: 'dispatch-grant',
+          context_profile: 'dispatch-grant',
+          ttl: 3600,
+          issued_by: 'nous_cortex' as const,
+          issued_at: this.now(),
+          expires_at: new Date(Date.now() + 3600 * 1000).toISOString(),
+          revocation_ref: null,
+          granted_tools: grantedTools,
+        }
+      : undefined;
     const bundle = createInternalMcpSurfaceBundle({
       agentClass: targetClass,
       agentId: childAgentId as AgentGatewayConfig['agentId'],
       deps: this.createInternalMcpDeps(),
+      lease,
     });
 
     let baseSystemPrompt: string;

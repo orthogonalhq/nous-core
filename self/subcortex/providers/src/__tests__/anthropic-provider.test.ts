@@ -53,7 +53,7 @@ describe('AnthropicProvider', () => {
 
     await expect(
       provider.invoke({
-        role: 'reasoner',
+        role: 'cortex-chat',
         input: {},
         traceId: TRACE_ID,
       }),
@@ -76,7 +76,7 @@ describe('AnthropicProvider', () => {
     );
 
     const result = await provider.invoke({
-      role: 'reasoner',
+      role: 'cortex-chat',
       input: {
         messages: [
           { role: 'system', content: 'Be concise.' },
@@ -132,7 +132,7 @@ describe('AnthropicProvider', () => {
     );
 
     await provider.invoke({
-      role: 'reasoner',
+      role: 'cortex-chat',
       input: { prompt: 'Write a haiku.' },
       traceId: TRACE_ID,
     });
@@ -163,7 +163,7 @@ describe('AnthropicProvider', () => {
     );
 
     await provider.invoke({
-      role: 'reasoner',
+      role: 'cortex-chat',
       input: { prompt: 'Default max tokens?' },
       traceId: TRACE_ID,
     });
@@ -186,7 +186,7 @@ describe('AnthropicProvider', () => {
     );
 
     const result = await provider.invoke({
-      role: 'reasoner',
+      role: 'cortex-chat',
       input: { prompt: 'No content?' },
       traceId: TRACE_ID,
     });
@@ -204,7 +204,7 @@ describe('AnthropicProvider', () => {
 
     await expect(
       provider.invoke({
-        role: 'reasoner',
+        role: 'cortex-chat',
         input: { prompt: 'hi' },
         traceId: TRACE_ID,
       }),
@@ -224,7 +224,7 @@ describe('AnthropicProvider', () => {
 
     await expect(
       provider.invoke({
-        role: 'reasoner',
+        role: 'cortex-chat',
         input: { prompt: 'hi' },
         traceId: TRACE_ID,
       }),
@@ -244,7 +244,7 @@ describe('AnthropicProvider', () => {
 
     await expect(
       provider.invoke({
-        role: 'reasoner',
+        role: 'cortex-chat',
         input: { prompt: 'hi' },
         traceId: TRACE_ID,
       }),
@@ -288,7 +288,7 @@ describe('AnthropicProvider', () => {
 
     const chunks: Array<{ content: string; done: boolean; usage?: { inputTokens?: number; outputTokens?: number } }> = [];
     for await (const chunk of provider.stream({
-      role: 'reasoner',
+      role: 'cortex-chat',
       input: { prompt: 'Stream this.' },
       traceId: TRACE_ID,
     })) {
@@ -321,7 +321,7 @@ describe('AnthropicProvider', () => {
     } as Response);
 
     const iterator = provider.stream({
-      role: 'reasoner',
+      role: 'cortex-chat',
       input: { prompt: 'hi' },
       traceId: TRACE_ID,
     });
@@ -351,7 +351,7 @@ describe('AnthropicProvider', () => {
 
     await expect(
       provider.invoke({
-        role: 'reasoner',
+        role: 'cortex-chat',
         input: { prompt: 'hi' },
         traceId: TRACE_ID,
         abortSignal: controller.signal,

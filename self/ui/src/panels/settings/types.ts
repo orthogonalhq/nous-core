@@ -49,11 +49,6 @@ export interface AvailableModel {
   available: boolean
 }
 
-export interface ModelSelection {
-  principal: string | null
-  system: string | null
-}
-
 export interface RoleAssignmentDisplayEntry {
   role: string
   providerId: string | null
@@ -99,8 +94,6 @@ export interface PreferencesApi {
   getSystemStatus: () => Promise<SystemStatus>
   resetWizard?: () => Promise<unknown>
   getAvailableModels?: () => Promise<{ models: AvailableModel[] }>
-  getModelSelection?: () => Promise<ModelSelection>
-  setModelSelection?: (input: { principal?: string; system?: string }) => Promise<{ success: boolean }>
   getRoleAssignments?: () => Promise<RoleAssignmentDisplayEntry[]>
   getHardwareRecommendations?: () => Promise<HardwareRecommendations>
   setRoleAssignment?: (
@@ -109,40 +102,33 @@ export interface PreferencesApi {
   listOllamaModels?: () => Promise<{ models: OllamaModelEntry[] }>
   pullOllamaModel?: (name: string) => Promise<{ success: boolean }>
   deleteOllamaModel?: (name: string) => Promise<{ success: boolean }>
+  getOllamaEndpoint?: () => Promise<{ endpoint: string }>
+  setOllamaEndpoint?: (endpoint: string | null) => Promise<{ success: boolean }>
 }
 
 // ─── Constants ─────────────────────────────────────────────────────────────────
 
 export const MODEL_ROLES = [
-  'orchestrator',
-  'reasoner',
-  'tool-advisor',
-  'summarizer',
-  'embedder',
-  'reranker',
-  'vision',
+  'cortex-chat',
+  'cortex-system',
+  'orchestrators',
+  'workers',
 ] as const
 
 export type ModelRole = typeof MODEL_ROLES[number]
 
 export const MODEL_ROLE_LABELS: Record<ModelRole, string> = {
-  orchestrator: 'Orchestrator',
-  reasoner: 'Reasoner',
-  'tool-advisor': 'Tool Advisor',
-  summarizer: 'Summarizer',
-  embedder: 'Embedder',
-  reranker: 'Reranker',
-  vision: 'Vision',
+  'cortex-chat': 'Cortex Chat',
+  'cortex-system': 'Cortex System',
+  orchestrators: "Orchestrator's",
+  workers: "Worker's",
 }
 
 export const MODEL_ROLE_HINTS: Record<ModelRole, string> = {
-  orchestrator: 'Prefer the fastest model available for low-latency coordination.',
-  reasoner: 'Prefer the strongest model your current setup can comfortably sustain.',
-  'tool-advisor': 'Use a balanced model that stays responsive while calling tools.',
-  summarizer: 'A fast mid-tier model is usually enough for condensation passes.',
-  embedder: 'A lightweight local model keeps indexing and retrieval work snappy.',
-  reranker: 'Favor the quickest model that still preserves useful ranking quality.',
-  vision: 'Choose a multimodal-capable model when one is available.',
+  'cortex-chat': 'Prefer the strongest model your current setup can comfortably sustain.',
+  'cortex-system': 'Prefer the fastest model available for low-latency coordination.',
+  orchestrators: 'Use a balanced model that stays responsive while coordinating workflows.',
+  workers: 'A fast mid-tier model is usually enough for task execution.',
 }
 
 // ─── Page ID Constants ────────────────────────────────────────────────────────

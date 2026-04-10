@@ -107,7 +107,7 @@ describe('Internal MCP lifecycle handlers', () => {
               executionModel: 'sync',
               config: {
                 type: 'model-call',
-                modelRole: 'reasoner',
+                modelRole: 'cortex-chat',
                 promptRef: 'prompt://complete',
                 outputSchemaRef: 'schema://completion',
               },
@@ -578,6 +578,208 @@ describe('Internal MCP lifecycle handlers', () => {
         },
       }),
     );
+  });
+
+  describe('permission lease chain validation', () => {
+    const DISPATCH_LIFECYCLE_CONTEXT = {
+      agentId: AGENT_ID,
+      agentClass: 'Orchestrator' as const,
+      correlation: { runId: RUN_ID, parentId: AGENT_ID, sequence: 0 },
+      usage: { turnsUsed: 0, tokensUsed: 0, elapsedMs: 0, spawnUnitsUsed: 0 },
+      execution: {
+        projectId: PROJECT_ID,
+        traceId: TRACE_ID,
+        workmodeId: 'system:implementation',
+      },
+      snapshot: {
+        agentId: AGENT_ID,
+        agentClass: 'Orchestrator' as const,
+        correlation: { runId: RUN_ID, parentId: AGENT_ID, sequence: 0 },
+        budget: { maxTurns: 3, maxTokens: 100, timeoutMs: 1000 },
+        usage: { turnsUsed: 0, tokensUsed: 0, elapsedMs: 0, spawnUnitsUsed: 0 },
+        startedAt: '2026-03-12T19:00:00.000Z',
+        lastUpdatedAt: '2026-03-12T19:00:00.000Z',
+        contextFrameCount: 0,
+        execution: {
+          projectId: PROJECT_ID,
+          traceId: TRACE_ID,
+          workmodeId: 'system:implementation',
+        },
+      },
+    };
+
+    it('rejects granted_tools containing tools not possessed by the dispatcher (subset constraint)', async () => {
+      const bundle = createInternalMcpSurfaceBundle({
+        agentClass: 'Orchestrator',
+        agentId: AGENT_ID,
+        deps: {
+          workmodeAdmissionGuard: createWorkmodeAdmissionGuard(),
+          dispatchRuntime: {
+            dispatchChild: vi.fn(),
+          },
+        },
+      });
+
+      await expect(
+        bundle.lifecycleHooks.dispatchWorker!(
+          {
+            taskInstructions: 'Do work',
+            granted_tools: ['promoted_memory_promote'],
+          } as never,
+          DISPATCH_LIFECYCLE_CONTEXT,
+        ),
+      ).rejects.toThrow('not possessed by the dispatcher');
+    });
+
+    it('rejects granted_tools containing invalid tool names', async () => {
+      const bundle = createInternalMcpSurfaceBundle({
+        agentClass: 'Orchestrator',
+        agentId: AGENT_ID,
+        deps: {
+          workmodeAdmissionGuard: createWorkmodeAdmissionGuard(),
+          dispatchRuntime: {
+            dispatchChild: vi.fn(),
+          },
+        },
+      });
+
+      await expect(
+        bundle.lifecycleHooks.dispatchWorker!(
+          {
+            taskInstructions: 'Do work',
+            granted_tools: ['nonexistent_tool'],
+          } as never,
+          DISPATCH_LIFECYCLE_CONTEXT,
+        ),
+      ).rejects.toThrow('invalid tool names');
+    });
+
+    it('rejects granted_tools when dispatcher is a Worker (two-hop ceiling)', async () => {
+      // Workers lack dispatch_worker in baseline, so we give it via lease grants
+      // to test the two-hop ceiling defense-in-depth
+      const bundle = createInternalMcpSurfaceBundle({
+        agentClass: 'Worker',
+        agentId: AGENT_ID,
+        deps: {
+          workmodeAdmissionGuard: createWorkmodeAdmissionGuard(),
+          dispatchRuntime: {
+            dispatchChild: vi.fn(),
+          },
+        },
+        lease: {
+          lease_id: '550e8400-e29b-41d4-a716-446655440200' as never,
+          project_run_id: '550e8400-e29b-41d4-a716-446655440201',
+          workmode_id: 'system:implementation' as never,
+          entrypoint_ref: 'test',
+          sop_ref: 'test',
+          scope_ref: 'test',
+          context_profile: 'test',
+          ttl: 3600,
+          issued_by: 'nous_cortex',
+          issued_at: '2026-04-09T00:00:00.000Z',
+          expires_at: '2026-04-09T01:00:00.000Z',
+          revocation_ref: null,
+          granted_tools: ['dispatch_worker', 'workflow_create'],
+        },
+      });
+
+      // Worker has dispatch_worker via lease, but should not be able to delegate
+      // Note: dispatchWorker hook is only created if toolSet.has('dispatch_worker')
+      // With lease grants, the Worker now has dispatch_worker in its effective set
+      if (bundle.lifecycleHooks.dispatchWorker) {
+        await expect(
+          bundle.lifecycleHooks.dispatchWorker(
+            {
+              taskInstructions: 'Do work',
+              granted_tools: ['workflow_create'],
+            } as never,
+            {
+              ...DISPATCH_LIFECYCLE_CONTEXT,
+              agentClass: 'Worker',
+              snapshot: {
+                ...DISPATCH_LIFECYCLE_CONTEXT.snapshot,
+                agentClass: 'Worker',
+              },
+            },
+          ),
+        ).rejects.toThrow('two-hop ceiling');
+      }
+    });
+
+    it('allows dispatch with valid granted_tools that are a subset of dispatcher effective grants', async () => {
+      const dispatchChild = vi.fn().mockResolvedValue({
+        status: 'completed',
+        output: { done: true },
+        v3Packet: {
+          nous: { v: 3 },
+          route: {
+            emitter: { id: 'internal-mcp::worker::node-test::task-complete' },
+            target: { id: 'internal-mcp::parent::run-test::receive-task-complete' },
+          },
+          envelope: { direction: 'internal', type: 'response_packet' },
+          correlation: {
+            handoff_id: 'handoff-1',
+            correlation_id: RUN_ID,
+            cycle: 'n/a',
+            emitted_at_utc: '2026-03-12T19:00:00.000Z',
+            emitted_at_unix_ms: '1773342000000',
+            emitted_at_unix_us: '1773342000000000',
+            sequence_in_run: '1',
+          },
+          payload: { schema: 'n/a', artifact_type: 'n/a', data: { done: true } },
+          retry: {
+            policy: 'value-proportional',
+            depth: 'lightweight',
+            importance_tier: 'standard',
+            expected_quality_gain: 'n/a',
+            estimated_tokens: 'n/a',
+            estimated_compute_minutes: 'n/a',
+            token_price_ref: 'runtime:gateway',
+            compute_price_ref: 'runtime:gateway',
+            decision: 'accept',
+            decision_log_ref: 'runtime:gateway/task-complete',
+            benchmark_tier: 'n/a',
+            self_repair: {
+              required_on_fail_close: true,
+              orchestration_state: 'deferred',
+              approval_role: 'Cortex:System',
+              implementation_mode: 'direct',
+              plan_ref: 'runtime:gateway/self-repair',
+            },
+          },
+        },
+        correlation: { runId: RUN_ID, parentId: AGENT_ID, sequence: 1 },
+        usage: { turnsUsed: 1, tokensUsed: 20, elapsedMs: 10, spawnUnitsUsed: 0 },
+        evidenceRefs: [],
+      });
+
+      const bundle = createInternalMcpSurfaceBundle({
+        agentClass: 'Orchestrator',
+        agentId: AGENT_ID,
+        deps: {
+          workmodeAdmissionGuard: createWorkmodeAdmissionGuard(),
+          dispatchRuntime: { dispatchChild },
+        },
+      });
+
+      // workflow_list is in the Orchestrator baseline, so granting it should succeed
+      await bundle.lifecycleHooks.dispatchWorker!(
+        {
+          taskInstructions: 'Do work',
+          granted_tools: ['workflow_list'],
+        } as never,
+        DISPATCH_LIFECYCLE_CONTEXT,
+      );
+
+      expect(dispatchChild).toHaveBeenCalledOnce();
+      expect(dispatchChild).toHaveBeenCalledWith(
+        expect.objectContaining({
+          request: expect.objectContaining({
+            granted_tools: ['workflow_list'],
+          }),
+        }),
+      );
+    });
   });
 
   describe('requestEscalation bridge', () => {

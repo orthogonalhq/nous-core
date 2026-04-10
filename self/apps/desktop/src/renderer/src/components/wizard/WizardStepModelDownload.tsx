@@ -6,6 +6,7 @@ import {
   parseModelSpec,
   toOllamaModelSpec,
   type FirstRunActionResult,
+  type FirstRunState,
   type WizardStepProps,
 } from './types'
 import { trpcMutate } from './trpc-fetch'
@@ -106,6 +107,30 @@ export function WizardStepModelDownload({
     }
   }
 
+  const handleSkip = async () => {
+    finalizeRef.current = true
+    setActionError(null)
+    setLocalError(null)
+    setActionInProgress(true)
+
+    try {
+      // Skip both model_download and provider_config — without a downloaded
+      // model there's no provider to configure. User can add models later via
+      // Settings > Local Models.
+      await trpcMutate<FirstRunState>('firstRun.completeStep', { step: 'model_download' })
+      const nextState = await trpcMutate<FirstRunState>('firstRun.completeStep', {
+        step: 'provider_config',
+      })
+      onStepComplete(nextState)
+    } catch (error) {
+      finalizeRef.current = false
+      const message = error instanceof Error ? error.message : String(error)
+      setLocalError(message)
+      setActionError(message)
+      setActionInProgress(false)
+    }
+  }
+
   const handleDownload = async () => {
     if (!parsedModel || parsedModel.provider !== 'ollama') {
       setActionError('Choose an Ollama model before starting the download.')
@@ -193,6 +218,14 @@ export function WizardStepModelDownload({
             />
           </label>
 
+          <p className="nous-wizard__helper-text" data-testid="wizard-model-library-info-link">
+            Don&rsquo;t see what you want?{' '}
+            <a href="https://ollama.com/library" target="_blank" rel="noopener noreferrer">
+              Browse the Ollama library
+            </a>
+            .
+          </p>
+
           <div className="nous-wizard__summary-list">
             <div className="nous-wizard__summary-item">
               <span>Provider spec</span>
@@ -271,6 +304,20 @@ export function WizardStepModelDownload({
                 {actionInProgress ? 'Working…' : 'Download model'}
               </button>
             )}
+
+            {!modelAlreadyDownloaded && !downloadRequested ? (
+              <button
+                type="button"
+                className="nous-wizard__button nous-wizard__button--secondary"
+                onClick={() => {
+                  void handleSkip()
+                }}
+                disabled={actionInProgress}
+                title="Skip model download. You can add models later from Settings > Local Models."
+              >
+                Skip — I&rsquo;ll add models later
+              </button>
+            ) : null}
           </div>
         </section>
       </div>

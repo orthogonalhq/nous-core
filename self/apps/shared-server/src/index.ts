@@ -11,7 +11,6 @@ export {
   OLLAMA_WELL_KNOWN_PROVIDER_ID,
   createNousServices,
   loadStoredApiKeys,
-  loadModelSelection,
   registerStoredProviders,
   WELL_KNOWN_PROVIDER_IDS,
   buildOllamaProviderConfig,
@@ -43,11 +42,16 @@ export type {
   RecommendationProfilePolicy,
 } from './hardware-detection';
 export {
+  MINIMUM_OLLAMA_VERSION,
   OllamaBinaryResolutionSchema,
   OllamaLifecycleStateSchema,
   OllamaModelPullProgressSchema,
   OllamaStatusSchema,
+  OllamaVersionParsedSchema,
+  OllamaVersionResultSchema,
   detectOllama,
+  getOllamaVersion,
+  meetsMinimumVersion,
   pullOllamaModel,
   resolveOllamaBinary,
 } from './ollama-detection';
@@ -56,6 +60,8 @@ export type {
   OllamaLifecycleState,
   OllamaModelPullProgress,
   OllamaStatus,
+  OllamaVersionParsed,
+  OllamaVersionResult,
 } from './ollama-detection';
 export {
   FirstRunActionResultSchema,

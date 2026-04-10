@@ -14,6 +14,14 @@ type OllamaModelPullProgress = Parameters<ElectronAPI['ollama']['onPullProgress'
 ) => void
   ? T
   : never
+type OllamaUpdateCheckResult = Awaited<ReturnType<ElectronAPI['ollama']['checkUpdate']>>
+type OllamaUpdateResult = Awaited<ReturnType<ElectronAPI['ollama']['update']>>
+type OllamaVersionInfoPayload = Awaited<ReturnType<ElectronAPI['ollama']['getVersion']>>
+type OllamaUpdateProgressPayload = Parameters<ElectronAPI['ollama']['onUpdateProgress']>[0] extends (
+  progress: infer T,
+) => void
+  ? T
+  : never
 
 export const DEFAULT_OLLAMA_STATUS: OllamaStatus = {
   installed: true,
@@ -60,23 +68,13 @@ export const DEFAULT_PREREQUISITES: FirstRunPrerequisites = {
     },
     multiModel: [
       {
-        role: 'reasoner',
+        role: 'cortex-chat',
         recommendation: {
           modelId: 'qwen2.5:14b',
           modelSpec: 'ollama:qwen2.5:14b',
           displayName: 'Qwen 2.5 14B',
           ramRequiredMB: 16384,
           reason: 'Use the stronger local model for heavier reasoning.',
-        },
-      },
-      {
-        role: 'vision',
-        recommendation: {
-          modelId: 'llama3.2:3b',
-          modelSpec: 'ollama:llama3.2:3b',
-          displayName: 'Llama 3.2 3B',
-          ramRequiredMB: 4096,
-          reason: 'Lightweight support model for specialist roles.',
         },
       },
     ],
@@ -213,6 +211,27 @@ export function createElectronAPIMock() {
           ollamaStateListeners.delete(callback)
         }
       }),
+      install: vi.fn(async (): Promise<unknown> => ({ success: true })),
+      onInstallProgress: vi.fn(
+        (_callback: (progress: { phase: string; message?: string }) => void) => {
+          return () => {}
+        },
+      ),
+      checkUpdate: vi.fn(async (): Promise<OllamaUpdateCheckResult> => ({
+        state: 'unknown',
+        detail: 'test mock',
+      })),
+      update: vi.fn(async (): Promise<OllamaUpdateResult> => ({ success: true })),
+      getVersion: vi.fn(async (): Promise<OllamaVersionInfoPayload> => ({
+        version: '0.3.14',
+        meetsMinimum: true,
+        minimumVersion: '0.3.12',
+      })),
+      onUpdateProgress: vi.fn(
+        (_callback: (progress: OllamaUpdateProgressPayload) => void) => {
+          return () => {}
+        },
+      ),
     },
   } satisfies ElectronAPI
 

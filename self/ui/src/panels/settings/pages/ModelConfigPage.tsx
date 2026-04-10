@@ -1,7 +1,7 @@
 'use client'
 
 import { useState, useEffect, useCallback } from 'react'
-import type { PreferencesApi, AvailableModel, ModelSelection, FeedbackState } from '../types'
+import type { PreferencesApi, AvailableModel, FeedbackState } from '../types'
 import {
   sectionStyle,
   sectionTitleStyle,
@@ -14,12 +14,13 @@ import {
 import { buildModelsByProvider, formatFeedbackError } from './helpers'
 
 export interface ModelConfigPageProps {
-  api: Pick<PreferencesApi, 'getAvailableModels' | 'getModelSelection' | 'setModelSelection'>
+  api: Pick<PreferencesApi, 'getAvailableModels' | 'getRoleAssignments' | 'setRoleAssignment'>
 }
 
 export function ModelConfigPage({ api }: ModelConfigPageProps) {
   const [availableModels, setAvailableModels] = useState<AvailableModel[]>([])
-  const [modelSelection, setModelSelection] = useState<ModelSelection>({ principal: null, system: null })
+  const [currentPrincipal, setCurrentPrincipal] = useState<string | null>(null)
+  const [currentSystem, setCurrentSystem] = useState<string | null>(null)
   const [pendingPrincipal, setPendingPrincipal] = useState<string>('')
   const [pendingSystem, setPendingSystem] = useState<string>('')
   const [savingModels, setSavingModels] = useState(false)
@@ -27,19 +28,24 @@ export function ModelConfigPage({ api }: ModelConfigPageProps) {
 
   const loadData = useCallback(async () => {
     try {
-      const [modelsResult, selectionResult] = await Promise.all([
+      const [modelsResult, assignmentsResult] = await Promise.all([
         api.getAvailableModels ? api.getAvailableModels() : Promise.resolve(null),
-        api.getModelSelection ? api.getModelSelection() : Promise.resolve(null),
+        api.getRoleAssignments ? api.getRoleAssignments() : Promise.resolve(null),
       ])
 
       if (modelsResult) {
         setAvailableModels(modelsResult.models)
       }
 
-      if (selectionResult) {
-        setModelSelection(selectionResult)
-        setPendingPrincipal(selectionResult.principal ?? '')
-        setPendingSystem(selectionResult.system ?? '')
+      if (assignmentsResult && Array.isArray(assignmentsResult)) {
+        const principalEntry = assignmentsResult.find((a: any) => a.role === 'cortex-chat')
+        const systemEntry = assignmentsResult.find((a: any) => a.role === 'cortex-system')
+        setCurrentPrincipal(principalEntry?.providerId ?? null)
+        setCurrentSystem(systemEntry?.providerId ?? null)
+        // Minimal rewire: pending values start empty; user reselects from dropdown.
+        // The getRoleAssignments returns providerIds, not modelSpecs, so we cannot
+        // pre-populate the dropdown (which expects modelSpec strings) without a
+        // reverse lookup. This is acceptable for 1.1's minimal rewire mandate.
       }
     } catch (err) {
       setModelFeedback(formatFeedbackError(err))
@@ -57,22 +63,22 @@ export function ModelConfigPage({ api }: ModelConfigPageProps) {
   const modelsByProvider = buildModelsByProvider(availableModels)
 
   const modelSelectionChanged =
-    pendingPrincipal !== (modelSelection.principal ?? '') ||
-    pendingSystem !== (modelSelection.system ?? '')
+    pendingPrincipal !== (currentPrincipal ?? '') ||
+    pendingSystem !== (currentSystem ?? '')
 
   const handleSaveModels = async () => {
-    if (!api.setModelSelection) return
+    if (!api.setRoleAssignment) return
     setSavingModels(true)
     setModelFeedback(null)
     try {
-      await api.setModelSelection({
-        principal: pendingPrincipal || undefined,
-        system: pendingSystem || undefined,
-      })
-      setModelSelection({
-        principal: pendingPrincipal || null,
-        system: pendingSystem || null,
-      })
+      if (pendingPrincipal) {
+        await api.setRoleAssignment({ role: 'cortex-chat', modelSpec: pendingPrincipal })
+      }
+      if (pendingSystem) {
+        await api.setRoleAssignment({ role: 'cortex-system', modelSpec: pendingSystem })
+      }
+      setCurrentPrincipal(pendingPrincipal || null)
+      setCurrentSystem(pendingSystem || null)
       setModelFeedback({ message: 'Model selection saved.', success: true })
     } catch (err) {
       setModelFeedback(formatFeedbackError(err))

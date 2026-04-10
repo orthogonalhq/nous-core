@@ -6,25 +6,10 @@ import { createRoot, type Root } from 'react-dom/client'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { PreferencesPanel, type PreferencesApi } from '../PreferencesPanel.js'
 
-const ROLE_LABELS = [
-  'Orchestrator',
-  'Reasoner',
-  'Tool Advisor',
-  'Summarizer',
-  'Embedder',
-  'Reranker',
-  'Vision',
-] as const
+import { ModelRoleSchema, MODEL_ROLE_LABELS } from '@nous/shared'
 
-const ROLE_KEYS = [
-  'orchestrator',
-  'reasoner',
-  'tool-advisor',
-  'summarizer',
-  'embedder',
-  'reranker',
-  'vision',
-] as const
+const ROLE_LABELS = ModelRoleSchema.options.map((r) => MODEL_ROLE_LABELS[r])
+const ROLE_KEYS = ModelRoleSchema.options
 
 let container: HTMLDivElement
 let root: Root
@@ -49,11 +34,6 @@ function createBaseApi(overrides: Partial<PreferencesApi> = {}): PreferencesApi 
         { id: 'openai:gpt-4o', name: 'GPT-4o', provider: 'openai', available: true },
       ],
     }),
-    getModelSelection: async () => ({
-      principal: 'openai:gpt-4o',
-      system: 'ollama:qwen2.5:7b',
-    }),
-    setModelSelection: async () => ({ success: true }),
     ...overrides,
   }
 }
@@ -62,13 +42,10 @@ function createRoleAssignments(
   overrides: Partial<Record<(typeof ROLE_KEYS)[number], string | null>> = {},
 ) {
   const defaults: Record<(typeof ROLE_KEYS)[number], string | null> = {
-    orchestrator: 'ollama:qwen2.5:7b',
-    reasoner: 'openai:gpt-4o',
-    'tool-advisor': 'anthropic:claude-sonnet-4-20250514',
-    summarizer: 'ollama:qwen2.5:7b',
-    embedder: 'ollama:qwen2.5:7b',
-    reranker: 'ollama:qwen2.5:7b',
-    vision: 'openai:gpt-4o',
+    'cortex-chat': 'openai:gpt-4o',
+    'cortex-system': 'ollama:qwen2.5:7b',
+    orchestrators: 'anthropic:claude-sonnet-4-20250514',
+    workers: 'ollama:qwen2.5:7b',
   }
 
   return ROLE_KEYS.map((role) => {
@@ -235,7 +212,7 @@ describe('PreferencesPanel role assignment settings', () => {
     }
   })
 
-  it('displays all 7 roles with their current assignments', async () => {
+  it('displays all 4 roles with their current assignments', async () => {
     const api = createBaseApi({
       getRoleAssignments: async () => createRoleAssignments() as any,
       setRoleAssignment: async () => ({ success: true }),
@@ -259,14 +236,14 @@ describe('PreferencesPanel role assignment settings', () => {
     await renderPanel(api)
     await navigateToPage('role-assignments')
     await changeSelect(
-      getSelectByAriaLabel('Orchestrator assignment'),
-      'anthropic:claude-sonnet-4-20250514',
+      getSelectByAriaLabel("Orchestrator's assignment"),
+      'openai:gpt-4o',
     )
     await click(getButton('Save Role Assignments'))
 
     expect(setRoleAssignment).toHaveBeenCalledWith({
-      role: 'orchestrator',
-      modelSpec: 'anthropic:claude-sonnet-4-20250514',
+      role: 'orchestrators',
+      modelSpec: 'openai:gpt-4o',
     })
   })
 
@@ -295,8 +272,8 @@ describe('PreferencesPanel role assignment settings', () => {
 
   it('shows an error message when a role assignment save fails', async () => {
     const setRoleAssignment = vi.fn(async (input: { role: string }) => {
-      if (input.role === 'reasoner') {
-        return { success: false, error: 'Reasoner update failed.' }
+      if (input.role === 'cortex-chat') {
+        return { success: false, error: 'Cortex Chat update failed.' }
       }
 
       return { success: true }
@@ -308,17 +285,17 @@ describe('PreferencesPanel role assignment settings', () => {
 
     await renderPanel(api)
     await navigateToPage('role-assignments')
-    await changeSelect(getSelectByAriaLabel('Reasoner assignment'), 'anthropic:claude-sonnet-4-20250514')
+    await changeSelect(getSelectByAriaLabel('Cortex Chat assignment'), 'anthropic:claude-sonnet-4-20250514')
     await click(getButton('Save Role Assignments'))
 
-    expect(textContent()).toContain('Error: Reasoner update failed.')
+    expect(textContent()).toContain('Error: Cortex Chat update failed.')
   })
 
   it('shows Not assigned for null assignments', async () => {
     const api = createBaseApi({
       getRoleAssignments: async () => createRoleAssignments({
-        orchestrator: null,
-        reasoner: null,
+        orchestrators: null,
+        'cortex-chat': null,
       }) as any,
       setRoleAssignment: async () => ({ success: true }),
     })
@@ -344,16 +321,13 @@ describe('PreferencesPanel role assignment settings', () => {
     expect(container.querySelector('[data-testid="page-role-assignments"]')).toBeTruthy()
   })
 
-  it('renders a fully empty state when all 7 roles are unassigned', async () => {
+  it('renders a fully empty state when all 4 roles are unassigned', async () => {
     const api = createBaseApi({
       getRoleAssignments: async () => createRoleAssignments({
-        orchestrator: null,
-        reasoner: null,
-        'tool-advisor': null,
-        summarizer: null,
-        embedder: null,
-        reranker: null,
-        vision: null,
+        'cortex-chat': null,
+        'cortex-system': null,
+        orchestrators: null,
+        workers: null,
       }) as any,
       setRoleAssignment: async () => ({ success: true }),
     })
@@ -361,16 +335,16 @@ describe('PreferencesPanel role assignment settings', () => {
     await renderPanel(api)
     await navigateToPage('role-assignments')
 
-    expect((textContent().match(/Not assigned/g) ?? []).length).toBeGreaterThanOrEqual(7)
+    expect((textContent().match(/Not assigned/g) ?? []).length).toBeGreaterThanOrEqual(4)
   })
 
   it('renders mixed assigned and unassigned role states', async () => {
     const api = createBaseApi({
       getRoleAssignments: async () => createRoleAssignments({
-        orchestrator: 'openai:gpt-4o',
-        reasoner: null,
-        'tool-advisor': 'anthropic:claude-sonnet-4-20250514',
-        summarizer: null,
+        orchestrators: 'openai:gpt-4o',
+        'cortex-chat': null,
+        workers: 'anthropic:claude-sonnet-4-20250514',
+        'cortex-system': null,
       }) as any,
       setRoleAssignment: async () => ({ success: true }),
     })
