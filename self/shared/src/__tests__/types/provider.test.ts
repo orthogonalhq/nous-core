@@ -1,9 +1,11 @@
 import { describe, it, expect } from 'vitest';
 import {
+  KNOWN_PROVIDER_VENDORS,
   ModelProviderConfigSchema,
   ModelRequestSchema,
   ModelResponseSchema,
   ModelStreamChunkSchema,
+  type ProviderVendor,
 } from '../../types/provider.js';
 
 const VALID_UUID = '550e8400-e29b-41d4-a716-446655440000';
@@ -37,6 +39,99 @@ describe('ModelProviderConfigSchema', () => {
       type: 'audio',
     });
     expect(result.success).toBe(false);
+  });
+});
+
+describe('ModelProviderConfigSchema vendor field (WR-138)', () => {
+  const baseFixture = {
+    id: VALID_UUID,
+    name: 'Test Provider',
+    type: 'text' as const,
+    modelId: 'test-model',
+    isLocal: false,
+    capabilities: ['text-generation'],
+  };
+
+  it('accepts known vendor "anthropic"', () => {
+    const result = ModelProviderConfigSchema.safeParse({
+      ...baseFixture,
+      vendor: 'anthropic',
+    });
+    expect(result.success).toBe(true);
+  });
+
+  it('accepts known vendor "openai"', () => {
+    const result = ModelProviderConfigSchema.safeParse({
+      ...baseFixture,
+      vendor: 'openai',
+    });
+    expect(result.success).toBe(true);
+  });
+
+  it('accepts known vendor "ollama"', () => {
+    const result = ModelProviderConfigSchema.safeParse({
+      ...baseFixture,
+      vendor: 'ollama',
+    });
+    expect(result.success).toBe(true);
+  });
+
+  it('accepts known vendor "text"', () => {
+    const result = ModelProviderConfigSchema.safeParse({
+      ...baseFixture,
+      vendor: 'text',
+    });
+    expect(result.success).toBe(true);
+  });
+
+  it('accepts unknown vendor "totally-new-vendor" (open-string acceptance per PVF AC #6)', () => {
+    const result = ModelProviderConfigSchema.safeParse({
+      ...baseFixture,
+      vendor: 'totally-new-vendor',
+    });
+    expect(result.success).toBe(true);
+  });
+
+  it('accepts vendor: undefined (optional field)', () => {
+    const result = ModelProviderConfigSchema.safeParse({
+      ...baseFixture,
+      vendor: undefined,
+    });
+    expect(result.success).toBe(true);
+  });
+
+  it('accepts fixture without vendor field (omitted entirely)', () => {
+    const result = ModelProviderConfigSchema.safeParse(baseFixture);
+    expect(result.success).toBe(true);
+  });
+
+  it('rejects empty-string vendor (z.string().min(1) invariant)', () => {
+    const result = ModelProviderConfigSchema.safeParse({
+      ...baseFixture,
+      vendor: '',
+    });
+    expect(result.success).toBe(false);
+  });
+
+  it('KNOWN_PROVIDER_VENDORS contains the four baseline vendor keys', () => {
+    expect(KNOWN_PROVIDER_VENDORS).toContain('anthropic');
+    expect(KNOWN_PROVIDER_VENDORS).toContain('openai');
+    expect(KNOWN_PROVIDER_VENDORS).toContain('ollama');
+    expect(KNOWN_PROVIDER_VENDORS).toContain('text');
+    expect(KNOWN_PROVIDER_VENDORS.length).toBe(4);
+  });
+
+  it('type-level: ProviderVendor accepts known and unknown string literals', () => {
+    // These assignments must compile at type-check time. The
+    // `KnownProviderVendor | (string & {})` open-union idiom preserves
+    // autocomplete on the known values while still accepting arbitrary
+    // strings at the type level (PVF AC #3).
+    const known: ProviderVendor = 'anthropic';
+    const alsoKnown: ProviderVendor = 'openai';
+    const unknown: ProviderVendor = 'totally-new-vendor';
+    expect(typeof known).toBe('string');
+    expect(typeof alsoKnown).toBe('string');
+    expect(typeof unknown).toBe('string');
   });
 });
 
