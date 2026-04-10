@@ -202,6 +202,7 @@ export function ChatPanel(props: ChatPanelProps) {
                 timestamp: new Date().toISOString(),
                 traceId: result.traceId,
                 contentType: result.contentType,
+                thinkingContent: result.thinkingContent,
             }])
         } catch {
             setMessages(prev => [...prev, {

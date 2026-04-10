@@ -19,3 +19,13 @@ export {
   parseTaskCompletionRequest,
 } from './lifecycle-hooks.js';
 export { composeSystemPrompt } from './system-prompt-composer.js';
+
+// WR-127 adapter types and implementations
+export { resolveAdapter, createTextAdapter, createOpenAiAdapter, createAnthropicAdapter } from './adapters/index.js';
+export type {
+  AdapterCapabilities,
+  AdapterFormatInput,
+  AdapterFormattedRequest,
+  AdapterRegistry,
+  ProviderAdapter,
+} from './adapters/index.js';

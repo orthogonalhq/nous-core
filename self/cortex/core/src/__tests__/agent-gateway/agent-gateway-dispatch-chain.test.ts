@@ -364,14 +364,14 @@ describe('AgentGateway dispatch chain integration', () => {
 
     // Verify injected context appeared in the first model invocation's context
     const firstInvoke = modelProvider.invoke.mock.calls[0][0];
-    const contextFrames = firstInvoke.input.context as Array<{
-      source: string;
+    const messages = firstInvoke.input.messages as Array<{
+      role: string;
       content: string;
     }>;
-    const injectedFrame = contextFrames.find(
-      (frame) => frame.source === 'inbox' && frame.content.includes('Priority update'),
+    const injectedMessage = messages.find(
+      (msg) => msg.content.includes('Priority update'),
     );
-    expect(injectedFrame).toBeDefined();
+    expect(injectedMessage).toBeDefined();
   });
 
   it('turn-cycle ack events are emitted to the outbox for each turn', async () => {
@@ -394,7 +394,7 @@ describe('AgentGateway dispatch chain integration', () => {
       outputs: [
         JSON.stringify({
           response: 'working',
-          toolCalls: [],
+          toolCalls: [{ name: 'lookup_status', params: {} }],
         }),
         JSON.stringify({
           response: 'done',

@@ -70,11 +70,13 @@ describe('AgentGateway messaging', () => {
 
     expect(result.status).toBe('completed');
     const secondInvoke = modelProvider.invoke.mock.calls[1][0];
-    const childFrame = (secondInvoke.input.context as Array<{ source: string; content: string }>).find(
-      (frame) => frame.source === 'child_result',
+    const messages = secondInvoke.input.messages as Array<{ role: string; content: string }>;
+    // After transformGatewayInput, child_result frames become messages; find by content
+    const childMessage = messages.find(
+      (msg) => msg.content.includes('"child": "done"'),
     );
 
-    expect(childFrame?.content).toContain('"child": "done"');
-    expect(childFrame?.content.includes('"context"')).toBe(false);
+    expect(childMessage?.content).toContain('"child": "done"');
+    expect(childMessage?.content.includes('"context"')).toBe(false);
   });
 });

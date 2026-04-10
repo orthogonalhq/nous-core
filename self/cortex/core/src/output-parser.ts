@@ -14,6 +14,8 @@ export interface ParsedModelOutput {
   toolCalls: Array<{ name: string; params: unknown }>;
   memoryCandidates: MemoryWriteCandidate[];
   contentType?: 'text' | 'openui';
+  /** Extended thinking / reasoning trace from the provider. Populated by adapters (SP 1.3). */
+  thinkingContent?: string;
 }
 
 const OPENUI_PREFIX = '%%openui\n';
