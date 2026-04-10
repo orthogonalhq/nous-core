@@ -16,6 +16,7 @@ import {
   ProjectSwitcherRail,
   AssetSidebar,
   useChatStageManager,
+  useSidebarCollapsed,
   useShellContext,
   isHomeSidebarEnabled,
   HOME_TOP_NAV,
@@ -77,6 +78,15 @@ function ShellLayoutContent({
 
   // Chat stage state machine (5-state model)
   const chatStageManager = useChatStageManager()
+
+  // WR-141 — single-call-plus-prop-drill per primary contract § State Ownership.
+  // This call is intentionally placed inside `ShellLayoutContent` (the wiring-site
+  // root). Sibling calls inside `WebAssetSidebarConnected` are forbidden by INV-1.
+  const [sidebarCollapsed, setSidebarCollapsed] = useSidebarCollapsed()
+  const handleToggleCollapse = useCallback(
+    () => setSidebarCollapsed(!sidebarCollapsed),
+    [sidebarCollapsed, setSidebarCollapsed],
+  )
 
   // Wire SSE events to chat stage manager signals
   useEventSubscription({
@@ -236,10 +246,17 @@ function ShellLayoutContent({
                     isHomeActive={isHomeContext}
                   />
                 }
+                sidebarCollapsed={sidebarCollapsed}
+                onSidebarCollapseChange={setSidebarCollapsed}
                 sidebar={
                   isHomeContext && isHomeSidebarEnabled()
                     ? <WebHomeSidebar />
-                    : <WebAssetSidebarConnected />
+                    : (
+                      <WebAssetSidebarConnected
+                        collapsed={sidebarCollapsed}
+                        onToggleCollapse={handleToggleCollapse}
+                      />
+                    )
                 }
                 content={
                   <ContentRouter
@@ -283,7 +300,17 @@ function ShellLayoutContent({
 
 // ─── Web Connected Sidebar (lives inside ShellProvider tree) ──────────────
 
-function WebAssetSidebarConnected() {
+function WebAssetSidebarConnected({
+  collapsed,
+  onToggleCollapse,
+}: {
+  collapsed?: boolean
+  onToggleCollapse?: () => void
+}) {
+  // WR-141 — do NOT call the sidebar-collapsed hook here. It is called exactly
+  // once per wiring-site root inside `ShellLayoutContent`; `collapsed` and
+  // `onToggleCollapse` are prop-drilled through this wrapper. Sibling calls are
+  // forbidden by INV-1 and the ratified primary contract § State Ownership.
   const { activeProjectId, activeRoute, navigate } = useShellContext()
   const tasksApi = useTasks({ projectId: activeProjectId })
 
@@ -317,6 +344,8 @@ function WebAssetSidebarConnected() {
       sections={sections}
       activeRoute={activeRoute}
       onNavigate={navigate}
+      collapsed={collapsed}
+      onToggleCollapse={onToggleCollapse}
     />
   )
 }

@@ -1,7 +1,7 @@
 import * as React from 'react'
 import { createPortal } from 'react-dom'
 import { clsx } from 'clsx'
-import { ChevronDown, Settings, Plus, PanelLeftClose, MoreHorizontal } from 'lucide-react'
+import { ChevronDown, Settings, Plus, PanelLeftClose, PanelLeftOpen, MoreHorizontal } from 'lucide-react'
 import type {
     AssetSection,
     AssetSidebarProps,
@@ -507,10 +507,43 @@ export function AssetSidebar({
     onNavigate,
     chatStage,
     onSettingsClick,
+    collapsed,
+    onToggleCollapse,
     className,
     style,
     ...props
 }: AssetSidebarProps & Omit<React.HTMLAttributes<HTMLDivElement>, 'content'>) {
+    // WR-141 — collapsed branch: narrow vertical stub containing only the expand
+    // button. Full early-return (not a CSS hide) so the section-collapse children
+    // and the top-nav items are never mounted while collapsed. The width uses the
+    // dedicated CSS token, not a literal `32px`, so WR-140 can retarget cleanly.
+    if (collapsed === true) {
+        return (
+            <div
+                className={clsx('nous-asset-sidebar', className)}
+                data-shell-component="asset-sidebar"
+                data-collapsed="true"
+                style={{
+                    ...s.root,
+                    width: 'var(--nous-asset-sidebar-collapsed-width)',
+                    alignItems: 'center',
+                    paddingTop: 'var(--nous-space-md)',
+                    ...style,
+                }}
+                {...props}
+            >
+                <button
+                    type="button"
+                    aria-label="Expand sidebar"
+                    onClick={onToggleCollapse}
+                    style={s.sectionActionButton}
+                >
+                    <PanelLeftOpen size={16} />
+                </button>
+            </div>
+        )
+    }
+
     const scrollPaddingBottom = chatStage === 'full'
         ? 0 // overlay covers sidebar entirely in full mode
         : chatStage
@@ -538,7 +571,14 @@ export function AssetSidebar({
                             <Settings size={16} />
                         </button>
                     )}
-                    <PanelLeftClose size={16} style={s.headerCollapseIcon} />
+                    <button
+                        type="button"
+                        aria-label="Collapse sidebar"
+                        onClick={onToggleCollapse}
+                        style={s.sectionActionButton}
+                    >
+                        <PanelLeftClose size={16} style={s.headerCollapseIcon} />
+                    </button>
                 </div>
             </div>
 

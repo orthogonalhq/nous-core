@@ -181,4 +181,72 @@ describe('SimpleShellLayout', () => {
     const chat = getArea('chat')
     expect(chat.getAttribute('data-chat-stage')).toBe('ambient_large')
   })
+
+  // ── WR-141: whole-sidebar collapse ────────────────────────────────────
+  it('substitutes --shell-sidebar-width with var(--nous-asset-sidebar-collapsed-width) when sidebarCollapsed={true}', async () => {
+    await renderLayout({ sidebarCollapsed: true, initialWidths: { sidebar: 300 } })
+    const layout = container.firstElementChild as HTMLDivElement
+    // JSDOM reports inline CSS custom properties as written, not resolved
+    expect(layout.style.getPropertyValue('--shell-sidebar-width')).toContain(
+      'var(--nous-asset-sidebar-collapsed-width)',
+    )
+  })
+
+  it('restores --shell-sidebar-width to the prior pixel value when sidebarCollapsed flips from true to false', async () => {
+    // Start collapsed with initial sidebar width 300
+    await renderLayout({ sidebarCollapsed: true, initialWidths: { sidebar: 300 } })
+    let layout = container.firstElementChild as HTMLDivElement
+    expect(layout.style.getPropertyValue('--shell-sidebar-width')).toContain(
+      'var(--nous-asset-sidebar-collapsed-width)',
+    )
+    // Re-render with collapsed=false — the underlying sidebarWidth state is still 300
+    await act(async () => {
+      root.render(
+        <SimpleShellLayout
+          projectRail={<div>rail</div>}
+          sidebar={<div>sidebar</div>}
+          content={<div>content</div>}
+          observe={<div>observe</div>}
+          chatSlot={({ stage }) => <div data-testid="chat">{stage}</div>}
+          chatStage="small"
+          sidebarCollapsed={false}
+          initialWidths={{ sidebar: 300 }}
+        />,
+      )
+      await flush()
+    })
+    layout = container.firstElementChild as HTMLDivElement
+    expect(layout.style.getPropertyValue('--shell-sidebar-width')).toBe('300px')
+  })
+
+  it('does not render the sidebar ColumnDivider when sidebarCollapsed={true}', async () => {
+    await renderLayout({ sidebarCollapsed: true })
+    const sidebarDivider = container.querySelector('[aria-label="Resize sidebar column"]')
+    expect(sidebarDivider).toBeNull()
+  })
+
+  it('chat overlay carries min-width: var(--nous-chat-overlay-min-width) regardless of sidebarCollapsed state', async () => {
+    // Default (sidebarCollapsed undefined)
+    await renderLayout()
+    let chat = getArea('chat')
+    expect(chat.style.minWidth).toBe('var(--nous-chat-overlay-min-width)')
+
+    // Re-render with sidebarCollapsed: true
+    await act(async () => {
+      root.render(
+        <SimpleShellLayout
+          projectRail={<div>rail</div>}
+          sidebar={<div>sidebar</div>}
+          content={<div>content</div>}
+          observe={<div>observe</div>}
+          chatSlot={({ stage }) => <div data-testid="chat">{stage}</div>}
+          chatStage="small"
+          sidebarCollapsed={true}
+        />,
+      )
+      await flush()
+    })
+    chat = getArea('chat')
+    expect(chat.style.minWidth).toBe('var(--nous-chat-overlay-min-width)')
+  })
 })
