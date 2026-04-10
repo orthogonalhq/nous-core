@@ -140,7 +140,7 @@ describe('ConfigManager', () => {
       const manager = new ConfigManager();
       await expect(
         manager.update('modelRoleAssignments', [
-          { role: 'reasoner', providerId: 'ollama-default' },
+          { role: 'cortex-chat', providerId: 'ollama-default' },
         ] as never),
       ).rejects.toThrow(ConfigError);
     });

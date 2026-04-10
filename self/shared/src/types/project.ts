@@ -5,6 +5,7 @@
  * escalation contracts, project configuration, and project state.
  */
 import { z } from 'zod';
+import { migrateLegacyModelRole } from './model-role-migration.js';
 import {
   ProjectIdSchema,
   NodeIdSchema,
@@ -71,7 +72,14 @@ export const NodeSchemaDefinition = z.object({
   type: NodeTypeSchema,
   inputs: z.record(z.string(), z.unknown()),
   outputs: z.record(z.string(), z.unknown()),
-  modelRole: ModelRoleSchema.optional(),
+  modelRole: z.preprocess(
+    (val) => {
+      if (typeof val !== 'string') return val;
+      const result = migrateLegacyModelRole(val);
+      return result === null ? val : result;
+    },
+    ModelRoleSchema,
+  ).optional(),
   governance: GovernanceLevelSchema,
   escalation: z.object({
     enabled: z.boolean(),
@@ -193,7 +201,20 @@ export const ProjectConfigSchema = z.object({
   type: ProjectTypeSchema,
   pfcTier: PfcTierSchema,
   governanceDefaults: ProjectGovernanceDefaultsSchema.default({}),
-  modelAssignments: z.record(ModelRoleSchema, z.string()).optional(),
+  modelAssignments: z.preprocess(
+    (val) => {
+      if (val === null || val === undefined || typeof val !== 'object') return val;
+      const input = val as Record<string, unknown>;
+      const output: Record<string, unknown> = {};
+      for (const [key, value] of Object.entries(input)) {
+        const migrated = migrateLegacyModelRole(key);
+        if (migrated === null) continue; // silently drop
+        output[migrated as string] = value;
+      }
+      return output;
+    },
+    z.record(ModelRoleSchema, z.string()),
+  ).optional(),
   memoryAccessPolicy: MemoryAccessPolicySchema,
   escalationChannels: z.array(EscalationChannelSchema),
   escalationPreferences: ProjectEscalationPreferencesSchema.default({}),

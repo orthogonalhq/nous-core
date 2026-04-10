@@ -1,18 +1,9 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
+import { ModelRoleSchema } from '@nous/shared';
+
 const SYSTEM_APP_ID = 'nous:system';
-const MODEL_SELECTION_COLLECTION = 'nous:model_selection';
-const MODEL_SELECTION_ID = 'current';
-const MODEL_ROLES = [
-  'orchestrator',
-  'reasoner',
-  'tool-advisor',
-  'summarizer',
-  'embedder',
-  'reranker',
-  'vision',
-] as const;
-type ModelRole = (typeof MODEL_ROLES)[number];
+const MODEL_ROLES = ModelRoleSchema.options;
 
 const detectOllamaMock = vi.hoisted(() => vi.fn());
 const bootstrapConstants = vi.hoisted(() => ({
@@ -30,7 +21,6 @@ const bootstrapMock = vi.hoisted(() => ({
   registerConfiguredProvider: vi.fn(),
   removeConfiguredProvider: vi.fn(),
   updateRoleAssignment: vi.fn(),
-  updateReasonerAssignment: vi.fn(),
   upsertProviderConfig: vi.fn(),
 }));
 
@@ -48,7 +38,6 @@ vi.mock('../src/bootstrap', () => ({
   registerConfiguredProvider: bootstrapMock.registerConfiguredProvider,
   removeConfiguredProvider: bootstrapMock.removeConfiguredProvider,
   updateRoleAssignment: bootstrapMock.updateRoleAssignment,
-  updateReasonerAssignment: bootstrapMock.updateReasonerAssignment,
   upsertProviderConfig: bootstrapMock.upsertProviderConfig,
 }));
 
@@ -263,8 +252,6 @@ describe('preferences router', () => {
     bootstrapMock.removeConfiguredProvider.mockResolvedValue(undefined);
     bootstrapMock.updateRoleAssignment.mockReset();
     bootstrapMock.updateRoleAssignment.mockResolvedValue(undefined);
-    bootstrapMock.updateReasonerAssignment.mockReset();
-    bootstrapMock.updateReasonerAssignment.mockResolvedValue(undefined);
     bootstrapMock.upsertProviderConfig.mockReset();
     bootstrapMock.upsertProviderConfig.mockResolvedValue(undefined);
 
@@ -349,167 +336,6 @@ describe('preferences router', () => {
     });
   });
 
-  describe('setModelSelection', () => {
-    it('persists the selection and applies the runtime provider config immediately', async () => {
-      const { ctx, documentStore } = createMockContext();
-      const preferencesRouter = await loadPreferencesRouter();
-      const caller = preferencesRouter.createCaller(ctx);
-
-      const result = await caller.setModelSelection({
-        principal: 'openai:o3',
-        system: 'anthropic:claude-sonnet-4-20250514',
-      });
-
-      expect(result).toEqual({ success: true });
-      expect(
-        await documentStore.get<{
-          principal: string | null;
-          system: string | null;
-        }>(MODEL_SELECTION_COLLECTION, MODEL_SELECTION_ID),
-      ).toEqual({
-        principal: 'openai:o3',
-        system: 'anthropic:claude-sonnet-4-20250514',
-      });
-      expect(bootstrapMock.parseSelectedModelSpec).toHaveBeenCalledWith('openai:o3');
-      expect(bootstrapMock.buildProviderConfig).toHaveBeenCalledWith(
-        'openai',
-        bootstrapConstants.WELL_KNOWN_PROVIDER_IDS.openai,
-        'o3',
-      );
-      expect(bootstrapMock.upsertProviderConfig).toHaveBeenCalledWith(
-        ctx,
-        expect.objectContaining({
-          id: bootstrapConstants.WELL_KNOWN_PROVIDER_IDS.openai,
-          modelId: 'o3',
-          name: 'openai',
-        }),
-      );
-      expect(bootstrapMock.updateReasonerAssignment).toHaveBeenCalledWith(
-        ctx,
-        bootstrapConstants.WELL_KNOWN_PROVIDER_IDS.openai,
-      );
-    });
-
-    it('routes ollama selections through the local provider config builder', async () => {
-      const { ctx, documentStore } = createMockContext();
-      const preferencesRouter = await loadPreferencesRouter();
-      const caller = preferencesRouter.createCaller(ctx);
-
-      const result = await caller.setModelSelection({
-        principal: 'ollama:llama3.2:3b',
-      });
-
-      expect(result).toEqual({ success: true });
-      expect(
-        await documentStore.get<{
-          principal: string | null;
-          system: string | null;
-        }>(MODEL_SELECTION_COLLECTION, MODEL_SELECTION_ID),
-      ).toEqual({
-        principal: 'ollama:llama3.2:3b',
-        system: null,
-      });
-      expect(bootstrapMock.parseSelectedModelSpec).toHaveBeenCalledWith(
-        'ollama:llama3.2:3b',
-      );
-      expect(bootstrapMock.buildOllamaProviderConfig).toHaveBeenCalledWith(
-        'llama3.2:3b',
-        bootstrapConstants.OLLAMA_WELL_KNOWN_PROVIDER_ID,
-      );
-      expect(bootstrapMock.buildProviderConfig).not.toHaveBeenCalled();
-      expect(bootstrapMock.upsertProviderConfig).toHaveBeenCalledWith(
-        ctx,
-        expect.objectContaining({
-          id: bootstrapConstants.OLLAMA_WELL_KNOWN_PROVIDER_ID,
-          modelId: 'llama3.2:3b',
-          name: 'ollama',
-          isLocal: true,
-          providerClass: 'local_text',
-        }),
-      );
-      expect(bootstrapMock.updateReasonerAssignment).toHaveBeenCalledWith(
-        ctx,
-        bootstrapConstants.OLLAMA_WELL_KNOWN_PROVIDER_ID,
-      );
-    });
-
-    it('preserves existing values on partial updates', async () => {
-      const { ctx, documentStore } = createMockContext();
-      const preferencesRouter = await loadPreferencesRouter();
-      const caller = preferencesRouter.createCaller(ctx);
-
-      await documentStore.put(MODEL_SELECTION_COLLECTION, MODEL_SELECTION_ID, {
-        principal: 'anthropic:claude-opus-4-20250514',
-        system: 'openai:gpt-4o',
-      });
-
-      await caller.setModelSelection({
-        principal: 'anthropic:claude-sonnet-4-20250514',
-      });
-
-      expect(
-        await documentStore.get<{
-          principal: string | null;
-          system: string | null;
-        }>(MODEL_SELECTION_COLLECTION, MODEL_SELECTION_ID),
-      ).toEqual({
-        principal: 'anthropic:claude-sonnet-4-20250514',
-        system: 'openai:gpt-4o',
-      });
-    });
-
-    it('skips runtime updates for invalid model specs while preserving the document write', async () => {
-      const { ctx, documentStore } = createMockContext();
-      const preferencesRouter = await loadPreferencesRouter();
-      const caller = preferencesRouter.createCaller(ctx);
-
-      bootstrapMock.parseSelectedModelSpec.mockReturnValueOnce(null);
-
-      const result = await caller.setModelSelection({
-        principal: 'invalid-model-spec',
-      });
-
-      expect(result).toEqual({ success: true });
-      expect(
-        await documentStore.get<{
-          principal: string | null;
-          system: string | null;
-        }>(MODEL_SELECTION_COLLECTION, MODEL_SELECTION_ID),
-      ).toEqual({
-        principal: 'invalid-model-spec',
-        system: null,
-      });
-      expect(bootstrapMock.buildProviderConfig).not.toHaveBeenCalled();
-      expect(bootstrapMock.upsertProviderConfig).not.toHaveBeenCalled();
-      expect(bootstrapMock.updateReasonerAssignment).not.toHaveBeenCalled();
-    });
-
-    it('catches runtime update failures and still returns success', async () => {
-      const { ctx, documentStore } = createMockContext();
-      const preferencesRouter = await loadPreferencesRouter();
-      const caller = preferencesRouter.createCaller(ctx);
-
-      bootstrapMock.upsertProviderConfig.mockRejectedValueOnce(new Error('boom'));
-
-      const result = await caller.setModelSelection({
-        principal: 'anthropic:claude-opus-4-20250514',
-      });
-
-      expect(result).toEqual({ success: true });
-      expect(
-        await documentStore.get<{
-          principal: string | null;
-          system: string | null;
-        }>(MODEL_SELECTION_COLLECTION, MODEL_SELECTION_ID),
-      ).toEqual({
-        principal: 'anthropic:claude-opus-4-20250514',
-        system: null,
-      });
-      expect(bootstrapMock.updateReasonerAssignment).not.toHaveBeenCalled();
-      expect(console.error).toHaveBeenCalled();
-    });
-  });
-
   describe('getRoleAssignments', () => {
     it('returns all model roles with null when no assignments exist', async () => {
       const { ctx } = createMockContext();
@@ -533,14 +359,14 @@ describe('preferences router', () => {
 
       bootstrapMock.currentRoleAssignment.mockImplementation(
         (_ctx: unknown, role: ModelRole) => {
-          if (role === 'orchestrator') {
+          if (role === 'orchestrators') {
             return {
               role,
               providerId: bootstrapConstants.OLLAMA_WELL_KNOWN_PROVIDER_ID,
             };
           }
 
-          if (role === 'reasoner') {
+          if (role === 'cortex-chat') {
             return {
               role,
               providerId: bootstrapConstants.WELL_KNOWN_PROVIDER_IDS.openai,
@@ -555,18 +381,15 @@ describe('preferences router', () => {
       const result = await caller.getRoleAssignments();
 
       expect(result).toEqual({
-        orchestrator: {
+        orchestrators: {
           providerId: bootstrapConstants.OLLAMA_WELL_KNOWN_PROVIDER_ID,
         },
-        reasoner: {
+        'cortex-chat': {
           providerId: bootstrapConstants.WELL_KNOWN_PROVIDER_IDS.openai,
           fallbackProviderId: bootstrapConstants.WELL_KNOWN_PROVIDER_IDS.anthropic,
         },
-        'tool-advisor': null,
-        summarizer: null,
-        embedder: null,
-        reranker: null,
-        vision: null,
+        'cortex-system': null,
+        workers: null,
       });
     });
   });
@@ -578,7 +401,7 @@ describe('preferences router', () => {
       const caller = preferencesRouter.createCaller(ctx);
 
       const result = await caller.setRoleAssignment({
-        role: 'orchestrator',
+        role: 'orchestrators',
         modelSpec: 'ollama:llama3.2:3b',
       });
 
@@ -598,7 +421,7 @@ describe('preferences router', () => {
       );
       expect(bootstrapMock.updateRoleAssignment).toHaveBeenCalledWith(
         ctx,
-        'orchestrator',
+        'orchestrators',
         bootstrapConstants.OLLAMA_WELL_KNOWN_PROVIDER_ID,
       );
     });
@@ -609,7 +432,7 @@ describe('preferences router', () => {
       const caller = preferencesRouter.createCaller(ctx);
 
       const result = await caller.setRoleAssignment({
-        role: 'summarizer',
+        role: 'cortex-chat',
         modelSpec: 'openai:gpt-4o-mini',
       });
 
@@ -622,7 +445,7 @@ describe('preferences router', () => {
       expect(bootstrapMock.buildOllamaProviderConfig).not.toHaveBeenCalled();
       expect(bootstrapMock.updateRoleAssignment).toHaveBeenCalledWith(
         ctx,
-        'summarizer',
+        'cortex-chat',
         bootstrapConstants.WELL_KNOWN_PROVIDER_IDS.openai,
       );
     });
@@ -635,7 +458,7 @@ describe('preferences router', () => {
       bootstrapMock.parseSelectedModelSpec.mockReturnValueOnce(null);
 
       const result = await caller.setRoleAssignment({
-        role: 'vision',
+        role: 'workers',
         modelSpec: 'invalid-model-spec',
       });
 

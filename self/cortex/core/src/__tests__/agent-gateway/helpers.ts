@@ -399,6 +399,14 @@ export function createStampedPacket(): GatewayStampedPacket {
   };
 }
 
+export function createGatewayInput(prompt: string): AgentInput {
+  return createBaseInput({
+    taskInstructions: prompt,
+  });
+}
+
+export { InMemoryGatewayOutboxSink };
+
 export function createGatewayHarness(options?: {
   outputs?: unknown[];
   toolSurface?: IScopedMcpToolSurface;
@@ -420,8 +428,12 @@ export function createGatewayHarness(options?: {
   const modelProvider =
     options?.modelProvider ??
     (options?.outputs ? createModelProvider(options.outputs) : createModelProvider(['']));
+  const resolvedAgentClass =
+    options !== undefined && 'agentClass' in options
+      ? options.agentClass
+      : 'Worker';
   const gateway = new AgentGateway({
-    agentClass: options?.agentClass ?? 'Worker',
+    agentClass: resolvedAgentClass,
     agentId: AGENT_ID,
     toolSurface,
     modelProvider,

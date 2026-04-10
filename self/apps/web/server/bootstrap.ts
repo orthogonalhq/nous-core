@@ -7,7 +7,6 @@
 import {
   createNousServices,
   loadStoredApiKeys,
-  loadModelSelection,
   registerStoredProviders,
 } from '@nous/shared-server';
 import type { NousContext } from '@nous/shared-server';
@@ -43,7 +42,6 @@ export async function initializeNousContext(): Promise<NousContext> {
   initPromise = (async () => {
     await loadStoredApiKeys(ctx);
     await registerStoredProviders(ctx);
-    await loadModelSelection(ctx);
     return ctx;
   })();
 

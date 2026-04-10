@@ -3,6 +3,7 @@
  */
 export * from './ids.js';
 export * from './enums.js';
+export * from './model-role-migration.js';
 export * from './memory.js';
 export * from './retrieval.js';
 export * from './cross-project-retrieval.js';

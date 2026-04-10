@@ -72,7 +72,7 @@ export function ConfigReviewStep({ onNext }: ConfigReviewStepProps) {
             })}
             {assignments.length === 0 && providers.length > 0 && (
               <li>
-                reasoner: {providers[0]?.name} ({String(providers[0]?.modelId ?? 'default')})
+                cortex-chat: {providers[0]?.name} ({String(providers[0]?.modelId ?? 'default')})
               </li>
             )}
           </ul>

@@ -74,7 +74,7 @@ describe('formatFeedbackError', () => {
 })
 
 describe('isModelRole', () => {
-  it('returns true for all 7 valid roles', () => {
+  it('returns true for all 4 valid roles', () => {
     for (const role of MODEL_ROLES) {
       expect(isModelRole(role)).toBe(true)
     }
@@ -83,12 +83,12 @@ describe('isModelRole', () => {
   it('returns false for invalid strings', () => {
     expect(isModelRole('invalid-role')).toBe(false)
     expect(isModelRole('')).toBe(false)
-    expect(isModelRole('orchestrators')).toBe(false)
+    expect(isModelRole('reasoner')).toBe(false)
   })
 })
 
 describe('buildEmptyRoleAssignments', () => {
-  it('returns object with all 7 MODEL_ROLES keys', () => {
+  it('returns object with all 4 MODEL_ROLES keys', () => {
     const result = buildEmptyRoleAssignments()
     for (const role of MODEL_ROLES) {
       expect(result[role]).toBeDefined()
@@ -103,35 +103,35 @@ describe('buildEmptyRoleAssignments', () => {
 describe('buildPendingRoleAssignments', () => {
   it('extracts modelSpec for each role', () => {
     const state = buildEmptyRoleAssignments()
-    state.orchestrator.modelSpec = 'claude-opus'
-    state.reasoner.modelSpec = 'gpt-4'
+    state['orchestrators'].modelSpec = 'claude-opus'
+    state['cortex-chat'].modelSpec = 'gpt-4'
 
     const result = buildPendingRoleAssignments(state)
-    expect(result.orchestrator).toBe('claude-opus')
-    expect(result.reasoner).toBe('gpt-4')
-    expect(result.summarizer).toBe('')
+    expect(result['orchestrators']).toBe('claude-opus')
+    expect(result['cortex-chat']).toBe('gpt-4')
+    expect(result['workers']).toBe('')
   })
 })
 
 describe('normalizeRoleAssignmentEntries', () => {
   it('maps display entries to RoleAssignmentState', () => {
     const entries = [
-      { role: 'orchestrator', providerId: 'anthropic', displayName: 'Claude', modelSpec: 'claude-3' },
-      { role: 'reasoner', providerId: 'openai', displayName: 'GPT', modelSpec: 'gpt-4' },
+      { role: 'orchestrators', providerId: 'anthropic', displayName: 'Claude', modelSpec: 'claude-3' },
+      { role: 'cortex-chat', providerId: 'openai', displayName: 'GPT', modelSpec: 'gpt-4' },
     ]
     const result = normalizeRoleAssignmentEntries(entries)
-    expect(result.orchestrator.modelSpec).toBe('claude-3')
-    expect(result.reasoner.providerId).toBe('openai')
-    expect(result.summarizer.providerId).toBeNull()
+    expect(result['orchestrators'].modelSpec).toBe('claude-3')
+    expect(result['cortex-chat'].providerId).toBe('openai')
+    expect(result['workers'].providerId).toBeNull()
   })
 
   it('skips entries with unknown roles', () => {
     const entries = [
       { role: 'unknown-role', providerId: 'test' },
-      { role: 'orchestrator', providerId: 'anthropic' },
+      { role: 'orchestrators', providerId: 'anthropic' },
     ]
     const result = normalizeRoleAssignmentEntries(entries)
-    expect(result.orchestrator.providerId).toBe('anthropic')
+    expect(result['orchestrators'].providerId).toBe('anthropic')
     expect((result as Record<string, unknown>)['unknown-role']).toBeUndefined()
   })
 
@@ -177,42 +177,42 @@ describe('getRoleAssignmentDisplay', () => {
 
   it('returns matching model name when modelSpec matches', () => {
     const entry: HydratedRoleAssignmentDisplayEntry = {
-      role: 'orchestrator', providerId: 'anthropic', modelSpec: 'claude-3',
+      role: 'orchestrators', providerId: 'anthropic', modelSpec: 'claude-3',
     }
     expect(getRoleAssignmentDisplay(entry, models)).toBe('Claude 3 Opus')
   })
 
   it('falls back to displayName when modelSpec has no matching model', () => {
     const entry: HydratedRoleAssignmentDisplayEntry = {
-      role: 'orchestrator', providerId: 'anthropic', modelSpec: 'unknown-id', displayName: 'Custom Model',
+      role: 'orchestrators', providerId: 'anthropic', modelSpec: 'unknown-id', displayName: 'Custom Model',
     }
     expect(getRoleAssignmentDisplay(entry, models)).toBe('Custom Model')
   })
 
   it('falls back to modelSpec string when no model match and no displayName', () => {
     const entry: HydratedRoleAssignmentDisplayEntry = {
-      role: 'orchestrator', providerId: 'anthropic', modelSpec: 'unknown-id',
+      role: 'orchestrators', providerId: 'anthropic', modelSpec: 'unknown-id',
     }
     expect(getRoleAssignmentDisplay(entry, models)).toBe('unknown-id')
   })
 
   it('returns displayName when no modelSpec', () => {
     const entry: HydratedRoleAssignmentDisplayEntry = {
-      role: 'orchestrator', providerId: null, displayName: 'A display name',
+      role: 'orchestrators', providerId: null, displayName: 'A display name',
     }
     expect(getRoleAssignmentDisplay(entry, models)).toBe('A display name')
   })
 
   it('returns providerId when no modelSpec and no displayName', () => {
     const entry: HydratedRoleAssignmentDisplayEntry = {
-      role: 'orchestrator', providerId: 'anthropic',
+      role: 'orchestrators', providerId: 'anthropic',
     }
     expect(getRoleAssignmentDisplay(entry, models)).toBe('anthropic')
   })
 
   it('returns "Not assigned" when nothing available', () => {
     const entry: HydratedRoleAssignmentDisplayEntry = {
-      role: 'orchestrator', providerId: null,
+      role: 'orchestrators', providerId: null,
     }
     expect(getRoleAssignmentDisplay(entry, models)).toBe('Not assigned')
   })
@@ -221,19 +221,16 @@ describe('getRoleAssignmentDisplay', () => {
 describe('buildChangedRoleAssignments', () => {
   it('returns only changed entries', () => {
     const state = buildEmptyRoleAssignments()
-    state.orchestrator.modelSpec = 'claude-3'
+    state['orchestrators'].modelSpec = 'claude-3'
     const pending: PendingRoleAssignments = {
-      orchestrator: 'gpt-4',
-      reasoner: '',
-      'tool-advisor': '',
-      summarizer: '',
-      embedder: '',
-      reranker: '',
-      vision: '',
+      'cortex-chat': '',
+      'cortex-system': '',
+      orchestrators: 'gpt-4',
+      workers: '',
     }
     const result = buildChangedRoleAssignments(state, pending)
     expect(result).toHaveLength(1)
-    expect(result[0]!.role).toBe('orchestrator')
+    expect(result[0]!.role).toBe('orchestrators')
     expect(result[0]!.modelSpec).toBe('gpt-4')
   })
 
@@ -246,9 +243,9 @@ describe('buildChangedRoleAssignments', () => {
 
   it('ignores pending values that are empty strings', () => {
     const state = buildEmptyRoleAssignments()
-    state.orchestrator.modelSpec = 'claude-3'
+    state['orchestrators'].modelSpec = 'claude-3'
     const pending = buildPendingRoleAssignments(state)
-    pending.orchestrator = ''
+    pending['orchestrators'] = ''
     const result = buildChangedRoleAssignments(state, pending)
     expect(result).toHaveLength(0)
   })

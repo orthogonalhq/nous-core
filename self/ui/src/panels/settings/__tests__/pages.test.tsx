@@ -264,8 +264,8 @@ describe('ModelConfigPage', () => {
         { id: 'gpt-4', name: 'GPT-4', provider: 'openai', available: true },
       ],
     }),
-    getModelSelection: vi.fn().mockResolvedValue({ principal: null, system: null }),
-    setModelSelection: vi.fn().mockResolvedValue({ success: true }),
+    getRoleAssignments: vi.fn().mockResolvedValue([]),
+    setRoleAssignment: vi.fn().mockResolvedValue({ success: true }),
   })
 
   it('renders model dropdowns after data loads', async () => {
@@ -281,7 +281,7 @@ describe('ModelConfigPage', () => {
     expect(container.textContent).toContain('Cortex::System')
   })
 
-  it('save button calls api.setModelSelection', async () => {
+  it('save button calls api.setRoleAssignment', async () => {
     const api = makeApi()
     await act(async () => {
       root.render(<ModelConfigPage api={api} />)
@@ -305,14 +305,14 @@ describe('ModelConfigPage', () => {
       await flush()
     })
 
-    expect(api.setModelSelection).toHaveBeenCalled()
+    expect(api.setRoleAssignment).toHaveBeenCalled()
   })
 
   it('returns null when getAvailableModels is undefined', async () => {
     const api = {
       getAvailableModels: undefined,
-      getModelSelection: vi.fn(),
-      setModelSelection: vi.fn(),
+      getRoleAssignments: vi.fn().mockResolvedValue([]),
+      setRoleAssignment: vi.fn(),
     }
     await act(async () => {
       root.render(<ModelConfigPage api={api as never} />)
@@ -329,8 +329,8 @@ describe('ModelConfigPage', () => {
 describe('RoleAssignmentsPage', () => {
   const makeApi = () => ({
     getRoleAssignments: vi.fn().mockResolvedValue([
-      { role: 'orchestrator', providerId: 'anthropic', modelSpec: 'claude-3' },
-      { role: 'reasoner', providerId: 'openai', modelSpec: 'gpt-4' },
+      { role: 'orchestrators', providerId: 'anthropic', modelSpec: 'claude-3' },
+      { role: 'cortex-chat', providerId: 'openai', modelSpec: 'gpt-4' },
     ]),
     getAvailableModels: vi.fn().mockResolvedValue({
       models: [
@@ -346,7 +346,7 @@ describe('RoleAssignmentsPage', () => {
     setRoleAssignment: vi.fn().mockResolvedValue({ success: true }),
   })
 
-  it('renders 7-role grid after data loads', async () => {
+  it('renders 4-role grid after data loads', async () => {
     const api = makeApi()
     await act(async () => {
       root.render(<RoleAssignmentsPage api={api} />)
@@ -355,9 +355,9 @@ describe('RoleAssignmentsPage', () => {
 
     const el = container.querySelector('[data-testid="settings-page-role-assignments"]')
     expect(el).not.toBeNull()
-    expect(container.textContent).toContain('Orchestrator')
-    expect(container.textContent).toContain('Reasoner')
-    expect(container.textContent).toContain('Vision')
+    expect(container.textContent).toContain('Cortex Chat')
+    expect(container.textContent).toContain('Cortex System')
+    expect(container.textContent).toContain("Orchestrator's")
   })
 
   it('save calls api.setRoleAssignment for changed roles', async () => {
@@ -368,7 +368,7 @@ describe('RoleAssignmentsPage', () => {
     })
 
     // Change a role assignment via select
-    const select = container.querySelector<HTMLSelectElement>('#role-assignment-orchestrator')!
+    const select = container.querySelector<HTMLSelectElement>('#role-assignment-orchestrators')!
     await act(async () => {
       select.value = 'gpt-4'
       select.dispatchEvent(new Event('change', { bubbles: true }))

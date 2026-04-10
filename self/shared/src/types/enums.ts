@@ -14,17 +14,24 @@ import { z } from 'zod';
 export const PfcTierSchema = z.number().int().min(0).max(5);
 export type PfcTier = z.infer<typeof PfcTierSchema>;
 
-// --- Model Roles — from phase-1.1 spec ---
+// --- Model Roles — architectural-layer taxonomy (WR-142) ---
+// Collapsed from 7 capability-based roles to 4 architectural-layer roles.
+// See .architecture/.decisions/2026-04-09-model-role-taxonomy-collapse/
 export const ModelRoleSchema = z.enum([
-  'orchestrator',
-  'reasoner',
-  'tool-advisor',
-  'summarizer',
-  'embedder',
-  'reranker',
-  'vision',
+  'cortex-chat',
+  'cortex-system',
+  'orchestrators',
+  'workers',
 ]);
 export type ModelRole = z.infer<typeof ModelRoleSchema>;
+
+/** Display labels for each model role. */
+export const MODEL_ROLE_LABELS: Record<ModelRole, string> = {
+  'cortex-chat': 'Cortex Chat',
+  'cortex-system': 'Cortex System',
+  orchestrators: "Orchestrator's",
+  workers: "Worker's",
+};
 
 // --- Project Types — from project-model.mdx ---
 export const ProjectTypeSchema = z.enum(['protocol', 'intent', 'hybrid']);

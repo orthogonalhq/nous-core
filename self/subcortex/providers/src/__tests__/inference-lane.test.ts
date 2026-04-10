@@ -15,7 +15,7 @@ describe('InferenceLane', () => {
 
     const background = lane.enqueue(
       {
-        role: 'reasoner',
+        role: 'cortex-chat',
         input: { prompt: 'background' },
         traceId: TRACE_ID,
         agentClass: 'Worker',
@@ -29,7 +29,7 @@ describe('InferenceLane', () => {
 
     const orchestration = lane.enqueue(
       {
-        role: 'reasoner',
+        role: 'cortex-chat',
         input: { prompt: 'orchestration' },
         traceId: TRACE_ID,
         agentClass: 'Orchestrator',
@@ -42,7 +42,7 @@ describe('InferenceLane', () => {
 
     const coordination = lane.enqueue(
       {
-        role: 'reasoner',
+        role: 'cortex-chat',
         input: { prompt: 'coordination' },
         traceId: TRACE_ID,
         agentClass: 'Cortex::System',
@@ -66,7 +66,7 @@ describe('InferenceLane', () => {
 
     const background = lane.enqueue(
       {
-        role: 'reasoner',
+        role: 'cortex-chat',
         input: { prompt: 'background' },
         traceId: TRACE_ID,
         agentClass: 'Worker',
@@ -90,7 +90,7 @@ describe('InferenceLane', () => {
 
     const principal = lane.enqueue(
       {
-        role: 'reasoner',
+        role: 'cortex-chat',
         input: { prompt: 'principal' },
         traceId: TRACE_ID,
         agentClass: 'Cortex::Principal',
@@ -113,7 +113,7 @@ describe('InferenceLane', () => {
     expect(() =>
       lane.enqueue(
         {
-          role: 'reasoner',
+          role: 'cortex-chat',
           input: { prompt: 'blocked' },
           traceId: TRACE_ID,
           agentClass: 'Worker',
@@ -130,7 +130,7 @@ describe('InferenceLane', () => {
     await expect(
       lane.reinsertPreempted(
         {
-          role: 'reasoner',
+          role: 'cortex-chat',
           input: { prompt: 'retry' },
           traceId: TRACE_ID,
           agentClass: 'Worker',
@@ -147,7 +147,7 @@ describe('InferenceLane', () => {
     for (let i = 0; i < 510; i++) {
       await lane.enqueue(
         {
-          role: 'reasoner',
+          role: 'cortex-chat',
           input: { prompt: `request-${i}` },
           traceId: TRACE_ID,
           agentClass: 'Worker',
@@ -165,7 +165,7 @@ describe('InferenceLane', () => {
     // enqueue one more and verify analytics still work (no memory explosion)
     await lane.enqueue(
       {
-        role: 'reasoner',
+        role: 'cortex-chat',
         input: { prompt: 'final' },
         traceId: TRACE_ID,
         agentClass: 'Worker',
@@ -184,7 +184,7 @@ describe('InferenceLane', () => {
 
     const firstPromise = lane.enqueue(
       {
-        role: 'reasoner',
+        role: 'cortex-chat',
         input: { prompt: 'first' },
         traceId: TRACE_ID,
         agentClass: 'Worker',
@@ -199,7 +199,7 @@ describe('InferenceLane', () => {
     await new Promise((resolve) => setTimeout(resolve, 10));
 
     const estimate = lane.getWaitEstimate({
-      role: 'reasoner',
+      role: 'cortex-chat',
       input: { prompt: 'query' },
       traceId: TRACE_ID,
       agentClass: 'Worker',
@@ -227,7 +227,7 @@ describe('InferenceLane', () => {
     const chunks: ModelStreamChunk[] = [];
     for await (const chunk of lane.stream(
       {
-        role: 'reasoner',
+        role: 'cortex-chat',
         input: { prompt: 'stream' },
         traceId: TRACE_ID,
         agentClass: 'Worker',
@@ -254,7 +254,7 @@ describe('InferenceLane', () => {
 
     for await (const _chunk of lane.stream(
       {
-        role: 'reasoner',
+        role: 'cortex-chat',
         input: { prompt: 'stream' },
         traceId: TRACE_ID,
         agentClass: 'Worker',
@@ -279,7 +279,7 @@ describe('InferenceLane', () => {
 
     for await (const chunk of lane.stream(
       {
-        role: 'reasoner',
+        role: 'cortex-chat',
         input: { prompt: 'stream' },
         traceId: TRACE_ID,
         agentClass: 'Worker',
@@ -307,7 +307,7 @@ describe('InferenceLane', () => {
     try {
       for await (const chunk of lane.stream(
         {
-          role: 'reasoner',
+          role: 'cortex-chat',
           input: { prompt: 'stream' },
           traceId: TRACE_ID,
           agentClass: 'Worker',
@@ -334,7 +334,7 @@ describe('InferenceLane', () => {
 
     const generator = lane.stream(
       {
-        role: 'reasoner',
+        role: 'cortex-chat',
         input: { prompt: 'blocked' },
         traceId: TRACE_ID,
         agentClass: 'Worker',

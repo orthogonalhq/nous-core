@@ -22,7 +22,6 @@ const bootstrapMock = vi.hoisted(() => ({
   buildOllamaProviderConfig: vi.fn(),
   buildProviderConfig: vi.fn(),
   parseSelectedModelSpec: vi.fn(),
-  updateReasonerAssignment: vi.fn(),
   updateRoleAssignment: vi.fn(),
   upsertProviderConfig: vi.fn(),
 }));
@@ -76,7 +75,6 @@ vi.mock('../src/bootstrap', () => ({
   buildOllamaProviderConfig: bootstrapMock.buildOllamaProviderConfig,
   buildProviderConfig: bootstrapMock.buildProviderConfig,
   parseSelectedModelSpec: bootstrapMock.parseSelectedModelSpec,
-  updateReasonerAssignment: bootstrapMock.updateReasonerAssignment,
   updateRoleAssignment: bootstrapMock.updateRoleAssignment,
   upsertProviderConfig: bootstrapMock.upsertProviderConfig,
 }));
@@ -253,7 +251,6 @@ describe('first-run wizard router', () => {
     bootstrapMock.buildOllamaProviderConfig.mockReset().mockImplementation(buildOllamaProviderConfigMock);
     bootstrapMock.buildProviderConfig.mockReset().mockImplementation(buildProviderConfigMock);
     bootstrapMock.parseSelectedModelSpec.mockReset().mockImplementation(parseSelectedModelSpecMock);
-    bootstrapMock.updateReasonerAssignment.mockReset().mockResolvedValue(undefined);
     bootstrapMock.updateRoleAssignment.mockReset().mockResolvedValue(undefined);
     bootstrapMock.upsertProviderConfig.mockReset().mockResolvedValue(undefined);
 
@@ -348,8 +345,9 @@ describe('first-run wizard router', () => {
         modelId: 'llama3.2:3b',
       }),
     );
-    expect(bootstrapMock.updateReasonerAssignment).toHaveBeenCalledWith(
+    expect(bootstrapMock.updateRoleAssignment).toHaveBeenCalledWith(
       ctx,
+      'cortex-chat',
       bootstrapConstants.OLLAMA_WELL_KNOWN_PROVIDER_ID,
     );
     expect(result).toEqual({
@@ -367,11 +365,11 @@ describe('first-run wizard router', () => {
     const result = await caller.assignRoles({
       assignments: [
         {
-          role: 'orchestrator',
+          role: 'orchestrators',
           modelSpec: 'ollama:llama3.2:3b',
         },
         {
-          role: 'reasoner',
+          role: 'cortex-chat',
           modelSpec: 'openai:gpt-4o',
         },
       ],
@@ -381,13 +379,13 @@ describe('first-run wizard router', () => {
     expect(bootstrapMock.updateRoleAssignment).toHaveBeenNthCalledWith(
       1,
       ctx,
-      'orchestrator',
+      'orchestrators',
       bootstrapConstants.OLLAMA_WELL_KNOWN_PROVIDER_ID,
     );
     expect(bootstrapMock.updateRoleAssignment).toHaveBeenNthCalledWith(
       2,
       ctx,
-      'reasoner',
+      'cortex-chat',
       bootstrapConstants.WELL_KNOWN_PROVIDER_IDS.openai,
     );
     expect(result).toEqual({

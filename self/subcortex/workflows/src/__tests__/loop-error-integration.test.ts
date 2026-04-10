@@ -500,7 +500,7 @@ describe('full regression: all handlers in a single workflow graph', () => {
       name: 'Full Regression',
       entryNodeIds: [MODEL_CALL],
       nodes: [
-        { id: MODEL_CALL, name: 'Model Call', type: 'model-call', governance: 'must', executionModel: 'synchronous', config: { type: 'model-call', modelRole: 'reasoner', promptRef: 'prompt://test', outputSchemaRef: 'schema://output' } },
+        { id: MODEL_CALL, name: 'Model Call', type: 'model-call', governance: 'must', executionModel: 'synchronous', config: { type: 'model-call', modelRole: 'cortex-chat', promptRef: 'prompt://test', outputSchemaRef: 'schema://output' } },
         { id: TRANSFORM, name: 'Transform', type: 'transform', governance: 'must', executionModel: 'synchronous', config: { type: 'transform', transformRef: 'transform://t', inputMappingRef: 'mapping://t' } },
         { id: CONDITION, name: 'Condition', type: 'condition', governance: 'must', executionModel: 'synchronous', config: { type: 'condition', predicateRef: 'pred://x', trueBranchKey: 'true', falseBranchKey: 'false' } },
         { id: TRUE_NODE, name: 'True Path', type: 'transform', governance: 'must', executionModel: 'synchronous', config: { type: 'transform', transformRef: 'transform://true', inputMappingRef: 'mapping://true' } },

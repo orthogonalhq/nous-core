@@ -5,6 +5,7 @@
  * continuation, checkpoint, and run-state contracts.
  */
 import { z } from 'zod';
+import { migrateLegacyModelRole } from './model-role-migration.js';
 import {
   WorkflowDefinitionIdSchema,
   WorkflowNodeDefinitionIdSchema,
@@ -78,7 +79,14 @@ export type WorkflowAuthorityActor = z.infer<
 
 export const WorkflowModelCallNodeConfigSchema = z.object({
   type: z.literal('model-call'),
-  modelRole: ModelRoleSchema,
+  modelRole: z.preprocess(
+    (val) => {
+      if (typeof val !== 'string') return val;
+      const result = migrateLegacyModelRole(val);
+      return result === null ? val : result; // null → pass raw so ModelRoleSchema rejects
+    },
+    ModelRoleSchema,
+  ),
   promptRef: z.string().min(1),
   outputSchemaRef: WorkflowSchemaRefSchema.optional(),
 });

@@ -65,7 +65,7 @@ const projectConfig = {
             executionModel: 'synchronous' as const,
             config: {
               type: 'model-call' as const,
-              modelRole: 'reasoner' as const,
+              modelRole: 'cortex-chat' as const,
               promptRef: 'prompt://model-call',
               outputSchemaRef: 'schema://node-output/model-call',
             },
@@ -273,7 +273,7 @@ describe('WorkflowDispatchHarness Integration', () => {
                 executionModel: 'synchronous' as const,
                 config: {
                   type: 'model-call' as const,
-                  modelRole: 'reasoner' as const,
+                  modelRole: 'cortex-chat' as const,
                   promptRef: 'prompt://model-call',
                   outputSchemaRef: 'schema://output',
                 },
