@@ -88,17 +88,34 @@ function formatTools(
 
 function formatMessages(
   context: readonly import('@nous/shared').GatewayContextFrame[],
-): Array<{ role: 'user' | 'assistant'; content: string }> {
-  return context.map((frame) => ({
-    role: frame.role === 'tool' || frame.role === 'system' ? 'user' : frame.role,
-    content: frame.content,
-  }));
+): Array<{ role: 'user' | 'assistant'; content: string | Array<Record<string, unknown>> }> {
+  return context.map((frame) => {
+    // Tool result with tool_call_id metadata → Anthropic tool_result content block
+    if (frame.role === 'tool' && frame.metadata?.tool_call_id) {
+      return {
+        role: 'user' as const,
+        content: [
+          {
+            type: 'tool_result',
+            tool_use_id: frame.metadata.tool_call_id as string,
+            content: frame.content,
+          },
+        ],
+      };
+    }
+
+    return {
+      role: (frame.role === 'tool' || frame.role === 'system' ? 'user' : frame.role) as 'user' | 'assistant',
+      content: frame.content,
+    };
+  });
 }
 
 // ── Response parsing ────────────────────────────────────────────────
 
 interface AnthropicContentBlock {
   type?: string;
+  id?: string;
   text?: string;
   name?: string;
   input?: unknown;
@@ -161,7 +178,7 @@ function parseAnthropicResponse(
 
   // Parse content blocks
   const textParts: string[] = [];
-  const toolCalls: Array<{ name: string; params: unknown }> = [];
+  const toolCalls: Array<{ name: string; params: unknown; id?: string }> = [];
   const thinkingParts: string[] = [];
 
   for (const block of content) {
@@ -171,7 +188,7 @@ function parseAnthropicResponse(
       textParts.push(block.text);
     } else if (block.type === 'tool_use') {
       if (typeof block.name === 'string') {
-        toolCalls.push({ name: block.name, params: block.input ?? {} });
+        toolCalls.push({ name: block.name, params: block.input ?? {}, id: block.id });
       }
     } else if (block.type === 'thinking' && typeof block.thinking === 'string') {
       thinkingParts.push(block.thinking);

@@ -70,13 +70,14 @@ describe('AgentGateway messaging', () => {
 
     expect(result.status).toBe('completed');
     const secondInvoke = modelProvider.invoke.mock.calls[1][0];
-    const messages = secondInvoke.input.messages as Array<{ role: string; content: string }>;
-    // After transformGatewayInput, child_result frames become messages; find by content
-    const childMessage = messages.find(
-      (msg) => msg.content.includes('"child": "done"'),
+    // Text adapter produces { prompt, context } format with GatewayContextFrame[]
+    const context = secondInvoke.input.context as Array<{ role: string; content: string }>;
+    // After adapter.formatRequest, child_result frames become context entries; find by content
+    const childFrame = context.find(
+      (frame) => frame.content.includes('"child": "done"'),
     );
 
-    expect(childMessage?.content).toContain('"child": "done"');
-    expect(childMessage?.content.includes('"context"')).toBe(false);
+    expect(childFrame?.content).toContain('"child": "done"');
+    expect(childFrame?.content.includes('"context"')).toBe(false);
   });
 });

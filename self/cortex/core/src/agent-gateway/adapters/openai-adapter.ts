@@ -18,11 +18,21 @@ export function createOpenAiAdapter(): ProviderAdapter {
         : input.systemPrompt;
 
       const messages = [
-        { role: 'system' as const, content: systemPrompt },
-        ...input.context.map((frame) => ({
-          role: frame.role === 'tool' ? ('user' as const) : frame.role,
-          content: frame.content,
-        })),
+        { role: 'system' as const, content: systemPrompt } as Record<string, unknown>,
+        ...input.context.map((frame) => {
+          // Tool result with tool_call_id metadata → OpenAI tool result message
+          if (frame.role === 'tool' && frame.metadata?.tool_call_id) {
+            return {
+              role: 'tool' as const,
+              content: frame.content,
+              tool_call_id: frame.metadata.tool_call_id as string,
+            };
+          }
+          return {
+            role: frame.role === 'tool' ? ('user' as const) : frame.role,
+            content: frame.content,
+          };
+        }),
       ];
 
       const result: Record<string, unknown> = { messages };
@@ -127,12 +137,13 @@ function parseOpenAiResponse(output: unknown): ParsedModelOutput {
 
 function parseOpenAiToolCalls(
   toolCalls: unknown,
-): Array<{ name: string; params: unknown }> {
+): Array<{ name: string; params: unknown; id?: string }> {
   if (!Array.isArray(toolCalls)) return [];
-  const result: Array<{ name: string; params: unknown }> = [];
+  const result: Array<{ name: string; params: unknown; id?: string }> = [];
   for (const tc of toolCalls) {
     if (tc && typeof tc === 'object' && 'function' in tc) {
-      const fn = (tc as Record<string, unknown>).function;
+      const tcObj = tc as Record<string, unknown>;
+      const fn = tcObj.function;
       if (fn && typeof fn === 'object') {
         const fnObj = fn as Record<string, unknown>;
         const name = typeof fnObj.name === 'string' ? fnObj.name : '';
@@ -140,7 +151,8 @@ function parseOpenAiToolCalls(
         if (typeof fnObj.arguments === 'string') {
           try { params = JSON.parse(fnObj.arguments); } catch { params = {}; }
         }
-        if (name) result.push({ name, params });
+        const id = typeof tcObj.id === 'string' ? tcObj.id : undefined;
+        if (name) result.push({ name, params, id });
       }
     }
   }

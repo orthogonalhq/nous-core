@@ -37,6 +37,8 @@ import type { IWorkmodeAdmissionGuard } from '@nous/shared';
 import { WorkmodeAdmissionGuard } from '../workmode/admission-guard.js';
 import { parseModelOutput } from '../output-parser.js';
 import { GatewayTraceRecorder } from './trace-recorder.js';
+import { resolveAdapter, resolveProviderTypeFromConfig } from '../agent-gateway/adapters/index.js';
+import type { ProviderAdapter } from '../agent-gateway/adapters/types.js';
 
 const DEFAULT_CHAT_BUDGET = {
   maxTurns: 4,
@@ -63,51 +65,28 @@ function isGatewayInput(value: unknown): value is GatewayInputRecord {
   return typeof value.systemPrompt === 'string' && Array.isArray(value.context);
 }
 
-export function transformGatewayInput(input: unknown): unknown {
-  if (!isRecord(input)) {
-    return input;
-  }
-
-  if ('messages' in input || 'prompt' in input) {
-    return input;
-  }
-
-  if (!isGatewayInput(input)) {
-    return input;
-  }
+/**
+ * Converts gateway-format input to provider-specific format using the adapter.
+ * Passes through input that is already in provider format (has messages/prompt).
+ */
+function adaptGatewayInput(input: unknown, adapter: ProviderAdapter): unknown {
+  if (!isRecord(input)) return input;
+  if ('messages' in input || 'prompt' in input) return input;
+  if (!isGatewayInput(input)) return input;
 
   const parsedContext = GatewayContextFrameSchema.array().safeParse(input.context);
-  if (!parsedContext.success) {
-    return input;
-  }
+  if (!parsedContext.success) return input;
 
-  const result: Record<string, unknown> = {
-    messages: [
-      {
-        role: 'system' as const,
-        content: input.systemPrompt,
-      },
-      ...parsedContext.data.map((frame) => ({
-        role: frame.role === 'tool' ? 'user' as const : frame.role,
-        content: frame.content,
-      })),
-    ],
-  };
-
-  // Pass tools through to the provider when present.
-  // Transform from ToolDefinition shape (camelCase: inputSchema) to
-  // provider schema shape (snake_case: input_schema) for TextModelInputSchema.
-  const tools = (input as Record<string, unknown>).tools;
-  if (Array.isArray(tools) && tools.length > 0) {
-    result.tools = tools.map((t: Record<string, unknown>) => ({
-      name: t.name,
-      description: t.description ?? '',
-      input_schema: t.inputSchema ?? t.input_schema ?? {},
-    }));
-  }
-
-  return result;
+  const result = adapter.formatRequest({
+    systemPrompt: input.systemPrompt,
+    context: parsedContext.data,
+    toolDefinitions: Array.isArray((input as Record<string, unknown>).tools)
+      ? (input as Record<string, unknown>).tools as import('@nous/shared').ToolDefinition[]
+      : undefined,
+  });
+  return result.input;
 }
+
 
 interface MwcPipelineLike {
   submit(
@@ -354,12 +333,15 @@ export class GatewayBackedTurnExecutor implements ICoreExecutor {
       return null;
     }
 
+    const providerType = resolveProviderTypeFromConfig(provider);
+    const adapter = resolveAdapter(providerType);
+
     return {
       ...provider,
       invoke: async (request) => {
         const response = await provider.invoke({
           ...request,
-          input: transformGatewayInput(request.input),
+          input: adaptGatewayInput(request.input, adapter),
         });
         const parsedOutput = parseModelOutput(
           response.output,

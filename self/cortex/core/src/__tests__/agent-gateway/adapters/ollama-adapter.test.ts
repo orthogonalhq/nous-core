@@ -205,6 +205,54 @@ describe('createOllamaAdapter', () => {
       const input = result.input as Record<string, unknown>;
       expect(input.model_profile).toBe('review-standard');
     });
+
+    it('emits tool result message for tool frame with metadata.tool_call_id', () => {
+      const adapter = createOllamaAdapter('gemma4:12b');
+      const result = adapter.formatRequest({
+        systemPrompt: 'prompt',
+        context: [
+          {
+            role: 'tool' as const,
+            content: 'weather data',
+            source: 'tool_result' as const,
+            createdAt: new Date().toISOString(),
+            metadata: { tool_call_id: 'call_xyz' },
+          },
+        ],
+      });
+      const input = result.input as Record<string, unknown>;
+      const messages = input.messages as Array<Record<string, unknown>>;
+      // System message + tool result
+      expect(messages).toHaveLength(2);
+      expect(messages[1]).toEqual({
+        role: 'tool',
+        content: 'weather data',
+        tool_call_id: 'call_xyz',
+      });
+    });
+
+    it('falls back to role: user for tool frame without metadata.tool_call_id', () => {
+      const adapter = createOllamaAdapter('gemma4:12b');
+      const result = adapter.formatRequest({
+        systemPrompt: 'prompt',
+        context: [makeFrame('tool', 'tool output')],
+      });
+      const input = result.input as Record<string, unknown>;
+      const messages = input.messages as Array<Record<string, unknown>>;
+      expect(messages[1]).toEqual({ role: 'user', content: 'tool output' });
+    });
+
+    it('parseResponse returns undefined id for tool calls (Ollama does not provide IDs)', () => {
+      const adapter = createOllamaAdapter('gemma4:12b');
+      const output = {
+        content: '',
+        tool_calls: [
+          { function: { name: 'get_weather', arguments: { city: 'NYC' } } },
+        ],
+      };
+      const result = adapter.parseResponse(output, TRACE_ID);
+      expect(result.toolCalls[0].id).toBeUndefined();
+    });
   });
 
   describe('parseResponse', () => {
