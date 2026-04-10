@@ -10,9 +10,11 @@ import type {
   IModelProvider,
   ModelProviderConfig,
   ProviderId,
+  ProviderVendor,
 } from '@nous/shared';
 import {
   ConfigError,
+  KNOWN_PROVIDER_VENDORS,
   ProviderIdSchema,
   ModelProviderConfigSchema,
 } from '@nous/shared';
@@ -46,7 +48,7 @@ export class ProviderRegistry {
         );
       }
 
-      const providerConfig: ModelProviderConfig = {
+      const baseConfig: ModelProviderConfig = {
         id: idResult.data,
         name: entry.name,
         type: entry.type,
@@ -57,6 +59,15 @@ export class ProviderRegistry {
         capabilities: entry.capabilities ?? [],
         providerClass: entry.providerClass,
         meetsProfiles: entry.meetsProfiles,
+        vendor: entry.vendor,
+      };
+      // Stamp vendor early (WR-138 row #3). Legacy persisted entries that
+      // lack the field on disk fall through `entry.vendor ?? resolveVendor(...)`
+      // WITHOUT emitting the unknown-vendor info log — the log fires only from
+      // the explicit branching-helper-cannot-classify path inside createProvider.
+      const providerConfig: ModelProviderConfig = {
+        ...baseConfig,
+        vendor: baseConfig.vendor ?? this.resolveVendor(baseConfig),
       };
 
       const validated = this.validateProviderConfig(providerConfig);
@@ -74,7 +85,14 @@ export class ProviderRegistry {
   }
 
   registerProvider(config: ModelProviderConfig): void {
-    const validated = this.validateProviderConfig(config);
+    // Stamp vendor early (WR-138 row #3) so the settings-UI upsert path
+    // (`upsertProviderConfig` in shared-server bootstrap) flows through the
+    // same vendor pipeline as the constructor entry loop.
+    const stamped: ModelProviderConfig = {
+      ...config,
+      vendor: config.vendor ?? this.resolveVendor(config),
+    };
+    const validated = this.validateProviderConfig(stamped);
     const provider = this.createProvider(validated);
     this.providers.set(validated.id, provider);
     console.log(
@@ -139,11 +157,47 @@ export class ProviderRegistry {
     return endpoint.includes('anthropic') || providerName.includes('anthropic');
   }
 
+  /**
+   * Resolve the provider vendor key for a config via exhaustive branching
+   * over the three known concrete provider classes. Used at stamp time (row #3
+   * of WR-138) so downstream readers can call `provider.getConfig().vendor`
+   * without falling back to name-pattern sniffing or UUID probing.
+   *
+   * The unknown-vendor info log per `provider-vendor-field-v1.md` § 4 fires
+   * from the explicit "branching helper cannot classify" path. The current
+   * three-branch form is exhaustive for today's production provider classes,
+   * so the log is a forward-compat hook for future plugin subclasses that
+   * bypass the branches.
+   */
+  private resolveVendor(config: ModelProviderConfig): ProviderVendor {
+    if (config.isLocal) return 'ollama';
+    if (this.isAnthropicProvider(config)) return 'anthropic';
+    // Current default: any non-local, non-Anthropic config is OpenAI-compatible.
+    // Any future plugin subclass that needs disambiguation should extend this
+    // helper with a new branch rather than stamping `'openai'` by default.
+    return 'openai';
+  }
+
   private createProvider(config: ModelProviderConfig): IModelProvider {
-    const normalizedConfig = config.isLocal
+    const baseConfig = config.isLocal
       ? config
       : this.normalizeRemoteConfig(config);
-    const provider = config.isLocal
+    // Defense-in-depth stamp: `baseConfig.vendor ?? this.resolveVendor(baseConfig)`
+    // honors any upstream stamping (constructor entry loop / registerProvider)
+    // and fills in the field if the caller bypassed the upstream sites.
+    const resolvedVendor = baseConfig.vendor ?? this.resolveVendor(baseConfig);
+    if (!KNOWN_PROVIDER_VENDORS.includes(resolvedVendor as (typeof KNOWN_PROVIDER_VENDORS)[number])) {
+      console.info(
+        `[nous:providers] Provider ${baseConfig.id} stamped with unknown vendor ` +
+          `'${resolvedVendor}' — adapter will fall back to text. Add a vendor ` +
+          `adapter in @nous/cortex-core if needed.`,
+      );
+    }
+    const normalizedConfig: ModelProviderConfig = {
+      ...baseConfig,
+      vendor: resolvedVendor,
+    };
+    const provider = normalizedConfig.isLocal
       ? new OllamaProvider(normalizedConfig)
       : this.isAnthropicProvider(normalizedConfig)
         ? new AnthropicProvider(normalizedConfig, {
