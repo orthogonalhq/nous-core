@@ -139,8 +139,8 @@ export class OllamaProvider implements IModelProvider {
 
   private validateInput(input: unknown): {
     prompt?: string;
-    messages?: Array<{ role: string; content: string }>;
-    tools?: Array<{ name: string; description: string; input_schema: Record<string, unknown> }>;
+    messages?: Array<{ role: string; content: string | unknown[]; tool_call_id?: string }>;
+    tools?: Array<Record<string, unknown>>;
   } {
     const result = TextModelInputSchema.safeParse(input);
     if (!result.success) {
@@ -156,8 +156,8 @@ export class OllamaProvider implements IModelProvider {
   private buildRequestBody(
     input: {
       prompt?: string;
-      messages?: Array<{ role: string; content: string }>;
-      tools?: Array<{ name: string; description: string; input_schema: Record<string, unknown> }>;
+      messages?: Array<{ role: string; content: string | unknown[]; tool_call_id?: string }>;
+      tools?: Array<Record<string, unknown>>;
     },
   ): Record<string, unknown> {
     const base: Record<string, unknown> = { model: this.config.modelId };
@@ -168,14 +168,19 @@ export class OllamaProvider implements IModelProvider {
 
     // Pass tools to Ollama /api/chat in OpenAI-compatible format
     if (input.tools && input.tools.length > 0) {
-      body.tools = input.tools.map((t) => ({
-        type: 'function',
-        function: {
-          name: t.name,
-          description: t.description,
-          parameters: t.input_schema,
-        },
-      }));
+      body.tools = input.tools.map((t: Record<string, unknown>) => {
+        // Already in adapter format: { type: 'function', function: { ... } }
+        if (t.type === 'function' && t.function) return t;
+        // Legacy format: { name, description, input_schema }
+        return {
+          type: 'function',
+          function: {
+            name: t.name,
+            description: t.description,
+            parameters: t.input_schema,
+          },
+        };
+      });
     }
 
     return body;

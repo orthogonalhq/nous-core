@@ -34,7 +34,7 @@ interface AnthropicStreamEvent {
 interface AnthropicFormattedInput {
   system?: string | Array<{ type: 'text'; text: string; cache_control?: { type: 'ephemeral' } }>;
   messages: Array<{ role: 'user' | 'assistant'; content: string }>;
-  tools?: Array<{ name: string; description: string; input_schema: Record<string, unknown> }>;
+  tools?: Array<Record<string, unknown>>;
 }
 
 export class AnthropicProvider implements IModelProvider {
