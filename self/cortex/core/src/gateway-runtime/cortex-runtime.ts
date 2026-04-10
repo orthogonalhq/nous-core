@@ -521,6 +521,7 @@ implements IPrincipalSystemGatewayRuntime, ISystemInboxSubmissionService {
       response: responseText,
       traceId,
       contentType: resolved.contentType,
+      thinkingContent: resolved.thinkingContent,
     };
   }
 
@@ -753,9 +754,14 @@ implements IPrincipalSystemGatewayRuntime, ISystemInboxSubmissionService {
     return result;
   }
 
-  private resolveChatResponse(result: AgentResult): { response: string; contentType: 'text' | 'openui' } {
+  private resolveChatResponse(result: AgentResult): { response: string; contentType: 'text' | 'openui'; thinkingContent?: string } {
     if (result.status === 'completed') {
-      const output = result.output as { response?: unknown; output?: unknown; contentType?: unknown } | string;
+      const output = result.output as { response?: unknown; output?: unknown; contentType?: unknown; thinkingContent?: unknown } | string;
+
+      // Extract thinkingContent from structured output (undefined for direct-string outputs)
+      const thinkingContent = (typeof output === 'object' && output !== null && typeof output.thinkingContent === 'string')
+        ? output.thinkingContent
+        : undefined;
 
       // 1. Direct string — use as-is
       if (typeof output === 'string') return { response: output, contentType: 'text' };
@@ -763,7 +769,7 @@ implements IPrincipalSystemGatewayRuntime, ISystemInboxSubmissionService {
       // 2. { response: string } — extract .response
       if (typeof output?.response === 'string') {
         const ct = output.contentType === 'openui' ? 'openui' as const : 'text' as const;
-        return { response: output.response, contentType: ct };
+        return { response: output.response, contentType: ct, thinkingContent };
       }
 
       // 3. Recursive one-level unwrap: { output: { response: string } }
@@ -777,6 +783,7 @@ implements IPrincipalSystemGatewayRuntime, ISystemInboxSubmissionService {
         return {
           response: ((output as { output: { response: string } }).output).response,
           contentType: 'text',
+          thinkingContent,
         };
       }
 
@@ -786,7 +793,7 @@ implements IPrincipalSystemGatewayRuntime, ISystemInboxSubmissionService {
         if (keys.length === 1) {
           const value = (output as Record<string, unknown>)[keys[0]];
           if (typeof value === 'string') {
-            return { response: value, contentType: 'text' };
+            return { response: value, contentType: 'text', thinkingContent };
           }
         }
       }
@@ -795,6 +802,7 @@ implements IPrincipalSystemGatewayRuntime, ISystemInboxSubmissionService {
       return {
         response: '```json\n' + JSON.stringify(output, null, 2) + '\n```',
         contentType: 'text',
+        thinkingContent,
       };
     }
     if (result.status === 'escalated') return { response: `[escalated: ${result.reason}]`, contentType: 'text' };
