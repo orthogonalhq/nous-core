@@ -19,6 +19,7 @@ import {
   WorkflowStartResultSchema,
   WorkflowStateSchema,
   WorkflowTransitionInputSchema,
+  WorkflowModelCallNodeConfigSchema,
 } from '../../types/workflow.js';
 
 const PROJECT_ID = '550e8400-e29b-41d4-a716-446655440001';
@@ -82,7 +83,7 @@ const definition = {
       executionModel: 'synchronous',
       config: {
         type: 'model-call',
-        modelRole: 'reasoner',
+        modelRole: 'cortex-chat',
         promptRef: 'prompt://draft',
       },
     },
@@ -463,5 +464,42 @@ describe('Workflow request schemas', () => {
         },
       }).success,
     ).toBe(true);
+  });
+});
+
+// ─── U2 Migration Tests ────────────────────────────────────────────────────
+
+describe('WorkflowModelCallNodeConfigSchema U2 migration', () => {
+  it('(i) remaps modelRole "reasoner" to "cortex-chat"', () => {
+    const result = WorkflowModelCallNodeConfigSchema.safeParse({
+      type: 'model-call',
+      modelRole: 'reasoner',
+      promptRef: 'prompt://test',
+    });
+    expect(result.success).toBe(true);
+    if (result.success) {
+      expect(result.data.modelRole).toBe('cortex-chat');
+    }
+  });
+
+  it('(ii) remaps modelRole "orchestrator" to "orchestrators"', () => {
+    const result = WorkflowModelCallNodeConfigSchema.safeParse({
+      type: 'model-call',
+      modelRole: 'orchestrator',
+      promptRef: 'prompt://test',
+    });
+    expect(result.success).toBe(true);
+    if (result.success) {
+      expect(result.data.modelRole).toBe('orchestrators');
+    }
+  });
+
+  it('(iii) dropped literal "tool-advisor" causes safeParse failure', () => {
+    const result = WorkflowModelCallNodeConfigSchema.safeParse({
+      type: 'model-call',
+      modelRole: 'tool-advisor',
+      promptRef: 'prompt://test',
+    });
+    expect(result.success).toBe(false);
   });
 });
