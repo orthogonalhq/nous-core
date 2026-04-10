@@ -32,6 +32,8 @@ import type {
   IScopedMcpToolSurface,
   IWitnessService,
   IEscalationService,
+  ITaskStore,
+  IDocumentStore,
   ProjectId,
   ToolDefinition,
   ToolResult,
@@ -40,6 +42,7 @@ import type {
   AppHealthSnapshot,
   AppHeartbeatSignal,
 } from '@nous/shared';
+import type { SystemTaskSubmission, SystemSubmissionReceipt } from '../gateway-runtime/types.js';
 
 export const INTERNAL_MCP_TOOL_NAMES = [
   'memory_search',
@@ -79,6 +82,15 @@ export const INTERNAL_MCP_TOOL_NAMES = [
   'workflow_update',
   'workflow_delete',
   'workflow_authoring_reference',
+  'task_list',
+  'task_get',
+  'task_create',
+  'task_update',
+  'task_delete',
+  'task_toggle',
+  'task_trigger',
+  'task_history',
+  'workflow_history',
   'health_report',
   'health_heartbeat',
   'credentials_store',
@@ -161,6 +173,9 @@ export interface InternalMcpRuntimeDeps {
   now?: () => string;
   nowMs?: () => number;
   idFactory?: () => string;
+  taskStore?: ITaskStore;
+  documentStore?: IDocumentStore;
+  submitTaskToSystem?: (input: SystemTaskSubmission) => Promise<SystemSubmissionReceipt>;
 }
 
 export interface InternalMcpHandlerContext {
@@ -192,6 +207,7 @@ export interface InternalMcpTaskCompletionResult {
 export interface InternalMcpCatalogEntry {
   name: InternalMcpToolName;
   kind: InternalMcpToolKind;
+  domain: 'agent' | 'app' | 'bridge';
   definition: ToolDefinition;
 }
 
