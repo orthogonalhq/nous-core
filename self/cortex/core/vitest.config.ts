@@ -48,5 +48,8 @@ export default defineConfig({
     globals: true,
     include: ['src/**/__tests__/**/*.test.ts'],
     exclude: ['**/dist/**', '**/node_modules/**'],
+    // The barrel-identity test uses dynamic await import() which can be slow
+    // under thread pool concurrency during the monorepo-level run.
+    testTimeout: 30000,
   },
 });
