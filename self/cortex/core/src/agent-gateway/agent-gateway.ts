@@ -54,7 +54,8 @@ import {
 } from './lifecycle-hooks.js';
 import { GatewayOutbox } from './outbox.js';
 import { composeSystemPrompt } from './system-prompt-composer.js';
-import { transformGatewayInput } from '../gateway-runtime/gateway-turn-executor.js';
+import { resolveAdapter, resolveProviderTypeFromConfig } from './adapters/index.js';
+import type { ProviderAdapter } from './adapters/types.js';
 
 const DEFAULT_MODEL_ROLE: ModelRole = 'reasoner';
 const DEFAULT_MODEL_REQUIREMENTS = {
@@ -96,6 +97,7 @@ export class AgentGateway implements IAgentGateway {
   private readonly now: () => string;
   private readonly nowMs: () => number;
   private readonly idFactory: () => string;
+  private cachedAdapter: ProviderAdapter | null = null;
 
   constructor(private readonly config: AgentGatewayConfig) {
     this.agentClass = config.agentClass;
@@ -112,6 +114,19 @@ export class AgentGateway implements IAgentGateway {
         'CONFIG_ERROR',
       );
     }
+  }
+
+  /**
+   * Lazily resolves a ProviderAdapter from the provider's config name.
+   * Uses the same heuristic as CortexRuntime.resolveProviderType.
+   * Caches after first resolution for the gateway's lifetime.
+   */
+  private resolveAdapterFromProvider(provider: IModelProvider): ProviderAdapter {
+    if (this.cachedAdapter) return this.cachedAdapter;
+    const providerType = resolveProviderTypeFromConfig(provider);
+    this.cachedAdapter = resolveAdapter(providerType);
+    console.debug('[nous:gateway] adapter resolved', { agentClass: this.agentClass, providerType });
+    return this.cachedAdapter;
   }
 
   getInboxHandle() {
@@ -186,9 +201,10 @@ export class AgentGateway implements IAgentGateway {
 
         const correlation = sequencer.snapshot();
 
-        // ALWAYS use transformGatewayInput — converts { systemPrompt, context, tools }
-        // into provider-compatible format ({ messages, tools }).
-        const providerInput = transformGatewayInput({ systemPrompt, context, tools });
+        // Use adapter.formatRequest() — converts { systemPrompt, context, toolDefinitions }
+        // into provider-specific format (Anthropic, OpenAI, Ollama, or text).
+        const adapter = this.resolveAdapterFromProvider(provider);
+        const formatted = adapter.formatRequest({ systemPrompt, context, toolDefinitions: tools });
 
         // Extract the last user message from context for logging
         const lastUserFrame = [...context].reverse().find(f => f.role === 'user');
@@ -196,13 +212,13 @@ export class AgentGateway implements IAgentGateway {
         console.debug('[nous:gateway] invoke provider', {
           agentClass: this.agentClass,
           hasHarness: !!this.config.harness,
-          inputKeys: Object.keys(providerInput as Record<string, unknown>),
+          inputKeys: Object.keys(formatted.input),
           userMessage: lastUserFrame?.content?.slice(0, 500) ?? '(no user message)',
         });
 
         const modelResponse = await provider.invoke({
           role: this.config.modelRole ?? DEFAULT_MODEL_ROLE,
-          input: providerInput,
+          input: formatted.input,
           projectId,
           traceId,
           agentClass: this.agentClass,
@@ -397,6 +413,7 @@ export class AgentGateway implements IAgentGateway {
     input: AgentInput;
     toolName: string;
     params: unknown;
+    toolCallId?: string;
     budgetTracker: BudgetTracker;
     sequencer: CorrelationSequencer;
     traceId: TraceId;
@@ -422,7 +439,7 @@ export class AgentGateway implements IAgentGateway {
 
   private async handleToolCalls(args: {
     input: AgentInput;
-    toolCalls: Array<{ name: string; params: unknown }>;
+    toolCalls: Array<{ name: string; params: unknown; id?: string }>;
     budgetTracker: BudgetTracker;
     sequencer: CorrelationSequencer;
     traceId: TraceId;
@@ -453,6 +470,7 @@ export class AgentGateway implements IAgentGateway {
           ...args,
           toolName: toolCall.name,
           params: toolCall.params,
+          toolCallId: toolCall.id,
         }));
 
       if (handled.contextFrame) {
@@ -554,6 +572,7 @@ export class AgentGateway implements IAgentGateway {
     input: AgentInput;
     toolName: string;
     params: unknown;
+    toolCallId?: string;
     budgetTracker: BudgetTracker;
     sequencer: CorrelationSequencer;
     traceId: TraceId;
@@ -575,6 +594,7 @@ export class AgentGateway implements IAgentGateway {
           'tool_result',
           stringifyValue(value),
           args.toolName,
+          args.toolCallId ? { tool_call_id: args.toolCallId } : undefined,
         ),
       };
     } catch (error) {
@@ -1326,12 +1346,14 @@ export class AgentGateway implements IAgentGateway {
     source: GatewayContextFrame['source'],
     content: string,
     name?: string,
+    metadata?: Record<string, unknown>,
   ): GatewayContextFrame {
     return GatewayContextFrameSchema.parse({
       role,
       source,
       content,
       name,
+      metadata,
       createdAt: this.now(),
     });
   }

@@ -105,6 +105,51 @@ describe('createAnthropicAdapter', () => {
       const result = adapter.formatRequest(input);
       expect(result.input.model_profile).toBe('fast');
     });
+
+    it('emits tool_result content block for tool frame with metadata.tool_call_id', () => {
+      const input: AdapterFormatInput = {
+        systemPrompt: 'test',
+        context: [
+          {
+            role: 'tool',
+            content: 'search result here',
+            source: 'tool_result',
+            createdAt: '2026-01-01T00:00:00Z',
+            name: 'search',
+            metadata: { tool_call_id: 'toolu_abc123' },
+          },
+        ],
+      };
+      const result = adapter.formatRequest(input);
+      const messages = result.input.messages as Array<{ role: string; content: unknown }>;
+      expect(messages).toHaveLength(1);
+      expect(messages[0].role).toBe('user');
+      expect(messages[0].content).toEqual([
+        {
+          type: 'tool_result',
+          tool_use_id: 'toolu_abc123',
+          content: 'search result here',
+        },
+      ]);
+    });
+
+    it('falls back to role: user for tool frame without metadata.tool_call_id', () => {
+      const input: AdapterFormatInput = {
+        systemPrompt: 'test',
+        context: [
+          {
+            role: 'tool',
+            content: 'tool output',
+            source: 'tool_result',
+            createdAt: '2026-01-01T00:00:00Z',
+          },
+        ],
+      };
+      const result = adapter.formatRequest(input);
+      const messages = result.input.messages as Array<{ role: string; content: unknown }>;
+      expect(messages).toHaveLength(1);
+      expect(messages[0]).toEqual({ role: 'user', content: 'tool output' });
+    });
   });
 
   describe('parseResponse', () => {
@@ -130,6 +175,7 @@ describe('createAnthropicAdapter', () => {
           { type: 'text', text: 'Let me search for that.' },
           {
             type: 'tool_use',
+            id: 'toolu_abc',
             name: 'search',
             input: { query: 'test' },
           },
@@ -139,8 +185,19 @@ describe('createAnthropicAdapter', () => {
       const result = adapter.parseResponse(output, traceId);
       expect(result.response).toBe('Let me search for that.');
       expect(result.toolCalls).toEqual([
-        { name: 'search', params: { query: 'test' } },
+        { name: 'search', params: { query: 'test' }, id: 'toolu_abc' },
       ]);
+    });
+
+    it('preserves tool_use block id in toolCalls', () => {
+      const output = {
+        content: [
+          { type: 'tool_use', id: 'toolu_123', name: 'read_file', input: { path: '/x' } },
+        ],
+        stop_reason: 'tool_use',
+      };
+      const result = adapter.parseResponse(output, traceId);
+      expect(result.toolCalls[0].id).toBe('toolu_123');
     });
 
     it('parses multiple tool_use blocks', () => {

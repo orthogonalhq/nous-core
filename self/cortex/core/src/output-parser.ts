@@ -11,7 +11,7 @@ import {
 
 export interface ParsedModelOutput {
   response: string;
-  toolCalls: Array<{ name: string; params: unknown }>;
+  toolCalls: Array<{ name: string; params: unknown; id?: string }>;
   memoryCandidates: MemoryWriteCandidate[];
   contentType?: 'text' | 'openui';
   /** Extended thinking / reasoning trace from the provider. Populated by adapters (SP 1.3). */
