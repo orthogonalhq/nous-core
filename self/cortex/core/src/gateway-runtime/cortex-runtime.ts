@@ -36,7 +36,7 @@ import type {
   TraceId,
   HarnessStrategies,
   PromptFormatterInput,
-  IModelProvider,
+  ProviderVendor,
 } from '@nous/shared';
 import { GatewayContextFrameSchema } from '@nous/shared';
 import { AgentGatewayFactory, createInboxFrame } from '../agent-gateway/index.js';
@@ -207,6 +207,19 @@ implements IPrincipalSystemGatewayRuntime, ISystemInboxSubmissionService {
   private readonly nowMs: () => number;
   private readonly principalGateway: IAgentGateway;
   private readonly systemGateway: IAgentGateway;
+  // WR-138 row #6 / Finding IP-5: keep references to the gateway configs so
+  // attachProviders() can swap the `harness` field in place without rebuilding
+  // the gateway instances. The gateways hold the config by reference via
+  // `AgentGatewayFactory.create()`, so mutating the field on these captured
+  // references propagates to the running gateways on their next `run(...)`.
+  private principalGatewayConfig!: AgentGatewayConfig;
+  private systemGatewayConfig!: AgentGatewayConfig;
+  // WR-138 row #6 / CPAL § 4: state for attachProviders idempotency and the
+  // first-use startup warning per Finding IP-6.
+  private attachedVendorByClass:
+    | Partial<Record<AgentClass, ProviderVendor>>
+    | null = null;
+  private attachWarningEmitted = false;
   private readonly principalTools: ToolDefinition[];
   private readonly systemTools: ToolDefinition[];
   private readonly systemBacklogQueue: SystemBacklogQueue;
@@ -253,18 +266,19 @@ implements IPrincipalSystemGatewayRuntime, ISystemInboxSubmissionService {
       ...this.catalogDefinitions('Cortex::Principal'),
       ...getPrincipalCommunicationToolDefinitions(),
     ];
-    this.principalGateway = this.gatewayFactory.create(
-      this.createGatewayConfig({
-        agentClass: 'Cortex::Principal',
-        agentId: principalAgentId,
-        toolSurface: principalToolSurface,
-        lifecycleHooks: principalBase.lifecycleHooks,
-        baseSystemPrompt:
-          this.deps.principalBaseSystemPrompt
-            ?? composeSystemPromptFromConfig(resolvePromptConfig('Cortex::Principal')),
-        outbox: new HealthTrackingOutboxSink('Cortex::Principal', this.healthSink, this.deps.eventBus),
-      }),
-    );
+    // WR-138 row #6: capture config before handing it to the factory so
+    // attachProviders() can recompose in place.
+    this.principalGatewayConfig = this.createGatewayConfig({
+      agentClass: 'Cortex::Principal',
+      agentId: principalAgentId,
+      toolSurface: principalToolSurface,
+      lifecycleHooks: principalBase.lifecycleHooks,
+      baseSystemPrompt:
+        this.deps.principalBaseSystemPrompt
+          ?? composeSystemPromptFromConfig(resolvePromptConfig('Cortex::Principal')),
+      outbox: new HealthTrackingOutboxSink('Cortex::Principal', this.healthSink, this.deps.eventBus),
+    });
+    this.principalGateway = this.gatewayFactory.create(this.principalGatewayConfig);
     this.healthSink.markGatewayBooted({
       agentClass: 'Cortex::Principal',
       agentId: this.principalGateway.agentId,
@@ -279,17 +293,18 @@ implements IPrincipalSystemGatewayRuntime, ISystemInboxSubmissionService {
       deps: this.createInternalMcpDeps(),
     });
     this.systemTools = this.catalogDefinitions('Cortex::System');
-    this.systemGateway = this.gatewayFactory.create(
-      this.createGatewayConfig({
-        agentClass: 'Cortex::System',
-        agentId: systemAgentId,
-        toolSurface: systemBundle.toolSurface,
-        lifecycleHooks: systemBundle.lifecycleHooks,
-        baseSystemPrompt: this.deps.systemBaseSystemPrompt
-          ?? composeSystemPromptFromConfig(resolvePromptConfig('Cortex::System'), this.systemTools),
-        outbox: new HealthTrackingOutboxSink('Cortex::System', this.healthSink, this.deps.eventBus),
-      }),
-    );
+    // WR-138 row #6: capture config before handing it to the factory so
+    // attachProviders() can recompose in place.
+    this.systemGatewayConfig = this.createGatewayConfig({
+      agentClass: 'Cortex::System',
+      agentId: systemAgentId,
+      toolSurface: systemBundle.toolSurface,
+      lifecycleHooks: systemBundle.lifecycleHooks,
+      baseSystemPrompt: this.deps.systemBaseSystemPrompt
+        ?? composeSystemPromptFromConfig(resolvePromptConfig('Cortex::System'), this.systemTools),
+      outbox: new HealthTrackingOutboxSink('Cortex::System', this.healthSink, this.deps.eventBus),
+    });
+    this.systemGateway = this.gatewayFactory.create(this.systemGatewayConfig);
     this.healthSink.markGatewayBooted({
       agentClass: 'Cortex::System',
       agentId: this.systemGateway.agentId,
@@ -353,6 +368,7 @@ implements IPrincipalSystemGatewayRuntime, ISystemInboxSubmissionService {
   }
 
   async submitTask(input: SystemTaskSubmission): Promise<SystemSubmissionReceipt> {
+    this.checkAttachOrWarn();
     return this.submitTaskToSystem(input);
   }
 
@@ -400,6 +416,7 @@ implements IPrincipalSystemGatewayRuntime, ISystemInboxSubmissionService {
   async submitIngressEnvelope(
     envelope: IngressTriggerEnvelope,
   ): Promise<IngressDispatchOutcome> {
+    this.checkAttachOrWarn();
     const receipt = await this.enqueueSystemSubmission({
       source: mapSubmissionSource(envelope.trigger_type),
       priority:
@@ -431,6 +448,7 @@ implements IPrincipalSystemGatewayRuntime, ISystemInboxSubmissionService {
   }
 
   async handleChatTurn(input: ChatTurnInput): Promise<ChatTurnResult> {
+    this.checkAttachOrWarn();
     const parsed = ChatTurnInputSchema.parse(input);
     const { message, projectId, traceId } = parsed;
 
@@ -887,8 +905,27 @@ implements IPrincipalSystemGatewayRuntime, ISystemInboxSubmissionService {
     baseSystemPrompt: string;
     outbox?: IGatewayOutboxSink;
   }): AgentGatewayConfig {
-    const provider = this.deps.modelProviderByClass?.[args.agentClass];
-    const providerType = this.resolveProviderType(provider);
+    // WR-138 row #5: Option α vendor resolution chain per
+    // `cortex-provider-attach-lifecycle-v1.md` AC #9 and
+    // `provider-vendor-field-v1.md` § 6.
+    //
+    // Step 1 (`modelProviderByClass?[class]`) preserves behavioral parity
+    //   for the existing test fixture family that wires the mock-friendly dep.
+    // Step 2 (`getProvider(providerIdByClass[class])`) is the production
+    //   dispatch path for Orchestrator and Worker (and the post-attach path
+    //   for Principal/System after bootstrap calls attachProviders()).
+    // Step 3 (`.getConfig().vendor ?? 'text'`) is the final read with a
+    //   safe text-adapter fallback (the intentional placeholder behavior
+    //   per CPAL § 3).
+    const directProvider = this.deps.modelProviderByClass?.[args.agentClass];
+    const provider =
+      directProvider ??
+      (this.deps.providerIdByClass?.[args.agentClass] && this.deps.getProvider
+        ? (this.deps.getProvider(
+            this.deps.providerIdByClass[args.agentClass]!,
+          ) ?? undefined)
+        : undefined);
+    const providerType = provider?.getConfig().vendor ?? 'text';
     const harness = this.composeHarnessStrategies(args.agentClass, providerType);
 
     return {
@@ -911,87 +948,23 @@ implements IPrincipalSystemGatewayRuntime, ISystemInboxSubmissionService {
   }
 
   /**
-   * Resolve the provider vendor type string (e.g. 'anthropic', 'openai', 'ollama')
-   * from the provider's config name. Falls back to 'text' for unknown providers,
-   * which uses the text adapter (preserving current behavior).
-   */
-  private resolveProviderType(provider?: IModelProvider): string {
-    const resolve = (p: IModelProvider): string | null => {
-      try {
-        const config = p.getConfig();
-        const name = (config.name ?? config.type ?? '').toLowerCase();
-        if (name.includes('anthropic') || name.includes('claude')) return 'anthropic';
-        if (name.includes('openai') || name.includes('gpt')) return 'openai';
-        if (name.includes('ollama')) return 'ollama';
-        return null;
-      } catch {
-        return null;
-      }
-    };
-
-    // Try direct provider first
-    if (provider) {
-      return resolve(provider) ?? 'text';
-    }
-
-    // No direct provider mapped — probe registered providers via getProvider.
-    // This handles the common case where bootstrap uses modelRouter + getProvider
-    // instead of modelProviderByClass.
-    console.debug('[nous:cortex-runtime] resolveProviderType: no direct provider, probing deps', {
-      hasGetProvider: !!this.deps.getProvider,
-      hasModelRouter: !!this.deps.modelRouter,
-      hasModelProviderByClass: !!this.deps.modelProviderByClass,
-    });
-    if (this.deps.getProvider) {
-      const WELL_KNOWN_IDS = [
-        '10000000-0000-0000-0000-000000000003', // ollama
-        '10000000-0000-0000-0000-000000000001', // anthropic
-        '10000000-0000-0000-0000-000000000002', // openai
-      ];
-      for (const id of WELL_KNOWN_IDS) {
-        const p = this.deps.getProvider(id);
-        console.debug('[nous:cortex-runtime] probing provider', { id, found: !!p, config: p ? p.getConfig() : null });
-        if (p) {
-          const type = resolve(p);
-          if (type) return type;
-        }
-      }
-    }
-
-    console.debug('[nous:cortex-runtime] resolveProviderType: falling back to text');
-    return 'text';
-  }
-
-  /**
    * Compose harness strategies for the given agent class and provider type.
-   * This replaces the old wrapProviderWithInputTransform and synthesizeTaskComplete
-   * hacks with the composable adapter pattern.
+   * Adapter is resolved up-front from the vendor string — no lazy closure,
+   * no cached adapter, no name-string sniffing, no UUID probing. See WR-138
+   * row #5 and `provider-vendor-field-v1.md` § 6.
    */
   private composeHarnessStrategies(
     agentClass: AgentClass,
-    _providerType: string,
+    providerType: string,
   ): HarnessStrategies {
-    // Resolve adapter lazily — providers may not be registered yet at
-    // construction time (bootstrap registers them after runtime creation).
-    let cachedAdapter: ReturnType<typeof resolveAdapter> | null = null;
-    const getAdapter = () => {
-      if (!cachedAdapter) {
-        const resolvedType = this.resolveProviderType(
-          this.deps.modelProviderByClass?.[agentClass],
-        );
-        cachedAdapter = resolveAdapter(resolvedType);
-        console.debug('[nous:cortex-runtime] lazy adapter resolved', { agentClass, resolvedType });
-      }
-      return cachedAdapter;
-    };
-
+    const adapter = resolveAdapter(providerType);
     const profile = resolveAgentProfile(agentClass);
 
     return {
       promptFormatter: (input: PromptFormatterInput) =>
-        composeFromProfile(profile, getAdapter().capabilities, input),
+        composeFromProfile(profile, adapter.capabilities, input),
       responseParser: (output: unknown, traceId: TraceId) =>
-        getAdapter().parseResponse(output, traceId),
+        adapter.parseResponse(output, traceId),
       contextStrategy: profile.contextBudget
         ? {
             getDefaults: () =>
@@ -1146,6 +1119,104 @@ implements IPrincipalSystemGatewayRuntime, ISystemInboxSubmissionService {
         return 'critical';
       default:
         return 'normal';
+    }
+  }
+
+  /**
+   * Attach providers to Principal and System gateways after the runtime
+   * constructor returns. Bootstrap MUST call this exactly once after
+   * `ProviderRegistry` is populated — see `cortex-provider-attach-lifecycle-v1.md`
+   * §§ 1-7, AC #1-#12 for the full contract.
+   *
+   * Constructor placeholder behavior: Principal and System gateways are
+   * constructed with the text adapter (vendor resolves to `'text'` because
+   * `getProvider` returns null before registry population). They are
+   * functional as placeholders until `attachProviders` upgrades the harness
+   * by swapping the `harness` field on the captured config references — the
+   * running gateway instances are NOT recreated, and any external references
+   * to `runtime.principalGateway` / `runtime.systemGateway` remain valid.
+   *
+   * Idempotency per CPAL § 4:
+   *   - First call stamps the map and recomposes the affected harnesses.
+   *   - Same-map re-call is a no-op (stable entries-equality comparison
+   *     tolerates different key ordering per Finding IP-7 Option B).
+   *   - Different-map re-call throws a plain `Error` with the verbatim
+   *     § 4 message.
+   *
+   * @param args.providerVendorByClass Vendor key per agent class. Missing
+   *   classes stay on the text placeholder. Orchestrator/Worker are NOT
+   *   recomposed here (their gateways are created at dispatch time and walk
+   *   the Option α chain inside `createGatewayConfig`).
+   */
+  attachProviders(args: {
+    providerVendorByClass: Partial<Record<AgentClass, ProviderVendor>>;
+  }): void {
+    if (this.attachedVendorByClass !== null) {
+      if (this.entriesEqual(this.attachedVendorByClass, args.providerVendorByClass)) {
+        // Same-map re-call is a no-op.
+        return;
+      }
+      throw new Error(
+        'CortexRuntime.attachProviders called twice with different vendor maps. ' +
+          'Bootstrap should call attachProviders exactly once after ProviderRegistry is populated.',
+      );
+    }
+
+    this.attachedVendorByClass = { ...args.providerVendorByClass };
+
+    // Swap-in-place recompose per CPAL § 5 / Finding IP-5. The gateway object
+    // identity is preserved because we mutate the `harness` field on the
+    // `AgentGatewayConfig` references the gateways already hold internally.
+    const principalVendor = args.providerVendorByClass['Cortex::Principal'];
+    if (principalVendor !== undefined) {
+      this.principalGatewayConfig.harness = this.composeHarnessStrategies(
+        'Cortex::Principal',
+        principalVendor,
+      );
+    }
+    const systemVendor = args.providerVendorByClass['Cortex::System'];
+    if (systemVendor !== undefined) {
+      this.systemGatewayConfig.harness = this.composeHarnessStrategies(
+        'Cortex::System',
+        systemVendor,
+      );
+    }
+    // Orchestrator and Worker are intentionally NOT recomposed here — their
+    // gateways do not exist at boot time and the Option α chain handles them
+    // at dispatch time via `createChildGateway -> createGatewayConfig`.
+  }
+
+  /**
+   * Stable entries-equality comparison for `attachProviders` idempotency
+   * per Finding IP-7 Option B. Order-stable (sorts keys) and avoids any
+   * JSON.stringify edge cases (undefined, NaN, etc.) for the well-typed
+   * shape.
+   */
+  private entriesEqual(
+    a: Partial<Record<AgentClass, ProviderVendor>>,
+    b: Partial<Record<AgentClass, ProviderVendor>>,
+  ): boolean {
+    const ka = (Object.keys(a) as AgentClass[]).sort();
+    const kb = (Object.keys(b) as AgentClass[]).sort();
+    if (ka.length !== kb.length) return false;
+    return ka.every((k, i) => k === kb[i] && a[k] === b[k]);
+  }
+
+  /**
+   * Emit a single startup warning if the runtime is exercised before
+   * `attachProviders` has been called. Per CPAL § 7 and Finding IP-6: fires
+   * from the first call to `handleChatTurn` / `submitTask` /
+   * `submitIngressEnvelope` when `attachedVendorByClass === null`. Guarded
+   * by `attachWarningEmitted` so it fires exactly once per runtime instance.
+   */
+  private checkAttachOrWarn(): void {
+    if (this.attachedVendorByClass === null && !this.attachWarningEmitted) {
+      console.warn(
+        '[nous:cortex-runtime] CortexRuntime exposed without attached vendor map. ' +
+          'Principal and System gateways will run with the text adapter. ' +
+          'This is likely a bootstrap bug — see cortex-provider-attach-lifecycle-v1.md.',
+      );
+      this.attachWarningEmitted = true;
     }
   }
 }

@@ -34,6 +34,7 @@ import type {
   MemoryMutationRequest,
   ModelRequirements,
   ProjectId,
+  ProviderVendor,
   ToolDefinition,
 } from '@nous/shared';
 import type { InternalMcpOutputSchemaValidator } from '../internal-mcp/types.js';
@@ -233,6 +234,19 @@ export interface PrincipalSystemGatewayRuntimeDeps {
   modelRouter?: IModelRouter;
   getProvider?: (providerId: string) => IModelProvider | null;
   modelProviderByClass?: Partial<Record<AgentClass, IModelProvider>>;
+  /**
+   * Per-agent-class map from AgentClass to a provider UUID that bootstrap has
+   * registered with ProviderRegistry. Used by the runtime's Option α resolution
+   * chain inside createGatewayConfig to resolve `vendor` synchronously via
+   * `deps.getProvider(providerIdByClass[class])` when modelProviderByClass is
+   * not wired for the class (the production case for Orchestrator/Worker
+   * dispatch). Optional at introduction for backward-compat with existing test
+   * fixtures that do not wire it. The cortex layer must NEVER hard-code a UUID
+   * here — bootstrap is the sole owner of the AgentClass → providerId mapping.
+   *
+   * See: cortex-provider-attach-lifecycle-v1.md § 6, WR-138 sub-phase 1.1.
+   */
+  providerIdByClass?: Partial<Record<AgentClass, string>>;
   getProjectApi?: (projectId: ProjectId) => IProjectApi | null;
   toolExecutor?: IToolExecutor;
   pfc?: IPfcEngine;
@@ -291,6 +305,17 @@ export interface IPrincipalSystemGatewayRuntime {
   listBacklogEntries(filter?: { status?: BacklogEntryStatus }): Promise<BacklogEntry[]>;
   notifyLeaseReleased(event: LaneLeaseReleasedEvent): Promise<void>;
   handleChatTurn(input: ChatTurnInput): Promise<ChatTurnResult>;
+  /**
+   * Post-construct attach lifecycle hook per WR-138 /
+   * `cortex-provider-attach-lifecycle-v1.md` AC #1, § 2. Bootstrap MUST call
+   * this exactly once after `ProviderRegistry` is populated to upgrade the
+   * Principal and System gateways from the text-adapter placeholder to the
+   * vendor-resolved adapter. Idempotent on same-map re-call; throws on
+   * different-map re-call.
+   */
+  attachProviders(args: {
+    providerVendorByClass: Partial<Record<AgentClass, ProviderVendor>>;
+  }): void;
   whenIdle(): Promise<void>;
 }
 
