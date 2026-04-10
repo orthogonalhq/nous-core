@@ -130,6 +130,7 @@ export interface InternalMcpDispatchChildRequest {
   payload?: unknown;
   nodeDefinitionId?: string;
   dispatchIntent?: DispatchIntent;
+  granted_tools?: string[];
 }
 
 export interface InternalMcpDispatchChildArgs {
@@ -245,6 +246,7 @@ export interface InternalMcpScopedToolSurfaceOptions {
   agentClass: AgentClass;
   agentId: AgentGatewayConfig['agentId'];
   deps: InternalMcpRuntimeDeps;
+  lease?: import('@nous/shared').LeaseContract;
 }
 
 export interface InternalMcpSurfaceBundle {
