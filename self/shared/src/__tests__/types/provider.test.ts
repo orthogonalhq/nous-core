@@ -43,7 +43,7 @@ describe('ModelProviderConfigSchema', () => {
 describe('ModelRequestSchema', () => {
   it('accepts a valid request', () => {
     const result = ModelRequestSchema.safeParse({
-      role: 'reasoner',
+      role: 'cortex-chat',
       input: { prompt: 'Analyze this deal' },
       traceId: VALID_UUID,
     });
@@ -53,7 +53,7 @@ describe('ModelRequestSchema', () => {
   it('accepts optional agentClass and abortSignal fields', () => {
     const controller = new AbortController();
     const result = ModelRequestSchema.safeParse({
-      role: 'reasoner',
+      role: 'cortex-chat',
       input: { prompt: 'Analyze this deal' },
       traceId: VALID_UUID,
       agentClass: 'Worker',

@@ -294,55 +294,34 @@ function buildLocalRecommendations(
     tier === 'medium'
       ? [
           {
-            role: 'reasoner',
+            role: 'cortex-chat',
             recommendation: createRecommendation(
               LOCAL_MODEL_CATALOG.medium,
               'Use the stronger local model for reasoning-heavy work.',
             ),
           },
           {
-            role: 'orchestrator',
+            role: 'orchestrators',
             recommendation: createRecommendation(
               LOCAL_MODEL_CATALOG.small,
               'Keep orchestration responsive with a lighter local model.',
-            ),
-          },
-          {
-            role: 'tool-advisor',
-            recommendation: createRecommendation(
-              LOCAL_MODEL_CATALOG.small,
-              'Tool routing benefits from a faster local model on mid-spec systems.',
             ),
           },
         ]
       : tier === 'large'
         ? [
             {
-              role: 'reasoner',
+              role: 'cortex-chat',
               recommendation: createRecommendation(
                 LOCAL_MODEL_CATALOG.large,
                 'High-spec hardware can sustain a larger local reasoner.',
               ),
             },
             {
-              role: 'orchestrator',
+              role: 'orchestrators',
               recommendation: createRecommendation(
                 LOCAL_MODEL_CATALOG.medium,
                 'Use a mid-tier model for orchestration to preserve local responsiveness.',
-              ),
-            },
-            {
-              role: 'summarizer',
-              recommendation: createRecommendation(
-                LOCAL_MODEL_CATALOG.small,
-                'Summarization can stay on a lighter model without sacrificing throughput.',
-              ),
-            },
-            {
-              role: 'vision',
-              recommendation: createRecommendation(
-                LOCAL_MODEL_CATALOG.medium,
-                'Vision tasks benefit from the larger context budget on high-spec systems.',
               ),
             },
           ]
@@ -379,16 +358,8 @@ function buildRemoteRecommendations(spec: HardwareSpec): RecommendationResult {
     singleModel: REMOTE_SINGLE_MODEL,
     multiModel: [
       {
-        role: 'reasoner',
+        role: 'cortex-chat',
         recommendation: REMOTE_REASONER_MODEL,
-      },
-      {
-        role: 'vision',
-        recommendation: REMOTE_SUPPORT_MODEL,
-      },
-      {
-        role: 'summarizer',
-        recommendation: REMOTE_SUPPORT_MODEL,
       },
     ],
     hardwareSpec: spec,

@@ -124,7 +124,7 @@ function makeContext(overrides?: {
       executionModel: 'synchronous',
       config: {
         type: (overrides?.configType ?? 'model-call') as 'model-call',
-        modelRole: 'orchestrator' as const,
+        modelRole: 'orchestrators' as const,
         promptRef: overrides?.promptRef ?? 'default:nous.agent.claude',
         outputSchemaRef: 'schema://node-1/output',
       },

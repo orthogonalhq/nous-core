@@ -16,13 +16,10 @@ import {
   registerConfiguredProvider,
   removeConfiguredProvider,
   updateRoleAssignment,
-  updateReasonerAssignment,
   upsertProviderConfig,
 } from '../../bootstrap';
 
 const SYSTEM_APP_ID = 'nous:system';
-const MODEL_SELECTION_COLLECTION = 'nous:model_selection';
-const MODEL_SELECTION_ID = 'current';
 
 const ProviderSchema = z.enum(['anthropic', 'openai']);
 type Provider = z.infer<typeof ProviderSchema>;
@@ -521,72 +518,6 @@ export const preferencesRouter = router({
 
     return { models: [...ollamaModels, ...cloudModels] };
   }),
-
-  getModelSelection: publicProcedure.query(async ({ ctx }) => {
-    const saved = await ctx.documentStore.get<{
-      principal: string | null;
-      system: string | null;
-    }>(MODEL_SELECTION_COLLECTION, MODEL_SELECTION_ID);
-
-    return {
-      principal: saved?.principal ?? null,
-      system: saved?.system ?? null,
-    };
-  }),
-
-  setModelSelection: publicProcedure
-    .input(
-      z.object({
-        principal: z.string().optional(),
-        system: z.string().optional(),
-      }),
-    )
-    .mutation(async ({ ctx, input }) => {
-      const existing = await ctx.documentStore.get<{
-        principal: string | null;
-        system: string | null;
-      }>(MODEL_SELECTION_COLLECTION, MODEL_SELECTION_ID);
-
-      const updated = {
-        principal: input.principal ?? existing?.principal ?? null,
-        system: input.system ?? existing?.system ?? null,
-      };
-
-      await ctx.documentStore.put(
-        MODEL_SELECTION_COLLECTION,
-        MODEL_SELECTION_ID,
-        updated,
-      );
-
-      const selectedModel = parseSelectedModelSpec(updated.principal);
-      if (!selectedModel) {
-        if (updated.principal) {
-          console.warn(
-            `[nous:preferences] Cannot parse model spec: ${updated.principal}. Skipping runtime config update.`,
-          );
-        }
-
-        return { success: true };
-      }
-
-      try {
-        const { providerId, providerConfig } = buildProviderSelection(selectedModel);
-
-        await upsertProviderConfig(ctx, providerConfig);
-        await updateReasonerAssignment(ctx, providerId);
-
-        console.info(
-          `[nous:preferences] Updated runtime provider config for ${updated.principal}`,
-        );
-      } catch (err) {
-        const message = err instanceof Error ? err.message : String(err);
-        console.error(
-          `[nous:preferences] Failed to update runtime provider config: ${message}`,
-        );
-      }
-
-      return { success: true };
-    }),
 
   getRoleAssignments: publicProcedure.query(async ({ ctx }) => {
     return Object.fromEntries(

@@ -452,8 +452,8 @@ describe('Wizard step components', () => {
         {...props}
         selectedModelSpec="ollama:qwen2.5:7b"
         roleAssignments={{
-          orchestrator: 'ollama:qwen2.5:7b',
-          reasoner: 'ollama:qwen2.5:14b',
+          orchestrators: 'ollama:qwen2.5:7b',
+          workers: 'ollama:qwen2.5:14b',
         }}
         ollamaStatus={createPrerequisites().ollama}
         onFinish={vi.fn()}

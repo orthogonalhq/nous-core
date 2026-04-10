@@ -80,7 +80,7 @@ const projectConfig = ProjectConfigSchema.parse({
             executionModel: 'synchronous' as const,
             config: {
               type: 'model-call' as const,
-              modelRole: 'reasoner' as const,
+              modelRole: 'cortex-chat' as const,
               promptRef: 'prompt://draft',
             },
           },
@@ -324,7 +324,7 @@ describe('SchedulerService', () => {
               executionModel: 'synchronous' as const,
               config: {
                 type: 'model-call' as const,
-                modelRole: 'reasoner' as const,
+                modelRole: 'cortex-chat' as const,
                 promptRef: 'prompt://draft',
               },
             },

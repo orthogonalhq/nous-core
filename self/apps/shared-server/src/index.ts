@@ -11,7 +11,6 @@ export {
   OLLAMA_WELL_KNOWN_PROVIDER_ID,
   createNousServices,
   loadStoredApiKeys,
-  loadModelSelection,
   registerStoredProviders,
   WELL_KNOWN_PROVIDER_IDS,
   buildOllamaProviderConfig,

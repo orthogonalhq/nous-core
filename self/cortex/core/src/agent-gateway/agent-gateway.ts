@@ -57,7 +57,18 @@ import { composeSystemPrompt } from './system-prompt-composer.js';
 import { resolveAdapter, resolveProviderTypeFromConfig } from './adapters/index.js';
 import type { ProviderAdapter } from './adapters/types.js';
 
-const DEFAULT_MODEL_ROLE: ModelRole = 'reasoner';
+const DEFAULT_MODEL_ROLE_BY_CLASS: Record<AgentClass, ModelRole> = {
+  'Cortex::Principal': 'cortex-chat',
+  'Cortex::System': 'cortex-system',
+  Orchestrator: 'orchestrators',
+  Worker: 'workers',
+};
+
+function deriveDefaultModelRole(agentClass: AgentClass | undefined): ModelRole {
+  if (!agentClass) return 'cortex-chat'; // I5 first-run fallback
+  return DEFAULT_MODEL_ROLE_BY_CLASS[agentClass];
+}
+
 const DEFAULT_MODEL_REQUIREMENTS = {
   profile: 'review-standard',
   fallbackPolicy: 'block_if_unmet' as const,
@@ -217,7 +228,7 @@ export class AgentGateway implements IAgentGateway {
         });
 
         const modelResponse = await provider.invoke({
-          role: this.config.modelRole ?? DEFAULT_MODEL_ROLE,
+          role: this.config.modelRole ?? deriveDefaultModelRole(this.config.agentClass),
           input: formatted.input,
           projectId,
           traceId,
@@ -1320,7 +1331,7 @@ export class AgentGateway implements IAgentGateway {
         DEFAULT_MODEL_REQUIREMENTS,
     };
     const route = await this.config.modelRouter!.routeWithEvidence(
-      this.config.modelRole ?? DEFAULT_MODEL_ROLE,
+      this.config.modelRole ?? deriveDefaultModelRole(this.config.agentClass),
       routeContext,
     );
     const provider = this.config.getProvider!(route.providerId);

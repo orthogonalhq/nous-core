@@ -12,7 +12,7 @@ const PROVIDER_ID = '00000000-0000-0000-0000-000000000001' as const;
 const createMockConfig = () => ({
   get: vi.fn().mockReturnValue({
     modelRoleAssignments: [
-      { role: 'reasoner', providerId: PROVIDER_ID },
+      { role: 'cortex-chat', providerId: PROVIDER_ID },
     ],
     providers: [
       {
@@ -57,7 +57,7 @@ describe('Router + Provider integration', () => {
     const router = new ModelRouter(config as any);
     const registry = new ProviderRegistry(config as any);
 
-    const providerId = await router.route('reasoner');
+    const providerId = await router.route('cortex-chat');
     expect(providerId).toBe(PROVIDER_ID);
 
     const provider = registry.getProvider(providerId);
@@ -65,7 +65,7 @@ describe('Router + Provider integration', () => {
 
     const chunks: string[] = [];
     for await (const chunk of provider!.stream({
-      role: 'reasoner',
+      role: 'cortex-chat',
       input: { prompt: 'Say hello' },
       traceId: '00000000-0000-0000-0000-000000000002' as any,
     })) {

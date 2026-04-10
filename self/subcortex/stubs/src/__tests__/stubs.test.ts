@@ -356,7 +356,7 @@ describe('StubProjectApi', () => {
 
   it('model.invoke() throws NousError with code NOT_IMPLEMENTED', async () => {
     await assertNotImplemented(
-      () => stub.model.invoke('reasoner', {}),
+      () => stub.model.invoke('cortex-chat', {}),
       'IProjectApi.model',
     );
   });

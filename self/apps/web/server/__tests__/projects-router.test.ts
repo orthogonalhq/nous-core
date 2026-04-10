@@ -128,7 +128,7 @@ function createWorkflow(projectId: ProjectId, version = '1.0.0'): WorkflowDefini
         outputSchemaRef: 'schema://projects-workflow/draft-output',
         config: {
           type: 'model-call' as const,
-          modelRole: 'reasoner' as const,
+          modelRole: 'cortex-chat' as const,
           promptRef: 'prompt://draft',
         },
       },

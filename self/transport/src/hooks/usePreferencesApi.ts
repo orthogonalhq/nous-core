@@ -15,7 +15,6 @@ export function usePreferencesApi() {
   const setApiKey = trpc.preferences.setApiKey.useMutation()
   const deleteApiKey = trpc.preferences.deleteApiKey.useMutation()
   const testApiKey = trpc.preferences.testApiKey.useMutation()
-  const setModelSelection = trpc.preferences.setModelSelection.useMutation()
   const setRoleAssignment = trpc.preferences.setRoleAssignment.useMutation()
   const resetWizardMutation = trpc.firstRun.resetWizard.useMutation()
   const pullOllamaModel = trpc.ollama.pullModel.useMutation()
@@ -30,8 +29,6 @@ export function usePreferencesApi() {
   deleteApiKeyRef.current = deleteApiKey.mutateAsync
   const testApiKeyRef = useRef(testApiKey.mutateAsync)
   testApiKeyRef.current = testApiKey.mutateAsync
-  const setModelSelectionRef = useRef(setModelSelection.mutateAsync)
-  setModelSelectionRef.current = setModelSelection.mutateAsync
   const setRoleAssignmentRef = useRef(setRoleAssignment.mutateAsync)
   setRoleAssignmentRef.current = setRoleAssignment.mutateAsync
   const resetWizardRef = useRef(resetWizardMutation.mutateAsync)
@@ -64,12 +61,6 @@ export function usePreferencesApi() {
       // Optional methods (all provided — wired to existing tRPC endpoints)
       getAvailableModels: async () => {
         return utilsRef.current.preferences.getAvailableModels.fetch()
-      },
-      getModelSelection: async () => {
-        return utilsRef.current.preferences.getModelSelection.fetch()
-      },
-      setModelSelection: async (input: { principal?: string; system?: string }) => {
-        return setModelSelectionRef.current(input)
       },
       getRoleAssignments: async () => {
         const record = await utilsRef.current.preferences.getRoleAssignments.fetch()

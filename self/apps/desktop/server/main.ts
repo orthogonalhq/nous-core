@@ -17,7 +17,6 @@ import {
   createEventSseHandler,
   detectOllama,
   loadStoredApiKeys,
-  loadModelSelection,
   pullOllamaModel,
   registerStoredProviders,
 } from '@nous/shared-server';
@@ -214,7 +213,6 @@ async function main() {
   });
   await loadStoredApiKeys(context);
   await registerStoredProviders(context);
-  await loadModelSelection(context);
 
   const trpcHandler = createHTTPHandler({
     router: appRouter,

@@ -68,23 +68,13 @@ export const DEFAULT_PREREQUISITES: FirstRunPrerequisites = {
     },
     multiModel: [
       {
-        role: 'reasoner',
+        role: 'cortex-chat',
         recommendation: {
           modelId: 'qwen2.5:14b',
           modelSpec: 'ollama:qwen2.5:14b',
           displayName: 'Qwen 2.5 14B',
           ramRequiredMB: 16384,
           reason: 'Use the stronger local model for heavier reasoning.',
-        },
-      },
-      {
-        role: 'vision',
-        recommendation: {
-          modelId: 'llama3.2:3b',
-          modelSpec: 'ollama:llama3.2:3b',
-          displayName: 'Llama 3.2 3B',
-          ramRequiredMB: 4096,
-          reason: 'Lightweight support model for specialist roles.',
         },
       },
     ],

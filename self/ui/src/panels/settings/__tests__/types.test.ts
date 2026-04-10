@@ -15,7 +15,6 @@ import type {
   AppPanelEntry,
   PreferencesApi,
   AvailableModel,
-  ModelSelection,
   RoleAssignmentDisplayEntry,
   ShellMode,
   Provider,
@@ -23,19 +22,16 @@ import type {
 } from '../types'
 
 describe('settings types contract', () => {
-  it('MODEL_ROLES has 7 entries', () => {
-    expect(MODEL_ROLES).toHaveLength(7)
+  it('MODEL_ROLES has 4 entries', () => {
+    expect(MODEL_ROLES).toHaveLength(4)
   })
 
   it('MODEL_ROLES contains all expected role strings', () => {
     expect([...MODEL_ROLES]).toEqual([
-      'orchestrator',
-      'reasoner',
-      'tool-advisor',
-      'summarizer',
-      'embedder',
-      'reranker',
-      'vision',
+      'cortex-chat',
+      'cortex-system',
+      'orchestrators',
+      'workers',
     ])
   })
 
@@ -76,8 +72,8 @@ describe('settings types contract', () => {
     const provider: Provider = 'anthropic'
     expect(provider).toBe('anthropic')
 
-    const role: ModelRole = 'orchestrator'
-    expect(role).toBe('orchestrator')
+    const role: ModelRole = 'cortex-chat'
+    expect(role).toBe('cortex-chat')
   })
 
   it('SettingsCategory has expected structural shape', () => {

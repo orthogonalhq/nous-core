@@ -189,7 +189,7 @@ function createWorkflowEngine(runState: WorkflowRunState): IWorkflowEngine {
           executionModel: 'synchronous',
           config: {
             type: 'model-call',
-            modelRole: 'reasoner',
+            modelRole: 'cortex-chat',
             promptRef: 'prompt://draft',
           },
         },
@@ -984,7 +984,7 @@ describe('MaoProjectionService', () => {
               executionModel: 'synchronous',
               config: {
                 type: 'model-call',
-                modelRole: 'reasoner',
+                modelRole: 'cortex-chat',
                 promptRef: 'prompt://draft',
               },
               metadata: {

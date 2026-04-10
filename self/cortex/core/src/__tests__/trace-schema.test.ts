@@ -18,7 +18,7 @@ describe('ExecutionTrace schema', () => {
           modelCalls: [
             {
               providerId: randomUUID(),
-              role: 'reasoner',
+              role: 'cortex-chat',
               durationMs: 100,
             },
           ],

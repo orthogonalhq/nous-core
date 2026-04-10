@@ -148,8 +148,6 @@ type CloudProviderName = 'anthropic' | 'openai';
 type ProviderName = CloudProviderName | 'ollama';
 type ParsedModelSpec = { provider: ProviderName; modelId: string };
 
-const MODEL_SELECTION_COLLECTION = 'nous:model_selection';
-const MODEL_SELECTION_ID = 'current';
 
 const CLOUD_PROVIDER_ENV_VARS: Record<CloudProviderName, string> = {
   anthropic: 'ANTHROPIC_API_KEY',
@@ -211,11 +209,6 @@ export function currentRoleAssignment(
   return config.modelRoleAssignments?.find((assignment) => assignment.role === role);
 }
 
-export function currentReasonerAssignment(
-  ctx: NousContext,
-): ModelRoleAssignment | undefined {
-  return currentRoleAssignment(ctx, 'reasoner');
-}
 
 function sortProvidersForDefault(
   providers: ProviderConfigEntry[],
@@ -279,13 +272,6 @@ export async function updateRoleAssignment(
   );
 }
 
-export async function updateReasonerAssignment(
-  ctx: NousContext,
-  providerId: ProviderId | null,
-  fallbackProviderId?: ProviderId,
-): Promise<void> {
-  await updateRoleAssignment(ctx, 'reasoner', providerId, fallbackProviderId);
-}
 
 async function ensureCloudCompatibleProfile(ctx: NousContext): Promise<void> {
   if (!hasConfiguredCloudKey()) {
@@ -482,7 +468,12 @@ function configWithFallback(base: ConfigManager) {
         }
         return {
           ...c,
-          modelRoleAssignments: [{ role: 'reasoner', providerId: MOCK_PROVIDER_ID }],
+          modelRoleAssignments: [
+            { role: 'cortex-chat', providerId: MOCK_PROVIDER_ID },
+            { role: 'cortex-system', providerId: MOCK_PROVIDER_ID },
+            { role: 'orchestrators', providerId: MOCK_PROVIDER_ID },
+            { role: 'workers', providerId: MOCK_PROVIDER_ID },
+          ],
           providers: [
             {
               id: MOCK_PROVIDER_ID,
@@ -1338,87 +1329,6 @@ export function createNousServices(config?: BootstrapConfig): NousContext {
  * If no selection has been persisted, auto-detection is left in place.
  * Call this after `createNousServices()`.
  */
-export async function loadModelSelection(ctx: NousContext): Promise<void> {
-  try {
-    const saved = await ctx.documentStore.get<{
-      principal: string | null;
-      system: string | null;
-    }>(MODEL_SELECTION_COLLECTION, MODEL_SELECTION_ID);
-
-    if (saved) {
-      if (saved.principal) {
-        console.log(
-          `[nous:bootstrap] Loaded principal model selection: ${saved.principal}`,
-        );
-      }
-      if (saved.system) {
-        console.log(
-          `[nous:bootstrap] Loaded system model selection: ${saved.system}`,
-        );
-      }
-    }
-
-    const primarySelection = parseSelectedModelSpec(saved?.principal);
-    const secondarySelection = parseSelectedModelSpec(saved?.system);
-    const primaryProviderId =
-      primarySelection && canApplySelectedModel(primarySelection)
-        ? selectedModelProviderId(primarySelection)
-        : null;
-    const secondaryProviderId =
-      secondarySelection && canApplySelectedModel(secondarySelection)
-        ? selectedModelProviderId(secondarySelection)
-        : null;
-
-    if (primarySelection && primaryProviderId) {
-      await upsertProviderConfig(
-        ctx,
-        buildSelectedProviderConfig(primarySelection, primaryProviderId),
-      );
-    }
-
-    if (
-      secondarySelection &&
-      secondaryProviderId &&
-      (!primarySelection ||
-        secondarySelection.provider !== primarySelection.provider ||
-        secondarySelection.modelId !== primarySelection.modelId)
-    ) {
-      await upsertProviderConfig(
-        ctx,
-        buildSelectedProviderConfig(secondarySelection, secondaryProviderId),
-      );
-    }
-
-    if (primaryProviderId) {
-      await updateReasonerAssignment(
-        ctx,
-        primaryProviderId,
-        secondaryProviderId ?? undefined,
-      );
-      return;
-    }
-
-    if (secondaryProviderId) {
-      await updateReasonerAssignment(
-        ctx,
-        secondaryProviderId,
-      );
-      return;
-    }
-
-    const availableProviders = sortProvidersForDefault(currentProviderEntries(ctx));
-    if (availableProviders.length > 0) {
-      await updateReasonerAssignment(ctx, availableProviders[0]!.id);
-    }
-  } catch {
-    // Model selection not yet persisted — use auto-detect defaults.
-    const availableProviders = sortProvidersForDefault(currentProviderEntries(ctx));
-    if (availableProviders.length > 0) {
-      await updateReasonerAssignment(ctx, availableProviders[0]!.id);
-    }
-  }
-}
-
 /**
  * Loads stored API keys from the credential vault into process.env
  * so the SDK can use them immediately on restart.
@@ -1461,8 +1371,8 @@ export async function registerStoredProviders(ctx: NousContext): Promise<void> {
     );
   }
 
-  if (!currentReasonerAssignment(ctx) && availableProviders.length > 0) {
-    await updateReasonerAssignment(ctx, WELL_KNOWN_PROVIDER_IDS[availableProviders[0]!]);
+  if (!currentRoleAssignment(ctx, 'cortex-chat') && availableProviders.length > 0) {
+    await updateRoleAssignment(ctx, 'cortex-chat', WELL_KNOWN_PROVIDER_IDS[availableProviders[0]!]);
   }
 
   if (availableProviders.length === 0) {
@@ -1485,9 +1395,10 @@ export async function registerConfiguredProvider(
     ),
   );
 
-  const existingAssignment = currentReasonerAssignment(ctx);
-  await updateReasonerAssignment(
+  const existingAssignment = currentRoleAssignment(ctx, 'cortex-chat');
+  await updateRoleAssignment(
     ctx,
+    'cortex-chat',
     WELL_KNOWN_PROVIDER_IDS[provider],
     existingAssignment?.providerId &&
       existingAssignment.providerId !== WELL_KNOWN_PROVIDER_IDS[provider]
@@ -1507,6 +1418,6 @@ export async function removeConfiguredProvider(
   const nextPrimary = remainingProviders[0]?.id ?? null;
   const nextFallback = remainingProviders[1]?.id;
 
-  await updateReasonerAssignment(ctx, nextPrimary, nextFallback);
+  await updateRoleAssignment(ctx, 'cortex-chat', nextPrimary, nextFallback);
   await ensureLocalCompatibleProfile(ctx);
 }

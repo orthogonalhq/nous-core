@@ -42,7 +42,7 @@ describe('NodeSchemaDefinition', () => {
   it('accepts optional modelRole', () => {
     const result = NodeSchemaDefinition.safeParse({
       ...validNode,
-      modelRole: 'vision',
+      modelRole: 'cortex-chat',
     });
     expect(result.success).toBe(true);
   });
@@ -238,7 +238,7 @@ describe('ProjectConfigSchema', () => {
                 executionModel: 'synchronous',
                 config: {
                   type: 'model-call',
-                  modelRole: 'reasoner',
+                  modelRole: 'cortex-chat',
                   promptRef: 'prompt://draft',
                 },
               },
@@ -320,5 +320,68 @@ describe('ProjectWorkflowConfigurationSchema', () => {
     });
 
     expect(result.success).toBe(true);
+  });
+});
+
+// ─── U2 Migration Tests — ProjectConfigSchema.modelAssignments ────────────
+
+describe('ProjectConfigSchema modelAssignments U2 migration', () => {
+  const baseConfig = {
+    id: '550e8400-e29b-41d4-a716-446655440099' as any,
+    name: 'Test Project',
+    type: 'protocol' as const,
+    pfcTier: 2,
+    memoryAccessPolicy: {
+      canReadFrom: 'all' as const,
+      canBeReadBy: 'all' as const,
+      inheritsGlobal: true,
+    },
+    escalationChannels: ['in-app' as const],
+    createdAt: new Date().toISOString(),
+    updatedAt: new Date().toISOString(),
+  };
+
+  it('(i) remaps reasoner key to cortex-chat', () => {
+    const result = ProjectConfigSchema.safeParse({
+      ...baseConfig,
+      modelAssignments: { reasoner: 'p1' },
+    });
+    expect(result.success).toBe(true);
+    if (result.success) {
+      expect(result.data.modelAssignments).toEqual({ 'cortex-chat': 'p1' });
+    }
+  });
+
+  it('(ii) remaps orchestrator key to orchestrators', () => {
+    const result = ProjectConfigSchema.safeParse({
+      ...baseConfig,
+      modelAssignments: { orchestrator: 'p1' },
+    });
+    expect(result.success).toBe(true);
+    if (result.success) {
+      expect(result.data.modelAssignments).toEqual({ orchestrators: 'p1' });
+    }
+  });
+
+  it('(iii) all 7 legacy keys → exactly 2 remapped survivors', () => {
+    const result = ProjectConfigSchema.safeParse({
+      ...baseConfig,
+      modelAssignments: {
+        reasoner: 'p1',
+        orchestrator: 'p2',
+        'tool-advisor': 'p3',
+        summarizer: 'p4',
+        embedder: 'p5',
+        reranker: 'p6',
+        vision: 'p7',
+      },
+    });
+    expect(result.success).toBe(true);
+    if (result.success) {
+      expect(result.data.modelAssignments).toEqual({
+        'cortex-chat': 'p1',
+        orchestrators: 'p2',
+      });
+    }
   });
 });
