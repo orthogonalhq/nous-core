@@ -275,6 +275,39 @@ export const OllamaPullProgressPayloadSchema = z.object({
 });
 export type OllamaPullProgressPayload = z.infer<typeof OllamaPullProgressPayloadSchema>;
 
+/**
+ * SSE payload for Ollama install progress.
+ * Tracks discrete installation phases (not fake percentages) per RT-2.
+ */
+export const OllamaInstallProgressPayloadSchema = z.object({
+  phase: z.enum(['downloading', 'installing', 'verifying', 'complete', 'error']),
+  message: z.string().optional(),
+});
+export type OllamaInstallProgressPayload = z.infer<typeof OllamaInstallProgressPayloadSchema>;
+
+/**
+ * SSE payload for Ollama update progress.
+ * Tracks discrete update phases with optional version metadata.
+ */
+export const OllamaUpdateProgressPayloadSchema = z.object({
+  phase: z.enum(['checking', 'downloading', 'installing', 'verifying', 'complete', 'error']),
+  currentVersion: z.string().optional(),
+  targetVersion: z.string().optional(),
+  message: z.string().optional(),
+});
+export type OllamaUpdateProgressPayload = z.infer<typeof OllamaUpdateProgressPayloadSchema>;
+
+/**
+ * SSE payload for Ollama version info.
+ * Reports detected version and minimum-version compliance.
+ */
+export const OllamaVersionInfoPayloadSchema = z.object({
+  version: z.string(),
+  meetsMinimum: z.boolean(),
+  minimumVersion: z.string().optional(),
+});
+export type OllamaVersionInfoPayload = z.infer<typeof OllamaVersionInfoPayloadSchema>;
+
 // --- Channel Map ---
 
 export interface EventChannelMap {
@@ -308,6 +341,9 @@ export interface EventChannelMap {
   'cost:budget-exceeded': BudgetExceededPayload;
   'cost:snapshot': CostSnapshotPayload;
   'ollama:pull-progress': OllamaPullProgressPayload;
+  'ollama:install-progress': OllamaInstallProgressPayload;
+  'ollama:update-progress': OllamaUpdateProgressPayload;
+  'ollama:version-info': OllamaVersionInfoPayload;
 }
 
 /**

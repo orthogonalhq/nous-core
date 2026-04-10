@@ -97,6 +97,20 @@ contextBridge.exposeInMainWorld('electronAPI', {
         ipcRenderer.removeListener('ollama:stateChanged', listener)
       }
     },
+    install: (): Promise<unknown> => ipcRenderer.invoke('ollama:install'),
+    onInstallProgress: (
+      callback: (progress: { phase: string; message?: string }) => void,
+    ): (() => void) => {
+      const listener = (_event: Electron.IpcRendererEvent, progress: { phase: string; message?: string }) =>
+        callback(progress)
+      ipcRenderer.on('ollama:install-progress', listener)
+      return () => {
+        ipcRenderer.removeListener('ollama:install-progress', listener)
+      }
+    },
+    checkUpdate: (): Promise<unknown> => ipcRenderer.invoke('ollama:checkUpdate'),
+    update: (): Promise<unknown> => ipcRenderer.invoke('ollama:update'),
+    getVersion: (): Promise<unknown> => ipcRenderer.invoke('ollama:getVersion'),
   },
   mode: {
     get: (): Promise<string | null> => ipcRenderer.invoke('mode:get'),

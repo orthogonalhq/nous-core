@@ -22,6 +22,7 @@ const mockMutateAsync = {
   resetWizard: vi.fn(),
   pullOllamaModel: vi.fn(),
   deleteOllamaModel: vi.fn(),
+  setOllamaEndpoint: vi.fn(),
 }
 
 vi.mock('../../client', () => ({
@@ -36,6 +37,7 @@ vi.mock('../../client', () => ({
       },
       ollama: {
         listModels: { fetch: mockFetch.listOllamaModels },
+        getEndpoint: { fetch: vi.fn().mockResolvedValue({ endpoint: 'http://localhost:11434' }) },
       },
     }),
     preferences: {
@@ -51,6 +53,7 @@ vi.mock('../../client', () => ({
     ollama: {
       pullModel: { useMutation: () => ({ mutateAsync: mockMutateAsync.pullOllamaModel }) },
       deleteModel: { useMutation: () => ({ mutateAsync: mockMutateAsync.deleteOllamaModel }) },
+      setEndpoint: { useMutation: () => ({ mutateAsync: mockMutateAsync.setOllamaEndpoint }) },
     },
   },
 }))
