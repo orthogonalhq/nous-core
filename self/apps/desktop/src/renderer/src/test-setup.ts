@@ -214,12 +214,14 @@ export function createElectronAPIMock() {
         }
       }),
       install: vi.fn(async (): Promise<unknown> => ({ success: true })),
-      onInstallProgress: vi.fn((_callback: (progress: { phase: string; message?: string }) => void) => {
-        return () => {}
-      }),
-      checkUpdate: vi.fn(async () => ({})),
-      update: vi.fn(async () => ({})),
-      getVersion: vi.fn(async () => null),
+      onInstallProgress: vi.fn(
+        (_callback: (progress: { phase: string; message?: string }) => void) => {
+          return () => {}
+        },
+      ),
+      checkUpdate: vi.fn(async (): Promise<unknown> => ({})),
+      update: vi.fn(async (): Promise<unknown> => ({})),
+      getVersion: vi.fn(async (): Promise<unknown> => null),
     },
   } satisfies ElectronAPI
 

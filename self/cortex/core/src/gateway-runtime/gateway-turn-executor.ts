@@ -81,7 +81,7 @@ export function transformGatewayInput(input: unknown): unknown {
     return input;
   }
 
-  return {
+  const result: Record<string, unknown> = {
     messages: [
       {
         role: 'system' as const,
@@ -93,6 +93,20 @@ export function transformGatewayInput(input: unknown): unknown {
       })),
     ],
   };
+
+  // Pass tools through to the provider when present.
+  // Transform from ToolDefinition shape (camelCase: inputSchema) to
+  // provider schema shape (snake_case: input_schema) for TextModelInputSchema.
+  const tools = (input as Record<string, unknown>).tools;
+  if (Array.isArray(tools) && tools.length > 0) {
+    result.tools = tools.map((t: Record<string, unknown>) => ({
+      name: t.name,
+      description: t.description ?? '',
+      input_schema: t.inputSchema ?? t.input_schema ?? {},
+    }));
+  }
+
+  return result;
 }
 
 interface MwcPipelineLike {
@@ -133,7 +147,7 @@ export interface GatewayBackedTurnExecutorDeps {
 }
 
 /**
- * @deprecated Use {@link PrincipalSystemGatewayRuntime.handleChatTurn()} for chat turns.
+ * @deprecated Use {@link CortexRuntime.handleChatTurn()} for chat turns.
  * This class is the compatibility bridge for callers still using the ICoreExecutor interface.
  * `getTrace()` remains functional for trace retrieval during transition.
  * Will be removed after all callers migrate.

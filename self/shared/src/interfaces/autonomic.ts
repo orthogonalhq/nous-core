@@ -169,13 +169,13 @@ export interface IHealthMonitor {
 /**
  * Adapter interface for gateway runtime health data.
  *
- * Abstracts the read-only health query methods of IPrincipalSystemGatewayRuntime
+ * Abstracts the read-only health query methods of CortexRuntime
  * (defined in @nous/cortex-core) so that autonomic-layer consumers can depend on
  * @nous/shared only, respecting the dependency rule:
  *   autonomic/ -> depends on interfaces in shared/
  *   autonomic/ -> never touches cortex/
  *
- * Implemented by PrincipalSystemGatewayRuntime at the DI composition root (sub-phase 1.2).
+ * Implemented by CortexRuntime at the DI composition root (sub-phase 1.2).
  */
 export interface IGatewayHealthSource {
   /** Get the current boot status snapshot. */

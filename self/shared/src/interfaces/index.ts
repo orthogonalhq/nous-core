@@ -91,6 +91,15 @@ export type {
   AgentGatewayConfig,
   GatewayLifecycleContext,
   GatewayTaskCompletionHookResult,
+  // WR-127 strategy injection types
+  HarnessStrategies,
+  PromptFormatter,
+  PromptFormatterInput,
+  PromptFormatterOutput,
+  ResponseParser,
+  ContextDefaults,
+  ContextStrategy,
+  LoopConfig,
 } from './agent-gateway.js';
 export type {
   IIngressTriggerValidator,

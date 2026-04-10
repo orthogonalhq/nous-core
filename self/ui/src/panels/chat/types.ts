@@ -6,6 +6,7 @@ export interface ChatMessage {
   timestamp: string
   traceId?: string
   contentType?: 'text' | 'openui'
+  thinkingContent?: string
   actionOutcome?: {
     actionType: string
     label: string
@@ -21,7 +22,7 @@ export interface ActionResult {
 }
 
 export interface ChatAPI {
-  send: (message: string) => Promise<{ response: string; traceId: string; contentType?: 'text' | 'openui' }>
+  send: (message: string) => Promise<{ response: string; traceId: string; contentType?: 'text' | 'openui'; thinkingContent?: string }>
   getHistory: () => Promise<ChatMessage[]>
   sendAction?: (action: CardAction) => Promise<ActionResult>
 }
