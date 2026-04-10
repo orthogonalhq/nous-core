@@ -22,7 +22,6 @@ import {
   buildOllamaProviderConfig,
   buildProviderConfig,
   parseSelectedModelSpec,
-  updateReasonerAssignment,
   updateRoleAssignment,
   upsertProviderConfig,
 } from '../../bootstrap';
@@ -157,7 +156,7 @@ export const firstRunRouter = router({
 
       try {
         await upsertProviderConfig(ctx, selection.providerConfig);
-        await updateReasonerAssignment(ctx, selection.providerId);
+        await updateRoleAssignment(ctx, 'cortex-chat', selection.providerId);
         const state = await markStepComplete(ctx.dataDir, 'provider_config');
 
         return FirstRunActionResultSchema.parse({
