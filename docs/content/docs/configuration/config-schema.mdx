@@ -84,6 +84,7 @@ Saved Principal and System model selections are restored into this structure at 
       "isLocal": true,
       "capabilities": ["chat", "streaming"],
       "providerClass": "local_text",
+      "vendor": "ollama",
       "meetsProfiles": ["review-standard", "prompt-generation"]
     },
     {
@@ -95,6 +96,7 @@ Saved Principal and System model selections are restored into this structure at 
       "isLocal": false,
       "capabilities": ["chat", "streaming"],
       "providerClass": "remote_text",
+      "vendor": "openai",
       "meetsProfiles": ["review-standard", "review-implementation"]
     }
   ]
@@ -102,6 +104,7 @@ Saved Principal and System model selections are restored into this structure at 
 ```
 
 - **providerClass** (optional): `local_text` | `remote_text` — used for credential segregation and profile boundary.
+- **vendor** (optional): Provider vendor key for adapter selection. Known values: `anthropic`, `openai`, `ollama`, `text`. Auto-detected from provider configuration if omitted. Unknown values fall back to the text adapter.
 - **meetsProfiles** (optional): Array of capability profiles (e.g. `review-standard`, `review-implementation`). Router enforces that the selected provider meets the required profile unless Principal override evidence is present.
 - **endpoint** (optional): Use the provider base URL (for example `https://api.openai.com` or `https://api.anthropic.com`), not the full `/v1/chat/completions` path.
 
