@@ -47,6 +47,7 @@ import {
 } from '../internal-mcp/index.js';
 import { detectAndStripNarration } from '../output-parser.js';
 import { CARD_PROMPT_FRAGMENT } from './card-prompt-fragment.js';
+import { WORKFLOW_PROMPT_FRAGMENT } from './workflow-prompt-fragment.js';
 import { getOrchestratorPrompt } from '../prompts/index.js';
 import { resolvePromptConfig, composeSystemPromptFromConfig, resolveAgentProfile } from './prompt-strategy.js';
 import { resolveAdapter } from '../agent-gateway/adapters/index.js';
@@ -480,7 +481,7 @@ implements IPrincipalSystemGatewayRuntime, ISystemInboxSubmissionService {
 
     // Run Principal gateway
     const result = await this.principalGateway.run({
-      taskInstructions: `Handle the current user chat turn. Respond conversationally.\n\n${CARD_PROMPT_FRAGMENT}`,
+      taskInstructions: `Handle the current user chat turn. Respond conversationally.\n\n${WORKFLOW_PROMPT_FRAGMENT}\n\n${CARD_PROMPT_FRAGMENT}`,
       context: chatContext,
       budget: DEFAULT_CHAT_TURN_BUDGET,
       spawnBudgetCeiling: 0,

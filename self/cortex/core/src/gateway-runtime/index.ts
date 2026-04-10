@@ -84,3 +84,7 @@ export type {
   ContextBudgetSettingsSource,
 } from './context-budget-resolver.js';
 export { composeFromProfile } from './prompt-composer.js';
+
+// Prompt fragments — domain-specific guidance injected into Principal task instructions
+export { CARD_PROMPT_FRAGMENT } from './card-prompt-fragment.js';
+export { WORKFLOW_PROMPT_FRAGMENT } from './workflow-prompt-fragment.js';
