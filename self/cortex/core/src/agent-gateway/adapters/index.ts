@@ -37,3 +37,21 @@ export function resolveAdapter(providerType: string): ProviderAdapter {
   if (factory) return factory();
   return createTextAdapter();
 }
+
+/**
+ * Detects provider type from an IModelProvider's config name/type.
+ * Uses the same heuristic as CortexRuntime.resolveProviderType.
+ * Falls back to 'text' for unknown providers.
+ */
+export function resolveProviderTypeFromConfig(provider: { getConfig(): { name?: string; type?: string } }): string {
+  try {
+    const config = provider.getConfig();
+    const name = (config.name ?? config.type ?? '').toLowerCase();
+    if (name.includes('anthropic') || name.includes('claude')) return 'anthropic';
+    if (name.includes('openai') || name.includes('gpt')) return 'openai';
+    if (name.includes('ollama')) return 'ollama';
+    return 'text';
+  } catch {
+    return 'text';
+  }
+}

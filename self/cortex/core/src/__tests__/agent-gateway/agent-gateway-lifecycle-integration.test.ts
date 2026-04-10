@@ -93,15 +93,16 @@ describe('AgentGateway lifecycle integration', () => {
 
     expect(result.status).toBe('completed');
     const secondInvoke = modelProvider.invoke.mock.calls[1][0];
-    const messages = secondInvoke.input.messages as Array<{ role: string; content: string }>;
-    // After transformGatewayInput, child_result frames become messages; filter by content
-    const childMessages = messages.filter(
-      (msg) => msg.content.includes('child-one') || msg.content.includes('child-two'),
+    // Text adapter produces { prompt, context } format with GatewayContextFrame[]
+    const context = secondInvoke.input.context as Array<{ role: string; content: string }>;
+    // After adapter.formatRequest, child_result frames become context entries; filter by content
+    const childFrames = context.filter(
+      (frame) => frame.content.includes('child-one') || frame.content.includes('child-two'),
     );
 
-    expect(childMessages).toHaveLength(2);
-    expect(childMessages[0]?.content).toContain('child-one');
-    expect(childMessages[1]?.content).toContain('child-two');
+    expect(childFrames).toHaveLength(2);
+    expect(childFrames[0]?.content).toContain('child-one');
+    expect(childFrames[1]?.content).toContain('child-two');
   });
 
   it('keeps flag_observation non-terminal while emitting the outbox event', async () => {

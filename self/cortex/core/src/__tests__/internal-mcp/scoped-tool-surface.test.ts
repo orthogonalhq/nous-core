@@ -137,6 +137,140 @@ describe('ScopedMcpToolSurface', () => {
     expect(getVisibleInternalMcpTools('Worker')).not.toContain('promoted_memory_promote');
   });
 
+  it('merges lease granted_tools with baseline grants (additive-only)', async () => {
+    const surface = createScopedMcpToolSurface({
+      agentClass: 'Worker',
+      agentId: AGENT_ID,
+      deps: {
+        getProjectApi: () => createProjectApi(),
+        pfc: createPfcEngine(),
+      },
+      lease: {
+        lease_id: '550e8400-e29b-41d4-a716-446655440200' as never,
+        project_run_id: '550e8400-e29b-41d4-a716-446655440201',
+        workmode_id: 'system:implementation' as never,
+        entrypoint_ref: 'test',
+        sop_ref: 'test',
+        scope_ref: 'test',
+        context_profile: 'test',
+        ttl: 3600,
+        issued_by: 'nous_cortex',
+        issued_at: '2026-04-09T00:00:00.000Z',
+        expires_at: '2026-04-09T01:00:00.000Z',
+        revocation_ref: null,
+        granted_tools: ['workflow_create', 'workflow_update'],
+      },
+    });
+
+    const tools = (await surface.listTools()).map((t) => t.name);
+    // Baseline Worker tools should still be present
+    expect(tools).toContain('task_complete');
+    expect(tools).toContain('tool_execute');
+    // Lease-granted tools should also be present
+    expect(tools).toContain('workflow_create');
+    expect(tools).toContain('workflow_update');
+    // Tools not in baseline or lease should not be present
+    expect(tools).not.toContain('dispatch_orchestrator');
+    expect(tools).not.toContain('dispatch_worker');
+  });
+
+  it('produces baseline-only grants when lease has no granted_tools field', async () => {
+    const surface = createScopedMcpToolSurface({
+      agentClass: 'Worker',
+      agentId: AGENT_ID,
+      deps: {
+        getProjectApi: () => createProjectApi(),
+        pfc: createPfcEngine(),
+      },
+      lease: {
+        lease_id: '550e8400-e29b-41d4-a716-446655440200' as never,
+        project_run_id: '550e8400-e29b-41d4-a716-446655440201',
+        workmode_id: 'system:implementation' as never,
+        entrypoint_ref: 'test',
+        sop_ref: 'test',
+        scope_ref: 'test',
+        context_profile: 'test',
+        ttl: 3600,
+        issued_by: 'nous_cortex',
+        issued_at: '2026-04-09T00:00:00.000Z',
+        expires_at: '2026-04-09T01:00:00.000Z',
+        revocation_ref: null,
+      },
+    });
+
+    const tools = (await surface.listTools()).map((t) => t.name);
+    expect(tools).toContain('task_complete');
+    expect(tools).not.toContain('workflow_create');
+    expect(tools).not.toContain('dispatch_orchestrator');
+  });
+
+  it('allows executeTool on lease-granted tool (not rejected by authorization)', async () => {
+    const surface = createScopedMcpToolSurface({
+      agentClass: 'Worker',
+      agentId: AGENT_ID,
+      deps: {
+        getProjectApi: () => createProjectApi(),
+        pfc: createPfcEngine(),
+      },
+      lease: {
+        lease_id: '550e8400-e29b-41d4-a716-446655440200' as never,
+        project_run_id: '550e8400-e29b-41d4-a716-446655440201',
+        workmode_id: 'system:implementation' as never,
+        entrypoint_ref: 'test',
+        sop_ref: 'test',
+        scope_ref: 'test',
+        context_profile: 'test',
+        ttl: 3600,
+        issued_by: 'nous_cortex',
+        issued_at: '2026-04-09T00:00:00.000Z',
+        expires_at: '2026-04-09T01:00:00.000Z',
+        revocation_ref: null,
+        granted_tools: ['workflow_create'],
+      },
+    });
+
+    // workflow_create is NOT in Worker baseline but IS in lease grants.
+    // The handler may throw SERVICE_UNAVAILABLE (missing deps), but NOT TOOL_NOT_AVAILABLE.
+    // This verifies the authorization layer accepts the lease-granted tool.
+    try {
+      await surface.executeTool('workflow_create', {}, { projectId: PROJECT_ID });
+    } catch (error: unknown) {
+      const err = error as { code?: string };
+      // Should NOT be TOOL_NOT_AVAILABLE — the tool is authorized via lease
+      expect(err.code).not.toBe('TOOL_NOT_AVAILABLE');
+    }
+  });
+
+  it('rejects executeTool on tool not in baseline or lease grants', async () => {
+    const surface = createScopedMcpToolSurface({
+      agentClass: 'Worker',
+      agentId: AGENT_ID,
+      deps: {
+        getProjectApi: () => createProjectApi(),
+        pfc: createPfcEngine(),
+      },
+      lease: {
+        lease_id: '550e8400-e29b-41d4-a716-446655440200' as never,
+        project_run_id: '550e8400-e29b-41d4-a716-446655440201',
+        workmode_id: 'system:implementation' as never,
+        entrypoint_ref: 'test',
+        sop_ref: 'test',
+        scope_ref: 'test',
+        context_profile: 'test',
+        ttl: 3600,
+        issued_by: 'nous_cortex',
+        issued_at: '2026-04-09T00:00:00.000Z',
+        expires_at: '2026-04-09T01:00:00.000Z',
+        revocation_ref: null,
+        granted_tools: ['workflow_create'],
+      },
+    });
+
+    await expect(
+      surface.executeTool('workflow_cancel', {}, { projectId: PROJECT_ID }),
+    ).rejects.toThrow('not available');
+  });
+
   it('surfaces runtime-registered dynamic app tools only to authorized agent classes', async () => {
     const toolName = 'app:weather.get_forecast.dynamic';
     dynamicToolNames.push(toolName);

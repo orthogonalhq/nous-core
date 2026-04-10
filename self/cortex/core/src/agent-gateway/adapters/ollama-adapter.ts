@@ -243,7 +243,7 @@ export function createOllamaAdapter(modelId?: string): ProviderAdapter {
         : input.systemPrompt;
 
       // Build messages array
-      const messages: Array<{ role: string; content: string }> = [
+      const messages: Array<{ role: string; content: string; tool_call_id?: string }> = [
         { role: 'system', content: systemPrompt },
       ];
 
@@ -254,6 +254,25 @@ export function createOllamaAdapter(modelId?: string): ProviderAdapter {
         // to avoid confusing the model with prior reasoning traces
         if (frame.role === 'assistant') {
           content = stripThinkingFromContext(content);
+        }
+
+        // Tool result with tool_call_id metadata → OpenAI-compatible tool result message
+        if (frame.role === 'tool' && frame.metadata?.tool_call_id) {
+          messages.push({
+            role: 'tool',
+            content,
+            tool_call_id: frame.metadata.tool_call_id as string,
+          });
+          continue;
+        }
+
+        // Fallback: tool frames without metadata degrade to user role
+        if (frame.role === 'tool') {
+          messages.push({
+            role: 'user',
+            content,
+          });
+          continue;
         }
 
         messages.push({

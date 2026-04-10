@@ -26,7 +26,7 @@ import type {
 } from '@nous/shared';
 import { GatewayContextFrameSchema } from '@nous/shared';
 import { AgentGatewayFactory, createInboxFrame } from '../agent-gateway/index.js';
-import { transformGatewayInput } from './gateway-turn-executor.js';
+import { resolveAdapter, resolveProviderTypeFromConfig } from '../agent-gateway/adapters/index.js';
 import {
   createInternalMcpSurfaceBundle,
   getInternalMcpCatalogEntry,
@@ -885,12 +885,28 @@ implements IPrincipalSystemGatewayRuntime, ISystemInboxSubmissionService {
     provider: import('@nous/shared').IModelProvider,
     options?: { synthesizeTaskComplete?: boolean },
   ): import('@nous/shared').IModelProvider {
+    const providerType = resolveProviderTypeFromConfig(provider);
+    const adapter = resolveAdapter(providerType);
+
     return {
       ...provider,
       invoke: async (request) => {
+        const transformedInput = (() => {
+          const input = request.input;
+          if (typeof input !== 'object' || input === null) return input;
+          if ('messages' in input || 'prompt' in input) return input;
+          const rec = input as Record<string, unknown>;
+          if (typeof rec.systemPrompt !== 'string' || !Array.isArray(rec.context)) return input;
+          const result = adapter.formatRequest({
+            systemPrompt: rec.systemPrompt as string,
+            context: rec.context as import('@nous/shared').GatewayContextFrame[],
+            toolDefinitions: Array.isArray(rec.tools) ? rec.tools as import('@nous/shared').ToolDefinition[] : undefined,
+          });
+          return result.input;
+        })();
         const response = await provider.invoke({
           ...request,
-          input: transformGatewayInput(request.input),
+          input: transformedInput,
         });
 
         if (!options?.synthesizeTaskComplete) return response;

@@ -16,6 +16,7 @@ import type {
   IRecoveryLedgerStore,
   IRecoveryOrchestrator,
   IStmStore,
+  ITaskStore,
   IToolExecutor,
   IWorkmodeAdmissionGuard,
   IPfcEngine,
@@ -238,6 +239,7 @@ export interface PrincipalSystemGatewayRuntimeDeps {
   pfc?: IPfcEngine;
   promotedMemoryBridgeService?: IPromotedMemoryBridgeService;
   workflowEngine?: IWorkflowEngine;
+  taskStore?: ITaskStore;
   projectStore?: IProjectStore;
   scheduler?: IScheduler;
   escalationService?: IEscalationService;

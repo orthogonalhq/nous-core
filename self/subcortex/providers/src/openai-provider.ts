@@ -202,7 +202,7 @@ export class OpenAiCompatibleProvider implements IModelProvider {
     }
   }
 
-  private validateInput(input: unknown): { prompt?: string; messages?: Array<{ role: string; content: string }> } {
+  private validateInput(input: unknown): { prompt?: string; messages?: Array<{ role: string; content: string | unknown[]; tool_call_id?: string }> } {
     const result = TextModelInputSchema.safeParse(input);
     if (!result.success) {
       const errors = result.error.errors.map((e) => ({
@@ -215,12 +215,13 @@ export class OpenAiCompatibleProvider implements IModelProvider {
   }
 
   private toOpenAiMessages(
-    input: { prompt?: string; messages?: Array<{ role: string; content: string }> },
-  ): Array<{ role: string; content: string }> {
+    input: { prompt?: string; messages?: Array<{ role: string; content: string | unknown[]; tool_call_id?: string }> },
+  ): Array<{ role: string; content: string; tool_call_id?: string }> {
     if (input.messages && input.messages.length > 0) {
       return input.messages.map((m) => ({
-        role: m.role as 'user' | 'assistant' | 'system',
-        content: m.content,
+        role: m.role as 'user' | 'assistant' | 'system' | 'tool',
+        content: typeof m.content === 'string' ? m.content : JSON.stringify(m.content),
+        ...(m.tool_call_id ? { tool_call_id: m.tool_call_id } : {}),
       }));
     }
     return [{ role: 'user' as const, content: input.prompt ?? '' }];
