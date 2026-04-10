@@ -1,4 +1,4 @@
-import { app, BrowserWindow, ipcMain } from 'electron'
+import { app, BrowserWindow, ipcMain, shell } from 'electron'
 import { join } from 'node:path'
 import { createServer } from 'node:net'
 import { execFile, fork, spawn, type ChildProcess } from 'node:child_process'
@@ -14,6 +14,7 @@ import {
   type OllamaStatus,
 } from '../../../shared-server/src/ollama-detection'
 import { initOrphanGuard, registerChild } from './orphan-guard'
+import { installOllama, killOllamaTrayApp } from './ollama-installer'
 
 interface StoredLayout {
   version: 1
@@ -1241,6 +1242,60 @@ ipcMain.handle('ollama:pullModel', async (_event, modelId: string) => {
     .finally(() => {
       activeOllamaPull = null
     })
+})
+
+ipcMain.handle('ollama:install', async () => {
+  const result = await installOllama((progress) => {
+    win?.webContents.send('ollama:install-progress', progress)
+  })
+
+  if (result.packageManagerMissing) {
+    shell.openExternal('https://ollama.com/download')
+    return result
+  }
+
+  if (result.success) {
+    // Post-install: poll for binary detection, then auto-start the runtime.
+    // After winget completes, the binary may take a moment to appear on PATH
+    // and the API server is not yet running. We wait briefly, then start it
+    // automatically so the wizard can advance without a manual "Check again".
+    win?.webContents.send('ollama:install-progress', { phase: 'verifying' })
+
+    const POLL_INTERVAL_MS = 1_000
+    const POLL_TIMEOUT_MS = 30_000
+    const startTime = Date.now()
+    let detected = false
+
+    while (Date.now() - startTime < POLL_TIMEOUT_MS) {
+      const status = await refreshOllamaStatus().catch(() => null)
+      if (status?.installed) {
+        detected = true
+        break
+      }
+      await new Promise((resolve) => setTimeout(resolve, POLL_INTERVAL_MS))
+    }
+
+    if (detected) {
+      // Kill the Ollama tray GUI that the Windows installer auto-launches.
+      // We only want the headless `ollama serve` process under our control.
+      await killOllamaTrayApp().catch(() => undefined)
+
+      // Auto-start so the wizard can advance to model download
+      try {
+        await startOllama()
+      } catch (err) {
+        console.error('[nous:desktop] ollama-installer: auto-start after install failed:', err)
+        // Non-fatal — user can still click "Start Ollama" manually
+      }
+
+      // Kill the tray again after start, in case Ollama spawned it during serve startup
+      await killOllamaTrayApp().catch(() => undefined)
+    } else {
+      console.warn('[nous:desktop] ollama-installer: binary not detected within 30s post-install')
+    }
+  }
+
+  return result
 })
 
 // ━━━ Window Creation ━━━
