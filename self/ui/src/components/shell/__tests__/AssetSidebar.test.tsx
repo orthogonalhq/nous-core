@@ -210,6 +210,68 @@ describe('AssetSidebar', () => {
     expect(props.onNavigate).toHaveBeenCalledWith('workflow-a')
   })
 
+  // ── WR-141: whole-sidebar collapse ────────────────────────────────────
+  it('invokes onToggleCollapse when the header collapse button is clicked', async () => {
+    const onToggleCollapse = vi.fn()
+    await renderSidebar({ onToggleCollapse })
+    const button = container.querySelector('[aria-label="Collapse sidebar"]') as HTMLButtonElement
+    expect(button).toBeTruthy()
+    await act(async () => {
+      button.click()
+      await flush()
+    })
+    expect(onToggleCollapse).toHaveBeenCalledTimes(1)
+  })
+
+  it('renders only the narrow expand-button stub when collapsed={true}', async () => {
+    await renderSidebar({ collapsed: true, onToggleCollapse: vi.fn() })
+    // Expand button is present
+    expect(container.querySelector('[aria-label="Expand sidebar"]')).toBeTruthy()
+    // data-collapsed marker is set
+    expect(container.querySelector('[data-collapsed="true"]')).toBeTruthy()
+    // Full early-return: header slot, top-nav items, and asset sections are absent
+    expect(container.querySelector('[data-sidebar-slot="header"]')).toBeNull()
+    expect(container.querySelector('[data-list-item="dashboard"]')).toBeNull()
+    expect(container.querySelector('[data-asset-section="workflows"]')).toBeNull()
+    expect(container.querySelector('[data-asset-section="tasks"]')).toBeNull()
+  })
+
+  it('invokes onToggleCollapse when the expand button is clicked in the collapsed branch', async () => {
+    const onToggleCollapse = vi.fn()
+    await renderSidebar({ collapsed: true, onToggleCollapse })
+    const button = container.querySelector('[aria-label="Expand sidebar"]') as HTMLButtonElement
+    expect(button).toBeTruthy()
+    await act(async () => {
+      button.click()
+      await flush()
+    })
+    expect(onToggleCollapse).toHaveBeenCalledTimes(1)
+  })
+
+  it('renders the expanded branch unchanged when collapsed is undefined (home-sidebar regression)', async () => {
+    await renderSidebar()
+    // Expanded header is present
+    expect(container.querySelector('[data-sidebar-slot="header"]')).toBeTruthy()
+    // Top nav items present
+    expect(container.querySelector('[data-list-item="dashboard"]')).toBeTruthy()
+    // Asset sections present
+    expect(container.querySelector('[data-asset-section="workflows"]')).toBeTruthy()
+    // Collapse button exists in header even without onToggleCollapse wired
+    expect(container.querySelector('[aria-label="Collapse sidebar"]')).toBeTruthy()
+    // No collapsed marker
+    expect(container.querySelector('[data-collapsed="true"]')).toBeNull()
+  })
+
+  it('does not read section-collapse storage when whole-sidebar collapsed={true}', async () => {
+    const getItemSpy = vi.spyOn(Storage.prototype, 'getItem')
+    await renderSidebar({ collapsed: true, onToggleCollapse: vi.fn() })
+    const sectionKeyReads = getItemSpy.mock.calls.filter(
+      ([key]) => typeof key === 'string' && key.startsWith('nous-sidebar-collapse-'),
+    )
+    expect(sectionKeyReads.length).toBe(0)
+    getItemSpy.mockRestore()
+  })
+
 })
 
 describe('AssetSidebar — Live Tasks Section', () => {
