@@ -377,7 +377,7 @@ describe('Wizard step components', () => {
     expect(screen.getByRole('button', { name: 'Use downloaded model' })).toBeInTheDocument()
   })
 
-  it('assigns the selected model to all seven roles in simple mode', async () => {
+  it('assigns the selected model to all four roles in simple mode', async () => {
     installMock()
     const props = createStepProps()
     const nextState = createFirstRunState({ currentStep: 'complete', complete: true })
@@ -403,7 +403,7 @@ describe('Wizard step components', () => {
       const call = trpcFetchMock.trpcMutate.mock.calls[0]
       expect(call[0]).toBe('firstRun.assignRoles')
       const assignments = call[1]?.assignments ?? []
-      expect(assignments).toHaveLength(7)
+      expect(assignments).toHaveLength(4)
       expect(assignments.every((entry: { modelSpec: string }) => entry.modelSpec === 'ollama:qwen2.5:7b')).toBe(true)
     })
   })

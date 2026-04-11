@@ -29,8 +29,16 @@ export type ModelRole = z.infer<typeof ModelRoleSchema>;
 export const MODEL_ROLE_LABELS: Record<ModelRole, string> = {
   'cortex-chat': 'Cortex Chat',
   'cortex-system': 'Cortex System',
-  orchestrators: "Orchestrator's",
-  workers: "Worker's",
+  orchestrators: 'Agent Orchitect Orchestrator',
+  workers: 'Agent Worker',
+};
+
+/** Hint text describing model selection guidance for each role. */
+export const MODEL_ROLE_HINTS: Record<ModelRole, string> = {
+  'cortex-chat': 'Prefer the strongest model your current setup can comfortably sustain.',
+  'cortex-system': 'Prefer the fastest model available for low-latency coordination.',
+  orchestrators: 'Use a balanced model that stays responsive while coordinating workflows.',
+  workers: 'A fast mid-tier model is usually enough for task execution.',
 };
 
 // --- Project Types — from project-model.mdx ---
