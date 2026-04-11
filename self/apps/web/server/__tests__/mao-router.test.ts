@@ -36,7 +36,7 @@ function createWorkflow(projectId: ProjectId): WorkflowDefinition {
         outputSchemaRef: 'schema://mao-router/draft-output',
         config: {
           type: 'model-call',
-          modelRole: 'reasoner',
+          modelRole: 'cortex-chat',
           promptRef: 'prompt://draft',
         },
       },

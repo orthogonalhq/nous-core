@@ -10,7 +10,6 @@ import {
   AppSettingsPage,
   LocalModelsPage,
   ModelConfigPage,
-  RoleAssignmentsPage,
   SetupWizardPage,
   ShellModePage,
   SystemStatusPage,
@@ -58,7 +57,6 @@ function buildCategories(appPanels?: { id: string; title: string }[]): SettingsC
       children: [
         { id: PAGE_IDS.API_KEYS, label: 'API Keys' },
         { id: PAGE_IDS.MODEL_CONFIG, label: 'Model Config' },
-        { id: PAGE_IDS.ROLE_ASSIGNMENTS, label: 'Role Assignments' },
       ],
     },
     {
@@ -127,8 +125,6 @@ export function SettingsShell({
         return <ApiKeysPage api={api} />
       case PAGE_IDS.MODEL_CONFIG:
         return <ModelConfigPage api={api} />
-      case PAGE_IDS.ROLE_ASSIGNMENTS:
-        return <RoleAssignmentsPage api={api} />
       case PAGE_IDS.SYSTEM_STATUS:
         return <SystemStatusPage api={api} />
       case PAGE_IDS.SETUP_WIZARD:

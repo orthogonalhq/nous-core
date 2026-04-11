@@ -179,7 +179,7 @@ describe('hardware detection', () => {
     expect(result.multiModel).toEqual(
       expect.arrayContaining([
         expect.objectContaining({
-          role: 'reasoner',
+          role: 'cortex-chat',
           recommendation: expect.objectContaining({
             modelSpec: 'ollama:qwen2.5:14b',
           }),

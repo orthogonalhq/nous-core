@@ -10,7 +10,6 @@ import type { AppPanelEntry } from './settings/types'
 export type {
   PreferencesApi,
   AvailableModel,
-  ModelSelection,
   RoleAssignmentDisplayEntry,
 } from './settings/types'
 

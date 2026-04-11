@@ -44,6 +44,7 @@ import {
   parseWorkflowSpec,
   specToWorkflowDefinition,
 } from '@nous/subcortex-workflows';
+import type { TaskDefinition, TaskExecutionRecord } from '@nous/shared';
 import {
   parseArtifactRetrieveRequest,
   parseArtifactStoreRequest,
@@ -85,6 +86,15 @@ import {
   parseWorkflowDeleteRequest,
   parseWorkflowExecuteNodeRequest,
   parseWorkflowCompleteNodeRequest,
+  parseTaskListRequest,
+  parseTaskGetRequest,
+  parseTaskCreateRequest,
+  parseTaskUpdateRequest,
+  parseTaskDeleteRequest,
+  parseTaskToggleRequest,
+  parseTaskTriggerRequest,
+  parseTaskHistoryRequest,
+  parseWorkflowHistoryRequest,
 } from './request-normalizers.js';
 import type {
   InternalMcpCapabilityHandler,
@@ -173,6 +183,39 @@ function requirePackageRuntime(context: InternalMcpHandlerContext) {
     runtime: context.deps.runtime,
     instanceRoot: context.deps.instanceRoot ?? process.cwd(),
   };
+}
+
+function requireTaskStore(context: InternalMcpHandlerContext) {
+  if (!context.deps.taskStore) {
+    throw new NousError(
+      'Task store is unavailable',
+      'SERVICE_UNAVAILABLE',
+    );
+  }
+
+  return context.deps.taskStore;
+}
+
+function requireDocumentStore(context: InternalMcpHandlerContext) {
+  if (!context.deps.documentStore) {
+    throw new NousError(
+      'Document store is unavailable',
+      'SERVICE_UNAVAILABLE',
+    );
+  }
+
+  return context.deps.documentStore;
+}
+
+function requireSubmitTaskToSystem(context: InternalMcpHandlerContext) {
+  if (!context.deps.submitTaskToSystem) {
+    throw new NousError(
+      'Task submission service is unavailable',
+      'SERVICE_UNAVAILABLE',
+    );
+  }
+
+  return context.deps.submitTaskToSystem;
 }
 
 async function requireSystemAgent(
@@ -2027,6 +2070,128 @@ connections:
 | \`nous.trigger.*\` | Engine-internal | Triggers evaluated by scheduler/engine |`);
 
       return success({ reference: sections.join('\n\n') }, 0);
+    },
+    task_list: async (params, execution) => {
+      const projectId = requireProjectId('task_list', execution);
+      const taskStore = requireTaskStore(context);
+      const tasks = await taskStore.listByProject(projectId);
+      return success({ tasks });
+    },
+    task_get: async (params, execution) => {
+      const projectId = requireProjectId('task_get', execution);
+      const taskStore = requireTaskStore(context);
+      const request = parseTaskGetRequest(params);
+      const task = await taskStore.get(projectId, request.taskId);
+      if (!task) {
+        throw new NousError(`Task ${request.taskId} not found`, 'NOT_FOUND');
+      }
+      return success({ task });
+    },
+    task_create: async (params, execution) => {
+      const projectId = requireProjectId('task_create', execution);
+      const taskStore = requireTaskStore(context);
+      const request = parseTaskCreateRequest(params);
+      const now = (context.deps.now ?? (() => new Date().toISOString()))();
+      const id = (context.deps.idFactory ?? randomUUID)();
+      const taskInput = request.task as Record<string, unknown>;
+      const task = await taskStore.save(projectId, {
+        id,
+        name: taskInput.name as string,
+        description: (taskInput.description as string) ?? '',
+        trigger: taskInput.trigger as TaskDefinition['trigger'],
+        orchestratorInstructions: taskInput.orchestratorInstructions as string,
+        context: taskInput.context as Record<string, unknown> | undefined,
+        enabled: (taskInput.enabled as boolean) ?? false,
+        createdAt: now,
+        updatedAt: now,
+      });
+      return success({ task });
+    },
+    task_update: async (params, execution) => {
+      const projectId = requireProjectId('task_update', execution);
+      const taskStore = requireTaskStore(context);
+      const request = parseTaskUpdateRequest(params);
+      const existing = await taskStore.get(projectId, request.taskId);
+      if (!existing) {
+        throw new NousError(`Task ${request.taskId} not found`, 'NOT_FOUND');
+      }
+      const now = (context.deps.now ?? (() => new Date().toISOString()))();
+      const updates = request.updates as Record<string, unknown>;
+      const updated = { ...existing, ...updates, updatedAt: now } as TaskDefinition;
+      const task = await taskStore.save(projectId, updated);
+      return success({ task });
+    },
+    task_delete: async (params, execution) => {
+      const projectId = requireProjectId('task_delete', execution);
+      const taskStore = requireTaskStore(context);
+      const request = parseTaskDeleteRequest(params);
+      const deleted = await taskStore.delete(projectId, request.taskId);
+      return success({ deleted });
+    },
+    task_toggle: async (params, execution) => {
+      const projectId = requireProjectId('task_toggle', execution);
+      const taskStore = requireTaskStore(context);
+      const request = parseTaskToggleRequest(params);
+      const existing = await taskStore.get(projectId, request.taskId);
+      if (!existing) {
+        throw new NousError(`Task ${request.taskId} not found`, 'NOT_FOUND');
+      }
+      const now = (context.deps.now ?? (() => new Date().toISOString()))();
+      const toggled = { ...existing, enabled: !existing.enabled, updatedAt: now };
+      const task = await taskStore.save(projectId, toggled);
+      return success({ task });
+    },
+    task_trigger: async (params, execution) => {
+      const projectId = requireProjectId('task_trigger', execution);
+      const taskStore = requireTaskStore(context);
+      const documentStore = requireDocumentStore(context);
+      const submitTask = requireSubmitTaskToSystem(context);
+      const request = parseTaskTriggerRequest(params);
+      const task = await taskStore.get(projectId, request.taskId);
+      if (!task) {
+        throw new NousError(`Task ${request.taskId} not found`, 'NOT_FOUND');
+      }
+      if (!task.enabled) {
+        throw new NousError(
+          `Task ${request.taskId} is disabled and cannot be triggered`,
+          'TOOL_DENIED',
+        );
+      }
+      const now = (context.deps.now ?? (() => new Date().toISOString()))();
+      const executionId = (context.deps.idFactory ?? randomUUID)();
+      const executionRecord: TaskExecutionRecord = {
+        id: executionId,
+        taskDefinitionId: request.taskId,
+        projectId,
+        triggeredAt: now,
+        triggerType: 'manual',
+        status: 'running',
+      };
+      await documentStore.put('task_executions', executionId, executionRecord);
+      const receipt = await submitTask({
+        task: task.orchestratorInstructions,
+        projectId,
+        detail: { taskDefinitionId: request.taskId, executionId },
+      });
+      return success({ executionId, runId: receipt.runId });
+    },
+    task_history: async (params, execution) => {
+      const projectId = requireProjectId('task_history', execution);
+      const documentStore = requireDocumentStore(context);
+      const request = parseTaskHistoryRequest(params);
+      const executions = await documentStore.query<TaskExecutionRecord>(
+        'task_executions',
+        {
+          where: { taskDefinitionId: request.taskId, projectId },
+          orderBy: 'triggeredAt',
+          orderDirection: 'desc',
+          limit: request.limit,
+        },
+      );
+      return success({ executions });
+    },
+    workflow_history: async (_params, _execution) => {
+      return success({ executions: [] });
     },
   };
 }

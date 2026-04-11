@@ -52,7 +52,7 @@ describe('OpenAiCompatibleProvider', () => {
 
     await expect(
       provider.invoke({
-        role: 'reasoner',
+        role: 'cortex-chat',
         input: {},
         traceId: '00000000-0000-0000-0000-000000000002' as any,
       }),
@@ -72,7 +72,7 @@ describe('OpenAiCompatibleProvider', () => {
     } as Response);
 
     const result = await provider.invoke({
-      role: 'reasoner',
+      role: 'cortex-chat',
       input: { prompt: 'Say hello' },
       traceId: '00000000-0000-0000-0000-000000000002' as any,
     });
@@ -95,7 +95,7 @@ describe('OpenAiCompatibleProvider', () => {
 
     await expect(
       provider.invoke({
-        role: 'reasoner',
+        role: 'cortex-chat',
         input: { prompt: 'hi' },
         traceId: '00000000-0000-0000-0000-000000000002' as any,
       }),
@@ -103,7 +103,7 @@ describe('OpenAiCompatibleProvider', () => {
 
     try {
       await provider.invoke({
-        role: 'reasoner',
+        role: 'cortex-chat',
         input: { prompt: 'hi' },
         traceId: '00000000-0000-0000-0000-000000000002' as any,
       });
@@ -130,7 +130,7 @@ describe('OpenAiCompatibleProvider', () => {
 
     await expect(
       provider.invoke({
-        role: 'reasoner',
+        role: 'cortex-chat',
         input: { prompt: 'hi' },
         traceId: '00000000-0000-0000-0000-000000000002' as any,
         abortSignal: controller.signal,

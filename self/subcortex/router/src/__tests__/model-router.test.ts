@@ -5,7 +5,7 @@ import { ModelRouter } from '../model-router.js';
 const createMockConfig = (overrides: Record<string, unknown> = {}) => ({
   get: vi.fn().mockReturnValue({
     modelRoleAssignments: [
-      { role: 'reasoner', providerId: '00000000-0000-0000-0000-000000000001' },
+      { role: 'cortex-chat', providerId: '00000000-0000-0000-0000-000000000001' },
     ],
     providers: [
       {
@@ -27,7 +27,7 @@ describe('ModelRouter', () => {
     const config = createMockConfig();
     const router = new ModelRouter(config as any);
 
-    const providerId = await router.route('reasoner');
+    const providerId = await router.route('cortex-chat');
     expect(providerId).toBe('00000000-0000-0000-0000-000000000001');
   });
 
@@ -35,9 +35,9 @@ describe('ModelRouter', () => {
     const config = createMockConfig({ modelRoleAssignments: [] });
     const router = new ModelRouter(config as any);
 
-    await expect(router.route('reasoner')).rejects.toThrow(NousError);
+    await expect(router.route('cortex-chat')).rejects.toThrow(NousError);
     try {
-      await router.route('reasoner');
+      await router.route('cortex-chat');
     } catch (e) {
       expect((e as NousError).code).toBe('ROLE_NOT_ASSIGNED');
     }
@@ -46,14 +46,14 @@ describe('ModelRouter', () => {
   it('route() throws ROLE_NOT_ASSIGNED when role not in assignments', async () => {
     const config = createMockConfig({
       modelRoleAssignments: [
-        { role: 'summarizer', providerId: '00000000-0000-0000-0000-000000000001' },
+        { role: 'workers', providerId: '00000000-0000-0000-0000-000000000001' },
       ],
     });
     const router = new ModelRouter(config as any);
 
-    await expect(router.route('reasoner')).rejects.toThrow(NousError);
+    await expect(router.route('cortex-chat')).rejects.toThrow(NousError);
     try {
-      await router.route('reasoner');
+      await router.route('cortex-chat');
     } catch (e) {
       expect((e as NousError).code).toBe('ROLE_NOT_ASSIGNED');
     }
@@ -62,15 +62,15 @@ describe('ModelRouter', () => {
   it('route() throws PROVIDER_NOT_FOUND when provider not in config', async () => {
     const config = createMockConfig({
       modelRoleAssignments: [
-        { role: 'reasoner', providerId: '00000000-0000-0000-0000-000000000099' },
+        { role: 'cortex-chat', providerId: '00000000-0000-0000-0000-000000000099' },
       ],
       providers: [],
     });
     const router = new ModelRouter(config as any);
 
-    await expect(router.route('reasoner')).rejects.toThrow(NousError);
+    await expect(router.route('cortex-chat')).rejects.toThrow(NousError);
     try {
-      await router.route('reasoner');
+      await router.route('cortex-chat');
     } catch (e) {
       expect((e as NousError).code).toBe('PROVIDER_NOT_FOUND');
     }
@@ -99,7 +99,7 @@ describe('ModelRouter routeWithEvidence', () => {
     const config = createMockConfig();
     const router = new ModelRouter(config as any);
 
-    const result = await router.routeWithEvidence('reasoner', {
+    const result = await router.routeWithEvidence('cortex-chat', {
       traceId: TRACE_ID,
       modelRequirements: {
         profile: 'review-standard',
@@ -136,13 +136,13 @@ describe('ModelRouter routeWithEvidence', () => {
         },
       ],
       modelRoleAssignments: [
-        { role: 'reasoner', providerId: FALLBACK_ID },
+        { role: 'cortex-chat', providerId: FALLBACK_ID },
       ],
     });
     const router = new ModelRouter(config as any);
 
     await expect(
-      router.routeWithEvidence('reasoner', {
+      router.routeWithEvidence('cortex-chat', {
         traceId: TRACE_ID,
         modelRequirements: {
           profile: 'review-standard',
@@ -152,7 +152,7 @@ describe('ModelRouter routeWithEvidence', () => {
     ).rejects.toThrow(NousError);
 
     try {
-      await router.routeWithEvidence('reasoner', {
+      await router.routeWithEvidence('cortex-chat', {
         traceId: TRACE_ID,
         modelRequirements: {
           profile: 'review-standard',
@@ -196,7 +196,7 @@ describe('ModelRouter routeWithEvidence', () => {
       ],
       modelRoleAssignments: [
         {
-          role: 'reasoner',
+          role: 'cortex-chat',
           providerId: PROVIDER_ID,
           fallbackProviderId: FALLBACK_ID,
         },
@@ -204,7 +204,7 @@ describe('ModelRouter routeWithEvidence', () => {
     });
     const router = new ModelRouter(config as any);
 
-    const result = await router.routeWithEvidence('reasoner', {
+    const result = await router.routeWithEvidence('cortex-chat', {
       traceId: TRACE_ID,
       modelRequirements: {
         profile: 'review-standard',
@@ -229,12 +229,12 @@ describe('ModelRouter routeWithEvidence', () => {
           meetsProfiles: ['prompt-generation'],
         },
       ],
-      modelRoleAssignments: [{ role: 'reasoner', providerId: PROVIDER_ID }],
+      modelRoleAssignments: [{ role: 'cortex-chat', providerId: PROVIDER_ID }],
     });
     const router = new ModelRouter(config as any);
 
     await expect(
-      router.routeWithEvidence('reasoner', {
+      router.routeWithEvidence('cortex-chat', {
         traceId: TRACE_ID,
         modelRequirements: {
           profile: 'review-standard',
@@ -244,7 +244,7 @@ describe('ModelRouter routeWithEvidence', () => {
     ).rejects.toThrow(NousError);
 
     try {
-      await router.routeWithEvidence('reasoner', {
+      await router.routeWithEvidence('cortex-chat', {
         traceId: TRACE_ID,
         modelRequirements: {
           profile: 'review-standard',
@@ -271,11 +271,11 @@ describe('ModelRouter routeWithEvidence', () => {
           meetsProfiles: ['prompt-generation'],
         },
       ],
-      modelRoleAssignments: [{ role: 'reasoner', providerId: PROVIDER_ID }],
+      modelRoleAssignments: [{ role: 'cortex-chat', providerId: PROVIDER_ID }],
     });
     const router = new ModelRouter(config as any);
 
-    const result = await router.routeWithEvidence('reasoner', {
+    const result = await router.routeWithEvidence('cortex-chat', {
       traceId: TRACE_ID,
       modelRequirements: {
         profile: 'review-standard',

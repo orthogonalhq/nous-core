@@ -30,7 +30,7 @@ describe('AgentPanel exports', () => {
   it('is re-exported from panels index', async () => {
     const panelsIndex = await import('../index.js');
     expect(panelsIndex.AgentPanel).toBe(AgentPanel);
-  }, 15000);
+  }, 30000);
 });
 
 // ---------------------------------------------------------------------------

@@ -7,7 +7,6 @@ import { usePreferencesApi } from '../usePreferencesApi'
 const mockFetch = {
   getApiKeys: vi.fn(),
   getAvailableModels: vi.fn(),
-  getModelSelection: vi.fn(),
   getRoleAssignments: vi.fn(),
   getSystemStatus: vi.fn(),
   listOllamaModels: vi.fn(),
@@ -17,11 +16,11 @@ const mockMutateAsync = {
   setApiKey: vi.fn(),
   deleteApiKey: vi.fn(),
   testApiKey: vi.fn(),
-  setModelSelection: vi.fn(),
   setRoleAssignment: vi.fn(),
   resetWizard: vi.fn(),
   pullOllamaModel: vi.fn(),
   deleteOllamaModel: vi.fn(),
+  setOllamaEndpoint: vi.fn(),
 }
 
 vi.mock('../../client', () => ({
@@ -30,19 +29,18 @@ vi.mock('../../client', () => ({
       preferences: {
         getApiKeys: { fetch: mockFetch.getApiKeys },
         getAvailableModels: { fetch: mockFetch.getAvailableModels },
-        getModelSelection: { fetch: mockFetch.getModelSelection },
         getRoleAssignments: { fetch: mockFetch.getRoleAssignments },
         getSystemStatus: { fetch: mockFetch.getSystemStatus },
       },
       ollama: {
         listModels: { fetch: mockFetch.listOllamaModels },
+        getEndpoint: { fetch: vi.fn().mockResolvedValue({ endpoint: 'http://localhost:11434' }) },
       },
     }),
     preferences: {
       setApiKey: { useMutation: () => ({ mutateAsync: mockMutateAsync.setApiKey }) },
       deleteApiKey: { useMutation: () => ({ mutateAsync: mockMutateAsync.deleteApiKey }) },
       testApiKey: { useMutation: () => ({ mutateAsync: mockMutateAsync.testApiKey }) },
-      setModelSelection: { useMutation: () => ({ mutateAsync: mockMutateAsync.setModelSelection }) },
       setRoleAssignment: { useMutation: () => ({ mutateAsync: mockMutateAsync.setRoleAssignment }) },
     },
     firstRun: {
@@ -51,6 +49,7 @@ vi.mock('../../client', () => ({
     ollama: {
       pullModel: { useMutation: () => ({ mutateAsync: mockMutateAsync.pullOllamaModel }) },
       deleteModel: { useMutation: () => ({ mutateAsync: mockMutateAsync.deleteOllamaModel }) },
+      setEndpoint: { useMutation: () => ({ mutateAsync: mockMutateAsync.setOllamaEndpoint }) },
     },
   },
 }))
@@ -81,8 +80,6 @@ describe('usePreferencesApi', () => {
       const api = result.current
 
       expect(typeof api.getAvailableModels).toBe('function')
-      expect(typeof api.getModelSelection).toBe('function')
-      expect(typeof api.setModelSelection).toBe('function')
       expect(typeof api.getRoleAssignments).toBe('function')
       expect(typeof api.setRoleAssignment).toBe('function')
       expect(typeof api.resetWizard).toBe('function')
@@ -135,16 +132,6 @@ describe('usePreferencesApi', () => {
       expect(data).toEqual(mockData)
     })
 
-    it('getModelSelection calls utils.preferences.getModelSelection.fetch', async () => {
-      const mockData = { principal: 'openai:gpt-4', system: null }
-      mockFetch.getModelSelection.mockResolvedValueOnce(mockData)
-
-      const { result } = renderHook(() => usePreferencesApi())
-      const data = await result.current.getModelSelection()
-
-      expect(mockFetch.getModelSelection).toHaveBeenCalledOnce()
-      expect(data).toEqual(mockData)
-    })
   })
 
   describe('mutation delegation', () => {
@@ -181,19 +168,8 @@ describe('usePreferencesApi', () => {
       expect(data).toEqual({ valid: true, error: null })
     })
 
-    it('setModelSelection calls mutation.mutateAsync with input', async () => {
-      const input = { principal: 'openai:gpt-4' }
-      mockMutateAsync.setModelSelection.mockResolvedValueOnce({ success: true })
-
-      const { result } = renderHook(() => usePreferencesApi())
-      const data = await result.current.setModelSelection(input)
-
-      expect(mockMutateAsync.setModelSelection).toHaveBeenCalledWith(input)
-      expect(data).toEqual({ success: true })
-    })
-
     it('setRoleAssignment calls mutation.mutateAsync with input', async () => {
-      const input = { role: 'orchestrator', modelSpec: 'openai:gpt-4' }
+      const input = { role: 'orchestrators', modelSpec: 'openai:gpt-4' }
       mockMutateAsync.setRoleAssignment.mockResolvedValueOnce({ success: true })
 
       const { result } = renderHook(() => usePreferencesApi())
@@ -209,29 +185,29 @@ describe('usePreferencesApi', () => {
   describe('getRoleAssignments adapter', () => {
     it('transforms Record to array', async () => {
       mockFetch.getRoleAssignments.mockResolvedValueOnce({
-        orchestrator: { providerId: 'openai:gpt-4' },
-        reasoner: null,
+        orchestrators: { providerId: 'openai:gpt-4' },
+        'cortex-chat': null,
       })
 
       const { result } = renderHook(() => usePreferencesApi())
       const data = await result.current.getRoleAssignments()
 
       expect(data).toEqual([
-        { role: 'orchestrator', providerId: 'openai:gpt-4' },
-        { role: 'reasoner', providerId: null },
+        { role: 'orchestrators', providerId: 'openai:gpt-4' },
+        { role: 'cortex-chat', providerId: null },
       ])
     })
 
     it('drops fallbackProviderId', async () => {
       mockFetch.getRoleAssignments.mockResolvedValueOnce({
-        orchestrator: { providerId: 'openai:gpt-4', fallbackProviderId: 'anthropic:claude' },
+        orchestrators: { providerId: 'openai:gpt-4', fallbackProviderId: 'anthropic:claude' },
       })
 
       const { result } = renderHook(() => usePreferencesApi())
       const data = await result.current.getRoleAssignments()
 
       expect(data).toEqual([
-        { role: 'orchestrator', providerId: 'openai:gpt-4' },
+        { role: 'orchestrators', providerId: 'openai:gpt-4' },
       ])
       // Verify no fallbackProviderId key
       expect(data[0]).not.toHaveProperty('fallbackProviderId')

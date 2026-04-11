@@ -407,3 +407,52 @@
     display: none;
   }
 }
+
+/* Back navigation row below the step indicator */
+.nous-wizard__back-row {
+  display: flex;
+  justify-content: flex-start;
+  margin-top: var(--nous-space-md);
+  margin-bottom: var(--nous-space-sm);
+}
+
+/* Indeterminate progress bar for install/download phases */
+.nous-wizard__progress {
+  margin-top: var(--nous-space-md);
+}
+
+.nous-wizard__progress-label {
+  display: block;
+  margin-bottom: var(--nous-space-xs);
+  font-size: var(--nous-font-size-sm);
+  color: var(--nous-fg-muted);
+}
+
+.nous-wizard__progress-track {
+  position: relative;
+  width: 100%;
+  height: 6px;
+  background: var(--nous-bg-subtle, #2a2a2a);
+  border-radius: 3px;
+  overflow: hidden;
+}
+
+.nous-wizard__progress-bar {
+  position: absolute;
+  top: 0;
+  left: 0;
+  height: 100%;
+  width: 30%;
+  background: var(--nous-accent, #4a9eff);
+  border-radius: 3px;
+  animation: nous-wizard-progress-slide 1.5s ease-in-out infinite;
+}
+
+@keyframes nous-wizard-progress-slide {
+  0% {
+    left: -30%;
+  }
+  100% {
+    left: 100%;
+  }
+}

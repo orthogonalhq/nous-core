@@ -16,6 +16,7 @@ import type {
   IRecoveryLedgerStore,
   IRecoveryOrchestrator,
   IStmStore,
+  ITaskStore,
   IToolExecutor,
   IWorkmodeAdmissionGuard,
   IPfcEngine,
@@ -193,6 +194,7 @@ export const ChatTurnResultSchema = z.object({
   response: z.string(),
   traceId: z.string(),
   contentType: z.enum(['text', 'openui']).optional(),
+  thinkingContent: z.string().optional(),
 }).strict();
 export type ChatTurnResult = z.infer<typeof ChatTurnResultSchema>;
 
@@ -252,6 +254,7 @@ export interface PrincipalSystemGatewayRuntimeDeps {
   pfc?: IPfcEngine;
   promotedMemoryBridgeService?: IPromotedMemoryBridgeService;
   workflowEngine?: IWorkflowEngine;
+  taskStore?: ITaskStore;
   projectStore?: IProjectStore;
   scheduler?: IScheduler;
   escalationService?: IEscalationService;

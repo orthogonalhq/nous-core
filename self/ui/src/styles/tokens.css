@@ -225,9 +225,11 @@
   --nous-rail-indicator-height:         30px;
   --nous-asset-sidebar-default-width:   320px;
   --nous-asset-sidebar-min-width:       240px;
+  --nous-asset-sidebar-collapsed-width: 32px;   /* WR-141 — dedicated, NOT shared with observe */
   --nous-observe-collapsed-width:       32px;
   --nous-observe-expanded-width:        280px;
   --nous-observe-min-width:             32px;
+  --nous-chat-overlay-min-width:        320px;  /* WR-141 — chat overlay floor when sidebar collapsed */
 
   /* -- Chat overlay heights (per stage) */
   --nous-chat-height-small:             fit-content;

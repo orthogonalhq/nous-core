@@ -8,7 +8,7 @@ export interface UseChatApiOptions {
 
 /** Matches the ChatAPI interface from @nous/ui/panels (structural compatibility). */
 interface ChatApiShape {
-  send: (message: string) => Promise<{ response: string; traceId: string; contentType?: 'text' | 'openui' }>
+  send: (message: string) => Promise<{ response: string; traceId: string; contentType?: 'text' | 'openui'; thinkingContent?: string }>
   getHistory: () => Promise<{
     role: 'user' | 'assistant'
     content: string
@@ -56,7 +56,7 @@ export function useChatApi(options?: UseChatApiOptions): ChatApiShape {
         if (projectId) {
           await utilsRef.current.chat.getHistory.invalidate({ projectId })
         }
-        return { response: result.response, traceId: result.traceId, contentType: result.contentType }
+        return { response: result.response, traceId: result.traceId, contentType: result.contentType, thinkingContent: result.thinkingContent }
       },
       getHistory: async () => {
         const data = await utilsRef.current.chat.getHistory.fetch(

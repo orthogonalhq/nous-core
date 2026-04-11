@@ -79,7 +79,7 @@ function mapNodeTypeToConfig(node: WorkflowNode): WorkflowNodeConfig {
       // Agent nodes map to model-call configs
       return {
         type: 'model-call' as const,
-        modelRole: 'orchestrator' as const,
+        modelRole: 'orchestrators' as const,
         promptRef: node.parameters.systemPrompt
           ? `inline:${node.id}`
           : `default:${node.type}`,

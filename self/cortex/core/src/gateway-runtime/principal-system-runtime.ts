@@ -26,7 +26,7 @@ import type {
 } from '@nous/shared';
 import { GatewayContextFrameSchema } from '@nous/shared';
 import { AgentGatewayFactory, createInboxFrame } from '../agent-gateway/index.js';
-import { transformGatewayInput } from './gateway-turn-executor.js';
+import { resolveAdapter, resolveProviderTypeFromConfig } from '../agent-gateway/adapters/index.js';
 import {
   createInternalMcpSurfaceBundle,
   getInternalMcpCatalogEntry,
@@ -34,6 +34,7 @@ import {
 } from '../internal-mcp/index.js';
 import { detectAndStripNarration, parseModelOutput } from '../output-parser.js';
 import { CARD_PROMPT_FRAGMENT } from './card-prompt-fragment.js';
+import { WORKFLOW_PROMPT_FRAGMENT } from './workflow-prompt-fragment.js';
 import { getOrchestratorPrompt } from '../prompts/index.js';
 import { resolvePromptConfig, composeSystemPromptFromConfig } from './prompt-strategy.js';
 import { RetryPolicyEvaluator } from '../recovery/retry-policy-evaluator.js';
@@ -449,7 +450,7 @@ implements IPrincipalSystemGatewayRuntime, ISystemInboxSubmissionService {
 
     // Run Principal gateway
     const result = await this.principalGateway.run({
-      taskInstructions: `Handle the current user chat turn. Respond conversationally.\n\n${CARD_PROMPT_FRAGMENT}`,
+      taskInstructions: `Handle the current user chat turn. Respond conversationally.\n\n${WORKFLOW_PROMPT_FRAGMENT}\n\n${CARD_PROMPT_FRAGMENT}`,
       payload: { message },
       context: contextFrames,
       budget: DEFAULT_CHAT_TURN_BUDGET,
@@ -885,12 +886,28 @@ implements IPrincipalSystemGatewayRuntime, ISystemInboxSubmissionService {
     provider: import('@nous/shared').IModelProvider,
     options?: { synthesizeTaskComplete?: boolean },
   ): import('@nous/shared').IModelProvider {
+    const providerType = resolveProviderTypeFromConfig(provider);
+    const adapter = resolveAdapter(providerType);
+
     return {
       ...provider,
       invoke: async (request) => {
+        const transformedInput = (() => {
+          const input = request.input;
+          if (typeof input !== 'object' || input === null) return input;
+          if ('messages' in input || 'prompt' in input) return input;
+          const rec = input as Record<string, unknown>;
+          if (typeof rec.systemPrompt !== 'string' || !Array.isArray(rec.context)) return input;
+          const result = adapter.formatRequest({
+            systemPrompt: rec.systemPrompt as string,
+            context: rec.context as import('@nous/shared').GatewayContextFrame[],
+            toolDefinitions: Array.isArray(rec.tools) ? rec.tools as import('@nous/shared').ToolDefinition[] : undefined,
+          });
+          return result.input;
+        })();
         const response = await provider.invoke({
           ...request,
-          input: transformGatewayInput(request.input),
+          input: transformedInput,
         });
 
         if (!options?.synthesizeTaskComplete) return response;

@@ -4,21 +4,16 @@ import type { ModelRoleAssignment } from '@nous/autonomic-config';
 import {
   OLLAMA_WELL_KNOWN_PROVIDER_ID,
   buildOllamaProviderConfig,
-  currentReasonerAssignment,
   currentRoleAssignment,
   parseSelectedModelSpec,
-  updateReasonerAssignment,
   updateRoleAssignment,
 } from '../src/bootstrap';
 
 const ROLE_PROVIDER_IDS: Record<ModelRole, ProviderId> = {
-  orchestrator: '20000000-0000-0000-0000-000000000001' as ProviderId,
-  reasoner: '20000000-0000-0000-0000-000000000002' as ProviderId,
-  'tool-advisor': '20000000-0000-0000-0000-000000000003' as ProviderId,
-  summarizer: '20000000-0000-0000-0000-000000000004' as ProviderId,
-  embedder: '20000000-0000-0000-0000-000000000005' as ProviderId,
-  reranker: '20000000-0000-0000-0000-000000000006' as ProviderId,
-  vision: '20000000-0000-0000-0000-000000000007' as ProviderId,
+  'cortex-chat': '20000000-0000-0000-0000-000000000001' as ProviderId,
+  'cortex-system': '20000000-0000-0000-0000-000000000002' as ProviderId,
+  orchestrators: '20000000-0000-0000-0000-000000000003' as ProviderId,
+  workers: '20000000-0000-0000-0000-000000000004' as ProviderId,
 };
 const REPLACEMENT_PROVIDER_ID =
   '30000000-0000-0000-0000-000000000001' as ProviderId;
@@ -111,7 +106,7 @@ describe('buildOllamaProviderConfig', () => {
 });
 
 describe('updateRoleAssignment', () => {
-  it('accepts all 7 model roles and stores a separate assignment for each one', async () => {
+  it('accepts all 4 model roles and stores a separate assignment for each one', async () => {
     const { ctx, state } = createMockContext();
 
     for (const role of ModelRoleSchema.options as ModelRole[]) {
@@ -126,66 +121,38 @@ describe('updateRoleAssignment', () => {
 
   it('updates only the targeted role and preserves other assignments', async () => {
     const { ctx, state } = createMockContext([
-      assignmentFor('reasoner'),
-      assignmentFor('orchestrator'),
+      assignmentFor('cortex-chat'),
+      assignmentFor('orchestrators'),
     ]);
 
     await updateRoleAssignment(
       ctx,
-      'orchestrator',
+      'orchestrators',
       REPLACEMENT_PROVIDER_ID,
       FALLBACK_PROVIDER_ID,
     );
 
     expect(state.modelRoleAssignments).toEqual([
-      assignmentFor('reasoner'),
-      assignmentFor('orchestrator', REPLACEMENT_PROVIDER_ID, FALLBACK_PROVIDER_ID),
+      assignmentFor('cortex-chat'),
+      assignmentFor('orchestrators', REPLACEMENT_PROVIDER_ID, FALLBACK_PROVIDER_ID),
     ]);
   });
 
   it('removes only the targeted role when providerId is null', async () => {
     const { ctx, state } = createMockContext([
-      assignmentFor('reasoner'),
-      assignmentFor('orchestrator'),
+      assignmentFor('cortex-chat'),
+      assignmentFor('orchestrators'),
     ]);
 
-    await updateRoleAssignment(ctx, 'orchestrator', null);
+    await updateRoleAssignment(ctx, 'orchestrators', null);
 
-    expect(state.modelRoleAssignments).toEqual([assignmentFor('reasoner')]);
-    expect(currentRoleAssignment(ctx, 'orchestrator')).toBeUndefined();
+    expect(state.modelRoleAssignments).toEqual([assignmentFor('cortex-chat')]);
+    expect(currentRoleAssignment(ctx, 'orchestrators')).toBeUndefined();
   });
 
   it('returns undefined for unassigned roles', () => {
-    const { ctx } = createMockContext([assignmentFor('reasoner')]);
+    const { ctx } = createMockContext([assignmentFor('cortex-chat')]);
 
-    expect(currentRoleAssignment(ctx, 'vision')).toBeUndefined();
-  });
-});
-
-describe('reasoner wrappers', () => {
-  it('updateReasonerAssignment preserves other roles while updating reasoner', async () => {
-    const { ctx, state } = createMockContext([assignmentFor('orchestrator')]);
-
-    await updateReasonerAssignment(
-      ctx,
-      ROLE_PROVIDER_IDS.reasoner,
-      FALLBACK_PROVIDER_ID,
-    );
-
-    expect(state.modelRoleAssignments).toEqual([
-      assignmentFor('orchestrator'),
-      assignmentFor('reasoner', ROLE_PROVIDER_IDS.reasoner, FALLBACK_PROVIDER_ID),
-    ]);
-  });
-
-  it('currentReasonerAssignment reads the reasoner entry from multi-role config', () => {
-    const { ctx } = createMockContext([
-      assignmentFor('orchestrator'),
-      assignmentFor('reasoner', ROLE_PROVIDER_IDS.reasoner, FALLBACK_PROVIDER_ID),
-    ]);
-
-    expect(currentReasonerAssignment(ctx)).toEqual(
-      assignmentFor('reasoner', ROLE_PROVIDER_IDS.reasoner, FALLBACK_PROVIDER_ID),
-    );
+    expect(currentRoleAssignment(ctx, 'workers')).toBeUndefined();
   });
 });

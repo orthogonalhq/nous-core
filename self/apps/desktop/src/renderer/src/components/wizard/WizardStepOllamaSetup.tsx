@@ -1,3 +1,4 @@
+import { useEffect, useRef, useState } from 'react'
 import {
   formatLifecycleState,
   type FirstRunState,
@@ -9,6 +10,21 @@ import { trpcMutate } from './trpc-fetch'
 export interface WizardStepOllamaSetupProps extends WizardStepProps {
   ollamaStatus: OllamaStatus | null
   refreshOllamaStatus: () => Promise<void>
+}
+
+function formatInstallPhase(phase: string): string {
+  switch (phase) {
+    case 'checking':
+      return 'Checking package manager...'
+    case 'downloading':
+      return 'Downloading Ollama...'
+    case 'installing':
+      return 'Installing Ollama...'
+    case 'verifying':
+      return 'Verifying installation...'
+    default:
+      return `${phase}...`
+  }
 }
 
 function getStatusTone(state: OllamaStatus['state'] | null): string {
@@ -35,6 +51,60 @@ export function WizardStepOllamaSetup({
 }: WizardStepOllamaSetupProps) {
   const state = ollamaStatus?.state ?? null
   const canContinue = state === 'running'
+
+  const [installPhase, setInstallPhase] = useState<string | null>(null)
+  const [installError, setInstallError] = useState<string | null>(null)
+  const [installElevationError, setInstallElevationError] = useState(false)
+  const cleanupRef = useRef<(() => void) | null>(null)
+
+  // Cleanup progress listener on unmount
+  useEffect(() => {
+    return () => {
+      cleanupRef.current?.()
+    }
+  }, [])
+
+  const handleInstall = async () => {
+    setInstallError(null)
+    setInstallElevationError(false)
+    setActionError(null)
+    setActionInProgress(true)
+
+    // Subscribe to progress events
+    const unsubscribe = window.electronAPI.ollama.onInstallProgress((progress) => {
+      setInstallPhase(progress.phase)
+    })
+    cleanupRef.current = unsubscribe
+
+    try {
+      const result = (await window.electronAPI.ollama.install()) as {
+        success: boolean
+        error?: string
+        elevationError?: boolean
+        packageManagerMissing?: boolean
+      }
+
+      if (result.success) {
+        setInstallPhase(null)
+        await refreshOllamaStatus()
+      } else if (result.elevationError) {
+        setInstallPhase(null)
+        setInstallElevationError(true)
+        setInstallError(result.error ?? 'Installation requires elevated permissions.')
+      } else {
+        setInstallPhase(null)
+        setInstallError(result.error ?? 'Installation failed.')
+      }
+    } catch (error) {
+      setInstallPhase(null)
+      const message = error instanceof Error ? error.message : String(error)
+      setInstallError(message)
+    } finally {
+      unsubscribe()
+      cleanupRef.current = null
+      setActionInProgress(false)
+    }
+  }
 
   const handleRefresh = async () => {
     setActionError(null)
@@ -84,20 +154,41 @@ export function WizardStepOllamaSetup({
     }
   }
 
+  const handleSkip = async () => {
+    setActionError(null)
+    setActionInProgress(true)
+    try {
+      const nextState = await trpcMutate<FirstRunState>('firstRun.completeStep', { step: 'ollama_check' })
+      onStepComplete(nextState)
+    } catch (error) {
+      const message = error instanceof Error ? error.message : String(error)
+      setActionError(message)
+      setActionInProgress(false)
+    }
+  }
+
+  // State-driven hero content. The title shifts dramatically per state so the
+  // user immediately sees where they are in the install/start lifecycle.
+  let heroTitle = 'Setting up Ollama…'
   let description = 'Checking whether Ollama is available on this desktop…'
   if (state === 'not_installed') {
+    heroTitle = 'Install Ollama to continue'
     description =
-      'Ollama is not installed yet. Download it first, then return here and re-check the status.'
+      'Ollama runs language models locally on this machine. Click "Install Ollama" below — Nous will install it silently in the background.'
   } else if (state === 'installed_stopped') {
+    heroTitle = 'Start the Ollama runtime'
     description =
-      'Ollama is installed, but the local runtime is not running yet. Start it here, or launch it manually.'
+      'Ollama is installed but not running yet. Click "Start Ollama" to launch the local runtime.'
   } else if (state === 'starting') {
-    description = 'Ollama is starting. Leave this step open while the runtime comes online.'
+    heroTitle = 'Starting Ollama…'
+    description = 'The local runtime is coming online. This usually takes a few seconds.'
   } else if (state === 'running') {
-    description = 'Ollama is ready. You can move to model download whenever you are ready.'
+    heroTitle = 'Ollama is ready'
+    description = 'The local runtime is up and responding. You can continue to model download.'
   } else if (state === 'error') {
+    heroTitle = 'Ollama hit an error'
     description =
-      'Ollama reported an error. Re-check the status after fixing the local runtime.'
+      'Something went wrong with the local runtime. See details below, then try again.'
   }
 
   return (
@@ -107,17 +198,21 @@ export function WizardStepOllamaSetup({
           <span className="nous-wizard__status-dot" />
           <span>{formatLifecycleState(ollamaStatus?.state ?? 'not_installed')}</span>
         </div>
-        <h1 className="nous-wizard__title">Make sure Ollama is installed and running.</h1>
+        <h1 className="nous-wizard__title">{heroTitle}</h1>
         <p className="nous-wizard__subtitle">{description}</p>
       </section>
 
       <div className="nous-wizard__grid">
         <section className="nous-wizard__card">
           <h2 className="nous-wizard__section-title">Current status</h2>
-          <p className="nous-wizard__section-copy">
-            This step stays reactive while you install or start Ollama outside the
-            app. The status below updates through the preload subscription.
-          </p>
+          <p className="nous-wizard__section-copy">{
+            state === 'running' ? 'Ollama is running and the API is responding.' :
+            state === 'not_installed' ? 'Ollama is not installed on this machine yet.' :
+            state === 'installed_stopped' ? 'Ollama is installed but the runtime is not running.' :
+            state === 'starting' ? 'The Ollama runtime is starting up.' :
+            state === 'error' ? 'Ollama reported an error. See details below.' :
+            'Detecting Ollama on this machine…'
+          }</p>
 
           <div className="nous-wizard__meta-list">
             <div className="nous-wizard__meta-item">
@@ -148,22 +243,64 @@ export function WizardStepOllamaSetup({
         </section>
 
         <section className="nous-wizard__card">
-          <h2 className="nous-wizard__section-title">What to do next</h2>
-          <p className="nous-wizard__section-copy">
-            Download Ollama if you do not have it yet, or start the runtime and
-            wait for this step to show a running state.
-          </p>
+          <h2 className="nous-wizard__section-title">{
+            state === 'running' ? 'Ready to continue' :
+            state === 'not_installed' ? 'Install Ollama' :
+            state === 'installed_stopped' ? 'Start the runtime' :
+            state === 'starting' ? 'Waiting for runtime' :
+            state === 'error' ? 'Resolve the error' :
+            'Next steps'
+          }</h2>
+          <p className="nous-wizard__section-copy">{
+            state === 'running' ? 'Everything is set up. Click "Continue" to move on to model download.' :
+            state === 'not_installed' ? 'Nous will install Ollama silently using your system package manager (winget on Windows, brew on macOS, curl on Linux).' :
+            state === 'installed_stopped' ? 'The Ollama binary is installed. Click "Start Ollama" to launch the local API server.' :
+            state === 'starting' ? 'The runtime is coming online. This page will update automatically when it is ready.' :
+            state === 'error' ? 'Check the error details on the left, then click "Check again" or restart the install.' :
+            'Setting up Ollama…'
+          }</p>
+
+          {installPhase ? (
+            <div className="nous-wizard__progress" data-testid="install-progress">
+              <span className="nous-wizard__progress-label">{formatInstallPhase(installPhase)}</span>
+              <div className="nous-wizard__progress-track">
+                <div className="nous-wizard__progress-bar" />
+              </div>
+            </div>
+          ) : null}
+
+          {installError ? (
+            <div className="nous-wizard__alert" role="alert">
+              <p>{installError}</p>
+              {installElevationError ? (
+                <p>
+                  The installer needs elevated permissions. Please install Ollama manually
+                  using the instructions above, or{' '}
+                  <a href="https://ollama.com/download" target="_blank" rel="noreferrer">
+                    download it from the official site
+                  </a>.
+                </p>
+              ) : (
+                <p>
+                  You can also{' '}
+                  <a href="https://ollama.com/download" target="_blank" rel="noreferrer">
+                    download Ollama manually
+                  </a>.
+                </p>
+              )}
+            </div>
+          ) : null}
 
           <div className="nous-wizard__button-row">
-            {state === 'not_installed' ? (
-              <a
+            {state === 'not_installed' && !installPhase ? (
+              <button
+                type="button"
                 className="nous-wizard__button nous-wizard__button--primary"
-                href="https://ollama.com/download"
-                target="_blank"
-                rel="noreferrer"
+                onClick={handleInstall}
+                disabled={actionInProgress}
               >
-                Download Ollama
-              </a>
+                {actionInProgress ? 'Installing...' : 'Install Ollama'}
+              </button>
             ) : null}
 
             {state === 'installed_stopped' ? (
@@ -185,6 +322,18 @@ export function WizardStepOllamaSetup({
             >
               Check again
             </button>
+
+            {state !== 'running' && !installPhase ? (
+              <button
+                type="button"
+                className="nous-wizard__button nous-wizard__button--secondary"
+                onClick={handleSkip}
+                disabled={actionInProgress}
+                title="Skip Ollama setup. You can configure cloud providers (Anthropic, OpenAI, etc.) instead, and add Ollama later from Settings."
+              >
+                Skip — I&rsquo;ll use cloud providers
+              </button>
+            ) : null}
 
             <button
               type="button"

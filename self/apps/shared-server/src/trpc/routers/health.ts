@@ -2,6 +2,7 @@
  * Health tRPC router.
  */
 import { router, publicProcedure } from '../trpc';
+import { getOllamaEndpointFromContext } from '../../ollama-config';
 
 export const healthRouter = router({
   check: publicProcedure.query(async ({ ctx }) => {
@@ -24,7 +25,9 @@ export const healthRouter = router({
     const hasLocal = providers.some((p) => p.isLocal);
     if (hasLocal) {
       try {
-        const res = await fetch('http://localhost:11434/api/tags', {
+        const ollamaEndpoint = getOllamaEndpointFromContext(ctx);
+        console.log('[nous:health] ollama probe:', ollamaEndpoint);
+        const res = await fetch(`${ollamaEndpoint}/api/tags`, {
           signal: AbortSignal.timeout(2000),
         });
         components.push({

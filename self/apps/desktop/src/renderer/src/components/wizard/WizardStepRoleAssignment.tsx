@@ -107,7 +107,7 @@ export function WizardStepRoleAssignment({
         <div className="nous-wizard__eyebrow">Role assignment</div>
         <h1 className="nous-wizard__title">Decide how Nous should use your local model.</h1>
         <p className="nous-wizard__subtitle">
-          Simple mode assigns one downloaded model to all seven roles. Advanced
+          Simple mode assigns one downloaded model to every role. Advanced
           mode lets you override individual roles using the recommendations from
           your detected hardware profile.
         </p>

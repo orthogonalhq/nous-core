@@ -14,8 +14,18 @@ import {
   type FirstRunState,
   type OllamaStatus,
   type RoleAssignments,
+  type WizardStepId,
 } from './wizard/types'
 import { trpcQuery, trpcMutate } from './wizard/trpc-fetch'
+
+/** Back-navigation map: from each step, where does Back take you? */
+const PREVIOUS_STEP_MAP: Record<WizardStepId, WizardStepId | null> = {
+  welcome: null,
+  'ollama-setup': 'welcome',
+  'model-download': 'ollama-setup',
+  'role-assignment': 'model-download',
+  confirmation: 'role-assignment',
+}
 
 type RoleAssignmentMode = 'default' | 'advanced'
 
@@ -42,11 +52,18 @@ export function FirstRunWizard({
   const [welcomeCompleted, setWelcomeCompleted] = useState(
     initialState.currentStep !== 'ollama_check',
   )
+  // Client-side override for back navigation. Lets users revisit prior steps
+  // without changing backend state. Cleared when user completes a step normally.
+  const [currentStepOverride, setCurrentStepOverride] = useState<WizardStepId | null>(null)
 
-  const currentWizardStep =
+  const derivedCurrentWizardStep: WizardStepId =
     firstRunState.currentStep === 'ollama_check' && !welcomeCompleted
       ? 'welcome'
       : BACKEND_STEP_TO_WIZARD_STEP[firstRunState.currentStep]
+
+  const currentWizardStep: WizardStepId = currentStepOverride ?? derivedCurrentWizardStep
+  const previousStep = PREVIOUS_STEP_MAP[currentWizardStep]
+  const canGoBack = previousStep !== null
 
   useEffect(() => {
     console.log(`[nous:wizard] Step rendered: ${currentWizardStep}`)
@@ -111,8 +128,21 @@ export function FirstRunWizard({
   const applyStepCompletion = (label: string, nextState: FirstRunState) => {
     console.log(`[nous:wizard] Step completed: ${label}`)
     setFirstRunState(nextState)
+    setCurrentStepOverride(null) // clear back-nav override on real advancement
     setActionError(null)
     setActionInProgress(false)
+  }
+
+  const handleBack = () => {
+    if (!previousStep) return
+    if (previousStep === 'welcome') {
+      // Welcome is a UI-only step gated by welcomeCompleted
+      setWelcomeCompleted(false)
+      setCurrentStepOverride(null)
+    } else {
+      setCurrentStepOverride(previousStep)
+    }
+    setActionError(null)
   }
 
   const handleResetWizard = async () => {
@@ -186,6 +216,20 @@ export function FirstRunWizard({
 
         <WizardStepIndicator steps={WIZARD_STEPS} currentStepId={currentWizardStep} />
 
+        {canGoBack ? (
+          <div className="nous-wizard__back-row">
+            <button
+              type="button"
+              className="nous-wizard__button nous-wizard__button--ghost"
+              onClick={handleBack}
+              disabled={actionInProgress}
+              data-testid="wizard-back-button"
+            >
+              ← Back
+            </button>
+          </div>
+        ) : null}
+
         {currentWizardStep === 'welcome' ? (
           <WizardStepWelcome
             {...sharedProps}
@@ -195,6 +239,7 @@ export function FirstRunWizard({
             onContinue={() => {
               console.log('[nous:wizard] Step completed: welcome')
               setWelcomeCompleted(true)
+              setCurrentStepOverride(null)
             }}
           />
         ) : null}

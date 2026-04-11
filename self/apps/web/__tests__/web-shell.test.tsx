@@ -101,6 +101,8 @@ vi.mock('@nous/ui/components', () => ({
     collapseToSmall: vi.fn(),
     handleClickOutside: vi.fn(),
   }),
+  // WR-141 — whole-sidebar collapse hook. Stub returns expanded state and a no-op setter.
+  useSidebarCollapsed: () => [false, vi.fn()] as [boolean, (next: boolean) => void],
   CommandPalette: (props: any) => {
     capturedCommandPaletteProps = props
     if (!props.isOpen) return null

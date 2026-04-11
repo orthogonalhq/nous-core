@@ -1,5 +1,5 @@
 import { useState } from 'react'
-import { fireEvent, render, screen, waitFor } from '@testing-library/react'
+import { act, fireEvent, render, screen, waitFor } from '@testing-library/react'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import {
   createElectronAPIMock,
@@ -71,7 +71,7 @@ describe('Wizard step components', () => {
     expect(screen.getByText(/RTX 4080/)).toBeInTheDocument()
   })
 
-  it('shows download guidance when Ollama is not installed', () => {
+  it('shows install button when Ollama is not installed', () => {
     installMock()
     const props = createStepProps()
 
@@ -89,7 +89,135 @@ describe('Wizard step components', () => {
       />,
     )
 
-    expect(screen.getByRole('link', { name: 'Download Ollama' })).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: 'Install Ollama' })).toBeInTheDocument()
+  })
+
+  it('triggers IPC install flow when Install Ollama is clicked', async () => {
+    const mock = installMock()
+    const props = createStepProps()
+
+    render(
+      <WizardStepOllamaSetup
+        {...props}
+        ollamaStatus={{
+          installed: false,
+          running: false,
+          state: 'not_installed',
+          models: [],
+          defaultModel: null,
+        }}
+        refreshOllamaStatus={vi.fn(async () => {})}
+      />,
+    )
+
+    fireEvent.click(screen.getByRole('button', { name: 'Install Ollama' }))
+
+    await waitFor(() => {
+      expect(mock.ollama.install).toHaveBeenCalled()
+      expect(mock.ollama.onInstallProgress).toHaveBeenCalled()
+    })
+  })
+
+  it('displays install progress phases', async () => {
+    const mock = installMock()
+    const props = createStepProps()
+
+    let progressCallback: ((progress: { phase: string; message?: string }) => void) | null = null
+    mock.ollama.onInstallProgress.mockImplementation((cb: (progress: { phase: string; message?: string }) => void) => {
+      progressCallback = cb
+      return () => {}
+    })
+    // Make install hang so we can observe progress
+    mock.ollama.install.mockImplementation(() => new Promise(() => {}))
+
+    render(
+      <WizardStepOllamaSetup
+        {...props}
+        ollamaStatus={{
+          installed: false,
+          running: false,
+          state: 'not_installed',
+          models: [],
+          defaultModel: null,
+        }}
+        refreshOllamaStatus={vi.fn(async () => {})}
+      />,
+    )
+
+    fireEvent.click(screen.getByRole('button', { name: 'Install Ollama' }))
+
+    await waitFor(() => {
+      expect(progressCallback).not.toBeNull()
+    })
+
+    act(() => {
+      progressCallback!({ phase: 'downloading' })
+    })
+
+    await waitFor(() => {
+      expect(screen.getByText('downloading...')).toBeInTheDocument()
+    })
+  })
+
+  it('displays error state with fallback link on install failure', async () => {
+    const mock = installMock()
+    const props = createStepProps()
+
+    mock.ollama.install.mockResolvedValue({ success: false, error: 'Install failed' } as Record<string, unknown>)
+
+    render(
+      <WizardStepOllamaSetup
+        {...props}
+        ollamaStatus={{
+          installed: false,
+          running: false,
+          state: 'not_installed',
+          models: [],
+          defaultModel: null,
+        }}
+        refreshOllamaStatus={vi.fn(async () => {})}
+      />,
+    )
+
+    fireEvent.click(screen.getByRole('button', { name: 'Install Ollama' }))
+
+    await waitFor(() => {
+      expect(screen.getByText('Install failed')).toBeInTheDocument()
+      expect(screen.getByRole('link', { name: 'download Ollama manually' })).toBeInTheDocument()
+    })
+  })
+
+  it('displays elevation error with catch-and-instruct message', async () => {
+    const mock = installMock()
+    const props = createStepProps()
+
+    mock.ollama.install.mockResolvedValue({
+      success: false,
+      elevationError: true,
+      error: 'Installation requires elevated permissions.',
+    } as Record<string, unknown>)
+
+    render(
+      <WizardStepOllamaSetup
+        {...props}
+        ollamaStatus={{
+          installed: false,
+          running: false,
+          state: 'not_installed',
+          models: [],
+          defaultModel: null,
+        }}
+        refreshOllamaStatus={vi.fn(async () => {})}
+      />,
+    )
+
+    fireEvent.click(screen.getByRole('button', { name: 'Install Ollama' }))
+
+    await waitFor(() => {
+      expect(screen.getByText('Installation requires elevated permissions.')).toBeInTheDocument()
+      expect(screen.getByText(/The installer needs elevated permissions/)).toBeInTheDocument()
+      expect(screen.getByRole('link', { name: 'download it from the official site' })).toBeInTheDocument()
+    })
   })
 
   it('shows a start button when Ollama is installed but stopped', () => {
@@ -152,6 +280,27 @@ describe('Wizard step components', () => {
 
     expect(screen.getByText('Qwen 2.5 7B')).toBeInTheDocument()
     expect(screen.getByText(/Detected a high-spec desktop profile/)).toBeInTheDocument()
+  })
+
+  it('renders model library info link with external anchor', () => {
+    installMock()
+    const props = createStepProps()
+
+    render(
+      <WizardStepModelDownload
+        {...props}
+        selectedModelSpec="ollama:qwen2.5:7b"
+        setSelectedModelSpec={vi.fn()}
+      />,
+    )
+
+    const helper = screen.getByTestId('wizard-model-library-info-link')
+    expect(helper).toBeInTheDocument()
+    const anchor = helper.querySelector('a')
+    expect(anchor).not.toBeNull()
+    expect(anchor?.getAttribute('href')).toBe('https://ollama.com/library')
+    expect(anchor?.getAttribute('target')).toBe('_blank')
+    expect(anchor?.getAttribute('rel')).toBe('noopener noreferrer')
   })
 
   it('runs the download flow and finalizes provider configuration on success', async () => {
@@ -228,7 +377,7 @@ describe('Wizard step components', () => {
     expect(screen.getByRole('button', { name: 'Use downloaded model' })).toBeInTheDocument()
   })
 
-  it('assigns the selected model to all seven roles in simple mode', async () => {
+  it('assigns the selected model to all four roles in simple mode', async () => {
     installMock()
     const props = createStepProps()
     const nextState = createFirstRunState({ currentStep: 'complete', complete: true })
@@ -254,7 +403,7 @@ describe('Wizard step components', () => {
       const call = trpcFetchMock.trpcMutate.mock.calls[0]
       expect(call[0]).toBe('firstRun.assignRoles')
       const assignments = call[1]?.assignments ?? []
-      expect(assignments).toHaveLength(7)
+      expect(assignments).toHaveLength(4)
       expect(assignments.every((entry: { modelSpec: string }) => entry.modelSpec === 'ollama:qwen2.5:7b')).toBe(true)
     })
   })
@@ -303,8 +452,8 @@ describe('Wizard step components', () => {
         {...props}
         selectedModelSpec="ollama:qwen2.5:7b"
         roleAssignments={{
-          orchestrator: 'ollama:qwen2.5:7b',
-          reasoner: 'ollama:qwen2.5:14b',
+          orchestrators: 'ollama:qwen2.5:7b',
+          workers: 'ollama:qwen2.5:14b',
         }}
         ollamaStatus={createPrerequisites().ollama}
         onFinish={vi.fn()}

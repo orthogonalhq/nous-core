@@ -1,8 +1,5 @@
 import { describe, expect, it } from 'vitest'
 import {
-  MODEL_ROLES,
-  MODEL_ROLE_LABELS,
-  MODEL_ROLE_HINTS,
   PAGE_IDS,
 } from '../types'
 import type {
@@ -15,39 +12,36 @@ import type {
   AppPanelEntry,
   PreferencesApi,
   AvailableModel,
-  ModelSelection,
   RoleAssignmentDisplayEntry,
   ShellMode,
   Provider,
-  ModelRole,
 } from '../types'
+import type { ModelRole } from '@nous/shared'
+import { ModelRoleSchema, MODEL_ROLE_LABELS, MODEL_ROLE_HINTS } from '@nous/shared'
 
 describe('settings types contract', () => {
-  it('MODEL_ROLES has 7 entries', () => {
-    expect(MODEL_ROLES).toHaveLength(7)
+  it('MODEL_ROLES from @nous/shared has 4 entries', () => {
+    expect(ModelRoleSchema.options).toHaveLength(4)
   })
 
-  it('MODEL_ROLES contains all expected role strings', () => {
-    expect([...MODEL_ROLES]).toEqual([
-      'orchestrator',
-      'reasoner',
-      'tool-advisor',
-      'summarizer',
-      'embedder',
-      'reranker',
-      'vision',
+  it('MODEL_ROLES from @nous/shared contains all expected role strings', () => {
+    expect([...ModelRoleSchema.options]).toEqual([
+      'cortex-chat',
+      'cortex-system',
+      'orchestrators',
+      'workers',
     ])
   })
 
   it('MODEL_ROLE_LABELS has an entry for each role', () => {
-    for (const role of MODEL_ROLES) {
+    for (const role of ModelRoleSchema.options) {
       expect(MODEL_ROLE_LABELS[role]).toBeDefined()
       expect(typeof MODEL_ROLE_LABELS[role]).toBe('string')
     }
   })
 
   it('MODEL_ROLE_HINTS has an entry for each role', () => {
-    for (const role of MODEL_ROLES) {
+    for (const role of ModelRoleSchema.options) {
       expect(MODEL_ROLE_HINTS[role]).toBeDefined()
       expect(typeof MODEL_ROLE_HINTS[role]).toBe('string')
     }
@@ -58,7 +52,6 @@ describe('settings types contract', () => {
     expect(PAGE_IDS.ABOUT).toBe('about')
     expect(PAGE_IDS.API_KEYS).toBe('api-keys')
     expect(PAGE_IDS.MODEL_CONFIG).toBe('model-config')
-    expect(PAGE_IDS.ROLE_ASSIGNMENTS).toBe('role-assignments')
     expect(PAGE_IDS.SYSTEM_STATUS).toBe('system-status')
     expect(PAGE_IDS.SETUP_WIZARD).toBe('setup-wizard')
     expect(PAGE_IDS.LOCAL_MODELS).toBe('local-models')
@@ -76,8 +69,8 @@ describe('settings types contract', () => {
     const provider: Provider = 'anthropic'
     expect(provider).toBe('anthropic')
 
-    const role: ModelRole = 'orchestrator'
-    expect(role).toBe('orchestrator')
+    const role: ModelRole = 'cortex-chat'
+    expect(role).toBe('cortex-chat')
   })
 
   it('SettingsCategory has expected structural shape', () => {

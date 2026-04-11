@@ -38,7 +38,7 @@ const definition = {
       executionModel: 'synchronous',
       config: {
         type: 'model-call',
-        modelRole: 'reasoner',
+        modelRole: 'cortex-chat',
         promptRef: 'prompt://draft',
       },
     },

@@ -1,7 +1,9 @@
 'use client'
 
 import { useState, useEffect, useCallback } from 'react'
-import type { PreferencesApi, AvailableModel, ModelSelection, FeedbackState } from '../types'
+import { ModelRoleSchema, MODEL_ROLE_LABELS, MODEL_ROLE_HINTS } from '@nous/shared'
+import type { ModelRole } from '@nous/shared'
+import type { PreferencesApi, AvailableModel, FeedbackState } from '../types'
 import {
   sectionStyle,
   sectionTitleStyle,
@@ -14,32 +16,51 @@ import {
 import { buildModelsByProvider, formatFeedbackError } from './helpers'
 
 export interface ModelConfigPageProps {
-  api: Pick<PreferencesApi, 'getAvailableModels' | 'getModelSelection' | 'setModelSelection'>
+  api: Pick<PreferencesApi, 'getAvailableModels' | 'getRoleAssignments' | 'setRoleAssignment'>
+}
+
+type RoleValues = Record<ModelRole, string | null>
+type PendingValues = Record<ModelRole, string>
+
+function emptyRoleValues(): RoleValues {
+  return ModelRoleSchema.options.reduce<RoleValues>((acc, role) => {
+    acc[role] = null
+    return acc
+  }, {} as RoleValues)
+}
+
+function emptyPendingValues(): PendingValues {
+  return ModelRoleSchema.options.reduce<PendingValues>((acc, role) => {
+    acc[role] = ''
+    return acc
+  }, {} as PendingValues)
 }
 
 export function ModelConfigPage({ api }: ModelConfigPageProps) {
   const [availableModels, setAvailableModels] = useState<AvailableModel[]>([])
-  const [modelSelection, setModelSelection] = useState<ModelSelection>({ principal: null, system: null })
-  const [pendingPrincipal, setPendingPrincipal] = useState<string>('')
-  const [pendingSystem, setPendingSystem] = useState<string>('')
+  const [currentValues, setCurrentValues] = useState<RoleValues>(emptyRoleValues)
+  const [pendingValues, setPendingValues] = useState<PendingValues>(emptyPendingValues)
   const [savingModels, setSavingModels] = useState(false)
   const [modelFeedback, setModelFeedback] = useState<FeedbackState | null>(null)
 
   const loadData = useCallback(async () => {
     try {
-      const [modelsResult, selectionResult] = await Promise.all([
+      const [modelsResult, assignmentsResult] = await Promise.all([
         api.getAvailableModels ? api.getAvailableModels() : Promise.resolve(null),
-        api.getModelSelection ? api.getModelSelection() : Promise.resolve(null),
+        api.getRoleAssignments ? api.getRoleAssignments() : Promise.resolve(null),
       ])
 
       if (modelsResult) {
         setAvailableModels(modelsResult.models)
       }
 
-      if (selectionResult) {
-        setModelSelection(selectionResult)
-        setPendingPrincipal(selectionResult.principal ?? '')
-        setPendingSystem(selectionResult.system ?? '')
+      if (assignmentsResult && Array.isArray(assignmentsResult)) {
+        const nextValues = emptyRoleValues()
+        for (const role of ModelRoleSchema.options) {
+          const entry = assignmentsResult.find((a: any) => a.role === role)
+          nextValues[role] = entry?.providerId ?? null
+        }
+        setCurrentValues(nextValues)
       }
     } catch (err) {
       setModelFeedback(formatFeedbackError(err))
@@ -56,23 +77,25 @@ export function ModelConfigPage({ api }: ModelConfigPageProps) {
 
   const modelsByProvider = buildModelsByProvider(availableModels)
 
-  const modelSelectionChanged =
-    pendingPrincipal !== (modelSelection.principal ?? '') ||
-    pendingSystem !== (modelSelection.system ?? '')
+  const modelSelectionChanged = ModelRoleSchema.options.some(
+    (role) => pendingValues[role] !== (currentValues[role] ?? ''),
+  )
 
   const handleSaveModels = async () => {
-    if (!api.setModelSelection) return
+    if (!api.setRoleAssignment) return
     setSavingModels(true)
     setModelFeedback(null)
     try {
-      await api.setModelSelection({
-        principal: pendingPrincipal || undefined,
-        system: pendingSystem || undefined,
-      })
-      setModelSelection({
-        principal: pendingPrincipal || null,
-        system: pendingSystem || null,
-      })
+      for (const role of ModelRoleSchema.options) {
+        if (pendingValues[role]) {
+          await api.setRoleAssignment({ role, modelSpec: pendingValues[role] })
+        }
+      }
+      const nextValues = emptyRoleValues()
+      for (const role of ModelRoleSchema.options) {
+        nextValues[role] = pendingValues[role] || null
+      }
+      setCurrentValues(nextValues)
       setModelFeedback({ message: 'Model selection saved.', success: true })
     } catch (err) {
       setModelFeedback(formatFeedbackError(err))
@@ -87,69 +110,41 @@ export function ModelConfigPage({ api }: ModelConfigPageProps) {
         <div style={sectionTitleStyle}>Model Configuration</div>
 
         <div style={cardStyle}>
-          <div style={{ marginBottom: 'var(--nous-space-lg)' }}>
-            <div style={{ display: 'flex', alignItems: 'center', gap: 'var(--nous-space-sm)', marginBottom: 'var(--nous-space-xs)' }}>
-              <label
-                htmlFor="principal-model-select"
-                style={{ fontWeight: 'var(--nous-font-weight-semibold)' as never, fontSize: 'var(--nous-font-size-base)' }}
+          {ModelRoleSchema.options.map((role) => (
+            <div key={role} style={{ marginBottom: 'var(--nous-space-lg)' }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: 'var(--nous-space-sm)', marginBottom: 'var(--nous-space-xs)' }}>
+                <label
+                  htmlFor={`role-select-${role}`}
+                  style={{ fontWeight: 'var(--nous-font-weight-semibold)' as never, fontSize: 'var(--nous-font-size-base)' }}
+                >
+                  {MODEL_ROLE_LABELS[role]}
+                </label>
+                <span style={badgeStyle(false)}>{role}</span>
+              </div>
+              <div style={{ fontSize: 'var(--nous-font-size-xs)', color: 'var(--nous-fg-subtle)', marginBottom: 'var(--nous-space-sm)' }}>
+                {MODEL_ROLE_HINTS[role]}
+              </div>
+              <select
+                id={`role-select-${role}`}
+                style={{ ...selectStyle, width: '100%' }}
+                value={pendingValues[role]}
+                onChange={(e) =>
+                  setPendingValues((prev) => ({ ...prev, [role]: e.target.value }))
+                }
               >
-                Cortex::Principal
-              </label>
-              <span style={badgeStyle(false)}>Thinking &amp; Reasoning</span>
+                <option value="">Auto-detect (best available)</option>
+                {Object.entries(modelsByProvider).map(([provider, models]) => (
+                  <optgroup key={provider} label={provider.charAt(0).toUpperCase() + provider.slice(1)}>
+                    {models.filter((m) => m.available).map((m) => (
+                      <option key={m.id} value={m.id}>
+                        {m.name}
+                      </option>
+                    ))}
+                  </optgroup>
+                ))}
+              </select>
             </div>
-            <div style={{ fontSize: 'var(--nous-font-size-xs)', color: 'var(--nous-fg-subtle)', marginBottom: 'var(--nous-space-sm)' }}>
-              Powers deep thinking, planning, and complex reasoning. Recommend highest-capability model.
-            </div>
-            <select
-              id="principal-model-select"
-              style={{ ...selectStyle, width: '100%' }}
-              value={pendingPrincipal}
-              onChange={(e) => setPendingPrincipal(e.target.value)}
-            >
-              <option value="">Auto-detect (best available)</option>
-              {Object.entries(modelsByProvider).map(([provider, models]) => (
-                <optgroup key={provider} label={provider.charAt(0).toUpperCase() + provider.slice(1)}>
-                  {models.filter((m) => m.available).map((m) => (
-                    <option key={m.id} value={m.id}>
-                      {m.name}
-                    </option>
-                  ))}
-                </optgroup>
-              ))}
-            </select>
-          </div>
-
-          <div style={{ marginBottom: 'var(--nous-space-lg)' }}>
-            <div style={{ display: 'flex', alignItems: 'center', gap: 'var(--nous-space-sm)', marginBottom: 'var(--nous-space-xs)' }}>
-              <label
-                htmlFor="system-model-select"
-                style={{ fontWeight: 'var(--nous-font-weight-semibold)' as never, fontSize: 'var(--nous-font-size-base)' }}
-              >
-                Cortex::System
-              </label>
-              <span style={badgeStyle(false)}>Orchestration</span>
-            </div>
-            <div style={{ fontSize: 'var(--nous-font-size-xs)', color: 'var(--nous-fg-subtle)', marginBottom: 'var(--nous-space-sm)' }}>
-              Handles fast orchestration, routing, and coordination tasks. Recommend fastest model.
-            </div>
-            <select
-              id="system-model-select"
-              style={{ ...selectStyle, width: '100%' }}
-              value={pendingSystem}
-              onChange={(e) => setPendingSystem(e.target.value)}
-            >
-              <option value="">Auto-detect (fastest available)</option>
-              {Object.entries(modelsByProvider).map(([provider, models]) => (
-                <optgroup key={provider} label={provider.charAt(0).toUpperCase() + provider.slice(1)}>
-                  {models.filter((m) => m.available).map((m) => (
-                    <option key={m.id} value={m.id}>
-                      {m.name}
-                    </option>
-                  ))}
-                </optgroup>
-              ))}
-            </select>
-          </div>
+          ))}
 
           {availableModels.length === 0 && (
             <div style={{ fontSize: 'var(--nous-font-size-sm)', color: 'var(--nous-fg-subtle)', marginBottom: 'var(--nous-space-md)' }}>

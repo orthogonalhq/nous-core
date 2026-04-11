@@ -25,6 +25,7 @@ import {
   ProjectSwitcherRail,
   AssetSidebar,
   useChatStageManager,
+  useSidebarCollapsed,
   isHomeSidebarEnabled,
   HOME_TOP_NAV,
   buildHomeSidebarSections,
@@ -844,6 +845,17 @@ function DesktopSimpleShell({
 }) {
   const chatStageManager = useChatStageManager()
 
+  // WR-141 — single-call-plus-prop-drill per primary contract § State Ownership.
+  // This call is intentionally placed inside `DesktopSimpleShell` (the wiring-site
+  // root). Sibling calls inside `DesktopAssetSidebarConnected` are forbidden by
+  // INV-1 — two `useState` instances cannot observe each other in the same render
+  // tick, which would produce a click-but-no-shrink bug on first render.
+  const [sidebarCollapsed, setSidebarCollapsed] = useSidebarCollapsed()
+  const handleToggleCollapse = useCallback(
+    () => setSidebarCollapsed(!sidebarCollapsed),
+    [sidebarCollapsed, setSidebarCollapsed],
+  )
+
   // Wire SSE events to chat stage manager signals
   useEventSubscription({
     channels: ['inference:stream-start', 'thought:turn-lifecycle', 'thought:pfc-decision'],
@@ -867,10 +879,18 @@ function DesktopSimpleShell({
   return (
     <SimpleShellLayout
       projectRail={<DesktopProjectRail isHomeContext={isHomeContext} setIsHomeContext={setIsHomeContext} />}
+      sidebarCollapsed={sidebarCollapsed}
+      onSidebarCollapseChange={setSidebarCollapsed}
       sidebar={
         showHomeSidebar
           ? <DesktopHomeSidebar />
-          : <DesktopAssetSidebarConnected chatStage={chatStageManager.chatStage} />
+          : (
+            <DesktopAssetSidebarConnected
+              chatStage={chatStageManager.chatStage}
+              collapsed={sidebarCollapsed}
+              onToggleCollapse={handleToggleCollapse}
+            />
+          )
       }
       content={
         <ContentRouter
@@ -909,7 +929,19 @@ function DesktopSimpleShell({
 const TASK_DETAIL_PREFIX = 'task-detail::'
 const WORKFLOW_DETAIL_PREFIX = 'workflow-detail::'
 
-function DesktopAssetSidebarConnected({ chatStage }: { chatStage?: ChatStage }) {
+function DesktopAssetSidebarConnected({
+  chatStage,
+  collapsed,
+  onToggleCollapse,
+}: {
+  chatStage?: ChatStage
+  collapsed?: boolean
+  onToggleCollapse?: () => void
+}) {
+  // WR-141 — do NOT call the sidebar-collapsed hook here. It is called exactly
+  // once per wiring-site root inside `DesktopSimpleShell`; `collapsed` and
+  // `onToggleCollapse` are prop-drilled through this wrapper. Sibling calls are
+  // forbidden by INV-1 and the ratified primary contract § State Ownership.
   const { activeProjectId, activeRoute, navigationParams, navigate } = useShellCtx()
   const { data: projectList } = trpc.projects.list.useQuery()
   const tasksApi = useTasks({ projectId: activeProjectId })
@@ -1057,6 +1089,8 @@ function DesktopAssetSidebarConnected({ chatStage }: { chatStage?: ChatStage }) 
         onNavigate={handleNavigate}
         chatStage={chatStage}
         onSettingsClick={() => navigate('settings')}
+        collapsed={collapsed}
+        onToggleCollapse={onToggleCollapse}
       />
       <ConfirmDeleteDialog
         isOpen={deleteConfirm !== null}

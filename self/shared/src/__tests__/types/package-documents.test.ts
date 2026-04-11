@@ -100,7 +100,7 @@ describe('WorkflowStepFrontmatterSchema', () => {
       executionModel: 'synchronous',
       config: {
         type: 'model-call',
-        modelRole: 'reasoner',
+        modelRole: 'cortex-chat',
         promptRef: 'prompt://draft',
       },
     });
@@ -212,7 +212,7 @@ describe('LoadedWorkflowPackageSchema', () => {
             executionModel: 'synchronous',
             config: {
               type: 'model-call',
-              modelRole: 'reasoner',
+              modelRole: 'cortex-chat',
               promptRef: 'prompt://draft',
             },
           },

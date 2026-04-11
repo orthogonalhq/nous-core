@@ -13,15 +13,9 @@ import type {
 
 export type FirstRunCurrentStep = FirstRunState['currentStep']
 
-/** ModelRole — mirrors @nous/shared ModelRole enum values. */
-export type ModelRole =
-  | 'orchestrator'
-  | 'reasoner'
-  | 'tool-advisor'
-  | 'summarizer'
-  | 'embedder'
-  | 'reranker'
-  | 'vision'
+export { ModelRoleSchema, MODEL_ROLE_LABELS } from '@nous/shared'
+export type { ModelRole } from '@nous/shared'
+import { ModelRoleSchema, type ModelRole, MODEL_ROLE_LABELS } from '@nous/shared'
 
 type ElectronAPI = Window['electronAPI']
 export type OllamaStatus = Awaited<ReturnType<ElectronAPI['ollama']['getStatus']>>
@@ -66,25 +60,7 @@ export interface WizardStepProps {
   onStepComplete: (nextState: FirstRunState) => void
 }
 
-export const MODEL_ROLES = [
-  'orchestrator',
-  'reasoner',
-  'tool-advisor',
-  'summarizer',
-  'embedder',
-  'reranker',
-  'vision',
-] as const satisfies readonly ModelRole[]
-
-export const MODEL_ROLE_LABELS: Record<ModelRole, string> = {
-  orchestrator: 'Orchestrator',
-  reasoner: 'Reasoner',
-  'tool-advisor': 'Tool Advisor',
-  summarizer: 'Summarizer',
-  embedder: 'Embedder',
-  reranker: 'Reranker',
-  vision: 'Vision',
-}
+export const MODEL_ROLES = ModelRoleSchema.options
 
 export const BACKEND_STEP_TO_WIZARD_STEP: Record<FirstRunCurrentStep, WizardStepId> = {
   ollama_check: 'ollama-setup',

@@ -32,7 +32,6 @@ const defaultCategories: SettingsCategory[] = [
     children: [
       { id: 'api-keys', label: 'API Keys' },
       { id: 'model-config', label: 'Model Config' },
-      { id: 'role-assignments', label: 'Role Assignments' },
     ],
   },
   {
@@ -108,7 +107,6 @@ describe('SettingsNav', () => {
     expect(container.textContent).toContain('About')
     expect(container.textContent).toContain('API Keys')
     expect(container.textContent).toContain('Model Config')
-    expect(container.textContent).toContain('Role Assignments')
     expect(container.textContent).toContain('System Status')
     expect(container.textContent).toContain('Setup Wizard')
     expect(container.textContent).toContain('Local Models')

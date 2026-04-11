@@ -43,6 +43,10 @@ const ALL_CHANNELS: (keyof EventChannelMap)[] = [
   'cost:budget-alert',
   'cost:budget-exceeded',
   'cost:snapshot',
+  'ollama:pull-progress',
+  'ollama:install-progress',
+  'ollama:update-progress',
+  'ollama:version-info',
 ];
 
 const HEARTBEAT_INTERVAL_MS = 30_000;
