@@ -1,3 +1,13 @@
+/**
+ * NOTE (WR-138 — 2026-04-08): This factory is NOT wired into production as of WR-138.
+ * If it is adopted into `CortexRuntime.createGatewayConfig` in a future refactor,
+ * the caller MUST thread the vendor string through
+ * `HarnessGatewayCreateArgs.providerType` (line ~44) directly from
+ * `ModelProviderConfig.vendor` — do NOT reintroduce name-string sniffing or
+ * well-known UUID probing. See:
+ *   - `cortex-provider-attach-lifecycle-v1.md` AC #9
+ *   - `.worklog/sprints/fix/provider-type-plumbing/discovery/root-cause-manifest.mdx` Observation 1
+ */
 import type {
   AgentClass,
   AgentGatewayConfig,

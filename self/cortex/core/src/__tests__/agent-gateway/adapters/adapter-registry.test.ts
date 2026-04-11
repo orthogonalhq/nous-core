@@ -32,4 +32,16 @@ describe('resolveAdapter', () => {
     const adapter = resolveAdapter('');
     expect(adapter.capabilities.nativeToolUse).toBe(false);
   });
+
+  it('returns text adapter for vendor "totally-new-vendor" per PVF AC #8', () => {
+    // WR-138 Implementation Plan SF-1 carry-forward: `provider-vendor-field-v1.md`
+    // AC #8 explicitly requires `resolveAdapter('totally-new-vendor')` to return
+    // the text adapter without exception. This covers the open-string
+    // extensibility seam's behavioral contract at the specific AC #8
+    // test-input literal.
+    const adapter = resolveAdapter('totally-new-vendor');
+    expect(adapter.capabilities.nativeToolUse).toBe(false);
+    expect(adapter.capabilities.cacheControl).toBe(false);
+    expect(adapter.capabilities.extendedThinking).toBe(false);
+  });
 });

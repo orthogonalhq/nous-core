@@ -89,6 +89,8 @@ describe('parseSelectedModelSpec', () => {
 
 describe('buildOllamaProviderConfig', () => {
   it('creates a local_text provider config with the well-known ollama provider id', () => {
+    // WR-138 row #4: `vendor: 'ollama'` is now stamped at build time so
+    // `createGatewayConfig`'s Option α chain can read the vendor synchronously.
     expect(buildOllamaProviderConfig('llama3.2:3b')).toEqual({
       id: OLLAMA_WELL_KNOWN_PROVIDER_ID,
       name: 'ollama',
@@ -98,6 +100,7 @@ describe('buildOllamaProviderConfig', () => {
       isLocal: true,
       capabilities: ['chat', 'streaming'],
       providerClass: 'local_text',
+      vendor: 'ollama',
     });
   });
 });

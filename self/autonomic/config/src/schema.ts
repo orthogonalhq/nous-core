@@ -15,6 +15,7 @@ import {
   MemoryAccessPolicySchema,
   ProviderIdSchema,
   ProviderClassSchema,
+  ProviderVendorSchema,
   StmCompactionPolicySchema,
   DEFAULT_STM_COMPACTION_POLICY,
 } from '@nous/shared';
@@ -51,6 +52,9 @@ export const ModelRoleAssignmentSchema = z.object({
 export type ModelRoleAssignment = z.infer<typeof ModelRoleAssignmentSchema>;
 
 // --- Provider Configuration (for config file) ---
+// `vendor` mirrors `ModelProviderConfigSchema.vendor` from `@nous/shared`
+// (WR-138 row #2). Optional at introduction for backward-compat with legacy
+// persisted config files. See `provider-vendor-field-v1.md` § 5 / AC #5.
 export const ProviderConfigEntrySchema = z.object({
   id: ProviderIdSchema,
   name: z.string(),
@@ -62,6 +66,7 @@ export const ProviderConfigEntrySchema = z.object({
   capabilities: z.array(z.string()),
   providerClass: ProviderClassSchema.optional(),
   meetsProfiles: z.array(z.string()).optional(),
+  vendor: ProviderVendorSchema.optional(),
 });
 export type ProviderConfigEntry = z.infer<typeof ProviderConfigEntrySchema>;
 

@@ -344,6 +344,7 @@ export function buildProviderConfig(
       isLocal: false,
       capabilities: ['chat', 'streaming'],
       providerClass: 'remote_text',
+      vendor: provider,
     };
   }
 
@@ -356,6 +357,7 @@ export function buildProviderConfig(
     isLocal: false,
     capabilities: ['chat', 'streaming'],
     providerClass: 'remote_text',
+    vendor: provider,
   };
 }
 
@@ -373,6 +375,7 @@ export function buildOllamaProviderConfig(
     isLocal: true,
     capabilities: ['chat', 'streaming'],
     providerClass: 'local_text',
+    vendor: 'ollama',
   };
 }
 
@@ -409,6 +412,7 @@ function toProviderConfigEntry(
     capabilities: config.capabilities,
     providerClass: config.providerClass,
     meetsProfiles: config.meetsProfiles,
+    vendor: config.vendor,
   };
 }
 
@@ -1236,6 +1240,21 @@ export function createNousServices(config?: BootstrapConfig): NousContext {
     // STM and MWC dependencies (SP 1.2 — WR-124)
     stmStore,
     mwcPipeline,
+    // WR-138 row #8 / O-Cycle2-2 default policy: all four agent classes
+    // default to Anthropic via `WELL_KNOWN_PROVIDER_IDS.anthropic`. This is
+    // the pinned commit-time policy per `cortex-provider-attach-lifecycle-v1.md` § 6
+    // and the sub-phase spec `.architecture/roadmap/fix/provider-type-plumbing/provider-type-plumbing.1.1.md`
+    // § Notes for Implementation Agent item 2. Exposing a user-visible setting
+    // for per-class provider selection is flagged as a follow-up candidate WR
+    // (see completion-report.mdx "User-Configurability Follow-Up"). Until that
+    // lands, bootstrap is the sole owner of this mapping and the Option α
+    // chain in `createGatewayConfig` reads through it via `getProvider`.
+    providerIdByClass: {
+      'Cortex::Principal': WELL_KNOWN_PROVIDER_IDS.anthropic,
+      'Cortex::System':    WELL_KNOWN_PROVIDER_IDS.anthropic,
+      'Orchestrator':      WELL_KNOWN_PROVIDER_IDS.anthropic,
+      'Worker':            WELL_KNOWN_PROVIDER_IDS.anthropic,
+    },
     // Model routing: Principal uses 'thinking' profile (Opus 4.6),
     // System uses 'fast' profile (Sonnet). The defaultModelRequirements
     // applies to System gateway execution. Principal gateway uses its own
@@ -1252,6 +1271,22 @@ export function createNousServices(config?: BootstrapConfig): NousContext {
     recoveryLedgerStore,
     recoveryOrchestrator,
   });
+
+  // WR-138 row #8 / CPAL § 6: attach providers exactly once after
+  // `ProviderRegistry` is populated and before the runtime is exposed via
+  // tRPC routes, WebSocket handlers, or any other external entry point.
+  // Bootstrap is the sole caller (SC-21 invariant). The read-through on
+  // `providerRegistry.getProvider(...).getConfig().vendor` is the post-row-#3
+  // stamped value; `?? 'text'` is the safe placeholder fallback per CPAL § 3.
+  gatewayRuntime.attachProviders({
+    providerVendorByClass: {
+      'Cortex::Principal':
+        providerRegistry.getProvider(WELL_KNOWN_PROVIDER_IDS.anthropic)?.getConfig().vendor ?? 'text',
+      'Cortex::System':
+        providerRegistry.getProvider(WELL_KNOWN_PROVIDER_IDS.anthropic)?.getConfig().vendor ?? 'text',
+    },
+  });
+
   providerRegistry.onLeaseReleased((event) => {
     void gatewayRuntime.notifyLeaseReleased({
       laneKey: event.laneKey,

@@ -6,10 +6,13 @@
  * principal-system-runtime tests (which share the same transitive
  * dependency requirements).
  */
-import { describe, expect, it, vi } from 'vitest';
+import { describe, expect, it } from 'vitest';
 import type {
   AgentClass,
   HarnessStrategies,
+  ModelProviderConfig,
+  ProviderId,
+  ProviderVendor,
   PromptFormatterInput,
   TraceId,
 } from '@nous/shared';
@@ -21,28 +24,17 @@ import { resolveContextBudget } from '../../gateway-runtime/context-budget-resol
 // ─── Helpers ───────────────────────────────────────────────────────────
 
 /**
- * Mirror of CortexRuntime.resolveProviderType — tests the provider type
- * resolution logic in isolation.
- */
-function resolveProviderType(providerName: string | undefined): string {
-  if (!providerName) return 'text';
-  const name = providerName.toLowerCase();
-  if (name.includes('anthropic') || name.includes('claude')) return 'anthropic';
-  if (name.includes('openai') || name.includes('gpt')) return 'openai';
-  if (name.includes('ollama')) return 'ollama';
-  return 'text';
-}
-
-/**
  * Mirror of CortexRuntime.composeHarnessStrategies — tests the composition
- * pipeline in isolation.
+ * pipeline in isolation. WR-138 row #9: signature now mirrors the simplified
+ * production shape (adapter resolved up-front from the vendor string, no
+ * lazy closure, no cachedAdapter, no name-pattern sniffing).
  */
 function composeHarnessStrategies(
   agentClass: AgentClass,
   providerType: string,
 ): HarnessStrategies {
-  const profile = resolveAgentProfile(agentClass, providerType);
   const adapter = resolveAdapter(providerType);
+  const profile = resolveAgentProfile(agentClass);
 
   return {
     promptFormatter: (input: PromptFormatterInput) =>
@@ -64,26 +56,34 @@ function composeHarnessStrategies(
   };
 }
 
-// ─── Provider type resolution ──────────────────────────────────────────
+// ─── Provider vendor resolution via ModelProviderConfig.vendor ─────────
 
-describe('Provider type resolution', () => {
-  it.each([
-    ['anthropic-claude', 'anthropic'],
-    ['anthropic-sonnet', 'anthropic'],
-    ['claude-3-opus', 'anthropic'],
-    ['my-claude-proxy', 'anthropic'],
-    ['openai-gpt4', 'openai'],
-    ['gpt-4-turbo', 'openai'],
-    ['local-ollama', 'ollama'],
-    ['ollama-llama3', 'ollama'],
-    ['custom-provider', 'text'],
-    ['unknown', 'text'],
-  ])('resolves "%s" to "%s"', (name, expected) => {
-    expect(resolveProviderType(name)).toBe(expected);
-  });
-
-  it('returns text for undefined provider name', () => {
-    expect(resolveProviderType(undefined)).toBe('text');
+describe('Provider vendor resolution via ModelProviderConfig.vendor (WR-138)', () => {
+  it.each<[ProviderVendor | undefined, string]>([
+    ['anthropic', 'anthropic'],
+    ['openai', 'openai'],
+    ['ollama', 'ollama'],
+    ['text', 'text'],
+    // Open-string extensibility: unknown vendors fall through to the text
+    // adapter via resolveAdapter, per provider-vendor-field-v1.md AC #8.
+    ['totally-new-vendor', 'text'],
+    // Optional-field fallback: missing vendor resolves to 'text' (matches
+    // the `?? 'text'` fallback in createGatewayConfig).
+    [undefined, 'text'],
+  ])('resolves vendor %j via config.vendor to the "%s" adapter', (vendor, expectedAdapterKey) => {
+    const config: ModelProviderConfig = {
+      id: '550e8400-e29b-41d4-a716-446655440000' as ProviderId,
+      name: 'test-provider',
+      type: 'text',
+      modelId: 'test-model',
+      isLocal: false,
+      capabilities: [],
+      vendor,
+    };
+    const resolvedType = config.vendor ?? 'text';
+    const adapter = resolveAdapter(resolvedType);
+    const expected = resolveAdapter(expectedAdapterKey);
+    expect(adapter.capabilities).toEqual(expected.capabilities);
   });
 });
 

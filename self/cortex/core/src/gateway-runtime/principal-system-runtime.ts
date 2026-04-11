@@ -1083,6 +1083,23 @@ implements IPrincipalSystemGatewayRuntime, ISystemInboxSubmissionService {
         return 'normal';
     }
   }
+
+  /**
+   * WR-138 stub: this legacy runtime class has zero production callers and
+   * is queued for deletion in a separate cleanup WR (see sub-phase 1.1
+   * Out-of-Scope #2). The stub exists solely to satisfy the
+   * `IPrincipalSystemGatewayRuntime` interface contract — this class never
+   * runs in production, so the method body is a no-op. When the cleanup WR
+   * deletes this file, this stub is deleted with it. Do NOT adopt this
+   * class into production without re-reading
+   * `.architecture/.decisions/2026-04-08-provider-type-plumbing/cortex-provider-attach-lifecycle-v1.md`.
+   */
+  // eslint-disable-next-line @typescript-eslint/no-unused-vars
+  attachProviders(_args: {
+    providerVendorByClass: Partial<Record<AgentClass, import('@nous/shared').ProviderVendor>>;
+  }): void {
+    // no-op: legacy class, not wired into production
+  }
 }
 
 export function createPrincipalSystemGatewayRuntime(
