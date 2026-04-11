@@ -58,6 +58,40 @@ jobs:
           token: ${{ secrets.CODECOV_TOKEN }}
           fail_ci_if_error: false
 
+      - name: Per-package coverage reporting
+        continue-on-error: true
+        run: |
+          PACKAGES=("self/cortex/core" "self/apps/desktop" "self/shared")
+          for PKG in "${PACKAGES[@]}"; do
+            echo "::group::Coverage for $PKG"
+            pnpm --filter "./$PKG" exec vitest run --coverage --coverage.reporter=lcov --coverage.reportsDirectory=./coverage 2>/dev/null || echo "[coverage] $PKG: test run failed (non-blocking)"
+            if [ -f "$PKG/coverage/lcov.info" ]; then
+              LINES=$(grep -c "^DA:" "$PKG/coverage/lcov.info" 2>/dev/null || echo "0")
+              HITS=$(grep "^DA:" "$PKG/coverage/lcov.info" 2>/dev/null | grep -cv ",0$" || echo "0")
+              if [ "$LINES" -gt 0 ]; then
+                PCT=$(( HITS * 100 / LINES ))
+                echo "[coverage] $PKG: ${PCT}% lines"
+              else
+                echo "[coverage] $PKG: no coverage data"
+              fi
+            else
+              echo "[coverage] $PKG: no lcov.info produced"
+            fi
+            echo "::endgroup::"
+          done
+
+      - name: Upload per-package coverage artifacts
+        if: always()
+        continue-on-error: true
+        uses: actions/upload-artifact@v4
+        with:
+          name: per-package-coverage
+          path: |
+            self/cortex/core/coverage/lcov.info
+            self/apps/desktop/coverage/lcov.info
+            self/shared/coverage/lcov.info
+          if-no-files-found: ignore
+
       - name: Benchmark Tier 0
         run: pnpm run benchmark:tier0
 

@@ -1,0 +1,7 @@
+{
+  "packages": {
+    "self/cortex/core": { "lines": 0 },
+    "self/apps/desktop": { "lines": 0 },
+    "self/shared": { "lines": 0 }
+  }
+}

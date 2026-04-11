@@ -55,6 +55,53 @@ jobs:
           token: ${{ secrets.CODECOV_TOKEN }}
           fail_ci_if_error: false
 
+      - name: Per-package coverage collection
+        run: |
+          PACKAGES=("self/cortex/core" "self/apps/desktop" "self/shared")
+          for PKG in "${PACKAGES[@]}"; do
+            echo "::group::Coverage for $PKG"
+            pnpm --filter "./$PKG" exec vitest run --coverage --coverage.reporter=lcov --coverage.reportsDirectory=./coverage 2>/dev/null || echo "[coverage] $PKG: test run failed"
+            echo "::endgroup::"
+          done
+
+      - name: Coverage floor check
+        run: |
+          node -e "
+            const fs = require('fs');
+            const thresholds = JSON.parse(fs.readFileSync('.coverage-thresholds.json', 'utf-8'));
+            let failed = false;
+            for (const [pkg, config] of Object.entries(thresholds.packages)) {
+              const lcovPath = pkg + '/coverage/lcov.info';
+              let pct = 0;
+              if (fs.existsSync(lcovPath)) {
+                const content = fs.readFileSync(lcovPath, 'utf-8');
+                const lines = content.split('\n').filter(l => l.startsWith('DA:'));
+                const hits = lines.filter(l => !l.endsWith(',0')).length;
+                pct = lines.length > 0 ? Math.floor(hits * 100 / lines.length) : 0;
+              }
+              const floor = config.lines;
+              const status = pct >= floor ? 'PASS' : 'FAIL';
+              console.log('[coverage] ' + pkg + ': ' + pct + '% lines (floor: ' + floor + '%) — ' + status);
+              if (pct < floor) failed = true;
+            }
+            if (failed) {
+              console.error('Coverage floor check failed — one or more packages below threshold');
+              process.exit(1);
+            }
+            console.log('Coverage floor check passed');
+          "
+
+      - name: Upload per-package coverage artifacts
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: per-package-coverage
+          path: |
+            self/cortex/core/coverage/lcov.info
+            self/apps/desktop/coverage/lcov.info
+            self/shared/coverage/lcov.info
+          if-no-files-found: ignore
+
       - name: Benchmark Tier 0
         run: pnpm run benchmark:tier0
 
