@@ -38,31 +38,6 @@ function createBaseApi(overrides: Partial<PreferencesApi> = {}): PreferencesApi 
   }
 }
 
-function createRoleAssignments(
-  overrides: Partial<Record<(typeof ROLE_KEYS)[number], string | null>> = {},
-) {
-  const defaults: Record<(typeof ROLE_KEYS)[number], string | null> = {
-    'cortex-chat': 'openai:gpt-4o',
-    'cortex-system': 'ollama:qwen2.5:7b',
-    orchestrators: 'anthropic:claude-sonnet-4-20250514',
-    workers: 'ollama:qwen2.5:7b',
-  }
-
-  return ROLE_KEYS.map((role) => {
-    const modelSpec = role in overrides ? overrides[role]! : defaults[role]
-    if (!modelSpec) {
-      return { role, providerId: null }
-    }
-
-    return {
-      role,
-      providerId: `${role}-provider`,
-      modelSpec,
-      displayName: modelSpec.split(':').slice(1).join(':'),
-    }
-  })
-}
-
 async function flush(): Promise<void> {
   await Promise.resolve()
   await new Promise((resolve) => window.setTimeout(resolve, 0))
@@ -100,16 +75,6 @@ function getButton(label: string): HTMLButtonElement {
   return button
 }
 
-function getSelectByAriaLabel(label: string): HTMLSelectElement {
-  const select = container.querySelector(`select[aria-label="${label}"]`)
-
-  if (!(select instanceof HTMLSelectElement)) {
-    throw new Error(`Select not found: ${label}`)
-  }
-
-  return select
-}
-
 function getSwitchByAriaLabel(label: string): HTMLInputElement {
   const input = container.querySelector(`input[aria-label="${label}"]`)
 
@@ -123,14 +88,6 @@ function getSwitchByAriaLabel(label: string): HTMLInputElement {
 async function click(button: HTMLButtonElement): Promise<void> {
   await act(async () => {
     button.dispatchEvent(new MouseEvent('click', { bubbles: true }))
-    await flush()
-  })
-}
-
-async function changeSelect(select: HTMLSelectElement, value: string): Promise<void> {
-  await act(async () => {
-    select.value = value
-    select.dispatchEvent(new Event('change', { bubbles: true }))
     await flush()
   })
 }
@@ -196,165 +153,31 @@ describe('PreferencesPanel renders SettingsShell', () => {
   })
 })
 
-describe('PreferencesPanel role assignment settings', () => {
-  it('renders the role assignment section when the API is provided', async () => {
+describe('PreferencesPanel model configuration settings', () => {
+  it('renders model config page with all 4 role labels', async () => {
     const api = createBaseApi({
-      getRoleAssignments: async () => createRoleAssignments() as any,
+      getRoleAssignments: async () =>
+        ROLE_KEYS.map((role) => ({ role, providerId: null })) as any,
       setRoleAssignment: async () => ({ success: true }),
     })
 
     await renderPanel(api)
-    await navigateToPage('role-assignments')
+    await navigateToPage('model-config')
 
-    expect(textContent()).toContain('Role Assignments')
     for (const label of ROLE_LABELS) {
       expect(textContent()).toContain(label)
     }
-  })
-
-  it('displays all 4 roles with their current assignments', async () => {
-    const api = createBaseApi({
-      getRoleAssignments: async () => createRoleAssignments() as any,
-      setRoleAssignment: async () => ({ success: true }),
-    })
-
-    await renderPanel(api)
-    await navigateToPage('role-assignments')
-
-    expect(textContent()).toContain('Qwen 2.5 7B')
-    expect(textContent()).toContain('GPT-4o')
-    expect(textContent()).toContain('Claude Sonnet 4')
-  })
-
-  it('changing a role and saving calls setRoleAssignment with the correct args', async () => {
-    const setRoleAssignment = vi.fn(async () => ({ success: true }))
-    const api = createBaseApi({
-      getRoleAssignments: async () => createRoleAssignments() as any,
-      setRoleAssignment,
-    })
-
-    await renderPanel(api)
-    await navigateToPage('role-assignments')
-    await changeSelect(
-      getSelectByAriaLabel("Orchestrator's assignment"),
-      'openai:gpt-4o',
-    )
-    await click(getButton('Save Role Assignments'))
-
-    expect(setRoleAssignment).toHaveBeenCalledWith({
-      role: 'orchestrators',
-      modelSpec: 'openai:gpt-4o',
-    })
-  })
-
-  it('Apply to All Roles saves the chosen model for each role', async () => {
-    const setRoleAssignment = vi.fn(async () => ({ success: true }))
-    const api = createBaseApi({
-      getRoleAssignments: async () => createRoleAssignments() as any,
-      setRoleAssignment,
-    })
-
-    await renderPanel(api)
-    await navigateToPage('role-assignments')
-    await changeSelect(
-      getSelectByAriaLabel('Apply one model to every role'),
-      'openai:gpt-4o',
-    )
-    await click(getButton('Apply to All Roles'))
-
-    expect(setRoleAssignment).toHaveBeenCalledTimes(ROLE_KEYS.length)
-    expect(
-      (setRoleAssignment.mock.calls as unknown as Array<[{ role: string }]>).map(
-        (call) => call[0].role,
-      ),
-    ).toEqual([...ROLE_KEYS])
-  })
-
-  it('shows an error message when a role assignment save fails', async () => {
-    const setRoleAssignment = vi.fn(async (input: { role: string }) => {
-      if (input.role === 'cortex-chat') {
-        return { success: false, error: 'Cortex Chat update failed.' }
-      }
-
-      return { success: true }
-    })
-    const api = createBaseApi({
-      getRoleAssignments: async () => createRoleAssignments() as any,
-      setRoleAssignment,
-    })
-
-    await renderPanel(api)
-    await navigateToPage('role-assignments')
-    await changeSelect(getSelectByAriaLabel('Cortex Chat assignment'), 'anthropic:claude-sonnet-4-20250514')
-    await click(getButton('Save Role Assignments'))
-
-    expect(textContent()).toContain('Error: Cortex Chat update failed.')
-  })
-
-  it('shows Not assigned for null assignments', async () => {
-    const api = createBaseApi({
-      getRoleAssignments: async () => createRoleAssignments({
-        orchestrators: null,
-        'cortex-chat': null,
-      }) as any,
-      setRoleAssignment: async () => ({ success: true }),
-    })
-
-    await renderPanel(api)
-    await navigateToPage('role-assignments')
-
-    expect((textContent().match(/Not assigned/g) ?? []).length).toBeGreaterThanOrEqual(2)
   })
 
   it('renders without role assignment methods for backwards compatibility', async () => {
     const api = createBaseApi()
 
     await renderPanel(api)
-    await navigateToPage('role-assignments')
+    await navigateToPage('model-config')
 
-    // RoleAssignmentsPage returns null when api.getRoleAssignments is missing.
-    // The settings-page-content container exists but is empty.
-    const pageContent = container.querySelector('[data-testid="settings-page-content"]')
+    // ModelConfigPage renders when getAvailableModels is defined
+    const pageContent = container.querySelector('[data-testid="settings-page-model-config"]')
     expect(pageContent).toBeTruthy()
-    expect(pageContent?.textContent).toBe('')
-    // The "Role Assignments" label is visible in nav, but no page content renders
-    expect(container.querySelector('[data-testid="page-role-assignments"]')).toBeTruthy()
-  })
-
-  it('renders a fully empty state when all 4 roles are unassigned', async () => {
-    const api = createBaseApi({
-      getRoleAssignments: async () => createRoleAssignments({
-        'cortex-chat': null,
-        'cortex-system': null,
-        orchestrators: null,
-        workers: null,
-      }) as any,
-      setRoleAssignment: async () => ({ success: true }),
-    })
-
-    await renderPanel(api)
-    await navigateToPage('role-assignments')
-
-    expect((textContent().match(/Not assigned/g) ?? []).length).toBeGreaterThanOrEqual(4)
-  })
-
-  it('renders mixed assigned and unassigned role states', async () => {
-    const api = createBaseApi({
-      getRoleAssignments: async () => createRoleAssignments({
-        orchestrators: 'openai:gpt-4o',
-        'cortex-chat': null,
-        workers: 'anthropic:claude-sonnet-4-20250514',
-        'cortex-system': null,
-      }) as any,
-      setRoleAssignment: async () => ({ success: true }),
-    })
-
-    await renderPanel(api)
-    await navigateToPage('role-assignments')
-
-    expect(textContent()).toContain('GPT-4o')
-    expect(textContent()).toContain('Claude Sonnet 4')
-    expect(textContent()).toContain('Not assigned')
   })
 })
 
@@ -365,7 +188,8 @@ describe('PreferencesPanel setup wizard', () => {
 
     const api = createBaseApi({
       resetWizard,
-      getRoleAssignments: async () => createRoleAssignments() as any,
+      getRoleAssignments: async () =>
+        ROLE_KEYS.map((role) => ({ role, providerId: null })) as any,
       setRoleAssignment: async () => ({ success: true }),
     })
 

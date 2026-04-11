@@ -31,8 +31,6 @@ function makeApi() {
     }),
     resetWizard: vi.fn().mockResolvedValue(undefined),
     getAvailableModels: vi.fn().mockResolvedValue({ models: [] }),
-    getModelSelection: vi.fn().mockResolvedValue({ principal: null, system: null }),
-    setModelSelection: vi.fn().mockResolvedValue({ success: true }),
     getRoleAssignments: vi.fn().mockResolvedValue([]),
     getHardwareRecommendations: vi.fn().mockResolvedValue({
       singleModel: null,

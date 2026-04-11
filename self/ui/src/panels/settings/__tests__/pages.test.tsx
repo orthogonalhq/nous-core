@@ -9,7 +9,6 @@ import { ShellModePage } from '../pages/ShellModePage'
 import { SystemStatusPage } from '../pages/SystemStatusPage'
 import { ApiKeysPage } from '../pages/ApiKeysPage'
 import { ModelConfigPage } from '../pages/ModelConfigPage'
-import { RoleAssignmentsPage } from '../pages/RoleAssignmentsPage'
 import { SetupWizardPage } from '../pages/SetupWizardPage'
 
 let container: HTMLDivElement
@@ -268,7 +267,7 @@ describe('ModelConfigPage', () => {
     setRoleAssignment: vi.fn().mockResolvedValue({ success: true }),
   })
 
-  it('renders model dropdowns after data loads', async () => {
+  it('renders all 4 role slot labels after data loads', async () => {
     const api = makeApi()
     await act(async () => {
       root.render(<ModelConfigPage api={api} />)
@@ -277,19 +276,32 @@ describe('ModelConfigPage', () => {
 
     const el = container.querySelector('[data-testid="settings-page-model-config"]')
     expect(el).not.toBeNull()
-    expect(container.textContent).toContain('Cortex::Principal')
-    expect(container.textContent).toContain('Cortex::System')
+    expect(container.textContent).toContain('Cortex Chat')
+    expect(container.textContent).toContain('Cortex System')
+    expect(container.textContent).toContain('Agent Orchitect Orchestrator')
+    expect(container.textContent).toContain('Agent Worker')
   })
 
-  it('save button calls api.setRoleAssignment', async () => {
+  it('renders exactly 4 role select elements', async () => {
     const api = makeApi()
     await act(async () => {
       root.render(<ModelConfigPage api={api} />)
       await flush()
     })
 
-    // Select a model
-    const select = container.querySelector<HTMLSelectElement>('#principal-model-select')!
+    const selects = container.querySelectorAll('select')
+    expect(selects).toHaveLength(4)
+  })
+
+  it('save button calls api.setRoleAssignment for cortex-chat', async () => {
+    const api = makeApi()
+    await act(async () => {
+      root.render(<ModelConfigPage api={api} />)
+      await flush()
+    })
+
+    // Select a model for cortex-chat
+    const select = container.querySelector<HTMLSelectElement>('#role-select-cortex-chat')!
     await act(async () => {
       select.value = 'claude-3'
       select.dispatchEvent(new Event('change', { bubbles: true }))
@@ -305,7 +317,66 @@ describe('ModelConfigPage', () => {
       await flush()
     })
 
-    expect(api.setRoleAssignment).toHaveBeenCalled()
+    expect(api.setRoleAssignment).toHaveBeenCalledWith({
+      role: 'cortex-chat',
+      modelSpec: 'claude-3',
+    })
+  })
+
+  it('save button calls api.setRoleAssignment for orchestrators', async () => {
+    const api = makeApi()
+    await act(async () => {
+      root.render(<ModelConfigPage api={api} />)
+      await flush()
+    })
+
+    const select = container.querySelector<HTMLSelectElement>('#role-select-orchestrators')!
+    await act(async () => {
+      select.value = 'gpt-4'
+      select.dispatchEvent(new Event('change', { bubbles: true }))
+      await flush()
+    })
+
+    const saveButton = Array.from(container.querySelectorAll('button')).find(
+      (b) => b.textContent === 'Save',
+    )!
+    await act(async () => {
+      saveButton.click()
+      await flush()
+    })
+
+    expect(api.setRoleAssignment).toHaveBeenCalledWith({
+      role: 'orchestrators',
+      modelSpec: 'gpt-4',
+    })
+  })
+
+  it('save button calls api.setRoleAssignment for workers', async () => {
+    const api = makeApi()
+    await act(async () => {
+      root.render(<ModelConfigPage api={api} />)
+      await flush()
+    })
+
+    const select = container.querySelector<HTMLSelectElement>('#role-select-workers')!
+    await act(async () => {
+      select.value = 'claude-3'
+      select.dispatchEvent(new Event('change', { bubbles: true }))
+      await flush()
+    })
+
+    const saveButton = Array.from(container.querySelectorAll('button')).find(
+      (b) => b.textContent === 'Save',
+    )!
+    await act(async () => {
+      saveButton.click()
+      await flush()
+    })
+
+    expect(api.setRoleAssignment).toHaveBeenCalledWith({
+      role: 'workers',
+      modelSpec: 'claude-3',
+    })
   })
 
   it('returns null when getAvailableModels is undefined', async () => {
@@ -322,96 +393,22 @@ describe('ModelConfigPage', () => {
     const el = container.querySelector('[data-testid="settings-page-model-config"]')
     expect(el).toBeNull()
   })
-})
 
-// ─── RoleAssignmentsPage ─────────────────────────────────────────────────────
-
-describe('RoleAssignmentsPage', () => {
-  const makeApi = () => ({
-    getRoleAssignments: vi.fn().mockResolvedValue([
-      { role: 'orchestrators', providerId: 'anthropic', modelSpec: 'claude-3' },
-      { role: 'cortex-chat', providerId: 'openai', modelSpec: 'gpt-4' },
-    ]),
-    getAvailableModels: vi.fn().mockResolvedValue({
-      models: [
-        { id: 'claude-3', name: 'Claude 3', provider: 'anthropic', available: true },
-        { id: 'gpt-4', name: 'GPT-4', provider: 'openai', available: true },
-      ],
-    }),
-    getHardwareRecommendations: vi.fn().mockResolvedValue({
-      singleModel: null,
-      multiModel: [],
-      advisory: '',
-    }),
-    setRoleAssignment: vi.fn().mockResolvedValue({ success: true }),
-  })
-
-  it('renders 4-role grid after data loads', async () => {
-    const api = makeApi()
-    await act(async () => {
-      root.render(<RoleAssignmentsPage api={api} />)
-      await flush()
-    })
-
-    const el = container.querySelector('[data-testid="settings-page-role-assignments"]')
-    expect(el).not.toBeNull()
-    expect(container.textContent).toContain('Cortex Chat')
-    expect(container.textContent).toContain('Cortex System')
-    expect(container.textContent).toContain("Orchestrator's")
-  })
-
-  it('save calls api.setRoleAssignment for changed roles', async () => {
-    const api = makeApi()
-    await act(async () => {
-      root.render(<RoleAssignmentsPage api={api} />)
-      await flush()
-    })
-
-    // Change a role assignment via select
-    const select = container.querySelector<HTMLSelectElement>('#role-assignment-orchestrators')!
-    await act(async () => {
-      select.value = 'gpt-4'
-      select.dispatchEvent(new Event('change', { bubbles: true }))
-      await flush()
-    })
-
-    // Click save
-    const saveButton = Array.from(container.querySelectorAll('button')).find(
-      (b) => b.textContent === 'Save Role Assignments',
-    )!
-    await act(async () => {
-      saveButton.click()
-      await flush()
-    })
-
-    expect(api.setRoleAssignment).toHaveBeenCalled()
-  })
-
-  it('returns null when getRoleAssignments is undefined', async () => {
-    const api = {
-      getRoleAssignments: undefined,
-      getAvailableModels: vi.fn(),
-      getHardwareRecommendations: vi.fn(),
-      setRoleAssignment: vi.fn(),
-    }
-    await act(async () => {
-      root.render(<RoleAssignmentsPage api={api as never} />)
-      await flush()
-    })
-
-    const el = container.querySelector('[data-testid="settings-page-role-assignments"]')
-    expect(el).toBeNull()
-  })
-
-  it('shows advisory when no models available', async () => {
+  it('no-models fallback renders with 4-slot layout', async () => {
     const api = makeApi()
     api.getAvailableModels.mockResolvedValue({ models: [] })
+
     await act(async () => {
-      root.render(<RoleAssignmentsPage api={api} />)
+      root.render(<ModelConfigPage api={api} />)
       await flush()
     })
 
-    expect(container.textContent).toContain('No models are available yet')
+    expect(container.textContent).toContain('No models available')
+    // All 4 labels should still render
+    expect(container.textContent).toContain('Cortex Chat')
+    expect(container.textContent).toContain('Cortex System')
+    expect(container.textContent).toContain('Agent Orchitect Orchestrator')
+    expect(container.textContent).toContain('Agent Worker')
   })
 })
 
