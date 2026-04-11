@@ -6,6 +6,7 @@ packages:
   - self/memory/*
   - self/subcortex/*
   - self/apps/*
+  - self/e2e
   - scripts/install
   - scripts/benchmark
   - docs
