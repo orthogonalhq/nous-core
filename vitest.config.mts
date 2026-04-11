@@ -10,6 +10,7 @@ export default defineConfig({
   test: {
     projects: [
       'self/**/vitest.config.ts',
+      'self/**/vitest.config.mts',
       'scripts/**/vitest.config.ts',
     ],
     coverage: {
