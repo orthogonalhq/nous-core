@@ -79,11 +79,18 @@ function formatTools(
 ): Array<{ name: string; description: string; input_schema: Record<string, unknown> }> | undefined {
   if (!toolDefinitions || toolDefinitions.length === 0) return undefined;
 
-  return toolDefinitions.map((tool) => ({
-    name: tool.name,
-    description: tool.description ?? '',
-    input_schema: (tool.inputSchema as Record<string, unknown>) ?? {},
-  }));
+  return toolDefinitions.map((tool) => {
+    const rawSchema = (tool.inputSchema as Record<string, unknown>) ?? {};
+    // WR-148 fix (RC-3/RC-4): Anthropic API requires `input_schema.type` to be
+    // present. Inject `type: "object"` defensively when not already set, so
+    // descriptive catalog schemas conform to the Anthropic JSON Schema contract.
+    const input_schema = rawSchema.type ? rawSchema : { type: 'object', ...rawSchema };
+    return {
+      name: tool.name,
+      description: tool.description ?? '',
+      input_schema,
+    };
+  });
 }
 
 function formatMessages(

@@ -286,14 +286,20 @@ export function createOllamaAdapter(modelId?: string): ProviderAdapter {
       // Native tool use: include tools in request body when model supports it
       const hasTools = input.toolDefinitions && input.toolDefinitions.length > 0;
       if (hasTools && toolCapable) {
-        result.tools = input.toolDefinitions!.map((tool) => ({
-          type: 'function',
-          function: {
-            name: tool.name,
-            description: tool.description ?? '',
-            parameters: tool.inputSchema ?? {},
-          },
-        }));
+        result.tools = input.toolDefinitions!.map((tool) => {
+          const rawParams = (tool.inputSchema ?? {}) as Record<string, unknown>;
+          // WR-148 fix (RC-3/RC-4): normalize `type: "object"` for forward
+          // compatibility with strict Ollama API versions.
+          const parameters = rawParams.type ? rawParams : { type: 'object', ...rawParams };
+          return {
+            type: 'function',
+            function: {
+              name: tool.name,
+              description: tool.description ?? '',
+              parameters,
+            },
+          };
+        });
 
         // GOTCHA: streaming + thinking mode breaks tool call parsing.
         // Force stream: false when tools are present for reliable tool calling.

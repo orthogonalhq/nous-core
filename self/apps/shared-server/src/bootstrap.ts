@@ -1240,20 +1240,18 @@ export function createNousServices(config?: BootstrapConfig): NousContext {
     // STM and MWC dependencies (SP 1.2 — WR-124)
     stmStore,
     mwcPipeline,
-    // WR-138 row #8 / O-Cycle2-2 default policy: all four agent classes
-    // default to Anthropic via `WELL_KNOWN_PROVIDER_IDS.anthropic`. This is
-    // the pinned commit-time policy per `cortex-provider-attach-lifecycle-v1.md` § 6
-    // and the sub-phase spec `.architecture/roadmap/fix/provider-type-plumbing/provider-type-plumbing.1.1.md`
-    // § Notes for Implementation Agent item 2. Exposing a user-visible setting
-    // for per-class provider selection is flagged as a follow-up candidate WR
-    // (see completion-report.mdx "User-Configurability Follow-Up"). Until that
-    // lands, bootstrap is the sole owner of this mapping and the Option α
-    // chain in `createGatewayConfig` reads through it via `getProvider`.
+    // WR-138 row #8 / O-Cycle2-2: resolve provider ID per agent class from
+    // the user's configured model role assignments. Falls back to the Anthropic
+    // well-known ID when no assignment exists (preserves default behavior for
+    // unconfigured roles). The Option α chain in `createGatewayConfig` reads
+    // through this mapping via `getProvider`.
+    // WR-148 fix: replaced hardcoded `WELL_KNOWN_PROVIDER_IDS.anthropic` with
+    // dynamic resolution from `currentRoleAssignment` per model role.
     providerIdByClass: {
-      'Cortex::Principal': WELL_KNOWN_PROVIDER_IDS.anthropic,
-      'Cortex::System':    WELL_KNOWN_PROVIDER_IDS.anthropic,
-      'Orchestrator':      WELL_KNOWN_PROVIDER_IDS.anthropic,
-      'Worker':            WELL_KNOWN_PROVIDER_IDS.anthropic,
+      'Cortex::Principal': currentRoleAssignment({ config: appConfig } as any, 'cortex-chat')?.providerId ?? WELL_KNOWN_PROVIDER_IDS.anthropic,
+      'Cortex::System':    currentRoleAssignment({ config: appConfig } as any, 'cortex-system')?.providerId ?? WELL_KNOWN_PROVIDER_IDS.anthropic,
+      'Orchestrator':      currentRoleAssignment({ config: appConfig } as any, 'orchestrators')?.providerId ?? WELL_KNOWN_PROVIDER_IDS.anthropic,
+      'Worker':            currentRoleAssignment({ config: appConfig } as any, 'workers')?.providerId ?? WELL_KNOWN_PROVIDER_IDS.anthropic,
     },
     // Model routing: Principal uses 'thinking' profile (Opus 4.6),
     // System uses 'fast' profile (Sonnet). The defaultModelRequirements
@@ -1278,12 +1276,16 @@ export function createNousServices(config?: BootstrapConfig): NousContext {
   // Bootstrap is the sole caller (SC-21 invariant). The read-through on
   // `providerRegistry.getProvider(...).getConfig().vendor` is the post-row-#3
   // stamped value; `?? 'text'` is the safe placeholder fallback per CPAL § 3.
+  // WR-148 fix: resolve vendor from the actually-assigned provider per agent
+  // class, not from the hardcoded Anthropic well-known ID.
+  const principalProviderId = currentRoleAssignment({ config: appConfig } as any, 'cortex-chat')?.providerId ?? WELL_KNOWN_PROVIDER_IDS.anthropic;
+  const systemProviderId = currentRoleAssignment({ config: appConfig } as any, 'cortex-system')?.providerId ?? WELL_KNOWN_PROVIDER_IDS.anthropic;
   gatewayRuntime.attachProviders({
     providerVendorByClass: {
       'Cortex::Principal':
-        providerRegistry.getProvider(WELL_KNOWN_PROVIDER_IDS.anthropic)?.getConfig().vendor ?? 'text',
+        providerRegistry.getProvider(principalProviderId)?.getConfig().vendor ?? 'text',
       'Cortex::System':
-        providerRegistry.getProvider(WELL_KNOWN_PROVIDER_IDS.anthropic)?.getConfig().vendor ?? 'text',
+        providerRegistry.getProvider(systemProviderId)?.getConfig().vendor ?? 'text',
     },
   });
 
