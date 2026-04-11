@@ -136,6 +136,113 @@ jobs:
       - name: Build desktop distributable
         run: pnpm --filter @nous/desktop run build:dist
 
+  e2e-desktop:
+    name: E2E Desktop
+    needs: check
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Install pnpm
+        uses: pnpm/action-setup@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: 'pnpm'
+
+      - name: Install dependencies
+        run: pnpm install
+
+      - name: Download Electron binary
+        run: node node_modules/electron/install.js
+
+      - name: Build desktop app
+        run: pnpm --filter @nous/desktop run build
+
+      - name: Cache Playwright browsers
+        uses: actions/cache@v4
+        id: playwright-cache
+        with:
+          path: ~/.cache/ms-playwright
+          key: playwright-${{ runner.os }}-${{ hashFiles('self/e2e/package.json') }}
+
+      - name: Install Playwright browsers
+        if: steps.playwright-cache.outputs.cache-hit != 'true'
+        run: pnpm --filter @nous/e2e exec playwright install --with-deps chromium
+
+      - name: Install Playwright system deps
+        if: steps.playwright-cache.outputs.cache-hit == 'true'
+        run: pnpm --filter @nous/e2e exec playwright install-deps chromium
+
+      - name: Run desktop E2E tests
+        run: xvfb-run --auto-servernum --server-args="-screen 0 1280x960x24" pnpm --filter @nous/e2e run test:desktop
+
+      - name: Upload E2E artifacts
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: e2e-desktop-report
+          path: |
+            self/e2e/playwright-report/
+            self/e2e/test-results/
+          if-no-files-found: ignore
+
+  e2e-web:
+    name: E2E Web
+    needs: check
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Install pnpm
+        uses: pnpm/action-setup@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: 'pnpm'
+
+      - name: Install dependencies
+        run: pnpm install
+
+      - name: Build
+        run: pnpm run build
+
+      - name: Cache Playwright browsers
+        uses: actions/cache@v4
+        id: playwright-cache
+        with:
+          path: ~/.cache/ms-playwright
+          key: playwright-${{ runner.os }}-${{ hashFiles('self/e2e/package.json') }}
+
+      - name: Install Playwright browsers
+        if: steps.playwright-cache.outputs.cache-hit != 'true'
+        run: pnpm --filter @nous/e2e exec playwright install --with-deps chromium
+
+      - name: Install Playwright system deps
+        if: steps.playwright-cache.outputs.cache-hit == 'true'
+        run: pnpm --filter @nous/e2e exec playwright install-deps chromium
+
+      - name: Run web E2E tests
+        run: pnpm --filter @nous/e2e run test:web
+
+      - name: Upload E2E artifacts
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: e2e-web-report
+          path: |
+            self/e2e/playwright-report/
+            self/e2e/test-results/
+          if-no-files-found: ignore
+
   webapp-smoke:
     name: Smoke (web)
     needs: check
