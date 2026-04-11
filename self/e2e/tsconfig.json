@@ -14,6 +14,7 @@
   "include": [
     "fixtures/**/*.ts",
     "specs/**/*.ts",
+    "bt/**/*.ts",
     "playwright.config.ts"
   ]
 }

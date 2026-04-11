@@ -9,6 +9,9 @@
     "test:web": "playwright test --project=web",
     "typecheck": "tsc --noEmit"
   },
+  "dependencies": {
+    "@playwright/mcp": "^0.0.70"
+  },
   "devDependencies": {
     "@playwright/test": "^1.52.0",
     "typescript": "^5"
