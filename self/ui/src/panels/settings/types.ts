@@ -3,6 +3,7 @@ import type {
   AppSettingsPreparation,
   AppSettingsSaveRequest,
   AppSettingsSaveResult,
+  ModelRole,
 } from '@nous/shared'
 
 // ─── Import and re-export from shell types (canonical ShellMode) ──────────────
@@ -59,9 +60,6 @@ export interface HydratedRoleAssignmentDisplayEntry extends RoleAssignmentDispla
   modelSpec?: string | null
 }
 
-export type RoleAssignmentState = Record<ModelRole, HydratedRoleAssignmentDisplayEntry>
-export type PendingRoleAssignments = Record<ModelRole, string>
-
 export interface RecommendedModel {
   modelSpec: string
   displayName: string
@@ -106,31 +104,6 @@ export interface PreferencesApi {
   setOllamaEndpoint?: (endpoint: string | null) => Promise<{ success: boolean }>
 }
 
-// ─── Constants ─────────────────────────────────────────────────────────────────
-
-export const MODEL_ROLES = [
-  'cortex-chat',
-  'cortex-system',
-  'orchestrators',
-  'workers',
-] as const
-
-export type ModelRole = typeof MODEL_ROLES[number]
-
-export const MODEL_ROLE_LABELS: Record<ModelRole, string> = {
-  'cortex-chat': 'Cortex Chat',
-  'cortex-system': 'Cortex System',
-  orchestrators: "Orchestrator's",
-  workers: "Worker's",
-}
-
-export const MODEL_ROLE_HINTS: Record<ModelRole, string> = {
-  'cortex-chat': 'Prefer the strongest model your current setup can comfortably sustain.',
-  'cortex-system': 'Prefer the fastest model available for low-latency coordination.',
-  orchestrators: 'Use a balanced model that stays responsive while coordinating workflows.',
-  workers: 'A fast mid-tier model is usually enough for task execution.',
-}
-
 // ─── Page ID Constants ────────────────────────────────────────────────────────
 
 export const PAGE_IDS = {
@@ -138,7 +111,6 @@ export const PAGE_IDS = {
   ABOUT: 'about',
   API_KEYS: 'api-keys',
   MODEL_CONFIG: 'model-config',
-  ROLE_ASSIGNMENTS: 'role-assignments',
   SYSTEM_STATUS: 'system-status',
   SETUP_WIZARD: 'setup-wizard',
   LOCAL_MODELS: 'local-models',
