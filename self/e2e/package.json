@@ -1,0 +1,16 @@
+{
+  "name": "@nous/e2e",
+  "version": "0.0.1",
+  "private": true,
+  "description": "End-to-end Playwright tests for Nous desktop and web applications",
+  "scripts": {
+    "test": "playwright test",
+    "test:desktop": "playwright test --project=desktop",
+    "test:web": "playwright test --project=web",
+    "typecheck": "tsc --noEmit"
+  },
+  "devDependencies": {
+    "@playwright/test": "^1.52.0",
+    "typescript": "^5"
+  }
+}
