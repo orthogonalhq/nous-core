@@ -42,6 +42,8 @@ const ALL_CHANNELS: (keyof EventChannelMap)[] = [
   'cost:budget-alert',
   'cost:budget-exceeded',
   'cost:snapshot',
+  'notification:raised',
+  'notification:updated',
 ];
 
 const HEARTBEAT_INTERVAL_MS = 30_000;

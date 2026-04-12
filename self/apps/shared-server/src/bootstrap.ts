@@ -84,6 +84,7 @@ import {
 } from '@nous/subcortex-projects';
 import { DocumentArtifactStore } from '@nous/subcortex-artifacts';
 import { DocumentEscalationStore, EscalationService } from '@nous/subcortex-escalation';
+import { DocumentNotificationStore, NotificationService } from '@nous/subcortex-notification';
 import { ModelRouter } from '@nous/subcortex-router';
 import { ProviderRegistry, TokenAccumulatorService } from '@nous/subcortex-providers';
 import {
@@ -665,6 +666,7 @@ export function createNousServices(config?: BootstrapConfig): NousContext {
   const artifactStore = new DocumentArtifactStore(documentStore);
   const scheduleStore = new DocumentScheduleStore(documentStore);
   const escalationStore = new DocumentEscalationStore(documentStore);
+  const notificationStore = new DocumentNotificationStore(documentStore);
   const registryStore = new DocumentRegistryStore(documentStore);
   const nudgeStore = new DocumentNudgeStore(documentStore);
   const witnessService = new WitnessService(documentStore);
@@ -755,6 +757,10 @@ export function createNousServices(config?: BootstrapConfig): NousContext {
   const escalationService = new EscalationService({
     escalationStore,
     projectStore,
+    eventBus,
+  });
+  const notificationService = new NotificationService({
+    notificationStore,
     eventBus,
   });
   const registryService = new RegistryService({
@@ -1330,6 +1336,7 @@ export function createNousServices(config?: BootstrapConfig): NousContext {
     artifactStore,
     schedulerService,
     escalationService,
+    notificationService,
     endpointTrustService,
     registryService,
     appInstallService,

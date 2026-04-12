@@ -47,6 +47,8 @@ const ALL_CHANNELS: (keyof EventChannelMap)[] = [
   'ollama:install-progress',
   'ollama:update-progress',
   'ollama:version-info',
+  'notification:raised',
+  'notification:updated',
 ];
 
 const HEARTBEAT_INTERVAL_MS = 30_000;
