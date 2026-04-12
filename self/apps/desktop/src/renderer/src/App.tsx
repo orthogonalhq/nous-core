@@ -883,7 +883,7 @@ function DesktopSimpleShell({
       onSidebarCollapseChange={setSidebarCollapsed}
       sidebar={
         showHomeSidebar
-          ? <DesktopHomeSidebar />
+          ? <DesktopHomeSidebar collapsed={sidebarCollapsed} onToggleCollapse={handleToggleCollapse} />
           : (
             <DesktopAssetSidebarConnected
               chatStage={chatStageManager.chatStage}
@@ -1133,7 +1133,7 @@ function DesktopProjectRail({ isHomeContext, setIsHomeContext }: { isHomeContext
   )
 }
 
-function DesktopHomeSidebar() {
+function DesktopHomeSidebar({ collapsed, onToggleCollapse }: { collapsed?: boolean; onToggleCollapse?: () => void }) {
   const { activeRoute, navigate } = useShellCtx()
 
   const sections = useMemo(() => buildHomeSidebarSections(), [])
@@ -1145,6 +1145,8 @@ function DesktopHomeSidebar() {
       sections={sections}
       activeRoute={activeRoute}
       onNavigate={navigate}
+      collapsed={collapsed}
+      onToggleCollapse={onToggleCollapse}
     />
   )
 }
