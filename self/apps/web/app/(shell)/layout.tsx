@@ -21,6 +21,8 @@ import {
   isHomeSidebarEnabled,
   HOME_TOP_NAV,
   buildHomeSidebarSections,
+  NotificationProvider,
+  useNotificationBadge,
 } from '@nous/ui/components'
 import type { ShellMode, NavigationState } from '@nous/ui/components'
 import { useEventSubscription, trpc } from '@nous/transport'
@@ -222,6 +224,7 @@ function ShellLayoutContent({
         activeProjectId={projectId}
         onProjectChange={handleProjectChange}
       >
+        <NotificationProvider>
         <ProjectProvider value={{ projectId, setProjectId }}>
           <CommandPalette
             isOpen={commandPaletteOpen}
@@ -293,6 +296,7 @@ function ShellLayoutContent({
           {/* Next.js page outlet — hidden; shell uses ContentRouter for navigation */}
           <div style={{ display: 'none' }}>{children}</div>
         </ProjectProvider>
+        </NotificationProvider>
       </ShellProvider>
     </WebChromeShell>
   )
@@ -312,6 +316,7 @@ function WebAssetSidebarConnected({
   // `onToggleCollapse` are prop-drilled through this wrapper. Sibling calls are
   // forbidden by INV-1 and the ratified primary contract § State Ownership.
   const { activeProjectId, activeRoute, navigate } = useShellContext()
+  const badgeCount = useNotificationBadge()
   const tasksApi = useTasks({ projectId: activeProjectId })
 
   const tasksSection = useMemo(
@@ -337,10 +342,17 @@ function WebAssetSidebarConnected({
     return proj?.name ?? 'Project'
   }, [projectList, activeProjectId])
 
+  const topNavWithBadge = useMemo(
+    () => WEB_TOP_NAV.map((item) =>
+      item.id === 'inbox' ? { ...item, badge: badgeCount > 0 ? badgeCount : undefined } : item,
+    ),
+    [badgeCount],
+  )
+
   return (
     <AssetSidebar
       projectName={projectName}
-      topNav={WEB_TOP_NAV}
+      topNav={topNavWithBadge}
       sections={sections}
       activeRoute={activeRoute}
       onNavigate={navigate}
@@ -354,13 +366,21 @@ function WebAssetSidebarConnected({
 
 function WebHomeSidebar() {
   const { activeRoute, navigate } = useShellContext()
+  const badgeCount = useNotificationBadge()
 
   const sections = useMemo(() => buildHomeSidebarSections(), [])
+
+  const topNavWithBadge = useMemo(
+    () => HOME_TOP_NAV.map((item) =>
+      item.id === 'home-inbox' ? { ...item, badge: badgeCount > 0 ? badgeCount : undefined } : item,
+    ),
+    [badgeCount],
+  )
 
   return (
     <AssetSidebar
       projectName="Home"
-      topNav={HOME_TOP_NAV}
+      topNav={topNavWithBadge}
       sections={sections}
       activeRoute={activeRoute}
       onNavigate={navigate}
