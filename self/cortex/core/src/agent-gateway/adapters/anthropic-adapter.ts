@@ -167,6 +167,17 @@ function formatMessages(
       merged.push({ ...msg });
     }
   }
+
+  // Debug: log message structure for tool use debugging
+  console.debug('[nous:anthropic-adapter] formatMessages output', {
+    messageCount: merged.length,
+    messages: merged.map((m, i) => {
+      const blocks = Array.isArray(m.content) ? m.content : [];
+      const types = blocks.map((b: Record<string, unknown>) => b.type ?? 'text');
+      return { index: i, role: m.role, contentType: Array.isArray(m.content) ? 'blocks' : 'string', blockTypes: types };
+    }),
+  });
+
   return merged;
 }
 
