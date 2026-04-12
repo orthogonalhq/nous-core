@@ -261,7 +261,7 @@ function ListItem({
     routeId: string
     icon?: React.ReactNode
     indicatorColor?: string
-    badge?: boolean
+    badge?: number | boolean
     isActive: boolean
     disabled?: boolean
     onNavigate: (routeId: string) => void
@@ -345,7 +345,13 @@ function ListItem({
                     <MoreHorizontal size={14} />
                 </span>
             )}
-            {badge ? <span style={s.listItemBadge} /> : null}
+            {typeof badge === 'number' && badge > 0 ? (
+                <span style={s.listItemBadgeNumeric} data-testid={`badge-numeric-${badge}`}>
+                    {badge > 99 ? '99+' : badge}
+                </span>
+            ) : badge === true ? (
+                <span style={s.listItemBadge} />
+            ) : null}
         </button>
     )
 }
@@ -592,7 +598,7 @@ export function AssetSidebar({
                             label={item.label}
                             routeId={item.routeId}
                             icon={item.icon}
-                            badge={!!item.badge}
+                            badge={item.badge}
                             isActive={item.routeId === activeRoute}
                             onNavigate={onNavigate}
                         />
@@ -709,6 +715,22 @@ const s = {
         flexShrink: 0,
         marginLeft: 'auto',
     },
+    listItemBadgeNumeric: {
+        display: 'inline-flex',
+        alignItems: 'center',
+        justifyContent: 'center',
+        minWidth: 18,
+        height: 18,
+        padding: '0 5px',
+        borderRadius: 9,
+        background: 'var(--nous-accent)',
+        color: 'var(--nous-text-on-accent, #fff)',
+        fontSize: 11,
+        fontWeight: 600,
+        lineHeight: 1,
+        flexShrink: 0,
+        marginLeft: 'auto',
+    } as React.CSSProperties,
 
     // ── Top nav ─────────────────────────────────────────────────────────
     topNavGroup: {

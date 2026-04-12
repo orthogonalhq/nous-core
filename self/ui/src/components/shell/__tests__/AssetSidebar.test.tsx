@@ -561,3 +561,82 @@ describe('AssetSidebar — Context Menu Rename', () => {
     expect(props.onNavigate).toHaveBeenCalledWith('workflow-a')
   })
 })
+
+describe('AssetSidebar — Badge Rendering', () => {
+  it('renders dot for badge={true}', async () => {
+    const topNav: SidebarTopNavItem[] = [
+      { id: 'inbox', label: 'Inbox', icon: <span>I</span>, routeId: 'inbox', badge: true },
+    ]
+    await renderSidebar({ topNav })
+
+    const inboxItem = container.querySelector('[data-list-item="inbox"]')
+    expect(inboxItem).toBeTruthy()
+    // Dot badge is a span with 6x6px
+    const badgeSpan = inboxItem?.querySelector('span[style]')
+    const allSpans = Array.from(inboxItem!.querySelectorAll('span'))
+    const dotBadge = allSpans.find(
+      (s) => s.style.width === '6px' && s.style.height === '6px' && s.style.borderRadius === '50%',
+    )
+    expect(dotBadge).toBeTruthy()
+  })
+
+  it('renders nothing for badge={false}', async () => {
+    const topNav: SidebarTopNavItem[] = [
+      { id: 'inbox', label: 'Inbox', icon: <span>I</span>, routeId: 'inbox', badge: false },
+    ]
+    await renderSidebar({ topNav })
+
+    const inboxItem = container.querySelector('[data-list-item="inbox"]')
+    expect(inboxItem).toBeTruthy()
+    // No badge element should be present
+    expect(inboxItem?.querySelector('[data-testid^="badge-numeric"]')).toBeNull()
+    const allSpans = Array.from(inboxItem!.querySelectorAll('span'))
+    const dotBadge = allSpans.find(
+      (s) => s.style.width === '6px' && s.style.height === '6px' && s.style.borderRadius === '50%',
+    )
+    expect(dotBadge).toBeFalsy()
+  })
+
+  it('renders nothing for badge={0}', async () => {
+    const topNav: SidebarTopNavItem[] = [
+      { id: 'inbox', label: 'Inbox', icon: <span>I</span>, routeId: 'inbox', badge: 0 },
+    ]
+    await renderSidebar({ topNav })
+
+    const inboxItem = container.querySelector('[data-list-item="inbox"]')
+    expect(inboxItem?.querySelector('[data-testid^="badge-numeric"]')).toBeNull()
+  })
+
+  it('renders numeric "5" for badge={5}', async () => {
+    const topNav: SidebarTopNavItem[] = [
+      { id: 'inbox', label: 'Inbox', icon: <span>I</span>, routeId: 'inbox', badge: 5 },
+    ]
+    await renderSidebar({ topNav })
+
+    const badge = container.querySelector('[data-testid="badge-numeric-5"]')
+    expect(badge).toBeTruthy()
+    expect(badge?.textContent).toBe('5')
+  })
+
+  it('renders "99+" for badge={100}', async () => {
+    const topNav: SidebarTopNavItem[] = [
+      { id: 'inbox', label: 'Inbox', icon: <span>I</span>, routeId: 'inbox', badge: 100 },
+    ]
+    await renderSidebar({ topNav })
+
+    const badge = container.querySelector('[data-testid="badge-numeric-100"]')
+    expect(badge).toBeTruthy()
+    expect(badge?.textContent).toBe('99+')
+  })
+
+  it('renders "99+" for badge={999}', async () => {
+    const topNav: SidebarTopNavItem[] = [
+      { id: 'inbox', label: 'Inbox', icon: <span>I</span>, routeId: 'inbox', badge: 999 },
+    ]
+    await renderSidebar({ topNav })
+
+    const badge = container.querySelector('[data-testid="badge-numeric-999"]')
+    expect(badge).toBeTruthy()
+    expect(badge?.textContent).toBe('99+')
+  })
+})
