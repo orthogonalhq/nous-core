@@ -12,7 +12,7 @@
  *
  * WR-127 Phase 1.4
  */
-import type { TraceId } from '@nous/shared';
+import type { ILogChannel, TraceId } from '@nous/shared';
 import type { ParsedModelOutput } from '../../output-parser.js';
 import type {
   AdapterCapabilities,
@@ -166,8 +166,8 @@ function parseOllamaToolCalls(
  * 2. Message object with content + optional thinking (chat response)
  * 3. Plain string (generate endpoint or passthrough)
  */
-function parseOllamaResponse(output: unknown): ParsedModelOutput {
-  console.debug('[nous:ollama-adapter] parseOllamaResponse input:', {
+function parseOllamaResponse(output: unknown, log?: ILogChannel): ParsedModelOutput {
+  log?.debug('parseOllamaResponse input', {
     type: typeof output,
     isNull: output === null,
     keys: output && typeof output === 'object' ? Object.keys(output) : 'n/a',
@@ -223,7 +223,7 @@ function parseOllamaResponse(output: unknown): ParsedModelOutput {
  *   When provided, the adapter checks if the model supports native tool calling.
  *   When omitted, defaults to tool-capable (adapter still checks toolDefinitions presence).
  */
-export function createOllamaAdapter(modelId?: string): ProviderAdapter {
+export function createOllamaAdapter(modelId?: string, log?: ILogChannel): ProviderAdapter {
   const toolCapable = modelId ? isToolCapableModel(modelId) : true;
 
   const capabilities: AdapterCapabilities = {
@@ -310,9 +310,12 @@ export function createOllamaAdapter(modelId?: string): ProviderAdapter {
 
     parseResponse(output: unknown, _traceId: TraceId): ParsedModelOutput {
       try {
-        return parseOllamaResponse(output);
+        return parseOllamaResponse(output, log);
       } catch (err) {
-        console.error('[nous:ollama-adapter] parseResponse error:', err, 'output type:', typeof output);
+        log?.error('parseResponse error', {
+          error: err instanceof Error ? { message: err.message, stack: err.stack } : err,
+          outputType: typeof output,
+        });
         // Never throw — return text fallback
         return {
           response: String(output ?? ''),

@@ -1,4 +1,4 @@
-import type { TraceId } from '@nous/shared';
+import type { ILogChannel, TraceId } from '@nous/shared';
 import { parseModelOutput, type ParsedModelOutput } from '../../output-parser.js';
 import type { AdapterCapabilities, AdapterFormatInput, AdapterFormattedRequest, ProviderAdapter } from './types.js';
 
@@ -9,7 +9,7 @@ const TEXT_ADAPTER_CAPABILITIES: AdapterCapabilities = {
   streaming: false,
 };
 
-export function createTextAdapter(): ProviderAdapter {
+export function createTextAdapter(log?: ILogChannel): ProviderAdapter {
   return {
     capabilities: TEXT_ADAPTER_CAPABILITIES,
     formatRequest(input: AdapterFormatInput): AdapterFormattedRequest {
@@ -31,7 +31,9 @@ export function createTextAdapter(): ProviderAdapter {
       try {
         return parseModelOutput(output, traceId);
       } catch (err) {
-        console.warn('[nous:text-adapter] parseResponse caught unexpected error, falling back to text-mode', err);
+        log?.warn('parseResponse caught unexpected error, falling back to text-mode', {
+          error: err instanceof Error ? { message: err.message, stack: err.stack } : String(err),
+        });
         return {
           response: String(output ?? ''),
           toolCalls: [],
