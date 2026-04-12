@@ -116,20 +116,20 @@ export function CostDashboardWidget(_props: IDockviewPanelProps) {
     },
   })
 
-  // SSE: soft alert toast
+  // SSE: soft alert toast via notification pipeline
   useEventSubscription({
-    channels: ['cost:budget-alert'],
+    channels: ['notification:raised'],
     onEvent: (_channel: string, payload: unknown) => {
-      const data = payload as {
-        projectId: string
-        utilizationPercent: number
-        budgetCeilingUsd: number
-      }
-      showToast({
-        id: `budget-alert-${data.projectId}`,
-        message: `Budget alert: project has reached ${data.utilizationPercent.toFixed(0)}% of $${data.budgetCeilingUsd.toFixed(2)} budget`,
-        severity: 'warning',
-        dismissible: true,
+      const data = payload as { kind: string; id: string }
+      if (data.kind !== 'alert') return
+      void utils.notifications.get.fetch({ id: data.id }).then((record) => {
+        if (!record || record.kind !== 'alert' || record.alert.category !== 'budget-warning') return
+        showToast({
+          id: `budget-alert-${record.projectId}`,
+          message: `Budget alert: project has reached ${record.alert.utilizationPercent.toFixed(0)}% of $${record.alert.budgetCeilingUsd.toFixed(2)} budget`,
+          severity: 'warning',
+          dismissible: true,
+        })
       })
     },
   })

@@ -2,7 +2,7 @@
 
 import { useState, useCallback, type CSSProperties } from 'react'
 import { trpc, useEventSubscription } from '@nous/transport'
-import type { BudgetExceededPayload, ProjectId } from '@nous/shared'
+import type { ProjectId } from '@nous/shared'
 
 interface BannerState {
   visible: boolean
@@ -45,16 +45,21 @@ export function BudgetExceededBanner() {
 
   const setBudgetMutation = trpc.cost.setBudgetPolicy.useMutation()
   const controlMutation = trpc.mao.requestProjectControl.useMutation()
+  const trpcUtils = trpc.useUtils()
 
   useEventSubscription({
-    channels: ['cost:budget-exceeded'],
+    channels: ['notification:raised'],
     onEvent: (_channel: string, payload: unknown) => {
-      const data = payload as BudgetExceededPayload
-      setBanner({
-        visible: true,
-        projectId: data.projectId,
-        currentSpendUsd: data.currentSpendUsd,
-        budgetCeilingUsd: data.budgetCeilingUsd,
+      const data = payload as { kind: string; id: string }
+      if (data.kind !== 'alert') return
+      void trpcUtils.notifications.get.fetch({ id: data.id }).then((record) => {
+        if (!record || record.kind !== 'alert' || record.alert.category !== 'budget-exceeded') return
+        setBanner({
+          visible: true,
+          projectId: record.projectId ?? '',
+          currentSpendUsd: record.alert.currentSpendUsd,
+          budgetCeilingUsd: record.alert.budgetCeilingUsd,
+        })
       })
     },
   })
