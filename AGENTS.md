@@ -37,24 +37,30 @@ On conversation start (or context reset), determine your operating state before 
 
 **Keyword trigger: ideation triage.** If the Principal says "ideation triage", "promote discoveries", or equivalent, route to **research-planning-sop** orchestrator with mode `ideation_promotion`. Skip sprint/branch detection. Read `research-planning-sop/SKILL.md` and `research-planning-sop/orchestrator/ENTRY.md`, then execute `orchestrator/procedures/ideation-promotion-gate.md`.
 
-**PM Agent routing.** The PM Agent role spans multiple independent SOPs. Route based on the Principal's intent:
+**PM Agent entry.** When entering PM Agent mode, start conversationally:
 
-| Intent | SOP | Entry |
-|--------|-----|-------|
-| Process state, "where are we", "what's next" | state-audit-sop | `state-audit-sop/ENTRY.md` |
-| Deep code investigation, architecture diagrams | codebase-audit-sop | `codebase-audit-sop/ENTRY.md` |
-| Product direction, "what should we build" (NOT "ideation triage") | ideation-sop | `ideation-sop/ENTRY.md` |
-| Identify missing behaviors against a target | gap-analysis-sop | `gap-analysis-sop/ENTRY.md` |
-| Create/expand work register entries | wr-creation-sop | `wr-creation-sop/ENTRY.md` |
-| Organize WRs into lanes, compose sprints | sprint-composition-sop | `sprint-composition-sop/ENTRY.md` |
+1. Do a quick contextual read — skim the work register, check recent branch activity, glance at recent worklog artifacts. This is lightweight orientation, not a full state audit.
+2. Open with a prose summary: what you see, what's interesting, what you think might be worth focusing on. Address the Principal by name.
+3. Ask what they want to do. Let the Principal direct the conversation.
 
-Each SOP's ENTRY.md defines its own triggers and keywords. When in doubt, start with **state-audit-sop**.
+From there, the conversation flows naturally. You have several SOPs available as structured procedures — invoke them when the conversation calls for them, not as rigid entry points:
+
+| SOP | When to reach for it |
+|-----|---------------------|
+| state-audit-sop | Principal wants a thorough process state assessment |
+| codebase-audit-sop | Principal wants deep code investigation or architecture diagrams |
+| ideation-sop | Conversation turns to product direction and target definition |
+| gap-analysis-sop | Need to systematically identify missing behaviors against a target |
+| wr-creation-sop | Gaps identified, need to convert them to work register entries |
+| sprint-composition-sop | WR items ready, need to organize into lanes and dispatch |
+
+Each SOP's ENTRY.md defines its triggers, inputs, steps, and outputs. Read the relevant ENTRY.md when you invoke a procedure — don't preload all of them.
 
 **Primary signal: thread-scoped sprint assignment.** If the conversation has an established sprint (the Principal named it, or a prior turn in this thread identified it), use that sprint's `<type>/<name>` as the context and proceed to Step 2. The main working tree may remain on `dev` — the sprint's feature branch exists in a worktree or on remote.
 
 **Fallback: branch detection.** If no thread-scoped sprint is established, read the current git branch name:
 
-- `main`, `staging`, `dev`: No active sprint. Route to **state-audit-sop** as PM Agent. Read `state-audit-sop/SKILL.md` and `state-audit-sop/ENTRY.md`. Start with a state audit — the Principal will direct next steps.
+- `main`, `staging`, `dev`: No active sprint. Enter PM Agent mode (see PM Agent entry above). Read `SOUL.md` for identity, then do a quick contextual read and open conversationally.
 - `fix/<name>` or `feat/<name>` (phase branch): Active sprint root. Check for sub-phase branches.
 - `fix/<name>.N/<descriptor>` or `feat/<name>.N/<descriptor>` (sub-phase branch): Active sub-phase. Proceed to Step 2.
 
