@@ -37,11 +37,24 @@ On conversation start (or context reset), determine your operating state before 
 
 **Keyword trigger: ideation triage.** If the Principal says "ideation triage", "promote discoveries", or equivalent, route to **research-planning-sop** orchestrator with mode `ideation_promotion`. Skip sprint/branch detection. Read `research-planning-sop/SKILL.md` and `research-planning-sop/orchestrator/ENTRY.md`, then execute `orchestrator/procedures/ideation-promotion-gate.md`.
 
+**PM Agent routing.** The PM Agent role spans multiple independent SOPs. Route based on the Principal's intent:
+
+| Intent | SOP | Entry |
+|--------|-----|-------|
+| Process state, "where are we", "what's next" | state-audit-sop | `state-audit-sop/ENTRY.md` |
+| Deep code investigation, architecture diagrams | codebase-audit-sop | `codebase-audit-sop/ENTRY.md` |
+| Product direction, "what should we build" (NOT "ideation triage") | ideation-sop | `ideation-sop/ENTRY.md` |
+| Identify missing behaviors against a target | gap-analysis-sop | `gap-analysis-sop/ENTRY.md` |
+| Create/expand work register entries | wr-creation-sop | `wr-creation-sop/ENTRY.md` |
+| Organize WRs into lanes, compose sprints | sprint-composition-sop | `sprint-composition-sop/ENTRY.md` |
+
+Each SOP's ENTRY.md defines its own triggers and keywords. When in doubt, start with **state-audit-sop**.
+
 **Primary signal: thread-scoped sprint assignment.** If the conversation has an established sprint (the Principal named it, or a prior turn in this thread identified it), use that sprint's `<type>/<name>` as the context and proceed to Step 2. The main working tree may remain on `dev` — the sprint's feature branch exists in a worktree or on remote.
 
 **Fallback: branch detection.** If no thread-scoped sprint is established, read the current git branch name:
 
-- `main`, `staging`, `dev`: No active sprint. Route to **sprint-selection-sop**. If prior sprints exist, use `sprint_transition` mode; if no prior sprints exist, use `cold_start` mode. Read `sprint-selection-sop/SKILL.md` and `sprint-selection-sop/orchestrator/ENTRY.md`.
+- `main`, `staging`, `dev`: No active sprint. Route to **state-audit-sop** as PM Agent. Read `state-audit-sop/SKILL.md` and `state-audit-sop/ENTRY.md`. Start with a state audit — the Principal will direct next steps.
 - `fix/<name>` or `feat/<name>` (phase branch): Active sprint root. Check for sub-phase branches.
 - `fix/<name>.N/<descriptor>` or `feat/<name>.N/<descriptor>` (sub-phase branch): Active sub-phase. Proceed to Step 2.
 
@@ -72,7 +85,8 @@ Once SOP and role are determined:
 
 | SOP Role | Claude Code mapping |
 |----------|-------------------|
-| Orchestrator | Main conversation thread |
+| PM Agent | Main conversation thread (state-audit-sop, codebase-audit-sop, ideation-sop, gap-analysis-sop, wr-creation-sop, sprint-composition-sop) |
+| Orchestrator | Main conversation thread (engineer-workflow-sop) |
 | Implementation Agent | Sub-agent (Agent tool, fresh context) |
 | Review Agent | Sub-agent (Agent tool, fresh context) |
 | Prompt Gen Agent | Sub-agent (Agent tool, fresh context) |
@@ -87,10 +101,16 @@ If the conversation starts with a fenced handoff packet (`nous.v: 3`), skip stat
 ## Read first
 
 - **SOUL.md** — Identity, personalization, and precedence rules
+- **.skills/state-audit-sop/SKILL.md** — State audit: process state assessment
+- **.skills/codebase-audit-sop/SKILL.md** — Codebase audit: deep code investigation, architecture diagrams
+- **.skills/ideation-sop/SKILL.md** — Ideation: product target definition
+- **.skills/gap-analysis-sop/SKILL.md** — Gap analysis: user-visible behavior gaps
+- **.skills/wr-creation-sop/SKILL.md** — WR creation: convert gaps to work register entries
+- **.skills/sprint-composition-sop/SKILL.md** — Sprint composition: lane composition, WR merge, dispatch
 - **.skills/engineer-workflow-sop/SKILL.md** — Full SOP: core rules, gates, templates
 - **.skills/engineer-workflow-sop/shared/dispatch-model.md** — Agent roles, flow, lifecycle rules
 
-Read the SKILL.md before starting work only when in `system:implementation`.
+Read the relevant SKILL.md before starting work — the appropriate PM Agent SOP when in PM Agent role (determined by keyword trigger), `engineer-workflow-sop` when in `system:implementation`.
 
 ## Scope boundary
 
