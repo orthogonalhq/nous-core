@@ -666,6 +666,9 @@ importers:
       '@nous/memory-stm':
         specifier: workspace:*
         version: link:../../memory/stm
+      '@nous/subcortex-notification':
+        specifier: workspace:*
+        version: link:../../subcortex/notification
       '@nous/subcortex-projects':
         specifier: workspace:*
         version: link:../../subcortex/projects
