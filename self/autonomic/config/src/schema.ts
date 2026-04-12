@@ -18,6 +18,7 @@ import {
   ProviderVendorSchema,
   StmCompactionPolicySchema,
   DEFAULT_STM_COMPACTION_POLICY,
+  LogLevel,
 } from '@nous/shared';
 
 // --- Cortex Tier Preset ---
@@ -138,6 +139,13 @@ export const DefaultsConfigSchema = z.object({
 });
 export type DefaultsConfig = z.infer<typeof DefaultsConfigSchema>;
 
+// --- Logging Configuration ---
+export const LoggingConfigSchema = z.object({
+  level: z.nativeEnum(LogLevel).optional().default(LogLevel.Debug),
+  channels: z.record(z.string(), z.boolean()).optional().default({}),
+}).optional().default({});
+export type LoggingConfig = z.infer<typeof LoggingConfigSchema>;
+
 // --- Full System Configuration ---
 export const SystemConfigSchema = z.object({
   profile: ProfileSchema,
@@ -150,5 +158,6 @@ export const SystemConfigSchema = z.object({
   security: SecurityConfigSchema.optional().default({
     traceSensitiveData: false,
   }),
+  logging: LoggingConfigSchema,
 });
 export type SystemConfig = z.infer<typeof SystemConfigSchema>;
