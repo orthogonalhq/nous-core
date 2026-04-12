@@ -168,15 +168,29 @@ function formatMessages(
     }
   }
 
-  // Debug: log message structure for tool use debugging
-  console.debug('[nous:anthropic-adapter] formatMessages output', {
+  // Debug: log message structure for tool use debugging (JSON.stringify to expand nested arrays)
+  console.debug('[nous:anthropic-adapter] formatMessages output', JSON.stringify({
     messageCount: merged.length,
     messages: merged.map((m, i) => {
       const blocks = Array.isArray(m.content) ? m.content : [];
-      const types = blocks.map((b: Record<string, unknown>) => b.type ?? 'text');
-      return { index: i, role: m.role, contentType: Array.isArray(m.content) ? 'blocks' : 'string', blockTypes: types };
+      const detail: Record<string, unknown> = {
+        index: i,
+        role: m.role,
+        contentType: Array.isArray(m.content) ? 'blocks' : 'string',
+        blockTypes: blocks.map((b: Record<string, unknown>) => b.type ?? 'text'),
+      };
+      // Show tool_use ids and tool_result tool_use_ids for pairing diagnosis
+      const toolUseIds = blocks
+        .filter((b: Record<string, unknown>) => b.type === 'tool_use')
+        .map((b: Record<string, unknown>) => b.id);
+      const toolResultIds = blocks
+        .filter((b: Record<string, unknown>) => b.type === 'tool_result')
+        .map((b: Record<string, unknown>) => b.tool_use_id);
+      if (toolUseIds.length > 0) detail.toolUseIds = toolUseIds;
+      if (toolResultIds.length > 0) detail.toolResultIds = toolResultIds;
+      return detail;
     }),
-  });
+  }, null, 2));
 
   return merged;
 }

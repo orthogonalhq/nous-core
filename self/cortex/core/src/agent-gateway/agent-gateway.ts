@@ -489,6 +489,15 @@ export class AgentGateway implements IAgentGateway {
         ? await this.handleDispatchBatch(args, dispatchIndexes)
         : new Map<number, ToolHandlingResult>();
 
+    console.debug('[nous:gateway] handleToolCalls', {
+      toolCallCount: args.toolCalls.length,
+      toolCalls: args.toolCalls.map((tc, i) => ({
+        index: i,
+        name: tc.name,
+        id: tc.id ?? '(no id)',
+      })),
+    });
+
     for (let index = 0; index < args.toolCalls.length; index += 1) {
       const toolCall = args.toolCalls[index];
       const handled =
@@ -502,6 +511,15 @@ export class AgentGateway implements IAgentGateway {
 
       if (handled.contextFrame) {
         frameByIndex.set(index, handled.contextFrame);
+        console.debug('[nous:gateway] tool result frame', {
+          index,
+          toolName: toolCall.name,
+          toolCallId: toolCall.id ?? '(no id)',
+          frameRole: handled.contextFrame.role,
+          frameSource: handled.contextFrame.source,
+          hasToolCallIdMetadata: !!handled.contextFrame.metadata?.tool_call_id,
+          metadataToolCallId: handled.contextFrame.metadata?.tool_call_id ?? '(none)',
+        });
       }
       if (handled.terminalResult) {
         terminalByIndex.set(index, handled.terminalResult);
@@ -643,6 +661,7 @@ export class AgentGateway implements IAgentGateway {
           'tool_error',
           normalizeToolError(args.toolName, error),
           args.toolName,
+          args.toolCallId ? { tool_call_id: args.toolCallId } : undefined,
         ),
       };
     }
