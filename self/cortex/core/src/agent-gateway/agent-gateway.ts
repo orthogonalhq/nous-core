@@ -270,9 +270,25 @@ export class AgentGateway implements IAgentGateway {
           singleTurn: !!this.config.harness?.loopConfig?.singleTurn,
         });
 
-        if (parsedOutput.response.trim()) {
+        if (parsedOutput.response.trim() || parsedOutput.toolCalls.length > 0) {
+          const metadata: Record<string, unknown> | undefined =
+            parsedOutput.toolCalls.length > 0
+              ? {
+                  tool_calls: parsedOutput.toolCalls.map((tc) => ({
+                    id: tc.id,
+                    name: tc.name,
+                    input: tc.params,
+                  })),
+                }
+              : undefined;
           context.push(
-            this.createContextFrame('assistant', 'model_output', parsedOutput.response),
+            this.createContextFrame(
+              'assistant',
+              'model_output',
+              parsedOutput.response,
+              undefined,
+              metadata,
+            ),
           );
         }
 

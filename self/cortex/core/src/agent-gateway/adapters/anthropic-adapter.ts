@@ -117,6 +117,30 @@ function formatMessages(
       };
     }
 
+    // Assistant frame with tool_calls metadata → Anthropic content blocks with tool_use
+    if (frame.role === 'assistant' && Array.isArray(frame.metadata?.tool_calls)) {
+      const contentBlocks: Array<Record<string, unknown>> = [];
+      if (frame.content.trim()) {
+        contentBlocks.push({ type: 'text', text: frame.content });
+      }
+      for (const tc of frame.metadata.tool_calls as Array<{ id?: string; name: string; input: unknown }>) {
+        if (tc.id) {
+          contentBlocks.push({
+            type: 'tool_use',
+            id: tc.id,
+            name: tc.name,
+            input: tc.input ?? {},
+          });
+        }
+      }
+      if (contentBlocks.length > 0) {
+        return {
+          role: 'assistant' as const,
+          content: contentBlocks,
+        };
+      }
+    }
+
     return {
       role: (frame.role === 'tool' || frame.role === 'system' ? 'user' : frame.role) as 'user' | 'assistant',
       content: frame.content,
