@@ -246,6 +246,57 @@ describe('DocumentNotificationStore', () => {
     });
   });
 
+  describe('deleteAll()', () => {
+    it('returns 0 when store is empty', async () => {
+      vi.mocked(mockStore.query).mockResolvedValue([]);
+
+      const deleted = await store.deleteAll();
+      expect(deleted).toBe(0);
+      expect(mockStore.query).toHaveBeenCalledWith(
+        NOTIFICATION_COLLECTION,
+        expect.objectContaining({ where: {}, limit: 1000 }),
+      );
+    });
+
+    it('deletes all saved notifications and returns correct count', async () => {
+      const records = [
+        makeToastRecord({ id: '00000000-0000-0000-0000-000000000020' }),
+        makeHealthRecord({ id: '00000000-0000-0000-0000-000000000021' }),
+        makeAlertRecord({ id: '00000000-0000-0000-0000-000000000022' }),
+      ];
+      vi.mocked(mockStore.query).mockResolvedValue(records);
+
+      const deleted = await store.deleteAll();
+      expect(deleted).toBe(3);
+      expect(mockStore.delete).toHaveBeenCalledTimes(3);
+      expect(mockStore.delete).toHaveBeenCalledWith(
+        NOTIFICATION_COLLECTION,
+        '00000000-0000-0000-0000-000000000020',
+      );
+      expect(mockStore.delete).toHaveBeenCalledWith(
+        NOTIFICATION_COLLECTION,
+        '00000000-0000-0000-0000-000000000021',
+      );
+      expect(mockStore.delete).toHaveBeenCalledWith(
+        NOTIFICATION_COLLECTION,
+        '00000000-0000-0000-0000-000000000022',
+      );
+    });
+
+    it('only deletes items that pass Zod validation (skips corrupted records)', async () => {
+      const valid = makeToastRecord({ id: '00000000-0000-0000-0000-000000000023' });
+      vi.mocked(mockStore.query).mockResolvedValue([valid, { garbage: true }]);
+
+      const deleted = await store.deleteAll();
+      expect(deleted).toBe(1);
+      expect(mockStore.delete).toHaveBeenCalledTimes(1);
+      expect(mockStore.delete).toHaveBeenCalledWith(
+        NOTIFICATION_COLLECTION,
+        '00000000-0000-0000-0000-000000000023',
+      );
+    });
+  });
+
   describe('deleteExpiredTransient()', () => {
     it('deletes only transient+dismissed records older than threshold', async () => {
       const old = makeToastRecord({

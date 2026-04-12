@@ -62,6 +62,22 @@ export class DocumentNotificationStore {
     return results.length;
   }
 
+  async deleteAll(): Promise<number> {
+    const all = await this.store.query<unknown>(NOTIFICATION_COLLECTION, {
+      where: {},
+      limit: 1000,
+    });
+    let deleted = 0;
+    for (const raw of all) {
+      const parsed = NotificationRecordSchema.safeParse(raw);
+      if (parsed.success) {
+        await this.store.delete(NOTIFICATION_COLLECTION, parsed.data.id);
+        deleted++;
+      }
+    }
+    return deleted;
+  }
+
   async deleteExpiredTransient(olderThanMs: number): Promise<number> {
     const cutoff = new Date(Date.now() - olderThanMs).toISOString();
     const candidates = await this.store.query<unknown>(
