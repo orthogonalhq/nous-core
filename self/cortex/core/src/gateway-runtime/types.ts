@@ -319,16 +319,6 @@ export interface IPrincipalSystemGatewayRuntime {
   attachProviders(args: {
     providerVendorByClass: Partial<Record<AgentClass, ProviderVendor>>;
   }): void;
-  /**
-   * Runtime harness recomposition — swaps the response parser and prompt
-   * formatter for the given agent class to match a new provider vendor.
-   * If a gateway turn is in progress for the targeted class, the
-   * recomposition is deferred until the turn completes.
-   */
-  recomposeHarnessForClass(
-    agentClass: 'Cortex::Principal' | 'Cortex::System',
-    vendorString: ProviderVendor,
-  ): void;
   whenIdle(): Promise<void>;
 }
 

@@ -558,19 +558,6 @@ export const preferencesRouter = router({
         await upsertProviderConfig(ctx, providerConfig);
         await updateRoleAssignment(ctx, input.role, providerId);
 
-        // WR-148 phase 1.1: trigger runtime harness recomposition for
-        // affected agent classes when model role assignments change.
-        const ROLE_TO_AGENT_CLASS: Record<string, 'Cortex::Principal' | 'Cortex::System' | null> = {
-          'cortex-chat': 'Cortex::Principal',
-          'cortex-system': 'Cortex::System',
-          orchestrators: null,  // dispatch-time, not recomposed
-          workers: null,        // dispatch-time, not recomposed
-        };
-        const agentClass = ROLE_TO_AGENT_CLASS[input.role];
-        if (agentClass && providerConfig.vendor) {
-          ctx.gatewayRuntime.recomposeHarnessForClass(agentClass, providerConfig.vendor);
-        }
-
         console.info(
           `[nous:preferences] Updated ${input.role} assignment to ${input.modelSpec}`,
         );

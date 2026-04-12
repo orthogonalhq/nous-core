@@ -1100,19 +1100,6 @@ implements IPrincipalSystemGatewayRuntime, ISystemInboxSubmissionService {
   }): void {
     // no-op: legacy class, not wired into production
   }
-
-  /**
-   * WR-148 stub: runtime harness recomposition. No-op in this legacy runtime
-   * class — exists solely to satisfy the IPrincipalSystemGatewayRuntime
-   * interface contract.
-   */
-  // eslint-disable-next-line @typescript-eslint/no-unused-vars
-  recomposeHarnessForClass(
-    _agentClass: 'Cortex::Principal' | 'Cortex::System',
-    _vendorString: import('@nous/shared').ProviderVendor,
-  ): void {
-    // no-op: legacy class, not wired into production
-  }
 }
 
 export function createPrincipalSystemGatewayRuntime(
