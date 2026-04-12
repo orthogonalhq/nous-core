@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
-import type { IEventBus, InferenceCallCompletePayload, BudgetPolicy } from '@nous/shared';
+import type { IEventBus, INotificationService, InferenceCallCompletePayload, BudgetPolicy } from '@nous/shared';
 import { CostGovernanceService, computePeriodBounds, type CostGovernanceServiceDeps, type ProjectConfig } from '../cost-governance-service.js';
 import { createPricingTable } from '../pricing-table.js';
 import type { IOpctlServiceForEnforcement } from '../cost-enforcement.js';
@@ -83,9 +83,21 @@ function defaultPolicy(): BudgetPolicy {
 // Tests
 // ---------------------------------------------------------------------------
 
+function createMockNotificationService() {
+  const raiseCalls: Array<Record<string, unknown>> = [];
+  return {
+    raiseCalls,
+    raise: vi.fn().mockImplementation((input: Record<string, unknown>) => {
+      raiseCalls.push(input);
+      return Promise.resolve({ id: `notif-${raiseCalls.length}` });
+    }),
+  } as unknown as INotificationService & { raiseCalls: Array<Record<string, unknown>> };
+}
+
 describe('CostGovernanceService', () => {
   let eventBus: ReturnType<typeof createMockEventBus>;
   let opctlService: ReturnType<typeof createMockOpctlService>;
+  let notificationService: ReturnType<typeof createMockNotificationService>;
   let pricingTable: ReturnType<typeof createPricingTable>;
   let budgetPolicies: Map<string, BudgetPolicy>;
   let projectConfigs: Map<string, ProjectConfig>;
@@ -95,6 +107,7 @@ describe('CostGovernanceService', () => {
     vi.useFakeTimers();
     eventBus = createMockEventBus();
     opctlService = createMockOpctlService();
+    notificationService = createMockNotificationService();
     pricingTable = createPricingTable();
     budgetPolicies = new Map();
     projectConfigs = new Map();
@@ -109,6 +122,7 @@ describe('CostGovernanceService', () => {
         const policy = budgetPolicies.get(pid);
         return policy ? { budgetPolicy: policy } : undefined;
       },
+      notificationService: notificationService as unknown as INotificationService,
     };
 
     service = new CostGovernanceService(deps, { snapshotIntervalMs: 30_000 });
@@ -313,8 +327,8 @@ describe('CostGovernanceService', () => {
     expect(statusAfter.currentSpendUsd).toBeLessThan(statusBefore.currentSpendUsd);
   });
 
-  // Test 9: Budget soft threshold fires once
-  it('fires cost:budget-alert exactly once per period at soft threshold', () => {
+  // Test 9: Budget soft threshold fires notification raise exactly once per period
+  it('calls notificationService.raise with budget-warning exactly once per period at soft threshold', () => {
     budgetPolicies.set('project-1', {
       enabled: true,
       period: 'monthly',
@@ -324,8 +338,6 @@ describe('CostGovernanceService', () => {
 
     // Send many events to push utilization above 80%
     // Claude Sonnet: $3/M input, $15/M output
-    // 100K input + 50K output = $0.30 + $0.75 = $1.05 per event — that exceeds hard ceiling
-    // Use smaller tokens to cross only soft threshold
     // 50K input + 10K output = $0.15 + $0.15 = $0.30 (30%)
     // 3 events = $0.90 (90% > 80%)
     for (let i = 0; i < 3; i++) {
@@ -336,7 +348,9 @@ describe('CostGovernanceService', () => {
       }));
     }
 
-    const alerts = eventBus.publishCalls.filter(c => c.channel === 'cost:budget-alert');
+    const alerts = notificationService.raiseCalls.filter(
+      (c: Record<string, unknown>) => c.kind === 'alert' && (c.alert as Record<string, unknown>)?.category === 'budget-warning',
+    );
     expect(alerts).toHaveLength(1);
 
     // Additional event should NOT re-fire
@@ -345,12 +359,14 @@ describe('CostGovernanceService', () => {
       outputTokens: 10_000,
       correlationRunId: 'run-extra',
     }));
-    const alertsAfter = eventBus.publishCalls.filter(c => c.channel === 'cost:budget-alert');
+    const alertsAfter = notificationService.raiseCalls.filter(
+      (c: Record<string, unknown>) => c.kind === 'alert' && (c.alert as Record<string, unknown>)?.category === 'budget-warning',
+    );
     expect(alertsAfter).toHaveLength(1);
   });
 
-  // Test 10: Budget hard ceiling fires once + enforcement
-  it('fires cost:budget-exceeded once and triggers enforcement at hard ceiling', async () => {
+  // Test 10: Budget hard ceiling fires notification raise once + enforcement
+  it('calls notificationService.raise with budget-exceeded once and triggers enforcement at hard ceiling', async () => {
     budgetPolicies.set('project-1', {
       enabled: true,
       period: 'monthly',
@@ -365,7 +381,9 @@ describe('CostGovernanceService', () => {
       outputTokens: 50_000,
     }));
 
-    const exceeded = eventBus.publishCalls.filter(c => c.channel === 'cost:budget-exceeded');
+    const exceeded = notificationService.raiseCalls.filter(
+      (c: Record<string, unknown>) => c.kind === 'alert' && (c.alert as Record<string, unknown>)?.category === 'budget-exceeded',
+    );
     expect(exceeded).toHaveLength(1);
 
     // Allow enforcement async to complete
@@ -379,8 +397,36 @@ describe('CostGovernanceService', () => {
       outputTokens: 50_000,
       correlationRunId: 'run-2',
     }));
-    const exceededAfter = eventBus.publishCalls.filter(c => c.channel === 'cost:budget-exceeded');
+    const exceededAfter = notificationService.raiseCalls.filter(
+      (c: Record<string, unknown>) => c.kind === 'alert' && (c.alert as Record<string, unknown>)?.category === 'budget-exceeded',
+    );
     expect(exceededAfter).toHaveLength(1);
+  });
+
+  it('evaluateBudget works without notificationService (optional, no crash)', () => {
+    // Create service without notificationService
+    service.dispose();
+    const deps: CostGovernanceServiceDeps = {
+      eventBus: eventBus as unknown as IEventBus,
+      opctlService,
+      pricingTable,
+      getProjectConfig: (pid: string) => {
+        const policy = budgetPolicies.get(pid);
+        return policy ? { budgetPolicy: policy } : undefined;
+      },
+    };
+    service = new CostGovernanceService(deps, { snapshotIntervalMs: 30_000 });
+
+    budgetPolicies.set('project-1', {
+      enabled: true,
+      period: 'monthly',
+      softThresholdPercent: 80,
+      hardCeilingUsd: 0.01,
+    });
+
+    // Should not throw
+    eventBus.fire('inference:call-complete', makePayload({ inputTokens: 1000, outputTokens: 500 }));
+    expect(service.getBudgetStatus('project-1').hardCeilingFired).toBe(true);
   });
 
   // Test 11: setBudgetPolicy / removeBudgetPolicy
