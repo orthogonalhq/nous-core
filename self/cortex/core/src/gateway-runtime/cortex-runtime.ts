@@ -221,6 +221,11 @@ implements IPrincipalSystemGatewayRuntime, ISystemInboxSubmissionService {
     | Partial<Record<AgentClass, ProviderVendor>>
     | null = null;
   private attachWarningEmitted = false;
+  // WR-148 phase 1.1: turn-in-progress guard for runtime harness recomposition.
+  // Simple boolean flag per agent class — the gateway run loop is sequential per
+  // instance, so no concurrency primitive is needed.
+  private turnInProgressByClass: Map<string, boolean> = new Map();
+  private pendingRecompose: Map<string, ProviderVendor> = new Map();
   private readonly principalTools: ToolDefinition[];
   private readonly systemTools: ToolDefinition[];
   private readonly systemBacklogQueue: SystemBacklogQueue;
@@ -497,24 +502,31 @@ implements IPrincipalSystemGatewayRuntime, ISystemInboxSubmissionService {
       },
     ];
 
-    // Run Principal gateway
-    const result = await this.principalGateway.run({
-      taskInstructions: `Handle the current user chat turn. Respond conversationally.\n\n${WORKFLOW_PROMPT_FRAGMENT}\n\n${CARD_PROMPT_FRAGMENT}`,
-      context: chatContext,
-      budget: DEFAULT_CHAT_TURN_BUDGET,
-      spawnBudgetCeiling: 0,
-      correlation: {
-        runId: this.nextRunId() as never,
-        parentId: this.principalGateway.agentId,
-        sequence: 0,
-      },
-      execution: {
-        projectId: projectId as never,
-        traceId: traceId as never,
-        workmodeId: 'system:implementation',
-      },
-      modelRequirements: this.deps.defaultModelRequirements,
-    });
+    // Run Principal gateway (with turn-in-progress guard for recompose safety)
+    this.turnInProgressByClass.set('Cortex::Principal', true);
+    let result;
+    try {
+      result = await this.principalGateway.run({
+        taskInstructions: `Handle the current user chat turn. Respond conversationally.\n\n${WORKFLOW_PROMPT_FRAGMENT}\n\n${CARD_PROMPT_FRAGMENT}`,
+        context: chatContext,
+        budget: DEFAULT_CHAT_TURN_BUDGET,
+        spawnBudgetCeiling: 0,
+        correlation: {
+          runId: this.nextRunId() as never,
+          parentId: this.principalGateway.agentId,
+          sequence: 0,
+        },
+        execution: {
+          projectId: projectId as never,
+          traceId: traceId as never,
+          workmodeId: 'system:implementation',
+        },
+        modelRequirements: this.deps.defaultModelRequirements,
+      });
+    } finally {
+      this.turnInProgressByClass.set('Cortex::Principal', false);
+      this.checkPendingRecompose('Cortex::Principal');
+    }
 
     // Resolve response
     const resolved = this.resolveChatResponse(result);
@@ -741,24 +753,31 @@ implements IPrincipalSystemGatewayRuntime, ISystemInboxSubmissionService {
     }
 
     const { inboxFrame: _ignored, ...payload } = entry.payload;
-    const result = await this.systemGateway.run({
-      taskInstructions: entry.instructions,
-      payload,
-      context: [],
-      budget: DEFAULT_TOP_LEVEL_BUDGET,
-      spawnBudgetCeiling: 12,
-      correlation: {
-        runId: entry.runId as never,
-        parentId: this.systemGateway.agentId,
-        sequence: 0,
-      },
-      execution: {
-        projectId: entry.projectId as never,
-        traceId: traceId as never,
-        workmodeId: 'system:implementation',
-      },
-      modelRequirements: this.deps.defaultModelRequirements,
-    });
+    this.turnInProgressByClass.set('Cortex::System', true);
+    let result;
+    try {
+      result = await this.systemGateway.run({
+        taskInstructions: entry.instructions,
+        payload,
+        context: [],
+        budget: DEFAULT_TOP_LEVEL_BUDGET,
+        spawnBudgetCeiling: 12,
+        correlation: {
+          runId: entry.runId as never,
+          parentId: this.systemGateway.agentId,
+          sequence: 0,
+        },
+        execution: {
+          projectId: entry.projectId as never,
+          traceId: traceId as never,
+          workmodeId: 'system:implementation',
+        },
+        modelRequirements: this.deps.defaultModelRequirements,
+      });
+    } finally {
+      this.turnInProgressByClass.set('Cortex::System', false);
+      this.checkPendingRecompose('Cortex::System');
+    }
 
     if (result.status === 'escalated') {
       await this.principalGateway.getInboxHandle().injectContext(
@@ -1220,6 +1239,47 @@ implements IPrincipalSystemGatewayRuntime, ISystemInboxSubmissionService {
     // Orchestrator and Worker are intentionally NOT recomposed here — their
     // gateways do not exist at boot time and the Option α chain handles them
     // at dispatch time via `createChildGateway -> createGatewayConfig`.
+  }
+
+  // ── Runtime harness recomposition (WR-148 phase 1.1 / RC-1) ─────────
+
+  recomposeHarnessForClass(
+    agentClass: 'Cortex::Principal' | 'Cortex::System',
+    vendorString: ProviderVendor,
+  ): void {
+    if (this.turnInProgressByClass.get(agentClass)) {
+      console.info(
+        `[nous:cortex-runtime] Deferred harness recompose for ${agentClass} — turn in progress`,
+      );
+      this.pendingRecompose.set(agentClass, vendorString);
+      return;
+    }
+    this.applyRecompose(agentClass, vendorString);
+  }
+
+  private applyRecompose(
+    agentClass: 'Cortex::Principal' | 'Cortex::System',
+    vendorString: ProviderVendor,
+  ): void {
+    const config = agentClass === 'Cortex::Principal'
+      ? this.principalGatewayConfig
+      : this.systemGatewayConfig;
+    config.harness = this.composeHarnessStrategies(agentClass, vendorString);
+    console.info(
+      `[nous:cortex-runtime] Recomposed harness for ${agentClass} with vendor ${vendorString}`,
+    );
+  }
+
+  /** Check and apply any deferred recomposition after a turn completes. */
+  private checkPendingRecompose(agentClass: 'Cortex::Principal' | 'Cortex::System'): void {
+    const pending = this.pendingRecompose.get(agentClass);
+    if (pending !== undefined) {
+      this.pendingRecompose.delete(agentClass);
+      console.info(
+        `[nous:cortex-runtime] Applied deferred harness recompose for ${agentClass} with vendor ${pending}`,
+      );
+      this.applyRecompose(agentClass, pending);
+    }
   }
 
   /**
