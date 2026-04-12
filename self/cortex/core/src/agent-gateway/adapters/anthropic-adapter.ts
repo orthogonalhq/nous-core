@@ -79,11 +79,24 @@ function formatTools(
 ): Array<{ name: string; description: string; input_schema: Record<string, unknown> }> | undefined {
   if (!toolDefinitions || toolDefinitions.length === 0) return undefined;
 
-  return toolDefinitions.map((tool) => ({
-    name: tool.name,
-    description: tool.description ?? '',
-    input_schema: (tool.inputSchema as Record<string, unknown>) ?? {},
-  }));
+  return toolDefinitions.map((tool) => {
+    const schema = (tool.inputSchema as Record<string, unknown>) ?? {};
+    if (!schema.type) {
+      console.info(
+        `[nous:anthropic-adapter] Injecting type:"object" for tool "${tool.name}" — inputSchema missing type field`,
+      );
+      return {
+        name: tool.name,
+        description: tool.description ?? '',
+        input_schema: { ...schema, type: 'object' },
+      };
+    }
+    return {
+      name: tool.name,
+      description: tool.description ?? '',
+      input_schema: schema,
+    };
+  });
 }
 
 function formatMessages(

@@ -25,7 +25,7 @@ describe('workflow_authoring_reference MCP tool', () => {
 
     it('catalog entry has no input parameters', () => {
       const entry = INTERNAL_MCP_CATALOG.find((e) => e.name === 'workflow_authoring_reference');
-      expect(entry?.definition.inputSchema).toEqual({});
+      expect(entry?.definition.inputSchema).toEqual({ type: 'object', properties: {} });
     });
   });
 
