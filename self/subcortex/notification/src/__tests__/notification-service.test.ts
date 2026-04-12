@@ -518,13 +518,39 @@ describe('NotificationService', () => {
   });
 
   describe('list()', () => {
-    it('delegates to store query() with provided filter', async () => {
-      const filter = { projectId: 'proj-1', kind: 'toast' as const };
+    it('delegates to store query() when no projectId filter', async () => {
+      const filter = { kind: 'toast' as const };
       vi.mocked(mockStore.query).mockResolvedValue([]);
 
       await service.list(filter);
 
       expect(mockStore.query).toHaveBeenCalledWith(filter);
+    });
+
+    it('includes system-wide items when filtering by projectId', async () => {
+      const projectItem = {
+        id: '00000000-0000-0000-0000-000000000001',
+        kind: 'toast' as const,
+        projectId: 'proj-1',
+        level: 'info' as const,
+        title: 'Project toast',
+        message: 'msg',
+        status: 'active' as const,
+        transient: true,
+        source: 'test',
+        createdAt: '2026-04-10T00:00:00.000Z',
+        updatedAt: '2026-04-10T00:00:00.000Z',
+        toast: { severity: 'info' as const, dismissible: true, durationMs: 8000 },
+      };
+      const systemItem = { ...projectItem, id: '00000000-0000-0000-0000-000000000002', projectId: null, title: 'System' };
+      const otherItem = { ...projectItem, id: '00000000-0000-0000-0000-000000000003', projectId: 'proj-2', title: 'Other' };
+      vi.mocked(mockStore.query).mockResolvedValue([projectItem, systemItem, otherItem]);
+
+      const result = await service.list({ projectId: 'proj-1' });
+
+      expect(result).toHaveLength(2);
+      expect(result.map((r) => r.id)).toContain(projectItem.id);
+      expect(result.map((r) => r.id)).toContain(systemItem.id);
     });
   });
 
@@ -572,16 +598,29 @@ describe('NotificationService', () => {
       );
     });
 
-    it('scopes by projectId when provided', async () => {
-      vi.mocked(mockStore.countByStatus).mockResolvedValue(3);
+    it('includes system-wide items when scoping by projectId', async () => {
+      const projectItem = {
+        id: '00000000-0000-0000-0000-000000000001',
+        kind: 'toast' as const,
+        projectId: 'proj-1',
+        level: 'info' as const,
+        title: 'Project',
+        message: 'msg',
+        status: 'active' as const,
+        transient: true,
+        source: 'test',
+        createdAt: '2026-04-10T00:00:00.000Z',
+        updatedAt: '2026-04-10T00:00:00.000Z',
+        toast: { severity: 'info' as const, dismissible: true, durationMs: 8000 },
+      };
+      const systemItem = { ...projectItem, id: '00000000-0000-0000-0000-000000000002', projectId: null };
+      const otherItem = { ...projectItem, id: '00000000-0000-0000-0000-000000000003', projectId: 'proj-2' };
+      vi.mocked(mockStore.query).mockResolvedValue([projectItem, systemItem, otherItem]);
 
       const count = await service.countActive('proj-1');
 
-      expect(count).toBe(3);
-      expect(mockStore.countByStatus).toHaveBeenCalledWith(
-        'active',
-        'proj-1',
-      );
+      // Counts proj-1 + null, excludes proj-2
+      expect(count).toBe(2);
     });
   });
 

@@ -49,7 +49,12 @@ export function getDevNotificationToolDefinitions(): ToolDefinition[] {
         'Create ~10 test notifications covering all 5 kinds, all severity levels, and all lifecycle states. Dev-only.',
       inputSchema: {
         type: 'object',
-        properties: {},
+        properties: {
+          projectId: {
+            type: 'string',
+            description: 'Optional project ID. If provided, half of the seeded notifications will be scoped to this project.',
+          },
+        },
       },
       outputSchema: {
         type: 'object',
@@ -88,12 +93,13 @@ export function getDevNotificationToolDefinitions(): ToolDefinition[] {
  * Build the list of test notifications to seed. Each entry uses a unique
  * title incorporating kind + severity to avoid the 60-second dedup window.
  */
-function buildSeedInputs(): RaiseNotificationInput[] {
+function buildSeedInputs(projectId?: string): RaiseNotificationInput[] {
+  const pid = projectId ?? null;
   return [
-    // Escalation — critical
+    // Escalation — critical (project-scoped if projectId provided)
     {
       kind: 'escalation',
-      projectId: null,
+      projectId: pid,
       title: '[Test] Escalation — critical',
       message: 'Test escalation notification with critical severity',
       transient: false,
@@ -108,7 +114,7 @@ function buildSeedInputs(): RaiseNotificationInput[] {
         acknowledgements: [],
       },
     },
-    // Escalation — low (will be acknowledged)
+    // Escalation — low (will be acknowledged, system-wide)
     {
       kind: 'escalation',
       projectId: null,
@@ -126,10 +132,10 @@ function buildSeedInputs(): RaiseNotificationInput[] {
         acknowledgements: [],
       },
     },
-    // Alert — budget-exceeded (error)
+    // Alert — budget-exceeded (error, project-scoped)
     {
       kind: 'alert',
-      projectId: null,
+      projectId: pid,
       title: '[Test] Alert — budget-exceeded',
       message: 'Test alert notification for budget exceeded',
       transient: false,
@@ -156,10 +162,10 @@ function buildSeedInputs(): RaiseNotificationInput[] {
         budgetCeilingUsd: 10,
       },
     },
-    // Health — warning
+    // Health — warning (project-scoped)
     {
       kind: 'health',
-      projectId: null,
+      projectId: pid,
       title: '[Test] Health — warning',
       message: 'Test health notification with warning severity',
       transient: false,
@@ -257,7 +263,8 @@ export function createDevNotificationToolSurface(
     },
     executeTool: async (name, params, execution) => {
       if (name === SEED_TEST_NOTIFICATIONS_TOOL_NAME) {
-        return handleSeedTestNotifications(args.notificationService);
+        const projectId = (params as Record<string, unknown>)?.projectId as string | undefined;
+        return handleSeedTestNotifications(args.notificationService, projectId);
       }
 
       if (name === CLEAR_ALL_NOTIFICATIONS_TOOL_NAME) {
@@ -271,9 +278,10 @@ export function createDevNotificationToolSurface(
 
 async function handleSeedTestNotifications(
   notificationService: INotificationService,
+  projectId?: string,
 ): Promise<ToolResult> {
   try {
-    const inputs = buildSeedInputs();
+    const inputs = buildSeedInputs(projectId);
     const records = [];
     for (const input of inputs) {
       const record = await notificationService.raise(input);

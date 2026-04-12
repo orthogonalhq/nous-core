@@ -105,6 +105,17 @@ export class NotificationService implements INotificationService {
   }
 
   async list(filter: NotificationFilter): Promise<NotificationRecord[]> {
+    // When filtering by projectId, also include system-wide notifications
+    // (projectId: null) so they appear in every project inbox. SQLite can't
+    // query `= NULL` via json_extract, so we fetch without projectId filter
+    // and filter in-memory. Volume is low (tens to low hundreds).
+    if (filter.projectId !== undefined) {
+      const { projectId, ...rest } = filter;
+      const all = await this.options.notificationStore.query(rest);
+      return all.filter(
+        (n) => n.projectId === projectId || n.projectId === null,
+      );
+    }
     return this.options.notificationStore.query(filter);
   }
 
@@ -113,6 +124,16 @@ export class NotificationService implements INotificationService {
   }
 
   async countActive(projectId?: string): Promise<number> {
+    if (projectId !== undefined) {
+      // Include system-wide (projectId: null) in project counts.
+      // Same rationale as list() — SQLite can't query IS NULL via json_extract.
+      const all = await this.options.notificationStore.query({
+        status: 'active',
+      });
+      return all.filter(
+        (n) => n.projectId === projectId || n.projectId === null,
+      ).length;
+    }
     return this.options.notificationStore.countByStatus('active', projectId);
   }
 
