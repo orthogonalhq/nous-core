@@ -10,6 +10,7 @@ import type {
   IEventBus,
   IModelProvider,
   IModelRouter,
+  INotificationService,
   IPromotedMemoryBridgeService,
   IProjectApi,
   IProjectStore,
@@ -275,6 +276,7 @@ export interface PrincipalSystemGatewayRuntimeDeps {
   defaultModelRequirements?: ModelRequirements;
   backlogConfig?: Partial<BacklogQueueConfig>;
   eventBus?: IEventBus;
+  notificationService?: INotificationService;
   // STM and MWC dependencies (SP 1.2 — WR-124)
   stmStore?: IStmStore;
   mwcPipeline?: MwcPipelineLike;
