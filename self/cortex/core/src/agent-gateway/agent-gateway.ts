@@ -270,9 +270,25 @@ export class AgentGateway implements IAgentGateway {
           singleTurn: !!this.config.harness?.loopConfig?.singleTurn,
         });
 
-        if (parsedOutput.response.trim()) {
+        if (parsedOutput.response.trim() || parsedOutput.toolCalls.length > 0) {
+          const metadata: Record<string, unknown> | undefined =
+            parsedOutput.toolCalls.length > 0
+              ? {
+                  tool_calls: parsedOutput.toolCalls.map((tc) => ({
+                    id: tc.id,
+                    name: tc.name,
+                    input: tc.params,
+                  })),
+                }
+              : undefined;
           context.push(
-            this.createContextFrame('assistant', 'model_output', parsedOutput.response),
+            this.createContextFrame(
+              'assistant',
+              'model_output',
+              parsedOutput.response,
+              undefined,
+              metadata,
+            ),
           );
         }
 
@@ -473,6 +489,15 @@ export class AgentGateway implements IAgentGateway {
         ? await this.handleDispatchBatch(args, dispatchIndexes)
         : new Map<number, ToolHandlingResult>();
 
+    console.debug('[nous:gateway] handleToolCalls', {
+      toolCallCount: args.toolCalls.length,
+      toolCalls: args.toolCalls.map((tc, i) => ({
+        index: i,
+        name: tc.name,
+        id: tc.id ?? '(no id)',
+      })),
+    });
+
     for (let index = 0; index < args.toolCalls.length; index += 1) {
       const toolCall = args.toolCalls[index];
       const handled =
@@ -486,6 +511,15 @@ export class AgentGateway implements IAgentGateway {
 
       if (handled.contextFrame) {
         frameByIndex.set(index, handled.contextFrame);
+        console.debug('[nous:gateway] tool result frame', {
+          index,
+          toolName: toolCall.name,
+          toolCallId: toolCall.id ?? '(no id)',
+          frameRole: handled.contextFrame.role,
+          frameSource: handled.contextFrame.source,
+          hasToolCallIdMetadata: !!handled.contextFrame.metadata?.tool_call_id,
+          metadataToolCallId: handled.contextFrame.metadata?.tool_call_id ?? '(none)',
+        });
       }
       if (handled.terminalResult) {
         terminalByIndex.set(index, handled.terminalResult);
@@ -627,6 +661,7 @@ export class AgentGateway implements IAgentGateway {
           'tool_error',
           normalizeToolError(args.toolName, error),
           args.toolName,
+          args.toolCallId ? { tool_call_id: args.toolCallId } : undefined,
         ),
       };
     }
