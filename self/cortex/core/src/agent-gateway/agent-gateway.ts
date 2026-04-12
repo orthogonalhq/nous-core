@@ -147,7 +147,7 @@ export class AgentGateway implements IAgentGateway {
   private resolveAdapterFromProvider(provider: IModelProvider): ProviderAdapter {
     if (this.cachedAdapter) return this.cachedAdapter;
     const providerType = resolveProviderTypeFromConfig(provider);
-    this.cachedAdapter = resolveAdapter(providerType);
+    this.cachedAdapter = resolveAdapter(providerType, this.log);
     this.log.debug('adapter resolved', { agentClass: this.agentClass, providerType });
     return this.cachedAdapter;
   }

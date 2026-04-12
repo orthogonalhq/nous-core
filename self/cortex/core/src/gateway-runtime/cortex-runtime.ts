@@ -337,6 +337,7 @@ implements IPrincipalSystemGatewayRuntime, ISystemInboxSubmissionService {
       now: this.now,
       config: this.deps.backlogConfig,
       executeEntry: async (entry) => this.executeSystemEntry(entry),
+      log: this.deps.logger?.channel('nous:backlog-queue'),
     });
   }
 
@@ -975,6 +976,7 @@ implements IPrincipalSystemGatewayRuntime, ISystemInboxSubmissionService {
       now: this.now,
       nowMs: this.nowMs,
       idFactory: this.idFactory,
+      log: this.deps.logger?.channel('nous:gateway'),
     };
   }
 
@@ -988,7 +990,7 @@ implements IPrincipalSystemGatewayRuntime, ISystemInboxSubmissionService {
     agentClass: AgentClass,
     providerType: string,
   ): HarnessStrategies {
-    const adapter = resolveAdapter(providerType);
+    const adapter = resolveAdapter(providerType, this.deps.logger?.channel('nous:gateway'));
     const profile = resolveAgentProfile(agentClass);
 
     return {

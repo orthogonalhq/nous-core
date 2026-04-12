@@ -299,6 +299,7 @@ implements IPrincipalSystemGatewayRuntime, ISystemInboxSubmissionService {
       now: this.now,
       config: this.deps.backlogConfig,
       executeEntry: async (entry) => this.executeSystemEntry(entry),
+      log: this.deps.logger?.channel('nous:backlog-queue'),
     });
   }
 
@@ -882,6 +883,7 @@ implements IPrincipalSystemGatewayRuntime, ISystemInboxSubmissionService {
       now: this.now,
       nowMs: this.nowMs,
       idFactory: this.idFactory,
+      log: this.deps.logger?.channel('nous:gateway'),
     };
   }
 

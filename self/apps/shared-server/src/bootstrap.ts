@@ -671,6 +671,7 @@ export function createNousServices(config?: BootstrapConfig): NousContext {
   const embedder = new InMemoryEmbedder();
   const stmStore = new DocumentStmStore(documentStore, {
     compactionPolicy: resolveStmCompactionPolicy(resolvedConfig),
+    log: logger.channel('nous:stm'),
   });
   const projectStore = new DocumentProjectStore(documentStore);
   const taskStore = new DocumentTaskStore(documentStore);
@@ -708,7 +709,7 @@ export function createNousServices(config?: BootstrapConfig): NousContext {
     new DiscoverProjectsTool(knowledgeIndex),
     new RefreshProjectKnowledgeTool(knowledgeIndex),
   ]);
-  const Cortex = new PfcEngine(appConfig, toolExecutor);
+  const Cortex = new PfcEngine(appConfig, toolExecutor, undefined, undefined, logger.channel('nous:pfc'));
   const mwcPipeline = new MwcPipeline(
     documentStore,
     stmStore,
@@ -1136,7 +1137,7 @@ export function createNousServices(config?: BootstrapConfig): NousContext {
     documentStore,
     vectorStore,
     build: ({ binding, documentStore: tenantDocumentStore, vectorStore: tenantVectorStore }) => {
-      const tenantPfc = new PfcEngine(appConfig, toolExecutor);
+      const tenantPfc = new PfcEngine(appConfig, toolExecutor, undefined, undefined, logger.channel('nous:pfc'));
       const tenantWorkflowEngine = new DeterministicWorkflowEngine({
         pfcEngine: tenantPfc,
         modelRouter: router,
@@ -1283,6 +1284,7 @@ export function createNousServices(config?: BootstrapConfig): NousContext {
     checkpointManager: checkpointManager as any,
     recoveryLedgerStore,
     recoveryOrchestrator,
+    logger,
   });
 
   // WR-138 row #8 / CPAL § 6: attach providers exactly once after
