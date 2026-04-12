@@ -3,10 +3,16 @@
  */
 import { TRPCError } from '@trpc/server';
 import { z } from 'zod';
-import { NotificationFilterSchema } from '@nous/shared';
+import { NotificationFilterSchema, RaiseNotificationInputSchema } from '@nous/shared';
 import { router, publicProcedure } from '../trpc';
 
 export const notificationsRouter = router({
+  raise: publicProcedure
+    .input(RaiseNotificationInputSchema)
+    .mutation(async ({ ctx, input }) => {
+      return ctx.notificationService.raise(input);
+    }),
+
   list: publicProcedure
     .input(NotificationFilterSchema)
     .query(async ({ ctx, input }) => {
