@@ -48,7 +48,7 @@ import { DESKTOP_TOP_NAV, buildDesktopSidebarSections } from './desktop-sidebar-
 import { BASE_SIMPLE_MODE_ROUTES } from './desktop-routes'
 import { useTasks, buildTasksSection } from '@nous/ui/hooks/useTasks'
 import { useWorkflows, buildWorkflowsSection } from '@nous/ui/hooks/useWorkflows'
-import { ConfirmDeleteDialog } from '@nous/ui/components'
+import { ConfirmDeleteDialog, NotificationProvider, useNotificationBadge } from '@nous/ui/components'
 import type { ContextMenuAction } from '@nous/ui/components'
 import { SettingsRoute } from './desktop-settings-route'
 
@@ -821,7 +821,9 @@ function DesktopShellWithProject({
       activeProjectId={activeProjectId}
       onProjectChange={handleProjectChange}
     >
-      {children}
+      <NotificationProvider>
+        {children}
+      </NotificationProvider>
     </ShellProvider>
   )
 }
@@ -943,6 +945,7 @@ function DesktopAssetSidebarConnected({
   // `onToggleCollapse` are prop-drilled through this wrapper. Sibling calls are
   // forbidden by INV-1 and the ratified primary contract § State Ownership.
   const { activeProjectId, activeRoute, navigationParams, navigate } = useShellCtx()
+  const badgeCount = useNotificationBadge()
   const { data: projectList } = trpc.projects.list.useQuery()
   const tasksApi = useTasks({ projectId: activeProjectId })
   const workflowsApi = useWorkflows({ projectId: activeProjectId })
@@ -1079,11 +1082,18 @@ function DesktopAssetSidebarConnected({
     return proj?.name ?? 'Project'
   }, [projectList, activeProjectId])
 
+  const topNavWithBadge = useMemo(
+    () => DESKTOP_TOP_NAV.map((item) =>
+      item.id === 'inbox' ? { ...item, badge: badgeCount > 0 ? badgeCount : undefined } : item,
+    ),
+    [badgeCount],
+  )
+
   return (
     <>
       <AssetSidebar
         projectName={projectName}
-        topNav={DESKTOP_TOP_NAV}
+        topNav={topNavWithBadge}
         sections={sections}
         activeRoute={sidebarSelection}
         onNavigate={handleNavigate}
@@ -1135,13 +1145,21 @@ function DesktopProjectRail({ isHomeContext, setIsHomeContext }: { isHomeContext
 
 function DesktopHomeSidebar() {
   const { activeRoute, navigate } = useShellCtx()
+  const badgeCount = useNotificationBadge()
 
   const sections = useMemo(() => buildHomeSidebarSections(), [])
+
+  const topNavWithBadge = useMemo(
+    () => HOME_TOP_NAV.map((item) =>
+      item.id === 'home-inbox' ? { ...item, badge: badgeCount > 0 ? badgeCount : undefined } : item,
+    ),
+    [badgeCount],
+  )
 
   return (
     <AssetSidebar
       projectName="Home"
-      topNav={HOME_TOP_NAV}
+      topNav={topNavWithBadge}
       sections={sections}
       activeRoute={activeRoute}
       onNavigate={navigate}

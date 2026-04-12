@@ -103,6 +103,9 @@ vi.mock('@nous/ui/components', () => ({
   }),
   // WR-141 — whole-sidebar collapse hook. Stub returns expanded state and a no-op setter.
   useSidebarCollapsed: () => [false, vi.fn()] as [boolean, (next: boolean) => void],
+  // WR-151 — Notification provider and badge hook stubs.
+  NotificationProvider: (props: any) => React.createElement(React.Fragment, null, props.children),
+  useNotificationBadge: () => 0,
   CommandPalette: (props: any) => {
     capturedCommandPaletteProps = props
     if (!props.isOpen) return null
