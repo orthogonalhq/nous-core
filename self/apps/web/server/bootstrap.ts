@@ -8,6 +8,7 @@ import {
   createNousServices,
   loadStoredApiKeys,
   registerStoredProviders,
+  WELL_KNOWN_PROVIDER_IDS,
 } from '@nous/shared-server';
 import type { NousContext } from '@nous/shared-server';
 
@@ -42,6 +43,19 @@ export async function initializeNousContext(): Promise<NousContext> {
   initPromise = (async () => {
     await loadStoredApiKeys(ctx);
     await registerStoredProviders(ctx);
+
+    // Recompose harness after providers are registered. createNousServices runs
+    // attachProviders before providers exist, so the harness defaults to 'text'.
+    for (const agentClass of ['Cortex::Principal', 'Cortex::System'] as const) {
+      const provider = ctx.providerRegistry.getProvider(
+        WELL_KNOWN_PROVIDER_IDS.anthropic,
+      );
+      const vendor = provider?.getConfig().vendor;
+      if (vendor) {
+        ctx.gatewayRuntime.recomposeHarnessForClass(agentClass, vendor);
+      }
+    }
+
     return ctx;
   })();
 

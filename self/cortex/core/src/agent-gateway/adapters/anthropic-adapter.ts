@@ -331,8 +331,13 @@ export function createAnthropicAdapter(): ProviderAdapter {
     parseResponse(output: unknown, _traceId: TraceId): ParsedModelOutput {
       try {
         return parseAnthropicResponse(output);
-      } catch {
+      } catch (error) {
         // Fallback: never throw from parseResponse
+        console.error('[nous:anthropic-adapter] parseResponse error — falling back to String(output)', {
+          error: error instanceof Error ? { message: error.message, stack: error.stack } : error,
+          outputType: typeof output,
+          outputKeys: output && typeof output === 'object' ? Object.keys(output) : [],
+        });
         return {
           response: String(output ?? ''),
           toolCalls: [],
