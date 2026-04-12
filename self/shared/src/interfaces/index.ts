@@ -149,3 +149,8 @@ export type {
   ICredentialInjector,
   SystemConfig,
 } from './autonomic.js';
+export type {
+  ILogChannel,
+  ILogEgress,
+  ILogger,
+} from './logging.js';
