@@ -5,6 +5,7 @@ import type {
   EscalationId,
   EscalationResponse,
   IEscalationService,
+  INotificationService,
   IProjectStore,
   InAppEscalationRecord,
   InAppEscalationSurface,
@@ -23,6 +24,7 @@ export interface EscalationServiceOptions {
   projectStore?: IProjectStore;
   now?: () => Date;
   eventBus?: import('@nous/shared').IEventBus;
+  notificationService?: INotificationService;
 }
 
 function uniqueSurfaces(
@@ -34,10 +36,12 @@ function uniqueSurfaces(
 export class EscalationService implements IEscalationService {
   private readonly now: () => Date;
   private readonly eventBus?: import('@nous/shared').IEventBus;
+  private readonly notificationService?: INotificationService;
 
   constructor(private readonly options: EscalationServiceOptions) {
     this.now = options.now ?? (() => new Date());
     this.eventBus = options.eventBus;
+    this.notificationService = options.notificationService;
   }
 
   private nowIso(): string {
@@ -95,6 +99,30 @@ export class EscalationService implements IEscalationService {
       severity: contract.priority,
       message: contract.context,
     });
+
+    // Dual-write: fire-and-forget notification raise
+    try {
+      await this.notificationService?.raise({
+        kind: 'escalation',
+        projectId: contract.projectId,
+        title: contract.requiredAction,
+        message: contract.context,
+        transient: false,
+        source: record.source === 'workflow' ? 'escalation-service:workflow' : 'escalation-service:system',
+        escalation: {
+          escalationId: record.escalationId,
+          severity: record.severity,
+          source: record.source,
+          status: record.status,
+          routeTargets: record.routeTargets,
+          requiredAction: record.requiredAction,
+          ...(record.nodeDefinitionId ? { nodeDefinitionId: record.nodeDefinitionId } : {}),
+          evidenceRefs: record.evidenceRefs,
+          acknowledgements: record.acknowledgements,
+        },
+      });
+    } catch { /* fire-and-forget: notification failure must not fail escalation */ }
+
     return escalationId;
   }
 
