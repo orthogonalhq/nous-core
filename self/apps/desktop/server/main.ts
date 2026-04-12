@@ -19,6 +19,7 @@ import {
   loadStoredApiKeys,
   pullOllamaModel,
   registerStoredProviders,
+  WELL_KNOWN_PROVIDER_IDS,
 } from '@nous/shared-server';
 import type { OllamaModelPullProgress, OllamaStatus } from '@nous/shared-server';
 import { createHTTPHandler } from '@trpc/server/adapters/standalone';
@@ -213,6 +214,21 @@ async function main() {
   });
   await loadStoredApiKeys(context);
   await registerStoredProviders(context);
+
+  // Recompose harness after providers are registered. createNousServices runs
+  // attachProviders before providers exist (they're registered by
+  // registerStoredProviders above), so the harness is composed with the 'text'
+  // fallback adapter. Now that providers are registered, recompose with the
+  // correct vendor so the response parser matches the actual provider.
+  for (const agentClass of ['Cortex::Principal', 'Cortex::System'] as const) {
+    const provider = context.providerRegistry.getProvider(
+      WELL_KNOWN_PROVIDER_IDS.anthropic,
+    );
+    const vendor = provider?.getConfig().vendor;
+    if (vendor) {
+      context.gatewayRuntime.recomposeHarnessForClass(agentClass, vendor);
+    }
+  }
 
   const trpcHandler = createHTTPHandler({
     router: appRouter,
