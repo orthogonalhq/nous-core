@@ -6,6 +6,7 @@ import {
   HomeScreen,
   CatalogView,
   PlaceholderRoute,
+  InboxView,
   type ContentRouterRenderProps,
 } from '@nous/ui/components'
 import type { ShellMode } from '@nous/ui/components'
@@ -82,7 +83,7 @@ export function createWebShellRoutes(params: {
     apps: (props: ContentRouterRenderProps) => <CatalogView {...props} items={STUB_APPS} />,
     dashboard: (props: ContentRouterRenderProps) => <PlaceholderRoute {...props} label="Dashboard" />,
     'org-chart': (props: ContentRouterRenderProps) => <PlaceholderRoute {...props} label="Org Chart" />,
-    inbox: (props: ContentRouterRenderProps) => <PlaceholderRoute {...props} label="Inbox" />,
+    inbox: InboxView as unknown as ComponentType<ContentRouterRenderProps>,
     'workflow-detail': (props: ContentRouterRenderProps) => <PlaceholderRoute {...props} label="Workflow Detail" />,
     tasks: (props: ContentRouterRenderProps) => <PlaceholderRoute {...props} label="Tasks" />,
     'task-detail': TaskDetailView,
