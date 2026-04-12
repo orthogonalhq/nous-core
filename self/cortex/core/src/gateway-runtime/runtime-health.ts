@@ -4,6 +4,7 @@ import type {
   AppRuntimeSession,
   GatewayOutboxEvent,
   IEventBus,
+  INotificationService,
 } from '@nous/shared';
 import {
   GatewayAppSessionHealthProjectionSchema,
@@ -53,6 +54,7 @@ export class GatewayRuntimeHealthSink {
   private readonly appSessions = new Map<string, GatewayAppSessionHealthProjection>();
   private pendingSystemRuns = 0;
   private readonly eventBus?: IEventBus;
+  private readonly notificationService?: INotificationService;
 
   // Escalation audit trail (Phase 1.1 — WR-054)
   private escalationCount = 0;
@@ -64,8 +66,9 @@ export class GatewayRuntimeHealthSink {
   private lastCommittedCheckpointId?: string;
   private chainValid?: boolean;
 
-  constructor(options?: { eventBus?: IEventBus }) {
+  constructor(options?: { eventBus?: IEventBus; notificationService?: INotificationService }) {
     this.eventBus = options?.eventBus;
+    this.notificationService = options?.notificationService;
     const emptyAnalytics = BacklogAnalyticsSchema.parse({
       queuedCount: 0,
       activeCount: 0,
@@ -198,6 +201,20 @@ export class GatewayRuntimeHealthSink {
       }
     }
     this.eventBus?.publish('health:issue', { issueId: code, severity: 'warning', message: code });
+
+    // Dual-publish: notification raise alongside health:issue event
+    this.notificationService?.raise({
+      kind: 'health',
+      projectId: null,
+      title: `Health issue: ${code}`,
+      message: code,
+      transient: false,
+      source: 'gateway-runtime-health',
+      health: {
+        issueId: code,
+        severity: 'warning',
+      },
+    }).catch(() => { /* fire-and-forget */ });
   }
 
   updateBacklogAnalytics(analytics: BacklogAnalytics): void {
