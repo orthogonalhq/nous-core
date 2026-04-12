@@ -32,6 +32,7 @@
     "@nous/subcortex-witnessd": "workspace:*",
     "@nous/subcortex-router": "workspace:*",
     "@nous/subcortex-tools": "workspace:*",
+    "@nous/subcortex-notification": "workspace:*",
     "@nous/subcortex-projects": "workspace:*"
   }
 }

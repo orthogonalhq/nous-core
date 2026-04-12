@@ -85,6 +85,15 @@ export type {
 } from './context-budget-resolver.js';
 export { composeFromProfile } from './prompt-composer.js';
 
+// Dev notification tools — Principal-only bypass tools for behavioral testing (WR-151 SP 1.4)
+export {
+  createDevNotificationToolSurface,
+  getDevNotificationToolDefinitions,
+  SEED_TEST_NOTIFICATIONS_TOOL_NAME,
+  CLEAR_ALL_NOTIFICATIONS_TOOL_NAME,
+} from './dev-notification-tools.js';
+export type { DevNotificationToolSurfaceArgs } from './dev-notification-tools.js';
+
 // Prompt fragments — domain-specific guidance injected into Principal task instructions
 export { CARD_PROMPT_FRAGMENT } from './card-prompt-fragment.js';
 export { WORKFLOW_PROMPT_FRAGMENT } from './workflow-prompt-fragment.js';

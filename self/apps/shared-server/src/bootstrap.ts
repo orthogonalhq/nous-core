@@ -1273,6 +1273,7 @@ export function createNousServices(config?: BootstrapConfig): NousContext {
     },
     eventBus,
     notificationService,
+    notificationStore,
     // Recovery component injection (Phase 1.2 — WR-072)
     // Type assertion: cortex-core uses zod v4 BRAND markers while shared uses zod v3.
     // Pre-existing monorepo zod version split — safe to assert until aligned.
