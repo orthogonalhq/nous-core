@@ -99,10 +99,12 @@ function formatTools(
   });
 }
 
+type AnthropicMessage = { role: 'user' | 'assistant'; content: string | Array<Record<string, unknown>> };
+
 function formatMessages(
   context: readonly import('@nous/shared').GatewayContextFrame[],
-): Array<{ role: 'user' | 'assistant'; content: string | Array<Record<string, unknown>> }> {
-  return context.map((frame) => {
+): AnthropicMessage[] {
+  const raw: AnthropicMessage[] = context.map((frame) => {
     // Tool result with tool_call_id metadata → Anthropic tool_result content block
     if (frame.role === 'tool' && frame.metadata?.tool_call_id) {
       return {
@@ -146,6 +148,26 @@ function formatMessages(
       content: frame.content,
     };
   });
+
+  // Merge consecutive same-role messages. Anthropic requires all tool_result
+  // blocks for a given assistant tool_use turn to appear in a single user
+  // message immediately after.
+  const merged: AnthropicMessage[] = [];
+  for (const msg of raw) {
+    const prev = merged[merged.length - 1];
+    if (prev && prev.role === msg.role) {
+      const prevBlocks = Array.isArray(prev.content)
+        ? prev.content
+        : [{ type: 'text', text: prev.content }];
+      const curBlocks = Array.isArray(msg.content)
+        ? msg.content
+        : [{ type: 'text', text: msg.content }];
+      prev.content = [...prevBlocks, ...curBlocks];
+    } else {
+      merged.push({ ...msg });
+    }
+  }
+  return merged;
 }
 
 // ── Response parsing ────────────────────────────────────────────────
