@@ -308,6 +308,25 @@ export const OllamaVersionInfoPayloadSchema = z.object({
 });
 export type OllamaVersionInfoPayload = z.infer<typeof OllamaVersionInfoPayloadSchema>;
 
+// --- Notification Domain ---
+
+export const NotificationRaisedPayloadSchema = z.object({
+  id: z.string().uuid(),
+  kind: z.enum(['escalation', 'alert', 'health', 'panel', 'toast']),
+  projectId: z.string().min(1).nullable(),
+  level: z.enum(['info', 'warning', 'error', 'critical']),
+  title: z.string().min(1),
+  source: z.string().min(1),
+});
+export type NotificationRaisedPayload = z.infer<typeof NotificationRaisedPayloadSchema>;
+
+export const NotificationUpdatedPayloadSchema = z.object({
+  id: z.string().uuid(),
+  status: z.enum(['active', 'acknowledged', 'dismissed']),
+  previousStatus: z.enum(['active', 'acknowledged', 'dismissed']),
+});
+export type NotificationUpdatedPayload = z.infer<typeof NotificationUpdatedPayloadSchema>;
+
 // --- Channel Map ---
 
 export interface EventChannelMap {
@@ -344,6 +363,8 @@ export interface EventChannelMap {
   'ollama:install-progress': OllamaInstallProgressPayload;
   'ollama:update-progress': OllamaUpdateProgressPayload;
   'ollama:version-info': OllamaVersionInfoPayload;
+  'notification:raised': NotificationRaisedPayload;
+  'notification:updated': NotificationUpdatedPayload;
 }
 
 /**
