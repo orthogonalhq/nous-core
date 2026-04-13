@@ -23,6 +23,7 @@ import type { DocumentNotificationStore } from '@nous/subcortex-notification';
 
 export const SEED_TEST_NOTIFICATIONS_TOOL_NAME = 'seed_test_notifications';
 export const CLEAR_ALL_NOTIFICATIONS_TOOL_NAME = 'clear_all_notifications';
+export const FIRE_TEST_TOAST_TOOL_NAME = 'fire_test_toast';
 
 function success(output: unknown): ToolResult {
   return {
@@ -81,6 +82,36 @@ export function getDevNotificationToolDefinitions(): ToolDefinition[] {
         type: 'object',
         properties: {
           deleted: { type: 'number' },
+        },
+      },
+      capabilities: ['runtime', 'dev'],
+      permissionScope: 'system_inbox',
+    },
+    {
+      name: FIRE_TEST_TOAST_TOOL_NAME,
+      version: '1.0.0',
+      description:
+        'Fire a single live toast notification that pops on screen immediately. Specify message and severity. Dev-only.',
+      inputSchema: {
+        type: 'object',
+        properties: {
+          message: {
+            type: 'string',
+            description: 'Toast message text. Defaults to "Test toast notification".',
+          },
+          severity: {
+            type: 'string',
+            enum: ['info', 'warning', 'error'],
+            description: 'Toast severity. Defaults to "info".',
+          },
+        },
+      },
+      outputSchema: {
+        type: 'object',
+        properties: {
+          id: { type: 'string' },
+          message: { type: 'string' },
+          severity: { type: 'string' },
         },
       },
       capabilities: ['runtime', 'dev'],
@@ -271,6 +302,10 @@ export function createDevNotificationToolSurface(
         return handleClearAllNotifications(args.notificationStore);
       }
 
+      if (name === FIRE_TEST_TOAST_TOOL_NAME) {
+        return handleFireTestToast(args.notificationService, params as Record<string, unknown>);
+      }
+
       return args.baseToolSurface.executeTool(name, params, execution);
     },
   };
@@ -338,6 +373,40 @@ async function handleClearAllNotifications(
   } catch (err) {
     return failure(
       err instanceof Error ? err.message : 'Unknown error during clear',
+    );
+  }
+}
+
+async function handleFireTestToast(
+  notificationService: INotificationService,
+  params: Record<string, unknown>,
+): Promise<ToolResult> {
+  try {
+    const message = (params.message as string) ?? 'Test toast notification';
+    const severity = (params.severity as 'info' | 'warning' | 'error') ?? 'info';
+
+    const record = await notificationService.raise({
+      kind: 'toast',
+      projectId: null,
+      title: message,
+      message,
+      transient: true,
+      source: 'dev-test-tooling',
+      toast: {
+        severity,
+        dismissible: true,
+        durationMs: 8000,
+      },
+    });
+
+    return success({
+      id: record.id,
+      message: record.message,
+      severity,
+    });
+  } catch (err) {
+    return failure(
+      err instanceof Error ? err.message : 'Unknown error firing toast',
     );
   }
 }
