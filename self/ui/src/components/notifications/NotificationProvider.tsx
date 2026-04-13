@@ -1,11 +1,13 @@
 /**
  * NotificationProvider — Shared React context providing badge count
- * via useInboxBadge so sidebar wrappers share a single tRPC query
- * and SSE subscription.
+ * via useInboxBadge, toast rendering via ToastProvider + NousToast,
+ * so sidebar wrappers share a single tRPC query and SSE subscription.
  */
 import * as React from 'react';
 import { useInboxBadge } from './inbox/useInboxBadge';
 import { useShellContext } from '../shell/ShellContext';
+import { ToastProvider } from '../toast/ToastContext';
+import { NousToast } from '../toast/NousToast';
 
 interface NotificationContextValue {
   badgeCount: number;
@@ -24,7 +26,10 @@ export function NotificationProvider({ children }: { children: React.ReactNode }
 
   return (
     <NotificationContext.Provider value={value}>
-      {children}
+      <ToastProvider>
+        {children}
+        <NousToast />
+      </ToastProvider>
     </NotificationContext.Provider>
   );
 }
