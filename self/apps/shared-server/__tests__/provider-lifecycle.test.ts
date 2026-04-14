@@ -8,9 +8,11 @@ import { DEFAULT_PROFILES } from '@nous/autonomic-config';
 import {
   OLLAMA_WELL_KNOWN_PROVIDER_ID,
   WELL_KNOWN_PROVIDER_IDS,
+  buildProviderConfig,
   createNousServices,
   loadStoredApiKeys,
   registerStoredProviders,
+  upsertProviderConfig,
 } from '../src/bootstrap';
 import { preferencesRouter } from '../src/trpc/routers/preferences';
 
@@ -354,6 +356,60 @@ describe('provider lifecycle wiring', () => {
         method: 'GET',
       }),
     );
+  });
+
+  it('upsertProviderConfig preserves existing modelId when upserting with default', async () => {
+    const { ctx, state } = createLifecycleContext();
+
+    // First upsert with a user-selected model
+    await upsertProviderConfig(
+      ctx,
+      buildProviderConfig('openai', WELL_KNOWN_PROVIDER_IDS.openai, 'gpt-4-turbo'),
+    );
+    expect(state.providers).toHaveLength(1);
+    expect(state.providers[0]!.modelId).toBe('gpt-4-turbo');
+
+    // Second upsert with default model (simulates restart bootstrap)
+    await upsertProviderConfig(
+      ctx,
+      buildProviderConfig('openai'),
+    );
+    // User-selected modelId should be preserved
+    expect(state.providers).toHaveLength(1);
+    expect(state.providers[0]!.modelId).toBe('gpt-4-turbo');
+  });
+
+  it('upsertProviderConfig uses default modelId when no existing entry exists', async () => {
+    const { ctx, state } = createLifecycleContext();
+
+    await upsertProviderConfig(
+      ctx,
+      buildProviderConfig('openai'),
+    );
+    expect(state.providers).toHaveLength(1);
+    expect(state.providers[0]!.modelId).toBe('gpt-4o');
+  });
+
+  it('registerStoredProviders preserves user-selected modelId across restart cycle', async () => {
+    const { ctx, state } = createLifecycleContext();
+    process.env.OPENAI_API_KEY = 'sk-test-openai';
+
+    // Simulate initial registration
+    await registerStoredProviders(ctx);
+    expect(state.providers).toHaveLength(1);
+    expect(state.providers[0]!.modelId).toBe('gpt-4o');
+
+    // User changes model
+    await upsertProviderConfig(
+      ctx,
+      buildProviderConfig('openai', WELL_KNOWN_PROVIDER_IDS.openai, 'gpt-4-turbo'),
+    );
+    expect(state.providers[0]!.modelId).toBe('gpt-4-turbo');
+
+    // Simulate restart — registerStoredProviders called again
+    await registerStoredProviders(ctx);
+    // User's model selection should survive the restart
+    expect(state.providers[0]!.modelId).toBe('gpt-4-turbo');
   });
 
   it('keeps mock fallback active when no keys are configured', async () => {

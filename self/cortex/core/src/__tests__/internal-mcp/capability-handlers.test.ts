@@ -777,4 +777,137 @@ describe('Internal MCP capability handlers', () => {
       ),
     ).rejects.toThrow('Credential access is not granted');
   });
+
+  it('memory_search returns empty results when store throws TypeError', async () => {
+    const projectApi = createProjectApi({
+      memory: {
+        read: vi.fn().mockRejectedValue(new TypeError('Cannot read properties of undefined')),
+        write: vi.fn(),
+        retrieve: vi.fn().mockRejectedValue(new TypeError('Cannot read properties of undefined')),
+      },
+    });
+    const handlers = createCapabilityHandlers({
+      agentClass: 'Worker',
+      agentId: AGENT_ID as any,
+      deps: {
+        getProjectApi: () => projectApi,
+      },
+    });
+
+    const result = await handlers.memory_search(
+      { query: 'test', mode: 'search', scope: 'project' },
+      { projectId: PROJECT_ID } as any,
+    );
+
+    expect(result.success).toBe(true);
+    expect(result.output).toEqual([]);
+  });
+
+  it('memory_search returns empty results when retrieve mode throws', async () => {
+    const projectApi = createProjectApi({
+      memory: {
+        read: vi.fn(),
+        write: vi.fn(),
+        retrieve: vi.fn().mockRejectedValue(new Error('store not initialized')),
+      },
+    });
+    const handlers = createCapabilityHandlers({
+      agentClass: 'Worker',
+      agentId: AGENT_ID as any,
+      deps: {
+        getProjectApi: () => projectApi,
+      },
+    });
+
+    const result = await handlers.memory_search(
+      { situation: 'test context', mode: 'retrieve', budget: 100 },
+      { projectId: PROJECT_ID } as any,
+    );
+
+    expect(result.success).toBe(true);
+    expect(result.output).toEqual([]);
+  });
+
+  it('workflow_list returns project store definitions alongside installed packages', async () => {
+    const projectStore = {
+      get: vi.fn().mockResolvedValue({
+        id: PROJECT_ID,
+        workflow: {
+          definitions: [
+            {
+              id: '550e8400-e29b-41d4-a716-446655440700',
+              projectId: PROJECT_ID,
+              mode: 'protocol',
+              version: '1.0.0',
+              name: 'UserCreatedWorkflow',
+              entryNodeIds: ['550e8400-e29b-41d4-a716-446655440701'],
+              nodes: [
+                {
+                  id: '550e8400-e29b-41d4-a716-446655440701',
+                  name: 'Start',
+                  type: 'model-call',
+                  governance: 'must',
+                  executionModel: 'synchronous',
+                  config: {
+                    type: 'model-call',
+                    modelRole: 'cortex-chat',
+                    promptRef: 'prompt://start',
+                  },
+                },
+              ],
+              edges: [],
+            },
+          ],
+        },
+      }),
+      list: vi.fn().mockResolvedValue([]),
+      create: vi.fn(),
+      update: vi.fn(),
+      archive: vi.fn(),
+    };
+    const handlers = createCapabilityHandlers({
+      agentClass: 'Cortex::System',
+      agentId: AGENT_ID as any,
+      deps: {
+        projectStore: projectStore as any,
+        runtime: {
+          instanceRoot: '/tmp/test',
+        } as any,
+      },
+    });
+
+    const result = await handlers.workflow_list(
+      {
+        projectId: PROJECT_ID,
+        includeInstalledDefinitions: true,
+        includeActiveInstances: false,
+      },
+    );
+
+    expect(result.success).toBe(true);
+    const defs = (result.output as any).definitions;
+    expect(defs.some((d: any) => d.name === 'UserCreatedWorkflow')).toBe(true);
+  });
+
+  it('workflow_list returns only installed definitions when projectStore is unavailable', async () => {
+    const handlers = createCapabilityHandlers({
+      agentClass: 'Cortex::System',
+      agentId: AGENT_ID as any,
+      deps: {
+        runtime: {
+          instanceRoot: '/tmp/test',
+        } as any,
+      },
+    });
+
+    const result = await handlers.workflow_list(
+      {
+        projectId: PROJECT_ID,
+        includeInstalledDefinitions: true,
+        includeActiveInstances: false,
+      },
+    );
+
+    expect(result.success).toBe(true);
+  });
 });
