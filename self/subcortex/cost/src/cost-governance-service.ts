@@ -11,6 +11,7 @@
 import { randomUUID } from 'node:crypto';
 import type {
   IEventBus,
+  INotificationService,
   InferenceCallCompletePayload,
   CostEvent,
   BudgetPolicy,
@@ -36,6 +37,7 @@ export interface CostGovernanceServiceDeps {
   opctlService: IOpctlServiceForEnforcement;
   pricingTable: PricingTable;
   getProjectConfig: (projectId: string) => ProjectConfig | undefined;
+  notificationService?: INotificationService;
 }
 
 interface AggregationEntry {
@@ -347,12 +349,20 @@ export class CostGovernanceService {
     ) {
       state.hardCeilingFiredThisPeriod = true;
       try {
-        this.deps.eventBus.publish('cost:budget-exceeded', {
+        this.deps.notificationService?.raise({
+          kind: 'alert',
           projectId,
-          utilizationPercent,
-          currentSpendUsd: state.totalSpend,
-          budgetCeilingUsd: policy.hardCeilingUsd,
-        });
+          title: 'Budget ceiling exceeded',
+          message: `Spending at ${utilizationPercent.toFixed(0)}% — operations paused`,
+          transient: false,
+          source: 'cost-governance',
+          alert: {
+            category: 'budget-exceeded',
+            utilizationPercent,
+            currentSpendUsd: state.totalSpend,
+            budgetCeilingUsd: policy.hardCeilingUsd,
+          },
+        }).catch(() => { /* fire-and-forget */ });
       } catch { /* fire-and-forget */ }
       // Trigger enforcement (fire-and-forget, async)
       this.enforcement.triggerPause(projectId, state.totalSpend, policy.hardCeilingUsd).catch(() => {});
@@ -365,13 +375,21 @@ export class CostGovernanceService {
     ) {
       state.softAlertFiredThisPeriod = true;
       try {
-        this.deps.eventBus.publish('cost:budget-alert', {
+        this.deps.notificationService?.raise({
+          kind: 'alert',
           projectId,
-          utilizationPercent,
-          thresholdPercent: policy.softThresholdPercent,
-          currentSpendUsd: state.totalSpend,
-          budgetCeilingUsd: policy.hardCeilingUsd,
-        });
+          title: 'Budget threshold reached',
+          message: `Spending at ${utilizationPercent.toFixed(0)}% of budget ceiling`,
+          transient: true,
+          source: 'cost-governance',
+          alert: {
+            category: 'budget-warning',
+            utilizationPercent,
+            currentSpendUsd: state.totalSpend,
+            budgetCeilingUsd: policy.hardCeilingUsd,
+            thresholdPercent: policy.softThresholdPercent,
+          },
+        }).catch(() => { /* fire-and-forget */ });
       } catch { /* fire-and-forget */ }
     }
   }

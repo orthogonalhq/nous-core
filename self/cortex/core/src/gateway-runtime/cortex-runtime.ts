@@ -66,6 +66,10 @@ import {
   getPrincipalCommunicationToolDefinitions,
   type ISystemInboxSubmissionService,
 } from './system-inbox-tools.js';
+import {
+  createDevNotificationToolSurface,
+  getDevNotificationToolDefinitions,
+} from './dev-notification-tools.js';
 import type {
   ChatTurnInput,
   ChatTurnResult,
@@ -240,7 +244,7 @@ implements IPrincipalSystemGatewayRuntime, ISystemInboxSubmissionService {
   private readonly log: ILogChannel;
 
   constructor(private readonly deps: PrincipalSystemGatewayRuntimeDeps = {}) {
-    this.healthSink = new GatewayRuntimeHealthSink({ eventBus: deps.eventBus });
+    this.healthSink = new GatewayRuntimeHealthSink({ eventBus: deps.eventBus, notificationService: deps.notificationService });
     this.replicaProvider = new SystemContextReplicaProvider(this.healthSink);
     this.gatewayFactory = (deps.agentGatewayFactory ?? new AgentGatewayFactory()) as AgentGatewayFactory;
     this.workmodeAdmissionGuard =
@@ -266,14 +270,33 @@ implements IPrincipalSystemGatewayRuntime, ISystemInboxSubmissionService {
       agentId: principalAgentId as AgentGatewayConfig['agentId'],
       deps: this.createInternalMcpDeps(),
     });
-    const principalToolSurface = createPrincipalCommunicationToolSurface({
+    let principalToolSurface = createPrincipalCommunicationToolSurface({
       baseToolSurface: principalBase.toolSurface,
       submissionService: this,
       replicaReader: this.replicaProvider,
     });
+    // WR-151 SP 1.4: Chain dev notification tools when not in production.
+    // The factory is never called in production, so the tools are absent
+    // from listTools() entirely.
+    const devToolDefinitions =
+      process.env.NODE_ENV !== 'production' && this.deps.notificationStore
+        ? getDevNotificationToolDefinitions()
+        : [];
+    if (
+      process.env.NODE_ENV !== 'production' &&
+      this.deps.notificationService &&
+      this.deps.notificationStore
+    ) {
+      principalToolSurface = createDevNotificationToolSurface({
+        baseToolSurface: principalToolSurface,
+        notificationService: this.deps.notificationService,
+        notificationStore: this.deps.notificationStore,
+      });
+    }
     this.principalTools = [
       ...this.catalogDefinitions('Cortex::Principal'),
       ...getPrincipalCommunicationToolDefinitions(),
+      ...devToolDefinitions,
     ];
     // WR-138 row #6: capture config before handing it to the factory so
     // attachProviders() can recompose in place.

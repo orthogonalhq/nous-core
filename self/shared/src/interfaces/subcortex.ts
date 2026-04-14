@@ -424,6 +424,36 @@ export interface IEscalationService {
   ): Promise<InAppEscalationRecord | null>;
 }
 
+export interface INotificationService {
+  /** Create a new notification (with dedup and level derivation). */
+  raise(
+    input: import('../types/index.js').RaiseNotificationInput,
+  ): Promise<import('../types/index.js').NotificationRecord>;
+
+  /** Acknowledge an active notification. No-op if already acknowledged or dismissed. */
+  acknowledge(
+    id: string,
+  ): Promise<import('../types/index.js').NotificationRecord>;
+
+  /** Dismiss an active or acknowledged notification. No-op if already dismissed. */
+  dismiss(
+    id: string,
+  ): Promise<import('../types/index.js').NotificationRecord>;
+
+  /** List notifications matching the given filter. */
+  list(
+    filter: import('../types/index.js').NotificationFilter,
+  ): Promise<import('../types/index.js').NotificationRecord[]>;
+
+  /** Get a single notification by ID, or null if not found. */
+  get(
+    id: string,
+  ): Promise<import('../types/index.js').NotificationRecord | null>;
+
+  /** Count active notifications, optionally scoped by projectId. */
+  countActive(projectId?: string): Promise<number>;
+}
+
 export interface IRegistryService {
   /** Submit a release into the registry intake pipeline. */
   submitRelease(

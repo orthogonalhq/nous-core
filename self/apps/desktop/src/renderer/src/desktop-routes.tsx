@@ -3,6 +3,7 @@ import {
   HomeScreen,
   CatalogView,
   PlaceholderRoute,
+  InboxView,
   type ContentRouterRenderProps,
 } from '@nous/ui/components'
 import {
@@ -23,7 +24,7 @@ export const BASE_SIMPLE_MODE_ROUTES: Record<string, React.ComponentType<Content
   apps: (props: ContentRouterRenderProps) => <CatalogView {...props} items={STUB_APPS} />,
   dashboard: (props: ContentRouterRenderProps) => <PlaceholderRoute {...props} label="Dashboard" />,
   'org-chart': (props: ContentRouterRenderProps) => <PlaceholderRoute {...props} label="Org Chart" />,
-  inbox: (props: ContentRouterRenderProps) => <PlaceholderRoute {...props} label="Inbox" />,
+  inbox: InboxView as unknown as React.ComponentType<ContentRouterRenderProps>,
   'workflow-detail': WorkflowBuilderPanel as unknown as React.ComponentType<ContentRouterRenderProps>,
   tasks: (props: ContentRouterRenderProps) => <PlaceholderRoute {...props} label="Tasks" />,
   'task-detail': TaskDetailView,

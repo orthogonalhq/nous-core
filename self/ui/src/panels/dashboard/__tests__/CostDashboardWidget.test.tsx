@@ -22,6 +22,7 @@ vi.mock('../../../components/shell/ShellContext', () => ({
 
 const mockInvalidateBudgetStatus = vi.fn()
 const mockInvalidateCostSummary = vi.fn()
+const mockNotificationsGetFetch = vi.fn()
 let mockEventSubscriptions: Array<{ channels: string[]; onEvent: (...args: any[]) => void }> = []
 
 vi.mock('@nous/transport', () => ({
@@ -30,6 +31,9 @@ vi.mock('@nous/transport', () => ({
       cost: {
         getBudgetStatus: { invalidate: (...args: any[]) => mockInvalidateBudgetStatus(...args) },
         getCostSummary: { invalidate: (...args: any[]) => mockInvalidateCostSummary(...args) },
+      },
+      notifications: {
+        get: { fetch: (...args: any[]) => mockNotificationsGetFetch(...args) },
       },
     }),
     cost: {

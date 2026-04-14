@@ -6,6 +6,21 @@ import { afterEach, describe, expect, it, vi } from 'vitest';
 import { PANEL_BRIDGE_PROTOCOL_VERSION } from '@nous/shared';
 import { AppIframePanel } from '@nous/ui/panels';
 
+// Mock tRPC for notifyAdapter wiring
+const mockRaiseMutate = vi.fn().mockResolvedValue({ id: 'notif-1' });
+
+vi.mock('@nous/transport', () => ({
+  trpc: {
+    useUtils: () => ({
+      client: {
+        notifications: {
+          raise: { mutate: mockRaiseMutate },
+        },
+      },
+    }),
+  },
+}));
+
 function createPanelApiHarness() {
   const activeListeners = new Set<(event: { isActive: boolean }) => void>();
 
@@ -323,6 +338,107 @@ describe('AppIframePanel host bridge', () => {
         body: expect.stringContaining('"reason":"close"'),
       }),
     );
+  });
+
+  it('routes notify.send messages through tRPC raise mutation and responds with accepted: true', async () => {
+    const panelHarness = createPanelApiHarness();
+    const fetchSpy = vi.fn().mockResolvedValue({
+      ok: true,
+      json: async () => ({
+        protocol: PANEL_BRIDGE_PROTOCOL_VERSION,
+        request_id: 'req-lifecycle',
+        ok: true,
+        result: {},
+      }),
+    });
+    vi.stubGlobal('fetch', fetchSpy);
+
+    const view = render(
+      <AppIframePanel
+        {...({
+          api: panelHarness.api,
+          params: {
+            appId: 'app:weather',
+            panelId: 'forecast',
+            src: 'http://localhost:3000/apps/app%3Aweather/panels/forecast',
+            configVersion: 'cfg-1',
+            configSnapshot: {},
+          },
+        } as any)}
+      />,
+    );
+
+    const iframe = view.container.querySelector('iframe');
+    const postMessageSpy = vi.spyOn(iframe!.contentWindow!, 'postMessage');
+
+    // Boot the bridge
+    window.dispatchEvent(
+      new MessageEvent('message', {
+        source: iframe!.contentWindow,
+        data: {
+          protocol: PANEL_BRIDGE_PROTOCOL_VERSION,
+          kind: 'panel.ready',
+          message_id: 'msg-notify',
+          app_id: 'app:weather',
+          panel_id: 'forecast',
+        },
+      }),
+    );
+
+    await waitFor(() => {
+      expect(postMessageSpy).toHaveBeenCalledWith(
+        expect.objectContaining({ kind: 'host.bootstrap' }),
+        '*',
+      );
+    });
+
+    postMessageSpy.mockClear();
+
+    // Send notify.send message
+    window.dispatchEvent(
+      new MessageEvent('message', {
+        source: iframe!.contentWindow,
+        data: {
+          protocol: PANEL_BRIDGE_PROTOCOL_VERSION,
+          kind: 'notify.send',
+          request_id: 'req-notify-1',
+          app_id: 'app:weather',
+          panel_id: 'forecast',
+          notification: {
+            title: 'Weather alert',
+            message: 'Storm approaching',
+            level: 'warning',
+          },
+        },
+      }),
+    );
+
+    await waitFor(() => {
+      expect(mockRaiseMutate).toHaveBeenCalledWith(
+        expect.objectContaining({
+          kind: 'panel',
+          title: 'Weather alert',
+          message: 'Storm approaching',
+          transient: true,
+          source: 'panel:forecast',
+          panel: expect.objectContaining({
+            panelId: 'forecast',
+            level: 'warning',
+          }),
+        }),
+      );
+    });
+
+    await waitFor(() => {
+      expect(postMessageSpy).toHaveBeenCalledWith(
+        expect.objectContaining({
+          kind: 'notify.result',
+          request_id: 'req-notify-1',
+          accepted: true,
+        }),
+        '*',
+      );
+    });
   });
 
   it('pushes config updates to the live iframe without remounting it', async () => {

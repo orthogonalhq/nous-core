@@ -10,6 +10,7 @@ import type {
   IEventBus,
   IModelProvider,
   IModelRouter,
+  INotificationService,
   IPromotedMemoryBridgeService,
   IProjectApi,
   IProjectStore,
@@ -39,6 +40,7 @@ import type {
   ProviderVendor,
   ToolDefinition,
 } from '@nous/shared';
+import type { DocumentNotificationStore } from '@nous/subcortex-notification';
 import type { InternalMcpOutputSchemaValidator } from '../internal-mcp/types.js';
 import {
   BacklogAnalyticsSchema,
@@ -276,6 +278,9 @@ export interface PrincipalSystemGatewayRuntimeDeps {
   defaultModelRequirements?: ModelRequirements;
   backlogConfig?: Partial<BacklogQueueConfig>;
   eventBus?: IEventBus;
+  notificationService?: INotificationService;
+  /** Concrete store instance for dev-only tools (WR-151 SP 1.4). */
+  notificationStore?: DocumentNotificationStore;
   // STM and MWC dependencies (SP 1.2 — WR-124)
   stmStore?: IStmStore;
   mwcPipeline?: MwcPipelineLike;

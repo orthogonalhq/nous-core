@@ -84,6 +84,7 @@ import {
 } from '@nous/subcortex-projects';
 import { DocumentArtifactStore } from '@nous/subcortex-artifacts';
 import { DocumentEscalationStore, EscalationService } from '@nous/subcortex-escalation';
+import { DocumentNotificationStore, NotificationService } from '@nous/subcortex-notification';
 import { ModelRouter } from '@nous/subcortex-router';
 import { ProviderRegistry, TokenAccumulatorService } from '@nous/subcortex-providers';
 import {
@@ -679,6 +680,7 @@ export function createNousServices(config?: BootstrapConfig): NousContext {
   const artifactStore = new DocumentArtifactStore(documentStore);
   const scheduleStore = new DocumentScheduleStore(documentStore);
   const escalationStore = new DocumentEscalationStore(documentStore);
+  const notificationStore = new DocumentNotificationStore(documentStore);
   const registryStore = new DocumentRegistryStore(documentStore);
   const nudgeStore = new DocumentNudgeStore(documentStore);
   const witnessService = new WitnessService(documentStore);
@@ -757,11 +759,16 @@ export function createNousServices(config?: BootstrapConfig): NousContext {
   const providerRegistry = new ProviderRegistry(appConfig, { eventBus });
   const tokenAccumulator = new TokenAccumulatorService(eventBus);
   const pricingTable = createPricingTable();
+  const notificationService = new NotificationService({
+    notificationStore,
+    eventBus,
+  });
   const costGovernanceService = new CostGovernanceService({
     eventBus,
     opctlService,
     pricingTable,
     getProjectConfig: () => undefined, // V1: policies managed via setBudgetPolicy
+    notificationService,
   });
   const inferenceAdapter = new InferenceProjectionAdapter(eventBus);
   const thoughtEmitter = new ThoughtEmitterImpl(eventBus);
@@ -770,6 +777,7 @@ export function createNousServices(config?: BootstrapConfig): NousContext {
     escalationStore,
     projectStore,
     eventBus,
+    notificationService,
   });
   const registryService = new RegistryService({
     registryStore,
@@ -1278,6 +1286,8 @@ export function createNousServices(config?: BootstrapConfig): NousContext {
       fallbackPolicy: 'block_if_unmet',
     },
     eventBus,
+    notificationService,
+    notificationStore,
     // Recovery component injection (Phase 1.2 — WR-072)
     // Type assertion: cortex-core uses zod v4 BRAND markers while shared uses zod v3.
     // Pre-existing monorepo zod version split — safe to assert until aligned.
@@ -1345,6 +1355,7 @@ export function createNousServices(config?: BootstrapConfig): NousContext {
     artifactStore,
     schedulerService,
     escalationService,
+    notificationService,
     endpointTrustService,
     registryService,
     appInstallService,

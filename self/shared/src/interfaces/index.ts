@@ -22,6 +22,7 @@ export type {
   IArtifactStore,
   IScheduler,
   IEscalationService,
+  INotificationService,
   IRegistryService,
   INudgeDiscoveryService,
   ICommunicationGatewayService,

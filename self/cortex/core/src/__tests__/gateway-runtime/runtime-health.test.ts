@@ -1,4 +1,5 @@
-import { describe, expect, it } from 'vitest';
+import { describe, expect, it, vi } from 'vitest';
+import type { IEventBus, INotificationService } from '@nous/shared';
 import { GatewayRuntimeHealthSink } from '../../gateway-runtime/runtime-health.js';
 import { GatewayHealthSnapshotSchema, SystemContextReplicaSchema } from '../../gateway-runtime/types.js';
 
@@ -202,5 +203,76 @@ describe('GatewayRuntimeHealthSink', () => {
 
     expect(sink.getGatewayHealth('Cortex::System').appSessions).toEqual([]);
     expect(sink.getSystemContextReplica().appSessions).toEqual([]);
+  });
+
+  describe('notification dual-publish in addIssue()', () => {
+    it('calls notificationService.raise({ kind: health }) when notificationService is provided', () => {
+      const mockRaise = vi.fn().mockResolvedValue({ id: 'notif-1' });
+      const notificationService = { raise: mockRaise } as unknown as INotificationService;
+      const mockPublish = vi.fn();
+      const eventBus = { publish: mockPublish } as unknown as IEventBus;
+
+      const sink = new GatewayRuntimeHealthSink({ eventBus, notificationService });
+      sink.addIssue('system_runtime_error');
+
+      expect(mockRaise).toHaveBeenCalledWith(
+        expect.objectContaining({
+          kind: 'health',
+          projectId: null,
+          title: 'Health issue: system_runtime_error',
+          message: 'system_runtime_error',
+          transient: false,
+          source: 'gateway-runtime-health',
+          health: {
+            issueId: 'system_runtime_error',
+            severity: 'warning',
+          },
+        }),
+      );
+    });
+
+    it('still calls eventBus.publish(health:issue) alongside notification raise (dual-publish preserved)', () => {
+      const mockRaise = vi.fn().mockResolvedValue({ id: 'notif-1' });
+      const notificationService = { raise: mockRaise } as unknown as INotificationService;
+      const mockPublish = vi.fn();
+      const eventBus = { publish: mockPublish } as unknown as IEventBus;
+
+      const sink = new GatewayRuntimeHealthSink({ eventBus, notificationService });
+      sink.addIssue('system_runtime_error');
+
+      expect(mockPublish).toHaveBeenCalledWith('health:issue', {
+        issueId: 'system_runtime_error',
+        severity: 'warning',
+        message: 'system_runtime_error',
+      });
+    });
+
+    it('works without notificationService (optional chaining, no crash)', () => {
+      const mockPublish = vi.fn();
+      const eventBus = { publish: mockPublish } as unknown as IEventBus;
+
+      const sink = new GatewayRuntimeHealthSink({ eventBus });
+      sink.addIssue('system_runtime_error');
+
+      expect(mockPublish).toHaveBeenCalledWith('health:issue', expect.any(Object));
+    });
+
+    it('notificationService.raise() rejection does not propagate (.catch() swallows it)', async () => {
+      const mockRaise = vi.fn().mockRejectedValue(new Error('Store failure'));
+      const notificationService = { raise: mockRaise } as unknown as INotificationService;
+      const mockPublish = vi.fn();
+      const eventBus = { publish: mockPublish } as unknown as IEventBus;
+
+      const sink = new GatewayRuntimeHealthSink({ eventBus, notificationService });
+
+      // Should not throw
+      sink.addIssue('system_runtime_error');
+
+      // health:issue event bus publish already completed
+      expect(mockPublish).toHaveBeenCalledWith('health:issue', expect.any(Object));
+
+      // Let the rejected promise resolve
+      await new Promise((r) => setTimeout(r, 0));
+    });
   });
 });

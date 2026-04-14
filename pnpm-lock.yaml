@@ -362,6 +362,9 @@ importers:
       '@nous/subcortex-mao':
         specifier: workspace:*
         version: link:../../subcortex/mao
+      '@nous/subcortex-notification':
+        specifier: workspace:*
+        version: link:../../subcortex/notification
       '@nous/subcortex-nudges':
         specifier: workspace:*
         version: link:../../subcortex/nudges
@@ -672,6 +675,9 @@ importers:
       '@nous/memory-stm':
         specifier: workspace:*
         version: link:../../memory/stm
+      '@nous/subcortex-notification':
+        specifier: workspace:*
+        version: link:../../subcortex/notification
       '@nous/subcortex-projects':
         specifier: workspace:*
         version: link:../../subcortex/projects
@@ -967,6 +973,16 @@ importers:
         version: 2.1.9(@types/node@20.19.33)(jsdom@26.1.0)(lightningcss@1.30.2)
 
   self/subcortex/mao:
+    dependencies:
+      '@nous/shared':
+        specifier: workspace:*
+        version: link:../../shared
+    devDependencies:
+      vitest:
+        specifier: ^2.1.0
+        version: 2.1.9(@types/node@20.19.33)(jsdom@26.1.0)(lightningcss@1.30.2)
+
+  self/subcortex/notification:
     dependencies:
       '@nous/shared':
         specifier: workspace:*

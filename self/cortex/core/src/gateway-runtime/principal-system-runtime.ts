@@ -204,7 +204,7 @@ implements IPrincipalSystemGatewayRuntime, ISystemInboxSubmissionService {
   private readonly log: ILogChannel;
 
   constructor(private readonly deps: PrincipalSystemGatewayRuntimeDeps = {}) {
-    this.healthSink = new GatewayRuntimeHealthSink({ eventBus: deps.eventBus });
+    this.healthSink = new GatewayRuntimeHealthSink({ eventBus: deps.eventBus, notificationService: deps.notificationService });
     this.replicaProvider = new SystemContextReplicaProvider(this.healthSink);
     this.gatewayFactory = (deps.agentGatewayFactory ?? new AgentGatewayFactory()) as AgentGatewayFactory;
     this.workmodeAdmissionGuard =
