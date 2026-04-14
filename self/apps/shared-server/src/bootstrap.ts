@@ -422,12 +422,26 @@ export async function upsertProviderConfig(
   ctx: NousContext,
   providerConfig: ModelProviderConfig,
 ): Promise<void> {
-  ctx.providerRegistry.registerProvider(providerConfig);
-
   const existingProviders = currentProviderEntries(ctx);
+  const existingEntry = existingProviders.find((p) => p.id === providerConfig.id);
+
+  // Merge: preserve user-selected modelId from existing config when the
+  // incoming config carries a default value. All other fields update from the
+  // incoming config so provider metadata stays current across restarts.
+  const newEntry = toProviderConfigEntry(providerConfig);
+  if (existingEntry?.modelId && existingEntry.modelId !== providerConfig.modelId) {
+    console.log(
+      `[nous:bootstrap] Preserved user modelId '${existingEntry.modelId}' for provider '${providerConfig.id}' (default was '${providerConfig.modelId}')`,
+    );
+    newEntry.modelId = existingEntry.modelId;
+  }
+
+  // Register the provider with the (potentially merged) modelId
+  ctx.providerRegistry.registerProvider({ ...providerConfig, modelId: newEntry.modelId });
+
   const nextProviders = [
     ...existingProviders.filter((provider) => provider.id !== providerConfig.id),
-    toProviderConfigEntry(providerConfig),
+    newEntry,
   ];
 
   await ctx.config.update(
