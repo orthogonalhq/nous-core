@@ -14,6 +14,7 @@ interface ChatApiShape {
     content: string
     timestamp: string
     contentType?: 'text' | 'openui'
+    thinkingContent?: string
     actionOutcome?: { actionType: string; label: string; timestamp: string }
   }[]>
   sendAction: (action: CardAction) => Promise<ActionResult>
@@ -69,6 +70,7 @@ export function useChatApi(options?: UseChatApiOptions): ChatApiShape {
             content: e.content,
             timestamp: e.timestamp,
             ...(e.metadata?.contentType ? { contentType: e.metadata.contentType as 'text' | 'openui' } : {}),
+            ...(e.metadata?.thinkingContent ? { thinkingContent: e.metadata.thinkingContent as string } : {}),
             ...(e.metadata?.actionOutcome ? { actionOutcome: e.metadata.actionOutcome as { actionType: string; label: string; timestamp: string } } : {}),
           }))
       },
