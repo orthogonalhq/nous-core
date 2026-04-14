@@ -8,6 +8,7 @@ import {
   createDevNotificationToolSurface,
   SEED_TEST_NOTIFICATIONS_TOOL_NAME,
   CLEAR_ALL_NOTIFICATIONS_TOOL_NAME,
+  FIRE_TEST_TOAST_TOOL_NAME,
 } from '../../gateway-runtime/index.js';
 import type { DocumentNotificationStore } from '@nous/subcortex-notification';
 
@@ -144,7 +145,8 @@ describe('dev notification tools', () => {
       expect(names).toContain('existing_tool');
       expect(names).toContain(SEED_TEST_NOTIFICATIONS_TOOL_NAME);
       expect(names).toContain(CLEAR_ALL_NOTIFICATIONS_TOOL_NAME);
-      expect(tools.length).toBe(3);
+      expect(names).toContain(FIRE_TEST_TOAST_TOOL_NAME);
+      expect(tools.length).toBe(4);
     });
 
     it('executeTool delegates unknown tool names to base surface', async () => {

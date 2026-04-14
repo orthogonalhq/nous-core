@@ -91,6 +91,7 @@ export {
   getDevNotificationToolDefinitions,
   SEED_TEST_NOTIFICATIONS_TOOL_NAME,
   CLEAR_ALL_NOTIFICATIONS_TOOL_NAME,
+  FIRE_TEST_TOAST_TOOL_NAME,
 } from './dev-notification-tools.js';
 export type { DevNotificationToolSurfaceArgs } from './dev-notification-tools.js';
 
