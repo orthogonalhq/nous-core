@@ -98,6 +98,19 @@ describe('chat.sendMessage', () => {
     expect(result.traceId).toBe('trace-123');
   });
 
+  it('passes sessionId (UUID) and scope: principal to handleChatTurn', async () => {
+    const ctx = createMockContext();
+    const caller = await getCaller(ctx);
+
+    await caller.chat.sendMessage({ message: 'Hello' });
+
+    const callArgs = ctx.gatewayRuntime.handleChatTurn.mock.calls[0][0];
+    expect(callArgs.sessionId).toMatch(
+      /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i,
+    );
+    expect(callArgs.scope).toBe('principal');
+  });
+
   it('does NOT call coreExecutor.executeTurn', async () => {
     const ctx = createMockContext();
     const caller = await getCaller(ctx);
@@ -135,6 +148,21 @@ describe('chat.sendAction', () => {
     expect(result.message).toBe('Follow-up response');
     expect(result.traceId).toBe('trace-123');
     expect(result.contentType).toBe('text');
+  });
+
+  it('followup action passes sessionId and scope: principal to handleChatTurn', async () => {
+    const ctx = createMockContext();
+    const caller = await getCaller(ctx);
+
+    await caller.chat.sendAction({
+      action: { actionType: 'followup', cardId: 'card-1', payload: { prompt: 'Tell me more' } },
+    });
+
+    const callArgs = ctx.gatewayRuntime.handleChatTurn.mock.calls[0][0];
+    expect(callArgs.sessionId).toMatch(
+      /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i,
+    );
+    expect(callArgs.scope).toBe('principal');
   });
 
   it('followup action does NOT call coreExecutor.executeTurn', async () => {

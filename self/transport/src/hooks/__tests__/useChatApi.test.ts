@@ -40,6 +40,73 @@ vi.mock('../../client', () => ({
 
 // ─── Tests ─────────────────────────────────────────────────────────────────────
 
+describe('useChatApi — getHistory', () => {
+  beforeEach(() => {
+    vi.clearAllMocks()
+  })
+
+  it('maps thinkingContent from entry metadata', async () => {
+    mockFetch.getHistory.mockResolvedValueOnce({
+      entries: [
+        { role: 'user', content: 'Hello', timestamp: '2026-04-14T00:00:00Z' },
+        {
+          role: 'assistant',
+          content: 'Hi there',
+          timestamp: '2026-04-14T00:00:01Z',
+          metadata: { thinkingContent: 'I should greet the user warmly' },
+        },
+      ],
+      summary: undefined,
+      tokenCount: 0,
+    })
+
+    const { result } = renderHook(() => useChatApi({ projectId: 'proj-1' }))
+    const history = await result.current.getHistory()
+
+    expect(history).toHaveLength(2)
+    expect(history[1].thinkingContent).toBe('I should greet the user warmly')
+  })
+
+  it('omits thinkingContent when not present in metadata (backward compat)', async () => {
+    mockFetch.getHistory.mockResolvedValueOnce({
+      entries: [
+        { role: 'user', content: 'Hello', timestamp: '2026-04-14T00:00:00Z' },
+        {
+          role: 'assistant',
+          content: 'Hi there',
+          timestamp: '2026-04-14T00:00:01Z',
+          metadata: { contentType: 'text' },
+        },
+      ],
+      summary: undefined,
+      tokenCount: 0,
+    })
+
+    const { result } = renderHook(() => useChatApi({ projectId: 'proj-1' }))
+    const history = await result.current.getHistory()
+
+    expect(history[1]).not.toHaveProperty('thinkingContent')
+  })
+
+  it('handles entries with no metadata at all', async () => {
+    mockFetch.getHistory.mockResolvedValueOnce({
+      entries: [
+        { role: 'user', content: 'Hello', timestamp: '2026-04-14T00:00:00Z' },
+        { role: 'assistant', content: 'Hi', timestamp: '2026-04-14T00:00:01Z' },
+      ],
+      summary: undefined,
+      tokenCount: 0,
+    })
+
+    const { result } = renderHook(() => useChatApi({ projectId: 'proj-1' }))
+    const history = await result.current.getHistory()
+
+    expect(history).toHaveLength(2)
+    expect(history[0]).not.toHaveProperty('thinkingContent')
+    expect(history[1]).not.toHaveProperty('thinkingContent')
+  })
+})
+
 describe('useChatApi — sendAction', () => {
   beforeEach(() => {
     vi.clearAllMocks()
