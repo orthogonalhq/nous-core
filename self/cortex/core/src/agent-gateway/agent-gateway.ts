@@ -55,7 +55,17 @@ import {
 import { GatewayOutbox } from './outbox.js';
 import { composeSystemPrompt } from './system-prompt-composer.js';
 import { resolveAdapter, resolveProviderTypeFromConfig } from './adapters/index.js';
+import type { ILogChannel } from '@nous/shared';
 import type { ProviderAdapter } from './adapters/types.js';
+
+/** No-op log channel used when no ILogChannel is provided. */
+const NOOP_LOG: ILogChannel = {
+  debug() {},
+  info() {},
+  warn() {},
+  error() {},
+  isEnabled() { return false; },
+};
 
 const DEFAULT_MODEL_ROLE_BY_CLASS: Record<AgentClass, ModelRole> = {
   'Cortex::Principal': 'cortex-chat',
@@ -108,6 +118,7 @@ export class AgentGateway implements IAgentGateway {
   private readonly now: () => string;
   private readonly nowMs: () => number;
   private readonly idFactory: () => string;
+  private readonly log: ILogChannel;
   private cachedAdapter: ProviderAdapter | null = null;
 
   constructor(private readonly config: AgentGatewayConfig) {
@@ -116,6 +127,7 @@ export class AgentGateway implements IAgentGateway {
     this.now = config.now ?? defaultNow;
     this.nowMs = config.nowMs ?? defaultNowMs;
     this.idFactory = config.idFactory ?? randomUUID;
+    this.log = config.log ?? NOOP_LOG;
     this.inbox = new GatewayInbox(this.now, this.idFactory);
     this.outbox = new GatewayOutbox(config.outbox);
 
@@ -135,8 +147,8 @@ export class AgentGateway implements IAgentGateway {
   private resolveAdapterFromProvider(provider: IModelProvider): ProviderAdapter {
     if (this.cachedAdapter) return this.cachedAdapter;
     const providerType = resolveProviderTypeFromConfig(provider);
-    this.cachedAdapter = resolveAdapter(providerType);
-    console.debug('[nous:gateway] adapter resolved', { agentClass: this.agentClass, providerType });
+    this.cachedAdapter = resolveAdapter(providerType, this.log);
+    this.log.debug('adapter resolved', { agentClass: this.agentClass, providerType });
     return this.cachedAdapter;
   }
 
@@ -220,7 +232,7 @@ export class AgentGateway implements IAgentGateway {
         // Extract the last user message from context for logging
         const lastUserFrame = [...context].reverse().find(f => f.role === 'user');
 
-        console.debug('[nous:gateway] invoke provider', {
+        this.log.debug('invoke provider', {
           agentClass: this.agentClass,
           hasHarness: !!this.config.harness,
           inputKeys: Object.keys(formatted.input),
@@ -239,7 +251,7 @@ export class AgentGateway implements IAgentGateway {
 
         budgetTracker.recordModelUsage(modelResponse.usage);
 
-        console.debug('[nous:gateway] model response received', {
+        this.log.debug('model response received', {
           agentClass: this.agentClass,
           outputType: typeof modelResponse.output,
           outputLength: typeof modelResponse.output === 'string' ? modelResponse.output.length : 'non-string',
@@ -253,7 +265,7 @@ export class AgentGateway implements IAgentGateway {
           ? (this.config.harness!.responseParser!(modelResponse.output, traceId) as ParsedModelOutput)
           : parseModelOutput(modelResponse.output, traceId);
 
-        console.debug('[nous:gateway] parser selection', {
+        this.log.debug('parser selection', {
           usingHarnessParser,
           outputType: typeof modelResponse.output,
           parsedResponse: parsedOutput.response.slice(0, 100),
@@ -261,7 +273,7 @@ export class AgentGateway implements IAgentGateway {
           parsedThinking: !!parsedOutput.thinkingContent,
         });
 
-        console.debug('[nous:gateway] parsed output', {
+        this.log.debug('parsed output', {
           agentClass: this.agentClass,
           responseLength: parsedOutput.response.length,
           toolCallCount: parsedOutput.toolCalls.length,
@@ -295,7 +307,7 @@ export class AgentGateway implements IAgentGateway {
         // Single-turn exit: return immediately after one model invocation.
         // No tool handling, no task_complete required.
         if (this.config.harness?.loopConfig?.singleTurn) {
-          console.debug('[nous:gateway] single-turn exit', { agentClass: this.agentClass });
+          this.log.debug('single-turn exit', { agentClass: this.agentClass });
           budgetTracker.recordTurn();
           return this.finalizeTerminalResult(
             this.buildSingleTurnResult(
@@ -312,7 +324,7 @@ export class AgentGateway implements IAgentGateway {
         // calls, the turn is complete. Only continue looping when there are
         // pending tool calls to execute.
         if (parsedOutput.toolCalls.length === 0 && parsedOutput.response.trim()) {
-          console.debug('[nous:gateway] conversational exit (no tool calls)', { agentClass: this.agentClass });
+          this.log.debug('conversational exit (no tool calls)', { agentClass: this.agentClass });
           budgetTracker.recordTurn();
           return this.finalizeTerminalResult(
             this.buildSingleTurnResult(
@@ -381,7 +393,7 @@ export class AgentGateway implements IAgentGateway {
         }
       }
     } catch (error) {
-      console.error('[nous:gateway] run() error', {
+      this.log.error('run() error', {
         agentClass: this.agentClass,
         errorName: (error as Error).name,
         errorMessage: (error as Error).message,
@@ -489,7 +501,7 @@ export class AgentGateway implements IAgentGateway {
         ? await this.handleDispatchBatch(args, dispatchIndexes)
         : new Map<number, ToolHandlingResult>();
 
-    console.debug('[nous:gateway] handleToolCalls', {
+    this.log.debug('handleToolCalls', {
       toolCallCount: args.toolCalls.length,
       toolCalls: args.toolCalls.map((tc, i) => ({
         index: i,
@@ -511,7 +523,7 @@ export class AgentGateway implements IAgentGateway {
 
       if (handled.contextFrame) {
         frameByIndex.set(index, handled.contextFrame);
-        console.debug('[nous:gateway] tool result frame', {
+        this.log.debug('tool result frame', {
           index,
           toolName: toolCall.name,
           toolCallId: toolCall.id ?? '(no id)',

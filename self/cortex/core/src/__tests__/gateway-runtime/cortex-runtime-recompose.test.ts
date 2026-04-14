@@ -6,7 +6,7 @@
  * semantics for rapid vendor changes during an active turn.
  */
 import { describe, expect, it, vi } from 'vitest';
-import type { AgentGatewayConfig, IModelRouter } from '@nous/shared';
+import type { AgentGatewayConfig, ILogger, ILogChannel, IModelRouter } from '@nous/shared';
 import { createPrincipalSystemGatewayRuntime } from '../../gateway-runtime/index.js';
 import { resolveAdapter } from '../../agent-gateway/adapters/index.js';
 import {
@@ -14,6 +14,21 @@ import {
   createPfcEngine,
   createProjectApi,
 } from '../agent-gateway/helpers.js';
+
+function createMockLogger(): ILogger & { channels: Map<string, ILogChannel & { info: ReturnType<typeof vi.fn> }> } {
+  const channels = new Map<string, ILogChannel & { info: ReturnType<typeof vi.fn> }>();
+  return {
+    channels,
+    channel(namespace: string) {
+      if (!channels.has(namespace)) {
+        channels.set(namespace, { debug: vi.fn(), info: vi.fn(), warn: vi.fn(), error: vi.fn(), isEnabled: () => true });
+      }
+      return channels.get(namespace)!;
+    },
+    bindConfig: vi.fn(),
+    setLevel: vi.fn(),
+  };
+}
 
 function createStubModelRouter(): IModelRouter {
   return {
@@ -32,7 +47,7 @@ function idFactory(): () => string {
   };
 }
 
-function createRuntime() {
+function createRuntime(logger?: ILogger) {
   return createPrincipalSystemGatewayRuntime({
     documentStore: createDocumentStore(),
     modelRouter: createStubModelRouter(),
@@ -43,6 +58,7 @@ function createRuntime() {
       validate: vi.fn().mockResolvedValue({ success: true }),
     },
     idFactory: idFactory(),
+    logger,
   });
 }
 
@@ -111,22 +127,22 @@ describe('CortexRuntime.recomposeHarnessForClass (WR-148 phase 1.1)', () => {
   });
 
   it('recomposition with unknown vendor falls back to text adapter', () => {
-    const runtime = createRuntime();
-    const spy = vi.spyOn(console, 'info').mockImplementation(() => {});
+    const logger = createMockLogger();
+    const runtime = createRuntime(logger);
 
     // 'unknown_vendor' should fallback to text adapter via resolveAdapter
     runtime.recomposeHarnessForClass('Cortex::Principal', 'unknown_vendor' as never);
 
-    expect(spy).toHaveBeenCalledWith(
+    const log = logger.channels.get('nous:cortex-runtime');
+    expect(log?.info).toHaveBeenCalledWith(
       expect.stringContaining('Recomposed harness for Cortex::Principal with vendor unknown_vendor'),
     );
-    spy.mockRestore();
   });
 
   describe('turn-in-progress guard', () => {
     it('defers recompose when turn is in progress', () => {
-      const runtime = createRuntime();
-      const spy = vi.spyOn(console, 'info').mockImplementation(() => {});
+      const logger = createMockLogger();
+      const runtime = createRuntime(logger);
 
       // Simulate turn in progress
       getTurnInProgressByClass(runtime).set('Cortex::Principal', true);
@@ -140,10 +156,10 @@ describe('CortexRuntime.recomposeHarnessForClass (WR-148 phase 1.1)', () => {
       // Should be stored in pendingRecompose
       expect(getPendingRecompose(runtime).get('Cortex::Principal')).toBe('ollama');
 
-      expect(spy).toHaveBeenCalledWith(
+      const log = logger.channels.get('nous:cortex-runtime');
+      expect(log?.info).toHaveBeenCalledWith(
         expect.stringContaining('Deferred harness recompose for Cortex::Principal'),
       );
-      spy.mockRestore();
     });
 
     it('applies deferred recompose when turn completes (via checkPendingRecompose)', () => {

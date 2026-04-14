@@ -21,6 +21,7 @@ import type {
   RecoveryOrchestratorContext,
   StmContext,
   ToolDefinition,
+  ILogChannel,
   TraceEvidenceReference,
   TraceId,
 } from '@nous/shared';
@@ -200,6 +201,7 @@ implements IPrincipalSystemGatewayRuntime, ISystemInboxSubmissionService {
   private readonly recoveryOrchestrator?: IRecoveryOrchestrator;
   private readonly retryPolicyEvaluator: IRetryPolicyEvaluator;
   private readonly rollbackPolicyEvaluator: IRollbackPolicyEvaluator;
+  private readonly log: ILogChannel;
 
   constructor(private readonly deps: PrincipalSystemGatewayRuntimeDeps = {}) {
     this.healthSink = new GatewayRuntimeHealthSink({ eventBus: deps.eventBus, notificationService: deps.notificationService });
@@ -217,6 +219,7 @@ implements IPrincipalSystemGatewayRuntime, ISystemInboxSubmissionService {
     this.recoveryOrchestrator = deps.recoveryOrchestrator;
     this.retryPolicyEvaluator = new RetryPolicyEvaluator();
     this.rollbackPolicyEvaluator = new RollbackPolicyEvaluator();
+    this.log = deps.logger?.channel('nous:gateway-runtime') ?? { debug() {}, info() {}, warn() {}, error() {}, isEnabled() { return false; } };
 
     this.healthSink.completeBootStep('subcortex_initialized', this.now());
     this.healthSink.completeBootStep('internal_mcp_registered', this.now());
@@ -288,7 +291,7 @@ implements IPrincipalSystemGatewayRuntime, ISystemInboxSubmissionService {
     );
     this.healthSink.markInboxReady(this.now());
     if (!this.deps.documentStore) {
-      console.warn('Using in-memory document store for backlog queue -- queued work will not survive restart.');
+      this.log.warn('Using in-memory document store for backlog queue -- queued work will not survive restart');
     }
     this.systemBacklogQueue = new SystemBacklogQueue({
       documentStore: this.deps.documentStore ?? createInMemoryDocumentStore(),
@@ -296,6 +299,7 @@ implements IPrincipalSystemGatewayRuntime, ISystemInboxSubmissionService {
       now: this.now,
       config: this.deps.backlogConfig,
       executeEntry: async (entry) => this.executeSystemEntry(entry),
+      log: this.deps.logger?.channel('nous:backlog-queue'),
     });
   }
 
@@ -431,7 +435,7 @@ implements IPrincipalSystemGatewayRuntime, ISystemInboxSubmissionService {
         }
       } catch {
         // Fail-open: opctl service error should not block chat
-        console.warn('[nous:gateway-runtime] handleChatTurn: opctl gate check failed, allowing execution');
+        this.log.warn('handleChatTurn: opctl gate check failed, allowing execution');
       }
     }
 
@@ -442,10 +446,10 @@ implements IPrincipalSystemGatewayRuntime, ISystemInboxSubmissionService {
         const stmContext = await this.deps.stmStore.getContext(projectId as ProjectId);
         contextFrames = this.buildChatContextFrames(stmContext);
       } catch {
-        console.warn('[nous:gateway-runtime] handleChatTurn: STM context load failed, proceeding without history');
+        this.log.warn('handleChatTurn: STM context load failed, proceeding without history');
       }
     } else if (projectId && !this.deps.stmStore) {
-      console.warn('[nous:gateway-runtime] handleChatTurn: stmStore not available, proceeding without conversation history');
+      this.log.warn('handleChatTurn: stmStore not available, proceeding without conversation history');
     }
 
     // Run Principal gateway
@@ -474,7 +478,7 @@ implements IPrincipalSystemGatewayRuntime, ISystemInboxSubmissionService {
     // Normalize — strip chain-of-thought narration if detected
     const normalized = detectAndStripNarration(resolved.response);
     if (normalized.wasNarrated) {
-      console.debug('[nous:gateway-runtime] handleChatTurn: narration detected and stripped');
+      this.log.debug('handleChatTurn: narration detected and stripped');
     }
     const responseText = normalized.cleaned;
 
@@ -576,7 +580,7 @@ implements IPrincipalSystemGatewayRuntime, ISystemInboxSubmissionService {
         }
       } catch {
         // Fail-open: opctl service error should not block execution
-        console.warn('[nous:gateway-runtime] opctl gate check failed, allowing execution');
+        this.log.warn('opctl gate check failed, allowing execution');
       }
     }
     // scheduler, system_event, hook sources bypass the gate entirely
@@ -609,7 +613,7 @@ implements IPrincipalSystemGatewayRuntime, ISystemInboxSubmissionService {
         }
       } catch {
         // Checkpoint capture is advisory for V1 — proceed without checkpoint
-        console.warn('[nous:gateway-runtime] checkpoint prepare failed, proceeding without checkpoint');
+        this.log.warn('checkpoint prepare failed, proceeding without checkpoint');
       }
     }
 
@@ -629,7 +633,7 @@ implements IPrincipalSystemGatewayRuntime, ISystemInboxSubmissionService {
         }
       } catch {
         // Commit failure: checkpoint remains prepared-only
-        console.warn('[nous:gateway-runtime] checkpoint commit failed');
+        this.log.warn('checkpoint commit failed');
       }
     }
 
@@ -675,7 +679,7 @@ implements IPrincipalSystemGatewayRuntime, ISystemInboxSubmissionService {
         }
       } catch {
         // Recovery failure must not mask the original error
-        console.warn('[nous:gateway-runtime] recovery orchestrator failed, propagating original error');
+        this.log.warn('recovery orchestrator failed, propagating original error');
         return result;
       }
     }
@@ -838,7 +842,7 @@ implements IPrincipalSystemGatewayRuntime, ISystemInboxSubmissionService {
       }
     } catch {
       // Preserve chat-path availability even if STM finalization fails.
-      console.warn('[nous:gateway-runtime] handleChatTurn: STM finalization failed, chat response preserved');
+      this.log.warn('handleChatTurn: STM finalization failed, chat response preserved');
     }
   }
 
@@ -879,6 +883,7 @@ implements IPrincipalSystemGatewayRuntime, ISystemInboxSubmissionService {
       now: this.now,
       nowMs: this.nowMs,
       idFactory: this.idFactory,
+      log: this.deps.logger?.channel('nous:gateway'),
     };
   }
 

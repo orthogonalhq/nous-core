@@ -30,6 +30,7 @@ import type {
   IAppCredentialInstallService,
   ICredentialVaultService,
   ICredentialInjector,
+  ILogger,
   IOpctlService,
   IngressDispatchOutcome,
   IngressTriggerEnvelope,
@@ -290,6 +291,9 @@ export interface PrincipalSystemGatewayRuntimeDeps {
   now?: () => string;
   nowMs?: () => number;
   idFactory?: () => string;
+  /** Structured logger (WR-157). When provided, the runtime creates
+   *  channels for itself, the gateways, and the backlog queue. */
+  logger?: ILogger;
 }
 
 export interface LaneLeaseReleasedEvent {

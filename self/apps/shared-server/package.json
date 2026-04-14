@@ -16,6 +16,7 @@
   },
   "dependencies": {
     "@nous/autonomic-health": "workspace:*",
+    "@nous/autonomic-logger": "workspace:*",
     "@nous/autonomic-credentials": "workspace:*",
     "@nous/autonomic-config": "workspace:*",
     "@nous/autonomic-embeddings": "workspace:*",

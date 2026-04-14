@@ -35,6 +35,7 @@ import type {
   TraceEvidenceReference,
   TraceId,
   HarnessStrategies,
+  ILogChannel,
   PromptFormatterInput,
   ProviderVendor,
 } from '@nous/shared';
@@ -240,6 +241,7 @@ implements IPrincipalSystemGatewayRuntime, ISystemInboxSubmissionService {
   private readonly recoveryOrchestrator?: IRecoveryOrchestrator;
   private readonly retryPolicyEvaluator: IRetryPolicyEvaluator;
   private readonly rollbackPolicyEvaluator: IRollbackPolicyEvaluator;
+  private readonly log: ILogChannel;
 
   constructor(private readonly deps: PrincipalSystemGatewayRuntimeDeps = {}) {
     this.healthSink = new GatewayRuntimeHealthSink({ eventBus: deps.eventBus, notificationService: deps.notificationService });
@@ -257,6 +259,7 @@ implements IPrincipalSystemGatewayRuntime, ISystemInboxSubmissionService {
     this.recoveryOrchestrator = deps.recoveryOrchestrator;
     this.retryPolicyEvaluator = new RetryPolicyEvaluator();
     this.rollbackPolicyEvaluator = new RollbackPolicyEvaluator();
+    this.log = deps.logger?.channel('nous:cortex-runtime') ?? { debug() {}, info() {}, warn() {}, error() {}, isEnabled() { return false; } };
 
     this.healthSink.completeBootStep('subcortex_initialized', this.now());
     this.healthSink.completeBootStep('internal_mcp_registered', this.now());
@@ -349,7 +352,7 @@ implements IPrincipalSystemGatewayRuntime, ISystemInboxSubmissionService {
     );
     this.healthSink.markInboxReady(this.now());
     if (!this.deps.documentStore) {
-      console.warn('Using in-memory document store for backlog queue -- queued work will not survive restart.');
+      this.log.warn('Using in-memory document store for backlog queue -- queued work will not survive restart');
     }
     this.systemBacklogQueue = new SystemBacklogQueue({
       documentStore: this.deps.documentStore ?? createInMemoryDocumentStore(),
@@ -357,6 +360,7 @@ implements IPrincipalSystemGatewayRuntime, ISystemInboxSubmissionService {
       now: this.now,
       config: this.deps.backlogConfig,
       executeEntry: async (entry) => this.executeSystemEntry(entry),
+      log: this.deps.logger?.channel('nous:backlog-queue'),
     });
   }
 
@@ -495,7 +499,7 @@ implements IPrincipalSystemGatewayRuntime, ISystemInboxSubmissionService {
         }
       } catch {
         // Fail-open: opctl service error should not block chat
-        console.warn('[nous:gateway-runtime] handleChatTurn: opctl gate check failed, allowing execution');
+        this.log.warn('handleChatTurn: opctl gate check failed, allowing execution');
       }
     }
 
@@ -506,10 +510,10 @@ implements IPrincipalSystemGatewayRuntime, ISystemInboxSubmissionService {
         const stmContext = await this.deps.stmStore.getContext(projectId as ProjectId);
         contextFrames = this.buildChatContextFrames(stmContext);
       } catch {
-        console.warn('[nous:gateway-runtime] handleChatTurn: STM context load failed, proceeding without history');
+        this.log.warn('handleChatTurn: STM context load failed, proceeding without history');
       }
     } else if (projectId && !this.deps.stmStore) {
-      console.warn('[nous:gateway-runtime] handleChatTurn: stmStore not available, proceeding without conversation history');
+      this.log.warn('handleChatTurn: stmStore not available, proceeding without conversation history');
     }
 
     // Add the user message as a plain-text user frame, not as a JSON payload.
@@ -557,7 +561,7 @@ implements IPrincipalSystemGatewayRuntime, ISystemInboxSubmissionService {
     // Normalize — strip chain-of-thought narration if detected
     const normalized = detectAndStripNarration(resolved.response);
     if (normalized.wasNarrated) {
-      console.debug('[nous:gateway-runtime] handleChatTurn: narration detected and stripped');
+      this.log.debug('handleChatTurn: narration detected and stripped');
     }
     const responseText = normalized.cleaned;
 
@@ -660,7 +664,7 @@ implements IPrincipalSystemGatewayRuntime, ISystemInboxSubmissionService {
         }
       } catch {
         // Fail-open: opctl service error should not block execution
-        console.warn('[nous:gateway-runtime] opctl gate check failed, allowing execution');
+        this.log.warn('opctl gate check failed, allowing execution');
       }
     }
     // scheduler, system_event, hook sources bypass the gate entirely
@@ -693,7 +697,7 @@ implements IPrincipalSystemGatewayRuntime, ISystemInboxSubmissionService {
         }
       } catch {
         // Checkpoint capture is advisory for V1 — proceed without checkpoint
-        console.warn('[nous:gateway-runtime] checkpoint prepare failed, proceeding without checkpoint');
+        this.log.warn('checkpoint prepare failed, proceeding without checkpoint');
       }
     }
 
@@ -713,7 +717,7 @@ implements IPrincipalSystemGatewayRuntime, ISystemInboxSubmissionService {
         }
       } catch {
         // Commit failure: checkpoint remains prepared-only
-        console.warn('[nous:gateway-runtime] checkpoint commit failed');
+        this.log.warn('checkpoint commit failed');
       }
     }
 
@@ -759,7 +763,7 @@ implements IPrincipalSystemGatewayRuntime, ISystemInboxSubmissionService {
         }
       } catch {
         // Recovery failure must not mask the original error
-        console.warn('[nous:gateway-runtime] recovery orchestrator failed, propagating original error');
+        this.log.warn('recovery orchestrator failed, propagating original error');
         return result;
       }
     }
@@ -936,7 +940,7 @@ implements IPrincipalSystemGatewayRuntime, ISystemInboxSubmissionService {
       }
     } catch {
       // Preserve chat-path availability even if STM finalization fails.
-      console.warn('[nous:gateway-runtime] handleChatTurn: STM finalization failed, chat response preserved');
+      this.log.warn('handleChatTurn: STM finalization failed, chat response preserved');
     }
   }
 
@@ -995,6 +999,7 @@ implements IPrincipalSystemGatewayRuntime, ISystemInboxSubmissionService {
       now: this.now,
       nowMs: this.nowMs,
       idFactory: this.idFactory,
+      log: this.deps.logger?.channel('nous:gateway'),
     };
   }
 
@@ -1008,7 +1013,7 @@ implements IPrincipalSystemGatewayRuntime, ISystemInboxSubmissionService {
     agentClass: AgentClass,
     providerType: string,
   ): HarnessStrategies {
-    const adapter = resolveAdapter(providerType);
+    const adapter = resolveAdapter(providerType, this.deps.logger?.channel('nous:gateway'));
     const profile = resolveAgentProfile(agentClass);
 
     return {
@@ -1271,8 +1276,8 @@ implements IPrincipalSystemGatewayRuntime, ISystemInboxSubmissionService {
     vendorString: ProviderVendor,
   ): void {
     if (this.turnInProgressByClass.get(agentClass)) {
-      console.info(
-        `[nous:cortex-runtime] Deferred harness recompose for ${agentClass} — turn in progress`,
+      this.log.info(
+        `Deferred harness recompose for ${agentClass} — turn in progress`,
       );
       this.pendingRecompose.set(agentClass, vendorString);
       return;
@@ -1288,8 +1293,8 @@ implements IPrincipalSystemGatewayRuntime, ISystemInboxSubmissionService {
       ? this.principalGatewayConfig
       : this.systemGatewayConfig;
     config.harness = this.composeHarnessStrategies(agentClass, vendorString);
-    console.info(
-      `[nous:cortex-runtime] Recomposed harness for ${agentClass} with vendor ${vendorString}`,
+    this.log.info(
+      `Recomposed harness for ${agentClass} with vendor ${vendorString}`,
     );
   }
 
@@ -1298,8 +1303,8 @@ implements IPrincipalSystemGatewayRuntime, ISystemInboxSubmissionService {
     const pending = this.pendingRecompose.get(agentClass);
     if (pending !== undefined) {
       this.pendingRecompose.delete(agentClass);
-      console.info(
-        `[nous:cortex-runtime] Applied deferred harness recompose for ${agentClass} with vendor ${pending}`,
+      this.log.info(
+        `Applied deferred harness recompose for ${agentClass} with vendor ${pending}`,
       );
       this.applyRecompose(agentClass, pending);
     }
@@ -1330,8 +1335,8 @@ implements IPrincipalSystemGatewayRuntime, ISystemInboxSubmissionService {
    */
   private checkAttachOrWarn(): void {
     if (this.attachedVendorByClass === null && !this.attachWarningEmitted) {
-      console.warn(
-        '[nous:cortex-runtime] CortexRuntime exposed without attached vendor map. ' +
+      this.log.warn(
+        'CortexRuntime exposed without attached vendor map. ' +
           'Principal and System gateways will run with the text adapter. ' +
           'This is likely a bootstrap bug — see cortex-provider-attach-lifecycle-v1.md.',
       );

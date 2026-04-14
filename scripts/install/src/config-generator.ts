@@ -57,6 +57,10 @@ export function generateDefaultConfig(
     security: {
       traceSensitiveData: false,
     },
+    logging: {
+      level: 0,
+      channels: {},
+    },
   };
 
   return SystemConfigSchema.parse(config);
