@@ -1,7 +1,6 @@
 'use client';
 
-import { Button } from '@/components/ui/button';
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
+import { Button, Card, CardContent, CardHeader, CardTitle } from '@nous/ui';
 
 interface WelcomeStepProps {
   onNext: () => void;
@@ -9,18 +8,24 @@ interface WelcomeStepProps {
 
 export function WelcomeStep({ onNext }: WelcomeStepProps) {
   return (
-    <Card className="w-full max-w-lg">
+    <Card style={{ width: '100%', maxWidth: '32rem' }}>
       <CardHeader>
         <CardTitle>Welcome to Nous</CardTitle>
       </CardHeader>
-      <CardContent className="space-y-4">
-        <p className="text-muted-foreground">
+      <CardContent
+        style={{
+          display: 'flex',
+          flexDirection: 'column',
+          gap: 'var(--nous-space-md)',
+        }}
+      >
+        <p style={{ color: 'var(--nous-text-secondary)' }}>
           <strong>What is Nous?</strong> Nous (Neural Operations Unification
           System) is an open-core AI agent operating system modeled on the
           structure of the human mind. It runs projects, manages memory, and
           learns from your interactions.
         </p>
-        <p className="text-muted-foreground">
+        <p style={{ color: 'var(--nous-text-secondary)' }}>
           <strong>What just happened?</strong> The installer set up Ollama (your
           local LLM), pulled a default model, created your configuration, and
           started the Nous backend. You&apos;re ready to go.

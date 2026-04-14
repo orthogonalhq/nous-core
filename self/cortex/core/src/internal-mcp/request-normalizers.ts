@@ -7,7 +7,8 @@ import {
   type ExternalSourceGetQuery,
   type ExternalSourcePutCommand,
   type ExternalSourceSearchQuery,
-  GatewayDispatchRequestSchema,
+  DispatchOrchestratorRequestSchema,
+  DispatchWorkerRequestSchema,
   GatewayEscalationRequestSchema,
   GatewayObservationSchema,
   GatewayTaskCompletionRequestSchema,
@@ -26,7 +27,7 @@ import {
   PromotedMemorySearchQuerySchema,
   ValidationError,
   WitnessCheckpointReasonSchema,
-  ScheduleDefinitionSchema,
+  ScheduleDefinitionBaseSchema,
   type ArtifactReadRequest,
   type ArtifactWriteRequest,
   type DemotePromotedRecordCommand,
@@ -36,7 +37,8 @@ import {
   type PromotedMemorySearchQuery,
   type PublicMcpAgentInvokeArguments,
   type PublicMcpExecutionRequest,
-  type GatewayDispatchRequest,
+  type DispatchOrchestratorRequest,
+  type DispatchWorkerRequest,
   type GatewayEscalationRequest,
   type GatewayObservation,
   type GatewayTaskCompletionRequest,
@@ -49,13 +51,27 @@ import {
   type WorkflowLifecycleResumeCommand,
   type WorkflowLifecycleStartCommand,
   type WorkflowLifecycleStatusQuery,
+  type WorkflowLifecycleValidateCommand,
+  type WorkflowLifecycleFromSpecCommand,
+  type WorkflowLifecycleCreateCommand,
+  type WorkflowLifecycleUpdateCommand,
+  type WorkflowLifecycleDeleteCommand,
+  type WorkflowExecuteNodeToolRequest,
+  type WorkflowCompleteNodeToolRequest,
+  WorkflowExecuteNodeToolRequestSchema,
+  WorkflowCompleteNodeToolRequestSchema,
   WorkflowLifecycleCancelCommandSchema,
+  WorkflowLifecycleFromSpecCommandSchema,
+  WorkflowLifecycleCreateCommandSchema,
+  WorkflowLifecycleUpdateCommandSchema,
+  WorkflowLifecycleDeleteCommandSchema,
   WorkflowLifecycleInspectQuerySchema,
   WorkflowLifecycleListQuerySchema,
   WorkflowLifecyclePauseCommandSchema,
   WorkflowLifecycleResumeCommandSchema,
   WorkflowLifecycleStartCommandSchema,
   WorkflowLifecycleStatusQuerySchema,
+  WorkflowLifecycleValidateCommandSchema,
   AppHealthSnapshotSchema,
   AppHeartbeatSignalSchema,
   CredentialInjectRequestSchema,
@@ -140,7 +156,7 @@ export const EscalationNotifyRequestSchema = EscalationContractSchema.omit({
 });
 export type EscalationNotifyRequest = Omit<EscalationContract, 'projectId'>;
 
-export const SchedulerRegisterRequestSchema = ScheduleDefinitionSchema.omit({
+export const SchedulerRegisterRequestSchema = ScheduleDefinitionBaseSchema.omit({
   projectId: true,
 });
 export type SchedulerRegisterRequest = Omit<ScheduleDefinition, 'projectId'>;
@@ -151,6 +167,8 @@ export type WorkflowStatusRequest = WorkflowLifecycleStatusQuery;
 export type WorkflowPauseRequest = WorkflowLifecyclePauseCommand;
 export type WorkflowResumeRequest = WorkflowLifecycleResumeCommand;
 export type WorkflowCancelRequest = WorkflowLifecycleCancelCommand;
+export type WorkflowValidateRequest = WorkflowLifecycleValidateCommand;
+export type WorkflowFromSpecRequest = WorkflowLifecycleFromSpecCommand;
 export type AppHealthReportRequest = z.infer<typeof AppHealthReportRequestSchema>;
 export type AppHeartbeatRequest = z.infer<typeof AppHeartbeatRequestSchema>;
 export type AppCredentialStoreRequest = CredentialStoreRequest;
@@ -204,19 +222,33 @@ export function parsePublicMcpAgentInvokeArguments(
   return PublicMcpAgentInvokeArgumentsSchema.parse(params ?? {});
 }
 
-export function normalizeDispatchParams(params: unknown): GatewayDispatchRequest {
+export function normalizeDispatchOrchestratorParams(
+  params: unknown,
+): DispatchOrchestratorRequest {
   if (params && typeof params === 'object') {
     const raw = params as Record<string, unknown>;
-    return GatewayDispatchRequestSchema.parse({
-      targetClass: raw.targetClass ?? raw.target_class,
+    return DispatchOrchestratorRequestSchema.parse({
+      dispatchIntent: raw.dispatchIntent ?? raw.dispatch_intent,
       taskInstructions: raw.taskInstructions ?? raw.task_instructions,
-      payload: raw.payload,
       budget: raw.budget,
-      nodeDefinitionId: raw.nodeDefinitionId ?? raw.node_id,
     });
   }
+  return DispatchOrchestratorRequestSchema.parse(params ?? {});
+}
 
-  return GatewayDispatchRequestSchema.parse(params ?? {});
+export function normalizeDispatchWorkerParams(
+  params: unknown,
+): DispatchWorkerRequest {
+  if (params && typeof params === 'object') {
+    const raw = params as Record<string, unknown>;
+    return DispatchWorkerRequestSchema.parse({
+      taskInstructions: raw.taskInstructions ?? raw.task_instructions,
+      nodeDefinitionId: raw.nodeDefinitionId ?? raw.node_id,
+      payload: raw.payload,
+      budget: raw.budget,
+    });
+  }
+  return DispatchWorkerRequestSchema.parse(params ?? {});
 }
 
 export function normalizeTaskCompletionParams(
@@ -349,6 +381,54 @@ export function parseWorkflowCancelRequest(
   return WorkflowLifecycleCancelCommandSchema.parse(params ?? {});
 }
 
+export function parseWorkflowValidateRequest(
+  params: unknown,
+): WorkflowValidateRequest {
+  return WorkflowLifecycleValidateCommandSchema.parse(params ?? {});
+}
+
+export function parseWorkflowFromSpecRequest(
+  params: unknown,
+): WorkflowFromSpecRequest {
+  return WorkflowLifecycleFromSpecCommandSchema.parse(params ?? {});
+}
+
+export function parseWorkflowCreateRequest(
+  params: unknown,
+): WorkflowLifecycleCreateCommand {
+  return WorkflowLifecycleCreateCommandSchema.parse(params ?? {});
+}
+
+export function parseWorkflowUpdateRequest(
+  params: unknown,
+): WorkflowLifecycleUpdateCommand {
+  return WorkflowLifecycleUpdateCommandSchema.parse(params ?? {});
+}
+
+export function parseWorkflowDeleteRequest(
+  params: unknown,
+): WorkflowLifecycleDeleteCommand {
+  return WorkflowLifecycleDeleteCommandSchema.parse(params ?? {});
+}
+
+export function parseWorkflowAuthoringReferenceRequest(
+  _params: unknown,
+): Record<string, never> {
+  return {};
+}
+
+export function parseWorkflowExecuteNodeRequest(
+  params: unknown,
+): WorkflowExecuteNodeToolRequest {
+  return WorkflowExecuteNodeToolRequestSchema.parse(params ?? {});
+}
+
+export function parseWorkflowCompleteNodeRequest(
+  params: unknown,
+): WorkflowCompleteNodeToolRequest {
+  return WorkflowCompleteNodeToolRequestSchema.parse(params ?? {});
+}
+
 export function parseHealthReportRequest(
   params: unknown,
 ): AppHealthReportRequest {
@@ -442,6 +522,123 @@ export function parseExternalMemoryCompactCommand(
     idempotencyKey: request.idempotencyKey,
     arguments: PublicMcpCompactArgumentsSchema.parse(request.arguments ?? {}),
   };
+}
+
+// --- Task / Workflow Request Schemas ---
+
+const LocalTaskTriggerConfigSchema = z.union([
+  z.object({ type: z.literal('manual') }),
+  z.object({ type: z.literal('heartbeat'), cronExpression: z.string().min(1), timezone: z.string().default('UTC') }),
+  z.object({ type: z.literal('webhook'), pathSegment: z.string().min(1), secret: z.string().min(32) }),
+]);
+
+const LocalTaskCreateInputSchema = z.object({
+  name: z.string().min(1).max(100),
+  description: z.string().default(''),
+  trigger: LocalTaskTriggerConfigSchema,
+  orchestratorInstructions: z.string().min(1),
+  context: z.record(z.string(), z.unknown()).optional(),
+  enabled: z.boolean().default(false),
+});
+
+const LocalTaskUpdateInputSchema = z.object({
+  name: z.string().min(1).max(100).optional(),
+  description: z.string().optional(),
+  trigger: LocalTaskTriggerConfigSchema.optional(),
+  orchestratorInstructions: z.string().min(1).optional(),
+  context: z.record(z.string(), z.unknown()).optional(),
+  enabled: z.boolean().optional(),
+});
+
+export const TaskListRequestSchema = z.object({
+  projectId: z.string().uuid(),
+});
+export type TaskListRequest = z.infer<typeof TaskListRequestSchema>;
+
+export const TaskGetRequestSchema = z.object({
+  projectId: z.string().uuid(),
+  taskId: z.string().uuid(),
+});
+export type TaskGetRequest = z.infer<typeof TaskGetRequestSchema>;
+
+export const TaskCreateRequestSchema = z.object({
+  projectId: z.string().uuid(),
+  task: LocalTaskCreateInputSchema,
+});
+export type TaskCreateRequest = z.infer<typeof TaskCreateRequestSchema>;
+
+export const TaskUpdateRequestSchema = z.object({
+  projectId: z.string().uuid(),
+  taskId: z.string().uuid(),
+  updates: LocalTaskUpdateInputSchema,
+});
+export type TaskUpdateRequest = z.infer<typeof TaskUpdateRequestSchema>;
+
+export const TaskDeleteRequestSchema = z.object({
+  projectId: z.string().uuid(),
+  taskId: z.string().uuid(),
+});
+export type TaskDeleteRequest = z.infer<typeof TaskDeleteRequestSchema>;
+
+export const TaskToggleRequestSchema = z.object({
+  projectId: z.string().uuid(),
+  taskId: z.string().uuid(),
+});
+export type TaskToggleRequest = z.infer<typeof TaskToggleRequestSchema>;
+
+export const TaskTriggerRequestSchema = z.object({
+  projectId: z.string().uuid(),
+  taskId: z.string().uuid(),
+});
+export type TaskTriggerRequest = z.infer<typeof TaskTriggerRequestSchema>;
+
+export const TaskHistoryRequestSchema = z.object({
+  projectId: z.string().uuid(),
+  taskId: z.string().uuid(),
+  limit: z.number().int().min(1).max(100).default(20),
+});
+export type TaskHistoryRequest = z.infer<typeof TaskHistoryRequestSchema>;
+
+export const WorkflowHistoryRequestSchema = z.object({
+  projectId: z.string().uuid(),
+  limit: z.number().int().min(1).max(100).default(20),
+});
+export type WorkflowHistoryRequest = z.infer<typeof WorkflowHistoryRequestSchema>;
+
+export function parseTaskListRequest(params: unknown): TaskListRequest {
+  return TaskListRequestSchema.parse(params ?? {});
+}
+
+export function parseTaskGetRequest(params: unknown): TaskGetRequest {
+  return TaskGetRequestSchema.parse(params ?? {});
+}
+
+export function parseTaskCreateRequest(params: unknown): TaskCreateRequest {
+  return TaskCreateRequestSchema.parse(params ?? {});
+}
+
+export function parseTaskUpdateRequest(params: unknown): TaskUpdateRequest {
+  return TaskUpdateRequestSchema.parse(params ?? {});
+}
+
+export function parseTaskDeleteRequest(params: unknown): TaskDeleteRequest {
+  return TaskDeleteRequestSchema.parse(params ?? {});
+}
+
+export function parseTaskToggleRequest(params: unknown): TaskToggleRequest {
+  return TaskToggleRequestSchema.parse(params ?? {});
+}
+
+export function parseTaskTriggerRequest(params: unknown): TaskTriggerRequest {
+  return TaskTriggerRequestSchema.parse(params ?? {});
+}
+
+export function parseTaskHistoryRequest(params: unknown): TaskHistoryRequest {
+  return TaskHistoryRequestSchema.parse(params ?? {});
+}
+
+export function parseWorkflowHistoryRequest(params: unknown): WorkflowHistoryRequest {
+  return WorkflowHistoryRequestSchema.parse(params ?? {});
 }
 
 export function toValidationError(message: string, error: unknown): ValidationError {

@@ -136,10 +136,11 @@ describe('ControlActionSchema', () => {
 });
 
 describe('ControlActorTypeSchema', () => {
-  it('accepts principal, orchestration_agent, worker_agent', () => {
+  it('accepts principal, orchestration_agent, worker_agent, system_agent', () => {
     expect(ControlActorTypeSchema.safeParse('principal').success).toBe(true);
     expect(ControlActorTypeSchema.safeParse('orchestration_agent').success).toBe(true);
     expect(ControlActorTypeSchema.safeParse('worker_agent').success).toBe(true);
+    expect(ControlActorTypeSchema.safeParse('system_agent').success).toBe(true);
   });
 });
 

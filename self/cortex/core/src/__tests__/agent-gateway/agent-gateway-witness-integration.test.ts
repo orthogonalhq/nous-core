@@ -7,6 +7,7 @@ import {
   createDocumentStore,
   createGatewayHarness,
   createProjectApi,
+  createWorkmodeAdmissionGuard,
 } from './helpers.js';
 
 describe('AgentGateway witness integration', () => {
@@ -16,6 +17,7 @@ describe('AgentGateway witness integration', () => {
       agentClass: 'Worker',
       agentId: AGENT_ID,
       deps: {
+        workmodeAdmissionGuard: createWorkmodeAdmissionGuard(),
         getProjectApi: () => createProjectApi(),
         witnessService,
         outputSchemaValidator: {

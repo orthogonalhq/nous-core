@@ -52,11 +52,27 @@ export class OllamaProvider implements IModelProvider {
       await this.handleError(response);
     }
 
-    const data = (await response.json()) as OllamaGenerateResponse;
+    const data = (await response.json()) as OllamaGenerateResponse & OllamaChatResponse;
     const usage = this.extractUsage(data, start);
 
+    // Return the full message object when available — preserves tool_calls,
+    // thinking, and any other structured fields the adapter needs.
+    // Fall back to plain string only for /api/generate responses (no message).
+    const chatMsg = data.message;
+    const output = chatMsg ?? data.response ?? '';
+
+    console.debug('[nous:ollama-provider] invoke response shape', {
+      url,
+      hasMessage: !!chatMsg,
+      messageKeys: chatMsg && typeof chatMsg === 'object' ? Object.keys(chatMsg) : 'n/a',
+      hasThinking: chatMsg && typeof chatMsg === 'object' ? 'thinking' in chatMsg : false,
+      hasResponse: !!data.response,
+      outputType: typeof output,
+      dataKeys: Object.keys(data),
+    });
+
     return {
-      output: data.response ?? (data as OllamaChatResponse).message?.content ?? '',
+      output,
       providerId: this.config.id,
       usage,
       traceId: request.traceId,
@@ -121,7 +137,11 @@ export class OllamaProvider implements IModelProvider {
     }
   }
 
-  private validateInput(input: unknown): { prompt?: string; messages?: Array<{ role: string; content: string }> } {
+  private validateInput(input: unknown): {
+    prompt?: string;
+    messages?: Array<{ role: string; content: string | unknown[]; tool_call_id?: string }>;
+    tools?: Array<Record<string, unknown>>;
+  } {
     const result = TextModelInputSchema.safeParse(input);
     if (!result.success) {
       const errors = result.error.errors.map((e) => ({
@@ -134,13 +154,36 @@ export class OllamaProvider implements IModelProvider {
   }
 
   private buildRequestBody(
-    input: { prompt?: string; messages?: Array<{ role: string; content: string }> },
+    input: {
+      prompt?: string;
+      messages?: Array<{ role: string; content: string | unknown[]; tool_call_id?: string }>;
+      tools?: Array<Record<string, unknown>>;
+    },
   ): Record<string, unknown> {
-    const base = { model: this.config.modelId };
+    const base: Record<string, unknown> = { model: this.config.modelId };
     if (input.prompt) {
       return { ...base, prompt: input.prompt };
     }
-    return { ...base, messages: input.messages };
+    const body: Record<string, unknown> = { ...base, messages: input.messages };
+
+    // Pass tools to Ollama /api/chat in OpenAI-compatible format
+    if (input.tools && input.tools.length > 0) {
+      body.tools = input.tools.map((t: Record<string, unknown>) => {
+        // Already in adapter format: { type: 'function', function: { ... } }
+        if (t.type === 'function' && t.function) return t;
+        // Legacy format: { name, description, input_schema }
+        return {
+          type: 'function',
+          function: {
+            name: t.name,
+            description: t.description,
+            parameters: t.input_schema,
+          },
+        };
+      });
+    }
+
+    return body;
   }
 
   private getUrl(body: Record<string, unknown>): string {
@@ -220,13 +263,25 @@ export class OllamaProvider implements IModelProvider {
 interface OllamaGenerateResponse {
   response?: string;
   done?: boolean;
+  done_reason?: string;
   eval_count?: number;
   prompt_eval_count?: number;
 }
 
+interface OllamaToolCall {
+  function: { name: string; arguments: Record<string, unknown> };
+}
+
 interface OllamaChatResponse {
-  message?: { content?: string; role?: string };
+  message?: {
+    content?: string;
+    role?: string;
+    tool_calls?: OllamaToolCall[];
+    /** Thinking/reasoning content from models that support it (e.g. Gemma 4) */
+    thinking?: string;
+  };
   done?: boolean;
+  done_reason?: string;
   eval_count?: number;
   prompt_eval_count?: number;
 }

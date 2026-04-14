@@ -1,0 +1,62 @@
+---
+title: Health Monitoring
+description: Live system health dashboard for Nous
+---
+
+# Health Monitoring
+
+The health monitoring dashboard displays live operational data about your Nous instance. Three widgets show system status, provider health, and active agents — all updated automatically through polling and server-sent events.
+
+## Dashboard Widgets
+
+### System Status
+
+Shows the current boot status of the Nous backend, a list of completed boot steps, and backlog analytics (queued items, active items, trend). The `collectedAt` timestamp indicates when the snapshot was last refreshed.
+
+- **Boot status** — Indicates whether the backend has finished initialization (`Ready`) or is still starting (`Booting`).
+- **Boot steps** — Lists each subsystem that completed initialization (e.g., credential vault, provider registry, gateway runtime).
+- **Backlog analytics** — Shows the queued and active counts for system-level background tasks, plus a trend indicator (`idle`, `increasing`, `decreasing`).
+
+### Provider Health
+
+Lists all configured model providers with their current status, model identifier, and provider type. Each provider shows a status indicator:
+
+| Status | Meaning |
+|--------|---------|
+| Available | Provider is configured and reachable |
+| Unknown | Provider is configured but has not been probed (default for cloud providers in Phase 1) |
+| Unreachable | Provider was configured but the last communication attempt failed |
+
+Cloud providers (Anthropic, OpenAI) default to `Unknown` because active reachability probing is not yet implemented. A provider showing `Unknown` does not indicate a problem — it means the system has not yet attempted to verify the connection. Local providers (Ollama) report their actual status based on runtime interaction.
+
+### Active Agents
+
+Shows the gateway-level agent projections and any active application sessions. Each gateway entry displays:
+
+- **Agent class** — The Cortex agent class (e.g., `Cortex::Principal`, `Cortex::System`).
+- **Tools** — The number of tools registered for that agent.
+- **Inbox status** — Whether the agent's inbox is `READY` or in another state.
+- **Issues** — Count of any active health issues for that agent.
+
+Application sessions appear when installed app packages are running. Each session shows app and package identifiers, status, health status, and a stale indicator when the session has not reported recently.
+
+The header displays the total count of gateways and sessions.
+
+## Update Behavior
+
+All three widgets update automatically through two mechanisms:
+
+1. **Polling** — Each widget fetches fresh data from the backend at a regular interval (default: every 5 seconds). This provides a baseline refresh rate.
+2. **Event-driven invalidation** — When the backend emits a health-related event through the SSE event stream (boot step completion, gateway status change, health issue, or backlog analytics update), the affected widgets immediately refresh. This provides near-real-time updates for state changes without waiting for the next poll cycle.
+
+The combination ensures that the dashboard stays current during normal operation (polling) and responds promptly to significant state changes (events).
+
+## Desktop App Transport
+
+In the desktop Electron app, health widgets fetch data through the IPC bridge rather than making direct HTTP requests. The renderer calls `window.electronAPI.health.*` methods, which are forwarded through `ipcRenderer.invoke` to `ipcMain.handle` handlers in the main process. The main process then queries the tRPC backend using the same health endpoints as the web app.
+
+This transport is transparent to the widgets themselves — the `HealthQueryProvider` accepts a fetchers object, and each host (web or desktop) supplies the appropriate implementation. Web fetchers call tRPC directly; desktop fetchers call through IPC. The polling and event-driven invalidation behavior described above applies equally to both hosts.
+
+## Token Usage (Deferred)
+
+The Token Usage widget remains a placeholder in Phase 1. System-level token usage accumulation is planned for a future release.

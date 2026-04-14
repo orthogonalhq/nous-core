@@ -262,6 +262,41 @@ describe('PackageLifecycleOrchestrator', () => {
     expect(purgeNamespace).toHaveBeenCalledWith('app:weather');
   });
 
+  it('skips credential purge when no credential vault service is provided', async () => {
+    const orchestrator = new PackageLifecycleOrchestrator({
+      now: () => new Date('2026-03-02T00:00:00.000Z'),
+    });
+
+    await orchestrator.ingest(buildRequest('ingest', { package_id: 'app:weather' }));
+    await orchestrator.install(
+      buildRequest('install', {
+        package_id: 'app:weather',
+        admission: {
+          signature_valid: true,
+          signer_known: true,
+          policy_compatible: true,
+          is_draft_unsigned: false,
+          is_imported: false,
+          reverification_complete: true,
+          reapproval_complete: true,
+        },
+        compatibility: {
+          api_compatible: true,
+        },
+      }),
+    );
+
+    const removed = await orchestrator.removePackage(
+      buildRequest('remove', {
+        package_id: 'app:weather',
+        retention_decision: 'delete_confirmed',
+      }),
+    );
+
+    expect(removed.decision).toBe('allowed');
+    expect(removed.to_state).toBe('removed');
+  });
+
   it('blocks removal when credential purge fails', async () => {
     const orchestrator = new PackageLifecycleOrchestrator({
       now: () => new Date('2026-03-02T00:00:00.000Z'),

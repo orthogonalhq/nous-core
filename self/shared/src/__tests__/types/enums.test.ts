@@ -42,8 +42,7 @@ describe('PfcTierSchema', () => {
 
 describe('ModelRoleSchema', () => {
   const validRoles = [
-    'orchestrator', 'reasoner', 'tool-advisor', 'summarizer',
-    'embedder', 'reranker', 'vision',
+    'cortex-chat', 'cortex-system', 'orchestrators', 'workers',
   ];
 
   it.each(validRoles)('accepts "%s"', (role) => {
@@ -52,6 +51,15 @@ describe('ModelRoleSchema', () => {
 
   it('rejects invalid role', () => {
     expect(ModelRoleSchema.safeParse('invalid-role').success).toBe(false);
+  });
+
+  const legacyRoles = [
+    'reasoner', 'orchestrator', 'tool-advisor', 'summarizer',
+    'embedder', 'reranker', 'vision',
+  ];
+
+  it.each(legacyRoles)('rejects legacy role "%s"', (role) => {
+    expect(ModelRoleSchema.safeParse(role).success).toBe(false);
   });
 });
 
@@ -109,6 +117,7 @@ describe('NodeTypeSchema', () => {
   const validTypes = [
     'model-call', 'tool-execution', 'quality-gate',
     'human-decision', 'condition', 'transform',
+    'parallel-split', 'parallel-join', 'loop', 'error-handler',
   ];
 
   it.each(validTypes)('accepts "%s"', (type) => {

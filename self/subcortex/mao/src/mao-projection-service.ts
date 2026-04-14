@@ -1,9 +1,12 @@
 import { createHash, randomUUID } from 'node:crypto';
 import type {
+  AgentClass,
+  AgentGatewayEntry,
   ConfirmationProof,
   ControlActorType,
   IEscalationService,
   IOpctlService,
+  IProjectStore,
   IScheduler,
   IVoiceControlService,
   IWorkflowEngine,
@@ -21,10 +24,16 @@ import type {
   MaoRunGraphEdge,
   MaoRunGraphNode,
   MaoRunGraphSnapshot,
+  MaoSystemSnapshot,
+  MaoSystemSnapshotInput,
   ProjectControlState,
   ProjectId,
+  WorkflowNodeDefinition,
   WorkflowNodeRunState,
   WorkflowRunState,
+  WorkflowRunStatus,
+  IHealthAggregator,
+  MaoControlAuditHistoryEntry,
 } from '@nous/shared';
 import {
   MaoAgentInspectInputSchema,
@@ -36,9 +45,13 @@ import {
   MaoProjectSnapshotInputSchema,
   MaoProjectSnapshotSchema,
   MaoRunGraphSnapshotSchema,
+  MaoSystemSnapshotInputSchema,
+  MaoSystemSnapshotSchema,
+  SYSTEM_SCOPE_SENTINEL_PROJECT_ID,
 } from '@nous/shared';
 
 type ControlAuditRecord = {
+  commandId: string;
   action: MaoProjectControlAction;
   actorId: string;
   reason: string;
@@ -153,10 +166,32 @@ function isPfcWait(nodeState: WorkflowNodeRunState): boolean {
   );
 }
 
+function deriveClassFromNodeKind(
+  nodeDefinition: WorkflowNodeDefinition | undefined,
+): AgentClass | undefined {
+  if (!nodeDefinition) return undefined;
+  switch (nodeDefinition.type) {
+    case 'model-call':
+    case 'tool-execution':
+      return 'Worker';
+    case 'subworkflow':
+      return 'Orchestrator';
+    default:
+      return undefined;
+  }
+}
+
 function mapLifecycleState(
   nodeState: WorkflowNodeRunState,
   controlState: ProjectControlState,
+  runStatus?: WorkflowRunStatus,
 ): MaoAgentProjection['state'] {
+  if (runStatus === 'canceled') {
+    return 'canceled';
+  }
+  if (controlState === 'hard_stopped') {
+    return 'hard_stopped';
+  }
   if (
     controlState === 'paused_review' &&
     ['ready', 'running'].includes(nodeState.status)
@@ -491,12 +526,68 @@ export interface MaoProjectionServiceDeps {
   schedulerService: IScheduler;
   voiceControlService?: IVoiceControlService;
   witnessService?: IWitnessService;
+  eventBus?: import('@nous/shared').IEventBus;
+  healthAggregator?: IHealthAggregator;
+  inferenceAdapter?: import('./inference-projection-adapter.js').InferenceProjectionAdapter;
+  projectStore?: IProjectStore;
+  getBudgetStatus?: (projectId: string) => {
+    utilizationPercent: number;
+    currentSpendUsd: number;
+    budgetCeilingUsd: number;
+    softAlertFired: boolean;
+    hardCeilingFired: boolean;
+  } | null | undefined;
 }
 
 export class MaoProjectionService {
-  private readonly controlAuditByProject = new Map<ProjectId, ControlAuditRecord>();
+  private static readonly MAX_AUDIT_HISTORY_PER_PROJECT = 100;
+  private readonly controlAuditByProject = new Map<ProjectId, ControlAuditRecord[]>();
 
   constructor(private deps: MaoProjectionServiceDeps) {}
+
+  /**
+   * Late-bind the health aggregator for degradedReasonCode derivation.
+   * Needed because the HealthAggregator depends on gatewayRuntime which is
+   * constructed after MaoProjectionService in the bootstrap sequence.
+   */
+  setHealthAggregator(aggregator: import('@nous/shared').IHealthAggregator): void {
+    this.deps.healthAggregator = aggregator;
+  }
+
+  /**
+   * Synthesize an MaoAgentProjection from a health aggregator gateway entry.
+   * Used for system agents (Cortex::Principal, Cortex::System) that exist
+   * outside the workflow engine.
+   */
+  private synthesizeSystemAgentProjection(gw: AgentGatewayEntry, generatedAt: string): MaoAgentProjection {
+    const now = gw.lastAckAt ?? gw.lastSubmissionAt ?? generatedAt;
+    const hasIssues = gw.issueCount > 0;
+    return {
+      agent_id: gw.agentId,
+      project_id: SYSTEM_SCOPE_SENTINEL_PROJECT_ID as ProjectId,
+      dispatching_task_agent_id: null,
+      dispatch_origin_ref: 'gateway-runtime:system-agent',
+      agent_class: gw.agentClass as 'Cortex::Principal' | 'Cortex::System' | 'Orchestrator' | 'Worker',
+      display_name: gw.agentClass,
+      state: gw.inboxReady ? 'running' : 'queued',
+      current_step: 'System gateway active',
+      progress_percent: 100,
+      risk_level: hasIssues ? 'medium' : 'low',
+      urgency_level: 'normal',
+      attention_level: hasIssues ? 'medium' : 'none',
+      pfc_alert_status: 'none',
+      pfc_mitigation_status: 'none',
+      dispatch_state: 'active',
+      reflection_cycle_count: 0,
+      last_update_at: now,
+      reasoning_log_preview: null,
+      reasoning_log_last_entry_class: null,
+      reasoning_log_last_entry_at: null,
+      reasoning_log_redaction_state: 'none',
+      deepLinks: [],
+      evidenceRefs: [],
+    };
+  }
 
   async getAgentProjections(projectId: ProjectId): Promise<MaoAgentProjection[]> {
     const context = await this.buildProjectionContext({
@@ -524,7 +615,32 @@ export class MaoProjectionService {
     const controlProjection = this.buildProjectControlProjection(context);
     const summary = buildSummary(context.agentProjections);
 
-    return MaoProjectSnapshotSchema.parse({
+    // Budget utilization enrichment (additive, optional)
+    let budgetUtilization: {
+      utilizationPercent: number;
+      currentSpendUsd: number;
+      budgetCeilingUsd: number;
+      softAlertFired: boolean;
+      hardCeilingFired: boolean;
+    } | undefined;
+    if (this.deps.getBudgetStatus) {
+      try {
+        const status = this.deps.getBudgetStatus(parsed.projectId);
+        if (status) {
+          budgetUtilization = {
+            utilizationPercent: status.utilizationPercent,
+            currentSpendUsd: status.currentSpendUsd,
+            budgetCeilingUsd: status.budgetCeilingUsd,
+            softAlertFired: status.softAlertFired,
+            hardCeilingFired: status.hardCeilingFired,
+          };
+        }
+      } catch {
+        // Graceful degradation: omit budgetUtilization if cost service fails
+      }
+    }
+
+    const snapshot = MaoProjectSnapshotSchema.parse({
       projectId: parsed.projectId,
       densityMode: parsed.densityMode,
       workflowRunId: context.selectedRun?.runId,
@@ -548,14 +664,41 @@ export class MaoProjectionService {
         runtimePosture: 'single_process_local',
         degradedReasonCode: context.degradedReasonCode,
       },
+      budgetUtilization,
       generatedAt: context.generatedAt,
     });
+    this.deps.eventBus?.publish('mao:projection-changed', {
+      projectId: parsed.projectId,
+    });
+    return snapshot;
   }
 
   async getAgentInspectProjection(
     input: MaoAgentInspectInput,
   ): Promise<MaoAgentInspectProjection | null> {
     const parsed = MaoAgentInspectInputSchema.parse(input);
+
+    // System agent fast path: check health aggregator before expensive workflow lookup.
+    // System agents use the sentinel project ID and have no workflow runs —
+    // calling buildProjectionContext with the sentinel would fail.
+    if (parsed.agentId && this.deps.healthAggregator) {
+      const agentStatus = this.deps.healthAggregator.getAgentStatus();
+      const gw = agentStatus.gateways.find((g) => g.agentId === parsed.agentId);
+      if (gw) {
+        const generatedAt = new Date().toISOString();
+        const systemAgent = this.synthesizeSystemAgentProjection(gw, generatedAt);
+        return MaoAgentInspectProjectionSchema.parse({
+          projectId: SYSTEM_SCOPE_SENTINEL_PROJECT_ID,
+          agent: systemAgent,
+          projectControlState: 'running',
+          latestAttempt: null,
+          correctionArcs: [],
+          evidenceRefs: [],
+          generatedAt,
+        });
+      }
+    }
+
     const context = await this.buildProjectionContext({
       projectId: parsed.projectId,
       densityMode: 'D2',
@@ -608,6 +751,17 @@ export class MaoProjectionService {
           occurredAt: arc.occurredAt,
         })) ?? [],
       evidenceRefs: agent.evidenceRefs,
+      inference_history: this.deps.inferenceAdapter
+        ? (() => {
+            const agentClass =
+              agent.workflow_node_definition_id ?? agent.agent_id;
+            const history = this.deps.inferenceAdapter!.getInferenceHistory({
+              agentClass,
+              limit: 50,
+            });
+            return history.length > 0 ? history : undefined;
+          })()
+        : undefined,
       generatedAt: context.generatedAt,
     });
   }
@@ -680,14 +834,35 @@ export class MaoProjectionService {
         impactSummary: parsed.impactSummary,
       },
     };
-    const proof =
-      confirmationProof ??
-      (await this.deps.opctlService.requestConfirmationProof({
+    let proof: ConfirmationProof;
+    if (confirmationProof) {
+      proof = confirmationProof;
+    } else if (tier === 'T3') {
+      // T3 requires client-supplied proof; reject without fallback (Phase 1 constraint #3)
+      const fromStateNow = await this.deps.opctlService.getProjectControlState(
+        parsed.project_id,
+      );
+      return MaoProjectControlResultSchema.parse({
+        command_id: parsed.command_id,
+        project_id: parsed.project_id,
+        accepted: false,
+        status: 'blocked',
+        from_state: fromStateNow,
+        to_state: fromStateNow,
+        reason_code: 'T3_PROOF_REQUIRED',
+        decision_ref: `mao-control:${parsed.command_id}`,
+        impactSummary: parsed.impactSummary,
+        evidenceRefs: [`project-control:${fromStateNow}`],
+      });
+    } else {
+      // T0/T1/T2 auto-generate proof
+      proof = await this.deps.opctlService.requestConfirmationProof({
         scope: envelope.scope,
         action: controlAction,
         tier,
         reason: parsed.reason,
-      }));
+      });
+    }
 
     const opctlResult = await this.deps.opctlService.submitCommand(envelope, proof);
     const impactSummary = await this.buildImpactSummary(parsed.project_id);
@@ -732,7 +907,9 @@ export class MaoProjectionService {
       readiness_status: readinessStatus,
     });
 
-    this.controlAuditByProject.set(parsed.project_id, {
+    const auditHistory = this.controlAuditByProject.get(parsed.project_id) ?? [];
+    auditHistory.push({
+      commandId: parsed.command_id,
       action: parsed.action,
       actorId: parsed.actor_id,
       reason: parsed.reason,
@@ -742,6 +919,10 @@ export class MaoProjectionService {
       resumeReadinessStatus: readinessStatus,
       decisionRef,
     });
+    if (auditHistory.length > MaoProjectionService.MAX_AUDIT_HISTORY_PER_PROJECT) {
+      auditHistory.splice(0, auditHistory.length - MaoProjectionService.MAX_AUDIT_HISTORY_PER_PROJECT);
+    }
+    this.controlAuditByProject.set(parsed.project_id, auditHistory);
 
     await this.emitProjectionEvent(
       accepted ? 'mao_project_control_applied' : 'mao_project_control_blocked',
@@ -766,6 +947,12 @@ export class MaoProjectionService {
       );
     }
 
+    this.deps.eventBus?.publish('mao:control-action', {
+      projectId: parsed.project_id,
+      action: parsed.action,
+      result: accepted ? 'success' : 'failure',
+    });
+
     return result;
   }
 
@@ -782,6 +969,92 @@ export class MaoProjectionService {
         detail,
       });
     }
+  }
+
+  async getControlAuditHistory(projectId: ProjectId): Promise<MaoControlAuditHistoryEntry[]> {
+    return (this.controlAuditByProject.get(projectId) ?? []).map((record) => ({
+      commandId: record.commandId,
+      action: record.action,
+      actorId: record.actorId,
+      reason: record.reason,
+      reasonCode: record.reasonCode,
+      at: record.at,
+      evidenceRefs: record.evidenceRefs,
+      resumeReadinessStatus: record.resumeReadinessStatus,
+      decisionRef: record.decisionRef,
+    }));
+  }
+
+  async getSystemSnapshot(input: MaoSystemSnapshotInput): Promise<MaoSystemSnapshot> {
+    const parsed = MaoSystemSnapshotInputSchema.parse(input);
+    const generatedAt = nowIso();
+
+    if (!this.deps.projectStore) {
+      return MaoSystemSnapshotSchema.parse({
+        agents: [],
+        leaseRoots: [],
+        projectControls: {},
+        densityMode: parsed.densityMode,
+        generatedAt,
+      });
+    }
+
+    const projects = await this.deps.projectStore.list();
+    const allAgents: MaoAgentProjection[] = [];
+    const leaseRoots: string[] = [];
+    const projectControls: Record<string, MaoProjectControlProjection> = {};
+
+    for (const project of projects) {
+      const projectId = project.id;
+      try {
+        const context = await this.buildProjectionContext({
+          projectId,
+          densityMode: parsed.densityMode,
+        });
+
+        allAgents.push(...context.agentProjections);
+
+        // Identify lease roots: agents that are not dispatched by another agent
+        for (const agent of context.agentProjections) {
+          if (agent.dispatching_task_agent_id == null) {
+            leaseRoots.push(agent.agent_id);
+          }
+        }
+
+        const controlProjection = this.buildProjectControlProjection(context);
+        projectControls[projectId] = controlProjection;
+      } catch (error) {
+        console.warn('[nous:mao] getSystemSnapshot: project %s skipped', projectId, error);
+        continue;
+      }
+    }
+
+    // --- System agent synthesis from health aggregator ---
+    if (this.deps.healthAggregator) {
+      const agentStatus = this.deps.healthAggregator.getAgentStatus();
+      const existingIds = new Set(allAgents.map((a) => a.agent_id));
+
+      for (const gw of agentStatus.gateways) {
+        if (existingIds.has(gw.agentId)) continue;
+        existingIds.add(gw.agentId);
+
+        const systemAgent = this.synthesizeSystemAgentProjection(gw, generatedAt);
+        allAgents.push(systemAgent);
+        leaseRoots.push(gw.agentId);
+      }
+    }
+
+    const snapshot = MaoSystemSnapshotSchema.parse({
+      agents: allAgents,
+      leaseRoots,
+      projectControls,
+      densityMode: parsed.densityMode,
+      generatedAt,
+    });
+
+    this.deps.eventBus?.publish('mao:projection-changed', {});
+
+    return snapshot;
   }
 
   private async buildProjectionContext(
@@ -859,6 +1132,9 @@ export class MaoProjectionService {
         voiceProjection?.degraded_mode.reason ??
         (selectedRun != null && selectedGraph == null
           ? 'workflow_run_graph_unavailable'
+          : undefined) ??
+        (this.deps.healthAggregator?.getSystemStatus().bootStatus === 'degraded'
+          ? 'system_health_degraded'
           : undefined),
     };
   }
@@ -871,7 +1147,7 @@ export class MaoProjectionService {
     nodeState: WorkflowNodeRunState,
     controlState: ProjectControlState,
   ): MaoAgentProjection {
-    const lifecycleState = mapLifecycleState(nodeState, controlState);
+    const lifecycleState = mapLifecycleState(nodeState, controlState, run.status);
     const urgencyLevel = deriveUrgencyLevel(lifecycleState);
     const latestAttempt = nodeState.attempts[nodeState.attempts.length - 1];
     const parentNodeDefinitionId = run.dispatchLineage.find(
@@ -889,13 +1165,20 @@ export class MaoProjectionService {
       ]),
     ];
     const preview = buildReasoningPreview(projectId, run, nodeDefinitionId, nodeState);
+    const nodeDefinition = graph.nodes[nodeDefinitionId]?.definition;
     const projection = {
       agent_id: nodeState.id,
       project_id: projectId,
       workflow_run_id: run.runId,
       workflow_node_definition_id: nodeDefinitionId as import('@nous/shared').WorkflowNodeDefinitionId,
+      // Task context fields: populated when the dispatch carries task context
+      // (via SystemTaskSubmission.detail). For workflow-based agents, these remain undefined.
+      task_definition_id: (run as any).triggerContext?.detail?.taskDefinitionId as string | undefined,
+      task_name: (run as any).triggerContext?.detail?.taskName as string | undefined,
       dispatching_task_agent_id: dispatchingTaskAgentId,
       dispatch_origin_ref: nodeState.lastDispatchLineageId ?? `workflow-run:${run.runId}`,
+      agent_class: nodeDefinition?.metadata?.agentClass ?? deriveClassFromNodeKind(nodeDefinition),
+      display_name: nodeDefinition?.metadata?.displayName ?? nodeDefinition?.name,
       state: lifecycleState,
       state_reason: nodeState.reasonCode ?? nodeState.activeWaitState?.reasonCode,
       state_reason_code:
@@ -944,7 +1227,20 @@ export class MaoProjectionService {
         evidenceRefs[0],
       ),
       evidenceRefs,
-    } satisfies MaoAgentProjection;
+      ...(() => {
+        if (!this.deps.inferenceAdapter) return {};
+        const agentClass = nodeDefinitionId;
+        const inferenceState = this.deps.inferenceAdapter.getAgentInferenceState(agentClass);
+        if (!inferenceState) return {};
+        return {
+          inference_provider_id: inferenceState.lastProviderId,
+          inference_model_id: inferenceState.lastModelId,
+          inference_latency_ms: inferenceState.lastLatencyMs,
+          inference_total_tokens: inferenceState.totalTokens,
+          inference_is_streaming: inferenceState.isStreaming,
+        };
+      })(),
+    };
 
     return MaoAgentProjectionSchema.parse(projection);
   }
@@ -953,7 +1249,7 @@ export class MaoProjectionService {
     context: ProjectionContext,
   ): MaoProjectControlProjection {
     const summary = buildSummary(context.agentProjections);
-    const audit = this.controlAuditByProject.get(context.projectId);
+    const audit = this.controlAuditByProject.get(context.projectId)?.at(-1);
     const pfcReviewActive =
       context.controlState === 'paused_review' ||
       context.agentProjections.some((agent) => agent.state === 'waiting_pfc');

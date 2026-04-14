@@ -55,6 +55,8 @@ export const ProjectHealthSummarySchema = z.object({
   overdueScheduleCount: z.number().int().min(0),
   openEscalationCount: z.number().int().min(0),
   urgentEscalationCount: z.number().int().min(0),
+  enabledTaskCount: z.number().int().min(0).default(0),
+  recentTaskFailureCount: z.number().int().min(0).default(0),
 });
 export type ProjectHealthSummary = z.infer<typeof ProjectHealthSummarySchema>;
 
@@ -67,6 +69,16 @@ export const ProjectDashboardSnapshotSchema = z.object({
   openEscalations: z.array(InAppEscalationRecordSchema).default([]),
   blockedActions: z.array(ProjectBlockedActionSchema).default([]),
   packageDefaultIntake: z.array(ProjectPackageDefaultIntakeSchema).default([]),
+  taskSummary: z.object({
+    totalCount: z.number().int().min(0),
+    enabledCount: z.number().int().min(0),
+    recentExecutions: z.array(z.object({
+      taskId: z.string().uuid(),
+      taskName: z.string(),
+      status: z.enum(['running', 'completed', 'failed']),
+      triggeredAt: z.string().datetime(),
+    })).default([]),
+  }).default({ totalCount: 0, enabledCount: 0, recentExecutions: [] }),
   diagnostics: z.object({
     runtimePosture: z.literal('single_process_local'),
     degradedReasonCode: z.string().min(1).optional(),

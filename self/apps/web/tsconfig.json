@@ -29,6 +29,9 @@
       "@nous/shared": [
         "../../shared/src/index.ts"
       ],
+      "@nous/transport": [
+        "../../transport/src/index.ts"
+      ],
       "@nous/subcortex-apps": [
         "../../subcortex/apps/src/index.ts"
       ],
@@ -103,11 +106,8 @@
   "include": [
     "**/*.ts",
     "**/*.tsx",
-    ".next-4317/types/**/*.ts",
-    ".next-4319/types/**/*.ts",
     ".next/types/**/*.ts",
-    "next-env.d.ts",
-    ".next-4320/types/**/*.ts"
+    "next-env.d.ts"
   ],
   "exclude": [
     "node_modules"

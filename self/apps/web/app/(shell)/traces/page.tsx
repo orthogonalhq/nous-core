@@ -4,9 +4,7 @@ import { Suspense } from 'react';
 import { useSearchParams } from 'next/navigation';
 import { useProject } from '@/lib/project-context';
 import { trpc } from '@/lib/trpc';
-import { Card, CardHeader, CardTitle, CardContent } from '@/components/ui/card';
-import { Collapsible, CollapsibleTrigger, CollapsibleContent } from '@/components/ui/collapsible';
-import { Badge } from '@/components/ui/badge';
+import { Card, CardHeader, CardTitle, CardContent, Collapsible, CollapsibleTrigger, CollapsibleContent, Badge } from '@nous/ui';
 
 function shortId(id: string): string {
   if (id.length <= 14) {
@@ -19,8 +17,8 @@ export default function TracesPage() {
   return (
     <Suspense
       fallback={
-        <div className="p-8">
-          <p className="text-muted-foreground">Loading traces...</p>
+        <div style={{ padding: 'var(--nous-space-4xl)' }}>
+          <p style={{ color: 'var(--nous-text-secondary)' }}>Loading traces...</p>
         </div>
       }
     >
@@ -40,9 +38,17 @@ function TracesPageContent() {
 
   if (!projectId) {
     return (
-      <div className="flex h-full items-center justify-center p-8">
-        <p className="text-muted-foreground">
-          Select a project from the sidebar to view traces.
+      <div
+        style={{
+          display: 'flex',
+          height: '100%',
+          alignItems: 'center',
+          justifyContent: 'center',
+          padding: 'var(--nous-space-4xl)',
+        }}
+      >
+        <p style={{ color: 'var(--nous-text-secondary)' }}>
+          Select a project from the navigation panel to view traces.
         </p>
       </div>
     );
@@ -50,58 +56,176 @@ function TracesPageContent() {
 
   if (isLoading) {
     return (
-      <div className="p-8">
-        <p className="text-muted-foreground">Loading traces...</p>
+      <div style={{ padding: 'var(--nous-space-4xl)' }}>
+        <p style={{ color: 'var(--nous-text-secondary)' }}>Loading traces...</p>
       </div>
     );
   }
 
   return (
-    <div className="space-y-4 p-8">
-      <h1 className="text-2xl font-semibold">Execution Traces</h1>
+    <div
+      style={{
+        display: 'flex',
+        flexDirection: 'column',
+        gap: 'var(--nous-space-2xl)',
+        padding: 'var(--nous-space-4xl)',
+      }}
+    >
+      <h1
+        style={{
+          fontSize: '24px',
+          fontWeight: 'var(--nous-font-weight-semibold)',
+        }}
+      >
+        Execution Traces
+      </h1>
       {selectedTraceId ? (
-        <p className="text-sm text-muted-foreground">
+        <p
+          style={{
+            fontSize: 'var(--nous-font-size-sm)',
+            color: 'var(--nous-text-secondary)',
+          }}
+        >
           Linked trace reference: {selectedTraceId.slice(0, 8)}...
         </p>
       ) : null}
       {!traces?.length ? (
-        <p className="text-muted-foreground">No traces yet. Send a message in Chat to create one.</p>
+        <p style={{ color: 'var(--nous-text-secondary)' }}>
+          No traces yet. Send a message in Chat to create one.
+        </p>
       ) : (
-        <div className="space-y-4">
+        <div
+          style={{
+            display: 'flex',
+            flexDirection: 'column',
+            gap: 'var(--nous-space-2xl)',
+          }}
+        >
           {(traces ?? []).map((trace) => (
             <Card key={trace.traceId}>
               <Collapsible defaultOpen={trace.traceId === selectedTraceId}>
-                <CardHeader className="py-3">
-                  <CollapsibleTrigger className="flex w-full items-center justify-between text-left">
-                    <CardTitle className="text-sm font-medium">
+                <CardHeader
+                  style={{
+                    paddingTop: 'var(--nous-space-xl)',
+                    paddingBottom: 'var(--nous-space-xl)',
+                  }}
+                >
+                  <CollapsibleTrigger
+                    style={{
+                      display: 'flex',
+                      width: '100%',
+                      alignItems: 'center',
+                      justifyContent: 'space-between',
+                      textAlign: 'left',
+                    }}
+                  >
+                    <CardTitle
+                      style={{
+                        fontSize: 'var(--nous-font-size-sm)',
+                        fontWeight: 'var(--nous-font-weight-medium)',
+                      }}
+                    >
                       {trace.traceId.slice(0, 8)}...
                     </CardTitle>
-                    <div className="flex items-center gap-2">
+                    <div
+                      style={{
+                        display: 'flex',
+                        alignItems: 'center',
+                        gap: 'var(--nous-space-md)',
+                      }}
+                    >
                       <Badge variant="outline">
                         {trace.turns.length} turn{trace.turns.length !== 1 ? 's' : ''}
                       </Badge>
-                      <span className="text-xs text-muted-foreground">
+                      <span
+                        style={{
+                          fontSize: 'var(--nous-font-size-xs)',
+                          color: 'var(--nous-text-secondary)',
+                        }}
+                      >
                         {trace.startedAt}
                       </span>
                     </div>
                   </CollapsibleTrigger>
                 </CardHeader>
                 <CollapsibleContent>
-                  <CardContent className="space-y-4 border-t border-border pt-4">
+                  <CardContent
+                    style={{
+                      display: 'flex',
+                      flexDirection: 'column',
+                      gap: 'var(--nous-space-2xl)',
+                      borderTop: '1px solid var(--nous-shell-column-border)',
+                      paddingTop: 'var(--nous-space-2xl)',
+                    }}
+                  >
                     {trace.turns.map((turn, i) => (
-                      <div key={i} className="space-y-2 rounded border border-border p-3">
+                      <div
+                        key={i}
+                        style={{
+                          display: 'flex',
+                          flexDirection: 'column',
+                          gap: 'var(--nous-space-md)',
+                          borderRadius: 'var(--nous-radius-sm)',
+                          border: '1px solid var(--nous-shell-column-border)',
+                          padding: 'var(--nous-space-xl)',
+                        }}
+                      >
                         <div>
-                          <span className="text-xs font-medium text-muted-foreground">Input:</span>
-                          <p className="whitespace-pre-wrap text-sm">{turn.input}</p>
+                          <span
+                            style={{
+                              fontSize: 'var(--nous-font-size-xs)',
+                              fontWeight: 'var(--nous-font-weight-medium)',
+                              color: 'var(--nous-text-secondary)',
+                            }}
+                          >
+                            Input:
+                          </span>
+                          <p
+                            style={{
+                              whiteSpace: 'pre-wrap',
+                              fontSize: 'var(--nous-font-size-sm)',
+                            }}
+                          >
+                            {turn.input}
+                          </p>
                         </div>
                         <div>
-                          <span className="text-xs font-medium text-muted-foreground">Output:</span>
-                          <p className="whitespace-pre-wrap text-sm">{turn.output}</p>
+                          <span
+                            style={{
+                              fontSize: 'var(--nous-font-size-xs)',
+                              fontWeight: 'var(--nous-font-weight-medium)',
+                              color: 'var(--nous-text-secondary)',
+                            }}
+                          >
+                            Output:
+                          </span>
+                          <p
+                            style={{
+                              whiteSpace: 'pre-wrap',
+                              fontSize: 'var(--nous-font-size-sm)',
+                            }}
+                          >
+                            {turn.output}
+                          </p>
                         </div>
                         {turn.modelCalls?.length ? (
                           <div>
-                            <span className="text-xs font-medium text-muted-foreground">Model calls:</span>
-                            <ul className="list-inside list-disc text-sm">
+                            <span
+                              style={{
+                                fontSize: 'var(--nous-font-size-xs)',
+                                fontWeight: 'var(--nous-font-weight-medium)',
+                                color: 'var(--nous-text-secondary)',
+                              }}
+                            >
+                              Model calls:
+                            </span>
+                            <ul
+                              style={{
+                                listStylePosition: 'inside',
+                                listStyleType: 'disc',
+                                fontSize: 'var(--nous-font-size-sm)',
+                              }}
+                            >
                               {turn.modelCalls.map((mc, j) => (
                                 <li key={j}>
                                   {mc.providerId} / {mc.role}
@@ -113,8 +237,22 @@ function TracesPageContent() {
                         ) : null}
                         {turn.pfcDecisions?.length ? (
                           <div>
-                            <span className="text-xs font-medium text-muted-foreground">Cortex decisions:</span>
-                            <ul className="list-inside list-disc text-sm">
+                            <span
+                              style={{
+                                fontSize: 'var(--nous-font-size-xs)',
+                                fontWeight: 'var(--nous-font-weight-medium)',
+                                color: 'var(--nous-text-secondary)',
+                              }}
+                            >
+                              Cortex decisions:
+                            </span>
+                            <ul
+                              style={{
+                                listStylePosition: 'inside',
+                                listStyleType: 'disc',
+                                fontSize: 'var(--nous-font-size-sm)',
+                              }}
+                            >
                               {turn.pfcDecisions.map((d, j) => (
                                 <li key={j}>
                                   {d.approved ? 'Approved' : 'Denied'}: {d.reason}
@@ -125,14 +263,38 @@ function TracesPageContent() {
                         ) : null}
                         {turn.memoryWrites?.length ? (
                           <div>
-                            <span className="text-xs font-medium text-muted-foreground">Memory writes:</span>
-                            <p className="text-sm">{turn.memoryWrites.length} approved</p>
+                            <span
+                              style={{
+                                fontSize: 'var(--nous-font-size-xs)',
+                                fontWeight: 'var(--nous-font-weight-medium)',
+                                color: 'var(--nous-text-secondary)',
+                              }}
+                            >
+                              Memory writes:
+                            </span>
+                            <p style={{ fontSize: 'var(--nous-font-size-sm)' }}>
+                              {turn.memoryWrites.length} approved
+                            </p>
                           </div>
                         ) : null}
                         {turn.memoryDenials?.length ? (
                           <div>
-                            <span className="text-xs font-medium text-muted-foreground">Memory denials:</span>
-                            <ul className="list-inside list-disc text-sm">
+                            <span
+                              style={{
+                                fontSize: 'var(--nous-font-size-xs)',
+                                fontWeight: 'var(--nous-font-weight-medium)',
+                                color: 'var(--nous-text-secondary)',
+                              }}
+                            >
+                              Memory denials:
+                            </span>
+                            <ul
+                              style={{
+                                listStylePosition: 'inside',
+                                listStyleType: 'disc',
+                                fontSize: 'var(--nous-font-size-sm)',
+                              }}
+                            >
                               {turn.memoryDenials.map((d, j) => (
                                 <li key={j}>{d.reason}</li>
                               ))}
@@ -141,8 +303,22 @@ function TracesPageContent() {
                         ) : null}
                         {turn.evidenceRefs?.length ? (
                           <div>
-                            <span className="text-xs font-medium text-muted-foreground">Evidence references:</span>
-                            <ul className="list-inside list-disc text-sm">
+                            <span
+                              style={{
+                                fontSize: 'var(--nous-font-size-xs)',
+                                fontWeight: 'var(--nous-font-weight-medium)',
+                                color: 'var(--nous-text-secondary)',
+                              }}
+                            >
+                              Evidence references:
+                            </span>
+                            <ul
+                              style={{
+                                listStylePosition: 'inside',
+                                listStyleType: 'disc',
+                                fontSize: 'var(--nous-font-size-sm)',
+                              }}
+                            >
                               {turn.evidenceRefs.map((ref, j) => (
                                 <li key={j}>
                                   <code>{ref.actionCategory}</code>

@@ -1,8 +1,7 @@
 'use client';
 
 import { useState } from 'react';
-import { Button } from '@/components/ui/button';
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
+import { Button, Card, CardContent, CardHeader, CardTitle } from '@nous/ui';
 import { trpc } from '@/lib/trpc';
 
 interface FirstMessageStepProps {
@@ -26,29 +25,58 @@ export function FirstMessageStep({ projectId, onNext }: FirstMessageStepProps) {
   };
 
   return (
-    <Card className="w-full max-w-lg">
+    <Card style={{ width: '100%', maxWidth: '32rem' }}>
       <CardHeader>
         <CardTitle>Say something to Nous</CardTitle>
       </CardHeader>
-      <CardContent className="space-y-4">
-        <p className="text-muted-foreground text-sm">
+      <CardContent
+        style={{
+          display: 'flex',
+          flexDirection: 'column',
+          gap: 'var(--nous-space-md)',
+        }}
+      >
+        <p
+          style={{
+            color: 'var(--nous-text-secondary)',
+            fontSize: 'var(--nous-font-size-sm)',
+          }}
+        >
           Send a message to verify everything works.
         </p>
         {!projectId ? (
-          <p className="text-muted-foreground text-sm">
+          <p
+            style={{
+              color: 'var(--nous-text-secondary)',
+              fontSize: 'var(--nous-font-size-sm)',
+            }}
+          >
             Creating project...
           </p>
         ) : (
           <>
-            <div className="flex gap-2">
+            <div
+              style={{
+                display: 'flex',
+                gap: 'var(--nous-space-xs)',
+              }}
+            >
               <input
                 type="text"
                 value={message}
                 onChange={(e) => setMessage(e.target.value)}
                 onKeyDown={(e) => e.key === 'Enter' && handleSend()}
                 placeholder="Type a message..."
-                className="flex-1 rounded-md border border-border bg-background px-3 py-2 text-sm"
                 disabled={sendMessage.isPending}
+                style={{
+                  flex: '1 1 0%',
+                  borderRadius: 'var(--nous-radius-md)',
+                  border: '1px solid var(--nous-shell-column-border)',
+                  background: 'var(--nous-bg-surface)',
+                  padding: 'var(--nous-space-sm) var(--nous-space-md)',
+                  fontSize: 'var(--nous-font-size-sm)',
+                  color: 'var(--nous-text-primary)',
+                }}
               />
               <Button
                 type="button"
@@ -59,9 +87,24 @@ export function FirstMessageStep({ projectId, onNext }: FirstMessageStepProps) {
               </Button>
             </div>
             {response && (
-              <div className="rounded-md border border-border bg-muted/50 p-3 text-sm">
-                <p className="font-medium">Nous:</p>
-                <p className="text-muted-foreground mt-1">{response}</p>
+              <div
+                style={{
+                  borderRadius: 'var(--nous-radius-md)',
+                  border: '1px solid var(--nous-shell-column-border)',
+                  background: 'var(--nous-bg-hover)',
+                  padding: 'var(--nous-space-sm)',
+                  fontSize: 'var(--nous-font-size-sm)',
+                }}
+              >
+                <p style={{ fontWeight: 'var(--nous-font-weight-medium)' }}>Nous:</p>
+                <p
+                  style={{
+                    marginTop: '4px',
+                    color: 'var(--nous-text-secondary)',
+                  }}
+                >
+                  {response}
+                </p>
               </div>
             )}
             {response && (

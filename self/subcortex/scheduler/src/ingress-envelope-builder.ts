@@ -69,12 +69,17 @@ export class IngressEnvelopeBuilder {
       occurred_at: occurredAt,
     };
 
+    const isTaskSchedule = input.schedule.taskDefinitionId != null;
+
     return {
       trigger_id: input.triggerId ?? randomUUID(),
       trigger_type: 'scheduler',
       source_id: `schedule:${input.schedule.id}`,
       project_id: input.schedule.projectId,
-      workflow_ref: input.schedule.workflowDefinitionId,
+      // Conditional ref assignment: task schedules set task_ref, workflow schedules set workflow_ref
+      ...(isTaskSchedule
+        ? { task_ref: input.schedule.taskDefinitionId }
+        : { workflow_ref: input.schedule.workflowDefinitionId }),
       workmode_id: input.schedule.workmodeId,
       event_name: 'scheduled_run',
       payload_ref: buildPayloadRef(payload),

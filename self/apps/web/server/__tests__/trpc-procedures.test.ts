@@ -199,7 +199,7 @@ describe('tRPC procedures', () => {
                 outputSchemaRef: 'schema://projects-procedure/draft-output',
                 config: {
                   type: 'model-call',
-                  modelRole: 'reasoner',
+                  modelRole: 'cortex-chat',
                   promptRef: 'prompt://draft',
                 },
               },
@@ -228,7 +228,7 @@ describe('tRPC procedures', () => {
           outputSchemaRef: 'schema://projects-procedure/draft-output',
           config: {
             type: 'model-call' as const,
-            modelRole: 'reasoner' as const,
+            modelRole: 'cortex-chat' as const,
             promptRef: 'prompt://draft-v2',
           },
         },

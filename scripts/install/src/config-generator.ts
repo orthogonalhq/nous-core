@@ -19,7 +19,7 @@ export function generateDefaultConfig(
     profile: DEFAULT_PROFILES['local-only']!,
     pfcTier: 2,
     pfcTierPresets: DEFAULT_PFC_TIER_PRESETS,
-    modelRoleAssignments: [{ role: 'reasoner', providerId: OLLAMA_PROVIDER_ID }],
+    modelRoleAssignments: [{ role: 'cortex-chat', providerId: OLLAMA_PROVIDER_ID }],
     providers: [
       {
         id: OLLAMA_PROVIDER_ID,
@@ -56,6 +56,10 @@ export function generateDefaultConfig(
     },
     security: {
       traceSensitiveData: false,
+    },
+    logging: {
+      level: 0,
+      channels: {},
     },
   };
 

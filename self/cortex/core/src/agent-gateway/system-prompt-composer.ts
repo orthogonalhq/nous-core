@@ -32,6 +32,10 @@ export function composeSystemPrompt(
     `Task Instructions:\n${input.taskInstructions}`,
   ].filter((part): part is string => Boolean(part && part.trim()));
 
+  if (input.agentClass === 'Cortex::System' || input.agentClass === 'Orchestrator') {
+    parts.push('Before authoring workflow YAML, call `workflow_authoring_reference` for the complete spec.');
+  }
+
   const executionLines: string[] = [];
   if (input.execution?.projectId) {
     executionLines.push(`project_id: ${input.execution.projectId}`);

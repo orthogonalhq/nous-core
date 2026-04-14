@@ -89,6 +89,7 @@ export const GatewayExecutionContextSchema = z
     appSessionId: z.string().min(1).optional(),
     traceId: TraceIdSchema.optional(),
     workmodeId: WorkmodeIdSchema.optional(),
+    escalationOrigin: z.boolean().optional(),
   })
   .strict();
 export type GatewayExecutionContext = z.infer<
@@ -127,6 +128,37 @@ export const GatewayContextFrameSchema = z
   .strict();
 export type GatewayContextFrame = z.infer<typeof GatewayContextFrameSchema>;
 
+export const DispatchIntentSchema = z.discriminatedUnion('type', [
+  z.object({
+    type: z.literal('workflow'),
+    workflowDefinitionId: z.string().min(1),
+    config: z.record(z.unknown()).optional(),
+    triggerContext: z.string().optional(),
+  }).strict(),
+
+  z.object({
+    type: z.literal('task'),
+    taskDefinitionId: z.string().optional(),
+    trigger: z.object({
+      type: z.enum(['manual', 'webhook', 'heartbeat', 'event']),
+      context: z.record(z.unknown()).optional(),
+    }).strict().optional(),
+  }).strict(),
+
+  z.object({
+    type: z.literal('skill'),
+    skillRef: z.string().min(1),
+    context: z.record(z.unknown()).optional(),
+  }).strict(),
+
+  z.object({
+    type: z.literal('autonomous'),
+    objective: z.string().min(1),
+    constraints: z.record(z.unknown()).optional(),
+  }).strict(),
+]);
+export type DispatchIntent = z.infer<typeof DispatchIntentSchema>;
+
 export const AgentInputSchema = z
   .object({
     taskInstructions: z.string().min(1),
@@ -137,6 +169,7 @@ export const AgentInputSchema = z
     correlation: GatewayCorrelationSchema,
     execution: GatewayExecutionContextSchema.optional(),
     modelRequirements: ModelRequirementsSchema.optional(),
+    dispatchIntent: DispatchIntentSchema.optional(),
   })
   .strict();
 export type AgentInput = z.infer<typeof AgentInputSchema>;
@@ -230,6 +263,21 @@ export const GatewayDispatchRequestSchema = z
 export type GatewayDispatchRequest = z.infer<
   typeof GatewayDispatchRequestSchema
 >;
+
+export const DispatchOrchestratorRequestSchema = z.object({
+  dispatchIntent: DispatchIntentSchema,
+  taskInstructions: z.string().min(1),
+  budget: GatewayBudgetOverrideSchema.optional(),
+}).strict();
+export type DispatchOrchestratorRequest = z.infer<typeof DispatchOrchestratorRequestSchema>;
+
+export const DispatchWorkerRequestSchema = z.object({
+  taskInstructions: z.string().min(1),
+  nodeDefinitionId: WorkflowNodeDefinitionIdSchema.optional(),
+  payload: z.unknown().optional(),
+  budget: GatewayBudgetOverrideSchema.optional(),
+}).strict();
+export type DispatchWorkerRequest = z.infer<typeof DispatchWorkerRequestSchema>;
 
 export const GatewayTaskCompletionRequestSchema = z
   .object({
@@ -328,6 +376,7 @@ export const GatewayStampedPacketSchema = z
     retry: GatewayPacketRetrySchema,
     artifact_refs: z.array(z.string().min(1)).optional(),
     summary: z.string().min(1).optional(),
+    emitter_agent_class: AgentClassSchema.optional(),
   })
   .strict();
 export type GatewayStampedPacket = z.infer<typeof GatewayStampedPacketSchema>;

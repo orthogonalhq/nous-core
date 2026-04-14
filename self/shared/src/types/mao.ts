@@ -14,6 +14,14 @@ import {
   WorkflowNodeDefinitionIdSchema,
 } from './ids.js';
 import { NodeReasoningLogClassSchema } from './chat-node-context.js';
+import { AgentClassSchema } from './agent-gateway.js';
+
+/**
+ * Sentinel project ID for system-scoped agents (Cortex::Principal, Cortex::System).
+ * These agents are not project-scoped but MaoAgentProjectionSchema requires a valid UUID.
+ * Uses the RFC 4122 nil UUID which will never collide with crypto.randomUUID().
+ */
+export const SYSTEM_SCOPE_SENTINEL_PROJECT_ID = '00000000-0000-0000-0000-000000000000';
 
 export const MaoDensityModeSchema = z.enum(['D0', 'D1', 'D2', 'D3', 'D4']);
 export type MaoDensityMode = z.infer<typeof MaoDensityModeSchema>;
@@ -46,6 +54,8 @@ export const MaoAgentLifecycleStateSchema = z.enum([
   'completed',
   'paused',
   'resuming',
+  'canceled',
+  'hard_stopped',
 ]);
 export type MaoAgentLifecycleState = z.infer<
   typeof MaoAgentLifecycleStateSchema
@@ -96,8 +106,12 @@ export const MaoAgentProjectionSchema = z.object({
   project_id: ProjectIdSchema,
   workflow_run_id: WorkflowExecutionIdSchema.optional(),
   workflow_node_definition_id: WorkflowNodeDefinitionIdSchema.optional(),
+  task_definition_id: z.string().uuid().optional(),
+  task_name: z.string().optional(),
   dispatching_task_agent_id: z.string().uuid().nullable(),
   dispatch_origin_ref: z.string().min(1),
+  agent_class: AgentClassSchema.optional(),
+  display_name: z.string().optional(),
   state: MaoAgentLifecycleStateSchema,
   state_reason: z.string().min(1).optional(),
   state_reason_code: z.string().min(1).optional(),
@@ -123,6 +137,11 @@ export const MaoAgentProjectionSchema = z.object({
   reasoning_log_redaction_state: z.enum(['none', 'partial', 'restricted']),
   deepLinks: z.array(MaoSurfaceLinkSchema).default([]),
   evidenceRefs: z.array(z.string().min(1)).default([]),
+  inference_provider_id: z.string().optional(),
+  inference_model_id: z.string().optional(),
+  inference_latency_ms: z.number().nonnegative().optional(),
+  inference_total_tokens: z.number().int().nonnegative().optional(),
+  inference_is_streaming: z.boolean().optional(),
 });
 export type MaoAgentProjection = z.infer<typeof MaoAgentProjectionSchema>;
 
@@ -299,6 +318,20 @@ export type MaoProjectSnapshotInput = z.infer<
   typeof MaoProjectSnapshotInputSchema
 >;
 
+export const MaoSystemSnapshotInputSchema = z.object({
+  densityMode: MaoDensityModeSchema.default('D2'),
+});
+export type MaoSystemSnapshotInput = z.infer<typeof MaoSystemSnapshotInputSchema>;
+
+export const MaoSystemSnapshotSchema = z.object({
+  agents: z.array(MaoAgentProjectionSchema).default([]),
+  leaseRoots: z.array(z.string().uuid()).default([]),
+  projectControls: z.record(ProjectIdSchema, MaoProjectControlProjectionSchema).default({}),
+  densityMode: MaoDensityModeSchema,
+  generatedAt: z.string().datetime(),
+});
+export type MaoSystemSnapshot = z.infer<typeof MaoSystemSnapshotSchema>;
+
 export const MaoRunGraphSnapshotSchema = z.object({
   projectId: ProjectIdSchema,
   workflowRunId: WorkflowExecutionIdSchema.optional(),
@@ -307,6 +340,15 @@ export const MaoRunGraphSnapshotSchema = z.object({
   generatedAt: z.string().datetime(),
 });
 export type MaoRunGraphSnapshot = z.infer<typeof MaoRunGraphSnapshotSchema>;
+
+export const BudgetUtilizationSchema = z.object({
+  utilizationPercent: z.number().nonnegative(),
+  currentSpendUsd: z.number().nonnegative(),
+  budgetCeilingUsd: z.number().nonnegative(),
+  softAlertFired: z.boolean(),
+  hardCeilingFired: z.boolean(),
+});
+export type BudgetUtilization = z.infer<typeof BudgetUtilizationSchema>;
 
 export const MaoProjectSnapshotSchema = z.object({
   projectId: ProjectIdSchema,
@@ -318,6 +360,7 @@ export const MaoProjectSnapshotSchema = z.object({
   urgentOverlay: MaoUrgentOverlaySchema,
   summary: MaoProjectSnapshotSummarySchema,
   diagnostics: MaoProjectSnapshotDiagnosticsSchema,
+  budgetUtilization: BudgetUtilizationSchema.optional(),
   generatedAt: z.string().datetime(),
 });
 export type MaoProjectSnapshot = z.infer<typeof MaoProjectSnapshotSchema>;
@@ -396,6 +439,16 @@ export const MaoAgentInspectProjectionSchema = z.object({
   latestAttempt: MaoAgentAttemptSummarySchema.nullable(),
   correctionArcs: z.array(MaoCorrectionArcSummarySchema).default([]),
   evidenceRefs: z.array(z.string().min(1)).default([]),
+  inference_history: z.array(z.object({
+    providerId: z.string(),
+    modelId: z.string(),
+    agentClass: z.string().optional(),
+    traceId: z.string(),
+    inputTokens: z.number().int().nonnegative().optional(),
+    outputTokens: z.number().int().nonnegative().optional(),
+    latencyMs: z.number().nonnegative(),
+    timestamp: z.string().datetime(),
+  })).optional(),
   generatedAt: z.string().datetime(),
 });
 export type MaoAgentInspectProjection = z.infer<
@@ -460,3 +513,28 @@ export const MaoEventTypeSchema = z.enum([
   'mao_graph_lineage_rendered',
 ]);
 export type MaoEventType = z.infer<typeof MaoEventTypeSchema>;
+
+export const MaoControlAuditHistoryEntrySchema = z.object({
+  commandId: z.string().uuid(),
+  action: MaoProjectControlActionSchema,
+  actorId: z.string().min(1),
+  reason: z.string().min(1),
+  reasonCode: z.string().min(1),
+  at: z.string().datetime(),
+  evidenceRefs: z.array(z.string().min(1)).default([]),
+  resumeReadinessStatus: MaoResumeReadinessStatusSchema,
+  decisionRef: z.string().min(1),
+});
+export type MaoControlAuditHistoryEntry = z.infer<
+  typeof MaoControlAuditHistoryEntrySchema
+>;
+
+export const MaoControlAuditHistorySchema = z.object({
+  projectId: ProjectIdSchema,
+  entries: z.array(MaoControlAuditHistoryEntrySchema),
+  totalCount: z.number().int().nonnegative(),
+  cappedAt: z.number().int().positive(),
+});
+export type MaoControlAuditHistory = z.infer<
+  typeof MaoControlAuditHistorySchema
+>;
