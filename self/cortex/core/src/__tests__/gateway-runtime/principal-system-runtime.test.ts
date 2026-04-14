@@ -249,8 +249,12 @@ describe('PrincipalSystemGatewayRuntime', () => {
   });
 
   it('logs a warning when no documentStore is injected (in-memory fallback)', () => {
-    const warnSpy = vi.spyOn(console, 'warn').mockImplementation(() => {});
-    const infoSpy = vi.spyOn(console, 'info').mockImplementation(() => {});
+    const mockLog = { debug: vi.fn(), info: vi.fn(), warn: vi.fn(), error: vi.fn(), isEnabled: () => true };
+    const mockLogger = {
+      channel: () => mockLog,
+      bindConfig: vi.fn(),
+      setLevel: vi.fn(),
+    };
 
     // Create runtime WITHOUT documentStore — triggers in-memory fallback
     createPrincipalSystemGatewayRuntime({
@@ -281,14 +285,12 @@ describe('PrincipalSystemGatewayRuntime', () => {
           return `00000000-0000-4000-8000-${suffix}`;
         };
       })(),
+      logger: mockLogger,
     });
 
-    expect(warnSpy).toHaveBeenCalledWith(
-      'Using in-memory document store for backlog queue -- queued work will not survive restart.',
+    expect(mockLog.warn).toHaveBeenCalledWith(
+      'Using in-memory document store for backlog queue -- queued work will not survive restart',
     );
-
-    warnSpy.mockRestore();
-    infoSpy.mockRestore();
   });
 
   describe('HealthTrackingOutboxSink event bus publication', () => {

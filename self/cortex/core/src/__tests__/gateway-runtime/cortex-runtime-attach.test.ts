@@ -13,6 +13,7 @@
  * `submitTask` / `submitIngressEnvelope`).
  */
 import { describe, expect, it, vi } from 'vitest';
+import type { ILogger, ILogChannel } from '@nous/shared';
 import type { AgentGatewayConfig, IModelRouter } from '@nous/shared';
 import { createPrincipalSystemGatewayRuntime } from '../../gateway-runtime/index.js';
 import { resolveAdapter } from '../../agent-gateway/adapters/index.js';
@@ -39,7 +40,7 @@ function idFactory(): () => string {
   };
 }
 
-function createAttachRuntime() {
+function createAttachRuntime(logger?: ILogger) {
   return createPrincipalSystemGatewayRuntime({
     documentStore: createDocumentStore(),
     // Stub modelRouter + getProvider so the AgentGatewayFactory precondition
@@ -55,6 +56,7 @@ function createAttachRuntime() {
       validate: vi.fn().mockResolvedValue({ success: true }),
     },
     idFactory: idFactory(),
+    logger,
   });
 }
 
@@ -183,53 +185,54 @@ describe('CortexRuntime.attachProviders (WR-138 row #11)', () => {
   });
 
   it('(f) startup warning fires exactly once on first use when attachProviders has not been called', async () => {
-    const warnSpy = vi.spyOn(console, 'warn').mockImplementation(() => {});
+    const mockLog = { debug: vi.fn(), info: vi.fn(), warn: vi.fn(), error: vi.fn(), isEnabled: () => true };
+    const mockLogger: ILogger = {
+      channel: () => mockLog,
+      bindConfig: vi.fn(),
+      setLevel: vi.fn(),
+    };
+    const runtime = createAttachRuntime(mockLogger);
+    // Invoke submitTaskToSystem via the public `submitTask` entry point
+    // (which gates on `checkAttachOrWarn`) — the internal handoff may
+    // settle with an internal error due to minimal fixture, but the
+    // warn spy should have been called exactly once before any error.
     try {
-      const runtime = createAttachRuntime();
-      // Invoke submitTaskToSystem via the public `submitTask` entry point
-      // (which gates on `checkAttachOrWarn`) — the internal handoff may
-      // settle with an internal error due to minimal fixture, but the
-      // warn spy should have been called exactly once before any error.
-      try {
-        await runtime.submitTask({
-          task: 'noop',
-          projectId: '00000000-0000-4000-8000-000000000001' as never,
-          detail: { source: 'row-11-warn-test' },
-        });
-      } catch {
-        // The test does not care about internal submission settlement —
-        // only that `checkAttachOrWarn` ran at method entry.
-      }
-
-      const warningCalls = warnSpy.mock.calls.filter((call) =>
-        typeof call[0] === 'string' &&
-        (call[0] as string).includes(
-          'CortexRuntime exposed without attached vendor map',
-        ),
-      );
-      expect(warningCalls.length).toBe(1);
-
-      // Second call on the same runtime must NOT re-emit the warning
-      // (one-shot guard per Finding IP-6).
-      try {
-        await runtime.submitTask({
-          task: 'noop-2',
-          projectId: '00000000-0000-4000-8000-000000000002' as never,
-          detail: { source: 'row-11-warn-test-2' },
-        });
-      } catch {
-        // ignore settlement
-      }
-      const warningCallsAfterSecond = warnSpy.mock.calls.filter((call) =>
-        typeof call[0] === 'string' &&
-        (call[0] as string).includes(
-          'CortexRuntime exposed without attached vendor map',
-        ),
-      );
-      expect(warningCallsAfterSecond.length).toBe(1);
-    } finally {
-      warnSpy.mockRestore();
+      await runtime.submitTask({
+        task: 'noop',
+        projectId: '00000000-0000-4000-8000-000000000001' as never,
+        detail: { source: 'row-11-warn-test' },
+      });
+    } catch {
+      // The test does not care about internal submission settlement —
+      // only that `checkAttachOrWarn` ran at method entry.
     }
+
+    const warningCalls = mockLog.warn.mock.calls.filter((call: unknown[]) =>
+      typeof call[0] === 'string' &&
+      (call[0] as string).includes(
+        'CortexRuntime exposed without attached vendor map',
+      ),
+    );
+    expect(warningCalls.length).toBe(1);
+
+    // Second call on the same runtime must NOT re-emit the warning
+    // (one-shot guard per Finding IP-6).
+    try {
+      await runtime.submitTask({
+        task: 'noop-2',
+        projectId: '00000000-0000-4000-8000-000000000002' as never,
+        detail: { source: 'row-11-warn-test-2' },
+      });
+    } catch {
+      // ignore settlement
+    }
+    const warningCallsAfterSecond = mockLog.warn.mock.calls.filter((call: unknown[]) =>
+      typeof call[0] === 'string' &&
+      (call[0] as string).includes(
+        'CortexRuntime exposed without attached vendor map',
+      ),
+    );
+    expect(warningCallsAfterSecond.length).toBe(1);
   });
 
   it('(f.2) startup warning does NOT fire when attachProviders has been called first', async () => {

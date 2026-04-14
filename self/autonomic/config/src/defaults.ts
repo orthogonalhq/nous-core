@@ -168,4 +168,8 @@ export const DEFAULT_SYSTEM_CONFIG: SystemConfig = {
   security: {
     traceSensitiveData: false,
   },
+  logging: {
+    level: 0, // LogLevel.Debug
+    channels: {},
+  },
 };

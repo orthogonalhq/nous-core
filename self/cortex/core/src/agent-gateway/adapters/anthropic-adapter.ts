@@ -3,7 +3,7 @@
  *
  * WR-127 Phase 1.3 — first production ProviderAdapter for the Anthropic Messages API.
  */
-import type { TraceId } from '@nous/shared';
+import type { ILogChannel, TraceId } from '@nous/shared';
 import type { ParsedModelOutput } from '../../output-parser.js';
 import type {
   AdapterCapabilities,
@@ -76,14 +76,15 @@ function formatSystemPrompt(
 
 function formatTools(
   toolDefinitions?: readonly import('@nous/shared').ToolDefinition[],
+  log?: ILogChannel,
 ): Array<{ name: string; description: string; input_schema: Record<string, unknown> }> | undefined {
   if (!toolDefinitions || toolDefinitions.length === 0) return undefined;
 
   return toolDefinitions.map((tool) => {
     const schema = (tool.inputSchema as Record<string, unknown>) ?? {};
     if (!schema.type) {
-      console.info(
-        `[nous:anthropic-adapter] Injecting type:"object" for tool "${tool.name}" — inputSchema missing type field`,
+      log?.info(
+        `Injecting type:"object" for tool "${tool.name}" — inputSchema missing type field`,
       );
       return {
         name: tool.name,
@@ -103,6 +104,7 @@ type AnthropicMessage = { role: 'user' | 'assistant'; content: string | Array<Re
 
 function formatMessages(
   context: readonly import('@nous/shared').GatewayContextFrame[],
+  log?: ILogChannel,
 ): AnthropicMessage[] {
   const raw: AnthropicMessage[] = context.map((frame) => {
     // Tool result with tool_call_id metadata → Anthropic tool_result content block
@@ -168,8 +170,8 @@ function formatMessages(
     }
   }
 
-  // Debug: log message structure for tool use debugging (JSON.stringify to expand nested arrays)
-  console.debug('[nous:anthropic-adapter] formatMessages output', JSON.stringify({
+  // Debug: log message structure for tool use debugging
+  log?.debug('formatMessages output', {
     messageCount: merged.length,
     messages: merged.map((m, i) => {
       const blocks = Array.isArray(m.content) ? m.content : [];
@@ -190,7 +192,7 @@ function formatMessages(
       if (toolResultIds.length > 0) detail.toolResultIds = toolResultIds;
       return detail;
     }),
-  }, null, 2));
+  });
 
   return merged;
 }
@@ -302,14 +304,14 @@ function parseAnthropicResponse(
 
 // ── Adapter factory ─────────────────────────────────────────────────
 
-export function createAnthropicAdapter(): ProviderAdapter {
+export function createAnthropicAdapter(log?: ILogChannel): ProviderAdapter {
   return {
     capabilities: ANTHROPIC_CAPABILITIES,
 
     formatRequest(input: AdapterFormatInput): AdapterFormattedRequest {
       const system = formatSystemPrompt(input.systemPrompt);
-      const messages = formatMessages(input.context);
-      const tools = formatTools(input.toolDefinitions);
+      const messages = formatMessages(input.context, log);
+      const tools = formatTools(input.toolDefinitions, log);
 
       const result: Record<string, unknown> = {
         system,
@@ -333,7 +335,7 @@ export function createAnthropicAdapter(): ProviderAdapter {
         return parseAnthropicResponse(output);
       } catch (error) {
         // Fallback: never throw from parseResponse
-        console.error('[nous:anthropic-adapter] parseResponse error — falling back to String(output)', {
+        log?.error('parseResponse error — falling back to String(output)', {
           error: error instanceof Error ? { message: error.message, stack: error.stack } : error,
           outputType: typeof output,
           outputKeys: output && typeof output === 'object' ? Object.keys(output) : [],

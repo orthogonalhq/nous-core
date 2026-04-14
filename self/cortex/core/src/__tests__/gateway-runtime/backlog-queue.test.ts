@@ -413,8 +413,7 @@ describe('SystemBacklogQueue', () => {
   });
 
   it('logs recovery count and emits health event for stranded active entries', async () => {
-    const warnSpy = vi.spyOn(console, 'warn').mockImplementation(() => {});
-    const infoSpy = vi.spyOn(console, 'info').mockImplementation(() => {});
+    const mockLog = { debug: vi.fn(), info: vi.fn(), warn: vi.fn(), error: vi.fn(), isEnabled: () => true };
     const documentStore = createDocumentStore();
     const backlogStore = new DocumentBacklogStore(documentStore);
     const healthSink = new GatewayRuntimeHealthSink();
@@ -453,23 +452,20 @@ describe('SystemBacklogQueue', () => {
       healthSink,
       now: () => '2026-03-13T17:00:00.000Z',
       executeEntry: async () => completedResult(),
+      log: mockLog,
     });
 
     await vi.waitFor(() => {
-      expect(warnSpy).toHaveBeenCalledWith(
-        'Backlog recovery: 2 entries reset from active to queued.',
+      expect(mockLog.warn).toHaveBeenCalledWith(
+        'Backlog recovery: 2 entries reset from active to queued',
       );
     });
 
     expect(healthSink.getBootSnapshot().issueCodes).toContain('backlog_recovery_reset');
-
-    warnSpy.mockRestore();
-    infoSpy.mockRestore();
   });
 
   it('logs info with zero count on clean startup', async () => {
-    const infoSpy = vi.spyOn(console, 'info').mockImplementation(() => {});
-    const warnSpy = vi.spyOn(console, 'warn').mockImplementation(() => {});
+    const mockLog = { debug: vi.fn(), info: vi.fn(), warn: vi.fn(), error: vi.fn(), isEnabled: () => true };
     const documentStore = createDocumentStore();
     const healthSink = new GatewayRuntimeHealthSink();
 
@@ -478,18 +474,16 @@ describe('SystemBacklogQueue', () => {
       healthSink,
       now: () => '2026-03-13T17:00:00.000Z',
       executeEntry: async () => completedResult(),
+      log: mockLog,
     });
 
     await vi.waitFor(() => {
-      expect(infoSpy).toHaveBeenCalledWith(
-        'Backlog recovery: 0 entries reset from active to queued.',
+      expect(mockLog.info).toHaveBeenCalledWith(
+        'Backlog recovery: 0 entries reset from active to queued',
       );
     });
 
     expect(healthSink.getBootSnapshot().issueCodes).not.toContain('backlog_recovery_reset');
-
-    infoSpy.mockRestore();
-    warnSpy.mockRestore();
   });
 
   it('promotes multiple entries concurrently with activeCapacity > 1', async () => {

@@ -137,6 +137,7 @@ import {
 } from '@nous/subcortex-public-mcp';
 import { MemoryAccessPolicyEngine } from '@nous/memory-access';
 import { HealthAggregator, HealthMonitor } from '@nous/autonomic-health';
+import { NousLogger, ConsoleEgress, AxiomEgress } from '@nous/autonomic-logger';
 import { EventBus } from './event-bus/event-bus.js';
 import { ThoughtEmitterImpl } from './event-bus/thought-emitter.js';
 import { GatewayHealthSourceAdapter } from './adapters/gateway-health-source-adapter.js';
@@ -647,9 +648,21 @@ export function createNousServices(config?: BootstrapConfig): NousContext {
   const resolved = resolveBootstrapConfig(config);
   const { dataDir, instanceRoot, publicBaseUrl, runtimeLabel } = resolved;
 
+  // --- Logger (phase 1: hardcoded defaults, console egress) ---
+  const logger = new NousLogger();
+  logger.addEgress(new ConsoleEgress());
+  if (process.env.AXIOM_TOKEN) {
+    logger.addEgress(
+      new AxiomEgress(process.env.AXIOM_TOKEN, process.env.AXIOM_DATASET),
+    );
+  }
+
   const baseConfig = new ConfigManager({ configPath: resolved.configPath });
   const appConfig = configWithFallback(baseConfig) as typeof baseConfig;
   const resolvedConfig = appConfig.get();
+
+  // --- Logger (phase 2: bind config-driven settings) ---
+  logger.bindConfig(appConfig);
   const dbPath = join(dataDir, 'nous.sqlite');
 
   const documentStore = new SqliteDocumentStore(dbPath);
@@ -658,6 +671,7 @@ export function createNousServices(config?: BootstrapConfig): NousContext {
   const embedder = new InMemoryEmbedder();
   const stmStore = new DocumentStmStore(documentStore, {
     compactionPolicy: resolveStmCompactionPolicy(resolvedConfig),
+    log: logger.channel('nous:stm'),
   });
   const projectStore = new DocumentProjectStore(documentStore);
   const taskStore = new DocumentTaskStore(documentStore);
@@ -695,7 +709,7 @@ export function createNousServices(config?: BootstrapConfig): NousContext {
     new DiscoverProjectsTool(knowledgeIndex),
     new RefreshProjectKnowledgeTool(knowledgeIndex),
   ]);
-  const Cortex = new PfcEngine(appConfig, toolExecutor);
+  const Cortex = new PfcEngine(appConfig, toolExecutor, undefined, undefined, logger.channel('nous:pfc'));
   const mwcPipeline = new MwcPipeline(
     documentStore,
     stmStore,
@@ -1123,7 +1137,7 @@ export function createNousServices(config?: BootstrapConfig): NousContext {
     documentStore,
     vectorStore,
     build: ({ binding, documentStore: tenantDocumentStore, vectorStore: tenantVectorStore }) => {
-      const tenantPfc = new PfcEngine(appConfig, toolExecutor);
+      const tenantPfc = new PfcEngine(appConfig, toolExecutor, undefined, undefined, logger.channel('nous:pfc'));
       const tenantWorkflowEngine = new DeterministicWorkflowEngine({
         pfcEngine: tenantPfc,
         modelRouter: router,
@@ -1270,6 +1284,7 @@ export function createNousServices(config?: BootstrapConfig): NousContext {
     checkpointManager: checkpointManager as any,
     recoveryLedgerStore,
     recoveryOrchestrator,
+    logger,
   });
 
   // WR-138 row #8 / CPAL § 6: attach providers exactly once after

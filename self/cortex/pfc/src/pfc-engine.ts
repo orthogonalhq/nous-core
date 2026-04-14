@@ -6,6 +6,7 @@
 import type {
   IPfcEngine,
   IConfig,
+  ILogChannel,
   IToolExecutor,
   IThoughtEmitter,
   ConfidenceGovernanceEvaluationInput,
@@ -29,14 +30,17 @@ import {
 export class PfcEngine implements IPfcEngine {
   private thoughtEmitter?: IThoughtEmitter;
   private currentTraceId: string = '';
+  private readonly log: ILogChannel;
 
   constructor(
     private readonly config: IConfig,
     private readonly toolExecutor: IToolExecutor,
     private readonly confidenceGovernanceObserver?: ConfidenceGovernanceObserver,
     thoughtEmitter?: IThoughtEmitter,
+    log?: ILogChannel,
   ) {
     this.thoughtEmitter = thoughtEmitter;
+    this.log = log ?? { debug() {}, info() {}, warn() {}, error() {}, isEnabled() { return false; } };
   }
 
   setThoughtEmitter(emitter: IThoughtEmitter): void {
@@ -55,8 +59,8 @@ export class PfcEngine implements IPfcEngine {
       decision,
       this.confidenceGovernanceObserver,
     );
-    console.info(
-      `[nous:pfc] confidence_governance patternId=${decision.patternId} outcome=${decision.outcome} reasonCode=${decision.reasonCode} governance=${decision.governance} tier=${decision.confidenceTier} actionCategory=${decision.actionCategory}`,
+    this.log.info(
+      `confidence_governance patternId=${decision.patternId} outcome=${decision.outcome} reasonCode=${decision.reasonCode} governance=${decision.governance} tier=${decision.confidenceTier} actionCategory=${decision.actionCategory}`,
     );
     this.thoughtEmitter?.emitPfcDecision({
       traceId: this.currentTraceId,
@@ -81,8 +85,8 @@ export class PfcEngine implements IPfcEngine {
         reason: 'MEM-CONFIDENCE-BELOW-THRESHOLD',
         confidence: candidate.confidence,
       };
-      console.info(
-        `[nous:pfc] memory_write approved=false reason=${decision.reason}`,
+      this.log.info(
+        `memory_write approved=false reason=${decision.reason}`,
       );
       this.thoughtEmitter?.emitPfcDecision({
         traceId: this.currentTraceId,
@@ -101,8 +105,8 @@ export class PfcEngine implements IPfcEngine {
       reason: 'MEM-WRITE-APPROVED',
       confidence: candidate.confidence,
     };
-    console.info(
-      `[nous:pfc] memory_write approved=true reason=${decision.reason}`,
+    this.log.info(
+      `memory_write approved=true reason=${decision.reason}`,
     );
     this.thoughtEmitter?.emitPfcDecision({
       traceId: this.currentTraceId,
@@ -228,8 +232,8 @@ export class PfcEngine implements IPfcEngine {
         reason: 'tool not registered',
         confidence: 0,
       };
-      console.info(
-        `[nous:pfc] tool_auth toolName=${toolName} approved=false reason=${decision.reason}`,
+      this.log.info(
+        `tool_auth toolName=${toolName} approved=false reason=${decision.reason}`,
       );
       this.thoughtEmitter?.emitPfcDecision({
         traceId: this.currentTraceId,
@@ -248,8 +252,8 @@ export class PfcEngine implements IPfcEngine {
       reason: 'passed Phase 1 checks',
       confidence: 1,
     };
-    console.info(
-      `[nous:pfc] tool_auth toolName=${toolName} approved=true reason=${decision.reason}`,
+    this.log.info(
+      `tool_auth toolName=${toolName} approved=true reason=${decision.reason}`,
     );
     this.thoughtEmitter?.emitPfcDecision({
       traceId: this.currentTraceId,
@@ -268,7 +272,7 @@ export class PfcEngine implements IPfcEngine {
     _output: unknown,
     _context: ReflectionContext,
   ): Promise<ReflectionResult> {
-    console.debug('[nous:pfc] reflect confidence=0.8 qualityScore=0.8');
+    this.log.debug('reflect confidence=0.8 qualityScore=0.8');
     this.thoughtEmitter?.emitPfcDecision({
       traceId: this.currentTraceId,
       thoughtType: 'reflection',
@@ -291,8 +295,8 @@ export class PfcEngine implements IPfcEngine {
     situation: EscalationSituation,
   ): Promise<EscalationDecision> {
     if (situation.confidence < 0.3) {
-      console.info(
-        `[nous:pfc] escalation trigger=${situation.trigger} context=${situation.context}`,
+      this.log.info(
+        `escalation trigger=${situation.trigger} context=${situation.context}`,
       );
       this.thoughtEmitter?.emitPfcDecision({
         traceId: this.currentTraceId,

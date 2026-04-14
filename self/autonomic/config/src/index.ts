@@ -10,6 +10,7 @@ export {
   SecurityConfigSchema,
   DefaultsConfigSchema,
   ProviderConfigEntrySchema,
+  LoggingConfigSchema,
 } from './schema.js';
 export type {
   SystemConfig,
@@ -20,6 +21,7 @@ export type {
   SecurityConfig,
   DefaultsConfig,
   ProviderConfigEntry,
+  LoggingConfig,
 } from './schema.js';
 
 export {

@@ -16,26 +16,25 @@ export { createOpenAiAdapter } from './openai-adapter.js';
 export { createAnthropicAdapter } from './anthropic-adapter.js';
 export { createOllamaAdapter, isToolCapableModel } from './ollama-adapter.js';
 
+import type { ILogChannel } from '@nous/shared';
 import type { ProviderAdapter } from './types.js';
 import { createTextAdapter } from './text-adapter.js';
 import { createOpenAiAdapter } from './openai-adapter.js';
 import { createAnthropicAdapter } from './anthropic-adapter.js';
 import { createOllamaAdapter } from './ollama-adapter.js';
 
-const ADAPTER_REGISTRY: Record<string, () => ProviderAdapter> = {
-  anthropic: () => createAnthropicAdapter(),
-  openai: () => createOpenAiAdapter(),
-  ollama: () => createOllamaAdapter(),
-};
-
 /**
  * Resolves a ProviderAdapter for the given provider type.
  * Unknown provider types fall back to text adapter (preserving current behavior).
+ * When a log channel is provided, it is forwarded to the adapter factory.
  */
-export function resolveAdapter(providerType: string): ProviderAdapter {
-  const factory = ADAPTER_REGISTRY[providerType];
-  if (factory) return factory();
-  return createTextAdapter();
+export function resolveAdapter(providerType: string, log?: ILogChannel): ProviderAdapter {
+  switch (providerType) {
+    case 'anthropic': return createAnthropicAdapter(log);
+    case 'openai': return createOpenAiAdapter();
+    case 'ollama': return createOllamaAdapter(undefined, log);
+    default: return createTextAdapter(log);
+  }
 }
 
 /**

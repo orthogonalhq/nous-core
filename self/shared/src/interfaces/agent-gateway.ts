@@ -175,6 +175,10 @@ export interface AgentGatewayConfig {
   /** Composable harness strategies (WR-127). When present, the gateway
    *  delegates to these instead of built-in behavior. */
   harness?: HarnessStrategies;
+
+  /** Optional structured log channel (WR-157). When present, the gateway
+   *  routes all diagnostic output through this channel instead of console. */
+  log?: import('./logging.js').ILogChannel;
 }
 
 export interface IAgentGateway {

@@ -7,7 +7,17 @@
  */
 import { describe, expect, it, vi, afterEach } from 'vitest';
 import { createAnthropicAdapter } from '../../../agent-gateway/adapters/anthropic-adapter.js';
-import type { ToolDefinition, GatewayContextFrame } from '@nous/shared';
+import type { ToolDefinition, GatewayContextFrame, ILogChannel } from '@nous/shared';
+
+function createMockLog(): ILogChannel & { info: ReturnType<typeof vi.fn>; debug: ReturnType<typeof vi.fn>; warn: ReturnType<typeof vi.fn>; error: ReturnType<typeof vi.fn> } {
+  return {
+    debug: vi.fn(),
+    info: vi.fn(),
+    warn: vi.fn(),
+    error: vi.fn(),
+    isEnabled: () => true,
+  };
+}
 
 function makeToolDefinition(
   name: string,
@@ -30,8 +40,9 @@ function makeToolDefinition(
  */
 function formatToolsViaAdapter(
   toolDefinitions: readonly ToolDefinition[],
+  log?: ILogChannel,
 ): Array<{ name: string; description: string; input_schema: Record<string, unknown> }> {
-  const adapter = createAnthropicAdapter();
+  const adapter = createAnthropicAdapter(log);
   const context: GatewayContextFrame[] = [
     { role: 'user', source: 'runtime', content: 'test', createdAt: new Date().toISOString() },
   ];
@@ -64,45 +75,45 @@ describe('formatTools defensive injection (WR-148 phase 1.1)', () => {
   });
 
   it('injects type: "object" when inputSchema is empty ({})', () => {
-    const spy = vi.spyOn(console, 'info').mockImplementation(() => {});
-    const tools = formatToolsViaAdapter([makeToolDefinition('empty_schema', {})]);
+    const log = createMockLog();
+    const tools = formatToolsViaAdapter([makeToolDefinition('empty_schema', {})], log);
     expect(tools).toHaveLength(1);
     expect(tools[0].input_schema.type).toBe('object');
-    expect(spy).toHaveBeenCalledWith(
+    expect(log.info).toHaveBeenCalledWith(
       expect.stringContaining('Injecting type:"object" for tool "empty_schema"'),
     );
   });
 
   it('injects type: "object" when inputSchema has properties but no type', () => {
-    const spy = vi.spyOn(console, 'info').mockImplementation(() => {});
+    const log = createMockLog();
     const schema = {
       properties: { mode: { type: 'string' } },
       required: ['mode'],
     };
-    const tools = formatToolsViaAdapter([makeToolDefinition('no_type_tool', schema)]);
+    const tools = formatToolsViaAdapter([makeToolDefinition('no_type_tool', schema)], log);
     expect(tools).toHaveLength(1);
     expect(tools[0].input_schema.type).toBe('object');
     expect(tools[0].input_schema.properties).toEqual({ mode: { type: 'string' } });
     expect(tools[0].input_schema.required).toEqual(['mode']);
-    expect(spy).toHaveBeenCalled();
+    expect(log.info).toHaveBeenCalled();
   });
 
   it('does not log when schema already has a type field', () => {
-    const spy = vi.spyOn(console, 'info').mockImplementation(() => {});
+    const log = createMockLog();
     const schema = { type: 'object', properties: {} };
-    formatToolsViaAdapter([makeToolDefinition('typed_tool', schema)]);
-    expect(spy).not.toHaveBeenCalledWith(
+    formatToolsViaAdapter([makeToolDefinition('typed_tool', schema)], log);
+    expect(log.info).not.toHaveBeenCalledWith(
       expect.stringContaining('Injecting type:"object"'),
     );
   });
 
   it('does not mutate the original schema object (uses spread)', () => {
-    vi.spyOn(console, 'info').mockImplementation(() => {});
+    const log = createMockLog();
     const originalSchema: Record<string, unknown> = {
       properties: { mode: { type: 'string' } },
     };
     const originalRef = originalSchema;
-    formatToolsViaAdapter([makeToolDefinition('no_mutate', originalSchema)]);
+    formatToolsViaAdapter([makeToolDefinition('no_mutate', originalSchema)], log);
     // The original schema should NOT have type added
     expect(originalRef.type).toBeUndefined();
   });
