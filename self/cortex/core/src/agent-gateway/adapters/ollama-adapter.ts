@@ -127,13 +127,14 @@ function detectContentType(response: string): 'text' | 'openui' {
  */
 function parseOllamaToolCalls(
   toolCalls: unknown,
-): Array<{ name: string; params: unknown }> {
+): Array<{ name: string; params: unknown; id?: string }> {
   if (!Array.isArray(toolCalls)) return [];
-  const result: Array<{ name: string; params: unknown }> = [];
+  const result: Array<{ name: string; params: unknown; id?: string }> = [];
 
   for (const tc of toolCalls) {
     if (tc && typeof tc === 'object' && 'function' in tc) {
-      const fn = (tc as Record<string, unknown>).function;
+      const tcObj = tc as Record<string, unknown>;
+      const fn = tcObj.function;
       if (fn && typeof fn === 'object') {
         const fnObj = fn as Record<string, unknown>;
         const name = typeof fnObj.name === 'string' ? fnObj.name : '';
@@ -150,7 +151,8 @@ function parseOllamaToolCalls(
           params = fnObj.arguments;
         }
 
-        if (name) result.push({ name, params });
+        const id = typeof tcObj.id === 'string' ? tcObj.id : undefined;
+        if (name) result.push({ name, params, id });
       }
     }
   }
@@ -243,7 +245,7 @@ export function createOllamaAdapter(modelId?: string, log?: ILogChannel): Provid
         : input.systemPrompt;
 
       // Build messages array
-      const messages: Array<{ role: string; content: string; tool_call_id?: string }> = [
+      const messages: Array<{ role: string; content: string; tool_call_id?: string; tool_calls?: unknown[] }> = [
         { role: 'system', content: systemPrompt },
       ];
 
@@ -254,6 +256,25 @@ export function createOllamaAdapter(modelId?: string, log?: ILogChannel): Provid
         // to avoid confusing the model with prior reasoning traces
         if (frame.role === 'assistant') {
           content = stripThinkingFromContext(content);
+        }
+
+        // Assistant frame with tool_calls metadata → OpenAI-compatible tool_calls on assistant message
+        if (frame.role === 'assistant' && Array.isArray(frame.metadata?.tool_calls)) {
+          const toolCalls = (frame.metadata!.tool_calls as Array<{ id?: string; name: string; input: unknown }>)
+            .map((tc, index) => ({
+              id: tc.id ?? `call_${index}`,
+              type: 'function' as const,
+              function: {
+                name: tc.name,
+                arguments: (() => { try { return JSON.stringify(tc.input ?? {}); } catch { return '{}'; } })(),
+              },
+            }));
+          messages.push({
+            role: 'assistant',
+            content,
+            tool_calls: toolCalls,
+          });
+          continue;
         }
 
         // Tool result with tool_call_id metadata → OpenAI-compatible tool result message
