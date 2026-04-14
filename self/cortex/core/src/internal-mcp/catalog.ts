@@ -20,6 +20,7 @@ function defineTool(
   outputSchema: Record<string, unknown>,
   capabilities: string[],
   permissionScope: string,
+  isConcurrencySafe: boolean = false,
 ): ToolDefinition {
   return {
     name,
@@ -29,6 +30,7 @@ function defineTool(
     outputSchema,
     capabilities,
     permissionScope,
+    isConcurrencySafe,
   };
 }
 
@@ -50,6 +52,7 @@ export const INTERNAL_MCP_CATALOG: readonly InternalMcpCatalogEntry[] = [
       { entries: 'memory results' },
       ['read'],
       'project',
+      true,
     ),
   },
   {
@@ -69,6 +72,7 @@ export const INTERNAL_MCP_CATALOG: readonly InternalMcpCatalogEntry[] = [
       { memoryEntryId: 'string | null' },
       ['write'],
       'project',
+      false,
     ),
   },
   {
@@ -88,6 +92,7 @@ export const INTERNAL_MCP_CATALOG: readonly InternalMcpCatalogEntry[] = [
       { entry: 'ExternalSourceMutationResult' },
       ['write'],
       'runtime',
+      false,
     ),
   },
   {
@@ -107,6 +112,7 @@ export const INTERNAL_MCP_CATALOG: readonly InternalMcpCatalogEntry[] = [
       { entry: 'ExternalSourceMemoryEntry | null' },
       ['read'],
       'runtime',
+      true,
     ),
   },
   {
@@ -126,6 +132,7 @@ export const INTERNAL_MCP_CATALOG: readonly InternalMcpCatalogEntry[] = [
       { entries: 'ExternalSourceSearchResult' },
       ['read'],
       'runtime',
+      true,
     ),
   },
   {
@@ -145,6 +152,7 @@ export const INTERNAL_MCP_CATALOG: readonly InternalMcpCatalogEntry[] = [
       { entry: 'ExternalSourceMutationResult' },
       ['write'],
       'runtime',
+      false,
     ),
   },
   {
@@ -164,6 +172,7 @@ export const INTERNAL_MCP_CATALOG: readonly InternalMcpCatalogEntry[] = [
       { result: 'ExternalSourceCompactionResult' },
       ['write'],
       'runtime',
+      false,
     ),
   },
   {
@@ -183,6 +192,7 @@ export const INTERNAL_MCP_CATALOG: readonly InternalMcpCatalogEntry[] = [
       { agents: 'PublicMcpAgentCatalogEntry[]' },
       ['read'],
       'runtime',
+      true,
     ),
   },
   {
@@ -202,6 +212,7 @@ export const INTERNAL_MCP_CATALOG: readonly InternalMcpCatalogEntry[] = [
       { result: 'PublicMcpAgentInvokeResult' },
       ['execute'],
       'runtime',
+      false,
     ),
   },
   {
@@ -221,6 +232,7 @@ export const INTERNAL_MCP_CATALOG: readonly InternalMcpCatalogEntry[] = [
       { info: 'PublicMcpSystemInfo' },
       ['read'],
       'runtime',
+      true,
     ),
   },
   {
@@ -240,6 +252,7 @@ export const INTERNAL_MCP_CATALOG: readonly InternalMcpCatalogEntry[] = [
       { record: 'PromotedMemoryRecord' },
       ['write'],
       'runtime',
+      false,
     ),
   },
   {
@@ -259,6 +272,7 @@ export const INTERNAL_MCP_CATALOG: readonly InternalMcpCatalogEntry[] = [
       { record: 'PromotedMemoryRecord' },
       ['write'],
       'runtime',
+      false,
     ),
   },
   {
@@ -278,6 +292,7 @@ export const INTERNAL_MCP_CATALOG: readonly InternalMcpCatalogEntry[] = [
       { record: 'PromotedMemoryRecord | null' },
       ['read'],
       'runtime',
+      true,
     ),
   },
   {
@@ -297,6 +312,7 @@ export const INTERNAL_MCP_CATALOG: readonly InternalMcpCatalogEntry[] = [
       { entries: 'PromotedMemorySearchResult' },
       ['read'],
       'runtime',
+      true,
     ),
   },
   {
@@ -317,6 +333,7 @@ export const INTERNAL_MCP_CATALOG: readonly InternalMcpCatalogEntry[] = [
       { config: 'ProjectConfig?', state: 'ProjectState?' },
       ['read'],
       'project',
+      true,
     ),
   },
   {
@@ -336,6 +353,7 @@ export const INTERNAL_MCP_CATALOG: readonly InternalMcpCatalogEntry[] = [
       { artifactRef: 'string', version: 'number' },
       ['write'],
       'project',
+      false,
     ),
   },
   {
@@ -355,6 +373,7 @@ export const INTERNAL_MCP_CATALOG: readonly InternalMcpCatalogEntry[] = [
       { artifact: 'ArtifactReadResult | null' },
       ['read'],
       'project',
+      true,
     ),
   },
   {
@@ -375,6 +394,7 @@ export const INTERNAL_MCP_CATALOG: readonly InternalMcpCatalogEntry[] = [
       { toolResult: 'ToolResult' },
       ['execute'],
       'project',
+      false,
     ),
   },
   {
@@ -393,6 +413,7 @@ export const INTERNAL_MCP_CATALOG: readonly InternalMcpCatalogEntry[] = [
       { tools: 'ToolDefinition[]' },
       ['read'],
       'project',
+      true,
     ),
   },
   {
@@ -412,6 +433,7 @@ export const INTERNAL_MCP_CATALOG: readonly InternalMcpCatalogEntry[] = [
       { checkpointId: 'string' },
       ['write'],
       'runtime',
+      false,
     ),
   },
   {
@@ -431,6 +453,7 @@ export const INTERNAL_MCP_CATALOG: readonly InternalMcpCatalogEntry[] = [
       { escalationId: 'string' },
       ['write'],
       'project',
+      false,
     ),
   },
   {
@@ -450,6 +473,7 @@ export const INTERNAL_MCP_CATALOG: readonly InternalMcpCatalogEntry[] = [
       { scheduleId: 'string' },
       ['write'],
       'project',
+      false,
     ),
   },
   {
@@ -472,6 +496,7 @@ export const INTERNAL_MCP_CATALOG: readonly InternalMcpCatalogEntry[] = [
       { definitions: 'WorkflowLifecycleDefinitionSummary[]', instances: 'WorkflowLifecycleInstanceSummary[]' },
       ['read'],
       'runtime',
+      true,
     ),
   },
   {
@@ -491,6 +516,7 @@ export const INTERNAL_MCP_CATALOG: readonly InternalMcpCatalogEntry[] = [
       { workflow: 'WorkflowLifecycleInspectResult' },
       ['read'],
       'runtime',
+      true,
     ),
   },
   {
@@ -514,6 +540,7 @@ export const INTERNAL_MCP_CATALOG: readonly InternalMcpCatalogEntry[] = [
       { result: 'WorkflowLifecycleMutationResult' },
       ['control'],
       'runtime',
+      false,
     ),
   },
   {
@@ -533,6 +560,7 @@ export const INTERNAL_MCP_CATALOG: readonly InternalMcpCatalogEntry[] = [
       { status: 'WorkflowLifecycleStatusResult' },
       ['read'],
       'runtime',
+      true,
     ),
   },
   {
@@ -553,6 +581,7 @@ export const INTERNAL_MCP_CATALOG: readonly InternalMcpCatalogEntry[] = [
       { result: 'WorkflowLifecycleMutationResult' },
       ['control'],
       'runtime',
+      false,
     ),
   },
   {
@@ -573,6 +602,7 @@ export const INTERNAL_MCP_CATALOG: readonly InternalMcpCatalogEntry[] = [
       { result: 'WorkflowLifecycleMutationResult' },
       ['control'],
       'runtime',
+      false,
     ),
   },
   {
@@ -593,6 +623,7 @@ export const INTERNAL_MCP_CATALOG: readonly InternalMcpCatalogEntry[] = [
       { result: 'WorkflowLifecycleMutationResult' },
       ['control'],
       'runtime',
+      false,
     ),
   },
   {
@@ -612,6 +643,7 @@ export const INTERNAL_MCP_CATALOG: readonly InternalMcpCatalogEntry[] = [
       { valid: 'boolean', errors: 'WorkflowSpecValidationError[]?' },
       ['read'],
       'runtime',
+      true,
     ),
   },
   {
@@ -633,6 +665,7 @@ export const INTERNAL_MCP_CATALOG: readonly InternalMcpCatalogEntry[] = [
       { result: 'WorkflowLifecycleMutationResult' },
       ['control'],
       'runtime',
+      false,
     ),
   },
   {
@@ -657,6 +690,7 @@ export const INTERNAL_MCP_CATALOG: readonly InternalMcpCatalogEntry[] = [
       { result: 'WorkflowLifecycleMutationResult' },
       ['control'],
       'runtime',
+      false,
     ),
   },
   {
@@ -677,6 +711,7 @@ export const INTERNAL_MCP_CATALOG: readonly InternalMcpCatalogEntry[] = [
       { workflowDefinitionId: 'string', definitionName: 'string' },
       ['control'],
       'runtime',
+      false,
     ),
   },
   {
@@ -698,6 +733,7 @@ export const INTERNAL_MCP_CATALOG: readonly InternalMcpCatalogEntry[] = [
       { definitionId: 'string', definitionName: 'string' },
       ['control'],
       'runtime',
+      false,
     ),
   },
   {
@@ -720,6 +756,7 @@ export const INTERNAL_MCP_CATALOG: readonly InternalMcpCatalogEntry[] = [
       { definitionId: 'string', definitionName: 'string' },
       ['control'],
       'runtime',
+      false,
     ),
   },
   {
@@ -740,6 +777,7 @@ export const INTERNAL_MCP_CATALOG: readonly InternalMcpCatalogEntry[] = [
       { deleted: 'boolean' },
       ['control'],
       'runtime',
+      false,
     ),
   },
   {
@@ -753,6 +791,7 @@ export const INTERNAL_MCP_CATALOG: readonly InternalMcpCatalogEntry[] = [
       { reference: 'string' },
       ['read'],
       'runtime',
+      true,
     ),
   },
   {
@@ -775,6 +814,7 @@ export const INTERNAL_MCP_CATALOG: readonly InternalMcpCatalogEntry[] = [
       { accepted: 'boolean', health: 'AppHealthSnapshot' },
       ['write'],
       'runtime',
+      false,
     ),
   },
   {
@@ -797,6 +837,7 @@ export const INTERNAL_MCP_CATALOG: readonly InternalMcpCatalogEntry[] = [
       { accepted: 'boolean', heartbeat: 'AppHeartbeatSignal' },
       ['write'],
       'runtime',
+      false,
     ),
   },
   {
@@ -822,6 +863,7 @@ export const INTERNAL_MCP_CATALOG: readonly InternalMcpCatalogEntry[] = [
       { credential_ref: 'string', metadata: 'CredentialMetadata' },
       ['write'],
       'runtime',
+      false,
     ),
   },
   {
@@ -842,6 +884,7 @@ export const INTERNAL_MCP_CATALOG: readonly InternalMcpCatalogEntry[] = [
       { status: 'number', headers: 'Record<string, string>', body: 'unknown' },
       ['execute'],
       'runtime',
+      false,
     ),
   },
   {
@@ -862,6 +905,7 @@ export const INTERNAL_MCP_CATALOG: readonly InternalMcpCatalogEntry[] = [
       { revoked: 'boolean', credential_ref: 'string?' },
       ['write'],
       'runtime',
+      false,
     ),
   },
   {
@@ -881,6 +925,7 @@ export const INTERNAL_MCP_CATALOG: readonly InternalMcpCatalogEntry[] = [
       { tasks: 'TaskDefinition[]' },
       ['read'],
       'project',
+      true,
     ),
   },
   {
@@ -901,6 +946,7 @@ export const INTERNAL_MCP_CATALOG: readonly InternalMcpCatalogEntry[] = [
       { task: 'TaskDefinition' },
       ['read'],
       'project',
+      true,
     ),
   },
   {
@@ -921,6 +967,7 @@ export const INTERNAL_MCP_CATALOG: readonly InternalMcpCatalogEntry[] = [
       { task: 'TaskDefinition' },
       ['write'],
       'project',
+      false,
     ),
   },
   {
@@ -942,6 +989,7 @@ export const INTERNAL_MCP_CATALOG: readonly InternalMcpCatalogEntry[] = [
       { task: 'TaskDefinition' },
       ['write'],
       'project',
+      false,
     ),
   },
   {
@@ -962,6 +1010,7 @@ export const INTERNAL_MCP_CATALOG: readonly InternalMcpCatalogEntry[] = [
       { deleted: 'boolean' },
       ['write'],
       'project',
+      false,
     ),
   },
   {
@@ -982,6 +1031,7 @@ export const INTERNAL_MCP_CATALOG: readonly InternalMcpCatalogEntry[] = [
       { task: 'TaskDefinition' },
       ['write'],
       'project',
+      false,
     ),
   },
   {
@@ -1002,6 +1052,7 @@ export const INTERNAL_MCP_CATALOG: readonly InternalMcpCatalogEntry[] = [
       { executionId: 'string', runId: 'string' },
       ['execute'],
       'project',
+      false,
     ),
   },
   {
@@ -1023,6 +1074,7 @@ export const INTERNAL_MCP_CATALOG: readonly InternalMcpCatalogEntry[] = [
       { executions: 'TaskExecutionRecord[]' },
       ['read'],
       'project',
+      true,
     ),
   },
   {
@@ -1043,6 +1095,7 @@ export const INTERNAL_MCP_CATALOG: readonly InternalMcpCatalogEntry[] = [
       { executions: '[]' },
       ['read'],
       'project',
+      true,
     ),
   },
   {
@@ -1064,6 +1117,7 @@ export const INTERNAL_MCP_CATALOG: readonly InternalMcpCatalogEntry[] = [
       { child_result: 'AgentResult' },
       ['control'],
       'runtime',
+      false,
     ),
   },
   {
@@ -1086,6 +1140,7 @@ export const INTERNAL_MCP_CATALOG: readonly InternalMcpCatalogEntry[] = [
       { child_result: 'AgentResult' },
       ['control'],
       'runtime',
+      false,
     ),
   },
   {
@@ -1107,6 +1162,7 @@ export const INTERNAL_MCP_CATALOG: readonly InternalMcpCatalogEntry[] = [
       { result: 'AgentCompletedResult' },
       ['control'],
       'runtime',
+      false,
     ),
   },
   {
@@ -1128,6 +1184,7 @@ export const INTERNAL_MCP_CATALOG: readonly InternalMcpCatalogEntry[] = [
       { result: 'AgentEscalatedResult' },
       ['control'],
       'runtime',
+      false,
     ),
   },
   {
@@ -1149,6 +1206,7 @@ export const INTERNAL_MCP_CATALOG: readonly InternalMcpCatalogEntry[] = [
       { observation: 'accepted' },
       ['control'],
       'runtime',
+      false,
     ),
   },
 ] as const;
