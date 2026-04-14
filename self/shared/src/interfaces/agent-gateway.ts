@@ -93,6 +93,16 @@ export interface IGatewayLifecycleHooks {
   ): Promise<void>;
 }
 
+// ── Tool concurrency config (WR-127 / WR-129) ─────────────────────────
+
+/** Tool execution concurrency model */
+export interface ToolConcurrencyConfig {
+  /** Maximum parallel tool executions. Default: 1 (sequential). */
+  readonly maxConcurrent?: number;
+  /** Whether to partition by isConcurrencySafe flag (read-only = parallel, write = serial). */
+  readonly partitionBySafety?: boolean;
+}
+
 // ── Strategy injection types (WR-127) ────────────────────────────────
 
 /** Input to the prompt formatter — agent-type axis composition */
@@ -153,6 +163,8 @@ export interface HarnessStrategies {
   readonly contextStrategy?: ContextStrategy;
   /** Loop shape configuration. */
   readonly loopConfig?: LoopConfig;
+  /** Tool execution concurrency model (WR-129). */
+  readonly toolConcurrency?: ToolConcurrencyConfig;
 }
 
 export interface AgentGatewayConfig {
@@ -175,6 +187,11 @@ export interface AgentGatewayConfig {
   /** Composable harness strategies (WR-127). When present, the gateway
    *  delegates to these instead of built-in behavior. */
   harness?: HarnessStrategies;
+
+  /** Tool execution concurrency model (WR-129). When present, the gateway
+   *  partitions tool calls by isConcurrencySafe and dispatches safe tools
+   *  concurrently. Defaults to sequential when absent. */
+  toolConcurrency?: ToolConcurrencyConfig;
 
   /** Optional structured log channel (WR-157). When present, the gateway
    *  routes all diagnostic output through this channel instead of console. */

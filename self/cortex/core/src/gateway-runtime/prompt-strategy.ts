@@ -6,7 +6,7 @@
  *
  * Sub-phase 1.1 of WR-124 (Chat Response Quality).
  */
-import type { AgentClass, ToolDefinition } from '@nous/shared';
+import type { AgentClass, ToolConcurrencyConfig, ToolDefinition } from '@nous/shared';
 
 // ---------------------------------------------------------------------------
 // Types
@@ -66,13 +66,8 @@ export interface ContextBudgetDefaults {
 /** Loop behavior variants */
 export type LoopShape = 'single-turn' | 'multi-turn' | 'delegating';
 
-/** Tool execution concurrency model */
-export interface ToolConcurrencyConfig {
-  /** Maximum parallel tool executions */
-  readonly maxConcurrent?: number;
-  /** Whether to partition by tool safety (read-only = parallel, write = serial) */
-  readonly partitionBySafety?: boolean;
-}
+// Re-export ToolConcurrencyConfig from @nous/shared for backward compatibility
+export type { ToolConcurrencyConfig } from '@nous/shared';
 
 /** Escalation configuration */
 export interface EscalationConfig {
