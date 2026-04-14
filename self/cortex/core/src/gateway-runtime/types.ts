@@ -190,6 +190,8 @@ export const ChatTurnInputSchema = z.object({
   message: z.string().min(1),
   projectId: z.string().uuid().optional(),
   traceId: z.string().uuid(),
+  sessionId: z.string().uuid().optional(),
+  scope: z.enum(['principal', 'project_thread', 'orphan_thread']).optional(),
 }).strict();
 export type ChatTurnInput = z.infer<typeof ChatTurnInputSchema>;
 

@@ -483,7 +483,7 @@ implements IPrincipalSystemGatewayRuntime, ISystemInboxSubmissionService {
   async handleChatTurn(input: ChatTurnInput): Promise<ChatTurnResult> {
     this.checkAttachOrWarn();
     const parsed = ChatTurnInputSchema.parse(input);
-    const { message, projectId, traceId } = parsed;
+    const { message, projectId, traceId, sessionId, scope } = parsed;
 
     // Opctl gate check
     if (projectId && this.deps.opctlService) {
@@ -573,6 +573,9 @@ implements IPrincipalSystemGatewayRuntime, ISystemInboxSubmissionService {
       traceId,
       result.evidenceRefs,
       resolved.contentType,
+      resolved.thinkingContent,
+      sessionId,
+      scope,
     );
 
     return {
@@ -905,24 +908,34 @@ implements IPrincipalSystemGatewayRuntime, ISystemInboxSubmissionService {
     traceId: string,
     evidenceRefs: TraceEvidenceReference[],
     contentType?: 'text' | 'openui',
+    thinkingContent?: string,
+    sessionId?: string,
+    scope?: string,
   ): Promise<void> {
     if (!projectId || !this.deps.stmStore) return;
 
     const timestamp = this.now();
     try {
+      const userMetadata: Record<string, unknown> = {};
+      if (sessionId) userMetadata.sessionId = sessionId;
+      if (scope) userMetadata.scope = scope;
       await this.deps.stmStore.append(projectId as ProjectId, {
         role: 'user',
         content: userMessage,
         timestamp,
+        ...(Object.keys(userMetadata).length > 0 ? { metadata: userMetadata } : {}),
       });
+      const assistantMetadata: Record<string, unknown> = {};
+      if (contentType && contentType !== 'text') assistantMetadata.contentType = contentType;
+      if (thinkingContent) assistantMetadata.thinkingContent = thinkingContent;
+      if (sessionId) assistantMetadata.sessionId = sessionId;
+      if (scope) assistantMetadata.scope = scope;
       const entry: { role: 'assistant'; content: string; timestamp: string; metadata?: Record<string, unknown> } = {
         role: 'assistant',
         content: assistantResponse,
         timestamp,
+        ...(Object.keys(assistantMetadata).length > 0 ? { metadata: assistantMetadata } : {}),
       };
-      if (contentType && contentType !== 'text') {
-        entry.metadata = { contentType };
-      }
       await this.deps.stmStore.append(projectId as ProjectId, entry);
 
       const stmContext = await this.deps.stmStore.getContext(projectId as ProjectId);

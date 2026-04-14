@@ -18,10 +18,13 @@ export const chatRouter = router({
     )
     .mutation(async ({ ctx, input }) => {
       const traceId = randomUUID() as TraceId;
+      const sessionId = randomUUID();
       const result = await ctx.gatewayRuntime.handleChatTurn({
         message: input.message,
         projectId: input.projectId,
         traceId,
+        sessionId,
+        scope: 'principal' as const,
       });
 
       return { response: result.response, traceId: result.traceId, contentType: result.contentType, thinkingContent: result.thinkingContent };
@@ -49,10 +52,13 @@ export const chatRouter = router({
       switch (action.actionType) {
         case 'followup': {
           const traceId = randomUUID() as TraceId;
+          const sessionId = randomUUID();
           const result = await ctx.gatewayRuntime.handleChatTurn({
             message: String(action.payload.prompt),
             projectId,
             traceId,
+            sessionId,
+            scope: 'principal' as const,
           });
           return {
             ok: true as const,
