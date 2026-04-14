@@ -36,6 +36,14 @@ const MessageSchema = z.object({
   role: z.enum(['user', 'assistant', 'system', 'tool']),
   content: z.union([z.string(), z.array(ContentBlockSchema)]),
   tool_call_id: z.string().optional(),
+  tool_calls: z.array(z.object({
+    id: z.string(),
+    type: z.literal('function'),
+    function: z.object({
+      name: z.string(),
+      arguments: z.string(),
+    }),
+  })).optional(),
 });
 
 export const TextModelInputSchema = z.union([

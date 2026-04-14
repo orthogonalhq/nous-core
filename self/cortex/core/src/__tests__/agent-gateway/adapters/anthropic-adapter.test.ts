@@ -96,6 +96,79 @@ describe('createAnthropicAdapter', () => {
       expect(messages[2]).toEqual({ role: 'user', content: 'Tool result' }); // tool -> user
     });
 
+    it('formats multi-turn tool calling round-trip (assistant tool_use + tool_result)', () => {
+      const input: AdapterFormatInput = {
+        systemPrompt: 'test',
+        context: [
+          {
+            role: 'user',
+            content: 'What is the weather in NYC?',
+            source: 'initial_context',
+            createdAt: '2026-01-01T00:00:00Z',
+          },
+          {
+            role: 'assistant',
+            content: 'Let me check the weather.',
+            source: 'model_response',
+            createdAt: '2026-01-01T00:00:01Z',
+            metadata: {
+              tool_calls: [
+                { id: 'toolu_weather', name: 'get_weather', input: { city: 'NYC' } },
+              ],
+            },
+          },
+          {
+            role: 'tool',
+            content: '72°F and sunny',
+            source: 'tool_result',
+            createdAt: '2026-01-01T00:00:02Z',
+            metadata: { tool_call_id: 'toolu_weather' },
+          },
+          {
+            role: 'assistant',
+            content: 'The weather in NYC is 72°F and sunny.',
+            source: 'model_response',
+            createdAt: '2026-01-01T00:00:03Z',
+          },
+        ],
+      };
+      const result = adapter.formatRequest(input);
+      const messages = result.input.messages as Array<{ role: string; content: unknown }>;
+
+      expect(messages).toHaveLength(4);
+
+      // User message
+      expect(messages[0]).toEqual({ role: 'user', content: 'What is the weather in NYC?' });
+
+      // Assistant message with tool_use content blocks
+      expect(messages[1].role).toBe('assistant');
+      const assistantContent = messages[1].content as Array<Record<string, unknown>>;
+      expect(assistantContent).toHaveLength(2);
+      expect(assistantContent[0]).toEqual({ type: 'text', text: 'Let me check the weather.' });
+      expect(assistantContent[1]).toEqual({
+        type: 'tool_use',
+        id: 'toolu_weather',
+        name: 'get_weather',
+        input: { city: 'NYC' },
+      });
+
+      // Tool result as user message with tool_result content block
+      expect(messages[2].role).toBe('user');
+      expect(messages[2].content).toEqual([
+        {
+          type: 'tool_result',
+          tool_use_id: 'toolu_weather',
+          content: '72°F and sunny',
+        },
+      ]);
+
+      // Final assistant message
+      expect(messages[3]).toEqual({
+        role: 'assistant',
+        content: 'The weather in NYC is 72°F and sunny.',
+      });
+    });
+
     it('passes model requirements as model_profile', () => {
       const input: AdapterFormatInput = {
         systemPrompt: 'test',

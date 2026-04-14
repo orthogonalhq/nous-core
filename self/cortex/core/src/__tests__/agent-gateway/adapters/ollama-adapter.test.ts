@@ -242,7 +242,125 @@ describe('createOllamaAdapter', () => {
       expect(messages[1]).toEqual({ role: 'user', content: 'tool output' });
     });
 
-    it('parseResponse returns undefined id for tool calls (Ollama does not provide IDs)', () => {
+    it('emits tool_calls array on assistant message with metadata.tool_calls', () => {
+      const adapter = createOllamaAdapter('gemma4:12b');
+      const result = adapter.formatRequest({
+        systemPrompt: 'prompt',
+        context: [
+          {
+            role: 'assistant' as const,
+            content: 'I will check the weather.',
+            source: 'model_output' as const,
+            createdAt: new Date().toISOString(),
+            metadata: {
+              tool_calls: [
+                { id: 'call_abc', name: 'get_weather', input: { city: 'NYC' } },
+              ],
+            },
+          },
+        ],
+      });
+      const input = result.input as Record<string, unknown>;
+      const messages = input.messages as Array<Record<string, unknown>>;
+      expect(messages[1]).toEqual({
+        role: 'assistant',
+        content: 'I will check the weather.',
+        tool_calls: [
+          {
+            id: 'call_abc',
+            type: 'function',
+            function: {
+              name: 'get_weather',
+              arguments: '{"city":"NYC"}',
+            },
+          },
+        ],
+      });
+    });
+
+    it('strips thinking from assistant content even when tool_calls present', () => {
+      const adapter = createOllamaAdapter('gemma4:12b');
+      const result = adapter.formatRequest({
+        systemPrompt: 'prompt',
+        context: [
+          {
+            role: 'assistant' as const,
+            content: '<think>Let me reason...</think>I will check.',
+            source: 'model_output' as const,
+            createdAt: new Date().toISOString(),
+            metadata: {
+              tool_calls: [
+                { id: 'call_1', name: 'get_weather', input: { city: 'NYC' } },
+              ],
+            },
+          },
+        ],
+      });
+      const input = result.input as Record<string, unknown>;
+      const messages = input.messages as Array<Record<string, unknown>>;
+      expect(messages[1].content).toBe('I will check.');
+      expect(messages[1].tool_calls).toBeDefined();
+    });
+
+    it('formats multi-turn tool calling sequence', () => {
+      const adapter = createOllamaAdapter('gemma4:12b');
+      const result = adapter.formatRequest({
+        systemPrompt: 'prompt',
+        context: [
+          makeFrame('user', 'What is the weather?'),
+          {
+            role: 'assistant' as const,
+            content: 'Let me check.',
+            source: 'model_output' as const,
+            createdAt: new Date().toISOString(),
+            metadata: {
+              tool_calls: [
+                { id: 'call_w', name: 'get_weather', input: { city: 'NYC' } },
+              ],
+            },
+          },
+          {
+            role: 'tool' as const,
+            content: '72°F and sunny',
+            source: 'tool_result' as const,
+            createdAt: new Date().toISOString(),
+            metadata: { tool_call_id: 'call_w' },
+          },
+        ],
+      });
+      const input = result.input as Record<string, unknown>;
+      const messages = input.messages as Array<Record<string, unknown>>;
+      // system + user + assistant(tool_calls) + tool(tool_call_id)
+      expect(messages).toHaveLength(4);
+      expect(messages[2]).toEqual({
+        role: 'assistant',
+        content: 'Let me check.',
+        tool_calls: [{
+          id: 'call_w',
+          type: 'function',
+          function: { name: 'get_weather', arguments: '{"city":"NYC"}' },
+        }],
+      });
+      expect(messages[3]).toEqual({
+        role: 'tool',
+        content: '72°F and sunny',
+        tool_call_id: 'call_w',
+      });
+    });
+
+    it('does not emit tool_calls for assistant frame without metadata.tool_calls', () => {
+      const adapter = createOllamaAdapter('gemma4:12b');
+      const result = adapter.formatRequest({
+        systemPrompt: 'prompt',
+        context: [makeFrame('assistant', 'Just a regular message.')],
+      });
+      const input = result.input as Record<string, unknown>;
+      const messages = input.messages as Array<Record<string, unknown>>;
+      expect(messages[1]).toEqual({ role: 'assistant', content: 'Just a regular message.' });
+      expect(messages[1].tool_calls).toBeUndefined();
+    });
+
+    it('parseResponse returns undefined id for tool calls without id field on raw object', () => {
       const adapter = createOllamaAdapter('gemma4:12b');
       const output = {
         content: '',
@@ -279,7 +397,26 @@ describe('createOllamaAdapter', () => {
       };
       const result = adapter.parseResponse(output, TRACE_ID);
       expect(result.toolCalls).toEqual([
-        { name: 'get_weather', params: { city: 'NYC' } },
+        { name: 'get_weather', params: { city: 'NYC' }, id: undefined },
+      ]);
+    });
+
+    it('extracts id from tool call when present', () => {
+      const output = {
+        content: '',
+        tool_calls: [
+          {
+            id: 'call_abc123',
+            function: {
+              name: 'get_weather',
+              arguments: { city: 'NYC' },
+            },
+          },
+        ],
+      };
+      const result = adapter.parseResponse(output, TRACE_ID);
+      expect(result.toolCalls).toEqual([
+        { name: 'get_weather', params: { city: 'NYC' }, id: 'call_abc123' },
       ]);
     });
 
