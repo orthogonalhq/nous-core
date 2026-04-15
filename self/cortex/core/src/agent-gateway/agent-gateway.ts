@@ -121,6 +121,7 @@ export class AgentGateway implements IAgentGateway {
   private readonly idFactory: () => string;
   private readonly log: ILogChannel;
   private cachedAdapter: ProviderAdapter | null = null;
+  private cachedAdapterProviderSignature: string | null = null;
 
   constructor(private readonly config: AgentGatewayConfig) {
     this.agentClass = config.agentClass;
@@ -143,12 +144,22 @@ export class AgentGateway implements IAgentGateway {
   /**
    * Lazily resolves a ProviderAdapter from the provider's config name.
    * Uses the same heuristic as CortexRuntime.resolveProviderType.
-   * Caches after first resolution for the gateway's lifetime.
+   * Caches after first resolution; invalidates when the provider signature changes.
    */
   private resolveAdapterFromProvider(provider: IModelProvider): ProviderAdapter {
-    if (this.cachedAdapter) return this.cachedAdapter;
     const providerType = resolveProviderTypeFromConfig(provider);
+    if (this.cachedAdapter && this.cachedAdapterProviderSignature === providerType) {
+      return this.cachedAdapter;
+    }
+    if (this.cachedAdapterProviderSignature !== null && this.cachedAdapterProviderSignature !== providerType) {
+      this.log.debug('adapter cache invalidated — provider changed', {
+        agentClass: this.agentClass,
+        previousSignature: this.cachedAdapterProviderSignature,
+        newSignature: providerType,
+      });
+    }
     this.cachedAdapter = resolveAdapter(providerType, this.log);
+    this.cachedAdapterProviderSignature = providerType;
     this.log.debug('adapter resolved', { agentClass: this.agentClass, providerType });
     return this.cachedAdapter;
   }
