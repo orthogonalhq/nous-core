@@ -16,6 +16,7 @@ export interface CardRendererProps<T = unknown> {
     actionType: string
     label: string
     timestamp: string
+    result?: { ok: boolean; message: string; traceId?: string; contentType?: string }
   }
   onAction?: (action: CardAction) => void
 }
@@ -94,6 +95,7 @@ export interface RenderCardContext {
     actionType: string
     label: string
     timestamp: string
+    result?: { ok: boolean; message: string; traceId?: string; contentType?: string }
   }
 }
 

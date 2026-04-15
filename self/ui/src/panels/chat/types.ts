@@ -11,6 +11,7 @@ export interface ChatMessage {
     actionType: string
     label: string
     timestamp: string
+    result?: ActionResult
   }
 }
 
