@@ -56,7 +56,7 @@ import {
 import { GatewayOutbox } from './outbox.js';
 import { composeSystemPrompt } from './system-prompt-composer.js';
 import { resolveAdapter, resolveProviderTypeFromConfig } from './adapters/index.js';
-import type { ILogChannel } from '@nous/shared';
+import type { ILogChannel, ModelResponse, ModelStreamChunk } from '@nous/shared';
 import type { ProviderAdapter } from './adapters/types.js';
 
 /** No-op log channel used when no ILogChannel is provided. */
@@ -251,15 +251,24 @@ export class AgentGateway implements IAgentGateway {
           userMessage: lastUserFrame?.content?.slice(0, 500) ?? '(no user message)',
         });
 
-        const modelResponse = await provider.invoke({
-          role: this.config.modelRole ?? deriveDefaultModelRole(this.config.agentClass),
-          input: formatted.input,
-          projectId,
-          traceId,
-          agentClass: this.agentClass,
-          correlationRunId: correlation.runId,
-          correlationParentId: correlation.parentId,
-        });
+        // Streaming decision: use stream() when event bus is available,
+        // adapter supports streaming, and no tool calls are pending from
+        // a previous turn (tool-calling turns require full response parsing).
+        const canStream = !!this.config.eventBus
+          && adapter.capabilities.streaming
+          && provider.stream;
+
+        const modelResponse = canStream
+          ? await this.invokeWithStreaming(provider, adapter, formatted, traceId, projectId, correlation)
+          : await provider.invoke({
+              role: this.config.modelRole ?? deriveDefaultModelRole(this.config.agentClass),
+              input: formatted.input,
+              projectId,
+              traceId,
+              agentClass: this.agentClass,
+              correlationRunId: correlation.runId,
+              correlationParentId: correlation.parentId,
+            });
 
         budgetTracker.recordModelUsage(modelResponse.usage);
 
@@ -486,6 +495,78 @@ export class AgentGateway implements IAgentGateway {
         return this.handleObservationTool(args);
       default:
         return this.handleStandardTool(args);
+    }
+  }
+
+  /**
+   * Invoke the provider using streaming, emitting chunks via the event bus.
+   * Falls back to invoke() if streaming fails.
+   */
+  /**
+   * Invoke the provider using streaming, emitting chunks via the event bus.
+   * Falls back to invoke() if streaming fails.
+   */
+  private async invokeWithStreaming(
+    provider: IModelProvider,
+    _adapter: ProviderAdapter,
+    formatted: { input: unknown },
+    traceId: string,
+    projectId: string | undefined,
+    correlation: { runId: string; parentId?: string; sequence: number },
+  ): Promise<import('@nous/shared').ModelResponse> {
+    const eventBus = this.config.eventBus!;
+    const request = {
+      role: this.config.modelRole ?? deriveDefaultModelRole(this.config.agentClass),
+      input: formatted.input,
+      projectId: projectId as ProjectId | undefined,
+      traceId: traceId as TraceId,
+      agentClass: this.agentClass,
+      ...(correlation.runId ? { correlationRunId: correlation.runId } : {}),
+      ...(correlation.parentId ? { correlationParentId: correlation.parentId } : {}),
+    };
+
+    try {
+      let accumulatedContent = '';
+      let accumulatedThinking = '';
+      let lastUsage: ModelStreamChunk['usage'];
+
+      for await (const chunk of provider.stream!(request)) {
+        if (chunk.thinking) {
+          accumulatedThinking += chunk.thinking;
+          eventBus.publish('chat:thinking-chunk', {
+            content: chunk.thinking,
+            traceId,
+          });
+        }
+        if (chunk.content) {
+          accumulatedContent += chunk.content;
+          eventBus.publish('chat:content-chunk', {
+            content: chunk.content,
+            traceId,
+          });
+        }
+        if (chunk.usage) {
+          lastUsage = chunk.usage;
+        }
+      }
+
+      // Build a ModelResponse-compatible result from accumulated chunks
+      const output = accumulatedThinking
+        ? { response: accumulatedContent, thinkingContent: accumulatedThinking }
+        : accumulatedContent;
+
+      return {
+        output,
+        usage: {
+          inputTokens: lastUsage?.inputTokens ?? 0,
+          outputTokens: lastUsage?.outputTokens ?? 0,
+        },
+        traceId: traceId as TraceId,
+        providerId: provider.getConfig().id,
+      };
+    } catch (err) {
+      this.log.warn('streaming failed, falling back to invoke()', { error: String(err) });
+      return provider.invoke(request);
     }
   }
 

@@ -1023,6 +1023,7 @@ implements IPrincipalSystemGatewayRuntime, ISystemInboxSubmissionService {
       nowMs: this.nowMs,
       idFactory: this.idFactory,
       log: this.deps.logger?.channel('nous:gateway'),
+      eventBus: this.deps.eventBus,
     };
   }
 
