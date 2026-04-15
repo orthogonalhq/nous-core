@@ -27,3 +27,5 @@ export type { UseChatApiOptions } from './hooks/useChatApi';
 export { usePreferencesApi } from './hooks/usePreferencesApi';
 export { useWorkflowApi } from './hooks/useWorkflowApi';
 export type { UseWorkflowApiOptions } from './hooks/useWorkflowApi';
+export { useListSessions } from './hooks/useListSessions';
+export type { ChatSession } from './hooks/useListSessions';
