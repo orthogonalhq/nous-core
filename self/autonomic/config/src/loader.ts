@@ -28,6 +28,12 @@ export function loadConfig(path?: string): SystemConfig {
   try {
     raw = readFileSync(path, 'utf-8');
   } catch (err) {
+    // First-boot: config file does not exist yet — fall back to defaults.
+    // The file will be created on the first ConfigManager.update() call.
+    if (err instanceof Error && 'code' in err && (err as NodeJS.ErrnoException).code === 'ENOENT') {
+      console.log(`[nous:config] Config file not found at ${path}, using defaults (will be created on first update)`);
+      return DEFAULT_SYSTEM_CONFIG;
+    }
     throw new ConfigError(`Failed to read config file: ${path}`, {
       path,
       cause: err instanceof Error ? err.message : String(err),

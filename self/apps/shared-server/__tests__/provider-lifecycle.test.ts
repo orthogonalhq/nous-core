@@ -1,10 +1,10 @@
-import { mkdirSync } from 'node:fs';
+import { mkdirSync, rmSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { randomUUID } from 'node:crypto';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import type { ModelRole, ProviderId, TraceId } from '@nous/shared';
-import { DEFAULT_PROFILES } from '@nous/autonomic-config';
+import { ConfigManager, DEFAULT_PROFILES } from '@nous/autonomic-config';
 import {
   OLLAMA_WELL_KNOWN_PROVIDER_ID,
   WELL_KNOWN_PROVIDER_IDS,
@@ -410,6 +410,35 @@ describe('provider lifecycle wiring', () => {
     await registerStoredProviders(ctx);
     // User's model selection should survive the restart
     expect(state.providers[0]!.modelId).toBe('gpt-4-turbo');
+  });
+
+  it('ConfigManager persists config changes to disk across instances', async () => {
+    const tempDir = join(tmpdir(), `nous-config-persist-${randomUUID()}`);
+    mkdirSync(tempDir, { recursive: true });
+    const configPath = join(tempDir, 'config.json');
+
+    try {
+      // Instance 1: write a provider config change
+      const cm1 = new ConfigManager({ configPath });
+      const testProvider = {
+        id: randomUUID() as ProviderId,
+        name: 'TestPersistence',
+        type: 'text' as const,
+        modelId: 'test-model',
+        isLocal: true,
+        capabilities: [],
+      };
+      await cm1.update('providers', [testProvider] as any);
+
+      // Instance 2: fresh ConfigManager from the same file — simulates process restart
+      const cm2 = new ConfigManager({ configPath });
+      const providers = cm2.getSection('providers') as any[];
+      expect(providers).toHaveLength(1);
+      expect(providers[0]!.name).toBe('TestPersistence');
+      expect(providers[0]!.modelId).toBe('test-model');
+    } finally {
+      rmSync(tempDir, { recursive: true, force: true });
+    }
   });
 
   it('keeps mock fallback active when no keys are configured', async () => {
