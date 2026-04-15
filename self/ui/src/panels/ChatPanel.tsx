@@ -11,6 +11,7 @@ import { useCardActionHandler } from '../components/chat/hooks/useCardActionHand
 // Side-effect import: registers all 5 card types at module evaluation time
 import '../components/chat/cards/index'
 
+import { MarkdownRenderer } from '../components/chat'
 import { ChatInput } from './chat/ChatInput'
 import { ChatMessageList } from './chat/ChatMessageList'
 import { AmbientTeleprompter } from './chat/AmbientTeleprompter'
@@ -141,6 +142,32 @@ export function ChatPanel(props: ChatPanelProps) {
         [inlineThoughts, assistantTraceIds],
     )
 
+    // --- Streaming content buffer (progressive rendering) ---
+    const [streamingContent, setStreamingContent] = useState('')
+    const [streamingThinking, setStreamingThinking] = useState('')
+
+    useEventSubscription({
+        channels: ['chat:content-chunk'],
+        onEvent: (_channel, payload) => {
+            const p = payload as { content: string }
+            if (p.content) {
+                setStreamingContent(prev => prev + p.content)
+            }
+        },
+        enabled: sending,
+    })
+
+    useEventSubscription({
+        channels: ['chat:thinking-chunk'],
+        onEvent: (_channel, payload) => {
+            const p = payload as { content: string }
+            if (p.content) {
+                setStreamingThinking(prev => prev + p.content)
+            }
+        },
+        enabled: sending,
+    })
+
     // --- Agent activity tracking (sidebar modes only) ---
     const isSmall = stage === 'small'
     const trackActivity = !('params' in props) && !isSmall
@@ -196,6 +223,9 @@ export function ChatPanel(props: ChatPanelProps) {
 
         try {
             const result = await chatApi.send(userMsg)
+            // Reconcile: authoritative response replaces streaming buffer
+            setStreamingContent('')
+            setStreamingThinking('')
             setMessages(prev => [...prev, {
                 role: 'assistant',
                 content: result.response,
@@ -319,6 +349,21 @@ export function ChatPanel(props: ChatPanelProps) {
                             activeTraceId={activeTraceId}
                             onCardAction={handleCardAction}
                         />
+                        {sending && (streamingThinking || streamingContent) && (
+                            <div style={styles.streamingPreview}>
+                                {streamingThinking && (
+                                    <details open style={styles.streamingThinkingDetails}>
+                                        <summary style={styles.streamingThinkingSummary}>Thinking…</summary>
+                                        <div style={styles.streamingThinkingBody}>
+                                            <MarkdownRenderer content={streamingThinking} />
+                                        </div>
+                                    </details>
+                                )}
+                                {streamingContent && (
+                                    <MarkdownRenderer content={streamingContent} />
+                                )}
+                            </div>
+                        )}
                     </div>
                     {inputSection}
                 </div>
@@ -382,5 +427,31 @@ const styles = {
     },
     spinnerIcon: {
         animation: 'spin 1s linear infinite',
+    },
+    streamingPreview: {
+        padding: 'var(--nous-space-sm) 0',
+        opacity: 0.8,
+        borderLeft: '2px solid var(--nous-accent)',
+        paddingLeft: 'var(--nous-space-md)',
+    },
+    streamingThinkingDetails: {
+        maxWidth: '100%',
+        borderRadius: 'var(--nous-radius-md)',
+        border: '1px solid var(--nous-border)',
+        background: 'var(--nous-surface-nested)',
+        marginBottom: 'var(--nous-space-sm)',
+        fontSize: 'var(--nous-font-size-xs)',
+    },
+    streamingThinkingSummary: {
+        cursor: 'pointer',
+        padding: 'var(--nous-space-sm) var(--nous-space-md)',
+        fontFamily: 'var(--nous-font-family-mono)',
+        color: 'var(--nous-fg-muted)',
+        userSelect: 'none' as const,
+    },
+    streamingThinkingBody: {
+        padding: '0 var(--nous-space-md) var(--nous-space-sm)',
+        color: 'var(--nous-fg-subtle)',
+        lineHeight: '1.5',
     },
 } as const
