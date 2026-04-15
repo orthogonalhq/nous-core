@@ -1258,7 +1258,7 @@ export function createCapabilityHandlers(
         0,
       );
     },
-    workflow_list: async (params) => {
+    workflow_list: async (params, execution) => {
       const request = parseWorkflowListRequest(params);
       const installedDefinitions = request.includeInstalledDefinitions
         ? await listInstalledWorkflowPackages({
@@ -1266,11 +1266,14 @@ export function createCapabilityHandlers(
           })
         : [];
 
+      // Use execution context projectId as fallback when LLM doesn't pass projectId in params
+      const effectiveProjectId = request.projectId ?? execution?.projectId;
+
       // Query project store for user-created workflow definitions
       let projectStoreDefinitions: WorkflowLifecycleDefinitionSummary[] = [];
-      if (request.projectId && context.deps.projectStore) {
+      if (effectiveProjectId && context.deps.projectStore) {
         try {
-          const projectConfig = await context.deps.projectStore.get(request.projectId);
+          const projectConfig = await context.deps.projectStore.get(effectiveProjectId);
           const rawDefs: WorkflowDefinition[] = projectConfig?.workflow?.definitions ?? [];
           const installedNames = new Set(
             installedDefinitions.map((d: WorkflowLifecycleDefinitionSummary) => d.name.toLowerCase()),
@@ -1304,7 +1307,7 @@ export function createCapabilityHandlers(
 
       const definitions = [...installedDefinitions, ...projectStoreDefinitions];
       const instances = request.includeActiveInstances
-        ? await listWorkflowInstances(context, request.projectId)
+        ? await listWorkflowInstances(context, effectiveProjectId)
         : [];
 
       const definitionFilter = request.definition?.toLowerCase();

@@ -127,7 +127,7 @@ function formatMessages(
       if (frame.content.trim()) {
         contentBlocks.push({ type: 'text', text: frame.content });
       }
-      for (const tc of frame.metadata.tool_calls as Array<{ id?: string; name: string; input: unknown }>) {
+      for (const tc of frame.metadata!.tool_calls as Array<{ id?: string; name: string; input: unknown }>) {
         if (tc.id) {
           contentBlocks.push({
             type: 'tool_use',

@@ -573,6 +573,7 @@ function spawnBackendServer(port: number): Promise<number> {
     // Set data dir to app's userData directory for production isolation
     const dataDir = app.getPath('userData')
     args.push(`--data-dir=${join(dataDir, 'data')}`)
+    args.push(`--config-path=${join(dataDir, 'data', 'config.json')}`)
 
     console.log(`[nous:desktop] spawning backend server: ${serverPath} ${args.join(' ')}`)
 

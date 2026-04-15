@@ -54,8 +54,9 @@ describe('loadConfig', () => {
     expect(config.defaults.governance).toBe('should');
   });
 
-  it('throws ConfigError for non-existent file', () => {
-    expect(() => loadConfig(join(TEST_DIR, 'nope.json5'))).toThrow(ConfigError);
+  it('returns default config when path points to non-existent file (ENOENT)', () => {
+    const config = loadConfig(join(TEST_DIR, 'does-not-exist.json'));
+    expect(config).toEqual(DEFAULT_SYSTEM_CONFIG);
   });
 
   it('throws ConfigError for malformed JSON5', () => {
