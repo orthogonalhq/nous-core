@@ -143,12 +143,27 @@ export function WorkflowCard({
           }}
         >
           {stale && actionOutcome ? (
-            <Badge
-              data-testid="workflow-card-outcome"
-              variant="secondary"
-            >
-              {actionOutcome.label}
-            </Badge>
+            <>
+              <Badge
+                data-testid="workflow-card-outcome"
+                variant={actionOutcome.result?.ok === false ? 'destructive' : 'secondary'}
+              >
+                {actionOutcome.label}
+              </Badge>
+              {actionOutcome.result?.message && (
+                <span
+                  data-testid="workflow-card-result-message"
+                  style={{
+                    fontSize: 'var(--nous-font-size-xs)',
+                    color: actionOutcome.result.ok === false
+                      ? 'var(--nous-state-blocked)'
+                      : 'var(--nous-fg-muted)',
+                  }}
+                >
+                  {actionOutcome.result.message}
+                </span>
+              )}
+            </>
           ) : stale ? (
             WORKFLOW_ACTIONS.map((action, i) => (
               <Button

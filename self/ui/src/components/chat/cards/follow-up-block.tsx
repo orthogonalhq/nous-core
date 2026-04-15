@@ -40,6 +40,7 @@ export type FollowUpBlockProps = z.infer<typeof FollowUpBlockSchema>
 export function FollowUpBlock({
   props,
   stale,
+  actionOutcome,
   onAction,
 }: CardRendererProps<unknown>) {
   const result = FollowUpBlockSchema.safeParse(props)
@@ -83,20 +84,25 @@ export function FollowUpBlock({
         }}
       >
       {stale
-        ? data.suggestions.map((suggestion, i) => (
-            <Badge
-              key={i}
-              variant="outline"
-              data-testid="followup-stale-pill"
-              style={{
-                fontSize: 'var(--nous-font-size-xs)',
-                borderRadius: 'var(--nous-radius-md)',
-                cursor: 'default',
-              }}
-            >
-              {suggestion.label}
-            </Badge>
-          ))
+        ? data.suggestions.map((suggestion, i) => {
+            const isSelected = actionOutcome?.actionType === suggestion.actionType
+              && actionOutcome?.label === suggestion.actionType
+            return (
+              <Badge
+                key={i}
+                variant={isSelected ? 'default' : 'outline'}
+                data-testid={isSelected ? 'followup-selected-pill' : 'followup-stale-pill'}
+                style={{
+                  fontSize: 'var(--nous-font-size-xs)',
+                  borderRadius: 'var(--nous-radius-md)',
+                  cursor: 'default',
+                  ...(isSelected ? {} : { opacity: 0.5 }),
+                }}
+              >
+                {suggestion.label}
+              </Badge>
+            )
+          })
         : data.suggestions.map((suggestion, i) => (
             <button
               key={i}

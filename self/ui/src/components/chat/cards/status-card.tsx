@@ -129,10 +129,12 @@ export function StatusCard({
             style={{
               marginTop: 'var(--nous-space-sm)',
               fontSize: 'var(--nous-font-size-xs)',
-              color: 'var(--nous-fg-muted)',
+              color: actionOutcome.result?.ok === false
+                ? 'var(--nous-state-blocked)'
+                : 'var(--nous-fg-muted)',
             }}
           >
-            {actionOutcome.label}
+            {actionOutcome.result?.message ?? actionOutcome.label}
           </div>
         )}
       </CardContent>

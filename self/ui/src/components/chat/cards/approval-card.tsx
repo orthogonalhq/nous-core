@@ -214,12 +214,33 @@ export function ApprovalCard({
           }}
         >
           {stale && actionOutcome ? (
-            <Badge
-              data-testid="approval-card-outcome"
-              variant="secondary"
-            >
-              {actionOutcome.label}
-            </Badge>
+            <>
+              <Badge
+                data-testid="approval-card-outcome"
+                variant={actionOutcome.result?.ok === false ? 'destructive' : 'secondary'}
+              >
+                {actionOutcome.result?.ok === false
+                  ? 'Error'
+                  : actionOutcome.label === 'approve'
+                    ? 'Approved'
+                    : actionOutcome.label === 'reject'
+                      ? 'Rejected'
+                      : actionOutcome.label}
+              </Badge>
+              {actionOutcome.result?.message && (
+                <span
+                  data-testid="approval-card-result-message"
+                  style={{
+                    fontSize: 'var(--nous-font-size-xs)',
+                    color: actionOutcome.result.ok === false
+                      ? 'var(--nous-state-blocked)'
+                      : 'var(--nous-fg-muted)',
+                  }}
+                >
+                  {actionOutcome.result.message}
+                </span>
+              )}
+            </>
           ) : stale ? (
             <>
               <Button

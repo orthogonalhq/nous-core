@@ -3,7 +3,7 @@
 import * as React from 'react'
 
 export interface BadgeProps extends React.HTMLAttributes<HTMLSpanElement> {
-  variant?: 'default' | 'secondary' | 'outline'
+  variant?: 'default' | 'secondary' | 'outline' | 'destructive'
 }
 
 const Badge = React.forwardRef<HTMLSpanElement, BadgeProps>(
@@ -28,6 +28,10 @@ const Badge = React.forwardRef<HTMLSpanElement, BadgeProps>(
       outline: {
         border: '1px solid var(--nous-shell-column-border)',
         color: 'var(--nous-text-primary)',
+      },
+      destructive: {
+        background: 'var(--nous-state-blocked)',
+        color: 'var(--nous-fg-on-color)',
       },
     }
     return (
