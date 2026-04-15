@@ -183,9 +183,9 @@ describe('usePreferencesApi', () => {
   // ── Tier 3: Adapter Tests ───────────────────────────────────────────────
 
   describe('getRoleAssignments adapter', () => {
-    it('transforms Record to array', async () => {
+    it('transforms Record to array mapping modelSpec to providerId', async () => {
       mockFetch.getRoleAssignments.mockResolvedValueOnce({
-        orchestrators: { providerId: 'openai:gpt-4' },
+        orchestrators: { providerId: '10000000-0000-0000-0000-000000000002', modelSpec: 'openai:gpt-4' },
         'cortex-chat': null,
       })
 
@@ -198,9 +198,9 @@ describe('usePreferencesApi', () => {
       ])
     })
 
-    it('drops fallbackProviderId', async () => {
+    it('drops fallbackProviderId and maps modelSpec', async () => {
       mockFetch.getRoleAssignments.mockResolvedValueOnce({
-        orchestrators: { providerId: 'openai:gpt-4', fallbackProviderId: 'anthropic:claude' },
+        orchestrators: { providerId: '10000000-0000-0000-0000-000000000002', modelSpec: 'openai:gpt-4', fallbackProviderId: '10000000-0000-0000-0000-000000000001' },
       })
 
       const { result } = renderHook(() => usePreferencesApi())
@@ -211,6 +211,19 @@ describe('usePreferencesApi', () => {
       ])
       // Verify no fallbackProviderId key
       expect(data[0]).not.toHaveProperty('fallbackProviderId')
+    })
+
+    it('maps null modelSpec to null providerId', async () => {
+      mockFetch.getRoleAssignments.mockResolvedValueOnce({
+        orchestrators: { providerId: '99999999-0000-0000-0000-000000000099', modelSpec: null },
+      })
+
+      const { result } = renderHook(() => usePreferencesApi())
+      const data = await result.current.getRoleAssignments()
+
+      expect(data).toEqual([
+        { role: 'orchestrators', providerId: null },
+      ])
     })
 
     it('handles empty record', async () => {

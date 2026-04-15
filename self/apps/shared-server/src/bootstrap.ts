@@ -184,7 +184,7 @@ function hasConfiguredProviderKey(provider: CloudProviderName): boolean {
   return !!process.env[CLOUD_PROVIDER_ENV_VARS[provider]];
 }
 
-function currentProviderEntries(ctx: NousContext): ProviderConfigEntry[] {
+export function currentProviderEntries(ctx: NousContext): ProviderConfigEntry[] {
   const config = ctx.config.get() as { providers?: ProviderConfigEntry[] };
   return Array.isArray(config.providers) ? config.providers : [];
 }

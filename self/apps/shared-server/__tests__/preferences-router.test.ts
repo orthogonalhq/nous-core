@@ -16,6 +16,7 @@ const bootstrapConstants = vi.hoisted(() => ({
 const bootstrapMock = vi.hoisted(() => ({
   buildOllamaProviderConfig: vi.fn(),
   buildProviderConfig: vi.fn(),
+  currentProviderEntries: vi.fn().mockReturnValue([]),
   currentRoleAssignment: vi.fn(),
   parseSelectedModelSpec: vi.fn(),
   registerConfiguredProvider: vi.fn(),
@@ -33,6 +34,7 @@ vi.mock('../src/bootstrap', () => ({
   WELL_KNOWN_PROVIDER_IDS: bootstrapConstants.WELL_KNOWN_PROVIDER_IDS,
   buildOllamaProviderConfig: bootstrapMock.buildOllamaProviderConfig,
   buildProviderConfig: bootstrapMock.buildProviderConfig,
+  currentProviderEntries: bootstrapMock.currentProviderEntries,
   currentRoleAssignment: bootstrapMock.currentRoleAssignment,
   parseSelectedModelSpec: bootstrapMock.parseSelectedModelSpec,
   registerConfiguredProvider: bootstrapMock.registerConfiguredProvider,
@@ -383,14 +385,102 @@ describe('preferences router', () => {
       expect(result).toEqual({
         orchestrators: {
           providerId: bootstrapConstants.OLLAMA_WELL_KNOWN_PROVIDER_ID,
+          modelSpec: null,
         },
         'cortex-chat': {
           providerId: bootstrapConstants.WELL_KNOWN_PROVIDER_IDS.openai,
           fallbackProviderId: bootstrapConstants.WELL_KNOWN_PROVIDER_IDS.anthropic,
+          modelSpec: null,
         },
         'cortex-system': null,
         workers: null,
       });
+    });
+
+    it('returns modelSpec when provider config entries exist', async () => {
+      const { ctx } = createMockContext();
+      const preferencesRouter = await loadPreferencesRouter();
+      const caller = preferencesRouter.createCaller(ctx);
+
+      bootstrapMock.currentRoleAssignment.mockImplementation(
+        (_ctx: unknown, role: string) => {
+          if (role === 'orchestrators') {
+            return {
+              role,
+              providerId: bootstrapConstants.WELL_KNOWN_PROVIDER_IDS.anthropic,
+            };
+          }
+          if (role === 'cortex-chat') {
+            return {
+              role,
+              providerId: bootstrapConstants.OLLAMA_WELL_KNOWN_PROVIDER_ID,
+            };
+          }
+          return undefined;
+        },
+      );
+
+      bootstrapMock.currentProviderEntries.mockReturnValue([
+        {
+          id: bootstrapConstants.WELL_KNOWN_PROVIDER_IDS.anthropic,
+          name: 'anthropic',
+          modelId: 'claude-sonnet-4-20250514',
+        },
+        {
+          id: bootstrapConstants.OLLAMA_WELL_KNOWN_PROVIDER_ID,
+          name: 'ollama',
+          modelId: 'llama3',
+        },
+      ]);
+
+      const result = await caller.getRoleAssignments();
+
+      expect(result).toEqual({
+        orchestrators: {
+          providerId: bootstrapConstants.WELL_KNOWN_PROVIDER_IDS.anthropic,
+          modelSpec: 'anthropic:claude-sonnet-4-20250514',
+        },
+        'cortex-chat': {
+          providerId: bootstrapConstants.OLLAMA_WELL_KNOWN_PROVIDER_ID,
+          modelSpec: 'ollama:llama3',
+        },
+        'cortex-system': null,
+        workers: null,
+      });
+    });
+
+    it('returns modelSpec null when provider config entry not found (orphaned)', async () => {
+      const { ctx } = createMockContext();
+      const preferencesRouter = await loadPreferencesRouter();
+      const caller = preferencesRouter.createCaller(ctx);
+
+      bootstrapMock.currentRoleAssignment.mockImplementation(
+        (_ctx: unknown, role: string) => {
+          if (role === 'orchestrators') {
+            return {
+              role,
+              providerId: '99999999-0000-0000-0000-000000000099',
+            };
+          }
+          return undefined;
+        },
+      );
+
+      bootstrapMock.currentProviderEntries.mockReturnValue([
+        {
+          id: bootstrapConstants.WELL_KNOWN_PROVIDER_IDS.anthropic,
+          name: 'anthropic',
+          modelId: 'claude-sonnet-4-20250514',
+        },
+      ]);
+
+      const result = await caller.getRoleAssignments();
+
+      expect(result.orchestrators).toEqual({
+        providerId: '99999999-0000-0000-0000-000000000099',
+        modelSpec: null,
+      });
+      expect(result['cortex-chat']).toBeNull();
     });
   });
 
