@@ -196,6 +196,9 @@ export interface AgentGatewayConfig {
   /** Optional structured log channel (WR-157). When present, the gateway
    *  routes all diagnostic output through this channel instead of console. */
   log?: import('./logging.js').ILogChannel;
+
+  /** Optional event bus for streaming chat content via SSE (WR-152). */
+  eventBus?: import('../event-bus/interface.js').IEventBus;
 }
 
 export interface IAgentGateway {

@@ -91,6 +91,7 @@ export type ModelResponse = z.infer<typeof ModelResponseSchema>;
 // A single chunk from a streaming model response.
 export const ModelStreamChunkSchema = z.object({
   content: z.string(),
+  thinking: z.string().optional(),
   done: z.boolean(),
   usage: z
     .object({
