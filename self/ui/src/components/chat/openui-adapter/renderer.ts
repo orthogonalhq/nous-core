@@ -45,6 +45,24 @@ export function renderCardTree(
   }
 }
 
+/**
+ * Render a structured card (from tool-call delivery) without XML parsing.
+ * Looks up the card type in the registry and renders with the given props.
+ */
+export function renderStructuredCard(
+  card: { type: string; props: Record<string, unknown> },
+  handlers: CardActionHandlers,
+  key: string,
+  context?: RenderCardContext,
+): React.ReactElement {
+  return renderElement(
+    { type: card.type, props: card.props, children: [] },
+    handlers,
+    key,
+    context,
+  )
+}
+
 function renderElement(
   element: NousCardElement,
   handlers: CardActionHandlers,

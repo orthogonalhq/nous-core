@@ -21,4 +21,4 @@ export type {
 // Facade functions
 export { registerNousCard, getCardRegistry } from './registry'
 export { parseCardContent } from './parser'
-export { renderCardTree } from './renderer'
+export { renderCardTree, renderStructuredCard } from './renderer'

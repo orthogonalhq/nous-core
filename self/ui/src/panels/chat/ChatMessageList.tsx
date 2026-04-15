@@ -1,6 +1,7 @@
 import { useRef, useEffect } from 'react'
 import { ThoughtSummary } from '../../components/thought'
-import type { CardAction } from '../../components/chat/openui-adapter'
+import type { CardAction, RenderCardContext } from '../../components/chat/openui-adapter'
+import { renderStructuredCard } from '../../components/chat/openui-adapter'
 import { MarkdownRenderer } from '../../components/chat'
 import { ChatCardRenderer } from './ChatCardRenderer'
 import { splitMessageSegments } from './message-segments'
@@ -92,9 +93,17 @@ function ChatMessageRow({
         )
     }
 
-    const segments = splitMessageSegments(message.content)
-    const hasCardSegments = segments.some(s => s.type === 'card')
     const isStale = !!message.actionOutcome || !isLastAssistant
+    const hasStructuredCards = message.cards && message.cards.length > 0
+
+    // Structured cards (tool-call delivery) take priority over inline XML parsing
+    const segments = hasStructuredCards ? null : splitMessageSegments(message.content)
+    const hasCardSegments = segments ? segments.some(s => s.type === 'card') : false
+
+    // For structured cards, strip inline card XML from text content
+    const textContent = hasStructuredCards
+        ? stripCardTags(message.content)
+        : null
 
     return (
         <div style={styles.rowAssistant}>
@@ -110,8 +119,24 @@ function ChatMessageRow({
                 </details>
             )}
             <div style={styles.bubble}>
-                {hasCardSegments ? (
-                    segments.map((segment, segIdx) =>
+                {hasStructuredCards ? (
+                    <>
+                        {textContent && textContent.trim() && (
+                            <MarkdownRenderer content={textContent} />
+                        )}
+                        {message.cards!.map((card, cardIdx) => {
+                            const ctx: RenderCardContext = {
+                                stale: isStale,
+                                ...(message.actionOutcome ? { actionOutcome: message.actionOutcome } : {}),
+                            }
+                            const handlers = {
+                                onAction: isStale ? () => {} : onCardAction,
+                            }
+                            return renderStructuredCard(card, handlers, `card-${cardIdx}`, ctx)
+                        })}
+                    </>
+                ) : hasCardSegments ? (
+                    segments!.map((segment, segIdx) =>
                         segment.type === 'card' ? (
                             <ChatCardRenderer
                                 key={`seg-${segIdx}`}
@@ -138,6 +163,19 @@ function ChatMessageRow({
 // ---------------------------------------------------------------------------
 // Helpers
 // ---------------------------------------------------------------------------
+
+/** Strip inline card XML tags from response text when structured cards are used. */
+function stripCardTags(content: string): string {
+    const CARD_TAGS = ['StatusCard', 'ActionCard', 'ApprovalCard', 'WorkflowCard', 'FollowUpBlock']
+    let result = content
+    for (const tag of CARD_TAGS) {
+        // Remove self-closing tags: <Tag ... />
+        result = result.replace(new RegExp(`<${tag}\\s[^>]*?/>`, 'g'), '')
+        // Remove paired tags: <Tag ...>...</Tag>
+        result = result.replace(new RegExp(`<${tag}\\s[^>]*?>[\\s\\S]*?</${tag}>`, 'g'), '')
+    }
+    return result
+}
 
 function findLastAssistantIndex(messages: ChatMessage[]): number {
     for (let i = messages.length - 1; i >= 0; i--) {
