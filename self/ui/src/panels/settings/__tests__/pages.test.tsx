@@ -394,6 +394,44 @@ describe('ModelConfigPage', () => {
     expect(el).toBeNull()
   })
 
+  it('displays persisted role assignments on load (round-trip)', async () => {
+    const api = makeApi()
+    api.getAvailableModels.mockResolvedValue({
+      models: [
+        { id: 'anthropic:claude-sonnet-4-20250514', name: 'Claude Sonnet', provider: 'anthropic', available: true },
+        { id: 'openai:gpt-4o', name: 'GPT-4o', provider: 'openai', available: true },
+        { id: 'ollama:llama3', name: 'llama3', provider: 'ollama', available: true },
+      ],
+    })
+    api.getRoleAssignments.mockResolvedValue([
+      { role: 'cortex-chat', providerId: 'anthropic:claude-sonnet-4-20250514' },
+      { role: 'orchestrators', providerId: 'openai:gpt-4o' },
+      { role: 'cortex-system', providerId: null },
+      { role: 'workers', providerId: null },
+    ])
+
+    await act(async () => {
+      root.render(<ModelConfigPage api={api} />)
+      await flush()
+    })
+
+    const cortexChatSelect = container.querySelector<HTMLSelectElement>('#role-select-cortex-chat')!
+    const orchestratorsSelect = container.querySelector<HTMLSelectElement>('#role-select-orchestrators')!
+    const cortexSystemSelect = container.querySelector<HTMLSelectElement>('#role-select-cortex-system')!
+    const workersSelect = container.querySelector<HTMLSelectElement>('#role-select-workers')!
+
+    expect(cortexChatSelect.value).toBe('anthropic:claude-sonnet-4-20250514')
+    expect(orchestratorsSelect.value).toBe('openai:gpt-4o')
+    expect(cortexSystemSelect.value).toBe('')
+    expect(workersSelect.value).toBe('')
+
+    // Save button should be disabled (no pending changes)
+    const saveButton = Array.from(container.querySelectorAll('button')).find(
+      (b) => b.textContent === 'Save',
+    )!
+    expect(saveButton.disabled).toBe(true)
+  })
+
   it('no-models fallback renders with 4-slot layout', async () => {
     const api = makeApi()
     api.getAvailableModels.mockResolvedValue({ models: [] })
