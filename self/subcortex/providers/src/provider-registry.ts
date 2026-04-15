@@ -70,6 +70,20 @@ export class ProviderRegistry {
         vendor: baseConfig.vendor ?? this.resolveVendor(baseConfig),
       };
 
+      // Skip non-local entries whose API key is not yet available.
+      // The post-boot flow (loadStoredApiKeys → registerStoredProviders) will
+      // register these providers after credentials are loaded from the vault.
+      if (!providerConfig.isLocal) {
+        const apiKey = this.resolveRemoteApiKey(providerConfig);
+        if (!apiKey) {
+          console.info(
+            `[nous:providers] Skipping provider '${entry.name}' during construction — ` +
+            `API key not yet available (will be registered after credential vault loads)`,
+          );
+          continue;
+        }
+      }
+
       const validated = this.validateProviderConfig(providerConfig);
       const provider = this.createProvider(validated);
       this.providers.set(validated.id, provider);

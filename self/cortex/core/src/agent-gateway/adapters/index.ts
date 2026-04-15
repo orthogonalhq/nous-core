@@ -42,9 +42,15 @@ export function resolveAdapter(providerType: string, log?: ILogChannel): Provide
  * Uses the same heuristic as CortexRuntime.resolveProviderType.
  * Falls back to 'text' for unknown providers.
  */
-export function resolveProviderTypeFromConfig(provider: { getConfig(): { name?: string; type?: string } }): string {
+export function resolveProviderTypeFromConfig(provider: { getConfig(): { name?: string; type?: string; vendor?: string } }): string {
   try {
     const config = provider.getConfig();
+    // Vendor-first: canonical resolution per provider-vendor-field-v1.md
+    const vendor = config.vendor;
+    if (vendor === 'anthropic' || vendor === 'openai' || vendor === 'ollama') {
+      return vendor;
+    }
+    // Fallback: name/type heuristic per non-harness-fallback-v1.md
     const name = (config.name ?? config.type ?? '').toLowerCase();
     if (name.includes('anthropic') || name.includes('claude')) return 'anthropic';
     if (name.includes('openai') || name.includes('gpt')) return 'openai';

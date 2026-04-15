@@ -61,6 +61,13 @@ export function ModelConfigPage({ api }: ModelConfigPageProps) {
           nextValues[role] = entry?.providerId ?? null
         }
         setCurrentValues(nextValues)
+        setPendingValues(() => {
+          const next = emptyPendingValues()
+          for (const role of ModelRoleSchema.options) {
+            next[role] = nextValues[role] ?? ''
+          }
+          return next
+        })
       }
     } catch (err) {
       setModelFeedback(formatFeedbackError(err))

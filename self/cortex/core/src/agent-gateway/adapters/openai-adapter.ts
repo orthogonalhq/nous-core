@@ -20,6 +20,23 @@ export function createOpenAiAdapter(): ProviderAdapter {
       const messages = [
         { role: 'system' as const, content: systemPrompt } as Record<string, unknown>,
         ...input.context.map((frame) => {
+          // Assistant frame with tool_calls metadata → OpenAI tool_calls on assistant message
+          if (frame.role === 'assistant' && Array.isArray(frame.metadata?.tool_calls)) {
+            const toolCalls = (frame.metadata!.tool_calls as Array<{ id?: string; name: string; input: unknown }>)
+              .map((tc, index) => ({
+                id: tc.id ?? `call_${index}`,
+                type: 'function' as const,
+                function: {
+                  name: tc.name,
+                  arguments: (() => { try { return JSON.stringify(tc.input ?? {}); } catch { return '{}'; } })(),
+                },
+              }));
+            return {
+              role: 'assistant' as const,
+              content: frame.content,
+              tool_calls: toolCalls,
+            };
+          }
           // Tool result with tool_call_id metadata → OpenAI tool result message
           if (frame.role === 'tool' && frame.metadata?.tool_call_id) {
             return {

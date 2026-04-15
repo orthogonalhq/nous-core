@@ -732,20 +732,27 @@ export function createCapabilityHandlers(
   return {
     memory_search: async (params, execution) => {
       const projectId = requireProjectId('memory_search', execution);
-      const api = requireProjectApi(context, projectId);
-      const request = parseMemorySearchRequest(params);
+      try {
+        const api = requireProjectApi(context, projectId);
+        const request = parseMemorySearchRequest(params);
 
-      if (request.mode === 'retrieve') {
+        if (request.mode === 'retrieve') {
+          return success(
+            await api.memory.retrieve(request.situation, request.budget),
+            0,
+          );
+        }
+
         return success(
-          await api.memory.retrieve(request.situation, request.budget),
+          await api.memory.read(request.query, request.scope as 'global' | 'project'),
           0,
         );
+      } catch (error) {
+        console.log(
+          `[nous:internal-mcp] memory_search caught error on uninitialized store: ${error instanceof Error ? error.message : String(error)}`,
+        );
+        return success([], 0);
       }
-
-      return success(
-        await api.memory.read(request.query, request.scope as 'global' | 'project'),
-        0,
-      );
     },
     memory_write: async (params, execution) => {
       const projectId = requireProjectId('memory_write', execution);
@@ -1251,15 +1258,56 @@ export function createCapabilityHandlers(
         0,
       );
     },
-    workflow_list: async (params) => {
+    workflow_list: async (params, execution) => {
       const request = parseWorkflowListRequest(params);
-      const definitions = request.includeInstalledDefinitions
+      const installedDefinitions = request.includeInstalledDefinitions
         ? await listInstalledWorkflowPackages({
             ...requirePackageRuntime(context),
           })
         : [];
+
+      // Use execution context projectId as fallback when LLM doesn't pass projectId in params
+      const effectiveProjectId = request.projectId ?? execution?.projectId;
+
+      // Query project store for user-created workflow definitions
+      let projectStoreDefinitions: WorkflowLifecycleDefinitionSummary[] = [];
+      if (effectiveProjectId && context.deps.projectStore) {
+        try {
+          const projectConfig = await context.deps.projectStore.get(effectiveProjectId);
+          const rawDefs: WorkflowDefinition[] = projectConfig?.workflow?.definitions ?? [];
+          const installedNames = new Set(
+            installedDefinitions.map((d: WorkflowLifecycleDefinitionSummary) => d.name.toLowerCase()),
+          );
+          for (const def of rawDefs) {
+            // Deduplicate: installed package definitions take precedence
+            if (installedNames.has(def.name.toLowerCase())) {
+              continue;
+            }
+            const mapped = WorkflowLifecycleDefinitionSummarySchema.safeParse({
+              packageId: `project:${def.id}`,
+              packageVersion: def.version,
+              name: def.name,
+              description: def.name,
+              entrypoint: def.entryNodeIds[0] ?? def.id,
+              entrypoints: def.entryNodeIds,
+              rootRef: `project:${def.id}`,
+              manifestRef: `project:${def.id}`,
+            });
+            if (mapped.success) {
+              projectStoreDefinitions.push(mapped.data);
+            }
+          }
+          console.log(
+            `[nous:internal-mcp] workflow_list merged ${projectStoreDefinitions.length} project-store definitions with ${installedDefinitions.length} installed definitions`,
+          );
+        } catch {
+          // Project store query failure — degrade to installed-only
+        }
+      }
+
+      const definitions = [...installedDefinitions, ...projectStoreDefinitions];
       const instances = request.includeActiveInstances
-        ? await listWorkflowInstances(context, request.projectId)
+        ? await listWorkflowInstances(context, effectiveProjectId)
         : [];
 
       const definitionFilter = request.definition?.toLowerCase();
@@ -1296,6 +1344,56 @@ export function createCapabilityHandlers(
     },
     workflow_inspect: async (params) => {
       const request = parseWorkflowInspectRequest(params);
+
+      // If packageId starts with 'project:', resolve from project store
+      if (request.packageId.startsWith('project:') && context.deps.projectStore) {
+        const defId = request.packageId.slice('project:'.length);
+        // Find the definition across all projects via the project store
+        const projects = await context.deps.projectStore.list();
+        for (const project of projects) {
+          const def = project.workflow?.definitions?.find(
+            (d: WorkflowDefinition) => d.id === defId,
+          );
+          if (def) {
+            return success(
+              {
+                packageId: `project:${def.id}`,
+                packageVersion: def.version,
+                manifest: {
+                  name: def.name,
+                  version: def.version,
+                  description: def.name,
+                  entrypoint: def.entryNodeIds[0] ?? def.id,
+                },
+                flow: {
+                  nodes: def.nodes.map((n) => ({
+                    id: n.id,
+                    type: n.type,
+                    name: n.name,
+                  })),
+                  edges: def.edges.map((e) => ({
+                    from: e.from,
+                    to: e.to,
+                  })),
+                },
+                steps: def.nodes.map((n) => ({
+                  stepId: n.id,
+                  fileRef: `project:${def.id}/${n.id}`,
+                  name: n.name,
+                  type: n.type,
+                })),
+                resourceRefs: {
+                  references: [],
+                  scripts: [],
+                  assets: [],
+                },
+              },
+              0,
+            );
+          }
+        }
+      }
+
       return success(
         WorkflowLifecycleInspectResultSchema.parse(
           await inspectInstalledWorkflowPackage({

@@ -139,7 +139,7 @@ export class OllamaProvider implements IModelProvider {
 
   private validateInput(input: unknown): {
     prompt?: string;
-    messages?: Array<{ role: string; content: string | unknown[]; tool_call_id?: string }>;
+    messages?: Array<{ role: string; content: string | unknown[]; tool_call_id?: string; tool_calls?: unknown[] }>;
     tools?: Array<Record<string, unknown>>;
   } {
     const result = TextModelInputSchema.safeParse(input);
@@ -156,7 +156,7 @@ export class OllamaProvider implements IModelProvider {
   private buildRequestBody(
     input: {
       prompt?: string;
-      messages?: Array<{ role: string; content: string | unknown[]; tool_call_id?: string }>;
+      messages?: Array<{ role: string; content: string | unknown[]; tool_call_id?: string; tool_calls?: unknown[] }>;
       tools?: Array<Record<string, unknown>>;
     },
   ): Record<string, unknown> {

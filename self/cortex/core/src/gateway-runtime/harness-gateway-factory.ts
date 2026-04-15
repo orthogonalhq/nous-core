@@ -115,6 +115,7 @@ export class HarnessGatewayFactory {
       loopConfig: profile.loopShape
         ? { singleTurn: profile.loopShape === 'single-turn' }
         : undefined,
+      toolConcurrency: profile.toolConcurrency,
     };
   }
 

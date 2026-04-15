@@ -24,6 +24,7 @@ import {
   type IModelProvider,
   type ModelRole,
   type ProjectId,
+  type ToolDefinition,
   type RouteContext,
   type TraceEvidenceReference,
   type TraceId,
@@ -120,6 +121,7 @@ export class AgentGateway implements IAgentGateway {
   private readonly idFactory: () => string;
   private readonly log: ILogChannel;
   private cachedAdapter: ProviderAdapter | null = null;
+  private cachedAdapterProviderSignature: string | null = null;
 
   constructor(private readonly config: AgentGatewayConfig) {
     this.agentClass = config.agentClass;
@@ -142,12 +144,22 @@ export class AgentGateway implements IAgentGateway {
   /**
    * Lazily resolves a ProviderAdapter from the provider's config name.
    * Uses the same heuristic as CortexRuntime.resolveProviderType.
-   * Caches after first resolution for the gateway's lifetime.
+   * Caches after first resolution; invalidates when the provider signature changes.
    */
   private resolveAdapterFromProvider(provider: IModelProvider): ProviderAdapter {
-    if (this.cachedAdapter) return this.cachedAdapter;
     const providerType = resolveProviderTypeFromConfig(provider);
+    if (this.cachedAdapter && this.cachedAdapterProviderSignature === providerType) {
+      return this.cachedAdapter;
+    }
+    if (this.cachedAdapterProviderSignature !== null && this.cachedAdapterProviderSignature !== providerType) {
+      this.log.debug('adapter cache invalidated — provider changed', {
+        agentClass: this.agentClass,
+        previousSignature: this.cachedAdapterProviderSignature,
+        newSignature: providerType,
+      });
+    }
     this.cachedAdapter = resolveAdapter(providerType, this.log);
+    this.cachedAdapterProviderSignature = providerType;
     this.log.debug('adapter resolved', { agentClass: this.agentClass, providerType });
     return this.cachedAdapter;
   }
@@ -340,6 +352,7 @@ export class AgentGateway implements IAgentGateway {
         const handledTurn = await this.handleToolCalls({
           input: validInput,
           toolCalls: parsedOutput.toolCalls,
+          toolDefinitions: tools,
           budgetTracker,
           sequencer,
           traceId,
@@ -479,6 +492,7 @@ export class AgentGateway implements IAgentGateway {
   private async handleToolCalls(args: {
     input: AgentInput;
     toolCalls: Array<{ name: string; params: unknown; id?: string }>;
+    toolDefinitions: ToolDefinition[];
     budgetTracker: BudgetTracker;
     sequencer: CorrelationSequencer;
     traceId: TraceId;
@@ -501,6 +515,13 @@ export class AgentGateway implements IAgentGateway {
         ? await this.handleDispatchBatch(args, dispatchIndexes)
         : new Map<number, ToolHandlingResult>();
 
+    // Read concurrency config from harness strategies or direct config
+    const concurrencyConfig =
+      this.config.harness?.toolConcurrency ?? this.config.toolConcurrency;
+    const partitionBySafety = concurrencyConfig?.partitionBySafety === true;
+    const maxConcurrent = concurrencyConfig?.maxConcurrent ?? 1;
+    const concurrencyEnabled = partitionBySafety && maxConcurrent > 1;
+
     this.log.debug('handleToolCalls', {
       toolCallCount: args.toolCalls.length,
       toolCalls: args.toolCalls.map((tc, i) => ({
@@ -508,39 +529,157 @@ export class AgentGateway implements IAgentGateway {
         name: tc.name,
         id: tc.id ?? '(no id)',
       })),
+      concurrencyEnabled,
+      partitionBySafety,
+      maxConcurrent,
     });
 
-    for (let index = 0; index < args.toolCalls.length; index += 1) {
-      const toolCall = args.toolCalls[index];
-      const handled =
-        dispatchResults.get(index) ??
-        (await this.handleToolCall({
-          ...args,
-          toolName: toolCall.name,
-          params: toolCall.params,
-          toolCallId: toolCall.id,
-        }));
+    if (!concurrencyEnabled) {
+      // ── Sequential dispatch (default path) ──────────────────────────
+      for (let index = 0; index < args.toolCalls.length; index += 1) {
+        const toolCall = args.toolCalls[index];
+        const handled =
+          dispatchResults.get(index) ??
+          (await this.handleToolCall({
+            ...args,
+            toolName: toolCall.name,
+            params: toolCall.params,
+            toolCallId: toolCall.id,
+          }));
 
-      if (handled.contextFrame) {
-        frameByIndex.set(index, handled.contextFrame);
-        this.log.debug('tool result frame', {
-          index,
-          toolName: toolCall.name,
-          toolCallId: toolCall.id ?? '(no id)',
-          frameRole: handled.contextFrame.role,
-          frameSource: handled.contextFrame.source,
-          hasToolCallIdMetadata: !!handled.contextFrame.metadata?.tool_call_id,
-          metadataToolCallId: handled.contextFrame.metadata?.tool_call_id ?? '(none)',
+        if (handled.contextFrame) {
+          frameByIndex.set(index, handled.contextFrame);
+          this.log.debug('tool result frame', {
+            index,
+            toolName: toolCall.name,
+            toolCallId: toolCall.id ?? '(no id)',
+            frameRole: handled.contextFrame.role,
+            frameSource: handled.contextFrame.source,
+            hasToolCallIdMetadata: !!handled.contextFrame.metadata?.tool_call_id,
+            metadataToolCallId: handled.contextFrame.metadata?.tool_call_id ?? '(none)',
+          });
+        }
+        if (handled.terminalResult) {
+          terminalByIndex.set(index, handled.terminalResult);
+        }
+        if (handled.terminalResult) {
+          break;
+        }
+      }
+    } else {
+      // ── Partitioned dispatch (concurrency engine) ───────────────────
+      // Build safety lookup from tool definitions
+      const safetyLookup = new Map<string, boolean>();
+      for (const def of args.toolDefinitions) {
+        safetyLookup.set(def.name, def.isConcurrencySafe === true);
+      }
+
+      // Partition non-dispatch tool call indexes into concurrent and serial groups
+      const dispatchSet = new Set(dispatchIndexes);
+      const concurrentIndexes: number[] = [];
+      const serialIndexes: number[] = [];
+
+      for (let index = 0; index < args.toolCalls.length; index += 1) {
+        if (dispatchSet.has(index)) continue; // handled by dispatch batch
+        if (dispatchResults.has(index)) continue; // already resolved
+        const toolName = args.toolCalls[index].name;
+        if (safetyLookup.get(toolName) === true) {
+          concurrentIndexes.push(index);
+        } else {
+          serialIndexes.push(index);
+        }
+      }
+
+      this.log.debug('tool concurrency partition', {
+        concurrentCount: concurrentIndexes.length,
+        serialCount: serialIndexes.length,
+        dispatchCount: dispatchIndexes.length,
+      });
+
+      // Dispatch concurrent-safe tools via Promise.allSettled (chunked by maxConcurrent)
+      for (let chunkStart = 0; chunkStart < concurrentIndexes.length; chunkStart += maxConcurrent) {
+        const chunk = concurrentIndexes.slice(chunkStart, chunkStart + maxConcurrent);
+
+        const settled = await Promise.allSettled(
+          chunk.map((index) => {
+            const toolCall = args.toolCalls[index];
+            return this.handleToolCall({
+              ...args,
+              toolName: toolCall.name,
+              params: toolCall.params,
+              toolCallId: toolCall.id,
+            });
+          }),
+        );
+
+        settled.forEach((result, offset) => {
+          const index = chunk[offset];
+          const toolCall = args.toolCalls[index];
+
+          if (result.status === 'fulfilled') {
+            const handled = result.value;
+            if (handled.contextFrame) {
+              frameByIndex.set(index, handled.contextFrame);
+              this.log.debug('tool result frame (concurrent)', {
+                index,
+                toolName: toolCall.name,
+                toolCallId: toolCall.id ?? '(no id)',
+                frameRole: handled.contextFrame.role,
+                frameSource: handled.contextFrame.source,
+              });
+            }
+            if (handled.terminalResult) {
+              terminalByIndex.set(index, handled.terminalResult);
+            }
+          } else {
+            // Rejected — produce tool_error frame matching handleStandardTool catch path
+            frameByIndex.set(
+              index,
+              this.createContextFrame(
+                'tool',
+                'tool_error',
+                normalizeToolError(toolCall.name, result.reason),
+                toolCall.name,
+                toolCall.id ? { tool_call_id: toolCall.id } : undefined,
+              ),
+            );
+          }
         });
       }
-      if (handled.terminalResult) {
-        terminalByIndex.set(index, handled.terminalResult);
-      }
-      if (handled.terminalResult) {
-        break;
+
+      // Dispatch serial tools sequentially
+      for (const index of serialIndexes) {
+        // If a terminal result was already recorded (from concurrent batch), stop
+        if (terminalByIndex.size > 0) break;
+
+        const toolCall = args.toolCalls[index];
+        const handled =
+          dispatchResults.get(index) ??
+          (await this.handleToolCall({
+            ...args,
+            toolName: toolCall.name,
+            params: toolCall.params,
+            toolCallId: toolCall.id,
+          }));
+
+        if (handled.contextFrame) {
+          frameByIndex.set(index, handled.contextFrame);
+          this.log.debug('tool result frame (serial)', {
+            index,
+            toolName: toolCall.name,
+            toolCallId: toolCall.id ?? '(no id)',
+            frameRole: handled.contextFrame.role,
+            frameSource: handled.contextFrame.source,
+          });
+        }
+        if (handled.terminalResult) {
+          terminalByIndex.set(index, handled.terminalResult);
+          break;
+        }
       }
     }
 
+    // ── Second-pass ordering loop (unchanged) ──────────────────────────
     for (let index = 0; index < args.toolCalls.length; index += 1) {
       const frame = frameByIndex.get(index);
       if (frame) {

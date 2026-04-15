@@ -11,6 +11,7 @@ import {
   WELL_KNOWN_PROVIDER_IDS,
   buildOllamaProviderConfig,
   buildProviderConfig,
+  currentProviderEntries,
   currentRoleAssignment,
   parseSelectedModelSpec,
   registerConfiguredProvider,
@@ -49,6 +50,7 @@ const modelCache = new Map<Provider, CachedModelList>();
 type RoleAssignmentSummary = {
   providerId: ProviderId;
   fallbackProviderId?: ProviderId;
+  modelSpec: string | null;
 };
 
 const AnthropicModelSchema = z.object({
@@ -520,17 +522,23 @@ export const preferencesRouter = router({
   }),
 
   getRoleAssignments: publicProcedure.query(async ({ ctx }) => {
+    const providers = currentProviderEntries(ctx);
     return Object.fromEntries(
       MODEL_ROLES.map((role) => {
         const assignment = currentRoleAssignment(ctx, role);
-        const value: RoleAssignmentSummary | null = assignment
-          ? {
-              providerId: assignment.providerId,
-              ...(assignment.fallbackProviderId
-                ? { fallbackProviderId: assignment.fallbackProviderId }
-                : {}),
-            }
-          : null;
+        if (!assignment) {
+          return [role, null];
+        }
+
+        const entry = providers.find((p) => p.id === assignment.providerId);
+        const modelSpec = entry ? `${entry.name}:${entry.modelId}` : null;
+        const value: RoleAssignmentSummary = {
+          providerId: assignment.providerId,
+          modelSpec,
+          ...(assignment.fallbackProviderId
+            ? { fallbackProviderId: assignment.fallbackProviderId }
+            : {}),
+        };
 
         return [role, value];
       }),

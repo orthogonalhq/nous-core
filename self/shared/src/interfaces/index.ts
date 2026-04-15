@@ -101,6 +101,7 @@ export type {
   ContextDefaults,
   ContextStrategy,
   LoopConfig,
+  ToolConcurrencyConfig,
 } from './agent-gateway.js';
 export type {
   IIngressTriggerValidator,

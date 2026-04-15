@@ -1,16 +1,18 @@
-import { mkdirSync } from 'node:fs';
+import { mkdirSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { randomUUID } from 'node:crypto';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import type { ModelRole, ProviderId, TraceId } from '@nous/shared';
-import { DEFAULT_PROFILES } from '@nous/autonomic-config';
+import { ConfigManager, DEFAULT_PROFILES, DEFAULT_SYSTEM_CONFIG } from '@nous/autonomic-config';
 import {
   OLLAMA_WELL_KNOWN_PROVIDER_ID,
   WELL_KNOWN_PROVIDER_IDS,
+  buildProviderConfig,
   createNousServices,
   loadStoredApiKeys,
   registerStoredProviders,
+  upsertProviderConfig,
 } from '../src/bootstrap';
 import { preferencesRouter } from '../src/trpc/routers/preferences';
 
@@ -354,6 +356,149 @@ describe('provider lifecycle wiring', () => {
         method: 'GET',
       }),
     );
+  });
+
+  it('upsertProviderConfig preserves existing modelId when upserting with default', async () => {
+    const { ctx, state } = createLifecycleContext();
+
+    // First upsert with a user-selected model
+    await upsertProviderConfig(
+      ctx,
+      buildProviderConfig('openai', WELL_KNOWN_PROVIDER_IDS.openai, 'gpt-4-turbo'),
+    );
+    expect(state.providers).toHaveLength(1);
+    expect(state.providers[0]!.modelId).toBe('gpt-4-turbo');
+
+    // Second upsert with default model (simulates restart bootstrap)
+    await upsertProviderConfig(
+      ctx,
+      buildProviderConfig('openai'),
+    );
+    // User-selected modelId should be preserved
+    expect(state.providers).toHaveLength(1);
+    expect(state.providers[0]!.modelId).toBe('gpt-4-turbo');
+  });
+
+  it('upsertProviderConfig uses default modelId when no existing entry exists', async () => {
+    const { ctx, state } = createLifecycleContext();
+
+    await upsertProviderConfig(
+      ctx,
+      buildProviderConfig('openai'),
+    );
+    expect(state.providers).toHaveLength(1);
+    expect(state.providers[0]!.modelId).toBe('gpt-4o');
+  });
+
+  it('registerStoredProviders preserves user-selected modelId across restart cycle', async () => {
+    const { ctx, state } = createLifecycleContext();
+    process.env.OPENAI_API_KEY = 'sk-test-openai';
+
+    // Simulate initial registration
+    await registerStoredProviders(ctx);
+    expect(state.providers).toHaveLength(1);
+    expect(state.providers[0]!.modelId).toBe('gpt-4o');
+
+    // Simulate user model selection by directly updating config state
+    // (upsertProviderConfig's merge logic preserves existing modelId when
+    // incoming differs, which is correct for bootstrap-vs-user scenarios
+    // but means we must set the state directly for this test)
+    state.providers[0]!.modelId = 'gpt-4-turbo';
+
+    // Simulate restart — registerStoredProviders called again with default
+    await registerStoredProviders(ctx);
+    // User's model selection should survive the restart
+    expect(state.providers[0]!.modelId).toBe('gpt-4-turbo');
+  });
+
+  it('ConfigManager persists config changes to disk across instances', async () => {
+    const tempDir = join(tmpdir(), `nous-config-persist-${randomUUID()}`);
+    mkdirSync(tempDir, { recursive: true });
+    const configPath = join(tempDir, 'config.json');
+
+    try {
+      // Instance 1: write a provider config change
+      const cm1 = new ConfigManager({ configPath });
+      const testProvider = {
+        id: randomUUID() as ProviderId,
+        name: 'TestPersistence',
+        type: 'text' as const,
+        modelId: 'test-model',
+        isLocal: true,
+        capabilities: [],
+      };
+      await cm1.update('providers', [testProvider] as any);
+
+      // Instance 2: fresh ConfigManager from the same file — simulates process restart
+      const cm2 = new ConfigManager({ configPath });
+      const providers = cm2.getSection('providers') as any[];
+      expect(providers).toHaveLength(1);
+      expect(providers[0]!.name).toBe('TestPersistence');
+      expect(providers[0]!.modelId).toBe('test-model');
+    } finally {
+      rmSync(tempDir, { recursive: true, force: true });
+    }
+  });
+
+  it('createNousServices does not throw with saved cloud provider config and no API keys', async () => {
+    const dataDir = join(tmpdir(), `nous-shared-server-${randomUUID()}`);
+    mkdirSync(dataDir, { recursive: true });
+
+    // Write a fully valid config file with a saved Anthropic provider entry
+    // (simulates a config persisted by a prior session via SP 1.6).
+    // Start from DEFAULT_SYSTEM_CONFIG to satisfy the full SystemConfigSchema,
+    // then overlay the Anthropic provider entry and hybrid profile.
+    const configPath = join(dataDir, 'config.json');
+    const savedConfig = {
+      ...DEFAULT_SYSTEM_CONFIG,
+      profile: {
+        ...DEFAULT_SYSTEM_CONFIG.profile,
+        name: 'hybrid',
+        defaultProviderType: 'remote',
+        allowRemoteProviders: true,
+        allowSilentLocalToRemoteFailover: true,
+      },
+      providers: [
+        {
+          id: WELL_KNOWN_PROVIDER_IDS.anthropic,
+          name: 'anthropic',
+          type: 'text',
+          endpoint: 'https://api.anthropic.com',
+          modelId: 'claude-sonnet-4-20250514',
+          isLocal: false,
+          capabilities: ['chat', 'streaming'],
+          providerClass: 'remote_text',
+          vendor: 'anthropic',
+        },
+      ],
+      modelRoleAssignments: [
+        {
+          role: 'cortex-chat',
+          providerId: WELL_KNOWN_PROVIDER_IDS.anthropic,
+        },
+      ],
+    };
+    writeFileSync(configPath, JSON.stringify(savedConfig));
+
+    // No ANTHROPIC_API_KEY in process.env — must not throw
+    let ctx: ReturnType<typeof createNousServices> | undefined;
+    expect(() => {
+      ctx = createNousServices({
+        dataDir,
+        configPath,
+        runtimeLabel: 'test',
+        publicBaseUrl: 'http://localhost:3000',
+      });
+    }).not.toThrow();
+
+    // The Anthropic provider should NOT be in the registry yet
+    // (skipped by the guard clause because no API key in env)
+    const anthropicProvider = ctx!.providerRegistry.getProvider(
+      WELL_KNOWN_PROVIDER_IDS.anthropic,
+    );
+    expect(anthropicProvider).toBeNull();
+    // Temp dir cleanup omitted: createNousServices opens a SQLite database that
+    // holds a file lock on Windows, preventing synchronous rmSync.
   });
 
   it('keeps mock fallback active when no keys are configured', async () => {
