@@ -35,6 +35,7 @@ import {
 } from '../internal-mcp/index.js';
 import { detectAndStripNarration, parseModelOutput } from '../output-parser.js';
 import { CARD_PROMPT_FRAGMENT } from './card-prompt-fragment.js';
+import { extractCardsFromResponse } from './card-extractor.js';
 import { WORKFLOW_PROMPT_FRAGMENT } from './workflow-prompt-fragment.js';
 import { getOrchestratorPrompt } from '../prompts/index.js';
 import { resolvePromptConfig, composeSystemPromptFromConfig } from './prompt-strategy.js';
@@ -482,6 +483,11 @@ implements IPrincipalSystemGatewayRuntime, ISystemInboxSubmissionService {
     }
     const responseText = normalized.cleaned;
 
+    // Extract structured cards from inline XML for tool-call-compatible delivery
+    const cards = resolved.contentType === 'openui'
+      ? extractCardsFromResponse(responseText)
+      : undefined;
+
     // Finalize STM
     await this.finalizeChatStmTurn(
       projectId,
@@ -493,12 +499,14 @@ implements IPrincipalSystemGatewayRuntime, ISystemInboxSubmissionService {
       undefined, // thinkingContent not available in PrincipalSystemRuntime path
       sessionId,
       scope,
+      cards,
     );
 
     return {
       response: responseText,
       traceId,
       contentType: resolved.contentType,
+      ...(cards && cards.length > 0 ? { cards } : {}),
     };
   }
 
@@ -813,6 +821,7 @@ implements IPrincipalSystemGatewayRuntime, ISystemInboxSubmissionService {
     thinkingContent?: string,
     sessionId?: string,
     scope?: string,
+    cards?: Array<{ type: string; props: Record<string, unknown> }>,
   ): Promise<void> {
     if (!projectId || !this.deps.stmStore) return;
 
@@ -832,6 +841,7 @@ implements IPrincipalSystemGatewayRuntime, ISystemInboxSubmissionService {
       if (thinkingContent) assistantMetadata.thinkingContent = thinkingContent;
       if (sessionId) assistantMetadata.sessionId = sessionId;
       if (scope) assistantMetadata.scope = scope;
+      if (cards && cards.length > 0) assistantMetadata.cards = cards;
       const entry: { role: 'assistant'; content: string; timestamp: string; metadata?: Record<string, unknown> } = {
         role: 'assistant',
         content: assistantResponse,
