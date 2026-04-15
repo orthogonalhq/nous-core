@@ -203,6 +203,7 @@ export function ChatPanel(props: ChatPanelProps) {
                 traceId: result.traceId,
                 contentType: result.contentType,
                 thinkingContent: result.thinkingContent,
+                cards: result.cards,
             }])
         } catch {
             setMessages(prev => [...prev, {

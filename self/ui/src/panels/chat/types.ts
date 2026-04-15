@@ -13,6 +13,7 @@ export interface ChatMessage {
     timestamp: string
     result?: ActionResult
   }
+  cards?: Array<{ type: string; props: Record<string, unknown> }>
 }
 
 export interface ActionResult {
@@ -23,7 +24,7 @@ export interface ActionResult {
 }
 
 export interface ChatAPI {
-  send: (message: string) => Promise<{ response: string; traceId: string; contentType?: 'text' | 'openui'; thinkingContent?: string }>
+  send: (message: string) => Promise<{ response: string; traceId: string; contentType?: 'text' | 'openui'; thinkingContent?: string; cards?: Array<{ type: string; props: Record<string, unknown> }> }>
   getHistory: () => Promise<ChatMessage[]>
   sendAction?: (action: CardAction) => Promise<ActionResult>
 }

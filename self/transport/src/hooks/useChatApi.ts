@@ -9,7 +9,7 @@ export interface UseChatApiOptions {
 
 /** Matches the ChatAPI interface from @nous/ui/panels (structural compatibility). */
 interface ChatApiShape {
-  send: (message: string) => Promise<{ response: string; traceId: string; contentType?: 'text' | 'openui'; thinkingContent?: string }>
+  send: (message: string) => Promise<{ response: string; traceId: string; contentType?: 'text' | 'openui'; thinkingContent?: string; cards?: Array<{ type: string; props: Record<string, unknown> }> }>
   getHistory: () => Promise<{
     role: 'user' | 'assistant'
     content: string
@@ -62,7 +62,7 @@ export function useChatApi(options?: UseChatApiOptions): ChatApiShape {
             sessionId ? { projectId, sessionId } : { projectId },
           )
         }
-        return { response: result.response, traceId: result.traceId, contentType: result.contentType, thinkingContent: result.thinkingContent }
+        return { response: result.response, traceId: result.traceId, contentType: result.contentType, thinkingContent: result.thinkingContent, cards: result.cards }
       },
       getHistory: async () => {
         const params: Record<string, string> = {}
@@ -78,6 +78,7 @@ export function useChatApi(options?: UseChatApiOptions): ChatApiShape {
             ...(e.metadata?.contentType ? { contentType: e.metadata.contentType as 'text' | 'openui' } : {}),
             ...(e.metadata?.thinkingContent ? { thinkingContent: e.metadata.thinkingContent as string } : {}),
             ...(e.metadata?.actionOutcome ? { actionOutcome: e.metadata.actionOutcome as { actionType: string; label: string; timestamp: string } } : {}),
+            ...(e.metadata?.cards ? { cards: e.metadata.cards as Array<{ type: string; props: Record<string, unknown> }> } : {}),
           }))
       },
       sendAction: async (action: CardAction) => {

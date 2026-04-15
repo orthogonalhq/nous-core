@@ -28,7 +28,7 @@ export const chatRouter = router({
         scope: 'principal' as const,
       });
 
-      return { response: result.response, traceId: result.traceId, contentType: result.contentType, thinkingContent: result.thinkingContent };
+      return { response: result.response, traceId: result.traceId, contentType: result.contentType, thinkingContent: result.thinkingContent, cards: result.cards };
     }),
 
   getHistory: publicProcedure
