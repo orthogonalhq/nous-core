@@ -107,6 +107,62 @@ describe('useChatApi — getHistory', () => {
   })
 })
 
+describe('useChatApi — sessionId', () => {
+  beforeEach(() => {
+    vi.clearAllMocks()
+  })
+
+  it('send passes sessionId to mutation when provided', async () => {
+    mockMutateAsync.sendMessage.mockResolvedValueOnce({
+      response: 'Reply', traceId: 'trace-1', contentType: 'text',
+    })
+
+    const { result } = renderHook(() => useChatApi({ projectId: 'proj-1', sessionId: 'sess-abc' }))
+    await result.current.send('Hello')
+
+    expect(mockMutateAsync.sendMessage).toHaveBeenCalledWith(
+      expect.objectContaining({ message: 'Hello', projectId: 'proj-1', sessionId: 'sess-abc' }),
+    )
+  })
+
+  it('getHistory passes sessionId to fetch when provided', async () => {
+    mockFetch.getHistory.mockResolvedValueOnce({
+      entries: [], summary: undefined, tokenCount: 0,
+    })
+
+    const { result } = renderHook(() => useChatApi({ projectId: 'proj-1', sessionId: 'sess-abc' }))
+    await result.current.getHistory()
+
+    expect(mockFetch.getHistory).toHaveBeenCalledWith(
+      expect.objectContaining({ projectId: 'proj-1', sessionId: 'sess-abc' }),
+    )
+  })
+
+  it('identity changes when sessionId changes', () => {
+    const { result, rerender } = renderHook(
+      ({ sessionId }) => useChatApi({ projectId: 'proj-1', sessionId }),
+      { initialProps: { sessionId: 'sess-1' } },
+    )
+
+    const api1 = result.current
+    rerender({ sessionId: 'sess-2' })
+    const api2 = result.current
+
+    expect(api1).not.toBe(api2)
+  })
+
+  it('sendAction passes sessionId when provided', async () => {
+    mockMutateAsync.sendAction.mockResolvedValueOnce({ ok: true, message: 'done' })
+
+    const { result } = renderHook(() => useChatApi({ projectId: 'proj-1', sessionId: 'sess-abc' }))
+    await result.current.sendAction({ actionType: 'approve', cardId: 'c1', payload: {} } as any)
+
+    expect(mockMutateAsync.sendAction).toHaveBeenCalledWith(
+      expect.objectContaining({ sessionId: 'sess-abc' }),
+    )
+  })
+})
+
 describe('useChatApi — sendAction', () => {
   beforeEach(() => {
     vi.clearAllMocks()

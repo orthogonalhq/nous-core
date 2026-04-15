@@ -4,6 +4,7 @@ import type { CardAction, ActionResult } from '@nous/shared'
 
 export interface UseChatApiOptions {
   projectId?: string
+  sessionId?: string
 }
 
 /** Matches the ChatAPI interface from @nous/ui/panels (structural compatibility). */
@@ -35,6 +36,7 @@ interface ChatApiShape {
  */
 export function useChatApi(options?: UseChatApiOptions): ChatApiShape {
   const projectId = options?.projectId
+  const sessionId = options?.sessionId
   const utils = trpc.useUtils()
   const sendMessage = trpc.chat.sendMessage.useMutation()
   const sendActionMutation = trpc.chat.sendAction.useMutation()
@@ -51,18 +53,22 @@ export function useChatApi(options?: UseChatApiOptions): ChatApiShape {
   return useMemo(
     () => ({
       send: async (message: string) => {
-        const result = await sendRef.current(
-          projectId ? { message, projectId } : { message },
-        )
+        const input: Record<string, unknown> = { message }
+        if (projectId) input.projectId = projectId
+        if (sessionId) input.sessionId = sessionId
+        const result = await sendRef.current(input as any)
         if (projectId) {
-          await utilsRef.current.chat.getHistory.invalidate({ projectId })
+          await utilsRef.current.chat.getHistory.invalidate(
+            sessionId ? { projectId, sessionId } : { projectId },
+          )
         }
         return { response: result.response, traceId: result.traceId, contentType: result.contentType, thinkingContent: result.thinkingContent }
       },
       getHistory: async () => {
-        const data = await utilsRef.current.chat.getHistory.fetch(
-          projectId ? { projectId } : {},
-        )
+        const params: Record<string, string> = {}
+        if (projectId) params.projectId = projectId
+        if (sessionId) params.sessionId = sessionId
+        const data = await utilsRef.current.chat.getHistory.fetch(params as any)
         return (data?.entries ?? [])
           .filter((e: any) => e.role === 'user' || e.role === 'assistant')
           .map((e: any) => ({
@@ -75,15 +81,16 @@ export function useChatApi(options?: UseChatApiOptions): ChatApiShape {
           }))
       },
       sendAction: async (action: CardAction) => {
-        const result = await sendActionRef.current(
-          projectId ? { action, projectId } : { action },
-        )
+        const input: Record<string, unknown> = { action }
+        if (projectId) input.projectId = projectId
+        if (sessionId) input.sessionId = sessionId
+        const result = await sendActionRef.current(input as any)
         return result as ActionResult
       },
     }),
-    // Only recompute when the logical identity changes (projectId).
+    // Only recompute when the logical identity changes (projectId or sessionId).
     // sendMessage and utils are accessed via refs for latest values.
     // eslint-disable-next-line react-hooks/exhaustive-deps
-    [projectId],
+    [projectId, sessionId],
   )
 }
