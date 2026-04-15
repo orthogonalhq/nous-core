@@ -98,3 +98,13 @@ export type { DevNotificationToolSurfaceArgs } from './dev-notification-tools.js
 // Prompt fragments — domain-specific guidance injected into Principal task instructions
 export { CARD_PROMPT_FRAGMENT } from './card-prompt-fragment.js';
 export { WORKFLOW_PROMPT_FRAGMENT } from './workflow-prompt-fragment.js';
+
+// Card tool definitions — structured card delivery via tool calls (WR-117)
+export {
+  CARD_TOOL_DEFINITIONS,
+  CARD_TOOL_NAMES,
+  CARD_TOOL_TO_TYPE,
+  isCardToolName,
+} from './card-tool-definitions.js';
+export type { CardToolCall, CardToolName } from './card-tool-definitions.js';
+export { extractCardsFromResponse } from './card-extractor.js';

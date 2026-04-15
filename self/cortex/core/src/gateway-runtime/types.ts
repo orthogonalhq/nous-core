@@ -200,6 +200,10 @@ export const ChatTurnResultSchema = z.object({
   traceId: z.string(),
   contentType: z.enum(['text', 'openui']).optional(),
   thinkingContent: z.string().optional(),
+  cards: z.array(z.object({
+    type: z.string(),
+    props: z.record(z.string(), z.unknown()),
+  })).optional(),
 }).strict();
 export type ChatTurnResult = z.infer<typeof ChatTurnResultSchema>;
 
