@@ -5,7 +5,7 @@ import {
   STUB_TEAMS,
   STUB_AGENTS,
 } from '@nous/ui'
-import { Network, LayoutDashboard, Inbox } from 'lucide-react'
+import { Network, LayoutDashboard, Inbox, MessageSquare } from 'lucide-react'
 
 // --- Top nav items (static) ---
 
@@ -13,6 +13,7 @@ export const DESKTOP_TOP_NAV: SidebarTopNavItem[] = [
   { id: 'org-chart', label: 'Organization Chart', icon: <Network />, routeId: 'org-chart' },
   { id: 'dashboard', label: 'Dashboard', icon: <LayoutDashboard />, routeId: 'dashboard' },
   { id: 'inbox', label: 'Inbox', icon: <Inbox />, routeId: 'inbox', badge: true },
+  { id: 'chat', label: 'Chat', icon: <MessageSquare />, routeId: 'chat' },
 ]
 
 // --- Sidebar sections ---
