@@ -426,10 +426,12 @@ export async function upsertProviderConfig(
   const existingEntry = existingProviders.find((p) => p.id === providerConfig.id);
 
   // Merge: preserve user-selected modelId from existing config when the
-  // incoming config carries a default value. All other fields update from the
-  // incoming config so provider metadata stays current across restarts.
+  // incoming config carries a default value (restart-driven upsert). When the
+  // incoming modelId is NOT a default, it's a deliberate user change — accept it.
   const newEntry = toProviderConfigEntry(providerConfig);
-  if (existingEntry?.modelId && existingEntry.modelId !== providerConfig.modelId) {
+  const defaultModels = Object.values(CLOUD_PROVIDER_DEFAULT_MODELS) as string[];
+  const incomingIsDefault = defaultModels.includes(providerConfig.modelId);
+  if (existingEntry?.modelId && incomingIsDefault && existingEntry.modelId !== providerConfig.modelId) {
     console.log(
       `[nous:bootstrap] Preserved user modelId '${existingEntry.modelId}' for provider '${providerConfig.id}' (default was '${providerConfig.modelId}')`,
     );
