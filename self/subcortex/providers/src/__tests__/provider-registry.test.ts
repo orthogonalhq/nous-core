@@ -268,6 +268,120 @@ describe('ProviderRegistry', () => {
     expect(provider.inner).toBeInstanceOf(OpenAiCompatibleProvider);
   });
 
+  it('constructor skips non-local entries when API key is unavailable', () => {
+    // No ANTHROPIC_API_KEY set in env — constructor must not throw
+    const registry = new ProviderRegistry({
+      get: () => ({
+        providers: [
+          {
+            id: '10000000-0000-0000-0000-000000000001',
+            name: 'anthropic',
+            type: 'text',
+            endpoint: 'https://api.anthropic.com',
+            modelId: 'claude-sonnet-4-20250514',
+            isLocal: false,
+            capabilities: ['chat', 'streaming'],
+            providerClass: 'remote_text',
+          },
+        ],
+      }),
+      getSection: vi.fn(),
+      update: vi.fn(),
+      reload: vi.fn(),
+    } as any);
+
+    expect(
+      registry.getProvider('10000000-0000-0000-0000-000000000001' as any),
+    ).toBeNull();
+    expect(registry.listProviders()).toHaveLength(0);
+  });
+
+  it('constructor still registers local entries when cloud entries are skipped', () => {
+    // No ANTHROPIC_API_KEY set — Anthropic entry should be skipped,
+    // but the local Ollama entry should still be registered.
+    const registry = new ProviderRegistry({
+      get: () => ({
+        providers: [
+          {
+            id: '10000000-0000-0000-0000-000000000002',
+            name: 'anthropic',
+            type: 'text',
+            endpoint: 'https://api.anthropic.com',
+            modelId: 'claude-sonnet-4-20250514',
+            isLocal: false,
+            capabilities: ['chat', 'streaming'],
+            providerClass: 'remote_text',
+          },
+          {
+            id: '10000000-0000-0000-0000-000000000003',
+            name: 'local-ollama',
+            type: 'text',
+            modelId: 'llama3.2',
+            isLocal: true,
+            capabilities: ['text'],
+          },
+        ],
+      }),
+      getSection: vi.fn(),
+      update: vi.fn(),
+      reload: vi.fn(),
+    } as any);
+
+    expect(
+      registry.getProvider('10000000-0000-0000-0000-000000000002' as any),
+    ).toBeNull();
+    expect(
+      registry.getProvider('10000000-0000-0000-0000-000000000003' as any),
+    ).toBeInstanceOf(LaneAwareProvider);
+    expect(registry.listProviders()).toHaveLength(1);
+  });
+
+  it('skipped cloud entry can be registered after construction via registerProvider', () => {
+    // No ANTHROPIC_API_KEY set — Anthropic entry skipped during construction
+    const registry = new ProviderRegistry({
+      get: () => ({
+        providers: [
+          {
+            id: '10000000-0000-0000-0000-000000000004',
+            name: 'anthropic',
+            type: 'text',
+            endpoint: 'https://api.anthropic.com',
+            modelId: 'claude-sonnet-4-20250514',
+            isLocal: false,
+            capabilities: ['chat', 'streaming'],
+            providerClass: 'remote_text',
+          },
+        ],
+      }),
+      getSection: vi.fn(),
+      update: vi.fn(),
+      reload: vi.fn(),
+    } as any);
+
+    // Verify skipped
+    expect(
+      registry.getProvider('10000000-0000-0000-0000-000000000004' as any),
+    ).toBeNull();
+
+    // Simulate loadStoredApiKeys → registerStoredProviders
+    process.env.ANTHROPIC_API_KEY = 'test-key';
+    registry.registerProvider({
+      id: '10000000-0000-0000-0000-000000000004' as any,
+      name: 'anthropic',
+      type: 'text',
+      endpoint: 'https://api.anthropic.com',
+      modelId: 'claude-sonnet-4-20250514',
+      isLocal: false,
+      capabilities: ['chat', 'streaming'],
+      providerClass: 'remote_text',
+    });
+
+    expect(
+      registry.getProvider('10000000-0000-0000-0000-000000000004' as any),
+    ).toBeInstanceOf(LaneAwareProvider);
+    expect(registry.listProviders()).toHaveLength(1);
+  });
+
   it('routes local providers to OllamaProvider inside LaneAwareProvider', () => {
     const registry = new ProviderRegistry({
       get: () => ({ providers: [] }),

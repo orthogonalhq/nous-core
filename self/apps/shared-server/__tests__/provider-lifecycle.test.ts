@@ -1,10 +1,10 @@
-import { mkdirSync, rmSync } from 'node:fs';
+import { mkdirSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { randomUUID } from 'node:crypto';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import type { ModelRole, ProviderId, TraceId } from '@nous/shared';
-import { ConfigManager, DEFAULT_PROFILES } from '@nous/autonomic-config';
+import { ConfigManager, DEFAULT_PROFILES, DEFAULT_SYSTEM_CONFIG } from '@nous/autonomic-config';
 import {
   OLLAMA_WELL_KNOWN_PROVIDER_ID,
   WELL_KNOWN_PROVIDER_IDS,
@@ -439,6 +439,67 @@ describe('provider lifecycle wiring', () => {
     } finally {
       rmSync(tempDir, { recursive: true, force: true });
     }
+  });
+
+  it('createNousServices does not throw with saved cloud provider config and no API keys', async () => {
+    const dataDir = join(tmpdir(), `nous-shared-server-${randomUUID()}`);
+    mkdirSync(dataDir, { recursive: true });
+
+    // Write a fully valid config file with a saved Anthropic provider entry
+    // (simulates a config persisted by a prior session via SP 1.6).
+    // Start from DEFAULT_SYSTEM_CONFIG to satisfy the full SystemConfigSchema,
+    // then overlay the Anthropic provider entry and hybrid profile.
+    const configPath = join(dataDir, 'config.json');
+    const savedConfig = {
+      ...DEFAULT_SYSTEM_CONFIG,
+      profile: {
+        ...DEFAULT_SYSTEM_CONFIG.profile,
+        name: 'hybrid',
+        defaultProviderType: 'remote',
+        allowRemoteProviders: true,
+        allowSilentLocalToRemoteFailover: true,
+      },
+      providers: [
+        {
+          id: WELL_KNOWN_PROVIDER_IDS.anthropic,
+          name: 'anthropic',
+          type: 'text',
+          endpoint: 'https://api.anthropic.com',
+          modelId: 'claude-sonnet-4-20250514',
+          isLocal: false,
+          capabilities: ['chat', 'streaming'],
+          providerClass: 'remote_text',
+          vendor: 'anthropic',
+        },
+      ],
+      modelRoleAssignments: [
+        {
+          role: 'cortex-chat',
+          providerId: WELL_KNOWN_PROVIDER_IDS.anthropic,
+        },
+      ],
+    };
+    writeFileSync(configPath, JSON.stringify(savedConfig));
+
+    // No ANTHROPIC_API_KEY in process.env — must not throw
+    let ctx: ReturnType<typeof createNousServices> | undefined;
+    expect(() => {
+      ctx = createNousServices({
+        dataDir,
+        configPath,
+        runtimeLabel: 'test',
+        publicBaseUrl: 'http://localhost:3000',
+      });
+    }).not.toThrow();
+
+    // The Anthropic provider should NOT be in the registry yet
+    // (skipped by the guard clause because no API key in env)
+    const anthropicProvider = ctx!.providerRegistry.getProvider(
+      WELL_KNOWN_PROVIDER_IDS.anthropic,
+    );
+    expect(anthropicProvider).toBeNull();
+    // Temp dir cleanup omitted: createNousServices opens a SQLite database that
+    // holds a file lock on Windows, preventing synchronous rmSync.
   });
 
   it('keeps mock fallback active when no keys are configured', async () => {
