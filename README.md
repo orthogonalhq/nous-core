@@ -1,8 +1,8 @@
 # Nous
 
-**Your personal assistant.
+### Your personal assistant.
 
-Finally, an AI that's actually yours.**
+Finally, an AI that's actually yours.
 
 It lives on your machine, learns how you work, and gets better the longer you use it. Open source. Self-hosted. Yours.
 
