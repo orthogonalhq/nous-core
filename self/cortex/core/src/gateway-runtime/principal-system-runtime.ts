@@ -246,9 +246,10 @@ implements IPrincipalSystemGatewayRuntime, ISystemInboxSubmissionService {
         agentId: principalAgentId,
         toolSurface: principalToolSurface,
         lifecycleHooks: principalBase.lifecycleHooks,
-        baseSystemPrompt:
-          this.deps.principalBaseSystemPrompt
-            ?? composeSystemPromptFromConfig(resolvePromptConfig('Cortex::Principal')),
+        // composeFromProfile already emits identity + taskFrame + guardrails
+        // from the profile. Only pass an explicit override if the caller
+        // provided one (BT Round 2, RC-1 — avoids 2x duplication).
+        baseSystemPrompt: this.deps.principalBaseSystemPrompt,
         outbox: new HealthTrackingOutboxSink('Cortex::Principal', this.healthSink, this.deps.eventBus),
       }),
     );
@@ -874,7 +875,7 @@ implements IPrincipalSystemGatewayRuntime, ISystemInboxSubmissionService {
     agentId: string;
     toolSurface: AgentGatewayConfig['toolSurface'];
     lifecycleHooks: AgentGatewayConfig['lifecycleHooks'];
-    baseSystemPrompt: string;
+    baseSystemPrompt?: string;
     outbox?: IGatewayOutboxSink;
   }): AgentGatewayConfig {
     const rawProvider = this.deps.modelProviderByClass?.[args.agentClass];

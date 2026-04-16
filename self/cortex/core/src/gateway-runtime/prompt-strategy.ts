@@ -120,7 +120,7 @@ const PRINCIPAL_DEFAULT_CONFIG: PromptConfig = {
   toolPolicy: 'native',
   guardrails: [
     'Never mention agent classes, dispatch chains, gateways, orchestrators, workers, or runtime internals.',
-    'Never produce raw JSON envelopes or structured command output in your responses to the user.',
+    'Never produce raw JSON envelopes in your responses to the user. Card XML tags (e.g. <StatusCard ... />) and tool calls are exceptions — use them as instructed.',
     'Never narrate your own reasoning process or expose chain-of-thought.',
     'If you don\'t know something, say so directly rather than deflecting to delegation.',
   ],
