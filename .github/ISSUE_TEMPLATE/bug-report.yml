@@ -1,0 +1,42 @@
+name: Bug report
+description: Something that worked, or should work, is broken
+title: "Bug: "
+labels: ["needs-triage", "bug"]
+body:
+  - type: textarea
+    id: what-happened
+    attributes:
+      label: What happened?
+      description: What did you do, what did you expect, what did you get?
+    validations:
+      required: true
+
+  - type: input
+    id: version
+    attributes:
+      label: Nous version / commit
+      placeholder: e.g. v0.0.0, or commit sha
+    validations:
+      required: true
+
+  - type: input
+    id: environment
+    attributes:
+      label: OS and runtime
+      placeholder: e.g. macOS 14.5, Node 22.3, pnpm 10.6
+    validations:
+      required: true
+
+  - type: textarea
+    id: reproduction
+    attributes:
+      label: Reproduction steps
+      description: Minimal steps. Logs, error output, or a short snippet are great.
+
+  - type: checkboxes
+    id: acknowledgements
+    attributes:
+      label: Before submitting
+      options:
+        - label: I searched existing issues and didn't find a duplicate
+          required: true

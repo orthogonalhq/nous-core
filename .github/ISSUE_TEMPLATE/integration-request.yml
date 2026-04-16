@@ -1,0 +1,70 @@
+name: Integration request
+description: Request an integration with an orchestration framework or hosted service
+title: "Integration: "
+labels: ["needs-triage", "integration"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Use this for things Nous connects *to* on their terms — orchestration
+        frameworks (MetaGPT, AutoGen, LangGraph, CrewAI) and hosted autonomous
+        services (Devin, Factory). Direction of control differs from an adapter.
+        For things Nous wraps and drives, use the Adapter template.
+
+  - type: dropdown
+    id: category
+    attributes:
+      label: Category
+      options:
+        - Orchestration framework (they orchestrate, Nous participates)
+        - Hosted autonomous service (managed product, REST API)
+        - Other
+    validations:
+      required: true
+
+  - type: input
+    id: name
+    attributes:
+      label: Name
+      placeholder: e.g. MetaGPT, Devin
+    validations:
+      required: true
+
+  - type: input
+    id: vendor
+    attributes:
+      label: Vendor or project
+    validations:
+      required: true
+
+  - type: input
+    id: reference
+    attributes:
+      label: Reference URL
+      placeholder: Repo, docs, or product page
+    validations:
+      required: true
+
+  - type: textarea
+    id: connection-shape
+    attributes:
+      label: How would the connection work?
+      description: Who orchestrates — them or Nous? What does the handshake look like?
+    validations:
+      required: true
+
+  - type: textarea
+    id: rationale
+    attributes:
+      label: Why this one?
+      description: Use case or unique value
+    validations:
+      required: true
+
+  - type: checkboxes
+    id: acknowledgements
+    attributes:
+      label: Before submitting
+      options:
+        - label: I searched existing issues and didn't find a duplicate
+          required: true

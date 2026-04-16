@@ -1,0 +1,83 @@
+name: Adapter request
+description: Request an adapter for a coding-agent harness or model provider
+title: "Adapter: "
+labels: ["needs-triage", "adapter"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Use this for things Nous wraps and drives through its contracts
+        (`AgentAdapter` for agent harnesses, `IModelProvider` for model providers).
+        For orchestration frameworks or hosted autonomous services, use the
+        Integration template instead.
+
+  - type: dropdown
+    id: contract
+    attributes:
+      label: Which contract?
+      options:
+        - AgentAdapter (coding-agent harness)
+        - IModelProvider (model provider)
+    validations:
+      required: true
+
+  - type: input
+    id: name
+    attributes:
+      label: Name
+      placeholder: e.g. Gemini, Aider, Grok
+    validations:
+      required: true
+
+  - type: input
+    id: vendor
+    attributes:
+      label: Vendor or project
+      placeholder: e.g. Google, Aider-AI, xAI
+    validations:
+      required: true
+
+  - type: input
+    id: reference
+    attributes:
+      label: Reference URL
+      placeholder: Repo, docs, or product page
+    validations:
+      required: true
+
+  - type: dropdown
+    id: interface
+    attributes:
+      label: Interface type
+      options:
+        - CLI
+        - HTTP API
+        - SDK / library
+        - IDE extension
+        - Other
+    validations:
+      required: true
+
+  - type: input
+    id: license
+    attributes:
+      label: License
+      placeholder: e.g. MIT, Apache-2.0, proprietary
+
+  - type: textarea
+    id: rationale
+    attributes:
+      label: Why this one?
+      description: Use case, user base, or unique capability
+    validations:
+      required: true
+
+  - type: checkboxes
+    id: acknowledgements
+    attributes:
+      label: Before submitting
+      options:
+        - label: I searched existing issues and didn't find a duplicate
+          required: true
+        - label: This fits the adapter shape (we wrap and drive it), not the integration shape
+          required: true

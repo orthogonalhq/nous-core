@@ -1,0 +1,49 @@
+name: Feature request
+description: Propose a new capability within Nous
+title: "Feature: "
+labels: ["needs-triage", "enhancement"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        For external adapter or integration requests, use the dedicated
+        Adapter or Integration templates instead.
+
+  - type: textarea
+    id: problem
+    attributes:
+      label: What problem does this solve?
+      description: What can't you do today, or what's painful?
+    validations:
+      required: true
+
+  - type: textarea
+    id: proposal
+    attributes:
+      label: Proposed behavior
+      description: How should it work from a user's perspective?
+    validations:
+      required: true
+
+  - type: dropdown
+    id: surface
+    attributes:
+      label: Surface area
+      options:
+        - Chat
+        - Workflow
+        - Memory
+        - Cortex
+        - MCP Tool
+        - Docs
+        - Other / unsure
+    validations:
+      required: true
+
+  - type: checkboxes
+    id: acknowledgements
+    attributes:
+      label: Before submitting
+      options:
+        - label: I searched existing issues and didn't find a duplicate
+          required: true
