@@ -306,9 +306,11 @@ implements IPrincipalSystemGatewayRuntime, ISystemInboxSubmissionService {
       agentId: principalAgentId,
       toolSurface: principalToolSurface,
       lifecycleHooks: principalBase.lifecycleHooks,
-      baseSystemPrompt:
-        this.deps.principalBaseSystemPrompt
-          ?? composeSystemPromptFromConfig(resolvePromptConfig('Cortex::Principal')),
+      // composeFromProfile already emits identity + taskFrame + guardrails
+      // from the profile. Only pass an explicit override if the caller
+      // provided one (avoids 2x duplication of Principal config in the
+      // assembled prompt — BT Round 2, RC-1).
+      baseSystemPrompt: this.deps.principalBaseSystemPrompt,
       outbox: new HealthTrackingOutboxSink('Cortex::Principal', this.healthSink, this.deps.eventBus),
     });
     this.principalGateway = this.gatewayFactory.create(this.principalGatewayConfig);
@@ -484,6 +486,34 @@ implements IPrincipalSystemGatewayRuntime, ISystemInboxSubmissionService {
   async handleChatTurn(input: ChatTurnInput): Promise<ChatTurnResult> {
     this.checkAttachOrWarn();
     const parsed = ChatTurnInputSchema.parse(input);
+    const { message, projectId, traceId, sessionId, scope } = parsed;
+
+    // Emit turn-start lifecycle event for subscribers like useAgentActivity
+    // (BT Round 2, RC-2). The deprecated GatewayBackedTurnExecutor was the
+    // only previous emitter; without this, the activity indicator never
+    // received a clear signal for tool-capable Principal turns.
+    this.deps.thoughtEmitter?.emitTurnLifecycle({
+      traceId,
+      phase: 'turn-start',
+      status: 'started',
+      sequence: 0,
+      emittedAt: this.now(),
+    });
+
+    try {
+      return await this.handleChatTurnInner(parsed);
+    } finally {
+      this.deps.thoughtEmitter?.emitTurnLifecycle({
+        traceId,
+        phase: 'turn-complete',
+        status: 'completed',
+        sequence: 0,
+        emittedAt: this.now(),
+      });
+    }
+  }
+
+  private async handleChatTurnInner(parsed: ChatTurnInput): Promise<ChatTurnResult> {
     const { message, projectId, traceId, sessionId, scope } = parsed;
 
     // Opctl gate check
@@ -980,7 +1010,7 @@ implements IPrincipalSystemGatewayRuntime, ISystemInboxSubmissionService {
     agentId: string;
     toolSurface: AgentGatewayConfig['toolSurface'];
     lifecycleHooks: AgentGatewayConfig['lifecycleHooks'];
-    baseSystemPrompt: string;
+    baseSystemPrompt?: string;
     outbox?: IGatewayOutboxSink;
   }): AgentGatewayConfig {
     // WR-138 row #5: Option α vendor resolution chain per

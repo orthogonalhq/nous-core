@@ -32,6 +32,7 @@ import type {
   ICredentialInjector,
   ILogger,
   IOpctlService,
+  IThoughtEmitter,
   IngressDispatchOutcome,
   IngressTriggerEnvelope,
   MemoryMutationRequest,
@@ -285,6 +286,12 @@ export interface PrincipalSystemGatewayRuntimeDeps {
   backlogConfig?: Partial<BacklogQueueConfig>;
   eventBus?: IEventBus;
   notificationService?: INotificationService;
+  /** Thought emitter for chat-turn lifecycle events (BT Round 2, RC-2).
+   *  When provided, CortexRuntime.handleChatTurn emits turn-start /
+   *  turn-complete events on `thought:turn-lifecycle`. Without it,
+   *  subscribers like useAgentActivity never receive a clear signal
+   *  for tool-capable Principal turns (which can't stream). */
+  thoughtEmitter?: IThoughtEmitter;
   /** Concrete store instance for dev-only tools (WR-151 SP 1.4). */
   notificationStore?: DocumentNotificationStore;
   // STM and MWC dependencies (SP 1.2 — WR-124)
