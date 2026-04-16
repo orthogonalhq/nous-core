@@ -1,0 +1,50 @@
+name: Branching Conditional
+version: 1
+nodes:
+  - id: webhook-trigger
+    name: Webhook Trigger
+    type: nous.trigger.webhook
+    position: [0, 0]
+    parameters:
+      path: /workflow/intake
+      method: POST
+  - id: check-condition
+    name: Check Condition
+    type: nous.condition.if
+    position: [220, 0]
+    parameters:
+      expression: payload.priority == 'high'
+  - id: priority-agent
+    name: Priority Agent
+    type: nous.agent.codex
+    position: [460, -120]
+    parameters:
+      instructions: Escalate urgent requests with a concise response and a clear owner.
+  - id: fallback-agent
+    name: Fallback Agent
+    type: nous.agent.claude
+    position: [460, 120]
+    parameters:
+      model: claude-3-5-sonnet
+      systemPrompt: Handle standard requests with a calm summary and next steps.
+      temperature: 0.3
+  - id: merge-output
+    name: Merge Output
+    type: nous.tool.artifact-store
+    position: [720, 0]
+    parameters:
+      key: triage/branching-conditional.json
+      operation: put
+connections:
+  - from: webhook-trigger
+    to: check-condition
+  - from: check-condition
+    to: priority-agent
+    output: true
+  - from: check-condition
+    to: fallback-agent
+    output: false
+  - from: priority-agent
+    to: merge-output
+  - from: fallback-agent
+    to: merge-output

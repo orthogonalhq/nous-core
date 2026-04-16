@@ -36,10 +36,9 @@ export const BacklogResultStatusSchema = z.enum([
 export type BacklogResultStatus = z.infer<typeof BacklogResultStatusSchema>;
 
 export const BacklogPressureTrendSchema = z.enum([
-  'idle',
-  'steady',
-  'rising',
-  'degrading',
+  'increasing',
+  'stable',
+  'decreasing',
 ]);
 export type BacklogPressureTrend = z.infer<typeof BacklogPressureTrendSchema>;
 

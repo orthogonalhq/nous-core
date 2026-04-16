@@ -1,8 +1,7 @@
 'use client';
 
 import { useRouter } from 'next/navigation';
-import { Button } from '@/components/ui/button';
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
+import { Button, Card, CardContent, CardHeader, CardTitle } from '@nous/ui';
 import { trpc } from '@/lib/trpc';
 
 export function ConfirmStep() {
@@ -18,12 +17,18 @@ export function ConfirmStep() {
   };
 
   return (
-    <Card className="w-full max-w-lg">
+    <Card style={{ width: '100%', maxWidth: '32rem' }}>
       <CardHeader>
         <CardTitle>Everything works!</CardTitle>
       </CardHeader>
-      <CardContent className="space-y-4">
-        <p className="text-muted-foreground">
+      <CardContent
+        style={{
+          display: 'flex',
+          flexDirection: 'column',
+          gap: 'var(--nous-space-md)',
+        }}
+      >
+        <p style={{ color: 'var(--nous-text-secondary)' }}>
           You&apos;ve completed the first-run setup. Nous is ready to use.
         </p>
         <Button

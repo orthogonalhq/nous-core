@@ -333,7 +333,7 @@ describe('Internal MCP capability handlers', () => {
                           executionModel: 'synchronous',
                           config: {
                             type: 'model-call',
-                            modelRole: 'reasoner',
+                            modelRole: 'cortex-chat',
                             promptRef: 'prompt://start',
                           },
                         },
@@ -681,6 +681,73 @@ describe('Internal MCP capability handlers', () => {
     expect(witnessService.appendCompletion).toHaveBeenCalledTimes(3);
   });
 
+  it('denies artifact_store when PFC sensitivity check rejects the request', async () => {
+    const projectApi = createProjectApi();
+    const pfc = createPfcEngine({
+      evaluateToolExecution: vi.fn().mockResolvedValue({
+        approved: false,
+        reason: 'artifact_store denied by policy',
+        confidence: 1,
+      }),
+    });
+    const surface = createScopedMcpToolSurface({
+      agentClass: 'Worker',
+      agentId: AGENT_ID,
+      deps: {
+        getProjectApi: () => projectApi,
+        pfc,
+      },
+    });
+
+    await expect(
+      surface.executeTool(
+        'artifact_store',
+        {
+          name: 'report.json',
+          mimeType: 'application/json',
+          data: '{}',
+          contentEncoding: 'utf8',
+          tags: [],
+        },
+        {
+          projectId: PROJECT_ID,
+          traceId: TRACE_ID,
+        },
+      ),
+    ).rejects.toThrow('artifact_store denied by policy');
+
+    expect(projectApi.artifact.store).not.toHaveBeenCalled();
+  });
+
+  it('allows artifact_store when PFC is unavailable (fail-open)', async () => {
+    const projectApi = createProjectApi();
+    const surface = createScopedMcpToolSurface({
+      agentClass: 'Worker',
+      agentId: AGENT_ID,
+      deps: {
+        getProjectApi: () => projectApi,
+      },
+    });
+
+    const result = await surface.executeTool(
+      'artifact_store',
+      {
+        name: 'report.json',
+        mimeType: 'application/json',
+        data: '{}',
+        contentEncoding: 'utf8',
+        tags: [],
+      },
+      {
+        projectId: PROJECT_ID,
+        traceId: TRACE_ID,
+      },
+    );
+
+    expect(result.success).toBe(true);
+    expect(projectApi.artifact.store).toHaveBeenCalled();
+  });
+
   it('denies credential operations when app permissions do not grant them', async () => {
     const handlers = createCapabilityHandlers({
       agentClass: 'Worker',
@@ -709,5 +776,213 @@ describe('Internal MCP capability handlers', () => {
         } as any,
       ),
     ).rejects.toThrow('Credential access is not granted');
+  });
+
+  it('memory_search returns empty results when store throws TypeError', async () => {
+    const projectApi = createProjectApi({
+      memory: {
+        read: vi.fn().mockRejectedValue(new TypeError('Cannot read properties of undefined')),
+        write: vi.fn(),
+        retrieve: vi.fn().mockRejectedValue(new TypeError('Cannot read properties of undefined')),
+      },
+    });
+    const handlers = createCapabilityHandlers({
+      agentClass: 'Worker',
+      agentId: AGENT_ID as any,
+      deps: {
+        getProjectApi: () => projectApi,
+      },
+    });
+
+    const result = await handlers.memory_search(
+      { query: 'test', mode: 'search', scope: 'project' },
+      { projectId: PROJECT_ID } as any,
+    );
+
+    expect(result.success).toBe(true);
+    expect(result.output).toEqual([]);
+  });
+
+  it('memory_search returns empty results when retrieve mode throws', async () => {
+    const projectApi = createProjectApi({
+      memory: {
+        read: vi.fn(),
+        write: vi.fn(),
+        retrieve: vi.fn().mockRejectedValue(new Error('store not initialized')),
+      },
+    });
+    const handlers = createCapabilityHandlers({
+      agentClass: 'Worker',
+      agentId: AGENT_ID as any,
+      deps: {
+        getProjectApi: () => projectApi,
+      },
+    });
+
+    const result = await handlers.memory_search(
+      { situation: 'test context', mode: 'retrieve', budget: 100 },
+      { projectId: PROJECT_ID } as any,
+    );
+
+    expect(result.success).toBe(true);
+    expect(result.output).toEqual([]);
+  });
+
+  it('workflow_list returns project store definitions alongside installed packages', async () => {
+    const projectStore = {
+      get: vi.fn().mockResolvedValue({
+        id: PROJECT_ID,
+        workflow: {
+          definitions: [
+            {
+              id: '550e8400-e29b-41d4-a716-446655440700',
+              projectId: PROJECT_ID,
+              mode: 'protocol',
+              version: '1.0.0',
+              name: 'UserCreatedWorkflow',
+              entryNodeIds: ['550e8400-e29b-41d4-a716-446655440701'],
+              nodes: [
+                {
+                  id: '550e8400-e29b-41d4-a716-446655440701',
+                  name: 'Start',
+                  type: 'model-call',
+                  governance: 'must',
+                  executionModel: 'synchronous',
+                  config: {
+                    type: 'model-call',
+                    modelRole: 'cortex-chat',
+                    promptRef: 'prompt://start',
+                  },
+                },
+              ],
+              edges: [],
+            },
+          ],
+        },
+      }),
+      list: vi.fn().mockResolvedValue([]),
+      create: vi.fn(),
+      update: vi.fn(),
+      archive: vi.fn(),
+    };
+    const handlers = createCapabilityHandlers({
+      agentClass: 'Cortex::System',
+      agentId: AGENT_ID as any,
+      deps: {
+        projectStore: projectStore as any,
+        runtime: {
+          instanceRoot: '/tmp/test',
+          resolvePath: (...segments: string[]) => segments.join('/'),
+          exists: vi.fn().mockResolvedValue(false),
+          ensureDir: vi.fn().mockResolvedValue(undefined),
+          listDirectory: vi.fn().mockResolvedValue([]),
+        } as any,
+      },
+    });
+
+    const result = await handlers.workflow_list(
+      {
+        projectId: PROJECT_ID,
+        includeInstalledDefinitions: true,
+        includeActiveInstances: false,
+      },
+    );
+
+    expect(result.success).toBe(true);
+    const defs = (result.output as any).definitions;
+    expect(defs.some((d: any) => d.name === 'UserCreatedWorkflow')).toBe(true);
+  });
+
+  it('workflow_list returns project store definitions when projectId is in execution context but not in params', async () => {
+    const projectStore = {
+      get: vi.fn().mockResolvedValue({
+        id: PROJECT_ID,
+        workflow: {
+          definitions: [
+            {
+              id: '550e8400-e29b-41d4-a716-446655440700',
+              projectId: PROJECT_ID,
+              mode: 'protocol',
+              version: '1.0.0',
+              name: 'ExecutionContextWorkflow',
+              entryNodeIds: ['550e8400-e29b-41d4-a716-446655440701'],
+              nodes: [
+                {
+                  id: '550e8400-e29b-41d4-a716-446655440701',
+                  name: 'Start',
+                  type: 'model-call',
+                  governance: 'must',
+                  executionModel: 'synchronous',
+                  config: {
+                    type: 'model-call',
+                    modelRole: 'cortex-chat',
+                    promptRef: 'prompt://start',
+                  },
+                },
+              ],
+              edges: [],
+            },
+          ],
+        },
+      }),
+      list: vi.fn().mockResolvedValue([]),
+      create: vi.fn(),
+      update: vi.fn(),
+      archive: vi.fn(),
+    };
+    const handlers = createCapabilityHandlers({
+      agentClass: 'Cortex::System',
+      agentId: AGENT_ID as any,
+      deps: {
+        projectStore: projectStore as any,
+        runtime: {
+          instanceRoot: '/tmp/test',
+          resolvePath: (...segments: string[]) => segments.join('/'),
+          exists: vi.fn().mockResolvedValue(false),
+          ensureDir: vi.fn().mockResolvedValue(undefined),
+          listDirectory: vi.fn().mockResolvedValue([]),
+        } as any,
+      },
+    });
+
+    // Call WITHOUT projectId in params, WITH projectId in execution context
+    const result = await handlers.workflow_list(
+      {
+        includeInstalledDefinitions: true,
+        includeActiveInstances: false,
+      },
+      { projectId: PROJECT_ID } as any,
+    );
+
+    expect(result.success).toBe(true);
+    const defs = (result.output as any).definitions;
+    expect(defs.some((d: any) => d.name === 'ExecutionContextWorkflow')).toBe(true);
+    expect(projectStore.get).toHaveBeenCalledWith(PROJECT_ID);
+  });
+
+  it('workflow_list returns only installed definitions when projectStore is unavailable', async () => {
+    const handlers = createCapabilityHandlers({
+      agentClass: 'Cortex::System',
+      agentId: AGENT_ID as any,
+      deps: {
+        runtime: {
+          instanceRoot: '/tmp/test',
+          resolvePath: (...segments: string[]) => segments.join('/'),
+          exists: vi.fn().mockResolvedValue(false),
+          ensureDir: vi.fn().mockResolvedValue(undefined),
+          listDirectory: vi.fn().mockResolvedValue([]),
+        } as any,
+      },
+    });
+
+    const result = await handlers.workflow_list(
+      {
+        projectId: PROJECT_ID,
+        includeInstalledDefinitions: true,
+        includeActiveInstances: false,
+      },
+    );
+
+    expect(result.success).toBe(true);
   });
 });

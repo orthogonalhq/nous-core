@@ -5,6 +5,9 @@ import {
   GatewayStampedPacketSchema,
   type AgentClass,
   type AgentGatewayConfig,
+  type DispatchOrchestratorRequest,
+  type DispatchWorkerRequest,
+  type EscalationContract,
   type GatewayBudget,
   type GatewayLifecycleContext,
   type GatewayStampedPacket,
@@ -17,6 +20,9 @@ import {
 } from '@nous/shared';
 import { getAuthorizedInternalMcpTools } from './authorization-matrix.js';
 import { createScopedMcpToolSurface } from './scoped-tool-surface.js';
+import {
+  INTERNAL_MCP_TOOL_NAMES,
+} from './types.js';
 import type {
   InternalMcpGraphResolution,
   InternalMcpHandlerContext,
@@ -50,15 +56,9 @@ function authorityActorForClass(agentClass: AgentClass) {
   }
 }
 
-function targetAuthorityActorForDispatch(targetClass: 'Orchestrator' | 'Worker') {
-  return targetClass === 'Orchestrator' ? 'orchestration_agent' : 'worker_agent';
-}
-
 function buildChildBudget(
   deps: InternalMcpRuntimeDeps,
-  request: Parameters<
-    NonNullable<NonNullable<AgentGatewayConfig['lifecycleHooks']>['dispatchAgent']>
-  >[0],
+  request: { budget?: Partial<GatewayBudget> },
 ): GatewayBudget {
   if (deps.dispatchRuntime?.buildChildBudget) {
     return deps.dispatchRuntime.buildChildBudget(request);
@@ -196,6 +196,7 @@ function buildTaskCompletionPacket(
     },
     artifact_refs: args.request.artifactRefs ?? [],
     summary: args.request.summary,
+    emitter_agent_class: args.agentClass,
   };
 
   return GatewayStampedPacketSchema.parse(packet);
@@ -298,7 +299,7 @@ async function resolveDispatchTargetNode(args: {
 
   const graph = await args.deps.workflowEngine?.getRunGraph(executionId);
   if (!graph) {
-    throw new ValidationError('Workflow graph is unavailable for dispatch_agent', [
+    throw new ValidationError('Workflow graph is unavailable for dispatch_worker', [
       {
         path: 'execution.executionId',
         message: 'workflow graph not found',
@@ -308,7 +309,7 @@ async function resolveDispatchTargetNode(args: {
 
   const node = graph.nodes[args.nodeDefinitionId]?.definition;
   if (!node) {
-    throw new ValidationError('Workflow node is unavailable for dispatch_agent', [
+    throw new ValidationError('Workflow node is unavailable for dispatch_worker', [
       {
         path: 'request.nodeDefinitionId',
         message: 'workflow node not found',
@@ -365,12 +366,58 @@ async function validateTaskCompletionOutput(args: {
   });
 }
 
+const VALID_TOOL_NAME_SET = new Set<string>(INTERNAL_MCP_TOOL_NAMES);
+
+function validateGrantedTools(
+  grantedTools: string[] | undefined,
+  dispatcherAgentClass: AgentClass,
+  dispatcherEffectiveGrants: ReadonlySet<string>,
+): void {
+  if (!grantedTools || grantedTools.length === 0) {
+    return;
+  }
+
+  // Two-hop ceiling: Workers cannot sub-delegate
+  if (dispatcherAgentClass === 'Worker') {
+    throw new NousError(
+      'Worker agents cannot delegate granted_tools (two-hop ceiling)',
+      'DISPATCH_ADMISSION_DENIED',
+      { evidenceRefs: ['two-hop-ceiling: Worker cannot sub-delegate'] },
+    );
+  }
+
+  // Tool name validity
+  const invalidNames = grantedTools.filter((name) => !VALID_TOOL_NAME_SET.has(name));
+  if (invalidNames.length > 0) {
+    throw new NousError(
+      `granted_tools contains invalid tool names: ${invalidNames.join(', ')}`,
+      'DISPATCH_ADMISSION_DENIED',
+      { evidenceRefs: invalidNames.map((n) => `invalid-tool-name: ${n}`) },
+    );
+  }
+
+  // Subset constraint: dispatcher can only grant tools it possesses
+  const unpossessed = grantedTools.filter((name) => !dispatcherEffectiveGrants.has(name));
+  if (unpossessed.length > 0) {
+    throw new NousError(
+      `granted_tools contains tools not possessed by the dispatcher: ${unpossessed.join(', ')}`,
+      'DISPATCH_ADMISSION_DENIED',
+      { evidenceRefs: unpossessed.map((n) => `unpossessed-tool: ${n}`) },
+    );
+  }
+}
+
 export function createLifecycleHandlers(options: {
   agentClass: AgentClass;
   agentId: AgentGatewayConfig['agentId'];
   deps: InternalMcpRuntimeDeps;
+  lease?: import('@nous/shared').LeaseContract;
 }): NonNullable<AgentGatewayConfig['lifecycleHooks']> {
-  const toolSet = getAuthorizedInternalMcpTools(options.agentClass);
+  const baselineToolSet = getAuthorizedInternalMcpTools(options.agentClass);
+  const leaseGrants = options.lease?.granted_tools ?? [];
+  const toolSet: ReadonlySet<string> = leaseGrants.length > 0
+    ? new Set([...baselineToolSet, ...leaseGrants])
+    : baselineToolSet;
   const handlerContext: InternalMcpHandlerContext = {
     agentClass: options.agentClass,
     agentId: options.agentId,
@@ -378,31 +425,143 @@ export function createLifecycleHandlers(options: {
   };
 
   return {
-    dispatchAgent: toolSet.has('dispatch_agent')
-      ? async (request, lifecycleContext) => {
+    dispatchOrchestrator: toolSet.has('dispatch_orchestrator')
+      ? async (request: DispatchOrchestratorRequest, lifecycleContext) => {
           const runtime = options.deps.dispatchRuntime;
           if (!runtime) {
             throw new NousError(
-              'dispatch_agent requires a dispatch runtime',
+              'dispatch_orchestrator requires a dispatch runtime',
               'SERVICE_UNAVAILABLE',
             );
           }
 
-          const admission = options.deps.workmodeAdmissionGuard?.evaluateDispatchAdmission({
+          const admission = options.deps.workmodeAdmissionGuard.evaluateDispatchAdmission({
             sourceActor: authorityActorForClass(options.agentClass),
-            targetActor: targetAuthorityActorForDispatch(request.targetClass),
-            action: 'dispatch_agent',
+            targetActor: 'orchestration_agent',
+            action: 'dispatch_orchestrator',
             projectRunId: lifecycleContext.execution?.executionId,
             workmodeId: lifecycleContext.execution?.workmodeId,
           });
 
-          if (admission && !admission.allowed) {
+          if (!admission.allowed) {
             throw new NousError(
               admission.reasonCode,
               'DISPATCH_ADMISSION_DENIED',
               { evidenceRefs: admission.evidenceRefs },
             );
           }
+
+          const scopeGuard = options.deps.workmodeAdmissionGuard.evaluateScopeGuard?.({
+            sourceActor: authorityActorForClass(options.agentClass),
+            targetActor: 'orchestration_agent',
+            action: 'dispatch_orchestrator',
+            projectRunId: lifecycleContext.execution?.executionId,
+            workmodeId: lifecycleContext.execution?.workmodeId,
+            executionContext: lifecycleContext.execution
+              ? {
+                  workmodeId: lifecycleContext.execution.workmodeId,
+                  agentClass: options.agentClass,
+                  nodeDefinitionId: lifecycleContext.execution.nodeDefinitionId,
+                }
+              : undefined,
+          });
+
+          if (scopeGuard && !scopeGuard.allowed) {
+            throw new NousError(
+              scopeGuard.reasonCode,
+              'DISPATCH_ADMISSION_DENIED',
+              { evidenceRefs: scopeGuard.evidenceRefs },
+            );
+          }
+
+          const grantedTools = (request as { granted_tools?: string[] }).granted_tools;
+          validateGrantedTools(grantedTools, options.agentClass, toolSet);
+
+          const childBudget = buildChildBudget(options.deps, request);
+          const dispatched = await executeWithWitness({
+            context: handlerContext,
+            lifecycleContext,
+            actionRef: 'dispatch_orchestrator',
+            projectId: lifecycleContext.execution?.projectId,
+            detail: {
+              targetClass: 'Orchestrator',
+              childBudget,
+              dispatchIntent: request.dispatchIntent,
+              granted_tools: grantedTools,
+            },
+            operation: () =>
+              runtime.dispatchChild({
+                request: {
+                  targetClass: 'Orchestrator',
+                  taskInstructions: request.taskInstructions,
+                  dispatchIntent: request.dispatchIntent,
+                  granted_tools: grantedTools,
+                },
+                context: lifecycleContext,
+                budget: childBudget,
+              }),
+          });
+
+          return {
+            ...dispatched.value,
+            evidenceRefs: [
+              ...dispatched.value.evidenceRefs,
+              ...(dispatched.evidenceRef ? [dispatched.evidenceRef] : []),
+            ],
+          };
+        }
+      : undefined,
+    dispatchWorker: toolSet.has('dispatch_worker')
+      ? async (request: DispatchWorkerRequest, lifecycleContext) => {
+          const runtime = options.deps.dispatchRuntime;
+          if (!runtime) {
+            throw new NousError(
+              'dispatch_worker requires a dispatch runtime',
+              'SERVICE_UNAVAILABLE',
+            );
+          }
+
+          const admission = options.deps.workmodeAdmissionGuard.evaluateDispatchAdmission({
+            sourceActor: authorityActorForClass(options.agentClass),
+            targetActor: 'worker_agent',
+            action: 'dispatch_worker',
+            projectRunId: lifecycleContext.execution?.executionId,
+            workmodeId: lifecycleContext.execution?.workmodeId,
+          });
+
+          if (!admission.allowed) {
+            throw new NousError(
+              admission.reasonCode,
+              'DISPATCH_ADMISSION_DENIED',
+              { evidenceRefs: admission.evidenceRefs },
+            );
+          }
+
+          const scopeGuard = options.deps.workmodeAdmissionGuard.evaluateScopeGuard?.({
+            sourceActor: authorityActorForClass(options.agentClass),
+            targetActor: 'worker_agent',
+            action: 'dispatch_worker',
+            projectRunId: lifecycleContext.execution?.executionId,
+            workmodeId: lifecycleContext.execution?.workmodeId,
+            executionContext: lifecycleContext.execution
+              ? {
+                  workmodeId: lifecycleContext.execution.workmodeId,
+                  agentClass: options.agentClass,
+                  nodeDefinitionId: lifecycleContext.execution.nodeDefinitionId,
+                }
+              : undefined,
+          });
+
+          if (scopeGuard && !scopeGuard.allowed) {
+            throw new NousError(
+              scopeGuard.reasonCode,
+              'DISPATCH_ADMISSION_DENIED',
+              { evidenceRefs: scopeGuard.evidenceRefs },
+            );
+          }
+
+          const workerGrantedTools = (request as { granted_tools?: string[] }).granted_tools;
+          validateGrantedTools(workerGrantedTools, options.agentClass, toolSet);
 
           const targetNode = await resolveDispatchTargetNode({
             deps: options.deps,
@@ -425,15 +584,23 @@ export function createLifecycleHandlers(options: {
           const dispatched = await executeWithWitness({
             context: handlerContext,
             lifecycleContext,
-            actionRef: 'dispatch_agent',
+            actionRef: 'dispatch_worker',
             projectId: lifecycleContext.execution?.projectId,
             detail: {
-              targetClass: request.targetClass,
+              targetClass: 'Worker',
               childBudget,
+              nodeDefinitionId: request.nodeDefinitionId,
+              granted_tools: workerGrantedTools,
             },
             operation: () =>
               runtime.dispatchChild({
-                request,
+                request: {
+                  targetClass: 'Worker',
+                  taskInstructions: request.taskInstructions,
+                  payload: request.payload,
+                  nodeDefinitionId: request.nodeDefinitionId,
+                  granted_tools: workerGrantedTools,
+                },
                 context: lifecycleContext,
                 budget: childBudget,
               }),
@@ -529,7 +696,36 @@ export function createLifecycleHandlers(options: {
               severity: request.severity,
               reason: request.reason,
             },
-            operation: async () => undefined,
+            operation: async () => {
+              // Circuit-breaker: prevent re-escalation from escalation-originated tasks
+              if (lifecycleContext.execution?.escalationOrigin) {
+                return;
+              }
+
+              const escalationService = options.deps.escalationService;
+              if (!escalationService) {
+                options.deps.addHealthIssue?.('escalation_service_unavailable');
+                return;
+              }
+
+              const projectId = lifecycleContext.execution?.projectId;
+              if (!projectId) {
+                options.deps.addHealthIssue?.('escalation_bridge_no_project');
+                return;
+              }
+
+              const contract: EscalationContract = {
+                context: request.reason,
+                triggerReason: request.reason,
+                requiredAction: request.reason,
+                channel: 'in-app',
+                projectId: projectId as ProjectId,
+                priority: request.severity,
+                timestamp: (options.deps.now?.() ?? new Date().toISOString()),
+              };
+
+              await escalationService.notify(contract);
+            },
           });
         }
       : undefined,
@@ -543,7 +739,9 @@ export function createLifecycleHandlers(options: {
             detail: {
               observationType: observation.observationType,
             },
-            operation: async () => undefined,
+            operation: async () => {
+              options.deps.addHealthIssue?.(`observation_${observation.observationType}`);
+            },
           });
         }
       : undefined,
@@ -554,9 +752,15 @@ export function createInternalMcpSurfaceBundle(options: {
   agentClass: AgentClass;
   agentId: AgentGatewayConfig['agentId'];
   deps: InternalMcpRuntimeDeps;
+  lease?: import('@nous/shared').LeaseContract;
 }): InternalMcpSurfaceBundle {
   return {
-    toolSurface: createScopedMcpToolSurface(options),
+    toolSurface: createScopedMcpToolSurface({
+      agentClass: options.agentClass,
+      agentId: options.agentId,
+      deps: options.deps,
+      lease: options.lease,
+    }),
     lifecycleHooks: createLifecycleHandlers(options),
   };
 }

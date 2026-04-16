@@ -44,7 +44,8 @@ describe('AgentGateway turn loop', () => {
     expect(outbox.events.filter((event) => event.type === 'turn_ack')).toHaveLength(2);
 
     const secondInvoke = modelProvider.invoke.mock.calls[1][0];
-    const secondContext = secondInvoke.input.context as Array<{ content: string }>;
+    // Text adapter produces { prompt, context } format with GatewayContextFrame[]
+    const secondContext = secondInvoke.input.context as Array<{ role: string; content: string }>;
     expect(
       secondContext.some((frame) =>
         frame.content.includes('Supervisor updated the task constraints.'),

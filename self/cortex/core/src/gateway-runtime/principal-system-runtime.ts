@@ -1,23 +1,45 @@
-import { randomUUID } from 'node:crypto';
+import { createHash, randomUUID } from 'node:crypto';
 import type {
   AgentClass,
   AgentGatewayConfig,
+  AgentResult,
   GatewayBudget,
+  GatewayContextFrame,
   GatewayOutboxEvent,
   IAgentGateway,
+  ICheckpointManager,
   IDocumentStore,
+  IEventBus,
   IGatewayOutboxSink,
+  IRecoveryLedgerStore,
+  IRecoveryOrchestrator,
+  IRetryPolicyEvaluator,
+  IRollbackPolicyEvaluator,
   IngressDispatchOutcome,
   IngressTriggerEnvelope,
+  ProjectId,
+  RecoveryOrchestratorContext,
+  StmContext,
   ToolDefinition,
+  ILogChannel,
+  TraceEvidenceReference,
+  TraceId,
 } from '@nous/shared';
+import { GatewayContextFrameSchema } from '@nous/shared';
 import { AgentGatewayFactory, createInboxFrame } from '../agent-gateway/index.js';
+import { resolveAdapter, resolveProviderTypeFromConfig } from '../agent-gateway/adapters/index.js';
 import {
   createInternalMcpSurfaceBundle,
   getInternalMcpCatalogEntry,
   getVisibleInternalMcpTools,
 } from '../internal-mcp/index.js';
-import { ORCHESTRATOR_SYSTEM_PROMPT } from '../prompts/index.js';
+import { detectAndStripNarration, parseModelOutput } from '../output-parser.js';
+import { CARD_PROMPT_FRAGMENT } from './card-prompt-fragment.js';
+import { WORKFLOW_PROMPT_FRAGMENT } from './workflow-prompt-fragment.js';
+import { getOrchestratorPrompt } from '../prompts/index.js';
+import { resolvePromptConfig, composeSystemPromptFromConfig } from './prompt-strategy.js';
+import { RetryPolicyEvaluator } from '../recovery/retry-policy-evaluator.js';
+import { RollbackPolicyEvaluator } from '../recovery/rollback-policy-evaluator.js';
 import { WorkmodeAdmissionGuard } from '../workmode/admission-guard.js';
 import type { BacklogPriority, BacklogEntry } from './backlog-types.js';
 import { SystemBacklogQueue } from './backlog-queue.js';
@@ -29,6 +51,10 @@ import {
   type ISystemInboxSubmissionService,
 } from './system-inbox-tools.js';
 import type {
+  ChatTurnInput,
+  ChatTurnResult,
+  CheckpointVisibilityStatus,
+  EscalationAuditSummary,
   GatewaySubmissionSource,
   IPrincipalSystemGatewayRuntime,
   PrincipalSystemGatewayRuntimeDeps,
@@ -36,10 +62,17 @@ import type {
   SystemSubmissionReceipt,
   SystemTaskSubmission,
 } from './types.js';
+import { ChatTurnInputSchema } from './types.js';
 
 const DEFAULT_TOP_LEVEL_BUDGET: GatewayBudget = {
   maxTurns: 4,
   maxTokens: 1200,
+  timeoutMs: 120_000,
+};
+
+const DEFAULT_CHAT_TURN_BUDGET: GatewayBudget = {
+  maxTurns: 8,
+  maxTokens: 4096,
   timeoutMs: 120_000,
 };
 
@@ -49,34 +82,45 @@ const DEFAULT_CHILD_BUDGET: GatewayBudget = {
   timeoutMs: 60_000,
 };
 
-const DEFAULT_PRINCIPAL_PROMPT = [
-  'You are Cortex::Principal.',
-  'You are a long-lived conversational gateway.',
-  'You do not dispatch agents or complete workflow tasks.',
-  'Use the System inbox communication tools when work must be delegated.',
-].join('\n');
-
-const DEFAULT_SYSTEM_PROMPT = [
-  'You are Cortex::System.',
-  'You are the long-lived coordination gateway for scheduler, event, and escalation owned work.',
-  'Spawn downstream Orchestrator or Worker agents only through lifecycle tools.',
-  'Use inbox context and delegated child execution to preserve canonical runtime truth.',
-].join('\n');
-
-const DEFAULT_WORKER_PROMPT = [
-  'You are Worker.',
-  'You execute assigned work and return through task_complete when finished.',
-  'You cannot dispatch child agents.',
-].join('\n');
+// DEFAULT_PRINCIPAL_PROMPT, DEFAULT_SYSTEM_PROMPT, DEFAULT_WORKER_PROMPT
+// Superseded by prompt-strategy.ts (SP 1.1 — WR-124).
+// Use resolvePromptConfig() + composeSystemPromptFromConfig() instead.
 
 class HealthTrackingOutboxSink implements IGatewayOutboxSink {
   constructor(
     private readonly agentClass: 'Cortex::Principal' | 'Cortex::System',
     private readonly healthSink: GatewayRuntimeHealthSink,
+    private readonly eventBus?: IEventBus,
   ) {}
 
   async emit(event: GatewayOutboxEvent): Promise<void> {
     this.healthSink.recordGatewayEvent(this.agentClass, event);
+
+    if (this.eventBus) {
+      try {
+        if (event.type === 'turn_ack') {
+          this.eventBus.publish('system:turn-ack', {
+            agentClass: this.agentClass,
+            turn: event.turn,
+            runId: event.correlation.runId,
+            turnsUsed: event.usage.turnsUsed,
+            tokensUsed: event.usage.tokensUsed,
+            emittedAt: event.emittedAt,
+          });
+        } else if (event.type === 'observation') {
+          this.eventBus.publish('system:outbox-event', {
+            agentClass: this.agentClass,
+            type: 'observation',
+            observationType: event.observation.observationType,
+            content: event.observation.content,
+            runId: event.correlation.runId,
+            emittedAt: event.emittedAt,
+          });
+        }
+      } catch {
+        // Event bus publication is fire-and-forget; do not disrupt health sink recording
+      }
+    }
   }
 }
 
@@ -138,8 +182,8 @@ function createInMemoryDocumentStore(): IDocumentStore {
 
 export class PrincipalSystemGatewayRuntime
 implements IPrincipalSystemGatewayRuntime, ISystemInboxSubmissionService {
-  private readonly healthSink = new GatewayRuntimeHealthSink();
-  private readonly replicaProvider = new SystemContextReplicaProvider(this.healthSink);
+  private readonly healthSink: GatewayRuntimeHealthSink;
+  private readonly replicaProvider: SystemContextReplicaProvider;
   private readonly gatewayFactory: AgentGatewayFactory;
   private readonly workmodeAdmissionGuard: WorkmodeAdmissionGuard;
   private readonly idFactory: () => string;
@@ -151,13 +195,32 @@ implements IPrincipalSystemGatewayRuntime, ISystemInboxSubmissionService {
   private readonly systemTools: ToolDefinition[];
   private readonly systemBacklogQueue: SystemBacklogQueue;
 
+  // Recovery component slots (Phase 1.2 — WR-072)
+  private readonly checkpointManager?: ICheckpointManager;
+  private readonly recoveryLedgerStore?: IRecoveryLedgerStore;
+  private readonly recoveryOrchestrator?: IRecoveryOrchestrator;
+  private readonly retryPolicyEvaluator: IRetryPolicyEvaluator;
+  private readonly rollbackPolicyEvaluator: IRollbackPolicyEvaluator;
+  private readonly log: ILogChannel;
+
   constructor(private readonly deps: PrincipalSystemGatewayRuntimeDeps = {}) {
+    this.healthSink = new GatewayRuntimeHealthSink({ eventBus: deps.eventBus, notificationService: deps.notificationService });
+    this.replicaProvider = new SystemContextReplicaProvider(this.healthSink);
     this.gatewayFactory = (deps.agentGatewayFactory ?? new AgentGatewayFactory()) as AgentGatewayFactory;
     this.workmodeAdmissionGuard =
       (deps.workmodeAdmissionGuard ?? new WorkmodeAdmissionGuard()) as WorkmodeAdmissionGuard;
     this.idFactory = deps.idFactory ?? randomUUID;
     this.now = deps.now ?? (() => new Date().toISOString());
     this.nowMs = deps.nowMs ?? (() => Date.now());
+
+    // Recovery component wiring (Phase 1.2 — WR-072)
+    this.checkpointManager = deps.checkpointManager;
+    this.recoveryLedgerStore = deps.recoveryLedgerStore;
+    this.recoveryOrchestrator = deps.recoveryOrchestrator;
+    this.retryPolicyEvaluator = new RetryPolicyEvaluator();
+    this.rollbackPolicyEvaluator = new RollbackPolicyEvaluator();
+    this.log = deps.logger?.channel('nous:gateway-runtime') ?? { debug() {}, info() {}, warn() {}, error() {}, isEnabled() { return false; } };
+
     this.healthSink.completeBootStep('subcortex_initialized', this.now());
     this.healthSink.completeBootStep('internal_mcp_registered', this.now());
 
@@ -183,8 +246,9 @@ implements IPrincipalSystemGatewayRuntime, ISystemInboxSubmissionService {
         toolSurface: principalToolSurface,
         lifecycleHooks: principalBase.lifecycleHooks,
         baseSystemPrompt:
-          this.deps.principalBaseSystemPrompt ?? DEFAULT_PRINCIPAL_PROMPT,
-        outbox: new HealthTrackingOutboxSink('Cortex::Principal', this.healthSink),
+          this.deps.principalBaseSystemPrompt
+            ?? composeSystemPromptFromConfig(resolvePromptConfig('Cortex::Principal')),
+        outbox: new HealthTrackingOutboxSink('Cortex::Principal', this.healthSink, this.deps.eventBus),
       }),
     );
     this.healthSink.markGatewayBooted({
@@ -207,8 +271,9 @@ implements IPrincipalSystemGatewayRuntime, ISystemInboxSubmissionService {
         agentId: systemAgentId,
         toolSurface: systemBundle.toolSurface,
         lifecycleHooks: systemBundle.lifecycleHooks,
-        baseSystemPrompt: this.deps.systemBaseSystemPrompt ?? DEFAULT_SYSTEM_PROMPT,
-        outbox: new HealthTrackingOutboxSink('Cortex::System', this.healthSink),
+        baseSystemPrompt: this.deps.systemBaseSystemPrompt
+          ?? composeSystemPromptFromConfig(resolvePromptConfig('Cortex::System'), this.systemTools),
+        outbox: new HealthTrackingOutboxSink('Cortex::System', this.healthSink, this.deps.eventBus),
       }),
     );
     this.healthSink.markGatewayBooted({
@@ -225,12 +290,16 @@ implements IPrincipalSystemGatewayRuntime, ISystemInboxSubmissionService {
       createInboxFrame('Principal/System inbox exchange ready.', this.now),
     );
     this.healthSink.markInboxReady(this.now());
+    if (!this.deps.documentStore) {
+      this.log.warn('Using in-memory document store for backlog queue -- queued work will not survive restart');
+    }
     this.systemBacklogQueue = new SystemBacklogQueue({
       documentStore: this.deps.documentStore ?? createInMemoryDocumentStore(),
       healthSink: this.healthSink,
       now: this.now,
       config: this.deps.backlogConfig,
       executeEntry: async (entry) => this.executeSystemEntry(entry),
+      log: this.deps.logger?.channel('nous:backlog-queue'),
     });
   }
 
@@ -252,6 +321,14 @@ implements IPrincipalSystemGatewayRuntime, ISystemInboxSubmissionService {
 
   getSystemContextReplica() {
     return this.replicaProvider.getReplica();
+  }
+
+  getCheckpointStatus(): CheckpointVisibilityStatus {
+    return this.healthSink.getCheckpointStatus();
+  }
+
+  getEscalationAuditSummary(): EscalationAuditSummary {
+    return this.healthSink.getEscalationAuditSummary();
   }
 
   listPrincipalTools(): ToolDefinition[] {
@@ -334,14 +411,100 @@ implements IPrincipalSystemGatewayRuntime, ISystemInboxSubmissionService {
       outcome: 'accepted_dispatched',
       run_id: receipt.runId as never,
       dispatch_ref: receipt.dispatchRef,
-      workflow_ref: envelope.workflow_ref,
+      workflow_ref: envelope.workflow_ref ?? envelope.task_ref ?? '',
       policy_ref: `gateway-runtime:policy:${envelope.workmode_id}`,
       evidence_ref: `gateway-runtime:ingress:${envelope.trigger_id}`,
     };
   }
 
+  async handleChatTurn(input: ChatTurnInput): Promise<ChatTurnResult> {
+    const parsed = ChatTurnInputSchema.parse(input);
+    const { message, projectId, traceId } = parsed;
+
+    // Opctl gate check
+    if (projectId && this.deps.opctlService) {
+      try {
+        const controlState = await this.deps.opctlService.getProjectControlState(
+          projectId as ProjectId,
+        );
+        if (controlState === 'paused_review' || controlState === 'hard_stopped') {
+          return {
+            response: `[Project blocked by operator control (${controlState}).]`,
+            traceId,
+          };
+        }
+      } catch {
+        // Fail-open: opctl service error should not block chat
+        this.log.warn('handleChatTurn: opctl gate check failed, allowing execution');
+      }
+    }
+
+    // Load STM context
+    let contextFrames: GatewayContextFrame[] = [];
+    if (projectId && this.deps.stmStore) {
+      try {
+        const stmContext = await this.deps.stmStore.getContext(projectId as ProjectId);
+        contextFrames = this.buildChatContextFrames(stmContext);
+      } catch {
+        this.log.warn('handleChatTurn: STM context load failed, proceeding without history');
+      }
+    } else if (projectId && !this.deps.stmStore) {
+      this.log.warn('handleChatTurn: stmStore not available, proceeding without conversation history');
+    }
+
+    // Run Principal gateway
+    const result = await this.principalGateway.run({
+      taskInstructions: `Handle the current user chat turn. Respond conversationally.\n\n${WORKFLOW_PROMPT_FRAGMENT}\n\n${CARD_PROMPT_FRAGMENT}`,
+      payload: { message },
+      context: contextFrames,
+      budget: DEFAULT_CHAT_TURN_BUDGET,
+      spawnBudgetCeiling: 0,
+      correlation: {
+        runId: this.nextRunId() as never,
+        parentId: this.principalGateway.agentId,
+        sequence: 0,
+      },
+      execution: {
+        projectId: projectId as never,
+        traceId: traceId as never,
+        workmodeId: 'system:implementation',
+      },
+      modelRequirements: this.deps.defaultModelRequirements,
+    });
+
+    // Resolve response
+    const resolved = this.resolveChatResponse(result);
+
+    // Normalize — strip chain-of-thought narration if detected
+    const normalized = detectAndStripNarration(resolved.response);
+    if (normalized.wasNarrated) {
+      this.log.debug('handleChatTurn: narration detected and stripped');
+    }
+    const responseText = normalized.cleaned;
+
+    // Finalize STM
+    await this.finalizeChatStmTurn(
+      projectId,
+      message,
+      responseText,
+      traceId,
+      result.evidenceRefs,
+      resolved.contentType,
+    );
+
+    return {
+      response: responseText,
+      traceId,
+      contentType: resolved.contentType,
+    };
+  }
+
   async whenIdle(): Promise<void> {
     await this.systemBacklogQueue.whenIdle();
+  }
+
+  async listBacklogEntries(filter?: { status?: import('./backlog-types.js').BacklogEntryStatus }): Promise<BacklogEntry[]> {
+    return this.systemBacklogQueue.listEntries(filter);
   }
 
   async notifyLeaseReleased(event: { laneKey: string; leaseId?: string }): Promise<void> {
@@ -382,7 +545,150 @@ implements IPrincipalSystemGatewayRuntime, ISystemInboxSubmissionService {
     };
   }
 
-  private async executeSystemEntry(entry: BacklogEntry) {
+  /** Build a synthetic AgentResult for pre-execution gate blocks or recovery terminal states. */
+  private buildSyntheticResult(
+    entry: BacklogEntry,
+    status: 'suspended' | 'escalated' | 'error',
+    reason: string,
+  ): AgentResult {
+    return {
+      status,
+      reason,
+      correlation: {
+        runId: entry.runId as never,
+        parentId: this.systemGateway.agentId,
+        sequence: 0,
+      },
+      usage: { turnsUsed: 0, tokensUsed: 0, elapsedMs: 0, spawnUnitsUsed: 0 },
+      evidenceRefs: [],
+      ...(status === 'suspended' ? { resumeWhen: 'lease_release' as const } : {}),
+      ...(status === 'escalated' ? { severity: 'high' as never, detail: {} } : {}),
+      ...(status === 'error' ? { detail: {} } : {}),
+    } as unknown as AgentResult;
+  }
+
+  private async executeSystemEntry(entry: BacklogEntry): Promise<AgentResult> {
+    // Phase 1.2 — Opctl gate: block principal_tool-sourced entries when project is paused/stopped
+    if (entry.source === 'principal_tool' && entry.projectId && this.deps.opctlService) {
+      try {
+        const controlState = await this.deps.opctlService.getProjectControlState(
+          entry.projectId as never,
+        );
+        if (controlState === 'paused_review' || controlState === 'hard_stopped') {
+          this.healthSink.addIssue('opctl_gate_blocked', 'Cortex::System');
+          return this.buildSyntheticResult(entry, 'error', `opctl_gate_blocked:${controlState}`);
+        }
+      } catch {
+        // Fail-open: opctl service error should not block execution
+        this.log.warn('opctl gate check failed, allowing execution');
+      }
+    }
+    // scheduler, system_event, hook sources bypass the gate entirely
+
+    // Phase 1.2 — Checkpoint capture: prepare before execution
+    let preparedCheckpointId: string | undefined;
+    if (this.checkpointManager && entry.projectId) {
+      try {
+        const stateHash = createHash('sha256')
+          .update(JSON.stringify(entry.payload))
+          .digest('hex');
+        const prepareResult = await this.checkpointManager.prepare(
+          entry.runId,
+          entry.projectId,
+          {
+            domain_scope: 'step_domain',
+            state_vector_hash: stateHash,
+            policy_epoch: this.now(),
+            scheduler_cursor: entry.id,
+            tool_side_effect_journal_hwm: 0,
+            memory_write_journal_hwm: 0,
+            idempotency_key_set_hash: createHash('sha256')
+              .update(entry.runId)
+              .digest('hex'),
+          },
+        );
+        if (prepareResult.success && prepareResult.checkpoint_id) {
+          preparedCheckpointId = prepareResult.checkpoint_id;
+          this.healthSink.recordCheckpointPrepared(preparedCheckpointId, this.now());
+        }
+      } catch {
+        // Checkpoint capture is advisory for V1 — proceed without checkpoint
+        this.log.warn('checkpoint prepare failed, proceeding without checkpoint');
+      }
+    }
+
+    // Execute the system entry
+    const result = await this.executeSystemEntryInner(entry);
+
+    // Phase 1.2 — Checkpoint capture: commit after successful execution
+    if (preparedCheckpointId && this.checkpointManager && result.status !== 'error') {
+      try {
+        const commitResult = await this.checkpointManager.commit(
+          entry.runId,
+          preparedCheckpointId,
+          `witness:${entry.runId}`,
+        );
+        if (commitResult.success) {
+          this.healthSink.recordCheckpointCommitted(preparedCheckpointId, this.now());
+        }
+      } catch {
+        // Commit failure: checkpoint remains prepared-only
+        this.log.warn('checkpoint commit failed');
+      }
+    }
+
+    // Phase 1.2 — Recovery invocation on system entry error
+    if (
+      result.status === 'error' &&
+      this.recoveryOrchestrator &&
+      this.checkpointManager &&
+      this.recoveryLedgerStore
+    ) {
+      try {
+        const recoveryContext: RecoveryOrchestratorContext = {
+          run_id: entry.runId,
+          project_id: entry.projectId ?? 'unknown',
+          failure_class: 'retryable_transient',
+          ledger_store: this.recoveryLedgerStore,
+          checkpoint_manager: this.checkpointManager,
+          retry_evaluator: this.retryPolicyEvaluator,
+          rollback_evaluator: this.rollbackPolicyEvaluator,
+        };
+
+        const terminalState = await this.recoveryOrchestrator.run(recoveryContext);
+
+        switch (terminalState) {
+          case 'recovery_completed':
+            // Single retry — prevents infinite recursion
+            return this.executeSystemEntryInner(entry);
+
+          case 'recovery_failed_hard_stop':
+            this.healthSink.recordEscalation('critical', this.now());
+            return result;
+
+          case 'recovery_blocked_review_required':
+            this.healthSink.recordEscalation('high', this.now());
+            await this.principalGateway.getInboxHandle().injectContext(
+              createInboxFrame(
+                `Recovery blocked — review required for run ${entry.runId}`,
+                this.now,
+              ),
+            );
+            this.healthSink.recordEscalationRoutedToPrincipal(this.now());
+            return this.buildSyntheticResult(entry, 'escalated', 'recovery_blocked_review_required');
+        }
+      } catch {
+        // Recovery failure must not mask the original error
+        this.log.warn('recovery orchestrator failed, propagating original error');
+        return result;
+      }
+    }
+
+    return result;
+  }
+
+  /** Core system entry execution — inbox injection, gateway.run, escalation routing. */
+  private async executeSystemEntryInner(entry: BacklogEntry) {
     const traceId = this.nextRunId();
     const inboxFrame = entry.payload.inboxFrame as ReturnType<typeof createInboxFrame> | undefined;
     if (inboxFrame) {
@@ -422,6 +728,124 @@ implements IPrincipalSystemGatewayRuntime, ISystemInboxSubmissionService {
     return result;
   }
 
+  private resolveChatResponse(result: AgentResult): { response: string; contentType: 'text' | 'openui' } {
+    if (result.status === 'completed') {
+      const output = result.output as { response?: unknown; output?: unknown; contentType?: unknown } | string;
+
+      // 1. Direct string — use as-is
+      if (typeof output === 'string') return { response: output, contentType: 'text' };
+
+      // 2. { response: string } — extract .response
+      if (typeof output?.response === 'string') {
+        const ct = output.contentType === 'openui' ? 'openui' as const : 'text' as const;
+        return { response: output.response, contentType: ct };
+      }
+
+      // 3. Recursive one-level unwrap: { output: { response: string } }
+      if (
+        output &&
+        typeof output === 'object' &&
+        typeof (output as { output?: { response?: unknown } }).output === 'object' &&
+        (output as { output?: { response?: unknown } }).output !== null &&
+        typeof ((output as { output: { response?: unknown } }).output).response === 'string'
+      ) {
+        return {
+          response: ((output as { output: { response: string } }).output).response,
+          contentType: 'text',
+        };
+      }
+
+      // 4. Single-string-key extraction: object with exactly one key whose value is a string
+      if (output && typeof output === 'object') {
+        const keys = Object.keys(output as object);
+        if (keys.length === 1) {
+          const value = (output as Record<string, unknown>)[keys[0]];
+          if (typeof value === 'string') {
+            return { response: value, contentType: 'text' };
+          }
+        }
+      }
+
+      // 5. Fallback — pretty-printed JSON wrapped in code block
+      return {
+        response: '```json\n' + JSON.stringify(output, null, 2) + '\n```',
+        contentType: 'text',
+      };
+    }
+    if (result.status === 'escalated') return { response: `[escalated: ${result.reason}]`, contentType: 'text' };
+    if (result.status === 'budget_exhausted') return { response: '[budget exhausted]', contentType: 'text' };
+    if (result.status === 'aborted') return { response: `[aborted: ${result.reason}]`, contentType: 'text' };
+    if (result.status === 'suspended') return { response: `[suspended: ${result.reason}]`, contentType: 'text' };
+    return { response: `[error: ${result.reason}]`, contentType: 'text' };
+  }
+
+  private buildChatContextFrames(stmContext: StmContext): GatewayContextFrame[] {
+    const frames: GatewayContextFrame[] = [];
+    if (stmContext.summary) {
+      frames.push(GatewayContextFrameSchema.parse({
+        role: 'system',
+        source: 'initial_context',
+        content: `Summary: ${stmContext.summary}`,
+        createdAt: this.now(),
+      }));
+    }
+    for (const entry of stmContext.entries ?? []) {
+      frames.push(GatewayContextFrameSchema.parse({
+        role: entry.role,
+        source: 'initial_context',
+        content: entry.content,
+        createdAt: entry.timestamp,
+      }));
+    }
+    return frames;
+  }
+
+  private async finalizeChatStmTurn(
+    projectId: string | undefined,
+    userMessage: string,
+    assistantResponse: string,
+    traceId: string,
+    evidenceRefs: TraceEvidenceReference[],
+    contentType?: 'text' | 'openui',
+  ): Promise<void> {
+    if (!projectId || !this.deps.stmStore) return;
+
+    const timestamp = this.now();
+    try {
+      await this.deps.stmStore.append(projectId as ProjectId, {
+        role: 'user',
+        content: userMessage,
+        timestamp,
+      });
+      const entry: { role: 'assistant'; content: string; timestamp: string; metadata?: Record<string, unknown> } = {
+        role: 'assistant',
+        content: assistantResponse,
+        timestamp,
+      };
+      if (contentType && contentType !== 'text') {
+        entry.metadata = { contentType };
+      }
+      await this.deps.stmStore.append(projectId as ProjectId, entry);
+
+      const stmContext = await this.deps.stmStore.getContext(projectId as ProjectId);
+      if (!stmContext.compactionState?.requiresCompaction) return;
+
+      if (this.deps.mwcPipeline) {
+        await this.deps.mwcPipeline.mutate({
+          action: 'compact-stm',
+          actor: 'pfc',
+          projectId: projectId as ProjectId,
+          reason: 'Automatic STM compaction due to token threshold',
+          traceId: traceId as TraceId,
+          evidenceRefs,
+        });
+      }
+    } catch {
+      // Preserve chat-path availability even if STM finalization fails.
+      this.log.warn('handleChatTurn: STM finalization failed, chat response preserved');
+    }
+  }
+
   private createGatewayConfig(args: {
     agentClass: AgentClass;
     agentId: string;
@@ -430,7 +854,15 @@ implements IPrincipalSystemGatewayRuntime, ISystemInboxSubmissionService {
     baseSystemPrompt: string;
     outbox?: IGatewayOutboxSink;
   }): AgentGatewayConfig {
-    const provider = this.deps.modelProviderByClass?.[args.agentClass];
+    const rawProvider = this.deps.modelProviderByClass?.[args.agentClass];
+    // Wrap provider to transform gateway input ({ systemPrompt, context, tools })
+    // into the provider-expected format ({ messages }) before validation.
+    // For Principal: also synthesize task_complete since Principal has no task_complete
+    // tool (read-only agent) but the gateway loop requires it to exit.
+    const synthesize = args.agentClass === 'Cortex::Principal';
+    const provider = rawProvider
+      ? this.wrapProviderWithInputTransform(rawProvider, { synthesizeTaskComplete: synthesize })
+      : undefined;
     return {
       agentClass: args.agentClass,
       agentId: args.agentId as AgentGatewayConfig['agentId'],
@@ -441,11 +873,77 @@ implements IPrincipalSystemGatewayRuntime, ISystemInboxSubmissionService {
       defaultModelRequirements: this.deps.defaultModelRequirements,
       witnessService: this.deps.witnessService,
       modelProvider: provider,
-      modelRouter: provider ? undefined : this.deps.modelRouter,
-      getProvider: provider ? undefined : this.deps.getProvider,
+      modelRouter: rawProvider ? undefined : this.deps.modelRouter,
+      getProvider: rawProvider ? undefined : this.deps.getProvider
+        ? (providerId: string) => {
+            const p = this.deps.getProvider!(providerId);
+            return p ? this.wrapProviderWithInputTransform(p, { synthesizeTaskComplete: synthesize }) : null;
+          }
+        : undefined,
       now: this.now,
       nowMs: this.nowMs,
       idFactory: this.idFactory,
+      log: this.deps.logger?.channel('nous:gateway'),
+    };
+  }
+
+  private wrapProviderWithInputTransform(
+    provider: import('@nous/shared').IModelProvider,
+    options?: { synthesizeTaskComplete?: boolean },
+  ): import('@nous/shared').IModelProvider {
+    const providerType = resolveProviderTypeFromConfig(provider);
+    const adapter = resolveAdapter(providerType);
+
+    return {
+      ...provider,
+      invoke: async (request) => {
+        const transformedInput = (() => {
+          const input = request.input;
+          if (typeof input !== 'object' || input === null) return input;
+          if ('messages' in input || 'prompt' in input) return input;
+          const rec = input as Record<string, unknown>;
+          if (typeof rec.systemPrompt !== 'string' || !Array.isArray(rec.context)) return input;
+          const result = adapter.formatRequest({
+            systemPrompt: rec.systemPrompt as string,
+            context: rec.context as import('@nous/shared').GatewayContextFrame[],
+            toolDefinitions: Array.isArray(rec.tools) ? rec.tools as import('@nous/shared').ToolDefinition[] : undefined,
+          });
+          return result.input;
+        })();
+        const response = await provider.invoke({
+          ...request,
+          input: transformedInput,
+        });
+
+        if (!options?.synthesizeTaskComplete) return response;
+
+        // Synthesize task_complete for agents that produce text responses
+        // without calling task_complete (e.g. Principal is read-only and
+        // has no task_complete tool). Without this, the gateway loop spins
+        // until budget exhaustion.
+        const parsed = parseModelOutput(response.output, response.traceId);
+        if (parsed.toolCalls.some((tc: { name: string }) => tc.name === 'task_complete')) {
+          return response;
+        }
+        const finalResponse = parsed.response.trim() || String(response.output ?? '');
+        return {
+          ...response,
+          output: JSON.stringify({
+            response: '',
+            toolCalls: [
+              {
+                name: 'task_complete',
+                params: {
+                  output: { response: finalResponse, contentType: parsed.contentType },
+                  summary: 'chat turn completed',
+                },
+              },
+            ],
+            memoryCandidates: [],
+          }),
+        };
+      },
+      stream: provider.stream.bind(provider),
     };
   }
 
@@ -463,9 +961,13 @@ implements IPrincipalSystemGatewayRuntime, ISystemInboxSubmissionService {
       opctlService: this.deps.opctlService,
       runtime: this.deps.runtime,
       appRuntimeService: this.deps.appRuntimeService,
+      credentialVaultService: this.deps.credentialVaultService,
+      credentialInjector: this.deps.credentialInjector,
+      appCredentialInstallService: this.deps.appCredentialInstallService,
       instanceRoot: this.deps.instanceRoot,
       outputSchemaValidator: this.deps.outputSchemaValidator,
       workmodeAdmissionGuard: this.workmodeAdmissionGuard,
+      addHealthIssue: (code: string) => this.healthSink.addIssue(code),
       dispatchRuntime: {
         dispatchChild: async (dispatchArgs: {
           request: {
@@ -473,6 +975,7 @@ implements IPrincipalSystemGatewayRuntime, ISystemInboxSubmissionService {
             taskInstructions: string;
             payload?: unknown;
             nodeDefinitionId?: string;
+            dispatchIntent?: import('@nous/shared').DispatchIntent;
           };
           context: {
             agentId: string;
@@ -483,12 +986,13 @@ implements IPrincipalSystemGatewayRuntime, ISystemInboxSubmissionService {
           };
           budget: GatewayBudget;
         }) => {
-          const child = this.createChildGateway(dispatchArgs.request.targetClass);
+          const child = this.createChildGateway(dispatchArgs.request.targetClass, dispatchArgs.request.dispatchIntent);
           const childRunId = this.nextRunId();
           const childTraceId = this.nextRunId();
           return child.run({
             taskInstructions: dispatchArgs.request.taskInstructions,
             payload: dispatchArgs.request.payload,
+            dispatchIntent: dispatchArgs.request.dispatchIntent,
             context: [],
             budget: dispatchArgs.budget ?? DEFAULT_CHILD_BUDGET,
             spawnBudgetCeiling:
@@ -522,7 +1026,10 @@ implements IPrincipalSystemGatewayRuntime, ISystemInboxSubmissionService {
     };
   }
 
-  private createChildGateway(targetClass: 'Orchestrator' | 'Worker'): IAgentGateway {
+  private createChildGateway(
+    targetClass: 'Orchestrator' | 'Worker',
+    dispatchIntent?: import('@nous/shared').DispatchIntent,
+  ): IAgentGateway {
     const childAgentId = this.nextGatewayId();
     const bundle = createInternalMcpSurfaceBundle({
       agentClass: targetClass,
@@ -530,16 +1037,25 @@ implements IPrincipalSystemGatewayRuntime, ISystemInboxSubmissionService {
       deps: this.createInternalMcpDeps(),
     });
 
+    let baseSystemPrompt: string;
+    if (targetClass === 'Worker') {
+      const workerToolDefs = this.catalogDefinitions('Worker');
+      baseSystemPrompt = this.deps.workerBaseSystemPrompt
+        ?? composeSystemPromptFromConfig(resolvePromptConfig('Worker'), workerToolDefs);
+    } else if (this.deps.orchestratorBaseSystemPrompt) {
+      // Dep-injected override takes precedence over intent-based selection.
+      baseSystemPrompt = this.deps.orchestratorBaseSystemPrompt;
+    } else {
+      baseSystemPrompt = getOrchestratorPrompt(dispatchIntent);
+    }
+
     return this.gatewayFactory.create(
       this.createGatewayConfig({
         agentClass: targetClass,
         agentId: childAgentId,
         toolSurface: bundle.toolSurface,
         lifecycleHooks: bundle.lifecycleHooks,
-        baseSystemPrompt:
-          targetClass === 'Orchestrator'
-            ? this.deps.orchestratorBaseSystemPrompt ?? ORCHESTRATOR_SYSTEM_PROMPT
-            : this.deps.workerBaseSystemPrompt ?? DEFAULT_WORKER_PROMPT,
+        baseSystemPrompt,
       }),
     );
   }
@@ -571,6 +1087,36 @@ implements IPrincipalSystemGatewayRuntime, ISystemInboxSubmissionService {
       default:
         return 'normal';
     }
+  }
+
+  /**
+   * WR-138 stub: this legacy runtime class has zero production callers and
+   * is queued for deletion in a separate cleanup WR (see sub-phase 1.1
+   * Out-of-Scope #2). The stub exists solely to satisfy the
+   * `IPrincipalSystemGatewayRuntime` interface contract — this class never
+   * runs in production, so the method body is a no-op. When the cleanup WR
+   * deletes this file, this stub is deleted with it. Do NOT adopt this
+   * class into production without re-reading
+   * `.architecture/.decisions/2026-04-08-provider-type-plumbing/cortex-provider-attach-lifecycle-v1.md`.
+   */
+  // eslint-disable-next-line @typescript-eslint/no-unused-vars
+  attachProviders(_args: {
+    providerVendorByClass: Partial<Record<AgentClass, import('@nous/shared').ProviderVendor>>;
+  }): void {
+    // no-op: legacy class, not wired into production
+  }
+
+  /**
+   * WR-148 stub: runtime harness recomposition. No-op in this legacy runtime
+   * class — exists solely to satisfy the IPrincipalSystemGatewayRuntime
+   * interface contract.
+   */
+  // eslint-disable-next-line @typescript-eslint/no-unused-vars
+  recomposeHarnessForClass(
+    _agentClass: 'Cortex::Principal' | 'Cortex::System',
+    _vendorString: import('@nous/shared').ProviderVendor,
+  ): void {
+    // no-op: legacy class, not wired into production
   }
 }
 

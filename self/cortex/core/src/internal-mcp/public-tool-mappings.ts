@@ -160,7 +160,7 @@ export function resolvePublicMcpRequiredScopes(
         };
       }).memory;
       const readScopes: PublicMcpScope[] = Array.isArray(memory?.readTiers)
-        ? memory.readTiers.flatMap((tier) =>
+        ? memory!.readTiers.flatMap((tier) =>
             tier === 'ltm'
               ? ['ortho.memory.ltm.read']
               : tier === 'stm'
@@ -169,7 +169,7 @@ export function resolvePublicMcpRequiredScopes(
           )
         : [];
       const writeScopes: PublicMcpScope[] = Array.isArray(memory?.writeTiers)
-        ? memory.writeTiers.flatMap((tier) =>
+        ? memory!.writeTiers.flatMap((tier) =>
             tier === 'ltm'
               ? ['ortho.memory.ltm.write']
               : tier === 'stm'

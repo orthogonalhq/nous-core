@@ -1,0 +1,200 @@
+/**
+ * @nous/ui — Shared motion primitives
+ *
+ * Keyframes and opt-in utility classes for shell motion patterns.
+ */
+
+@keyframes nous-pulse {
+  0%,
+  100% {
+    opacity: 0.72;
+    transform: scale(1);
+  }
+
+  50% {
+    opacity: 1;
+    transform: scale(var(--nous-scale-lift));
+  }
+}
+
+@keyframes nous-shake {
+  0%,
+  100% {
+    transform: translateX(0);
+  }
+
+  25% {
+    transform: translateX(calc(var(--nous-shake-distance) * -1));
+  }
+
+  75% {
+    transform: translateX(var(--nous-shake-distance));
+  }
+}
+
+@keyframes nous-flash-success {
+  0% {
+    box-shadow: 0 0 0 0 var(--nous-alert-success);
+  }
+
+  35% {
+    box-shadow: 0 0 0 1px var(--nous-alert-success);
+  }
+
+  100% {
+    box-shadow: 0 0 0 0 transparent;
+  }
+}
+
+@keyframes nous-flash-error {
+  0% {
+    box-shadow: 0 0 0 0 var(--nous-alert-error);
+  }
+
+  35% {
+    box-shadow: 0 0 0 1px var(--nous-alert-error);
+  }
+
+  100% {
+    box-shadow: 0 0 0 0 transparent;
+  }
+}
+
+@keyframes nous-slide-in-right {
+  from {
+    opacity: 0;
+    transform: translateX(var(--nous-space-md));
+  }
+
+  to {
+    opacity: 1;
+    transform: translateX(0);
+  }
+}
+
+@keyframes nous-fade-in-scale {
+  from {
+    opacity: 0;
+    transform: scale(0.95) translateY(calc(var(--nous-space-md) * -1));
+  }
+
+  to {
+    opacity: 1;
+    transform: scale(1) translateY(0);
+  }
+}
+
+@keyframes nous-fade-in-up {
+  from {
+    opacity: 0;
+    transform: translateY(var(--nous-space-sm));
+  }
+
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+.nous-animate-pulse {
+  animation:
+    nous-pulse
+    var(--nous-duration-ambient)
+    var(--nous-ease-in-out)
+    infinite;
+}
+
+.nous-animate-shake {
+  animation:
+    nous-shake
+    var(--nous-duration-normal)
+    var(--nous-ease-in-out);
+}
+
+.nous-animate-flash-success {
+  animation:
+    nous-flash-success
+    var(--nous-duration-slow)
+    var(--nous-ease-out);
+}
+
+.nous-animate-flash-error {
+  animation:
+    nous-flash-error
+    var(--nous-duration-normal)
+    var(--nous-ease-out);
+}
+
+.nous-animate-slide-in-right {
+  animation:
+    nous-slide-in-right
+    var(--nous-duration-normal)
+    var(--nous-ease-out);
+}
+
+.nous-animate-fade-in-up {
+  animation:
+    nous-fade-in-up
+    var(--nous-duration-normal)
+    var(--nous-ease-out);
+}
+
+.nous-animate-fade-in-scale {
+  animation:
+    nous-fade-in-scale
+    var(--nous-duration-normal)
+    var(--nous-ease-out);
+}
+
+/* State-based motion pulse — subtle for running/resuming agents */
+@keyframes nous-state-pulse-subtle {
+  0%,
+  100% {
+    opacity: 1;
+    transform: scale(1);
+  }
+
+  50% {
+    opacity: 0.85;
+    transform: scale(1.01);
+  }
+}
+
+/* State-based motion pulse — strong for blocked/waiting_pfc/failed agents */
+@keyframes nous-state-pulse-strong {
+  0%,
+  100% {
+    opacity: 1;
+    transform: scale(1);
+  }
+
+  50% {
+    opacity: 0.7;
+    transform: scale(1.03);
+  }
+}
+
+.nous-state-pulse-subtle {
+  animation: nous-state-pulse-subtle 2s ease-in-out infinite;
+  will-change: transform, opacity;
+}
+
+.nous-state-pulse-strong {
+  animation: nous-state-pulse-strong 1.2s ease-in-out infinite;
+  will-change: transform, opacity;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .nous-animate-pulse,
+  .nous-animate-shake,
+  .nous-animate-flash-success,
+  .nous-animate-flash-error,
+  .nous-animate-slide-in-right,
+  .nous-animate-fade-in-up,
+  .nous-animate-fade-in-scale,
+  .nous-state-pulse-subtle,
+  .nous-state-pulse-strong {
+    animation: none !important;
+    transition-duration: 0s !important;
+  }
+}

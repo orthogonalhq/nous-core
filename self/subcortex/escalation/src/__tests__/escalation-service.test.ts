@@ -1,5 +1,5 @@
-import { describe, expect, it } from 'vitest';
-import type { IProjectStore } from '@nous/shared';
+import { describe, expect, it, vi } from 'vitest';
+import type { INotificationService, IProjectStore } from '@nous/shared';
 import { DocumentEscalationStore } from '../document-escalation-store.js';
 import { EscalationService } from '../escalation-service.js';
 
@@ -157,6 +157,92 @@ describe('EscalationService', () => {
     const response = await service.checkResponse(escalationId);
     expect(response?.action).toBe('acknowledged');
     expect(response?.channel).toBe('in-app');
+  });
+
+  it('calls notificationService.raise() with kind escalation after store write (dual-write)', async () => {
+    const escalationStore = new DocumentEscalationStore(createMemoryDocumentStore() as any);
+    const mockRaise = vi.fn().mockResolvedValue({ id: 'notif-1' });
+    const notificationService = { raise: mockRaise } as unknown as INotificationService;
+    const service = new EscalationService({
+      escalationStore,
+      projectStore: createProjectStore(),
+      now: () => new Date('2026-03-09T00:00:00.000Z'),
+      notificationService,
+    });
+
+    const escalationId = await service.notify({
+      context: 'Workflow blocked',
+      triggerReason: 'review_required',
+      requiredAction: 'Review and resume',
+      channel: 'in-app',
+      projectId: PROJECT_ID as any,
+      priority: 'critical',
+      timestamp: '2026-03-09T00:00:00.000Z',
+    });
+
+    expect(escalationId).toBeTruthy();
+    expect(mockRaise).toHaveBeenCalledWith(
+      expect.objectContaining({
+        kind: 'escalation',
+        projectId: PROJECT_ID,
+        title: 'Review and resume',
+        transient: false,
+        source: 'escalation-service:system',
+        escalation: expect.objectContaining({
+          escalationId,
+          severity: 'critical',
+          source: 'system',
+          status: 'visible',
+        }),
+      }),
+    );
+  });
+
+  it('notify() succeeds even when notificationService.raise() throws (fire-and-forget)', async () => {
+    const escalationStore = new DocumentEscalationStore(createMemoryDocumentStore() as any);
+    const mockRaise = vi.fn().mockRejectedValue(new Error('Notification store failure'));
+    const notificationService = { raise: mockRaise } as unknown as INotificationService;
+    const service = new EscalationService({
+      escalationStore,
+      projectStore: createProjectStore(),
+      now: () => new Date('2026-03-09T00:00:00.000Z'),
+      notificationService,
+    });
+
+    const escalationId = await service.notify({
+      context: 'Workflow blocked',
+      triggerReason: 'review_required',
+      requiredAction: 'Review and resume',
+      channel: 'in-app',
+      projectId: PROJECT_ID as any,
+      priority: 'high',
+      timestamp: '2026-03-09T00:00:00.000Z',
+    });
+
+    expect(escalationId).toBeTruthy();
+    const record = await service.get(escalationId);
+    expect(record).not.toBeNull();
+  });
+
+  it('notify() works without notificationService (optional, no crash)', async () => {
+    const escalationStore = new DocumentEscalationStore(createMemoryDocumentStore() as any);
+    const service = new EscalationService({
+      escalationStore,
+      projectStore: createProjectStore(),
+      now: () => new Date('2026-03-09T00:00:00.000Z'),
+    });
+
+    const escalationId = await service.notify({
+      context: 'Workflow blocked',
+      triggerReason: 'review_required',
+      requiredAction: 'Review and resume',
+      channel: 'in-app',
+      projectId: PROJECT_ID as any,
+      priority: 'high',
+      timestamp: '2026-03-09T00:00:00.000Z',
+    });
+
+    expect(escalationId).toBeTruthy();
   });
 
   it('records communication-gateway acknowledgements on the canonical escalation record', async () => {

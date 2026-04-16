@@ -7,13 +7,16 @@
  */
 import type {
   AuthorityActor,
+  IDocumentStore,
   IProjectStore,
+  ITaskStore,
   IWorkflowEngine,
   IngressDispatchOutcome,
   IngressIdempotencyClaimResult,
   IngressTriggerEnvelope,
   ProjectId,
   ProjectControlState,
+  TaskExecutionRecord,
   WorkflowDefinitionId,
   WorkflowRunTriggerContext,
 } from '@nous/shared';
@@ -22,12 +25,22 @@ import type {
   IIngressIdempotencyStore,
   IOpctlService,
 } from '@nous/shared';
+import type {
+  SystemSubmissionReceipt,
+  SystemTaskSubmission,
+} from '../gateway-runtime/types.js';
+import { randomUUID } from 'node:crypto';
+
+const TASK_EXECUTIONS_COLLECTION = 'task_executions';
 
 export interface IngressDispatchAdmissionOptions {
   opctl: IOpctlService | null;
   idempotencyStore: IIngressIdempotencyStore;
   projectStore: IProjectStore;
+  taskStore?: ITaskStore;
   workflowEngine: IWorkflowEngine;
+  documentStore?: IDocumentStore;
+  submitTaskToSystem?: (input: SystemTaskSubmission) => Promise<SystemSubmissionReceipt>;
   sourceActor?: AuthorityActor;
 }
 
@@ -64,7 +77,7 @@ export class IngressDispatchAdmission implements IIngressDispatchAdmission {
       triggerId: envelope.trigger_id,
       triggerType: envelope.trigger_type,
       sourceId: envelope.source_id,
-      workflowRef: envelope.workflow_ref,
+      workflowRef: envelope.workflow_ref ?? envelope.task_ref ?? '',
       workmodeId: envelope.workmode_id,
       idempotencyKey: envelope.idempotency_key,
       dispatchRef,
@@ -136,6 +149,90 @@ export class IngressDispatchAdmission implements IIngressDispatchAdmission {
     const dispatchRef = `dispatch:${runId}`;
     const evidenceRef = `evidence:${envelope.trigger_id}:${runId}`;
 
+    // Task-ref routing: dispatch to submitTaskToSystem instead of workflow engine
+    if (envelope.task_ref) {
+      if (!this.options.submitTaskToSystem || !this.options.documentStore) {
+        return this.rejectAndRelease(
+          envelope,
+          idempotencyResult,
+          'workflow_admission_blocked',
+          'task_dispatch_unavailable',
+          ['submitTaskToSystem or documentStore not configured for task dispatch'],
+        );
+      }
+
+      const taskDef = this.options.taskStore
+        ? await this.options.taskStore.get(envelope.project_id, envelope.task_ref)
+        : null;
+      if (!taskDef) {
+        return this.rejectAndRelease(
+          envelope,
+          idempotencyResult,
+          'workflow_admission_blocked',
+          'task_definition_not_found',
+          [`task_ref=${envelope.task_ref} not found in project ${envelope.project_id}`],
+        );
+      }
+
+      try {
+        const executionId = randomUUID();
+        const now = new Date().toISOString();
+
+        // V1: Execution record completion callback is not wired. Records may
+        // remain in 'running' status. The dashboard detects stale records by age.
+        const executionRecord: TaskExecutionRecord = {
+          id: executionId,
+          taskDefinitionId: taskDef.id,
+          projectId: envelope.project_id,
+          triggeredAt: now,
+          triggerType: envelope.trigger_type === 'scheduler' ? 'heartbeat' : 'webhook',
+          status: 'running',
+        };
+
+        await this.options.documentStore.put(
+          TASK_EXECUTIONS_COLLECTION,
+          executionId,
+          executionRecord,
+        );
+
+        const receipt = await this.options.submitTaskToSystem({
+          task: taskDef.orchestratorInstructions,
+          projectId: envelope.project_id,
+          detail: {
+            taskDefinitionId: taskDef.id,
+            taskName: taskDef.name,
+            triggerType: executionRecord.triggerType,
+            executionId,
+            ...(taskDef.context ?? {}),
+          },
+        });
+
+        await this.options.idempotencyStore.commitDispatch(
+          idempotencyResult.reservation_id,
+          dispatchRef,
+          evidenceRef,
+        );
+
+        return {
+          outcome: 'accepted_dispatched',
+          run_id: receipt.runId as never,
+          dispatch_ref: dispatchRef,
+          workflow_ref: envelope.task_ref,
+          policy_ref: `policy:task:${envelope.task_ref}`,
+          evidence_ref: evidenceRef,
+        };
+      } catch (error) {
+        return this.rejectAndRelease(
+          envelope,
+          idempotencyResult,
+          'workflow_admission_blocked',
+          'task_dispatch_failed',
+          [(error as Error).message],
+        );
+      }
+    }
+
+    // Workflow-ref routing: existing path
     try {
       const startResult = await this.options.workflowEngine.start({
         projectConfig,
@@ -169,7 +266,7 @@ export class IngressDispatchAdmission implements IIngressDispatchAdmission {
         outcome: 'accepted_dispatched',
         run_id: runId,
         dispatch_ref: dispatchRef,
-        workflow_ref: envelope.workflow_ref,
+        workflow_ref: envelope.workflow_ref ?? '',
         policy_ref:
           startResult.runState.admission.policyRef ?? `policy:${envelope.workflow_ref}`,
         evidence_ref: evidenceRef,

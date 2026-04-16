@@ -174,10 +174,12 @@ const activateSuccessors = (
   selectedBranchKey?: string,
 ): void => {
   const timestamp = occurredAt(transition, nextState.updatedAt);
+  const nodeType = graph.nodes[nodeDefinitionId]?.definition?.type;
   const activatedEdgeIds = getActivatedOutboundEdgeIds(
     graph,
     nodeDefinitionId,
     selectedBranchKey,
+    nodeType,
   );
 
   nextState.activatedEdgeIds = [...new Set([
@@ -233,6 +235,178 @@ const activateSuccessors = (
     readyNodeState.lastDispatchLineageId = lineage.id;
     readyNodeState.updatedAt = timestamp;
   }
+
+  // Re-activate loop nodes when a loop-body terminal node completes
+  // Detection: the completing node's dispatch lineage traces back to a loop node parent
+  // whose last selectedBranchKey was 'loop' (it chose to continue iterating)
+  const completingNodeLineage = nextState.dispatchLineage.find(
+    (l) => l.id === nextState.nodeStates[nodeDefinitionId]?.lastDispatchLineageId,
+  );
+  if (completingNodeLineage?.parentNodeDefinitionId) {
+    const parentNodeId = completingNodeLineage.parentNodeDefinitionId;
+    const parentNode = graph.nodes[parentNodeId];
+    if (parentNode?.definition?.type === 'loop') {
+      const parentNodeState = nextState.nodeStates[parentNodeId];
+      if (parentNodeState?.selectedBranchKey === 'loop') {
+        // Remove loop node from completedNodeIds so getNextReadyNodeIds can pick it up
+        nextState.completedNodeIds = removeNodeId(nextState.completedNodeIds, parentNodeId);
+
+        // Also remove loop body nodes from completedNodeIds so they can be re-executed
+        // on the next iteration. Loop body nodes are reachable via 'loop' branch edges.
+        const loopBranchEdges = (graph.nodes[parentNodeId]?.outboundEdgeIds ?? [])
+          .map((edgeId) => graph.edges[edgeId])
+          .filter((edge) => edge?.branchKey === 'loop');
+        for (const edge of loopBranchEdges) {
+          if (!edge) continue;
+          const bodyNodeId = edge.to as WorkflowNodeDefinitionId;
+          nextState.completedNodeIds = removeNodeId(nextState.completedNodeIds, bodyNodeId);
+          const bodyNodeState = nextState.nodeStates[bodyNodeId];
+          if (bodyNodeState && bodyNodeState.status === 'completed') {
+            bodyNodeState.status = 'pending';
+            bodyNodeState.activeAttempt = null;
+            bodyNodeState.activeWaitState = undefined;
+            bodyNodeState.updatedAt = timestamp;
+          }
+        }
+
+        // Reset loop node status to ready for re-execution
+        if (!nextState.readyNodeIds.includes(parentNodeId)) {
+          nextState.readyNodeIds = sortNodeIdsByTopology(graph, [
+            ...nextState.readyNodeIds,
+            parentNodeId,
+          ]);
+        }
+        if (!nextState.activeNodeIds.includes(parentNodeId)) {
+          nextState.activeNodeIds = sortNodeIdsByTopology(graph, [
+            ...nextState.activeNodeIds,
+            parentNodeId,
+          ]);
+        }
+        parentNodeState.status = 'ready';
+        parentNodeState.activeAttempt = null;
+        parentNodeState.activeWaitState = undefined;
+        parentNodeState.updatedAt = timestamp;
+
+        // Create new dispatch lineage for re-activated loop node
+        const loopLineage = createDispatchLineage({
+          runId: nextState.runId,
+          nodeDefinitionId: parentNodeId,
+          reasonCode: 'loop_reactivation',
+          evidenceRefs: transition.evidenceRefs,
+          occurredAt: timestamp,
+          attempt: parentNodeState.attempts.length,
+        });
+        nextState.dispatchLineage.push(loopLineage);
+        parentNodeState.lastDispatchLineageId = loopLineage.id;
+      }
+    }
+  }
+
+  // Re-activate waiting parallel-join nodes when a new upstream branch completes
+  const waitingJoinNodeIds = nextState.waitingNodeIds.filter((waitingNodeId) => {
+    const waitingNode = graph.nodes[waitingNodeId];
+    if (waitingNode?.definition?.type !== 'parallel-join') return false;
+
+    // Check if the completing node is an upstream of this join
+    const inboundEdgeIds = waitingNode.inboundEdgeIds ?? [];
+    return inboundEdgeIds.some((edgeId) => {
+      const edge = graph.edges[edgeId];
+      return edge?.from === nodeDefinitionId;
+    });
+  });
+
+  for (const joinNodeId of waitingJoinNodeIds) {
+    // Move from waiting back to ready for re-evaluation
+    nextState.waitingNodeIds = removeNodeId(nextState.waitingNodeIds, joinNodeId);
+    if (!nextState.readyNodeIds.includes(joinNodeId)) {
+      nextState.readyNodeIds = sortNodeIdsByTopology(graph, [
+        ...nextState.readyNodeIds,
+        joinNodeId,
+      ]);
+    }
+    const joinNodeState = nextState.nodeStates[joinNodeId];
+    joinNodeState.status = 'ready';
+    joinNodeState.activeAttempt = null;
+    joinNodeState.activeWaitState = undefined;
+    // Update joinProgress with newly completed upstream
+    if (joinNodeState.joinProgress) {
+      const alreadyTracked = joinNodeState.joinProgress.completedUpstreamNodeIds;
+      if (!alreadyTracked.includes(nodeDefinitionId)) {
+        joinNodeState.joinProgress.completedUpstreamNodeIds = [
+          ...alreadyTracked,
+          nodeDefinitionId,
+        ];
+      }
+    }
+    joinNodeState.updatedAt = timestamp;
+  }
+};
+
+const cancelRaceLosers = (
+  nextState: WorkflowRunState,
+  graph: DerivedWorkflowGraph,
+  completedNodeId: WorkflowNodeDefinitionId,
+  transition: WorkflowTransitionInput,
+): void => {
+  // Find the dispatch lineage for the completed node to identify its parent
+  const nodeState = nextState.nodeStates[completedNodeId];
+  const lineage = nextState.dispatchLineage.find(
+    (l) => l.id === nodeState?.lastDispatchLineageId,
+  );
+  if (!lineage?.parentNodeDefinitionId) return;
+
+  const parentNode = graph.nodes[lineage.parentNodeDefinitionId];
+  if (parentNode?.definition?.type !== 'parallel-split') return;
+  if (parentNode.definition.config?.type !== 'parallel-split') return;
+  if ((parentNode.definition.config as { splitMode?: string }).splitMode !== 'race') return;
+
+  // Find all sibling branch nodes (other children of the same split)
+  const siblingEdges = parentNode.outboundEdgeIds
+    .map((edgeId) => graph.edges[edgeId])
+    .filter((edge) => edge && edge.to !== completedNodeId);
+
+  const timestamp = occurredAt(transition, nextState.updatedAt);
+
+  // BFS to cancel siblings and their downstream descendants
+  const toCancel: WorkflowNodeDefinitionId[] = [];
+  for (const edge of siblingEdges) {
+    if (!edge) continue;
+    toCancel.push(edge.to as WorkflowNodeDefinitionId);
+  }
+
+  const cancelled = new Set<WorkflowNodeDefinitionId>();
+  while (toCancel.length > 0) {
+    const targetId = toCancel.shift()!;
+    if (cancelled.has(targetId)) continue;
+
+    const targetState = nextState.nodeStates[targetId];
+    if (!targetState) continue;
+    if (targetState.status === 'completed' || targetState.status === 'skipped') continue;
+
+    cancelled.add(targetId);
+    targetState.status = 'skipped';
+    targetState.reasonCode = 'workflow_race_cancelled';
+    targetState.evidenceRefs = [`race_winner=${completedNodeId}`];
+    targetState.activeAttempt = null;
+    targetState.activeWaitState = undefined;
+    targetState.updatedAt = timestamp;
+
+    nextState.readyNodeIds = removeNodeId(nextState.readyNodeIds, targetId);
+    nextState.waitingNodeIds = removeNodeId(nextState.waitingNodeIds, targetId);
+    nextState.blockedNodeIds = removeNodeId(nextState.blockedNodeIds, targetId);
+    nextState.activeNodeIds = removeNodeId(nextState.activeNodeIds, targetId);
+
+    // Recursively cancel downstream descendants
+    const targetNode = graph.nodes[targetId];
+    if (targetNode) {
+      for (const outEdgeId of targetNode.outboundEdgeIds) {
+        const outEdge = graph.edges[outEdgeId];
+        if (outEdge) {
+          toCancel.push(outEdge.to as WorkflowNodeDefinitionId);
+        }
+      }
+    }
+  }
 };
 
 const applyAttemptOutcome = (
@@ -271,6 +445,7 @@ const applyAttemptOutcome = (
       ...nextState.completedNodeIds,
       nodeDefinitionId,
     ]);
+    cancelRaceLosers(nextState, graph, nodeDefinitionId, transition);
     activateSuccessors(
       nextState,
       graph,
@@ -287,6 +462,31 @@ const applyAttemptOutcome = (
       ...nextState.waitingNodeIds,
       nodeDefinitionId,
     ]);
+
+    // Initialize joinProgress for parallel-join nodes entering waiting state
+    const nodeDef = graph.nodes[nodeDefinitionId]?.definition;
+    if (nodeDef?.type === 'parallel-join' && !nodeState.joinProgress) {
+      const inboundEdgeIds = graph.nodes[nodeDefinitionId]?.inboundEdgeIds ?? [];
+      const upstreamNodeIds = inboundEdgeIds
+        .map((edgeId) => graph.edges[edgeId]?.from)
+        .filter((id): id is WorkflowNodeDefinitionId => Boolean(id));
+      const completedUpstream = upstreamNodeIds.filter(
+        (id) => nextState.nodeStates[id]?.status === 'completed',
+      );
+      const totalUpstreamCount = upstreamNodeIds.length;
+      const joinConfig = nodeDef.config as { joinMode: string; requiredCount?: number };
+      let requiredCount = totalUpstreamCount;
+      if (joinConfig.joinMode === 'any') requiredCount = 1;
+      else if (joinConfig.joinMode === 'n-of-m' && joinConfig.requiredCount != null) {
+        requiredCount = joinConfig.requiredCount;
+      }
+      nodeState.joinProgress = {
+        completedUpstreamNodeIds: completedUpstream,
+        totalUpstreamCount,
+        requiredCount,
+      };
+    }
+
     return;
   }
 

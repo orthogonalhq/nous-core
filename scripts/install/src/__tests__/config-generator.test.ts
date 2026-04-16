@@ -11,14 +11,14 @@ describe('generateDefaultConfig', () => {
     expect(parsed.success).toBe(true);
   });
 
-  it('has Ollama provider and reasoner assignment', () => {
+  it('has Ollama provider and cortex-chat assignment', () => {
     const config = generateDefaultConfig('./data', 'llama3.2:3b');
     expect(config.providers).toHaveLength(1);
     expect(config.providers[0]?.name).toBe('Ollama');
     expect(config.providers[0]?.modelId).toBe('llama3.2:3b');
     expect(config.providers[0]?.id).toBe(expectedOllamaProviderId);
     expect(config.modelRoleAssignments).toHaveLength(1);
-    expect(config.modelRoleAssignments[0]?.role).toBe('reasoner');
+    expect(config.modelRoleAssignments[0]?.role).toBe('cortex-chat');
     expect(config.modelRoleAssignments[0]?.providerId).toBe(expectedOllamaProviderId);
   });
 });

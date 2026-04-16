@@ -35,6 +35,7 @@ import type {
   ToolDefinition,
   ProjectConfig,
   ProjectState,
+  TaskDefinition,
   ArtifactDeleteRequest,
   ArtifactListFilter,
   ArtifactReadRequest,
@@ -80,8 +81,11 @@ import type {
   MaoProjectControlProjection,
   MaoProjectSnapshot,
   MaoProjectSnapshotInput,
+  MaoSystemSnapshotInput,
+  MaoSystemSnapshot,
   MaoEventType,
   MaoRunGraphSnapshot,
+  MaoControlAuditHistoryEntry,
   GtmGateReportInput,
   GtmGateReport,
   GtmStageLabel,
@@ -353,6 +357,20 @@ export interface IProjectStore {
   archive(id: ProjectId): Promise<void>;
 }
 
+export interface ITaskStore {
+  /** Save (create or update) a task definition */
+  save(projectId: ProjectId, task: TaskDefinition): Promise<TaskDefinition>;
+
+  /** Get a task by ID */
+  get(projectId: ProjectId, taskId: string): Promise<TaskDefinition | null>;
+
+  /** List all tasks for a project */
+  listByProject(projectId: ProjectId): Promise<TaskDefinition[]>;
+
+  /** Delete a task */
+  delete(projectId: ProjectId, taskId: string): Promise<boolean>;
+}
+
 export interface IArtifactStore {
   /** Store a versioned artifact */
   store(request: ArtifactWriteRequest): Promise<ArtifactWriteResult>;
@@ -404,6 +422,36 @@ export interface IEscalationService {
   acknowledge(
     input: AcknowledgeInAppEscalationInput,
   ): Promise<InAppEscalationRecord | null>;
+}
+
+export interface INotificationService {
+  /** Create a new notification (with dedup and level derivation). */
+  raise(
+    input: import('../types/index.js').RaiseNotificationInput,
+  ): Promise<import('../types/index.js').NotificationRecord>;
+
+  /** Acknowledge an active notification. No-op if already acknowledged or dismissed. */
+  acknowledge(
+    id: string,
+  ): Promise<import('../types/index.js').NotificationRecord>;
+
+  /** Dismiss an active or acknowledged notification. No-op if already dismissed. */
+  dismiss(
+    id: string,
+  ): Promise<import('../types/index.js').NotificationRecord>;
+
+  /** List notifications matching the given filter. */
+  list(
+    filter: import('../types/index.js').NotificationFilter,
+  ): Promise<import('../types/index.js').NotificationRecord[]>;
+
+  /** Get a single notification by ID, or null if not found. */
+  get(
+    id: string,
+  ): Promise<import('../types/index.js').NotificationRecord | null>;
+
+  /** Count active notifications, optionally scoped by projectId. */
+  countActive(projectId?: string): Promise<number>;
 }
 
 export interface IRegistryService {
@@ -1159,6 +1207,12 @@ export interface IMaoProjectionService {
     eventType: MaoEventType,
     detail: Record<string, unknown>,
   ): Promise<void>;
+
+  /** Get audit history for project control actions. */
+  getControlAuditHistory(projectId: ProjectId): Promise<MaoControlAuditHistoryEntry[]>;
+
+  /** Derive a system-wide snapshot spanning all projects. */
+  getSystemSnapshot(input: MaoSystemSnapshotInput): Promise<MaoSystemSnapshot>;
 }
 
 export interface IGtmGateCalculator {

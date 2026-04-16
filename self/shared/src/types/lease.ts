@@ -22,5 +22,6 @@ export const LeaseContractSchema = z.object({
   issued_at: z.string().datetime(),
   expires_at: z.string().datetime(),
   revocation_ref: z.string().nullable(),
+  granted_tools: z.array(z.string()).optional(),
 });
 export type LeaseContract = z.infer<typeof LeaseContractSchema>;

@@ -5,7 +5,7 @@
  * Document ID: ProjectId.
  */
 import { createHash, randomUUID } from 'node:crypto';
-import type { IDocumentStore, IStmStore } from '@nous/shared';
+import type { IDocumentStore, ILogChannel, IStmStore } from '@nous/shared';
 import {
   DEFAULT_STM_COMPACTION_POLICY,
   StmContextSchema,
@@ -29,10 +29,12 @@ function estimateTokenCount(content: string): number {
 
 export interface DocumentStmStoreOptions {
   compactionPolicy?: Partial<StmCompactionPolicy>;
+  log?: ILogChannel;
 }
 
 export class DocumentStmStore implements IStmStore {
   private readonly compactionPolicy: StmCompactionPolicy;
+  private readonly log: ILogChannel;
 
   constructor(
     private readonly documentStore: IDocumentStore,
@@ -42,6 +44,7 @@ export class DocumentStmStore implements IStmStore {
       ...DEFAULT_STM_COMPACTION_POLICY,
       ...options.compactionPolicy,
     });
+    this.log = options.log ?? { debug() {}, info() {}, warn() {}, error() {}, isEnabled() { return false; } };
   }
 
   async getContext(projectId: ProjectId): Promise<StmContext> {
@@ -65,8 +68,8 @@ export class DocumentStmStore implements IStmStore {
     }
 
     const context = buildContext(result.data, this.compactionPolicy);
-    console.debug(
-      `[nous:stm] get_context projectId=${projectId} entries=${context.entries.length} tokens=${context.tokenCount}`,
+    this.log.debug(
+      `get_context projectId=${projectId} entries=${context.entries.length} tokens=${context.tokenCount}`,
     );
     return context;
   }
@@ -92,8 +95,8 @@ export class DocumentStmStore implements IStmStore {
     );
 
     await this.documentStore.put(COLLECTION, projectId, updated);
-    console.debug(
-      `[nous:stm] append projectId=${projectId} role=${validated.role} length=${validated.content.length} tokens=${updated.tokenCount}`,
+    this.log.debug(
+      `append projectId=${projectId} role=${validated.role} length=${validated.content.length} tokens=${updated.tokenCount}`,
     );
   }
 
@@ -169,14 +172,14 @@ export class DocumentStmStore implements IStmStore {
     );
 
     await this.documentStore.put(COLLECTION, projectId, updated);
-    console.info(
-      `[nous:stm] compact projectId=${projectId} trigger=${trigger} compacted=${compactedEntries.length} retained=${retainedEntries.length} preTokens=${context.tokenCount} postTokens=${updated.tokenCount}`,
+    this.log.info(
+      `compact projectId=${projectId} trigger=${trigger} compacted=${compactedEntries.length} retained=${retainedEntries.length} preTokens=${context.tokenCount} postTokens=${updated.tokenCount}`,
     );
   }
 
   async clear(projectId: ProjectId): Promise<void> {
     await this.documentStore.delete(COLLECTION, projectId);
-    console.info(`[nous:stm] clear projectId=${projectId}`);
+    this.log.info(`clear projectId=${projectId}`);
   }
 }
 

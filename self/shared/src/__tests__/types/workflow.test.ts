@@ -9,6 +9,7 @@ import {
   WorkflowDispatchLineageSchema,
   WorkflowExecuteNodeRequestSchema,
   WorkflowGraphSchema,
+  WorkflowNodeDefinitionSchema,
   WorkflowNodeAttemptSchema,
   WorkflowNodeRunStateSchema,
   WorkflowNodeWaitStateSchema,
@@ -18,6 +19,7 @@ import {
   WorkflowStartResultSchema,
   WorkflowStateSchema,
   WorkflowTransitionInputSchema,
+  WorkflowModelCallNodeConfigSchema,
 } from '../../types/workflow.js';
 
 const PROJECT_ID = '550e8400-e29b-41d4-a716-446655440001';
@@ -81,7 +83,7 @@ const definition = {
       executionModel: 'synchronous',
       config: {
         type: 'model-call',
-        modelRole: 'reasoner',
+        modelRole: 'cortex-chat',
         promptRef: 'prompt://draft',
       },
     },
@@ -289,6 +291,27 @@ describe('WorkflowDefinitionSchema', () => {
     });
     expect(result.success).toBe(false);
   });
+
+  it('accepts additive node metadata and preserves it through parsing', () => {
+    const parsed = WorkflowDefinitionSchema.parse({
+      ...definition,
+      nodes: [
+        {
+          ...definition.nodes[0],
+          metadata: {
+            specNodeId: 'draft-node',
+            skill: 'atomic-research',
+            contracts: ['quality-gate'],
+            templates: ['goals-template'],
+          },
+        },
+        definition.nodes[1],
+      ],
+    });
+
+    expect(parsed.nodes[0]?.metadata?.specNodeId).toBe('draft-node');
+    expect(parsed.nodes[0]?.metadata?.skill).toBe('atomic-research');
+  });
 });
 
 describe('DerivedWorkflowGraphSchema', () => {
@@ -339,6 +362,20 @@ describe('Workflow admission schemas', () => {
 });
 
 describe('Workflow runtime schemas', () => {
+  it('accepts a standalone workflow node definition with metadata', () => {
+    expect(
+      WorkflowNodeDefinitionSchema.safeParse({
+        ...definition.nodes[0],
+        metadata: {
+          specNodeId: 'draft-node',
+          skill: 'atomic-research',
+          contracts: ['quality-gate'],
+          templates: ['goals-template'],
+        },
+      }).success,
+    ).toBe(true);
+  });
+
   it('accepts the additive canceled workflow run status', () => {
     expect(WorkflowRunStatusSchema.parse('canceled')).toBe('canceled');
   });
@@ -427,5 +464,42 @@ describe('Workflow request schemas', () => {
         },
       }).success,
     ).toBe(true);
+  });
+});
+
+// ─── U2 Migration Tests ────────────────────────────────────────────────────
+
+describe('WorkflowModelCallNodeConfigSchema U2 migration', () => {
+  it('(i) remaps modelRole "reasoner" to "cortex-chat"', () => {
+    const result = WorkflowModelCallNodeConfigSchema.safeParse({
+      type: 'model-call',
+      modelRole: 'reasoner',
+      promptRef: 'prompt://test',
+    });
+    expect(result.success).toBe(true);
+    if (result.success) {
+      expect(result.data.modelRole).toBe('cortex-chat');
+    }
+  });
+
+  it('(ii) remaps modelRole "orchestrator" to "orchestrators"', () => {
+    const result = WorkflowModelCallNodeConfigSchema.safeParse({
+      type: 'model-call',
+      modelRole: 'orchestrator',
+      promptRef: 'prompt://test',
+    });
+    expect(result.success).toBe(true);
+    if (result.success) {
+      expect(result.data.modelRole).toBe('orchestrators');
+    }
+  });
+
+  it('(iii) dropped literal "tool-advisor" causes safeParse failure', () => {
+    const result = WorkflowModelCallNodeConfigSchema.safeParse({
+      type: 'model-call',
+      modelRole: 'tool-advisor',
+      promptRef: 'prompt://test',
+    });
+    expect(result.success).toBe(false);
   });
 });

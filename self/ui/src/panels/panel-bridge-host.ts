@@ -186,9 +186,7 @@ export class PanelBridgeHost {
     notification: PanelBridgeNotification,
   ): Promise<void> {
     try {
-      const accepted =
-        (await this.options.notifyAdapter?.(notification)) ??
-        this.dispatchLocalNotification(notification);
+      const accepted = (await this.options.notifyAdapter?.(notification)) ?? false;
       this.postToPanel({
         protocol: PANEL_BRIDGE_PROTOCOL_VERSION,
         kind: 'notify.result',
@@ -377,15 +375,6 @@ export class PanelBridgeHost {
       },
       metadata: {},
     };
-  }
-
-  private dispatchLocalNotification(notification: PanelBridgeNotification): boolean {
-    window.dispatchEvent(
-      new CustomEvent('nous:panel-notify', {
-        detail: notification,
-      }),
-    );
-    return true;
   }
 
   private postError(input: {

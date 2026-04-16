@@ -13,14 +13,20 @@
   --nous-surface:        #030303;  /* outer "table" — panels sit on top of this */
   --nous-surface-nested: #131313;  /* inset surface — nested widget gaps inside a panel */
   --nous-bg:             #131313;
-  --nous-bg-elevated:    #1d1d1d;
-  --nous-bg-hover:     #2a2d2e;
-  --nous-bg-input:     #3c3c3c53;
+  --nous-bg-base:        #010101;
+  --nous-bg-surface:     #050505;
+  --nous-bg-chat-full:   #0C0C0C;
+  --nous-bg-elevated:    #141414;
+  --nous-bg-hover:       #1a1a1a;
+  --nous-bg-active:      #1A1A1A;
+  --nous-bg-input:       #0f0f0f;
+  --nous-rail-surface:   #090909;
+  --nous-ambient-gradient: linear-gradient(to top, rgba(9,9,9,1) 70%, rgba(9,9,9,0) 100%);
 
   /* ── Borders ─────────────────────────────────────────────────────────── */
-  --nous-border:        #3c3c3c20;
-  --nous-border-subtle: #2d2d2d0a;
-
+  --nous-border-subtle: #121212;
+  --nous-border:        #1a1a1a;
+  --nous-border-strong: #232323;
   --nous-nested-panel-border: transparent;
 
   /* ── Foreground ──────────────────────────────────────────────────────── */
@@ -28,10 +34,30 @@
   --nous-fg-muted:  #bababa;
   --nous-fg-dim:    #858585;
   --nous-fg-subtle: #6a6a6a;
+  --nous-text-primary:   #fefefe;
+  --nous-text-secondary: #A9A9A9;
+  --nous-text-tertiary:  #767676;
+  --nous-text-ghost:     #464646;
+
+  /* ── Sidebar font colors ────────────────────────────────────────────── */
+  --nous-sidebar-label:          #666666;
+  --nous-sidebar-chevron:        #888888;
+  --nous-sidebar-group-icon:     #666666;
+  --nous-sidebar-button-fg:      #B0B0B0;
+  --nous-sidebar-button-icon:    #A0A0A0;
+  --nous-sidebar-title:          #FFFFFF;
+  --nous-sidebar-collapse-icon:  #949494;
+
+  /* ── Search bar ───────────────────────────────────────────────────── */
+  --nous-search-bg:          #1a1a1a;
+  --nous-search-border:      var(--nous-border);
+  --nous-search-placeholder: #6a6a6a;
+  --nous-search-icon:        #6a6a6a;
 
   /* ── Accent / interactive ────────────────────────────────────────────── */
   --nous-accent:       #007acc;
   --nous-accent-hover: #1a85d0;
+  --nous-accent-muted: rgba(0,122,204,0.16);
   --nous-selection:    #094771;
 
   /* ── Menu ────────────────────────────────────────────────────────────── */
@@ -62,11 +88,33 @@
   --nous-state-approved-fill:      #0d6e5e;
   --nous-state-needs-revision-fill:#6b3d99;
 
+  /* ── Agent / node state — tone (MAO surfaces) ────────────────────────── */
+  --nous-state-active-tone-border:   color-mix(in srgb, var(--nous-state-active) 40%, transparent);
+  --nous-state-active-tone-bg:       color-mix(in srgb, var(--nous-state-active) 10%, transparent);
+  --nous-state-waiting-tone-border:  color-mix(in srgb, var(--nous-state-waiting) 40%, transparent);
+  --nous-state-waiting-tone-bg:      color-mix(in srgb, var(--nous-state-waiting) 10%, transparent);
+  --nous-state-blocked-tone-border:  color-mix(in srgb, var(--nous-state-blocked) 40%, transparent);
+  --nous-state-blocked-tone-bg:      color-mix(in srgb, var(--nous-state-blocked) 10%, transparent);
+  --nous-state-idle-tone-border:     color-mix(in srgb, var(--nous-state-idle) 40%, transparent);
+  --nous-state-idle-tone-bg:         color-mix(in srgb, var(--nous-state-idle) 10%, transparent);
+  --nous-state-complete-tone-border: color-mix(in srgb, var(--nous-state-complete) 40%, transparent);
+  --nous-state-complete-tone-bg:     color-mix(in srgb, var(--nous-state-complete) 10%, transparent);
+
+  /* ── Alert colours ───────────────────────────────────────────────────── */
+  --nous-alert-critical: #ff2d55;
+  --nous-alert-error:    #ff453a;
+  --nous-alert-warning:  #ffd60a;
+  --nous-alert-info:     #64b5f6;
+  --nous-alert-success:  #32d74b;
+
   /* ── Overlay / shadow ────────────────────────────────────────────────── */
   --nous-btn-hover:    rgba(255,255,255,0.07);  /* subtle hover on frameless window controls & menu triggers */
   --nous-fg-on-color:  #ffffff;                  /* text on accent / error / selection backgrounds */
   --nous-shadow:       rgba(0,0,0,0.4);          /* DEPRECATED — use --nous-shadow-md instead */
   --nous-drag-over-bg: rgba(0,122,204,0.15);     /* dockview drag-over feedback tint */
+  --nous-blur-sm:      8px;
+  --nous-blur-md:      16px;
+  --nous-blur-lg:      24px;
 
   /* ── Spacing ─────────────────────────────────────────────────────────── */
   --nous-space-2xs:  2px;
@@ -87,6 +135,7 @@
   --nous-font-size-md:  14px;
   --nous-font-size-lg:  16px;
   --nous-font-size-xl:  20px;
+  --nous-font-size-2xl: 24px;
 
   /* ── Font weight ────────────────────────────────────────────────────── */
   --nous-font-weight-regular:  400;
@@ -99,8 +148,8 @@
   --nous-line-height-normal:  1.4;
 
   /* ── Font family ────────────────────────────────────────────────────── */
-  --nous-font-family:      "Segoe WPC", "Segoe UI", system-ui, -apple-system, Ubuntu, "Droid Sans", sans-serif;
-  --nous-font-family-mono: "Cascadia Code", "Fira Code", monospace;
+  --nous-font-family:      "Inter Variable", "Inter", "Segoe UI", system-ui, -apple-system, Ubuntu, "Droid Sans", sans-serif;
+  --nous-font-family-mono: "IBM Plex Mono", "Cascadia Code", "Fira Code", monospace;
 
   /* ── Border radius ──────────────────────────────────────────────────── */
   --nous-radius-xs: 4px;
@@ -113,8 +162,8 @@
 
   /* ── Shadow ─────────────────────────────────────────────────────────── */
   --nous-shadow-sm: 0 1px 2px rgba(0,0,0,0.3);
-  --nous-shadow-md: 0 2px 8px rgba(0,0,0,0.4);
-  --nous-shadow-lg: 0 4px 16px rgba(0,0,0,0.5);
+  --nous-shadow-md: 0 4px 12px rgba(0,0,0,0.4);
+  --nous-shadow-lg: 0 8px 24px rgba(0,0,0,0.5);
 
   /* ── Z-index layers ─────────────────────────────────────────────────── */
   --nous-z-base:     0;
@@ -124,15 +173,23 @@
   --nous-z-toast:    400;
 
   /* ── Transition duration ────────────────────────────────────────────── */
+  --nous-duration-instant: 50ms;
   --nous-duration-micro:  100ms;
-  --nous-duration-fast:   150ms;
+  --nous-duration-fast:   100ms;
   --nous-duration-normal: 200ms;
   --nous-duration-slow:   300ms;
+  --nous-duration-ambient: 2000ms;
 
   /* ── Easing curves ──────────────────────────────────────────────────── */
   --nous-ease-out:    cubic-bezier(0.0, 0, 0.2, 1);
   --nous-ease-in:     cubic-bezier(0.4, 0, 1, 1);
   --nous-ease-in-out: cubic-bezier(0.4, 0, 0.2, 1);
+  --nous-ease-snap:   cubic-bezier(0, 0, 0.2, 1);
+
+  /* ── Scales / motion distances ──────────────────────────────────────── */
+  --nous-scale-press:    0.98;
+  --nous-scale-lift:     1.02;
+  --nous-shake-distance: 2px;
 
   /* ── Icon size ──────────────────────────────────────────────────────── */
   --nous-icon-size-sm: 14px;
@@ -140,7 +197,7 @@
   --nous-icon-size-lg: 20px;
 
   /* ── Chrome dimensions ─────────────────────────────────────────────── */
-  --nous-titlebar-height:    30px;
+  --nous-titlebar-height:    32px;
   --nous-statusbar-height:   22px;
   --nous-titlebar-btn-width: 46px;
   --nous-dv-tab-height:      35px;
@@ -153,4 +210,88 @@
 
   /* ── Overlay ────────────────────────────────────────────────────────── */
   --nous-overlay-bg: rgba(0, 0, 0, 0.5);
+
+  /* ── Shell geometry ─────────────────────────────────────────────────── */
+  --nous-rail-width:            72px;
+  --nous-rail-width-collapsed:  32px;
+  --nous-chat-column-width:     320px;
+  --nous-observe-column-width:  280px;
+  --nous-column-divider-width:  1px;
+
+  /* -- Simple shell geometry */
+  --nous-project-rail-width:            62px;
+  --nous-rail-avatar-size:              40px;
+  --nous-rail-indicator-width:          4px;
+  --nous-rail-indicator-height:         30px;
+  --nous-asset-sidebar-default-width:   320px;
+  --nous-asset-sidebar-min-width:       240px;
+  --nous-asset-sidebar-collapsed-width: 32px;   /* WR-141 — dedicated, NOT shared with observe */
+  --nous-observe-collapsed-width:       32px;
+  --nous-observe-expanded-width:        280px;
+  --nous-observe-min-width:             32px;
+  --nous-chat-overlay-min-width:        320px;  /* WR-141 — chat overlay floor when sidebar collapsed */
+
+  /* -- Chat overlay heights (per stage) */
+  --nous-chat-height-small:             fit-content;
+  --nous-chat-height-ambient-small:     fit-content;
+  --nous-chat-height-ambient-large:     55%;
+  --nous-chat-height-full:              100%;
+
+  /* ── Shell breakpoints ──────────────────────────────────────────────── */
+  --nous-shell-breakpoint-full:   1400px;
+  --nous-shell-breakpoint-medium: 1100px;
+  --nous-shell-breakpoint-narrow: 800px;
+
+  /* ── Canvas / workflow builder ─────────────────────────────────────── */
+  --nous-canvas-bg:              #0a0a0a;
+  --nous-canvas-grid-dot:        #1a1a1a;
+  --nous-node-trigger:           #e06c75;
+  --nous-node-agent:             #61afef;
+  --nous-node-condition:         #e5c07b;
+  --nous-node-app:               #c678dd;
+  --nous-node-tool:              #56b6c2;
+  --nous-node-memory:            #98c379;
+  --nous-node-governance:        #d19a66;
+  --nous-edge-execution:         #abb2bf;
+  --nous-edge-config:            #5c6370;
+  --nous-edge-memory:            #98c379;
+  --nous-monitor-pulse-color:    rgba(0, 122, 204, 0.4);
+  --nous-monitor-badge-bg:       #1a1a1a;
+  --nous-monitor-badge-fg:       #fafafa;
+  --nous-canvas-selection-ring:  #007acc;
+  --nous-canvas-minimap-bg:      #0f0f0f;
+  --nous-canvas-minimap-node:    #2a2a2a;
+
+  /* ── Canvas floating panels ────────────────────────────────────────── */
+  --nous-canvas-panel-bg:          #141414;
+  --nous-canvas-panel-border:      #2a2a2a;
+  --nous-canvas-panel-shadow:      0 4px 12px rgba(0,0,0,0.5);
+  --nous-canvas-panel-header-bg:   #1a1a1a;
+  --nous-canvas-panel-header-text: #fafafa;
+}
+
+@media (prefers-color-scheme: light) {
+  :root {
+    --nous-bg-base:        #ffffff;
+    --nous-bg-surface:     #f5f5f5;
+    --nous-bg-elevated:    #ebebeb;
+    --nous-bg-hover:       #e0e0e0;
+    --nous-bg-active:      #d6d6d6;
+    --nous-bg-input:       #f0f0f0;
+    --nous-border:         #e5e5e5;
+    --nous-border-strong:  #d0d0d0;
+    --nous-text-primary:   rgba(0,0,0,0.90);
+    --nous-text-secondary: rgba(0,0,0,0.55);
+    --nous-text-tertiary:  rgba(0,0,0,0.30);
+    --nous-text-ghost:     rgba(0,0,0,0.08);
+    --nous-accent-muted:   rgba(25,118,210,0.12);
+    --nous-alert-critical: #d1002f;
+    --nous-alert-error:    #d32f2f;
+    --nous-alert-warning:  #c49000;
+    --nous-alert-info:     #1976d2;
+    --nous-alert-success:  #2e7d32;
+    --nous-shadow-sm:      0 1px 2px rgba(0,0,0,0.08);
+    --nous-shadow-md:      0 4px 12px rgba(0,0,0,0.12);
+    --nous-shadow-lg:      0 8px 24px rgba(0,0,0,0.16);
+  }
 }

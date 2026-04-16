@@ -1,185 +1,385 @@
 'use client'
 
-import { useState, useEffect, useRef, type KeyboardEvent } from 'react'
+import { useState, useEffect, useCallback, useRef, useMemo } from 'react'
 import type { IDockviewPanelProps } from 'dockview-react'
+import { clsx } from 'clsx'
+import { LoaderCircle, Circle } from 'lucide-react'
+import type { ConversationContext, ChatStage } from '../components/shell/types'
+import { useEventSubscription } from '@nous/transport'
+import type { ThoughtEvent } from '../components/thought'
+import { useCardActionHandler } from '../components/chat/hooks/useCardActionHandler'
+// Side-effect import: registers all 5 card types at module evaluation time
+import '../components/chat/cards/index'
 
-interface ChatMessage {
-  role: 'user' | 'assistant'
-  content: string
-  timestamp: string
+import { ChatInput } from './chat/ChatInput'
+import { ChatMessageList } from './chat/ChatMessageList'
+import { AmbientTeleprompter } from './chat/AmbientTeleprompter'
+import { useAgentActivity } from './chat/useAgentActivity'
+import {
+    formatThoughtEvent,
+    groupThoughtsByTrace,
+    deriveActiveTraceId,
+} from './chat/inline-thoughts'
+import type { InlineThoughtItem } from './chat/inline-thoughts'
+
+// Re-export types so existing consumers don't break
+export type { ChatMessage, ActionResult, ChatAPI } from './chat/types'
+import type { ChatMessage, ChatAPI } from './chat/types'
+
+// ---------------------------------------------------------------------------
+// Props
+// ---------------------------------------------------------------------------
+
+export interface ChatPanelCoreProps {
+    chatApi?: ChatAPI
+    conversationContext?: ConversationContext
+    className?: string
+    stage?: ChatStage
+    onStageChange?: (stage: ChatStage) => void
+    onSendStart?: () => void
+    isPinned?: boolean
+    onTogglePin?: () => void
+    onInputFocus?: () => void
+    onUnreadMessage?: () => void
+    onMessagesRead?: () => void
 }
 
-interface ChatAPI {
-  send: (message: string) => Promise<{ response: string; traceId: string }>
-  getHistory: () => Promise<ChatMessage[]>
+interface ChatPanelDockviewProps extends IDockviewPanelProps {
+    params: { chatApi?: ChatAPI }
 }
 
-interface BrowserSpeechRecognitionResult {
-  transcript: string
+type ChatPanelProps = ChatPanelDockviewProps | ChatPanelCoreProps
+
+/** Normalise the two prop shapes into one consistent set of values. */
+function resolveProps(props: ChatPanelProps) {
+    const isDockview = 'params' in props
+    return {
+        chatApi: isDockview ? props.params?.chatApi : props.chatApi,
+        className: isDockview ? undefined : props.className,
+        stage: (isDockview ? undefined : props.stage) ?? 'full' as ChatStage,
+        onStageChange: isDockview ? undefined : props.onStageChange,
+        onSendStart: isDockview ? undefined : props.onSendStart,
+        onInputFocus: isDockview ? undefined : props.onInputFocus,
+        onUnreadMessage: isDockview ? undefined : props.onUnreadMessage,
+        onMessagesRead: isDockview ? undefined : props.onMessagesRead,
+    }
 }
 
-interface BrowserSpeechRecognitionEvent {
-  results: ArrayLike<ArrayLike<BrowserSpeechRecognitionResult>>
+// ---------------------------------------------------------------------------
+// Ambient status badge (shared between "Thinking…" and "Responded")
+// ---------------------------------------------------------------------------
+
+function AmbientBadge({ icon, label, color }: {
+    icon: React.ReactNode
+    label: string
+    color: string
+}) {
+    return (
+        <div style={{ ...styles.ambientBadge, color }}>
+            {icon}
+            {label}
+        </div>
+    )
 }
 
-interface BrowserSpeechRecognition {
-  continuous: boolean
-  interimResults: boolean
-  onresult: ((event: BrowserSpeechRecognitionEvent) => void) | null
-  onend: (() => void) | null
-  start: () => void
-  stop: () => void
-}
+// ---------------------------------------------------------------------------
+// Constants
+// ---------------------------------------------------------------------------
 
-type BrowserSpeechRecognitionConstructor = new () => BrowserSpeechRecognition
+/** Max inline thought items to retain across all traces. */
+const INLINE_BUFFER_MAX = 200
 
-interface ChatPanelProps extends IDockviewPanelProps {
-  params: { chatApi?: ChatAPI }
-}
+// ---------------------------------------------------------------------------
+// Component
+// ---------------------------------------------------------------------------
 
-export function ChatPanel({ params }: ChatPanelProps) {
-  const [messages, setMessages] = useState<ChatMessage[]>([])
-  const [input, setInput] = useState('')
-  const [sending, setSending] = useState(false)
-  const [isListening, setIsListening] = useState(false)
-  const messagesEndRef = useRef<HTMLDivElement>(null)
-  const recognitionRef = useRef<BrowserSpeechRecognition | null>(null)
+export function ChatPanel(props: ChatPanelProps) {
+    const { chatApi, className, stage, onSendStart, onInputFocus, onUnreadMessage, onMessagesRead } = resolveProps(props)
 
-  const chatApi = params?.chatApi
+    // --- Core state ---
+    const [messages, setMessages] = useState<ChatMessage[]>([])
+    const [input, setInput] = useState('')
+    const [sending, setSending] = useState(false)
+    const [historyError, setHistoryError] = useState<string | null>(null)
 
-  useEffect(() => {
-    if (chatApi) {
-      chatApi.getHistory().then(setMessages)
+    // --- Unread response badge ---
+    const [hasUnread, setHasUnread] = useState(false)
+    const prevMessageCountRef = useRef(0)
+
+    // --- Inline thought items (filtered, prose-style) ---
+    const [inlineThoughts, setInlineThoughts] = useState<InlineThoughtItem[]>([])
+
+    useEventSubscription({
+        channels: ['thought:pfc-decision', 'thought:turn-lifecycle'],
+        onEvent: (channel, payload) => {
+            const event: ThoughtEvent = {
+                channel: channel as ThoughtEvent['channel'],
+                payload: payload as any,
+            }
+            const item = formatThoughtEvent(event)
+            if (item) {
+                setInlineThoughts(prev => [
+                    ...prev.slice(-(INLINE_BUFFER_MAX - 1)),
+                    item,
+                ])
+            }
+        },
+        enabled: true,
+    })
+
+    // --- Derived thought groupings ---
+    const assistantTraceIds = useMemo(
+        () => new Set(messages.filter(m => m.traceId).map(m => m.traceId!)),
+        [messages],
+    )
+    const thoughtsByTrace = useMemo(
+        () => groupThoughtsByTrace(inlineThoughts),
+        [inlineThoughts],
+    )
+    const activeTraceId = useMemo(
+        () => deriveActiveTraceId(inlineThoughts, assistantTraceIds),
+        [inlineThoughts, assistantTraceIds],
+    )
+
+    // --- Agent activity tracking (sidebar modes only) ---
+    const isSmall = stage === 'small'
+    const trackActivity = !('params' in props) && !isSmall
+    const agentActive = useAgentActivity(trackActivity)
+
+    // Mark unread when a new assistant message arrives outside full stage
+    useEffect(() => {
+        if (messages.length > prevMessageCountRef.current) {
+            const latest = messages[messages.length - 1]
+            if (latest?.role === 'assistant' && stage !== 'full') {
+                setHasUnread(true)
+                onUnreadMessage?.()
+            }
+        }
+        prevMessageCountRef.current = messages.length
+    }, [messages, stage, onUnreadMessage])
+
+    // Clear unread when the user opens full view
+    useEffect(() => {
+        if (stage === 'full' && hasUnread) {
+            setHasUnread(false)
+            onMessagesRead?.()
+        }
+    }, [stage, hasUnread, onMessagesRead])
+
+    // --- Card actions ---
+    const handleCardAction = useCardActionHandler({ chatApi: chatApi ?? {}, setMessages })
+
+    // --- History fetch ---
+    useEffect(() => {
+        if (chatApi?.getHistory) {
+            chatApi.getHistory().then((history) => {
+                // Pre-set the count so the unread-detection effect doesn't
+                // treat the initial history load as a new assistant message.
+                prevMessageCountRef.current = history.length
+                setMessages(history)
+            }).catch(() => {
+                setHistoryError('Could not load previous messages.')
+            })
+        }
+    }, [chatApi])
+
+    // --- Send ---
+    const send = async () => {
+        if (!input.trim() || sending || !chatApi?.send) return
+        const userMsg = input.trim()
+        setInput('')
+        setSending(true)
+        onSendStart?.()
+
+        const userEntry: ChatMessage = { role: 'user', content: userMsg, timestamp: new Date().toISOString() }
+        setMessages(prev => [...prev, userEntry])
+
+        try {
+            const result = await chatApi.send(userMsg)
+            setMessages(prev => [...prev, {
+                role: 'assistant',
+                content: result.response,
+                timestamp: new Date().toISOString(),
+                traceId: result.traceId,
+                contentType: result.contentType,
+                thinkingContent: result.thinkingContent,
+            }])
+        } catch {
+            setMessages(prev => [...prev, {
+                role: 'assistant',
+                content: 'Error: could not reach Nous.',
+                timestamp: new Date().toISOString(),
+            }])
+        } finally {
+            setSending(false)
+        }
     }
-  }, [chatApi])
 
-  useEffect(() => {
-    messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' })
-  }, [messages])
+    // --- Input focus/blur forwarding ---
+    const handleFocus = useCallback(() => {
+        onInputFocus?.()
+    }, [onInputFocus])
 
-  const send = async () => {
-    if (!input.trim() || sending || !chatApi) return
-    const userMsg = input.trim()
-    setInput('')
-    setSending(true)
-    const userEntry: ChatMessage = { role: 'user', content: userMsg, timestamp: new Date().toISOString() }
-    setMessages(prev => [...prev, userEntry])
-    try {
-      const result = await chatApi.send(userMsg)
-      setMessages(prev => [...prev, { role: 'assistant', content: result.response, timestamp: new Date().toISOString() }])
-    } catch (e) {
-      setMessages(prev => [...prev, { role: 'assistant', content: 'Error: could not reach Nous.', timestamp: new Date().toISOString() }])
-    } finally {
-      setSending(false)
-    }
-  }
+    const handleBlur = useCallback(() => {
+        // no-op for now — thought mode removed
+    }, [])
 
-  const handleKeyDown = (e: KeyboardEvent<HTMLTextAreaElement>) => {
-    if (e.key === 'Enter' && !e.shiftKey) {
-      e.preventDefault()
-      send()
-    }
-  }
-
-  const toggleVoice = () => {
-    const speechRecognitionWindow = window as unknown as {
-      SpeechRecognition?: BrowserSpeechRecognitionConstructor
-      webkitSpeechRecognition?: BrowserSpeechRecognitionConstructor
-    }
-    const speechRecognitionCtor =
-      speechRecognitionWindow.SpeechRecognition ??
-      speechRecognitionWindow.webkitSpeechRecognition
-    if (!speechRecognitionCtor) return
-    if (isListening && recognitionRef.current) {
-      recognitionRef.current.stop()
-      setIsListening(false)
-      return
-    }
-    const recognition = new speechRecognitionCtor()
-    recognition.continuous = false
-    recognition.interimResults = false
-    recognition.onresult = (event) => {
-      const transcript = event.results[0]?.[0]?.transcript ?? ''
-      setInput(prev => prev + transcript)
-    }
-    recognition.onend = () => setIsListening(false)
-    recognitionRef.current = recognition
-    recognition.start()
-    setIsListening(true)
-  }
-
-  return (
-    <div style={{ display: 'flex', flexDirection: 'column', height: '100%', color: 'var(--nous-fg)' }}>
-      {/* Header */}
-      <div style={{ padding: 'var(--nous-space-lg) var(--nous-space-2xl)', borderBottom: '1px solid var(--nous-header-border)', fontSize: 'var(--nous-font-size-sm)', fontWeight: 'var(--nous-font-weight-semibold)' as any, color: 'var(--nous-fg-muted)' }}>
-        Principal ↔ Cortex
-      </div>
-      {/* Messages */}
-      <div style={{ flex: 1, overflowY: 'auto', padding: 'var(--nous-space-2xl)', display: 'flex', flexDirection: 'column', gap: 'var(--nous-space-xl)' }}>
-        {messages.length === 0 && (
-          <div style={{ textAlign: 'center', color: 'var(--nous-fg-subtle)', fontSize: 'var(--nous-font-size-base)', marginTop: 'var(--nous-space-4xl)' }}>
-            {chatApi ? 'Start a conversation with Nous.' : 'Chat API not connected.'}
-          </div>
-        )}
-        {messages.map((msg, i) => (
-          <div key={i} style={{ display: 'flex', justifyContent: msg.role === 'user' ? 'flex-end' : 'flex-start' }}>
-            <div style={{
-              maxWidth: '80%', padding: 'var(--nous-space-md) var(--nous-space-xl)', borderRadius: 'var(--nous-radius-md)', fontSize: 'var(--nous-font-size-base)', lineHeight: '1.5',
-              background: msg.role === 'user' ? 'var(--nous-chat-user-bg)' : 'var(--nous-bg-elevated)',
-              color: 'var(--nous-fg)',
-            }}>
-              {msg.content}
-            </div>
-          </div>
-        ))}
-        {sending && (
-          <div style={{ display: 'flex', justifyContent: 'flex-start' }}>
-            <div style={{ padding: 'var(--nous-space-md) var(--nous-space-xl)', borderRadius: 'var(--nous-radius-md)', background: 'var(--nous-bg-elevated)', color: 'var(--nous-fg-subtle)', fontSize: 'var(--nous-font-size-base)' }}>
-              Thinking...
-            </div>
-          </div>
-        )}
-        <div ref={messagesEndRef} />
-      </div>
-      {/* Input */}
-      <div style={{ padding: 'var(--nous-space-lg) var(--nous-space-xl)', borderTop: '1px solid var(--nous-footer-border)', display: 'flex', gap: 'var(--nous-space-sm)', alignItems: 'flex-end' }}>
-        <textarea
-          value={input}
-          onChange={e => setInput(e.target.value)}
-          onKeyDown={handleKeyDown}
-          placeholder="Message Nous... (Enter to send, Shift+Enter for newline)"
-          disabled={sending}
-          style={{
-            flex: 1, resize: 'none', background: 'var(--nous-input-bg)', border: '1px solid transparent',
-            borderRadius: 'var(--nous-radius-md)', padding: 'var(--nous-space-md) var(--nous-space-lg)', color: 'var(--nous-fg)', fontSize: 'var(--nous-font-size-base)',
-            outline: 'none', lineHeight: '1.5', minHeight: '36px', maxHeight: '120px',
-            fontFamily: 'inherit',
-          }}
-          rows={1}
+    // --- Shared sections ---
+    const inputSection = (
+        <ChatInput
+            input={input}
+            sending={sending}
+            canSend={!!chatApi?.send}
+            onInputChange={setInput}
+            onSend={send}
+            onFocus={handleFocus}
+            onBlur={handleBlur}
         />
-        <button
-          onClick={toggleVoice}
-          title={isListening ? 'Stop listening' : 'Voice input'}
-          style={{
-            background: isListening ? 'var(--nous-state-blocked)' : 'var(--nous-input-bg)', border: '1px solid transparent',
-            borderRadius: 'var(--nous-radius-md)', padding: 'var(--nous-space-md)', color: isListening ? 'var(--nous-fg-on-color)' : 'var(--nous-fg-muted)',
-            cursor: 'pointer', display: 'flex', alignItems: 'center',
-          }}
-        >
-          <i className={`codicon ${isListening ? 'codicon-circle-slash' : 'codicon-mic'}`} style={{ fontSize: 'var(--nous-icon-size-sm)' }} />
-        </button>
-        <button
-          onClick={send}
-          disabled={sending || !input.trim() || !chatApi}
-          style={{
-            background: 'var(--nous-btn-primary-bg)', border: 'none', borderRadius: 'var(--nous-radius-md)',
-            padding: 'var(--nous-space-md) var(--nous-space-2xl)', color: 'var(--nous-fg-on-color)', cursor: sending ? 'not-allowed' : 'pointer',
-            fontSize: 'var(--nous-font-size-base)', fontWeight: 'var(--nous-font-weight-medium)' as any, opacity: (sending || !input.trim() || !chatApi) ? 0.5 : 1,
-          }}
-        >
-          Send
-        </button>
-      </div>
-    </div>
-  )
+    )
+
+    // --- Visible messages (ambient_large caps at 5 for performance) ---
+    const visibleMessages = stage === 'ambient_large' ? messages.slice(-5) : messages
+
+    // --- Ambient gradient (shared across both ambient stages) ---
+    const isAmbient = stage === 'ambient_small' || stage === 'ambient_large'
+    const ambientGradient = isAmbient ? <div style={styles.ambientGradient} /> : null
+
+    // --- Stage-based rendering ---
+    switch (stage) {
+        case 'small':
+            return (
+                <div className={clsx(className)} data-chat-stage="small" style={styles.shell}>
+                    {hasUnread && (
+                        <AmbientBadge
+                            icon={<Circle size={8} fill="var(--nous-accent)" stroke="none" />}
+                            label="Responded"
+                            color="var(--nous-accent)"
+                        />
+                    )}
+                    {inputSection}
+                </div>
+            )
+
+        case 'ambient_small':
+            return (
+                <div className={clsx(className)} data-chat-stage="ambient_small" style={styles.shell}>
+                    {ambientGradient}
+                    {agentActive ? (
+                        <AmbientBadge
+                            icon={<LoaderCircle size={12} style={styles.spinnerIcon} />}
+                            label="Thinking…"
+                            color="var(--nous-fg-muted)"
+                        />
+                    ) : hasUnread ? (
+                        <AmbientBadge
+                            icon={<Circle size={8} fill="var(--nous-accent)" stroke="none" />}
+                            label="Responded"
+                            color="var(--nous-accent)"
+                        />
+                    ) : null}
+                    {inputSection}
+                </div>
+            )
+
+        // Ambient large: teleprompter + input (Q4 — separate ephemeral feed)
+        case 'ambient_large':
+            return (
+                <div className={clsx(className)} data-chat-stage="ambient_large" style={styles.fullShell}>
+                    {ambientGradient}
+                    <div style={styles.scrollArea}>
+                        <AmbientTeleprompter items={inlineThoughts} />
+                    </div>
+                    {inputSection}
+                </div>
+            )
+
+        // Full: messages with inline thoughts + input
+        case 'full':
+        default:
+            return (
+                <div
+                    className={clsx(className)}
+                    data-chat-stage="full"
+                    style={{ ...styles.fullShell }}
+                >
+                    <div style={styles.scrollArea}>
+                        {visibleMessages.length === 0 && !chatApi?.send && (
+                            <div style={styles.emptyState}>
+                                Chat API not connected. Start the web backend with `pnpm dev:web`.
+                            </div>
+                        )}
+                        {historyError && (
+                            <div style={styles.historyError}>{historyError}</div>
+                        )}
+                        <ChatMessageList
+                            messages={visibleMessages}
+                            sending={sending}
+                            thoughtsByTrace={thoughtsByTrace}
+                            activeTraceId={activeTraceId}
+                            onCardAction={handleCardAction}
+                        />
+                    </div>
+                    {inputSection}
+                </div>
+            )
+    }
 }
+
+// ---------------------------------------------------------------------------
+// Styles
+// ---------------------------------------------------------------------------
+
+const styles = {
+    shell: {
+        display: 'flex',
+        flexDirection: 'column' as const,
+        color: 'var(--nous-fg)',
+    },
+    fullShell: {
+        display: 'flex',
+        flexDirection: 'column' as const,
+        height: '100%',
+        color: 'var(--nous-fg)',
+    },
+    scrollArea: {
+        flex: 1,
+        overflowY: 'auto' as const,
+        padding: 'var(--nous-space-2xl)',
+        display: 'flex',
+        flexDirection: 'column' as const,
+        gap: 'var(--nous-space-xl)',
+    },
+    emptyState: {
+        textAlign: 'center' as const,
+        color: 'var(--nous-fg-subtle)',
+        fontSize: 'var(--nous-font-size-base)',
+        marginTop: 'var(--nous-space-4xl)',
+    },
+    historyError: {
+        textAlign: 'center' as const,
+        color: 'var(--nous-state-blocked)',
+        fontSize: 'var(--nous-font-size-sm)',
+        padding: 'var(--nous-space-sm) 0',
+    },
+    ambientGradient: {
+        position: 'absolute' as const,
+        zIndex: -1,
+        top: '-20%',
+        left: 'var(--nous-space-sm)',
+        right: 'var(--nous-space-sm)',
+        bottom: 0,
+        background: 'var(--nous-ambient-gradient)',
+        pointerEvents: 'none' as const,
+    },
+    ambientBadge: {
+        display: 'flex',
+        alignItems: 'center',
+        gap: 'var(--nous-space-xs)',
+        fontSize: 'var(--nous-font-size-xs)',
+        fontFamily: 'var(--nous-font-family-mono)',
+        padding: 'var(--nous-space-sm) var(--nous-space-xl)',
+    },
+    spinnerIcon: {
+        animation: 'spin 1s linear infinite',
+    },
+} as const

@@ -1,0 +1,943 @@
+'use client'
+
+import { useMemo, useCallback, useContext, useRef, useState, useEffect, useImperativeHandle, forwardRef } from 'react'
+import { createPortal } from 'react-dom'
+import {
+  ReactFlow,
+  ReactFlowProvider,
+  Background,
+  BackgroundVariant,
+  MiniMap,
+  Controls,
+  useReactFlow,
+} from '@xyflow/react'
+import type { IDockviewPanelProps } from 'dockview-react'
+import { trpc, useWorkflowApi } from '@nous/transport'
+import { ShellContext } from '../../components/shell/ShellContext'
+import type { WorkflowBuilderNode, WorkflowBuilderEdge, ContextMenuState } from '../../types/workflow-builder'
+import { BuilderModeProvider, useBuilderMode } from './context/BuilderModeContext'
+import { useBuilderState } from './hooks/useBuilderState'
+import { useKeyboardNav } from './hooks/useKeyboardNav'
+import { BuilderToolbar } from './BuilderToolbar'
+import { NodePalette } from './NodePalette'
+import { NodeInspector } from './inspectors/NodeInspector'
+import { EdgeInspector } from './inspectors/EdgeInspector'
+import { WorkflowInspector } from './inspectors/WorkflowInspector'
+import { CanvasContextMenu, NodeContextMenu, EdgeContextMenu } from './context-menu'
+import { NodeSearch } from './NodeSearch'
+import { ValidationPanel } from './ValidationPanel'
+import { nodeTypes } from './nodes'
+import { edgeTypes } from './edges'
+import { WorkflowPicker } from './WorkflowPicker'
+import { ExecutionMonitor } from './monitoring/ExecutionMonitor'
+import { ExecutionHistory } from './monitoring/ExecutionHistory'
+import { GatePanel } from './monitoring/GatePanel'
+import { ArtifactBrowser } from './monitoring/ArtifactBrowser'
+
+import '@xyflow/react/dist/style.css'
+
+// ─── Core props for non-dockview consumers (web, test, storybook) ───────────
+
+export interface WorkflowBuilderPanelCoreProps {
+  className?: string
+  projectId?: string
+  workflowDefinitionId?: string
+}
+
+interface WorkflowBuilderDockviewProps extends IDockviewPanelProps {
+  params: Record<string, unknown>
+}
+
+// ─── Inner canvas (runtime-agnostic — no dockview imports) ──────────────────
+
+// Imperative handle exposed by CanvasDropTarget to parent for keyboard nav wiring
+interface CanvasDropTargetHandle {
+  handleKeyDown: (e: React.KeyboardEvent) => void
+}
+
+// Inner drop-target component — must be inside ReactFlowProvider for useReactFlow()
+const CanvasDropTarget = forwardRef<
+  CanvasDropTargetHandle,
+  {
+    canvasRef: React.RefObject<HTMLDivElement | null>
+    canvasHasFocus: boolean
+    onFocusedNodeChange: (nodeId: string | null) => void
+    projectId?: string
+    workflowDefinitionId?: string
+    hideWorkflowPicker?: boolean
+  }
+>(function CanvasDropTarget({
+  canvasRef,
+  canvasHasFocus,
+  onFocusedNodeChange,
+  projectId,
+  workflowDefinitionId,
+  hideWorkflowPicker,
+}, ref) {
+  const { mode, setMode } = useBuilderMode()
+  const workflowApi = useWorkflowApi({ projectId })
+  const {
+    nodes,
+    edges,
+    onNodesChange,
+    onEdgesChange,
+    onConnect,
+    onNodeClick,
+    onEdgeClick,
+    onPaneClick,
+    selectedNodeId,
+    selectedEdgeId,
+    addNode,
+    addEdge,
+    removeNode,
+    removeEdge,
+    updateNodeData,
+    getCurrentSpec,
+    validationErrors,
+    isDirty,
+    markClean,
+    moveNode,
+    undo,
+    redo,
+    canUndo,
+    canRedo,
+    monitoringState,
+    activeRun,
+    executionRuns,
+    setActiveRun,
+    clearActiveRun,
+    inspectionState,
+    setInspectedNode,
+    clearInspection,
+    loadSpec,
+    saveToServer,
+    saveAsNew,
+    resetToEmpty,
+    loadFromServer,
+    isSaving,
+    currentDefinitionId,
+    isWatchingConstruction,
+    pendingNotification,
+    dismissNotification,
+    acceptNotification,
+  } = useBuilderState(mode, { projectId, workflowDefinitionId, workflowApi })
+
+  const { screenToFlowPosition, fitView } = useReactFlow()
+
+  // ─── Context menu state ─────────────────────────────────────────────────
+
+  const [contextMenu, setContextMenu] = useState<ContextMenuState | null>(null)
+  const [nodeSearchOpen, setNodeSearchOpen] = useState(false)
+  const [isValidationPanelOpen, setIsValidationPanelOpen] = useState(false)
+
+  const closeContextMenu = useCallback(() => {
+    setContextMenu(null)
+  }, [])
+
+  // ─── Keyboard navigation ───────────────────────────────────────────────
+
+  const { focusedNodeId, handleKeyDown: keyboardNavHandleKeyDown } = useKeyboardNav({
+    nodes,
+    edges,
+    selectedNodeId,
+    selectedEdgeId,
+    onSelectNode: (nodeId: string) => {
+      const node = nodes.find((n) => n.id === nodeId)
+      if (node) onNodeClick({} as React.MouseEvent, node)
+    },
+    onDeselectAll: () => onPaneClick({} as React.MouseEvent),
+    removeNode,
+    removeEdge,
+    moveNode,
+    onEscape: () => {
+      setContextMenu(null)
+      setNodeSearchOpen(false)
+      setIsValidationPanelOpen(false)
+    },
+    canvasHasFocus,
+  })
+
+  // ─── Expose keyboard nav handler to parent via imperative handle ────────
+
+  useImperativeHandle(ref, () => ({
+    handleKeyDown: (e: React.KeyboardEvent) => {
+      // Suppress keyboard navigation/mutations in monitor mode
+      if (mode === 'monitoring') return
+      keyboardNavHandleKeyDown(e)
+    },
+  }), [mode, keyboardNavHandleKeyDown])
+
+  // Propagate focusedNodeId changes to parent for visual focus ring
+  useEffect(() => {
+    onFocusedNodeChange(focusedNodeId)
+  }, [focusedNodeId, onFocusedNodeChange])
+
+  // ─── Mode-aware click handlers (SP 3.2) ─────────────────────────────────
+
+  const handleNodeClick = useCallback(
+    (event: React.MouseEvent, node: WorkflowBuilderNode) => {
+      if (mode === 'monitoring' || mode === 'inspecting') {
+        setInspectedNode(node.id)
+      } else {
+        onNodeClick(event, node)
+      }
+    },
+    [mode, onNodeClick, setInspectedNode],
+  )
+
+  const handlePaneClick = useCallback(
+    (event: React.MouseEvent) => {
+      if (mode === 'monitoring' || mode === 'inspecting') {
+        clearInspection()
+      } else {
+        onPaneClick(event)
+      }
+    },
+    [mode, onPaneClick, clearInspection],
+  )
+
+  // ─── Save handlers with inline naming ──────────────────────────────────
+
+  const [showNameInput, setShowNameInput] = useState(false)
+  const [pendingNameAction, setPendingNameAction] = useState<'save' | null>(null)
+  const [nameInputValue, setNameInputValue] = useState('Untitled Workflow')
+  const nameInputRef = useRef<HTMLInputElement>(null)
+
+  // Focus the naming input whenever the dialog opens
+  useEffect(() => {
+    if (showNameInput) {
+      requestAnimationFrame(() => nameInputRef.current?.focus())
+    }
+  }, [showNameInput])
+
+  const handleNameSubmit = useCallback(() => {
+    const name = nameInputValue.trim() || 'Untitled Workflow'
+    setShowNameInput(false)
+    setPendingNameAction(null)
+    void saveToServer(name)
+  }, [nameInputValue, saveToServer])
+
+  const handleSave = useCallback(() => {
+    if (projectId) {
+      if (!currentDefinitionId) {
+        // First save — ask for name
+        setPendingNameAction('save')
+        setShowNameInput(true)
+        return
+      }
+      void saveToServer()
+    } else {
+      getCurrentSpec()
+      markClean()
+    }
+  }, [projectId, currentDefinitionId, saveToServer, getCurrentSpec, markClean])
+
+  const handleNewWorkflow = useCallback(() => {
+    resetToEmpty()
+  }, [resetToEmpty])
+
+  // ─── Select workflow from picker ──────────────────────────────────────
+
+  const handleSelectWorkflow = useCallback(
+    async (definitionId: string) => {
+      await loadFromServer(definitionId)
+    },
+    [loadFromServer],
+  )
+
+  // ─── Delete workflow from picker ─────────────────────────────────────
+
+  const deleteMutation = trpc.projects.deleteWorkflowDefinition.useMutation()
+  const trpcUtils = trpc.useUtils()
+  const handleDeleteWorkflow = useCallback(
+    async (definitionId: string) => {
+      if (!projectId) return
+      try {
+        await deleteMutation.mutateAsync({ projectId, definitionId })
+        void trpcUtils.projects.listWorkflowDefinitions.invalidate({ projectId })
+      } catch (error) {
+        console.error('[WorkflowBuilder] Failed to delete workflow:', error)
+      }
+    },
+    [projectId, deleteMutation, trpcUtils],
+  )
+
+  // ─── Validate toggle handler (SP 2.5) ──────────────────────────────────
+
+  const handleValidate = useCallback(() => {
+    setIsValidationPanelOpen((prev) => !prev)
+  }, [])
+
+  // ─── Error click handler (SP 2.5) ─────────────────────────────────────
+
+  const handleErrorClick = useCallback(
+    (errorPath: string) => {
+      // Parse path to find affected node/edge
+      const nodeMatch = errorPath.match(/^nodes\[(\d+)\]/)
+      if (nodeMatch) {
+        const index = parseInt(nodeMatch[1], 10)
+        const node = nodes[index]
+        if (node) {
+          onNodeClick({} as React.MouseEvent, node)
+          fitView({ nodes: [{ id: node.id }], duration: 300 })
+        }
+        return
+      }
+      const connMatch = errorPath.match(/^connections\[(\d+)\]/)
+      if (connMatch) {
+        const index = parseInt(connMatch[1], 10)
+        const edge = edges[index]
+        if (edge) {
+          onEdgeClick({} as React.MouseEvent, edge)
+        }
+      }
+    },
+    [nodes, edges, onNodeClick, onEdgeClick, fitView],
+  )
+
+  // ─── Context menu event handlers ────────────────────────────────────────
+
+  const onPaneContextMenu = useCallback(
+    (event: MouseEvent | React.MouseEvent) => {
+      event.preventDefault()
+      setContextMenu({
+        type: 'canvas',
+        position: { x: event.clientX, y: event.clientY },
+        targetId: null,
+      })
+    },
+    [],
+  )
+
+  const onNodeContextMenu = useCallback(
+    (event: React.MouseEvent, node: WorkflowBuilderNode) => {
+      event.preventDefault()
+      setContextMenu({
+        type: 'node',
+        position: { x: event.clientX, y: event.clientY },
+        targetId: node.id,
+      })
+    },
+    [],
+  )
+
+  const onEdgeContextMenu = useCallback(
+    (event: React.MouseEvent, edge: WorkflowBuilderEdge) => {
+      event.preventDefault()
+      setContextMenu({
+        type: 'edge',
+        position: { x: event.clientX, y: event.clientY },
+        targetId: edge.id,
+      })
+    },
+    [],
+  )
+
+  // ─── Context menu action handlers ──────────────────────────────────────
+
+  const handleContextMenuAddNode = useCallback(
+    (nousType: string) => {
+      if (contextMenu) {
+        const position = screenToFlowPosition({
+          x: contextMenu.position.x,
+          y: contextMenu.position.y,
+        })
+        addNode(nousType, position)
+      }
+      closeContextMenu()
+    },
+    [contextMenu, screenToFlowPosition, addNode, closeContextMenu],
+  )
+
+  const handleContextMenuDeleteNode = useCallback(
+    (nodeId: string) => {
+      removeNode(nodeId)
+      closeContextMenu()
+    },
+    [removeNode, closeContextMenu],
+  )
+
+  const handleContextMenuDuplicateNode = useCallback(
+    (nodeId: string) => {
+      const sourceNode = nodes.find((n) => n.id === nodeId)
+      if (sourceNode) {
+        addNode(sourceNode.data.nousType, {
+          x: sourceNode.position.x + 50,
+          y: sourceNode.position.y + 50,
+        })
+      }
+      closeContextMenu()
+    },
+    [nodes, addNode, closeContextMenu],
+  )
+
+  const handleContextMenuOpenInspector = useCallback(
+    (nodeId: string) => {
+      // Simulate node click to open the inspector for this node
+      const node = nodes.find((n) => n.id === nodeId)
+      if (node) {
+        onNodeClick({} as React.MouseEvent, node)
+      }
+      closeContextMenu()
+    },
+    [nodes, onNodeClick, closeContextMenu],
+  )
+
+  const handleContextMenuDeleteEdge = useCallback(
+    (edgeId: string) => {
+      removeEdge(edgeId)
+      closeContextMenu()
+    },
+    [removeEdge, closeContextMenu],
+  )
+
+  const handleContextMenuChangeEdgeType = useCallback(
+    (edgeId: string) => {
+      const edge = edges.find((e) => e.id === edgeId)
+      if (edge) {
+        // Toggle edge type by removing and re-adding with toggled type
+        const currentType = edge.data?.edgeType || 'execution'
+        const newType = currentType === 'execution' ? 'config' : 'execution'
+        // Use removeEdge + addEdge pattern (known SP 2.3 limitation: always creates 'execution')
+        removeEdge(edgeId)
+        if (edge.source && edge.target) {
+          addEdge({
+            source: edge.source,
+            target: edge.target,
+            sourceHandle: edge.sourceHandle ?? null,
+            targetHandle: edge.targetHandle ?? null,
+          })
+        }
+        // Note: edge type toggle inherits known SP 2.3 issue
+        void newType // Acknowledge the intended type; actual toggle depends on addEdge default
+      }
+      closeContextMenu()
+    },
+    [edges, removeEdge, addEdge, closeContextMenu],
+  )
+
+  const handleSelectAll = useCallback(() => {
+    // Select all nodes by applying selection changes
+    const changes = nodes.map((node) => ({
+      type: 'select' as const,
+      id: node.id,
+      selected: true,
+    }))
+    onNodesChange(changes)
+    closeContextMenu()
+  }, [nodes, onNodesChange, closeContextMenu])
+
+  // ─── Node Search handlers ─────────────────────────────────────────────
+
+  const handleSearchAddNode = useCallback(
+    (nousType: string) => {
+      // Add at canvas center (0, 0 in flow coordinates)
+      addNode(nousType, { x: 0, y: 0 })
+    },
+    [addNode],
+  )
+
+  const handleSearchFocusNode = useCallback(
+    (nodeId: string) => {
+      fitView({ nodes: [{ id: nodeId }], duration: 300 })
+    },
+    [fitView],
+  )
+
+  // ─── Global keyboard shortcuts (Ctrl+K, Ctrl+Z, Ctrl+Shift+Z, Ctrl+S) ───
+  // Registered in CAPTURE PHASE so this handler fires before App.tsx's
+  // bubble-phase Ctrl+K handler. In monitor mode, stopImmediatePropagation
+  // prevents the event from reaching any other listener.
+
+  useEffect(() => {
+    const handler = (e: KeyboardEvent) => {
+      const target = e.target as HTMLElement
+      if (
+        target.tagName === 'INPUT' ||
+        target.tagName === 'TEXTAREA' ||
+        target.isContentEditable
+      ) {
+        return
+      }
+
+      const isMod = e.ctrlKey || e.metaKey
+      if (!isMod) return
+
+      const key = e.key.toLowerCase()
+      const isAuthoringKey =
+        key === 'k' ||
+        key === 'z' ||
+        key === 's'
+
+      if (!isAuthoringKey) return
+
+      // Monitor mode: fully consume the event — no other handler should see it
+      if (mode === 'monitoring') {
+        e.preventDefault()
+        e.stopImmediatePropagation()
+        return
+      }
+
+      // Authoring mode: handle normally (no stopImmediatePropagation —
+      // App.tsx Ctrl+K CommandPalette must still work in bubble phase)
+      if (key === 'k') {
+        e.preventDefault()
+        setContextMenu(null)
+        setNodeSearchOpen((prev) => !prev)
+      } else if (key === 'z' && e.shiftKey) {
+        e.preventDefault()
+        redo()
+      } else if (key === 'z' && !e.shiftKey) {
+        e.preventDefault()
+        undo()
+      } else if (key === 's') {
+        e.preventDefault()
+        handleSave()
+      }
+    }
+
+    window.addEventListener('keydown', handler, true)
+    return () => window.removeEventListener('keydown', handler, true)
+  }, [mode, undo, redo, handleSave])
+
+  // ─── Drag and drop ────────────────────────────────────────────────────
+
+  const memoizedNodeTypes = useMemo(() => nodeTypes, [])
+  const memoizedEdgeTypes = useMemo(() => edgeTypes, [])
+
+  const onDragOver = useCallback((e: React.DragEvent) => {
+    e.preventDefault()
+    e.dataTransfer.dropEffect = 'copy'
+  }, [])
+
+  const onDrop = useCallback(
+    (e: React.DragEvent) => {
+      e.preventDefault()
+      const nousType = e.dataTransfer.getData('application/nous-node-type')
+      if (!nousType) return
+      const position = screenToFlowPosition({ x: e.clientX, y: e.clientY })
+      addNode(nousType, position)
+    },
+    [screenToFlowPosition, addNode],
+  )
+
+  return (
+    <>
+      <ReactFlow
+        nodes={nodes}
+        edges={edges}
+        onNodesChange={onNodesChange}
+        onEdgesChange={onEdgesChange}
+        onConnect={onConnect}
+        onNodeClick={handleNodeClick}
+        onEdgeClick={onEdgeClick}
+        onPaneClick={handlePaneClick}
+        onPaneContextMenu={mode !== 'monitoring' ? onPaneContextMenu : undefined}
+        onNodeContextMenu={mode !== 'monitoring' ? onNodeContextMenu : undefined}
+        onEdgeContextMenu={mode !== 'monitoring' ? onEdgeContextMenu : undefined}
+        nodeTypes={memoizedNodeTypes}
+        edgeTypes={memoizedEdgeTypes}
+        nodesDraggable={mode !== 'monitoring'}
+        nodesConnectable={mode !== 'monitoring'}
+        elementsSelectable={mode !== 'monitoring'}
+        onDragOver={onDragOver}
+        onDrop={onDrop}
+        deleteKeyCode={mode !== 'monitoring' ? 'Delete' : null}
+        fitView
+        style={{
+          background: 'var(--nous-builder-canvas-bg)',
+        }}
+      >
+        <Background
+          variant={BackgroundVariant.Dots}
+          color="var(--nous-builder-grid-color)"
+          gap={20}
+          size={1}
+        />
+        <MiniMap
+          style={{
+            background: 'var(--nous-builder-minimap-bg)',
+            borderRadius: '6px',
+            border: '1px solid var(--nous-border)',
+          }}
+          nodeColor="var(--nous-builder-minimap-node)"
+          maskColor="rgba(0, 0, 0, 0.6)"
+        />
+        <Controls
+          style={{
+            background: 'var(--nous-bg-elevated)',
+            border: '1px solid var(--nous-border)',
+            borderRadius: '6px',
+          }}
+        />
+      </ReactFlow>
+      <BuilderToolbar
+        mode={mode}
+        onModeChange={setMode}
+        onUndo={undo}
+        onRedo={redo}
+        canUndo={canUndo}
+        canRedo={canRedo}
+        onSave={handleSave}
+        onNewWorkflow={projectId ? handleNewWorkflow : undefined}
+        onValidate={handleValidate}
+        isDirty={isDirty}
+        isSaving={isSaving}
+        validationErrorCount={validationErrors.length}
+        isValidationPanelOpen={isValidationPanelOpen}
+        onDelete={hideWorkflowPicker && currentDefinitionId ? () => {
+          if (window.confirm('Delete this workflow? This cannot be undone.')) {
+            void handleDeleteWorkflow(currentDefinitionId)
+          }
+        } : undefined}
+      />
+      {/* Construction watching mode indicator */}
+      {isWatchingConstruction && (
+        <div
+          style={{
+            position: 'absolute', top: 16, left: '50%', transform: 'translateX(-50%)',
+            zIndex: 40,
+            background: 'var(--nous-bg-elevated)',
+            border: '1px solid var(--nous-accent)',
+            borderRadius: '20px',
+            padding: 'var(--nous-space-xs) var(--nous-space-md)',
+            fontSize: 'var(--nous-font-size-sm)',
+            color: 'var(--nous-accent)',
+          }}
+          data-testid="construction-watching-indicator"
+        >
+          Agent is building...
+        </div>
+      )}
+      {/* Dirty conflict notification */}
+      {pendingNotification?.type === 'dirty-conflict' && (
+        <div
+          style={{
+            position: 'absolute', bottom: 16, right: 16, zIndex: 50,
+            background: 'var(--nous-bg-elevated)',
+            border: '1px solid var(--nous-border-strong)',
+            borderRadius: '8px',
+            padding: 'var(--nous-space-md)',
+            boxShadow: '0 4px 16px rgba(0, 0, 0, 0.5)',
+          }}
+          data-testid="dirty-conflict-notification"
+        >
+          <div style={{ fontSize: 'var(--nous-font-size-sm)', color: 'var(--nous-fg)', marginBottom: 'var(--nous-space-sm)' }}>
+            Agent updated this workflow. Load latest?
+          </div>
+          <div style={{ display: 'flex', gap: 'var(--nous-space-sm)' }}>
+            <button type="button" onClick={dismissNotification}>Keep my edits</button>
+            <button type="button" onClick={acceptNotification}>Load latest</button>
+          </div>
+        </div>
+      )}
+      {/* Inline workflow naming dialog */}
+      {showNameInput && createPortal(
+        <div
+          style={{
+            position: 'fixed',
+            top: '50%',
+            left: '50%',
+            transform: 'translate(-50%, -50%)',
+            zIndex: 50,
+            background: 'var(--nous-bg-elevated)',
+            border: '1px solid var(--nous-border-strong)',
+            borderRadius: '8px',
+            padding: 'var(--nous-space-lg)',
+            boxShadow: '0 4px 16px rgba(0, 0, 0, 0.5)',
+            minWidth: 280,
+          }}
+          data-testid="workflow-name-dialog"
+          onKeyDown={(e) => e.stopPropagation()}
+          onMouseDown={(e) => e.stopPropagation()}
+        >
+          <div style={{ fontSize: 'var(--nous-font-size-sm)', fontWeight: 600, color: 'var(--nous-fg)', marginBottom: 'var(--nous-space-sm)' }}>
+            {'Name Your Workflow'}
+          </div>
+          <input
+            ref={nameInputRef}
+            type="text"
+            value={nameInputValue}
+            onKeyDownCapture={(e) => {
+              // Stop at capture phase before React Flow sees it
+              e.stopPropagation()
+              if (e.key === 'Enter') { e.preventDefault(); handleNameSubmit() }
+              if (e.key === 'Escape') { e.preventDefault(); setShowNameInput(false); setPendingNameAction(null) }
+            }}
+            onChange={(e) => setNameInputValue(e.target.value)}
+            style={{
+              width: '100%',
+              padding: 'var(--nous-space-xs) var(--nous-space-sm)',
+              background: 'var(--nous-bg)',
+              border: '1px solid var(--nous-border)',
+              borderRadius: '4px',
+              color: 'var(--nous-fg)',
+              caretColor: 'var(--nous-fg)',
+              fontSize: 'var(--nous-font-size-sm)',
+              outline: 'none',
+              marginBottom: 'var(--nous-space-sm)',
+              boxSizing: 'border-box',
+            }}
+            data-testid="workflow-name-input"
+          />
+          <div style={{ display: 'flex', gap: 'var(--nous-space-sm)', justifyContent: 'flex-end' }}>
+            <button
+              type="button"
+              onClick={() => { setShowNameInput(false); setPendingNameAction(null) }}
+              style={{
+                background: 'transparent',
+                border: '1px solid var(--nous-border)',
+                borderRadius: '4px',
+                color: 'var(--nous-fg-muted)',
+                cursor: 'pointer',
+                padding: 'var(--nous-space-xs) var(--nous-space-md)',
+                fontSize: 'var(--nous-font-size-xs)',
+              }}
+            >
+              Cancel
+            </button>
+            <button
+              type="button"
+              onClick={handleNameSubmit}
+              style={{
+                background: 'var(--nous-accent)',
+                border: 'none',
+                borderRadius: '4px',
+                color: '#fff',
+                cursor: 'pointer',
+                padding: 'var(--nous-space-xs) var(--nous-space-md)',
+                fontSize: 'var(--nous-font-size-xs)',
+              }}
+              data-testid="workflow-name-submit"
+            >
+              Save
+            </button>
+          </div>
+        </div>,
+        document.body,
+      )}
+      {/* Authoring-only UI — hidden in monitor mode */}
+      {mode !== 'monitoring' && (
+        <>
+          <NodePalette containerRef={canvasRef} />
+          {projectId && !hideWorkflowPicker && (
+            <WorkflowPicker
+              projectId={projectId}
+              currentDefinitionId={currentDefinitionId}
+              onSelectWorkflow={(id) => void handleSelectWorkflow(id)}
+              onNewWorkflow={handleNewWorkflow}
+              onDeleteWorkflow={(id) => void handleDeleteWorkflow(id)}
+              containerRef={canvasRef}
+            />
+          )}
+          <NodeInspector
+            selectedNodeId={selectedNodeId}
+            nodes={nodes}
+            updateNodeData={updateNodeData}
+            validationErrors={validationErrors}
+            containerRef={canvasRef}
+          />
+          <EdgeInspector
+            selectedEdgeId={selectedEdgeId}
+            edges={edges}
+            nodes={nodes}
+            removeEdge={removeEdge}
+            addEdge={addEdge}
+            containerRef={canvasRef}
+          />
+          <WorkflowInspector
+            selectedNodeId={selectedNodeId}
+            selectedEdgeId={selectedEdgeId}
+            nodes={nodes}
+            edges={edges}
+            getCurrentSpec={getCurrentSpec}
+            containerRef={canvasRef}
+          />
+
+          {/* Context Menus */}
+          {contextMenu?.type === 'canvas' && (
+            <CanvasContextMenu
+              position={contextMenu.position}
+              onClose={closeContextMenu}
+              onAddNode={handleContextMenuAddNode}
+              onSelectAll={handleSelectAll}
+            />
+          )}
+          {contextMenu?.type === 'node' && contextMenu.targetId && (
+            <NodeContextMenu
+              position={contextMenu.position}
+              nodeId={contextMenu.targetId}
+              onClose={closeContextMenu}
+              onDeleteNode={handleContextMenuDeleteNode}
+              onDuplicateNode={handleContextMenuDuplicateNode}
+              onOpenInspector={handleContextMenuOpenInspector}
+            />
+          )}
+          {contextMenu?.type === 'edge' && contextMenu.targetId && (
+            <EdgeContextMenu
+              position={contextMenu.position}
+              edgeId={contextMenu.targetId}
+              onClose={closeContextMenu}
+              onDeleteEdge={handleContextMenuDeleteEdge}
+              onChangeEdgeType={handleContextMenuChangeEdgeType}
+            />
+          )}
+
+          {/* Node Search */}
+          <NodeSearch
+            isOpen={nodeSearchOpen}
+            onClose={() => setNodeSearchOpen(false)}
+            nodes={nodes}
+            onAddNode={handleSearchAddNode}
+            onFocusNode={handleSearchFocusNode}
+          />
+
+          {/* Validation Panel (SP 2.5) */}
+          <ValidationPanel
+            validationErrors={validationErrors}
+            nodes={nodes}
+            edges={edges}
+            isVisible={isValidationPanelOpen}
+            onClose={() => setIsValidationPanelOpen(false)}
+            onErrorClick={handleErrorClick}
+            containerRef={canvasRef}
+          />
+        </>
+      )}
+
+      {/* Execution Monitor Overlay (SP 3.1) */}
+      {mode === 'monitoring' && activeRun !== null && (
+        <ExecutionMonitor activeRun={activeRun} />
+      )}
+
+      {/* Execution History Panel (SP 3.1) */}
+      {mode === 'monitoring' && (
+        <ExecutionHistory
+          containerRef={canvasRef}
+          onSelectRun={setActiveRun}
+          activeRunId={activeRun?.id ?? null}
+          runs={executionRuns}
+        />
+      )}
+
+      {/* Inspection Panels (SP 3.2) */}
+      {(mode === 'monitoring' || mode === 'inspecting') &&
+        inspectionState.type === 'node' &&
+        activeRun !== null && (() => {
+          const inspectedNodeId = inspectionState.nodeId
+          const inspectedNode = nodes.find((n) => n.id === inspectedNodeId)
+          const gates = activeRun.gateStates?.[inspectedNodeId] ?? []
+          const artifacts = activeRun.artifactRefs?.[inspectedNodeId] ?? []
+          return (
+            <>
+              <GatePanel
+                key={`gate-${inspectedNodeId}`}
+                nodeId={inspectedNodeId}
+                nodeLabel={inspectedNode?.data.label ?? inspectedNodeId}
+                gates={gates}
+                containerRef={canvasRef}
+              />
+              <ArtifactBrowser
+                key={`artifact-${inspectedNodeId}`}
+                nodeId={inspectedNodeId}
+                nodeLabel={inspectedNode?.data.label ?? inspectedNodeId}
+                artifacts={artifacts}
+                containerRef={canvasRef}
+              />
+            </>
+          )
+        })()
+      }
+    </>
+  )
+})
+
+function WorkflowBuilderCanvas({ className, projectId, workflowDefinitionId, hideWorkflowPicker }: {
+  className?: string
+  projectId?: string
+  workflowDefinitionId?: string
+  hideWorkflowPicker?: boolean
+}) {
+  const canvasRef = useRef<HTMLDivElement | null>(null)
+  const dropTargetRef = useRef<CanvasDropTargetHandle>(null)
+  const [canvasHasFocus, setCanvasHasFocus] = useState(false)
+  const [focusedNodeId, setFocusedNodeId] = useState<string | null>(null)
+
+  const handleKeyDown = useCallback((e: React.KeyboardEvent) => {
+    dropTargetRef.current?.handleKeyDown(e)
+  }, [])
+
+  const handleFocusedNodeChange = useCallback((nodeId: string | null) => {
+    setFocusedNodeId(nodeId)
+  }, [])
+
+  return (
+    <div
+      ref={canvasRef}
+      className={className}
+      tabIndex={0}
+      onFocus={() => setCanvasHasFocus(true)}
+      onBlur={() => setCanvasHasFocus(false)}
+      onKeyDown={handleKeyDown}
+      data-focused-node-id={focusedNodeId ?? undefined}
+      style={{
+        width: '100%',
+        height: '100%',
+        position: 'relative',
+        outline: 'none',
+      }}
+    >
+      <BuilderModeProvider>
+        <ReactFlowProvider>
+          <CanvasDropTarget
+            ref={dropTargetRef}
+            canvasRef={canvasRef}
+            canvasHasFocus={canvasHasFocus}
+            onFocusedNodeChange={handleFocusedNodeChange}
+            projectId={projectId}
+            workflowDefinitionId={workflowDefinitionId}
+            hideWorkflowPicker={hideWorkflowPicker}
+          />
+        </ReactFlowProvider>
+      </BuilderModeProvider>
+    </div>
+  )
+}
+
+// ─── Panel wrapper (thin dockview adapter) ──────────────────────────────────
+
+export function WorkflowBuilderPanel(
+  props: WorkflowBuilderDockviewProps | WorkflowBuilderPanelCoreProps,
+) {
+  const className = 'className' in props ? props.className : undefined
+  const propProjectId = 'projectId' in props ? props.projectId : undefined
+  const workflowDefinitionId = 'workflowDefinitionId' in props ? props.workflowDefinitionId : undefined
+
+  // ContentRouter always passes navigate/goBack/canGoBack; dockview never does.
+  const isSimpleMode = 'navigate' in props
+
+  // Desktop panels are mounted via dockview without explicit props.
+  // Fall back to ShellContext.activeProjectId when no projectId prop is provided.
+  // useContext returns null when no ShellProvider is present (e.g. in tests/storybook).
+  const shellCtx = useContext(ShellContext)
+  const projectId = propProjectId ?? shellCtx?.activeProjectId ?? undefined
+
+  // Navigation params from ContentRouter (chat-to-builder handoff)
+  const navParams = 'params' in props ? (props as unknown as Record<string, unknown>).params as Record<string, unknown> | undefined : undefined
+  const navProjectId = navParams?.projectId as string | undefined
+  const navDefinitionId = navParams?.definitionId as string | undefined
+
+  const effectiveProjectId = navProjectId ?? projectId
+  const effectiveDefinitionId = navDefinitionId ?? workflowDefinitionId
+
+  return (
+    <div style={{ height: '100%' }}>
+      <WorkflowBuilderCanvas
+        className={className}
+        projectId={effectiveProjectId}
+        workflowDefinitionId={effectiveDefinitionId}
+        hideWorkflowPicker={isSimpleMode}
+      />
+    </div>
+  )
+}

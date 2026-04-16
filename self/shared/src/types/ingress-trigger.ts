@@ -28,12 +28,13 @@ export const IngressDeliveryModeSchema = z.enum([
 ]);
 export type IngressDeliveryMode = z.infer<typeof IngressDeliveryModeSchema>;
 
-export const IngressTriggerEnvelopeSchema = z.object({
+export const IngressTriggerEnvelopeBaseSchema = z.object({
   trigger_id: z.string().uuid(),
   trigger_type: IngressTriggerTypeSchema,
   source_id: z.string().min(1),
   project_id: ProjectIdSchema,
-  workflow_ref: z.string().min(1),
+  workflow_ref: z.string().min(1).optional(),
+  task_ref: z.string().min(1).optional(),
   workmode_id: WorkmodeIdSchema,
   event_name: z.string().min(1),
   payload_ref: z.string().min(1),
@@ -45,7 +46,18 @@ export const IngressTriggerEnvelopeSchema = z.object({
   trace_parent: z.string().nullable(),
   requested_delivery_mode: IngressDeliveryModeSchema.default('none'),
 });
-export type IngressTriggerEnvelope = z.infer<typeof IngressTriggerEnvelopeSchema>;
+
+export const IngressTriggerEnvelopeSchema = IngressTriggerEnvelopeBaseSchema.refine(
+  (data) => {
+    const hasWorkflow = data.workflow_ref != null;
+    const hasTask = data.task_ref != null;
+    return (hasWorkflow || hasTask) && !(hasWorkflow && hasTask);
+  },
+  { message: 'Exactly one of workflow_ref or task_ref must be present' },
+);
+
+// Type from base for compatibility (ZodEffects does not support .omit/.extend)
+export type IngressTriggerEnvelope = z.infer<typeof IngressTriggerEnvelopeBaseSchema>;
 
 /** V1 payload_ref format: sha256:<64-char-hex> */
 export const PAYLOAD_REF_SHA256_REGEX = /^sha256:[a-f0-9]{64}$/;

@@ -19,7 +19,11 @@ import {
   MaoProjectControlProjectionSchema,
   MaoProjectControlActionSchema,
   MaoEventTypeSchema,
+  MaoSystemSnapshotInputSchema,
+  MaoSystemSnapshotSchema,
+  BudgetUtilizationSchema,
 } from '../../types/mao.js';
+import { WorkflowNodeMetadataSchema } from '../../types/workflow.js';
 
 const PROJECT_ID = '11111111-1111-1111-1111-111111111111' as const;
 const AGENT_ID = '22222222-2222-2222-2222-222222222222' as const;
@@ -55,6 +59,15 @@ describe('MaoAgentLifecycleStateSchema', () => {
   it('accepts waiting and resuming lifecycle states', () => {
     expect(MaoAgentLifecycleStateSchema.parse('waiting_pfc')).toBe('waiting_pfc');
     expect(MaoAgentLifecycleStateSchema.parse('resuming')).toBe('resuming');
+  });
+
+  it('accepts canceled and hard_stopped lifecycle states', () => {
+    expect(MaoAgentLifecycleStateSchema.parse('canceled')).toBe('canceled');
+    expect(MaoAgentLifecycleStateSchema.parse('hard_stopped')).toBe('hard_stopped');
+  });
+
+  it('has exactly 12 enum members', () => {
+    expect(MaoAgentLifecycleStateSchema.options).toHaveLength(12);
   });
 });
 
@@ -431,5 +444,325 @@ describe('MaoEventTypeSchema', () => {
     expect(MaoEventTypeSchema.parse('mao_project_control_applied')).toBe(
       'mao_project_control_applied',
     );
+  });
+});
+
+describe('MaoAgentProjectionSchema — agent_class and display_name', () => {
+  const base = {
+    agent_id: AGENT_ID,
+    project_id: PROJECT_ID,
+    dispatching_task_agent_id: null,
+    dispatch_origin_ref: 'ref-1',
+    state: 'running' as const,
+    current_step: 'step-1',
+    progress_percent: 50,
+    risk_level: 'low' as const,
+    urgency_level: 'normal' as const,
+    attention_level: 'none' as const,
+    pfc_alert_status: 'none',
+    pfc_mitigation_status: 'none',
+    dispatch_state: 'dispatched',
+    reflection_cycle_count: 0,
+    last_update_at: '2026-02-24T22:00:00.000Z',
+    reasoning_log_preview: null,
+    reasoning_log_redaction_state: 'none' as const,
+  };
+
+  it('accepts agent_class when provided', () => {
+    const result = MaoAgentProjectionSchema.parse({
+      ...base,
+      agent_class: 'Worker',
+    });
+    expect(result.agent_class).toBe('Worker');
+  });
+
+  it('accepts display_name when provided', () => {
+    const result = MaoAgentProjectionSchema.parse({
+      ...base,
+      display_name: 'Draft Agent',
+    });
+    expect(result.display_name).toBe('Draft Agent');
+  });
+
+  it('allows agent_class and display_name to be omitted', () => {
+    const result = MaoAgentProjectionSchema.parse(base);
+    expect(result.agent_class).toBeUndefined();
+    expect(result.display_name).toBeUndefined();
+  });
+
+  it('rejects invalid agent_class value', () => {
+    expect(() =>
+      MaoAgentProjectionSchema.parse({ ...base, agent_class: 'InvalidClass' }),
+    ).toThrow();
+  });
+});
+
+describe('MaoAgentProjectionSchema — task fields', () => {
+  const base = {
+    agent_id: AGENT_ID,
+    project_id: PROJECT_ID,
+    dispatching_task_agent_id: null,
+    dispatch_origin_ref: 'ref-1',
+    state: 'running' as const,
+    current_step: 'step-1',
+    progress_percent: 50,
+    risk_level: 'low' as const,
+    urgency_level: 'normal' as const,
+    attention_level: 'none' as const,
+    pfc_alert_status: 'none',
+    pfc_mitigation_status: 'none',
+    dispatch_state: 'dispatched',
+    reflection_cycle_count: 0,
+    last_update_at: '2026-02-24T22:00:00.000Z',
+    reasoning_log_preview: null,
+    reasoning_log_redaction_state: 'none' as const,
+  };
+
+  it('accepts projection with task_definition_id and task_name', () => {
+    const result = MaoAgentProjectionSchema.parse({
+      ...base,
+      task_definition_id: '66666666-6666-6666-6666-666666666666',
+      task_name: 'Daily Report',
+    });
+    expect(result.task_definition_id).toBe('66666666-6666-6666-6666-666666666666');
+    expect(result.task_name).toBe('Daily Report');
+  });
+
+  it('allows task_definition_id and task_name to be omitted (backward compat)', () => {
+    const result = MaoAgentProjectionSchema.parse(base);
+    expect(result.task_definition_id).toBeUndefined();
+    expect(result.task_name).toBeUndefined();
+  });
+
+  it('rejects invalid task_definition_id (not UUID)', () => {
+    expect(() =>
+      MaoAgentProjectionSchema.parse({ ...base, task_definition_id: 'not-uuid' }),
+    ).toThrow();
+  });
+});
+
+describe('MaoSystemSnapshotInputSchema', () => {
+  it('applies default densityMode of D2', () => {
+    const result = MaoSystemSnapshotInputSchema.parse({});
+    expect(result.densityMode).toBe('D2');
+  });
+
+  it('accepts explicit densityMode', () => {
+    const result = MaoSystemSnapshotInputSchema.parse({ densityMode: 'D4' });
+    expect(result.densityMode).toBe('D4');
+  });
+});
+
+describe('MaoSystemSnapshotSchema', () => {
+  it('accepts a valid system snapshot with agents and project controls', () => {
+    const result = MaoSystemSnapshotSchema.parse({
+      agents: [],
+      leaseRoots: [],
+      projectControls: {},
+      densityMode: 'D2',
+      generatedAt: '2026-03-10T01:00:00.000Z',
+    });
+    expect(result.agents).toEqual([]);
+    expect(result.densityMode).toBe('D2');
+  });
+
+  it('defaults agents and leaseRoots to empty arrays', () => {
+    const result = MaoSystemSnapshotSchema.parse({
+      densityMode: 'D3',
+      generatedAt: '2026-03-10T01:00:00.000Z',
+    });
+    expect(result.agents).toEqual([]);
+    expect(result.leaseRoots).toEqual([]);
+    expect(result.projectControls).toEqual({});
+  });
+
+  it('accepts populated agents and lease roots', () => {
+    const result = MaoSystemSnapshotSchema.parse({
+      agents: [
+        {
+          agent_id: AGENT_ID,
+          project_id: PROJECT_ID,
+          dispatching_task_agent_id: null,
+          dispatch_origin_ref: 'ref-1',
+          state: 'running',
+          current_step: 'step-1',
+          progress_percent: 50,
+          risk_level: 'low',
+          urgency_level: 'normal',
+          attention_level: 'none',
+          pfc_alert_status: 'none',
+          pfc_mitigation_status: 'none',
+          dispatch_state: 'dispatched',
+          reflection_cycle_count: 0,
+          last_update_at: '2026-02-24T22:00:00.000Z',
+          reasoning_log_preview: null,
+          reasoning_log_redaction_state: 'none',
+        },
+      ],
+      leaseRoots: [AGENT_ID],
+      projectControls: {
+        [PROJECT_ID]: {
+          project_id: PROJECT_ID,
+          project_control_state: 'running',
+          active_agent_count: 1,
+          blocked_agent_count: 0,
+          urgent_agent_count: 0,
+          pfc_project_review_status: 'none',
+          pfc_project_recommendation: 'continue',
+        },
+      },
+      densityMode: 'D2',
+      generatedAt: '2026-03-10T01:00:00.000Z',
+    });
+    expect(result.agents).toHaveLength(1);
+    expect(result.leaseRoots).toEqual([AGENT_ID]);
+  });
+});
+
+describe('WorkflowNodeMetadataSchema — displayName', () => {
+  it('accepts displayName when provided', () => {
+    const result = WorkflowNodeMetadataSchema.parse({
+      specNodeId: 'node-1',
+      displayName: 'My Custom Node',
+    });
+    expect(result.displayName).toBe('My Custom Node');
+  });
+
+  it('allows displayName to be omitted', () => {
+    const result = WorkflowNodeMetadataSchema.parse({
+      specNodeId: 'node-1',
+    });
+    expect(result.displayName).toBeUndefined();
+  });
+
+  it('rejects empty displayName', () => {
+    expect(() =>
+      WorkflowNodeMetadataSchema.parse({
+        specNodeId: 'node-1',
+        displayName: '',
+      }),
+    ).toThrow();
+  });
+});
+
+describe('WorkflowNodeMetadataSchema — agentClass', () => {
+  it('accepts agentClass when provided', () => {
+    const result = WorkflowNodeMetadataSchema.parse({
+      specNodeId: 'node-1',
+      agentClass: 'Worker',
+    });
+    expect(result.agentClass).toBe('Worker');
+  });
+
+  it('accepts all valid agentClass values', () => {
+    for (const cls of ['Cortex::Principal', 'Cortex::System', 'Orchestrator', 'Worker'] as const) {
+      const result = WorkflowNodeMetadataSchema.parse({
+        specNodeId: 'node-1',
+        agentClass: cls,
+      });
+      expect(result.agentClass).toBe(cls);
+    }
+  });
+
+  it('allows agentClass to be omitted (backward compat)', () => {
+    const result = WorkflowNodeMetadataSchema.parse({
+      specNodeId: 'node-1',
+    });
+    expect(result.agentClass).toBeUndefined();
+  });
+
+  it('rejects invalid agentClass values', () => {
+    expect(() =>
+      WorkflowNodeMetadataSchema.parse({
+        specNodeId: 'node-1',
+        agentClass: 'InvalidClass',
+      }),
+    ).toThrow();
+  });
+});
+
+describe('BudgetUtilizationSchema', () => {
+  it('accepts valid budget utilization data', () => {
+    const parsed = BudgetUtilizationSchema.parse({
+      utilizationPercent: 73.5,
+      currentSpendUsd: 14.70,
+      budgetCeilingUsd: 20.00,
+      softAlertFired: true,
+      hardCeilingFired: false,
+    });
+    expect(parsed.utilizationPercent).toBe(73.5);
+    expect(parsed.softAlertFired).toBe(true);
+  });
+
+  it('rejects missing required fields', () => {
+    expect(() => BudgetUtilizationSchema.parse({ utilizationPercent: 50 })).toThrow();
+  });
+
+  it('rejects negative values', () => {
+    expect(() =>
+      BudgetUtilizationSchema.parse({
+        utilizationPercent: -10,
+        currentSpendUsd: 5,
+        budgetCeilingUsd: 20,
+        softAlertFired: false,
+        hardCeilingFired: false,
+      }),
+    ).toThrow();
+  });
+});
+
+describe('MaoProjectSnapshotSchema — budgetUtilization', () => {
+  const baseSnapshot = {
+    projectId: PROJECT_ID,
+    densityMode: 'D2',
+    controlProjection: {
+      project_id: PROJECT_ID,
+      project_control_state: 'running',
+      active_agent_count: 0,
+      blocked_agent_count: 0,
+      urgent_agent_count: 0,
+      pfc_project_review_status: 'none',
+      pfc_project_recommendation: 'continue',
+    },
+    grid: [],
+    graph: {
+      projectId: PROJECT_ID,
+      nodes: [],
+      edges: [],
+      generatedAt: '2026-04-01T00:00:00.000Z',
+    },
+    urgentOverlay: {
+      urgentAgentIds: [],
+      blockedAgentIds: [],
+      generatedAt: '2026-04-01T00:00:00.000Z',
+    },
+    summary: {
+      activeAgentCount: 0,
+      blockedAgentCount: 0,
+      failedAgentCount: 0,
+      waitingPfcAgentCount: 0,
+      urgentAgentCount: 0,
+    },
+    diagnostics: { runtimePosture: 'single_process_local' },
+    generatedAt: '2026-04-01T00:00:00.000Z',
+  };
+
+  it('accepts snapshot with budgetUtilization field', () => {
+    const parsed = MaoProjectSnapshotSchema.parse({
+      ...baseSnapshot,
+      budgetUtilization: {
+        utilizationPercent: 85,
+        currentSpendUsd: 17.00,
+        budgetCeilingUsd: 20.00,
+        softAlertFired: true,
+        hardCeilingFired: false,
+      },
+    });
+    expect(parsed.budgetUtilization?.utilizationPercent).toBe(85);
+  });
+
+  it('accepts snapshot without budgetUtilization field (backward compat)', () => {
+    const parsed = MaoProjectSnapshotSchema.parse(baseSnapshot);
+    expect(parsed.budgetUtilization).toBeUndefined();
   });
 });

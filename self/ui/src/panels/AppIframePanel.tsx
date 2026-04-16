@@ -3,6 +3,7 @@
 import { useEffect, useRef } from 'react'
 import type { IDockviewPanelProps } from 'dockview-react'
 import type { AppPanelLifecycleReason, PanelBridgeConfigSnapshot } from '@nous/shared'
+import { trpc } from '@nous/transport'
 import { PanelBridgeHost } from './panel-bridge-host'
 
 interface AppIframePanelParams {
@@ -22,6 +23,7 @@ export function AppIframePanel({ params, api }: AppIframePanelProps) {
   const iframeRef = useRef<HTMLIFrameElement | null>(null)
   const bridgeHostRef = useRef<PanelBridgeHost | null>(null)
   const teardownReasonRef = useRef<AppPanelLifecycleReason | null>(null)
+  const utils = trpc.useUtils()
 
   useEffect(() => {
     if (!api) {
@@ -43,6 +45,26 @@ export function AppIframePanel({ params, api }: AppIframePanelProps) {
       mcpEndpoint: new URL('/mcp', params.src).toString(),
       configVersion: params.configVersion ?? 'cfg-initial',
       configSnapshot: params.configSnapshot ?? {},
+      notifyAdapter: async (notification) => {
+        try {
+          await utils.client.notifications.raise.mutate({
+            kind: 'panel',
+            projectId: null,
+            title: notification.title,
+            message: notification.message,
+            transient: true,
+            source: `panel:${params.panelId}`,
+            panel: {
+              panelId: params.panelId,
+              level: notification.level ?? 'info',
+              context: notification.context,
+            },
+          })
+          return true
+        } catch {
+          return false
+        }
+      },
       lifecycleAdapter: async (input) => {
         const response = await fetch(new URL('/mcp', params.src).toString(), {
           method: 'POST',
