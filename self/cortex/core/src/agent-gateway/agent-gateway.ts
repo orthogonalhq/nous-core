@@ -252,11 +252,14 @@ export class AgentGateway implements IAgentGateway {
         });
 
         // Streaming decision: use stream() when event bus is available,
-        // adapter supports streaming, and no tool calls are pending from
-        // a previous turn (tool-calling turns require full response parsing).
+        // adapter supports streaming, provider has stream method, AND no
+        // tools are defined. Tool-calling turns require the full structured
+        // response to extract tool_use blocks — streaming drops them because
+        // ModelStreamChunk has no toolCalls field (BT Round 1, RC-2).
         const canStream = !!this.config.eventBus
           && adapter.capabilities.streaming
-          && provider.stream;
+          && typeof provider.stream === 'function'
+          && (!tools || tools.length === 0);
 
         const modelResponse = canStream
           ? await this.invokeWithStreaming(provider, adapter, formatted, traceId, projectId, correlation)
@@ -341,11 +344,16 @@ export class AgentGateway implements IAgentGateway {
           );
         }
 
-        // Conversational exit: if the model responded with text and no tool
-        // calls, the turn is complete. Only continue looping when there are
-        // pending tool calls to execute.
-        if (parsedOutput.toolCalls.length === 0 && parsedOutput.response.trim()) {
-          this.log.debug('conversational exit (no tool calls)', { agentClass: this.agentClass });
+        // Conversational exit: if the model produced no tool calls, the turn
+        // is complete. This covers both normal text responses and empty
+        // responses. Without this guard, an empty response with zero tool
+        // calls loops forever (BT Round 1, RC-1).
+        if (parsedOutput.toolCalls.length === 0) {
+          if (!parsedOutput.response.trim()) {
+            this.log.warn('empty model response with no tool calls — exiting loop', { agentClass: this.agentClass });
+          } else {
+            this.log.debug('conversational exit (no tool calls)', { agentClass: this.agentClass });
+          }
           budgetTracker.recordTurn();
           return this.finalizeTerminalResult(
             this.buildSingleTurnResult(
