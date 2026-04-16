@@ -8,9 +8,9 @@ Foundation models are commodity inputs. The architecture is the value layer.
 
 ![Demo](docs/assets/demo.gif)
 
-[![CI](https://img.shields.io/github/actions/workflow/status/orthogonalhq/nous-core/ci-release.yml?branch=main&style=for-the-badge&label=CI)](https://github.com/orthogonalhq/nous-core/actions/workflows/ci.yml)
-[![Coverage](https://img.shields.io/codecov/c/github/orthogonalhq/nous-core?style=for-the-badge&label=COVERAGE)](https://codecov.io/gh/orthogonalhq/nous-core)
-[![Last Commit](https://img.shields.io/github/last-commit/orthogonalhq/nous-core?style=for-the-badge)](https://github.com/orthogonalhq/nous-core/commits/main)
+[![CI](https://img.shields.io/github/actions/workflow/status/orthogonalhq/nous-core/ci-release.yml?branch=main&style=for-the-badge&label=CI&labelColor=0a0a0a)](https://github.com/orthogonalhq/nous-core/actions/workflows/ci.yml)
+[![Coverage](https://img.shields.io/codecov/c/github/orthogonalhq/nous-core?style=for-the-badge&label=COVERAGE&labelColor=0a0a0a)](https://codecov.io/gh/orthogonalhq/nous-core)
+[![Last Commit](https://img.shields.io/github/last-commit/orthogonalhq/nous-core?style=for-the-badge&labelColor=0a0a0a)](https://github.com/orthogonalhq/nous-core/commits/main)
 
 > **Status**: Active development. The architecture is stable. The runtime is functional. Edges are sharp. Contributions welcome at the right layer — see [CONTRIBUTING.md](CONTRIBUTING.md).
 
