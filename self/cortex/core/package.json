@@ -7,7 +7,9 @@
   "exports": {
     ".": {
       "types": "./dist/index.d.ts",
-      "import": "./dist/index.js"
+      "import": "./dist/index.js",
+      "require": "./dist/index.js",
+      "default": "./dist/index.js"
     }
   },
   "scripts": {
@@ -18,6 +20,7 @@
   "dependencies": {
     "@nous/memory-access": "workspace:*",
     "@nous/shared": "workspace:*",
+    "@nous/subcortex-workflows": "workspace:*",
     "zod": "^4.0.17"
   },
   "devDependencies": {
@@ -29,6 +32,7 @@
     "@nous/subcortex-witnessd": "workspace:*",
     "@nous/subcortex-router": "workspace:*",
     "@nous/subcortex-tools": "workspace:*",
+    "@nous/subcortex-notification": "workspace:*",
     "@nous/subcortex-projects": "workspace:*"
   }
 }

@@ -1,6 +1,7 @@
 import { createHash } from 'node:crypto';
 import { readFile } from 'node:fs/promises';
 import { relative, resolve } from 'node:path';
+import YAML from 'yaml';
 import type {
   AppPackageManifest,
   IRuntime,
@@ -15,6 +16,7 @@ import type {
   WorkflowDefinition,
   WorkflowFlowDocument,
   WorkflowNodeDefinition,
+  WorkflowSpec,
 } from '@nous/shared';
 import {
   AppPackageManifestSchema,
@@ -27,13 +29,17 @@ import {
   ResolvedWorkflowDefinitionSourceSchema,
   SkillFrontmatterBaseSchema,
   SkillPackageKindSchema,
+  WorkflowContractFrontmatterSchema,
   WorkflowLifecycleDefinitionSummarySchema,
   WorkflowLifecycleInspectResultSchema,
   WorkflowDefinitionSchema,
   WorkflowFlowDocumentSchema,
   WorkflowManifestFrontmatterSchema,
+  WorkflowNodeFrontmatterSchema,
   WorkflowNodeDefinitionSchema,
   WorkflowStepFrontmatterSchema,
+  WorkflowTemplateFrontmatterSchema,
+  validateWorkflowSpec,
 } from '@nous/shared';
 import { discoverCanonicalPackageStores, getCanonicalStoreEntry } from './discovery.js';
 import { createLegacyHybridBridgeView } from './legacy-hybrid-bridge.js';
@@ -311,6 +317,13 @@ const parseMarkdownFrontmatter = (
     body: source.slice(match[0].length).trim(),
   };
 };
+
+const coerceFrontmatterRecord = (frontmatter: unknown): Record<string, unknown> =>
+  frontmatter &&
+  typeof frontmatter === 'object' &&
+  !Array.isArray(frontmatter)
+    ? (frontmatter as Record<string, unknown>)
+    : {};
 
 const resolveSafeChildPath = (rootPath: string, childPath: string): string => {
   const resolvedPath = resolve(rootPath, childPath);
@@ -645,6 +658,110 @@ const normalizeWorkflowManifest = (
 const parseWorkflowFlowDocument = (source: string): WorkflowFlowDocument =>
   WorkflowFlowDocumentSchema.parse(parseSimpleYamlDocument(source));
 
+const parseCompositeWorkflowSpecDocument = (
+  source: string,
+  sourceRef: string,
+): WorkflowSpec => {
+  let parsed: unknown;
+  try {
+    parsed = YAML.parse(source);
+  } catch (error) {
+    throw new Error(
+      `Failed to parse composite workflow topology at ${sourceRef}: ${(error as Error).message}`,
+    );
+  }
+
+  const validation = validateWorkflowSpec(parsed);
+  if (!validation.success) {
+    const details = validation.errors
+      .map((issue) => `${issue.path}: ${issue.message}`)
+      .join('; ');
+    throw new Error(
+      `Composite workflow topology validation failed at ${sourceRef}: ${details}`,
+    );
+  }
+
+  return validation.data;
+};
+
+const findFirstExistingPath = async (
+  runtime: IRuntime,
+  rootPath: string,
+  candidatePaths: string[],
+): Promise<string | undefined> => {
+  for (const candidatePath of candidatePaths) {
+    const resolvedPath = runtime.resolvePath(rootPath, candidatePath);
+    if (await runtime.exists(resolvedPath)) {
+      return resolvedPath;
+    }
+  }
+
+  return undefined;
+};
+
+const loadMarkdownContentRecord = async <TFrontmatter>(input: {
+  runtime: IRuntime;
+  rootPath: string;
+  dirName: 'contracts' | 'templates';
+  parseFrontmatter: (rawFrontmatter: Record<string, unknown>) => TFrontmatter;
+  getKey: (frontmatter: TFrontmatter) => string;
+  recordLabel: string;
+}): Promise<Record<string, { frontmatter: TFrontmatter; body: string }>> => {
+  const dirPath = input.runtime.resolvePath(input.rootPath, input.dirName);
+  if (!(await input.runtime.exists(dirPath))) {
+    return {};
+  }
+
+  const entries = (await input.runtime.listDirectory(dirPath))
+    .filter((entry) => entry.toLowerCase().endsWith('.md'))
+    .sort((left, right) => left.localeCompare(right));
+  const records: Record<string, { frontmatter: TFrontmatter; body: string }> = {};
+
+  for (const entry of entries) {
+    const filePath = input.runtime.resolvePath(dirPath, entry);
+    const parsedDocument = parseMarkdownFrontmatter(await readText(filePath));
+    const frontmatter = input.parseFrontmatter(
+      coerceFrontmatterRecord(parsedDocument.frontmatter),
+    );
+    const recordKey = input.getKey(frontmatter);
+    if (records[recordKey]) {
+      throw new Error(
+        `Duplicate ${input.recordLabel} "${recordKey}" in ${input.dirName} for package root ${input.rootPath}`,
+      );
+    }
+
+    records[recordKey] = {
+      frontmatter,
+      body: parsedDocument.body,
+    };
+  }
+
+  return records;
+};
+
+type LegacyLoadedWorkflowPackage = LoadedWorkflowPackage & {
+  format: 'legacy';
+  flowRef: string;
+  flow: NonNullable<LoadedWorkflowPackage['flow']>;
+  steps: NonNullable<LoadedWorkflowPackage['steps']>;
+};
+
+function assertLegacyLoadedWorkflowPackage(
+  loadedPackage: LoadedWorkflowPackage,
+  operation: string,
+): asserts loadedPackage is LegacyLoadedWorkflowPackage {
+  if (
+    loadedPackage.format !== 'legacy' ||
+    !loadedPackage.flowRef ||
+    !loadedPackage.flow ||
+    !loadedPackage.steps
+  ) {
+    throw new Error(
+      `${operation} does not support composite workflow packages yet: ${loadedPackage.packageId}`,
+    );
+  }
+}
+
 export const loadInstalledWorkflowPackage = async (
   options: LoadInstalledWorkflowPackageOptions,
 ): Promise<LoadedWorkflowPackage> => {
@@ -654,25 +771,118 @@ export const loadInstalledWorkflowPackage = async (
     rootDir: '.workflows',
     packageId: options.packageId,
   });
-  const manifestPath = options.runtime.resolvePath(rootPath, 'WORKFLOW.md');
-  const flowPath = options.runtime.resolvePath(rootPath, 'nous.flow.yaml');
-  if (!(await options.runtime.exists(manifestPath))) {
-    throw new Error(`Installed workflow package is missing WORKFLOW.md: ${options.packageId}`);
+  const manifestPath = await findFirstExistingPath(options.runtime, rootPath, [
+    'workflow.md',
+    'WORKFLOW.md',
+  ]);
+  const compositeTopologyPath = options.runtime.resolvePath(rootPath, 'workflow.yaml');
+  const legacyFlowPath = options.runtime.resolvePath(rootPath, 'nous.flow.yaml');
+  const hasCompositeTopology = await options.runtime.exists(compositeTopologyPath);
+  const hasLegacyFlow = await options.runtime.exists(legacyFlowPath);
+  if (!manifestPath) {
+    throw new Error(
+      `Installed workflow package is missing workflow.md/WORKFLOW.md: ${options.packageId}`,
+    );
   }
-  if (!(await options.runtime.exists(flowPath))) {
-    throw new Error(`Installed workflow package is missing nous.flow.yaml: ${options.packageId}`);
+  if (!hasCompositeTopology && !hasLegacyFlow) {
+    throw new Error(
+      `Installed workflow package is missing workflow.yaml or nous.flow.yaml: ${options.packageId}`,
+    );
   }
 
   const manifest = await readText(manifestPath);
   const parsedManifest = parseMarkdownFrontmatter(manifest);
-  const rawFrontmatter =
-    parsedManifest.frontmatter &&
-    typeof parsedManifest.frontmatter === 'object' &&
-    !Array.isArray(parsedManifest.frontmatter)
-      ? (parsedManifest.frontmatter as Record<string, unknown>)
-      : {};
+  const rawFrontmatter = coerceFrontmatterRecord(parsedManifest.frontmatter);
   const normalizedManifest = normalizeWorkflowManifest(rawFrontmatter);
-  const parsedFlow = parseWorkflowFlowDocument(await readText(flowPath));
+
+  if (hasCompositeTopology) {
+    if (hasLegacyFlow) {
+      console.warn(
+        `Workflow package ${options.packageId} contains both workflow.yaml and nous.flow.yaml; using workflow.yaml.`,
+      );
+    }
+
+    const topology = parseCompositeWorkflowSpecDocument(
+      await readText(compositeTopologyPath),
+      compositeTopologyPath,
+    );
+    const nodesRootPath = options.runtime.resolvePath(rootPath, 'nodes');
+    if (!(await options.runtime.exists(nodesRootPath))) {
+      throw new Error(
+        `Composite workflow package is missing nodes/ directory: ${options.packageId}`,
+      );
+    }
+
+    const nodeContent = Object.fromEntries(
+      await Promise.all(
+        topology.nodes.map(async (node) => {
+          const nodeFileRef = normalizeRelativeRef(`nodes/${node.id}/node.md`);
+          const nodePath = resolveSafeChildPath(rootPath, nodeFileRef);
+          if (!(await options.runtime.exists(nodePath))) {
+            throw new Error(
+              `Missing node.md for topology node "${node.id}" in package ${options.packageId}`,
+            );
+          }
+
+          const nodeDocument = parseMarkdownFrontmatter(await readText(nodePath));
+          const frontmatter = WorkflowNodeFrontmatterSchema.parse(
+            coerceFrontmatterRecord(nodeDocument.frontmatter),
+          );
+          if (frontmatter.nous.id !== node.id) {
+            throw new Error(
+              `Workflow node id mismatch for ${nodeFileRef}: expected ${node.id}, received ${frontmatter.nous.id}`,
+            );
+          }
+
+          return [
+            node.id,
+            {
+              frontmatter,
+              body: nodeDocument.body,
+            },
+          ] as const;
+        }),
+      ),
+    );
+
+    const contracts = await loadMarkdownContentRecord({
+      runtime: options.runtime,
+      rootPath,
+      dirName: 'contracts',
+      parseFrontmatter: (rawFrontmatter) =>
+        WorkflowContractFrontmatterSchema.parse(rawFrontmatter),
+      getKey: (frontmatter) => frontmatter.contract,
+      recordLabel: 'workflow contract',
+    });
+    const templates = await loadMarkdownContentRecord({
+      runtime: options.runtime,
+      rootPath,
+      dirName: 'templates',
+      parseFrontmatter: (rawFrontmatter) =>
+        WorkflowTemplateFrontmatterSchema.parse(rawFrontmatter),
+      getKey: (frontmatter) => frontmatter.template,
+      recordLabel: 'workflow template',
+    });
+
+    return LoadedWorkflowPackageSchema.parse({
+      packageId: options.packageId,
+      packageVersion: await readInstalledPackageVersion(options.runtime, rootPath),
+      rootRef: rootPath,
+      manifestRef: manifestPath,
+      format: 'composite',
+      manifest: normalizedManifest,
+      topology,
+      nodeContent,
+      contracts,
+      templates,
+      ...(await loadResourceRefs(options.runtime, rootPath)),
+    });
+  }
+
+  console.warn(
+    `Workflow package ${options.packageId} uses the legacy nous.flow.yaml + steps/ format; composite workflow.yaml packages are preferred.`,
+  );
+  const parsedFlow = parseWorkflowFlowDocument(await readText(legacyFlowPath));
 
   const steps = await Promise.all(
     parsedFlow.flow.steps.map(async (flowStep) => {
@@ -682,12 +892,7 @@ export const loadInstalledWorkflowPackage = async (
       }
 
       const stepDocument = parseMarkdownFrontmatter(await readText(absoluteStepPath));
-      const rawStepFrontmatter =
-        stepDocument.frontmatter &&
-        typeof stepDocument.frontmatter === 'object' &&
-        !Array.isArray(stepDocument.frontmatter)
-          ? (stepDocument.frontmatter as Record<string, unknown>)
-          : {};
+      const rawStepFrontmatter = coerceFrontmatterRecord(stepDocument.frontmatter);
       const frontmatter = WorkflowStepFrontmatterSchema.parse(rawStepFrontmatter);
       if (frontmatter.nous.id !== flowStep.id) {
         throw new Error(
@@ -709,7 +914,8 @@ export const loadInstalledWorkflowPackage = async (
     packageVersion: await readInstalledPackageVersion(options.runtime, rootPath),
     rootRef: rootPath,
     manifestRef: manifestPath,
-    flowRef: flowPath,
+    format: 'legacy',
+    flowRef: legacyFlowPath,
     manifest: normalizedManifest,
     flow: parsedFlow,
     steps,
@@ -810,6 +1016,10 @@ export const inspectInstalledWorkflowPackage = async (
     runtime: options.runtime,
     packageId: options.packageId,
   });
+  assertLegacyLoadedWorkflowPackage(
+    loadedPackage,
+    'inspectInstalledWorkflowPackage',
+  );
 
   return WorkflowLifecycleInspectResultSchema.parse({
     packageId: loadedPackage.packageId,
@@ -835,7 +1045,7 @@ export const inspectInstalledWorkflowPackage = async (
 
 const buildWorkflowNodeDefinition = (
   workflowDefinitionId: ProjectWorkflowPackageBinding['workflowDefinitionId'],
-  step: LoadedWorkflowPackage['steps'][number],
+  step: LegacyLoadedWorkflowPackage['steps'][number],
 ): WorkflowNodeDefinition => {
   const type = step.frontmatter.type ?? step.frontmatter.config?.type;
   return WorkflowNodeDefinitionSchema.parse({
@@ -870,6 +1080,10 @@ export const resolveInstalledWorkflowDefinition = async (
     runtime: options.runtime,
     packageId: binding.workflowPackageId,
   });
+  assertLegacyLoadedWorkflowPackage(
+    loadedPackage,
+    'resolveInstalledWorkflowDefinition',
+  );
   const flowDocument = WorkflowFlowDocumentSchema.parse(loadedPackage.flow);
   const entrypoint = binding.entrypoint;
   const availableEntrypoints = loadedPackage.manifest.entrypoints ?? [

@@ -1,107 +1,389 @@
-'use client';
+'use client'
 
-import { Suspense, useState, useCallback, useEffect } from 'react';
-import { usePathname, useSearchParams } from 'next/navigation';
-import { Sidebar } from '@/components/shell/sidebar';
-import { trpc } from '@/lib/trpc';
-import { ProjectProvider } from '@/lib/project-context';
-import { Button } from '@/components/ui/button';
+import * as React from 'react'
+import { Suspense, useState, useCallback, useEffect, useMemo } from 'react'
+import { useSearchParams } from 'next/navigation'
+import dynamic from 'next/dynamic'
+import type { DockviewApi } from 'dockview-react'
+import {
+  ShellProvider,
+  ShellLayout as UIShellLayout,
+  SimpleShellLayout,
+  NavigationRail,
+  ContentRouter,
+  ObservePanel,
+  CommandPalette,
+  ProjectSwitcherRail,
+  AssetSidebar,
+  useChatStageManager,
+  useSidebarCollapsed,
+  useShellContext,
+  isHomeSidebarEnabled,
+  HOME_TOP_NAV,
+  buildHomeSidebarSections,
+  NotificationProvider,
+  useNotificationBadge,
+} from '@nous/ui/components'
+import type { ShellMode, NavigationState } from '@nous/ui/components'
+import { useEventSubscription, trpc } from '@nous/transport'
+import { useTasks, buildTasksSection } from '@nous/ui/hooks/useTasks'
+import { WebChromeShell } from '@/components/shell/web-chrome-shell'
+import { webRailSections } from '@/components/shell/web-rail-config'
+import { createWebShellRoutes } from '@/components/shell/web-shell-routes'
+import { buildWebCommands } from '@/components/shell/web-command-config'
+import { WEB_TOP_NAV, buildWebSidebarSections } from '@/components/shell/web-sidebar-config'
+import { WebConnectedChatSurface } from '@/components/shell/web-chat-wrappers'
+import { WEB_PANEL_DEFS } from '@/components/shell/web-panel-defs'
+import { ProjectProvider } from '@/lib/project-context'
+
+const WebDockviewShell = dynamic(
+  () => import('@/components/shell/web-dockview-shell').then((mod) => ({ default: mod.WebDockviewShell })),
+  { ssr: false },
+)
+
+const MODE_STORAGE_KEY = 'nous:shell-mode'
 
 export default function ShellLayout({
   children,
 }: {
-  children: React.ReactNode;
+  children: React.ReactNode
 }) {
   return (
-    <Suspense fallback={<main className="flex-1 overflow-auto">{children}</main>}>
+    <Suspense
+      fallback={(
+        <main
+          style={{
+            flex: '1 1 0%',
+            overflow: 'auto',
+          }}
+        >
+          {children}
+        </main>
+      )}
+    >
       <ShellLayoutContent>{children}</ShellLayoutContent>
     </Suspense>
-  );
+  )
 }
 
 function ShellLayoutContent({
   children,
 }: {
-  children: React.ReactNode;
+  children: React.ReactNode
 }) {
-  const [projectId, setProjectId] = useState<string | null>(null);
-  const [sidebarOpen, setSidebarOpen] = useState(false);
-  const searchParams = useSearchParams();
-  const pathname = usePathname();
-  const utils = trpc.useUtils();
-  const createProject = trpc.projects.create.useMutation({
-    onSuccess: () => {
-      utils.projects.list.invalidate();
+  const [mode, setMode] = useState<ShellMode>('simple')
+  const [activeRoute, setActiveRoute] = useState('home')
+  const [isHomeContext, setIsHomeContext] = useState(false)
+  const [commandPaletteOpen, setCommandPaletteOpen] = useState(false)
+  const [projectId, setProjectId] = useState<string | null>(null)
+  const [dockviewApi, setDockviewApi] = useState<DockviewApi | null>(null)
+
+  // Chat stage state machine (5-state model)
+  const chatStageManager = useChatStageManager()
+
+  // WR-141 — single-call-plus-prop-drill per primary contract § State Ownership.
+  // This call is intentionally placed inside `ShellLayoutContent` (the wiring-site
+  // root). Sibling calls inside `WebAssetSidebarConnected` are forbidden by INV-1.
+  const [sidebarCollapsed, setSidebarCollapsed] = useSidebarCollapsed()
+  const handleToggleCollapse = useCallback(
+    () => setSidebarCollapsed(!sidebarCollapsed),
+    [sidebarCollapsed, setSidebarCollapsed],
+  )
+
+  // Wire SSE events to chat stage manager signals
+  useEventSubscription({
+    channels: ['inference:stream-start', 'thought:turn-lifecycle', 'thought:pfc-decision'],
+    onEvent: (channel, payload) => {
+      if (channel === 'inference:stream-start') {
+        chatStageManager.signalInferenceStart()
+      } else if (channel === 'thought:pfc-decision') {
+        chatStageManager.signalPfcDecision()
+      } else if (channel === 'thought:turn-lifecycle') {
+        const p = payload as Record<string, unknown>
+        if (p.phase === 'turn-complete') {
+          chatStageManager.signalTurnComplete()
+        }
+      }
     },
-  });
+    enabled: mode === 'simple',
+  })
 
-  const handleNewProject = useCallback(async () => {
-    const name = prompt('Project name:');
-    if (!name?.trim()) return;
+  const searchParams = useSearchParams()
+
+  // Mode persistence — load on mount
+  useEffect(() => {
     try {
-      const project = await createProject.mutateAsync({ name: name.trim() });
-      setProjectId(project.id);
-      setSidebarOpen(false);
-    } catch (err) {
-      console.error(err);
-      alert('Failed to create project');
+      const stored = localStorage.getItem(MODE_STORAGE_KEY)
+      if (stored === 'simple' || stored === 'developer') {
+        setMode(stored)
+      }
+    } catch {
+      /* localStorage unavailable */
     }
-  }, [createProject]);
+  }, [])
 
+  // searchParams sync (carried from previous layout)
   useEffect(() => {
-    const linkedProjectId = searchParams.get('projectId');
+    const linkedProjectId = searchParams.get('projectId')
     if (linkedProjectId && linkedProjectId !== projectId) {
-      setProjectId(linkedProjectId);
+      setProjectId(linkedProjectId)
     }
-  }, [projectId, searchParams]);
+  }, [projectId, searchParams])
 
+  // Mode toggle handler
+  const handleModeToggle = useCallback(() => {
+    setMode((prev) => {
+      const next = prev === 'simple' ? 'developer' : 'simple'
+      if (next === 'simple') setDockviewApi(null)
+      try {
+        localStorage.setItem(MODE_STORAGE_KEY, next)
+      } catch {
+        /* localStorage unavailable */
+      }
+      return next
+    })
+  }, [])
+
+  // Keyboard shortcut: Ctrl+Shift+D — mode toggle
   useEffect(() => {
-    setSidebarOpen(false);
-  }, [pathname, searchParams]);
+    const handler = (event: KeyboardEvent) => {
+      if (event.ctrlKey && event.shiftKey && event.key.toLowerCase() === 'd') {
+        event.preventDefault()
+        handleModeToggle()
+      }
+    }
+    window.addEventListener('keydown', handler)
+    return () => window.removeEventListener('keydown', handler)
+  }, [handleModeToggle])
+
+  // Keyboard shortcut: Ctrl+K — command palette
+  useEffect(() => {
+    const handler = (event: KeyboardEvent) => {
+      if (event.ctrlKey && !event.shiftKey && !event.altKey && event.key.toLowerCase() === 'k') {
+        event.preventDefault()
+        setCommandPaletteOpen((prev) => !prev)
+      }
+    }
+    window.addEventListener('keydown', handler)
+    return () => window.removeEventListener('keydown', handler)
+  }, [])
+
+  const handleProjectChange = useCallback((newProjectId: string) => {
+    setProjectId(newProjectId)
+    setIsHomeContext(false)
+    setActiveRoute('home') // reset content route on project switch
+  }, [])
+
+  // Stub project list for the project rail (tRPC wiring in follow-up)
+  const stubProjects = useMemo(() => [
+    { id: 'project-1', name: 'Default Project' },
+  ], [])
+
+  const handleNavigate = useCallback((routeId: string) => {
+    setActiveRoute(routeId)
+  }, [])
+
+  const handleGoBack = useCallback(() => {
+    setActiveRoute('home')
+  }, [])
+
+  const navigation: NavigationState = useMemo(() => ({
+    activeRoute,
+    history: [activeRoute],
+    canGoBack: activeRoute !== 'home',
+  }), [activeRoute])
+
+  const commands = useMemo(
+    () => buildWebCommands({
+      navigate: handleNavigate,
+      onModeToggle: handleModeToggle,
+      onCommandPalette: () => setCommandPaletteOpen((prev) => !prev),
+    }),
+    [handleNavigate, handleModeToggle],
+  )
+
+  const routes = useMemo(
+    () => createWebShellRoutes({
+      onModeChange: (newMode) => {
+        setMode(newMode)
+        try { localStorage.setItem(MODE_STORAGE_KEY, newMode) } catch { /* */ }
+      },
+      currentMode: mode,
+    }),
+    [mode],
+  )
 
   return (
-    <ProjectProvider value={{ projectId, setProjectId }}>
-      <div className="flex h-screen overflow-hidden">
-        <div className="hidden h-full shrink-0 md:block">
-          <Sidebar
-            projectId={projectId}
-            onProjectSelect={setProjectId}
-            onNewProject={handleNewProject}
+    <WebChromeShell mode={mode} onModeToggle={handleModeToggle} dockviewApi={dockviewApi} panelDefs={WEB_PANEL_DEFS}>
+      <ShellProvider
+        mode={mode}
+        activeRoute={activeRoute}
+        navigation={navigation}
+        navigate={handleNavigate}
+        goBack={handleGoBack}
+        activeProjectId={projectId}
+        onProjectChange={handleProjectChange}
+      >
+        <NotificationProvider>
+        <ProjectProvider value={{ projectId, setProjectId }}>
+          <CommandPalette
+            isOpen={commandPaletteOpen}
+            onClose={() => setCommandPaletteOpen(false)}
+            commands={commands}
           />
-        </div>
-        {sidebarOpen ? (
-          <button
-            type="button"
-            aria-label="Close navigation"
-            className="fixed inset-0 z-40 bg-black/40 md:hidden"
-            onClick={() => setSidebarOpen(false)}
-          />
-        ) : null}
-        <div
-          className={`fixed inset-y-0 left-0 z-50 w-72 transition-transform md:hidden ${
-            sidebarOpen ? 'translate-x-0' : '-translate-x-full'
-          }`}
-        >
-          <Sidebar
-            projectId={projectId}
-            onProjectSelect={setProjectId}
-            onNewProject={handleNewProject}
-            onNavigate={() => setSidebarOpen(false)}
-            className="h-full w-full bg-background"
-          />
-        </div>
-        <div className="flex min-w-0 flex-1 flex-col">
-          <div className="flex items-center justify-between border-b border-border px-3 py-2 md:hidden">
-            <Button variant="outline" size="sm" onClick={() => setSidebarOpen(true)}>
-              Menu
-            </Button>
-            <div className="text-xs text-muted-foreground">
-              {projectId ? 'Project selected' : 'No project selected'}
-            </div>
+          <div style={{ flex: 1, minHeight: 0, height: '100%', overflow: 'hidden', position: 'relative' }}>
+            {mode === 'simple' ? (
+              <SimpleShellLayout
+                projectRail={
+                  <ProjectSwitcherRail
+                    projects={stubProjects}
+                    activeProjectId={projectId ?? 'project-1'}
+                    onProjectSelect={(id) => {
+                      setIsHomeContext(false)
+                      handleProjectChange(id)
+                    }}
+                    onHomeClick={() => {
+                      setIsHomeContext(true)
+                      handleNavigate('home')
+                    }}
+                    isHomeActive={isHomeContext}
+                  />
+                }
+                sidebarCollapsed={sidebarCollapsed}
+                onSidebarCollapseChange={setSidebarCollapsed}
+                sidebar={
+                  isHomeContext && isHomeSidebarEnabled()
+                    ? <WebHomeSidebar />
+                    : (
+                      <WebAssetSidebarConnected
+                        collapsed={sidebarCollapsed}
+                        onToggleCollapse={handleToggleCollapse}
+                      />
+                    )
+                }
+                content={
+                  <ContentRouter
+                    activeRoute={activeRoute}
+                    routes={routes}
+                    onNavigate={handleNavigate}
+                  />
+                }
+                observe={<ObservePanel />}
+                chatStage={chatStageManager.chatStage}
+                onClickOutside={chatStageManager.handleClickOutside}
+                chatSlot={({ stage }) => (
+                  <WebConnectedChatSurface
+                    stage={stage}
+                    isPinned={chatStageManager.isPinned}
+                    onStageChange={(s) => {
+                      if (s === 'ambient_large') chatStageManager.expandToAmbientLarge()
+                      else if (s === 'ambient_small') chatStageManager.collapseToAmbientSmall()
+                      else if (s === 'full') chatStageManager.expandToFull()
+                      else if (s === 'small') chatStageManager.collapseToSmall()
+                    }}
+                    onSendStart={() => chatStageManager.signalSending()}
+                    onTogglePin={() => chatStageManager.togglePin()}
+                    onInputFocus={() => chatStageManager.signalInputFocus()}
+                    onUnreadMessage={() => chatStageManager.signalUnreadMessage()}
+                    onMessagesRead={() => chatStageManager.signalMessagesRead()}
+                  />
+                )}
+              />
+            ) : (
+              <WebDockviewShell onApiReady={setDockviewApi} />
+            )}
           </div>
-          <main className="min-h-0 flex-1 overflow-auto">{children}</main>
-        </div>
-      </div>
-    </ProjectProvider>
-  );
+          {/* Next.js page outlet — hidden; shell uses ContentRouter for navigation */}
+          <div style={{ display: 'none' }}>{children}</div>
+        </ProjectProvider>
+        </NotificationProvider>
+      </ShellProvider>
+    </WebChromeShell>
+  )
+}
+
+// ─── Web Connected Sidebar (lives inside ShellProvider tree) ──────────────
+
+function WebAssetSidebarConnected({
+  collapsed,
+  onToggleCollapse,
+}: {
+  collapsed?: boolean
+  onToggleCollapse?: () => void
+}) {
+  // WR-141 — do NOT call the sidebar-collapsed hook here. It is called exactly
+  // once per wiring-site root inside `ShellLayoutContent`; `collapsed` and
+  // `onToggleCollapse` are prop-drilled through this wrapper. Sibling calls are
+  // forbidden by INV-1 and the ratified primary contract § State Ownership.
+  const { activeProjectId, activeRoute, navigate } = useShellContext()
+  const badgeCount = useNotificationBadge()
+  const tasksApi = useTasks({ projectId: activeProjectId })
+
+  const tasksSection = useMemo(
+    () => buildTasksSection({
+      tasks: tasksApi.tasks,
+      loading: tasksApi.tasksLoading,
+      error: tasksApi.tasksError,
+      onAdd: () => navigate('task-create'),
+      navigate,
+    }),
+    [tasksApi.tasks, tasksApi.tasksLoading, tasksApi.tasksError, navigate],
+  )
+
+  const sections = useMemo(
+    () => buildWebSidebarSections({ tasksSection }),
+    [tasksSection],
+  )
+
+  const { data: projectList } = trpc.projects.list.useQuery()
+  const projectName = useMemo(() => {
+    if (!projectList || !activeProjectId) return 'Project'
+    const proj = (projectList as Array<{ id: string; name?: string }>).find((p) => p.id === activeProjectId)
+    return proj?.name ?? 'Project'
+  }, [projectList, activeProjectId])
+
+  const topNavWithBadge = useMemo(
+    () => WEB_TOP_NAV.map((item) =>
+      item.id === 'inbox' ? { ...item, badge: badgeCount > 0 ? badgeCount : undefined } : item,
+    ),
+    [badgeCount],
+  )
+
+  return (
+    <AssetSidebar
+      projectName={projectName}
+      topNav={topNavWithBadge}
+      sections={sections}
+      activeRoute={activeRoute}
+      onNavigate={navigate}
+      collapsed={collapsed}
+      onToggleCollapse={onToggleCollapse}
+    />
+  )
+}
+
+// ─── Web Home Sidebar (lives inside ShellProvider tree) ─────────────────
+
+function WebHomeSidebar() {
+  const { activeRoute, navigate } = useShellContext()
+  const badgeCount = useNotificationBadge()
+
+  const sections = useMemo(() => buildHomeSidebarSections(), [])
+
+  const topNavWithBadge = useMemo(
+    () => HOME_TOP_NAV.map((item) =>
+      item.id === 'home-inbox' ? { ...item, badge: badgeCount > 0 ? badgeCount : undefined } : item,
+    ),
+    [badgeCount],
+  )
+
+  return (
+    <AssetSidebar
+      projectName="Home"
+      topNav={topNavWithBadge}
+      sections={sections}
+      activeRoute={activeRoute}
+      onNavigate={navigate}
+    />
+  )
 }

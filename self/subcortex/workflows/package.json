@@ -7,7 +7,9 @@
   "exports": {
     ".": {
       "types": "./dist/index.d.ts",
-      "import": "./dist/index.js"
+      "import": "./dist/index.js",
+      "require": "./dist/index.js",
+      "default": "./dist/index.js"
     }
   },
   "scripts": {
@@ -19,7 +21,8 @@
   "dependencies": {
     "@nous/shared": "workspace:*",
     "@nous/subcortex-projects": "workspace:*",
-    "@nous/autonomic-storage": "workspace:*"
+    "@nous/autonomic-storage": "workspace:*",
+    "yaml": "^2.7.0"
   },
   "devDependencies": {
     "vitest": "^2.1.0"

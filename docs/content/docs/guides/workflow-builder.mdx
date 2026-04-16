@@ -1,0 +1,118 @@
+---
+title: Workflow Builder
+description: Build and validate workflows visually using the authoring canvas, keyboard shortcuts, and the Validation Panel.
+---
+
+# Workflow Builder
+
+The Workflow Builder is a visual authoring canvas for creating and editing workflows. You can add nodes from the component palette, connect them with edges, inspect and configure each node, and validate the workflow against the platform's workflow conventions — all without leaving the builder.
+
+## Opening the Builder
+
+Open the Workflow Builder from the Workflows section of the sidebar. Select an existing workflow to edit it, or create a new one. The builder opens in **Authoring Mode** with the canvas, toolbar, and component palette ready to use.
+
+## Keyboard Shortcuts
+
+The canvas is fully keyboard-accessible. Click the canvas area (or Tab into it) to activate keyboard navigation.
+
+| Key | Action |
+|-----|--------|
+| `Tab` | Move focus to the next node on the canvas (sorted top-to-bottom, left-to-right) |
+| `Shift+Tab` | Move focus to the previous node |
+| `Enter` | Select the focused node and open its inspector panel |
+| `Delete` or `Backspace` | Remove the focused or selected node (and any connected edges) |
+| `↑` `↓` `←` `→` | Nudge the selected node by one grid step (20 px) |
+| `Escape` | Deselect everything and close any open panel or menu |
+| `Ctrl+Z` | Undo the last action |
+| `Ctrl+Shift+Z` | Redo |
+| `Ctrl+K` | Open node search |
+
+**Note:** Keyboard navigation deactivates automatically when focus moves to a text input (inspector fields, search box, or any form element) so you can type without accidentally moving nodes.
+
+## Adding Nodes
+
+Drag a component from the palette on the left side of the canvas and drop it onto the canvas. The node appears at the drop location. You can also use the node search (`Ctrl+K`) to find and place a node by name.
+
+## Connecting Nodes
+
+Hover over a node to reveal its connection handles (the small circles on the edges). Click and drag from a handle to another node's handle to create an edge. Edges represent the execution flow between nodes.
+
+## Inspecting and Configuring Nodes
+
+Click a node (or press `Enter` when it has keyboard focus) to open the **Node Inspector** panel on the right. The inspector shows the node's type, description, and editable parameters. Changes apply immediately and are tracked in the undo history.
+
+## Saving Your Work
+
+The **Save** button in the toolbar becomes active when you have unsaved changes (indicated by an asterisk or active state on the button). Click Save to capture the current state of the workflow. The builder serializes the canvas and marks it as clean.
+
+File persistence (writing to disk or syncing to the server) completes in a later phase. Save captures the current state and prepares it for persistence.
+
+## Validating a Workflow
+
+Click the **Validate** button in the toolbar to open the **Validation Panel** and run a fresh validation check. The panel lists any rule violations detected against the workflow-convention-v1 contract.
+
+### Reading Validation Results
+
+Each entry in the Validation Panel shows:
+
+- A severity icon (error or warning)
+- A description of the violation
+- The node or edge that triggered it
+
+Click any entry to jump directly to the affected element: the canvas scrolls to it and selects it so you can fix the issue without searching manually.
+
+### The Error Count Badge
+
+The toolbar displays a live count of validation errors next to the Validate button. The badge updates automatically as you make changes. When there are no errors the badge is hidden.
+
+### No Issues Found
+
+When the workflow is valid, the Validation Panel shows a green checkmark and the message "No issues found."
+
+## Undoing and Redoing Changes
+
+Every action on the canvas — adding nodes, deleting nodes, moving nodes, connecting edges, and editing parameters — is undoable. Use `Ctrl+Z` to undo and `Ctrl+Shift+Z` to redo. The toolbar's Undo and Redo buttons show whether there is history available.
+
+## Monitoring and Inspecting Nodes
+
+The Workflow Builder supports three modes: **Authoring**, **Monitoring**, and **Inspecting**. Switch modes using the toolbar buttons.
+
+In **Monitoring** or **Inspecting** mode, the builder shifts from editing to observation. Clicking a node no longer opens the authoring Node Inspector. Instead, it opens two floating inspection panels that display execution data for the clicked node in the active run.
+
+### Gate Panel
+
+The **Gate Panel** appears on the left side of the canvas and shows the gate evaluation results for the selected node. Gates are checkpoint evaluations that must pass before a node's output is accepted:
+
+- **Approval gates** — require human sign-off
+- **Quality gates** — automated quality checks
+- **Governance gates** — policy enforcement checks
+
+Each gate entry displays its name, type icon, and a color-coded status badge (passed, failed, pending, or skipped). If a gate failed, the panel shows a one-line error detail explaining why.
+
+When a node has no gates, the panel displays an empty state message.
+
+### Artifact Browser
+
+The **Artifact Browser** appears on the right side of the canvas and lists the artifacts associated with the selected node's execution. Artifacts are outputs and references that a node produced or consumed during a run — dispatch packets, revision cycle records, escalation references, and other typed documents.
+
+Each artifact entry shows its label, a type badge (dispatch, revision, escalation, output, or other), and its artifact ID.
+
+When a node produced no artifacts, the panel displays an empty state message.
+
+**Note:** Clicking an artifact row does not navigate anywhere in the current release. Deep-linking to artifact viewers is planned for a future update.
+
+### Dismissing Inspection Panels
+
+To close the Gate Panel and Artifact Browser:
+
+- **Click the canvas background** (any empty area) to clear the selection and close both panels.
+- **Switch to Authoring mode** using the toolbar — this clears the inspection state and returns to the editing workflow.
+
+### Known Limitations
+
+- The Artifact Browser and the Execution History panel both open on the right side of the canvas. They may visually overlap on first appearance. Both panels are draggable — drag one to reposition it.
+- When switching between inspected nodes rapidly, you may need to click a node more than once if the panels are still resetting.
+
+## Accessibility
+
+The Workflow Builder meets WCAG AA contrast requirements and is fully operable by keyboard. Every toolbar button has a descriptive label readable by screen readers. Validation errors are announced via a live region (`aria-live`) so assistive technologies surface new errors as they appear.

@@ -21,9 +21,9 @@ describe('AgentGateway messaging', () => {
           response: 'spawn child',
           toolCalls: [
             {
-              name: 'dispatch_agent',
+              name: 'dispatch_orchestrator',
               params: {
-                targetClass: 'Worker',
+                dispatchIntent: { type: 'task' },
                 taskInstructions: 'Perform the child task.',
                 budget: {
                   maxTurns: 1,
@@ -40,7 +40,7 @@ describe('AgentGateway messaging', () => {
         }),
       ],
       lifecycleHooks: {
-        dispatchAgent: async () => ({
+        dispatchOrchestrator: async () => ({
           status: 'completed',
           output: { child: 'done' },
           v3Packet: createStampedPacket(),
@@ -70,8 +70,11 @@ describe('AgentGateway messaging', () => {
 
     expect(result.status).toBe('completed');
     const secondInvoke = modelProvider.invoke.mock.calls[1][0];
-    const childFrame = (secondInvoke.input.context as Array<{ source: string; content: string }>).find(
-      (frame) => frame.source === 'child_result',
+    // Text adapter produces { prompt, context } format with GatewayContextFrame[]
+    const context = secondInvoke.input.context as Array<{ role: string; content: string }>;
+    // After adapter.formatRequest, child_result frames become context entries; find by content
+    const childFrame = context.find(
+      (frame) => frame.content.includes('"child": "done"'),
     );
 
     expect(childFrame?.content).toContain('"child": "done"');

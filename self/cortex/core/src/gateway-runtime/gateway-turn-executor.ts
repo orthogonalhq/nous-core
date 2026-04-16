@@ -16,6 +16,7 @@ import {
   type IRuntime,
   type IScheduler,
   type IStmStore,
+  type IThoughtEmitter,
   type IToolExecutor,
   type IWorkflowEngine,
   type IWitnessService,
@@ -32,8 +33,12 @@ import {
 import { AgentGatewayFactory } from '../agent-gateway/index.js';
 import { createInternalMcpSurfaceBundle } from '../internal-mcp/index.js';
 import type { InternalMcpOutputSchemaValidator } from '../internal-mcp/types.js';
+import type { IWorkmodeAdmissionGuard } from '@nous/shared';
+import { WorkmodeAdmissionGuard } from '../workmode/admission-guard.js';
 import { parseModelOutput } from '../output-parser.js';
 import { GatewayTraceRecorder } from './trace-recorder.js';
+import { resolveAdapter, resolveProviderTypeFromConfig } from '../agent-gateway/adapters/index.js';
+import type { ProviderAdapter } from '../agent-gateway/adapters/types.js';
 
 const DEFAULT_CHAT_BUDGET = {
   maxTurns: 4,
@@ -42,6 +47,46 @@ const DEFAULT_CHAT_BUDGET = {
 } as const;
 
 const CHAT_COMPLETION_SCHEMA_REF = 'schema://chat-response';
+
+type GatewayInputRecord = {
+  systemPrompt: string;
+  context: unknown;
+};
+
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return typeof value === 'object' && value !== null;
+}
+
+function isGatewayInput(value: unknown): value is GatewayInputRecord {
+  if (!isRecord(value)) {
+    return false;
+  }
+
+  return typeof value.systemPrompt === 'string' && Array.isArray(value.context);
+}
+
+/**
+ * Converts gateway-format input to provider-specific format using the adapter.
+ * Passes through input that is already in provider format (has messages/prompt).
+ */
+function adaptGatewayInput(input: unknown, adapter: ProviderAdapter): unknown {
+  if (!isRecord(input)) return input;
+  if ('messages' in input || 'prompt' in input) return input;
+  if (!isGatewayInput(input)) return input;
+
+  const parsedContext = GatewayContextFrameSchema.array().safeParse(input.context);
+  if (!parsedContext.success) return input;
+
+  const result = adapter.formatRequest({
+    systemPrompt: input.systemPrompt,
+    context: parsedContext.data,
+    toolDefinitions: Array.isArray((input as Record<string, unknown>).tools)
+      ? (input as Record<string, unknown>).tools as import('@nous/shared').ToolDefinition[]
+      : undefined,
+  });
+  return result.input;
+}
+
 
 interface MwcPipelineLike {
   submit(
@@ -72,19 +117,30 @@ export interface GatewayBackedTurnExecutorDeps {
   instanceRoot?: string;
   outputSchemaValidator?: InternalMcpOutputSchemaValidator;
   agentGatewayFactory?: IAgentGatewayFactory;
+  workmodeAdmissionGuard?: IWorkmodeAdmissionGuard;
+  thoughtEmitter?: IThoughtEmitter;
+  pfcEngine?: { setTraceId(traceId: string): void };
   now?: () => string;
   nowMs?: () => number;
   idFactory?: () => string;
 }
 
+/**
+ * @deprecated Use {@link CortexRuntime.handleChatTurn()} for chat turns.
+ * This class is the compatibility bridge for callers still using the ICoreExecutor interface.
+ * `getTrace()` remains functional for trace retrieval during transition.
+ * Will be removed after all callers migrate.
+ */
 export class GatewayBackedTurnExecutor implements ICoreExecutor {
   private readonly gatewayFactory: IAgentGatewayFactory;
+  private readonly workmodeAdmissionGuard: IWorkmodeAdmissionGuard;
   private readonly traceRecorder: GatewayTraceRecorder;
   private readonly now: () => string;
   private readonly idFactory: () => string;
 
   constructor(private readonly deps: GatewayBackedTurnExecutorDeps) {
     this.gatewayFactory = deps.agentGatewayFactory ?? new AgentGatewayFactory();
+    this.workmodeAdmissionGuard = deps.workmodeAdmissionGuard ?? new WorkmodeAdmissionGuard();
     this.traceRecorder = new GatewayTraceRecorder(deps.documentStore);
     this.now = deps.now ?? (() => new Date().toISOString());
     this.idFactory = deps.idFactory ?? randomUUID;
@@ -100,12 +156,19 @@ export class GatewayBackedTurnExecutor implements ICoreExecutor {
 
     const validInput = parsed.data;
     const startedAt = this.now();
+    const traceId = validInput.traceId;
 
+    this.deps.thoughtEmitter?.resetSequence();
+    this.deps.pfcEngine?.setTraceId(traceId);
+    this.emitLifecycle(traceId, 'turn-start', 'started');
+
+    this.emitLifecycle(traceId, 'opctl-check', 'started');
     if (validInput.projectId && this.deps.opctlService) {
       const controlState = await this.deps.opctlService.getProjectControlState(
         validInput.projectId,
       );
       if (controlState === 'paused_review' || controlState === 'hard_stopped') {
+        this.emitLifecycle(traceId, 'opctl-check', 'completed', `blocked controlState=${controlState}`);
         return {
           response: `[Project blocked by operator control (${controlState}).]`,
           traceId: validInput.traceId,
@@ -114,11 +177,13 @@ export class GatewayBackedTurnExecutor implements ICoreExecutor {
         };
       }
     }
+    this.emitLifecycle(traceId, 'opctl-check', 'completed');
 
     const stmContext = validInput.stmContext ?? (validInput.projectId
       ? await this.deps.stmStore.getContext(validInput.projectId)
       : { entries: [], tokenCount: 0 });
 
+    this.emitLifecycle(traceId, 'gateway-run', 'started');
     const gateway = this.createGateway(validInput.message);
     const result = await gateway.run({
       taskInstructions: [
@@ -144,8 +209,11 @@ export class GatewayBackedTurnExecutor implements ICoreExecutor {
       },
       modelRequirements: validInput.modelRequirements,
     });
+    this.emitLifecycle(traceId, 'gateway-run', 'completed');
 
-    const response = this.resolveResponse(result);
+    const resolved = this.resolveResponse(result);
+    this.emitLifecycle(traceId, 'response-resolved', 'completed');
+
     const pfcDecisions =
       result.status === 'completed'
         ? []
@@ -157,13 +225,16 @@ export class GatewayBackedTurnExecutor implements ICoreExecutor {
             },
           ];
 
+    this.emitLifecycle(traceId, 'stm-finalize', 'started');
     await this.finalizeStmTurn(
       validInput.projectId,
       validInput.message,
-      response,
+      resolved.response,
       validInput.traceId,
       result.evidenceRefs,
+      resolved.contentType,
     );
+    this.emitLifecycle(traceId, 'stm-finalize', 'completed');
 
     await this.traceRecorder.recordTurn({
       traceId: validInput.traceId,
@@ -171,17 +242,32 @@ export class GatewayBackedTurnExecutor implements ICoreExecutor {
       startedAt,
       completedAt: this.now(),
       input: validInput.message,
-      output: response,
+      output: resolved.response,
       pfcDecisions,
       evidenceRefs: result.evidenceRefs,
     });
+    this.emitLifecycle(traceId, 'trace-record', 'completed');
 
+    this.deps.pfcEngine?.setTraceId('');
+    this.emitLifecycle(traceId, 'turn-complete', 'completed');
     return {
-      response,
+      response: resolved.response,
       traceId: validInput.traceId,
       memoryCandidates: [],
       pfcDecisions,
+      contentType: resolved.contentType,
     };
+  }
+
+  private emitLifecycle(traceId: string, phase: string, status: string, content?: string): void {
+    this.deps.thoughtEmitter?.emitTurnLifecycle({
+      traceId,
+      phase: phase as 'turn-start' | 'opctl-check' | 'gateway-run' | 'response-resolved' | 'stm-finalize' | 'trace-record' | 'turn-complete',
+      status: status as 'started' | 'completed' | 'failed',
+      content,
+      sequence: 0,
+      emittedAt: new Date().toISOString(),
+    });
   }
 
   async superviseProject(): Promise<void> {
@@ -212,6 +298,7 @@ export class GatewayBackedTurnExecutor implements ICoreExecutor {
         runtime: this.deps.runtime,
         instanceRoot: this.deps.instanceRoot,
         outputSchemaValidator: this.deps.outputSchemaValidator,
+        workmodeAdmissionGuard: this.workmodeAdmissionGuard,
         now: this.now,
         idFactory: this.idFactory,
       },
@@ -246,10 +333,16 @@ export class GatewayBackedTurnExecutor implements ICoreExecutor {
       return null;
     }
 
+    const providerType = resolveProviderTypeFromConfig(provider);
+    const adapter = resolveAdapter(providerType);
+
     return {
       ...provider,
       invoke: async (request) => {
-        const response = await provider.invoke(request);
+        const response = await provider.invoke({
+          ...request,
+          input: adaptGatewayInput(request.input, adapter),
+        });
         const parsedOutput = parseModelOutput(
           response.output,
           response.traceId,
@@ -269,7 +362,7 @@ export class GatewayBackedTurnExecutor implements ICoreExecutor {
               {
                 name: 'task_complete',
                 params: {
-                  output: { response: finalResponse },
+                  output: { response: finalResponse, contentType: parsedOutput.contentType },
                   summary: 'chat turn completed',
                 },
               },
@@ -311,31 +404,32 @@ export class GatewayBackedTurnExecutor implements ICoreExecutor {
 
   private resolveResponse(
     result: Awaited<ReturnType<ReturnType<GatewayBackedTurnExecutor['createGateway']>['run']>>,
-  ): string {
+  ): { response: string; contentType?: 'text' | 'openui' } {
     if (result.status === 'completed') {
-      const output = result.output as { response?: unknown } | string;
+      const output = result.output as { response?: unknown; contentType?: unknown } | string;
       if (typeof output === 'string') {
-        return output;
+        return { response: output };
       }
       if (typeof output?.response === 'string') {
-        return output.response;
+        const contentType = output.contentType === 'openui' ? 'openui' as const : output.contentType === 'text' ? 'text' as const : undefined;
+        return { response: output.response, contentType };
       }
-      return JSON.stringify(output);
+      return { response: JSON.stringify(output) };
     }
 
     if (result.status === 'escalated') {
-      return `[escalated: ${result.reason}]`;
+      return { response: `[escalated: ${result.reason}]` };
     }
     if (result.status === 'budget_exhausted') {
-      return '[budget exhausted]';
+      return { response: '[budget exhausted]' };
     }
     if (result.status === 'aborted') {
-      return `[aborted: ${result.reason}]`;
+      return { response: `[aborted: ${result.reason}]` };
     }
     if (result.status === 'suspended') {
-      return `[suspended: ${result.reason}]`;
+      return { response: `[suspended: ${result.reason}]` };
     }
-    return `[error: ${result.reason}]`;
+    return { response: `[error: ${result.reason}]` };
   }
 
   private async finalizeStmTurn(
@@ -344,6 +438,7 @@ export class GatewayBackedTurnExecutor implements ICoreExecutor {
     assistantResponse: string,
     traceId: TraceId,
     evidenceRefs: TraceEvidenceReference[],
+    contentType?: 'text' | 'openui',
   ): Promise<void> {
     if (!projectId) {
       return;
@@ -356,11 +451,15 @@ export class GatewayBackedTurnExecutor implements ICoreExecutor {
         content: userMessage,
         timestamp,
       });
-      await this.deps.stmStore.append(projectId, {
+      const assistantEntry: { role: 'assistant'; content: string; timestamp: string; metadata?: Record<string, unknown> } = {
         role: 'assistant',
         content: assistantResponse,
         timestamp,
-      });
+      };
+      if (contentType && contentType !== 'text') {
+        assistantEntry.metadata = { contentType };
+      }
+      await this.deps.stmStore.append(projectId, assistantEntry);
 
       const stmContext = await this.deps.stmStore.getContext(projectId);
       if (!stmContext.compactionState?.requiresCompaction) {

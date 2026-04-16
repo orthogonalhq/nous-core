@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef } from 'react'
+import React, { useState, useEffect, useRef, useCallback, useMemo } from 'react'
 import { DockviewReact } from 'dockview-react'
 import type {
   DockviewApi,
@@ -7,36 +7,52 @@ import type {
   IDockviewHeaderActionsProps,
 } from 'dockview-react'
 import {
-  AppIframePanel,
-  PlaceholderPanel,
-  ChatPanel,
-  FileBrowserPanel,
-  NodeProjectionPanel,
-  MAOPanel,
-  CodexBarPanel,
   CodexBarHeaderActions,
   useCodexBarApi,
-  DashboardPanel,
   DashboardWidgetMenu,
   useDashboardApi,
+  PreferencesPanel,
 } from '@nous/ui/panels'
-import { AppInstallWizardPanel } from './components/AppInstallWizard'
+import {
+  ContentRouter,
+  NavigationRail,
+  ShellLayout,
+  SimpleShellLayout,
+  ShellProvider,
+  useShellContext as useShellCtx,
+  ObservePanel,
+  CommandPalette,
+  ProjectSwitcherRail,
+  AssetSidebar,
+  useChatStageManager,
+  useSidebarCollapsed,
+  isHomeSidebarEnabled,
+  HOME_TOP_NAV,
+  buildHomeSidebarSections,
+  type ContentRouterRenderProps,
+  type ShellMode,
+  type CommandGroup,
+  type ChatStage,
+} from '@nous/ui/components'
+import { TransportProvider, createDesktopTransport, trpc, useEventSubscription } from '@nous/transport'
+import { FirstRunWizard } from './components/FirstRunWizard'
 import { TitleBar } from './components/TitleBar'
 import { StatusBar } from './components/StatusBar'
+import type { FirstRunState } from './components/wizard/types'
+import { setBackendPort as setWizardBackendPort, trpcQuery } from './components/wizard/trpc-fetch'
+import { ConnectedChatSurface } from './desktop-chat-wrappers'
+import { panelComponents } from './desktop-panel-map'
+import { RAIL_SECTIONS } from './desktop-rail-config'
+import { buildDesktopCommands } from './desktop-command-config'
+import { DESKTOP_TOP_NAV, buildDesktopSidebarSections } from './desktop-sidebar-config'
+import { BASE_SIMPLE_MODE_ROUTES } from './desktop-routes'
+import { useTasks, buildTasksSection } from '@nous/ui/hooks/useTasks'
+import { useWorkflows, buildWorkflowsSection } from '@nous/ui/hooks/useWorkflows'
+import { ConfirmDeleteDialog, NotificationProvider, useNotificationBadge } from '@nous/ui/components'
+import type { ContextMenuAction } from '@nous/ui/components'
+import { SettingsRoute } from './desktop-settings-route'
 
 import 'dockview-react/dist/styles/dockview.css'
-
-const panelComponents = {
-  'app-installer': AppInstallWizardPanel,
-  'app-iframe': AppIframePanel,
-  placeholder: PlaceholderPanel,
-  chat: ChatPanel,
-  'file-browser': FileBrowserPanel,
-  'node-projection': NodeProjectionPanel,
-  mao: MAOPanel,
-  codexbar: CodexBarPanel,
-  dashboard: DashboardPanel,
-}
 
 // Single source of truth for all panels — used by initDefaultLayout() and View menu toggle
 export type PanelDef = {
@@ -70,27 +86,26 @@ const APP_PANEL_POSITIONS: Record<NonNullable<AppPanelSnapshot['position']>, { d
   main: { direction: 'within', referencePanel: 'chat' },
 }
 
+// ─── Panel registry ──────────────────────────────────────────────────────────
+// Panels that resolve live API bridges from window.electronAPI at render time.
+// The params factory is invoked both when adding a panel and after layout restore.
+
 export const NATIVE_PANEL_DEFS: PanelDef[] = [
-  {
-    id: 'app-installer',
-    component: 'app-installer',
-    title: 'App Installer',
-    params: () => ({
-      appInstallApi: (window as any).electronAPI?.appInstall,
-      appSettingsApi: (window as any).electronAPI?.appSettings,
-    }),
-  },
   {
     id: 'chat',
     component: 'chat',
     title: 'Principal \u2194 Cortex',
-    params: () => ({ chatApi: (window as any).electronAPI?.chat }),
+  },
+  {
+    id: 'app-installer',
+    component: 'app-installer',
+    title: 'App Installer',
   },
   {
     id: 'files',
     component: 'file-browser',
     title: 'Files',
-    params: () => ({ fsApi: (window as any).electronAPI?.fs, initialPath: '/' }),
+    params: () => ({ fsApi: window.electronAPI?.fs, initialPath: '/' }),
   },
   { id: 'node-projection', component: 'node-projection', title: 'Skill Projection' },
   { id: 'mao', component: 'mao', title: 'MAO' },
@@ -98,10 +113,70 @@ export const NATIVE_PANEL_DEFS: PanelDef[] = [
     id: 'codexbar',
     component: 'codexbar',
     title: 'AI Usage',
-    params: () => ({ usageApi: (window as any).electronAPI?.usage }),
+    params: () => ({ usageApi: window.electronAPI?.usage }),
   },
   { id: 'dashboard', component: 'dashboard', title: 'Dashboard' },
+  { id: 'coding-agents', component: 'coding-agents', title: 'Coding Agents' },
+  { id: 'workflow-builder', component: 'workflow-builder', title: 'Workflow Builder' },
+  {
+    id: 'preferences',
+    component: 'preferences',
+    title: 'Preferences',
+  },
 ]
+
+// Order in which panels are added to the default layout.
+// Panels that are referenced by others must appear first.
+// chat is the anchor — everything else positions relative to it.
+const PANEL_ADD_ORDER = [
+  'chat',
+  'files',
+  'node-projection',
+  'mao',
+  'app-installer',
+  'codexbar',
+  'dashboard',
+  'coding-agents',
+  'preferences',
+  'workflow-builder',
+]
+
+const DEFAULT_ROUTE = 'home'
+const MODE_STORAGE_KEY = 'nous:shell-mode'
+
+
+function parseShellMode(value: unknown): ShellMode | null {
+  return value === 'simple' || value === 'developer' ? value : null
+}
+
+const modePersistence = {
+  get: async (): Promise<ShellMode | null> => {
+    try {
+      if (typeof window.electronAPI?.mode?.get === 'function') {
+        return parseShellMode(await window.electronAPI.mode.get())
+      }
+
+      return parseShellMode(window.localStorage.getItem(MODE_STORAGE_KEY))
+    } catch {
+      console.warn('[nous:mode] Failed to load mode, defaulting to simple')
+      return null
+    }
+  },
+  set: async (mode: ShellMode): Promise<void> => {
+    try {
+      if (typeof window.electronAPI?.mode?.set === 'function') {
+        await window.electronAPI.mode.set(mode)
+        return
+      }
+
+      window.localStorage.setItem(MODE_STORAGE_KEY, mode)
+    } catch {
+      console.warn('[nous:mode] Failed to save mode')
+    }
+  },
+}
+
+type PreferencesPanelParams = Parameters<typeof PreferencesPanel>[0]['params']
 
 function toAppPanelDef(panel: AppPanelSnapshot): PanelDef {
   return {
@@ -120,21 +195,83 @@ function toAppPanelDef(panel: AppPanelSnapshot): PanelDef {
   }
 }
 
+// ─── Layout persistence helpers ──────────────────────────────────────────────
+
+/**
+ * Build a param lookup from NATIVE_PANEL_DEFS keyed by panel id.
+ * Used to re-inject live API bridges after layout restore.
+ */
+function buildParamLookup(panelDefs: PanelDef[]): Map<string, () => Record<string, unknown>> {
+  const lookup = new Map<string, () => Record<string, unknown>>()
+  for (const def of panelDefs) {
+    if (def.params) {
+      lookup.set(def.id, def.params)
+    }
+  }
+  return lookup
+}
+
+/**
+ * After fromJSON() restores a layout, panels have stale/empty params.
+ * Walk every panel and re-inject live params from the registry.
+ */
+function resolvePanelParams(api: DockviewApi, panelDefs: PanelDef[]): void {
+  const lookup = buildParamLookup(panelDefs)
+  for (const panel of api.panels) {
+    const factory = lookup.get(panel.id)
+    if (factory) {
+      try {
+        panel.api.updateParameters(factory())
+      } catch {
+        // Panel may not support updateParameters — safe to skip
+      }
+    }
+  }
+}
+
+/**
+ * Strip non-serializable values (functions, DOM nodes, etc.) from the
+ * dockview JSON before persisting over IPC.  This prevents structuredClone
+ * errors when electron-store tries to serialize the layout.
+ */
+function stripNonSerializableFromLayout(layout: SerializedDockview): SerializedDockview | null {
+  try {
+    // JSON.parse(JSON.stringify(…)) is the simplest and most reliable way
+    // to drop functions, undefined, symbols, circular refs, etc.
+    return JSON.parse(JSON.stringify(layout))
+  } catch (error) {
+    console.warn('Layout serialization failed, skipping save', error)
+    return null
+  }
+}
+
 // Loading state: undefined = not yet fetched; null = fetched, no saved layout
 type LayoutState = SerializedDockview | null | undefined
+type AppPhase = 'loading' | 'wizard' | 'main'
+
+function wait(delayMs: number): Promise<void> {
+  return new Promise((resolve) => {
+    window.setTimeout(resolve, delayMs)
+  })
+}
 
 // Outer chrome shell — titlebar + content area + statusbar
 function ChromeShell({
   children,
   dockviewApi,
   panelDefs,
+  mode,
+  onModeToggle,
 }: {
   children: React.ReactNode
   dockviewApi: DockviewApi | null
   panelDefs: PanelDef[]
+  mode: ShellMode
+  onModeToggle: () => void
 }) {
   return (
     <div
+      data-shell-mode={mode}
       style={{
         display: 'flex',
         flexDirection: 'column',
@@ -143,34 +280,198 @@ function ChromeShell({
         background: 'var(--nous-bg)',
       }}
     >
-      <TitleBar dockviewApi={dockviewApi} panelDefs={panelDefs} />
+      <TitleBar
+        dockviewApi={dockviewApi}
+        panelDefs={panelDefs}
+        mode={mode}
+        onModeToggle={onModeToggle}
+      />
       <div style={{ flex: 1, overflow: 'hidden', minHeight: 0 }}>
         {children}
       </div>
-      <StatusBar />
+      {mode !== 'simple' && <StatusBar mode={mode} />}
     </div>
   )
 }
 
 export function App() {
+  const bootstrapRunRef = useRef(0)
+  const [phase, setPhase] = useState<AppPhase>('loading')
+  const [loadingMessage, setLoadingMessage] = useState('Connecting to backend…')
+  const [bootError, setBootError] = useState<string | null>(null)
+  const [firstRunState, setFirstRunState] = useState<FirstRunState | null>(null)
   const [savedLayout, setSavedLayout] = useState<LayoutState>(undefined)
   const [dockviewApi, setDockviewApi] = useState<DockviewApi | null>(null)
   const [appPanels, setAppPanels] = useState<AppPanelSnapshot[]>([])
-  const panelDefs = [...NATIVE_PANEL_DEFS, ...appPanels.map(toAppPanelDef)]
+  const [mode, setMode] = useState<ShellMode>('simple')
+  const [activeRoute, setActiveRoute] = useState(DEFAULT_ROUTE)
+  const [isHomeContext, setIsHomeContext] = useState(false)
+  const [commandPaletteOpen, setCommandPaletteOpen] = useState(false)
+  const [backendPort, setBackendPort] = useState<number | null>(null)
 
-  useEffect(() => {
-    window.electronAPI.layout.get().then((layout: unknown) => {
-      setSavedLayout((layout as SerializedDockview | null) ?? null)
-    })
+
+  const initializeApp = useCallback(async () => {
+    const runId = ++bootstrapRunRef.current
+    const isStale = () => bootstrapRunRef.current !== runId
+
+    setBootError(null)
+    setLoadingMessage('Connecting to backend…')
+    setPhase('loading')
+    setFirstRunState(null)
+    setSavedLayout(undefined)
+    setDockviewApi(null)
+    setAppPanels([])
+
+    const startedAt = Date.now()
+    let backendReady = false
+    let delayMs = 500
+
+    while (!backendReady && Date.now() - startedAt < 30000) {
+      try {
+        const status = await window.electronAPI.backend.getStatus()
+        if (status.ready) {
+          backendReady = true
+          break
+        }
+      } catch {
+        // Keep waiting until timeout or successful readiness.
+      }
+
+      if (isStale()) {
+        return
+      }
+
+      const elapsedMs = Date.now() - startedAt
+      console.log(`[nous:wizard] Backend readiness wait: ${elapsedMs}ms`)
+      setLoadingMessage(`Connecting to backend… (${Math.max(1, Math.ceil(elapsedMs / 1000))}s)`)
+      await wait(delayMs)
+      delayMs = Math.min(delayMs * 2, 4000)
+    }
+
+    if (isStale()) {
+      return
+    }
+
+    if (!backendReady) {
+      setBootError('The desktop backend did not become ready within 30 seconds.')
+      return
+    }
+
+    // Discover backend port for direct HTTP/SSE transport
+    let discoveredPort: number | null = null
+    try {
+      const port = await window.electronAPI.backend.getPort()
+      if (!isStale() && port) {
+        discoveredPort = port
+        setBackendPort(port)
+        setWizardBackendPort(port)
+      }
+    } catch {
+      console.warn('[nous:transport] Failed to get backend port — transport layer unavailable')
+    }
+
+    setLoadingMessage('Loading first-run state…')
+
+    try {
+      const nextFirstRunState = await trpcQuery<FirstRunState>('firstRun.getWizardState')
+      if (isStale()) {
+        return
+      }
+
+      setFirstRunState(nextFirstRunState)
+      if (nextFirstRunState.complete) {
+        console.log('[nous:wizard] Phase: loading → main')
+        setPhase('main')
+      } else {
+        console.log('[nous:wizard] Phase: loading → wizard')
+        setPhase('wizard')
+      }
+    } catch (error) {
+      if (isStale()) {
+        return
+      }
+
+      const message = error instanceof Error ? error.message : String(error)
+      setBootError(message)
+    }
   }, [])
 
   useEffect(() => {
+    void initializeApp()
+
+    return () => {
+      bootstrapRunRef.current += 1
+    }
+  }, [initializeApp])
+
+  useEffect(() => {
+    if (phase !== 'main') {
+      return
+    }
+
+    let cancelled = false
+    setLoadingMessage('Loading workspace layout…')
+
+    window.electronAPI.layout.get().then((layout: unknown) => {
+      if (cancelled) {
+        return
+      }
+
+      setSavedLayout((layout as SerializedDockview | null) ?? null)
+    }).catch(() => {
+      if (cancelled) {
+        return
+      }
+
+      setSavedLayout(null)
+    })
+
+    return () => {
+      cancelled = true
+    }
+  }, [phase])
+
+  useEffect(() => {
+    if (phase !== 'main') {
+      return
+    }
+
     let cancelled = false
 
+    void modePersistence.get().then((storedMode) => {
+      if (!cancelled && storedMode) {
+        console.log(`[nous:mode] Loaded mode: ${storedMode}`)
+        setMode(storedMode)
+      }
+    })
+
+    return () => {
+      cancelled = true
+    }
+  }, [phase])
+
+  useEffect(() => {
+    if (phase !== 'main') {
+      setAppPanels([])
+      return
+    }
+
+    let cancelled = false
+
+    if (!backendPort) return
+
     const syncAppPanels = async () => {
-      const panels = await window.electronAPI.appPanels.list()
-      if (!cancelled) {
-        setAppPanels(panels)
+      try {
+        const panels = await trpcQuery<AppPanelSnapshot[]>('packages.listAppPanels')
+        if (!cancelled && Array.isArray(panels)) {
+          const baseUrl = `http://127.0.0.1:${backendPort}`
+          setAppPanels(panels.map((p: AppPanelSnapshot) => ({
+            ...p,
+            src: new URL(p.route_path, baseUrl).toString(),
+          })))
+        }
+      } catch {
+        // Backend may not be available yet — retry on next interval
       }
     }
 
@@ -183,36 +484,688 @@ export function App() {
       cancelled = true
       window.clearInterval(intervalId)
     }
+  }, [phase, backendPort])
+
+  const handleWizardComplete = useCallback(() => {
+    console.log('[nous:wizard] Phase: wizard → main')
+    setSavedLayout(undefined)
+    setDockviewApi(null)
+    setPhase('main')
   }, [])
 
-  if (savedLayout === undefined) {
-    return (
-      <ChromeShell dockviewApi={null} panelDefs={panelDefs}>
-        <div
-          style={{
-            height: '100%',
-            display: 'flex',
-            alignItems: 'center',
-            justifyContent: 'center',
-            background: 'var(--nous-bg)',
-            color: 'var(--nous-fg-subtle)',
-            fontSize: 'var(--nous-font-size-base)',
-          }}
-        >
-          Loading...
+  const handleWizardReset = useCallback(() => {
+    void initializeApp()
+  }, [initializeApp])
+
+  const [navigationParams, setNavigationParams] = useState<Record<string, unknown> | undefined>(undefined)
+
+  const handleNavigate = useCallback((routeId: string, params?: Record<string, unknown>) => {
+    setActiveRoute(routeId)
+    setNavigationParams(params)
+  }, [])
+
+  const handleGoBack = useCallback(() => {
+    setActiveRoute(DEFAULT_ROUTE)
+  }, [])
+
+  const handleModeChange = useCallback((nextMode: ShellMode) => {
+    setMode((previousMode) => {
+      if (previousMode === nextMode) {
+        return previousMode
+      }
+
+      console.log(`[nous:mode] Mode switched: ${previousMode} -> ${nextMode}`)
+      void modePersistence.set(nextMode)
+      return nextMode
+    })
+  }, [])
+
+  const handleModeToggle = useCallback(() => {
+    setMode((previousMode) => {
+      const nextMode = previousMode === 'simple' ? 'developer' : 'simple'
+      console.log(`[nous:mode] Mode switched: ${previousMode} -> ${nextMode}`)
+      void modePersistence.set(nextMode)
+      return nextMode
+    })
+  }, [])
+
+  useEffect(() => {
+    if (phase !== 'main') {
+      return
+    }
+
+    const handleKeyDown = (event: KeyboardEvent) => {
+      if (
+        event.ctrlKey &&
+        event.shiftKey &&
+        event.key.toLowerCase() === 'd'
+      ) {
+        event.preventDefault()
+        handleModeToggle()
+      }
+    }
+
+    window.addEventListener('keydown', handleKeyDown)
+    return () => {
+      window.removeEventListener('keydown', handleKeyDown)
+    }
+  }, [handleModeToggle, phase])
+
+  useEffect(() => {
+    if (phase !== 'main') return
+
+    const handleKeyDown = (event: KeyboardEvent) => {
+      if (event.ctrlKey && !event.shiftKey && !event.altKey && event.key.toLowerCase() === 'k') {
+        event.preventDefault()
+        setCommandPaletteOpen((prev) => !prev)
+      }
+    }
+
+    window.addEventListener('keydown', handleKeyDown)
+    return () => window.removeEventListener('keydown', handleKeyDown)
+  }, [phase])
+
+  const preferencesPanelParams = useMemo(() => ({
+    onWizardReset: handleWizardReset,
+    onModeChange: handleModeChange,
+    currentMode: mode,
+    appPanels: appPanels.map((p) => ({ id: p.dockview_panel_id, title: p.label })),
+  }), [handleModeChange, handleWizardReset, mode, appPanels])
+
+  const buildPreferencesPanelParams = useCallback(() => preferencesPanelParams, [preferencesPanelParams])
+
+  // Stable ref for preferencesPanelParams — prevents SettingsShell remount
+  // when params change identity (which resets active tab to first page).
+  const preferencesPanelParamsRef = useRef(preferencesPanelParams)
+  preferencesPanelParamsRef.current = preferencesPanelParams
+
+  const SettingsRouteRenderer = useCallback(
+    (_props: ContentRouterRenderProps) => (
+      <SettingsRoute preferencesPanelParams={preferencesPanelParamsRef.current} />
+    ),
+    [],
+  )
+
+  const simpleModeRoutes = useMemo(() => ({
+    ...BASE_SIMPLE_MODE_ROUTES,
+    settings: SettingsRouteRenderer,
+  }), [SettingsRouteRenderer])
+
+  const handleDesktopProjectChange = useCallback((newProjectId: string) => {
+    setIsHomeContext(false)
+    setActiveRoute(DEFAULT_ROUTE) // reset content route on project switch
+  }, [])
+
+  const commands: CommandGroup[] = useMemo(
+    () => buildDesktopCommands({
+      navigate: handleNavigate,
+      onModeToggle: handleModeToggle,
+      onCommandPalette: () => setCommandPaletteOpen(true),
+    }),
+    [handleNavigate, handleModeToggle],
+  )
+
+  const transportConfig = useMemo(
+    () => backendPort ? createDesktopTransport(backendPort) : null,
+    [backendPort],
+  )
+
+  // Health data is now fetched via trpc hooks directly in dashboard widgets.
+
+  const navigation = {
+    activeRoute,
+    history: [activeRoute],
+    canGoBack: activeRoute !== DEFAULT_ROUTE,
+  }
+
+  const nativePanelDefs = NATIVE_PANEL_DEFS.map((def) => {
+    if (def.id !== 'preferences') {
+      return def
+    }
+
+    return {
+      ...def,
+      params: buildPreferencesPanelParams,
+    }
+  })
+
+  const panelDefs = [...nativePanelDefs, ...appPanels.map(toAppPanelDef)]
+
+  const loadingShell = (
+    <ChromeShell
+      dockviewApi={null}
+      panelDefs={panelDefs}
+      mode={mode}
+      onModeToggle={handleModeToggle}
+    >
+      <div
+        style={{
+          height: '100%',
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'center',
+          background: 'var(--nous-bg)',
+          color: 'var(--nous-fg-subtle)',
+          fontSize: 'var(--nous-font-size-base)',
+          padding: 'var(--nous-space-3xl)',
+          textAlign: 'center',
+        }}
+      >
+        <div style={{ display: 'grid', gap: 'var(--nous-space-lg)' }}>
+          {bootError ? (
+            <>
+              <div>{bootError}</div>
+              <div>
+                <button
+                  type="button"
+                  onClick={() => {
+                    void initializeApp()
+                  }}
+                  style={{
+                    minHeight: '40px',
+                    padding: '0 var(--nous-space-3xl)',
+                    border: '1px solid var(--nous-btn-secondary-border)',
+                    borderRadius: 'var(--nous-input-radius)',
+                    background: 'var(--nous-btn-secondary-bg)',
+                    color: 'var(--nous-btn-secondary-fg)',
+                    cursor: 'pointer',
+                  }}
+                >
+                  Retry
+                </button>
+              </div>
+            </>
+          ) : (
+            <div>{loadingMessage}</div>
+          )}
         </div>
+      </div>
+    </ChromeShell>
+  )
+
+  if (phase === 'loading' || bootError) {
+    return loadingShell
+  }
+
+  if (phase === 'wizard' && firstRunState) {
+    return (
+      <ChromeShell
+        dockviewApi={null}
+        panelDefs={panelDefs}
+        mode={mode}
+        onModeToggle={handleModeToggle}
+      >
+        <FirstRunWizard
+          initialState={firstRunState}
+          onComplete={handleWizardComplete}
+        />
       </ChromeShell>
     )
   }
 
-  return (
-    <ChromeShell dockviewApi={dockviewApi} panelDefs={panelDefs}>
-      <DockviewShell
-        savedLayout={savedLayout}
-        onApiReady={setDockviewApi}
-        activeAppPanelIds={new Set(appPanels.map((panel) => panel.dockview_panel_id))}
+  if (savedLayout === undefined) {
+    return loadingShell
+  }
+
+  const shellChildren = (
+    <>
+      <CommandPalette
+        isOpen={commandPaletteOpen}
+        onClose={() => setCommandPaletteOpen(false)}
+        commands={commands}
       />
+      {mode === 'simple' ? (
+        <DesktopSimpleShell
+          activeRoute={activeRoute}
+          handleNavigate={handleNavigate}
+          simpleModeRoutes={simpleModeRoutes}
+          navigationParams={navigationParams}
+          isHomeContext={isHomeContext}
+          setIsHomeContext={setIsHomeContext}
+        />
+      ) : (
+        <DockviewShell
+          savedLayout={savedLayout}
+          onApiReady={setDockviewApi}
+          activeAppPanelIds={new Set(appPanels.map((panel) => panel.dockview_panel_id))}
+          panelDefs={panelDefs}
+        />
+      )}
+    </>
+  )
+
+  const mainContent = (
+    <DesktopShellWithProject
+      mode={mode}
+      activeRoute={activeRoute}
+      navigation={navigation}
+      navigate={handleNavigate}
+      navigationParams={navigationParams}
+      goBack={handleGoBack}
+      onProjectChange={handleDesktopProjectChange}
+    >
+      {shellChildren}
+    </DesktopShellWithProject>
+  )
+
+  return (
+    <ChromeShell
+      dockviewApi={dockviewApi}
+      panelDefs={panelDefs}
+      mode={mode}
+      onModeToggle={handleModeToggle}
+    >
+      {transportConfig ? (
+        <TransportProvider config={transportConfig}>
+          {mainContent}
+        </TransportProvider>
+      ) : (
+        mainContent
+      )}
     </ChromeShell>
+  )
+}
+
+// ─── Project boot wrapper ───────────────────────────────────────────────────
+// Renders inside TransportProvider so tRPC hooks are available.
+// Boots a default project on mount, then passes activeProjectId to ShellProvider.
+
+function DesktopShellWithProject({
+  children,
+  mode,
+  activeRoute,
+  navigation,
+  navigate,
+  navigationParams,
+  goBack,
+  onProjectChange,
+}: {
+  children: React.ReactNode
+  mode: ShellMode
+  activeRoute: string
+  navigation: { activeRoute: string; history: string[]; canGoBack: boolean }
+  navigate: (routeId: string, params?: Record<string, unknown>) => void
+  navigationParams?: Record<string, unknown>
+  goBack: () => void
+  onProjectChange?: (projectId: string) => void
+}) {
+  const [activeProjectId, setActiveProjectId] = useState<string | null>(null)
+
+  const { data: projectList } = trpc.projects.list.useQuery()
+  const createProject = trpc.projects.create.useMutation()
+
+  useEffect(() => {
+    if (!projectList) return // still loading
+    if (projectList.length > 0) {
+      setActiveProjectId(projectList[0].id)
+    } else {
+      createProject.mutateAsync({ name: 'Default' }).then((created) => {
+        setActiveProjectId(created.id)
+      })
+    }
+  }, [projectList]) // eslint-disable-line react-hooks/exhaustive-deps
+
+  const handleProjectChange = useCallback((projectId: string) => {
+    setActiveProjectId(projectId)
+    onProjectChange?.(projectId)
+  }, [onProjectChange])
+
+  return (
+    <ShellProvider
+      mode={mode}
+      activeRoute={activeRoute}
+      navigationParams={navigationParams}
+      navigation={navigation}
+      navigate={navigate}
+      goBack={goBack}
+      activeProjectId={activeProjectId}
+      onProjectChange={handleProjectChange}
+    >
+      <NotificationProvider>
+        {children}
+      </NotificationProvider>
+    </ShellProvider>
+  )
+}
+
+// ─── Desktop Simple Shell (wires chat stage manager + SSE) ───────────────────
+
+function DesktopSimpleShell({
+  activeRoute,
+  handleNavigate,
+  simpleModeRoutes,
+  navigationParams,
+  isHomeContext,
+  setIsHomeContext,
+}: {
+  activeRoute: string
+  handleNavigate: (routeId: string, params?: Record<string, unknown>) => void
+  simpleModeRoutes: Record<string, any>
+  navigationParams?: Record<string, unknown>
+  isHomeContext: boolean
+  setIsHomeContext: (value: boolean) => void
+}) {
+  const chatStageManager = useChatStageManager()
+
+  // WR-141 — single-call-plus-prop-drill per primary contract § State Ownership.
+  // This call is intentionally placed inside `DesktopSimpleShell` (the wiring-site
+  // root). Sibling calls inside `DesktopAssetSidebarConnected` are forbidden by
+  // INV-1 — two `useState` instances cannot observe each other in the same render
+  // tick, which would produce a click-but-no-shrink bug on first render.
+  const [sidebarCollapsed, setSidebarCollapsed] = useSidebarCollapsed()
+  const handleToggleCollapse = useCallback(
+    () => setSidebarCollapsed(!sidebarCollapsed),
+    [sidebarCollapsed, setSidebarCollapsed],
+  )
+
+  // Wire SSE events to chat stage manager signals
+  useEventSubscription({
+    channels: ['inference:stream-start', 'thought:turn-lifecycle', 'thought:pfc-decision'],
+    onEvent: (channel, payload) => {
+      if (channel === 'inference:stream-start') {
+        chatStageManager.signalInferenceStart()
+      } else if (channel === 'thought:pfc-decision') {
+        chatStageManager.signalPfcDecision()
+      } else if (channel === 'thought:turn-lifecycle') {
+        const p = payload as Record<string, unknown>
+        if (p.phase === 'turn-complete') {
+          chatStageManager.signalTurnComplete()
+        }
+      }
+    },
+    enabled: true,
+  })
+
+  const showHomeSidebar = isHomeContext && isHomeSidebarEnabled()
+
+  return (
+    <SimpleShellLayout
+      projectRail={<DesktopProjectRail isHomeContext={isHomeContext} setIsHomeContext={setIsHomeContext} />}
+      sidebarCollapsed={sidebarCollapsed}
+      onSidebarCollapseChange={setSidebarCollapsed}
+      sidebar={
+        showHomeSidebar
+          ? <DesktopHomeSidebar collapsed={sidebarCollapsed} onToggleCollapse={handleToggleCollapse} />
+          : (
+            <DesktopAssetSidebarConnected
+              chatStage={chatStageManager.chatStage}
+              collapsed={sidebarCollapsed}
+              onToggleCollapse={handleToggleCollapse}
+            />
+          )
+      }
+      content={
+        <ContentRouter
+          activeRoute={activeRoute}
+          routes={simpleModeRoutes}
+          onNavigate={handleNavigate}
+          navigationParams={navigationParams}
+        />
+      }
+      observe={<ObservePanel />}
+      chatStage={chatStageManager.chatStage}
+      onClickOutside={chatStageManager.handleClickOutside}
+      chatSlot={({ stage }) => (
+        <ConnectedChatSurface
+          stage={stage}
+          isPinned={chatStageManager.isPinned}
+          onStageChange={(s) => {
+            if (s === 'ambient_large') chatStageManager.expandToAmbientLarge()
+            else if (s === 'ambient_small') chatStageManager.collapseToAmbientSmall()
+            else if (s === 'full') chatStageManager.expandToFull()
+            else if (s === 'small') chatStageManager.collapseToSmall()
+          }}
+          onSendStart={() => chatStageManager.signalSending()}
+          onTogglePin={() => chatStageManager.togglePin()}
+          onInputFocus={() => chatStageManager.signalInputFocus()}
+          onUnreadMessage={() => chatStageManager.signalUnreadMessage()}
+          onMessagesRead={() => chatStageManager.signalMessagesRead()}
+        />
+      )}
+    />
+  )
+}
+
+// ─── Desktop Project Rail (wired to tRPC) ──────────────────────────────────
+
+const TASK_DETAIL_PREFIX = 'task-detail::'
+const WORKFLOW_DETAIL_PREFIX = 'workflow-detail::'
+
+function DesktopAssetSidebarConnected({
+  chatStage,
+  collapsed,
+  onToggleCollapse,
+}: {
+  chatStage?: ChatStage
+  collapsed?: boolean
+  onToggleCollapse?: () => void
+}) {
+  // WR-141 — do NOT call the sidebar-collapsed hook here. It is called exactly
+  // once per wiring-site root inside `DesktopSimpleShell`; `collapsed` and
+  // `onToggleCollapse` are prop-drilled through this wrapper. Sibling calls are
+  // forbidden by INV-1 and the ratified primary contract § State Ownership.
+  const { activeProjectId, activeRoute, navigationParams, navigate } = useShellCtx()
+  const badgeCount = useNotificationBadge()
+  const { data: projectList } = trpc.projects.list.useQuery()
+  const tasksApi = useTasks({ projectId: activeProjectId })
+  const workflowsApi = useWorkflows({ projectId: activeProjectId })
+
+  // Track the raw sidebar routeId for highlight state.
+  // Encoded items like "task-detail::taskId" resolve to activeRoute "task-detail"
+  // for content routing, but the sidebar needs the full routeId to highlight
+  // the correct item within a group.
+  const [sidebarSelection, setSidebarSelection] = useState(activeRoute)
+  const [deleteConfirm, setDeleteConfirm] = useState<{
+    itemId: string
+    itemName: string
+    itemType: 'task' | 'workflow'
+  } | null>(null)
+
+  // Sync when activeRoute changes externally (e.g. top-nav click, goBack)
+  // Reconstruct the full encoded routeId from params when navigating within
+  // same-route groups (e.g. goBack restoring workflow-detail with definitionId).
+  useEffect(() => {
+    if (activeRoute.startsWith('workflow-detail') && navigationParams?.definitionId) {
+      setSidebarSelection(`${WORKFLOW_DETAIL_PREFIX}${navigationParams.definitionId}`)
+    } else if (activeRoute.startsWith('task-detail') && navigationParams?.taskId) {
+      setSidebarSelection(`${TASK_DETAIL_PREFIX}${navigationParams.taskId}`)
+    } else {
+      setSidebarSelection(activeRoute)
+    }
+  }, [activeRoute, navigationParams])
+
+  // Wrap navigate to parse task-detail::<taskId> encoding from sidebar items
+  // and forward as navigate('task-detail', { taskId }) with params.
+  const handleNavigate = useCallback((routeId: string) => {
+    setSidebarSelection(routeId)
+    if (routeId.startsWith(TASK_DETAIL_PREFIX)) {
+      const taskId = routeId.slice(TASK_DETAIL_PREFIX.length)
+      navigate('task-detail', { taskId })
+    } else if (routeId.startsWith(WORKFLOW_DETAIL_PREFIX)) {
+      const definitionId = routeId.slice(WORKFLOW_DETAIL_PREFIX.length)
+      navigate('workflow-detail', { definitionId })
+    } else {
+      navigate(routeId)
+    }
+  }, [navigate])
+
+  const taskContextMenuActions: ContextMenuAction[] = useMemo(() => [
+    {
+      id: 'delete',
+      label: 'Delete',
+      variant: 'danger' as const,
+      handler: (itemId: string) => {
+        const task = tasksApi.tasks.find(t => t.id === itemId)
+        setDeleteConfirm({
+          itemId,
+          itemName: task?.name ?? 'this task',
+          itemType: 'task',
+        })
+      },
+    },
+  ], [tasksApi.tasks])
+
+  const workflowContextMenuActions: ContextMenuAction[] = useMemo(() => [
+    {
+      id: 'delete',
+      label: 'Delete',
+      variant: 'danger' as const,
+      handler: (itemId: string) => {
+        const wf = workflowsApi.workflows.find(w => w.id === itemId)
+        setDeleteConfirm({
+          itemId,
+          itemName: wf?.name ?? 'this workflow',
+          itemType: 'workflow',
+        })
+      },
+    },
+  ], [workflowsApi.workflows])
+
+  const tasksSection = useMemo(
+    () => buildTasksSection({
+      tasks: tasksApi.tasks,
+      loading: tasksApi.tasksLoading,
+      error: tasksApi.tasksError,
+      onAdd: () => navigate('task-create'),
+      navigate: handleNavigate,
+      onItemRename: (itemId, newName) => {
+        void tasksApi.updateTask(itemId, { name: newName })
+      },
+      contextMenuActions: taskContextMenuActions,
+    }),
+    [tasksApi.tasks, tasksApi.tasksLoading, tasksApi.tasksError, tasksApi.updateTask, navigate, handleNavigate, taskContextMenuActions],
+  )
+
+  const workflowsSection = useMemo(
+    () => buildWorkflowsSection({
+      workflows: workflowsApi.workflows,
+      loading: workflowsApi.workflowsLoading,
+      error: workflowsApi.workflowsError,
+      onAdd: async () => {
+        if (!activeProjectId) return
+        const newId = await workflowsApi.createWorkflow(activeProjectId)
+        if (newId) {
+          navigate('workflow-detail', { definitionId: newId })
+        }
+      },
+      navigate: handleNavigate,
+      onItemRename: (itemId, newName) => {
+        void workflowsApi.renameWorkflow(itemId, newName)
+      },
+      contextMenuActions: workflowContextMenuActions,
+    }),
+    [workflowsApi.workflows, workflowsApi.workflowsLoading, workflowsApi.workflowsError, workflowsApi.createWorkflow, workflowsApi.renameWorkflow, activeProjectId, navigate, handleNavigate, workflowContextMenuActions],
+  )
+
+  const sections = useMemo(
+    () => buildDesktopSidebarSections({ tasksSection, workflowsSection }),
+    [tasksSection, workflowsSection],
+  )
+
+  const handleDeleteConfirm = useCallback(async () => {
+    if (!deleteConfirm) return
+    try {
+      if (deleteConfirm.itemType === 'task') {
+        await tasksApi.deleteTask(deleteConfirm.itemId)
+      } else {
+        await workflowsApi.deleteWorkflow(deleteConfirm.itemId)
+      }
+    } catch (error) {
+      console.error(`[DesktopAssetSidebarConnected] delete ${deleteConfirm.itemType} failed:`, error)
+    }
+    setDeleteConfirm(null)
+  }, [deleteConfirm, tasksApi, workflowsApi])
+
+  const projectName = useMemo(() => {
+    if (!projectList || !activeProjectId) return 'Project'
+    const proj = projectList.find((p: { id: string }) => p.id === activeProjectId)
+    return proj?.name ?? 'Project'
+  }, [projectList, activeProjectId])
+
+  const topNavWithBadge = useMemo(
+    () => DESKTOP_TOP_NAV.map((item) =>
+      item.id === 'inbox' ? { ...item, badge: badgeCount > 0 ? badgeCount : undefined } : item,
+    ),
+    [badgeCount],
+  )
+
+  return (
+    <>
+      <AssetSidebar
+        projectName={projectName}
+        topNav={topNavWithBadge}
+        sections={sections}
+        activeRoute={sidebarSelection}
+        onNavigate={handleNavigate}
+        chatStage={chatStage}
+        onSettingsClick={() => navigate('settings')}
+        collapsed={collapsed}
+        onToggleCollapse={onToggleCollapse}
+      />
+      <ConfirmDeleteDialog
+        isOpen={deleteConfirm !== null}
+        onConfirm={handleDeleteConfirm}
+        onCancel={() => setDeleteConfirm(null)}
+        itemName={deleteConfirm?.itemName ?? ''}
+        itemType={deleteConfirm?.itemType}
+      />
+    </>
+  )
+}
+
+function DesktopProjectRail({ isHomeContext, setIsHomeContext }: { isHomeContext: boolean; setIsHomeContext: (v: boolean) => void }) {
+  const { activeProjectId, activeRoute, navigate, onProjectChange } = useShellCtx()
+  const { data: projectList } = trpc.projects.list.useQuery()
+
+  const projects = useMemo(
+    () => (projectList ?? []).map((p: { id: string; name?: string }) => ({ id: p.id, name: p.name ?? p.id })),
+    [projectList],
+  )
+
+  const handleHomeClick = useCallback(() => {
+    setIsHomeContext(true)
+    navigate('home')
+  }, [navigate, setIsHomeContext])
+
+  const handleProjectSelect = useCallback((id: string) => {
+    setIsHomeContext(false)
+    onProjectChange?.(id)
+  }, [onProjectChange, setIsHomeContext])
+
+  return (
+    <ProjectSwitcherRail
+      projects={projects}
+      activeProjectId={activeProjectId ?? ''}
+      onProjectSelect={handleProjectSelect}
+      onHomeClick={handleHomeClick}
+      isHomeActive={isHomeContext}
+    />
+  )
+}
+
+function DesktopHomeSidebar({ collapsed, onToggleCollapse }: { collapsed?: boolean; onToggleCollapse?: () => void }) {
+  const { activeRoute, navigate } = useShellCtx()
+  const badgeCount = useNotificationBadge()
+
+  const sections = useMemo(() => buildHomeSidebarSections(), [])
+
+  const topNavWithBadge = useMemo(
+    () => HOME_TOP_NAV.map((item) =>
+      item.id === 'home-inbox' ? { ...item, badge: badgeCount > 0 ? badgeCount : undefined } : item,
+    ),
+    [badgeCount],
+  )
+
+  return (
+    <AssetSidebar
+      projectName="Home"
+      topNav={topNavWithBadge}
+      sections={sections}
+      activeRoute={activeRoute}
+      onNavigate={navigate}
+      collapsed={collapsed}
+      onToggleCollapse={onToggleCollapse}
+    />
   )
 }
 
@@ -240,10 +1193,12 @@ function DockviewShell({
   savedLayout,
   onApiReady,
   activeAppPanelIds,
+  panelDefs,
 }: {
   savedLayout: SerializedDockview | null
   onApiReady: (api: DockviewApi) => void
   activeAppPanelIds: Set<string>
+  panelDefs: PanelDef[]
 }) {
   const dockviewApiRef = useRef<DockviewApi | null>(null)
 
@@ -257,25 +1212,48 @@ function DockviewShell({
     }
   }, [activeAppPanelIds])
 
-  const onReady = (event: DockviewReadyEvent) => {
+  const onReady = useCallback((event: DockviewReadyEvent) => {
+    let layoutRestored = false
+
     if (savedLayout) {
       try {
         event.api.fromJSON(savedLayout)
+        layoutRestored = true
       } catch {
-        initDefaultLayout(event)
+        // Saved layout is incompatible — fall through to default
       }
-    } else {
-      initDefaultLayout(event)
     }
 
-    // Persist layout on every change (UI-INV-006)
+    if (!layoutRestored) {
+      initDefaultLayout(event, panelDefs)
+    }
+
+    // After any layout init (restored or default), re-inject live API bridges
+    // so panels have working APIs immediately on first render.
+    resolvePanelParams(event.api, panelDefs)
+
+    // Persist layout on every change (UI-INV-006).
+    // ALWAYS strip non-serializable params before sending over IPC to
+    // prevent structuredClone errors on functions/DOM nodes.
     event.api.onDidLayoutChange(() => {
-      window.electronAPI.layout.set(event.api.toJSON())
+      const json = event.api.toJSON()
+      const safe = stripNonSerializableFromLayout(json)
+      if (!safe) {
+        return
+      }
+
+      try {
+        void window.electronAPI.layout.set(safe).catch((error) => {
+          console.error('Layout save failed', error)
+        })
+      } catch (error) {
+        console.error('Layout save failed', error)
+      }
     })
 
     dockviewApiRef.current = event.api
     onApiReady(event.api)
-  }
+  }, [savedLayout, onApiReady, panelDefs])
 
   return (
     <div style={{ height: '100%', width: '100%', padding: 'var(--nous-space-sm)', boxSizing: 'border-box', background: 'var(--nous-surface)' }}>
@@ -297,16 +1275,45 @@ const DEFAULT_POSITIONS: Record<string, { direction: string; referencePanel: str
   mao: { direction: 'below', referencePanel: 'node-projection' },
   codexbar: { direction: 'within', referencePanel: 'chat' },
   dashboard: { direction: 'within', referencePanel: 'chat' },
+  'coding-agents': { direction: 'within', referencePanel: 'mao' },
+  preferences: { direction: 'within', referencePanel: 'chat' },
+  'workflow-builder': { direction: 'within', referencePanel: 'chat' },
 }
 
-function initDefaultLayout(event: DockviewReadyEvent) {
-  for (const def of NATIVE_PANEL_DEFS) {
+/**
+ * Adds panels in dependency-safe order. Panels that reference others
+ * (via position.referencePanel) are added AFTER their reference target.
+ */
+function initDefaultLayout(event: DockviewReadyEvent, panelDefs: PanelDef[]) {
+  const defById = new Map(panelDefs.map((d) => [d.id, d]))
+
+  for (const id of PANEL_ADD_ORDER) {
+    const def = defById.get(id)
+    if (!def) continue
+
+    const position = DEFAULT_POSITIONS[def.id]
+
+    // Verify reference panel exists before using position directive
+    if (position) {
+      const refExists = event.api.panels.some((p) => p.id === position.referencePanel)
+      if (!refExists) {
+        // Reference panel not added yet — add without position (will go to default area)
+        event.api.addPanel({
+          id: def.id,
+          component: def.component,
+          title: def.title,
+          params: def.params?.() ?? {},
+        })
+        continue
+      }
+    }
+
     event.api.addPanel({
       id: def.id,
       component: def.component,
       title: def.title,
       params: def.params?.() ?? {},
-      ...(DEFAULT_POSITIONS[def.id] ? { position: DEFAULT_POSITIONS[def.id] } : {}),
+      ...(position ? { position } : {}),
     })
   }
 }

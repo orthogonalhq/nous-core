@@ -8,7 +8,7 @@ import type {
   CredentialRevokeRequest,
   CredentialStoreRequest,
   GatewayBudget,
-  GatewayDispatchRequest,
+  DispatchIntent,
   GatewayExecutionContext,
   GatewayLifecycleContext,
   GatewayStampedPacket,
@@ -32,6 +32,8 @@ import type {
   IScopedMcpToolSurface,
   IWitnessService,
   IEscalationService,
+  ITaskStore,
+  IDocumentStore,
   ProjectId,
   ToolDefinition,
   ToolResult,
@@ -40,6 +42,7 @@ import type {
   AppHealthSnapshot,
   AppHeartbeatSignal,
 } from '@nous/shared';
+import type { SystemTaskSubmission, SystemSubmissionReceipt } from '../gateway-runtime/types.js';
 
 export const INTERNAL_MCP_TOOL_NAMES = [
   'memory_search',
@@ -71,12 +74,30 @@ export const INTERNAL_MCP_TOOL_NAMES = [
   'workflow_pause',
   'workflow_resume',
   'workflow_cancel',
+  'workflow_execute_node',
+  'workflow_complete_node',
+  'workflow_validate',
+  'workflow_from_spec',
+  'workflow_create',
+  'workflow_update',
+  'workflow_delete',
+  'workflow_authoring_reference',
+  'task_list',
+  'task_get',
+  'task_create',
+  'task_update',
+  'task_delete',
+  'task_toggle',
+  'task_trigger',
+  'task_history',
+  'workflow_history',
   'health_report',
   'health_heartbeat',
   'credentials_store',
   'credentials_inject',
   'credentials_revoke',
-  'dispatch_agent',
+  'dispatch_orchestrator',
+  'dispatch_worker',
   'task_complete',
   'request_escalation',
   'flag_observation',
@@ -103,15 +124,24 @@ export interface InternalMcpOutputSchemaValidator {
   ): Promise<InternalMcpOutputSchemaValidationResult>;
 }
 
+export interface InternalMcpDispatchChildRequest {
+  targetClass: 'Orchestrator' | 'Worker';
+  taskInstructions: string;
+  payload?: unknown;
+  nodeDefinitionId?: string;
+  dispatchIntent?: DispatchIntent;
+  granted_tools?: string[];
+}
+
 export interface InternalMcpDispatchChildArgs {
-  request: GatewayDispatchRequest;
+  request: InternalMcpDispatchChildRequest;
   context: GatewayLifecycleContext;
   budget: GatewayBudget;
 }
 
 export interface InternalMcpDispatchRuntime {
   dispatchChild(args: InternalMcpDispatchChildArgs): Promise<AgentResult>;
-  buildChildBudget?(request: GatewayDispatchRequest): GatewayBudget;
+  buildChildBudget?(request: { budget?: Partial<GatewayBudget> }): GatewayBudget;
 }
 
 export interface InternalMcpRuntimeDeps {
@@ -133,16 +163,20 @@ export interface InternalMcpRuntimeDeps {
   opctlService?: IOpctlService;
   runtime?: IRuntime;
   instanceRoot?: string;
-  workmodeAdmissionGuard?: IWorkmodeAdmissionGuard;
+  workmodeAdmissionGuard: IWorkmodeAdmissionGuard;
   witnessService?: IWitnessService;
   escalationService?: IEscalationService;
   scheduler?: IScheduler;
   appRuntimeService?: IAppRuntimeService;
   outputSchemaValidator?: InternalMcpOutputSchemaValidator;
   dispatchRuntime?: InternalMcpDispatchRuntime;
+  addHealthIssue?: (code: string) => void;
   now?: () => string;
   nowMs?: () => number;
   idFactory?: () => string;
+  taskStore?: ITaskStore;
+  documentStore?: IDocumentStore;
+  submitTaskToSystem?: (input: SystemTaskSubmission) => Promise<SystemSubmissionReceipt>;
 }
 
 export interface InternalMcpHandlerContext {
@@ -174,6 +208,7 @@ export interface InternalMcpTaskCompletionResult {
 export interface InternalMcpCatalogEntry {
   name: InternalMcpToolName;
   kind: InternalMcpToolKind;
+  domain: 'agent' | 'app' | 'bridge';
   definition: ToolDefinition;
 }
 
@@ -211,6 +246,7 @@ export interface InternalMcpScopedToolSurfaceOptions {
   agentClass: AgentClass;
   agentId: AgentGatewayConfig['agentId'];
   deps: InternalMcpRuntimeDeps;
+  lease?: import('@nous/shared').LeaseContract;
 }
 
 export interface InternalMcpSurfaceBundle {

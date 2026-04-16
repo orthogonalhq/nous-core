@@ -31,7 +31,7 @@ describe('OllamaProvider', () => {
 
     await expect(
       provider.invoke({
-        role: 'reasoner',
+        role: 'cortex-chat',
         input: { invalid: 'shape' },
         traceId: '00000000-0000-0000-0000-000000000002' as any,
       }),
@@ -51,7 +51,7 @@ describe('OllamaProvider', () => {
     } as Response);
 
     const result = await provider.invoke({
-      role: 'reasoner',
+      role: 'cortex-chat',
       input: { prompt: 'Say hello' },
       traceId: '00000000-0000-0000-0000-000000000002' as any,
     });
@@ -72,7 +72,7 @@ describe('OllamaProvider', () => {
 
     await expect(
       provider.invoke({
-        role: 'reasoner',
+        role: 'cortex-chat',
         input: { prompt: 'hi' },
         traceId: '00000000-0000-0000-0000-000000000002' as any,
       }),
@@ -80,7 +80,7 @@ describe('OllamaProvider', () => {
 
     try {
       await provider.invoke({
-        role: 'reasoner',
+        role: 'cortex-chat',
         input: { prompt: 'hi' },
         traceId: '00000000-0000-0000-0000-000000000002' as any,
       });
@@ -105,7 +105,7 @@ describe('OllamaProvider', () => {
 
     await expect(
       provider.invoke({
-        role: 'reasoner',
+        role: 'cortex-chat',
         input: { prompt: 'hi' },
         traceId: '00000000-0000-0000-0000-000000000002' as any,
         abortSignal: controller.signal,

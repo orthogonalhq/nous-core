@@ -369,11 +369,7 @@ function UsageWindowRow({
 }
 
 export function CodexBarPanel({ api, params }: CodexBarPanelProps) {
-  const usageApi = params?.usageApi ?? (
-    typeof window !== 'undefined'
-      ? ((window as any).electronAPI?.usage as UsageAPI | undefined)
-      : undefined
-  )
+  const usageApi = params?.usageApi
   const [snapshot, setSnapshot] = useState<CodexBarUsageSnapshot | null>(null)
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)

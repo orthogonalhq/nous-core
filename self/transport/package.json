@@ -1,0 +1,29 @@
+{
+  "name": "@nous/transport",
+  "version": "0.0.1",
+  "private": true,
+  "description": "Unified transport surface — tRPC client, event subscriptions, and platform-aware providers",
+  "type": "module",
+  "exports": {
+    ".": "./src/index.ts"
+  },
+  "scripts": {
+    "typecheck": "tsc --noEmit",
+    "test": "vitest run"
+  },
+  "dependencies": {
+    "@nous/shared": "workspace:*",
+    "@tanstack/react-query": "^5.62.0",
+    "@trpc/client": "^11.0.0-rc.0",
+    "@trpc/react-query": "^11.0.0-rc.0",
+    "superjson": "^2.2.2"
+  },
+  "devDependencies": {
+    "@nous/shared-server": "workspace:*",
+    "@types/react": "^19",
+    "typescript": "^5"
+  },
+  "peerDependencies": {
+    "react": "^19.0.0"
+  }
+}

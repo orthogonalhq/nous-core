@@ -3,8 +3,12 @@ import {
   AgentClassSchema,
   AgentInputSchema,
   AgentResultSchema,
+  DispatchIntentSchema,
+  DispatchOrchestratorRequestSchema,
+  DispatchWorkerRequestSchema,
   GatewayInboxMessageSchema,
   GatewayOutboxEventSchema,
+  GatewayStampedPacketSchema,
 } from '../../types/agent-gateway.js';
 
 const GATEWAY_ID = '550e8400-e29b-41d4-a716-446655440000';
@@ -374,6 +378,220 @@ describe('AgentResultSchema', () => {
       ],
     });
 
+    expect(result.success).toBe(false);
+  });
+});
+
+describe('GatewayStampedPacketSchema — emitter_agent_class', () => {
+  it('accepts packet with valid emitter_agent_class', () => {
+    const packet = { ...createStampedPacket(), emitter_agent_class: 'Worker' };
+    const result = GatewayStampedPacketSchema.safeParse(packet);
+    expect(result.success).toBe(true);
+    if (result.success) {
+      expect(result.data.emitter_agent_class).toBe('Worker');
+    }
+  });
+
+  it('accepts packet without emitter_agent_class (backward compat)', () => {
+    const packet = createStampedPacket();
+    const result = GatewayStampedPacketSchema.safeParse(packet);
+    expect(result.success).toBe(true);
+    if (result.success) {
+      expect(result.data.emitter_agent_class).toBeUndefined();
+    }
+  });
+
+  it('rejects packet with invalid emitter_agent_class', () => {
+    const packet = { ...createStampedPacket(), emitter_agent_class: 'InvalidClass' };
+    const result = GatewayStampedPacketSchema.safeParse(packet);
+    expect(result.success).toBe(false);
+  });
+
+  it('accepts all valid AgentClass values as emitter_agent_class', () => {
+    for (const agentClass of ['Cortex::Principal', 'Cortex::System', 'Orchestrator', 'Worker']) {
+      const packet = { ...createStampedPacket(), emitter_agent_class: agentClass };
+      const result = GatewayStampedPacketSchema.safeParse(packet);
+      expect(result.success).toBe(true);
+    }
+  });
+});
+
+describe('DispatchIntentSchema', () => {
+  it('accepts valid workflow intent', () => {
+    const result = DispatchIntentSchema.safeParse({
+      type: 'workflow',
+      workflowDefinitionId: 'wf-001',
+      config: { key: 'value' },
+      triggerContext: 'manual',
+    });
+    expect(result.success).toBe(true);
+  });
+
+  it('accepts valid task intent', () => {
+    const result = DispatchIntentSchema.safeParse({
+      type: 'task',
+      taskDefinitionId: 'task-001',
+      trigger: { type: 'manual', context: { source: 'test' } },
+    });
+    expect(result.success).toBe(true);
+  });
+
+  it('accepts task intent with minimal fields', () => {
+    const result = DispatchIntentSchema.safeParse({ type: 'task' });
+    expect(result.success).toBe(true);
+  });
+
+  it('accepts valid skill intent', () => {
+    const result = DispatchIntentSchema.safeParse({
+      type: 'skill',
+      skillRef: 'engineer-workflow-sop',
+      context: { phase: '1.1' },
+    });
+    expect(result.success).toBe(true);
+  });
+
+  it('accepts valid autonomous intent', () => {
+    const result = DispatchIntentSchema.safeParse({
+      type: 'autonomous',
+      objective: 'Analyze project health',
+      constraints: { maxDuration: 300 },
+    });
+    expect(result.success).toBe(true);
+  });
+
+  it('rejects invalid type value', () => {
+    const result = DispatchIntentSchema.safeParse({ type: 'invalid' });
+    expect(result.success).toBe(false);
+  });
+
+  it('rejects missing required workflowDefinitionId for workflow type', () => {
+    const result = DispatchIntentSchema.safeParse({ type: 'workflow' });
+    expect(result.success).toBe(false);
+  });
+
+  it('rejects empty workflowDefinitionId', () => {
+    const result = DispatchIntentSchema.safeParse({
+      type: 'workflow',
+      workflowDefinitionId: '',
+    });
+    expect(result.success).toBe(false);
+  });
+
+  it('rejects missing skillRef for skill type', () => {
+    const result = DispatchIntentSchema.safeParse({ type: 'skill' });
+    expect(result.success).toBe(false);
+  });
+
+  it('rejects empty objective for autonomous type', () => {
+    const result = DispatchIntentSchema.safeParse({
+      type: 'autonomous',
+      objective: '',
+    });
+    expect(result.success).toBe(false);
+  });
+
+  it('rejects extra fields on strict variants', () => {
+    const result = DispatchIntentSchema.safeParse({
+      type: 'workflow',
+      workflowDefinitionId: 'wf-001',
+      extraField: 'not allowed',
+    });
+    expect(result.success).toBe(false);
+  });
+});
+
+describe('DispatchOrchestratorRequestSchema', () => {
+  it('accepts valid request with all fields', () => {
+    const result = DispatchOrchestratorRequestSchema.safeParse({
+      dispatchIntent: { type: 'task' },
+      taskInstructions: 'Execute the workflow',
+      budget: { maxTurns: 10 },
+    });
+    expect(result.success).toBe(true);
+  });
+
+  it('rejects missing dispatchIntent', () => {
+    const result = DispatchOrchestratorRequestSchema.safeParse({
+      taskInstructions: 'Execute the workflow',
+    });
+    expect(result.success).toBe(false);
+  });
+
+  it('rejects missing taskInstructions', () => {
+    const result = DispatchOrchestratorRequestSchema.safeParse({
+      dispatchIntent: { type: 'task' },
+    });
+    expect(result.success).toBe(false);
+  });
+
+  it('rejects empty taskInstructions', () => {
+    const result = DispatchOrchestratorRequestSchema.safeParse({
+      dispatchIntent: { type: 'task' },
+      taskInstructions: '',
+    });
+    expect(result.success).toBe(false);
+  });
+
+  it('accepts without optional budget', () => {
+    const result = DispatchOrchestratorRequestSchema.safeParse({
+      dispatchIntent: { type: 'task' },
+      taskInstructions: 'Do work',
+    });
+    expect(result.success).toBe(true);
+  });
+
+  it('rejects extra fields (strict)', () => {
+    const result = DispatchOrchestratorRequestSchema.safeParse({
+      dispatchIntent: { type: 'task' },
+      taskInstructions: 'Do work',
+      targetClass: 'Orchestrator',
+    });
+    expect(result.success).toBe(false);
+  });
+});
+
+describe('DispatchWorkerRequestSchema', () => {
+  it('accepts valid request with all fields', () => {
+    const result = DispatchWorkerRequestSchema.safeParse({
+      taskInstructions: 'Execute the task',
+      nodeDefinitionId: NODE_ID,
+      payload: { data: 'test' },
+      budget: { maxTurns: 5 },
+    });
+    expect(result.success).toBe(true);
+  });
+
+  it('rejects missing taskInstructions', () => {
+    const result = DispatchWorkerRequestSchema.safeParse({});
+    expect(result.success).toBe(false);
+  });
+
+  it('accepts without optional nodeDefinitionId', () => {
+    const result = DispatchWorkerRequestSchema.safeParse({
+      taskInstructions: 'Do work',
+    });
+    expect(result.success).toBe(true);
+  });
+
+  it('accepts without optional payload', () => {
+    const result = DispatchWorkerRequestSchema.safeParse({
+      taskInstructions: 'Do work',
+    });
+    expect(result.success).toBe(true);
+  });
+
+  it('accepts without optional budget', () => {
+    const result = DispatchWorkerRequestSchema.safeParse({
+      taskInstructions: 'Do work',
+    });
+    expect(result.success).toBe(true);
+  });
+
+  it('rejects extra fields (strict)', () => {
+    const result = DispatchWorkerRequestSchema.safeParse({
+      taskInstructions: 'Do work',
+      targetClass: 'Worker',
+    });
     expect(result.success).toBe(false);
   });
 });

@@ -47,6 +47,7 @@ export interface AppRuntimeServiceOptions {
   healthRegistry?: AppHealthRegistry;
   panelRegistry?: PanelRegistrationRegistry;
   panelTranspiler?: Pick<PanelTranspiler, 'invalidateSession'>;
+  eventBus?: import('@nous/shared').IEventBus;
 }
 
 export class AppRuntimeService implements IAppRuntimeService {
@@ -62,7 +63,7 @@ export class AppRuntimeService implements IAppRuntimeService {
   constructor(private readonly options: AppRuntimeServiceOptions) {
     this.spawner = options.spawner ?? new DenoSpawner();
     this.bridge = options.bridge ?? new McpIpcBridge();
-    this.healthRegistry = options.healthRegistry ?? new AppHealthRegistry();
+    this.healthRegistry = options.healthRegistry ?? new AppHealthRegistry({ eventBus: options.eventBus });
     this.panelRegistry = options.panelRegistry ?? new PanelRegistrationRegistry();
     this.panelTranspiler = options.panelTranspiler;
   }

@@ -42,10 +42,30 @@ export default function FirstRunPage() {
   }
 
   return (
-    <div className="w-full max-w-2xl space-y-8">
-      <div className="text-center">
-        <h1 className="text-2xl font-bold">Nous Setup</h1>
-        <p className="text-muted-foreground mt-1">
+    <div
+      style={{
+        width: '100%',
+        maxWidth: '42rem',
+        display: 'flex',
+        flexDirection: 'column',
+        gap: 'var(--nous-space-3xl)',
+      }}
+    >
+      <div style={{ textAlign: 'center' }}>
+        <h1
+          style={{
+            fontSize: 'var(--nous-font-size-xl)',
+            fontWeight: 'var(--nous-font-weight-semibold)',
+          }}
+        >
+          Nous Setup
+        </h1>
+        <p
+          style={{
+            marginTop: '4px',
+            color: 'var(--nous-text-secondary)',
+          }}
+        >
           Step {['welcome', 'config_review', 'first_message', 'confirm'].indexOf(step) + 1} of 4
         </p>
       </div>

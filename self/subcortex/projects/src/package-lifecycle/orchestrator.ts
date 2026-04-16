@@ -103,6 +103,7 @@ export interface PackageLifecycleOrchestratorOptions {
   evidenceEmitter?: PackageLifecycleEvidenceEmitter;
   updateController?: PackageUpdateController;
   credentialVaultService?: Pick<ICredentialVaultService, 'purgeNamespace'>;
+  eventBus?: import('@nous/shared').IEventBus;
   now?: () => Date;
 }
 
@@ -129,6 +130,7 @@ export class PackageLifecycleOrchestrator implements IPackageLifecycleOrchestrat
     ICredentialVaultService,
     'purgeNamespace'
   >;
+  private readonly eventBus?: import('@nous/shared').IEventBus;
   private readonly now: () => Date;
 
   constructor(options: PackageLifecycleOrchestratorOptions = {}) {
@@ -137,6 +139,7 @@ export class PackageLifecycleOrchestrator implements IPackageLifecycleOrchestrat
       options.evidenceEmitter ?? new InMemoryPackageLifecycleEvidenceEmitter();
     this.updateController = options.updateController ?? new PackageUpdateController();
     this.credentialVaultService = options.credentialVaultService;
+    this.eventBus = options.eventBus;
     this.now = options.now ?? defaultNow;
   }
 
@@ -560,7 +563,7 @@ export class PackageLifecycleOrchestrator implements IPackageLifecycleOrchestrat
       }
     }
 
-    return {
+    const result = {
       decision: outcome.decision,
       transition,
       from_state: fromState,
@@ -573,6 +576,15 @@ export class PackageLifecycleOrchestrator implements IPackageLifecycleOrchestrat
         ? { update_snapshot: outcome.updateSnapshotRef }
         : {}),
     };
+
+    this.eventBus?.publish('lifecycle:transition', {
+      packageId: request.package_id,
+      fromState,
+      toState: outcome.toState,
+      transitionType: transition,
+    });
+
+    return result;
   }
 
   private async buildInvalidInputResult(

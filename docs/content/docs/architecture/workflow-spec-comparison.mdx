@@ -1,0 +1,66 @@
+---
+title: Workflow Spec Comparison
+description: How the Nous workflow package format compares with n8n, LangGraph, ComfyUI, GitHub Actions, and Temporal.
+---
+
+# Workflow Spec Comparison
+
+This comparison is informational, not normative. Its job is to explain the
+design space around workflow formats and clarify why Nous uses a composite
+package with separate topology, node content, contracts, and templates.
+
+## Comparison Matrix
+
+| System | Topology Model | Node Surface | Serialization | Visual Editor Fit | Extensibility |
+|---|---|---|---|---|---|
+| Nous | Flat `nodes[]` + `connections[]` inside `workflow.yaml`, paired with package files on disk | Typed `nous.<category>.<action>` topology plus `nodes/<id>/node.md` content | YAML + Markdown package files | Strong fit: positions live in topology and node content stays inspectable on disk | Strong: contracts, templates, and skill references compose without changing the core graph |
+| n8n | Directed node graph with rich per-node config | Large app and automation connector catalog | JSON workflow document | Very strong fit: editor-first and graph-native | Strong for integrations, weaker for repo-first human authoring |
+| LangGraph | State graph centered on Python/JS callable nodes | Code-defined nodes and reducers | Code, not a portable content package | Moderate fit: graph visualizers exist, but code is the source of truth | Strong for agent orchestration logic, weaker for non-code artifact packaging |
+| ComfyUI | Graph of visual blocks with typed ports and media pipelines | Visual nodes with explicit port wiring | JSON graph document | Very strong fit for canvas editing | Strong for multimodal pipelines, less suited to workflow documents and review artifacts |
+| GitHub Actions | Job and step DAG with event triggers | Jobs, steps, reusable actions | YAML | Moderate fit: graph is derived, not the primary editing surface | Strong for CI/CD reuse, limited for rich per-node instruction packages |
+| Temporal | Durable workflow code with runtime-managed history | Code-first workflow and activity functions | Code + runtime state | Weak fit for repo-first visual authoring | Very strong for long-running execution guarantees, weaker for human-readable package composition |
+
+## What Nous Keeps
+
+- Like n8n and ComfyUI, Nous keeps an explicit graph representation that a
+  visual editor can load without first executing code.
+- Like GitHub Actions, Nous favors YAML for the topology because it diffs well
+  in git and is easy to review.
+- Like LangGraph and Temporal, Nous keeps room for richer runtime behavior
+  behind the graph rather than forcing all semantics into the static document.
+
+## What Nous Adds
+
+- The topology is only one layer of the package. Node instructions live in
+  `nodes/<id>/node.md`, which keeps the graph concise while preserving rich
+  per-node guidance.
+- Named skill references let a node pull in reusable judgment without inlining
+  that knowledge into every workflow file.
+- Contracts and templates are first-class package artifacts, so structural
+  requirements are not hidden in prose or duplicated across nodes.
+
+## Why Nous Uses a Composite Package
+
+Nous is optimizing for three things at once:
+
+1. A visual builder needs a stable graph format with node positions.
+2. Git-based development needs reviewable, human-readable files.
+3. Agent workflows need richer per-node context than a single JSON blob can
+   comfortably hold.
+
+The composite package format solves that by splitting concerns cleanly:
+
+- `workflow.md` carries package metadata and dependencies.
+- `workflow.yaml` carries the graph.
+- `nodes/<id>/node.md` carries instructions and bindings.
+- `contracts/` carries rules.
+- `templates/` carries structural output shapes.
+
+## Tradeoffs
+
+- Nous is more verbose on disk than a single JSON workflow document.
+- The split package structure asks the loader to assemble multiple artifacts
+  before execution.
+- In exchange, reviews stay readable, reusable guidance is easier to isolate,
+  and workflow packages can grow from simple examples to complex orchestration
+  surfaces without changing the underlying format.

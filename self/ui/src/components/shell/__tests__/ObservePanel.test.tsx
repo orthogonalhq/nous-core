@@ -1,0 +1,223 @@
+// @vitest-environment jsdom
+
+import React from 'react'
+import { render, screen } from '@testing-library/react'
+import { describe, expect, it, vi } from 'vitest'
+import { ObservePanel } from '../ObservePanel'
+import { ShellProvider } from '../ShellContext'
+
+// Mock ResizeObserver for jsdom
+class MockResizeObserver {
+  observe() {}
+  unobserve() {}
+  disconnect() {}
+}
+;(globalThis as any).ResizeObserver = MockResizeObserver
+
+// ---- Transport mock (required by MaoOperatingSurface) ----
+
+vi.mock('@nous/transport', () => ({
+  trpc: {
+    useUtils: vi.fn().mockReturnValue({
+      mao: {
+        getProjectSnapshot: { invalidate: vi.fn() },
+        getAgentInspectProjection: { invalidate: vi.fn() },
+        getProjectControlProjection: { invalidate: vi.fn() },
+        getControlAuditHistory: { invalidate: vi.fn() },
+        getSystemSnapshot: { invalidate: vi.fn() },
+      },
+      health: { systemStatus: { invalidate: vi.fn() } },
+      projects: { dashboardSnapshot: { invalidate: vi.fn() } },
+      escalations: { listProjectQueue: { invalidate: vi.fn() } },
+    }),
+    mao: {
+      getSystemSnapshot: {
+        useQuery: vi.fn().mockReturnValue({ data: null, isLoading: true }),
+      },
+      getProjectSnapshot: {
+        useQuery: vi.fn().mockReturnValue({ data: null, isLoading: true }),
+      },
+      getAgentInspectProjection: {
+        useQuery: vi.fn().mockReturnValue({ data: null, isLoading: true }),
+      },
+      getControlAuditHistory: {
+        useQuery: vi.fn().mockReturnValue({ data: null, isLoading: true }),
+      },
+      requestProjectControl: {
+        useMutation: vi.fn().mockReturnValue({ mutate: vi.fn(), isPending: false }),
+      },
+    },
+    opctl: {
+      requestConfirmationProof: {
+        useMutation: vi.fn().mockReturnValue({ mutate: vi.fn(), isPending: false }),
+      },
+    },
+    health: {
+      systemStatus: {
+        useQuery: vi.fn().mockReturnValue({ data: null, isLoading: true }),
+      },
+    },
+    projects: {
+      list: {
+        useQuery: vi.fn().mockReturnValue({ data: [], isLoading: false }),
+      },
+      dashboardSnapshot: {
+        useQuery: vi.fn().mockReturnValue({ data: null, isLoading: true }),
+      },
+    },
+  },
+  useEventSubscription: vi.fn(),
+}))
+
+describe('ObservePanel', () => {
+  it('renders without crashing when wrapped in ShellProvider', () => {
+    render(
+      <ShellProvider>
+        <ObservePanel />
+      </ShellProvider>,
+    )
+  })
+
+  it('accepts className prop', () => {
+    render(
+      <ShellProvider>
+        <ObservePanel className="test-class" />
+      </ShellProvider>,
+    )
+  })
+
+  it('renders canonical MaoOperatingSurface when activeRoute is workflows', () => {
+    render(
+      <ShellProvider activeRoute="workflows">
+        <ObservePanel />
+      </ShellProvider>,
+    )
+    expect(screen.getByText('MAO Operating Surface')).toBeTruthy()
+  })
+
+  it('renders canonical MaoOperatingSurface when activeRoute is workflow-detail', () => {
+    render(
+      <ShellProvider activeRoute="workflow-detail">
+        <ObservePanel />
+      </ShellProvider>,
+    )
+    expect(screen.getByText('MAO Operating Surface')).toBeTruthy()
+  })
+
+  it('renders default placeholder when activeRoute is home', () => {
+    render(
+      <ShellProvider activeRoute="home">
+        <ObservePanel />
+      </ShellProvider>,
+    )
+    expect(screen.getByText('No observe content for this view')).toBeTruthy()
+  })
+
+  it('renders MaoOperatingSurface when activeRoute is skills', () => {
+    render(
+      <ShellProvider activeRoute="skills">
+        <ObservePanel />
+      </ShellProvider>,
+    )
+    expect(screen.getByText('MAO Operating Surface')).toBeTruthy()
+  })
+
+  it('renders MaoOperatingSurface when activeRoute is tasks', () => {
+    render(
+      <ShellProvider activeRoute="tasks">
+        <ObservePanel />
+      </ShellProvider>,
+    )
+    expect(screen.getByText('MAO Operating Surface')).toBeTruthy()
+  })
+
+  it('renders MaoOperatingSurface when activeRoute is agents', () => {
+    render(
+      <ShellProvider activeRoute="agents">
+        <ObservePanel />
+      </ShellProvider>,
+    )
+    expect(screen.getByText('MAO Operating Surface')).toBeTruthy()
+  })
+
+  it('renders MaoOperatingSurface when activeRoute is agent-detail', () => {
+    render(
+      <ShellProvider activeRoute="agent-detail">
+        <ObservePanel />
+      </ShellProvider>,
+    )
+    expect(screen.getByText('MAO Operating Surface')).toBeTruthy()
+  })
+
+  it('renders MaoOperatingSurface when activeRoute is task-detail', () => {
+    render(
+      <ShellProvider activeRoute="task-detail">
+        <ObservePanel />
+      </ShellProvider>,
+    )
+    expect(screen.getByText('MAO Operating Surface')).toBeTruthy()
+  })
+
+  it('renders MaoOperatingSurface when activeRoute is threads', () => {
+    render(
+      <ShellProvider activeRoute="threads">
+        <ObservePanel />
+      </ShellProvider>,
+    )
+    expect(screen.getByText('MAO Operating Surface')).toBeTruthy()
+  })
+
+  it('renders MaoOperatingSurface when activeRoute is apps', () => {
+    render(
+      <ShellProvider activeRoute="apps">
+        <ObservePanel />
+      </ShellProvider>,
+    )
+    expect(screen.getByText('MAO Operating Surface')).toBeTruthy()
+  })
+
+  it('renders MaoOperatingSurface when activeRoute is dashboard', () => {
+    render(
+      <ShellProvider activeRoute="dashboard">
+        <ObservePanel />
+      </ShellProvider>,
+    )
+    expect(screen.getByText('MAO Operating Surface')).toBeTruthy()
+  })
+
+  it('renders MaoOperatingSurface when activeRoute is org-chart', () => {
+    render(
+      <ShellProvider activeRoute="org-chart">
+        <ObservePanel />
+      </ShellProvider>,
+    )
+    expect(screen.getByText('MAO Operating Surface')).toBeTruthy()
+  })
+
+  it('renders MaoOperatingSurface when activeRoute is inbox', () => {
+    render(
+      <ShellProvider activeRoute="inbox">
+        <ObservePanel />
+      </ShellProvider>,
+    )
+    expect(screen.getByText('MAO Operating Surface')).toBeTruthy()
+  })
+
+  it('renders MaoOperatingSurface for dynamic sidebar routeIds (e.g. campaign-1)', () => {
+    render(
+      <ShellProvider activeRoute="campaign-1">
+        <ObservePanel />
+      </ShellProvider>,
+    )
+    expect(screen.getByText('MAO Operating Surface')).toBeTruthy()
+  })
+
+  it('renders MaoOperatingSurface for unknown routes (defaults to mao)', () => {
+    render(
+      <ShellProvider activeRoute="some-unknown-route">
+        <ObservePanel />
+      </ShellProvider>,
+    )
+    expect(screen.getByText('MAO Operating Surface')).toBeTruthy()
+  })
+})

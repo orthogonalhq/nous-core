@@ -17,7 +17,12 @@ describe('AgentGateway failure modes', () => {
 
   it('returns error when the outbox sink fails during turn acknowledgement', async () => {
     const { gateway } = createGatewayHarness({
-      outputs: ['plain response'],
+      outputs: [
+        JSON.stringify({
+          response: 'working',
+          toolCalls: [{ name: 'lookup_status', params: {} }],
+        }),
+      ],
       outbox: {
         events: [],
         emit: vi.fn().mockRejectedValue(new Error('outbox unavailable')),

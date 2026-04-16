@@ -253,6 +253,38 @@ export function resolveWorkflowContinuation(
         evidenceRefs,
       };
     }
+    case 'parallel_join': {
+      if (request.payload?.detail?.timedOut === true) {
+        return {
+          outcome: 'completed',
+          governanceDecision: activeAttempt.governanceDecision,
+          sideEffectStatus: 'none',
+          selectedBranchKey: 'timeout',
+          reasonCode: 'workflow_parallel_join_timeout',
+          evidenceRefs,
+        };
+      }
+
+      // Normal continuation: the join node was re-activated by activateSuccessors
+      return {
+        outcome: 'completed',
+        governanceDecision: activeAttempt.governanceDecision,
+        sideEffectStatus: 'none',
+        reasonCode: 'workflow_parallel_join_continued',
+        evidenceRefs,
+      };
+    }
+    case 'loop_backoff': {
+      // Loop backoff resolved — re-execute the loop node
+      return {
+        outcome: 'completed',
+        governanceDecision: activeAttempt.governanceDecision,
+        sideEffectStatus: 'none',
+        selectedBranchKey: 'loop',
+        reasonCode: 'workflow_loop_backoff_resolved',
+        evidenceRefs,
+      };
+    }
     case 'retry_backoff':
     default:
       return {

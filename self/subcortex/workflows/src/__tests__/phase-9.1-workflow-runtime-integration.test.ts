@@ -58,7 +58,7 @@ describe('Phase 9.1 workflow runtime integration', () => {
                 executionModel: 'synchronous',
                 config: {
                   type: 'model-call',
-                  modelRole: 'reasoner',
+                  modelRole: 'cortex-chat',
                   promptRef: 'prompt://draft',
                   outputSchemaRef: 'schema://node-output/draft',
                 },
