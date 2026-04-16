@@ -41,6 +41,22 @@ yarn-error.log*
 *.sqlite-shm
 *.sqlite-wal
 
+# Internal (private, not for public repo)
+/.architecture/
+/.skills/
+/.worklog/
+/.apps/
+/.contracts/
+/.projects/
+/.workflows/
+
 # Misc
 *.pem
-AGENTS.md
+
+# Internal markdown at root — keep public repo minimal.
+# Only README.md, CONTRIBUTING.md, LICENSE (and LICENSE.md) remain visible.
+/*.md
+!/README.md
+!/CONTRIBUTING.md
+!/LICENSE
+!/LICENSE.md
