@@ -1304,6 +1304,10 @@ export function createNousServices(config?: BootstrapConfig): NousContext {
     eventBus,
     notificationService,
     notificationStore,
+    // Thought emitter for chat-turn lifecycle events (BT Round 2, RC-2).
+    // Without this, useAgentActivity never receives turn-complete events
+    // for tool-capable Principal turns (which can't stream).
+    thoughtEmitter,
     // Recovery component injection (Phase 1.2 — WR-072)
     // Type assertion: cortex-core uses zod v4 BRAND markers while shared uses zod v3.
     // Pre-existing monorepo zod version split — safe to assert until aligned.
