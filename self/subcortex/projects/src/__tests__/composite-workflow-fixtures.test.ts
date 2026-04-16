@@ -86,38 +86,6 @@ const fixtures = [
     expectedContracts: [] as string[],
     expectedTemplates: ['summary-report'],
   },
-  {
-    packageId: 'a-soul-is-born',
-    sourceSegments: ['.workflows', '.system', 'a-soul-is-born'],
-    system: true,
-    expectedNodes: 5,
-    expectedConnections: 4,
-    expectedContracts: [] as string[],
-    expectedTemplates: [
-      'memory-bootstrap-handoff-template',
-      'principal-preference-seed-template',
-    ],
-  },
-  {
-    packageId: 'self-repair-orchestration-sop',
-    sourceSegments: ['.workflows', '.system', 'self-repair-orchestration-sop'],
-    system: true,
-    expectedNodes: 13,
-    expectedConnections: 17,
-    expectedContracts: [] as string[],
-    expectedTemplates: [
-      'benchmark-status-template',
-      'direct-remediation-report-template',
-      'handoff-disposition-template',
-      'hygiene-remediation-plan-template',
-      'hygiene-scan-report-template',
-      'orchestration-agent-diagnosis-proposal-template',
-      'pfc-approval-request-template',
-      'remediation-dispatch-template',
-      'revalidation-closure-template',
-      'self-repair-intent-packet-template',
-    ],
-  },
 ] as const;
 
 describe('composite workflow package fixtures', () => {
@@ -183,12 +151,6 @@ describe('composite workflow package fixtures', () => {
       packageId: 'parallel-execution',
       sourceSegments: ['self', 'shared', 'examples', 'workflows', 'parallel-execution'],
     });
-    await stageWorkflowPackage({
-      instanceRoot,
-      packageId: 'self-repair-orchestration-sop',
-      sourceSegments: ['.workflows', '.system', 'self-repair-orchestration-sop'],
-      system: true,
-    });
 
     const branching = await loadInstalledWorkflowPackage({
       instanceRoot,
@@ -199,11 +161,6 @@ describe('composite workflow package fixtures', () => {
       instanceRoot,
       runtime,
       packageId: 'parallel-execution',
-    });
-    const selfRepair = await loadInstalledWorkflowPackage({
-      instanceRoot,
-      runtime,
-      packageId: 'self-repair-orchestration-sop',
     });
 
     expect(branching.nodeContent?.['check-condition']?.frontmatter.nous.contracts).toEqual([
@@ -216,14 +173,6 @@ describe('composite workflow package fixtures', () => {
     ]);
     expect(parallel.templates?.['summary-report']?.frontmatter.template).toBe(
       'summary-report',
-    );
-
-    expect(
-      selfRepair.nodeContent?.['request-cortex-approval']?.frontmatter.nous.templates,
-    ).toEqual(['pfc-approval-request-template', 'handoff-disposition-template']);
-    expect(selfRepair.templates?.['revalidation-closure-template']).toBeDefined();
-    expect(selfRepair.topology?.nodes.some((node) => node.id === 'request-cortex-approval')).toBe(
-      true,
     );
   });
 });

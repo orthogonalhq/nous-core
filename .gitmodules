@@ -1,9 +1,0 @@
-[submodule ".skills"]
-	path = .skills
-	url = https://github.com/orthogonalhq/nous-skills.git
-[submodule ".worklog"]
-	path = .worklog
-	url = https://github.com/orthogonalhq/nous-core-worklog.git
-[submodule ".architecture"]
-	path = .architecture
-	url = https://github.com/orthogonalhq/nous-core-architecture.git

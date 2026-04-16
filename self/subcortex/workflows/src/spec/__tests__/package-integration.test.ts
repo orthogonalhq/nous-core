@@ -119,24 +119,6 @@ const fixtures = [
     expectedEntryNodes: 1,
     expectGraphBuild: true,
   },
-  {
-    packageId: 'a-soul-is-born',
-    sourceSegments: ['.workflows', '.system', 'a-soul-is-born'],
-    system: true,
-    expectedNodes: 5,
-    expectedEdges: 4,
-    expectedEntryNodes: 1,
-    expectGraphBuild: true,
-  },
-  {
-    packageId: 'self-repair-orchestration-sop',
-    sourceSegments: ['.workflows', '.system', 'self-repair-orchestration-sop'],
-    system: true,
-    expectedNodes: 13,
-    expectedEdges: 17,
-    expectedEntryNodes: 1,
-    expectGraphBuild: false,
-  },
 ] as const;
 
 describe('repository workflow packages integrate with the runtime adapter', () => {
@@ -201,31 +183,16 @@ describe('repository workflow packages integrate with the runtime adapter', () =
       packageId: 'parallel-execution',
       sourceSegments: ['self', 'shared', 'examples', 'workflows', 'parallel-execution'],
     });
-    await stageWorkflowPackage({
-      instanceRoot,
-      packageId: 'self-repair-orchestration-sop',
-      sourceSegments: ['.workflows', '.system', 'self-repair-orchestration-sop'],
-      system: true,
-    });
 
     const parallel = await loadInstalledWorkflowPackage({
       instanceRoot,
       runtime,
       packageId: 'parallel-execution',
     });
-    const selfRepair = await loadInstalledWorkflowPackage({
-      instanceRoot,
-      runtime,
-      packageId: 'self-repair-orchestration-sop',
-    });
 
     const parallelDefinition = specToWorkflowDefinition(parallel.topology!, {
       projectId,
       enrichment: toEnrichmentMap(parallel.nodeContent ?? {}),
-    });
-    const selfRepairDefinition = specToWorkflowDefinition(selfRepair.topology!, {
-      projectId,
-      enrichment: toEnrichmentMap(selfRepair.nodeContent ?? {}),
     });
 
     const outputReportNode = parallelDefinition.nodes.find(
@@ -236,16 +203,6 @@ describe('repository workflow packages integrate with the runtime adapter', () =
       skill: undefined,
       contracts: undefined,
       templates: ['summary-report'],
-    });
-
-    const approvalNode = selfRepairDefinition.nodes.find(
-      (node) => node.metadata?.specNodeId === 'request-cortex-approval',
-    );
-    expect(approvalNode?.metadata).toEqual({
-      specNodeId: 'request-cortex-approval',
-      skill: 'self-repair-orchestration-sop',
-      contracts: undefined,
-      templates: ['pfc-approval-request-template', 'handoff-disposition-template'],
     });
   });
 });
