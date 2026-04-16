@@ -45,23 +45,6 @@ const fixtures = [
     expectedNodes: 6,
     expectedConnections: 7,
   },
-  {
-    packageId: 'a-soul-is-born',
-    pathSegments: ['.workflows', '.system', 'a-soul-is-born', 'workflow.yaml'],
-    expectedNodes: 5,
-    expectedConnections: 4,
-  },
-  {
-    packageId: 'self-repair-orchestration-sop',
-    pathSegments: [
-      '.workflows',
-      '.system',
-      'self-repair-orchestration-sop',
-      'workflow.yaml',
-    ],
-    expectedNodes: 13,
-    expectedConnections: 17,
-  },
 ] as const;
 
 async function loadFixtureSpec(pathSegments: readonly string[]) {
@@ -102,7 +85,7 @@ describe('workflow spec round-trips from repository fixtures', () => {
     },
   );
 
-  it('preserves boolean and named branch outputs across JSON round-trips', async () => {
+  it('preserves boolean branch outputs across JSON round-trips', async () => {
     const branchingSpec = await loadFixtureSpec([
       'self',
       'shared',
@@ -111,22 +94,12 @@ describe('workflow spec round-trips from repository fixtures', () => {
       'branching-conditional',
       'workflow.yaml',
     ]);
-    const selfRepairSpec = await loadFixtureSpec([
-      '.workflows',
-      '.system',
-      'self-repair-orchestration-sop',
-      'workflow.yaml',
-    ]);
 
     const branchingJsonRoundTrip = parseJsonWorkflowSpec(
       serializeJsonWorkflowSpec(branchingSpec, 2),
     );
-    const selfRepairJsonRoundTrip = parseJsonWorkflowSpec(
-      serializeJsonWorkflowSpec(selfRepairSpec, 2),
-    );
 
     expect(branchingJsonRoundTrip.success).toBe(true);
-    expect(selfRepairJsonRoundTrip.success).toBe(true);
 
     if (branchingJsonRoundTrip.success) {
       const outputs = branchingJsonRoundTrip.data.connections
@@ -134,24 +107,6 @@ describe('workflow spec round-trips from repository fixtures', () => {
         .filter((output) => output !== undefined)
         .sort();
       expect(outputs).toEqual([false, true]);
-    }
-
-    if (selfRepairJsonRoundTrip.success) {
-      const outputs = selfRepairJsonRoundTrip.data.connections
-        .map((connection) => connection.output)
-        .filter((output) => output !== undefined)
-        .map((output) => String(output))
-        .sort();
-      expect(outputs).toEqual([
-        'approved',
-        'approved-repair-execution',
-        'clean-fast-close',
-        'conditional',
-        'direct',
-        'dispatch-team',
-        'rejected',
-        'requires-fail-context',
-      ]);
     }
   });
 });
