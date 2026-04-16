@@ -46,8 +46,6 @@ A channel integration App:
 
 **Dependency**: Building channel Apps requires the Nous App SDK — dev docs and SDK coming. Watch this repo for the release.
 
-**Reference** (normalization pattern): `self/apps/bridge/src/connectors/telegram-bot-adapter.ts` — ingress normalization, egress delivery, mention detection, message type inference.
-
 **What it looks like**: scaffold a new App (`self/apps/<platform>/`), declare its manifest with credential vault entries and tool declarations, implement ingress/egress normalization, write tests.
 
 #### Model Provider Adapters
@@ -201,7 +199,7 @@ The core orchestration loop and memory architecture are not open for drive-by co
 
 | If you're interested in... | Look at | Start with | Tier |
 |---|---|---|---|
-| Chat platform adapters (Discord, Matrix, etc.) | `self/apps/bridge/src/connectors/` | `telegram-bot-adapter.ts` as reference | 1 |
+| Chat platform adapters (Discord, Matrix, etc.) | Nous App model — SDK pending release | Watch this repo for the SDK | 1 |
 | Model provider adapters (Anthropic, Gemini, etc.) | `self/subcortex/providers/src/` | `ollama-provider.ts` as reference | 1 |
 | Agent adapters (Claude Code, Codex, etc.) | `self/shared/src/types/adapter.ts` | `AgentAdapter` interface and Zod schemas | 1 |
 | MCP tool extensions | `self/cortex/core/src/internal-mcp/` | `catalog.ts` and `capability-handlers.ts` | 1 |
@@ -275,12 +273,6 @@ Browse current good first issues on [GitHub Issues](https://github.com/orthogona
 
 ## Larger Initiatives
 
-These are roadmap-level efforts that go beyond a single PR. They're listed here because they represent real directions the project is heading — if one of these resonates, open a Discussion.
+Roadmap-level efforts that go beyond a single PR live as GitHub issues. They represent real directions the project is heading — if one resonates, open a Discussion or comment on the issue.
 
-### Headless Email Client
-
-A fully headless, agent-operated email surface built as a **Nous App** — a sandboxed Deno subprocess with IMAP/SMTP credentials in the credential vault, and namespaced tools (`email.search`, `email.draft`, `email.send`, `email.reply`, `email.archive`) registered into the Internal MCP catalog.
-
-IMAP IDLE drives a live feed of new messages into the communication gateway ingress. Outgoing mail routes through the escalation service — high-confidence replies auto-send, low-confidence ones escalate to the Principal. The witness chain audits everything. The memory system learns communication patterns over time.
-
-Not yet tied to a specific phase. It's not a contribution you pick up — it's one you propose and design collaboratively. See [issue #78](https://github.com/orthogonalhq/nous-core/issues/78) for the full design.
+Browse them on [GitHub Issues](https://github.com/orthogonalhq/nous-core/issues).
