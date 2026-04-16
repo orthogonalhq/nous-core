@@ -6,7 +6,6 @@ import { trpc } from '@nous/transport'
 import { useListSessions, useChatApi } from '@nous/transport'
 import { ChatPanel } from '../../panels/ChatPanel'
 import type { ContentRouterRenderProps } from './ContentRouter'
-import { useShellContext } from './ShellContext'
 
 // ---------------------------------------------------------------------------
 // View state
@@ -22,29 +21,9 @@ type ViewState =
 // ---------------------------------------------------------------------------
 
 export function ChatTabView(_props: ContentRouterRenderProps) {
-  const shell = useShellContext()
-  const { data: projects } = trpc.projects.list.useQuery()
+  const [viewState, setViewState] = useState<ViewState>({ view: 'home' })
 
-  // Initialize to project view when a project is active
-  const [viewState, setViewState] = useState<ViewState>(() => {
-    if (shell.activeProjectId) {
-      return { view: 'project', projectId: shell.activeProjectId, projectName: '' }
-    }
-    return { view: 'home' }
-  })
-
-  // Resolve project name once projects load (initial state may have empty name)
-  const resolvedViewState = useMemo(() => {
-    if (viewState.view === 'project' && !viewState.projectName && projects) {
-      const proj = projects.find((p: { id: string }) => p.id === viewState.projectId)
-      if (proj) {
-        return { ...viewState, projectName: (proj as { id: string; name?: string }).name ?? viewState.projectId }
-      }
-    }
-    return viewState
-  }, [viewState, projects])
-
-  switch (resolvedViewState.view) {
+  switch (viewState.view) {
     case 'home':
       return (
         <HomeView
@@ -56,22 +35,22 @@ export function ChatTabView(_props: ContentRouterRenderProps) {
     case 'project':
       return (
         <ProjectView
-          projectId={resolvedViewState.projectId}
-          projectName={resolvedViewState.projectName}
+          projectId={viewState.projectId}
+          projectName={viewState.projectName}
           onBack={() => setViewState({ view: 'home' })}
           onSelectSession={(sessionId) =>
             setViewState({
               view: 'session',
-              projectId: resolvedViewState.projectId,
-              projectName: resolvedViewState.projectName,
+              projectId: viewState.projectId,
+              projectName: viewState.projectName,
               sessionId,
             })
           }
           onNewChat={() =>
             setViewState({
               view: 'session',
-              projectId: resolvedViewState.projectId,
-              projectName: resolvedViewState.projectName,
+              projectId: viewState.projectId,
+              projectName: viewState.projectName,
               sessionId: crypto.randomUUID(),
             })
           }
@@ -80,14 +59,14 @@ export function ChatTabView(_props: ContentRouterRenderProps) {
     case 'session':
       return (
         <SessionView
-          projectId={resolvedViewState.projectId}
-          projectName={resolvedViewState.projectName}
-          sessionId={resolvedViewState.sessionId}
+          projectId={viewState.projectId}
+          projectName={viewState.projectName}
+          sessionId={viewState.sessionId}
           onBack={() =>
             setViewState({
               view: 'project',
-              projectId: resolvedViewState.projectId,
-              projectName: resolvedViewState.projectName,
+              projectId: viewState.projectId,
+              projectName: viewState.projectName,
             })
           }
         />
