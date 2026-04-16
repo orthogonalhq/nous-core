@@ -202,7 +202,7 @@ export class OpenAiCompatibleProvider implements IModelProvider {
     }
   }
 
-  private validateInput(input: unknown): { prompt?: string; messages?: Array<{ role: string; content: string }> } {
+  private validateInput(input: unknown): { prompt?: string; messages?: Array<{ role: string; content: string | unknown[]; tool_call_id?: string; tool_calls?: unknown[] }> } {
     const result = TextModelInputSchema.safeParse(input);
     if (!result.success) {
       const errors = result.error.errors.map((e) => ({
@@ -215,12 +215,14 @@ export class OpenAiCompatibleProvider implements IModelProvider {
   }
 
   private toOpenAiMessages(
-    input: { prompt?: string; messages?: Array<{ role: string; content: string }> },
-  ): Array<{ role: string; content: string }> {
+    input: { prompt?: string; messages?: Array<{ role: string; content: string | unknown[]; tool_call_id?: string; tool_calls?: unknown[] }> },
+  ): Array<{ role: string; content: string; tool_call_id?: string; tool_calls?: unknown[] }> {
     if (input.messages && input.messages.length > 0) {
       return input.messages.map((m) => ({
-        role: m.role as 'user' | 'assistant' | 'system',
-        content: m.content,
+        role: m.role as 'user' | 'assistant' | 'system' | 'tool',
+        content: typeof m.content === 'string' ? m.content : JSON.stringify(m.content),
+        ...(m.tool_call_id ? { tool_call_id: m.tool_call_id } : {}),
+        ...(m.tool_calls ? { tool_calls: m.tool_calls } : {}),
       }));
     }
     return [{ role: 'user' as const, content: input.prompt ?? '' }];

@@ -1,9 +1,10 @@
 import { AgentResultSchema } from '@nous/shared';
-import type { AgentResult, IDocumentStore } from '@nous/shared';
+import type { AgentResult, IDocumentStore, ILogChannel } from '@nous/shared';
 import { DocumentBacklogStore } from './backlog-store.js';
 import type {
   BacklogAnalytics,
   BacklogEntry,
+  BacklogEntryStatus,
   BacklogPriority,
   BacklogQueueConfig,
 } from './backlog-types.js';
@@ -34,6 +35,7 @@ export interface SystemBacklogQueueDeps {
   executeEntry: (entry: BacklogEntry) => Promise<AgentResult>;
   now: () => string;
   config?: Partial<BacklogQueueConfig>;
+  log?: ILogChannel;
 }
 
 export class SystemBacklogQueue {
@@ -42,10 +44,12 @@ export class SystemBacklogQueue {
   private readonly ready: Promise<void>;
   private promotionInFlight = false;
   private readonly idleWaiters = new Set<() => void>();
+  private readonly log: ILogChannel;
 
   constructor(private readonly deps: SystemBacklogQueueDeps) {
     this.store = new DocumentBacklogStore(deps.documentStore);
     this.config = BacklogQueueConfigSchema.parse(deps.config ?? {});
+    this.log = deps.log ?? { debug() {}, info() {}, warn() {}, error() {}, isEnabled() { return false; } };
     this.ready = this.initialize();
   }
 
@@ -101,8 +105,22 @@ export class SystemBacklogQueue {
     return this.store.snapshotAnalytics(this.deps.now(), this.config);
   }
 
+  async listEntries(filter?: { status?: BacklogEntryStatus }): Promise<BacklogEntry[]> {
+    await this.ready;
+    if (filter?.status) {
+      return this.store.listByStatus(filter.status);
+    }
+    return this.store.list();
+  }
+
   private async initialize(): Promise<void> {
-    await this.store.resetActiveToQueued();
+    const resetCount = await this.store.resetActiveToQueued();
+    if (resetCount > 0) {
+      this.log.warn(`Backlog recovery: ${resetCount} entries reset from active to queued`);
+      this.deps.healthSink.addIssue('backlog_recovery_reset', 'Cortex::System');
+    } else {
+      this.log.info('Backlog recovery: 0 entries reset from active to queued');
+    }
     await this.refreshAnalytics();
     void this.promote();
   }

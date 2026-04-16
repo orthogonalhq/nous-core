@@ -47,6 +47,7 @@ const WIDGET_POSITIONS: Record<string, { direction: string; referencePanel: stri
   'provider-health': { direction: 'right', referencePanel: 'system-status' },
   'token-usage': { direction: 'below', referencePanel: 'provider-health' },
   'recent-events': { direction: 'below', referencePanel: 'token-usage' },
+  'cost-dashboard': { direction: 'right', referencePanel: 'token-usage' },
 }
 
 function initDashboardLayout(event: DockviewReadyEvent) {

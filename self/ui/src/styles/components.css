@@ -8,10 +8,45 @@
  */
 
 :root {
+  /* ── Shell rail ─────────────────────────────────────────────────────── */
+  --nous-rail-bg:              var(--nous-rail-surface);
+  --nous-rail-fg:              var(--nous-text-secondary);
+  --nous-rail-item-active-bg:  var(--nous-bg-active);
+  --nous-rail-hover-bg:        var(--nous-bg-hover);
+  --nous-rail-section-fg:      var(--nous-text-tertiary);
+
+  /* ── Shell columns ──────────────────────────────────────────────────── */
+  --nous-shell-column-border:  var(--nous-border-strong);
+  --nous-observe-bg:           var(--nous-bg-surface);
+
+  /* ── Asset sidebar ──────────────────────────────────────────────────── */
+  --nous-sidebar-section-label-fg:   var(--nous-sidebar-label);
+  --nous-sidebar-section-chevron-fg: var(--nous-sidebar-chevron);
+  --nous-sidebar-section-icon-fg:    var(--nous-sidebar-group-icon);
+  --nous-sidebar-item-fg:            var(--nous-sidebar-button-fg);
+  --nous-sidebar-item-icon-fg:       var(--nous-sidebar-button-icon);
+  --nous-sidebar-header-fg:          var(--nous-sidebar-title);
+  --nous-sidebar-collapse-fg:        var(--nous-sidebar-collapse-icon);
+
+  /* ── Ambient stream ─────────────────────────────────────────────────── */
+  --nous-ambient-fg:           var(--nous-text-tertiary);
+  --nous-ambient-event-bg:     var(--nous-accent-muted);
+
+  /* ── Catalog surfaces ──────────────────────────────────────────────── */
+  --nous-catalog-card-bg:      var(--nous-bg-elevated);
+  --nous-catalog-card-hover:   var(--nous-bg-hover);
+
+  /* ── Command palette ────────────────────────────────────────────────── */
+  --nous-palette-bg:         var(--nous-bg-elevated);
+  --nous-palette-border:     var(--nous-border-strong);
+  --nous-palette-shadow:     var(--nous-shadow-lg);
+  --nous-palette-item-hover: var(--nous-bg-hover);
+  --nous-palette-match-fg:   var(--nous-accent);
+
   /* ── Panel header ──────────────────────────────────────────────────── */
-  --nous-header-bg:     var(--nous-surface);
-  --nous-header-fg:     var(--nous-fg-muted);
-  --nous-header-border: var(--nous-border-subtle);
+  --nous-header-bg:     #1a1a1a;
+  --nous-header-fg:     var(--nous-fg);
+  --nous-header-border: var(--nous-border);
 
   /* ── Panel footer ──────────────────────────────────────────────────── */
   --nous-footer-bg:     var(--nous-surface);
@@ -19,7 +54,8 @@
   --nous-footer-border: var(--nous-border-subtle);
 
   /* ── Panel content ─────────────────────────────────────────────────── */
-  --nous-content-bg:    var(--nous-bg);
+  --nous-content-bg:    var(--nous-bg-base);
+  --nous-chat-full-bg:  #1A1A1A;
 
   /* ── Tab bar ─────────────────────────────────────────────────────── */
   --nous-tab-bar-bg:      var(--nous-bg);
@@ -163,4 +199,95 @@
   --nous-menu-shortcut-fg:      var(--nous-fg-muted);
   --nous-menu-label-fg:         var(--nous-fg-subtle);
   --nous-menu-separator:        var(--nous-border);
+
+  /* ── Workflow builder ──────────────────────────────────────────────── */
+  --nous-builder-canvas-bg:       var(--nous-canvas-bg);
+  --nous-builder-grid-color:      var(--nous-canvas-grid-dot);
+  --nous-builder-node-trigger:    var(--nous-node-trigger);
+  --nous-builder-node-agent:      var(--nous-node-agent);
+  --nous-builder-node-condition:  var(--nous-node-condition);
+  --nous-builder-node-app:        var(--nous-node-app);
+  --nous-builder-node-tool:       var(--nous-node-tool);
+  --nous-builder-node-memory:     var(--nous-node-memory);
+  --nous-builder-node-governance: var(--nous-node-governance);
+  --nous-builder-edge-execution:  var(--nous-edge-execution);
+  --nous-builder-edge-config:     var(--nous-edge-config);
+  --nous-builder-edge-memory:     var(--nous-edge-memory);
+  --nous-builder-monitor-pulse-color: var(--nous-monitor-pulse-color);
+  --nous-builder-monitor-badge-bg:    var(--nous-monitor-badge-bg);
+  --nous-builder-monitor-badge-fg:    var(--nous-monitor-badge-fg);
+  --nous-builder-selection-ring:  var(--nous-canvas-selection-ring);
+  --nous-builder-minimap-bg:      var(--nous-canvas-minimap-bg);
+  --nous-builder-minimap-node:    var(--nous-canvas-minimap-node);
+
+  /* ── Workflow builder floating panels ────────────────────────────── */
+  --nous-builder-panel-bg:          var(--nous-canvas-panel-bg);
+  --nous-builder-panel-border:      var(--nous-canvas-panel-border);
+  --nous-builder-panel-shadow:      var(--nous-canvas-panel-shadow);
+  --nous-builder-panel-header-bg:   var(--nous-canvas-panel-header-bg);
+  --nous-builder-panel-header-text: var(--nous-canvas-panel-header-text);
+
+  /* ── Builder gate status (SP 3.2) ──────────────────────────────── */
+  --nous-builder-gate-passed-bg:    rgba(50, 215, 75, 0.15);
+  --nous-builder-gate-passed-fg:    var(--nous-alert-success);
+  --nous-builder-gate-failed-bg:    rgba(255, 69, 58, 0.15);
+  --nous-builder-gate-failed-fg:    var(--nous-alert-error);
+  --nous-builder-gate-pending-bg:   rgba(0, 122, 204, 0.15);
+  --nous-builder-gate-pending-fg:   var(--nous-accent);
+  --nous-builder-gate-skipped-bg:   transparent;
+  --nous-builder-gate-skipped-fg:   var(--nous-fg-subtle);
+
+  /* ── Builder artifact type (SP 3.2) ────────────────────────────── */
+  --nous-builder-artifact-dispatch-bg:   rgba(0, 122, 204, 0.15);
+  --nous-builder-artifact-dispatch-fg:   var(--nous-accent);
+  --nous-builder-artifact-revision-bg:   rgba(188, 140, 255, 0.15);
+  --nous-builder-artifact-revision-fg:   var(--nous-state-needs-revision);
+  --nous-builder-artifact-escalation-bg: rgba(255, 69, 58, 0.15);
+  --nous-builder-artifact-escalation-fg: var(--nous-alert-error);
+  --nous-builder-artifact-output-bg:     rgba(50, 215, 75, 0.15);
+  --nous-builder-artifact-output-fg:     var(--nous-alert-success);
+  --nous-builder-artifact-other-bg:      transparent;
+  --nous-builder-artifact-other-fg:      var(--nous-fg-muted);
+}
+
+/* ── Context menu item hover ─────────────────────────────────────── */
+.context-menu-item:hover {
+  background: var(--nous-bg-hover);
+}
+
+/* ── Monitoring overlay animations (SP 3.1) ────────────────────── */
+@keyframes nous-edge-flow {
+  from { stroke-dashoffset: 24; }
+  to   { stroke-dashoffset: 0; }
+}
+
+@keyframes nous-node-pulse {
+  0%, 100% { box-shadow: 0 0 0 0 var(--nous-builder-monitor-pulse-color); }
+  50%      { box-shadow: 0 0 0 4px var(--nous-builder-monitor-pulse-color); }
+}
+
+.nous-edge-flow-active {
+  stroke-dasharray: 8 4;
+  animation: nous-edge-flow 0.6s linear infinite;
+  will-change: stroke-dashoffset;
+}
+
+.nous-node-pulse {
+  animation: nous-node-pulse 1.5s ease-in-out infinite;
+  will-change: box-shadow;
+}
+
+/* ── Sidebar scrollbar ────────────────────────────────────────────── */
+.nous-asset-sidebar ::-webkit-scrollbar {
+  width: var(--nous-scrollbar-size);
+}
+.nous-asset-sidebar ::-webkit-scrollbar-thumb {
+  background: var(--nous-scrollbar-thumb);
+  border-radius: var(--nous-radius-xs);
+}
+.nous-asset-sidebar ::-webkit-scrollbar-thumb:hover {
+  background: var(--nous-scrollbar-thumb-hover);
+}
+.nous-asset-sidebar ::-webkit-scrollbar-track {
+  background: transparent;
 }

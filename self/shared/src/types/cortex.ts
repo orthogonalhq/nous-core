@@ -82,6 +82,7 @@ export const TurnResultSchema = z.object({
   traceId: TraceIdSchema,
   memoryCandidates: z.array(MemoryWriteCandidateSchema),
   pfcDecisions: z.array(PfcDecisionSchema),
+  contentType: z.enum(['text', 'openui']).optional(),
 });
 export type TurnResult = z.infer<typeof TurnResultSchema>;
 

@@ -140,7 +140,7 @@ describe('ConfigManager', () => {
       const manager = new ConfigManager();
       await expect(
         manager.update('modelRoleAssignments', [
-          { role: 'reasoner', providerId: 'ollama-default' },
+          { role: 'cortex-chat', providerId: 'ollama-default' },
         ] as never),
       ).rejects.toThrow(ConfigError);
     });
@@ -197,10 +197,9 @@ describe('ConfigManager', () => {
   });
 
   describe('constructor', () => {
-    it('throws ConfigError with invalid configPath', () => {
-      expect(
-        () => new ConfigManager({ configPath: join(TEST_DIR, 'nope.json') }),
-      ).toThrow(ConfigError);
+    it('falls back to defaults when configPath points to non-existent file (ENOENT)', () => {
+      const manager = new ConfigManager({ configPath: join(TEST_DIR, 'nope.json') });
+      expect(manager.get()).toEqual(DEFAULT_SYSTEM_CONFIG);
     });
   });
 });

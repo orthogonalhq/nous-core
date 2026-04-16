@@ -41,7 +41,7 @@ describe('bootstrap config validation', () => {
     ) as Record<string, unknown>;
 
     invalidConfig.modelRoleAssignments = [
-      { role: 'reasoner', providerId: 'ollama-default' },
+      { role: 'cortex-chat', providerId: 'ollama-default' },
     ];
     invalidConfig.providers = [
       {

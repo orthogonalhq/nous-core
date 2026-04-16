@@ -6,11 +6,13 @@ import type {
   IModelRouter,
   IProjectApi,
   IToolExecutor,
+  MemoryEntry,
   MemoryEntryId,
   MemoryWriteCandidate,
   ModelRole,
   ProjectId,
   ProviderId,
+  RetrievalResult,
   TraceId,
 } from '@nous/shared';
 import type { IScheduler } from '@nous/shared';
@@ -22,6 +24,11 @@ interface MwcPipelineLike {
   ): Promise<MemoryEntryId | null>;
 }
 
+export interface MemoryReadService {
+  read(query: string, scope: 'global' | 'project', projectId: ProjectId): Promise<MemoryEntry[]>;
+  retrieve(situation: string, budget: number, projectId: ProjectId): Promise<RetrievalResult[]>;
+}
+
 export interface GatewayRuntimeProjectApiDeps {
   mwcPipeline: MwcPipelineLike;
   artifactStore: IArtifactStore;
@@ -30,6 +37,7 @@ export interface GatewayRuntimeProjectApiDeps {
   toolExecutor: IToolExecutor;
   router: IModelRouter;
   getProvider: (id: ProviderId) => IModelProvider | null;
+  memoryReadService?: MemoryReadService | null;
 }
 
 export function createGatewayProjectApi(
@@ -38,9 +46,29 @@ export function createGatewayProjectApi(
 ): IProjectApi {
   return {
     memory: {
-      read: async () => [],
+      read: async (query, scope) => {
+        if (deps.memoryReadService) {
+          try {
+            console.log(`[nous:gateway-runtime] memory.read delegated to live service for project ${projectId}`);
+            return await deps.memoryReadService.read(query, scope as 'global' | 'project', projectId);
+          } catch {
+            return [];
+          }
+        }
+        return [];
+      },
       write: async (candidate) => deps.mwcPipeline.submit(candidate, projectId),
-      retrieve: async () => [],
+      retrieve: async (situation, budget) => {
+        if (deps.memoryReadService) {
+          try {
+            console.log(`[nous:gateway-runtime] memory.retrieve delegated to live service for project ${projectId}`);
+            return await deps.memoryReadService.retrieve(situation, budget, projectId);
+          } catch {
+            return [];
+          }
+        }
+        return [];
+      },
     },
     model: {
       invoke: async (role: ModelRole, input: unknown) => {

@@ -34,3 +34,11 @@ select,
 a {
   -webkit-app-region: no-drag;
 }
+
+/* Buttons and inputs don't inherit font by default in some browsers */
+button,
+input,
+textarea,
+select {
+  font-family: inherit;
+}

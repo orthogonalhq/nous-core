@@ -19,7 +19,66 @@ import {
   WorkflowRunStatusSchema,
   WorkflowRunTriggerContextSchema,
 } from './workflow.js';
+import type { WorkflowNodeKind } from './workflow.js';
 import { ExecutionModelSchema, GovernanceLevelSchema } from './enums.js';
+import { WorkflowDispatchLineageIdSchema } from './ids.js';
+
+// ---------------------------------------------------------------------------
+// Dispatch mapping types and constant
+// ---------------------------------------------------------------------------
+
+export const WorkflowExecutionModeSchema = z.enum(['internal', 'dispatched']);
+export type WorkflowExecutionMode = z.infer<typeof WorkflowExecutionModeSchema>;
+
+export const WorkflowDispatchAgentClassSchema = z
+  .enum(['Orchestrator', 'Worker'])
+  .nullable();
+export type WorkflowDispatchAgentClass = z.infer<
+  typeof WorkflowDispatchAgentClassSchema
+>;
+
+export const WorkflowNodeDispatchMappingSchema = z
+  .object({
+    executionMode: WorkflowExecutionModeSchema,
+    agentClass: WorkflowDispatchAgentClassSchema,
+  })
+  .strict();
+export type WorkflowNodeDispatchMapping = z.infer<
+  typeof WorkflowNodeDispatchMappingSchema
+>;
+
+/**
+ * Static dispatch mapping table — maps every `WorkflowNodeKind` to an
+ * execution mode and agent class. Matches the ratified ADR
+ * `node-dispatch-mapping-v1`.
+ */
+export const WORKFLOW_NODE_DISPATCH_MAP = {
+  'model-call': { executionMode: 'dispatched', agentClass: 'Worker' },
+  'tool-execution': { executionMode: 'dispatched', agentClass: 'Worker' },
+  'subworkflow': { executionMode: 'dispatched', agentClass: 'Orchestrator' },
+  'condition': { executionMode: 'internal', agentClass: null },
+  'transform': { executionMode: 'internal', agentClass: null },
+  'quality-gate': { executionMode: 'internal', agentClass: null },
+  'human-decision': { executionMode: 'internal', agentClass: null },
+  'parallel-split': { executionMode: 'internal', agentClass: null },
+  'parallel-join': { executionMode: 'internal', agentClass: null },
+  'loop': { executionMode: 'internal', agentClass: null },
+  'error-handler': { executionMode: 'internal', agentClass: null },
+} as const satisfies Record<WorkflowNodeKind, WorkflowNodeDispatchMapping>;
+
+export const WorkflowNodeDispatchMetadataSchema = z
+  .object({
+    nodeDefinitionId: WorkflowNodeDefinitionIdSchema,
+    nodeType: WorkflowNodeKindSchema,
+    nodeName: z.string().min(1),
+    executionMode: WorkflowExecutionModeSchema,
+    agentClass: WorkflowDispatchAgentClassSchema,
+    dispatchLineageId: WorkflowDispatchLineageIdSchema.optional(),
+  })
+  .strict();
+export type WorkflowNodeDispatchMetadata = z.infer<
+  typeof WorkflowNodeDispatchMetadataSchema
+>;
 
 export const WorkflowLifecycleListQuerySchema = z
   .object({
@@ -53,7 +112,7 @@ export const WorkflowLifecycleDefinitionSummarySchema = z
     toolDependencies: z.array(WorkflowPackageToolDependencySchema).default([]),
     rootRef: z.string().min(1),
     manifestRef: z.string().min(1),
-    flowRef: z.string().min(1),
+    flowRef: z.string().min(1).optional(),
   })
   .strict();
 export type WorkflowLifecycleDefinitionSummary = z.infer<
@@ -76,6 +135,10 @@ export const WorkflowLifecycleInstanceSummarySchema = z
     startedAt: z.string().datetime(),
     updatedAt: z.string().datetime(),
     definitionSource: ResolvedWorkflowDefinitionSourceSchema.optional(),
+    readyNodeIds: z.array(WorkflowNodeDefinitionIdSchema).default([]),
+    readyNodeDispatchMetadata: z
+      .array(WorkflowNodeDispatchMetadataSchema)
+      .default([]),
   })
   .strict();
 export type WorkflowLifecycleInstanceSummary = z.infer<
@@ -143,15 +206,21 @@ export type WorkflowLifecycleInspectResult = z.infer<
 
 export const WorkflowLifecycleStartCommandSchema = z
   .object({
-    definition: z.string().min(1),
+    definition: z.string().min(1).optional(),
+    yamlSpec: z.string().min(1).optional(),
     projectId: ProjectIdSchema,
     entrypoint: z.string().min(1).optional(),
     config: z.record(z.unknown()).optional(),
     triggerContext: WorkflowRunTriggerContextSchema.optional(),
   })
   .strict()
+  .refine(
+    (value) => value.definition != null || value.yamlSpec != null,
+    { message: 'Either definition or yamlSpec must be provided' },
+  )
   .transform((value) => ({
     definition: value.definition,
+    yamlSpec: value.yamlSpec,
     projectId: value.projectId,
     entrypoint: value.entrypoint,
     config: value.config ?? {},
@@ -159,6 +228,58 @@ export const WorkflowLifecycleStartCommandSchema = z
   }));
 export type WorkflowLifecycleStartCommand = z.output<
   typeof WorkflowLifecycleStartCommandSchema
+>;
+
+export const WorkflowLifecycleValidateCommandSchema = z
+  .object({
+    yamlSpec: z.string().min(1),
+  })
+  .strict();
+export type WorkflowLifecycleValidateCommand = z.infer<
+  typeof WorkflowLifecycleValidateCommandSchema
+>;
+
+export const WorkflowLifecycleFromSpecCommandSchema = z
+  .object({
+    yamlSpec: z.string().min(1),
+    projectId: ProjectIdSchema,
+  })
+  .strict();
+export type WorkflowLifecycleFromSpecCommand = z.infer<
+  typeof WorkflowLifecycleFromSpecCommandSchema
+>;
+
+export const WorkflowLifecycleCreateCommandSchema = z
+  .object({
+    specYaml: z.string().min(1),
+    projectId: ProjectIdSchema,
+    name: z.string().min(1).optional(),
+  })
+  .strict();
+export type WorkflowLifecycleCreateCommand = z.infer<
+  typeof WorkflowLifecycleCreateCommandSchema
+>;
+
+export const WorkflowLifecycleUpdateCommandSchema = z
+  .object({
+    specYaml: z.string().min(1),
+    projectId: ProjectIdSchema,
+    definitionId: WorkflowDefinitionIdSchema,
+    name: z.string().min(1).optional(),
+  })
+  .strict();
+export type WorkflowLifecycleUpdateCommand = z.infer<
+  typeof WorkflowLifecycleUpdateCommandSchema
+>;
+
+export const WorkflowLifecycleDeleteCommandSchema = z
+  .object({
+    projectId: ProjectIdSchema,
+    definitionId: WorkflowDefinitionIdSchema,
+  })
+  .strict();
+export type WorkflowLifecycleDeleteCommand = z.infer<
+  typeof WorkflowLifecycleDeleteCommandSchema
 >;
 
 export const WorkflowLifecycleStatusQuerySchema = z
@@ -248,4 +369,33 @@ export const WorkflowLifecycleMutationResultSchema = z
   .strict();
 export type WorkflowLifecycleMutationResult = z.infer<
   typeof WorkflowLifecycleMutationResultSchema
+>;
+
+// ---------------------------------------------------------------------------
+// MCP tool request schemas for workflow node operations
+// ---------------------------------------------------------------------------
+
+export const WorkflowExecuteNodeToolRequestSchema = z
+  .object({
+    runId: WorkflowExecutionIdSchema,
+    nodeDefinitionId: WorkflowNodeDefinitionIdSchema,
+    payload: z.unknown().optional(),
+  })
+  .strict();
+export type WorkflowExecuteNodeToolRequest = z.infer<
+  typeof WorkflowExecuteNodeToolRequestSchema
+>;
+
+export const WorkflowCompleteNodeToolRequestSchema = z
+  .object({
+    runId: WorkflowExecutionIdSchema,
+    nodeDefinitionId: WorkflowNodeDefinitionIdSchema,
+    output: z.unknown().optional(),
+    status: z.enum(['completed', 'failed']).default('completed'),
+    reasonCode: z.string().min(1).optional(),
+    evidenceRefs: z.array(z.string().min(1)).default([]),
+  })
+  .strict();
+export type WorkflowCompleteNodeToolRequest = z.infer<
+  typeof WorkflowCompleteNodeToolRequestSchema
 >;

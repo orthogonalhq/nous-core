@@ -57,13 +57,20 @@ export interface IPfcEngine {
   getTier(): PfcTier;
 }
 
+/**
+ * @deprecated Use {@link AgentGateway.run()} for new code.
+ * `GatewayBackedTurnExecutor` is the sole implementation and serves as
+ * the compatibility bridge for callers still using this interface.
+ * `getTrace()` remains functional for trace retrieval during transition.
+ * This interface will be removed in a future sprint after caller migration.
+ */
 export interface ICoreExecutor {
-  /** Execute a single agent turn — input in, response out */
+  /** @deprecated Use AgentGateway.run() directly. */
   executeTurn(input: TurnInput): Promise<TurnResult>;
 
-  /** Start or resume a project supervision loop */
+  /** @deprecated Use AgentGateway.run() directly. */
   superviseProject(projectId: ProjectId): Promise<void>;
 
-  /** Get the execution trace for a given trace ID */
+  /** @deprecated Use GatewayTraceRecorder directly. */
   getTrace(traceId: TraceId): Promise<ExecutionTrace | null>;
 }

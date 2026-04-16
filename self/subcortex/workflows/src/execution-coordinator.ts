@@ -6,12 +6,14 @@ import type {
   IPfcEngine,
   IModelRouter,
   IToolExecutor,
+  IWorkflowNodeHandler,
   ProjectConfig,
   WorkflowDispatchLineage,
   WorkflowNodeDefinition,
   WorkflowNodeExecutionContext,
   WorkflowNodeExecutionPayload,
   WorkflowNodeExecutionResult,
+  WorkflowNodeKind,
   WorkflowRunState,
 } from '@nous/shared';
 import { ConfidenceGovernanceEvaluationResultSchema } from '@nous/shared';
@@ -29,6 +31,8 @@ export interface WorkflowExecutionCoordinatorDependencies {
   modelRouter?: IModelRouter;
   toolExecutor?: IToolExecutor;
   observer?: WorkflowRuntimeObserver;
+  /** Override or extend the built-in node handler registry (e.g. coding agent handlers). */
+  nodeHandlerOverrides?: Map<WorkflowNodeKind, IWorkflowNodeHandler>;
 }
 
 export interface ExecuteWorkflowNodeInput {
@@ -53,6 +57,10 @@ const actionCategoryByNodeType: Record<string, CriticalActionCategory> = {
   'quality-gate': 'trace-persist',
   'human-decision': 'opctl-command',
   subworkflow: 'trace-persist',
+  'parallel-split': 'trace-persist',
+  'parallel-join': 'trace-persist',
+  loop: 'trace-persist',
+  'error-handler': 'trace-persist',
 };
 
 function buildDefaultGovernanceInput(
@@ -201,6 +209,11 @@ export async function executeWorkflowNode(
     modelRouter: deps.modelRouter,
     toolExecutor: deps.toolExecutor,
   });
+  if (deps.nodeHandlerOverrides) {
+    for (const [kind, override] of deps.nodeHandlerOverrides) {
+      handlerRegistry.set(kind, override);
+    }
+  }
   const handler = handlerRegistry.get(input.nodeDefinition.type);
   if (!handler) {
     return {

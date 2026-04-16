@@ -15,8 +15,10 @@ import {
   MemoryAccessPolicySchema,
   ProviderIdSchema,
   ProviderClassSchema,
+  ProviderVendorSchema,
   StmCompactionPolicySchema,
   DEFAULT_STM_COMPACTION_POLICY,
+  LogLevel,
 } from '@nous/shared';
 
 // --- Cortex Tier Preset ---
@@ -51,6 +53,9 @@ export const ModelRoleAssignmentSchema = z.object({
 export type ModelRoleAssignment = z.infer<typeof ModelRoleAssignmentSchema>;
 
 // --- Provider Configuration (for config file) ---
+// `vendor` mirrors `ModelProviderConfigSchema.vendor` from `@nous/shared`
+// (WR-138 row #2). Optional at introduction for backward-compat with legacy
+// persisted config files. See `provider-vendor-field-v1.md` § 5 / AC #5.
 export const ProviderConfigEntrySchema = z.object({
   id: ProviderIdSchema,
   name: z.string(),
@@ -62,6 +67,7 @@ export const ProviderConfigEntrySchema = z.object({
   capabilities: z.array(z.string()),
   providerClass: ProviderClassSchema.optional(),
   meetsProfiles: z.array(z.string()).optional(),
+  vendor: ProviderVendorSchema.optional(),
 });
 export type ProviderConfigEntry = z.infer<typeof ProviderConfigEntrySchema>;
 
@@ -133,6 +139,13 @@ export const DefaultsConfigSchema = z.object({
 });
 export type DefaultsConfig = z.infer<typeof DefaultsConfigSchema>;
 
+// --- Logging Configuration ---
+export const LoggingConfigSchema = z.object({
+  level: z.nativeEnum(LogLevel).optional().default(LogLevel.Debug),
+  channels: z.record(z.string(), z.boolean()).optional().default({}),
+}).optional().default({});
+export type LoggingConfig = z.infer<typeof LoggingConfigSchema>;
+
 // --- Full System Configuration ---
 export const SystemConfigSchema = z.object({
   profile: ProfileSchema,
@@ -145,5 +158,6 @@ export const SystemConfigSchema = z.object({
   security: SecurityConfigSchema.optional().default({
     traceSensitiveData: false,
   }),
+  logging: LoggingConfigSchema,
 });
 export type SystemConfig = z.infer<typeof SystemConfigSchema>;

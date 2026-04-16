@@ -6,25 +6,40 @@ import * as React from 'react';
 import { cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
-const mocks = vi.hoisted(() => ({
-  getProjectSnapshotUseQuery: vi.fn(),
-  getAgentInspectProjectionUseQuery: vi.fn(),
-  requestProjectControlUseMutation: vi.fn(),
-  useUtils: vi.fn(),
-  useProject: vi.fn(),
-  useSearchParams: vi.fn(),
-}));
-
-vi.mock('@/lib/trpc', () => ({
-  trpc: {
+const { mocks, trpcMock } = vi.hoisted(() => {
+  const m = {
+    getProjectSnapshotUseQuery: vi.fn(),
+    getSystemSnapshotUseQuery: vi.fn(),
+    getAgentInspectProjectionUseQuery: vi.fn(),
+    requestProjectControlUseMutation: vi.fn(),
+    getControlAuditHistoryUseQuery: vi.fn(),
+    systemStatusUseQuery: vi.fn(),
+    requestConfirmationProofUseMutation: vi.fn(),
+    useUtils: vi.fn(),
+    useProject: vi.fn(),
+    useSearchParams: vi.fn(),
+  };
+  const t = {
     mao: {
-      getProjectSnapshot: { useQuery: mocks.getProjectSnapshotUseQuery },
-      getAgentInspectProjection: { useQuery: mocks.getAgentInspectProjectionUseQuery },
-      requestProjectControl: { useMutation: mocks.requestProjectControlUseMutation },
+      getProjectSnapshot: { useQuery: m.getProjectSnapshotUseQuery },
+      getSystemSnapshot: { useQuery: m.getSystemSnapshotUseQuery },
+      getAgentInspectProjection: { useQuery: m.getAgentInspectProjectionUseQuery },
+      requestProjectControl: { useMutation: m.requestProjectControlUseMutation },
+      getControlAuditHistory: { useQuery: m.getControlAuditHistoryUseQuery },
     },
-    useUtils: mocks.useUtils,
-  },
-}));
+    health: {
+      systemStatus: { useQuery: m.systemStatusUseQuery },
+    },
+    opctl: {
+      requestConfirmationProof: { useMutation: m.requestConfirmationProofUseMutation },
+    },
+    useUtils: m.useUtils,
+  };
+  return { mocks: m, trpcMock: t };
+});
+
+vi.mock('@/lib/trpc', () => ({ trpc: trpcMock }));
+vi.mock('@nous/transport', () => ({ trpc: trpcMock, useEventSubscription: vi.fn() }));
 
 vi.mock('@/lib/project-context', () => ({
   useProject: mocks.useProject,
@@ -33,6 +48,7 @@ vi.mock('@/lib/project-context', () => ({
 vi.mock('next/navigation', () => ({
   useSearchParams: mocks.useSearchParams,
 }));
+
 
 import MaoPage from '@/app/(shell)/mao/page';
 
@@ -76,11 +92,50 @@ describe('MaoPage', () => {
       mutate,
       isPending: false,
     });
+    mocks.getControlAuditHistoryUseQuery.mockReturnValue({
+      data: [],
+      isLoading: false,
+      isError: false,
+    });
+    mocks.systemStatusUseQuery.mockReturnValue({
+      data: {
+        bootStatus: 'ready',
+        completedBootSteps: [],
+        issueCodes: [],
+        inboxReady: true,
+        pendingSystemRuns: 0,
+        backlogAnalytics: {
+          queuedCount: 0,
+          activeCount: 0,
+          suspendedCount: 0,
+          completedInWindow: 0,
+          failedInWindow: 0,
+          pressureTrend: 'stable',
+        },
+        collectedAt: '2026-03-10T01:00:00.000Z',
+      },
+      isLoading: false,
+      isError: false,
+    });
+    mocks.getSystemSnapshotUseQuery.mockReturnValue({
+      data: undefined,
+      isLoading: false,
+    });
+    mocks.requestConfirmationProofUseMutation.mockReturnValue({
+      mutate: vi.fn(),
+      isPending: false,
+      isError: false,
+    });
     mocks.useUtils.mockReturnValue({
       mao: {
         getProjectSnapshot: { invalidate: invalidateSnapshot },
+        getSystemSnapshot: { invalidate: vi.fn() },
         getAgentInspectProjection: { invalidate: invalidateInspect },
         getProjectControlProjection: { invalidate: invalidateControl },
+        getControlAuditHistory: { invalidate: vi.fn() },
+      },
+      health: {
+        systemStatus: { invalidate: vi.fn() },
       },
       projects: {
         dashboardSnapshot: { invalidate: invalidateDashboard },
@@ -114,15 +169,15 @@ describe('MaoPage', () => {
     fireEvent.change(screen.getByLabelText('Control reason'), {
       target: { value: 'Resume after review' },
     });
+    // resume_project is T3, so clicking opens T3 confirmation dialog
     fireEvent.click(screen.getByRole('button', { name: 'Resume Project' }));
 
     await waitFor(() => {
-      expect(mutate).toHaveBeenCalled();
+      // T3 dialog should be open
+      expect(screen.getByText('Confirm T3 action')).toBeTruthy();
     });
 
-    expect(mutate.mock.calls[0]?.[0]?.request.action).toBe('resume_project');
-    expect(mutate.mock.calls[0]?.[0]?.request.reason).toBe('Resume after review');
-    expect(mutate.mock.calls[0]?.[0]?.request.impactSummary.blockedAgentCount).toBe(1);
+    expect(screen.getByText('resume project')).toBeTruthy();
   });
 
   it('preserves marketplace handoff context in the MAO surface', () => {

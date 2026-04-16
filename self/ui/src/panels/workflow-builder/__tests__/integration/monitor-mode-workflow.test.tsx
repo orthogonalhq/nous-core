@@ -1,0 +1,191 @@
+// @vitest-environment jsdom
+
+import { describe, expect, it, vi, beforeEach } from 'vitest'
+import { renderHook, act } from '@testing-library/react'
+import { reactFlowMock } from '../react-flow-mock'
+
+vi.mock('@xyflow/react', () => reactFlowMock)
+
+import { trpcMock, mockWorkflowSnapshotResult, mockUseEventSubscription } from '../trpc-mock'
+vi.mock('@nous/transport', () => trpcMock)
+
+import { useBuilderState } from '../../hooks/useBuilderState'
+import type { BuilderMode } from '../../../../types/workflow-builder'
+
+// Helper: create mock run state for snapshot
+function makeMockRunState(runId: string, status = 'completed') {
+  return {
+    runId,
+    workflowDefinitionId: 'wf-mock',
+    projectId: 'proj-mock',
+    workflowVersion: '1',
+    graphDigest: 'a'.repeat(64),
+    status,
+    admission: { status: 'admitted' },
+    evidenceRefs: [],
+    activeNodeIds: [],
+    activatedEdgeIds: [],
+    readyNodeIds: [],
+    waitingNodeIds: [],
+    blockedNodeIds: [],
+    completedNodeIds: [],
+    checkpointState: 'idle',
+    nodeStates: {},
+    dispatchLineage: [],
+    startedAt: '2026-03-31T00:00:00Z',
+    updatedAt: '2026-03-31T00:05:00Z',
+  }
+}
+
+function makeMockSnapshot(runs: ReturnType<typeof makeMockRunState>[]) {
+  return {
+    project: { id: 'proj-mock', name: 'Test' },
+    workflowDefinition: null,
+    workflowDefinitionSource: null,
+    graph: null,
+    runtimeAvailability: { available: false, reason: 'test' },
+    selectedRunId: undefined,
+    activeRunState: null,
+    recentRuns: runs,
+    nodeProjections: [],
+    recentArtifacts: [],
+    recentTraces: [],
+    controlProjection: null,
+    diagnostics: { issues: [], warnings: [] },
+  }
+}
+
+const MOCK_OPTS = { projectId: 'proj-mock' }
+
+/**
+ * Integration test: Monitor mode workflow
+ *
+ * Tests the cross-component coordination between useBuilderState (mode +
+ * monitoring state), WorkflowBuilderPanel (interaction disabling), and the
+ * monitoring overlay/history components.
+ *
+ * Mode is now a parameter to useBuilderState (SP 3.1.2), so mode switching
+ * is simulated via renderHook rerender.
+ */
+describe('Monitor mode workflow — Integration', () => {
+  beforeEach(() => {
+    vi.clearAllMocks()
+    mockWorkflowSnapshotResult.data = makeMockSnapshot([
+      makeMockRunState('run-001'),
+      makeMockRunState('run-002', 'running'),
+      makeMockRunState('run-003', 'failed'),
+    ])
+    mockWorkflowSnapshotResult.isLoading = false
+    mockWorkflowSnapshotResult.isError = false
+    mockUseEventSubscription.mockImplementation(() => {})
+  })
+
+  it('monitoring mode is accepted as parameter', () => {
+    const { result } = renderHook(
+      ({ mode }) => useBuilderState(mode),
+      { initialProps: { mode: 'monitoring' as BuilderMode } },
+    )
+    // In monitoring mode, mutations are blocked at state layer
+    const initialCount = result.current.nodes.length
+    act(() => {
+      result.current.addNode('nous.trigger.webhook', { x: 0, y: 0 })
+    })
+    expect(result.current.nodes.length).toBe(initialCount)
+  })
+
+  it('selecting a run from history populates monitoring state', () => {
+    const { result } = renderHook(
+      ({ mode, options }) => useBuilderState(mode, options),
+      { initialProps: { mode: 'monitoring' as BuilderMode, options: MOCK_OPTS } },
+    )
+
+    // Simulate history panel selecting a run
+    act(() => {
+      result.current.setActiveRun('run-001')
+    })
+
+    expect(result.current.activeRun).not.toBeNull()
+    expect(result.current.activeRun!.id).toBe('run-001')
+    expect(result.current.monitoringState.isMonitoring).toBe(true)
+    expect(result.current.monitoringState.activeRun!.id).toBe('run-001')
+  })
+
+  it('switching back to authoring clears monitoring state and re-enables interactions', () => {
+    const { result, rerender } = renderHook(
+      ({ mode, options }) => useBuilderState(mode, options),
+      { initialProps: { mode: 'monitoring' as BuilderMode, options: MOCK_OPTS } },
+    )
+
+    // Enter monitoring mode with active run
+    act(() => {
+      result.current.setActiveRun('run-002')
+    })
+    expect(result.current.monitoringState.isMonitoring).toBe(true)
+
+    // Switch back to authoring
+    rerender({ mode: 'authoring' as BuilderMode, options: MOCK_OPTS })
+
+    expect(result.current.activeRun).toBeNull()
+    expect(result.current.monitoringState.isMonitoring).toBe(false)
+
+    // Mutations should work again
+    const initialCount = result.current.nodes.length
+    act(() => {
+      result.current.addNode('nous.trigger.webhook', { x: 0, y: 0 })
+    })
+    expect(result.current.nodes.length).toBe(initialCount + 1)
+  })
+
+  it('full cycle: authoring -> monitoring -> select run -> switch run -> back to authoring', () => {
+    const { result, rerender } = renderHook(
+      ({ mode, options }) => useBuilderState(mode, options),
+      { initialProps: { mode: 'authoring' as BuilderMode, options: MOCK_OPTS } },
+    )
+
+    // Switch to monitoring
+    rerender({ mode: 'monitoring' as BuilderMode, options: MOCK_OPTS })
+
+    // Select run 1
+    act(() => { result.current.setActiveRun('run-001') })
+    expect(result.current.activeRun!.id).toBe('run-001')
+
+    // Switch to run 2
+    act(() => { result.current.setActiveRun('run-002') })
+    expect(result.current.activeRun!.id).toBe('run-002')
+
+    // Clear active run
+    act(() => { result.current.clearActiveRun() })
+    expect(result.current.activeRun).toBeNull()
+
+    // Back to authoring
+    rerender({ mode: 'authoring' as BuilderMode, options: MOCK_OPTS })
+    expect(result.current.activeRun).toBeNull()
+  })
+
+  it('switching to inspecting mode retains active run (SP 3.2 — inspecting needs run data)', () => {
+    const { result, rerender } = renderHook(
+      ({ mode, options }) => useBuilderState(mode, options),
+      { initialProps: { mode: 'monitoring' as BuilderMode, options: MOCK_OPTS } },
+    )
+
+    act(() => { result.current.setActiveRun('run-003') })
+    expect(result.current.activeRun!.id).toBe('run-003')
+
+    rerender({ mode: 'inspecting' as BuilderMode, options: MOCK_OPTS })
+    expect(result.current.activeRun!.id).toBe('run-003')
+  })
+
+  it('switching to authoring mode from inspecting clears active run', () => {
+    const { result, rerender } = renderHook(
+      ({ mode, options }) => useBuilderState(mode, options),
+      { initialProps: { mode: 'monitoring' as BuilderMode, options: MOCK_OPTS } },
+    )
+
+    act(() => { result.current.setActiveRun('run-003') })
+    rerender({ mode: 'inspecting' as BuilderMode, options: MOCK_OPTS })
+    expect(result.current.activeRun!.id).toBe('run-003')
+
+    rerender({ mode: 'authoring' as BuilderMode, options: MOCK_OPTS })
+    expect(result.current.activeRun).toBeNull()
+  })
+})

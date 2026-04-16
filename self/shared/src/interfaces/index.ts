@@ -18,9 +18,11 @@ export type {
   WorkflowStartRequest,
   IWorkflowEngine,
   IProjectStore,
+  ITaskStore,
   IArtifactStore,
   IScheduler,
   IEscalationService,
+  INotificationService,
   IRegistryService,
   INudgeDiscoveryService,
   ICommunicationGatewayService,
@@ -71,6 +73,7 @@ export type {
   AuthorityActor,
   DispatchAdmissionInput,
   LifecycleAdmissionInput,
+  ScopeGuardExecutionContext,
 } from './workmode.js';
 export type {
   IChatScopeResolver,
@@ -89,6 +92,16 @@ export type {
   AgentGatewayConfig,
   GatewayLifecycleContext,
   GatewayTaskCompletionHookResult,
+  // WR-127 strategy injection types
+  HarnessStrategies,
+  PromptFormatter,
+  PromptFormatterInput,
+  PromptFormatterOutput,
+  ResponseParser,
+  ContextDefaults,
+  ContextStrategy,
+  LoopConfig,
+  ToolConcurrencyConfig,
 } from './agent-gateway.js';
 export type {
   IIngressTriggerValidator,
@@ -122,6 +135,7 @@ export type {
   RollbackEvaluationContext,
   RecoveryOrchestratorContext,
 } from './recovery.js';
+export type { IThoughtEmitter } from './thought-emitter.js';
 export type {
   IDocumentStore,
   IVectorStore,
@@ -130,7 +144,15 @@ export type {
   IRuntime,
   IConfig,
   IHealthMonitor,
+  IGatewayHealthSource,
+  IProviderHealthSource,
+  IHealthAggregator,
   ICredentialVaultService,
   ICredentialInjector,
   SystemConfig,
 } from './autonomic.js';
+export type {
+  ILogChannel,
+  ILogEgress,
+  ILogger,
+} from './logging.js';

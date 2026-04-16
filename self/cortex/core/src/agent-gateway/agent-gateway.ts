@@ -12,7 +12,8 @@ import {
   type CriticalActionCategory,
   type GatewayBudgetExhaustionReason,
   type GatewayContextFrame,
-  type GatewayDispatchRequest,
+  type DispatchOrchestratorRequest,
+  type DispatchWorkerRequest,
   type GatewayMessageId,
   type GatewayExecutionContext,
   type GatewayLifecycleContext,
@@ -23,13 +24,14 @@ import {
   type IModelProvider,
   type ModelRole,
   type ProjectId,
+  type ToolDefinition,
   type RouteContext,
   type TraceEvidenceReference,
   type TraceId,
   type WitnessActor,
   type WitnessEventId,
 } from '@nous/shared';
-import { parseModelOutput } from '../output-parser.js';
+import { parseModelOutput, type ParsedModelOutput } from '../output-parser.js';
 import {
   BudgetTracker,
   estimateBudgetUnits,
@@ -38,20 +40,46 @@ import {
 import { CorrelationSequencer } from './correlation-sequencer.js';
 import { GatewayInbox } from './inbox.js';
 import {
-  DISPATCH_AGENT_TOOL_NAME,
+  DISPATCH_ORCHESTRATOR_TOOL_NAME,
+  DISPATCH_WORKER_TOOL_NAME,
   FLAG_OBSERVATION_TOOL_NAME,
   REQUEST_ESCALATION_TOOL_NAME,
   TASK_COMPLETE_TOOL_NAME,
   getLifecycleUnavailableMessage,
-  parseDispatchRequest,
+  isDispatchToolName,
+  parseDispatchOrchestratorRequest,
+  parseDispatchWorkerRequest,
   parseEscalationRequest,
   parseObservation,
   parseTaskCompletionRequest,
 } from './lifecycle-hooks.js';
 import { GatewayOutbox } from './outbox.js';
 import { composeSystemPrompt } from './system-prompt-composer.js';
+import { resolveAdapter, resolveProviderTypeFromConfig } from './adapters/index.js';
+import type { ILogChannel } from '@nous/shared';
+import type { ProviderAdapter } from './adapters/types.js';
 
-const DEFAULT_MODEL_ROLE: ModelRole = 'reasoner';
+/** No-op log channel used when no ILogChannel is provided. */
+const NOOP_LOG: ILogChannel = {
+  debug() {},
+  info() {},
+  warn() {},
+  error() {},
+  isEnabled() { return false; },
+};
+
+const DEFAULT_MODEL_ROLE_BY_CLASS: Record<AgentClass, ModelRole> = {
+  'Cortex::Principal': 'cortex-chat',
+  'Cortex::System': 'cortex-system',
+  Orchestrator: 'orchestrators',
+  Worker: 'workers',
+};
+
+function deriveDefaultModelRole(agentClass: AgentClass | undefined): ModelRole {
+  if (!agentClass) return 'cortex-chat'; // I5 first-run fallback
+  return DEFAULT_MODEL_ROLE_BY_CLASS[agentClass];
+}
+
 const DEFAULT_MODEL_REQUIREMENTS = {
   profile: 'review-standard',
   fallbackPolicy: 'block_if_unmet' as const,
@@ -70,7 +98,8 @@ interface ToolHandlingResult {
 }
 
 interface PreparedDispatchCall {
-  request: GatewayDispatchRequest;
+  request: DispatchOrchestratorRequest | DispatchWorkerRequest;
+  toolName: string;
 }
 
 function defaultNow(): string {
@@ -90,6 +119,9 @@ export class AgentGateway implements IAgentGateway {
   private readonly now: () => string;
   private readonly nowMs: () => number;
   private readonly idFactory: () => string;
+  private readonly log: ILogChannel;
+  private cachedAdapter: ProviderAdapter | null = null;
+  private cachedAdapterProviderSignature: string | null = null;
 
   constructor(private readonly config: AgentGatewayConfig) {
     this.agentClass = config.agentClass;
@@ -97,6 +129,7 @@ export class AgentGateway implements IAgentGateway {
     this.now = config.now ?? defaultNow;
     this.nowMs = config.nowMs ?? defaultNowMs;
     this.idFactory = config.idFactory ?? randomUUID;
+    this.log = config.log ?? NOOP_LOG;
     this.inbox = new GatewayInbox(this.now, this.idFactory);
     this.outbox = new GatewayOutbox(config.outbox);
 
@@ -106,6 +139,29 @@ export class AgentGateway implements IAgentGateway {
         'CONFIG_ERROR',
       );
     }
+  }
+
+  /**
+   * Lazily resolves a ProviderAdapter from the provider's config name.
+   * Uses the same heuristic as CortexRuntime.resolveProviderType.
+   * Caches after first resolution; invalidates when the provider signature changes.
+   */
+  private resolveAdapterFromProvider(provider: IModelProvider): ProviderAdapter {
+    const providerType = resolveProviderTypeFromConfig(provider);
+    if (this.cachedAdapter && this.cachedAdapterProviderSignature === providerType) {
+      return this.cachedAdapter;
+    }
+    if (this.cachedAdapterProviderSignature !== null && this.cachedAdapterProviderSignature !== providerType) {
+      this.log.debug('adapter cache invalidated — provider changed', {
+        agentClass: this.agentClass,
+        previousSignature: this.cachedAdapterProviderSignature,
+        newSignature: providerType,
+      });
+    }
+    this.cachedAdapter = resolveAdapter(providerType, this.log);
+    this.cachedAdapterProviderSignature = providerType;
+    this.log.debug('adapter resolved', { agentClass: this.agentClass, providerType });
+    return this.cachedAdapter;
   }
 
   getInboxHandle() {
@@ -156,33 +212,147 @@ export class AgentGateway implements IAgentGateway {
 
         const tools = await this.config.toolSurface.listTools();
         const provider = await this.resolveProvider(validInput, traceId);
-        const systemPrompt = composeSystemPrompt({
+
+        // Strategy delegation: promptFormatter (harness) or composeSystemPrompt (built-in)
+        let systemPrompt: string | string[];
+        if (this.config.harness?.promptFormatter) {
+          const formatted = this.config.harness.promptFormatter({
+            agentClass: this.agentClass,
+            taskInstructions: validInput.taskInstructions,
+            baseSystemPrompt: this.config.baseSystemPrompt,
+            execution: validInput.execution,
+            tools,
+          });
+          systemPrompt = formatted.systemPrompt;
+        } else {
+          systemPrompt = composeSystemPrompt({
+            agentClass: this.agentClass,
+            taskInstructions: validInput.taskInstructions,
+            baseSystemPrompt: this.config.baseSystemPrompt,
+            execution: validInput.execution,
+            tools,
+          });
+        }
+
+        const correlation = sequencer.snapshot();
+
+        // Use adapter.formatRequest() — converts { systemPrompt, context, toolDefinitions }
+        // into provider-specific format (Anthropic, OpenAI, Ollama, or text).
+        const adapter = this.resolveAdapterFromProvider(provider);
+        const formatted = adapter.formatRequest({ systemPrompt, context, toolDefinitions: tools });
+
+        // Extract the last user message from context for logging
+        const lastUserFrame = [...context].reverse().find(f => f.role === 'user');
+
+        this.log.debug('invoke provider', {
           agentClass: this.agentClass,
-          taskInstructions: validInput.taskInstructions,
-          baseSystemPrompt: this.config.baseSystemPrompt,
-          execution: validInput.execution,
-          tools,
+          hasHarness: !!this.config.harness,
+          inputKeys: Object.keys(formatted.input),
+          userMessage: lastUserFrame?.content?.slice(0, 500) ?? '(no user message)',
         });
 
         const modelResponse = await provider.invoke({
-          role: this.config.modelRole ?? DEFAULT_MODEL_ROLE,
-          input: { systemPrompt, context, tools },
+          role: this.config.modelRole ?? deriveDefaultModelRole(this.config.agentClass),
+          input: formatted.input,
           projectId,
           traceId,
           agentClass: this.agentClass,
+          correlationRunId: correlation.runId,
+          correlationParentId: correlation.parentId,
         });
 
         budgetTracker.recordModelUsage(modelResponse.usage);
-        const parsedOutput = parseModelOutput(modelResponse.output, traceId);
-        if (parsedOutput.response.trim()) {
+
+        this.log.debug('model response received', {
+          agentClass: this.agentClass,
+          outputType: typeof modelResponse.output,
+          outputLength: typeof modelResponse.output === 'string' ? modelResponse.output.length : 'non-string',
+          hasUsage: !!modelResponse.usage,
+          rawOutput: modelResponse.output,
+        });
+
+        // Strategy delegation: responseParser (harness) or parseModelOutput (built-in)
+        const usingHarnessParser = !!this.config.harness?.responseParser;
+        const parsedOutput: ParsedModelOutput = usingHarnessParser
+          ? (this.config.harness!.responseParser!(modelResponse.output, traceId) as ParsedModelOutput)
+          : parseModelOutput(modelResponse.output, traceId);
+
+        this.log.debug('parser selection', {
+          usingHarnessParser,
+          outputType: typeof modelResponse.output,
+          parsedResponse: parsedOutput.response.slice(0, 100),
+          parsedToolCalls: parsedOutput.toolCalls.length,
+          parsedThinking: !!parsedOutput.thinkingContent,
+        });
+
+        this.log.debug('parsed output', {
+          agentClass: this.agentClass,
+          responseLength: parsedOutput.response.length,
+          toolCallCount: parsedOutput.toolCalls.length,
+          contentType: parsedOutput.contentType,
+          hasThinking: !!parsedOutput.thinkingContent,
+          singleTurn: !!this.config.harness?.loopConfig?.singleTurn,
+        });
+
+        if (parsedOutput.response.trim() || parsedOutput.toolCalls.length > 0) {
+          const metadata: Record<string, unknown> | undefined =
+            parsedOutput.toolCalls.length > 0
+              ? {
+                  tool_calls: parsedOutput.toolCalls.map((tc) => ({
+                    id: tc.id,
+                    name: tc.name,
+                    input: tc.params,
+                  })),
+                }
+              : undefined;
           context.push(
-            this.createContextFrame('assistant', 'model_output', parsedOutput.response),
+            this.createContextFrame(
+              'assistant',
+              'model_output',
+              parsedOutput.response,
+              undefined,
+              metadata,
+            ),
+          );
+        }
+
+        // Single-turn exit: return immediately after one model invocation.
+        // No tool handling, no task_complete required.
+        if (this.config.harness?.loopConfig?.singleTurn) {
+          this.log.debug('single-turn exit', { agentClass: this.agentClass });
+          budgetTracker.recordTurn();
+          return this.finalizeTerminalResult(
+            this.buildSingleTurnResult(
+              parsedOutput, sequencer, budgetTracker, evidenceRefs,
+              validInput, context.length, startedAt,
+            ),
+            'gateway:completed',
+            traceId,
+            projectId,
+          );
+        }
+
+        // Conversational exit: if the model responded with text and no tool
+        // calls, the turn is complete. Only continue looping when there are
+        // pending tool calls to execute.
+        if (parsedOutput.toolCalls.length === 0 && parsedOutput.response.trim()) {
+          this.log.debug('conversational exit (no tool calls)', { agentClass: this.agentClass });
+          budgetTracker.recordTurn();
+          return this.finalizeTerminalResult(
+            this.buildSingleTurnResult(
+              parsedOutput, sequencer, budgetTracker, evidenceRefs,
+              validInput, context.length, startedAt,
+            ),
+            'gateway:completed',
+            traceId,
+            projectId,
           );
         }
 
         const handledTurn = await this.handleToolCalls({
           input: validInput,
           toolCalls: parsedOutput.toolCalls,
+          toolDefinitions: tools,
           budgetTracker,
           sequencer,
           traceId,
@@ -236,6 +406,13 @@ export class AgentGateway implements IAgentGateway {
         }
       }
     } catch (error) {
+      this.log.error('run() error', {
+        agentClass: this.agentClass,
+        errorName: (error as Error).name,
+        errorMessage: (error as Error).message,
+        errorCode: (error as NousError).code,
+        hasHarness: !!this.config.harness,
+      });
       const result =
         error instanceof NousError && error.code === 'LEASE_HELD'
           ? this.buildSuspendedResult(
@@ -288,6 +465,7 @@ export class AgentGateway implements IAgentGateway {
     input: AgentInput;
     toolName: string;
     params: unknown;
+    toolCallId?: string;
     budgetTracker: BudgetTracker;
     sequencer: CorrelationSequencer;
     traceId: TraceId;
@@ -297,7 +475,8 @@ export class AgentGateway implements IAgentGateway {
     startedAt: string;
   }): Promise<ToolHandlingResult> {
     switch (args.toolName) {
-      case DISPATCH_AGENT_TOOL_NAME:
+      case DISPATCH_ORCHESTRATOR_TOOL_NAME:
+      case DISPATCH_WORKER_TOOL_NAME:
         return this.handleDispatchTool(args);
       case TASK_COMPLETE_TOOL_NAME:
         return this.handleTaskCompleteTool(args);
@@ -312,7 +491,8 @@ export class AgentGateway implements IAgentGateway {
 
   private async handleToolCalls(args: {
     input: AgentInput;
-    toolCalls: Array<{ name: string; params: unknown }>;
+    toolCalls: Array<{ name: string; params: unknown; id?: string }>;
+    toolDefinitions: ToolDefinition[];
     budgetTracker: BudgetTracker;
     sequencer: CorrelationSequencer;
     traceId: TraceId;
@@ -326,7 +506,7 @@ export class AgentGateway implements IAgentGateway {
     const frameByIndex = new Map<number, GatewayContextFrame>();
     const dispatchIndexes = args.toolCalls
       .map((toolCall, index) =>
-        toolCall.name === DISPATCH_AGENT_TOOL_NAME ? index : -1,
+        isDispatchToolName(toolCall.name) ? index : -1,
       )
       .filter((index) => index >= 0);
 
@@ -335,27 +515,171 @@ export class AgentGateway implements IAgentGateway {
         ? await this.handleDispatchBatch(args, dispatchIndexes)
         : new Map<number, ToolHandlingResult>();
 
-    for (let index = 0; index < args.toolCalls.length; index += 1) {
-      const toolCall = args.toolCalls[index];
-      const handled =
-        dispatchResults.get(index) ??
-        (await this.handleToolCall({
-          ...args,
-          toolName: toolCall.name,
-          params: toolCall.params,
-        }));
+    // Read concurrency config from harness strategies or direct config
+    const concurrencyConfig =
+      this.config.harness?.toolConcurrency ?? this.config.toolConcurrency;
+    const partitionBySafety = concurrencyConfig?.partitionBySafety === true;
+    const maxConcurrent = concurrencyConfig?.maxConcurrent ?? 1;
+    const concurrencyEnabled = partitionBySafety && maxConcurrent > 1;
 
-      if (handled.contextFrame) {
-        frameByIndex.set(index, handled.contextFrame);
+    this.log.debug('handleToolCalls', {
+      toolCallCount: args.toolCalls.length,
+      toolCalls: args.toolCalls.map((tc, i) => ({
+        index: i,
+        name: tc.name,
+        id: tc.id ?? '(no id)',
+      })),
+      concurrencyEnabled,
+      partitionBySafety,
+      maxConcurrent,
+    });
+
+    if (!concurrencyEnabled) {
+      // ── Sequential dispatch (default path) ──────────────────────────
+      for (let index = 0; index < args.toolCalls.length; index += 1) {
+        const toolCall = args.toolCalls[index];
+        const handled =
+          dispatchResults.get(index) ??
+          (await this.handleToolCall({
+            ...args,
+            toolName: toolCall.name,
+            params: toolCall.params,
+            toolCallId: toolCall.id,
+          }));
+
+        if (handled.contextFrame) {
+          frameByIndex.set(index, handled.contextFrame);
+          this.log.debug('tool result frame', {
+            index,
+            toolName: toolCall.name,
+            toolCallId: toolCall.id ?? '(no id)',
+            frameRole: handled.contextFrame.role,
+            frameSource: handled.contextFrame.source,
+            hasToolCallIdMetadata: !!handled.contextFrame.metadata?.tool_call_id,
+            metadataToolCallId: handled.contextFrame.metadata?.tool_call_id ?? '(none)',
+          });
+        }
+        if (handled.terminalResult) {
+          terminalByIndex.set(index, handled.terminalResult);
+        }
+        if (handled.terminalResult) {
+          break;
+        }
       }
-      if (handled.terminalResult) {
-        terminalByIndex.set(index, handled.terminalResult);
+    } else {
+      // ── Partitioned dispatch (concurrency engine) ───────────────────
+      // Build safety lookup from tool definitions
+      const safetyLookup = new Map<string, boolean>();
+      for (const def of args.toolDefinitions) {
+        safetyLookup.set(def.name, def.isConcurrencySafe === true);
       }
-      if (handled.terminalResult) {
-        break;
+
+      // Partition non-dispatch tool call indexes into concurrent and serial groups
+      const dispatchSet = new Set(dispatchIndexes);
+      const concurrentIndexes: number[] = [];
+      const serialIndexes: number[] = [];
+
+      for (let index = 0; index < args.toolCalls.length; index += 1) {
+        if (dispatchSet.has(index)) continue; // handled by dispatch batch
+        if (dispatchResults.has(index)) continue; // already resolved
+        const toolName = args.toolCalls[index].name;
+        if (safetyLookup.get(toolName) === true) {
+          concurrentIndexes.push(index);
+        } else {
+          serialIndexes.push(index);
+        }
+      }
+
+      this.log.debug('tool concurrency partition', {
+        concurrentCount: concurrentIndexes.length,
+        serialCount: serialIndexes.length,
+        dispatchCount: dispatchIndexes.length,
+      });
+
+      // Dispatch concurrent-safe tools via Promise.allSettled (chunked by maxConcurrent)
+      for (let chunkStart = 0; chunkStart < concurrentIndexes.length; chunkStart += maxConcurrent) {
+        const chunk = concurrentIndexes.slice(chunkStart, chunkStart + maxConcurrent);
+
+        const settled = await Promise.allSettled(
+          chunk.map((index) => {
+            const toolCall = args.toolCalls[index];
+            return this.handleToolCall({
+              ...args,
+              toolName: toolCall.name,
+              params: toolCall.params,
+              toolCallId: toolCall.id,
+            });
+          }),
+        );
+
+        settled.forEach((result, offset) => {
+          const index = chunk[offset];
+          const toolCall = args.toolCalls[index];
+
+          if (result.status === 'fulfilled') {
+            const handled = result.value;
+            if (handled.contextFrame) {
+              frameByIndex.set(index, handled.contextFrame);
+              this.log.debug('tool result frame (concurrent)', {
+                index,
+                toolName: toolCall.name,
+                toolCallId: toolCall.id ?? '(no id)',
+                frameRole: handled.contextFrame.role,
+                frameSource: handled.contextFrame.source,
+              });
+            }
+            if (handled.terminalResult) {
+              terminalByIndex.set(index, handled.terminalResult);
+            }
+          } else {
+            // Rejected — produce tool_error frame matching handleStandardTool catch path
+            frameByIndex.set(
+              index,
+              this.createContextFrame(
+                'tool',
+                'tool_error',
+                normalizeToolError(toolCall.name, result.reason),
+                toolCall.name,
+                toolCall.id ? { tool_call_id: toolCall.id } : undefined,
+              ),
+            );
+          }
+        });
+      }
+
+      // Dispatch serial tools sequentially
+      for (const index of serialIndexes) {
+        // If a terminal result was already recorded (from concurrent batch), stop
+        if (terminalByIndex.size > 0) break;
+
+        const toolCall = args.toolCalls[index];
+        const handled =
+          dispatchResults.get(index) ??
+          (await this.handleToolCall({
+            ...args,
+            toolName: toolCall.name,
+            params: toolCall.params,
+            toolCallId: toolCall.id,
+          }));
+
+        if (handled.contextFrame) {
+          frameByIndex.set(index, handled.contextFrame);
+          this.log.debug('tool result frame (serial)', {
+            index,
+            toolName: toolCall.name,
+            toolCallId: toolCall.id ?? '(no id)',
+            frameRole: handled.contextFrame.role,
+            frameSource: handled.contextFrame.source,
+          });
+        }
+        if (handled.terminalResult) {
+          terminalByIndex.set(index, handled.terminalResult);
+          break;
+        }
       }
     }
 
+    // ── Second-pass ordering loop (unchanged) ──────────────────────────
     for (let index = 0; index < args.toolCalls.length; index += 1) {
       const frame = frameByIndex.get(index);
       if (frame) {
@@ -390,11 +714,12 @@ export class AgentGateway implements IAgentGateway {
     const pending: Array<{ index: number; prepared: PreparedDispatchCall }> = [];
 
     for (const index of indexes) {
+      const toolCall = args.toolCalls[index]!;
       const prepared = this.prepareDispatchTool(
         {
           ...args,
-          toolName: DISPATCH_AGENT_TOOL_NAME,
-          params: args.toolCalls[index]!.params,
+          toolName: toolCall.name,
+          params: toolCall.params,
         },
         true,
       );
@@ -407,12 +732,12 @@ export class AgentGateway implements IAgentGateway {
     }
 
     const settled = await Promise.allSettled(
-      pending.map(({ prepared }) =>
+      pending.map(({ index, prepared }) =>
         this.executePreparedDispatch(
           {
             ...args,
-            toolName: DISPATCH_AGENT_TOOL_NAME,
-            params: args.toolCalls[0]?.params,
+            toolName: args.toolCalls[index]!.name,
+            params: args.toolCalls[index]!.params,
           },
           prepared,
         ),
@@ -420,7 +745,7 @@ export class AgentGateway implements IAgentGateway {
     );
 
     settled.forEach((result, offset) => {
-      const index = pending[offset]!.index;
+      const { index, prepared } = pending[offset]!;
       if (result.status === 'fulfilled') {
         immediate.set(index, result.value);
         return;
@@ -430,8 +755,8 @@ export class AgentGateway implements IAgentGateway {
         contextFrame: this.createContextFrame(
           'tool',
           'tool_error',
-          normalizeToolError(DISPATCH_AGENT_TOOL_NAME, result.reason),
-          DISPATCH_AGENT_TOOL_NAME,
+          normalizeToolError(prepared.toolName, result.reason),
+          prepared.toolName,
         ),
       });
     });
@@ -443,6 +768,7 @@ export class AgentGateway implements IAgentGateway {
     input: AgentInput;
     toolName: string;
     params: unknown;
+    toolCallId?: string;
     budgetTracker: BudgetTracker;
     sequencer: CorrelationSequencer;
     traceId: TraceId;
@@ -464,6 +790,7 @@ export class AgentGateway implements IAgentGateway {
           'tool_result',
           stringifyValue(value),
           args.toolName,
+          args.toolCallId ? { tool_call_id: args.toolCallId } : undefined,
         ),
       };
     } catch (error) {
@@ -485,6 +812,7 @@ export class AgentGateway implements IAgentGateway {
           'tool_error',
           normalizeToolError(args.toolName, error),
           args.toolName,
+          args.toolCallId ? { tool_call_id: args.toolCallId } : undefined,
         ),
       };
     }
@@ -505,30 +833,37 @@ export class AgentGateway implements IAgentGateway {
     },
     batchMode: boolean,
   ): { prepared: PreparedDispatchCall } | { immediate: ToolHandlingResult } {
-    if (!this.config.lifecycleHooks?.dispatchAgent) {
+    const isOrchestrator = args.toolName === DISPATCH_ORCHESTRATOR_TOOL_NAME;
+    const lifecycleHook = isOrchestrator
+      ? this.config.lifecycleHooks?.dispatchOrchestrator
+      : this.config.lifecycleHooks?.dispatchWorker;
+
+    if (!lifecycleHook) {
       return {
         immediate: {
           contextFrame: this.createContextFrame(
             'tool',
             'tool_error',
-            getLifecycleUnavailableMessage(DISPATCH_AGENT_TOOL_NAME),
-            DISPATCH_AGENT_TOOL_NAME,
+            getLifecycleUnavailableMessage(args.toolName as Parameters<typeof getLifecycleUnavailableMessage>[0]),
+            args.toolName,
           ),
         },
       };
     }
 
-    let request: GatewayDispatchRequest;
+    let request: DispatchOrchestratorRequest | DispatchWorkerRequest;
     try {
-      request = parseDispatchRequest(args.params);
+      request = isOrchestrator
+        ? parseDispatchOrchestratorRequest(args.params)
+        : parseDispatchWorkerRequest(args.params);
     } catch (error) {
       return {
         immediate: {
           contextFrame: this.createContextFrame(
             'tool',
             'tool_error',
-            normalizeToolError(DISPATCH_AGENT_TOOL_NAME, error),
-            DISPATCH_AGENT_TOOL_NAME,
+            normalizeToolError(args.toolName, error),
+            args.toolName,
           ),
         },
       };
@@ -541,8 +876,8 @@ export class AgentGateway implements IAgentGateway {
             contextFrame: this.createContextFrame(
               'tool',
               'tool_error',
-              'Tool dispatch_agent failed: spawn budget exceeded',
-              DISPATCH_AGENT_TOOL_NAME,
+              `Tool ${args.toolName} failed: spawn budget exceeded`,
+              args.toolName,
             ),
           },
         };
@@ -563,7 +898,7 @@ export class AgentGateway implements IAgentGateway {
       };
     }
 
-    return { prepared: { request } };
+    return { prepared: { request, toolName: args.toolName } };
   }
 
   private async executePreparedDispatch(
@@ -582,16 +917,23 @@ export class AgentGateway implements IAgentGateway {
     prepared: PreparedDispatchCall,
   ): Promise<ToolHandlingResult> {
     try {
-      const value = await this.config.lifecycleHooks!.dispatchAgent!(
-        prepared.request,
-        this.buildLifecycleContext(
-          args.sequencer.snapshot(),
-          args.budgetTracker,
-          args.input,
-          args.context.length,
-          args.startedAt,
-        ),
+      const lifecycleContext = this.buildLifecycleContext(
+        args.sequencer.snapshot(),
+        args.budgetTracker,
+        args.input,
+        args.context.length,
+        args.startedAt,
       );
+
+      const value = prepared.toolName === DISPATCH_ORCHESTRATOR_TOOL_NAME
+        ? await this.config.lifecycleHooks!.dispatchOrchestrator!(
+            prepared.request as DispatchOrchestratorRequest,
+            lifecycleContext,
+          )
+        : await this.config.lifecycleHooks!.dispatchWorker!(
+            prepared.request as DispatchWorkerRequest,
+            lifecycleContext,
+          );
 
       args.budgetTracker.consumeSpawnUnits(estimateUsageUnits(value.usage));
 
@@ -600,7 +942,7 @@ export class AgentGateway implements IAgentGateway {
           'tool',
           'child_result',
           stringifyValue(projectChildResult(value)),
-          DISPATCH_AGENT_TOOL_NAME,
+          prepared.toolName,
         ),
       };
     } catch (error) {
@@ -611,7 +953,7 @@ export class AgentGateway implements IAgentGateway {
             args.sequencer.snapshot(),
             args.budgetTracker,
             args.evidenceRefs,
-            { toolName: DISPATCH_AGENT_TOOL_NAME },
+            { toolName: prepared.toolName },
           ),
         };
       }
@@ -620,8 +962,8 @@ export class AgentGateway implements IAgentGateway {
         contextFrame: this.createContextFrame(
           'tool',
           'tool_error',
-          normalizeToolError(DISPATCH_AGENT_TOOL_NAME, error),
-          DISPATCH_AGENT_TOOL_NAME,
+          normalizeToolError(prepared.toolName, error),
+          prepared.toolName,
         ),
       };
     }
@@ -993,6 +1335,76 @@ export class AgentGateway implements IAgentGateway {
     });
   }
 
+  private buildSingleTurnResult(
+    parsedOutput: ParsedModelOutput,
+    sequencer: CorrelationSequencer,
+    budgetTracker: BudgetTracker,
+    evidenceRefs: TraceEvidenceReference[],
+    input: AgentInput,
+    contextLength: number,
+    startedAt: string,
+  ): AgentResult {
+    const now = this.now();
+    const nowMs = this.nowMs();
+    const correlation = sequencer.snapshot();
+    return AgentResultSchema.parse({
+      status: 'completed' as const,
+      output: {
+        response: parsedOutput.response,
+        contentType: parsedOutput.contentType,
+        thinkingContent: parsedOutput.thinkingContent,
+      },
+      v3Packet: {
+        nous: { v: 3 as const },
+        route: {
+          emitter: { id: `gateway::agent::${this.agentId}::single-turn` },
+          target: { id: `gateway::agent::${this.agentId}::single-turn-response` },
+        },
+        envelope: {
+          direction: 'internal' as const,
+          type: 'response_packet' as const,
+        },
+        correlation: {
+          handoff_id: this.idFactory(),
+          correlation_id: correlation.runId,
+          cycle: 'n/a',
+          emitted_at_utc: now,
+          emitted_at_unix_ms: String(nowMs),
+          sequence_in_run: String(correlation.sequence),
+        },
+        payload: {
+          schema: 'gateway:single-turn-response',
+          artifact_type: 'single-turn-response',
+          data: { response: parsedOutput.response },
+        },
+        retry: {
+          policy: 'value-proportional' as const,
+          depth: 'lightweight' as const,
+          importance_tier: 'standard' as const,
+          expected_quality_gain: 'n/a',
+          estimated_tokens: 'n/a',
+          estimated_compute_minutes: 'n/a',
+          token_price_ref: 'runtime:gateway',
+          compute_price_ref: 'runtime:gateway',
+          decision: 'accept' as const,
+          decision_log_ref: 'runtime:gateway/single-turn',
+          benchmark_tier: 'n/a' as const,
+          self_repair: {
+            required_on_fail_close: true as const,
+            orchestration_state: 'deferred' as const,
+            approval_role: 'Cortex:System',
+            implementation_mode: 'direct' as const,
+            plan_ref: 'runtime:gateway/self-repair',
+          },
+        },
+      },
+      summary: 'single-turn response',
+      correlation,
+      usage: budgetTracker.getUsage(),
+      evidenceRefs: [...evidenceRefs],
+    });
+  }
+
   private buildSuspendedResult(
     reason: string,
     correlation: ReturnType<CorrelationSequencer['snapshot']>,
@@ -1105,7 +1517,7 @@ export class AgentGateway implements IAgentGateway {
         DEFAULT_MODEL_REQUIREMENTS,
     };
     const route = await this.config.modelRouter!.routeWithEvidence(
-      this.config.modelRole ?? DEFAULT_MODEL_ROLE,
+      this.config.modelRole ?? deriveDefaultModelRole(this.config.agentClass),
       routeContext,
     );
     const provider = this.config.getProvider!(route.providerId);
@@ -1131,12 +1543,14 @@ export class AgentGateway implements IAgentGateway {
     source: GatewayContextFrame['source'],
     content: string,
     name?: string,
+    metadata?: Record<string, unknown>,
   ): GatewayContextFrame {
     return GatewayContextFrameSchema.parse({
       role,
       source,
       content,
       name,
+      metadata,
       createdAt: this.now(),
     });
   }

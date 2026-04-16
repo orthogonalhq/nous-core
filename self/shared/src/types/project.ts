@@ -5,6 +5,7 @@
  * escalation contracts, project configuration, and project state.
  */
 import { z } from 'zod';
+import { migrateLegacyModelRole } from './model-role-migration.js';
 import {
   ProjectIdSchema,
   NodeIdSchema,
@@ -27,6 +28,7 @@ import {
   MemoryAccessPolicySchema,
 } from './memory.js';
 import { InAppEscalationSurfaceSchema } from './escalation.js';
+import { BudgetPolicySchema } from './cost.js';
 import {
   WorkflowDefinitionSchema,
   WorkflowEdgeDefinitionSchema,
@@ -70,7 +72,14 @@ export const NodeSchemaDefinition = z.object({
   type: NodeTypeSchema,
   inputs: z.record(z.string(), z.unknown()),
   outputs: z.record(z.string(), z.unknown()),
-  modelRole: ModelRoleSchema.optional(),
+  modelRole: z.preprocess(
+    (val) => {
+      if (typeof val !== 'string') return val;
+      const result = migrateLegacyModelRole(val);
+      return result === null ? val : result;
+    },
+    ModelRoleSchema,
+  ).optional(),
   governance: GovernanceLevelSchema,
   escalation: z.object({
     enabled: z.boolean(),
@@ -118,6 +127,8 @@ export const ProjectWorkflowConfigurationSchema = z.object({
   definitions: z.array(WorkflowDefinitionSchema).default([]),
   packageBindings: z.array(ProjectWorkflowPackageBindingSchema).default([]),
   defaultWorkflowDefinitionId: WorkflowDefinitionIdSchema.optional(),
+  /** Spec YAML keyed by definition ID for round-trip storage. Stored outside definitions[] to survive schema parsing. */
+  specYamlStore: z.record(z.string(), z.string()).optional(),
 });
 export type ProjectWorkflowConfiguration = z.infer<
   typeof ProjectWorkflowConfigurationSchema
@@ -190,13 +201,27 @@ export const ProjectConfigSchema = z.object({
   type: ProjectTypeSchema,
   pfcTier: PfcTierSchema,
   governanceDefaults: ProjectGovernanceDefaultsSchema.default({}),
-  modelAssignments: z.record(ModelRoleSchema, z.string()).optional(),
+  modelAssignments: z.preprocess(
+    (val) => {
+      if (val === null || val === undefined || typeof val !== 'object') return val;
+      const input = val as Record<string, unknown>;
+      const output: Record<string, unknown> = {};
+      for (const [key, value] of Object.entries(input)) {
+        const migrated = migrateLegacyModelRole(key);
+        if (migrated === null) continue; // silently drop
+        output[migrated as string] = value;
+      }
+      return output;
+    },
+    z.record(ModelRoleSchema, z.string()),
+  ).optional(),
   memoryAccessPolicy: MemoryAccessPolicySchema,
   escalationChannels: z.array(EscalationChannelSchema),
   escalationPreferences: ProjectEscalationPreferencesSchema.default({}),
   workflow: ProjectWorkflowConfigurationSchema.optional(),
   packageDefaultIntake: z.array(ProjectPackageDefaultIntakeSchema).default([]),
   retrievalBudgetTokens: z.number().positive().default(500),
+  budgetPolicy: BudgetPolicySchema.optional(),
   createdAt: z.string().datetime(),
   updatedAt: z.string().datetime(),
 });

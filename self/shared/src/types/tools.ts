@@ -21,6 +21,7 @@ export const ToolDefinitionSchema = z.object({
     })
     .strict()
     .optional(),
+  isConcurrencySafe: z.boolean().optional(),
 });
 export type ToolDefinition = z.infer<typeof ToolDefinitionSchema>;
 

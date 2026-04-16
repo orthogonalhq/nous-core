@@ -1,0 +1,281 @@
+import '@testing-library/jest-dom/vitest'
+import { cleanup } from '@testing-library/react'
+import { afterEach, beforeEach, vi } from 'vitest'
+import type {
+  FirstRunState,
+  FirstRunPrerequisites,
+  FirstRunActionResult,
+} from '@nous/shared-server'
+
+type ElectronAPI = Window['electronAPI']
+type OllamaStatus = Awaited<ReturnType<ElectronAPI['ollama']['getStatus']>>
+type OllamaModelPullProgress = Parameters<ElectronAPI['ollama']['onPullProgress']>[0] extends (
+  progress: infer T,
+) => void
+  ? T
+  : never
+type OllamaUpdateCheckResult = Awaited<ReturnType<ElectronAPI['ollama']['checkUpdate']>>
+type OllamaUpdateResult = Awaited<ReturnType<ElectronAPI['ollama']['update']>>
+type OllamaVersionInfoPayload = Awaited<ReturnType<ElectronAPI['ollama']['getVersion']>>
+type OllamaUpdateProgressPayload = Parameters<ElectronAPI['ollama']['onUpdateProgress']>[0] extends (
+  progress: infer T,
+) => void
+  ? T
+  : never
+
+export const DEFAULT_OLLAMA_STATUS: OllamaStatus = {
+  installed: true,
+  running: true,
+  state: 'running',
+  models: ['qwen2.5:7b'],
+  defaultModel: 'qwen2.5:7b',
+}
+
+export const DEFAULT_WIZARD_STATE: FirstRunState = {
+  currentStep: 'ollama_check',
+  complete: false,
+  steps: {
+    ollama_check: { status: 'pending' },
+    model_download: { status: 'pending' },
+    provider_config: { status: 'pending' },
+    role_assignment: { status: 'pending' },
+  },
+  lastUpdatedAt: '2026-03-22T00:00:00.000Z',
+}
+
+export const DEFAULT_PREREQUISITES: FirstRunPrerequisites = {
+  ollama: DEFAULT_OLLAMA_STATUS,
+  hardware: {
+    totalMemoryMB: 32768,
+    availableMemoryMB: 24576,
+    cpuCores: 12,
+    cpuModel: 'AMD Ryzen 9',
+    platform: 'win32',
+    arch: 'x64',
+    gpu: {
+      detected: true,
+      name: 'RTX 4080',
+      vramMB: 16384,
+    },
+  },
+  recommendations: {
+    singleModel: {
+      modelId: 'qwen2.5:7b',
+      modelSpec: 'ollama:qwen2.5:7b',
+      displayName: 'Qwen 2.5 7B',
+      ramRequiredMB: 8192,
+      reason: 'Balanced local default for desktop orchestration.',
+    },
+    multiModel: [
+      {
+        role: 'cortex-chat',
+        recommendation: {
+          modelId: 'qwen2.5:14b',
+          modelSpec: 'ollama:qwen2.5:14b',
+          displayName: 'Qwen 2.5 14B',
+          ramRequiredMB: 16384,
+          reason: 'Use the stronger local model for heavier reasoning.',
+        },
+      },
+    ],
+    hardwareSpec: {
+      totalMemoryMB: 32768,
+      availableMemoryMB: 24576,
+      cpuCores: 12,
+      cpuModel: 'AMD Ryzen 9',
+      platform: 'win32',
+      arch: 'x64',
+      gpu: {
+        detected: true,
+        name: 'RTX 4080',
+        vramMB: 16384,
+      },
+    },
+    profileName: 'local-first',
+    advisory: 'Detected a high-spec desktop profile. Larger local reasoning models are viable.',
+  },
+}
+
+export function createFirstRunState(overrides: Partial<FirstRunState> = {}): FirstRunState {
+  return {
+    ...DEFAULT_WIZARD_STATE,
+    ...overrides,
+    steps: {
+      ...DEFAULT_WIZARD_STATE.steps,
+      ...overrides.steps,
+    },
+  }
+}
+
+export function createFirstRunActionResult(
+  state: FirstRunState,
+  success = true,
+  error?: string,
+): FirstRunActionResult {
+  return {
+    success,
+    state,
+    ...(error ? { error } : {}),
+  }
+}
+
+export function createPrerequisites(
+  overrides: Partial<FirstRunPrerequisites> = {},
+): FirstRunPrerequisites {
+  return {
+    ...DEFAULT_PREREQUISITES,
+    ...overrides,
+    ollama: {
+      ...DEFAULT_PREREQUISITES.ollama,
+      ...overrides.ollama,
+    },
+    hardware: {
+      ...DEFAULT_PREREQUISITES.hardware,
+      ...overrides.hardware,
+      gpu: {
+        ...DEFAULT_PREREQUISITES.hardware.gpu,
+        ...overrides.hardware?.gpu,
+      },
+    },
+    recommendations: {
+      ...DEFAULT_PREREQUISITES.recommendations,
+      ...overrides.recommendations,
+      hardwareSpec: {
+        ...DEFAULT_PREREQUISITES.recommendations.hardwareSpec,
+        ...overrides.recommendations?.hardwareSpec,
+        gpu: {
+          ...DEFAULT_PREREQUISITES.recommendations.hardwareSpec.gpu,
+          ...overrides.recommendations?.hardwareSpec?.gpu,
+        },
+      },
+    },
+  }
+}
+
+export function createElectronAPIMock() {
+  const pullProgressListeners = new Set<(progress: OllamaModelPullProgress) => void>()
+  const ollamaStateListeners = new Set<(status: OllamaStatus) => void>()
+
+  const api = {
+    layout: {
+      get: vi.fn(async () => null),
+      set: vi.fn(async () => {}),
+    },
+    fs: {
+      readDir: vi.fn(async () => []),
+      readFile: vi.fn(async () => null),
+    },
+    usage: {
+      getSnapshot: vi.fn(async () => ({})),
+    },
+    win: {
+      minimize: vi.fn(async () => {}),
+      maximize: vi.fn(async () => {}),
+      close: vi.fn(async () => {}),
+      isMaximized: vi.fn(async () => false),
+      toggleDevTools: vi.fn(async () => {}),
+      toggleFullScreen: vi.fn(async () => {}),
+      isFullScreen: vi.fn(async () => false),
+    },
+    app: {
+      quit: vi.fn(async () => {}),
+      newWindow: vi.fn(async () => {}),
+    },
+    mode: {
+      get: vi.fn(async (): Promise<string | null> => null),
+      set: vi.fn(async () => {}),
+    },
+    backend: {
+      getStatus: vi.fn(async () => ({
+        ready: true,
+        port: 4317,
+        trpcUrl: 'http://127.0.0.1:4317/api/trpc',
+      })),
+      getPort: vi.fn(async () => 4317),
+      getOllamaStatus: vi.fn(async () => DEFAULT_OLLAMA_STATUS),
+    },
+    ollama: {
+      getStatus: vi.fn(async () => DEFAULT_OLLAMA_STATUS),
+      start: vi.fn(async () => ({ success: true })),
+      stop: vi.fn(async () => ({ success: true })),
+      pullModel: vi.fn(async () => {}),
+      onPullProgress: vi.fn((callback: (progress: OllamaModelPullProgress) => void) => {
+        pullProgressListeners.add(callback)
+        return () => {
+          pullProgressListeners.delete(callback)
+        }
+      }),
+      onStateChange: vi.fn((callback: (status: OllamaStatus) => void) => {
+        ollamaStateListeners.add(callback)
+        return () => {
+          ollamaStateListeners.delete(callback)
+        }
+      }),
+      install: vi.fn(async (): Promise<unknown> => ({ success: true })),
+      onInstallProgress: vi.fn(
+        (_callback: (progress: { phase: string; message?: string }) => void) => {
+          return () => {}
+        },
+      ),
+      checkUpdate: vi.fn(async (): Promise<OllamaUpdateCheckResult> => ({
+        state: 'unknown',
+        detail: 'test mock',
+      })),
+      update: vi.fn(async (): Promise<OllamaUpdateResult> => ({ success: true })),
+      getVersion: vi.fn(async (): Promise<OllamaVersionInfoPayload> => ({
+        version: '0.3.14',
+        meetsMinimum: true,
+        minimumVersion: '0.3.12',
+      })),
+      onUpdateProgress: vi.fn(
+        (_callback: (progress: OllamaUpdateProgressPayload) => void) => {
+          return () => {}
+        },
+      ),
+    },
+  } satisfies ElectronAPI
+
+  return Object.assign(api, {
+    __emitPullProgress: (progress: OllamaModelPullProgress) => {
+      for (const listener of pullProgressListeners) {
+        listener(progress)
+      }
+    },
+    __emitOllamaStateChange: (status: OllamaStatus) => {
+      for (const listener of ollamaStateListeners) {
+        listener(status)
+      }
+    },
+  })
+}
+
+export type ElectronAPIMock = ReturnType<typeof createElectronAPIMock>
+
+if (!window.matchMedia) {
+  Object.defineProperty(window, 'matchMedia', {
+    writable: true,
+    value: vi.fn().mockImplementation((query: string) => ({
+      matches: false,
+      media: query,
+      onchange: null,
+      addListener: vi.fn(),
+      removeListener: vi.fn(),
+      addEventListener: vi.fn(),
+      removeEventListener: vi.fn(),
+      dispatchEvent: vi.fn(),
+    })),
+  })
+}
+
+beforeEach(() => {
+  Object.defineProperty(window, 'electronAPI', {
+    configurable: true,
+    writable: true,
+    value: createElectronAPIMock(),
+  })
+})
+
+afterEach(() => {
+  cleanup()
+  vi.clearAllMocks()
+})
