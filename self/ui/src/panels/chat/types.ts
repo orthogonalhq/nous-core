@@ -14,6 +14,7 @@ export interface ChatMessage {
     result?: ActionResult
   }
   cards?: Array<{ type: string; props: Record<string, unknown> }>
+  queued?: boolean
 }
 
 export interface ActionResult {

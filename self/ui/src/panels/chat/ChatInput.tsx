@@ -13,7 +13,9 @@ interface ChatInputProps {
 
 export function ChatInput({
     input,
-    sending,
+    // `sending` retained on ChatInputProps for interface stability post-RC-3.
+    // Disable behavior moved out of this component (see SP 1.11 SDS § RC-3).
+    sending: _sending,
     canSend,
     onInputChange,
     onSend,
@@ -36,7 +38,7 @@ export function ChatInput({
         }
     }
 
-    const isDisabled = sending || !input.trim() || !canSend
+    const isDisabled = !input.trim() || !canSend
 
     return (
         <div style={styles.wrapper}>
@@ -50,7 +52,7 @@ export function ChatInput({
                         onFocus={onFocus}
                         onBlur={onBlur}
                         placeholder="What can I help you with?"
-                        disabled={sending}
+                        disabled={false}
                         style={styles.textarea}
                         rows={1}
                     />
@@ -67,7 +69,7 @@ export function ChatInput({
                         title="Send message"
                         style={{
                             ...styles.sendButton,
-                            cursor: sending ? 'not-allowed' : 'pointer',
+                            cursor: isDisabled ? 'not-allowed' : 'pointer',
                             opacity: isDisabled ? 0.5 : 1,
                         }}
                     >

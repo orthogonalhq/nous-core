@@ -86,9 +86,18 @@ function ChatMessageRow({
     onCardAction,
 }: ChatMessageRowProps) {
     if (message.role === 'user') {
+        const isQueued = message.queued === true
         return (
             <div style={styles.rowUser}>
-                <div style={styles.bubbleUser}>{message.content}</div>
+                <div
+                    data-queued={isQueued ? 'true' : undefined}
+                    style={isQueued ? { ...styles.bubbleUser, ...styles.bubbleUserQueued } : styles.bubbleUser}
+                >
+                    {message.content}
+                    {isQueued && (
+                        <span style={styles.queuedMarker}> queued</span>
+                    )}
+                </div>
             </div>
         )
     }
@@ -223,6 +232,16 @@ const styles = {
         padding: 'var(--nous-space-md) var(--nous-space-xl)',
         background: 'var(--nous-surface-nested)',
         border: '1px solid var(--nous-border)'
+    },
+    bubbleUserQueued: {
+        opacity: 0.6,
+        fontStyle: 'italic' as const,
+    },
+    queuedMarker: {
+        marginLeft: 'var(--nous-space-xs)',
+        fontStyle: 'italic' as const,
+        color: 'var(--nous-fg-muted)',
+        fontSize: 'var(--nous-font-size-xs)',
     },
     thinkingDetails: {
         maxWidth: '100%',

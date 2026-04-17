@@ -101,6 +101,7 @@ export function ChatPanel(props: ChatPanelProps) {
     const [messages, setMessages] = useState<ChatMessage[]>([])
     const [input, setInput] = useState('')
     const [sending, setSending] = useState(false)
+    const [queuedMessages, setQueuedMessages] = useState<string[]>([])
     const [historyError, setHistoryError] = useState<string | null>(null)
 
     // --- Unread response badge ---
@@ -211,18 +212,24 @@ export function ChatPanel(props: ChatPanelProps) {
     }, [chatApi])
 
     // --- Send ---
-    const send = async () => {
-        if (!input.trim() || sending || !chatApi?.send) return
-        const userMsg = input.trim()
-        setInput('')
+
+    // invoke() performs the actual chatApi.send call. Shared by:
+    //   - immediate-send path (called from send() when no turn is in flight)
+    //   - drain path (called from the queue-drain effect after a turn ends)
+    // The skipUserAppend flag suppresses the user-message append in the
+    // drain path because the enqueue path already appended the entry
+    // (with queued=true) at submission time.
+    const invoke = async (userMsg: string, skipUserAppend = false) => {
         setSending(true)
         onSendStart?.()
 
-        const userEntry: ChatMessage = { role: 'user', content: userMsg, timestamp: new Date().toISOString() }
-        setMessages(prev => [...prev, userEntry])
+        if (!skipUserAppend) {
+            const userEntry: ChatMessage = { role: 'user', content: userMsg, timestamp: new Date().toISOString() }
+            setMessages(prev => [...prev, userEntry])
+        }
 
         try {
-            const result = await chatApi.send(userMsg)
+            const result = await chatApi!.send(userMsg)
             // Reconcile: authoritative response replaces streaming buffer
             setStreamingContent('')
             setStreamingThinking('')
@@ -245,6 +252,51 @@ export function ChatPanel(props: ChatPanelProps) {
             setSending(false)
         }
     }
+
+    // send() is the input-event entry point. Dispatches to either:
+    //   - enqueue (if a turn is currently in flight: sending=true)
+    //   - immediate invoke (if idle)
+    // Both paths share the !input.trim() and !chatApi?.send guards.
+    const send = () => {
+        if (!input.trim() || !chatApi?.send) return
+        const userMsg = input.trim()
+        setInput('')
+
+        if (sending) {
+            // Enqueue — FIFO order preserved by array push at tail
+            setQueuedMessages(prev => [...prev, userMsg])
+            setMessages(prev => [...prev, {
+                role: 'user',
+                content: userMsg,
+                timestamp: new Date().toISOString(),
+                queued: true,
+            }])
+            return
+        }
+
+        invoke(userMsg)
+    }
+
+    // Queue drain: fires on the sending: true → false transition.
+    // Pops the FIFO head of queuedMessages, clears the queued flag on the
+    // matching message-list entry, and invokes the pop'd message via the
+    // shared invoke() helper with skipUserAppend=true (the enqueue path
+    // already appended the entry).
+    useEffect(() => {
+        if (sending || queuedMessages.length === 0) return
+        const [next, ...rest] = queuedMessages
+        setQueuedMessages(rest)
+        // Clear the queued flag on the oldest queued user-message entry (FIFO).
+        setMessages(prev => {
+            const idx = prev.findIndex(m => m.queued && m.role === 'user')
+            if (idx < 0) return prev
+            const copy = [...prev]
+            const { queued: _queued, ...rest2 } = copy[idx]
+            copy[idx] = rest2 as ChatMessage
+            return copy
+        })
+        invoke(next, true)
+    }, [sending, queuedMessages])
 
     // --- Input focus/blur forwarding ---
     const handleFocus = useCallback(() => {
