@@ -31,7 +31,7 @@ import {
   type WitnessActor,
   type WitnessEventId,
 } from '@nous/shared';
-import { parseModelOutput, type ParsedModelOutput } from '../output-parser.js';
+import { type ParsedModelOutput } from '../output-parser.js';
 import {
   BudgetTracker,
   estimateBudgetUnits,
@@ -283,14 +283,15 @@ export class AgentGateway implements IAgentGateway {
           rawOutput: modelResponse.output,
         });
 
-        // Strategy delegation: responseParser (harness) or parseModelOutput (built-in)
-        const usingHarnessParser = !!this.config.harness?.responseParser;
-        const parsedOutput: ParsedModelOutput = usingHarnessParser
-          ? (this.config.harness!.responseParser!(modelResponse.output, traceId) as ParsedModelOutput)
-          : parseModelOutput(modelResponse.output, traceId);
+        // Adapter-based parsing: use the same adapter resolved at line 241 for
+        // formatRequest() so format and parse come from the same adapter for the
+        // live provider within one turn. The harness `responseParser` field is
+        // retained on the type for back-compat (see O-1 in SP 1.11 Out-of-Scope)
+        // but is no longer read here.
+        const parsedOutput: ParsedModelOutput = adapter.parseResponse(modelResponse.output, traceId);
 
         this.log.debug('parser selection', {
-          usingHarnessParser,
+          adapterProviderSignature: this.cachedAdapterProviderSignature,
           outputType: typeof modelResponse.output,
           parsedResponse: parsedOutput.response.slice(0, 100),
           parsedToolCalls: parsedOutput.toolCalls.length,

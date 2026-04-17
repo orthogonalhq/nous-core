@@ -1,9 +1,10 @@
 import { describe, expect, it, vi } from 'vitest';
 import { AgentResultSchema } from '@nous/shared';
-import type { AgentGatewayConfig, HarnessStrategies, PromptFormatterOutput } from '@nous/shared';
+import type { AgentGatewayConfig, HarnessStrategies, IModelProvider, PromptFormatterOutput } from '@nous/shared';
 import {
   AGENT_ID,
   NOW,
+  PROVIDER_ID,
   RUN_ID,
   createBaseInput,
   createGatewayHarness,
@@ -76,8 +77,11 @@ describe('AgentGateway harness delegation', () => {
     });
   });
 
-  describe('responseParser delegation', () => {
-    it('calls responseParser when present and uses its result', async () => {
+  describe('responseParser deprecation (field retained, not read by gateway)', () => {
+    it('does not call harness.responseParser; live adapter parses model output', async () => {
+      // Post-RC-1: AgentGateway.run no longer reads harness.responseParser; the
+      // live adapter's parseResponse is invoked instead. The field remains on the
+      // harness type for external-consumer back-compat (O-1 deferred).
       const responseParser = vi.fn().mockReturnValue({
         response: 'parsed by custom parser',
         toolCalls: [{ name: 'task_complete', params: { output: { done: true }, summary: 'Done' } }],
@@ -100,8 +104,64 @@ describe('AgentGateway harness delegation', () => {
       });
 
       const result = await gateway.run(createBaseInput());
-      expect(responseParser).toHaveBeenCalled();
+      // Inverted assertion: harness spy MUST NOT be called post-RC-1.
+      expect(responseParser).not.toHaveBeenCalled();
       expect(result.status).toBe('completed');
+      // The text adapter parses the raw string output cleanly; the response
+      // surfaces the live-adapter's parsed text, not the harness spy's return.
+      if (result.status === 'completed') {
+        const output = result.output as { response: string };
+        expect(output.response).toBe('raw model output');
+      }
+    });
+  });
+
+  describe('RC-1 regression — live adapter used even when attach-time harness bound to different vendor', () => {
+    it('uses ollama adapter for parseResponse when provider is ollama, even if harness responseParser is bound to text adapter', async () => {
+      // Reproduces the BT R3 Mode A divergence: harness is composed at attach
+      // time with a vendor that does not match the live provider's vendor at
+      // invoke time. Pre-fix: the harness spy was invoked and returned a wrong
+      // shape, causing assistant text to render as "[object Object]". Post-fix:
+      // the live adapter's parseResponse is invoked instead.
+      const harnessSpy = vi.fn();
+      const ollamaOutput = { role: 'assistant', content: 'hello world' };
+      const provider = createModelProvider([ollamaOutput]);
+      // Override getConfig() so the live provider reports vendor: 'ollama'.
+      (provider.getConfig as unknown as () => ReturnType<IModelProvider['getConfig']>) = () => ({
+        id: PROVIDER_ID,
+        name: 'ollama',
+        type: 'ollama',
+        modelId: 'llama3',
+        isLocal: true,
+        capabilities: [],
+        vendor: 'ollama',
+      } as ReturnType<IModelProvider['getConfig']>);
+
+      const outbox = new InMemoryGatewayOutboxSink();
+      const gateway = new AgentGateway({
+        agentClass: 'Cortex::Principal',
+        agentId: AGENT_ID,
+        toolSurface: createToolSurface(undefined, []),
+        modelProvider: provider,
+        harness: { responseParser: harnessSpy, loopConfig: { singleTurn: true } },
+        outbox,
+        now: () => NOW,
+        nowMs: () => Date.parse(NOW),
+        idFactory: () => AGENT_ID,
+      });
+
+      const result = await gateway.run(createBaseInput());
+
+      // 1. Harness spy NOT called (the fix removes this call path).
+      expect(harnessSpy).not.toHaveBeenCalled();
+      // 2. Result is completed with the correctly-parsed response.
+      expect(result.status).toBe('completed');
+      if (result.status === 'completed') {
+        const output = result.output as { response: string };
+        // 3. Response is the actual content text, NOT "[object Object]".
+        expect(output.response).toBe('hello world');
+        expect(output.response).not.toBe('[object Object]');
+      }
     });
   });
 
