@@ -44,6 +44,7 @@ export function StatusCard({
   const result = StatusCardSchema.safeParse(props)
   if (!result.success) {
     console.warn('[StatusCard] Validation failed:', result.error.format(), 'Received props:', props)
+    console.trace('[StatusCard] Invalid props emitter stack')
     return (
       <div
         data-testid="status-card-invalid"
