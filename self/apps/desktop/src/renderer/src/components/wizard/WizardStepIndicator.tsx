@@ -1,7 +1,8 @@
+import type { CSSProperties } from 'react'
 import type { WizardStepDefinition, WizardStepId } from './types'
 
 interface WizardStepIndicatorProps {
-  steps: WizardStepDefinition[]
+  steps: readonly WizardStepDefinition[]
   currentStepId: WizardStepId
 }
 
@@ -11,8 +12,20 @@ export function WizardStepIndicator({
 }: WizardStepIndicatorProps) {
   const currentIndex = steps.findIndex((step) => step.id === currentStepId)
 
+  // Bind the stepper grid column count to the registry length via a CSS
+  // custom property. The `wizard.css` rule uses
+  //   grid-template-columns: repeat(var(--nous-wizard-step-count, 4), ...)
+  // so adding or removing a wizard step never requires a CSS edit.
+  const stepperStyle = {
+    '--nous-wizard-step-count': String(steps.length),
+  } as CSSProperties
+
   return (
-    <nav className="nous-wizard__stepper" aria-label="First-run wizard steps">
+    <nav
+      className="nous-wizard__stepper"
+      aria-label="First-run wizard steps"
+      style={stepperStyle}
+    >
       {steps.map((step, index) => {
         const isCurrent = step.id === currentStepId
         const isComplete = currentIndex > index

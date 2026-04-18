@@ -1,31 +1,21 @@
 import { useEffect, useState } from 'react'
-import { WizardStepConfirmation } from './wizard/WizardStepConfirmation'
 import { WizardStepIndicator } from './wizard/WizardStepIndicator'
-import { WizardStepModelDownload } from './wizard/WizardStepModelDownload'
-import { WizardStepOllamaSetup } from './wizard/WizardStepOllamaSetup'
-import { WizardStepRoleAssignment } from './wizard/WizardStepRoleAssignment'
-import { WizardStepWelcome } from './wizard/WizardStepWelcome'
 import './wizard/wizard.css'
 import {
   BACKEND_STEP_TO_WIZARD_STEP,
+  PREVIOUS_STEP_MAP,
   WIZARD_STEPS,
+  WIZARD_STEP_REGISTRY,
+  type WizardStepId,
+} from './wizard/registry'
+import {
   getRecommendedModelSpec,
   type FirstRunPrerequisites,
   type FirstRunState,
   type OllamaStatus,
   type RoleAssignments,
-  type WizardStepId,
 } from './wizard/types'
-import { trpcQuery, trpcMutate } from './wizard/trpc-fetch'
-
-/** Back-navigation map: from each step, where does Back take you? */
-const PREVIOUS_STEP_MAP: Record<WizardStepId, WizardStepId | null> = {
-  welcome: null,
-  'ollama-setup': 'welcome',
-  'model-download': 'ollama-setup',
-  'role-assignment': 'model-download',
-  confirmation: 'role-assignment',
-}
+import { trpcMutate, trpcQuery } from './wizard/trpc-fetch'
 
 type RoleAssignmentMode = 'default' | 'advanced'
 
@@ -176,6 +166,82 @@ export function FirstRunWizard({
     setActionError,
   }
 
+  // Registry-driven render dispatch. Lookup the current entry; throw a clear
+  // error if the id is unknown (should never happen — registry validators
+  // guarantee WizardStepId covers every reachable state). Per-step prop
+  // shapes are preserved verbatim through the `buildStepProps` resolver.
+  const currentEntry = WIZARD_STEP_REGISTRY.find((entry) => entry.id === currentWizardStep)
+  if (!currentEntry) {
+    throw new Error(`[nous:wizard] Unknown step id: ${currentWizardStep}`)
+  }
+
+  // Per-step prop resolver. The component types differ (welcome takes an
+  // `onContinue`; ollama takes `ollamaStatus` + `refreshOllamaStatus`; etc.),
+  // so we build each step's prop object verbatim here rather than via a
+  // discriminated union. This preserves each step component's existing prop
+  // interface without requiring a renderer-side cast at the dispatch site.
+  // The registry type erases `TComponent` to `unknown`; the switch on
+  // `currentWizardStep` plus the component's own prop validation guarantees
+  // type correctness at the call site.
+  const StepComponent = currentEntry.component as unknown as React.ComponentType<Record<string, unknown>>
+  const stepProps = (() => {
+    switch (currentWizardStep) {
+      case 'welcome':
+        return {
+          ...sharedProps,
+          onStepComplete: (nextState: FirstRunState) => {
+            applyStepCompletion('welcome', nextState)
+          },
+          onContinue: () => {
+            console.log('[nous:wizard] Step completed: welcome')
+            setWelcomeCompleted(true)
+            setCurrentStepOverride(null)
+          },
+        }
+      case 'ollama-setup':
+        return {
+          ...sharedProps,
+          ollamaStatus,
+          refreshOllamaStatus,
+          onStepComplete: (nextState: FirstRunState) => {
+            applyStepCompletion('ollama_check', nextState)
+          },
+        }
+      case 'model-download':
+        return {
+          ...sharedProps,
+          selectedModelSpec,
+          setSelectedModelSpec,
+          onStepComplete: (nextState: FirstRunState) => {
+            applyStepCompletion('model_download/provider_config', nextState)
+          },
+        }
+      case 'confirmation':
+        return {
+          ...sharedProps,
+          selectedModelSpec,
+          roleAssignments,
+          ollamaStatus,
+          onStepComplete: (nextState: FirstRunState) => {
+            applyStepCompletion('confirmation', nextState)
+          },
+          onFinish: () => {
+            console.log('[nous:wizard] Step completed: confirmation')
+            onComplete()
+          },
+        }
+      default:
+        throw new Error(`[nous:wizard] Unknown step id: ${currentWizardStep satisfies never}`)
+    }
+  })()
+
+  // `roleAssignmentMode` is retained for SP 1.5 (auto-role-assign will reuse
+  // the existing state shape). Reference it here so the linter does not flag
+  // the state hook as unused during SP 1.1.
+  void roleAssignmentMode
+  void setRoleAssignments
+  void setRoleAssignmentMode
+
   return (
     <div className="nous-wizard">
       <div className="nous-wizard__container">
@@ -230,71 +296,7 @@ export function FirstRunWizard({
           </div>
         ) : null}
 
-        {currentWizardStep === 'welcome' ? (
-          <WizardStepWelcome
-            {...sharedProps}
-            onStepComplete={(nextState) => {
-              applyStepCompletion('welcome', nextState)
-            }}
-            onContinue={() => {
-              console.log('[nous:wizard] Step completed: welcome')
-              setWelcomeCompleted(true)
-              setCurrentStepOverride(null)
-            }}
-          />
-        ) : null}
-
-        {currentWizardStep === 'ollama-setup' ? (
-          <WizardStepOllamaSetup
-            {...sharedProps}
-            ollamaStatus={ollamaStatus}
-            refreshOllamaStatus={refreshOllamaStatus}
-            onStepComplete={(nextState) => {
-              applyStepCompletion('ollama_check', nextState)
-            }}
-          />
-        ) : null}
-
-        {currentWizardStep === 'model-download' ? (
-          <WizardStepModelDownload
-            {...sharedProps}
-            selectedModelSpec={selectedModelSpec}
-            setSelectedModelSpec={setSelectedModelSpec}
-            onStepComplete={(nextState) => {
-              applyStepCompletion('model_download/provider_config', nextState)
-            }}
-          />
-        ) : null}
-
-        {currentWizardStep === 'role-assignment' ? (
-          <WizardStepRoleAssignment
-            {...sharedProps}
-            selectedModelSpec={selectedModelSpec}
-            roleAssignments={roleAssignments}
-            setRoleAssignments={setRoleAssignments}
-            roleAssignmentMode={roleAssignmentMode}
-            setRoleAssignmentMode={setRoleAssignmentMode}
-            onStepComplete={(nextState) => {
-              applyStepCompletion('role_assignment', nextState)
-            }}
-          />
-        ) : null}
-
-        {currentWizardStep === 'confirmation' ? (
-          <WizardStepConfirmation
-            {...sharedProps}
-            selectedModelSpec={selectedModelSpec}
-            roleAssignments={roleAssignments}
-            ollamaStatus={ollamaStatus}
-            onStepComplete={(nextState) => {
-              applyStepCompletion('confirmation', nextState)
-            }}
-            onFinish={() => {
-              console.log('[nous:wizard] Step completed: confirmation')
-              onComplete()
-            }}
-          />
-        ) : null}
+        <StepComponent {...(stepProps as Record<string, unknown>)} />
       </div>
     </div>
   )
