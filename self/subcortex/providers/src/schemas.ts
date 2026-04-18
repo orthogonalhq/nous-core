@@ -41,7 +41,7 @@ const MessageSchema = z.object({
     type: z.literal('function'),
     function: z.object({
       name: z.string(),
-      arguments: z.string(),
+      arguments: z.union([z.string(), z.record(z.unknown())]),
     }),
   })).optional(),
 });
