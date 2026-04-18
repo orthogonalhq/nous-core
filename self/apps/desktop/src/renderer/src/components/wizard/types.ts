@@ -29,12 +29,12 @@ export type RoleAssignments = Partial<Record<ModelRole, string>>
 export type ModelRecommendation = NonNullable<FirstRunPrerequisites['recommendations']['singleModel']>
 export type RoleModelRecommendation = FirstRunPrerequisites['recommendations']['multiModel'][number]
 
-export type WizardStepId =
-  | 'welcome'
-  | 'ollama-setup'
-  | 'model-download'
-  | 'role-assignment'
-  | 'confirmation'
+export {
+  BACKEND_STEP_TO_WIZARD_STEP,
+  WIZARD_STEPS,
+  WIZARD_STEP_REGISTRY,
+} from './registry'
+export type { WizardStepId, WizardStepDefinition } from './registry'
 
 export type WizardModelOption = {
   modelId: string
@@ -42,12 +42,6 @@ export type WizardModelOption = {
   displayName: string
   reason: string
   ramRequiredMB: number
-}
-
-export type WizardStepDefinition = {
-  id: WizardStepId
-  label: string
-  backendStep: FirstRunStep | null
 }
 
 export interface WizardStepProps {
@@ -61,22 +55,6 @@ export interface WizardStepProps {
 }
 
 export const MODEL_ROLES = ModelRoleSchema.options
-
-export const BACKEND_STEP_TO_WIZARD_STEP: Record<FirstRunCurrentStep, WizardStepId> = {
-  ollama_check: 'ollama-setup',
-  model_download: 'model-download',
-  provider_config: 'model-download',
-  role_assignment: 'role-assignment',
-  complete: 'confirmation',
-}
-
-export const WIZARD_STEPS: WizardStepDefinition[] = [
-  { id: 'welcome', label: 'Welcome', backendStep: null },
-  { id: 'ollama-setup', label: 'Ollama', backendStep: 'ollama_check' },
-  { id: 'model-download', label: 'Model', backendStep: 'model_download' },
-  { id: 'role-assignment', label: 'Roles', backendStep: 'role_assignment' },
-  { id: 'confirmation', label: 'Finish', backendStep: null },
-]
 
 export function parseModelSpec(modelSpec: string): { provider: string; modelId: string } | null {
   const [provider, ...modelIdParts] = modelSpec.split(':')
