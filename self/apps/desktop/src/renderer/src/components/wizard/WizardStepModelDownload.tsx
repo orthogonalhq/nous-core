@@ -97,7 +97,15 @@ export function WizardStepModelDownload({
         throw new Error(providerResult.error ?? 'The backend could not configure the selected model.')
       }
 
-      onStepComplete(providerResult.state)
+      // PLACEHOLDER (SP 1.1): replaced by assignRoles in SP 1.5 per SDS § 2.6.
+      let finalState: FirstRunState = providerResult.state
+      if (finalState.steps.role_assignment.status !== 'complete') {
+        finalState = await trpcMutate<FirstRunState>('firstRun.completeStep', {
+          step: 'role_assignment',
+        })
+      }
+
+      onStepComplete(finalState)
     } catch (error) {
       finalizeRef.current = false
       const message = error instanceof Error ? error.message : String(error)
@@ -118,9 +126,15 @@ export function WizardStepModelDownload({
       // model there's no provider to configure. User can add models later via
       // Settings > Local Models.
       await trpcMutate<FirstRunState>('firstRun.completeStep', { step: 'model_download' })
-      const nextState = await trpcMutate<FirstRunState>('firstRun.completeStep', {
+      let nextState = await trpcMutate<FirstRunState>('firstRun.completeStep', {
         step: 'provider_config',
       })
+      // PLACEHOLDER (SP 1.1): replaced by assignRoles in SP 1.5 per SDS § 2.6.
+      if (nextState.steps.role_assignment.status !== 'complete') {
+        nextState = await trpcMutate<FirstRunState>('firstRun.completeStep', {
+          step: 'role_assignment',
+        })
+      }
       onStepComplete(nextState)
     } catch (error) {
       finalizeRef.current = false
