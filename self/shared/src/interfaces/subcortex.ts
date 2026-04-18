@@ -231,6 +231,8 @@ import type {
   ResolvedWorkflowDefinitionSource,
 } from '../types/index.js';
 import type { NousEvent } from '../events/index.js';
+import type { IEventBus } from '../event-bus/interface.js';
+import type { TraceId } from '../types/ids.js';
 
 export interface IModelRouter {
   /** Route a model role to the appropriate provider (legacy) */
@@ -249,6 +251,33 @@ export interface IModelProvider {
 
   /** Invoke the model with streaming response */
   stream(request: ModelRequest): AsyncIterable<ModelStreamChunk>;
+
+  /**
+   * Optional: invoke the model and emit thinking chunks progressively via the
+   * provided event bus, while still returning the full structured ModelResponse
+   * (same shape invoke() returns, including any tool_calls on the message
+   * object). Providers that emit `thinking` chunks during their stream
+   * implement this; providers that don't (or that have no separate thinking
+   * channel) leave it undefined and callers fall back to invoke().
+   *
+   * Implementations MUST:
+   *  - publish each thinking delta to `eventBus.publish('chat:thinking-chunk',
+   *    { content, traceId })` as it arrives,
+   *  - return a ModelResponse whose `output` carries the SAME shape invoke()
+   *    would return for the same request (e.g., for Ollama: the full
+   *    `message` object including content, thinking, and tool_calls),
+   *  - NOT swallow or transform the response shape — the gateway's adapter
+   *    parseResponse runs against `output` unchanged.
+   *
+   * Failure semantics: on any error, throw — the gateway falls back to
+   * provider.invoke() with the same request (mirroring the existing
+   * invokeWithStreaming catch path at agent-gateway.ts:576-579).
+   */
+  invokeWithThinkingStream?(
+    request: ModelRequest,
+    eventBus: IEventBus,
+    traceId: TraceId,
+  ): Promise<ModelResponse>;
 
   /** Get provider configuration */
   getConfig(): ModelProviderConfig;

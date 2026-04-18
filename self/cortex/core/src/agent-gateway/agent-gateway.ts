@@ -56,6 +56,8 @@ import {
 import { GatewayOutbox } from './outbox.js';
 import { composeSystemPrompt } from './system-prompt-composer.js';
 import { resolveAdapter, resolveProviderTypeFromConfig } from './adapters/index.js';
+import { isToolErrorPayload } from '../internal-mcp/tool-error-helpers.js';
+import { resolveDispatchParameterPlaceholders } from './placeholder-resolver.js';
 import type { ILogChannel, ModelResponse, ModelStreamChunk } from '@nous/shared';
 import type { ProviderAdapter } from './adapters/types.js';
 
@@ -251,27 +253,43 @@ export class AgentGateway implements IAgentGateway {
           userMessage: lastUserFrame?.content?.slice(0, 500) ?? '(no user message)',
         });
 
-        // Streaming decision: use stream() when event bus is available,
-        // adapter supports streaming, provider has stream method, AND no
-        // tools are defined. Tool-calling turns require the full structured
-        // response to extract tool_use blocks — streaming drops them because
-        // ModelStreamChunk has no toolCalls field (BT Round 1, RC-2).
-        const canStream = !!this.config.eventBus
+        // Streaming decision (cycle-5 SP 1.13 RC-2):
+        //
+        // Two gates govern streaming, replacing the single canStream gate that
+        // existed pre-cycle-5. The cycle-1 SP 1.9 RC-2 invariant ("tool-bearing
+        // turns must use invoke() because ModelStreamChunk has no toolCalls field
+        // — streaming would drop tool_calls") is preserved on canStreamContent.
+        // canStreamThinking has no such constraint because thinking content does
+        // not interfere with tool_calls extraction.
+        //
+        // Precedence when both gates are true (no tools, extendedThinking adapter,
+        // stream-capable provider, eventBus): use invokeWithStreaming. That path
+        // already emits BOTH content and thinking chunks (agent-gateway.ts:543-556),
+        // so it dominates — no double-stream.
+        const canStreamContent = !!this.config.eventBus
           && adapter.capabilities.streaming
           && typeof provider.stream === 'function'
           && (!tools || tools.length === 0);
 
-        const modelResponse = canStream
+        const canStreamThinking = !!this.config.eventBus
+          && adapter.capabilities.extendedThinking
+          && typeof provider.invokeWithThinkingStream === 'function';
+
+        const modelResponse = canStreamContent
           ? await this.invokeWithStreaming(provider, adapter, formatted, traceId, projectId, correlation)
-          : await provider.invoke({
-              role: this.config.modelRole ?? deriveDefaultModelRole(this.config.agentClass),
-              input: formatted.input,
-              projectId,
-              traceId,
-              agentClass: this.agentClass,
-              correlationRunId: correlation.runId,
-              correlationParentId: correlation.parentId,
-            });
+          : canStreamThinking
+            ? await this.invokeWithThinkingStreamFallback(
+                provider, formatted, traceId, projectId, correlation,
+              )
+            : await provider.invoke({
+                role: this.config.modelRole ?? deriveDefaultModelRole(this.config.agentClass),
+                input: formatted.input,
+                projectId,
+                traceId,
+                agentClass: this.agentClass,
+                correlationRunId: correlation.runId,
+                correlationParentId: correlation.parentId,
+              });
 
         budgetTracker.recordModelUsage(modelResponse.usage);
 
@@ -579,6 +597,46 @@ export class AgentGateway implements IAgentGateway {
     }
   }
 
+  /**
+   * Invoke the provider via invokeWithThinkingStream — emits thinking chunks
+   * progressively while still returning the full structured ModelResponse.
+   * Falls back to provider.invoke() if the thinking-stream call throws,
+   * mirroring the invokeWithStreaming catch fallback at the method above.
+   *
+   * Used on tool-bearing turns when the adapter declares extendedThinking
+   * capability AND the provider exposes the optional invokeWithThinkingStream
+   * method (cycle-5 SP 1.13 RC-2: keeps tool_calls extraction via the
+   * structured ModelResponse path while still publishing thinking chunks
+   * progressively to the SSE channel).
+   */
+  private async invokeWithThinkingStreamFallback(
+    provider: IModelProvider,
+    formatted: { input: unknown },
+    traceId: string,
+    projectId: string | undefined,
+    correlation: { runId: string; parentId?: string; sequence: number },
+  ): Promise<import('@nous/shared').ModelResponse> {
+    const eventBus = this.config.eventBus!;
+    const request = {
+      role: this.config.modelRole ?? deriveDefaultModelRole(this.config.agentClass),
+      input: formatted.input,
+      projectId: projectId as ProjectId | undefined,
+      traceId: traceId as TraceId,
+      agentClass: this.agentClass,
+      ...(correlation.runId ? { correlationRunId: correlation.runId } : {}),
+      ...(correlation.parentId ? { correlationParentId: correlation.parentId } : {}),
+    };
+    try {
+      // Non-null assertion is justified because the dispatch ternary only
+      // reaches this method when canStreamThinking === true (which already
+      // includes typeof provider.invokeWithThinkingStream === 'function').
+      return await provider.invokeWithThinkingStream!(request, eventBus, traceId as TraceId);
+    } catch (err) {
+      this.log.warn('invokeWithThinkingStream failed, falling back to invoke()', { error: String(err) });
+      return provider.invoke(request);
+    }
+  }
+
   private async handleToolCalls(args: {
     input: AgentInput;
     toolCalls: Array<{ name: string; params: unknown; id?: string }>;
@@ -725,13 +783,7 @@ export class AgentGateway implements IAgentGateway {
             // Rejected — produce tool_error frame matching handleStandardTool catch path
             frameByIndex.set(
               index,
-              this.createContextFrame(
-                'tool',
-                'tool_error',
-                normalizeToolError(toolCall.name, result.reason),
-                toolCall.name,
-                toolCall.id ? { tool_call_id: toolCall.id } : undefined,
-              ),
+              this.buildToolErrorFrame(toolCall.name, toolCall.id, result.reason),
             );
           }
         });
@@ -842,12 +894,7 @@ export class AgentGateway implements IAgentGateway {
       }
 
       immediate.set(index, {
-        contextFrame: this.createContextFrame(
-          'tool',
-          'tool_error',
-          normalizeToolError(prepared.toolName, result.reason),
-          prepared.toolName,
-        ),
+        contextFrame: this.buildToolErrorFrame(prepared.toolName, undefined, result.reason),
       });
     });
 
@@ -868,9 +915,13 @@ export class AgentGateway implements IAgentGateway {
     startedAt: string;
   }): Promise<ToolHandlingResult> {
     try {
+      const resolvedParams = resolveDispatchParameterPlaceholders(
+        args.params,
+        args.input.execution,
+      );
       const value = await this.config.toolSurface.executeTool(
         args.toolName,
-        args.params,
+        resolvedParams,
         args.input.execution,
       );
 
@@ -897,13 +948,7 @@ export class AgentGateway implements IAgentGateway {
       }
 
       return {
-        contextFrame: this.createContextFrame(
-          'tool',
-          'tool_error',
-          normalizeToolError(args.toolName, error),
-          args.toolName,
-          args.toolCallId ? { tool_call_id: args.toolCallId } : undefined,
-        ),
+        contextFrame: this.buildToolErrorFrame(args.toolName, args.toolCallId, error),
       };
     }
   }
@@ -1643,6 +1688,42 @@ export class AgentGateway implements IAgentGateway {
       metadata,
       createdAt: this.now(),
     });
+  }
+
+  /**
+   * Build a `tool_error` GatewayContextFrame from a thrown error. When the
+   * error carries a structured `ToolErrorPayload` on `NousError.context`,
+   * the message body (which already includes "Available tools: ..." and any
+   * "Did you mean: ..." suggestion) is used verbatim and the
+   * `tool_error_kind` discriminator is propagated into frame metadata so the
+   * model and downstream consumers can branch on failure class. Otherwise
+   * the legacy `normalizeToolError` shape is preserved unchanged for
+   * runtime errors.
+   *
+   * Used by all three rejection sites (handleStandardTool catch,
+   * handleToolCalls partitioned-rejected, handleDispatchBatch rejected) so
+   * the recovery contract is uniform across single-tool, concurrent, and
+   * batched dispatch paths.
+   */
+  private buildToolErrorFrame(
+    toolName: string,
+    toolCallId: string | undefined,
+    error: unknown,
+  ): GatewayContextFrame {
+    const payload =
+      error instanceof NousError && isToolErrorPayload(error.context)
+        ? error.context
+        : null;
+    const content = payload
+      ? (error as NousError).message
+      : normalizeToolError(toolName, error);
+    const metadata: Record<string, unknown> | undefined = (() => {
+      const base: Record<string, unknown> = {};
+      if (toolCallId) base.tool_call_id = toolCallId;
+      if (payload) base.tool_error_kind = payload.tool_error_kind;
+      return Object.keys(base).length > 0 ? base : undefined;
+    })();
+    return this.createContextFrame('tool', 'tool_error', content, toolName, metadata);
   }
 
   private async executeWithWitness<T>(

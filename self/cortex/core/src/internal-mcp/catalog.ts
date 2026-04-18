@@ -506,7 +506,7 @@ export const INTERNAL_MCP_CATALOG: readonly InternalMcpCatalogEntry[] = [
       {
         type: 'object',
         properties: {
-          projectId: { type: 'string', description: 'ProjectId' },
+          projectId: { type: 'string', format: 'uuid', description: 'ProjectId (UUID)' },
           status: { type: 'array', description: 'WorkflowRunStatus[]', items: { type: 'string' } },
           definition: { type: 'string' },
           includeInstalledDefinitions: { type: 'boolean' },

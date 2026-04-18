@@ -8,6 +8,11 @@ import {
   INTERNAL_MCP_CATALOG,
   listDynamicInternalMcpToolEntries,
 } from './catalog.js';
+import {
+  buildUnknownToolError,
+  formatZodMessage,
+  isZodLikeError,
+} from './tool-error-helpers.js';
 import type { InternalMcpScopedToolSurfaceOptions } from './types.js';
 
 export class ScopedMcpToolSurface implements IScopedMcpToolSurface {
@@ -52,34 +57,49 @@ export class ScopedMcpToolSurface implements IScopedMcpToolSurface {
     const entry = getInternalMcpCatalogEntry(name);
     const dynamicEntry = getDynamicInternalMcpToolEntry(name);
     if (!entry && !dynamicEntry) {
-      throw new NousError(
-        `Tool ${name} is not available for ${this.options.agentClass}`,
-        'TOOL_NOT_AVAILABLE',
-      );
+      throw buildUnknownToolError({
+        requestedName: name,
+        agentClass: this.options.agentClass,
+        available: this.computeAvailableToolNames(),
+      });
     }
 
     if (dynamicEntry) {
       if (!dynamicEntry.visibleTo.includes(this.options.agentClass)) {
-        throw new NousError(
-          `Tool ${name} is not available for ${this.options.agentClass}`,
-          'TOOL_NOT_AVAILABLE',
-        );
+        throw buildUnknownToolError({
+          requestedName: name,
+          agentClass: this.options.agentClass,
+          available: this.computeAvailableToolNames(),
+        });
       }
-      return dynamicEntry.execute(params, execution);
+      try {
+        return await dynamicEntry.execute(params, execution);
+      } catch (e) {
+        if (isZodLikeError(e)) {
+          throw new NousError(
+            `Tool ${name} arguments invalid: ${formatZodMessage(e)}`,
+            'INVALID_ARGUMENTS',
+            { tool_error_kind: 'arguments_invalid', requested_tool: name } as Record<string, unknown>,
+          );
+        }
+        throw e;
+      }
     }
 
     if (!entry) {
-      throw new NousError(
-        `Tool ${name} is not available for ${this.options.agentClass}`,
-        'TOOL_NOT_AVAILABLE',
-      );
+      throw buildUnknownToolError({
+        requestedName: name,
+        agentClass: this.options.agentClass,
+        available: this.computeAvailableToolNames(),
+      });
     }
 
     if (!this.allowed.has(entry.name)) {
-      throw new NousError(
-        `Tool ${name} is not available for ${this.options.agentClass}`,
-        'TOOL_NOT_AVAILABLE',
-      );
+      throw buildUnknownToolError({
+        requestedName: name,
+        agentClass: this.options.agentClass,
+        available: this.computeAvailableToolNames(),
+      });
     }
 
     if (entry.kind === 'lifecycle') {
@@ -92,7 +112,34 @@ export class ScopedMcpToolSurface implements IScopedMcpToolSurface {
     const handler = this.handlers[
       entry.name as keyof typeof this.handlers
     ];
-    return handler(params, execution);
+    try {
+      return await handler(params, execution);
+    } catch (e) {
+      if (isZodLikeError(e)) {
+        throw new NousError(
+          `Tool ${name} arguments invalid: ${formatZodMessage(e)}`,
+          'INVALID_ARGUMENTS',
+          { tool_error_kind: 'arguments_invalid', requested_tool: name } as Record<string, unknown>,
+        );
+      }
+      throw e;
+    }
+  }
+
+  /**
+   * Computes the canonical-name list authorized for the calling agent class:
+   * the union of catalog tools the agent class is authorized for and dynamic
+   * tools visible to the agent. Mirrors the union `listTools()` computes
+   * (catalog-allowed + dynamic-visible) so the recovery-frame message reflects
+   * exactly the set of tools the model was told it could use.
+   */
+  private computeAvailableToolNames(): readonly string[] {
+    const catalogNames = INTERNAL_MCP_CATALOG
+      .filter((entry) => this.allowed.has(entry.name))
+      .map((entry) => entry.name);
+    const dynamicNames = listDynamicInternalMcpToolEntries(this.options.agentClass)
+      .map((entry) => entry.definition.name);
+    return [...catalogNames, ...dynamicNames];
   }
 }
 
