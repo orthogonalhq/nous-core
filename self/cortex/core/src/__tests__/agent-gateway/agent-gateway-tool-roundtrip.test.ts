@@ -179,7 +179,7 @@ describe('Adapter tool round-trip formatting', () => {
           type: 'function',
           function: {
             name: 'get_weather',
-            arguments: '{"city":"NYC"}',
+            arguments: { city: 'NYC' },
           },
         }],
       });

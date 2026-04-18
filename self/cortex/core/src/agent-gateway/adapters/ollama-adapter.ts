@@ -266,7 +266,7 @@ export function createOllamaAdapter(modelId?: string, log?: ILogChannel): Provid
               type: 'function' as const,
               function: {
                 name: tc.name,
-                arguments: (() => { try { return JSON.stringify(tc.input ?? {}); } catch { return '{}'; } })(),
+                arguments: (tc.input && typeof tc.input === 'object') ? tc.input : {},
               },
             }));
           messages.push({
