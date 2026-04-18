@@ -62,7 +62,7 @@
 
 .nous-wizard__stepper {
   display: grid;
-  grid-template-columns: repeat(5, minmax(0, 1fr));
+  grid-template-columns: repeat(var(--nous-wizard-step-count, 4), minmax(0, 1fr));
   gap: var(--nous-space-md);
   margin-bottom: var(--nous-space-3xl);
   padding: var(--nous-space-xl);

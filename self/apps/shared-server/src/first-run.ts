@@ -1,5 +1,14 @@
 /**
  * First-run wizard state — server-side only.
+ *
+ * Backend step shape (`FIRST_RUN_STEP_VALUES`, `FirstRunStateSchema`, etc.) is
+ * imported from `@nous/shared` — the cross-package manifest that the renderer's
+ * `WIZARD_STEP_REGISTRY` validates against at module load. See Decision 2
+ * (`wizard-composability-pattern-v1`) and ADR 016.
+ *
+ * Function bodies here are unchanged vs. pre-migration: they already iterated
+ * `FIRST_RUN_STEP_VALUES` and read `state.steps[step]`, so the shift from
+ * hand-authored to imported constants is transparent.
  */
 import {
   existsSync,
@@ -9,51 +18,48 @@ import {
   writeFileSync,
 } from 'node:fs';
 import { join } from 'node:path';
-import { ModelRoleSchema, type IProjectStore } from '@nous/shared';
+import {
+  FIRST_RUN_STEP_VALUES,
+  FirstRunCurrentStepSchema,
+  FirstRunStateSchema,
+  FirstRunStepSchema,
+  FirstRunStepStateSchema,
+  FirstRunStepStatusSchema,
+  ModelRoleSchema,
+  type FirstRunCurrentStep,
+  type FirstRunState,
+  type FirstRunStep,
+  type FirstRunStepState,
+  type FirstRunStepStatus,
+  type IProjectStore,
+} from '@nous/shared';
 import { z } from 'zod';
 import { HardwareSpecSchema, RecommendationResultSchema } from './hardware-detection';
 import { OllamaStatusSchema } from './ollama-detection';
 
+// Re-export the shared-package manifest + schemas so existing consumers that
+// imported these names from `@nous/shared-server` continue to resolve. Note:
+// `FIRST_RUN_STEP_VALUES` is a NEW public export on this module (previously a
+// private non-exported const — see SDS-review note 3 and the completion report
+// deviations section).
+export {
+  FIRST_RUN_STEP_VALUES,
+  FirstRunCurrentStepSchema,
+  FirstRunStateSchema,
+  FirstRunStepSchema,
+  FirstRunStepStateSchema,
+  FirstRunStepStatusSchema,
+};
+export type {
+  FirstRunCurrentStep,
+  FirstRunState,
+  FirstRunStep,
+  FirstRunStepState,
+  FirstRunStepStatus,
+};
+
 const FLAG_FILE = '.nous-first-run-complete';
 const STATE_FILE = '.nous-first-run-state.json';
-const FIRST_RUN_STEP_VALUES = [
-  'ollama_check',
-  'model_download',
-  'provider_config',
-  'role_assignment',
-] as const;
-
-export const FirstRunStepSchema = z.enum(FIRST_RUN_STEP_VALUES);
-export type FirstRunStep = z.infer<typeof FirstRunStepSchema>;
-
-export const FirstRunCurrentStepSchema = z.union([
-  FirstRunStepSchema,
-  z.literal('complete'),
-]);
-export type FirstRunCurrentStep = z.infer<typeof FirstRunCurrentStepSchema>;
-
-export const FirstRunStepStatusSchema = z.enum(['pending', 'complete']);
-export type FirstRunStepStatus = z.infer<typeof FirstRunStepStatusSchema>;
-
-export const FirstRunStepStateSchema = z.object({
-  status: FirstRunStepStatusSchema,
-  completedAt: z.string().optional(),
-});
-export type FirstRunStepState = z.infer<typeof FirstRunStepStateSchema>;
-
-export const FirstRunStateSchema = z.object({
-  currentStep: FirstRunCurrentStepSchema,
-  complete: z.boolean(),
-  steps: z.object({
-    ollama_check: FirstRunStepStateSchema,
-    model_download: FirstRunStepStateSchema,
-    provider_config: FirstRunStepStateSchema,
-    role_assignment: FirstRunStepStateSchema,
-  }),
-  completedAt: z.string().optional(),
-  lastUpdatedAt: z.string(),
-});
-export type FirstRunState = z.infer<typeof FirstRunStateSchema>;
 
 export const FirstRunRoleAssignmentInputSchema = z.object({
   role: ModelRoleSchema,
@@ -125,16 +131,14 @@ function normalizeFirstRunState(
 export function createDefaultFirstRunState(
   timestamp = new Date().toISOString(),
 ): FirstRunState {
+  const steps = Object.fromEntries(
+    FIRST_RUN_STEP_VALUES.map((step) => [step, buildPendingStepState()] as const),
+  ) as Record<FirstRunStep, FirstRunStepState>;
   return normalizeFirstRunState(
     {
       currentStep: 'ollama_check',
       complete: false,
-      steps: {
-        ollama_check: buildPendingStepState(),
-        model_download: buildPendingStepState(),
-        provider_config: buildPendingStepState(),
-        role_assignment: buildPendingStepState(),
-      },
+      steps,
       lastUpdatedAt: timestamp,
     },
     timestamp,
@@ -144,16 +148,17 @@ export function createDefaultFirstRunState(
 function createCompletedFirstRunState(
   timestamp = new Date().toISOString(),
 ): FirstRunState {
+  const steps = Object.fromEntries(
+    FIRST_RUN_STEP_VALUES.map(
+      (step) =>
+        [step, { status: 'complete', completedAt: timestamp }] as const,
+    ),
+  ) as Record<FirstRunStep, FirstRunStepState>;
   return normalizeFirstRunState(
     {
       currentStep: 'complete',
       complete: true,
-      steps: {
-        ollama_check: { status: 'complete', completedAt: timestamp },
-        model_download: { status: 'complete', completedAt: timestamp },
-        provider_config: { status: 'complete', completedAt: timestamp },
-        role_assignment: { status: 'complete', completedAt: timestamp },
-      },
+      steps,
       completedAt: timestamp,
       lastUpdatedAt: timestamp,
     },
