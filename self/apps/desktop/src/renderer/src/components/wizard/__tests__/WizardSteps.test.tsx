@@ -8,6 +8,7 @@ import {
 } from '../../../test-setup'
 import { WIZARD_STEP_REGISTRY } from '../registry'
 import { WizardStepConfirmation } from '../WizardStepConfirmation'
+import { WizardStepIdentity } from '../WizardStepIdentity'
 import { WizardStepModelDownload } from '../WizardStepModelDownload'
 import { WizardStepOllamaSetup } from '../WizardStepOllamaSetup'
 import { WizardStepWelcome } from '../WizardStepWelcome'
@@ -43,9 +44,10 @@ function createStepProps() {
 }
 
 describe('WIZARD_STEP_REGISTRY invariants', () => {
-  it('contains exactly the four V1 entries in canonical order', () => {
+  it('contains exactly the five V1 entries in canonical order', () => {
     expect(WIZARD_STEP_REGISTRY.map((entry) => entry.id)).toEqual([
       'welcome',
+      'agent_identity',
       'ollama-setup',
       'model-download',
       'confirmation',
@@ -57,9 +59,9 @@ describe('WIZARD_STEP_REGISTRY invariants', () => {
     expect(ids).not.toContain('role-assignment')
   })
 
-  it('does not include an identity entry (added by SP 1.4)', () => {
+  it('includes the agent_identity entry (added by SP 1.4)', () => {
     const ids = WIZARD_STEP_REGISTRY.map((entry) => entry.id)
-    expect(ids).not.toContain('identity')
+    expect(ids).toContain('agent_identity')
   })
 
   it('advertises the correct skippable flags per step', () => {
@@ -68,6 +70,7 @@ describe('WIZARD_STEP_REGISTRY invariants', () => {
     )
     expect(bySkippable).toEqual({
       welcome: false,
+      agent_identity: true,
       'ollama-setup': true,
       'model-download': true,
       confirmation: false,
@@ -79,6 +82,7 @@ describe('WIZARD_STEP_REGISTRY invariants', () => {
       WIZARD_STEP_REGISTRY.map((entry) => [entry.id, entry.component] as const),
     )
     expect(byComponent.welcome).toBe(WizardStepWelcome)
+    expect(byComponent.agent_identity).toBe(WizardStepIdentity)
     expect(byComponent['ollama-setup']).toBe(WizardStepOllamaSetup)
     expect(byComponent['model-download']).toBe(WizardStepModelDownload)
     expect(byComponent.confirmation).toBe(WizardStepConfirmation)
