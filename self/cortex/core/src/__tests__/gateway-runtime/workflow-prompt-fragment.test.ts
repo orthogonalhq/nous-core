@@ -36,4 +36,13 @@ describe('WORKFLOW_PROMPT_FRAGMENT — content contract', () => {
     expect(typeof WORKFLOW_PROMPT_FRAGMENT).toBe('string');
     expect(WORKFLOW_PROMPT_FRAGMENT.length).toBeGreaterThan(100);
   });
+
+  // ── SP 1.15 RC-4 — tool-result-recognition anchor ──
+  it('SP 1.15 RC-4 — contains the **Tool results:** anchor', () => {
+    expect(WORKFLOW_PROMPT_FRAGMENT).toContain('**Tool results:**');
+  });
+
+  it('SP 1.15 RC-4 — contains the load-bearing semantic ("Treat this as the answer to your call")', () => {
+    expect(WORKFLOW_PROMPT_FRAGMENT).toContain('Treat this as the answer to your call');
+  });
 });

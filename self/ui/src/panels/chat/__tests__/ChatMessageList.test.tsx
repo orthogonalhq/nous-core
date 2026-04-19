@@ -194,3 +194,50 @@ describe('ChatMessageList — edge cases', () => {
     expect(container).toBeTruthy()
   })
 })
+
+// ---------------------------------------------------------------------------
+// SP 1.15 RC-1 — Thinking disclosure auto-open behavior
+// ---------------------------------------------------------------------------
+
+describe('ChatMessageList — empty_response_kind auto-open (SP 1.15 RC-1)', () => {
+  it('renders <details open> when message.empty_response_kind is set and thinkingContent is present', () => {
+    mockSplit.mockReturnValue([{ type: 'text', content: 'marker text' }])
+    const messages = [
+      makeMessage('assistant', 'marker text', {
+        thinkingContent: 'I considered options.',
+        empty_response_kind: 'thinking_only_no_finalizer',
+      }),
+    ]
+    const { container } = renderList(messages)
+    const detailsEl = container.querySelector('details') as HTMLDetailsElement | null
+    expect(detailsEl).not.toBeNull()
+    expect(detailsEl!.open).toBe(true)
+  })
+
+  it('regression — <details> is closed (open=false) when empty_response_kind is undefined', () => {
+    mockSplit.mockReturnValue([{ type: 'text', content: 'normal reply' }])
+    const messages = [
+      makeMessage('assistant', 'normal reply', {
+        thinkingContent: 'Some background reasoning.',
+      }),
+    ]
+    const { container } = renderList(messages)
+    const detailsEl = container.querySelector('details') as HTMLDetailsElement | null
+    expect(detailsEl).not.toBeNull()
+    expect(detailsEl!.open).toBe(false)
+  })
+
+  it('renders no <details> element when empty_response_kind is set but thinkingContent is absent', () => {
+    // Disclosure exists only when there is thinking content. Guards against
+    // a false-positive open on no-content.
+    mockSplit.mockReturnValue([{ type: 'text', content: 'marker text' }])
+    const messages = [
+      makeMessage('assistant', 'marker text', {
+        empty_response_kind: 'no_output_at_all',
+      }),
+    ]
+    const { container } = renderList(messages)
+    const detailsEl = container.querySelector('details')
+    expect(detailsEl).toBeNull()
+  })
+})

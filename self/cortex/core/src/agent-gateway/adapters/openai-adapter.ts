@@ -38,11 +38,15 @@ export function createOpenAiAdapter(): ProviderAdapter {
             };
           }
           // Tool result with tool_call_id metadata → OpenAI tool result message
+          // SP 1.15 RC-3 — symmetric with ollama-adapter; `name` is included
+          // when the frame carries it so the model can recognize which tool
+          // returned the result.
           if (frame.role === 'tool' && frame.metadata?.tool_call_id) {
             return {
               role: 'tool' as const,
               content: frame.content,
               tool_call_id: frame.metadata.tool_call_id as string,
+              ...(frame.name ? { name: frame.name } : {}),
             };
           }
           return {

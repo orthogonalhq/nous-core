@@ -39,7 +39,7 @@ import type {
   PromptFormatterInput,
   ProviderVendor,
 } from '@nous/shared';
-import { GatewayContextFrameSchema } from '@nous/shared';
+import { EMPTY_RESPONSE_MARKER, GatewayContextFrameSchema, type EmptyResponseKind } from '@nous/shared';
 import { AgentGatewayFactory, createInboxFrame } from '../agent-gateway/index.js';
 import {
   createInternalMcpSurfaceBundle,
@@ -613,6 +613,7 @@ implements IPrincipalSystemGatewayRuntime, ISystemInboxSubmissionService {
       sessionId,
       scope,
       cards,
+      resolved.empty_response_kind,
     );
 
     return {
@@ -621,6 +622,7 @@ implements IPrincipalSystemGatewayRuntime, ISystemInboxSubmissionService {
       contentType: resolved.contentType,
       thinkingContent: resolved.thinkingContent,
       ...(cards && cards.length > 0 ? { cards } : {}),
+      ...(resolved.empty_response_kind ? { empty_response_kind: resolved.empty_response_kind } : {}),
     };
   }
 
@@ -860,13 +862,18 @@ implements IPrincipalSystemGatewayRuntime, ISystemInboxSubmissionService {
     return result;
   }
 
-  private resolveChatResponse(result: AgentResult): { response: string; contentType: 'text' | 'openui'; thinkingContent?: string } {
+  private resolveChatResponse(result: AgentResult): { response: string; contentType: 'text' | 'openui'; thinkingContent?: string; empty_response_kind?: EmptyResponseKind } {
     if (result.status === 'completed') {
-      const output = result.output as { response?: unknown; output?: unknown; contentType?: unknown; thinkingContent?: unknown } | string;
+      const output = result.output as { response?: unknown; output?: unknown; contentType?: unknown; thinkingContent?: unknown; empty_response_kind?: unknown } | string;
 
       // Extract thinkingContent from structured output (undefined for direct-string outputs)
       const thinkingContent = (typeof output === 'object' && output !== null && typeof output.thinkingContent === 'string')
         ? output.thinkingContent
+        : undefined;
+
+      // SP 1.15 RC-1 — extract the empty-loop discriminator if the gateway set it.
+      const empty_response_kind = (typeof output === 'object' && output !== null && typeof output.empty_response_kind === 'string')
+        ? output.empty_response_kind as EmptyResponseKind
         : undefined;
 
       // 1. Direct string — use as-is
@@ -875,7 +882,12 @@ implements IPrincipalSystemGatewayRuntime, ISystemInboxSubmissionService {
       // 2. { response: string } — extract .response
       if (typeof output?.response === 'string') {
         const ct = output.contentType === 'openui' ? 'openui' as const : 'text' as const;
-        return { response: output.response, contentType: ct, thinkingContent };
+        return {
+          response: output.response,
+          contentType: ct,
+          thinkingContent,
+          ...(empty_response_kind ? { empty_response_kind } : {}),
+        };
       }
 
       // 3. Recursive one-level unwrap: { output: { response: string } }
@@ -929,6 +941,15 @@ implements IPrincipalSystemGatewayRuntime, ISystemInboxSubmissionService {
       }));
     }
     for (const entry of stmContext.entries ?? []) {
+      // SP 1.15 RC-1 — SKIP STM entries tagged with `empty_response_kind`.
+      // EMPTY_RESPONSE_MARKER is a UX signal, not model context. Including
+      // it in next-turn context would poison reasoning with our own
+      // boilerplate text. The metadata tag is preserved so this policy is
+      // reversible if BT R8 evidence shows a coherence regression.
+      const meta = (entry as { metadata?: Record<string, unknown> }).metadata;
+      if (meta && typeof meta.empty_response_kind === 'string') {
+        continue;
+      }
       frames.push(GatewayContextFrameSchema.parse({
         role: entry.role,
         source: 'initial_context',
@@ -950,6 +971,7 @@ implements IPrincipalSystemGatewayRuntime, ISystemInboxSubmissionService {
     sessionId?: string,
     scope?: string,
     cards?: Array<{ type: string; props: Record<string, unknown> }>,
+    emptyResponseKind?: EmptyResponseKind,
   ): Promise<void> {
     if (!projectId || !this.deps.stmStore) return;
 
@@ -964,15 +986,21 @@ implements IPrincipalSystemGatewayRuntime, ISystemInboxSubmissionService {
         timestamp,
         ...(Object.keys(userMetadata).length > 0 ? { metadata: userMetadata } : {}),
       });
+      // SP 1.15 RC-1 — when the empty-loop guard fired upstream, the STM
+      // entry stores EMPTY_RESPONSE_MARKER as content and tags the metadata
+      // so buildChatContextFrames can SKIP it on the next turn (avoids
+      // marker-text bleeding into model context).
+      const assistantContent = emptyResponseKind ? EMPTY_RESPONSE_MARKER : assistantResponse;
       const assistantMetadata: Record<string, unknown> = {};
       if (contentType && contentType !== 'text') assistantMetadata.contentType = contentType;
       if (thinkingContent) assistantMetadata.thinkingContent = thinkingContent;
       if (sessionId) assistantMetadata.sessionId = sessionId;
       if (scope) assistantMetadata.scope = scope;
       if (cards && cards.length > 0) assistantMetadata.cards = cards;
+      if (emptyResponseKind) assistantMetadata.empty_response_kind = emptyResponseKind;
       const entry: { role: 'assistant'; content: string; timestamp: string; metadata?: Record<string, unknown> } = {
         role: 'assistant',
-        content: assistantResponse,
+        content: assistantContent,
         timestamp,
         ...(Object.keys(assistantMetadata).length > 0 ? { metadata: assistantMetadata } : {}),
       };

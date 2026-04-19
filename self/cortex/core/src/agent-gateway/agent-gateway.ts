@@ -2,6 +2,7 @@ import { randomUUID } from 'node:crypto';
 import {
   AgentInputSchema,
   AgentResultSchema,
+  EMPTY_RESPONSE_MARKER,
   GatewayContextFrameSchema,
   NousError,
   ValidationError,
@@ -9,7 +10,9 @@ import {
   type AgentGatewayConfig,
   type AgentInput,
   type AgentResult,
+  type ChatAgentOutput,
   type CriticalActionCategory,
+  type EmptyResponseKind,
   type GatewayBudgetExhaustionReason,
   type GatewayContextFrame,
   type DispatchOrchestratorRequest,
@@ -368,8 +371,15 @@ export class AgentGateway implements IAgentGateway {
         // responses. Without this guard, an empty response with zero tool
         // calls loops forever (BT Round 1, RC-1).
         if (parsedOutput.toolCalls.length === 0) {
+          let emptyResponseKind: EmptyResponseKind | undefined;
           if (!parsedOutput.response.trim()) {
-            this.log.warn('empty model response with no tool calls — exiting loop', { agentClass: this.agentClass });
+            // SP 1.15 RC-1 — derive the empty-exit discriminator so the
+            // user-facing surface gets EMPTY_RESPONSE_MARKER + a typed
+            // signal instead of a silent assistant bubble.
+            emptyResponseKind = parsedOutput.thinkingContent && parsedOutput.thinkingContent.trim().length > 0
+              ? 'thinking_only_no_finalizer'
+              : 'no_output_at_all';
+            this.log.warn('empty model response with no tool calls — exiting loop', { agentClass: this.agentClass, emptyResponseKind });
           } else {
             this.log.debug('conversational exit (no tool calls)', { agentClass: this.agentClass });
           }
@@ -378,6 +388,7 @@ export class AgentGateway implements IAgentGateway {
             this.buildSingleTurnResult(
               parsedOutput, sequencer, budgetTracker, evidenceRefs,
               validInput, context.length, startedAt,
+              emptyResponseKind,
             ),
             'gateway:completed',
             traceId,
@@ -1478,17 +1489,30 @@ export class AgentGateway implements IAgentGateway {
     input: AgentInput,
     contextLength: number,
     startedAt: string,
+    emptyResponseKind?: EmptyResponseKind,
   ): AgentResult {
     const now = this.now();
     const nowMs = this.nowMs();
     const correlation = sequencer.snapshot();
+    // SP 1.15 RC-1 — when the empty-loop guard fires, the user-visible output
+    // carries EMPTY_RESPONSE_MARKER + the discriminator. The witness packet
+    // (v3Packet.payload.data.response) keeps the raw model output so the
+    // witness's view of "what the model actually emitted" is unchanged.
+    const baseOutput: ChatAgentOutput = emptyResponseKind
+      ? {
+          response: EMPTY_RESPONSE_MARKER,
+          contentType: parsedOutput.contentType,
+          thinkingContent: parsedOutput.thinkingContent,
+          empty_response_kind: emptyResponseKind,
+        }
+      : {
+          response: parsedOutput.response,
+          contentType: parsedOutput.contentType,
+          thinkingContent: parsedOutput.thinkingContent,
+        };
     return AgentResultSchema.parse({
       status: 'completed' as const,
-      output: {
-        response: parsedOutput.response,
-        contentType: parsedOutput.contentType,
-        thinkingContent: parsedOutput.thinkingContent,
-      },
+      output: baseOutput,
       v3Packet: {
         nous: { v: 3 as const },
         route: {

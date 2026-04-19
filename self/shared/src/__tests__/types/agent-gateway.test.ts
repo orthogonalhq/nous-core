@@ -6,6 +6,8 @@ import {
   DispatchIntentSchema,
   DispatchOrchestratorRequestSchema,
   DispatchWorkerRequestSchema,
+  EMPTY_RESPONSE_MARKER,
+  EmptyResponseKindSchema,
   GatewayInboxMessageSchema,
   GatewayOutboxEventSchema,
   GatewayStampedPacketSchema,
@@ -547,6 +549,31 @@ describe('DispatchOrchestratorRequestSchema', () => {
       targetClass: 'Orchestrator',
     });
     expect(result.success).toBe(false);
+  });
+});
+
+describe('EMPTY_RESPONSE_MARKER (SP 1.15 RC-1)', () => {
+  it('pins the literal marker text — drift-detector for the user-visible string', () => {
+    // If this test fails, the constant text changed. Update consumers via the
+    // import (single source of truth); never edit the importers directly.
+    expect(EMPTY_RESPONSE_MARKER).toBe(
+      '[I produced reasoning but did not finalize a response. Click Thinking to view what I was working on, or rephrase your request.]',
+    );
+  });
+});
+
+describe('EmptyResponseKindSchema (SP 1.15 RC-1)', () => {
+  it('accepts both discriminator branches', () => {
+    expect(EmptyResponseKindSchema.safeParse('thinking_only_no_finalizer').success).toBe(true);
+    expect(EmptyResponseKindSchema.safeParse('no_output_at_all').success).toBe(true);
+  });
+
+  it('rejects any other string', () => {
+    expect(EmptyResponseKindSchema.safeParse('').success).toBe(false);
+    expect(EmptyResponseKindSchema.safeParse('thinking_only').success).toBe(false);
+    expect(EmptyResponseKindSchema.safeParse('partial_finalizer').success).toBe(false);
+    expect(EmptyResponseKindSchema.safeParse(null).success).toBe(false);
+    expect(EmptyResponseKindSchema.safeParse(undefined).success).toBe(false);
   });
 });
 

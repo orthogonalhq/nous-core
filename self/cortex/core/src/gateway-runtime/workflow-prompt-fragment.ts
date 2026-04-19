@@ -13,6 +13,8 @@ You have access to workflow tools. Here is how to use them.
 ### Read-Only Tools (call these directly)
 **Important:** Call these tools by their exact registered name. Do not prefix or suffix the name (e.g., \`workflow_list\` is correct; \`workflow_manager.list_workflows\` is wrong).
 
+**Tool results:** When a tool you dispatched returns its result, the conversation will contain a \`tool\` message with the structured output. Treat this as the answer to your call and use it to compose your reply to the user. Do not ignore it or claim you have not received the information.
+
 - **workflow_list**: List installed workflow definitions and active runs for the current project. Use when the user asks "what workflows do I have?", "show my workflows", or similar.
 - **workflow_inspect**: Get detailed information about a specific workflow definition. Use when the user asks about a particular workflow's structure or configuration.
 - **workflow_status**: Check the status of a running workflow. Use when the user asks "how is my workflow going?", "is it done?", or similar.

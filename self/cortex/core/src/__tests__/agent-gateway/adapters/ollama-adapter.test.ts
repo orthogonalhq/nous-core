@@ -242,6 +242,55 @@ describe('createOllamaAdapter', () => {
       expect(messages[1]).toEqual({ role: 'user', content: 'tool output' });
     });
 
+    it('SP 1.15 RC-3 — includes `name` on tool result message when frame.name is set', () => {
+      const adapter = createOllamaAdapter('gemma4:12b');
+      const result = adapter.formatRequest({
+        systemPrompt: 'prompt',
+        context: [
+          {
+            role: 'tool' as const,
+            content: 'workflow listing',
+            source: 'tool_result' as const,
+            createdAt: new Date().toISOString(),
+            name: 'workflow_list',
+            metadata: { tool_call_id: 'call_xyz' },
+          },
+        ],
+      });
+      const input = result.input as Record<string, unknown>;
+      const messages = input.messages as Array<Record<string, unknown>>;
+      expect(messages[1]).toEqual({
+        role: 'tool',
+        content: 'workflow listing',
+        tool_call_id: 'call_xyz',
+        name: 'workflow_list',
+      });
+    });
+
+    it('SP 1.15 RC-3 — backwards-compat regression: omits `name` when frame.name is undefined', () => {
+      const adapter = createOllamaAdapter('gemma4:12b');
+      const result = adapter.formatRequest({
+        systemPrompt: 'prompt',
+        context: [
+          {
+            role: 'tool' as const,
+            content: 'no-name result',
+            source: 'tool_result' as const,
+            createdAt: new Date().toISOString(),
+            metadata: { tool_call_id: 'call_xyz' },
+          },
+        ],
+      });
+      const input = result.input as Record<string, unknown>;
+      const messages = input.messages as Array<Record<string, unknown>>;
+      expect(messages[1]).toEqual({
+        role: 'tool',
+        content: 'no-name result',
+        tool_call_id: 'call_xyz',
+      });
+      expect(messages[1]).not.toHaveProperty('name');
+    });
+
     it('emits tool_calls array on assistant message with metadata.tool_calls', () => {
       const adapter = createOllamaAdapter('gemma4:12b');
       const result = adapter.formatRequest({
