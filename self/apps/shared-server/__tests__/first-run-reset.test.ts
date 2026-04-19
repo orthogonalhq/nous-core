@@ -6,7 +6,7 @@
 // `self/apps/shared-server/__tests__/first-run-reset.test.ts` for
 // compatibility (deviation from the plan's `src/__tests__/trpc/...` path
 // documented in the Completion Report).
-import { afterEach, beforeEach, describe, expect, it } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { mkdirSync, rmSync, writeFileSync, readFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { tmpdir } from 'node:os';
@@ -166,5 +166,60 @@ describe('firstRun.resetWizard (SP 1.3 — Decision 7 Option B)', () => {
     expect(scaffold.config.getUserProfile()).toEqual({
       displayName: 'Test User',
     });
+  });
+});
+
+// SP 1.6 — Reset reissue tests (T20-T21 per SDS § 9.4).
+//
+// Asserts that the SP 1.3 reset path clears `welcomeMessageSent` and that a
+// subsequent `fireWelcomeIfUnsent` call composes a fresh welcome and sets
+// the flag again. SP 1.6 makes ZERO edits to `firstRun.resetWizard` /
+// `clearAgentBlock` — these tests document the cross-sub-phase carry-forward
+// semantic that SP 1.6 depends on.
+describe('SP 1.6 — reset reissue (welcome re-fires after wizard reset)', () => {
+  it('T20 firstRun.resetWizard clears welcomeMessageSent (returns false on next read)', async () => {
+    const scaffold = createScaffoldWithProviders();
+    const caller = firstRunRouter.createCaller(makeContext(scaffold));
+
+    // Pre-state: the scaffold seeds `welcomeMessageSent: true`.
+    expect(scaffold.config.getWelcomeMessageSent()).toBe(true);
+
+    await caller.resetWizard();
+
+    expect(scaffold.config.getWelcomeMessageSent()).toBe(false);
+  });
+
+  it('T21 post-reset, fireWelcomeIfUnsent composes a fresh welcome and sets the flag', async () => {
+    const scaffold = createScaffoldWithProviders();
+    const caller = firstRunRouter.createCaller(makeContext(scaffold));
+
+    await caller.resetWizard();
+    expect(scaffold.config.getWelcomeMessageSent()).toBe(false);
+
+    // Drive the coordinator with a stub gateway runtime + STM store so we
+    // can assert end-to-end that flag-cleared state results in a fresh
+    // welcome composition + flag write. We invoke the coordinator directly
+    // (avoiding tRPC wiring) — the chat router test covers the wire path
+    // separately (chat-fire-welcome.test.ts T11).
+    const handleChatTurn = vi
+      .fn()
+      .mockResolvedValue({ response: 'Welcome back.', traceId: 'tr-reset', contentType: 'text' });
+    const append = vi.fn().mockResolvedValue(undefined);
+
+    const { fireWelcomeIfUnsent } = await import('../src/welcome/welcome-coordinator.js');
+
+    const result = await fireWelcomeIfUnsent(
+      {
+        gatewayRuntime: { handleChatTurn } as unknown as Parameters<typeof fireWelcomeIfUnsent>[0]['gatewayRuntime'],
+        configManager: scaffold.config,
+        stmStore: { append } as unknown as Parameters<typeof fireWelcomeIfUnsent>[0]['stmStore'],
+      },
+      { projectId: 'aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa' },
+    );
+
+    expect(handleChatTurn).toHaveBeenCalledTimes(1);
+    expect(append).toHaveBeenCalledTimes(1);
+    expect(result.welcomeFired).toBe(true);
+    expect(scaffold.config.getWelcomeMessageSent()).toBe(true);
   });
 });
