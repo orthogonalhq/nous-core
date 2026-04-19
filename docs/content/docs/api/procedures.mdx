@@ -12,13 +12,14 @@ description: Reference for all tRPC procedures
 | `projects.list` | query | — | `ProjectConfig[]` |
 | `projects.create` | mutation | `{ name, type? }` | `ProjectConfig` |
 | `projects.get` | query | `{ id: ProjectId }` | `ProjectConfig \| null` |
-| `projects.update` | mutation | `{ id, updates: { name?, pfcTier?, modelAssignments? } }` | — |
 | `projects.workflowSnapshot` | query | `{ projectId, runId? }` | `ProjectWorkflowSurfaceSnapshot` |
 | `projects.workflowVisualDebugSnapshot` | query | `{ projectId, runId? }` | `WorkflowVisualDebugSnapshot` |
 | `projects.workflowNodeInspect` | query | `{ projectId, runId?, nodeDefinitionId }` | `WorkflowNodeInspectProjection` |
 | `projects.dashboardSnapshot` | query | `{ projectId }` | `ProjectDashboardSnapshot` |
 | `projects.configurationSnapshot` | query | `{ projectId }` | `ProjectConfigurationSnapshot` |
 | `projects.updateConfiguration` | mutation | `ProjectConfigurationUpdateInput` | `ProjectConfigurationSnapshot` |
+| `projects.archive` | mutation | `{ projectId: ProjectId }` | `ProjectConfig` |
+| `projects.unarchive` | mutation | `{ projectId: ProjectId }` | `ProjectConfig` |
 | `projects.upsertSchedule` | mutation | `ScheduleUpsertInput` | `ScheduleDefinition` |
 | `projects.validateWorkflowDefinition` | mutation | `{ projectId, workflowDefinition }` | `WorkflowDefinitionValidationResult` |
 | `projects.saveWorkflowDefinition` | mutation | `{ projectId, workflowDefinition, setAsDefault? }` | `{ project, validation }` |
@@ -33,6 +34,9 @@ description: Reference for all tRPC procedures
 - `projects.configurationSnapshot` — Returns the current project configuration, schedule records, blocked actions, and field provenance.
 - `projects.updateConfiguration` — Applies governed project-configuration changes.
   - Rejects stale writes with `CONFLICT` when `expectedUpdatedAt` no longer matches the stored project.
+  - Accepts `updates` and `resetFields` as siblings; the handler applies `updates` first, drops every field named in `resetFields` from the stored overrides, then re-emits `buildConfigurationSnapshot`. Envelopes where a field appears in both `updates` and `resetFields` are rejected at the tRPC boundary as ambiguous intent.
+- `projects.archive` — Archives a project (flips `status` to `archived`). Opctl-gated through `archive_project`; blocked under `hard_stopped` and `resuming` control states. Returns the updated `ProjectConfig`.
+- `projects.unarchive` — Restores an archived project (flips `status` to `active`). Not opctl-gated in V1 (archived projects have no runtime activity to gate). Returns the updated `ProjectConfig`.
 - `projects.upsertSchedule` — Creates or updates a schedule bound to canonical workflow and workmode truth.
   - Returns `BAD_REQUEST` when the project has no canonical workflow definition and the caller does not supply `workflowDefinitionId`.
 - `projects.validateWorkflowDefinition` — Validates a workflow draft on the server without persisting it.
