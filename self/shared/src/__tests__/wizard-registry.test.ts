@@ -75,8 +75,8 @@ describe('wizard-registry — manifest / schema', () => {
     // `markStepComplete(dataDir, 'agent_identity')` legally. The renderer
     // registry row lands in SP 1.4.
     expect(FIRST_RUN_STEP_VALUES).toEqual([
-      'ollama_check',
       'agent_identity',
+      'ollama_check',
       'model_download',
       'provider_config',
       'role_assignment',
