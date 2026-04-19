@@ -13,6 +13,21 @@ const DEFAULT_OLLAMA_BASE_URL = 'http://localhost:11434';
 const OLLAMA_DETECTION_TIMEOUT_MS = 3000;
 const OLLAMA_COMMAND_TIMEOUT_MS = 8000;
 
+// SP 1.5 — anonymous registry availability check (Decision 5,
+// model-search-approach-v1). The HEAD request to the public Ollama library
+// page is the canonical Stage B network call; the timeout matches the
+// existing detection-call precedent.
+export const REGISTRY_AVAILABILITY_TIMEOUT_MS = 3000;
+// SP 1.5 — TTL for the per-spec session cache. A 30-minute window bounds
+// stale-state blast radius from a single bad-answer registry response while
+// keeping mount-time fan-out cheap on rapid wizard re-renders.
+export const REGISTRY_AVAILABILITY_CACHE_TTL_MS = 30 * 60 * 1000;
+const REGISTRY_AVAILABILITY_BASE_URL = 'https://ollama.com/library';
+// Single source of truth for the Nous-version segment of the User-Agent
+// header used by `checkRegistryAvailability`. Bound by SP 1.5 SDS § 5
+// security posture (User-Agent is a public release marker; non-PII).
+const REGISTRY_AVAILABILITY_USER_AGENT_VERSION = '0.0.0';
+
 export const OllamaLifecycleStateSchema = z.enum([
   'not_installed',
   'installed_stopped',
@@ -500,4 +515,168 @@ export async function pullOllamaModel(
   if (!sawSuccess) {
     throw new Error(`Ollama model pull for "${request.model}" ended before reporting success.`);
   }
+}
+
+/**
+ * Result of a single registry availability check (SP 1.5 / Decision 5).
+ *
+ * `'pending'` is intentionally NOT part of this enum — the helper resolves
+ * synchronously into one of the three terminal states. The renderer-facing
+ * `ValidationState` enum (in `hardware-detection.ts`) adds `'pending'` for
+ * display purposes (default + in-flight render).
+ */
+export const RegistryAvailabilityStateSchema = z.enum([
+  'validated',
+  'unavailable',
+  'offline',
+]);
+export type RegistryAvailabilityState = z.infer<
+  typeof RegistryAvailabilityStateSchema
+>;
+
+type RegistryAvailabilityCacheEntry = {
+  state: RegistryAvailabilityState;
+  cachedAt: number;
+};
+
+const registryAvailabilityCache = new Map<
+  string,
+  RegistryAvailabilityCacheEntry
+>();
+
+function getCachedAvailability(
+  modelSpec: string,
+  now = Date.now(),
+): RegistryAvailabilityState | null {
+  const entry = registryAvailabilityCache.get(modelSpec);
+  if (!entry) {
+    return null;
+  }
+  if (now - entry.cachedAt > REGISTRY_AVAILABILITY_CACHE_TTL_MS) {
+    registryAvailabilityCache.delete(modelSpec);
+    return null;
+  }
+  return entry.state;
+}
+
+function setCachedAvailability(
+  modelSpec: string,
+  state: RegistryAvailabilityState,
+  now = Date.now(),
+): void {
+  registryAvailabilityCache.set(modelSpec, { state, cachedAt: now });
+}
+
+/**
+ * Test-only hook for resetting the per-spec session cache. Production code
+ * MUST NOT call this — the cache is process-scoped by design (SDS § 3.4).
+ */
+export function __resetRegistryAvailabilityCacheForTesting(): void {
+  registryAvailabilityCache.clear();
+}
+
+/**
+ * Stage A — well-formedness check. Returns the bare Ollama model id when the
+ * spec parses as `ollama:<modelId>`, otherwise `null`.
+ *
+ * Inlined (not imported from `bootstrap.ts`) to keep `ollama-detection.ts`
+ * free of upward dependencies on the bootstrap module. The parsing rules
+ * mirror `bootstrap.ts::parseSelectedModelSpec` for the ollama-provider arm:
+ * the spec must contain a colon, the prefix must be `ollama`, and the
+ * remainder (the modelId) must be non-empty.
+ */
+function parseOllamaModelSpec(
+  spec: string | null | undefined,
+): string | null {
+  if (typeof spec !== 'string' || spec.length === 0) {
+    return null;
+  }
+  const [provider, ...modelParts] = spec.split(':');
+  const modelId = modelParts.join(':');
+  if (provider !== 'ollama' || modelId.length === 0) {
+    return null;
+  }
+  return modelId;
+}
+
+function isAbortError(error: unknown): boolean {
+  if (typeof error !== 'object' || error === null) {
+    return false;
+  }
+  const name = (error as { name?: unknown }).name;
+  return name === 'AbortError' || name === 'TimeoutError';
+}
+
+/**
+ * Anonymous, non-PII registry availability check for a single Ollama model
+ * spec (SP 1.5 / Decision 5 — model-search-approach-v1).
+ *
+ * Two stages:
+ *
+ * 1. **Stage A — well-formedness.** Parses the spec inline. Empty,
+ *    malformed, or non-ollama specs short-circuit to `'unavailable'` with
+ *    no network call.
+ * 2. **Stage B — anonymous HEAD probe.** Issues a HEAD request to
+ *    `https://ollama.com/library/<modelId>` with a fixed allowed-header set
+ *    (`Accept` set to wildcard, `User-Agent` set to `Nous/<version>`), no
+ *    request body, no cookies, and a `signal: AbortSignal.timeout(...)`
+ *    deadline. Maps the response per Decision 5: 2xx → `'validated'`,
+ *    404 → `'unavailable'`, timeout / DNS / network / 5xx → `'offline'`.
+ *
+ * Results are cached per `modelSpec` for {@link
+ * REGISTRY_AVAILABILITY_CACHE_TTL_MS} milliseconds. The cache is process-
+ * scoped (cleared by process restart) — see SDS § 3.4 for rationale.
+ *
+ * Never throws.
+ */
+export async function checkRegistryAvailability(
+  modelSpec: string,
+): Promise<RegistryAvailabilityState> {
+  const cached = getCachedAvailability(modelSpec);
+  if (cached !== null) {
+    console.info(
+      `[nous:first-run] validation: ${modelSpec} -> ${cached} (cached)`,
+    );
+    return cached;
+  }
+
+  const modelId = parseOllamaModelSpec(modelSpec);
+  if (modelId === null) {
+    setCachedAvailability(modelSpec, 'unavailable');
+    console.info(
+      `[nous:first-run] validation: ${modelSpec} -> unavailable (fetched)`,
+    );
+    return 'unavailable';
+  }
+
+  const url = `${REGISTRY_AVAILABILITY_BASE_URL}/${modelId}`;
+  let state: RegistryAvailabilityState;
+  try {
+    const response = await fetch(url, {
+      method: 'HEAD',
+      headers: {
+        Accept: '*/*',
+        'User-Agent': `Nous/${REGISTRY_AVAILABILITY_USER_AGENT_VERSION}`,
+      },
+      signal: AbortSignal.timeout(REGISTRY_AVAILABILITY_TIMEOUT_MS),
+    });
+
+    if (response.status === 404) {
+      state = 'unavailable';
+    } else if (response.status >= 200 && response.status < 300) {
+      state = 'validated';
+    } else {
+      // 5xx and other unexpected statuses are treated as transient registry
+      // unavailability — the user's offer is preserved (graceful degradation).
+      state = 'offline';
+    }
+  } catch (error) {
+    state = isAbortError(error) ? 'offline' : 'offline';
+  }
+
+  setCachedAvailability(modelSpec, state);
+  console.info(
+    `[nous:first-run] validation: ${modelSpec} -> ${state} (fetched)`,
+  );
+  return state;
 }
