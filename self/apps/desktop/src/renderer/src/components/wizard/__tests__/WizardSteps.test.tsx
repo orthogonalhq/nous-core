@@ -6,6 +6,7 @@ import {
   createFirstRunState,
   createPrerequisites,
 } from '../../../test-setup'
+import { FIRST_RUN_STEP_VALUES } from '@nous/shared'
 import { WIZARD_STEP_REGISTRY } from '../registry'
 import { WizardStepConfirmation } from '../WizardStepConfirmation'
 import { WizardStepIdentity } from '../WizardStepIdentity'
@@ -928,5 +929,22 @@ describe('SP 1.5 — WizardStepModelDownload validation indicators', () => {
       | { steps?: { role_assignment?: { status?: string } } }
       | undefined
     expect(lastCall?.steps?.role_assignment?.status).toBe('complete')
+  })
+})
+
+// SP 1.7 Fix #11 — cross-package order invariant. The renderer registry's
+// user-facing flow order, when reflected through `backendStep` (skipping
+// nulls) and any `extraBackendSteps`, MUST equal `FIRST_RUN_STEP_VALUES`.
+// This codifies ADR 022 — renderer registry is the canonical user-facing
+// flow; the backend manifest tuple order mirrors it. Any future drift
+// (e.g., a sub-phase reorders one surface but forgets the other) fails
+// this assertion.
+describe('cross-package order invariant', () => {
+  it('renderer registry order, reflected through backendStep, matches FIRST_RUN_STEP_VALUES', () => {
+    const derived = WIZARD_STEP_REGISTRY.flatMap((entry) => [
+      ...(entry.backendStep ? [entry.backendStep] : []),
+      ...(entry.extraBackendSteps ?? []),
+    ])
+    expect(derived).toEqual([...FIRST_RUN_STEP_VALUES])
   })
 })
