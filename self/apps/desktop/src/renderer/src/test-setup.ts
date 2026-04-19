@@ -36,6 +36,7 @@ export const DEFAULT_WIZARD_STATE: FirstRunState = {
   complete: false,
   steps: {
     ollama_check: { status: 'pending' },
+    agent_identity: { status: 'pending' },
     model_download: { status: 'pending' },
     provider_config: { status: 'pending' },
     role_assignment: { status: 'pending' },

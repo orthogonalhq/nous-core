@@ -35,6 +35,7 @@ import {
   type WizardStepDefinition,
 } from '@nous/shared'
 import { confirmationStep } from './steps/confirmation'
+import { identityStep } from './steps/identity'
 import { modelDownloadStep } from './steps/model-download'
 import { ollamaSetupStep } from './steps/ollama-setup'
 import { welcomeStep } from './steps/welcome'
@@ -46,6 +47,7 @@ export type { WizardStepDefinition }
 
 export const WIZARD_STEP_REGISTRY = [
   welcomeStep,
+  identityStep,
   ollamaSetupStep,
   modelDownloadStep,
   confirmationStep,

@@ -9,12 +9,27 @@ When you launch Nous for the first time, you'll see a guided flow that helps you
 
 ## First-Run Flow
 
-1. **Welcome** — Introduces Nous and what just happened during installation
-2. **Configuration Review** — Shows model assignments and Cortex tier with sensible defaults
-3. **First Message** — Prompts you to say something to Nous
-4. **Confirmation** — Confirms everything works
+1. **Welcome** — Introduces Nous and what just happened during installation.
+2. **Identity** — Name your agent, optionally choose a personality, and optionally tell Nous a little about yourself. Three short sub-steps: Naming → Personality → Profile. See the [Identity guide](/docs/guides/identity) for details.
+3. **Ollama Setup** — Confirms a local Ollama is reachable and ready (or routes you through installing one).
+4. **Model Download** — Pulls the recommended local model and assigns it to the reasoner role.
+5. **Confirmation** — Confirms everything works and hands you off to the workspace.
 
-The flow completes when you send your first message and receive a response. After that, you're redirected to the main chat interface.
+You can press **Back** at any step to return to the previous one. From the Identity step, Back returns you to Welcome.
+
+## The Identity Step
+
+The Identity step is where the agent becomes *yours*. It's split into three sub-stages with a short fade between them:
+
+- **Naming** — Pick a name for your agent (defaults to "Nous"). The submit button enables once the field is non-empty. There is no Skip on Naming — every agent has a name.
+- **Personality** — Choose one of the four presets (`balanced`, `professional`, `efficient`, `thorough`), optionally open **Advanced Options** to override individual trait axes (`thoroughness`, `initiative`, `candor`, `communicationStyle`, `codeStyle`). You can also press **Skip** to keep the default `balanced` preset and move on.
+- **Profile** — Optionally tell Nous your display name, role, primary use case, and expertise level. A short security disclosure explains that this stays local, is used only to personalize Nous's behavior, and is never sent externally without an explicit action on your part. **Skip** sends an empty profile and continues.
+
+Submit on Profile (or Skip) writes the full identity payload — `{ name, personality, profile }` — to your config in a single batched call. Backend completion of `agent_identity` is recorded only after Profile submits or skips, never partway through.
+
+If your operating system has **Reduce motion** enabled (`prefers-reduced-motion: reduce`), the fade between sub-stages is suppressed and sub-stage swaps happen instantly. Navigation is identical — only the visual transition changes.
+
+For the full walkthrough of preset semantics, advanced overrides, the security disclosure, and the underlying schema, read the [Identity guide](/docs/guides/identity).
 
 ## Skipping First Run
 
@@ -22,10 +37,11 @@ If you already have projects or have completed the first-run flow before, Nous r
 
 ## What Gets Configured
 
-During first run, the installer generates:
+During first run, Nous generates and persists:
 
-- **Default config** — Cortex tier 3, Ollama as the reasoner provider
-- **Storage** — SQLite database in your data directory
-- **Projects** — Empty; create your first project from the sidebar
+- **Default config** — Cortex tier 3, Ollama as the reasoner provider.
+- **Storage** — SQLite database in your data directory.
+- **Projects** — Empty; create your first project from the sidebar.
+- **Agent identity** — Your `name`, `personality`, and `profile` choices land in the `agent` block of `nous-config.json5`. Skipping any step keeps the typed defaults (`"Nous"`, `{ preset: "balanced" }`, `{}`) until you decide otherwise. See [Configuration Schema § Agent](/docs/configuration/config-schema#agent).
 
-You can adjust model assignments and Cortex tier later in the [Configuration](/docs/guides/config) panel.
+You can adjust model assignments and Cortex tier later in the [Configuration](/docs/guides/config) panel. To re-run the wizard from scratch (clearing the entire `agent` block while leaving providers and role assignments intact), call the `firstRun.resetWizard` mutation — see [tRPC Procedures § firstRun](/docs/api/procedures#firstrun).

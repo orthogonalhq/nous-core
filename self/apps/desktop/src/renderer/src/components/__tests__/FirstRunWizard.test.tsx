@@ -348,6 +348,104 @@ describe('FirstRunWizard — registry-driven invariants', () => {
     )
   })
 
+  it('walks the full forward path welcome → agent_identity → ollama-setup (SP 1.4 wiring)', async () => {
+    installMock()
+
+    const afterIdentityState = createFirstRunState({
+      currentStep: 'model_download',
+      steps: {
+        ollama_check: { status: 'complete', completedAt: '2026-04-19T00:00:00.000Z' },
+        agent_identity: { status: 'complete', completedAt: '2026-04-19T00:01:00.000Z' },
+        model_download: { status: 'pending' },
+        provider_config: { status: 'pending' },
+        role_assignment: { status: 'pending' },
+      },
+    })
+
+    trpcFetchMock.trpcMutate.mockImplementation(async (procedure: string) => {
+      if (procedure === 'firstRun.writeIdentity') {
+        return createFirstRunActionResult(afterIdentityState)
+      }
+      return null
+    })
+
+    render(
+      <FirstRunWizard
+        initialState={createFirstRunState({
+          currentStep: 'agent_identity',
+          steps: {
+            ollama_check: { status: 'complete', completedAt: '2026-04-19T00:00:00.000Z' },
+            agent_identity: { status: 'pending' },
+            model_download: { status: 'pending' },
+            provider_config: { status: 'pending' },
+            role_assignment: { status: 'pending' },
+          },
+        })}
+        onComplete={vi.fn()}
+      />,
+    )
+
+    // Sub-stage A — type a name, submit.
+    const nameInput = await screen.findByTestId('identity-name-input')
+    fireEvent.change(nameInput, { target: { value: 'Nia' } })
+    fireEvent.click(screen.getByTestId('identity-name-submit'))
+
+    // Sub-stage B — skip to defaults.
+    fireEvent.click(await screen.findByTestId('identity-personality-skip'))
+
+    // Sub-stage C — skip the profile (still calls writeIdentity per F4 mitigation).
+    fireEvent.click(await screen.findByTestId('identity-profile-skip'))
+
+    await waitFor(() => {
+      expect(trpcFetchMock.trpcMutate).toHaveBeenCalledWith(
+        'firstRun.writeIdentity',
+        expect.objectContaining({
+          name: 'Nia',
+          personality: { preset: 'balanced' },
+          profile: {},
+        }),
+      )
+    })
+
+    // After the writeIdentity call resolves, the wizard advances to model-download.
+    expect(
+      await screen.findByText('Download the local model that fits this machine.'),
+    ).toBeInTheDocument()
+  })
+
+  it('back-navigates from agent_identity to welcome (PREVIOUS_STEP_MAP[agent_identity])', async () => {
+    installMock()
+
+    render(
+      <FirstRunWizard
+        initialState={createFirstRunState({
+          currentStep: 'agent_identity',
+          steps: {
+            ollama_check: { status: 'complete', completedAt: '2026-04-19T00:00:00.000Z' },
+            agent_identity: { status: 'pending' },
+            model_download: { status: 'pending' },
+            provider_config: { status: 'pending' },
+            role_assignment: { status: 'pending' },
+          },
+        })}
+        onComplete={vi.fn()}
+      />,
+    )
+
+    await screen.findByTestId('identity-substage-a')
+
+    // Back button is rendered (previous = welcome).
+    fireEvent.click(screen.getByTestId('wizard-back-button'))
+
+    expect(
+      await screen.findByText('Set up your local runtime in a few guided steps.'),
+    ).toBeInTheDocument()
+  })
+
+  it('PREVIOUS_STEP_MAP wires agent_identity → welcome (SP 1.4 / ADR 021)', () => {
+    expect(PREVIOUS_STEP_MAP.agent_identity).toBe('welcome')
+  })
+
   it('calls onComplete when the confirmation "Open workspace" button is pressed', async () => {
     installMock()
     const onComplete = vi.fn()
