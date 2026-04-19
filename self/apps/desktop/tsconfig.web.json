@@ -14,7 +14,8 @@
     "noEmit": true,
     "baseUrl": ".",
     "paths": {
-      "@nous/shared": ["../../shared/src/index.ts"]
+      "@nous/shared": ["../../shared/src/index.ts"],
+      "@nous/cortex-core/personality": ["../../cortex/core/src/gateway-runtime/personality/index.ts"]
     }
   },
   "include": [
