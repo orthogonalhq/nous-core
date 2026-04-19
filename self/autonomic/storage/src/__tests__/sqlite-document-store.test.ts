@@ -245,4 +245,72 @@ describe('SqliteDocumentStore', () => {
       expect(result).toEqual(doc);
     });
   });
+
+  // --- WR-163 sub-phase 1.2: view_state collection CRUD round-trip ---
+  // Verifies SDS Invariant #9 (no sqlite migration needed) — the new
+  // logical collection name reuses the existing (collection, id) primary
+  // key on the unmigrated documents table.
+  describe('view_state collection (WR-163 sub-phase 1.2)', () => {
+    it('round-trips a ViewStateDocument-shaped record under the view_state collection', async () => {
+      const doc = {
+        userId: 'local',
+        projectId: 'project-1',
+        class: 'layout',
+        payload: { sidebarCollapsed: true },
+        updatedAt: '2026-04-18T00:00:00.000Z',
+      };
+      const id = 'local:project-1:layout';
+
+      await store.put('view_state', id, doc);
+      const fetched = await store.get('view_state', id);
+      expect(fetched).toEqual(doc);
+
+      const deleted = await store.delete('view_state', id);
+      expect(deleted).toBe(true);
+
+      const afterDelete = await store.get('view_state', id);
+      expect(afterDelete).toBeNull();
+    });
+
+    it('isolates documents across (userId, projectId, class) via the composite id', async () => {
+      const base = {
+        userId: 'local',
+        projectId: 'p1',
+        updatedAt: '2026-04-18T00:00:00.000Z',
+      };
+      await store.put('view_state', 'local:p1:layout', {
+        ...base,
+        class: 'layout',
+        payload: { sidebarCollapsed: true },
+      });
+      await store.put('view_state', 'local:p1:focus', {
+        ...base,
+        class: 'focus',
+        payload: { panelFocus: 'chat' },
+      });
+      await store.put('view_state', 'local:p2:layout', {
+        ...base,
+        projectId: 'p2',
+        class: 'layout',
+        payload: { sidebarCollapsed: false },
+      });
+
+      const p1Layout = await store.get<{ payload: { sidebarCollapsed: boolean } }>(
+        'view_state',
+        'local:p1:layout',
+      );
+      const p2Layout = await store.get<{ payload: { sidebarCollapsed: boolean } }>(
+        'view_state',
+        'local:p2:layout',
+      );
+      expect(p1Layout?.payload.sidebarCollapsed).toBe(true);
+      expect(p2Layout?.payload.sidebarCollapsed).toBe(false);
+
+      const p1Focus = await store.get<{ class: string }>(
+        'view_state',
+        'local:p1:focus',
+      );
+      expect(p1Focus?.class).toBe('focus');
+    });
+  });
 });
