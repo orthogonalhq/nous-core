@@ -29,6 +29,7 @@ import {
   deriveBackendStepToWizardStep,
   derivePreviousStepMap,
   deriveWizardStepIds,
+  FIRST_RUN_STEP_VALUES,
   validateWizardRegistry,
   type FirstRunCurrentStep,
   type FirstRunStep,
@@ -44,6 +45,13 @@ import { welcomeStep } from './steps/welcome'
 // this local path if callers prefer a renderer-scoped import graph.
 export { defineWizardStep }
 export type { WizardStepDefinition }
+
+// SP 1.7 Fix #5 — re-export `FIRST_RUN_STEP_VALUES` so renderer-internal
+// orchestrator code (`FirstRunWizard.tsx`) can consume it without taking a
+// new top-level `@nous/shared` import. Keeps the orchestrator's import graph
+// homogeneous (renderer-internal); this registry is the renderer-internal
+// aggregation point for shared-package wizard primitives.
+export { FIRST_RUN_STEP_VALUES }
 
 export const WIZARD_STEP_REGISTRY = [
   welcomeStep,

@@ -145,7 +145,12 @@ export function createDefaultFirstRunState(
   ) as Record<FirstRunStep, FirstRunStepState>;
   return normalizeFirstRunState(
     {
-      currentStep: 'ollama_check',
+      // SP 1.7 Fix #3 — replace dead literal `'ollama_check'` with
+      // `FIRST_RUN_STEP_VALUES[0]`. `normalizeFirstRunState` re-derives
+      // `currentStep` via `deriveCurrentStep` immediately after, so this
+      // value is replaced on first read; the sourced literal is a
+      // clarification only.
+      currentStep: FIRST_RUN_STEP_VALUES[0],
       complete: false,
       steps,
       lastUpdatedAt: timestamp,

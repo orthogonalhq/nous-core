@@ -228,18 +228,18 @@ export function WizardStepIdentity(props: WizardStepProps): ReactElement {
     <div className={containerClassName} data-substage={state.subStage}>
       {state.subStage === 'A' ? (
         <section
-          className="nous-wizard__identity-stage"
+          className="nous-wizard__card"
           data-testid="identity-substage-a"
           aria-labelledby="identity-substage-a-heading"
         >
-          <h2 id="identity-substage-a-heading" className="nous-wizard__identity-heading">
+          <h2 id="identity-substage-a-heading" className="nous-wizard__section-title">
             Naming
           </h2>
-          <p className="nous-wizard__identity-greeting" data-testid="identity-greeting">
+          <p className="nous-wizard__section-copy" data-testid="identity-greeting">
             Hi, I&rsquo;m Nous, your personal Agent. Today is the day I officially become yours.
           </p>
-          <form onSubmit={handleNameSubmit} className="nous-wizard__identity-form">
-            <label htmlFor="agent-name" className="nous-wizard__identity-label">
+          <form onSubmit={handleNameSubmit} className="nous-wizard__stack">
+            <label htmlFor="agent-name" className="nous-wizard__label">
               What would you like to call me?
             </label>
             <input
@@ -252,7 +252,7 @@ export function WizardStepIdentity(props: WizardStepProps): ReactElement {
                 const next = event.target.value
                 setState((prev) => ({ ...prev, name: next }))
               }}
-              className="nous-wizard__identity-input"
+              className="nous-wizard__input"
               data-testid="identity-name-input"
             />
             <div className="nous-wizard__button-row">
@@ -271,18 +271,18 @@ export function WizardStepIdentity(props: WizardStepProps): ReactElement {
 
       {state.subStage === 'B' ? (
         <section
-          className="nous-wizard__identity-stage"
+          className="nous-wizard__card"
           data-testid="identity-substage-b"
           aria-labelledby="identity-substage-b-heading"
         >
-          <h2 id="identity-substage-b-heading" className="nous-wizard__identity-heading">
+          <h2 id="identity-substage-b-heading" className="nous-wizard__section-title">
             Personality
           </h2>
-          <p className="nous-wizard__identity-prompt">
+          <p className="nous-wizard__section-copy">
             Pick the personality that best matches how you want me to work. You can fine-tune individual traits later.
           </p>
           <div
-            className="nous-wizard__identity-presets"
+            className="nous-wizard__option-list"
             role="radiogroup"
             aria-label="Personality preset"
           >
@@ -296,15 +296,15 @@ export function WizardStepIdentity(props: WizardStepProps): ReactElement {
                   aria-checked={isSelected}
                   data-preset-id={presetId}
                   data-testid="preset-card"
-                  className={`nous-wizard__identity-preset-card${
-                    isSelected ? ' nous-wizard__identity-preset-card--selected' : ''
+                  className={`nous-wizard__option${
+                    isSelected ? ' nous-wizard__option--selected' : ''
                   }`}
                   onClick={() => handlePresetSelect(presetId)}
                 >
-                  <span className="nous-wizard__identity-preset-label">
+                  <span className="nous-wizard__option-title">
                     {presetId.charAt(0).toUpperCase() + presetId.slice(1)}
                   </span>
-                  <span className="nous-wizard__identity-preset-description">
+                  <span className="nous-wizard__option-copy">
                     {describePreset(presetId)}
                   </span>
                 </button>
@@ -312,7 +312,7 @@ export function WizardStepIdentity(props: WizardStepProps): ReactElement {
             })}
           </div>
 
-          <div className="nous-wizard__identity-advanced">
+          <div className="nous-wizard__stack">
             <button
               type="button"
               className="nous-wizard__button nous-wizard__button--ghost"
@@ -323,7 +323,7 @@ export function WizardStepIdentity(props: WizardStepProps): ReactElement {
               {state.advancedOpen ? 'Hide advanced options' : 'Advanced options'}
             </button>
             {state.advancedOpen ? (
-              <div className="nous-wizard__identity-trait-list" data-testid="identity-trait-list">
+              <div className="nous-wizard__stack" data-testid="identity-trait-list">
                 {TRAIT_REGISTRY.map((trait) => {
                   const overrides = state.personality.overrides
                   const overrideValue = overrides
@@ -335,16 +335,16 @@ export function WizardStepIdentity(props: WizardStepProps): ReactElement {
                   return (
                     <fieldset
                       key={trait.id}
-                      className="nous-wizard__identity-trait"
+                      className="nous-wizard__option"
                       data-trait-id={trait.id}
                     >
-                      <legend className="nous-wizard__identity-trait-label">
+                      <legend className="nous-wizard__option-title">
                         {trait.label}
                       </legend>
-                      <p className="nous-wizard__identity-trait-description">
+                      <p className="nous-wizard__option-copy">
                         {trait.description}
                       </p>
-                      <div className="nous-wizard__identity-trait-options">
+                      <div className="nous-wizard__radio-row">
                         {Object.keys(trait.values).map((valueKey) => {
                           const valueDef = (trait.values as Record<string, { label: string; description: string }>)[valueKey]
                           const inputId = `trait-${trait.id}-${valueKey}`
@@ -352,7 +352,6 @@ export function WizardStepIdentity(props: WizardStepProps): ReactElement {
                             <label
                               key={valueKey}
                               htmlFor={inputId}
-                              className="nous-wizard__identity-trait-option"
                               title={valueDef.description}
                             >
                               <input
@@ -402,19 +401,19 @@ export function WizardStepIdentity(props: WizardStepProps): ReactElement {
 
       {state.subStage === 'C' ? (
         <section
-          className="nous-wizard__identity-stage"
+          className="nous-wizard__card"
           data-testid="identity-substage-c"
           aria-labelledby="identity-substage-c-heading"
         >
-          <h2 id="identity-substage-c-heading" className="nous-wizard__identity-heading">
+          <h2 id="identity-substage-c-heading" className="nous-wizard__section-title">
             About you
           </h2>
-          <p className="nous-wizard__identity-prompt">
+          <p className="nous-wizard__section-copy">
             To help me assist the best possible way, help me get to know you better. Every field is optional.
           </p>
           <section
             role="note"
-            className="nous-wizard__identity-disclosure"
+            className="nous-wizard__disclosure"
             data-testid="identity-security-disclosure"
             aria-label="Privacy notice"
           >
@@ -422,8 +421,8 @@ export function WizardStepIdentity(props: WizardStepProps): ReactElement {
             <p>It is used only to personalize how I respond to you.</p>
             <p>It is never sent externally without an explicit action you take.</p>
           </section>
-          <form onSubmit={handleProfileSubmit} className="nous-wizard__identity-form">
-            <label htmlFor="profile-display-name" className="nous-wizard__identity-label">
+          <form onSubmit={handleProfileSubmit} className="nous-wizard__stack">
+            <label htmlFor="profile-display-name" className="nous-wizard__label">
               Your name (or what I should call you)
             </label>
             <input
@@ -438,10 +437,10 @@ export function WizardStepIdentity(props: WizardStepProps): ReactElement {
                   profile: { ...prev.profile, displayName: next },
                 }))
               }}
-              className="nous-wizard__identity-input"
+              className="nous-wizard__input"
             />
 
-            <label htmlFor="profile-role" className="nous-wizard__identity-label">
+            <label htmlFor="profile-role" className="nous-wizard__label">
               Your role or title
             </label>
             <input
@@ -456,10 +455,10 @@ export function WizardStepIdentity(props: WizardStepProps): ReactElement {
                   profile: { ...prev.profile, role: next },
                 }))
               }}
-              className="nous-wizard__identity-input"
+              className="nous-wizard__input"
             />
 
-            <label htmlFor="profile-use-case" className="nous-wizard__identity-label">
+            <label htmlFor="profile-use-case" className="nous-wizard__label">
               What are you working on?
             </label>
             <textarea
@@ -473,22 +472,21 @@ export function WizardStepIdentity(props: WizardStepProps): ReactElement {
                   profile: { ...prev.profile, primaryUseCase: next },
                 }))
               }}
-              className="nous-wizard__identity-input nous-wizard__identity-input--textarea"
+              className="nous-wizard__textarea"
               rows={3}
             />
 
-            <fieldset className="nous-wizard__identity-fieldset" data-testid="profile-expertise">
-              <legend className="nous-wizard__identity-label">
+            <fieldset className="nous-wizard__stack" data-testid="profile-expertise">
+              <legend className="nous-wizard__label">
                 How familiar are you with this domain?
               </legend>
-              <div className="nous-wizard__identity-trait-options">
+              <div className="nous-wizard__radio-row">
                 {(['beginner', 'intermediate', 'advanced'] as const).map((level) => {
                   const inputId = `profile-expertise-${level}`
                   return (
                     <label
                       key={level}
                       htmlFor={inputId}
-                      className="nous-wizard__identity-trait-option"
                     >
                       <input
                         id={inputId}

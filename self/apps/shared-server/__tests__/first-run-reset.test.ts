@@ -95,7 +95,9 @@ describe('firstRun.resetWizard (SP 1.3 — Decision 7 Option B)', () => {
 
     // Wizard state is default
     expect(newState.complete).toBe(false);
-    expect(newState.currentStep).toBe('ollama_check');
+    // SP 1.7 Fix #1 — wizard tuple reorder (ADR 022); reset returns to the
+    // new head `'agent_identity'` (was `'ollama_check'`).
+    expect(newState.currentStep).toBe('agent_identity');
 
     // All four agent readers return defaults (block cleared)
     expect(scaffold.config.getAgentName()).toBe('Nous');

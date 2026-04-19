@@ -32,7 +32,11 @@ export const DEFAULT_OLLAMA_STATUS: OllamaStatus = {
 }
 
 export const DEFAULT_WIZARD_STATE: FirstRunState = {
-  currentStep: 'ollama_check',
+  // SP 1.7 Fix #1 / Fix #3 — fresh first-run state's `currentStep` is now
+  // `'agent_identity'` (head of `FIRST_RUN_STEP_VALUES` after the SP 1.7
+  // tuple reorder, mirrored by `createDefaultFirstRunState` in
+  // shared-server/first-run.ts).
+  currentStep: 'agent_identity',
   complete: false,
   steps: {
     ollama_check: { status: 'pending' },

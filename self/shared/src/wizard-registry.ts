@@ -28,12 +28,15 @@ import { z } from 'zod';
 // SP 1.4 — until then the renderer's `assertRegistryMatchesManifest` will
 // throw at module load (SDS § 4 F4; SP 1.4 task #1 mitigation).
 //
-// Position rationale (SDS § 1.4): `agent_identity` is between `ollama_check`
-// (prerequisite check) and `model_download` (first user-configurable step) so
-// the user can customize the agent before committing to model assets.
+// SP 1.7 — tuple order mirrors the renderer's `WIZARD_STEP_REGISTRY`
+// user-facing flow per ADR 022 (renderer is canonical user-facing flow).
+// `agent_identity` is at position 0 so the user customizes the agent before
+// the first prerequisite check; the position-mirror invariant is enforced by
+// the cross-package test in
+// `self/apps/desktop/src/renderer/src/components/wizard/__tests__/WizardSteps.test.tsx`.
 export const FIRST_RUN_STEP_VALUES = [
-  'ollama_check',
   'agent_identity',
+  'ollama_check',
   'model_download',
   'provider_config',
   'role_assignment',
