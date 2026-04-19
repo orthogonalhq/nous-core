@@ -105,6 +105,33 @@ export interface ToolConcurrencyConfig {
 
 // ── Strategy injection types (WR-127) ────────────────────────────────
 
+// Structural mirror — placed near PromptFormatterInput. NO import from @nous/cortex-core.
+// Canonical definitions live in self/cortex/core/src/gateway-runtime/personality/
+// (WR-128 / SP 1.2). The mirror exists so @nous/shared interfaces can type-narrow
+// `personalityConfig` without violating the leaf-package layering invariant
+// (@nous/shared must not import from @nous/cortex-core — SDS I7 / ADR 018).
+// Drift detected by self/cortex/core/src/__tests__/gateway-runtime/personality/
+// shared-interface-compatibility.test.ts.
+
+export type PersonalityPreset =
+  | 'balanced'
+  | 'professional'
+  | 'efficient'
+  | 'thorough';
+
+export type TraitAxes = {
+  thoroughness: 'strict' | 'standard';
+  initiative: 'collaborative' | 'compliant';
+  candor: 'strict' | 'standard';
+  communicationStyle: 'detailed' | 'concise';
+  codeStyle: 'minimal' | 'standard';
+};
+
+export interface PersonalityConfig {
+  readonly preset: PersonalityPreset;
+  readonly overrides?: Partial<TraitAxes>;
+}
+
 /** Input to the prompt formatter — agent-type axis composition */
 export interface PromptFormatterInput {
   readonly agentClass: AgentClass;
@@ -112,7 +139,7 @@ export interface PromptFormatterInput {
   readonly baseSystemPrompt?: string;
   readonly execution?: GatewayExecutionContext;
   readonly tools?: ToolDefinition[];
-  readonly personalityConfig?: unknown;
+  readonly personalityConfig?: PersonalityConfig;
 }
 
 /** Output from the prompt formatter */
