@@ -7,6 +7,7 @@ import { TRPCError } from '@trpc/server';
 import { router, publicProcedure } from '../trpc';
 import { ProjectIdSchema, CardActionSchema } from '@nous/shared';
 import type { TraceId } from '@nous/shared';
+import { fireWelcomeIfUnsent } from '../../welcome/welcome-coordinator.js';
 
 export const chatRouter = router({
   sendMessage: publicProcedure
@@ -137,5 +138,51 @@ export const chatRouter = router({
             message: 'Navigate actions must be handled client-side',
           });
       }
+    }),
+
+  /**
+   * SP 1.6 — One-shot welcome trigger.
+   *
+   * Called by `DesktopChatPanel` on first mount per Decision 6 § Mechanism
+   * (the principal chat-init delegate). The persisted `welcomeMessageSent`
+   * flag is the cross-mount idempotency gate; the renderer additionally
+   * uses a mount-once `useRef` to guard against React StrictMode
+   * double-invocation in development.
+   *
+   * Delegates to the welcome coordinator, which composes through the
+   * existing production prompt path (`gatewayRuntime.handleChatTurn`),
+   * appends only the assistant entry to STM, and sets the flag after
+   * successful emission (SDS § 0 Note 3).
+   */
+  fireWelcomeIfUnsent: publicProcedure
+    .input(
+      z.object({
+        projectId: ProjectIdSchema.optional(),
+      }),
+    )
+    .output(
+      z.discriminatedUnion('welcomeFired', [
+        z.object({ welcomeFired: z.literal(true), traceId: z.string() }),
+        z.object({
+          welcomeFired: z.literal(false),
+          reason: z.enum([
+            'already_sent',
+            'composition_error',
+            'empty_response',
+            'stm_append_error',
+            'no_project_id',
+          ]),
+        }),
+      ]),
+    )
+    .mutation(async ({ ctx, input }) => {
+      return fireWelcomeIfUnsent(
+        {
+          gatewayRuntime: ctx.gatewayRuntime,
+          configManager: ctx.config,
+          stmStore: ctx.stmStore,
+        },
+        { projectId: input.projectId },
+      );
     }),
 });
