@@ -244,6 +244,77 @@ describe('AgentGateway SP 1.13 RC-2 thinking-stream dispatch', () => {
     expect(invokeSpy).toHaveBeenCalled(); // fallback path invoked
   });
 
+  it('SP 1.15 RC-2 (Tier 3) — production wrap chain end-to-end: real OllamaProvider + LaneAwareProvider + ObservableProvider drives non-streaming branch on tool-bearing turn', async () => {
+    // Tier 3 production wrap chain test — addresses RCM Observation O-3
+    // (SP 1.13 Tier 4 test gap). Mocks the fetch boundary only; uses real
+    // OllamaProvider, real LaneAwareProvider, real ObservableProvider, and a
+    // real AgentGateway with the ollama adapter.
+    const { OllamaProvider, LaneAwareProvider, ObservableProvider, InferenceLane } = await import('@nous/subcortex-providers');
+
+    // Mock fetch to return a non-streaming Ollama /api/chat response
+    const fetchSpy = vi.fn().mockResolvedValue({
+      ok: true,
+      status: 200,
+      json: async () => ({
+        message: {
+          role: 'assistant',
+          content: '',
+          thinking: 'I need to look up workflows.',
+          tool_calls: [
+            {
+              function: { name: 'task_complete', arguments: { output: { ok: true } } },
+            },
+          ],
+        },
+        done: true,
+        done_reason: 'stop',
+        eval_count: 12,
+        prompt_eval_count: 14,
+      }),
+    } as unknown as Response);
+    vi.stubGlobal('fetch', fetchSpy);
+
+    try {
+      const baseProvider = new OllamaProvider({
+        id: PROVIDER_ID,
+        name: 'ollama-local',
+        type: 'ollama',
+        vendor: 'ollama',
+        modelId: 'gemma3:4b',
+        isLocal: true,
+        capabilities: ['reasoning'],
+      } as never);
+      const lane = new InferenceLane('lane:ollama:test');
+      const laneWrapped = new LaneAwareProvider(baseProvider, lane);
+      const eventBus = recordingEventBus();
+      const observable = new ObservableProvider(laneWrapped, eventBus, {
+        providerId: PROVIDER_ID,
+        modelId: 'gemma3:4b',
+        laneKey: 'lane:ollama:test',
+      });
+
+      const { gateway } = createGateway({ provider: observable, eventBus });
+      const result = await gateway.run(createBaseInput());
+
+      // 1. Wire body: stream:false (the adapter set it because tools are present)
+      expect(fetchSpy).toHaveBeenCalled();
+      const fetchInit = fetchSpy.mock.calls[0][1] as RequestInit;
+      const wireBody = JSON.parse(fetchInit.body as string);
+      expect(wireBody.stream).toBe(false);
+
+      // 2. Exactly one chat:thinking-chunk event published (non-streaming branch)
+      const recorded = (eventBus as unknown as { recorded: Array<{ channel: string; payload: { content: string } }> }).recorded;
+      const thinkingEvents = recorded.filter((r) => r.channel === 'chat:thinking-chunk');
+      expect(thinkingEvents).toHaveLength(1);
+      expect(thinkingEvents[0].payload.content).toBe('I need to look up workflows.');
+
+      // 3. Result completed (the tool_call drove the gateway to terminal completion)
+      expect(result.status).toBe('completed');
+    } finally {
+      vi.unstubAllGlobals();
+    }
+  });
+
   it('Scenario E — chat:thinking-chunk events are recorded BEFORE invokeWithThinkingStream resolves', async () => {
     const eventBus = recordingEventBus();
 

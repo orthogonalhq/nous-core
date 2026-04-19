@@ -169,6 +169,176 @@ describe('OllamaProvider.invokeWithThinkingStream', () => {
     expect(msg.thinking).toBeUndefined();
   });
 
+  // ── SP 1.15 RC-2 — body.stream honoring + non-streaming branch parity ──
+
+  function makeJsonResponse(payload: unknown): Response {
+    return {
+      ok: true,
+      status: 200,
+      json: async () => payload,
+    } as unknown as Response;
+  }
+
+  it('SP 1.15 RC-2 (a) — when caller passes body.stream = false, the wire body has stream: false', async () => {
+    const provider = new OllamaProvider(MOCK_CONFIG);
+    const bus = recordingBus();
+    vi.mocked(fetch).mockResolvedValue(
+      makeJsonResponse({
+        message: { role: 'assistant', content: 'visible', thinking: 'reasoning' },
+        done: true,
+        eval_count: 5,
+        prompt_eval_count: 7,
+        done_reason: 'stop',
+      }),
+    );
+
+    await provider.invokeWithThinkingStream(
+      {
+        role: 'cortex-chat',
+        // The Ollama adapter sets stream: false at the outer wrapper, but
+        // here we exercise the provider directly — pass `stream: false` in
+        // the body shape the validator accepts.
+        input: { messages: [{ role: 'user', content: 'hi' }], stream: false } as never,
+        traceId: TRACE_ID,
+      },
+      bus,
+      TRACE_ID,
+    );
+
+    const fetchCall = vi.mocked(fetch).mock.calls[0];
+    const wireBody = JSON.parse((fetchCall[1] as RequestInit).body as string);
+    expect(wireBody.stream).toBe(false);
+  });
+
+  it('SP 1.15 RC-2 (b) — non-streaming branch emits exactly one chat:thinking-chunk with the FULL thinking text', async () => {
+    const provider = new OllamaProvider(MOCK_CONFIG);
+    const bus = recordingBus();
+    vi.mocked(fetch).mockResolvedValue(
+      makeJsonResponse({
+        message: { role: 'assistant', content: 'visible', thinking: 'full reasoning trace' },
+        done: true,
+        eval_count: 5,
+        prompt_eval_count: 7,
+      }),
+    );
+
+    await provider.invokeWithThinkingStream(
+      {
+        role: 'cortex-chat',
+        input: { messages: [{ role: 'user', content: 'hi' }], stream: false } as never,
+        traceId: TRACE_ID,
+      },
+      bus,
+      TRACE_ID,
+    );
+
+    const recorded = (bus as unknown as { recorded: Array<{ channel: string; payload: { content: string; traceId: string } }> }).recorded;
+    const thinkingEvents = recorded.filter((r) => r.channel === 'chat:thinking-chunk');
+    expect(thinkingEvents).toHaveLength(1);
+    expect(thinkingEvents[0].payload.content).toBe('full reasoning trace');
+    expect(thinkingEvents[0].payload.traceId).toBe(TRACE_ID);
+  });
+
+  it('SP 1.15 RC-2 (c) — when body.stream is undefined the method defaults to streaming', async () => {
+    const provider = new OllamaProvider(MOCK_CONFIG);
+    const bus = recordingBus();
+    vi.mocked(fetch).mockResolvedValue(
+      makeStreamResponse([
+        JSON.stringify({ message: { content: 'hi' }, done: true, eval_count: 1, prompt_eval_count: 1 }),
+      ]),
+    );
+
+    await provider.invokeWithThinkingStream(
+      {
+        role: 'cortex-chat',
+        input: { messages: [{ role: 'user', content: 'hi' }] },
+        traceId: TRACE_ID,
+      },
+      bus,
+      TRACE_ID,
+    );
+
+    const fetchCall = vi.mocked(fetch).mock.calls[0];
+    const wireBody = JSON.parse((fetchCall[1] as RequestInit).body as string);
+    expect(wireBody.stream).toBe(true);
+  });
+
+  it('SP 1.15 RC-2 (d) — when body.stream is explicitly true the method streams (backwards-compat)', async () => {
+    const provider = new OllamaProvider(MOCK_CONFIG);
+    const bus = recordingBus();
+    vi.mocked(fetch).mockResolvedValue(
+      makeStreamResponse([
+        JSON.stringify({ message: { content: 'hi' }, done: true, eval_count: 1, prompt_eval_count: 1 }),
+      ]),
+    );
+
+    await provider.invokeWithThinkingStream(
+      {
+        role: 'cortex-chat',
+        input: { messages: [{ role: 'user', content: 'hi' }], stream: true } as never,
+        traceId: TRACE_ID,
+      },
+      bus,
+      TRACE_ID,
+    );
+
+    const fetchCall = vi.mocked(fetch).mock.calls[0];
+    const wireBody = JSON.parse((fetchCall[1] as RequestInit).body as string);
+    expect(wireBody.stream).toBe(true);
+  });
+
+  it('SP 1.15 RC-2 (e) — branch parity: both branches yield identical messageObj shape for equivalent upstream responses', async () => {
+    const provider = new OllamaProvider(MOCK_CONFIG);
+
+    // Streaming branch
+    vi.mocked(fetch).mockReset();
+    vi.mocked(fetch).mockResolvedValueOnce(
+      makeStreamResponse([
+        JSON.stringify({
+          message: { role: 'assistant', content: 'visible', thinking: 'reasoning' },
+          done: true,
+          eval_count: 5,
+          prompt_eval_count: 7,
+        }),
+      ]),
+    );
+    const streamingResp = await provider.invokeWithThinkingStream(
+      {
+        role: 'cortex-chat',
+        input: { messages: [{ role: 'user', content: 'hi' }], stream: true } as never,
+        traceId: TRACE_ID,
+      },
+      recordingBus(),
+      TRACE_ID,
+    );
+
+    // Non-streaming branch with the same upstream payload shape
+    vi.mocked(fetch).mockResolvedValueOnce(
+      makeJsonResponse({
+        message: { role: 'assistant', content: 'visible', thinking: 'reasoning' },
+        done: true,
+        eval_count: 5,
+        prompt_eval_count: 7,
+      }),
+    );
+    const nonStreamingResp = await provider.invokeWithThinkingStream(
+      {
+        role: 'cortex-chat',
+        input: { messages: [{ role: 'user', content: 'hi' }], stream: false } as never,
+        traceId: TRACE_ID,
+      },
+      recordingBus(),
+      TRACE_ID,
+    );
+
+    const streamMsg = streamingResp.output as Record<string, unknown>;
+    const nonStreamMsg = nonStreamingResp.output as Record<string, unknown>;
+    expect(Object.keys(streamMsg).sort()).toEqual(Object.keys(nonStreamMsg).sort());
+    expect(streamMsg.role).toBe(nonStreamMsg.role);
+    expect(streamMsg.content).toBe(nonStreamMsg.content);
+    expect(streamMsg.thinking).toBe(nonStreamMsg.thinking);
+  });
+
   it('<think> tag SPLIT across SSE lines emits per-delta thinking events (not batched at completion)', async () => {
     const provider = new OllamaProvider(MOCK_CONFIG);
     const bus = recordingBus();
