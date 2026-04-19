@@ -28,6 +28,7 @@ import { systemActivityRouter } from './routers/system-activity';
 import { tasksRouter } from './routers/tasks';
 import { ollamaRouter } from './routers/ollama';
 import { notificationsRouter } from './routers/notifications';
+import { viewStateRouter } from './routers/view-state';
 
 export const appRouter = router({
   projects: projectsRouter,
@@ -56,6 +57,7 @@ export const appRouter = router({
   cost: costRouter,
   ollama: ollamaRouter,
   notifications: notificationsRouter,
+  viewState: viewStateRouter,
 });
 
 export type AppRouter = typeof appRouter;

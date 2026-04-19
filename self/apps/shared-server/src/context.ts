@@ -105,6 +105,19 @@ export interface NousContext {
   credentialVaultService: ICredentialVaultService;
   providerRegistry: ProviderRegistry;
   dataDir: string;
+  /**
+   * Local user identity (V1 single-user contract).
+   *
+   * Server-ctx authority per `view-state-schema-v1.md` §7: `userId` is
+   * derived from context at the router boundary and is NEVER accepted from
+   * client input. Bootstrap passes the constant `DEFAULT_LOCAL_USER_ID`
+   * (`'local'`) — multi-user auth is a forward-compatible evolution that
+   * will populate this field from the real identity surface.
+   *
+   * Non-optional by design: TypeScript surfaces any missing wiring at
+   * compile time.
+   */
+  userId: string;
   /** MAO events emitted by coding agent runs. */
   codingAgentMaoEvents: Array<{ type: string; data: unknown; timestamp: string }>;
   /** In-memory store for agent sessions (keyed by session ID). */

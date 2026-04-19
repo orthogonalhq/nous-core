@@ -101,8 +101,13 @@ vi.mock('@nous/ui/components', () => ({
     collapseToSmall: vi.fn(),
     handleClickOutside: vi.fn(),
   }),
-  // WR-141 — whole-sidebar collapse hook. Stub returns expanded state and a no-op setter.
-  useSidebarCollapsed: () => [false, vi.fn()] as [boolean, (next: boolean) => void],
+  // WR-163 — layout view-state hook (supersedes WR-141 useSidebarCollapsed).
+  // Stub returns a hydrated expanded state and no-op setter.
+  useLayoutState: () => ({
+    state: { sidebarCollapsed: false },
+    setState: vi.fn(),
+    hydrated: true,
+  }),
   // WR-151 — Notification provider and badge hook stubs.
   NotificationProvider: (props: any) => React.createElement(React.Fragment, null, props.children),
   useNotificationBadge: () => 0,
