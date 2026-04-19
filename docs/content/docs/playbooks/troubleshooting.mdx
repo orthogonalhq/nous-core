@@ -140,6 +140,26 @@ ollama pull llama3.2:3b
 - If the log line is absent, the prerequisites query has not yet returned. Confirm the desktop backend (`@nous/shared-server`) is running and reachable.
 - Restart the wizard via `firstRun.resetWizard` to re-issue the prerequisites query from scratch.
 
+## No Welcome Appears on First Chat Open
+
+**Symptom:** You finished the first-run wizard and opened the chat panel for the first time, but no welcome message appeared.
+
+**Meaning:** The welcome is a one-shot composition gated by the persisted `agent.welcomeMessageSent` flag. There are three common reasons it would not appear:
+
+- The model provider was unreachable when chat opened, so the composition failed and the flag stayed `false`. The welcome will retry on the next chat panel mount.
+- The flag was already `true` from a prior session — for example you completed the wizard once before, the welcome already fired, and re-opening chat short-circuits.
+- The renderer's mount-once guard latched but the underlying mutation never completed (for example, the desktop backend was unreachable at the moment of mount).
+
+**Fix:**
+
+- Verify the model provider is healthy. If you are using a local Ollama model, run `ollama serve` and confirm the recommended model is pulled. If you are using a cloud provider, confirm the API key is configured (Configuration > Provider Keys) and reachable.
+- Reopen the chat panel after restoring provider health — the welcome retries on the next mount when the flag is still `false`.
+- If you want to re-experience the welcome from a clean state, call the `firstRun.resetWizard` mutation (see [tRPC Procedures § firstRun](/docs/api/procedures#firstrun)). This clears the entire `agent` block including `welcomeMessageSent`; after re-completing the wizard, the next chat panel mount fires a fresh welcome composed against whatever identity you configure.
+- If the renderer mount-once guard appears stuck, fully restart the desktop app — the guard is per-mount and resets on app restart.
+- The chat is never blocked by a welcome failure; if the rest of chat works normally, the missing welcome is a cosmetic carry-forward only and a `resetWizard` will recover it on the next first-run.
+
+See also [Chat § Welcome Message (First Open)](/docs/guides/chat#welcome-message-first-open) for the welcome's lifecycle and reset semantics.
+
 ## Memory Inspector Shows a Global-Scope Warning
 
 **Symptom:** The `/memory` page shows a reason-code banner after you switch Scope to `Global only` or `Project + global`, and global entries do not appear.
