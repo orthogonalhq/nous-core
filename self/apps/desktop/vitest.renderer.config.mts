@@ -10,6 +10,13 @@ export default defineConfig({
   resolve: {
     alias: {
       '@nous/shared': path.resolve(__dirname, '../../shared/src/index.ts'),
+      // Narrow alias for the personality sub-path: only this module is
+      // renderer-safe (the full cortex-core barrel pulls Node-only surfaces).
+      // Mirrors the electron-vite renderer alias.
+      '@nous/cortex-core/personality': path.resolve(
+        __dirname,
+        '../../cortex/core/src/gateway-runtime/personality/index.ts',
+      ),
     },
   },
   test: {
