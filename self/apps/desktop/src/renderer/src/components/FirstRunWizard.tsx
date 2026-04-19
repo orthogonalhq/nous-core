@@ -3,11 +3,25 @@ import { WizardStepIndicator } from './wizard/WizardStepIndicator'
 import './wizard/wizard.css'
 import {
   BACKEND_STEP_TO_WIZARD_STEP,
+  FIRST_RUN_STEP_VALUES,
   PREVIOUS_STEP_MAP,
   WIZARD_STEPS,
   WIZARD_STEP_REGISTRY,
   type WizardStepId,
 } from './wizard/registry'
+
+// SP 1.7 Fix #6 — module-private helper. Returns the next-in-registry step
+// id after `currentId`, or `null` if `currentId` is the last entry (or not
+// found, defensive). Not exported; if a future sub-phase needs this
+// elsewhere, it migrates to `wizard/registry.ts` with a unit test.
+function deriveNextRegistryStepAfter(
+  currentId: WizardStepId,
+  registry: typeof WIZARD_STEP_REGISTRY,
+): WizardStepId | null {
+  const idx = registry.findIndex((entry) => entry.id === currentId)
+  if (idx === -1 || idx === registry.length - 1) return null
+  return registry[idx + 1].id
+}
 import {
   getRecommendedModelSpec,
   type FirstRunPrerequisites,
@@ -40,16 +54,25 @@ export function FirstRunWizard({
   const [actionInProgress, setActionInProgress] = useState(false)
   const [actionError, setActionError] = useState<string | null>(null)
   const [welcomeCompleted, setWelcomeCompleted] = useState(
-    initialState.currentStep !== 'ollama_check',
+    // SP 1.7 Fix #5 (Edit B) — registry-aware predicate. The head of the
+    // backend manifest is now `'agent_identity'` (post-Fix-#1), but a
+    // resume state with `currentStep === FIRST_RUN_STEP_VALUES[0]` legitimately
+    // means "user is at the start" — so welcome stays gated until the user
+    // clicks Continue. Resume from any later backend step skips welcome.
+    initialState.currentStep !== FIRST_RUN_STEP_VALUES[0],
   )
   // Client-side override for back navigation. Lets users revisit prior steps
   // without changing backend state. Cleared when user completes a step normally.
   const [currentStepOverride, setCurrentStepOverride] = useState<WizardStepId | null>(null)
 
-  const derivedCurrentWizardStep: WizardStepId =
-    firstRunState.currentStep === 'ollama_check' && !welcomeCompleted
-      ? 'welcome'
-      : BACKEND_STEP_TO_WIZARD_STEP[firstRunState.currentStep]
+  // SP 1.7 Fix #5 (Edit A) — frontier-then-welcome derivation. The frontier
+  // is the wizard step backed by the backend's current step; welcome is a
+  // UI-only step gated by `welcomeCompleted` (no backend correspondence).
+  const frontierWizardStep: WizardStepId =
+    BACKEND_STEP_TO_WIZARD_STEP[firstRunState.currentStep]
+  const derivedCurrentWizardStep: WizardStepId = welcomeCompleted
+    ? frontierWizardStep
+    : 'welcome'
 
   const currentWizardStep: WizardStepId = currentStepOverride ?? derivedCurrentWizardStep
   const previousStep = PREVIOUS_STEP_MAP[currentWizardStep]
@@ -105,7 +128,10 @@ export function FirstRunWizard({
   }, [])
 
   useEffect(() => {
-    if (firstRunState.currentStep !== 'ollama_check') {
+    // SP 1.7 Fix #5 (Edit C) — registry-aware resume sync. When backend
+    // state advances past `FIRST_RUN_STEP_VALUES[0]`, the user has clearly
+    // moved past welcome; lift the welcome gate.
+    if (firstRunState.currentStep !== FIRST_RUN_STEP_VALUES[0]) {
       setWelcomeCompleted(true)
     }
   }, [firstRunState.currentStep])
@@ -118,7 +144,18 @@ export function FirstRunWizard({
   const applyStepCompletion = (label: string, nextState: FirstRunState) => {
     console.log(`[nous:wizard] Step completed: ${label}`)
     setFirstRunState(nextState)
-    setCurrentStepOverride(null) // clear back-nav override on real advancement
+    // SP 1.7 Fix #6 — always-set advancement (Design A). Advance the override
+    // to the next-in-registry step from the *currently-rendered* wizard step
+    // (NOT the just-completed backend step's wizard mapping — those differ
+    // when the user back-navigated and is now completing an earlier step).
+    // The override is set even when it equals the new frontier; the next
+    // render's derivation reads the override and the rendered step id is
+    // unchanged. The override is cleared (set to `null`) only when the
+    // helper returns `null` — i.e., the user just completed the last
+    // registry entry (`confirmation`); the wizard exits via `onFinish` →
+    // `onComplete()` and the `null` override is correct.
+    const nextId = deriveNextRegistryStepAfter(currentWizardStep, WIZARD_STEP_REGISTRY)
+    setCurrentStepOverride(nextId)
     setActionError(null)
     setActionInProgress(false)
   }
@@ -126,14 +163,15 @@ export function FirstRunWizard({
   const handleBack = () => {
     if (!previousStep) return
     if (previousStep === 'welcome') {
-      // Welcome is a UI-only step gated by welcomeCompleted. When backend
-      // state is still at the welcome's natural successor (`ollama_check`),
-      // toggling welcomeCompleted reveals welcome. When backend state has
-      // advanced past the welcome's adjacent successor (e.g., user is on
-      // `agent_identity` because SP 1.4 inserted it after welcome), set the
-      // override to 'welcome' so the renderer dispatches to it directly.
-      // Toggle welcomeCompleted in both cases so the welcome render isn't
-      // immediately re-derived away on the next render.
+      // Welcome is a UI-only step gated by welcomeCompleted. Per SP 1.7
+      // Fix #5, the welcome gate is registry-aware (`currentStep !==
+      // FIRST_RUN_STEP_VALUES[0]`). When the backend state is still at the
+      // head (`FIRST_RUN_STEP_VALUES[0]`, i.e. `agent_identity`),
+      // toggling welcomeCompleted reveals welcome. When the backend state
+      // has advanced past the head, set the override to 'welcome' so the
+      // renderer dispatches to it directly. Toggle welcomeCompleted in
+      // both cases so the welcome render isn't immediately re-derived
+      // away on the next render.
       setWelcomeCompleted(false)
       setCurrentStepOverride('welcome')
     } else {
@@ -150,6 +188,12 @@ export function FirstRunWizard({
       const nextState = await trpcMutate<FirstRunState>('firstRun.resetWizard')
       setFirstRunState(nextState)
       setWelcomeCompleted(false)
+      // SP 1.7 Fix #6 reset-path interaction — clear any stale override
+      // from the prior session (e.g., `'confirmation'` if the user
+      // back-navigated from confirmation before clicking Reset). Without
+      // this, the next render would resolve `currentWizardStep` to the
+      // stale override instead of `'welcome'`.
+      setCurrentStepOverride(null)
       setRoleAssignments({})
       setRoleAssignmentMode('default')
       setSelectedModelSpec(getRecommendedModelSpec(prerequisites))
@@ -202,7 +246,14 @@ export function FirstRunWizard({
           onContinue: () => {
             console.log('[nous:wizard] Step completed: welcome')
             setWelcomeCompleted(true)
-            setCurrentStepOverride(null)
+            // SP 1.7 Fix #6 — always-set advancement (Design A). Advance to
+            // the next-in-registry step (post-Fix-#1: `agent_identity`).
+            // Setting the override (instead of clearing it) ensures that on
+            // the back-then-Continue path from welcome we land at the next
+            // user-facing step, not the backend frontier (which may be
+            // arbitrarily far ahead, e.g. `confirmation`).
+            const nextId = deriveNextRegistryStepAfter('welcome', WIZARD_STEP_REGISTRY)
+            setCurrentStepOverride(nextId)
           },
         }
       case 'agent_identity':
