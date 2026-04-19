@@ -34,7 +34,11 @@ import {
   type IProjectStore,
 } from '@nous/shared';
 import { z } from 'zod';
-import { HardwareSpecSchema, RecommendationResultSchema } from './hardware-detection';
+import {
+  HardwareSpecSchema,
+  RecommendationResultSchema,
+  ValidationStateSchema,
+} from './hardware-detection';
 import { OllamaStatusSchema } from './ollama-detection';
 
 // Re-export the shared-package manifest + schemas so existing consumers that
@@ -80,6 +84,11 @@ export const FirstRunPrerequisitesSchema = z.object({
   ollama: OllamaStatusSchema,
   hardware: HardwareSpecSchema,
   recommendations: RecommendationResultSchema,
+  // SP 1.5 — registry-availability validation map keyed by `modelSpec`.
+  // Optional in the schema so historic call sites and fixtures (which may
+  // not include the field) continue to validate. Production
+  // `firstRun.checkPrerequisites` always populates this map.
+  validation: z.record(z.string(), ValidationStateSchema).optional(),
 });
 export type FirstRunPrerequisites = z.infer<typeof FirstRunPrerequisitesSchema>;
 
