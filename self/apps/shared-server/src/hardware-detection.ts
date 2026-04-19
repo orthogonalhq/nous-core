@@ -28,12 +28,35 @@ export const HardwareSpecSchema = z.object({
 
 export type HardwareSpec = z.infer<typeof HardwareSpecSchema>;
 
+/**
+ * Validation state for a single recommended model spec, surfaced through the
+ * first-run wizard's recommendation card and custom-spec input. Added in
+ * SP 1.5 per Decision 5 (model-search-approach-v1, runtime availability check).
+ *
+ * - `'validated'` — the spec was confirmed available on the Ollama registry.
+ * - `'pending'` — the validation has not yet completed (or not yet started).
+ * - `'unavailable'` — the spec parsed but the registry returned 404 (or the
+ *   spec is malformed and Stage A short-circuited without a network call).
+ * - `'offline'` — the registry could not be reached (timeout, DNS failure,
+ *   network error, or 5xx). The card stays selectable; the user is informed
+ *   that availability could not be verified.
+ */
+export const ValidationStateSchema = z.enum([
+  'validated',
+  'pending',
+  'unavailable',
+  'offline',
+]);
+
+export type ValidationState = z.infer<typeof ValidationStateSchema>;
+
 export const ModelRecommendationSchema = z.object({
   modelId: z.string(),
   modelSpec: z.string(),
   displayName: z.string(),
   ramRequiredMB: z.number().int().nonnegative(),
   reason: z.string(),
+  validationState: ValidationStateSchema.default('pending'),
 });
 
 export type ModelRecommendation = z.infer<typeof ModelRecommendationSchema>;
@@ -63,6 +86,23 @@ export type RecommendationProfilePolicy = {
 
 type RecommendationTier = 'tiny' | 'small' | 'medium' | 'large';
 
+/**
+ * Curated Ollama-library catalog used by `recommendModels` to seed the
+ * first-run wizard's model recommendations.
+ *
+ * Catalog refresh policy (SP 1.5 / Decision 5 — model-search-approach-v1):
+ *   - Catalog identifiers are source-controlled; no admin UI for runtime edits
+ *     (Goals Constraint 14, SDS I14).
+ *   - Each entry's `validationState` defaults to `'pending'` via the schema;
+ *     the runtime availability check (`checkRegistryAvailability`) populates
+ *     the validation map served alongside the recommendation by
+ *     `firstRun.checkPrerequisites`.
+ *   - Identifiers verified against the Ollama library at SP 1.5 ship
+ *     (April 2026). The four below remain currently published and continue
+ *     to receive long-term release support; they are the canonical SP 1.5
+ *     baseline. If a future tier needs a newer identifier, refresh by direct
+ *     edit and bump the verification date in this comment.
+ */
 const LOCAL_MODEL_CATALOG: Record<RecommendationTier, ModelRecommendation> = {
   tiny: {
     modelId: 'llama3.2:3b',
@@ -70,6 +110,7 @@ const LOCAL_MODEL_CATALOG: Record<RecommendationTier, ModelRecommendation> = {
     displayName: 'Llama 3.2 3B',
     ramRequiredMB: 4096,
     reason: 'Best fit for low-memory systems and first-run downloads.',
+    validationState: 'pending',
   },
   small: {
     modelId: 'qwen2.5:7b',
@@ -77,6 +118,7 @@ const LOCAL_MODEL_CATALOG: Record<RecommendationTier, ModelRecommendation> = {
     displayName: 'Qwen 2.5 7B',
     ramRequiredMB: 8192,
     reason: 'Balanced local model for everyday desktop orchestration and chat.',
+    validationState: 'pending',
   },
   medium: {
     modelId: 'qwen2.5:14b',
@@ -84,6 +126,7 @@ const LOCAL_MODEL_CATALOG: Record<RecommendationTier, ModelRecommendation> = {
     displayName: 'Qwen 2.5 14B',
     ramRequiredMB: 16384,
     reason: 'Mid-spec recommendation for stronger reasoning with manageable local requirements.',
+    validationState: 'pending',
   },
   large: {
     modelId: 'qwen2.5:32b',
@@ -91,6 +134,7 @@ const LOCAL_MODEL_CATALOG: Record<RecommendationTier, ModelRecommendation> = {
     displayName: 'Qwen 2.5 32B',
     ramRequiredMB: 32768,
     reason: 'High-spec recommendation for local-first advanced reasoning.',
+    validationState: 'pending',
   },
 };
 
@@ -100,6 +144,7 @@ const REMOTE_SINGLE_MODEL: ModelRecommendation = {
   displayName: 'Claude Sonnet 4',
   ramRequiredMB: 0,
   reason: 'Remote-first fallback when the active profile does not allow local providers.',
+  validationState: 'pending',
 };
 
 const REMOTE_REASONER_MODEL: ModelRecommendation = {
@@ -108,6 +153,7 @@ const REMOTE_REASONER_MODEL: ModelRecommendation = {
   displayName: 'Claude Opus 4',
   ramRequiredMB: 0,
   reason: 'Higher-capability remote reasoner recommendation for remote-only profiles.',
+  validationState: 'pending',
 };
 
 const REMOTE_SUPPORT_MODEL: ModelRecommendation = {
@@ -116,6 +162,7 @@ const REMOTE_SUPPORT_MODEL: ModelRecommendation = {
   displayName: 'GPT-4o',
   ramRequiredMB: 0,
   reason: 'General-purpose remote support model for assistant, tool, and vision roles.',
+  validationState: 'pending',
 };
 
 function bytesToMegabytes(bytes: number): number {

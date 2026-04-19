@@ -8,8 +8,52 @@ import {
   UserProfileSchema,
 } from '@nous/autonomic-config';
 import { router, publicProcedure } from '../trpc';
-import { detectHardware, recommendModels } from '../../hardware-detection';
-import { detectOllama, pullOllamaModel } from '../../ollama-detection';
+import {
+  ValidationStateSchema,
+  detectHardware,
+  recommendModels,
+  type ValidationState,
+} from '../../hardware-detection';
+import {
+  checkRegistryAvailability,
+  detectOllama,
+  pullOllamaModel,
+} from '../../ollama-detection';
+
+/**
+ * SP 1.5 — registry-availability validation map keyed by `modelSpec`.
+ * Returned alongside the `recommendations` payload from
+ * `firstRun.checkPrerequisites` so the renderer can render a per-card
+ * validation indicator without issuing a second transport call (SDS
+ * § 0 Note 4 single-procedure-extension binding).
+ */
+export const ValidationMapSchema = z.record(z.string(), ValidationStateSchema);
+export type ValidationMap = z.infer<typeof ValidationMapSchema>;
+
+/**
+ * Build the validation map for a set of recommended Ollama specs by
+ * fan-out HEAD-probing the Ollama library page for each spec in parallel.
+ *
+ * The fan-out is bounded by the recommendation set size (typically 2-4
+ * unique specs after dedup); the per-spec session cache inside
+ * `checkRegistryAvailability` deduplicates within the TTL window.
+ */
+async function buildValidationMap(
+  recommendedSpecs: readonly string[],
+): Promise<ValidationMap> {
+  const uniqueSpecs = Array.from(new Set(recommendedSpecs));
+  const states = await Promise.all(
+    uniqueSpecs.map(async (spec) => {
+      const state = await checkRegistryAvailability(spec);
+      return [spec, state] as const;
+    }),
+  );
+  const result: ValidationMap = {};
+  for (const [spec, state] of states) {
+    result[spec] = state;
+  }
+  return result;
+}
 import {
   FirstRunActionResultSchema,
   FirstRunRoleAssignmentInputSchema,
@@ -124,16 +168,58 @@ export const firstRunRouter = router({
     ]);
     const recommendations = recommendModels(hardware, getProfilePolicy(ctx));
 
+    // SP 1.5 — assemble the registry-availability validation map for the
+    // recommendation set. The map is returned alongside `recommendations`
+    // so the renderer can render a per-card validation indicator without
+    // a second transport call (SDS § 0 Note 4 binding).
+    const recommendedSpecs: string[] = [];
+    if (recommendations.singleModel) {
+      recommendedSpecs.push(recommendations.singleModel.modelSpec);
+    }
+    for (const entry of recommendations.multiModel) {
+      recommendedSpecs.push(entry.recommendation.modelSpec);
+    }
+    const validation = await buildValidationMap(recommendedSpecs);
+
+    let validatedCount = 0;
+    let unavailableCount = 0;
+    let offlineCount = 0;
+    for (const state of Object.values(validation)) {
+      if (state === 'validated') validatedCount += 1;
+      else if (state === 'unavailable') unavailableCount += 1;
+      else if (state === 'offline') offlineCount += 1;
+    }
+
     console.info(
       `[nous:first-run] Wizard prerequisites: ollama=${ollama.state}, models=${ollama.models.length}`,
+    );
+    console.info(
+      `[nous:first-run] validation map: ${validatedCount} validated, ${unavailableCount} unavailable, ${offlineCount} offline`,
     );
 
     return {
       ollama,
       hardware,
       recommendations,
+      validation,
     };
   }),
+
+  // SP 1.5 — standalone availability check used by the wizard's custom-spec
+  // submit lane (`WizardStepModelDownload.handleDownload` → `validateCustomSpec`
+  // when the resolved spec is NOT in the recommendation set). The
+  // `checkPrerequisites` query already provides validation for the curated
+  // catalog; this procedure handles the on-submit case for user-typed specs.
+  validateModelAvailability: publicProcedure
+    .input(
+      z.object({
+        modelSpec: z.string().min(1),
+      }),
+    )
+    .query(async ({ input }): Promise<{ modelSpec: string; state: ValidationState }> => {
+      const state = await checkRegistryAvailability(input.modelSpec);
+      return { modelSpec: input.modelSpec, state };
+    }),
 
   downloadModel: publicProcedure
     .input(

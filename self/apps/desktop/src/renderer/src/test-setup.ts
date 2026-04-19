@@ -66,6 +66,7 @@ export const DEFAULT_PREREQUISITES: FirstRunPrerequisites = {
       displayName: 'Qwen 2.5 7B',
       ramRequiredMB: 8192,
       reason: 'Balanced local default for desktop orchestration.',
+      validationState: 'pending',
     },
     multiModel: [
       {
@@ -76,6 +77,7 @@ export const DEFAULT_PREREQUISITES: FirstRunPrerequisites = {
           displayName: 'Qwen 2.5 14B',
           ramRequiredMB: 16384,
           reason: 'Use the stronger local model for heavier reasoning.',
+          validationState: 'pending',
         },
       },
     ],

@@ -325,6 +325,11 @@ describe('first-run wizard router', () => {
       recommendations: expect.objectContaining({
         profileName: 'local-only',
       }),
+      // SP 1.5 — `checkPrerequisites` includes a registry-availability
+      // validation map keyed by `modelSpec`. The test environment cannot
+      // reach the registry, so every spec resolves to `'offline'` (graceful
+      // degradation per Decision 5).
+      validation: expect.any(Object),
     });
     expect(recommendModelsMock).toHaveBeenCalledWith(
       expect.objectContaining({

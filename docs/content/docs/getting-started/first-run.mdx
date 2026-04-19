@@ -12,7 +12,7 @@ When you launch Nous for the first time, you'll see a guided flow that helps you
 1. **Welcome** — Introduces Nous and what just happened during installation.
 2. **Identity** — Name your agent, optionally choose a personality, and optionally tell Nous a little about yourself. Three short sub-steps: Naming → Personality → Profile. See the [Identity guide](/docs/guides/identity) for details.
 3. **Ollama Setup** — Confirms a local Ollama is reachable and ready (or routes you through installing one).
-4. **Model Download** — Pulls the recommended local model and assigns it to the reasoner role.
+4. **Model Download** — Pulls the recommended local model and assigns it to the four core agent roles in one step. See [The Model Download Step](#the-model-download-step) for the validation indicator and auto-role-assign behaviour.
 5. **Confirmation** — Confirms everything works and hands you off to the workspace.
 
 You can press **Back** at any step to return to the previous one. From the Identity step, Back returns you to Welcome.
@@ -30,6 +30,49 @@ Submit on Profile (or Skip) writes the full identity payload — `{ name, person
 If your operating system has **Reduce motion** enabled (`prefers-reduced-motion: reduce`), the fade between sub-stages is suppressed and sub-stage swaps happen instantly. Navigation is identical — only the visual transition changes.
 
 For the full walkthrough of preset semantics, advanced overrides, the security disclosure, and the underlying schema, read the [Identity guide](/docs/guides/identity).
+
+## The Model Download Step
+
+The Model Download step is where Nous picks a local model that fits your hardware, pulls it through Ollama, and wires it up to the four core agent roles. You see one or more **recommendation cards** sized to your machine, plus a **custom model spec** input if you want to override the recommendation.
+
+### Recommendation cards and the validation indicator
+
+Each recommendation card carries a small **validation indicator** that tells you whether Nous can currently pull that model from the public Ollama library. The indicator has four states:
+
+| State | Dot color | Label | Meaning |
+|---|---|---|---|
+| `validated` | green | **Available** | Nous reached `ollama.com/library/<model>` and confirmed the model is published. The download will proceed normally. |
+| `pending` | amber (animated) | **Validating availability** | Nous is currently checking the registry. This usually clears in under three seconds. |
+| `unavailable` | amber | **Not currently available** | The Ollama library returned 404 for this identifier — the model has been renamed, removed, or never existed at that exact spec. The card is still selectable; you may want to choose a different recommendation or enter a custom spec. |
+| `offline` | gray | **Cannot verify availability** | The check timed out or the network is unreachable. Nous cannot prove the model exists right now, but the download may still succeed if Ollama can reach the registry locally. |
+
+All four states remain **selectable**. The Download button is **never gated** by the validation state — Nous biases toward letting you try the download even when verification is uncertain, because Ollama's local cache may already have the model and registry coverage may differ between the wizard process and the Ollama daemon. If a download ultimately fails, the wizard surfaces the underlying Ollama error message in place.
+
+The validation check runs **once at step mount**, not on every keystroke or click. Nous keeps a 30-minute per-spec session cache so navigating back to the step does not re-issue probes.
+
+### Custom model spec
+
+Below the recommendation cards there is an input where you can type any Ollama spec (for example `ollama:llama3.3:70b` or `ollama:mistral-small:24b`). The input itself does not validate as you type. When you press **Download**, Nous validates the entered spec against the registry once and then proceeds with the pull.
+
+If you submit a spec that is malformed (empty, missing the `ollama:` prefix, or pointing to a non-Ollama provider) the validation indicator next to the input shows **Not currently available** and the download is not attempted.
+
+### Privacy posture for the validation check
+
+The availability check is an anonymous `HEAD` request to `https://ollama.com/library/<model>` with only `Accept: */*` and a generic `User-Agent: Nous/<version>` header. **Nothing identifying about your machine is sent**: no OS string, no architecture, no CPU or GPU details, no user identifier, no session identifier, no device identifier. The model identifier is the only request-shape information leaving your machine, and it is the same string Ollama would request for the actual pull.
+
+### Auto-role-assign
+
+When the download succeeds, Nous **assigns the downloaded model to all four core agent roles in one step** — `cortex-chat`, `cortex-system`, `orchestrators`, and `workers` — using the model spec you just downloaded. There is no separate "role assignment" screen anymore; the wizard goes `model-download → confirmation` directly.
+
+You can change individual role assignments later from the [Configuration](/docs/guides/config) panel without re-running the wizard.
+
+### Skipping the model download
+
+Pressing **Skip** on this step leaves the model role assignments unchanged and advances the wizard. This is useful when you already have a configured model from a prior run, or when you intend to wire up cloud providers manually before assigning roles. The step's three backend completion markers (`model_download`, `provider_config`, `role_assignment`) are all marked complete on skip — the agent reaches the workspace, but you are responsible for assigning models before chat will produce useful output.
+
+### Reduced motion
+
+If your operating system has **Reduce motion** enabled, the validating-state amber dot stops pulsing. The dot still renders and the label still updates; only the animation is suppressed.
 
 ## Skipping First Run
 
