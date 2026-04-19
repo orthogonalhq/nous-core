@@ -29,6 +29,10 @@ export function createProjectConfig(
     workflow: overrides.workflow,
     packageDefaultIntake: overrides.packageDefaultIntake,
     retrievalBudgetTokens: overrides.retrievalBudgetTokens ?? 500,
+    budgetPolicy: overrides.budgetPolicy,
+    description: overrides.description,
+    icon: overrides.icon,
+    iconColor: overrides.iconColor,
     createdAt: overrides.createdAt ?? now,
     updatedAt: overrides.updatedAt ?? now,
   });
