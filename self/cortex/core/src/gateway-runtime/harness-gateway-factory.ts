@@ -26,6 +26,7 @@ import type {
   TraceId,
 } from '@nous/shared';
 import type { ParsedModelOutput } from '../output-parser.js';
+import type { PersonalityConfig } from './personality/index.js';
 import { resolveAgentProfile } from './prompt-strategy.js';
 import { resolveAdapter } from '../agent-gateway/adapters/index.js';
 import { composeFromProfile } from './prompt-composer.js';
@@ -52,7 +53,7 @@ export interface HarnessGatewayCreateArgs {
   toolSurface: IScopedMcpToolSurface;
   lifecycleHooks?: IGatewayLifecycleHooks;
   providerType: string;
-  personalityConfig?: unknown;
+  personalityConfig?: PersonalityConfig;
   baseSystemPromptOverride?: string;
   outbox?: IGatewayOutboxSink;
   dispatchIntent?: DispatchIntent;
