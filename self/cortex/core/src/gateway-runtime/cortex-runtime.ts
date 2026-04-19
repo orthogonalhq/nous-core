@@ -337,7 +337,10 @@ implements IPrincipalSystemGatewayRuntime, ISystemInboxSubmissionService {
       toolSurface: systemBundle.toolSurface,
       lifecycleHooks: systemBundle.lifecycleHooks,
       baseSystemPrompt: this.deps.systemBaseSystemPrompt
-        ?? composeSystemPromptFromConfig(resolvePromptConfig('Cortex::System'), this.systemTools),
+        ?? composeSystemPromptFromConfig(
+             resolveAgentProfile('Cortex::System', undefined, this.deps.configReader?.getPersonalityConfig()),
+             this.systemTools,
+           ),
       outbox: new HealthTrackingOutboxSink('Cortex::System', this.healthSink, this.deps.eventBus),
     });
     this.systemGateway = this.gatewayFactory.create(this.systemGatewayConfig);
@@ -1119,7 +1122,10 @@ implements IPrincipalSystemGatewayRuntime, ISystemInboxSubmissionService {
     providerType: string,
   ): HarnessStrategies {
     const adapter = resolveAdapter(providerType, this.deps.logger?.channel('nous:gateway'));
-    const profile = resolveAgentProfile(agentClass);
+    // providerType is a vendor string, not a providerId — resolvePromptConfig
+    // has no non-default branches today so this is a no-op; composable harness
+    // WR replaces this callsite.
+    const profile = resolveAgentProfile(agentClass, providerType, this.deps.configReader?.getPersonalityConfig());
 
     return {
       promptFormatter: (input: PromptFormatterInput) =>
