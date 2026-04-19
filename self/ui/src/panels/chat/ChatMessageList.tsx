@@ -120,7 +120,7 @@ function ChatMessageRow({
                 <InlineThoughtGroup items={thoughts} active={false} />
             )}
             {message.thinkingContent && (
-                <details style={styles.thinkingDetails}>
+                <details style={styles.thinkingDetails} {...(message.empty_response_kind ? { open: true } : {})}>
                     <summary style={styles.thinkingSummary}>Thinking</summary>
                     <div style={styles.thinkingBody}>
                         <MarkdownRenderer content={message.thinkingContent} />
