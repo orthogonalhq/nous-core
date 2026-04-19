@@ -40,6 +40,9 @@ describe('first-run state', () => {
     expect(state.currentStep).toBe('ollama_check');
     expect(state.complete).toBe(false);
     expect(state.steps.ollama_check.status).toBe('pending');
+    // SP 1.3 — `agent_identity` added to FIRST_RUN_STEP_VALUES per
+    // SDS § 0 Note 2; the default state includes it as pending.
+    expect(state.steps.agent_identity.status).toBe('pending');
     expect(state.steps.model_download.status).toBe('pending');
     expect(state.steps.provider_config.status).toBe('pending');
     expect(state.steps.role_assignment.status).toBe('pending');
@@ -69,7 +72,9 @@ describe('first-run state', () => {
     const state = await getFirstRunState(dir);
 
     expect(state.steps.ollama_check.status).toBe('complete');
-    expect(state.currentStep).toBe('model_download');
+    // SP 1.3 — `agent_identity` was inserted between ollama_check and
+    // model_download in FIRST_RUN_STEP_VALUES (SDS § 0 Note 2 / § 1.4).
+    expect(state.currentStep).toBe('agent_identity');
   });
 
   it('marks the entire wizard complete after the final step and writes the legacy flag', async () => {
@@ -81,6 +86,7 @@ describe('first-run state', () => {
     } = await loadModule();
 
     await markStepComplete(dir, 'ollama_check');
+    await markStepComplete(dir, 'agent_identity');
     await markStepComplete(dir, 'model_download');
     await markStepComplete(dir, 'provider_config');
     await markStepComplete(dir, 'role_assignment');
