@@ -8,6 +8,7 @@
 import { join, isAbsolute } from 'node:path';
 import { randomUUID } from 'node:crypto';
 import {
+  DEFAULT_LOCAL_USER_ID,
   DEFAULT_STM_COMPACTION_POLICY,
   PublicMcpHostedTenantBindingRecordSchema,
   PublicMcpScopeSchema,
@@ -1386,6 +1387,10 @@ export function createNousServices(config?: BootstrapConfig): NousContext {
     providerRegistry,
     panelTranspiler,
     dataDir,
+    // Local user identity (V1 single-user contract). Server-ctx authority for
+    // view-state routes per view-state-schema-v1.md §7. Forward-compatible:
+    // multi-user auth will populate this from the real identity surface.
+    userId: DEFAULT_LOCAL_USER_ID,
     codingAgentMaoEvents,
     agentSessions,
     eventBus,
