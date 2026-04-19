@@ -71,6 +71,7 @@ function createProjectStore(): IProjectStore {
     list: async () => [projectConfig],
     update: async () => undefined,
     archive: async () => undefined,
+    unarchive: async () => undefined,
   };
 }
 

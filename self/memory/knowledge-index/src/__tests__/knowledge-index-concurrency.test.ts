@@ -92,6 +92,7 @@ describe('knowledge-index refresh concurrency', () => {
         },
         async update() {},
         async archive() {},
+        async unarchive() {},
       } as any,
       metaVectorStore: new MetaVectorStore({
         vectorStore: new InMemoryVectorStore(),

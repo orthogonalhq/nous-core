@@ -101,6 +101,7 @@ function createProjectStore(configs: Map<string, ProjectConfig>): IProjectStore 
     list: vi.fn(),
     update: vi.fn(),
     archive: vi.fn(),
+    unarchive: vi.fn(),
   };
 }
 

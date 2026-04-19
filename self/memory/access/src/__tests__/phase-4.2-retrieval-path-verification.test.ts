@@ -48,6 +48,7 @@ function createProjectStore(config: ProjectConfig): IProjectStore {
     list: async () => [],
     update: async () => {},
     archive: async () => {},
+    unarchive: async () => {},
   };
 }
 

@@ -457,6 +457,7 @@ function createProjectStoreMock(projectIds: ProjectId[] = []): IProjectStore {
     list: async () => projects,
     update: async () => {},
     archive: async () => {},
+    unarchive: async () => {},
   } as IProjectStore;
 }
 
