@@ -513,6 +513,19 @@ function configWithFallback(base: ConfigManager) {
     getSection: base.getSection.bind(base),
     update: base.update.bind(base),
     reload: base.reload.bind(base),
+    // SP 1.3 — IConfig agent-block readers/writers (Decision 7).
+    // The fallback wrapper delegates straight through to the underlying
+    // ConfigManager — the fallback only affects mock provider hydration in
+    // `get()`, not the new agent-identity surface.
+    getAgentName: base.getAgentName.bind(base),
+    getPersonalityConfig: base.getPersonalityConfig.bind(base),
+    getUserProfile: base.getUserProfile.bind(base),
+    getWelcomeMessageSent: base.getWelcomeMessageSent.bind(base),
+    setAgentName: base.setAgentName.bind(base),
+    setPersonalityConfig: base.setPersonalityConfig.bind(base),
+    setUserProfile: base.setUserProfile.bind(base),
+    setWelcomeMessageSent: base.setWelcomeMessageSent.bind(base),
+    clearAgentBlock: base.clearAgentBlock.bind(base),
   };
 }
 
@@ -1311,6 +1324,14 @@ export function createNousServices(config?: BootstrapConfig): NousContext {
     recoveryLedgerStore,
     recoveryOrchestrator,
     logger,
+    // SP 1.3 — Decision 4 production wiring of PersonalityConfig.
+    // The cortex-runtime call sites (cortex-runtime.ts:308-310 / 335-336)
+    // consume `configReader.getPersonalityConfig()` for the Principal/System
+    // baseSystemPrompt composition. With this dep wired, prompt routing
+    // honors the user's persisted personality on every gateway boot; without
+    // it, the call sites fall back to `{ preset: 'balanced' }` (byte-identical
+    // to the pre-migration path per SDS Invariant I5; F8).
+    configReader: appConfig,
   });
 
   // WR-138 row #8 / CPAL § 6: attach providers exactly once after

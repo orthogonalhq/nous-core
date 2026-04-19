@@ -3,6 +3,7 @@ import type {
   AgentClass,
   AppHealthSnapshot,
   AppRuntimeSession,
+  IConfig,
   IDocumentStore,
   IAgentGateway,
   IAgentGatewayFactory,
@@ -294,6 +295,22 @@ export interface PrincipalSystemGatewayRuntimeDeps {
   /** Structured logger (WR-157). When provided, the runtime creates
    *  channels for itself, the gateways, and the backlog queue. */
   logger?: ILogger;
+  /**
+   * SP 1.3 — Decision 4 prompt-routing-decision-v1.
+   *
+   * Source of the live `PersonalityConfig` for the Principal/System gateway
+   * runtime composition. When provided, the Principal and System
+   * `baseSystemPrompt` call sites in `cortex-runtime.ts` (and the legacy
+   * alias `principal-system-runtime.ts`) consume
+   * `configReader.getPersonalityConfig()` and feed it to
+   * `resolveAgentProfile`.
+   *
+   * Optional with a no-op fallback: when absent, the call sites use
+   * `{ preset: 'balanced' }`, which is byte-identical to the pre-migration
+   * path (SDS Invariant I5; F8). This preserves backward compatibility with
+   * test fixtures that do not wire a config reader.
+   */
+  configReader?: IConfig;
 }
 
 export interface LaneLeaseReleasedEvent {

@@ -37,7 +37,7 @@ import { detectAndStripNarration, parseModelOutput } from '../output-parser.js';
 import { CARD_PROMPT_FRAGMENT } from './card-prompt-fragment.js';
 import { WORKFLOW_PROMPT_FRAGMENT } from './workflow-prompt-fragment.js';
 import { getOrchestratorPrompt } from '../prompts/index.js';
-import { resolvePromptConfig, composeSystemPromptFromConfig } from './prompt-strategy.js';
+import { resolvePromptConfig, composeSystemPromptFromConfig, resolveAgentProfile } from './prompt-strategy.js';
 import { RetryPolicyEvaluator } from '../recovery/retry-policy-evaluator.js';
 import { RollbackPolicyEvaluator } from '../recovery/rollback-policy-evaluator.js';
 import { WorkmodeAdmissionGuard } from '../workmode/admission-guard.js';
@@ -239,6 +239,16 @@ implements IPrincipalSystemGatewayRuntime, ISystemInboxSubmissionService {
       ...this.catalogDefinitions('Cortex::Principal'),
       ...getPrincipalCommunicationToolDefinitions(),
     ];
+    // SP 1.3 — Decision 4 production wiring (mirrors cortex-runtime.ts).
+    // This is the legacy alias file kept consistent with the production
+    // runtime per SDS § 1.5 dual-file decision so any future direct caller
+    // sees the migrated pattern.
+    const legacyPrincipalProviderId = this.deps.providerIdByClass?.['Cortex::Principal'];
+    const legacyPrincipalProfile = resolveAgentProfile(
+      'Cortex::Principal',
+      legacyPrincipalProviderId,
+      this.deps.configReader?.getPersonalityConfig() ?? { preset: 'balanced' },
+    );
     this.principalGateway = this.gatewayFactory.create(
       this.createGatewayConfig({
         agentClass: 'Cortex::Principal',
@@ -247,7 +257,7 @@ implements IPrincipalSystemGatewayRuntime, ISystemInboxSubmissionService {
         lifecycleHooks: principalBase.lifecycleHooks,
         baseSystemPrompt:
           this.deps.principalBaseSystemPrompt
-            ?? composeSystemPromptFromConfig(resolvePromptConfig('Cortex::Principal')),
+            ?? composeSystemPromptFromConfig(legacyPrincipalProfile),
         outbox: new HealthTrackingOutboxSink('Cortex::Principal', this.healthSink, this.deps.eventBus),
       }),
     );
@@ -265,6 +275,13 @@ implements IPrincipalSystemGatewayRuntime, ISystemInboxSubmissionService {
       deps: this.createInternalMcpDeps(),
     });
     this.systemTools = this.catalogDefinitions('Cortex::System');
+    // SP 1.3 — Decision 4 production wiring (mirrors cortex-runtime.ts).
+    const legacySystemProviderId = this.deps.providerIdByClass?.['Cortex::System'];
+    const legacySystemProfile = resolveAgentProfile(
+      'Cortex::System',
+      legacySystemProviderId,
+      this.deps.configReader?.getPersonalityConfig() ?? { preset: 'balanced' },
+    );
     this.systemGateway = this.gatewayFactory.create(
       this.createGatewayConfig({
         agentClass: 'Cortex::System',
@@ -272,7 +289,7 @@ implements IPrincipalSystemGatewayRuntime, ISystemInboxSubmissionService {
         toolSurface: systemBundle.toolSurface,
         lifecycleHooks: systemBundle.lifecycleHooks,
         baseSystemPrompt: this.deps.systemBaseSystemPrompt
-          ?? composeSystemPromptFromConfig(resolvePromptConfig('Cortex::System'), this.systemTools),
+          ?? composeSystemPromptFromConfig(legacySystemProfile, this.systemTools),
         outbox: new HealthTrackingOutboxSink('Cortex::System', this.healthSink, this.deps.eventBus),
       }),
     );

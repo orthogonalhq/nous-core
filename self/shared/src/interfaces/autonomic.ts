@@ -32,11 +32,37 @@ import type {
   SystemStatusSnapshot,
 } from '../types/index.js';
 
+import type { PersonalityConfig as SharedPersonalityConfig } from './agent-gateway.js';
+
 // SystemConfig is defined in @nous/autonomic-config, but the interface
 // references it. We define a minimal type here to avoid circular deps.
 // The actual schema lives in self/autonomic/config.
 export interface SystemConfig {
   [key: string]: unknown;
+}
+
+/**
+ * SP 1.3 — Decision 7 identity-persistence-schema-v1.
+ *
+ * Structural mirror of `UserProfile` declared canonically in
+ * `@nous/autonomic-config` (`self/autonomic/config/src/schema.ts`). The mirror
+ * lives here adjacent to `IConfig` so the boundary type for `IConfig`'s
+ * profile reader/writer does not require an `@nous/shared → @nous/autonomic-config`
+ * import (which would violate ADR 018's layering invariant — see SDS § 1.3 / I2).
+ *
+ * Every field is optional; absent fields produce a `{}` shape from
+ * `IConfig.getUserProfile()`. Adding a field is an additive Zod schema change
+ * in the canonical schema. Renaming or removing requires explicit migration
+ * (Decision 7 § Profile Schema Constraints).
+ *
+ * Drift from the canonical Zod-derived `UserProfile` is detected by
+ * `self/autonomic/config/src/__tests__/iconfig-profile-compat.test.ts`.
+ */
+export interface AgentUserProfile {
+  readonly displayName?: string;
+  readonly role?: string;
+  readonly primaryUseCase?: string;
+  readonly expertise?: 'beginner' | 'intermediate' | 'advanced';
 }
 
 export interface IDocumentStore {
@@ -156,6 +182,39 @@ export interface IConfig {
 
   /** Reload configuration from disk */
   reload(): Promise<void>;
+
+  // SP 1.3 — agent block readers (Decision 7 identity-persistence-schema-v1).
+  // Each reader synthesizes its typed default at read time when the `agent`
+  // block is absent on disk; defaults are NEVER written to disk by readers
+  // (see `ConfigManager.getAgent*`).
+  /** Get the agent's display name. Default: `"Nous"`. */
+  getAgentName(): string;
+  /** Get the agent's personality config. Default: `{ preset: 'balanced' }`. */
+  getPersonalityConfig(): SharedPersonalityConfig;
+  /** Get the user profile. Default: `{}`. */
+  getUserProfile(): AgentUserProfile;
+  /** Get the welcome-message-sent flag. Default: `false`. */
+  getWelcomeMessageSent(): boolean;
+
+  // SP 1.3 — agent block writers (Decision 7).
+  // Writers create the `agent` block on first write and preserve sibling
+  // fields on subsequent writes. Each writer validates the candidate config
+  // through Zod before persisting; invalid input throws ConfigError and
+  // leaves disk unchanged.
+  /** Persist the agent's display name. */
+  setAgentName(name: string): Promise<void>;
+  /** Persist the agent's personality config. */
+  setPersonalityConfig(config: SharedPersonalityConfig): Promise<void>;
+  /** Persist the user profile. */
+  setUserProfile(profile: AgentUserProfile): Promise<void>;
+  /** Persist the welcome-message-sent flag. */
+  setWelcomeMessageSent(value: boolean): Promise<void>;
+  /**
+   * Remove the entire `agent` block from disk. No-op when block already
+   * absent. Other top-level keys (`providers`, `modelRoleAssignments`, etc.)
+   * are preserved bit-for-bit.
+   */
+  clearAgentBlock(): Promise<void>;
 }
 
 export interface IHealthMonitor {

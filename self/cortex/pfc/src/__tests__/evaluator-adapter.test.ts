@@ -15,6 +15,16 @@ function mockConfig(): IConfig {
     getSection: () => ({}),
     update: async () => {},
     reload: async () => {},
+    // SP 1.3 — IConfig agent-block stubs (Decision 7).
+    getAgentName: () => 'Nous',
+    getPersonalityConfig: () => ({ preset: 'balanced' as const }),
+    getUserProfile: () => ({}),
+    getWelcomeMessageSent: () => false,
+    setAgentName: async () => {},
+    setPersonalityConfig: async () => {},
+    setUserProfile: async () => {},
+    setWelcomeMessageSent: async () => {},
+    clearAgentBlock: async () => {},
   };
 }
 

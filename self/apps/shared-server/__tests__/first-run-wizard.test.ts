@@ -79,8 +79,17 @@ vi.mock('../src/bootstrap', () => ({
   upsertProviderConfig: bootstrapMock.upsertProviderConfig,
 }));
 
+// SP 1.3 — `agent_identity` added to FIRST_RUN_STEP_VALUES per SDS § 0 Note 2.
+// Treat it as already-complete in this fixture (existing pre-SP-1.3 wizard
+// scenarios bypass the identity step).
 function createWizardState(
-  currentStep: 'ollama_check' | 'model_download' | 'provider_config' | 'role_assignment' | 'complete',
+  currentStep:
+    | 'ollama_check'
+    | 'agent_identity'
+    | 'model_download'
+    | 'provider_config'
+    | 'role_assignment'
+    | 'complete',
 ) {
   const completed = currentStep === 'complete';
   return {
@@ -91,15 +100,24 @@ function createWizardState(
         status:
           currentStep === 'ollama_check' ? 'pending' : 'complete',
       },
+      agent_identity: {
+        status:
+          currentStep === 'ollama_check' || currentStep === 'agent_identity'
+            ? 'pending'
+            : 'complete',
+      },
       model_download: {
         status:
-          currentStep === 'ollama_check' || currentStep === 'model_download'
+          currentStep === 'ollama_check' ||
+          currentStep === 'agent_identity' ||
+          currentStep === 'model_download'
             ? 'pending'
             : 'complete',
       },
       provider_config: {
         status:
           currentStep === 'ollama_check' ||
+          currentStep === 'agent_identity' ||
           currentStep === 'model_download' ||
           currentStep === 'provider_config'
             ? 'pending'
@@ -189,6 +207,21 @@ function createMockContext() {
           allowRemoteProviders: false,
         },
       }),
+      // SP 1.3 — IConfig agent-block readers/writers (Decision 7).
+      // Stubbed out for the mocked first-run.ts paths exercised by this
+      // suite (downloadModel / configureProvider / completeStep /
+      // resetWizard). The new writeIdentity procedure has dedicated
+      // integration tests in `first-run-identity.test.ts` with a real
+      // ConfigManager.
+      getAgentName: vi.fn().mockReturnValue('Nous'),
+      getPersonalityConfig: vi.fn().mockReturnValue({ preset: 'balanced' }),
+      getUserProfile: vi.fn().mockReturnValue({}),
+      getWelcomeMessageSent: vi.fn().mockReturnValue(false),
+      setAgentName: vi.fn().mockResolvedValue(undefined),
+      setPersonalityConfig: vi.fn().mockResolvedValue(undefined),
+      setUserProfile: vi.fn().mockResolvedValue(undefined),
+      setWelcomeMessageSent: vi.fn().mockResolvedValue(undefined),
+      clearAgentBlock: vi.fn().mockResolvedValue(undefined),
     },
   } as any;
 }
