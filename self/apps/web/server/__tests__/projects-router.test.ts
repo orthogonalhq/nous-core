@@ -805,4 +805,330 @@ connections: []
     expect(result.project.workflow?.definitions).toHaveLength(1);
     expect(result.project.workflow?.definitions[0]?.version).toBe('2.0.0');
   });
+
+  // ---------------------------------------------------------------------------
+  // Sub-phase 1.1 — Schema Extensions + Governed Write Path Consolidation
+  // ---------------------------------------------------------------------------
+
+  describe('updateConfiguration — extended updates envelope', () => {
+    it('accepts each new updates field (round-trip)', async () => {
+      const ctx = createNousContext();
+      // Defensive: prior tests (e.g. line ~342 hard_stopped) mutate the shared
+      // cached ctx and never restore — force running posture for this test.
+      ctx.opctlService.getProjectControlState = async () => 'running';
+      const caller = appRouter.createCaller(ctx);
+      const projectId = await createProjectWithWorkflow(ctx);
+
+      const updated = await caller.projects.updateConfiguration({
+        projectId,
+        updates: {
+          name: 'Renamed Project',
+          description: 'A new description for this project',
+          icon: 'lucide:Rocket',
+          iconColor: '#112233',
+          budgetPolicy: {
+            enabled: true,
+            period: 'monthly',
+            softThresholdPercent: 80,
+            hardCeilingUsd: 50,
+          },
+        },
+      });
+
+      expect(updated.config.name).toBe('Renamed Project');
+      expect(updated.config.description).toBe('A new description for this project');
+      expect(updated.config.icon).toBe('lucide:Rocket');
+      expect(updated.config.iconColor).toBe('#112233');
+      expect(updated.config.budgetPolicy?.enabled).toBe(true);
+      expect(updated.config.budgetPolicy?.hardCeilingUsd).toBe(50);
+    });
+
+    it('applies transactional order updates -> resetFields -> snapshot', async () => {
+      const ctx = createNousContext();
+      ctx.opctlService.getProjectControlState = async () => 'running';
+      const caller = appRouter.createCaller(ctx);
+      const projectId = await createProjectWithWorkflow(ctx);
+
+      // First seed a description so we can observe reset semantics.
+      await caller.projects.updateConfiguration({
+        projectId,
+        updates: { description: 'to-be-cleared', name: 'Seed Name' },
+      });
+
+      const updated = await caller.projects.updateConfiguration({
+        projectId,
+        updates: { name: 'New Name' },
+        resetFields: ['description'],
+      });
+
+      expect(updated.config.name).toBe('New Name');
+      expect(updated.config.description).toBeUndefined();
+      // description should be omitted from provenance when unset per decision §5
+      expect(updated.fieldProvenance.some((p) => p.field === 'description')).toBe(false);
+    });
+
+    it('accepts pure-reset envelope (empty updates + non-empty resetFields)', async () => {
+      const ctx = createNousContext();
+      ctx.opctlService.getProjectControlState = async () => 'running';
+      const caller = appRouter.createCaller(ctx);
+      const projectId = await createProjectWithWorkflow(ctx);
+
+      // Seed a description first.
+      await caller.projects.updateConfiguration({
+        projectId,
+        updates: { description: 'seeded' },
+      });
+
+      const updated = await caller.projects.updateConfiguration({
+        projectId,
+        updates: {},
+        resetFields: ['description'],
+      });
+
+      expect(updated.config.description).toBeUndefined();
+    });
+
+    it('rejects updates ∩ resetFields overlap at the tRPC boundary', async () => {
+      const ctx = createNousContext();
+      ctx.opctlService.getProjectControlState = async () => 'running';
+      const caller = appRouter.createCaller(ctx);
+      const projectId = await createProjectWithWorkflow(ctx);
+
+      await expect(
+        caller.projects.updateConfiguration({
+          projectId,
+          updates: { name: 'AmbiguousName' },
+          resetFields: ['name'],
+        }),
+      ).rejects.toThrow();
+    });
+
+    it('preserves CONFLICT semantics when expectedUpdatedAt mismatches', async () => {
+      const ctx = createNousContext();
+      ctx.opctlService.getProjectControlState = async () => 'running';
+      const caller = appRouter.createCaller(ctx);
+      const projectId = await createProjectWithWorkflow(ctx);
+
+      await expect(
+        caller.projects.updateConfiguration({
+          projectId,
+          expectedUpdatedAt: '1999-01-01T00:00:00.000Z',
+          updates: { name: 'RaceyName' },
+        }),
+      ).rejects.toMatchObject({ code: 'CONFLICT' } satisfies Partial<TRPCError>);
+    });
+  });
+
+  describe('projects.update removal (atomic landing with updateConfiguration extension)', () => {
+    it('projects.update is absent from the router (calling raises NOT_FOUND)', async () => {
+      const ctx = createNousContext();
+      const caller = appRouter.createCaller(ctx);
+      // The tRPC client proxy yields a callable for any path; the router
+      // resolution happens on invocation. Calling `projects.update(...)`
+      // must raise NOT_FOUND now that the procedure is deleted.
+      await expect(
+        // @ts-expect-error projects.update was removed in sub-phase 1.1
+        caller.projects.update({ id: 'x', updates: {} }),
+      ).rejects.toMatchObject({ code: 'NOT_FOUND' } satisfies Partial<TRPCError>);
+    });
+  });
+
+  describe('projects.archive and projects.unarchive', () => {
+    it('archive happy path returns the updated project metadata', async () => {
+      const ctx = createNousContext();
+      const originalGetState = ctx.opctlService.getProjectControlState;
+      ctx.opctlService.getProjectControlState = async () => 'running';
+      try {
+        const caller = appRouter.createCaller(ctx);
+        const projectId = await createProjectWithWorkflow(ctx);
+
+        const archived = await caller.projects.archive({ projectId });
+        expect(archived.id).toBe(projectId);
+      } finally {
+        ctx.opctlService.getProjectControlState = originalGetState;
+      }
+    });
+
+    it('archive under hard_stopped throws FORBIDDEN', async () => {
+      const ctx = createNousContext();
+      const originalGetState = ctx.opctlService.getProjectControlState;
+      ctx.opctlService.getProjectControlState = async () => 'hard_stopped';
+      try {
+        const caller = appRouter.createCaller(ctx);
+        const projectId = await createProjectWithWorkflow(ctx);
+
+        await expect(
+          caller.projects.archive({ projectId }),
+        ).rejects.toMatchObject({ code: 'FORBIDDEN' } satisfies Partial<TRPCError>);
+      } finally {
+        ctx.opctlService.getProjectControlState = originalGetState;
+      }
+    });
+
+    it('archive under resuming throws FORBIDDEN (in-use posture)', async () => {
+      const ctx = createNousContext();
+      const originalGetState = ctx.opctlService.getProjectControlState;
+      ctx.opctlService.getProjectControlState = async () => 'resuming';
+      try {
+        const caller = appRouter.createCaller(ctx);
+        const projectId = await createProjectWithWorkflow(ctx);
+
+        await expect(
+          caller.projects.archive({ projectId }),
+        ).rejects.toMatchObject({ code: 'FORBIDDEN' } satisfies Partial<TRPCError>);
+      } finally {
+        ctx.opctlService.getProjectControlState = originalGetState;
+      }
+    });
+
+    it('archive under paused_review succeeds', async () => {
+      const ctx = createNousContext();
+      const originalGetState = ctx.opctlService.getProjectControlState;
+      ctx.opctlService.getProjectControlState = async () => 'paused_review';
+      try {
+        const caller = appRouter.createCaller(ctx);
+        const projectId = await createProjectWithWorkflow(ctx);
+
+        const archived = await caller.projects.archive({ projectId });
+        expect(archived.id).toBe(projectId);
+      } finally {
+        ctx.opctlService.getProjectControlState = originalGetState;
+      }
+    });
+
+    it('unarchive happy path returns the updated project metadata', async () => {
+      const ctx = createNousContext();
+      const originalGetState = ctx.opctlService.getProjectControlState;
+      ctx.opctlService.getProjectControlState = async () => 'running';
+      try {
+        const caller = appRouter.createCaller(ctx);
+        const projectId = await createProjectWithWorkflow(ctx);
+
+        await caller.projects.archive({ projectId });
+        const unarchived = await caller.projects.unarchive({ projectId });
+        expect(unarchived.id).toBe(projectId);
+
+        // After unarchive, list() should include the project again.
+        const list = await caller.projects.list();
+        expect(list.some((p) => p.id === projectId)).toBe(true);
+      } finally {
+        ctx.opctlService.getProjectControlState = originalGetState;
+      }
+    });
+  });
+
+  describe('buildFieldProvenance — per-source-type mapping (decision §5)', () => {
+    it('emits pfcTier: 3 as system_default (regression)', async () => {
+      const ctx = createNousContext();
+      const caller = appRouter.createCaller(ctx);
+      const projectId = await createProjectWithWorkflow(ctx);
+
+      const snapshot = await caller.projects.configurationSnapshot({ projectId });
+      const pfcTier = snapshot.fieldProvenance.find((p) => p.field === 'pfcTier');
+      expect(pfcTier?.source).toBe('system_default');
+    });
+
+    it('emits iconColor unset as derived_read_only with avatarColorFromId evidence', async () => {
+      const ctx = createNousContext();
+      const caller = appRouter.createCaller(ctx);
+      const projectId = await createProjectWithWorkflow(ctx);
+
+      const snapshot = await caller.projects.configurationSnapshot({ projectId });
+      const iconColor = snapshot.fieldProvenance.find((p) => p.field === 'iconColor');
+      expect(iconColor?.source).toBe('derived_read_only');
+      expect(iconColor?.evidenceRefs).toContain('derived:avatarColorFromId');
+    });
+
+    it('emits iconColor set as project_override', async () => {
+      const ctx = createNousContext();
+      ctx.opctlService.getProjectControlState = async () => 'running';
+      const caller = appRouter.createCaller(ctx);
+      const projectId = await createProjectWithWorkflow(ctx);
+
+      await caller.projects.updateConfiguration({
+        projectId,
+        updates: { iconColor: '#aabbcc' },
+      });
+
+      const snapshot = await caller.projects.configurationSnapshot({ projectId });
+      const iconColor = snapshot.fieldProvenance.find((p) => p.field === 'iconColor');
+      expect(iconColor?.source).toBe('project_override');
+      expect(iconColor?.evidenceRefs).toContain('project-config:iconColor');
+    });
+
+    it('emits retrievalBudgetTokens != 500 as project_override', async () => {
+      const ctx = createNousContext();
+      ctx.opctlService.getProjectControlState = async () => 'running';
+      const caller = appRouter.createCaller(ctx);
+      const projectId = await createProjectWithWorkflow(ctx);
+
+      await caller.projects.updateConfiguration({
+        projectId,
+        updates: { retrievalBudgetTokens: 750 },
+      });
+
+      const snapshot = await caller.projects.configurationSnapshot({ projectId });
+      const budget = snapshot.fieldProvenance.find(
+        (p) => p.field === 'retrievalBudgetTokens',
+      );
+      expect(budget?.source).toBe('project_override');
+    });
+
+    it('emits package_default for sections applied via packageDefaultIntake', async () => {
+      const ctx = createNousContext();
+      const projectId = randomUUID() as ProjectId;
+      await ctx.projectStore.create(createProjectConfig({
+        id: projectId,
+        name: 'Package-Sourced Project',
+        packageDefaultIntake: [
+          {
+            sourcePackageId: 'package://projects/dashboard',
+            sourcePackageVersion: '1.0.0',
+            sourceManifestRef: 'manifest://dashboard',
+            appliedSections: ['project_type', 'governance_defaults'],
+            appliedAt: new Date().toISOString(),
+          },
+        ],
+      }));
+      const caller = appRouter.createCaller(ctx);
+
+      const snapshot = await caller.projects.configurationSnapshot({ projectId });
+      const type = snapshot.fieldProvenance.find((p) => p.field === 'type');
+      const governance = snapshot.fieldProvenance.find(
+        (p) => p.field === 'governanceDefaults',
+      );
+
+      expect(type?.source).toBe('package_default');
+      expect(governance?.source).toBe('package_default');
+    });
+
+    it('emits derived_read_only for updatedAt/createdAt/packageDefaultIntake metadata fields', async () => {
+      const ctx = createNousContext();
+      const caller = appRouter.createCaller(ctx);
+      const projectId = await createProjectWithWorkflow(ctx);
+
+      const snapshot = await caller.projects.configurationSnapshot({ projectId });
+      for (const field of ['updatedAt', 'createdAt', 'packageDefaultIntake']) {
+        const entry = snapshot.fieldProvenance.find((p) => p.field === field);
+        expect(entry?.source).toBe('derived_read_only');
+        expect(entry?.lockedByPolicy).toBe(false);
+      }
+    });
+
+    it('preserves lockedByPolicy for config-gated fields under hard_stopped', async () => {
+      const ctx = createNousContext();
+      const caller = appRouter.createCaller(ctx);
+      const projectId = await createProjectWithWorkflow(ctx);
+
+      const originalGetState = ctx.opctlService.getProjectControlState;
+      ctx.opctlService.getProjectControlState = async () => 'hard_stopped';
+      try {
+        const snapshot = await caller.projects.configurationSnapshot({ projectId });
+        const name = snapshot.fieldProvenance.find((p) => p.field === 'name');
+        expect(name?.lockedByPolicy).toBe(true);
+      } finally {
+        ctx.opctlService.getProjectControlState = originalGetState;
+      }
+    });
+  });
 });
