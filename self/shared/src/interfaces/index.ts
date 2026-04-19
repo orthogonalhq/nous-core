@@ -102,6 +102,10 @@ export type {
   ContextStrategy,
   LoopConfig,
   ToolConcurrencyConfig,
+  // WR-128 / SP 1.2 personality structural mirror
+  PersonalityPreset,
+  PersonalityConfig,
+  TraitAxes,
 } from './agent-gateway.js';
 export type {
   IIngressTriggerValidator,
