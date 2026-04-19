@@ -17,6 +17,8 @@ When you launch Nous for the first time, you'll see a guided flow that helps you
 
 You can press **Back** at any step to return to the previous one. From the Identity step, Back returns you to Welcome.
 
+When you open the chat panel for the first time after finishing the wizard, the agent emits a one-shot welcome message in the personality preset you chose. The welcome appears as a normal agent message; nothing else about the chat looks different. See [Welcome Message (First Open)](/docs/guides/chat#welcome-message-first-open) for the full lifecycle and reset semantics.
+
 ## The Identity Step
 
 The Identity step is where the agent becomes *yours*. It's split into three sub-stages with a short fade between them:
@@ -85,6 +87,6 @@ During first run, Nous generates and persists:
 - **Default config** — Cortex tier 3, Ollama as the reasoner provider.
 - **Storage** — SQLite database in your data directory.
 - **Projects** — Empty; create your first project from the sidebar.
-- **Agent identity** — Your `name`, `personality`, and `profile` choices land in the `agent` block of `nous-config.json5`. Skipping any step keeps the typed defaults (`"Nous"`, `{ preset: "balanced" }`, `{}`) until you decide otherwise. See [Configuration Schema § Agent](/docs/configuration/config-schema#agent).
+- **Agent identity** — Your `name`, `personality`, and `profile` choices land in the `agent` block of `nous-config.json5`. Skipping any step keeps the typed defaults (`"Nous"`, `{ preset: "balanced" }`, `{}`) until you decide otherwise. A `welcomeMessageSent: boolean` field is also persisted; it flips to `true` after the agent's first welcome message lands in chat, and clears back to `false` on `firstRun.resetWizard` so a fresh first-run experience always re-fires the welcome. See [Configuration Schema § Agent](/docs/configuration/config-schema#agent).
 
 You can adjust model assignments and Cortex tier later in the [Configuration](/docs/guides/config) panel. To re-run the wizard from scratch (clearing the entire `agent` block while leaving providers and role assignments intact), call the `firstRun.resetWizard` mutation — see [tRPC Procedures § firstRun](/docs/api/procedures#firstrun).

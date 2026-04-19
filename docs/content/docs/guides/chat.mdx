@@ -17,6 +17,38 @@ Nous processes your message through the full execution cycle: Cortex evaluation,
 
 **Phase 1:** Responses are displayed in full after the turn completes. Streaming (token-by-token) is deferred to Phase 2+.
 
+## Welcome Message (First Open)
+
+The first time you open the principal chat panel after finishing the first-run wizard, the agent emits a single greeting message. The welcome is part of the [first-run experience](/docs/getting-started/first-run) — the wizard configures the agent's identity, then the chat introduces it.
+
+### When the welcome fires
+
+The welcome fires the first time the principal chat panel mounts after first-run completion. This is also true if you close Nous between finishing the wizard and opening chat — the welcome lives at the chat panel mount, not at the wizard exit, so a restart still produces the welcome.
+
+### What the welcome looks like
+
+It looks like every other agent message — same row component, same persistence, no badge, no highlight, no special "welcome" label. The wording is whatever the model produced from a short, preset-neutral instruction; the personality preset you chose on the [Identity step](/docs/guides/identity) shapes the tone (a `professional` preset produces a more formal greeting; the default `balanced` produces a friendlier one).
+
+### One-shot semantic
+
+A persistent flag (`agent.welcomeMessageSent` in `nous-config.json5`) tracks whether the welcome has already fired. Once it lands successfully, the flag flips to `true` and subsequent chat panel mounts skip the trigger. The welcome is single-fire by design — there is no per-project welcome, no second welcome after a major update, and no welcome re-fire when you switch projects within the same chat surface.
+
+### Personality and identity inheritance
+
+The welcome composes through the same prompt path as every chat turn, so anything that flows into a normal agent reply also flows into the welcome — your chosen agent name, the personality preset (or any individual trait overrides), the user profile context you optionally shared on the Identity step. There is no separate "welcome template"; the agent simply produces a first turn under the same composition contract.
+
+### Graceful degradation
+
+If the model provider is unreachable when chat first opens (Ollama daemon stopped, cloud provider timing out), the chat still mounts cleanly. No welcome appears, the flag stays `false`, and the next time you mount the chat panel the welcome retries. The chat is never blocked or stalled by a welcome composition failure. See [Troubleshooting § No Welcome Appears on First Chat Open](/docs/playbooks/troubleshooting#no-welcome-appears-on-first-chat-open) for recovery steps.
+
+### Reset reissue
+
+Calling `firstRun.resetWizard` (see [tRPC Procedures § firstRun](/docs/api/procedures#firstrun)) clears the entire `agent` block — including `welcomeMessageSent`. After a reset, re-completing the wizard and reopening chat fires a fresh welcome composed against whatever new identity you configure. This is the supported way to re-experience the welcome with a different personality or name.
+
+### Privacy
+
+The welcome composition is the same model call as any other agent turn. There is no separate telemetry, no engagement tracking, no external probe — the welcome is observable only to you and your local STM store. The seed instruction itself is a short fixed string that lives in the composition input at welcome-init time only and is never persisted to the agent's identity, personality, or any other long-lived shape.
+
 ## Thread Types and Project Scope
 
 Chat uses **thread topology** to enforce control-plane integrity:
