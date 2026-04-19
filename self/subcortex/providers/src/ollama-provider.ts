@@ -156,17 +156,29 @@ export class OllamaProvider implements IModelProvider {
   }
 
   /**
-   * Optional `invokeWithThinkingStream` — drives the same `/api/chat` streaming
-   * code path the existing `stream()` uses, but accumulates the response into
-   * the same shape `invoke()` returns (the full `OllamaChatResponse.message`
-   * object including `content`, `thinking`, and `tool_calls`). For each
-   * thinking delta encountered, publishes `chat:thinking-chunk` to the event
-   * bus immediately so the UI can render thinking progressively while the
-   * gateway still receives the full structured `ModelResponse` for tool-call
-   * extraction.
+   * Optional `invokeWithThinkingStream` — drives `/api/chat` and accumulates
+   * the response into the same shape `invoke()` returns (the full
+   * `OllamaChatResponse.message` object including `content`, `thinking`, and
+   * `tool_calls`). Publishes `chat:thinking-chunk` events on the event bus so
+   * the UI can render thinking content while the gateway still receives the
+   * full structured `ModelResponse` for tool-call extraction.
+   *
+   * Wire-mode honoring (SP 1.15 RC-2 — restores the cycle-1 SP 1.9 RC-2
+   * invariant after SP 1.13 inadvertently regressed it):
+   * - `body.stream` is honored via `body.stream ?? true`. Explicit `false`
+   *   is preserved (the adapter sets `result.stream = false` when tools are
+   *   present — see ollama-adapter.ts:319-322 — to keep tool-call extraction
+   *   reliable). The cycle-1 SP 1.9 RC-2 invariant for non-tool-bearing
+   *   turns (progressive thinking) is preserved by defaulting to streaming.
+   *
+   * Per-branch SSE emission (SDS Invariants I-10 + I-11):
+   * - Streaming branch: N `chat:thinking-chunk` events, one per delta.
+   * - Non-streaming branch: exactly 1 event with the full `thinking` field.
+   * The downstream UI subscriber (ChatPanel.tsx:147-170) accepts both
+   * cardinalities by accumulating into `streamingThinking` either way.
    *
    * Failure semantics: any thrown error (network, abort, malformed SSE,
-   * schema validation) propagates so the gateway's
+   * schema validation, JSON parse) propagates so the gateway's
    * `invokeWithThinkingStreamFallback` catch path executes
    * `provider.invoke(request)` as the fallback.
    */
@@ -179,18 +191,37 @@ export class OllamaProvider implements IModelProvider {
     const start = Date.now();
     const body = this.buildRequestBody(input);
     const url = this.getUrl(body);
+    // SP 1.15 RC-2 — honor body.stream when set (explicit `false` from the
+    // adapter is preserved); default to streaming when undefined. Use `??`
+    // not `||` so `false` is treated as a valid explicit value.
+    const effectiveStream = (body as { stream?: boolean }).stream ?? true;
 
     const response = await this.fetchWithTimeout(url, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       signal: request.abortSignal,
-      body: JSON.stringify({ ...body, stream: true }),
+      body: JSON.stringify({ ...body, stream: effectiveStream }),
     });
 
     if (!response.ok) {
       await this.handleError(response);
     }
 
+    if (effectiveStream) {
+      return this.processStreamingThinkingResponse(response, eventBus, traceId, start, url, body, request.traceId);
+    }
+    return this.processNonStreamingThinkingResponse(response, eventBus, traceId, start, url, body, request.traceId);
+  }
+
+  private async processStreamingThinkingResponse(
+    response: Response,
+    eventBus: IEventBus,
+    traceId: TraceId,
+    start: number,
+    url: string,
+    _body: Record<string, unknown>,
+    requestTraceId: TraceId,
+  ): Promise<ModelResponse> {
     const reader = response.body?.getReader();
     if (!reader) {
       throw new NousError('No response body', 'PROVIDER_UNAVAILABLE');
@@ -301,7 +332,68 @@ export class OllamaProvider implements IModelProvider {
       output: messageObj,
       providerId: this.config.id,
       usage,
-      traceId: request.traceId,
+      traceId: requestTraceId,
+    };
+  }
+
+  private async processNonStreamingThinkingResponse(
+    response: Response,
+    eventBus: IEventBus,
+    traceId: TraceId,
+    start: number,
+    url: string,
+    _body: Record<string, unknown>,
+    requestTraceId: TraceId,
+  ): Promise<ModelResponse> {
+    let data: OllamaChatResponse;
+    try {
+      data = (await response.json()) as OllamaChatResponse;
+    } catch {
+      throw new NousError('Invalid JSON in non-streaming response', 'PROVIDER_UNAVAILABLE');
+    }
+
+    const messageObj: Record<string, unknown> = {};
+    if (data.message?.role) messageObj.role = data.message.role;
+    messageObj.content = data.message?.content ?? '';
+    if (data.message?.thinking) messageObj.thinking = data.message.thinking;
+    if (data.message?.tool_calls && data.message.tool_calls.length > 0) {
+      messageObj.tool_calls = data.message.tool_calls;
+    }
+
+    // SDS Invariant I-11 — emit thinking as a single chat:thinking-chunk
+    // event with the FULL thinking text. The UI's streamingThinking
+    // accumulator at ChatPanel.tsx:147-170 populates in one frame.
+    if (data.message?.thinking && data.message.thinking.length > 0) {
+      try {
+        eventBus.publish('chat:thinking-chunk', {
+          content: data.message.thinking,
+          traceId,
+        });
+      } catch { /* fire-and-forget — same posture as the streaming branch */ }
+    }
+
+    const usage: ModelResponse['usage'] = data.eval_count != null
+      ? {
+          inputTokens: data.prompt_eval_count,
+          outputTokens: data.eval_count,
+          computeMs: Date.now() - start,
+        }
+      : { computeMs: Date.now() - start };
+
+    console.debug('[nous:ollama-provider] invokeWithThinkingStream complete (non-streaming branch)', {
+      url,
+      accumulatedContentLength: typeof messageObj.content === 'string' ? messageObj.content.length : 0,
+      accumulatedThinkingLength: typeof messageObj.thinking === 'string' ? messageObj.thinking.length : 0,
+      chunkCount: 1,
+      hadToolCalls: !!(data.message?.tool_calls && data.message.tool_calls.length > 0),
+      doneReason: data.done_reason,
+    });
+
+    return {
+      output: messageObj,
+      providerId: this.config.id,
+      usage,
+      traceId: requestTraceId,
     };
   }
 
@@ -309,6 +401,7 @@ export class OllamaProvider implements IModelProvider {
     prompt?: string;
     messages?: Array<{ role: string; content: string | unknown[]; tool_call_id?: string; tool_calls?: unknown[] }>;
     tools?: Array<Record<string, unknown>>;
+    stream?: boolean;
   } {
     const result = TextModelInputSchema.safeParse(input);
     if (!result.success) {
@@ -318,7 +411,12 @@ export class OllamaProvider implements IModelProvider {
       }));
       throw new ValidationError('Invalid model input', errors);
     }
-    return result.data;
+    return result.data as {
+      prompt?: string;
+      messages?: Array<{ role: string; content: string | unknown[]; tool_call_id?: string; tool_calls?: unknown[] }>;
+      tools?: Array<Record<string, unknown>>;
+      stream?: boolean;
+    };
   }
 
   private buildRequestBody(
@@ -326,6 +424,7 @@ export class OllamaProvider implements IModelProvider {
       prompt?: string;
       messages?: Array<{ role: string; content: string | unknown[]; tool_call_id?: string; tool_calls?: unknown[] }>;
       tools?: Array<Record<string, unknown>>;
+      stream?: boolean;
     },
   ): Record<string, unknown> {
     const base: Record<string, unknown> = { model: this.config.modelId };
@@ -349,6 +448,15 @@ export class OllamaProvider implements IModelProvider {
           },
         };
       });
+    }
+
+    // SP 1.15 RC-2 — propagate `stream` from the validated input so the
+    // dispatcher's `body.stream ?? true` honoring works. The Ollama adapter
+    // sets `result.stream = false` when tools are present (ollama-adapter.ts
+    // GOTCHA setter); preserving that wire-mode signal end-to-end is the
+    // contract requirement.
+    if (typeof input.stream === 'boolean') {
+      body.stream = input.stream;
     }
 
     return body;
