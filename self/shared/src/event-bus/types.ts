@@ -327,6 +327,70 @@ export const NotificationUpdatedPayloadSchema = z.object({
 });
 export type NotificationUpdatedPayload = z.infer<typeof NotificationUpdatedPayloadSchema>;
 
+// --- Supervisor Domain (WR-162 SP 1) ---
+// Channel payload field names use snake_case per SP1-INV-005, verbatim from
+// supervisor-evidence-contract-v1.md § EventBus Channel Contract. Severity /
+// action literals align with SupervisorSeveritySchema and
+// SupervisorEnforcementActionSchema in ../types/supervisor.ts; kept inline
+// here to match the existing event-bus/types.ts z.enum style.
+
+export const SupervisorViolationDetectedPayloadSchema = z.object({
+  sup_code: z.string().regex(/^SUP-\d{3}$/),
+  severity: z.enum(['S0', 'S1', 'S2', 'S3']),
+  agent_id: z.string(),
+  agent_class: z.string(),
+  run_id: z.string(),
+  project_id: z.string(),
+  evidence_refs: z.array(z.string()),
+  detected_at: z.string().datetime(),
+});
+export type SupervisorViolationDetectedPayload = z.infer<
+  typeof SupervisorViolationDetectedPayloadSchema
+>;
+
+export const SupervisorEnforcementActionPayloadSchema = z.object({
+  sup_code: z.string().regex(/^SUP-\d{3}$/),
+  severity: z.enum(['S0', 'S1']),
+  action: z.enum(['hard_stop', 'auto_pause']),
+  scope: z.string(),
+  command_id: z.string(),
+  agent_id: z.string(),
+  run_id: z.string(),
+  project_id: z.string(),
+  evidence_refs: z.array(z.string()),
+  enforced_at: z.string().datetime(),
+});
+export type SupervisorEnforcementActionPayload = z.infer<
+  typeof SupervisorEnforcementActionPayloadSchema
+>;
+
+export const SupervisorAnomalyClassifiedPayloadSchema = z.object({
+  sup_code: z.string().regex(/^SUP-\d{3}$/),
+  risk_score: z.number().min(0).max(1),
+  explanation: z.string(),
+  agent_id: z.string(),
+  agent_class: z.string(),
+  run_id: z.string(),
+  project_id: z.string(),
+  triggering_event_refs: z.array(z.string()),
+  classified_at: z.string().datetime(),
+});
+export type SupervisorAnomalyClassifiedPayload = z.infer<
+  typeof SupervisorAnomalyClassifiedPayloadSchema
+>;
+
+export const SupervisorSentinelStatusPayloadSchema = z.object({
+  active: z.boolean(),
+  agents_monitored: z.number().int().nonnegative(),
+  violations_detected: z.number().int().nonnegative(),
+  anomalies_classified: z.number().int().nonnegative(),
+  risk_summary: z.record(z.string(), z.number().min(0).max(1)),
+  reported_at: z.string().datetime(),
+});
+export type SupervisorSentinelStatusPayload = z.infer<
+  typeof SupervisorSentinelStatusPayloadSchema
+>;
+
 // --- Channel Map ---
 
 export interface EventChannelMap {
@@ -365,6 +429,11 @@ export interface EventChannelMap {
   'ollama:version-info': OllamaVersionInfoPayload;
   'notification:raised': NotificationRaisedPayload;
   'notification:updated': NotificationUpdatedPayload;
+  // --- Supervisor domain (WR-162 SP 1) ---
+  'supervisor:violation-detected': SupervisorViolationDetectedPayload;
+  'supervisor:enforcement-action': SupervisorEnforcementActionPayload;
+  'supervisor:anomaly-classified': SupervisorAnomalyClassifiedPayload;
+  'supervisor:sentinel-status': SupervisorSentinelStatusPayload;
 }
 
 /**

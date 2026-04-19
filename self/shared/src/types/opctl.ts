@@ -14,6 +14,7 @@ export const ControlActorTypeSchema = z.enum([
   'orchestration_agent',
   'worker_agent',
   'system_agent',
+  'supervisor',
 ]);
 export type ControlActorType = z.infer<typeof ControlActorTypeSchema>;
 

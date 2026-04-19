@@ -230,6 +230,13 @@ import type {
   PromotedMemorySearchResult,
   ResolvedWorkflowDefinitionSource,
 } from '../types/index.js';
+import type {
+  GuardrailStatus,
+  SentinelRiskScore,
+  SupervisorStatusSnapshot,
+  SupervisorViolationRecord,
+  WitnessIntegrityStatus,
+} from '../types/supervisor.js';
 import type { NousEvent } from '../events/index.js';
 
 export interface IModelRouter {
@@ -1224,4 +1231,87 @@ export interface IGtmGateCalculator {
     report: GtmGateReport,
     targetStage: GtmStageLabel,
   ): boolean;
+}
+
+// --- Supervisor Service (WR-162 SP 1) ---
+// Shapes per supervisor-topology-architecture-v1.md § Supervisor Entry Point
+// and supervisor-trpc-procedure-set-v1.md § Procedure 1/2/3. Runtime lands
+// in SP 3/SP 4; SP 1 declares the surface so downstream sub-phases can
+// typecheck against it.
+
+/**
+ * Configuration envelope for supervisor startup.
+ *
+ * Shape per supervisor-topology-architecture-v1.md § Supervisor Entry Point.
+ * Concrete fields are runtime-supplied by the gateway runtime at SP 3/SP 4;
+ * SP 1 declares the shape so SP 3 can implement against it.
+ */
+export interface SupervisorConfig {
+  /** Tunable drop-oldest vs. back-pressure queue policy per observation-contract § Internal Queuing. */
+  queueOverflowPolicy?: 'drop_oldest' | 'back_pressure';
+  /** Maximum internal observation queue depth before the overflow policy engages. */
+  maxObservationQueueDepth?: number;
+  /**
+   * Sentinel scoring thresholds — runtime-tunable per violation-taxonomy-v1 § Extension Points.
+   * Full shape lands in SP 4 (sentinel module). SP 1 declares the slot.
+   */
+  sentinelThresholds?: Record<string, number>;
+}
+
+/**
+ * Handle returned by startSupervision() for runtime status queries and shutdown.
+ *
+ * Shape per supervisor-topology-architecture-v1.md § Supervisor Entry Point.
+ */
+export interface ISupervisorHandle {
+  /** Shut down the supervisor loop (drain queue, detach sinks, resolve after quiescence). */
+  stop(): Promise<void>;
+  /** Query whether the supervisor loop is currently active. */
+  isActive(): boolean;
+}
+
+/**
+ * Supervisor service surface consumed by:
+ * - SP 6 tRPC router (supervisor.ts) — three read procedures.
+ * - SP 6 MAO projection read (MaoProjectionService.buildAgentProjection) —
+ *   per-agent supervisor snapshot.
+ * - SP 3/SP 4 gateway runtime bootstrap — startSupervision/stopSupervision.
+ *
+ * Signatures derived verbatim from:
+ * - supervisor-trpc-procedure-set-v1.md § Procedure 1/2/3.
+ * - supervisor-topology-architecture-v1.md § Supervisor Entry Point.
+ */
+export interface ISupervisorService {
+  /** Initialize the supervisor loop (wire sinks, subscribe channels). */
+  startSupervision(config: SupervisorConfig): ISupervisorHandle;
+
+  /** Gracefully shut down supervision (mirrors ISupervisorHandle.stop). */
+  stopSupervision(): Promise<void>;
+
+  /** List recent violation records (ordered by detectedAt desc). Used by supervisor.getRecentViolations. */
+  getRecentViolations(input: {
+    projectId?: string;
+    limit?: number;
+    since?: string;
+  }): Promise<SupervisorViolationRecord[]>;
+
+  /** Aggregate supervisor status snapshot. Used by supervisor.getSupervisorStatus. */
+  getStatusSnapshot(): Promise<SupervisorStatusSnapshot>;
+
+  /** Per-project sentinel risk scores. Used by supervisor.getSentinelRiskScores. */
+  getSentinelRiskScores(input: {
+    projectId?: string;
+  }): Promise<SentinelRiskScore[]>;
+
+  /**
+   * Per-agent supervisor snapshot consumed by MaoProjectionService.buildAgentProjection
+   * to populate MaoAgentProjection.guardrail_status / .witness_integrity_status /
+   * .sentinel_risk_score. Return shape uses snake_case to match the projection
+   * field convention (SP1-INV-007) so no rename shim is needed in SP 6.
+   */
+  getAgentSupervisorSnapshot(agentId: string): Promise<{
+    guardrail_status: GuardrailStatus;
+    witness_integrity_status: WitnessIntegrityStatus;
+    sentinel_risk_score: number | null;
+  }>;
 }

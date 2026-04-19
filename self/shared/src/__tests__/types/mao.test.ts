@@ -711,6 +711,141 @@ describe('BudgetUtilizationSchema', () => {
   });
 });
 
+describe('MaoAgentProjectionSchema — supervisor fields (WR-162 SP 1)', () => {
+  const base = {
+    agent_id: AGENT_ID,
+    project_id: PROJECT_ID,
+    dispatching_task_agent_id: null,
+    dispatch_origin_ref: 'ref-1',
+    state: 'running' as const,
+    current_step: 'step-1',
+    progress_percent: 50,
+    risk_level: 'low' as const,
+    urgency_level: 'normal' as const,
+    attention_level: 'none' as const,
+    pfc_alert_status: 'none',
+    pfc_mitigation_status: 'none',
+    dispatch_state: 'dispatched',
+    reflection_cycle_count: 0,
+    last_update_at: '2026-02-24T22:00:00.000Z',
+    reasoning_log_preview: null,
+    reasoning_log_redaction_state: 'none' as const,
+  };
+
+  it('parses unchanged when supervisor fields are absent (pre-Phase-C fixture)', () => {
+    const parsed = MaoAgentProjectionSchema.parse(base);
+    expect(parsed.guardrail_status).toBeUndefined();
+    expect(parsed.witness_integrity_status).toBeUndefined();
+    expect(parsed.sentinel_risk_score).toBeUndefined();
+  });
+
+  it('parses with all three supervisor fields populated', () => {
+    const parsed = MaoAgentProjectionSchema.parse({
+      ...base,
+      guardrail_status: 'violation',
+      witness_integrity_status: 'degraded',
+      sentinel_risk_score: 0.42,
+    });
+    expect(parsed.guardrail_status).toBe('violation');
+    expect(parsed.witness_integrity_status).toBe('degraded');
+    expect(parsed.sentinel_risk_score).toBe(0.42);
+  });
+
+  it('rejects sentinel_risk_score outside [0, 1]', () => {
+    expect(() =>
+      MaoAgentProjectionSchema.parse({ ...base, sentinel_risk_score: 1.5 }),
+    ).toThrow();
+  });
+
+  it('rejects unknown guardrail_status literal', () => {
+    expect(() =>
+      MaoAgentProjectionSchema.parse({ ...base, guardrail_status: 'ok' }),
+    ).toThrow();
+  });
+});
+
+describe('MaoProjectSnapshotSchema — sentinelSummary (WR-162 SP 1)', () => {
+  const baseSnapshot = {
+    projectId: PROJECT_ID,
+    densityMode: 'D2',
+    controlProjection: {
+      project_id: PROJECT_ID,
+      project_control_state: 'running',
+      active_agent_count: 0,
+      blocked_agent_count: 0,
+      urgent_agent_count: 0,
+      pfc_project_review_status: 'none',
+      pfc_project_recommendation: 'continue',
+    },
+    grid: [],
+    graph: {
+      projectId: PROJECT_ID,
+      nodes: [],
+      edges: [],
+      generatedAt: '2026-04-01T00:00:00.000Z',
+    },
+    urgentOverlay: {
+      urgentAgentIds: [],
+      blockedAgentIds: [],
+      generatedAt: '2026-04-01T00:00:00.000Z',
+    },
+    summary: {
+      activeAgentCount: 0,
+      blockedAgentCount: 0,
+      failedAgentCount: 0,
+      waitingPfcAgentCount: 0,
+      urgentAgentCount: 0,
+    },
+    diagnostics: { runtimePosture: 'single_process_local' },
+    generatedAt: '2026-04-01T00:00:00.000Z',
+  };
+
+  it('accepts snapshot with sentinelSummary populated', () => {
+    const parsed = MaoProjectSnapshotSchema.parse({
+      ...baseSnapshot,
+      sentinelSummary: { activeAnomalies: 3, compositeRisk: 0.12 },
+    });
+    expect(parsed.sentinelSummary?.activeAnomalies).toBe(3);
+    expect(parsed.sentinelSummary?.compositeRisk).toBe(0.12);
+  });
+
+  it('accepts pre-Phase-C snapshot (sentinelSummary absent)', () => {
+    const parsed = MaoProjectSnapshotSchema.parse(baseSnapshot);
+    expect(parsed.sentinelSummary).toBeUndefined();
+  });
+
+  it('rejects compositeRisk out of [0, 1]', () => {
+    expect(() =>
+      MaoProjectSnapshotSchema.parse({
+        ...baseSnapshot,
+        sentinelSummary: { activeAnomalies: 0, compositeRisk: 2 },
+      }),
+    ).toThrow();
+  });
+});
+
+describe('MaoSystemSnapshotSchema — sentinelSummary (WR-162 SP 1)', () => {
+  it('accepts system snapshot with sentinelSummary populated', () => {
+    const parsed = MaoSystemSnapshotSchema.parse({
+      agents: [],
+      leaseRoots: [],
+      projectControls: {},
+      densityMode: 'D2',
+      generatedAt: '2026-03-10T01:00:00.000Z',
+      sentinelSummary: { activeAnomalies: 1, compositeRisk: 0.05 },
+    });
+    expect(parsed.sentinelSummary?.activeAnomalies).toBe(1);
+  });
+
+  it('accepts system snapshot without sentinelSummary (backward compat)', () => {
+    const parsed = MaoSystemSnapshotSchema.parse({
+      densityMode: 'D3',
+      generatedAt: '2026-03-10T01:00:00.000Z',
+    });
+    expect(parsed.sentinelSummary).toBeUndefined();
+  });
+});
+
 describe('MaoProjectSnapshotSchema — budgetUtilization', () => {
   const baseSnapshot = {
     projectId: PROJECT_ID,
