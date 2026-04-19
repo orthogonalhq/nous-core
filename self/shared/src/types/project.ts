@@ -222,6 +222,9 @@ export const ProjectConfigSchema = z.object({
   packageDefaultIntake: z.array(ProjectPackageDefaultIntakeSchema).default([]),
   retrievalBudgetTokens: z.number().positive().default(500),
   budgetPolicy: BudgetPolicySchema.optional(),
+  description: z.string().max(500).optional(),
+  icon: z.string().max(64).optional(),
+  iconColor: z.string().regex(/^#[0-9a-fA-F]{6}$/).optional(),
   createdAt: z.string().datetime(),
   updatedAt: z.string().datetime(),
 });

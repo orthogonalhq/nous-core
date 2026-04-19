@@ -25,6 +25,16 @@ describe('ProjectBlockedActionSchema', () => {
 
     expect(result.success).toBe(true);
   });
+
+  it('accepts the archive_project action literal (sub-phase 1.1)', () => {
+    const result = ProjectBlockedActionSchema.safeParse({
+      action: 'archive_project',
+      allowed: true,
+      message: 'Archive is allowed while the project is running.',
+      evidenceRefs: ['project-control:running'],
+    });
+    expect(result.success).toBe(true);
+  });
 });
 
 describe('ProjectHealthSummarySchema', () => {
@@ -167,6 +177,70 @@ describe('ProjectConfigurationUpdateInputSchema', () => {
       }).success,
     ).toBe(true);
 
+    expect(
+      ProjectConfigurationUpdateInputSchema.safeParse({
+        projectId: PROJECT_ID,
+        updates: {},
+      }).success,
+    ).toBe(false);
+  });
+
+  // --- Sub-phase 1.1 new updates fields (decision §2) ---
+  it('accepts new updates fields: name, description, budgetPolicy, icon, iconColor', () => {
+    const result = ProjectConfigurationUpdateInputSchema.safeParse({
+      projectId: PROJECT_ID,
+      updates: {
+        name: 'Renamed Project',
+        description: 'freshly rewritten',
+        budgetPolicy: {
+          enabled: true,
+          period: 'monthly',
+          softThresholdPercent: 80,
+          hardCeilingUsd: 100,
+        },
+        icon: 'lucide:Rocket',
+        iconColor: '#00ff00',
+      },
+    });
+    expect(result.success).toBe(true);
+  });
+
+  // --- Sub-phase 1.1 resetFields sibling (decision §3) ---
+  it('accepts non-empty resetFields alongside non-empty updates', () => {
+    const result = ProjectConfigurationUpdateInputSchema.safeParse({
+      projectId: PROJECT_ID,
+      updates: { name: 'NewName' },
+      resetFields: ['description'],
+    });
+    expect(result.success).toBe(true);
+  });
+
+  it('accepts empty updates with non-empty resetFields (pure-reset envelope)', () => {
+    const result = ProjectConfigurationUpdateInputSchema.safeParse({
+      projectId: PROJECT_ID,
+      updates: {},
+      resetFields: ['description'],
+    });
+    expect(result.success).toBe(true);
+  });
+
+  it('rejects an envelope with a field present in both updates and resetFields', () => {
+    const result = ProjectConfigurationUpdateInputSchema.safeParse({
+      projectId: PROJECT_ID,
+      updates: { name: 'AmbiguousName' },
+      resetFields: ['name'],
+    });
+    expect(result.success).toBe(false);
+  });
+
+  it('rejects empty updates + empty resetFields', () => {
+    expect(
+      ProjectConfigurationUpdateInputSchema.safeParse({
+        projectId: PROJECT_ID,
+        updates: {},
+        resetFields: [],
+      }).success,
+    ).toBe(false);
     expect(
       ProjectConfigurationUpdateInputSchema.safeParse({
         projectId: PROJECT_ID,

@@ -13,6 +13,7 @@ import {
   ProjectIdentityContractSchema,
   ProjectPackageDefaultIntakeSchema,
 } from './project.js';
+import { BudgetPolicySchema } from './cost.js';
 import {
   InAppEscalationRecordSchema,
   ProjectEscalationQueueSnapshotSchema,
@@ -32,6 +33,7 @@ export const ProjectBlockedActionSchema = z.object({
     'resume_project',
     'pause_project',
     'hard_stop_project',
+    'archive_project',
   ]),
   allowed: z.boolean(),
   reasonCode: z.string().min(1).optional(),
@@ -115,28 +117,68 @@ export type ProjectConfigurationSnapshot = z.infer<
   typeof ProjectConfigurationSnapshotSchema
 >;
 
-export const ProjectConfigurationUpdateInputSchema = z.object({
-  projectId: ProjectIdSchema,
-  expectedUpdatedAt: z.string().datetime().optional(),
-  updates: z
-    .object({
-      type: ProjectConfigSchema.shape.type.optional(),
-      pfcTier: ProjectConfigSchema.shape.pfcTier.optional(),
-      governanceDefaults: ProjectConfigSchema.shape.governanceDefaults.optional(),
-      modelAssignments: ProjectConfigSchema.shape.modelAssignments.optional(),
-      memoryAccessPolicy: ProjectConfigSchema.shape.memoryAccessPolicy.optional(),
-      retrievalBudgetTokens:
-        ProjectConfigSchema.shape.retrievalBudgetTokens.optional(),
-      escalationPreferences:
-        ProjectConfigSchema.shape.escalationPreferences.optional(),
-    })
-    .refine((value) => Object.keys(value).length > 0, {
-      message: 'At least one configuration field must be updated',
-    }),
-});
+export const ProjectConfigurationUpdateInputSchema = z
+  .object({
+    projectId: ProjectIdSchema,
+    expectedUpdatedAt: z.string().datetime().optional(),
+    updates: z
+      .object({
+        type: ProjectConfigSchema.shape.type.optional(),
+        pfcTier: ProjectConfigSchema.shape.pfcTier.optional(),
+        governanceDefaults: ProjectConfigSchema.shape.governanceDefaults.optional(),
+        modelAssignments: ProjectConfigSchema.shape.modelAssignments.optional(),
+        memoryAccessPolicy: ProjectConfigSchema.shape.memoryAccessPolicy.optional(),
+        retrievalBudgetTokens:
+          ProjectConfigSchema.shape.retrievalBudgetTokens.optional(),
+        escalationPreferences:
+          ProjectConfigSchema.shape.escalationPreferences.optional(),
+        // New in sub-phase 1.1 — settings-update-schema-extension-v1 §2:
+        name: ProjectConfigSchema.shape.name.optional(),
+        description: ProjectConfigSchema.shape.description,
+        budgetPolicy: BudgetPolicySchema.optional(),
+        icon: ProjectConfigSchema.shape.icon,
+        iconColor: ProjectConfigSchema.shape.iconColor,
+      })
+      .default({}),
+    // New in sub-phase 1.1 — settings-update-schema-extension-v1 §3:
+    resetFields: z.array(z.string().min(1)).optional(),
+  })
+  .refine(
+    (value) =>
+      Object.keys(value.updates).length > 0 ||
+      (value.resetFields?.length ?? 0) > 0,
+    {
+      message:
+        'At least one configuration field must be updated or reset',
+    },
+  )
+  .refine(
+    (value) => {
+      const updatesKeys = new Set(Object.keys(value.updates));
+      const resetFields = value.resetFields ?? [];
+      for (const field of resetFields) {
+        if (updatesKeys.has(field)) return false;
+      }
+      return true;
+    },
+    {
+      message:
+        'Fields cannot appear in both updates and resetFields (ambiguous intent)',
+    },
+  );
 export type ProjectConfigurationUpdateInput = z.infer<
   typeof ProjectConfigurationUpdateInputSchema
 >;
+/**
+ * Typed alias for the inferred `updates` object — exported to let callers
+ * type the `resetFields` array as `Array<keyof ProjectConfigUpdates>`.
+ * Runtime validation of membership is not enforced at the Zod layer (the
+ * handler silently no-ops on unknown keys and the refine above guarantees
+ * updates/resetFields disjointness). See SDS §Data Model.
+ */
+export type ProjectConfigUpdates = z.infer<
+  typeof ProjectConfigurationUpdateInputSchema
+>['updates'];
 
 export const MobileOperationsSnapshotSchema = z.object({
   project: ProjectIdentityContractSchema,
