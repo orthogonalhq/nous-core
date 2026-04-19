@@ -46,6 +46,17 @@ function createMockConfig(overrides?: {
     getSection: () => undefined as any,
     update: async () => {},
     reload: async () => {},
+    // SP 1.3 — IConfig agent-block stubs (Decision 7). Logger tests do not
+    // touch the agent block; defaults are sufficient.
+    getAgentName: () => 'Nous',
+    getPersonalityConfig: () => ({ preset: 'balanced' as const }),
+    getUserProfile: () => ({}),
+    getWelcomeMessageSent: () => false,
+    setAgentName: async () => {},
+    setPersonalityConfig: async () => {},
+    setUserProfile: async () => {},
+    setWelcomeMessageSent: async () => {},
+    clearAgentBlock: async () => {},
   };
 }
 
@@ -219,6 +230,16 @@ describe('NousLogger', () => {
         getSection: () => undefined as any,
         update: async () => {},
         reload: async () => {},
+        // SP 1.3 — IConfig agent-block stubs (Decision 7).
+        getAgentName: () => 'Nous',
+        getPersonalityConfig: () => ({ preset: 'balanced' as const }),
+        getUserProfile: () => ({}),
+        getWelcomeMessageSent: () => false,
+        setAgentName: async () => {},
+        setPersonalityConfig: async () => {},
+        setUserProfile: async () => {},
+        setWelcomeMessageSent: async () => {},
+        clearAgentBlock: async () => {},
       };
       expect(() => logger.bindConfig(config)).not.toThrow();
     });
