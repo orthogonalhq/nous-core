@@ -30,6 +30,7 @@ export {
   ModelRecommendationSchema,
   RoleModelRecommendationSchema,
   RecommendationResultSchema,
+  ValidationStateSchema,
   detectHardware,
   recommendModels,
 } from './hardware-detection';
@@ -40,6 +41,7 @@ export type {
   RoleModelRecommendation,
   RecommendationResult,
   RecommendationProfilePolicy,
+  ValidationState,
 } from './hardware-detection';
 export {
   MINIMUM_OLLAMA_VERSION,
@@ -49,6 +51,11 @@ export {
   OllamaStatusSchema,
   OllamaVersionParsedSchema,
   OllamaVersionResultSchema,
+  REGISTRY_AVAILABILITY_CACHE_TTL_MS,
+  REGISTRY_AVAILABILITY_TIMEOUT_MS,
+  RegistryAvailabilityStateSchema,
+  __resetRegistryAvailabilityCacheForTesting,
+  checkRegistryAvailability,
   detectOllama,
   getOllamaVersion,
   meetsMinimumVersion,
@@ -62,6 +69,7 @@ export type {
   OllamaStatus,
   OllamaVersionParsed,
   OllamaVersionResult,
+  RegistryAvailabilityState,
 } from './ollama-detection';
 export {
   FirstRunActionResultSchema,
