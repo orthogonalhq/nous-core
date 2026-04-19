@@ -300,6 +300,22 @@ implements IPrincipalSystemGatewayRuntime, ISystemInboxSubmissionService {
     ];
     // WR-138 row #6: capture config before handing it to the factory so
     // attachProviders() can recompose in place.
+    //
+    // SP 1.3 — Decision 4 prompt-routing-decision-v1: production wiring of
+    // PersonalityConfig into the Principal baseSystemPrompt. The migrated
+    // composition is `composeSystemPromptFromConfig(resolveAgentProfile(...))`
+    // which routes through the personality pipeline. When `configReader` is
+    // not wired (test fixtures), the `?.` fallback supplies
+    // `{ preset: 'balanced' }`, which is byte-identical to the pre-migration
+    // path (SDS Invariant I5; F8). `providerId` is sourced from the
+    // existing `providerIdByClass` map per SDS § 1.5 / R6 — the call sites
+    // do not introduce a new provider-resolution path.
+    const principalProviderId = this.deps.providerIdByClass?.['Cortex::Principal'];
+    const principalProfile = resolveAgentProfile(
+      'Cortex::Principal',
+      principalProviderId,
+      this.deps.configReader?.getPersonalityConfig() ?? { preset: 'balanced' },
+    );
     this.principalGatewayConfig = this.createGatewayConfig({
       agentClass: 'Cortex::Principal',
       agentId: principalAgentId,
@@ -307,7 +323,7 @@ implements IPrincipalSystemGatewayRuntime, ISystemInboxSubmissionService {
       lifecycleHooks: principalBase.lifecycleHooks,
       baseSystemPrompt:
         this.deps.principalBaseSystemPrompt
-          ?? composeSystemPromptFromConfig(resolvePromptConfig('Cortex::Principal')),
+          ?? composeSystemPromptFromConfig(principalProfile),
       outbox: new HealthTrackingOutboxSink('Cortex::Principal', this.healthSink, this.deps.eventBus),
     });
     this.principalGateway = this.gatewayFactory.create(this.principalGatewayConfig);
@@ -327,13 +343,21 @@ implements IPrincipalSystemGatewayRuntime, ISystemInboxSubmissionService {
     this.systemTools = this.catalogDefinitions('Cortex::System');
     // WR-138 row #6: capture config before handing it to the factory so
     // attachProviders() can recompose in place.
+    //
+    // SP 1.3 — Decision 4 production wiring (mirrors Principal above).
+    const systemProviderId = this.deps.providerIdByClass?.['Cortex::System'];
+    const systemProfile = resolveAgentProfile(
+      'Cortex::System',
+      systemProviderId,
+      this.deps.configReader?.getPersonalityConfig() ?? { preset: 'balanced' },
+    );
     this.systemGatewayConfig = this.createGatewayConfig({
       agentClass: 'Cortex::System',
       agentId: systemAgentId,
       toolSurface: systemBundle.toolSurface,
       lifecycleHooks: systemBundle.lifecycleHooks,
       baseSystemPrompt: this.deps.systemBaseSystemPrompt
-        ?? composeSystemPromptFromConfig(resolvePromptConfig('Cortex::System'), this.systemTools),
+        ?? composeSystemPromptFromConfig(systemProfile, this.systemTools),
       outbox: new HealthTrackingOutboxSink('Cortex::System', this.healthSink, this.deps.eventBus),
     });
     this.systemGateway = this.gatewayFactory.create(this.systemGatewayConfig);

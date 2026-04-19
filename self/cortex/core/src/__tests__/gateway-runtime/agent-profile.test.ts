@@ -257,3 +257,67 @@ describe('resolveAgentProfile — edge cases', () => {
     },
   );
 });
+
+// ---------------------------------------------------------------------------
+// SP 1.3 — WR-127 dimension isolation under cortex-runtime migration (C25)
+// ---------------------------------------------------------------------------
+//
+// SP 1.2 verified WR-127 dimension isolation at the resolver layer (Block C/D/E
+// above). SP 1.3 migrates the Principal/System runtime composition to route
+// PersonalityConfig through `resolveAgentProfile`. This describe block proves
+// the dimension-isolation invariant survives the call-site migration: for the
+// two migrated agent classes (Principal, System), every preset and a
+// representative overrides case produce an AgentProfile whose mechanical
+// dimensions, guardrails, and outputContract enum value are bit-equal to the
+// no-personality baseline.
+
+const MIGRATED_AGENT_CLASSES: AgentClass[] = ['Cortex::Principal', 'Cortex::System'];
+
+describe('WR-127 dimension isolation under cortex-runtime migration (C25)', () => {
+  for (const agentClass of MIGRATED_AGENT_CLASSES) {
+    describe(`${agentClass}`, () => {
+      const baseline = resolveAgentProfile(agentClass);
+
+      for (const config of CONFIGS_FOR_DIMENSION_ISOLATION) {
+        const label = config.overrides
+          ? `${config.preset} + overrides`
+          : config.preset;
+
+        it(`${label}: contextBudget unchanged from baseline`, () => {
+          const actual = resolveAgentProfile(agentClass, undefined, config);
+          expect(actual.contextBudget).toEqual(baseline.contextBudget);
+        });
+
+        it(`${label}: compactionStrategy unchanged from baseline`, () => {
+          const actual = resolveAgentProfile(agentClass, undefined, config);
+          expect(actual.compactionStrategy).toEqual(baseline.compactionStrategy);
+        });
+
+        it(`${label}: loopShape unchanged from baseline`, () => {
+          const actual = resolveAgentProfile(agentClass, undefined, config);
+          expect(actual.loopShape).toBe(baseline.loopShape);
+        });
+
+        it(`${label}: toolConcurrency unchanged from baseline`, () => {
+          const actual = resolveAgentProfile(agentClass, undefined, config);
+          expect(actual.toolConcurrency).toEqual(baseline.toolConcurrency);
+        });
+
+        it(`${label}: escalationRules unchanged from baseline`, () => {
+          const actual = resolveAgentProfile(agentClass, undefined, config);
+          expect(actual.escalationRules).toEqual(baseline.escalationRules);
+        });
+
+        it(`${label}: guardrails unchanged from baseline`, () => {
+          const actual = resolveAgentProfile(agentClass, undefined, config);
+          expect(actual.guardrails).toEqual(baseline.guardrails);
+        });
+
+        it(`${label}: outputContract enum value unchanged from baseline`, () => {
+          const actual = resolveAgentProfile(agentClass, undefined, config);
+          expect(actual.outputContract).toBe(baseline.outputContract);
+        });
+      }
+    });
+  }
+});
