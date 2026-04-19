@@ -96,4 +96,24 @@ export class DocumentProjectStore implements IProjectStore {
 
     console.info(`[nous:project] archive projectId=${id}`);
   }
+
+  async unarchive(id: ProjectId): Promise<void> {
+    const existing = await this.documentStore.get<Record<string, unknown>>(
+      COLLECTION,
+      id,
+    );
+    if (!existing) {
+      throw new Error(`Project ${id} not found`);
+    }
+
+    const merged = {
+      ...existing,
+      status: 'active' as const,
+      updatedAt: new Date().toISOString(),
+    };
+    const validated = ProjectDocumentSchema.parse(merged);
+    await this.documentStore.put(COLLECTION, id, validated);
+
+    console.info(`[nous:project] unarchive projectId=${id}`);
+  }
 }

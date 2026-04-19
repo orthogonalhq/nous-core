@@ -110,6 +110,46 @@ describe('DocumentProjectStore', () => {
     expect(got?.name).toBe('Test Project');
   });
 
+  it('unarchive() flips status back to active and bumps updatedAt', async () => {
+    await store.create(createProjectConfig());
+    await store.archive(PROJECT_ID);
+
+    const beforeUnarchive = await store.get(PROJECT_ID);
+    expect(beforeUnarchive).not.toBeNull();
+
+    // Small async gap so `new Date().toISOString()` yields a different stamp.
+    await new Promise((resolve) => setTimeout(resolve, 2));
+
+    await store.unarchive(PROJECT_ID);
+
+    const list = await store.list();
+    expect(list.length).toBe(1);
+    expect(list[0]?.name).toBe('Test Project');
+
+    const got = await store.get(PROJECT_ID);
+    expect(got).not.toBeNull();
+    expect(got?.updatedAt).not.toBe(beforeUnarchive?.updatedAt);
+  });
+
+  it('unarchive() throws on missing project', async () => {
+    await expect(
+      store.unarchive(
+        '00000000-0000-0000-0000-000000000099' as ProjectId,
+      ),
+    ).rejects.toThrow(/not found/i);
+  });
+
+  it('archive -> unarchive -> list round-trip returns project to active list', async () => {
+    await store.create(createProjectConfig());
+    await store.archive(PROJECT_ID);
+    expect((await store.list()).length).toBe(0);
+
+    await store.unarchive(PROJECT_ID);
+    const list = await store.list();
+    expect(list.length).toBe(1);
+    expect(list[0]?.id).toBe(PROJECT_ID);
+  });
+
   it('update() merges changes', async () => {
     await store.create(createProjectConfig());
     await store.update(PROJECT_ID, {
