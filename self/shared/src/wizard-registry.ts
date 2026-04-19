@@ -20,8 +20,20 @@ import { z } from 'zod';
 // Backend step manifest — the single source of truth for state-machine shape.
 // ---------------------------------------------------------------------------
 
+// SP 1.3 — `agent_identity` added per SDS § 0 Note 2 Posture (i): the
+// backend-step constant lands with the SP 1.3 tooling sub-phase so the
+// `firstRun.writeIdentity` tRPC procedure's `markStepComplete(dataDir,
+// 'agent_identity')` call typechecks. The matching renderer-side
+// `WIZARD_STEP_REGISTRY` row (with `component: WizardStepIdentity`) lands in
+// SP 1.4 — until then the renderer's `assertRegistryMatchesManifest` will
+// throw at module load (SDS § 4 F4; SP 1.4 task #1 mitigation).
+//
+// Position rationale (SDS § 1.4): `agent_identity` is between `ollama_check`
+// (prerequisite check) and `model_download` (first user-configurable step) so
+// the user can customize the agent before committing to model assets.
 export const FIRST_RUN_STEP_VALUES = [
   'ollama_check',
+  'agent_identity',
   'model_download',
   'provider_config',
   'role_assignment',

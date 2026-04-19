@@ -154,6 +154,7 @@ export type {
   ICredentialVaultService,
   ICredentialInjector,
   SystemConfig,
+  AgentUserProfile,
 } from './autonomic.js';
 export type {
   ILogChannel,
