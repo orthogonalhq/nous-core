@@ -51,16 +51,12 @@ import { router, publicProcedure } from '../trpc';
 
 const TRACE_COLLECTION = 'execution_traces';
 
-const projectUpdateInputSchema = z.object({
-  id: ProjectIdSchema,
-  updates: z
-    .object({
-      name: z.string().min(1).optional(),
-      pfcTier: z.number().min(0).max(5).optional(),
-      modelAssignments: z.record(z.string(), z.string()).optional(),
-    })
-    .partial(),
-});
+// Hardcoded defaults mirrored from the `create` handler below — used by
+// `buildFieldProvenance` to distinguish `project_override` from `system_default`
+// for fields that live directly on the stored document (no layered overrides
+// representation). See SDS §Data Model user-override detection heuristic.
+const SYSTEM_DEFAULT_PFC_TIER = 3;
+const SYSTEM_DEFAULT_RETRIEVAL_BUDGET_TOKENS = 500;
 
 function getProjectIdentity(project: ProjectConfig) {
   return {
@@ -748,6 +744,13 @@ function deriveBlockedActions(
           message: 'The project is already hard stopped.',
           evidenceRefs: ['project-control:hard_stopped'],
         },
+        {
+          action: 'archive_project',
+          allowed: false,
+          reasonCode: 'control_state_hard_stopped',
+          message: 'Archive is blocked while the project is hard stopped.',
+          evidenceRefs: ['project-control:hard_stopped'],
+        },
       ];
     case 'paused_review':
       return [
@@ -788,6 +791,12 @@ function deriveBlockedActions(
           action: 'hard_stop_project',
           allowed: true,
           message: 'Hard stop remains available while paused for review.',
+          evidenceRefs: ['project-control:paused_review'],
+        },
+        {
+          action: 'archive_project',
+          allowed: true,
+          message: 'Archive is allowed while the project is paused for review.',
           evidenceRefs: ['project-control:paused_review'],
         },
       ];
@@ -833,6 +842,13 @@ function deriveBlockedActions(
           message: 'Hard stop remains available while the project is resuming.',
           evidenceRefs: ['project-control:resuming'],
         },
+        {
+          action: 'archive_project',
+          allowed: false,
+          reasonCode: 'control_state_resuming',
+          message: 'Archive is blocked while resume work is in progress.',
+          evidenceRefs: ['project-control:resuming'],
+        },
       ];
     case 'running':
     default:
@@ -874,6 +890,12 @@ function deriveBlockedActions(
           message: 'Hard stop remains available while the project is running.',
           evidenceRefs: ['project-control:running'],
         },
+        {
+          action: 'archive_project',
+          allowed: true,
+          message: 'Archive is allowed while the project is running.',
+          evidenceRefs: ['project-control:running'],
+        },
       ];
   }
 }
@@ -896,64 +918,162 @@ function buildFieldProvenance(
     (entry) => `package-default:${entry.sourcePackageId}:${entry.sourcePackageVersion}`,
   );
 
-  const fieldSource = (section?: ProjectPackageDefaultSection) =>
-    section && packageSections.has(section) ? 'package_default' : 'project_override';
+  // Package-vs-system classifier for fields with a package-default pairing.
+  // A field is `package_default` if its canonical section has been applied
+  // via `packageDefaultIntake`, else `system_default` (the hardcoded defaults
+  // baked into the `create` handler / schema `.default(...)` clauses).
+  const packageOrSystem = (
+    section: ProjectPackageDefaultSection,
+  ): 'package_default' | 'system_default' =>
+    packageSections.has(section) ? 'package_default' : 'system_default';
+  const sectionEvidence = (fallback: string): string[] =>
+    packageEvidence.length > 0 ? packageEvidence : [fallback];
 
-  return [
+  const provenance: ProjectConfigFieldProvenance[] = [
     {
       field: 'type',
-      source: fieldSource('project_type'),
-      evidenceRefs: packageEvidence.length > 0 ? packageEvidence : ['project-config:type'],
+      source: packageOrSystem('project_type'),
+      evidenceRefs: sectionEvidence('project-config:type'),
       lockedByPolicy: lockedConfig,
     },
     {
       field: 'pfcTier',
-      source: 'project_override',
+      // V1 user-override heuristic: value != hardcoded default -> user
+      // override. `pfcTier: 3` emits `system_default` (decision §5 new-fields
+      // subsection is explicit on this). See Known Issues in CR.
+      source:
+        project.pfcTier === SYSTEM_DEFAULT_PFC_TIER
+          ? 'system_default'
+          : 'project_override',
       evidenceRefs: ['project-config:pfcTier'],
       lockedByPolicy: lockedConfig,
     },
     {
       field: 'governanceDefaults',
-      source: fieldSource('governance_defaults'),
-      evidenceRefs:
-        packageEvidence.length > 0 ? packageEvidence : ['project-config:governanceDefaults'],
+      source: packageOrSystem('governance_defaults'),
+      evidenceRefs: sectionEvidence('project-config:governanceDefaults'),
       lockedByPolicy: lockedConfig,
     },
     {
       field: 'modelAssignments',
-      source: fieldSource('model_assignments'),
-      evidenceRefs:
-        packageEvidence.length > 0 ? packageEvidence : ['project-config:modelAssignments'],
+      source: packageOrSystem('model_assignments'),
+      evidenceRefs: sectionEvidence('project-config:modelAssignments'),
       lockedByPolicy: lockedConfig,
     },
     {
       field: 'memoryAccessPolicy',
-      source: fieldSource('memory_access_policy'),
-      evidenceRefs:
-        packageEvidence.length > 0 ? packageEvidence : ['project-config:memoryAccessPolicy'],
+      source: packageOrSystem('memory_access_policy'),
+      evidenceRefs: sectionEvidence('project-config:memoryAccessPolicy'),
       lockedByPolicy: lockedConfig,
     },
     {
       field: 'retrievalBudgetTokens',
-      source: 'project_override',
+      source:
+        project.retrievalBudgetTokens === SYSTEM_DEFAULT_RETRIEVAL_BUDGET_TOKENS
+          ? 'system_default'
+          : 'project_override',
       evidenceRefs: ['project-config:retrievalBudgetTokens'],
       lockedByPolicy: lockedConfig,
     },
     {
       field: 'escalationPreferences',
-      source: fieldSource('escalation_preferences'),
-      evidenceRefs:
-        packageEvidence.length > 0 ? packageEvidence : ['project-config:escalationPreferences'],
+      source: packageOrSystem('escalation_preferences'),
+      evidenceRefs: sectionEvidence('project-config:escalationPreferences'),
+      lockedByPolicy: lockedConfig,
+    },
+    {
+      field: 'escalationChannels',
+      // `escalationChannels` has no package-default section pairing and no
+      // single hardcoded default (defaults come from `ctx.config.defaults`
+      // at create time). V1 posture: always emit `system_default` here;
+      // downstream UX (1.4) decides how to present "user set" semantics.
+      source: 'system_default',
+      evidenceRefs: ['project-config:escalationChannels'],
+      lockedByPolicy: lockedConfig,
+    },
+    {
+      field: 'budgetPolicy',
+      // Non-null stored budgetPolicy => user override; null/undefined =>
+      // system_default meaning "no budget enforced" (null value semantics).
+      source: project.budgetPolicy ? 'project_override' : 'system_default',
+      evidenceRefs: ['project-config:budgetPolicy'],
+      lockedByPolicy: lockedConfig,
+    },
+    {
+      field: 'name',
+      // `name` is required on `ProjectConfig` — always present. Emit
+      // `project_override` when set; never unset on a valid config.
+      source: 'project_override',
+      evidenceRefs: ['project-config:name'],
       lockedByPolicy: lockedConfig,
     },
     {
       field: 'schedules',
-      source: fieldSource('schedule_settings'),
-      evidenceRefs:
-        packageEvidence.length > 0 ? packageEvidence : ['project-schedules'],
+      source: packageSections.has('schedule_settings')
+        ? 'package_default'
+        : 'derived_read_only',
+      evidenceRefs: packageSections.has('schedule_settings')
+        ? packageEvidence
+        : ['project-schedules'],
       lockedByPolicy: lockedSchedule,
     },
+    {
+      field: 'packageDefaultIntake',
+      source: 'derived_read_only',
+      evidenceRefs: ['package-default-intake'],
+      lockedByPolicy: false,
+    },
+    {
+      field: 'createdAt',
+      source: 'derived_read_only',
+      evidenceRefs: ['project-config:createdAt'],
+      lockedByPolicy: false,
+    },
+    {
+      field: 'updatedAt',
+      source: 'derived_read_only',
+      evidenceRefs: ['project-config:updatedAt'],
+      lockedByPolicy: false,
+    },
   ];
+
+  // Optional identity fields — description, icon, iconColor — follow the
+  // ratified decision §5 new-fields mapping. `description`/`icon` are
+  // omitted from provenance when unset. `iconColor` unset emits
+  // `derived_read_only` with evidence note `avatarColorFromId`.
+  if (project.description !== undefined) {
+    provenance.push({
+      field: 'description',
+      source: 'project_override',
+      evidenceRefs: ['project-config:description'],
+      lockedByPolicy: lockedConfig,
+    });
+  }
+  if (project.icon !== undefined) {
+    provenance.push({
+      field: 'icon',
+      source: 'project_override',
+      evidenceRefs: ['project-config:icon'],
+      lockedByPolicy: lockedConfig,
+    });
+  }
+  provenance.push(
+    project.iconColor !== undefined
+      ? {
+          field: 'iconColor',
+          source: 'project_override',
+          evidenceRefs: ['project-config:iconColor'],
+          lockedByPolicy: lockedConfig,
+        }
+      : {
+          field: 'iconColor',
+          source: 'derived_read_only',
+          evidenceRefs: ['derived:avatarColorFromId'],
+          lockedByPolicy: lockedConfig,
+        },
+  );
+
+  return provenance;
 }
 
 function deriveHealthSummary(
@@ -1183,12 +1303,6 @@ export const projectsRouter = router({
       return ctx.projectStore.get(input.id);
     }),
 
-  update: publicProcedure
-    .input(projectUpdateInputSchema)
-    .mutation(async ({ ctx, input }) => {
-      await ctx.projectStore.update(input.id, input.updates);
-    }),
-
   workflowSnapshot: publicProcedure
     .input(
       z.object({
@@ -1258,9 +1372,57 @@ export const projectsRouter = router({
       const blockedActions = deriveBlockedActions(controlState);
       ensureActionAllowed(blockedActions, 'edit_project_configuration');
 
-      await ctx.projectStore.update(input.projectId, input.updates);
+      // Transactional order per settings-update-schema-extension-v1 §3:
+      //   1) apply `updates` against the stored overrides
+      //   2) drop every field named in `resetFields` (pass `undefined` so the
+      //      document-store merge + subsequent ProjectDocumentSchema.parse
+      //      strip the key for optional fields)
+      //   3) buildConfigurationSnapshot runs against the re-fetched project
+      //      and re-emits provenance
+      const persistPayload: Record<string, unknown> = { ...input.updates };
+      if (input.resetFields) {
+        for (const field of input.resetFields) {
+          persistPayload[field] = undefined;
+        }
+      }
+
+      await ctx.projectStore.update(
+        input.projectId,
+        persistPayload as Partial<ProjectConfig>,
+      );
       const updated = await getProjectOrThrow(ctx, input.projectId);
       return buildConfigurationSnapshot(ctx, updated);
+    }),
+
+  archive: publicProcedure
+    .input(z.object({ projectId: ProjectIdSchema }))
+    .mutation(async ({ ctx, input }) => {
+      await getProjectOrThrow(ctx, input.projectId);
+      const controlState = await getProjectControlState(ctx, input.projectId);
+      const blockedActions = deriveBlockedActions(controlState);
+      ensureActionAllowed(blockedActions, 'archive_project');
+      await ctx.projectStore.archive(input.projectId);
+      const archived = await ctx.projectStore.get(input.projectId);
+      if (!archived) {
+        throw new TRPCError({
+          code: 'INTERNAL_SERVER_ERROR',
+          message: 'archive_read_back_failed',
+        });
+      }
+      return archived;
+    }),
+
+  unarchive: publicProcedure
+    .input(z.object({ projectId: ProjectIdSchema }))
+    .mutation(async ({ ctx, input }) => {
+      // NOTE: `ctx.projectStore.list()` excludes archived projects but
+      // `ctx.projectStore.get()` still returns them, so `getProjectOrThrow`
+      // (which uses `get`) correctly maps truly missing projects to
+      // NOT_FOUND while still resolving archived projects for unarchive.
+      await getProjectOrThrow(ctx, input.projectId);
+      await ctx.projectStore.unarchive(input.projectId);
+      const unarchived = await getProjectOrThrow(ctx, input.projectId);
+      return unarchived;
     }),
 
   upsertSchedule: publicProcedure

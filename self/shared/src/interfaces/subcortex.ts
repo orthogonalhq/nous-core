@@ -355,6 +355,9 @@ export interface IProjectStore {
 
   /** Archive a project */
   archive(id: ProjectId): Promise<void>;
+
+  /** Unarchive a project — flip status from 'archived' to 'active'. */
+  unarchive(id: ProjectId): Promise<void>;
 }
 
 export interface ITaskStore {

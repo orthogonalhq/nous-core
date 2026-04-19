@@ -80,6 +80,7 @@ function createMockContext(tasks: Record<string, unknown>[] = []) {
       create: vi.fn(),
       list: vi.fn(),
       archive: vi.fn(),
+      unarchive: vi.fn(),
     },
     taskStore: {
       save: vi.fn().mockImplementation(async (_projectId: string, task: Record<string, unknown>) => {

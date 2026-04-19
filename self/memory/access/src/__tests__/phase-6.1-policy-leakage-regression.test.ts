@@ -82,6 +82,7 @@ describe('Phase 6.1 — policy leakage regression', () => {
       list: vi.fn(),
       update: vi.fn(),
       archive: vi.fn(),
+      unarchive: vi.fn(),
     };
     const engine = new PolicyEnforcedRetrievalEngine({
       policyEngine: new MemoryAccessPolicyEngine(),
@@ -116,6 +117,7 @@ describe('Phase 6.1 — policy leakage regression', () => {
       list: vi.fn(),
       update: vi.fn(),
       archive: vi.fn(),
+      unarchive: vi.fn(),
     };
     const engine = new PolicyEnforcedRetrievalEngine({
       policyEngine: new MemoryAccessPolicyEngine(),
@@ -151,6 +153,7 @@ describe('Phase 6.1 — policy leakage regression', () => {
       list: vi.fn(),
       update: vi.fn(),
       archive: vi.fn(),
+      unarchive: vi.fn(),
     };
     const engine = new PolicyEnforcedRetrievalEngine({
       policyEngine: new MemoryAccessPolicyEngine(),

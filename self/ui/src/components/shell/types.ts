@@ -41,7 +41,15 @@ export type RailSection = z.infer<typeof RailSectionSchema>
 export const ProjectItemSchema = z.object({
   id: z.string().min(1),
   name: z.string().min(1),
-  icon: optionalReactNodeSchema.optional(),
+  // Retyped in sub-phase 1.1 from `optionalReactNodeSchema.optional()` to a
+  // string carrying the discriminated `lucide:<Name>` / `emoji:<unicode>`
+  // convention (or any other permissive string). Renderers dispatch on the
+  // prefix and fall back to initial-letter when the value is malformed.
+  // 64-char cap mirrors `ProjectConfigSchema.shape.icon`.
+  icon: z.string().max(64).optional(),
+  // Hex-only color regex mirrors `ProjectConfigSchema.shape.iconColor`.
+  color: z.string().regex(/^#[0-9a-fA-F]{6}$/).optional(),
+  archived: z.boolean().optional(),
 })
 export type ProjectItem = z.infer<typeof ProjectItemSchema>
 

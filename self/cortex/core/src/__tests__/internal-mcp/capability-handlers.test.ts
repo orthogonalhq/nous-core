@@ -864,6 +864,7 @@ describe('Internal MCP capability handlers', () => {
       create: vi.fn(),
       update: vi.fn(),
       archive: vi.fn(),
+      unarchive: vi.fn(),
     };
     const handlers = createCapabilityHandlers({
       agentClass: 'Cortex::System',
@@ -929,6 +930,7 @@ describe('Internal MCP capability handlers', () => {
       create: vi.fn(),
       update: vi.fn(),
       archive: vi.fn(),
+      unarchive: vi.fn(),
     };
     const handlers = createCapabilityHandlers({
       agentClass: 'Cortex::System',

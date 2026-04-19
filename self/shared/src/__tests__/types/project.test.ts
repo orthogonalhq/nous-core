@@ -215,6 +215,76 @@ describe('ProjectConfigSchema', () => {
     }
   });
 
+  // --- Sub-phase 1.1 new optional fields (decision §1) ---
+  it('accepts optional description (<=500 chars)', () => {
+    const result = ProjectConfigSchema.safeParse({
+      ...validConfig,
+      description: 'A project for deal scouting across the Pacific Northwest.',
+    });
+    expect(result.success).toBe(true);
+  });
+
+  it('rejects description longer than 500 chars', () => {
+    const result = ProjectConfigSchema.safeParse({
+      ...validConfig,
+      description: 'x'.repeat(501),
+    });
+    expect(result.success).toBe(false);
+  });
+
+  it('accepts optional icon with lucide: and emoji: prefixes (permissive)', () => {
+    expect(
+      ProjectConfigSchema.safeParse({ ...validConfig, icon: 'lucide:Rocket' }).success,
+    ).toBe(true);
+    expect(
+      ProjectConfigSchema.safeParse({ ...validConfig, icon: 'emoji:🚀' }).success,
+    ).toBe(true);
+    // Permissive: any string shape is accepted (malformed values fall back at render time)
+    expect(
+      ProjectConfigSchema.safeParse({ ...validConfig, icon: 'anything-goes' }).success,
+    ).toBe(true);
+  });
+
+  it('rejects icon longer than 64 chars', () => {
+    const result = ProjectConfigSchema.safeParse({
+      ...validConfig,
+      icon: 'x'.repeat(65),
+    });
+    expect(result.success).toBe(false);
+  });
+
+  it('accepts hex iconColor and rejects malformed values', () => {
+    expect(
+      ProjectConfigSchema.safeParse({ ...validConfig, iconColor: '#0099ff' }).success,
+    ).toBe(true);
+    expect(
+      ProjectConfigSchema.safeParse({ ...validConfig, iconColor: '#AABBCC' }).success,
+    ).toBe(true);
+    // V1 does not accept shorthand #RGB
+    expect(
+      ProjectConfigSchema.safeParse({ ...validConfig, iconColor: '#abc' }).success,
+    ).toBe(false);
+    // Other malformed inputs
+    expect(
+      ProjectConfigSchema.safeParse({ ...validConfig, iconColor: 'red' }).success,
+    ).toBe(false);
+    expect(
+      ProjectConfigSchema.safeParse({ ...validConfig, iconColor: '0099ff' }).success,
+    ).toBe(false);
+  });
+
+  it('pre-1.1 stored configs without description/icon/iconColor parse unchanged', () => {
+    // Same shape as validConfig (which lacks the three new fields) — regression
+    // check for Goals acceptance criterion #1.
+    const result = ProjectConfigSchema.safeParse(validConfig);
+    expect(result.success).toBe(true);
+    if (result.success) {
+      expect(result.data.description).toBeUndefined();
+      expect(result.data.icon).toBeUndefined();
+      expect(result.data.iconColor).toBeUndefined();
+    }
+  });
+
   it('accepts optional workflow configuration with embedded definitions', () => {
     const result = ProjectConfigSchema.safeParse({
       ...validConfig,

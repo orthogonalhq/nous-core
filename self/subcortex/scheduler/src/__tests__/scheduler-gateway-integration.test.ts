@@ -40,6 +40,7 @@ function createProjectStore(projectConfig: ProjectConfig): IProjectStore {
     },
     async update(): Promise<void> {},
     async archive(): Promise<void> {},
+    async unarchive(): Promise<void> {},
   };
 }
 

@@ -57,6 +57,7 @@ function createProjectStore(projects: ProjectConfig[]) {
     },
     async update() {},
     async archive() {},
+    async unarchive() {},
   };
 }
 

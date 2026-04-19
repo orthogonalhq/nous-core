@@ -92,6 +92,48 @@ describe('shell type schemas', () => {
     ).toBe(false)
   })
 
+  // --- Sub-phase 1.1: retype icon -> string, add archived/color ---
+  it('accepts icon as string (sub-phase 1.1 retype)', () => {
+    expect(
+      ProjectItemSchema.safeParse({
+        id: 'project-1',
+        name: 'Project One',
+        icon: 'lucide:Rocket',
+      }).success,
+    ).toBe(true)
+  })
+
+  it('accepts archived boolean and hex color', () => {
+    expect(
+      ProjectItemSchema.safeParse({
+        id: 'project-1',
+        name: 'Project One',
+        archived: true,
+        color: '#00aaff',
+      }).success,
+    ).toBe(true)
+  })
+
+  it('rejects malformed color (not #RRGGBB)', () => {
+    expect(
+      ProjectItemSchema.safeParse({
+        id: 'project-1',
+        name: 'Project One',
+        color: '#abc',
+      }).success,
+    ).toBe(false)
+  })
+
+  it('rejects oversized icon (> 64 chars)', () => {
+    expect(
+      ProjectItemSchema.safeParse({
+        id: 'project-1',
+        name: 'Project One',
+        icon: 'x'.repeat(65),
+      }).success,
+    ).toBe(false)
+  })
+
   it('parses a valid flyout item and rejects an invalid one', () => {
     expect(
       FlyoutItemSchema.safeParse({
