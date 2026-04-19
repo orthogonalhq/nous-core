@@ -274,7 +274,7 @@ describe('FirstRunWizard — registry-driven invariants', () => {
     ).toBeInTheDocument()
   })
 
-  it('full download path advances through placeholder auto-mark to confirmation (F7)', async () => {
+  it('SP 1.5 F1/F2 — full download path advances via firstRun.assignRoles to confirmation (no role-assignment screen)', async () => {
     const mock = installMock()
 
     const resumeState = createFirstRunState({
@@ -296,7 +296,7 @@ describe('FirstRunWizard — registry-driven invariants', () => {
         role_assignment: { status: 'pending' },
       },
     })
-    const afterRoleAssignmentPlaceholder = createFirstRunState({
+    const afterAssignRoles = createFirstRunState({
       currentStep: 'complete',
       complete: true,
       steps: {
@@ -311,8 +311,8 @@ describe('FirstRunWizard — registry-driven invariants', () => {
       if (procedure === 'firstRun.downloadModel' || procedure === 'firstRun.configureProvider') {
         return createFirstRunActionResult(afterConfigureProvider)
       }
-      if (procedure === 'firstRun.completeStep') {
-        return afterRoleAssignmentPlaceholder
+      if (procedure === 'firstRun.assignRoles') {
+        return createFirstRunActionResult(afterAssignRoles)
       }
       return null
     })
@@ -335,17 +335,35 @@ describe('FirstRunWizard — registry-driven invariants', () => {
       total: 100,
     })
 
-    // After the full download + configure + placeholder chain, the wizard
-    // transitions to the confirmation step.
+    // After the full download + configure + assignRoles chain, the wizard
+    // transitions directly to the confirmation step (no dedicated
+    // role-assignment screen — Goals C23).
     expect(
       await screen.findByText('Your desktop runtime is ready.'),
     ).toBeInTheDocument()
 
-    // The placeholder auto-mark for role_assignment must have fired.
+    // F2 — auto-role-assign payload exercised end-to-end through the mocked
+    // transport. The four canonical roles are all assigned to the chosen spec.
     expect(trpcFetchMock.trpcMutate).toHaveBeenCalledWith(
-      'firstRun.completeStep',
-      { step: 'role_assignment' },
+      'firstRun.assignRoles',
+      {
+        assignments: [
+          { role: 'cortex-chat', modelSpec: 'ollama:qwen2.5:7b' },
+          { role: 'cortex-system', modelSpec: 'ollama:qwen2.5:7b' },
+          { role: 'orchestrators', modelSpec: 'ollama:qwen2.5:7b' },
+          { role: 'workers', modelSpec: 'ollama:qwen2.5:7b' },
+        ],
+      },
     )
+
+    // SP 1.5 placeholder removal regression: completeStep('role_assignment')
+    // must NOT fire on the download path.
+    const completeStepRoleCalls = trpcFetchMock.trpcMutate.mock.calls.filter(
+      (call) =>
+        call[0] === 'firstRun.completeStep' &&
+        (call[1] as { step?: string })?.step === 'role_assignment',
+    )
+    expect(completeStepRoleCalls).toHaveLength(0)
   })
 
   it('walks the full forward path welcome → agent_identity → ollama-setup (SP 1.4 wiring)', async () => {
