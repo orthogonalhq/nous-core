@@ -11,6 +11,12 @@ export {
   DefaultsConfigSchema,
   ProviderConfigEntrySchema,
   LoggingConfigSchema,
+  // SP 1.3 — Decision 7 identity-persistence-schema-v1
+  AgentBlockSchema,
+  PersonalityConfigSchema,
+  PersonalityPresetSchema,
+  TraitAxesOverridesSchema,
+  UserProfileSchema,
 } from './schema.js';
 export type {
   SystemConfig,
@@ -22,6 +28,12 @@ export type {
   DefaultsConfig,
   ProviderConfigEntry,
   LoggingConfig,
+  // SP 1.3 — Decision 7
+  AgentBlock,
+  PersonalityConfig,
+  PersonalityPreset,
+  TraitAxesOverrides,
+  UserProfile,
 } from './schema.js';
 
 export {
