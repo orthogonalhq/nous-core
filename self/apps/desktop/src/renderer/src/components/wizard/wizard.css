@@ -529,3 +529,63 @@
     left: 100%;
   }
 }
+
+/* ---------------------------------------------------------------------------
+ * SP 1.7 Fix #8 — additive rules for the identity step (sub-stage container,
+ * disclosure block, horizontal radio row). Additive only; no existing rule
+ * altered or removed (Goals C8). All selectors scoped under `.nous-wizard__`.
+ * ---------------------------------------------------------------------------
+ */
+
+.nous-wizard__identity {
+  display: flex;
+  flex-direction: column;
+  gap: var(--nous-space-2xl);
+  transition: opacity 200ms ease, transform 200ms ease;
+}
+
+.nous-wizard__identity--reduced-motion {
+  transition: none;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .nous-wizard__identity,
+  .nous-wizard__identity--animated {
+    transition: none;
+  }
+}
+
+.nous-wizard__disclosure {
+  padding: var(--nous-space-lg) var(--nous-space-xl);
+  border: 1px solid var(--nous-card-border);
+  border-left: 3px solid var(--nous-accent, #4a9eff);
+  border-radius: var(--nous-radius-md);
+  background: color-mix(in srgb, var(--nous-card-bg) 92%, transparent);
+  color: var(--nous-fg-muted);
+  font-size: var(--nous-font-size-sm);
+  line-height: 1.55;
+}
+
+.nous-wizard__disclosure > p {
+  margin: 0;
+}
+
+.nous-wizard__disclosure > p + p {
+  margin-top: var(--nous-space-xs);
+}
+
+.nous-wizard__radio-row {
+  display: flex;
+  flex-direction: row;
+  flex-wrap: wrap;
+  gap: var(--nous-space-lg);
+}
+
+.nous-wizard__radio-row > label {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--nous-space-sm);
+  cursor: pointer;
+  color: var(--nous-fg);
+  font-size: var(--nous-font-size-sm);
+}
