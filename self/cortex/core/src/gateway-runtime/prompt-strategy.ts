@@ -7,6 +7,8 @@
  * Sub-phase 1.1 of WR-124 (Chat Response Quality).
  */
 import type { AgentClass, ToolConcurrencyConfig, ToolDefinition } from '@nous/shared';
+import type { PersonalityConfig } from './personality/index.js';
+import { collectFragmentsByTarget, resolvePersonality } from './personality/index.js';
 
 // ---------------------------------------------------------------------------
 // Types
@@ -46,9 +48,9 @@ export interface PromptConfig {
   /**
    * User-configured personality input (WR-128).
    * Affects identity wording and prose output style only.
-   * Shape TBD — WR-128 delivers the concrete type.
+   * Concrete type landed in SP 1.2 — see ./personality/index.js.
    */
-  readonly personalityConfig?: unknown;
+  readonly personalityConfig?: PersonalityConfig;
 }
 
 // ── Agent Profile types (WR-127) ─────────────────────────────────────
@@ -285,13 +287,13 @@ const DIMENSIONS_BY_CLASS: Record<AgentClass, AgentProfileDimensions> = {
  *
  * @param agentClass - One of the four canonical agent classes
  * @param providerId - Optional provider for per-provider prompt overrides
- * @param personalityConfig - Optional user personality config (WR-128)
+ * @param personalityConfig - Optional user personality config (WR-128 / SP 1.2).
  * @returns Immutable AgentProfile
  */
 export function resolveAgentProfile(
   agentClass: AgentClass,
   providerId?: string,
-  personalityConfig?: unknown,
+  personalityConfig?: PersonalityConfig,
 ): AgentProfile {
   const promptConfig = resolvePromptConfig(agentClass, providerId);
   const dimensions = DIMENSIONS_BY_CLASS[agentClass];
@@ -321,29 +323,50 @@ export function resolveAgentProfile(
 }
 
 /**
- * Apply personality overrides to the identity block.
- * WR-128 will define the concrete personality shape.
- * For now, returns the base identity unchanged (no-op until WR-128).
+ * Apply personality overrides to the identity block (WR-128 / SP 1.2).
+ *
+ * Resolves the config into effective `TraitAxes`, collects fragment lists per
+ * target via `collectFragmentsByTarget`, and concatenates all non-null
+ * fragments onto `baseIdentity` in registry tuple order. Per SDS § 0 Note 1
+ * Option (a) / ADR 017, both `identity`- and `outputContract`-targeted
+ * fragments surface here; the enum-shaped `applyPersonalityToOutputContract`
+ * below is a deliberate pass-through.
+ *
+ * `{ preset: 'balanced' }` yields zero fragments (all `standard`/`compliant`/
+ * `concise` variants have `injection: null`) and the function returns
+ * `baseIdentity` unchanged — SDS I2.
  */
 function applyPersonalityToIdentity(
   baseIdentity: string,
-  _personalityConfig: unknown,
+  personalityConfig: PersonalityConfig,
 ): string {
-  // WR-128: when concrete type is available, extract name/style overrides
-  // and merge into the identity string.
-  return baseIdentity;
+  const axes = resolvePersonality(personalityConfig);
+  const fragments = collectFragmentsByTarget(axes);
+  const allFragments = [...fragments.identity, ...fragments.outputContract];
+  if (allFragments.length === 0) return baseIdentity;
+  return [baseIdentity, ...allFragments].join('\n\n');
 }
 
 /**
- * Apply personality overrides to the output contract.
- * WR-128 will define whether personality can shift output style.
- * For now, returns the base output contract unchanged (no-op until WR-128).
+ * Apply personality overrides to the output contract (WR-128 / SP 1.2).
+ *
+ * Deliberate pass-through per SDS § 0 Note 1 Option (a) / ADR 017. The
+ * `OutputContract` is a narrow enum (`'prose' | 'structured' | 'mixed'`)
+ * surfaced to downstream consumers; no personality trait mutates the enum
+ * value. `outputContract`-targeted fragment text is surfaced by
+ * `applyPersonalityToIdentity` above.
+ *
+ * The body resolves the config and invokes `collectFragmentsByTarget` anyway
+ * so the WR-127 isolation invariant is audit-visible at this function
+ * boundary — a future drift where a well-meaning change starts mutating the
+ * enum fails loudly rather than quietly.
  */
 function applyPersonalityToOutputContract(
   baseContract: OutputContract,
-  _personalityConfig: unknown,
+  personalityConfig: PersonalityConfig,
 ): OutputContract {
-  // WR-128: when concrete type is available, check for prose style preference.
+  const axes = resolvePersonality(personalityConfig);
+  collectFragmentsByTarget(axes); // intentional — audits the invariant
   return baseContract;
 }
 
