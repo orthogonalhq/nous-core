@@ -25,7 +25,7 @@ import {
   ProjectSwitcherRail,
   AssetSidebar,
   useChatStageManager,
-  useSidebarCollapsed,
+  useLayoutState,
   isHomeSidebarEnabled,
   HOME_TOP_NAV,
   buildHomeSidebarSections,
@@ -847,12 +847,22 @@ function DesktopSimpleShell({
 }) {
   const chatStageManager = useChatStageManager()
 
-  // WR-141 — single-call-plus-prop-drill per primary contract § State Ownership.
-  // This call is intentionally placed inside `DesktopSimpleShell` (the wiring-site
-  // root). Sibling calls inside `DesktopAssetSidebarConnected` are forbidden by
-  // INV-1 — two `useState` instances cannot observe each other in the same render
-  // tick, which would produce a click-but-no-shrink bug on first render.
-  const [sidebarCollapsed, setSidebarCollapsed] = useSidebarCollapsed()
+  // WR-163 — single-call-plus-prop-drill per the WR-141 State Ownership
+  // contract, now backed by the project-keyed view-state foundation. This
+  // call is intentionally placed inside `DesktopSimpleShell` (the wiring-site
+  // root). Sibling calls inside `DesktopAssetSidebarConnected` are forbidden
+  // by INV-1 — two `useState` instances cannot observe each other in the same
+  // render tick, which would produce a click-but-no-shrink bug on first render.
+  const { state: layoutState, setState: setLayoutState } = useLayoutState()
+  const sidebarCollapsed = layoutState?.sidebarCollapsed ?? false
+  const setSidebarCollapsed = useCallback(
+    (next: boolean) =>
+      setLayoutState({
+        ...(layoutState ?? {}),
+        sidebarCollapsed: next,
+      }),
+    [layoutState, setLayoutState],
+  )
   const handleToggleCollapse = useCallback(
     () => setSidebarCollapsed(!sidebarCollapsed),
     [sidebarCollapsed, setSidebarCollapsed],

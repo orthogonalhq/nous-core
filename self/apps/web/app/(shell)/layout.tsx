@@ -16,7 +16,7 @@ import {
   ProjectSwitcherRail,
   AssetSidebar,
   useChatStageManager,
-  useSidebarCollapsed,
+  useLayoutState,
   useShellContext,
   isHomeSidebarEnabled,
   HOME_TOP_NAV,
@@ -81,14 +81,10 @@ function ShellLayoutContent({
   // Chat stage state machine (5-state model)
   const chatStageManager = useChatStageManager()
 
-  // WR-141 — single-call-plus-prop-drill per primary contract § State Ownership.
-  // This call is intentionally placed inside `ShellLayoutContent` (the wiring-site
-  // root). Sibling calls inside `WebAssetSidebarConnected` are forbidden by INV-1.
-  const [sidebarCollapsed, setSidebarCollapsed] = useSidebarCollapsed()
-  const handleToggleCollapse = useCallback(
-    () => setSidebarCollapsed(!sidebarCollapsed),
-    [sidebarCollapsed, setSidebarCollapsed],
-  )
+  // WR-163 — sidebar-collapsed state is now project-keyed via `useLayoutState`.
+  // That hook reads `ShellContext.activeProjectId`, so its call site MUST sit
+  // inside the `<ShellProvider>` subtree — see `<WebShellBody>` below. Here we
+  // still hold local-state bindings wired into the provider / children.
 
   // Wire SSE events to chat stage manager signals
   useEventSubscription({
@@ -231,74 +227,140 @@ function ShellLayoutContent({
             onClose={() => setCommandPaletteOpen(false)}
             commands={commands}
           />
-          <div style={{ flex: 1, minHeight: 0, height: '100%', overflow: 'hidden', position: 'relative' }}>
-            {mode === 'simple' ? (
-              <SimpleShellLayout
-                projectRail={
-                  <ProjectSwitcherRail
-                    projects={stubProjects}
-                    activeProjectId={projectId ?? 'project-1'}
-                    onProjectSelect={(id) => {
-                      setIsHomeContext(false)
-                      handleProjectChange(id)
-                    }}
-                    onHomeClick={() => {
-                      setIsHomeContext(true)
-                      handleNavigate('home')
-                    }}
-                    isHomeActive={isHomeContext}
-                  />
-                }
-                sidebarCollapsed={sidebarCollapsed}
-                onSidebarCollapseChange={setSidebarCollapsed}
-                sidebar={
-                  isHomeContext && isHomeSidebarEnabled()
-                    ? <WebHomeSidebar />
-                    : (
-                      <WebAssetSidebarConnected
-                        collapsed={sidebarCollapsed}
-                        onToggleCollapse={handleToggleCollapse}
-                      />
-                    )
-                }
-                content={
-                  <ContentRouter
-                    activeRoute={activeRoute}
-                    routes={routes}
-                    onNavigate={handleNavigate}
-                  />
-                }
-                observe={<ObservePanel />}
-                chatStage={chatStageManager.chatStage}
-                onClickOutside={chatStageManager.handleClickOutside}
-                chatSlot={({ stage }) => (
-                  <WebConnectedChatSurface
-                    stage={stage}
-                    isPinned={chatStageManager.isPinned}
-                    onStageChange={(s) => {
-                      if (s === 'ambient_large') chatStageManager.expandToAmbientLarge()
-                      else if (s === 'ambient_small') chatStageManager.collapseToAmbientSmall()
-                      else if (s === 'full') chatStageManager.expandToFull()
-                      else if (s === 'small') chatStageManager.collapseToSmall()
-                    }}
-                    onSendStart={() => chatStageManager.signalSending()}
-                    onTogglePin={() => chatStageManager.togglePin()}
-                    onInputFocus={() => chatStageManager.signalInputFocus()}
-                    onUnreadMessage={() => chatStageManager.signalUnreadMessage()}
-                    onMessagesRead={() => chatStageManager.signalMessagesRead()}
-                  />
-                )}
-              />
-            ) : (
-              <WebDockviewShell onApiReady={setDockviewApi} />
-            )}
-          </div>
+          <WebShellBody
+            mode={mode}
+            activeRoute={activeRoute}
+            isHomeContext={isHomeContext}
+            setIsHomeContext={setIsHomeContext}
+            projectId={projectId}
+            handleProjectChange={handleProjectChange}
+            handleNavigate={handleNavigate}
+            stubProjects={stubProjects}
+            routes={routes}
+            chatStageManager={chatStageManager}
+            onDockviewApiReady={setDockviewApi}
+          />
           {/* Next.js page outlet — hidden; shell uses ContentRouter for navigation */}
           <div style={{ display: 'none' }}>{children}</div>
         </ProjectProvider>
         </NotificationProvider>
       </ShellProvider>
     </WebChromeShell>
+  )
+}
+
+// ─── WebShellBody — lives inside <ShellProvider> subtree so it can drive
+// project-keyed view-state hooks (WR-163). Hoists `useLayoutState` here
+// (previously `useSidebarCollapsed` which did not depend on ShellContext).
+
+function WebShellBody({
+  mode,
+  activeRoute,
+  isHomeContext,
+  setIsHomeContext,
+  projectId,
+  handleProjectChange,
+  handleNavigate,
+  stubProjects,
+  routes,
+  chatStageManager,
+  onDockviewApiReady,
+}: {
+  mode: ShellMode
+  activeRoute: string
+  isHomeContext: boolean
+  setIsHomeContext: (v: boolean) => void
+  projectId: string | null
+  handleProjectChange: (id: string) => void
+  handleNavigate: (routeId: string) => void
+  stubProjects: Array<{ id: string; name: string }>
+  routes: ReturnType<typeof createWebShellRoutes>
+  chatStageManager: ReturnType<typeof useChatStageManager>
+  onDockviewApiReady: (api: DockviewApi | null) => void
+}) {
+  // WR-163 — single-call-plus-prop-drill per the WR-141 State Ownership
+  // contract, now backed by the project-keyed view-state foundation. This
+  // call MUST live inside <ShellProvider> (hence this inner component) so
+  // that `useLayoutState` can read `activeProjectId` reactively. Sibling
+  // calls inside `WebAssetSidebarConnected` are forbidden by INV-1.
+  const { state: layoutState, setState: setLayoutState } = useLayoutState()
+  const sidebarCollapsed = layoutState?.sidebarCollapsed ?? false
+  const setSidebarCollapsed = useCallback(
+    (next: boolean) =>
+      setLayoutState({
+        ...(layoutState ?? {}),
+        sidebarCollapsed: next,
+      }),
+    [layoutState, setLayoutState],
+  )
+  const handleToggleCollapse = useCallback(
+    () => setSidebarCollapsed(!sidebarCollapsed),
+    [sidebarCollapsed, setSidebarCollapsed],
+  )
+
+  return (
+    <div style={{ flex: 1, minHeight: 0, height: '100%', overflow: 'hidden', position: 'relative' }}>
+      {mode === 'simple' ? (
+        <SimpleShellLayout
+          projectRail={
+            <ProjectSwitcherRail
+              projects={stubProjects}
+              activeProjectId={projectId ?? 'project-1'}
+              onProjectSelect={(id) => {
+                setIsHomeContext(false)
+                handleProjectChange(id)
+              }}
+              onHomeClick={() => {
+                setIsHomeContext(true)
+                handleNavigate('home')
+              }}
+              isHomeActive={isHomeContext}
+            />
+          }
+          sidebarCollapsed={sidebarCollapsed}
+          onSidebarCollapseChange={setSidebarCollapsed}
+          sidebar={
+            isHomeContext && isHomeSidebarEnabled()
+              ? <WebHomeSidebar />
+              : (
+                <WebAssetSidebarConnected
+                  collapsed={sidebarCollapsed}
+                  onToggleCollapse={handleToggleCollapse}
+                />
+              )
+          }
+          content={
+            <ContentRouter
+              activeRoute={activeRoute}
+              routes={routes}
+              onNavigate={handleNavigate}
+            />
+          }
+          observe={<ObservePanel />}
+          chatStage={chatStageManager.chatStage}
+          onClickOutside={chatStageManager.handleClickOutside}
+          chatSlot={({ stage }) => (
+            <WebConnectedChatSurface
+              stage={stage}
+              isPinned={chatStageManager.isPinned}
+              onStageChange={(s) => {
+                if (s === 'ambient_large') chatStageManager.expandToAmbientLarge()
+                else if (s === 'ambient_small') chatStageManager.collapseToAmbientSmall()
+                else if (s === 'full') chatStageManager.expandToFull()
+                else if (s === 'small') chatStageManager.collapseToSmall()
+              }}
+              onSendStart={() => chatStageManager.signalSending()}
+              onTogglePin={() => chatStageManager.togglePin()}
+              onInputFocus={() => chatStageManager.signalInputFocus()}
+              onUnreadMessage={() => chatStageManager.signalUnreadMessage()}
+              onMessagesRead={() => chatStageManager.signalMessagesRead()}
+            />
+          )}
+        />
+      ) : (
+        <WebDockviewShell onApiReady={onDockviewApiReady} />
+      )}
+    </div>
   )
 }
 
