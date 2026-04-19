@@ -43,6 +43,7 @@ describe('wizard-registry — factory defaults', () => {
         complete: false,
         steps: {
           ollama_check: { status: 'pending' },
+          agent_identity: { status: 'pending' },
           model_download: { status: 'pending' },
           provider_config: { status: 'pending' },
           role_assignment: { status: 'pending' },
@@ -68,14 +69,19 @@ describe('wizard-registry — factory defaults', () => {
 });
 
 describe('wizard-registry — manifest / schema', () => {
-  it('FIRST_RUN_STEP_VALUES is the canonical V1 tuple', () => {
+  it('FIRST_RUN_STEP_VALUES is the canonical SP 1.3 tuple (agent_identity included)', () => {
+    // SP 1.3 — SDS § 0 Note 2 Posture (i): `agent_identity` lives in the
+    // manifest tuple so the `firstRun.writeIdentity` tRPC procedure can call
+    // `markStepComplete(dataDir, 'agent_identity')` legally. The renderer
+    // registry row lands in SP 1.4.
     expect(FIRST_RUN_STEP_VALUES).toEqual([
       'ollama_check',
+      'agent_identity',
       'model_download',
       'provider_config',
       'role_assignment',
     ]);
-    expect(FIRST_RUN_STEP_VALUES).not.toContain('agent_identity');
+    expect(FIRST_RUN_STEP_VALUES).toContain('agent_identity');
   });
 
   it('buildFirstRunStateStepsSchema keys equal FIRST_RUN_STEP_VALUES', () => {
@@ -84,7 +90,7 @@ describe('wizard-registry — manifest / schema', () => {
     expect(keys).toEqual([...FIRST_RUN_STEP_VALUES]);
   });
 
-  it('FirstRunStateSchema.parse round-trips a canonical pre-migration fixture', () => {
+  it('FirstRunStateSchema.parse round-trips a canonical SP 1.3 fixture', () => {
     const fixture = {
       currentStep: 'model_download' as const,
       complete: false,
@@ -93,6 +99,7 @@ describe('wizard-registry — manifest / schema', () => {
           status: 'complete' as const,
           completedAt: '2026-03-22T00:04:00.000Z',
         },
+        agent_identity: { status: 'pending' as const },
         model_download: { status: 'pending' as const },
         provider_config: { status: 'pending' as const },
         role_assignment: { status: 'pending' as const },
@@ -129,7 +136,12 @@ function buildValidV1Registry() {
       label: 'Model',
       component: null,
       backendStep: 'model_download',
-      extraBackendSteps: ['provider_config', 'role_assignment'],
+      // SP 1.3 — `agent_identity` added to the V1 test fixture's
+      // extraBackendSteps so `assertRegistryMatchesManifest` keeps full
+      // coverage after the manifest gained `agent_identity`. SP 1.4 will land
+      // a dedicated `agent-identity` wizard step row owning the `agent_identity`
+      // backend step; this fixture remains a synthetic test-only registry.
+      extraBackendSteps: ['agent_identity', 'provider_config', 'role_assignment'],
       previous: 'ollama-setup',
       skippable: true,
     }),
@@ -337,6 +349,8 @@ describe('wizard-registry — assertRegistryMatchesManifest', () => {
         label: 'Model',
         component: null,
         backendStep: 'model_download',
+        // SP 1.3 — under-covers manifest: missing `agent_identity` AND
+        // `role_assignment` from extras (manifest now has 5 entries).
         extraBackendSteps: ['provider_config'],
         previous: 'ollama-setup',
         skippable: true,
@@ -392,6 +406,7 @@ describe('wizard-registry — assertRegistryMatchesManifest', () => {
         component: null,
         backendStep: 'model_download',
         extraBackendSteps: [
+          'agent_identity',
           'provider_config',
           'role_assignment',
           'role_assignment', // duplicate — forces count > manifest length
@@ -427,15 +442,18 @@ describe('wizard-registry — derivations', () => {
     expect(new Set(derived)).toEqual(new Set(FIRST_RUN_STEP_VALUES));
   });
 
-  it('deriveFirstRunStepValues preserves the manifest ordering for V1 registry', () => {
+  it('deriveFirstRunStepValues preserves the registry ordering for V1 registry', () => {
     const registry = buildValidV1Registry();
     const derived = deriveFirstRunStepValues(registry);
-    // V1 entries visit backend steps in manifest order:
+    // V1 entries visit backend steps in registry-traversal order:
     //   ollama-setup → ollama_check
-    //   model-download → model_download, provider_config, role_assignment
+    //   model-download → model_download, then extras
+    //                    [agent_identity, provider_config, role_assignment]
+    // SP 1.3 fixture extension — see buildValidV1Registry comment.
     expect(derived).toEqual([
       'ollama_check',
       'model_download',
+      'agent_identity',
       'provider_config',
       'role_assignment',
     ]);
@@ -446,6 +464,7 @@ describe('wizard-registry — derivations', () => {
     const map = deriveBackendStepToWizardStep(registry);
     expect(map).toEqual({
       ollama_check: 'ollama-setup',
+      agent_identity: 'model-download',
       model_download: 'model-download',
       provider_config: 'model-download',
       role_assignment: 'model-download',
