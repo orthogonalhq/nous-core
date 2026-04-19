@@ -9,7 +9,37 @@ import {
   type FirstRunState,
   type WizardStepProps,
 } from './types'
-import { trpcMutate } from './trpc-fetch'
+import { trpcMutate, trpcQuery } from './trpc-fetch'
+
+// SP 1.5 — Validation state for model recommendations (Decision 5).
+// Mirrors the server-side `ValidationState` enum from
+// `@nous/shared-server`, kept inline so the renderer does not import a
+// runtime symbol from the shared-server package (the wizard's
+// `trpc-fetch.ts` raw-fetch transport is the renderer's only seam onto
+// the shared-server surface — see SDS § 1.3).
+type ValidationState = 'validated' | 'pending' | 'unavailable' | 'offline'
+
+const VALIDATION_ARIA_LABELS: Record<ValidationState, string> = {
+  validated: 'Available',
+  pending: 'Validating availability',
+  unavailable: 'Not currently available',
+  offline: 'Cannot verify availability',
+}
+
+function ValidationIndicator({ state }: { state: ValidationState }) {
+  return (
+    <div
+      className="nous-wizard__option-validation"
+      role="status"
+      aria-label={VALIDATION_ARIA_LABELS[state]}
+    >
+      <span className={`nous-wizard__option-validation-dot--${state}`} />
+      <span className="nous-wizard__option-validation-label">
+        {VALIDATION_ARIA_LABELS[state]}
+      </span>
+    </div>
+  )
+}
 
 export interface WizardStepModelDownloadProps extends WizardStepProps {
   selectedModelSpec: string | null
@@ -37,6 +67,8 @@ export function WizardStepModelDownload({
   const [customModelId, setCustomModelId] = useState('')
   const [downloadRequested, setDownloadRequested] = useState(false)
   const [localError, setLocalError] = useState<string | null>(null)
+  const [customValidationState, setCustomValidationState] =
+    useState<ValidationState>('pending')
   const finalizeRef = useRef(false)
   const recommendedModelSpec = getRecommendedModelSpec(prerequisites)
   const options = useMemo(
@@ -97,14 +129,30 @@ export function WizardStepModelDownload({
         throw new Error(providerResult.error ?? 'The backend could not configure the selected model.')
       }
 
-      // PLACEHOLDER (SP 1.1): replaced by assignRoles in SP 1.5 per SDS § 2.6.
-      let finalState: FirstRunState = providerResult.state
-      if (finalState.steps.role_assignment.status !== 'complete') {
-        finalState = await trpcMutate<FirstRunState>('firstRun.completeStep', {
-          step: 'role_assignment',
-        })
+      // SP 1.5 — auto-role-assign on the download path (Decision 3,
+      // wizard-step-roster-v1). Replaces the SP 1.1 placeholder
+      // `firstRun.completeStep('role_assignment')` with a real assignment of
+      // all four canonical roles to the freshly-configured model. The
+      // mutation calls `markStepComplete('role_assignment')` internally
+      // (`first-run.ts:233`), so no follow-up `completeStep` is needed.
+      const assignResult = await trpcMutate<FirstRunActionResult>(
+        'firstRun.assignRoles',
+        {
+          assignments: [
+            { role: 'cortex-chat', modelSpec: resolvedModelSpec },
+            { role: 'cortex-system', modelSpec: resolvedModelSpec },
+            { role: 'orchestrators', modelSpec: resolvedModelSpec },
+            { role: 'workers', modelSpec: resolvedModelSpec },
+          ],
+        },
+      )
+      if (!assignResult.success) {
+        throw new Error(
+          assignResult.error ?? 'The backend could not assign the selected model to its roles.',
+        )
       }
 
+      const finalState: FirstRunState = assignResult.state
       onStepComplete(finalState)
     } catch (error) {
       finalizeRef.current = false
@@ -112,6 +160,24 @@ export function WizardStepModelDownload({
       setLocalError(message)
       setActionError(message)
       setActionInProgress(false)
+    }
+  }
+
+  // SP 1.5 — runtime availability check for user-typed custom specs that
+  // are NOT present in the curated recommendation set. Invoked from
+  // `handleDownload` on submit only — never per keystroke (Goals C15).
+  // Failures (network errors, transport throws) degrade to `'offline'`
+  // rather than blocking the download.
+  const validateCustomSpec = async (modelSpec: string): Promise<void> => {
+    setCustomValidationState('pending')
+    try {
+      const result = await trpcQuery<{ modelSpec: string; state: ValidationState }>(
+        'firstRun.validateModelAvailability',
+        { modelSpec },
+      )
+      setCustomValidationState(result?.state ?? 'offline')
+    } catch {
+      setCustomValidationState('offline')
     }
   }
 
@@ -129,7 +195,10 @@ export function WizardStepModelDownload({
       let nextState = await trpcMutate<FirstRunState>('firstRun.completeStep', {
         step: 'provider_config',
       })
-      // PLACEHOLDER (SP 1.1): replaced by assignRoles in SP 1.5 per SDS § 2.6.
+      // Skip path retains placeholder per SP 1.5 SDS § 0 Note 3 (Path A); no
+      // modelSpec is available because firstRun.configureProvider is also
+      // skipped. Real role assignment requires a configured provider, which
+      // the user can complete later via Settings > Local Models.
       if (nextState.steps.role_assignment.status !== 'complete') {
         nextState = await trpcMutate<FirstRunState>('firstRun.completeStep', {
           step: 'role_assignment',
@@ -156,6 +225,19 @@ export function WizardStepModelDownload({
     setLocalError(null)
     setDownloadRequested(true)
     setActionInProgress(true)
+
+    // SP 1.5 — runtime availability check for user-typed custom specs that
+    // are NOT in the curated recommendation set (Goals C15). Recommended
+    // specs already have validation state in `prerequisites.validation`.
+    // Validation is informational; the download proceeds in parallel.
+    if (resolvedModelSpec) {
+      const inRecommendationSet = options.some(
+        (option) => option.modelSpec === resolvedModelSpec,
+      )
+      if (!inRecommendationSet) {
+        void validateCustomSpec(resolvedModelSpec)
+      }
+    }
 
     try {
       await window.electronAPI.ollama.pullModel(parsedModel.modelId)
@@ -191,6 +273,10 @@ export function WizardStepModelDownload({
           <div className="nous-wizard__option-list">
             {options.map((option) => {
               const isSelected = option.modelSpec === resolvedModelSpec
+              // SP 1.5 — per-card validation indicator. Cards in any state
+              // remain selectable (Goals C12); the indicator is informational.
+              const validationState: ValidationState =
+                prerequisites?.validation?.[option.modelSpec] ?? 'pending'
               return (
                 <button
                   key={option.modelSpec}
@@ -203,6 +289,7 @@ export function WizardStepModelDownload({
                   <div className="nous-wizard__option-meta">
                     {option.modelSpec} · {formatRamRequiredLabel(option.ramRequiredMB)}
                   </div>
+                  <ValidationIndicator state={validationState} />
                 </button>
               )
             })}
@@ -231,6 +318,15 @@ export function WizardStepModelDownload({
               placeholder="qwen2.5:7b"
             />
           </label>
+          {/*
+            SP 1.5 — runtime availability indicator for the custom-spec input.
+            Defaults to `'pending'`; transitions when `validateCustomSpec`
+            resolves on submit (Goals C15). The indicator is informational
+            and never blocks download.
+          */}
+          <div data-testid="wizard-custom-spec-validation">
+            <ValidationIndicator state={customValidationState} />
+          </div>
 
           <p className="nous-wizard__helper-text" data-testid="wizard-model-library-info-link">
             Don&rsquo;t see what you want?{' '}

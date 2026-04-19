@@ -9,9 +9,11 @@ import { WizardStepModelDownload } from '../WizardStepModelDownload'
  *     (or when the user chooses "Skip — I'll add models later").
  *   - `provider_config` — marked complete when the tRPC
  *     `firstRun.configureProvider` call succeeds (or when the user skips).
- *   - `role_assignment` — placeholder-marked complete by the bridge logic
- *     inside `WizardStepModelDownload` (SDS § 2.6). SP 1.5 will replace
- *     the placeholder with a real `firstRun.assignRoles` call.
+ *   - `role_assignment` — on the download path, marked complete by the
+ *     `firstRun.assignRoles` mutation (SP 1.5, Decision 3). On the skip
+ *     path, retained as a placeholder `firstRun.completeStep` call per
+ *     SP 1.5 SDS § 0 Note 3 (Path A): no modelSpec is available because
+ *     `firstRun.configureProvider` is also skipped.
  *
  * The multi-backend-step coverage is declared via `extraBackendSteps` per
  * ADR 016 (extraBackendSteps extension of Decision 2's ratified shape).

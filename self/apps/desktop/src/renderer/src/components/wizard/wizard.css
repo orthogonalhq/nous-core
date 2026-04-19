@@ -352,6 +352,79 @@
   font-size: var(--nous-font-size-xs);
 }
 
+/*
+ * SP 1.5 — registry-availability validation indicator on recommendation
+ * cards (Decision 5). Renders inside `.nous-wizard__option` and beside the
+ * custom-spec input. Four states map to four dot colors: validated (green),
+ * pending (animated/spinning), unavailable (amber), offline (gray).
+ */
+.nous-wizard__option-validation {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--nous-space-sm);
+  margin-top: var(--nous-space-md);
+  padding: var(--nous-space-xs) var(--nous-space-md);
+  border-radius: var(--nous-badge-radius);
+  background: color-mix(in srgb, var(--nous-bg-input) 48%, transparent);
+  border: 1px solid var(--nous-divider-subtle);
+  font-size: var(--nous-font-size-xs);
+  color: var(--nous-fg-muted);
+}
+
+.nous-wizard__option-validation-dot--validated,
+.nous-wizard__option-validation-dot--pending,
+.nous-wizard__option-validation-dot--unavailable,
+.nous-wizard__option-validation-dot--offline {
+  display: inline-block;
+  width: var(--nous-indicator-size, 8px);
+  height: var(--nous-indicator-size, 8px);
+  border-radius: var(--nous-radius-full);
+  flex-shrink: 0;
+}
+
+.nous-wizard__option-validation-dot--validated {
+  background: var(--nous-state-complete);
+}
+
+.nous-wizard__option-validation-dot--pending {
+  background: var(--nous-state-active);
+  animation: nous-wizard-validation-spin 1.2s linear infinite;
+}
+
+.nous-wizard__option-validation-dot--unavailable {
+  background: var(--nous-state-waiting);
+}
+
+.nous-wizard__option-validation-dot--offline {
+  background: var(--nous-state-idle);
+}
+
+.nous-wizard__option-validation-label {
+  color: var(--nous-fg-muted);
+  font-size: var(--nous-font-size-xs);
+}
+
+@keyframes nous-wizard-validation-spin {
+  0% {
+    opacity: 0.45;
+    transform: scale(0.85);
+  }
+  50% {
+    opacity: 1;
+    transform: scale(1.05);
+  }
+  100% {
+    opacity: 0.45;
+    transform: scale(0.85);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .nous-wizard__option-validation-dot--pending {
+    animation: none;
+  }
+}
+
 .nous-wizard__alert {
   margin-bottom: var(--nous-space-2xl);
   padding: var(--nous-space-lg) var(--nous-space-xl);
