@@ -396,6 +396,52 @@ export const GatewayRunSnapshotSchema = z
   .strict();
 export type GatewayRunSnapshot = z.infer<typeof GatewayRunSnapshotSchema>;
 
+/**
+ * Marker text written to `AgentResult.output.response` (and to STM) when the
+ * Principal gateway's empty-loop guard fires. The guard fires when the model
+ * produced reasoning (or no output at all) without finalizing a user-facing
+ * response. The marker gives the user a stable, on-surface signal instead of
+ * a silent assistant bubble.
+ *
+ * SP 1.15 RC-1 — Bug Chain A. The constant lives in `@nous/shared` so every
+ * consumer (gateway, runtime, UI) imports a single source of truth; future
+ * copy-edits must update this constant, never the importers.
+ */
+export const EMPTY_RESPONSE_MARKER =
+  '[I produced reasoning but did not finalize a response. Click Thinking to view what I was working on, or rephrase your request.]';
+
+/**
+ * Discriminator written alongside `EMPTY_RESPONSE_MARKER` so callers can tell
+ * the two empty-exit shapes apart:
+ *
+ * - `thinking_only_no_finalizer` — model emitted thinking content but no
+ *   user-facing response and no tool calls.
+ * - `no_output_at_all` — model emitted neither thinking nor response.
+ */
+export const EmptyResponseKindSchema = z.enum([
+  'thinking_only_no_finalizer',
+  'no_output_at_all',
+]);
+export type EmptyResponseKind = z.infer<typeof EmptyResponseKindSchema>;
+
+/**
+ * Documented shape of `AgentResult.output` for chat-surface Principal turns.
+ *
+ * `AgentResultSchema.output` is intentionally `z.unknown()` per SDS §
+ * Boundaries — the discriminated-union refactor at the boundary layer is
+ * out-of-scope for SP 1.15. This interface documents the runtime shape
+ * consumers (cortex-runtime, UI) rely on.
+ *
+ * `empty_response_kind` is set by the empty-loop guard branch in
+ * `agent-gateway.ts`. Absent for normal exits.
+ */
+export interface ChatAgentOutput {
+  response: string;
+  contentType?: 'text' | 'openui';
+  thinkingContent?: string;
+  empty_response_kind?: EmptyResponseKind;
+}
+
 const AgentResultBaseSchema = z
   .object({
     correlation: GatewayCorrelationSchema,
