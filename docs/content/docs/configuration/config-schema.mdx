@@ -113,7 +113,7 @@ Provider types: `text`, `image`, `video`, `vision`, `embedding`, `external-api`.
 
 ## Agent
 
-The `agent` block stores agent identity and personality settings authored by the first-run wizard (lands in SP 1.4) or by direct hand-edit of the JSON5 file. This `agent` section is independent of the top-level `profile` (deployment profile) section above — they share no fields.
+The `agent` block stores agent identity and personality settings authored by the first-run wizard's [Identity step](/docs/guides/identity) or by direct hand-edit of the JSON5 file. This `agent` section is independent of the top-level `profile` (deployment profile) section above — they share no fields.
 
 ```json5
 {
@@ -139,7 +139,7 @@ The `agent` block stores agent identity and personality settings authored by the
 - **`welcomeMessageSent`** (boolean, optional) — Tracks whether the welcome message has been delivered (consumed by the welcome-message wiring in SP 1.6). When absent, readers return the typed default `false`.
 - **`profile`** (object, optional) — Typed user-profile sub-fields, all optional: `displayName`, `role`, `primaryUseCase`, `expertise` (`'beginner' | 'intermediate' | 'advanced'`). When absent, readers return the typed default `{}`. The schema is additive over time — new fields may be added in future sub-phases without breaking existing configs; renames or removals are migrations.
 
-**Read-time defaults — never persisted on read.** The entire `agent` block is absent from the default system config. Readers (`getAgentName`, `getPersonalityConfig`, `getUserProfile`, `getWelcomeMessageSent`) synthesize their typed defaults at read time without writing to disk. The `agent` key first appears in `nous-config.json5` only after the user completes the first-run identity step (lands in SP 1.4) or hand-edits the file.
+**Read-time defaults — never persisted on read.** The entire `agent` block is absent from the default system config. Readers (`getAgentName`, `getPersonalityConfig`, `getUserProfile`, `getWelcomeMessageSent`) synthesize their typed defaults at read time without writing to disk. The `agent` key first appears in `nous-config.json5` only after the user completes the first-run [Identity step](/docs/guides/identity) or hand-edits the file.
 
 **Reset semantics.** The `firstRun.resetWizard` tRPC mutation clears the entire `agent` block while leaving `providers` and `modelRoleAssignments` untouched. After reset, all four readers return their typed defaults again.
 

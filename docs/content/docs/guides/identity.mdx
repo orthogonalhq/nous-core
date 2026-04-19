@@ -1,0 +1,113 @@
+---
+title: Identity
+description: Name your agent, choose a personality, and share an optional user profile during first run
+---
+
+# Identity
+
+The Identity step in the [first-run wizard](/docs/getting-started/first-run) is where you make the agent yours. It captures three things — your agent's **name**, its **personality**, and an optional **user profile** — and writes them as one batched payload to the [`agent` block](/docs/configuration/config-schema#agent) of your config.
+
+The step has three sub-stages with a short fade between them: **Naming → Personality → Profile**.
+
+## Sub-stage A: Naming
+
+Greeting prose followed by a single text input.
+
+- The default agent name is **Nous**, but you can change it to anything you like (1–120 characters).
+- The **Continue** button enables the moment the field is non-empty.
+- There is **no Skip** on this sub-stage. Every agent has a name.
+- The name input receives focus when the sub-stage renders, so you can start typing right away.
+
+When you submit, the sub-stage advances with a short fade (or instantly, if you have **Reduce motion** enabled in your OS).
+
+## Sub-stage B: Personality
+
+Personality controls how Nous talks to you and writes for you. There are two ways to configure it: pick a **preset**, or open **Advanced Options** to set individual trait axes.
+
+### Presets
+
+Four presets ship with Nous, in this order:
+
+| Preset | Posture |
+|---|---|
+| `balanced` | The default. Even-keeled across every trait axis. Byte-identical to pre-personality Nous. |
+| `professional` | Formal tone, careful pacing, conservative initiative. |
+| `efficient` | Concise, direct, minimal preamble. |
+| `thorough` | Detailed explanations, careful checks, longer responses. |
+
+Each preset is a label-and-description card. Click one to select it; selection updates with `aria-checked` so it is keyboard- and screen-reader-friendly.
+
+### Advanced Options
+
+Click **Advanced Options** to expand the per-axis override panel. There are five trait axes:
+
+| Axis | What it tunes |
+|---|---|
+| `thoroughness` | How exhaustive Nous is when explaining or checking. |
+| `initiative` | How proactively Nous suggests next steps. |
+| `candor` | How direct Nous is about uncertainty and disagreement. |
+| `communicationStyle` | Concise vs detailed prose. Also controls the tone of the welcome message in a future sub-phase. |
+| `codeStyle` | Defaults Nous prefers when writing code (terse vs documented). |
+
+Each axis renders one labeled radio group. Pick a value to override the preset's default on that axis. Overrides compose on top of the preset — if you don't override an axis, the preset's value for that axis applies.
+
+### Continue and Skip
+
+- **Continue** advances to Profile with `personality: { preset }` if you have no overrides, or `personality: { preset, overrides }` if you opened Advanced Options and changed at least one axis.
+- **Skip** advances to Profile with `personality: { preset: 'balanced' }` exactly — no `overrides` key. This matches the typed default the agent-block readers return when the `agent.personality` block is absent, so the production prompt path is byte-identical to pre-personality Nous (the regression-parity invariant from SP 1.3).
+
+## Sub-stage C: Profile
+
+A short prompt, a security disclosure, and four optional form fields.
+
+### Security disclosure
+
+Above the form fields is a short note that says, in three points:
+
+1. **Stored locally.** Profile data lives in your local config file (`nous-config.json5`) and nowhere else.
+2. **Used to personalize.** Nous reads it to tailor responses to you.
+3. **Never sent externally without an explicit action on your part.** No background telemetry, no automatic uploads.
+
+The disclosure renders as a `role="note"` region with `data-testid="identity-security-disclosure"` for screen readers and tests.
+
+### Form fields
+
+All four fields are optional:
+
+| Field | Type | Notes |
+|---|---|---|
+| `displayName` | string | What Nous should call you. |
+| `role` | string | A short description of what you do. |
+| `primaryUseCase` | string | What you mainly want Nous to help with. |
+| `expertise` | `'beginner'` \| `'intermediate'` \| `'advanced'` | Your comfort level. |
+
+Every field is plain text or a single-select. None of them are required.
+
+### Submit and Skip
+
+- **Submit** sends the full identity payload — `{ name, personality, profile }` — through the `firstRun.writeIdentity` tRPC mutation. On success, the wizard advances to the next step (`ollama-setup`). On failure, the error message renders in place and the sub-stage stays open so you can correct or retry.
+- **Skip** sends the same shape with `profile: {}` (an empty object). The agent operates without personalization context, exactly as if no profile were ever recorded.
+
+Backend completion of the `agent_identity` step is recorded **only** when Sub-stage C completes — submit or skip. Submitting the name on Sub-stage A or the personality on Sub-stage B does **not** mark the step complete on its own.
+
+## Reduced motion
+
+Sub-stage transitions normally cross-fade. When your OS has **Reduce motion** enabled (`prefers-reduced-motion: reduce`), the fade is suppressed and sub-stage swaps happen instantly. Forward navigation, focus management, and form submission are unaffected — only the visual transition changes.
+
+## Back navigation
+
+Press the wizard's outer **Back** button at any sub-stage to return to **Welcome**. The Identity step does not have its own internal back navigation between sub-stages — back from A, B, or C lands you at Welcome the same way back from any other top-level step would. If you re-enter Identity later, the internal state machine starts at Sub-stage A again; nothing is held over.
+
+## Hand-editing the `agent` block
+
+If you'd rather edit `nous-config.json5` directly, the `agent` block schema is documented at [Configuration Schema § Agent](/docs/configuration/config-schema#agent). The four sub-fields (`name`, `personality`, `welcomeMessageSent`, `profile`) follow the same Zod schema the wizard submits to. Hand-editors should be aware that wizard-driven writes emit JSON (not JSON5) and strip any comments — see the JSON5 caveat in the schema reference.
+
+## Resetting the wizard
+
+If you want to start over — say, to reconsider the personality preset or the agent name — use the `firstRun.resetWizard` tRPC mutation. It clears the entire `agent` block while leaving `providers` and `modelRoleAssignments` untouched, then resets wizard state so the wizard restarts from Welcome on the next launch. After reset, the agent-block readers return their typed defaults (`"Nous"`, `{ preset: "balanced" }`, `{}`, `false`). See [tRPC Procedures § firstRun](/docs/api/procedures#firstrun).
+
+## Related references
+
+- [First Run](/docs/getting-started/first-run) — the wizard flow at a glance.
+- [Configuration Schema § Agent](/docs/configuration/config-schema#agent) — the on-disk schema and read-time defaults.
+- [tRPC Procedures § firstRun](/docs/api/procedures#firstrun) — `firstRun.writeIdentity` and `firstRun.resetWizard` shapes.
