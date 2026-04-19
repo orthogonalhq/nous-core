@@ -126,9 +126,16 @@ export function FirstRunWizard({
   const handleBack = () => {
     if (!previousStep) return
     if (previousStep === 'welcome') {
-      // Welcome is a UI-only step gated by welcomeCompleted
+      // Welcome is a UI-only step gated by welcomeCompleted. When backend
+      // state is still at the welcome's natural successor (`ollama_check`),
+      // toggling welcomeCompleted reveals welcome. When backend state has
+      // advanced past the welcome's adjacent successor (e.g., user is on
+      // `agent_identity` because SP 1.4 inserted it after welcome), set the
+      // override to 'welcome' so the renderer dispatches to it directly.
+      // Toggle welcomeCompleted in both cases so the welcome render isn't
+      // immediately re-derived away on the next render.
       setWelcomeCompleted(false)
-      setCurrentStepOverride(null)
+      setCurrentStepOverride('welcome')
     } else {
       setCurrentStepOverride(previousStep)
     }
@@ -196,6 +203,13 @@ export function FirstRunWizard({
             console.log('[nous:wizard] Step completed: welcome')
             setWelcomeCompleted(true)
             setCurrentStepOverride(null)
+          },
+        }
+      case 'agent_identity':
+        return {
+          ...sharedProps,
+          onStepComplete: (nextState: FirstRunState) => {
+            applyStepCompletion('agent_identity', nextState)
           },
         }
       case 'ollama-setup':
