@@ -15,6 +15,10 @@ import {
 } from './ids.js';
 import { NodeReasoningLogClassSchema } from './chat-node-context.js';
 import { AgentClassSchema } from './agent-gateway.js';
+import {
+  GuardrailStatusSchema,
+  WitnessIntegrityStatusSchema,
+} from './supervisor.js';
 
 /**
  * Sentinel project ID for system-scoped agents (Cortex::Principal, Cortex::System).
@@ -142,8 +146,21 @@ export const MaoAgentProjectionSchema = z.object({
   inference_latency_ms: z.number().nonnegative().optional(),
   inference_total_tokens: z.number().int().nonnegative().optional(),
   inference_is_streaming: z.boolean().optional(),
+  // --- Supervisor domain (WR-162 SP 1) ---
+  guardrail_status: GuardrailStatusSchema.optional(),
+  witness_integrity_status: WitnessIntegrityStatusSchema.optional(),
+  sentinel_risk_score: z.number().min(0).max(1).optional(),
 });
 export type MaoAgentProjection = z.infer<typeof MaoAgentProjectionSchema>;
+
+// --- Sentinel Summary (WR-162 SP 1) ---
+// Aggregate supervisor rollup attached optionally to MAO snapshots.
+// Snapshot-level naming convention is camelCase (SP1-INV-008).
+export const MaoSentinelSummarySchema = z.object({
+  activeAnomalies: z.number().int().nonnegative(),
+  compositeRisk: z.number().min(0).max(1),
+});
+export type MaoSentinelSummary = z.infer<typeof MaoSentinelSummarySchema>;
 
 export const MaoGridTileProjectionSchema = z.object({
   agent: MaoAgentProjectionSchema,
@@ -329,6 +346,7 @@ export const MaoSystemSnapshotSchema = z.object({
   projectControls: z.record(ProjectIdSchema, MaoProjectControlProjectionSchema).default({}),
   densityMode: MaoDensityModeSchema,
   generatedAt: z.string().datetime(),
+  sentinelSummary: MaoSentinelSummarySchema.optional(),
 });
 export type MaoSystemSnapshot = z.infer<typeof MaoSystemSnapshotSchema>;
 
@@ -362,6 +380,7 @@ export const MaoProjectSnapshotSchema = z.object({
   diagnostics: MaoProjectSnapshotDiagnosticsSchema,
   budgetUtilization: BudgetUtilizationSchema.optional(),
   generatedAt: z.string().datetime(),
+  sentinelSummary: MaoSentinelSummarySchema.optional(),
 });
 export type MaoProjectSnapshot = z.infer<typeof MaoProjectSnapshotSchema>;
 

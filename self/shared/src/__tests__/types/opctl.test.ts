@@ -142,6 +142,14 @@ describe('ControlActorTypeSchema', () => {
     expect(ControlActorTypeSchema.safeParse('worker_agent').success).toBe(true);
     expect(ControlActorTypeSchema.safeParse('system_agent').success).toBe(true);
   });
+
+  it('accepts supervisor (WR-162 SP 1)', () => {
+    expect(ControlActorTypeSchema.parse('supervisor')).toBe('supervisor');
+  });
+
+  it('rejects unknown actor types', () => {
+    expect(ControlActorTypeSchema.safeParse('imposter').success).toBe(false);
+  });
 });
 
 describe('ConfirmationTierSchema', () => {
