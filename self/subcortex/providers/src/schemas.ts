@@ -58,6 +58,7 @@ export const TextModelInputSchema = z.union([
     system: z.union([z.string(), z.array(z.unknown())]).optional(),
     systemSegments: z.array(z.string()).optional(),
     stream: z.boolean().optional(),
+    think: z.boolean().optional(),
   }),
 ]);
 export type TextModelInput = z.infer<typeof TextModelInputSchema>;

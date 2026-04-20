@@ -402,6 +402,7 @@ export class OllamaProvider implements IModelProvider {
     messages?: Array<{ role: string; content: string | unknown[]; tool_call_id?: string; tool_calls?: unknown[] }>;
     tools?: Array<Record<string, unknown>>;
     stream?: boolean;
+    think?: boolean;
   } {
     const result = TextModelInputSchema.safeParse(input);
     if (!result.success) {
@@ -416,6 +417,7 @@ export class OllamaProvider implements IModelProvider {
       messages?: Array<{ role: string; content: string | unknown[]; tool_call_id?: string; tool_calls?: unknown[] }>;
       tools?: Array<Record<string, unknown>>;
       stream?: boolean;
+      think?: boolean;
     };
   }
 
@@ -425,6 +427,7 @@ export class OllamaProvider implements IModelProvider {
       messages?: Array<{ role: string; content: string | unknown[]; tool_call_id?: string; tool_calls?: unknown[] }>;
       tools?: Array<Record<string, unknown>>;
       stream?: boolean;
+      think?: boolean;
     },
   ): Record<string, unknown> {
     const base: Record<string, unknown> = { model: this.config.modelId };
@@ -457,6 +460,15 @@ export class OllamaProvider implements IModelProvider {
     // contract requirement.
     if (typeof input.stream === 'boolean') {
       body.stream = input.stream;
+    }
+
+    // SP 1.16 RC-α — propagate `think` from the validated input so the Ollama
+    // adapter's `result.think = true` setter (created at SP 1.16 RC-α / α4) is
+    // honored end-to-end on the wire body. Pattern mirrors the SP 1.15 Tier 5
+    // deviation #1 `stream` propagation above. Ollama API v0.4.0+ accepts
+    // `think: true` on /api/chat; non-thinking models silently ignore the field.
+    if (typeof input.think === 'boolean') {
+      body.think = input.think;
     }
 
     return body;
