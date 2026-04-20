@@ -411,40 +411,50 @@ export const EMPTY_RESPONSE_MARKER =
   '[I produced reasoning but did not finalize a response. Click Thinking to view what I was working on, or rephrase your request.]';
 
 /**
- * Marker text written to `AgentResult.output.response` (and to STM) when the
- * Principal gateway's narrate-without-dispatch guard fires — that is, when
- * the model produced a non-empty conversational response that describes an
- * action as completed (e.g., "I added the workflow") without emitting the
- * corresponding tool call AND either (a) the response was produced via the
- * fallback path of `invokeWithThinkingStreamFallback` (fail-closed) OR (b)
- * the gateway's `detectNarrateWithoutDispatch` heuristic fired on the
- * primary-path response (adjudicated).
- *
- * SP 1.16 RC-β.1 + RC-β.3 — Bug Chain β. Lives in `@nous/shared` so every
- * consumer (gateway, runtime, UI) imports a single source of truth; future
- * copy-edits must update this constant, never the importers.
- */
-export const NARRATE_WITHOUT_DISPATCH_MARKER =
-  '[I described an action without actually performing it. The tool I should have called was not dispatched. Please rephrase your request or try again.]';
-
-/**
- * Discriminator written alongside the appropriate empty-exit / narrate-exit
- * marker so callers can tell the empty-exit and narrate-exit shapes apart:
+ * Discriminator written alongside the empty-exit marker so callers can tell
+ * the empty-exit shapes apart:
  *
  * - `thinking_only_no_finalizer` — model emitted thinking content but no
  *   user-facing response and no tool calls.
  * - `no_output_at_all` — model emitted neither thinking nor response.
- * - `narrate_without_dispatch` — model emitted a non-empty conversational
- *   response describing an action as completed without emitting the
- *   corresponding tool call (fail-closed on fallback OR detector-adjudicated
- *   on primary path). SP 1.16 RC-β.1 + RC-β.3.
+ *
+ * SP 1.17 narrows this enum from 3 to 2 values. The third value
+ * (`narrate_without_dispatch`) and the SP 1.16 RC-β heuristic detector +
+ * structured fallback marker pathway that produced it are removed in full;
+ * see SP 1.17 SDS § 1.3 for the rip enumeration. No content classifier
+ * survives in the gateway. Cross-package literal-union sites
+ * (`ChatTurnResultSchema.empty_response_kind`, `ChatMessage.empty_response_kind`,
+ * `ChatAPI.send` return-type) narrow in lockstep per Invariant I-7.
  */
 export const EmptyResponseKindSchema = z.enum([
   'thinking_only_no_finalizer',
   'no_output_at_all',
-  'narrate_without_dispatch',
 ]);
 export type EmptyResponseKind = z.infer<typeof EmptyResponseKindSchema>;
+
+/**
+ * Structural signal that the model's request shape will not produce thinking
+ * on this model class — surfaced to the chat surface so the user sees an
+ * honest acknowledgment instead of a silently-empty thinking disclosure.
+ *
+ * Derived structurally by the gateway from:
+ *   - `adapter.capabilities.extendedThinking === true`, AND
+ *   - `validInput.context.length > 1` (multi-turn), AND
+ *   - `parsedOutput.thinkingContent` empty/undefined.
+ *
+ * NEVER inferred from response content. SP 1.17 RC-α-1 (Invariant I-3 / I-5).
+ *
+ * `ref` carries the upstream tracking work-register row (today: WR-172 —
+ * Composable provider × model adapter system) so the UI render can cite
+ * the structural fix without coupling chat-surface copy to work-register naming.
+ */
+export const ThinkingUnavailableSchema = z
+  .object({
+    reason: z.string().min(1).max(200),
+    ref: z.string().min(1).max(40),
+  })
+  .strict();
+export type ThinkingUnavailable = z.infer<typeof ThinkingUnavailableSchema>;
 
 /**
  * Documented shape of `AgentResult.output` for chat-surface Principal turns.
@@ -462,6 +472,16 @@ export interface ChatAgentOutput {
   contentType?: 'text' | 'openui';
   thinkingContent?: string;
   empty_response_kind?: EmptyResponseKind;
+  /**
+   * SP 1.17 RC-α-1 — structural signal that the model's request shape will
+   * not produce thinking on this multi-turn turn. Set by the gateway after
+   * a successful `parseResponse` when the derivation gate fires
+   * (`adapter.capabilities.extendedThinking` AND `context.length > 1` AND
+   * `thinkingContent` empty). Surfaced by the chat UI as an honest
+   * acknowledgment in the thinking disclosure. Tracked under `ref`
+   * (today: 'WR-172') for the upstream structural fix.
+   */
+  thinking_unavailable?: ThinkingUnavailable;
 }
 
 const AgentResultBaseSchema = z
