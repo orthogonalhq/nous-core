@@ -599,6 +599,28 @@ function parseOllamaModelSpec(
   return modelId;
 }
 
+/**
+ * SP 1.8 Fix #6 — strip a leading `'ollama:'` provider prefix from a
+ * recommendation/catalog spec so the bare model id can be cross-referenced
+ * against the locally-installed ids returned by `OllamaStatus.models`
+ * (which do NOT carry the `'ollama:'` prefix). Returns input unchanged
+ * for non-prefixed specs (passthrough).
+ *
+ * First-occurrence-only strip semantics: only the leading `'ollama:'`
+ * prefix is stripped; any further `':'` segments (e.g., model + tag like
+ * `'qwen2.5:32b'`) are preserved.
+ *
+ * Pure function; no side effects. Trace: SP 1.8 SDS § Data Model § Spec
+ * normalization; Goals C6; Implementation Plan Task #6.
+ */
+export function normalizeSpecForLocalLookup(spec: string): string {
+  if (typeof spec !== 'string') return spec
+  if (spec.startsWith('ollama:')) {
+    return spec.slice('ollama:'.length)
+  }
+  return spec
+}
+
 function isAbortError(error: unknown): boolean {
   if (typeof error !== 'object' || error === null) {
     return false;

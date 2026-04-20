@@ -710,6 +710,125 @@ describe('FirstRunWizard — SP 1.7 regression coverage', () => {
     ).toBeInTheDocument()
   })
 
+  // ────────────────────────────────────────────────────────────────────
+  // SP 1.8 — Identity entered-values retention across back-nav (Goals C4)
+  // and reset-clears-draft semantic (Goals C5). Plan Tasks #5a + #5b.
+  // ────────────────────────────────────────────────────────────────────
+
+  it('SP 1.8 — entered identity values are retained across back-nav re-entry (Goals C4)', async () => {
+    installMock()
+
+    render(
+      <FirstRunWizard
+        initialState={createFirstRunState()}
+        onComplete={vi.fn()}
+      />,
+    )
+
+    // Welcome → click Continue setup to reach identity sub-stage A.
+    fireEvent.click(await screen.findByRole('button', { name: 'Continue setup' }))
+    await screen.findByTestId('identity-substage-a')
+
+    // Sub-stage A — type a name.
+    fireEvent.change(screen.getByTestId('identity-name-input'), {
+      target: { value: 'Iris' },
+    })
+    fireEvent.click(screen.getByTestId('identity-name-submit'))
+
+    // Sub-stage B — pick the 'professional' preset and toggle advanced open.
+    await screen.findByTestId('identity-substage-b')
+    const presetCard = screen
+      .getAllByTestId('preset-card')
+      .find((card) => card.getAttribute('data-preset-id') === 'professional')!
+    fireEvent.click(presetCard)
+    fireEvent.click(screen.getByTestId('identity-advanced-toggle'))
+
+    // Continue to sub-stage C — fill profile fields (do NOT submit).
+    fireEvent.click(screen.getByTestId('identity-personality-submit'))
+    await screen.findByTestId('identity-substage-c')
+
+    fireEvent.change(screen.getByLabelText(/Your name/i), {
+      target: { value: 'Iris' },
+    })
+
+    // Back-navigate to welcome (back chain: agent_identity → welcome).
+    fireEvent.click(screen.getByTestId('wizard-back-button'))
+    await screen.findByText('Set up your local runtime in a few guided steps.')
+
+    // Forward into identity again — assert the draft values are retained.
+    fireEvent.click(screen.getByRole('button', { name: 'Continue setup' }))
+    await screen.findByTestId('identity-substage-a')
+
+    // Name persisted on the lifted draft and re-rendered.
+    const reRenderedName = screen.getByTestId('identity-name-input') as HTMLInputElement
+    expect(reRenderedName.value).toBe('Iris')
+
+    // Advance through the sub-stages to confirm personality + advanced are
+    // also retained.
+    fireEvent.click(screen.getByTestId('identity-name-submit'))
+    await screen.findByTestId('identity-substage-b')
+
+    // Personality preset selection is preserved (the 'professional' card is selected).
+    const proCard = screen
+      .getAllByTestId('preset-card')
+      .find((card) => card.getAttribute('data-preset-id') === 'professional')!
+    expect(proCard.getAttribute('aria-checked')).toBe('true')
+
+    // Advanced section is open (toggle was previously expanded).
+    expect(screen.getByTestId('identity-trait-list')).toBeInTheDocument()
+  })
+
+  it('SP 1.8 — handleResetWizard clears the lifted identityDraft so next mount shows empty INITIAL_IDENTITY_DRAFT (Goals C5)', async () => {
+    installMock()
+
+    // Induce a prerequisites error so the alert toolbar (which exposes
+    // the Reset wizard CTA) renders. The toolbar only renders on error.
+    let prereqCallCount = 0
+    const freshState = createFirstRunState()
+    trpcFetchMock.trpcQuery.mockImplementation(async (procedure: string) => {
+      if (procedure === 'firstRun.checkPrerequisites') {
+        prereqCallCount++
+        if (prereqCallCount === 1) throw new Error('prereqs failed')
+        return DEFAULT_PREREQUISITES
+      }
+      return null
+    })
+    trpcFetchMock.trpcMutate.mockImplementation(async (procedure: string) => {
+      if (procedure === 'firstRun.resetWizard') return freshState
+      return null
+    })
+
+    render(
+      <FirstRunWizard
+        initialState={createFirstRunState()}
+        onComplete={vi.fn()}
+      />,
+    )
+
+    // Wait for the prereq error toolbar to render.
+    expect(await screen.findByText('prereqs failed')).toBeInTheDocument()
+
+    // Walk the welcome step → identity → type a name.
+    fireEvent.click(await screen.findByRole('button', { name: 'Continue setup' }))
+    await screen.findByTestId('identity-substage-a')
+    fireEvent.change(screen.getByTestId('identity-name-input'), {
+      target: { value: 'Iris' },
+    })
+
+    // Trigger the Reset CTA (still in the alert toolbar).
+    fireEvent.click(screen.getByRole('button', { name: 'Reset wizard' }))
+
+    // After reset, the wizard returns to the welcome step (fresh state).
+    await screen.findByText('Set up your local runtime in a few guided steps.')
+
+    // Walk forward into identity — the name must be EMPTY (draft cleared).
+    fireEvent.click(screen.getByRole('button', { name: 'Continue setup' }))
+    await screen.findByTestId('identity-substage-a')
+
+    const nameInput = screen.getByTestId('identity-name-input') as HTMLInputElement
+    expect(nameInput.value).toBe('')
+  })
+
   it('resume after identity completion does NOT re-render welcome (Fix #5)', async () => {
     // Setup: backend currentStep === 'ollama_check' (user already completed
     // identity); steps['agent_identity'].status === 'complete'.

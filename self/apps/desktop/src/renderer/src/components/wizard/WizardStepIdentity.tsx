@@ -16,6 +16,14 @@
  * payload. The `agent_identity` backend step transitions to `complete`
  * only after sub-stage C completes (submit or skip).
  *
+ * SP 1.8 — entered field values (`name`, `personality`, `profile`,
+ * `advancedOpen`) are lifted to the orchestrator (`FirstRunWizard`) via
+ * `props.identityDraft` + `props.setIdentityDraft` so back-nav re-entry
+ * into this step retains the values. `subStage` remains component-local
+ * (SP 1.4 Goals item 11 — sub-stage progress is ephemeral; on remount the
+ * component restarts at sub-stage A). Trace: SDS § 4.1 / Goals C1 / Plan
+ * Task #1 / Invariant B.
+ *
  * Animation: opacity fade between sub-stages, suppressed when
  * `prefers-reduced-motion: reduce` is set. The state machine is
  * decoupled from animation — forward navigation is synchronous on
@@ -30,34 +38,13 @@ import {
   type TraitAxes,
 } from '@nous/cortex-core/personality'
 import { trpcMutate } from './trpc-fetch'
-import type { FirstRunActionResult, WizardStepProps } from './types'
+import type {
+  FirstRunActionResult,
+  ProfileFormState,
+  WizardStepIdentityProps,
+} from './types'
 
 type SubStage = 'A' | 'B' | 'C'
-
-type ExpertiseLevel = 'beginner' | 'intermediate' | 'advanced'
-
-interface ProfileFormState {
-  displayName?: string
-  role?: string
-  primaryUseCase?: string
-  expertise?: ExpertiseLevel
-}
-
-interface IdentityFormState {
-  subStage: SubStage
-  name: string
-  personality: PersonalityConfig
-  profile: ProfileFormState
-  advancedOpen: boolean
-}
-
-const INITIAL_STATE: IdentityFormState = {
-  subStage: 'A',
-  name: '',
-  personality: { preset: 'balanced' },
-  profile: {},
-  advancedOpen: false,
-}
 
 function detectReducedMotion(): boolean {
   if (typeof window === 'undefined' || typeof window.matchMedia !== 'function') {
@@ -95,73 +82,80 @@ interface WriteIdentityPayload {
   profile: ProfileFormState
 }
 
-export function WizardStepIdentity(props: WizardStepProps): ReactElement {
-  const { actionInProgress, setActionInProgress, setActionError, onStepComplete } = props
+export function WizardStepIdentity(props: WizardStepIdentityProps): ReactElement {
+  const {
+    actionInProgress,
+    setActionInProgress,
+    setActionError,
+    onStepComplete,
+    identityDraft,
+    setIdentityDraft,
+  } = props
 
-  const [state, setState] = useState<IdentityFormState>(INITIAL_STATE)
+  const [subStage, setSubStage] = useState<SubStage>('A')
   const reducedMotion = useMemo(() => detectReducedMotion(), [])
   const nameInputRef = useRef<HTMLInputElement | null>(null)
 
+  // Read the lifted entered-values draft from props.
+  const { name, personality, profile, advancedOpen } = identityDraft
+
   // Focus management — name input on sub-stage A render.
   useEffect(() => {
-    if (state.subStage === 'A') {
+    if (subStage === 'A') {
       nameInputRef.current?.focus()
     }
-  }, [state.subStage])
+  }, [subStage])
 
   const advanceToB = () => {
     console.log('[nous:wizard:identity] Sub-stage A → B (name submitted)')
-    setState((prev) => ({ ...prev, subStage: 'B' }))
+    setSubStage('B')
   }
 
   const handleNameSubmit = (event: React.FormEvent) => {
     event.preventDefault()
-    if (state.name.trim() === '') return
+    if (name.trim() === '') return
     advanceToB()
   }
 
   const handlePresetSelect = (presetId: PersonalityPreset) => {
-    setState((prev) => ({
-      ...prev,
+    setIdentityDraft({
+      ...identityDraft,
       personality: {
         preset: presetId,
-        ...(prev.personality.overrides ? { overrides: prev.personality.overrides } : {}),
+        ...(personality.overrides ? { overrides: personality.overrides } : {}),
       },
-    }))
+    })
   }
 
   const handleOverrideSelect = (traitId: keyof TraitAxes, value: string) => {
-    setState((prev) => {
-      const nextOverrides: Partial<TraitAxes> = {
-        ...prev.personality.overrides,
-        [traitId]: value,
-      } as Partial<TraitAxes>
-      return {
-        ...prev,
-        personality: {
-          preset: prev.personality.preset,
-          overrides: nextOverrides,
-        },
-      }
+    const nextOverrides: Partial<TraitAxes> = {
+      ...personality.overrides,
+      [traitId]: value,
+    } as Partial<TraitAxes>
+    setIdentityDraft({
+      ...identityDraft,
+      personality: {
+        preset: personality.preset,
+        overrides: nextOverrides,
+      },
     })
   }
 
   const toggleAdvanced = () => {
-    setState((prev) => ({ ...prev, advancedOpen: !prev.advancedOpen }))
+    setIdentityDraft({ ...identityDraft, advancedOpen: !advancedOpen })
   }
 
   const handlePersonalityContinue = () => {
-    setState((prev) => {
-      const overrides = prev.personality.overrides
-      const hasOverrides = overrides && Object.keys(overrides).length > 0
-      const nextPersonality: PersonalityConfig = hasOverrides
-        ? { preset: prev.personality.preset, overrides }
-        : { preset: prev.personality.preset }
-      console.log(
-        `[nous:wizard:identity] Sub-stage B → C (preset: ${nextPersonality.preset}; overrides: ${hasOverrides ? 'yes' : 'no'}; via: submit)`,
-      )
-      return { ...prev, personality: nextPersonality, subStage: 'C' }
-    })
+    const overrides = personality.overrides
+    const hasOverrides = overrides && Object.keys(overrides).length > 0
+    const nextPersonality: PersonalityConfig = hasOverrides
+      ? { preset: personality.preset, overrides }
+      : { preset: personality.preset }
+    console.log(
+      `[nous:wizard:identity] Sub-stage B → C (preset: ${nextPersonality.preset}; overrides: ${hasOverrides ? 'yes' : 'no'}; via: submit)`,
+    )
+    setIdentityDraft({ ...identityDraft, personality: nextPersonality })
+    setSubStage('C')
   }
 
   const handlePersonalitySkip = () => {
@@ -169,11 +163,11 @@ export function WizardStepIdentity(props: WizardStepProps): ReactElement {
     // `{ preset: 'balanced', overrides: {} }`. Empty overrides leak through
     // serialization and are observable downstream.
     console.log('[nous:wizard:identity] Sub-stage B → C (preset: balanced; overrides: no; via: skip)')
-    setState((prev) => ({
-      ...prev,
+    setIdentityDraft({
+      ...identityDraft,
       personality: { preset: 'balanced' as const },
-      subStage: 'C',
-    }))
+    })
+    setSubStage('C')
   }
 
   const submitIdentity = async (
@@ -203,16 +197,16 @@ export function WizardStepIdentity(props: WizardStepProps): ReactElement {
 
   const handleProfileSubmit = (event: React.FormEvent) => {
     event.preventDefault()
-    const profilePayload = buildProfilePayload(state.profile)
+    const profilePayload = buildProfilePayload(profile)
     void submitIdentity(
-      { name: state.name, personality: state.personality, profile: profilePayload },
+      { name, personality, profile: profilePayload },
       'submit',
     )
   }
 
   const handleProfileSkip = () => {
     void submitIdentity(
-      { name: state.name, personality: state.personality, profile: {} },
+      { name, personality, profile: {} },
       'skip',
     )
   }
@@ -225,8 +219,8 @@ export function WizardStepIdentity(props: WizardStepProps): ReactElement {
   ].join(' ')
 
   return (
-    <div className={containerClassName} data-substage={state.subStage}>
-      {state.subStage === 'A' ? (
+    <div className={containerClassName} data-substage={subStage}>
+      {subStage === 'A' ? (
         <section
           className="nous-wizard__card"
           data-testid="identity-substage-a"
@@ -247,10 +241,10 @@ export function WizardStepIdentity(props: WizardStepProps): ReactElement {
               ref={nameInputRef}
               type="text"
               autoComplete="off"
-              value={state.name}
+              value={name}
               onChange={(event) => {
                 const next = event.target.value
-                setState((prev) => ({ ...prev, name: next }))
+                setIdentityDraft({ ...identityDraft, name: next })
               }}
               className="nous-wizard__input"
               data-testid="identity-name-input"
@@ -259,7 +253,7 @@ export function WizardStepIdentity(props: WizardStepProps): ReactElement {
               <button
                 type="submit"
                 className="nous-wizard__button nous-wizard__button--primary"
-                disabled={state.name.trim() === '' || actionInProgress}
+                disabled={name.trim() === '' || actionInProgress}
                 data-testid="identity-name-submit"
               >
                 Continue
@@ -269,7 +263,7 @@ export function WizardStepIdentity(props: WizardStepProps): ReactElement {
         </section>
       ) : null}
 
-      {state.subStage === 'B' ? (
+      {subStage === 'B' ? (
         <section
           className="nous-wizard__card"
           data-testid="identity-substage-b"
@@ -287,7 +281,7 @@ export function WizardStepIdentity(props: WizardStepProps): ReactElement {
             aria-label="Personality preset"
           >
             {(Object.keys(PRESETS) as PersonalityPreset[]).map((presetId) => {
-              const isSelected = state.personality.preset === presetId
+              const isSelected = personality.preset === presetId
               return (
                 <button
                   key={presetId}
@@ -318,18 +312,18 @@ export function WizardStepIdentity(props: WizardStepProps): ReactElement {
               className="nous-wizard__button nous-wizard__button--ghost"
               onClick={toggleAdvanced}
               data-testid="identity-advanced-toggle"
-              aria-expanded={state.advancedOpen}
+              aria-expanded={advancedOpen}
             >
-              {state.advancedOpen ? 'Hide advanced options' : 'Advanced options'}
+              {advancedOpen ? 'Hide advanced options' : 'Advanced options'}
             </button>
-            {state.advancedOpen ? (
+            {advancedOpen ? (
               <div className="nous-wizard__stack" data-testid="identity-trait-list">
                 {TRAIT_REGISTRY.map((trait) => {
-                  const overrides = state.personality.overrides
+                  const overrides = personality.overrides
                   const overrideValue = overrides
                     ? (overrides[trait.id as keyof TraitAxes] as string | undefined)
                     : undefined
-                  const presetTraits = PRESETS[state.personality.preset]
+                  const presetTraits = PRESETS[personality.preset]
                   const presetValue = presetTraits[trait.id as keyof TraitAxes]
                   const effectiveValue = overrideValue ?? presetValue
                   return (
@@ -399,7 +393,7 @@ export function WizardStepIdentity(props: WizardStepProps): ReactElement {
         </section>
       ) : null}
 
-      {state.subStage === 'C' ? (
+      {subStage === 'C' ? (
         <section
           className="nous-wizard__card"
           data-testid="identity-substage-c"
@@ -429,13 +423,13 @@ export function WizardStepIdentity(props: WizardStepProps): ReactElement {
               id="profile-display-name"
               type="text"
               autoComplete="given-name"
-              value={state.profile.displayName ?? ''}
+              value={profile.displayName ?? ''}
               onChange={(event) => {
                 const next = event.target.value
-                setState((prev) => ({
-                  ...prev,
-                  profile: { ...prev.profile, displayName: next },
-                }))
+                setIdentityDraft({
+                  ...identityDraft,
+                  profile: { ...profile, displayName: next },
+                })
               }}
               className="nous-wizard__input"
             />
@@ -447,13 +441,13 @@ export function WizardStepIdentity(props: WizardStepProps): ReactElement {
               id="profile-role"
               type="text"
               autoComplete="organization-title"
-              value={state.profile.role ?? ''}
+              value={profile.role ?? ''}
               onChange={(event) => {
                 const next = event.target.value
-                setState((prev) => ({
-                  ...prev,
-                  profile: { ...prev.profile, role: next },
-                }))
+                setIdentityDraft({
+                  ...identityDraft,
+                  profile: { ...profile, role: next },
+                })
               }}
               className="nous-wizard__input"
             />
@@ -464,13 +458,13 @@ export function WizardStepIdentity(props: WizardStepProps): ReactElement {
             <textarea
               id="profile-use-case"
               autoComplete="off"
-              value={state.profile.primaryUseCase ?? ''}
+              value={profile.primaryUseCase ?? ''}
               onChange={(event) => {
                 const next = event.target.value
-                setState((prev) => ({
-                  ...prev,
-                  profile: { ...prev.profile, primaryUseCase: next },
-                }))
+                setIdentityDraft({
+                  ...identityDraft,
+                  profile: { ...profile, primaryUseCase: next },
+                })
               }}
               className="nous-wizard__textarea"
               rows={3}
@@ -493,12 +487,12 @@ export function WizardStepIdentity(props: WizardStepProps): ReactElement {
                         type="radio"
                         name="profile-expertise"
                         value={level}
-                        checked={state.profile.expertise === level}
+                        checked={profile.expertise === level}
                         onChange={() => {
-                          setState((prev) => ({
-                            ...prev,
-                            profile: { ...prev.profile, expertise: level },
-                          }))
+                          setIdentityDraft({
+                            ...identityDraft,
+                            profile: { ...profile, expertise: level },
+                          })
                         }}
                       />
                       <span>{level.charAt(0).toUpperCase() + level.slice(1)}</span>

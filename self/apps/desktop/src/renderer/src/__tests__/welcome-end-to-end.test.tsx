@@ -71,7 +71,7 @@ vi.mock('@nous/transport', () => ({
   },
 }))
 
-import { DesktopChatPanel } from '../desktop-chat-wrappers'
+import { ConnectedChatSurface, DesktopChatPanel } from '../desktop-chat-wrappers'
 
 function makeProps(): Parameters<typeof DesktopChatPanel>[0] {
   return {} as Parameters<typeof DesktopChatPanel>[0]
@@ -112,6 +112,20 @@ describe('SP 1.6 — wizard → workspace → chat init E2E', () => {
   // T23 — Welcome appears in chat history on next history fetch with the
   // standard agent-message shape (role: 'assistant'; no welcome badge or
   // bespoke metadata). Verifies Goals C9 / C10 at the renderer seam.
+  // SP 1.8 Plan Task #17 — End-to-end welcome-fires-in-simple-mode test
+  // (Goals C15 / Issue 3 closure). Mounts `ConnectedChatSurface` (the
+  // simple-mode shell's chat surface) under the post-wizard workspace
+  // harness with a non-null `activeProjectId`; asserts the welcome
+  // mutation fires exactly once via the shared `useFireWelcomeOnMount`
+  // hook. Symmetric to T22 for the dockview path.
+  it('T22b (SP 1.8) — mounting ConnectedChatSurface (simple-mode chat) fires the welcome mutation once', async () => {
+    render(<ConnectedChatSurface />)
+    await Promise.resolve()
+    await Promise.resolve()
+    expect(mutateAsyncMock).toHaveBeenCalledTimes(1)
+    expect(mutateAsyncMock).toHaveBeenCalledWith({ projectId: PROJECT_ID })
+  })
+
   it('T23 welcome surfaces in chat history with the standard assistant-row shape', async () => {
     const { getByTestId } = render(<DesktopChatPanel {...makeProps()} />)
 

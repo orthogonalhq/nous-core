@@ -453,3 +453,72 @@ describe('first-run wizard router', () => {
     expect(firstRunMock.resetFirstRunState).toHaveBeenCalledWith(ctx.dataDir);
   });
 });
+
+// SP 1.8 Fix #9 — Cross-axis derivation tests for `buildValidationMap`.
+// Validates the local-axis short-circuit (Goals C7 / C9) and the
+// `(local)` log-line annotation (Goals C8). Trace: SDS § 4.5 / Plan Task #9.
+describe('buildValidationMap — cross-axis derivation (RC-2a + RC-2b)', () => {
+  let consoleInfoSpy: ReturnType<typeof vi.spyOn>;
+  let fetchMock: ReturnType<typeof vi.fn>;
+
+  beforeEach(async () => {
+    fetchMock = vi.fn();
+    vi.stubGlobal('fetch', fetchMock);
+    consoleInfoSpy = vi.spyOn(console, 'info').mockImplementation(() => undefined);
+    // Clear the per-spec cache between tests (the local-axis short-circuit
+    // does NOT write the cache, but the registry path does).
+    const { __resetRegistryAvailabilityCacheForTesting } = await vi.importActual<
+      typeof import('../src/ollama-detection')
+    >('../src/ollama-detection');
+    __resetRegistryAvailabilityCacheForTesting();
+  });
+
+  afterEach(() => {
+    vi.restoreAllMocks();
+    vi.unstubAllGlobals();
+  });
+
+  async function loadBuildValidationMap() {
+    return (await import('../src/trpc/routers/first-run')).buildValidationMap;
+  }
+
+  it('locally-installed spec short-circuits to "validated" without invoking the registry HEAD probe (BT R2 spec-mismatch case)', async () => {
+    const buildValidationMap = await loadBuildValidationMap();
+    const result = await buildValidationMap(
+      ['ollama:qwen2.5:32b'],
+      ['qwen2.5:32b'],
+    );
+    expect(result).toEqual({ 'ollama:qwen2.5:32b': 'validated' });
+    expect(fetchMock).not.toHaveBeenCalled();
+    expect(consoleInfoSpy).toHaveBeenCalledWith(
+      '[nous:first-run] validation: ollama:qwen2.5:32b -> validated (local)',
+    );
+  });
+
+  it('falls through to the registry HEAD probe when the spec is NOT locally installed', async () => {
+    fetchMock.mockResolvedValue({
+      ok: true,
+      status: 200,
+    } as Response);
+    const buildValidationMap = await loadBuildValidationMap();
+    const result = await buildValidationMap(['ollama:qwen2.5:32b'], []);
+    expect(result['ollama:qwen2.5:32b']).toBe('validated');
+    expect(fetchMock).toHaveBeenCalledTimes(1);
+  });
+
+  it('mixed list: locally-installed short-circuits; registry-only falls through', async () => {
+    fetchMock.mockResolvedValue({
+      ok: false,
+      status: 404,
+    } as Response);
+    const buildValidationMap = await loadBuildValidationMap();
+    const result = await buildValidationMap(
+      ['ollama:qwen2.5:32b', 'ollama:llama3.2:3b'],
+      ['qwen2.5:32b'],
+    );
+    expect(result['ollama:qwen2.5:32b']).toBe('validated');
+    expect(result['ollama:llama3.2:3b']).toBe('unavailable');
+    // Only the non-local spec hit the network.
+    expect(fetchMock).toHaveBeenCalledTimes(1);
+  });
+});

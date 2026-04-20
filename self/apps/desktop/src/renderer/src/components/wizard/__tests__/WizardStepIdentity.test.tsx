@@ -3,6 +3,7 @@ import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { PRESETS, TRAIT_REGISTRY, type PersonalityPreset } from '@nous/cortex-core/personality'
 import { identityStep } from '../steps/identity'
 import { WizardStepIdentity } from '../WizardStepIdentity'
+import { INITIAL_IDENTITY_DRAFT, type IdentityDraft } from '../types'
 import {
   createElectronAPIMock,
   createFirstRunActionResult,
@@ -28,33 +29,66 @@ function installMock() {
   return mock
 }
 
-function renderIdentity(overrides: Partial<Parameters<typeof WizardStepIdentity>[0]> = {}) {
+// SP 1.8 — orchestrator harness. The identity draft (`name`,
+// `personality`, `profile`, `advancedOpen`) now lives at the parent
+// (`FirstRunWizard`); the test harness simulates that parent by holding a
+// stateful draft and rerendering with the updated value when
+// `setIdentityDraft` is invoked. Sub-stage cursor remains internal.
+function renderIdentity(
+  overrides: Partial<Parameters<typeof WizardStepIdentity>[0]> = {},
+) {
   installMock()
   const onStepComplete = vi.fn()
   const setActionInProgress = vi.fn()
   const setActionError = vi.fn()
-  const view = render(
+
+  let draft: IdentityDraft = overrides.identityDraft ?? INITIAL_IDENTITY_DRAFT
+  const setIdentityDraft = vi.fn((next: IdentityDraft) => {
+    draft = next
+    rerender()
+  })
+
+  const baseProps = {
+    state: createFirstRunState({
+      currentStep: 'agent_identity',
+      steps: {
+        ollama_check: { status: 'complete', completedAt: '2026-04-19T00:00:00.000Z' },
+        agent_identity: { status: 'pending' },
+        model_download: { status: 'pending' },
+        provider_config: { status: 'pending' },
+        role_assignment: { status: 'pending' },
+      },
+    }),
+    prerequisites: createPrerequisites(),
+    actionInProgress: false,
+    actionError: null,
+    setActionInProgress,
+    setActionError,
+    onStepComplete,
+    ...overrides,
+  }
+
+  const buildElement = () => (
     <WizardStepIdentity
-      state={createFirstRunState({
-        currentStep: 'agent_identity',
-        steps: {
-          ollama_check: { status: 'complete', completedAt: '2026-04-19T00:00:00.000Z' },
-          agent_identity: { status: 'pending' },
-          model_download: { status: 'pending' },
-          provider_config: { status: 'pending' },
-          role_assignment: { status: 'pending' },
-        },
-      })}
-      prerequisites={createPrerequisites()}
-      actionInProgress={false}
-      actionError={null}
-      setActionInProgress={setActionInProgress}
-      setActionError={setActionError}
-      onStepComplete={onStepComplete}
-      {...overrides}
-    />,
+      {...baseProps}
+      identityDraft={draft}
+      setIdentityDraft={setIdentityDraft}
+    />
   )
-  return { view, onStepComplete, setActionInProgress, setActionError }
+
+  const view = render(buildElement())
+  function rerender() {
+    view.rerender(buildElement())
+  }
+
+  return {
+    view,
+    onStepComplete,
+    setActionInProgress,
+    setActionError,
+    setIdentityDraft,
+    getDraft: () => draft,
+  }
 }
 
 beforeEach(() => {
@@ -471,6 +505,66 @@ describe('WizardStepIdentity — Block E: Animation and accessibility', () => {
 // ──────────────────────────────────────────────────────────────────────────
 // Block F — defineWizardStep registry-row contract — Goals C2.
 // ──────────────────────────────────────────────────────────────────────────
+
+// ──────────────────────────────────────────────────────────────────────────
+// Block G — SP 1.8 lifted-state contract (Goals C1, C2, C4 partial; Plan Task #4).
+// ──────────────────────────────────────────────────────────────────────────
+
+describe('WizardStepIdentity — Block G: SP 1.8 lifted identityDraft contract', () => {
+  it('G1 (Tier-1): renders entered values verbatim from props.identityDraft', () => {
+    renderIdentity({
+      identityDraft: {
+        name: 'Iris',
+        personality: { preset: 'professional' },
+        profile: {
+          displayName: 'Iris',
+          role: 'Designer',
+          primaryUseCase: 'Design systems',
+          expertise: 'advanced',
+        },
+        advancedOpen: true,
+      },
+    })
+    // Sub-stage A renders the name input from the lifted draft.
+    const input = screen.getByTestId('identity-name-input') as HTMLInputElement
+    expect(input.value).toBe('Iris')
+  })
+
+  it('G2 (Tier-1): typing into the name input invokes setIdentityDraft with the new name', () => {
+    const { setIdentityDraft, getDraft } = renderIdentity()
+    fireEvent.change(screen.getByTestId('identity-name-input'), {
+      target: { value: 'Iris' },
+    })
+    expect(setIdentityDraft).toHaveBeenCalledWith({
+      ...INITIAL_IDENTITY_DRAFT,
+      name: 'Iris',
+    })
+    expect(getDraft().name).toBe('Iris')
+  })
+
+  it('G3 (Tier-2): mount-unmount-remount with stable draft retains values; sub-stage cursor resets to A (Invariant B)', () => {
+    // First mount — type a name.
+    const first = renderIdentity()
+    fireEvent.change(screen.getByTestId('identity-name-input'), {
+      target: { value: 'Iris' },
+    })
+    fireEvent.click(screen.getByTestId('identity-name-submit'))
+    expect(screen.getByTestId('identity-substage-b')).toBeInTheDocument()
+    const draftAfter = first.getDraft()
+    expect(draftAfter.name).toBe('Iris')
+
+    // Unmount.
+    first.view.unmount()
+
+    // Remount with the carried draft. The component should display 'Iris'
+    // and start at sub-stage A (cursor is component-local per SP 1.4
+    // Goals item 11 / Invariant B).
+    renderIdentity({ identityDraft: draftAfter })
+    expect(screen.getByTestId('identity-substage-a')).toBeInTheDocument()
+    const input = screen.getByTestId('identity-name-input') as HTMLInputElement
+    expect(input.value).toBe('Iris')
+  })
+})
 
 describe('WizardStepIdentity — Block F: defineWizardStep registry-row', () => {
   it('F1: identityStep carries the SDS § 1.3 field shape with factory defaults', () => {
