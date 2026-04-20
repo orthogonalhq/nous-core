@@ -1,7 +1,7 @@
 import { describe, expect, it, vi } from 'vitest';
-import { EMPTY_RESPONSE_MARKER, NARRATE_WITHOUT_DISPATCH_MARKER } from '@nous/shared';
-import type { IEventBus, IModelProvider, ToolDefinition } from '@nous/shared';
-import { AgentGateway } from '../../agent-gateway/agent-gateway.js';
+import { EMPTY_RESPONSE_MARKER } from '@nous/shared';
+import type { IEventBus, IModelProvider } from '@nous/shared';
+import { AgentGateway, deriveThinkingUnavailable } from '../../agent-gateway/agent-gateway.js';
 import { InMemoryGatewayOutboxSink } from '../../agent-gateway/outbox.js';
 import {
   AGENT_ID,
@@ -169,148 +169,7 @@ describe('AgentGateway empty-loop guard (SP 1.15 RC-1)', () => {
   });
 });
 
-// ── SP 1.16 RC-β.1 + RC-β.3 — narrate-without-dispatch detector + fromFallback ──
-
-/**
- * Helper: build a tools array whose names produce the requested tokens of
- * length ≥ 4. Default tools include `lookup_status` (tokens `lookup`, `status`).
- */
-function buildToolsWithTokens(names: string[]): ToolDefinition[] {
-  return names.map((name) => ({
-    name,
-    version: '1.0.0',
-    description: `${name} tool`,
-    inputSchema: {},
-    outputSchema: {},
-    capabilities: ['read'],
-    permissionScope: 'project',
-  }));
-}
-
-describe('AgentGateway narrate-without-dispatch detector (SP 1.16 RC-β.1 / case c)', () => {
-  it('classifies past-tense action narration referencing a tool token within proximity window', async () => {
-    const { gateway } = createGatewayHarness({
-      modelProvider: createOllamaShapedProvider([
-        // Past-tense action verb (`created`) within ±120 chars of `workflow` token.
-        { content: 'I created the workflow you requested.' },
-      ]),
-      toolSurface: createToolSurface(undefined, buildToolsWithTokens(['workflow_create'])),
-    });
-
-    const result = await gateway.run(createBaseInput({ budget: { maxTurns: 1, maxTokens: 200, timeoutMs: 1000 } }));
-
-    expect(result.status).toBe('completed');
-    if (result.status !== 'completed') return;
-    const output = result.output as { response: string; empty_response_kind?: string };
-    expect(output.empty_response_kind).toBe('narrate_without_dispatch');
-    expect(output.response).toBe(NARRATE_WITHOUT_DISPATCH_MARKER);
-  });
-
-  it('does NOT classify present-tense statements (negative case)', async () => {
-    const { gateway } = createGatewayHarness({
-      modelProvider: createOllamaShapedProvider([
-        { content: 'The workflow handles routing for incoming events.' },
-      ]),
-      toolSurface: createToolSurface(undefined, buildToolsWithTokens(['workflow_create'])),
-    });
-
-    const result = await gateway.run(createBaseInput({ budget: { maxTurns: 1, maxTokens: 200, timeoutMs: 1000 } }));
-
-    expect(result.status).toBe('completed');
-    if (result.status !== 'completed') return;
-    const output = result.output as { response: string; empty_response_kind?: string };
-    expect(output.empty_response_kind).toBeUndefined();
-    expect(output.response).toBe('The workflow handles routing for incoming events.');
-  });
-
-  it('does NOT classify questions (negative case)', async () => {
-    const { gateway } = createGatewayHarness({
-      modelProvider: createOllamaShapedProvider([
-        { content: 'What workflow should I create for you?' },
-      ]),
-      toolSurface: createToolSurface(undefined, buildToolsWithTokens(['workflow_create'])),
-    });
-
-    const result = await gateway.run(createBaseInput({ budget: { maxTurns: 1, maxTokens: 200, timeoutMs: 1000 } }));
-
-    expect(result.status).toBe('completed');
-    if (result.status !== 'completed') return;
-    const output = result.output as { response: string; empty_response_kind?: string };
-    expect(output.empty_response_kind).toBeUndefined();
-  });
-
-  it('does NOT classify a past-tense action when no tool token is in proximity (defensive)', async () => {
-    const { gateway } = createGatewayHarness({
-      modelProvider: createOllamaShapedProvider([
-        // Past-tense verb but no tool token within ±120 chars.
-        { content: 'I added the requested item to the list.' },
-      ]),
-      toolSurface: createToolSurface(undefined, buildToolsWithTokens(['unrelated_tool'])),
-    });
-
-    const result = await gateway.run(createBaseInput({ budget: { maxTurns: 1, maxTokens: 200, timeoutMs: 1000 } }));
-
-    expect(result.status).toBe('completed');
-    if (result.status !== 'completed') return;
-    const output = result.output as { response: string; empty_response_kind?: string };
-    expect(output.empty_response_kind).toBeUndefined();
-  });
-
-  it('does NOT classify when toolDefinitions is empty (short-circuit)', async () => {
-    const { gateway } = createGatewayHarness({
-      modelProvider: createOllamaShapedProvider([
-        { content: 'I created the workflow you requested.' },
-      ]),
-      toolSurface: createToolSurface(undefined, []),
-    });
-
-    const result = await gateway.run(createBaseInput({ budget: { maxTurns: 1, maxTokens: 200, timeoutMs: 1000 } }));
-
-    expect(result.status).toBe('completed');
-    if (result.status !== 'completed') return;
-    const output = result.output as { response: string; empty_response_kind?: string };
-    expect(output.empty_response_kind).toBeUndefined();
-  });
-
-  it('does NOT classify when tool tokens are all length < 4 (short-circuit)', async () => {
-    const { gateway } = createGatewayHarness({
-      modelProvider: createOllamaShapedProvider([
-        { content: 'I created the workflow you requested.' },
-      ]),
-      // Each token after splitting on `_` is length < 4 → toolTokens empty.
-      toolSurface: createToolSurface(undefined, buildToolsWithTokens(['ab_cd_ef'])),
-    });
-
-    const result = await gateway.run(createBaseInput({ budget: { maxTurns: 1, maxTokens: 200, timeoutMs: 1000 } }));
-
-    expect(result.status).toBe('completed');
-    if (result.status !== 'completed') return;
-    const output = result.output as { response: string; empty_response_kind?: string };
-    expect(output.empty_response_kind).toBeUndefined();
-  });
-
-  it('SP 1.15 RC-1 case (a) precedence preserved — empty response yields SP 1.15 marker, NOT SP 1.16 marker', async () => {
-    // Even when fromFallback would otherwise apply, an empty trimmed response
-    // routes to case (a) per the conversational-exit branch's if/else order.
-    const { gateway } = createGatewayHarness({
-      modelProvider: createOllamaShapedProvider([
-        { content: '' },
-      ]),
-      toolSurface: createToolSurface(undefined, buildToolsWithTokens(['workflow_create'])),
-    });
-
-    const result = await gateway.run(createBaseInput({ budget: { maxTurns: 1, maxTokens: 200, timeoutMs: 1000 } }));
-
-    expect(result.status).toBe('completed');
-    if (result.status !== 'completed') return;
-    const output = result.output as { response: string; empty_response_kind?: string };
-    expect(output.empty_response_kind).toBe('no_output_at_all');
-    expect(output.response).toBe(EMPTY_RESPONSE_MARKER);
-    expect(output.response).not.toBe(NARRATE_WITHOUT_DISPATCH_MARKER);
-  });
-});
-
-// ── SP 1.16 RC-β.3 — fromFallback observability case (b) ──
+// ── SP 1.17 RC-β-1.1 — recovery-propagation regression (T-G4) ──
 
 function recordingBus(): IEventBus & { recorded: Array<{ channel: string; payload: unknown }> } {
   const recorded: Array<{ channel: string; payload: unknown }> = [];
@@ -326,20 +185,25 @@ function recordingBus(): IEventBus & { recorded: Array<{ channel: string; payloa
 }
 
 /**
- * Provider that supports `invokeWithThinkingStream` but always throws so the
- * fallback path engages, then `invoke()` returns a non-empty response with no
- * tool calls.
+ * Provider that returns a successful `invokeWithThinkingStream` response with
+ * the SP 1.17 Option (iii) `recovery` field populated — simulating a
+ * provider-internal recovery on the primary streaming-thinking method.
  */
-function createFallbackThrowingProvider(content: string): IModelProvider {
+function createRecoveredProvider(content: string): IModelProvider {
   return {
-    invoke: vi.fn().mockResolvedValue({
+    invoke: vi.fn(),
+    stream: vi.fn(),
+    invokeWithThinkingStream: vi.fn().mockResolvedValue({
       output: { role: 'assistant', content },
       providerId: PROVIDER_ID,
       usage: { inputTokens: 5, outputTokens: 5 },
       traceId: TRACE_ID,
+      recovery: {
+        method: 'invoke',
+        primaryError: 'PROVIDER_UNAVAILABLE',
+        primaryMessage: 'Ollama request timed out after 60000ms',
+      },
     }),
-    stream: vi.fn(),
-    invokeWithThinkingStream: vi.fn().mockRejectedValue(new Error('thinking-stream simulated failure')),
     getConfig: vi.fn().mockReturnValue({
       id: PROVIDER_ID,
       name: 'ollama-test',
@@ -352,17 +216,13 @@ function createFallbackThrowingProvider(content: string): IModelProvider {
   };
 }
 
-describe('AgentGateway fromFallback observability (SP 1.16 RC-β.3 / case b)', () => {
-  it('non-empty fallback response with zero tool calls is classified narrate_without_dispatch UNCONDITIONALLY', async () => {
-    // Build a harness with eventBus so canStreamThinking gate fires; provider
-    // throws on invokeWithThinkingStream; fallback invoke returns a benign
-    // response that the detector would NOT match — case (b) must still fire.
+describe('AgentGateway recovery propagation regression (SP 1.17 RC-β-1.1 / T-G4)', () => {
+  it('recovery-populated response renders model content unchanged; empty_response_kind not derived from recovery', async () => {
+    // Build a harness with eventBus + tool-bearing turn so the canStreamThinking
+    // gate fires and the dispatch ternary calls invokeWithThinkingStream directly.
     const harness = createGatewayHarness({
-      modelProvider: createFallbackThrowingProvider('Sure, here is some helpful information.'),
-      toolSurface: createToolSurface(undefined, buildToolsWithTokens(['workflow_create'])),
+      modelProvider: createRecoveredProvider('Hello! How can I help you today?'),
     });
-    // Inject eventBus into the gateway config via a fresh AgentGateway built
-    // around the same harness inputs but with eventBus set.
     const eventBus = recordingBus();
     const gateway = new AgentGateway({
       agentClass: 'Worker',
@@ -381,8 +241,97 @@ describe('AgentGateway fromFallback observability (SP 1.16 RC-β.3 / case b)', (
     expect(result.status).toBe('completed');
     if (result.status !== 'completed') return;
     const output = result.output as { response: string; empty_response_kind?: string };
-    // Detector would NOT match this content; case (b) fires regardless.
-    expect(output.empty_response_kind).toBe('narrate_without_dispatch');
-    expect(output.response).toBe(NARRATE_WITHOUT_DISPATCH_MARKER);
+    // Chat-surface content equals the model's content unchanged — NO marker
+    // substitution, NO empty_response_kind derived from recovery.
+    expect(output.response).toBe('Hello! How can I help you today?');
+    expect(output.empty_response_kind).toBeUndefined();
+  });
+});
+
+// ── SP 1.17 RC-α-1 — derivation gate (T-G5–T-G8) ──
+
+describe('deriveThinkingUnavailable derivation gate (SP 1.17 RC-α-1 / T-G5–T-G8)', () => {
+  // The helper is exported from agent-gateway.ts so we can pin the structural
+  // gate logic at unit-test granularity (capability + multi-turn + thinking
+  // absence). Pure structural fact — no content inspection. Invariant I-3 / I-5.
+
+  const baseValidInput = createBaseInput({ context: [] });
+  const multiTurnContext = [
+    { role: 'user' as const, source: 'initial_payload' as const, content: 'first', createdAt: NOW },
+    { role: 'assistant' as const, source: 'model_output' as const, content: 'reply', createdAt: NOW },
+  ];
+
+  const adapterWithThinking = {
+    capabilities: { extendedThinking: true, streaming: false, structuredOutput: true },
+    formatRequest: () => ({ input: {} }),
+    parseResponse: () => ({ response: '', toolCalls: [], thinkingContent: undefined }),
+  } as unknown as Parameters<typeof deriveThinkingUnavailable>[0]['adapter'];
+
+  const adapterWithoutThinking = {
+    capabilities: { extendedThinking: false, streaming: false, structuredOutput: true },
+    formatRequest: () => ({ input: {} }),
+    parseResponse: () => ({ response: '', toolCalls: [], thinkingContent: undefined }),
+  } as unknown as Parameters<typeof deriveThinkingUnavailable>[0]['adapter'];
+
+  it('T-G5 — fires when capability=true AND context.length>1 AND thinkingContent absent', () => {
+    const result = deriveThinkingUnavailable({
+      adapter: adapterWithThinking,
+      validInput: { ...baseValidInput, context: multiTurnContext },
+      parsedOutput: { response: 'ok', toolCalls: [], thinkingContent: undefined } as never,
+    });
+    expect(result).toEqual({
+      reason: 'multi-turn request shape — provider/model template does not surface thinking',
+      ref: 'WR-172',
+    });
+  });
+
+  it('T-G6 — does NOT fire when extendedThinking=false', () => {
+    const result = deriveThinkingUnavailable({
+      adapter: adapterWithoutThinking,
+      validInput: { ...baseValidInput, context: multiTurnContext },
+      parsedOutput: { response: 'ok', toolCalls: [], thinkingContent: undefined } as never,
+    });
+    expect(result).toBeUndefined();
+  });
+
+  it('T-G7 — does NOT fire when context.length<=1 (single-turn)', () => {
+    const single = deriveThinkingUnavailable({
+      adapter: adapterWithThinking,
+      validInput: { ...baseValidInput, context: [multiTurnContext[0]] },
+      parsedOutput: { response: 'ok', toolCalls: [], thinkingContent: undefined } as never,
+    });
+    expect(single).toBeUndefined();
+
+    const empty = deriveThinkingUnavailable({
+      adapter: adapterWithThinking,
+      validInput: { ...baseValidInput, context: [] },
+      parsedOutput: { response: 'ok', toolCalls: [], thinkingContent: undefined } as never,
+    });
+    expect(empty).toBeUndefined();
+  });
+
+  it('T-G8 — does NOT fire when thinkingContent is non-empty after trim', () => {
+    const result = deriveThinkingUnavailable({
+      adapter: adapterWithThinking,
+      validInput: { ...baseValidInput, context: multiTurnContext },
+      parsedOutput: { response: 'ok', toolCalls: [], thinkingContent: 'I am thinking.' } as never,
+    });
+    expect(result).toBeUndefined();
+  });
+
+  it('T-G8 — DOES fire when thinkingContent is whitespace-only (whitespace counts as empty per derivation gate)', () => {
+    // SDS § 4.3 derivation gate: `tc.trim().length > 0` distinguishes empty
+    // from non-empty thinking. Whitespace-only `tc` trims to '' → derivation
+    // fires (the model produced a non-empty `thinkingContent` string with no
+    // meaningful content, which is structurally equivalent to empty).
+    const result = deriveThinkingUnavailable({
+      adapter: adapterWithThinking,
+      validInput: { ...baseValidInput, context: multiTurnContext },
+      parsedOutput: { response: 'ok', toolCalls: [], thinkingContent: '   \n\t  ' } as never,
+    });
+    expect(result).toEqual({
+      reason: 'multi-turn request shape — provider/model template does not surface thinking',
+      ref: 'WR-172',
+    });
   });
 });

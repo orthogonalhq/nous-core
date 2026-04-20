@@ -1,5 +1,5 @@
 import { describe, expect, it, vi } from 'vitest';
-import { EMPTY_RESPONSE_MARKER, NARRATE_WITHOUT_DISPATCH_MARKER } from '@nous/shared';
+import { EMPTY_RESPONSE_MARKER } from '@nous/shared';
 import type { IModelProvider } from '@nous/shared';
 import { createPrincipalSystemGatewayRuntime } from '../../gateway-runtime/index.js';
 import {
@@ -410,16 +410,20 @@ describe('PrincipalSystemGatewayRuntime — empty_response_kind round-trip (SP 1
   });
 });
 
-describe('PrincipalSystemGatewayRuntime — narrate_without_dispatch round-trip (SP 1.16 RC-β.1)', () => {
-  it('SKIPs STM entries tagged with empty_response_kind = narrate_without_dispatch on next turn', async () => {
+describe('PrincipalSystemGatewayRuntime — STM SKIP-policy continuity (SP 1.15 RC-1, SP 1.17 narrowed)', () => {
+  // SP 1.17 — the SP 1.16 RC-β.1 third-discriminator round-trip is reverted
+  // (T-I1). The SKIP policy gates on PRESENCE of `metadata.empty_response_kind`,
+  // not on its value (Invariant I-8); the policy continues to apply to the
+  // narrowed 2-value enum.
+  it('SKIPs STM entries tagged with empty_response_kind = thinking_only_no_finalizer on next turn', async () => {
     const stmStore = {
       getContext: vi.fn().mockResolvedValue({
         entries: [
           {
             role: 'assistant',
-            content: NARRATE_WITHOUT_DISPATCH_MARKER,
+            content: EMPTY_RESPONSE_MARKER,
             timestamp: '2026-04-18T00:00:00Z',
-            metadata: { empty_response_kind: 'narrate_without_dispatch' },
+            metadata: { empty_response_kind: 'thinking_only_no_finalizer' },
           },
           {
             role: 'user',
@@ -478,7 +482,134 @@ describe('PrincipalSystemGatewayRuntime — narrate_without_dispatch round-trip 
     const invokeArgs = (principalProvider.invoke as ReturnType<typeof vi.fn>).mock.calls[0][0];
     const contextFrames = (invokeArgs.input.context ?? []) as Array<{ role: string; content: string }>;
     expect(contextFrames.some((f) => f.content === 'previous user message')).toBe(true);
-    // SP 1.15 SKIP policy applies to the new discriminator too — Invariant I-13 preserved.
-    expect(contextFrames.some((f) => f.content === NARRATE_WITHOUT_DISPATCH_MARKER)).toBe(false);
+    expect(contextFrames.some((f) => f.content === EMPTY_RESPONSE_MARKER)).toBe(false);
+  });
+});
+
+describe('PrincipalSystemGatewayRuntime — recovery + thinking_unavailable round-trips (SP 1.17 T-I2 / T-I3)', () => {
+  // T-I3: provider populates `recovery` → gateway treats it as telemetry only;
+  // chat-surface response equals model content unchanged (no marker substitution,
+  // no empty_response_kind derived). Verified at the runtime layer end-to-end
+  // through the gateway → resolveChatResponse → ChatTurnResult chain.
+  it('T-I3 — provider recovery passes through; chat-surface content unchanged; empty_response_kind undefined', async () => {
+    const provider: IModelProvider = {
+      invoke: vi.fn().mockResolvedValue({
+        output: { role: 'assistant', content: 'Hi! How can I help?', tool_calls: [{ function: { name: 'task_complete', arguments: { output: { response: 'Hi! How can I help?' } } } }] },
+        providerId: PROVIDER_ID,
+        usage: { inputTokens: 5, outputTokens: 5 },
+        traceId: TRACE_ID,
+        recovery: {
+          method: 'invoke',
+          primaryError: 'PROVIDER_UNAVAILABLE',
+          primaryMessage: 'Ollama request timed out',
+        },
+      }),
+      stream: vi.fn(),
+      getConfig: vi.fn().mockReturnValue({
+        id: PROVIDER_ID,
+        name: 'ollama-test',
+        type: 'ollama',
+        vendor: 'ollama',
+        modelId: 'gemma3:4b',
+        isLocal: true,
+        capabilities: ['reasoning'],
+      }),
+    };
+
+    const stmStore = {
+      getContext: vi.fn().mockResolvedValue({ entries: [], summary: undefined, tokenCount: 0 }),
+      append: vi.fn().mockResolvedValue(undefined),
+      compact: vi.fn(),
+      clear: vi.fn(),
+    };
+    const runtime = createPrincipalSystemGatewayRuntime({
+      documentStore: createDocumentStore(),
+      modelProviderByClass: {
+        'Cortex::Principal': provider,
+        'Cortex::System': createModelProvider(['{"response":"idle","toolCalls":[]}']),
+        Orchestrator: createModelProvider(['{"response":"idle","toolCalls":[]}']),
+        Worker: createModelProvider(['{"response":"idle","toolCalls":[]}']),
+      },
+      getProjectApi: () => createProjectApi(),
+      pfc: createPfcEngine(),
+      outputSchemaValidator: { validate: vi.fn().mockResolvedValue({ success: true }) },
+      stmStore,
+      idFactory: (() => {
+        let counter = 0;
+        return () => {
+          const suffix = String(counter).padStart(12, '0');
+          counter += 1;
+          return `00000000-0000-4000-8000-${suffix}`;
+        };
+      })(),
+    });
+
+    const result = await runtime.handleChatTurn({
+      message: 'Hello',
+      projectId: '00000000-0000-4000-8000-000000000001',
+      traceId: '00000000-0000-4000-8000-000000000099',
+    });
+
+    expect(result.response).toBe('Hi! How can I help?');
+    expect((result as { empty_response_kind?: string }).empty_response_kind).toBeUndefined();
+  });
+
+  // T-I2: gateway derives `thinking_unavailable` → resolveChatResponse
+  // propagates → ChatTurnResult carries the SDS-locked `{ reason, ref }`
+  // shape end-to-end. Round-trip exercises the cross-package literal-shape
+  // duplication (cortex-core ChatTurnResultSchema ↔ shared ThinkingUnavailable).
+  it('T-I2 — multi-turn empty-thinking gate fires → ChatTurnResult.thinking_unavailable === { reason, ref: "WR-172" }', async () => {
+    const provider = createOllamaShapedProviderForChat([
+      // Multi-turn shape — non-empty content, no thinking. The runtime's STM
+      // context (one prior assistant frame) makes context.length > 1 in the
+      // gateway's view of validInput, firing the derivation gate.
+      { content: 'Sure thing.' },
+    ]);
+    const stmStore = {
+      getContext: vi.fn().mockResolvedValue({
+        entries: [
+          { role: 'assistant', content: 'previous reply', timestamp: '2026-04-18T00:00:00Z' },
+        ],
+        summary: undefined,
+        tokenCount: 0,
+      }),
+      append: vi.fn().mockResolvedValue(undefined),
+      compact: vi.fn(),
+      clear: vi.fn(),
+    };
+
+    const runtime = createPrincipalSystemGatewayRuntime({
+      documentStore: createDocumentStore(),
+      modelProviderByClass: {
+        'Cortex::Principal': provider,
+        'Cortex::System': createModelProvider(['{"response":"idle","toolCalls":[]}']),
+        Orchestrator: createModelProvider(['{"response":"idle","toolCalls":[]}']),
+        Worker: createModelProvider(['{"response":"idle","toolCalls":[]}']),
+      },
+      getProjectApi: () => createProjectApi(),
+      pfc: createPfcEngine(),
+      outputSchemaValidator: { validate: vi.fn().mockResolvedValue({ success: true }) },
+      stmStore,
+      idFactory: (() => {
+        let counter = 0;
+        return () => {
+          const suffix = String(counter).padStart(12, '0');
+          counter += 1;
+          return `00000000-0000-4000-8000-${suffix}`;
+        };
+      })(),
+    });
+
+    const result = await runtime.handleChatTurn({
+      message: 'Hello again',
+      projectId: '00000000-0000-4000-8000-000000000001',
+      traceId: '00000000-0000-4000-8000-000000000099',
+    });
+
+    const tu = (result as { thinking_unavailable?: { reason: string; ref: string } }).thinking_unavailable;
+    expect(tu).toBeDefined();
+    expect(tu?.ref).toBe('WR-172');
+    expect(typeof tu?.reason).toBe('string');
+    expect((tu?.reason ?? '').length).toBeGreaterThan(0);
   });
 });

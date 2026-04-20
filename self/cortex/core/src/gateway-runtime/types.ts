@@ -196,6 +196,15 @@ export const ChatTurnInputSchema = z.object({
 }).strict();
 export type ChatTurnInput = z.infer<typeof ChatTurnInputSchema>;
 
+// SP 1.17 RC-α-1 — literal-shape duplicate of `@nous/shared`
+// `ThinkingUnavailableSchema`. Inlined per the cortex-core does-not-import-
+// from-shared-runtime convention; cross-package consistency test in
+// `self/shared/src/__tests__/types/agent-gateway.test.ts` enforces parity.
+const ThinkingUnavailableLiteralSchema = z.object({
+  reason: z.string(),
+  ref: z.string(),
+}).strict();
+
 export const ChatTurnResultSchema = z.object({
   response: z.string(),
   traceId: z.string(),
@@ -205,11 +214,16 @@ export const ChatTurnResultSchema = z.object({
     type: z.string(),
     props: z.record(z.string(), z.unknown()),
   })).optional(),
-  // SP 1.15 RC-1 + SP 1.16 RC-β.1 — propagated from AgentResult.output.empty_response_kind
+  // SP 1.15 RC-1 — propagated from AgentResult.output.empty_response_kind
   // so the UI can render <details open> on the thinking disclosure. Mirrors
   // EmptyResponseKindSchema in @nous/shared (single source of truth at the
   // gateway boundary; this duplication is the same pattern ChatMessage uses).
-  empty_response_kind: z.enum(['thinking_only_no_finalizer', 'no_output_at_all', 'narrate_without_dispatch']).optional(),
+  // SP 1.17 narrows from 3 to 2 values per SDS § 1.3.
+  empty_response_kind: z.enum(['thinking_only_no_finalizer', 'no_output_at_all']).optional(),
+  // SP 1.17 RC-α-1 — propagated from AgentResult.output.thinking_unavailable
+  // so the chat UI can render an honest acknowledgment in the thinking
+  // disclosure. Additive optional field; literal duplicated per convention.
+  thinking_unavailable: ThinkingUnavailableLiteralSchema.optional(),
 }).strict();
 export type ChatTurnResult = z.infer<typeof ChatTurnResultSchema>;
 

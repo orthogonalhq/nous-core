@@ -19,6 +19,22 @@ import { TextModelInputSchema } from './schemas.js';
 const DEFAULT_ENDPOINT = 'http://localhost:11434';
 const DEFAULT_TIMEOUT_MS = 60_000;
 
+/**
+ * SP 1.17 RC-β-1.1 (Option iii) — classifies a thrown error as recoverable
+ * via same-provider re-issue (`invokeWithThinkingStream` → `invoke`). Returns
+ * true for `'PROVIDER_UNAVAILABLE'` only — that code covers transport
+ * failures (timeout, connection error, malformed response) for which a
+ * second `invoke()` attempt is meaningful. Returns false for `'ABORTED'`
+ * (user-initiated cancel — recovery would re-issue work the user does not
+ * want) and `'MODEL_NOT_FOUND'` (deterministic config error — secondary
+ * call would fail identically). Any non-`NousError` (unexpected runtime
+ * exception) returns false; the error propagates to the caller.
+ */
+function isRecoverableProviderError(err: unknown): boolean {
+  if (!(err instanceof NousError)) return false;
+  return err.code === 'PROVIDER_UNAVAILABLE';
+}
+
 export class OllamaProvider implements IModelProvider {
   private readonly config: ModelProviderConfig;
   private readonly endpoint: string;
@@ -177,12 +193,55 @@ export class OllamaProvider implements IModelProvider {
    * The downstream UI subscriber (ChatPanel.tsx:147-170) accepts both
    * cardinalities by accumulating into `streamingThinking` either way.
    *
-   * Failure semantics: any thrown error (network, abort, malformed SSE,
-   * schema validation, JSON parse) propagates so the gateway's
-   * `invokeWithThinkingStreamFallback` catch path executes
-   * `provider.invoke(request)` as the fallback.
+   * Failure semantics (SP 1.17 RC-β-1.1 / Option iii — internalized):
+   * - Primary path drives `/api/chat` (streaming or non-streaming per
+   *   `body.stream`).
+   * - On a recoverable primary failure (a `NousError` whose `code` is
+   *   `'PROVIDER_UNAVAILABLE'` — covers timeout, connection error, malformed
+   *   response), the method internally re-issues via `this.invoke(request)`
+   *   and stamps the returned `ModelResponse` with the structural
+   *   `recovery: { method: 'invoke', primaryError, primaryMessage }` field.
+   * - On a non-recoverable error (`'ABORTED'` user-initiated cancel,
+   *   `'MODEL_NOT_FOUND'` deterministic config error), the typed primary
+   *   error propagates — no recovery is attempted.
+   * - The `recovery` structural metadata is the ONLY signal of internal
+   *   recovery; the gateway consumes it for telemetry / log-level decisions
+   *   only and MUST NOT branch on it for content classification (Invariant
+   *   I-1 / I-2).
    */
   async invokeWithThinkingStream(
+    request: ModelRequest,
+    eventBus: IEventBus,
+    traceId: TraceId,
+  ): Promise<ModelResponse> {
+    try {
+      return await this.invokeWithThinkingStreamPrimary(request, eventBus, traceId);
+    } catch (err) {
+      if (!isRecoverableProviderError(err)) {
+        throw err;
+      }
+      const primary = err as NousError;
+      // SP 1.17 RC-β-1.1 — log line renamed from the SP 1.16 gateway-side
+      // 'invokeWithThinkingStream failed, falling back to invoke()' to make
+      // the recovery posture explicit and distinguish it from any future
+      // gateway-side log.
+      console.warn('[nous:ollama-provider] invokeWithThinkingStream primary failed; recovering via invoke()', {
+        error: String(err),
+        primaryErrorCode: primary.code,
+      });
+      const recovered = await this.invoke(request);
+      return {
+        ...recovered,
+        recovery: {
+          method: 'invoke',
+          primaryError: primary.code,
+          primaryMessage: primary.message.slice(0, 500),
+        },
+      };
+    }
+  }
+
+  private async invokeWithThinkingStreamPrimary(
     request: ModelRequest,
     eventBus: IEventBus,
     traceId: TraceId,

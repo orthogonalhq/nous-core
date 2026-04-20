@@ -223,14 +223,17 @@ describe('AgentGateway SP 1.13 RC-2 thinking-stream dispatch', () => {
     expect(streamSpy).not.toHaveBeenCalled();
   });
 
-  it('Scenario D — invokeWithThinkingStream throws → catch logs warn and falls back to provider.invoke()', async () => {
+  it('Scenario D (SP 1.17) — invokeWithThinkingStream rejection propagates; gateway no longer indirects via invokeWithThinkingStreamFallback (T-T3 — dispatch-direct-call regression)', async () => {
+    // SP 1.17 RC-β-1.1 (Option iii) — the gateway-side fallback method
+    // `invokeWithThinkingStreamFallback` is removed; the dispatch ternary
+    // now calls `provider.invokeWithThinkingStream` directly. Recovery is
+    // the PROVIDER's responsibility (OllamaProvider self-recovers via
+    // `invoke()` and stamps `recovery?` on the returned ModelResponse).
+    // When the provider's `invokeWithThinkingStream` rejects (without
+    // self-recovery), the typed error propagates to the gateway and surfaces
+    // as a status='error' AgentResult — no silent fallback to provider.invoke().
     const itsSpy = vi.fn().mockRejectedValue(new Error('stream fetch broke'));
-    const invokeSpy = vi.fn().mockResolvedValue({
-      output: makeMessageOutput('task_complete'),
-      providerId: PROVIDER_ID,
-      usage: { inputTokens: 1, outputTokens: 1 },
-      traceId: TRACE_ID,
-    } satisfies ModelResponse);
+    const invokeSpy = vi.fn();
     const provider = makeProvider({
       invoke: invokeSpy,
       invokeWithThinkingStream: itsSpy,
@@ -238,10 +241,34 @@ describe('AgentGateway SP 1.13 RC-2 thinking-stream dispatch', () => {
     const eventBus = recordingEventBus();
 
     const { gateway } = createGateway({ provider, eventBus });
+    const result = await gateway.run(createBaseInput());
+
+    expect(itsSpy).toHaveBeenCalled();
+    // The gateway no longer silently falls back to provider.invoke() — the
+    // raw rejection propagates and the result is an error.
+    expect(invokeSpy).not.toHaveBeenCalled();
+    expect(result.status).toBe('error');
+  });
+
+  it('T-T3 — dispatch ternary calls provider.invokeWithThinkingStream directly (no Fallback indirection method on gateway)', async () => {
+    // Structural assertion that the SP 1.16 indirection method
+    // `invokeWithThinkingStreamFallback` no longer exists on AgentGateway.
+    const itsSpy = vi.fn().mockResolvedValue({
+      output: makeMessageOutput('task_complete'),
+      providerId: PROVIDER_ID,
+      usage: { inputTokens: 1, outputTokens: 1 },
+      traceId: TRACE_ID,
+    } satisfies ModelResponse);
+    const provider = makeProvider({ invokeWithThinkingStream: itsSpy });
+    const eventBus = recordingEventBus();
+
+    const { gateway } = createGateway({ provider, eventBus });
     await gateway.run(createBaseInput());
 
     expect(itsSpy).toHaveBeenCalled();
-    expect(invokeSpy).toHaveBeenCalled(); // fallback path invoked
+    expect(
+      (gateway as unknown as Record<string, unknown>).invokeWithThinkingStreamFallback,
+    ).toBeUndefined();
   });
 
   it('SP 1.15 RC-2 (Tier 3) — production wrap chain end-to-end: real OllamaProvider + LaneAwareProvider + ObservableProvider drives non-streaming branch on tool-bearing turn', async () => {
@@ -374,68 +401,13 @@ describe('AgentGateway SP 1.16 RC-α end-to-end native-thinking activation', () 
   });
 });
 
-describe('AgentGateway SP 1.16 RC-β.1 + RC-β.3 end-to-end narrate-without-dispatch', () => {
-  it('Scenario B-primary — primary-path detector adjudication produces NARRATE_WITHOUT_DISPATCH_MARKER', async () => {
-    // Ollama-shaped non-empty content, zero tool calls — detector adjudicates.
-    const provider = makeProvider({
-      invoke: vi.fn().mockResolvedValue({
-        output: { role: 'assistant', content: 'I created the workflow you requested.' },
-        providerId: PROVIDER_ID,
-        usage: { inputTokens: 1, outputTokens: 1 },
-        traceId: TRACE_ID,
-      } satisfies ModelResponse),
-    });
-
-    // Use a tool surface whose tool name yields a token (`workflow`) the
-    // detector matches against.
-    const toolSurface = {
-      listTools: vi.fn().mockResolvedValue([
-        {
-          name: 'workflow_create',
-          version: '1.0.0',
-          description: 'create',
-          inputSchema: {},
-          outputSchema: {},
-          capabilities: ['write'],
-          permissionScope: 'project',
-        } as ToolDefinition,
-      ]),
-      executeTool: vi.fn(),
-    };
-
-    const { gateway } = createGateway({ provider, toolSurface });
-    const result = await gateway.run(createBaseInput({ budget: { maxTurns: 1, maxTokens: 200, timeoutMs: 1000 } }));
-
-    expect(result.status).toBe('completed');
-    if (result.status !== 'completed') return;
-    const output = result.output as { response: string; empty_response_kind?: string };
-    expect(output.empty_response_kind).toBe('narrate_without_dispatch');
-    // Lazy import of marker constant via re-export from @nous/shared
-    expect(output.response).toContain('I described an action without actually performing it');
-  });
-
-  it('Scenario B-fallback — invokeWithThinkingStream throws → fromFallback → case (b) fires UNCONDITIONALLY', async () => {
-    // Detector-negative content; case (b) must still fire because fromFallback === true.
-    const provider = makeProvider({
-      invokeWithThinkingStream: vi.fn().mockRejectedValue(new Error('thinking-stream simulated failure')),
-      invoke: vi.fn().mockResolvedValue({
-        output: { role: 'assistant', content: 'Sure, here is some helpful information.' },
-        providerId: PROVIDER_ID,
-        usage: { inputTokens: 1, outputTokens: 1 },
-        traceId: TRACE_ID,
-      } satisfies ModelResponse),
-    });
-    const eventBus = recordingEventBus();
-    // Tools present so canStreamContent is false (the cycle-1 SP 1.9 RC-2
-    // invariant) and canStreamThinking is true → invokeWithThinkingStream
-    // path engages → fallback fires when it throws.
-    const { gateway } = createGateway({ provider, eventBus });
-    const result = await gateway.run(createBaseInput({ budget: { maxTurns: 1, maxTokens: 200, timeoutMs: 1000 } }));
-
-    expect(result.status).toBe('completed');
-    if (result.status !== 'completed') return;
-    const output = result.output as { response: string; empty_response_kind?: string };
-    expect(output.empty_response_kind).toBe('narrate_without_dispatch');
-    expect(output.response).toContain('I described an action without actually performing it');
-  });
-});
+// SP 1.17 — the SP 1.16 RC-β.1 + RC-β.3 narrate-without-dispatch describe
+// block is removed in full per the rip (SDS § 1.3, IPL Tier 7 task 26 / T-T1).
+// The replacement contract is at the provider/gateway boundary:
+//   - OllamaProvider self-recovers via `invoke()` and stamps `recovery?` on
+//     the returned ModelResponse (Tier 1 contract tests live in
+//     `self/subcortex/providers/src/__tests__/ollama-provider-thinking-stream.test.ts`).
+//   - Gateway reads `recovery` for telemetry only and never adjudicates
+//     content (regression covered by T-G4 in agent-gateway-turn-loop.test.ts).
+//   - Mechanism-class invariant I-5 forbids any heuristic detector / pattern
+//     matcher / content classifier in the fix.

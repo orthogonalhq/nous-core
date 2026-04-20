@@ -269,9 +269,18 @@ export interface IModelProvider {
    *  - NOT swallow or transform the response shape — the gateway's adapter
    *    parseResponse runs against `output` unchanged.
    *
-   * Failure semantics: on any error, throw — the gateway falls back to
-   * provider.invoke() with the same request (mirroring the existing
-   * invokeWithStreaming catch path at agent-gateway.ts:576-579).
+   * Failure semantics (SP 1.17 RC-β-1.1 / Option iii):
+   *  - Implementations MAY self-recover on primary-method failure by
+   *    invoking the same-provider `invoke()` method.
+   *  - When recovery succeeds, the returned `ModelResponse` MUST carry the
+   *    `recovery?` structural metadata field populated with the primary-error
+   *    classification (`{ method: 'invoke', primaryError, primaryMessage }`).
+   *  - When recovery fails (or recovery is not implemented), the typed
+   *    primary error MUST propagate to the caller.
+   *  - Implementations MUST NOT silently substitute content; the structural
+   *    metadata is the only signal of recovery. The gateway consumes it for
+   *    telemetry / log-level decisions only and MUST NOT branch on it for
+   *    content classification.
    */
   invokeWithThinkingStream?(
     request: ModelRequest,
