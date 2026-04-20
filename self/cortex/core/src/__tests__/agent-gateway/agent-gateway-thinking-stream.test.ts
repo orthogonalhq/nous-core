@@ -344,3 +344,98 @@ describe('AgentGateway SP 1.13 RC-2 thinking-stream dispatch', () => {
     expect(recorded.some((r) => r.channel === 'chat:thinking-chunk')).toBe(true);
   });
 });
+
+// ── SP 1.16 Tier 3 — production wrap chain end-to-end ──
+
+describe('AgentGateway SP 1.16 RC-α end-to-end native-thinking activation', () => {
+  it('Scenario A — adapter-prepared input passed to invokeWithThinkingStream carries think: true', async () => {
+    let capturedRequest: ModelRequest | undefined;
+    const itsSpy = vi.fn().mockImplementation(async (req: ModelRequest, _bus: IEventBus, traceId) => {
+      capturedRequest = req;
+      return {
+        output: makeMessageOutput('task_complete'),
+        providerId: PROVIDER_ID,
+        usage: { inputTokens: 1, outputTokens: 1 },
+        traceId,
+      } satisfies ModelResponse;
+    });
+    const provider = makeProvider({ invokeWithThinkingStream: itsSpy });
+    const eventBus = recordingEventBus();
+
+    const { gateway } = createGateway({ provider, eventBus });
+    await gateway.run(createBaseInput());
+
+    expect(itsSpy).toHaveBeenCalled();
+    // The Ollama adapter sets result.think = true unconditionally per SP 1.16 RC-α.
+    const input = (capturedRequest?.input ?? {}) as Record<string, unknown>;
+    expect(input.think).toBe(true);
+    // SP 1.15 invariant — tool-bearing turn forces stream: false (preserved).
+    expect(input.stream).toBe(false);
+  });
+});
+
+describe('AgentGateway SP 1.16 RC-β.1 + RC-β.3 end-to-end narrate-without-dispatch', () => {
+  it('Scenario B-primary — primary-path detector adjudication produces NARRATE_WITHOUT_DISPATCH_MARKER', async () => {
+    // Ollama-shaped non-empty content, zero tool calls — detector adjudicates.
+    const provider = makeProvider({
+      invoke: vi.fn().mockResolvedValue({
+        output: { role: 'assistant', content: 'I created the workflow you requested.' },
+        providerId: PROVIDER_ID,
+        usage: { inputTokens: 1, outputTokens: 1 },
+        traceId: TRACE_ID,
+      } satisfies ModelResponse),
+    });
+
+    // Use a tool surface whose tool name yields a token (`workflow`) the
+    // detector matches against.
+    const toolSurface = {
+      listTools: vi.fn().mockResolvedValue([
+        {
+          name: 'workflow_create',
+          version: '1.0.0',
+          description: 'create',
+          inputSchema: {},
+          outputSchema: {},
+          capabilities: ['write'],
+          permissionScope: 'project',
+        } as ToolDefinition,
+      ]),
+      executeTool: vi.fn(),
+    };
+
+    const { gateway } = createGateway({ provider, toolSurface });
+    const result = await gateway.run(createBaseInput({ budget: { maxTurns: 1, maxTokens: 200, timeoutMs: 1000 } }));
+
+    expect(result.status).toBe('completed');
+    if (result.status !== 'completed') return;
+    const output = result.output as { response: string; empty_response_kind?: string };
+    expect(output.empty_response_kind).toBe('narrate_without_dispatch');
+    // Lazy import of marker constant via re-export from @nous/shared
+    expect(output.response).toContain('I described an action without actually performing it');
+  });
+
+  it('Scenario B-fallback — invokeWithThinkingStream throws → fromFallback → case (b) fires UNCONDITIONALLY', async () => {
+    // Detector-negative content; case (b) must still fire because fromFallback === true.
+    const provider = makeProvider({
+      invokeWithThinkingStream: vi.fn().mockRejectedValue(new Error('thinking-stream simulated failure')),
+      invoke: vi.fn().mockResolvedValue({
+        output: { role: 'assistant', content: 'Sure, here is some helpful information.' },
+        providerId: PROVIDER_ID,
+        usage: { inputTokens: 1, outputTokens: 1 },
+        traceId: TRACE_ID,
+      } satisfies ModelResponse),
+    });
+    const eventBus = recordingEventBus();
+    // Tools present so canStreamContent is false (the cycle-1 SP 1.9 RC-2
+    // invariant) and canStreamThinking is true → invokeWithThinkingStream
+    // path engages → fallback fires when it throws.
+    const { gateway } = createGateway({ provider, eventBus });
+    const result = await gateway.run(createBaseInput({ budget: { maxTurns: 1, maxTokens: 200, timeoutMs: 1000 } }));
+
+    expect(result.status).toBe('completed');
+    if (result.status !== 'completed') return;
+    const output = result.output as { response: string; empty_response_kind?: string };
+    expect(output.empty_response_kind).toBe('narrate_without_dispatch');
+    expect(output.response).toContain('I described an action without actually performing it');
+  });
+});

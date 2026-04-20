@@ -1,4 +1,4 @@
-import { describe, it, expect, vi, beforeEach } from 'vitest';
+import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import type { ProviderId } from '@nous/shared';
 import { NousError, ValidationError } from '@nous/shared';
 import { OllamaProvider } from '../ollama-provider.js';
@@ -246,5 +246,52 @@ describe('OllamaProvider', () => {
       expect(chunks[0].content).toBe('hello<thi');
       expect(chunks[0].thinking).toBeUndefined();
     });
+  });
+});
+
+describe('OllamaProvider — fetchWithTimeout classification (SP 1.16 RC-β.2 / β6)', () => {
+  beforeEach(() => {
+    vi.useFakeTimers();
+    vi.stubGlobal('fetch', vi.fn());
+  });
+
+  it('timeout abort is classified as Ollama request timed out (NOT endpoint unreachable)', async () => {
+    const provider = new OllamaProvider(MOCK_CONFIG, { timeoutMs: 50 });
+    let capturedReason: unknown;
+    vi.mocked(fetch).mockImplementation((_url, init) => {
+      return new Promise((_resolve, reject) => {
+        const sig = (init as RequestInit).signal;
+        sig?.addEventListener('abort', () => {
+          capturedReason = (sig as AbortSignal).reason;
+          const err = new Error('aborted');
+          err.name = 'AbortError';
+          reject(err);
+        });
+      });
+    });
+
+    const promise = provider.invoke({
+      role: 'cortex-chat',
+      input: { prompt: 'hi' },
+      traceId: '00000000-0000-0000-0000-000000000002' as any,
+    });
+    // Attach an immediate handler so any sync rejection from the underlying
+    // fetch promise does not surface as an unhandled rejection in vitest.
+    let caught: NousError | undefined;
+    const settled = promise.catch((e) => { caught = e as NousError; });
+
+    // Advance the fake timers past the configured 50ms timeout.
+    await vi.advanceTimersByTimeAsync(60);
+    await settled;
+    expect(caught).toBeInstanceOf(NousError);
+    expect(caught?.message).toContain('Ollama request timed out after');
+    expect(caught?.message).not.toContain('Ollama not available at');
+    // SP 1.16 RC-β.2 / β1 — abort reason is now a DOMException.
+    expect(capturedReason).toBeInstanceOf(DOMException);
+    expect((capturedReason as DOMException).name).toBe('AbortError');
+  });
+
+  afterEach(() => {
+    vi.useRealTimers();
   });
 });

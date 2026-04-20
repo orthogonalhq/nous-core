@@ -205,11 +205,11 @@ export const ChatTurnResultSchema = z.object({
     type: z.string(),
     props: z.record(z.string(), z.unknown()),
   })).optional(),
-  // SP 1.15 RC-1 — propagated from AgentResult.output.empty_response_kind
+  // SP 1.15 RC-1 + SP 1.16 RC-β.1 — propagated from AgentResult.output.empty_response_kind
   // so the UI can render <details open> on the thinking disclosure. Mirrors
   // EmptyResponseKindSchema in @nous/shared (single source of truth at the
   // gateway boundary; this duplication is the same pattern ChatMessage uses).
-  empty_response_kind: z.enum(['thinking_only_no_finalizer', 'no_output_at_all']).optional(),
+  empty_response_kind: z.enum(['thinking_only_no_finalizer', 'no_output_at_all', 'narrate_without_dispatch']).optional(),
 }).strict();
 export type ChatTurnResult = z.infer<typeof ChatTurnResultSchema>;
 

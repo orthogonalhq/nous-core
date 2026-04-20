@@ -4,6 +4,7 @@ import {
   AgentResultSchema,
   EMPTY_RESPONSE_MARKER,
   GatewayContextFrameSchema,
+  NARRATE_WITHOUT_DISPATCH_MARKER,
   NousError,
   ValidationError,
   type AgentClass,
@@ -84,6 +85,29 @@ function deriveDefaultModelRole(agentClass: AgentClass | undefined): ModelRole {
   if (!agentClass) return 'cortex-chat'; // I5 first-run fallback
   return DEFAULT_MODEL_ROLE_BY_CLASS[agentClass];
 }
+
+/**
+ * SP 1.16 RC-β.1 — single source of truth for the empty/narrate-exit marker
+ * text given a discriminator. Used by the gateway's `buildSingleTurnResult`
+ * AND by `cortex-runtime.finalizeChatStmTurn` (STM write) so the marker
+ * substitution logic exists in exactly one place. Exported for cross-module
+ * (same-package) reuse — `default: never` exhaustiveness check fails the
+ * typechecker if a future cycle adds a new `EmptyResponseKind` value without
+ * updating this switch.
+ */
+export const markerForKind = (kind: EmptyResponseKind): string => {
+  switch (kind) {
+    case 'thinking_only_no_finalizer':
+    case 'no_output_at_all':
+      return EMPTY_RESPONSE_MARKER;
+    case 'narrate_without_dispatch':
+      return NARRATE_WITHOUT_DISPATCH_MARKER;
+    default: {
+      const _exhaustive: never = kind;
+      return _exhaustive;
+    }
+  }
+};
 
 const DEFAULT_MODEL_REQUIREMENTS = {
   profile: 'review-standard',
@@ -278,11 +302,27 @@ export class AgentGateway implements IAgentGateway {
           && adapter.capabilities.extendedThinking
           && typeof provider.invokeWithThinkingStream === 'function';
 
+        // SP 1.16 RC-β.3 — per-turn observability flag. Lifetime is exactly one
+        // turn; declared inside the turn-loop iteration scope so each turn starts
+        // fresh. The dispatch ternary's `invokeWithThinkingStreamFallback` arm
+        // (defined below) sets this to true via the `observability.onFallback`
+        // callback when the catch path executes `provider.invoke(request)` as the
+        // fallback. Consumed only by the conversational-exit branch in the same
+        // scope. Generalizes to `let fallbackTier: number = 0;` if multi-tier
+        // fallback is added later.
+        let fromFallback = false;
+        // SP 1.16 RC-β.1 — stable local-scope capture of the in-scope tools
+        // identifier (the post-`formatRequest` ToolDefinition[] used to build
+        // `formatted`) so the conversational-exit branch reads from a stable
+        // name regardless of upstream identifier renames. Per SDS Note 2.
+        const toolDefinitionsForDetector: ToolDefinition[] = tools ?? [];
+
         const modelResponse = canStreamContent
           ? await this.invokeWithStreaming(provider, adapter, formatted, traceId, projectId, correlation)
           : canStreamThinking
             ? await this.invokeWithThinkingStreamFallback(
                 provider, formatted, traceId, projectId, correlation,
+                { onFallback: () => { fromFallback = true; } },
               )
             : await provider.invoke({
                 role: this.config.modelRole ?? deriveDefaultModelRole(this.config.agentClass),
@@ -373,14 +413,41 @@ export class AgentGateway implements IAgentGateway {
         if (parsedOutput.toolCalls.length === 0) {
           let emptyResponseKind: EmptyResponseKind | undefined;
           if (!parsedOutput.response.trim()) {
-            // SP 1.15 RC-1 — derive the empty-exit discriminator so the
-            // user-facing surface gets EMPTY_RESPONSE_MARKER + a typed
-            // signal instead of a silent assistant bubble.
+            // SP 1.15 RC-1 — case (a) — derive the empty-exit discriminator so
+            // the user-facing surface gets EMPTY_RESPONSE_MARKER + a typed
+            // signal instead of a silent assistant bubble. This branch takes
+            // precedence over the SP 1.16 fallback / detector branches below
+            // (a fallback-derived empty response is still empty).
             emptyResponseKind = parsedOutput.thinkingContent && parsedOutput.thinkingContent.trim().length > 0
               ? 'thinking_only_no_finalizer'
               : 'no_output_at_all';
             this.log.warn('empty model response with no tool calls — exiting loop', { agentClass: this.agentClass, emptyResponseKind });
+          } else if (fromFallback) {
+            // SP 1.16 RC-β.3 — case (b) — fail-closed: any non-empty response
+            // produced via the `invokeWithThinkingStreamFallback` catch path
+            // is classified as narrate-without-dispatch UNCONDITIONALLY,
+            // because the fallback path is the load-bearing observability
+            // signal that the primary streaming path failed and the model
+            // surfaced text without exercising the tool-emission contract.
+            emptyResponseKind = 'narrate_without_dispatch';
+            this.log.warn('fallback-derived non-empty response — classifying as narrate_without_dispatch', {
+              agentClass: this.agentClass,
+              responseLength: parsedOutput.response.length,
+            });
+          } else if (this.detectNarrateWithoutDispatch(parsedOutput.response, toolDefinitionsForDetector)) {
+            // SP 1.16 RC-β.1 — case (c) — primary-path detector adjudication:
+            // the model emitted a non-empty conversational response, no tool
+            // calls, primary path (not fallback). The `detectNarrateWithoutDispatch`
+            // heuristic classifies as narrate-without-dispatch only when a
+            // bounded past-tense action verb co-occurs with a tool-name token
+            // within a tight proximity window AND the agent has tools available.
+            emptyResponseKind = 'narrate_without_dispatch';
+            this.log.warn('detector fired — classifying as narrate_without_dispatch', {
+              agentClass: this.agentClass,
+              responseLength: parsedOutput.response.length,
+            });
           } else {
+            // case (d) — default no-op: normal conversational exit.
             this.log.debug('conversational exit (no tool calls)', { agentClass: this.agentClass });
           }
           budgetTracker.recordTurn();
@@ -626,6 +693,7 @@ export class AgentGateway implements IAgentGateway {
     traceId: string,
     projectId: string | undefined,
     correlation: { runId: string; parentId?: string; sequence: number },
+    observability: { onFallback: () => void },
   ): Promise<import('@nous/shared').ModelResponse> {
     const eventBus = this.config.eventBus!;
     const request = {
@@ -644,6 +712,14 @@ export class AgentGateway implements IAgentGateway {
       return await provider.invokeWithThinkingStream!(request, eventBus, traceId as TraceId);
     } catch (err) {
       this.log.warn('invokeWithThinkingStream failed, falling back to invoke()', { error: String(err) });
+      // SP 1.16 RC-β.3 — fire the per-turn observability callback BEFORE
+      // returning provider.invoke(). The callback flips the caller's
+      // `fromFallback` flag so the conversational-exit branch can fail-closed
+      // on the fallback path. Firing before invoke() means the flag is set
+      // even if invoke() itself throws (in which case the error propagates
+      // and the conversational-exit branch is not reached for that turn —
+      // correctness for the returned-without-throwing path is preserved).
+      observability.onFallback();
       return provider.invoke(request);
     }
   }
@@ -1481,6 +1557,68 @@ export class AgentGateway implements IAgentGateway {
     });
   }
 
+  /**
+   * SP 1.16 RC-β.1 — high-precision-low-recall heuristic that classifies a
+   * non-empty primary-path conversational response as narrate-without-dispatch
+   * when the model emits a past-tense action verb that co-occurs with a
+   * tool-name token within a tight character-window AND the agent actually
+   * has tools available.
+   *
+   * Defensive guards:
+   *  - `toolDefinitions.length === 0` → returns false unconditionally (the
+   *    agent has no tools so "narrating without dispatching" is not a
+   *    meaningful classification).
+   *  - tool-token derivation produces zero tokens of length ≥ 4 → returns
+   *    false (no usable signal to anchor a proximity check).
+   *
+   * Heuristic shape (intentionally narrow to avoid false positives on
+   * questions, present-tense statements, or tool-result paraphrasing):
+   *  1. Match a bounded set of past-tense action verbs (`PAST_TENSE_ACTIONS`).
+   *  2. Derive tool tokens by splitting tool names on `_`, stripping
+   *     namespace-prefix-like prefixes, keeping tokens of length ≥ 4.
+   *  3. For each matched action verb, scan a ±120 char window for any
+   *     tool-token literal (case-insensitive).
+   *  4. Returns true on the first window match; false otherwise.
+   */
+  private detectNarrateWithoutDispatch(
+    response: string,
+    toolDefinitions: ToolDefinition[],
+  ): boolean {
+    if (toolDefinitions.length === 0) return false;
+
+    const PAST_TENSE_ACTIONS = /\b(?:added|created|deleted|removed|updated|installed|saved|ran|executed|dispatched|sent|registered|configured|started|stopped|wrote|fetched|loaded)\b/gi;
+
+    // Derive tool tokens: split each tool name on `_`, drop short tokens, drop
+    // common namespace-prefix-like leading segments by keeping length ≥ 4.
+    const toolTokens = new Set<string>();
+    for (const def of toolDefinitions) {
+      const parts = def.name.split('_');
+      for (const part of parts) {
+        if (part.length >= 4) {
+          toolTokens.add(part.toLowerCase());
+        }
+      }
+    }
+    if (toolTokens.size === 0) return false;
+
+    const lower = response.toLowerCase();
+    PAST_TENSE_ACTIONS.lastIndex = 0;
+    let actionMatch: RegExpExecArray | null;
+    while ((actionMatch = PAST_TENSE_ACTIONS.exec(response)) !== null) {
+      const actionIndex = actionMatch.index;
+      const windowStart = Math.max(0, actionIndex - 120);
+      const windowEnd = Math.min(response.length, actionIndex + actionMatch[0].length + 120);
+      const window = lower.slice(windowStart, windowEnd);
+      for (const token of toolTokens) {
+        if (window.includes(token)) {
+          return true;
+        }
+      }
+    }
+
+    return false;
+  }
+
   private buildSingleTurnResult(
     parsedOutput: ParsedModelOutput,
     sequencer: CorrelationSequencer,
@@ -1494,13 +1632,15 @@ export class AgentGateway implements IAgentGateway {
     const now = this.now();
     const nowMs = this.nowMs();
     const correlation = sequencer.snapshot();
-    // SP 1.15 RC-1 — when the empty-loop guard fires, the user-visible output
-    // carries EMPTY_RESPONSE_MARKER + the discriminator. The witness packet
-    // (v3Packet.payload.data.response) keeps the raw model output so the
-    // witness's view of "what the model actually emitted" is unchanged.
+    // SP 1.15 RC-1 + SP 1.16 RC-β.1 — when the empty-loop or narrate-without-
+    // dispatch guard fires, the user-visible output carries the appropriate
+    // marker (selected via `markerForKind` exhaustive switch) + the
+    // discriminator. The witness packet (v3Packet.payload.data.response below)
+    // keeps the raw model output so the witness's view of "what the model
+    // actually emitted" is unchanged.
     const baseOutput: ChatAgentOutput = emptyResponseKind
       ? {
-          response: EMPTY_RESPONSE_MARKER,
+          response: markerForKind(emptyResponseKind),
           contentType: parsedOutput.contentType,
           thinkingContent: parsedOutput.thinkingContent,
           empty_response_kind: emptyResponseKind,

@@ -356,8 +356,12 @@ export class AnthropicProvider implements IModelProvider {
     init: RequestInit,
   ): Promise<Response> {
     const timeoutController = new AbortController();
+    // SP 1.16 RC-β.2 / β3 — symmetric to Ollama β1: abort with a DOMException
+    // (name: 'AbortError') so the catch block classifies timeout aborts via
+    // either the hoisted signal check OR the name check, never falling
+    // through to the generic "endpoint unreachable" branch.
     const timeout = setTimeout(
-      () => timeoutController.abort('provider_timeout'),
+      () => timeoutController.abort(new DOMException('provider_timeout', 'AbortError')),
       this.timeoutMs,
     );
     const signal = init.signal
@@ -370,15 +374,15 @@ export class AnthropicProvider implements IModelProvider {
         signal,
       });
     } catch (error) {
+      // SP 1.16 RC-β.2 / β3 — hoist signal-aborted check above name check.
+      if (timeoutController.signal.aborted) {
+        throw new NousError(
+          `Anthropic request timed out after ${this.timeoutMs}ms`,
+          'PROVIDER_UNAVAILABLE',
+          { failoverReasonCode: 'PRV-PROVIDER-UNAVAILABLE' },
+        );
+      }
       if ((error as Error).name === 'AbortError') {
-        if (timeoutController.signal.aborted) {
-          throw new NousError(
-            `Anthropic request timed out after ${this.timeoutMs}ms`,
-            'PROVIDER_UNAVAILABLE',
-            { failoverReasonCode: 'PRV-PROVIDER-UNAVAILABLE' },
-          );
-        }
-
         throw new NousError('Anthropic request aborted.', 'ABORTED');
       }
 

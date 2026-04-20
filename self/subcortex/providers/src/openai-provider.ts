@@ -233,8 +233,9 @@ export class OpenAiCompatibleProvider implements IModelProvider {
     init: RequestInit,
   ): Promise<Response> {
     const timeoutController = new AbortController();
+    // SP 1.16 RC-β.2 / β4 — symmetric to Ollama β1 + Anthropic β3.
     const timeout = setTimeout(
-      () => timeoutController.abort('provider_timeout'),
+      () => timeoutController.abort(new DOMException('provider_timeout', 'AbortError')),
       this.timeoutMs,
     );
     const signal = init.signal
@@ -247,14 +248,15 @@ export class OpenAiCompatibleProvider implements IModelProvider {
         signal,
       });
     } catch (e) {
+      // SP 1.16 RC-β.2 / β4 — hoist signal-aborted check above name check.
+      if (timeoutController.signal.aborted) {
+        throw new NousError(
+          `OpenAI request timed out after ${this.timeoutMs}ms`,
+          'PROVIDER_UNAVAILABLE',
+          { failoverReasonCode: 'PRV-PROVIDER-UNAVAILABLE' },
+        );
+      }
       if ((e as Error).name === 'AbortError') {
-        if (timeoutController.signal.aborted) {
-          throw new NousError(
-            `OpenAI request timed out after ${this.timeoutMs}ms`,
-            'PROVIDER_UNAVAILABLE',
-            { failoverReasonCode: 'PRV-PROVIDER-UNAVAILABLE' },
-          );
-        }
         throw new NousError('OpenAI request aborted.', 'ABORTED');
       }
       throw new NousError(

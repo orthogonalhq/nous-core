@@ -325,6 +325,18 @@ export function createOllamaAdapter(modelId?: string, log?: ILogChannel): Provid
         result.stream = false;
       }
 
+      // SP 1.16 RC-α — Activate native-thinking output on the wire when the
+      // adapter declares `extendedThinking: true`. Required by Ollama's /api/chat
+      // for thinking-capable models per Ollama API v0.4.0+. The adapter declares
+      // `extendedThinking: true` unconditionally at line 234, so this activation
+      // is unconditional today. Future model-aware tightening (Goals Decision D
+      // note; α5 — out of SP 1.16 scope) would gate this on a model-capability
+      // check. Mirrors the SP 1.15 RC-2 wire-mode-honoring precedent at the
+      // `result.stream = false` setter above.
+      if (capabilities.extendedThinking) {
+        result.think = true;
+      }
+
       // Pass model requirements metadata
       if (input.modelRequirements) {
         result.model_profile = input.modelRequirements.profile;

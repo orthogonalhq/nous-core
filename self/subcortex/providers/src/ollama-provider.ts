@@ -402,6 +402,7 @@ export class OllamaProvider implements IModelProvider {
     messages?: Array<{ role: string; content: string | unknown[]; tool_call_id?: string; tool_calls?: unknown[] }>;
     tools?: Array<Record<string, unknown>>;
     stream?: boolean;
+    think?: boolean;
   } {
     const result = TextModelInputSchema.safeParse(input);
     if (!result.success) {
@@ -416,6 +417,7 @@ export class OllamaProvider implements IModelProvider {
       messages?: Array<{ role: string; content: string | unknown[]; tool_call_id?: string; tool_calls?: unknown[] }>;
       tools?: Array<Record<string, unknown>>;
       stream?: boolean;
+      think?: boolean;
     };
   }
 
@@ -425,6 +427,7 @@ export class OllamaProvider implements IModelProvider {
       messages?: Array<{ role: string; content: string | unknown[]; tool_call_id?: string; tool_calls?: unknown[] }>;
       tools?: Array<Record<string, unknown>>;
       stream?: boolean;
+      think?: boolean;
     },
   ): Record<string, unknown> {
     const base: Record<string, unknown> = { model: this.config.modelId };
@@ -459,6 +462,15 @@ export class OllamaProvider implements IModelProvider {
       body.stream = input.stream;
     }
 
+    // SP 1.16 RC-α — propagate `think` from the validated input so the Ollama
+    // adapter's `result.think = true` setter (created at SP 1.16 RC-α / α4) is
+    // honored end-to-end on the wire body. Pattern mirrors the SP 1.15 Tier 5
+    // deviation #1 `stream` propagation above. Ollama API v0.4.0+ accepts
+    // `think: true` on /api/chat; non-thinking models silently ignore the field.
+    if (typeof input.think === 'boolean') {
+      body.think = input.think;
+    }
+
     return body;
   }
 
@@ -473,8 +485,14 @@ export class OllamaProvider implements IModelProvider {
     init: RequestInit,
   ): Promise<Response> {
     const timeoutController = new AbortController();
+    // SP 1.16 RC-β.2 / β1 — abort with a DOMException(name: 'AbortError') so
+    // the catch block's `(e as Error).name === 'AbortError'` branch fires for
+    // timeout aborts (the prior string-reason form `'provider_timeout'` was
+    // surfaced as the rejection's `.message`/`.cause`, NOT as a name change,
+    // so the timeout path silently fell through to the generic
+    // "Ollama not available at ${endpoint}: undefined" branch).
     const timeout = setTimeout(
-      () => timeoutController.abort('provider_timeout'),
+      () => timeoutController.abort(new DOMException('provider_timeout', 'AbortError')),
       this.timeoutMs,
     );
     const signal = init.signal
@@ -488,14 +506,20 @@ export class OllamaProvider implements IModelProvider {
       });
       return response;
     } catch (e) {
+      // SP 1.16 RC-β.2 / β2 — hoist the timeout-controller signal check above
+      // the AbortError name check so a timeout-driven abort is classified as
+      // a timeout regardless of which class of exception the runtime surfaces
+      // (DOMException vs Error). Belt-and-suspenders against runtime drift.
+      if (timeoutController.signal.aborted) {
+        throw new NousError(
+          `Ollama request timed out after ${this.timeoutMs}ms`,
+          'PROVIDER_UNAVAILABLE',
+          { failoverReasonCode: 'PRV-PROVIDER-UNAVAILABLE' },
+        );
+      }
+      // After SP 1.16 RC-β.2 hoist, this branch reaches user-initiated aborts
+      // only (the timeout-driven abort has already been classified above).
       if ((e as Error).name === 'AbortError') {
-        if (timeoutController.signal.aborted) {
-          throw new NousError(
-            `Ollama request timed out after ${this.timeoutMs}ms`,
-            'PROVIDER_UNAVAILABLE',
-            { failoverReasonCode: 'PRV-PROVIDER-UNAVAILABLE' },
-          );
-        }
         throw new NousError('Ollama request aborted.', 'ABORTED');
       }
       throw new NousError(

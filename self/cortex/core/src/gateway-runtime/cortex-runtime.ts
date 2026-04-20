@@ -39,7 +39,8 @@ import type {
   PromptFormatterInput,
   ProviderVendor,
 } from '@nous/shared';
-import { EMPTY_RESPONSE_MARKER, GatewayContextFrameSchema, type EmptyResponseKind } from '@nous/shared';
+import { GatewayContextFrameSchema, type EmptyResponseKind } from '@nous/shared';
+import { markerForKind } from '../agent-gateway/agent-gateway.js';
 import { AgentGatewayFactory, createInboxFrame } from '../agent-gateway/index.js';
 import {
   createInternalMcpSurfaceBundle,
@@ -986,11 +987,13 @@ implements IPrincipalSystemGatewayRuntime, ISystemInboxSubmissionService {
         timestamp,
         ...(Object.keys(userMetadata).length > 0 ? { metadata: userMetadata } : {}),
       });
-      // SP 1.15 RC-1 — when the empty-loop guard fired upstream, the STM
-      // entry stores EMPTY_RESPONSE_MARKER as content and tags the metadata
-      // so buildChatContextFrames can SKIP it on the next turn (avoids
-      // marker-text bleeding into model context).
-      const assistantContent = emptyResponseKind ? EMPTY_RESPONSE_MARKER : assistantResponse;
+      // SP 1.15 RC-1 + SP 1.16 RC-β.1 — when the empty-loop or narrate-without-
+      // dispatch guard fired upstream, the STM entry stores the appropriate
+      // marker (selected via shared `markerForKind` exhaustive switch) as
+      // content and tags the metadata so buildChatContextFrames can SKIP it
+      // on the next turn (avoids marker-text bleeding into model context;
+      // SP 1.15 SKIP policy continuity per Invariant I-13).
+      const assistantContent = emptyResponseKind ? markerForKind(emptyResponseKind) : assistantResponse;
       const assistantMetadata: Record<string, unknown> = {};
       if (contentType && contentType !== 'text') assistantMetadata.contentType = contentType;
       if (thinkingContent) assistantMetadata.thinkingContent = thinkingContent;
