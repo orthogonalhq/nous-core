@@ -411,16 +411,38 @@ export const EMPTY_RESPONSE_MARKER =
   '[I produced reasoning but did not finalize a response. Click Thinking to view what I was working on, or rephrase your request.]';
 
 /**
- * Discriminator written alongside `EMPTY_RESPONSE_MARKER` so callers can tell
- * the two empty-exit shapes apart:
+ * Marker text written to `AgentResult.output.response` (and to STM) when the
+ * Principal gateway's narrate-without-dispatch guard fires — that is, when
+ * the model produced a non-empty conversational response that describes an
+ * action as completed (e.g., "I added the workflow") without emitting the
+ * corresponding tool call AND either (a) the response was produced via the
+ * fallback path of `invokeWithThinkingStreamFallback` (fail-closed) OR (b)
+ * the gateway's `detectNarrateWithoutDispatch` heuristic fired on the
+ * primary-path response (adjudicated).
+ *
+ * SP 1.16 RC-β.1 + RC-β.3 — Bug Chain β. Lives in `@nous/shared` so every
+ * consumer (gateway, runtime, UI) imports a single source of truth; future
+ * copy-edits must update this constant, never the importers.
+ */
+export const NARRATE_WITHOUT_DISPATCH_MARKER =
+  '[I described an action without actually performing it. The tool I should have called was not dispatched. Please rephrase your request or try again.]';
+
+/**
+ * Discriminator written alongside the appropriate empty-exit / narrate-exit
+ * marker so callers can tell the empty-exit and narrate-exit shapes apart:
  *
  * - `thinking_only_no_finalizer` — model emitted thinking content but no
  *   user-facing response and no tool calls.
  * - `no_output_at_all` — model emitted neither thinking nor response.
+ * - `narrate_without_dispatch` — model emitted a non-empty conversational
+ *   response describing an action as completed without emitting the
+ *   corresponding tool call (fail-closed on fallback OR detector-adjudicated
+ *   on primary path). SP 1.16 RC-β.1 + RC-β.3.
  */
 export const EmptyResponseKindSchema = z.enum([
   'thinking_only_no_finalizer',
   'no_output_at_all',
+  'narrate_without_dispatch',
 ]);
 export type EmptyResponseKind = z.infer<typeof EmptyResponseKindSchema>;
 
