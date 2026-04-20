@@ -96,7 +96,7 @@ Sub-stage transitions normally cross-fade. When your OS has **Reduce motion** en
 
 ## Back navigation
 
-Press the wizard's outer **Back** button at any sub-stage to return to **Welcome**. The Identity step does not have its own internal back navigation between sub-stages — back from A, B, or C lands you at Welcome the same way back from any other top-level step would. If you re-enter Identity later, the internal state machine starts at Sub-stage A again; nothing is held over.
+Press the wizard's outer **Back** button at any sub-stage to return to **Welcome**. The Identity step does not have its own internal back navigation between sub-stages — back from A, B, or C lands you at Welcome the same way back from any other top-level step would. If you re-enter Identity later in the same session, the internal sub-stage cursor restarts at Sub-stage A, but any values you already typed — your agent's name, your personality preset (with any advanced overrides and the advanced-options open/closed state), and your profile fields — are preserved and re-render in the form so you can pick up where you left off. A full wizard reset via `firstRun.resetWizard` clears the draft as well as the persisted config.
 
 ## Hand-editing the `agent` block
 

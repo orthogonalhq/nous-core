@@ -37,6 +37,10 @@ For the full walkthrough of preset semantics, advanced overrides, the security d
 
 The Model Download step is where Nous picks a local model that fits your hardware, pulls it through Ollama, and wires it up to the four core agent roles. You see one or more **recommendation cards** sized to your machine, plus a **custom model spec** input if you want to override the recommendation.
 
+### Why these models? Hardware-to-recommendation summary
+
+Above the recommendation cards, the wizard shows a short **hardware summary** that explains how the recommendations were chosen. It surfaces the RAM (in GB), CPU core count, and GPU presence (and name where available) that Nous detected on your machine, the **tier** that Nous mapped those specs to (`Compact`, `Balanced`, `Mid-spec`, or `High-spec`), and the per-tier model titles those specs map to. The hero subtitle reads: *"Recommendations are tailored to your detected hardware. Adjust below if needed."* This makes the link from your hardware to the cards below explicit, so you can answer "why these models?" without reading source code. The summary is omitted when no local hardware profile is available (for example, in a remote-only configuration).
+
 ### Recommendation cards and the validation indicator
 
 Each recommendation card carries a small **validation indicator** that tells you whether Nous can currently pull that model from the public Ollama library. The indicator has four states:
@@ -50,7 +54,9 @@ Each recommendation card carries a small **validation indicator** that tells you
 
 All four states remain **selectable**. The Download button is **never gated** by the validation state — Nous biases toward letting you try the download even when verification is uncertain, because Ollama's local cache may already have the model and registry coverage may differ between the wizard process and the Ollama daemon. If a download ultimately fails, the wizard surfaces the underlying Ollama error message in place.
 
-The validation check runs **once at step mount**, not on every keystroke or click. Nous keeps a 30-minute per-spec session cache so navigating back to the step does not re-issue probes.
+If a recommended model is **already pulled locally** (visible to your Ollama daemon), Nous renders its card as `validated` directly, regardless of whether the registry HEAD probe succeeds. Local presence is durable signal — being offline, behind a captive portal, or rate-limited by the Ollama registry will not cause an installed model to display as `unavailable` or `offline`. The registry probe still runs for models you do not yet have, exactly as before.
+
+The validation check runs **once at step mount**, not on every keystroke or click. Nous keeps a 30-minute per-spec session cache so navigating back to the step does not re-issue probes. Locally-present models short-circuit the probe entirely and do not consume a cache entry.
 
 ### Custom model spec
 
