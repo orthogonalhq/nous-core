@@ -624,6 +624,7 @@ implements IPrincipalSystemGatewayRuntime, ISystemInboxSubmissionService {
       thinkingContent: resolved.thinkingContent,
       ...(cards && cards.length > 0 ? { cards } : {}),
       ...(resolved.empty_response_kind ? { empty_response_kind: resolved.empty_response_kind } : {}),
+      ...(resolved.thinking_unavailable ? { thinking_unavailable: resolved.thinking_unavailable } : {}),
     };
   }
 
@@ -863,9 +864,9 @@ implements IPrincipalSystemGatewayRuntime, ISystemInboxSubmissionService {
     return result;
   }
 
-  private resolveChatResponse(result: AgentResult): { response: string; contentType: 'text' | 'openui'; thinkingContent?: string; empty_response_kind?: EmptyResponseKind } {
+  private resolveChatResponse(result: AgentResult): { response: string; contentType: 'text' | 'openui'; thinkingContent?: string; empty_response_kind?: EmptyResponseKind; thinking_unavailable?: { reason: string; ref: string } } {
     if (result.status === 'completed') {
-      const output = result.output as { response?: unknown; output?: unknown; contentType?: unknown; thinkingContent?: unknown; empty_response_kind?: unknown } | string;
+      const output = result.output as { response?: unknown; output?: unknown; contentType?: unknown; thinkingContent?: unknown; empty_response_kind?: unknown; thinking_unavailable?: unknown } | string;
 
       // Extract thinkingContent from structured output (undefined for direct-string outputs)
       const thinkingContent = (typeof output === 'object' && output !== null && typeof output.thinkingContent === 'string')
@@ -876,6 +877,22 @@ implements IPrincipalSystemGatewayRuntime, ISystemInboxSubmissionService {
       const empty_response_kind = (typeof output === 'object' && output !== null && typeof output.empty_response_kind === 'string')
         ? output.empty_response_kind as EmptyResponseKind
         : undefined;
+
+      // SP 1.17 RC-α-1 — extract the structurally-derived thinking-unavailable
+      // signal if the gateway set it. Pure pass-through; the runtime does NOT
+      // adjudicate or transform — UI render owns presentation.
+      const thinking_unavailable = (
+        typeof output === 'object' &&
+        output !== null &&
+        typeof output.thinking_unavailable === 'object' &&
+        output.thinking_unavailable !== null &&
+        typeof (output.thinking_unavailable as { reason?: unknown }).reason === 'string' &&
+        typeof (output.thinking_unavailable as { ref?: unknown }).ref === 'string'
+      )
+        ? output.thinking_unavailable as { reason: string; ref: string }
+        : undefined;
+
+      const tuSpread = thinking_unavailable ? { thinking_unavailable } : {};
 
       // 1. Direct string — use as-is
       if (typeof output === 'string') return { response: output, contentType: 'text' };
@@ -888,6 +905,7 @@ implements IPrincipalSystemGatewayRuntime, ISystemInboxSubmissionService {
           contentType: ct,
           thinkingContent,
           ...(empty_response_kind ? { empty_response_kind } : {}),
+          ...tuSpread,
         };
       }
 
@@ -903,6 +921,7 @@ implements IPrincipalSystemGatewayRuntime, ISystemInboxSubmissionService {
           response: ((output as { output: { response: string } }).output).response,
           contentType: 'text',
           thinkingContent,
+          ...tuSpread,
         };
       }
 
@@ -912,7 +931,7 @@ implements IPrincipalSystemGatewayRuntime, ISystemInboxSubmissionService {
         if (keys.length === 1) {
           const value = (output as Record<string, unknown>)[keys[0]];
           if (typeof value === 'string') {
-            return { response: value, contentType: 'text', thinkingContent };
+            return { response: value, contentType: 'text', thinkingContent, ...tuSpread };
           }
         }
       }
@@ -922,6 +941,7 @@ implements IPrincipalSystemGatewayRuntime, ISystemInboxSubmissionService {
         response: '```json\n' + JSON.stringify(output, null, 2) + '\n```',
         contentType: 'text',
         thinkingContent,
+        ...tuSpread,
       };
     }
     if (result.status === 'escalated') return { response: `[escalated: ${result.reason}]`, contentType: 'text' };
