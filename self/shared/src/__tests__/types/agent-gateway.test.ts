@@ -8,7 +8,7 @@ import {
   DispatchWorkerRequestSchema,
   EMPTY_RESPONSE_MARKER,
   EmptyResponseKindSchema,
-  NARRATE_WITHOUT_DISPATCH_MARKER,
+  ThinkingUnavailableSchema,
   GatewayInboxMessageSchema,
   GatewayOutboxEventSchema,
   GatewayStampedPacketSchema,
@@ -563,11 +563,14 @@ describe('EMPTY_RESPONSE_MARKER (SP 1.15 RC-1)', () => {
   });
 });
 
-describe('EmptyResponseKindSchema (SP 1.15 RC-1 + SP 1.16 RC-β.1)', () => {
-  it('accepts all three discriminator branches', () => {
+describe('EmptyResponseKindSchema (SP 1.15 RC-1 — narrowed at SP 1.17)', () => {
+  it('accepts both empty-exit discriminator branches', () => {
     expect(EmptyResponseKindSchema.safeParse('thinking_only_no_finalizer').success).toBe(true);
     expect(EmptyResponseKindSchema.safeParse('no_output_at_all').success).toBe(true);
-    expect(EmptyResponseKindSchema.safeParse('narrate_without_dispatch').success).toBe(true);
+  });
+
+  it('rejects the SP 1.16 narrate_without_dispatch value (ripped at SP 1.17)', () => {
+    expect(EmptyResponseKindSchema.safeParse('narrate_without_dispatch').success).toBe(false);
   });
 
   it('rejects any other string', () => {
@@ -580,23 +583,15 @@ describe('EmptyResponseKindSchema (SP 1.15 RC-1 + SP 1.16 RC-β.1)', () => {
   });
 });
 
-describe('NARRATE_WITHOUT_DISPATCH_MARKER (SP 1.16 RC-β.1)', () => {
-  it('pins the literal marker text — drift-detector for the user-visible string', () => {
-    expect(NARRATE_WITHOUT_DISPATCH_MARKER).toBe(
-      '[I described an action without actually performing it. The tool I should have called was not dispatched. Please rephrase your request or try again.]',
-    );
-  });
-});
-
-describe('Cross-package UI literal-union consistency (SP 1.16 RC-β.1)', () => {
+describe('Cross-package UI literal-union consistency (SP 1.15 RC-1 — narrowed at SP 1.17)', () => {
   // The UI layer (self/ui/src/panels/chat/types.ts) duplicates the
   // EmptyResponseKindSchema literal-union per the existing chat-types
   // convention (no @nous/shared import in UI types). This test pins the
   // expected UI shape against the shared schema so future drift fails fast.
+  // SP 1.17 narrows from 3 to 2 values per SDS § 1.3.
   const UI_LITERAL_UNION_VALUES = [
     'thinking_only_no_finalizer',
     'no_output_at_all',
-    'narrate_without_dispatch',
   ] as const;
 
   it('every shared EmptyResponseKindSchema value appears in the UI literal-union', () => {
@@ -611,6 +606,68 @@ describe('Cross-package UI literal-union consistency (SP 1.16 RC-β.1)', () => {
     for (const uiValue of UI_LITERAL_UNION_VALUES) {
       expect(sharedValues).toContain(uiValue);
     }
+  });
+});
+
+describe('ThinkingUnavailableSchema (SP 1.17 RC-α-1)', () => {
+  it('accepts a well-formed { reason, ref } pair', () => {
+    const result = ThinkingUnavailableSchema.safeParse({
+      reason: 'multi-turn request shape — provider/model template does not surface thinking',
+      ref: 'WR-172',
+    });
+    expect(result.success).toBe(true);
+  });
+
+  it('rejects missing fields', () => {
+    expect(ThinkingUnavailableSchema.safeParse({ reason: 'x' }).success).toBe(false);
+    expect(ThinkingUnavailableSchema.safeParse({ ref: 'WR-172' }).success).toBe(false);
+  });
+
+  it('rejects empty strings', () => {
+    expect(ThinkingUnavailableSchema.safeParse({ reason: '', ref: 'WR-172' }).success).toBe(false);
+    expect(ThinkingUnavailableSchema.safeParse({ reason: 'x', ref: '' }).success).toBe(false);
+  });
+
+  it('enforces length bounds', () => {
+    expect(
+      ThinkingUnavailableSchema.safeParse({ reason: 'a'.repeat(201), ref: 'WR-172' }).success,
+    ).toBe(false);
+    expect(
+      ThinkingUnavailableSchema.safeParse({ reason: 'x', ref: 'A'.repeat(41) }).success,
+    ).toBe(false);
+  });
+
+  it('rejects extra properties (strict)', () => {
+    expect(
+      ThinkingUnavailableSchema.safeParse({ reason: 'x', ref: 'WR-172', extra: 1 }).success,
+    ).toBe(false);
+  });
+});
+
+describe('Cross-package thinking_unavailable paired-shape consistency (SP 1.17 RC-α-1)', () => {
+  // Paired-shape consistency check — the same { reason: string; ref: string }
+  // shape MUST appear in:
+  //   - @nous/shared ThinkingUnavailableSchema (validated above)
+  //   - @nous/cortex-core ChatTurnResultSchema.thinking_unavailable
+  //     (literal-duplicated per cortex-core does-not-import-from-shared-runtime convention)
+  //   - @nous/ui ChatMessage.thinking_unavailable + ChatAPI.send return-type
+  //     (literal-duplicated per the chat-types duplicate-not-import convention)
+  // The shared schema is the canonical source; this test pins the expected
+  // shape so cross-package drift fails fast in CI.
+  const EXPECTED_SHAPE_KEYS = ['reason', 'ref'] as const;
+
+  it('shared ThinkingUnavailableSchema has exactly the expected keys', () => {
+    const valid = ThinkingUnavailableSchema.parse({ reason: 'x', ref: 'WR-172' });
+    expect(Object.keys(valid).sort()).toEqual([...EXPECTED_SHAPE_KEYS].sort());
+  });
+
+  it('shape is { reason: string; ref: string } — both string-typed', () => {
+    expect(
+      ThinkingUnavailableSchema.safeParse({ reason: 1, ref: 'WR-172' }).success,
+    ).toBe(false);
+    expect(
+      ThinkingUnavailableSchema.safeParse({ reason: 'x', ref: 1 }).success,
+    ).toBe(false);
   });
 });
 

@@ -1,5 +1,6 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import type { IEventBus, ProviderId } from '@nous/shared';
+import { NousError } from '@nous/shared';
 import { OllamaProvider } from '../ollama-provider.js';
 
 const MOCK_CONFIG = {
@@ -444,5 +445,169 @@ describe('OllamaProvider — wire-body think propagation (SP 1.16 RC-α / α6)',
     const thinkingEvents = recorded.filter((r) => r.channel === 'chat:thinking-chunk');
     expect(thinkingEvents.length).toBe(1);
     expect(thinkingEvents[0].payload.content).toBe('full reasoning trace');
+  });
+});
+
+// ── SP 1.17 RC-β-1.1 (Option iii) — provider self-recovery contract battery ──
+
+describe('OllamaProvider self-recovery contract (SP 1.17 RC-β-1.1 / T-P1–T-P6)', () => {
+  beforeEach(() => {
+    vi.stubGlobal('fetch', vi.fn());
+  });
+
+  function makeNonStreamResponse(payload: unknown): Response {
+    return {
+      ok: true,
+      status: 200,
+      json: async () => payload,
+    } as unknown as Response;
+  }
+
+  function makeRequest() {
+    return {
+      role: 'cortex-chat' as const,
+      input: {
+        messages: [{ role: 'user' as const, content: 'hi' }],
+        stream: false,
+      },
+      traceId: TRACE_ID,
+    };
+  }
+
+  it('T-P1 — primary success → returned ModelResponse.recovery is undefined', async () => {
+    const provider = new OllamaProvider(MOCK_CONFIG);
+    const bus = recordingBus();
+    vi.mocked(fetch).mockResolvedValue(
+      makeNonStreamResponse({
+        message: { role: 'assistant', content: 'hi back', thinking: 'thought' },
+        done: true,
+        eval_count: 1,
+        prompt_eval_count: 1,
+      }),
+    );
+
+    const result = await provider.invokeWithThinkingStream(makeRequest(), bus, TRACE_ID);
+    expect(result.recovery).toBeUndefined();
+  });
+
+  /**
+   * Helper to inject a primary-path failure of the desired NousError code.
+   * The OllamaProvider's `fetchWithTimeout` rewraps fetch errors to
+   * 'PROVIDER_UNAVAILABLE'/'ABORTED', so to test ABORTED + MODEL_NOT_FOUND
+   * propagation we spy on the private `invokeWithThinkingStreamPrimary` method
+   * directly (private at TS-level only — addressable at runtime).
+   */
+  function stubPrimary(provider: OllamaProvider, err: unknown) {
+    return vi.spyOn(provider as unknown as { invokeWithThinkingStreamPrimary: (...args: unknown[]) => Promise<unknown> }, 'invokeWithThinkingStreamPrimary')
+      .mockRejectedValue(err);
+  }
+
+  it('T-P2 — primary PROVIDER_UNAVAILABLE → recovery succeeds; recovery field populated; content equals invoke()-path content', async () => {
+    const provider = new OllamaProvider(MOCK_CONFIG);
+    const bus = recordingBus();
+    // Spy on invoke to confirm it is the recovery path AND to control content.
+    const invokeSpy = vi.spyOn(provider, 'invoke').mockResolvedValue({
+      output: { role: 'assistant', content: 'recovered content' },
+      providerId: MOCK_CONFIG.id,
+      usage: { inputTokens: 1, outputTokens: 1 },
+      traceId: TRACE_ID as never,
+    });
+
+    stubPrimary(provider, new NousError('Ollama request timed out after 60000ms', 'PROVIDER_UNAVAILABLE'));
+
+    const result = await provider.invokeWithThinkingStream(makeRequest(), bus, TRACE_ID);
+
+    expect(invokeSpy).toHaveBeenCalledTimes(1);
+    expect(result.recovery).toEqual({
+      method: 'invoke',
+      primaryError: 'PROVIDER_UNAVAILABLE',
+      primaryMessage: 'Ollama request timed out after 60000ms',
+    });
+    expect((result.output as { content: string }).content).toBe('recovered content');
+  });
+
+  it('T-P3 — primary ABORTED → recovery NOT attempted; ABORTED propagates', async () => {
+    const provider = new OllamaProvider(MOCK_CONFIG);
+    const bus = recordingBus();
+    const invokeSpy = vi.spyOn(provider, 'invoke').mockResolvedValue({
+      output: { role: 'assistant', content: 'should not be returned' },
+      providerId: MOCK_CONFIG.id,
+      usage: { inputTokens: 1, outputTokens: 1 },
+      traceId: TRACE_ID as never,
+    });
+    stubPrimary(provider, new NousError('Ollama request aborted.', 'ABORTED'));
+
+    await expect(provider.invokeWithThinkingStream(makeRequest(), bus, TRACE_ID)).rejects.toMatchObject({
+      code: 'ABORTED',
+    });
+    expect(invokeSpy).not.toHaveBeenCalled();
+  });
+
+  it('T-P4 — primary MODEL_NOT_FOUND → recovery NOT attempted; MODEL_NOT_FOUND propagates', async () => {
+    const provider = new OllamaProvider(MOCK_CONFIG);
+    const bus = recordingBus();
+    const invokeSpy = vi.spyOn(provider, 'invoke').mockResolvedValue({
+      output: { role: 'assistant', content: 'should not be returned' },
+      providerId: MOCK_CONFIG.id,
+      usage: { inputTokens: 1, outputTokens: 1 },
+      traceId: TRACE_ID as never,
+    });
+    stubPrimary(provider, new NousError('model not found', 'MODEL_NOT_FOUND'));
+
+    await expect(provider.invokeWithThinkingStream(makeRequest(), bus, TRACE_ID)).rejects.toMatchObject({
+      code: 'MODEL_NOT_FOUND',
+    });
+    expect(invokeSpy).not.toHaveBeenCalled();
+  });
+
+  it('T-P5 — primary PROVIDER_UNAVAILABLE → recovery PROVIDER_UNAVAILABLE → secondary error propagates (no composite)', async () => {
+    const provider = new OllamaProvider(MOCK_CONFIG);
+    const bus = recordingBus();
+    const secondaryErr = new NousError('ollama down', 'PROVIDER_UNAVAILABLE');
+    vi.spyOn(provider, 'invoke').mockRejectedValue(secondaryErr);
+    stubPrimary(provider, new NousError('primary timeout', 'PROVIDER_UNAVAILABLE'));
+
+    await expect(provider.invokeWithThinkingStream(makeRequest(), bus, TRACE_ID)).rejects.toBe(secondaryErr);
+  });
+
+  it('T-P6 — recovery log line emitted exactly once on recovery; NOT emitted on primary success', async () => {
+    const warnSpy = vi.spyOn(console, 'warn').mockImplementation(() => {});
+    try {
+      const provider = new OllamaProvider(MOCK_CONFIG);
+      const bus = recordingBus();
+
+      // Primary success path
+      vi.mocked(fetch).mockResolvedValueOnce(
+        makeNonStreamResponse({
+          message: { role: 'assistant', content: 'ok' },
+          done: true,
+          eval_count: 1,
+          prompt_eval_count: 1,
+        }),
+      );
+      await provider.invokeWithThinkingStream(makeRequest(), bus, TRACE_ID);
+
+      const callsAfterSuccess = warnSpy.mock.calls.filter((c) =>
+        typeof c[0] === 'string' && c[0].includes('invokeWithThinkingStream primary failed; recovering via invoke()'),
+      ).length;
+      expect(callsAfterSuccess).toBe(0);
+
+      // Recovery path
+      vi.spyOn(provider, 'invoke').mockResolvedValue({
+        output: { role: 'assistant', content: 'recovered' },
+        providerId: MOCK_CONFIG.id,
+        usage: { inputTokens: 1, outputTokens: 1 },
+        traceId: TRACE_ID as never,
+      });
+      stubPrimary(provider, new NousError('boom', 'PROVIDER_UNAVAILABLE'));
+      await provider.invokeWithThinkingStream(makeRequest(), bus, TRACE_ID);
+
+      const callsAfterRecovery = warnSpy.mock.calls.filter((c) =>
+        typeof c[0] === 'string' && c[0].includes('invokeWithThinkingStream primary failed; recovering via invoke()'),
+      ).length;
+      expect(callsAfterRecovery).toBe(1);
+    } finally {
+      warnSpy.mockRestore();
+    }
   });
 });

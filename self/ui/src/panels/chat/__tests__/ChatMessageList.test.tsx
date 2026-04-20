@@ -227,9 +227,10 @@ describe('ChatMessageList — empty_response_kind auto-open (SP 1.15 RC-1)', () 
     expect(detailsEl!.open).toBe(false)
   })
 
-  it('renders no <details> element when empty_response_kind is set but thinkingContent is absent', () => {
-    // Disclosure exists only when there is thinking content. Guards against
-    // a false-positive open on no-content.
+  it('renders no <details> element when empty_response_kind is set but neither thinkingContent nor thinking_unavailable is present', () => {
+    // Disclosure exists only when there is thinking content OR a structural
+    // thinking-unavailable signal. Guards against a false-positive open on
+    // no-content.
     mockSplit.mockReturnValue([{ type: 'text', content: 'marker text' }])
     const messages = [
       makeMessage('assistant', 'marker text', {
@@ -239,5 +240,75 @@ describe('ChatMessageList — empty_response_kind auto-open (SP 1.15 RC-1)', () 
     const { container } = renderList(messages)
     const detailsEl = container.querySelector('details')
     expect(detailsEl).toBeNull()
+  })
+})
+
+// ---------------------------------------------------------------------------
+// SP 1.17 RC-α-1 — thinking-unavailable render branch (T-U1–T-U4)
+// ---------------------------------------------------------------------------
+
+describe('ChatMessageList — thinking_unavailable render branch (SP 1.17 RC-α-1)', () => {
+  it('T-U1 — branch fires when thinking_unavailable is set and thinkingContent is absent → <details open> with <summary>Thinking</summary>', () => {
+    mockSplit.mockReturnValue([{ type: 'text', content: 'Sure thing.' }])
+    const messages = [
+      makeMessage('assistant', 'Sure thing.', {
+        thinking_unavailable: {
+          reason: 'multi-turn request shape — provider/model template does not surface thinking',
+          ref: 'WR-172',
+        },
+      }),
+    ]
+    const { container } = renderList(messages)
+    const detailsEl = container.querySelector('details') as HTMLDetailsElement | null
+    expect(detailsEl).not.toBeNull()
+    expect(detailsEl!.open).toBe(true)
+    const summary = detailsEl!.querySelector('summary')
+    expect(summary?.textContent).toBe('Thinking')
+  })
+
+  it('T-U2 — branch does NOT fire when thinkingContent is also set (mutual exclusion — thinkingContent wins)', () => {
+    mockSplit.mockReturnValue([{ type: 'text', content: 'Sure thing.' }])
+    const messages = [
+      makeMessage('assistant', 'Sure thing.', {
+        thinkingContent: 'Real reasoning content',
+        thinking_unavailable: {
+          reason: 'should not be rendered',
+          ref: 'WR-172',
+        },
+      }),
+    ]
+    const { container } = renderList(messages)
+    // The thinking-unavailable acknowledgment substring must not appear when
+    // thinkingContent wins.
+    expect(container.textContent).not.toContain('Thinking unavailable on this turn')
+  })
+
+  it('T-U3 — rendered body contains the literal substring "WR-172" via the ref field', () => {
+    mockSplit.mockReturnValue([{ type: 'text', content: 'Sure thing.' }])
+    const messages = [
+      makeMessage('assistant', 'Sure thing.', {
+        thinking_unavailable: {
+          reason: 'multi-turn request shape — provider/model template does not surface thinking',
+          ref: 'WR-172',
+        },
+      }),
+    ]
+    const { container } = renderList(messages)
+    expect(container.textContent).toContain('WR-172')
+  })
+
+  it('T-U4 — rendered body contains the structural reason text from the gateway derivation', () => {
+    mockSplit.mockReturnValue([{ type: 'text', content: 'Sure thing.' }])
+    const REASON = 'multi-turn request shape — provider/model template does not surface thinking'
+    const messages = [
+      makeMessage('assistant', 'Sure thing.', {
+        thinking_unavailable: {
+          reason: REASON,
+          ref: 'WR-172',
+        },
+      }),
+    ]
+    const { container } = renderList(messages)
+    expect(container.textContent).toContain(REASON)
   })
 })
