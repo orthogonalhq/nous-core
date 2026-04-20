@@ -368,3 +368,81 @@ describe('OllamaProvider.invokeWithThinkingStream', () => {
     expect(concatenated).toBe('foobar');
   });
 });
+
+describe('OllamaProvider — wire-body think propagation (SP 1.16 RC-α / α6)', () => {
+  beforeEach(() => {
+    vi.stubGlobal('fetch', vi.fn());
+  });
+
+  it('wire body has think:true when input.think === true', async () => {
+    const provider = new OllamaProvider(MOCK_CONFIG);
+    let capturedBody: Record<string, unknown> | undefined;
+    vi.mocked(fetch).mockImplementation(async (_url, init) => {
+      capturedBody = JSON.parse((init as RequestInit).body as string);
+      return {
+        ok: true,
+        json: async () => ({ message: { role: 'assistant', content: 'ok' }, done: true }),
+      } as Response;
+    });
+
+    await provider.invoke({
+      role: 'cortex-chat',
+      input: { messages: [{ role: 'user', content: 'hi' }], stream: false, think: true },
+      traceId: TRACE_ID,
+    });
+
+    expect(capturedBody?.think).toBe(true);
+  });
+
+  it('wire body omits think key when input.think is unset (backwards-compat)', async () => {
+    const provider = new OllamaProvider(MOCK_CONFIG);
+    let capturedBody: Record<string, unknown> | undefined;
+    vi.mocked(fetch).mockImplementation(async (_url, init) => {
+      capturedBody = JSON.parse((init as RequestInit).body as string);
+      return {
+        ok: true,
+        json: async () => ({ message: { role: 'assistant', content: 'ok' }, done: true }),
+      } as Response;
+    });
+
+    await provider.invoke({
+      role: 'cortex-chat',
+      input: { messages: [{ role: 'user', content: 'hi' }], stream: false },
+      traceId: TRACE_ID,
+    });
+
+    expect(capturedBody).toBeDefined();
+    expect('think' in (capturedBody ?? {})).toBe(false);
+  });
+
+  it('non-streaming branch publishes a chat:thinking-chunk with the full thinking text', async () => {
+    const provider = new OllamaProvider(MOCK_CONFIG);
+    const bus = recordingBus();
+    vi.mocked(fetch).mockResolvedValue({
+      ok: true,
+      json: async () => ({
+        message: {
+          role: 'assistant',
+          content: 'final answer',
+          thinking: 'full reasoning trace',
+        },
+        done: true,
+      }),
+    } as Response);
+
+    await provider.invokeWithThinkingStream!(
+      {
+        role: 'cortex-chat',
+        input: { messages: [{ role: 'user', content: 'hi' }], stream: false, think: true },
+        traceId: TRACE_ID,
+      },
+      bus,
+      TRACE_ID,
+    );
+
+    const recorded = (bus as unknown as { recorded: Array<{ channel: string; payload: { content: string } }> }).recorded;
+    const thinkingEvents = recorded.filter((r) => r.channel === 'chat:thinking-chunk');
+    expect(thinkingEvents.length).toBe(1);
+    expect(thinkingEvents[0].payload.content).toBe('full reasoning trace');
+  });
+});

@@ -712,3 +712,29 @@ describe('Ollama adapter regression — text-listed fallback', () => {
     expect(result.toolCalls).toEqual([]);
   });
 });
+
+describe('createOllamaAdapter — formatRequest sets result.think (SP 1.16 RC-α / α7)', () => {
+  it('sets result.think === true when extendedThinking capability is true (tool-bearing turn)', () => {
+    const adapter = createOllamaAdapter('llama3.2:3b');
+    expect(adapter.capabilities.extendedThinking).toBe(true);
+    const result = adapter.formatRequest({
+      systemPrompt: 'sys',
+      context: [makeFrame('user', 'hi')],
+      toolDefinitions: [SAMPLE_TOOL],
+    });
+    expect((result.input as Record<string, unknown>).think).toBe(true);
+  });
+
+  it('sets result.think === true on non-tool-bearing turns too (placement OUTSIDE tool block)', () => {
+    const adapter = createOllamaAdapter('llama3.2:3b');
+    const result = adapter.formatRequest({
+      systemPrompt: 'sys',
+      context: [makeFrame('user', 'hi')],
+      toolDefinitions: [],
+    });
+    // Load-bearing: the activation must NOT be gated on tool presence.
+    expect((result.input as Record<string, unknown>).think).toBe(true);
+    // And tools key must not be present when no tools were supplied.
+    expect((result.input as Record<string, unknown>).tools).toBeUndefined();
+  });
+});

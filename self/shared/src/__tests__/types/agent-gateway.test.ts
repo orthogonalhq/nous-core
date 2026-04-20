@@ -8,6 +8,7 @@ import {
   DispatchWorkerRequestSchema,
   EMPTY_RESPONSE_MARKER,
   EmptyResponseKindSchema,
+  NARRATE_WITHOUT_DISPATCH_MARKER,
   GatewayInboxMessageSchema,
   GatewayOutboxEventSchema,
   GatewayStampedPacketSchema,
@@ -562,18 +563,54 @@ describe('EMPTY_RESPONSE_MARKER (SP 1.15 RC-1)', () => {
   });
 });
 
-describe('EmptyResponseKindSchema (SP 1.15 RC-1)', () => {
-  it('accepts both discriminator branches', () => {
+describe('EmptyResponseKindSchema (SP 1.15 RC-1 + SP 1.16 RC-β.1)', () => {
+  it('accepts all three discriminator branches', () => {
     expect(EmptyResponseKindSchema.safeParse('thinking_only_no_finalizer').success).toBe(true);
     expect(EmptyResponseKindSchema.safeParse('no_output_at_all').success).toBe(true);
+    expect(EmptyResponseKindSchema.safeParse('narrate_without_dispatch').success).toBe(true);
   });
 
   it('rejects any other string', () => {
     expect(EmptyResponseKindSchema.safeParse('').success).toBe(false);
     expect(EmptyResponseKindSchema.safeParse('thinking_only').success).toBe(false);
     expect(EmptyResponseKindSchema.safeParse('partial_finalizer').success).toBe(false);
+    expect(EmptyResponseKindSchema.safeParse('arbitrary_value').success).toBe(false);
     expect(EmptyResponseKindSchema.safeParse(null).success).toBe(false);
     expect(EmptyResponseKindSchema.safeParse(undefined).success).toBe(false);
+  });
+});
+
+describe('NARRATE_WITHOUT_DISPATCH_MARKER (SP 1.16 RC-β.1)', () => {
+  it('pins the literal marker text — drift-detector for the user-visible string', () => {
+    expect(NARRATE_WITHOUT_DISPATCH_MARKER).toBe(
+      '[I described an action without actually performing it. The tool I should have called was not dispatched. Please rephrase your request or try again.]',
+    );
+  });
+});
+
+describe('Cross-package UI literal-union consistency (SP 1.16 RC-β.1)', () => {
+  // The UI layer (self/ui/src/panels/chat/types.ts) duplicates the
+  // EmptyResponseKindSchema literal-union per the existing chat-types
+  // convention (no @nous/shared import in UI types). This test pins the
+  // expected UI shape against the shared schema so future drift fails fast.
+  const UI_LITERAL_UNION_VALUES = [
+    'thinking_only_no_finalizer',
+    'no_output_at_all',
+    'narrate_without_dispatch',
+  ] as const;
+
+  it('every shared EmptyResponseKindSchema value appears in the UI literal-union', () => {
+    const sharedValues = EmptyResponseKindSchema.options;
+    for (const value of sharedValues) {
+      expect(UI_LITERAL_UNION_VALUES).toContain(value);
+    }
+  });
+
+  it('UI literal-union has no extra values beyond the shared schema', () => {
+    const sharedValues = EmptyResponseKindSchema.options as readonly string[];
+    for (const uiValue of UI_LITERAL_UNION_VALUES) {
+      expect(sharedValues).toContain(uiValue);
+    }
   });
 });
 

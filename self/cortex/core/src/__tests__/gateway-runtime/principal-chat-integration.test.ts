@@ -1,5 +1,5 @@
 import { describe, expect, it, vi } from 'vitest';
-import { EMPTY_RESPONSE_MARKER } from '@nous/shared';
+import { EMPTY_RESPONSE_MARKER, NARRATE_WITHOUT_DISPATCH_MARKER } from '@nous/shared';
 import type { IModelProvider } from '@nous/shared';
 import { createPrincipalSystemGatewayRuntime } from '../../gateway-runtime/index.js';
 import {
@@ -407,5 +407,78 @@ describe('PrincipalSystemGatewayRuntime — empty_response_kind round-trip (SP 1
 
     expect((result as { empty_response_kind?: string }).empty_response_kind).toBeUndefined();
     expect(result.response).toBe('Normal reply.');
+  });
+});
+
+describe('PrincipalSystemGatewayRuntime — narrate_without_dispatch round-trip (SP 1.16 RC-β.1)', () => {
+  it('SKIPs STM entries tagged with empty_response_kind = narrate_without_dispatch on next turn', async () => {
+    const stmStore = {
+      getContext: vi.fn().mockResolvedValue({
+        entries: [
+          {
+            role: 'assistant',
+            content: NARRATE_WITHOUT_DISPATCH_MARKER,
+            timestamp: '2026-04-18T00:00:00Z',
+            metadata: { empty_response_kind: 'narrate_without_dispatch' },
+          },
+          {
+            role: 'user',
+            content: 'previous user message',
+            timestamp: '2026-04-18T00:00:01Z',
+          },
+        ],
+        summary: undefined,
+        tokenCount: 0,
+      }),
+      append: vi.fn().mockResolvedValue(undefined),
+      compact: vi.fn(),
+      clear: vi.fn(),
+    };
+
+    const principalProvider = createModelProvider([
+      JSON.stringify({
+        response: 'ok',
+        toolCalls: [
+          {
+            name: 'task_complete',
+            params: { output: { response: 'ok' }, summary: 's' },
+          },
+        ],
+      }),
+    ]);
+
+    const runtime = createPrincipalSystemGatewayRuntime({
+      documentStore: createDocumentStore(),
+      modelProviderByClass: {
+        'Cortex::Principal': principalProvider,
+        'Cortex::System': createModelProvider(['{"response":"idle","toolCalls":[]}']),
+        Orchestrator: createModelProvider(['{"response":"idle","toolCalls":[]}']),
+        Worker: createModelProvider(['{"response":"idle","toolCalls":[]}']),
+      },
+      getProjectApi: () => createProjectApi(),
+      pfc: createPfcEngine(),
+      outputSchemaValidator: { validate: vi.fn().mockResolvedValue({ success: true }) },
+      stmStore,
+      idFactory: (() => {
+        let counter = 0;
+        return () => {
+          const suffix = String(counter).padStart(12, '0');
+          counter += 1;
+          return `00000000-0000-4000-8000-${suffix}`;
+        };
+      })(),
+    });
+
+    await runtime.handleChatTurn({
+      message: 'Follow up',
+      projectId: '00000000-0000-4000-8000-000000000001',
+      traceId: '00000000-0000-4000-8000-000000000099',
+    });
+
+    const invokeArgs = (principalProvider.invoke as ReturnType<typeof vi.fn>).mock.calls[0][0];
+    const contextFrames = (invokeArgs.input.context ?? []) as Array<{ role: string; content: string }>;
+    expect(contextFrames.some((f) => f.content === 'previous user message')).toBe(true);
+    // SP 1.15 SKIP policy applies to the new discriminator too — Invariant I-13 preserved.
+    expect(contextFrames.some((f) => f.content === NARRATE_WITHOUT_DISPATCH_MARKER)).toBe(false);
   });
 });
