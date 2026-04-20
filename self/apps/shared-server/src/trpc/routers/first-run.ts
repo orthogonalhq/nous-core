@@ -17,6 +17,7 @@ import {
 import {
   checkRegistryAvailability,
   detectOllama,
+  normalizeSpecForLocalLookup,
   pullOllamaModel,
 } from '../../ollama-detection';
 
@@ -31,19 +32,46 @@ export const ValidationMapSchema = z.record(z.string(), ValidationStateSchema);
 export type ValidationMap = z.infer<typeof ValidationMapSchema>;
 
 /**
- * Build the validation map for a set of recommended Ollama specs by
- * fan-out HEAD-probing the Ollama library page for each spec in parallel.
+ * Build the validation map for a set of recommended Ollama specs.
+ *
+ * SP 1.8 Fix #7 — cross-axis derivation. For each unique spec:
+ *   1. Local axis (preferred — durable signal). Strip the `'ollama:'`
+ *      prefix via `normalizeSpecForLocalLookup` and check whether the bare
+ *      id is in `locallyInstalledIds` (the `OllamaStatus.models` list).
+ *      If yes, short-circuit to `'validated'` WITHOUT invoking
+ *      `checkRegistryAvailability` and WITHOUT writing the 30-min session
+ *      cache — the local presence is durable signal that registry
+ *      unreachability cannot contradict (SP 1.5 Decision 5 graceful
+ *      degradation extended).
+ *   2. Otherwise fall through to the existing registry-axis HEAD probe.
  *
  * The fan-out is bounded by the recommendation set size (typically 2-4
  * unique specs after dedup); the per-spec session cache inside
  * `checkRegistryAvailability` deduplicates within the TTL window.
+ *
+ * Trace: SP 1.8 SDS § 4.5 / Goals C7 / C8 / Plan Task #7 / Invariant D
+ * (the standalone `validateModelAvailability` procedure remains
+ * registry-only and is NOT modified).
  */
-async function buildValidationMap(
+export async function buildValidationMap(
   recommendedSpecs: readonly string[],
+  locallyInstalledIds: readonly string[],
 ): Promise<ValidationMap> {
   const uniqueSpecs = Array.from(new Set(recommendedSpecs));
+  const localSet = new Set(locallyInstalledIds);
   const states = await Promise.all(
     uniqueSpecs.map(async (spec) => {
+      const localId = normalizeSpecForLocalLookup(spec);
+      if (localSet.has(localId)) {
+        // Local-axis short-circuit — durable signal beats registry.
+        // Note: deliberately skips the per-spec registry session cache
+        // (`setCachedAvailability`) so a future registry-axis call for
+        // the same spec is not pre-poisoned by this local derivation.
+        console.info(
+          `[nous:first-run] validation: ${spec} -> validated (local)`,
+        );
+        return [spec, 'validated' as const] as const;
+      }
       const state = await checkRegistryAvailability(spec);
       return [spec, state] as const;
     }),
@@ -179,7 +207,10 @@ export const firstRunRouter = router({
     for (const entry of recommendations.multiModel) {
       recommendedSpecs.push(entry.recommendation.modelSpec);
     }
-    const validation = await buildValidationMap(recommendedSpecs);
+    // SP 1.8 Fix #7b — pass the locally-installed model id list (from
+    // `OllamaStatus.models`) so `buildValidationMap` can derive
+    // `'validated'` from local presence without a registry HEAD probe.
+    const validation = await buildValidationMap(recommendedSpecs, ollama.models);
 
     let validatedCount = 0;
     let unavailableCount = 0;

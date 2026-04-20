@@ -589,3 +589,45 @@
   color: var(--nous-fg);
   font-size: var(--nous-font-size-sm);
 }
+
+/* SP 1.8 Fix #12 — additive rules for the hardware-summary explanatory
+   section in WizardStepModelDownload (Goals C11 / C12, Plan Task #12).
+   No existing rule altered. `prefers-reduced-motion: reduce` is honored
+   on the subtle background transition. */
+
+.nous-wizard__hardware-summary {
+  display: flex;
+  flex-direction: column;
+  gap: var(--nous-space-sm);
+  background: color-mix(in srgb, var(--nous-card-bg) 96%, transparent);
+  transition: background 200ms ease;
+}
+
+.nous-wizard__meta-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+  gap: var(--nous-space-xs) var(--nous-space-md);
+  color: var(--nous-fg);
+  font-size: var(--nous-font-size-sm);
+}
+
+.nous-wizard__meta-list > li {
+  display: flex;
+  flex-direction: row;
+  gap: var(--nous-space-xs);
+  align-items: baseline;
+}
+
+.nous-wizard__meta-list > li > strong {
+  color: var(--nous-fg-muted);
+  font-weight: 600;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .nous-wizard__hardware-summary {
+    transition: none;
+  }
+}

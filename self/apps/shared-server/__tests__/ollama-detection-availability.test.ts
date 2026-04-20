@@ -11,6 +11,7 @@ import {
   REGISTRY_AVAILABILITY_CACHE_TTL_MS,
   __resetRegistryAvailabilityCacheForTesting,
   checkRegistryAvailability,
+  normalizeSpecForLocalLookup,
 } from '../src/ollama-detection';
 
 const fetchMock = vi.fn();
@@ -221,5 +222,26 @@ describe('checkRegistryAvailability — Tier 3 edge cases', () => {
     const state = await checkRegistryAvailability(undefined as unknown as string);
     expect(state).toBe('unavailable');
     expect(fetchMock).not.toHaveBeenCalled();
+  });
+});
+
+// SP 1.8 Fix #8 — Unit tests for the `normalizeSpecForLocalLookup`
+// helper. Verifies first-occurrence-only `'ollama:'` strip semantics
+// (Goals C6 / Plan Task #8).
+describe('normalizeSpecForLocalLookup — SP 1.8', () => {
+  it('strips a leading "ollama:" prefix', () => {
+    expect(normalizeSpecForLocalLookup('ollama:qwen2.5:32b')).toBe('qwen2.5:32b');
+  });
+
+  it('passes through a non-prefixed spec unchanged', () => {
+    expect(normalizeSpecForLocalLookup('qwen2.5:32b')).toBe('qwen2.5:32b');
+  });
+
+  it('passes through an empty string unchanged', () => {
+    expect(normalizeSpecForLocalLookup('')).toBe('');
+  });
+
+  it('passes through a non-"ollama:" prefixed spec unchanged', () => {
+    expect(normalizeSpecForLocalLookup('something-else:foo')).toBe('something-else:foo');
   });
 });

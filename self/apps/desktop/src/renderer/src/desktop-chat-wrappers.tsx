@@ -1,48 +1,51 @@
-import { useEffect, useRef } from 'react'
 import type { IDockviewPanelProps } from 'dockview-react'
 import { ChatPanel } from '@nous/ui/panels'
 import { ChatSurface, useShellContext, type ChatStage } from '@nous/ui/components'
-import { useChatApi, trpc } from '@nous/transport'
+import { useChatApi } from '@nous/transport'
+import { useFireWelcomeOnMount } from './desktop-welcome-trigger'
 
 /** Wrapper that wires ChatPanel to tRPC via useChatApi (dockview).
  *
- * SP 1.6 — also fires the one-shot welcome message trigger on first mount.
- * The trigger is gated by a renderer-side ref (mount-once, guards against
- * React StrictMode double-invocation in development) plus the backend's
- * persisted `welcomeMessageSent` flag (cross-mount idempotency). See SDS
- * § 1.2 (the dockview principal chat panel is the chat-init delegate per
- * Decision 6 § Mechanism step 1; `useChatApi`, `ChatPanel`, and
- * `ConnectedChatSurface` are deliberately NOT modified per SDS § 0 Note 1
- * and Note 4).
+ * SP 1.6 — fires the one-shot welcome message trigger on first mount.
+ *
+ * SP 1.8 (ADR 023) revisit — both `DesktopChatPanel` (dockview) and
+ * `ConnectedChatSurface` (simple mode) now share the `useFireWelcomeOnMount`
+ * hook so the welcome turn fires once on first-run completion regardless
+ * of which shell mode the user is in. The persisted `welcomeMessageSent`
+ * flag (set in the welcome-coordinator after STM append) remains the
+ * cross-mount idempotency gate. The shared hook also gates on
+ * `activeProjectId !== null` so the latent dockview-mode RC-3b race (where
+ * `activeProjectId` is null at first render and resolves on a subsequent
+ * render) is hardened.
+ *
+ * The SP 1.6 SDS § 0 Note 1 single-site choice (which excluded
+ * `ConnectedChatSurface` from being a trigger site) is narrowly
+ * superseded by ADR 023 for the welcome-trigger concern only. The SP 1.6
+ * SDS § 0 Note 4 binding constraint that the trigger MUST NOT live inside
+ * `useChatApi` (which has multiple consumers) is PRESERVED — the shared
+ * hook lives in the two delegate wrappers, NOT inside `useChatApi`.
+ * `ChatPanel`, `useChatApi`, the chat-API surface, and
+ * `web-chat-wrappers.tsx` remain unmodified.
  */
 export function DesktopChatPanel(props: IDockviewPanelProps) {
   const { activeProjectId } = useShellContext()
   const chatApi = useChatApi({ projectId: activeProjectId ?? undefined })
 
-  const welcomeFiredRef = useRef(false)
-  const fireWelcome = trpc.chat.fireWelcomeIfUnsent.useMutation()
-
-  useEffect(() => {
-    if (welcomeFiredRef.current) return
-    welcomeFiredRef.current = true
-    fireWelcome
-      .mutateAsync({ projectId: activeProjectId ?? undefined })
-      .catch(() => {
-        // Defensive only — the coordinator never throws (failure modes are
-        // returned as `welcomeFired: false`). A throw at this surface is a
-        // transport-layer error (network, serialization). Log via console;
-        // do not propagate (must not block ChatPanel render).
-        console.warn('[nous:welcome] fireWelcomeIfUnsent transport error')
-      })
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []) // mount-once; activeProjectId changes do not re-trigger (the backend flag handles cross-project re-mount).
+  useFireWelcomeOnMount(activeProjectId)
 
   return <ChatPanel {...props} params={{ chatApi }} />
 }
 
-/** Wrapper that wires ChatSurface to tRPC via useChatApi (simple mode). */
+/** Wrapper that wires ChatSurface to tRPC via useChatApi (simple mode).
+ *
+ * SP 1.8 (ADR 023) — invokes the shared `useFireWelcomeOnMount` hook so
+ * first-run users in default `simple` shell mode receive the welcome
+ * turn (Issue 3 closure). See the `DesktopChatPanel` docstring above for
+ * the full rationale and ADR cross-reference.
+ */
 export function ConnectedChatSurface({ stage, onStageChange, onSendStart, isPinned, onTogglePin, onInputFocus, onUnreadMessage, onMessagesRead }: { stage?: ChatStage; onStageChange?: (stage: ChatStage) => void; onSendStart?: () => void; isPinned?: boolean; onTogglePin?: () => void; onInputFocus?: () => void; onUnreadMessage?: () => void; onMessagesRead?: () => void } = {}) {
   const { activeProjectId } = useShellContext()
   const chatApi = useChatApi({ projectId: activeProjectId ?? undefined })
+  useFireWelcomeOnMount(activeProjectId)
   return <ChatSurface chatApi={chatApi} stage={stage} onStageChange={onStageChange} onSendStart={onSendStart} isPinned={isPinned} onTogglePin={onTogglePin} onInputFocus={onInputFocus} onUnreadMessage={onUnreadMessage} onMessagesRead={onMessagesRead} />
 }

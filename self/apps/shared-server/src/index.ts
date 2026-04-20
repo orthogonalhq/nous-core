@@ -59,6 +59,7 @@ export {
   detectOllama,
   getOllamaVersion,
   meetsMinimumVersion,
+  normalizeSpecForLocalLookup,
   pullOllamaModel,
   resolveOllamaBinary,
 } from './ollama-detection';

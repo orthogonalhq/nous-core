@@ -68,12 +68,29 @@ export const RoleModelRecommendationSchema = z.object({
 
 export type RoleModelRecommendation = z.infer<typeof RoleModelRecommendationSchema>;
 
+// SP 1.8 Fix #10 — `tier` and `tierLabel` are optional fields populated by
+// `buildLocalRecommendations` (the local-first hardware-tier branch) and
+// left unset by `buildRemoteRecommendations` and the no-providers branch.
+// They surface in the wizard's `WizardStepModelDownload` explanatory
+// section so the user can see how their detected hardware maps to the
+// per-tier recommendation set. Additive optional schema fields per
+// Invariant I12 (JSON-serializable; no migration). Trace: SDS § 4.6 /
+// Goals C10 / Plan Task #10.
+export const RecommendationTierSchema = z.enum([
+  'tiny',
+  'small',
+  'medium',
+  'large',
+]);
+
 export const RecommendationResultSchema = z.object({
   singleModel: ModelRecommendationSchema.nullable(),
   multiModel: z.array(RoleModelRecommendationSchema),
   hardwareSpec: HardwareSpecSchema,
   profileName: z.string(),
   advisory: z.string(),
+  tier: RecommendationTierSchema.optional(),
+  tierLabel: z.string().optional(),
 });
 
 export type RecommendationResult = z.infer<typeof RecommendationResultSchema>;
@@ -84,7 +101,17 @@ export type RecommendationProfilePolicy = {
   allowRemoteProviders?: boolean;
 };
 
-type RecommendationTier = 'tiny' | 'small' | 'medium' | 'large';
+type RecommendationTier = z.infer<typeof RecommendationTierSchema>;
+
+// SP 1.8 Fix #10 — per-tier human-readable label vocabulary. Surfaced by
+// `WizardStepModelDownload`'s explanatory section so the user sees the
+// link from their detected hardware to the recommendation set.
+const TIER_LABELS: Record<RecommendationTier, string> = {
+  tiny: 'Compact (low-memory)',
+  small: 'Balanced (entry-to-mid desktop)',
+  medium: 'Mid-spec (stronger reasoning)',
+  large: 'High-spec (advanced reasoning)',
+};
 
 /**
  * Curated Ollama-library catalog used by `recommendModels` to seed the
@@ -393,6 +420,11 @@ function buildLocalRecommendations(
     hardwareSpec: spec,
     profileName: 'local-first',
     advisory,
+    // SP 1.8 Fix #10 — populate `tier` + `tierLabel` so the wizard's
+    // explanatory section can surface the hardware-to-recommendation
+    // mapping (Goals C11 / Plan Task #10b).
+    tier,
+    tierLabel: TIER_LABELS[tier],
   });
 }
 

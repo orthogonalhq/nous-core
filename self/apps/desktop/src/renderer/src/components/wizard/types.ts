@@ -10,6 +10,7 @@ import type {
   FirstRunPrerequisites,
   FirstRunStep,
 } from '@nous/shared-server'
+import type { PersonalityConfig } from '@nous/cortex-core/personality'
 
 export type FirstRunCurrentStep = FirstRunState['currentStep']
 
@@ -52,6 +53,41 @@ export interface WizardStepProps {
   setActionInProgress: (value: boolean) => void
   setActionError: (value: string | null) => void
   onStepComplete: (nextState: FirstRunState) => void
+}
+
+// SP 1.8 Fix #2 — Identity draft shape lifted to the orchestrator
+// (`FirstRunWizard`) so back-nav into the identity step retains entered
+// values. `subStage` is NOT included — the sub-stage cursor remains
+// component-local per SP 1.4 Goals item 11 (sub-stage progress is
+// ephemeral and not persisted; on remount the component restarts at
+// sub-stage A). The lifted slice carries only entered field values.
+//
+// Trace: SP 1.8 SDS § Data Model § Identity draft contract; Goals C1 / C2 / C4;
+// Implementation Plan Task #2; Invariant B.
+export interface ProfileFormState {
+  displayName?: string
+  role?: string
+  primaryUseCase?: string
+  expertise?: 'beginner' | 'intermediate' | 'advanced'
+}
+
+export interface IdentityDraft {
+  name: string
+  personality: PersonalityConfig
+  profile: ProfileFormState
+  advancedOpen: boolean
+}
+
+export const INITIAL_IDENTITY_DRAFT: IdentityDraft = {
+  name: '',
+  personality: { preset: 'balanced' },
+  profile: {},
+  advancedOpen: false,
+}
+
+export interface WizardStepIdentityProps extends WizardStepProps {
+  identityDraft: IdentityDraft
+  setIdentityDraft: (next: IdentityDraft) => void
 }
 
 export const MODEL_ROLES = ModelRoleSchema.options

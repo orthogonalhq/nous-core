@@ -251,17 +251,92 @@ export function WizardStepModelDownload({
     }
   }
 
+  // SP 1.8 Fix #11 — surface detected hardware + tier-to-recommendation
+  // mapping. Reads `prerequisites.hardware` and the new optional
+  // `prerequisites.recommendations.tier` / `.tierLabel` (added in Fix #10
+  // for the local-first branch; absent for remote-only). Renders an
+  // explanatory section between the hero and the recommendation list so
+  // the user can see the link from their hardware to the per-tier set.
+  // Trace: SDS § 4.7 / Goals C11 / Plan Task #11.
+  const hardware = prerequisites?.hardware
+  const tierLabel = prerequisites?.recommendations.tierLabel ?? null
+  const ramGB = hardware ? Math.max(1, Math.round(hardware.totalMemoryMB / 1024)) : null
+  const cpuCores = hardware?.cpuCores ?? null
+  const gpuDetected = hardware?.gpu.detected ?? false
+  const gpuName = hardware?.gpu.name ?? null
+  const tierRecommendationTitles: string[] = []
+  if (tierLabel && prerequisites?.recommendations) {
+    if (prerequisites.recommendations.singleModel) {
+      tierRecommendationTitles.push(prerequisites.recommendations.singleModel.displayName)
+    }
+    for (const entry of prerequisites.recommendations.multiModel) {
+      if (!tierRecommendationTitles.includes(entry.recommendation.displayName)) {
+        tierRecommendationTitles.push(entry.recommendation.displayName)
+      }
+    }
+  }
+
   return (
     <div className="nous-wizard__stack">
       <section className="nous-wizard__hero">
         <div className="nous-wizard__eyebrow">Model recommendation</div>
         <h1 className="nous-wizard__title">Download the local model that fits this machine.</h1>
         <p className="nous-wizard__subtitle">
-          The recommendation engine has already picked a starting point from your
-          hardware profile. You can keep the default, switch to a recommended
-          alternative, or type a custom Ollama model id.
+          Recommendations are tailored to your detected hardware. Adjust below if needed.
         </p>
       </section>
+
+      {hardware ? (
+        <section
+          className="nous-wizard__card nous-wizard__hardware-summary"
+          data-testid="wizard-hardware-summary"
+          aria-labelledby="wizard-hardware-summary-heading"
+        >
+          <h2
+            id="wizard-hardware-summary-heading"
+            className="nous-wizard__section-title"
+          >
+            Detected hardware
+          </h2>
+          <ul className="nous-wizard__meta-list" data-testid="wizard-hardware-meta">
+            {ramGB !== null ? (
+              <li data-testid="wizard-hardware-ram">
+                <strong>RAM:</strong> {ramGB} GB
+              </li>
+            ) : null}
+            {cpuCores !== null ? (
+              <li data-testid="wizard-hardware-cpu">
+                <strong>CPU cores:</strong> {cpuCores}
+              </li>
+            ) : null}
+            <li data-testid="wizard-hardware-gpu">
+              <strong>GPU:</strong>{' '}
+              {gpuDetected
+                ? gpuName
+                  ? `Detected (${gpuName})`
+                  : 'Detected'
+                : 'Not detected'}
+            </li>
+            {tierLabel ? (
+              <li data-testid="wizard-hardware-tier">
+                <strong>Tier:</strong> {tierLabel}
+              </li>
+            ) : null}
+          </ul>
+          {tierLabel ? (
+            <p
+              className="nous-wizard__section-copy"
+              data-testid="wizard-hardware-tier-link"
+            >
+              These specs map to the <strong>{tierLabel}</strong> tier, which
+              recommends:
+              {tierRecommendationTitles.length > 0
+                ? ` ${tierRecommendationTitles.join(', ')}.`
+                : null}
+            </p>
+          ) : null}
+        </section>
+      ) : null}
 
       <div className="nous-wizard__grid">
         <section className="nous-wizard__card">

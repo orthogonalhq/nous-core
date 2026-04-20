@@ -24,8 +24,10 @@ function deriveNextRegistryStepAfter(
 }
 import {
   getRecommendedModelSpec,
+  INITIAL_IDENTITY_DRAFT,
   type FirstRunPrerequisites,
   type FirstRunState,
+  type IdentityDraft,
   type OllamaStatus,
   type RoleAssignments,
 } from './wizard/types'
@@ -49,6 +51,13 @@ export function FirstRunWizard({
   const [ollamaStatus, setOllamaStatus] = useState<OllamaStatus | null>(null)
   const [selectedModelSpec, setSelectedModelSpec] = useState<string | null>(null)
   const [roleAssignments, setRoleAssignments] = useState<RoleAssignments>({})
+  // SP 1.8 Fix #3 — Identity draft slice lifted to the orchestrator so
+  // back-nav re-entry into the identity step retains entered values.
+  // `clearIdentityDraft` is invoked from `handleResetWizard` so a wizard
+  // reset wipes both the backend `agent` block (via `firstRun.resetWizard`)
+  // AND the renderer-side draft. Trace: SDS § 4.2 / Goals C3 / Plan Task #3 /
+  // Invariant C.
+  const [identityDraft, setIdentityDraft] = useState<IdentityDraft>(INITIAL_IDENTITY_DRAFT)
   const [roleAssignmentMode, setRoleAssignmentMode] =
     useState<RoleAssignmentMode>('default')
   const [actionInProgress, setActionInProgress] = useState(false)
@@ -196,6 +205,12 @@ export function FirstRunWizard({
       setCurrentStepOverride(null)
       setRoleAssignments({})
       setRoleAssignmentMode('default')
+      // SP 1.8 Fix #3c / Invariant C — clear the renderer-side identity draft
+      // alongside the backend `agent` block reset (parallel to
+      // `setRoleAssignments({})` above). Without this, the user-typed
+      // identity values would survive a reset and re-render on the next
+      // identity-step mount.
+      setIdentityDraft(INITIAL_IDENTITY_DRAFT)
       setSelectedModelSpec(getRecommendedModelSpec(prerequisites))
       await loadPrerequisites()
     } catch (error) {
@@ -257,8 +272,13 @@ export function FirstRunWizard({
           },
         }
       case 'agent_identity':
+        // SP 1.8 Fix #3b — thread the orchestrator-owned identity draft
+        // slice into the identity step's props per the
+        // WizardStepIdentityProps contract (SDS § 4.2 / Plan Task #3b).
         return {
           ...sharedProps,
+          identityDraft,
+          setIdentityDraft,
           onStepComplete: (nextState: FirstRunState) => {
             applyStepCompletion('agent_identity', nextState)
           },
