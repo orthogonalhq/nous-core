@@ -242,6 +242,7 @@ export function ChatPanel(props: ChatPanelProps) {
                 thinkingContent: result.thinkingContent,
                 cards: result.cards,
                 ...(result.empty_response_kind ? { empty_response_kind: result.empty_response_kind } : {}),
+                ...(result.thinking_unavailable ? { thinking_unavailable: result.thinking_unavailable } : {}),
             }])
         } catch {
             setMessages(prev => [...prev, {

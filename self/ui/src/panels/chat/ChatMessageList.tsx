@@ -119,14 +119,28 @@ function ChatMessageRow({
             {thoughts && thoughts.length > 0 && (
                 <InlineThoughtGroup items={thoughts} active={false} />
             )}
-            {message.thinkingContent && (
+            {message.thinkingContent ? (
                 <details style={styles.thinkingDetails} {...(message.empty_response_kind ? { open: true } : {})}>
                     <summary style={styles.thinkingSummary}>Thinking</summary>
                     <div style={styles.thinkingBody}>
                         <MarkdownRenderer content={message.thinkingContent} />
                     </div>
                 </details>
-            )}
+            ) : message.thinking_unavailable ? (
+                // SP 1.17 RC-α-1 — honest acknowledgment for the multi-turn
+                // thinking-template structural limitation. Mutually exclusive
+                // with the populated-thinking branch above (thinkingContent
+                // wins by ordering — Invariant I-3 defensive). Renders open
+                // by default so the user sees the acknowledgment without an
+                // extra click. `ref` (today: 'WR-172') is the work-register
+                // row tracking the upstream structural fix.
+                <details open style={styles.thinkingDetails}>
+                    <summary style={styles.thinkingSummary}>Thinking</summary>
+                    <div style={styles.thinkingBody}>
+                        <em>Thinking unavailable on this turn — {message.thinking_unavailable.reason}. Tracked under {message.thinking_unavailable.ref}.</em>
+                    </div>
+                </details>
+            ) : null}
             <div style={styles.bubble}>
                 {hasStructuredCards ? (
                     <>
