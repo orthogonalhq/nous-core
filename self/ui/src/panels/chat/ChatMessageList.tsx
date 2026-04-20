@@ -1,6 +1,7 @@
 import { useRef, useEffect } from 'react'
 import { ThoughtSummary } from '../../components/thought'
-import type { CardAction } from '../../components/chat/openui-adapter'
+import type { CardAction, RenderCardContext } from '../../components/chat/openui-adapter'
+import { renderStructuredCard } from '../../components/chat/openui-adapter'
 import { MarkdownRenderer } from '../../components/chat'
 import { ChatCardRenderer } from './ChatCardRenderer'
 import { splitMessageSegments } from './message-segments'
@@ -85,33 +86,80 @@ function ChatMessageRow({
     onCardAction,
 }: ChatMessageRowProps) {
     if (message.role === 'user') {
+        const isQueued = message.queued === true
         return (
             <div style={styles.rowUser}>
-                <div style={styles.bubbleUser}>{message.content}</div>
+                <div
+                    data-queued={isQueued ? 'true' : undefined}
+                    style={isQueued ? { ...styles.bubbleUser, ...styles.bubbleUserQueued } : styles.bubbleUser}
+                >
+                    {message.content}
+                    {isQueued && (
+                        <span style={styles.queuedMarker}> queued</span>
+                    )}
+                </div>
             </div>
         )
     }
 
-    const segments = splitMessageSegments(message.content)
-    const hasCardSegments = segments.some(s => s.type === 'card')
     const isStale = !!message.actionOutcome || !isLastAssistant
+    const hasStructuredCards = message.cards && message.cards.length > 0
+
+    // Structured cards (tool-call delivery) take priority over inline XML parsing
+    const segments = hasStructuredCards ? null : splitMessageSegments(message.content)
+    const hasCardSegments = segments ? segments.some(s => s.type === 'card') : false
+
+    // For structured cards, strip inline card XML from text content
+    const textContent = hasStructuredCards
+        ? stripCardTags(message.content)
+        : null
 
     return (
         <div style={styles.rowAssistant}>
             {thoughts && thoughts.length > 0 && (
                 <InlineThoughtGroup items={thoughts} active={false} />
             )}
-            {message.thinkingContent && (
-                <details style={styles.thinkingDetails}>
+            {message.thinkingContent ? (
+                <details style={styles.thinkingDetails} {...(message.empty_response_kind ? { open: true } : {})}>
                     <summary style={styles.thinkingSummary}>Thinking</summary>
                     <div style={styles.thinkingBody}>
                         <MarkdownRenderer content={message.thinkingContent} />
                     </div>
                 </details>
-            )}
+            ) : message.thinking_unavailable ? (
+                // SP 1.17 RC-α-1 — honest acknowledgment for the multi-turn
+                // thinking-template structural limitation. Mutually exclusive
+                // with the populated-thinking branch above (thinkingContent
+                // wins by ordering — Invariant I-3 defensive). Renders open
+                // by default so the user sees the acknowledgment without an
+                // extra click. `ref` (today: 'WR-172') is the work-register
+                // row tracking the upstream structural fix.
+                <details open style={styles.thinkingDetails}>
+                    <summary style={styles.thinkingSummary}>Thinking</summary>
+                    <div style={styles.thinkingBody}>
+                        <em>Thinking unavailable on this turn — {message.thinking_unavailable.reason}. Tracked under {message.thinking_unavailable.ref}.</em>
+                    </div>
+                </details>
+            ) : null}
             <div style={styles.bubble}>
-                {hasCardSegments ? (
-                    segments.map((segment, segIdx) =>
+                {hasStructuredCards ? (
+                    <>
+                        {textContent && textContent.trim() && (
+                            <MarkdownRenderer content={textContent} />
+                        )}
+                        {message.cards!.map((card, cardIdx) => {
+                            const ctx: RenderCardContext = {
+                                stale: isStale,
+                                ...(message.actionOutcome ? { actionOutcome: message.actionOutcome } : {}),
+                            }
+                            const handlers = {
+                                onAction: isStale ? () => {} : onCardAction,
+                            }
+                            return renderStructuredCard(card, handlers, `card-${cardIdx}`, ctx)
+                        })}
+                    </>
+                ) : hasCardSegments ? (
+                    segments!.map((segment, segIdx) =>
                         segment.type === 'card' ? (
                             <ChatCardRenderer
                                 key={`seg-${segIdx}`}
@@ -138,6 +186,19 @@ function ChatMessageRow({
 // ---------------------------------------------------------------------------
 // Helpers
 // ---------------------------------------------------------------------------
+
+/** Strip inline card XML tags from response text when structured cards are used. */
+function stripCardTags(content: string): string {
+    const CARD_TAGS = ['StatusCard', 'ActionCard', 'ApprovalCard', 'WorkflowCard', 'FollowUpBlock']
+    let result = content
+    for (const tag of CARD_TAGS) {
+        // Remove self-closing tags: <Tag ... />
+        result = result.replace(new RegExp(`<${tag}\\s[^>]*?/>`, 'g'), '')
+        // Remove paired tags: <Tag ...>...</Tag>
+        result = result.replace(new RegExp(`<${tag}\\s[^>]*?>[\\s\\S]*?</${tag}>`, 'g'), '')
+    }
+    return result
+}
 
 function findLastAssistantIndex(messages: ChatMessage[]): number {
     for (let i = messages.length - 1; i >= 0; i--) {
@@ -185,6 +246,16 @@ const styles = {
         padding: 'var(--nous-space-md) var(--nous-space-xl)',
         background: 'var(--nous-surface-nested)',
         border: '1px solid var(--nous-border)'
+    },
+    bubbleUserQueued: {
+        opacity: 0.6,
+        fontStyle: 'italic' as const,
+    },
+    queuedMarker: {
+        marginLeft: 'var(--nous-space-xs)',
+        fontStyle: 'italic' as const,
+        color: 'var(--nous-fg-muted)',
+        fontSize: 'var(--nous-font-size-xs)',
     },
     thinkingDetails: {
         maxWidth: '100%',

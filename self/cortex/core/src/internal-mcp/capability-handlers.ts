@@ -748,8 +748,13 @@ export function createCapabilityHandlers(
           0,
         );
       } catch (error) {
+        // BT Round 2, RC-3: previous message ("uninitialized store") was
+        // misleading — the most common error class here is a zod parse
+        // failure on the request shape, not a store-init issue.
+        const isZodError = error instanceof Error && error.name === 'ZodError';
+        const errorClass = isZodError ? 'request schema validation' : 'request handling';
         console.log(
-          `[nous:internal-mcp] memory_search caught error on uninitialized store: ${error instanceof Error ? error.message : String(error)}`,
+          `[nous:internal-mcp] memory_search caught error during ${errorClass}: ${error instanceof Error ? error.message : String(error)}`,
         );
         return success([], 0);
       }

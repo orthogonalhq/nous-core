@@ -41,13 +41,33 @@ export const INTERNAL_MCP_CATALOG: readonly InternalMcpCatalogEntry[] = [
     domain: 'agent',
     definition: defineTool(
       'memory_search',
-      'Search or retrieve scoped project memory.',
+      'Search or retrieve scoped project memory. Two modes: "read" (substring search across global or project scope) or "retrieve" (situation-driven recall with token budget).',
       {
+        // Discriminated union on `mode`. The "read" variant requires `query`
+        // and `scope`; the "retrieve" variant requires `situation` and
+        // `budget` (BT Round 2, RC-3 — catalog must publish the same shape
+        // the runtime handler validates against).
         type: 'object',
-        properties: {
-          mode: { type: 'string', description: 'read | retrieve' },
-        },
-        required: ['mode'],
+        oneOf: [
+          {
+            properties: {
+              mode: { const: 'read', description: 'Substring search mode' },
+              query: { type: 'string', minLength: 1, description: 'Search string' },
+              scope: { enum: ['global', 'project'], description: 'Memory scope to search' },
+            },
+            required: ['mode', 'query', 'scope'],
+            additionalProperties: false,
+          },
+          {
+            properties: {
+              mode: { const: 'retrieve', description: 'Situation-driven recall mode' },
+              situation: { type: 'string', minLength: 1, description: 'Free-text situation description for ranking' },
+              budget: { type: 'integer', minimum: 1, description: 'Maximum tokens to return' },
+            },
+            required: ['mode', 'situation', 'budget'],
+            additionalProperties: false,
+          },
+        ],
       },
       { entries: 'memory results' },
       ['read'],
@@ -486,7 +506,7 @@ export const INTERNAL_MCP_CATALOG: readonly InternalMcpCatalogEntry[] = [
       {
         type: 'object',
         properties: {
-          projectId: { type: 'string', description: 'ProjectId' },
+          projectId: { type: 'string', format: 'uuid', description: 'ProjectId (UUID)' },
           status: { type: 'array', description: 'WorkflowRunStatus[]', items: { type: 'string' } },
           definition: { type: 'string' },
           includeInstalledDefinitions: { type: 'boolean' },

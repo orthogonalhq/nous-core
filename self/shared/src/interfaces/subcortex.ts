@@ -231,6 +231,8 @@ import type {
   ResolvedWorkflowDefinitionSource,
 } from '../types/index.js';
 import type { NousEvent } from '../events/index.js';
+import type { IEventBus } from '../event-bus/interface.js';
+import type { TraceId } from '../types/ids.js';
 
 export interface IModelRouter {
   /** Route a model role to the appropriate provider (legacy) */
@@ -249,6 +251,42 @@ export interface IModelProvider {
 
   /** Invoke the model with streaming response */
   stream(request: ModelRequest): AsyncIterable<ModelStreamChunk>;
+
+  /**
+   * Optional: invoke the model and emit thinking chunks progressively via the
+   * provided event bus, while still returning the full structured ModelResponse
+   * (same shape invoke() returns, including any tool_calls on the message
+   * object). Providers that emit `thinking` chunks during their stream
+   * implement this; providers that don't (or that have no separate thinking
+   * channel) leave it undefined and callers fall back to invoke().
+   *
+   * Implementations MUST:
+   *  - publish each thinking delta to `eventBus.publish('chat:thinking-chunk',
+   *    { content, traceId })` as it arrives,
+   *  - return a ModelResponse whose `output` carries the SAME shape invoke()
+   *    would return for the same request (e.g., for Ollama: the full
+   *    `message` object including content, thinking, and tool_calls),
+   *  - NOT swallow or transform the response shape — the gateway's adapter
+   *    parseResponse runs against `output` unchanged.
+   *
+   * Failure semantics (SP 1.17 RC-β-1.1 / Option iii):
+   *  - Implementations MAY self-recover on primary-method failure by
+   *    invoking the same-provider `invoke()` method.
+   *  - When recovery succeeds, the returned `ModelResponse` MUST carry the
+   *    `recovery?` structural metadata field populated with the primary-error
+   *    classification (`{ method: 'invoke', primaryError, primaryMessage }`).
+   *  - When recovery fails (or recovery is not implemented), the typed
+   *    primary error MUST propagate to the caller.
+   *  - Implementations MUST NOT silently substitute content; the structural
+   *    metadata is the only signal of recovery. The gateway consumes it for
+   *    telemetry / log-level decisions only and MUST NOT branch on it for
+   *    content classification.
+   */
+  invokeWithThinkingStream?(
+    request: ModelRequest,
+    eventBus: IEventBus,
+    traceId: TraceId,
+  ): Promise<ModelResponse>;
 
   /** Get provider configuration */
   getConfig(): ModelProviderConfig;

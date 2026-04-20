@@ -29,9 +29,6 @@ export function composeFromProfile(
     parts.push(input.baseSystemPrompt.trim());
   }
 
-  // Task instructions
-  parts.push(`Task Instructions:\n${input.taskInstructions}`);
-
   // Execution context
   const execLines: string[] = [];
   if (input.execution?.projectId) {
@@ -73,6 +70,11 @@ export function composeFromProfile(
       `Rules:\n${profile.guardrails.map((rule) => `- ${rule}`).join('\n')}`,
     );
   }
+
+  // Task instructions — emitted last so domain-specific instructions land
+  // in the recency-favored attention position (after identity, taskFrame,
+  // execution context, tools, and guardrails).
+  parts.push(`Task Instructions:\n${input.taskInstructions}`);
 
   const systemPrompt = parts.join('\n\n');
 

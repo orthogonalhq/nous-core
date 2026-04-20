@@ -179,7 +179,7 @@ describe('Adapter tool round-trip formatting', () => {
           type: 'function',
           function: {
             name: 'get_weather',
-            arguments: '{"city":"NYC"}',
+            arguments: { city: 'NYC' },
           },
         }],
       });
@@ -219,6 +219,88 @@ describe('Adapter tool round-trip formatting', () => {
       const toolCalls = assistantMsg.tool_calls as Array<Record<string, unknown>>;
       // Synthetic id should be generated
       expect(toolCalls[0].id).toBe('call_0');
+    });
+  });
+
+  describe('SP 1.15 RC-3 — round-trip carries `name` on tool result wire message', () => {
+    // Verification Sweep extension per SP 1.15 implementation plan task 26.
+    // Existing assertions above use the helper which leaves `frame.name`
+    // unset — they continue to assert the no-`name` shape. This block
+    // exercises the with-`name` round-trip for both Ollama and OpenAI
+    // (Anthropic uses tool_use_id and is intentionally unchanged).
+    it('Ollama adapter — when frame.name is set on the tool result frame, the wire message includes it', () => {
+      const adapter = createOllamaAdapter('gemma4:12b');
+      const frames: GatewayContextFrame[] = [
+        {
+          role: 'user',
+          source: 'initial_context',
+          content: 'List my workflows',
+          createdAt: '2026-01-01T00:00:00Z',
+        },
+        {
+          role: 'assistant',
+          source: 'model_output',
+          content: 'I will list them.',
+          createdAt: '2026-01-01T00:00:01Z',
+          metadata: {
+            tool_calls: [{ id: 'call_a', name: 'workflow_list', input: {} }],
+          },
+        },
+        {
+          role: 'tool',
+          source: 'tool_result',
+          content: '[{"id":"wf-1","name":"daily-summary"}]',
+          createdAt: '2026-01-01T00:00:02Z',
+          name: 'workflow_list',
+          metadata: { tool_call_id: 'call_a' },
+        },
+      ];
+      const formatted = adapter.formatRequest({
+        systemPrompt: 'You are a helpful assistant.',
+        context: frames,
+      });
+      const messages = (formatted.input as Record<string, unknown>).messages as Array<Record<string, unknown>>;
+      // system + user + assistant(tool_calls) + tool(name, tool_call_id)
+      const toolMsg = messages[messages.length - 1];
+      expect(toolMsg.tool_call_id).toBe('call_a');
+      expect(toolMsg.name).toBe('workflow_list');
+    });
+
+    it('OpenAI adapter — when frame.name is set on the tool result frame, the wire message includes it', () => {
+      const adapter = createOpenAiAdapter();
+      const frames: GatewayContextFrame[] = [
+        {
+          role: 'user',
+          source: 'initial_context',
+          content: 'List my workflows',
+          createdAt: '2026-01-01T00:00:00Z',
+        },
+        {
+          role: 'assistant',
+          source: 'model_output',
+          content: 'I will list them.',
+          createdAt: '2026-01-01T00:00:01Z',
+          metadata: {
+            tool_calls: [{ id: 'call_a', name: 'workflow_list', input: {} }],
+          },
+        },
+        {
+          role: 'tool',
+          source: 'tool_result',
+          content: '[{"id":"wf-1","name":"daily-summary"}]',
+          createdAt: '2026-01-01T00:00:02Z',
+          name: 'workflow_list',
+          metadata: { tool_call_id: 'call_a' },
+        },
+      ];
+      const formatted = adapter.formatRequest({
+        systemPrompt: 'You are a helpful assistant.',
+        context: frames,
+      });
+      const messages = (formatted.input as Record<string, unknown>).messages as Array<Record<string, unknown>>;
+      const toolMsg = messages[messages.length - 1];
+      expect(toolMsg.tool_call_id).toBe('call_a');
+      expect(toolMsg.name).toBe('workflow_list');
     });
   });
 

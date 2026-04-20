@@ -1,10 +1,12 @@
 import { afterEach, describe, expect, it, vi } from 'vitest';
+import { NousError } from '@nous/shared';
 import {
   createScopedMcpToolSurface,
   getVisibleInternalMcpTools,
   registerDynamicInternalMcpTool,
   unregisterDynamicInternalMcpTool,
 } from '../../internal-mcp/index.js';
+import type { ToolErrorPayload } from '../../internal-mcp/tool-error-helpers.js';
 import {
   AGENT_ID,
   PROJECT_ID,
@@ -329,5 +331,128 @@ describe('ScopedMcpToolSurface', () => {
     await expect(principalSurface.executeTool(toolName, {})).rejects.toThrow(
       'not available',
     );
+  });
+
+  // ── SP 1.13 RC-1 enriched-error contract regressions ─────────────────────
+  // All four "Tool ${name} is not available..." throw sites in
+  // scoped-tool-surface.ts now flow through buildUnknownToolError. The four
+  // sites correspond to: (1) catalog miss + dynamic miss, (2) dynamic-entry
+  // visibility miss, (3) secondary catalog-miss guard (unreachable in practice
+  // because of guard #1, but covered by the existing throw), (4) authorization-
+  // matrix miss. Each throw must produce the same enriched contract.
+  describe('SP 1.13 RC-1 enriched unknown-tool contract', () => {
+    it('throw site #1 — totally unknown name produces enriched NousError', async () => {
+      const surface = createScopedMcpToolSurface({
+        agentClass: 'Cortex::Principal',
+        agentId: AGENT_ID,
+        deps: {
+          getProjectApi: () => createProjectApi(),
+        },
+      });
+
+      let captured: NousError | undefined;
+      try {
+        await surface.executeTool('this_tool_does_not_exist', {}, { projectId: PROJECT_ID });
+      } catch (e) {
+        captured = e as NousError;
+      }
+      expect(captured).toBeInstanceOf(NousError);
+      expect(captured?.code).toBe('TOOL_NOT_AVAILABLE');
+      expect(captured?.message).toContain('Available tools:');
+      const ctx = captured?.context as ToolErrorPayload;
+      expect(ctx.tool_error_kind).toBe('unknown_tool');
+      expect(ctx.requested_tool).toBe('this_tool_does_not_exist');
+      // Available tools list should reflect the calling agent class's authorized set.
+      expect(ctx.available_tools).toBeDefined();
+      expect((ctx.available_tools ?? []).length).toBeGreaterThan(0);
+    });
+
+    it('throw site #2 — dynamic-entry visibility miss produces enriched NousError', async () => {
+      const toolName = 'app:test.dynamic_visibility_only_worker';
+      registerDynamicInternalMcpTool({
+        name: toolName,
+        sessionId: 'session-vis',
+        appId: 'app:test',
+        visibleTo: ['Worker'], // Visible to Worker but NOT Principal
+        definition: {
+          name: toolName,
+          version: '1.0.0',
+          description: 'Test dynamic tool with restricted visibility.',
+          inputSchema: {},
+          outputSchema: {},
+          capabilities: ['read'],
+          permissionScope: 'project',
+        },
+        execute: vi.fn(),
+      });
+      try {
+        const principalSurface = createScopedMcpToolSurface({
+          agentClass: 'Cortex::Principal',
+          agentId: AGENT_ID,
+          deps: { getProjectApi: () => createProjectApi() },
+        });
+
+        let captured: NousError | undefined;
+        try {
+          await principalSurface.executeTool(toolName, {}, { projectId: PROJECT_ID });
+        } catch (e) {
+          captured = e as NousError;
+        }
+        expect(captured).toBeInstanceOf(NousError);
+        expect(captured?.code).toBe('TOOL_NOT_AVAILABLE');
+        expect(captured?.message).toContain('Available tools:');
+        const ctx = captured?.context as ToolErrorPayload;
+        expect(ctx.tool_error_kind).toBe('unknown_tool');
+        expect(ctx.requested_tool).toBe(toolName);
+      } finally {
+        unregisterDynamicInternalMcpTool(toolName);
+      }
+    });
+
+    it('throw site #4 — authorization-matrix miss (catalog tool not granted) produces enriched NousError', async () => {
+      // Worker is NOT authorized for workflow_create at baseline.
+      const surface = createScopedMcpToolSurface({
+        agentClass: 'Worker',
+        agentId: AGENT_ID,
+        deps: {
+          getProjectApi: () => createProjectApi(),
+          pfc: createPfcEngine(),
+        },
+      });
+
+      let captured: NousError | undefined;
+      try {
+        await surface.executeTool('workflow_create', {}, { projectId: PROJECT_ID });
+      } catch (e) {
+        captured = e as NousError;
+      }
+      expect(captured).toBeInstanceOf(NousError);
+      expect(captured?.code).toBe('TOOL_NOT_AVAILABLE');
+      expect(captured?.message).toContain('Available tools:');
+      const ctx = captured?.context as ToolErrorPayload;
+      expect(ctx.tool_error_kind).toBe('unknown_tool');
+      expect(ctx.requested_tool).toBe('workflow_create');
+    });
+
+    it('"Did you mean: workflow_list" suggestion fires for the BT R5 hallucinated name', async () => {
+      const surface = createScopedMcpToolSurface({
+        agentClass: 'Cortex::Principal',
+        agentId: AGENT_ID,
+        deps: { getProjectApi: () => createProjectApi() },
+      });
+
+      let captured: NousError | undefined;
+      try {
+        await surface.executeTool(
+          'workflow_manager.list_workflows',
+          {},
+          { projectId: PROJECT_ID },
+        );
+      } catch (e) {
+        captured = e as NousError;
+      }
+      expect(captured?.message).toContain('Did you mean:');
+      expect(captured?.message).toContain('workflow_list');
+    });
   });
 });

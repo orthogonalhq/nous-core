@@ -256,4 +256,37 @@ describe('useChatStageManager', () => {
     act(() => vi.advanceTimersByTime(30000))
     expect(result.current.chatStage).toBe('full')
   })
+
+  // --- WR-135 investigation coverage ---
+
+  it('signalSending from full stays full', () => {
+    const { result } = renderHook(() => useChatStageManager())
+    act(() => result.current.expandToFull())
+    act(() => result.current.signalSending())
+    expect(result.current.chatStage).toBe('full')
+  })
+
+  it('handleClickOutside with active turn stays at ambient_small', () => {
+    const { result } = renderHook(() => useChatStageManager())
+    // signalSending sets isActiveTurnRef = true and transitions to ambient_small
+    act(() => result.current.signalSending())
+    expect(result.current.chatStage).toBe('ambient_small')
+
+    // Click outside while turn is active — should stay ambient_small, not collapse to small
+    act(() => result.current.handleClickOutside())
+    expect(result.current.chatStage).toBe('ambient_small')
+  })
+
+  it('handleClickOutside after turn complete collapses to small', () => {
+    const { result } = renderHook(() => useChatStageManager())
+    act(() => result.current.signalSending())
+    expect(result.current.chatStage).toBe('ambient_small')
+
+    // Turn completes — clears isActiveTurnRef
+    act(() => result.current.signalTurnComplete())
+
+    // Click outside after turn done — should collapse to small
+    act(() => result.current.handleClickOutside())
+    expect(result.current.chatStage).toBe('small')
+  })
 })

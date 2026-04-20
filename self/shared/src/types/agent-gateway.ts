@@ -396,6 +396,94 @@ export const GatewayRunSnapshotSchema = z
   .strict();
 export type GatewayRunSnapshot = z.infer<typeof GatewayRunSnapshotSchema>;
 
+/**
+ * Marker text written to `AgentResult.output.response` (and to STM) when the
+ * Principal gateway's empty-loop guard fires. The guard fires when the model
+ * produced reasoning (or no output at all) without finalizing a user-facing
+ * response. The marker gives the user a stable, on-surface signal instead of
+ * a silent assistant bubble.
+ *
+ * SP 1.15 RC-1 — Bug Chain A. The constant lives in `@nous/shared` so every
+ * consumer (gateway, runtime, UI) imports a single source of truth; future
+ * copy-edits must update this constant, never the importers.
+ */
+export const EMPTY_RESPONSE_MARKER =
+  '[I produced reasoning but did not finalize a response. Click Thinking to view what I was working on, or rephrase your request.]';
+
+/**
+ * Discriminator written alongside the empty-exit marker so callers can tell
+ * the empty-exit shapes apart:
+ *
+ * - `thinking_only_no_finalizer` — model emitted thinking content but no
+ *   user-facing response and no tool calls.
+ * - `no_output_at_all` — model emitted neither thinking nor response.
+ *
+ * SP 1.17 narrows this enum from 3 to 2 values. The third value
+ * (`narrate_without_dispatch`) and the SP 1.16 RC-β heuristic detector +
+ * structured fallback marker pathway that produced it are removed in full;
+ * see SP 1.17 SDS § 1.3 for the rip enumeration. No content classifier
+ * survives in the gateway. Cross-package literal-union sites
+ * (`ChatTurnResultSchema.empty_response_kind`, `ChatMessage.empty_response_kind`,
+ * `ChatAPI.send` return-type) narrow in lockstep per Invariant I-7.
+ */
+export const EmptyResponseKindSchema = z.enum([
+  'thinking_only_no_finalizer',
+  'no_output_at_all',
+]);
+export type EmptyResponseKind = z.infer<typeof EmptyResponseKindSchema>;
+
+/**
+ * Structural signal that the model's request shape will not produce thinking
+ * on this model class — surfaced to the chat surface so the user sees an
+ * honest acknowledgment instead of a silently-empty thinking disclosure.
+ *
+ * Derived structurally by the gateway from:
+ *   - `adapter.capabilities.extendedThinking === true`, AND
+ *   - `validInput.context.length > 1` (multi-turn), AND
+ *   - `parsedOutput.thinkingContent` empty/undefined.
+ *
+ * NEVER inferred from response content. SP 1.17 RC-α-1 (Invariant I-3 / I-5).
+ *
+ * `ref` carries the upstream tracking work-register row (today: WR-172 —
+ * Composable provider × model adapter system) so the UI render can cite
+ * the structural fix without coupling chat-surface copy to work-register naming.
+ */
+export const ThinkingUnavailableSchema = z
+  .object({
+    reason: z.string().min(1).max(200),
+    ref: z.string().min(1).max(40),
+  })
+  .strict();
+export type ThinkingUnavailable = z.infer<typeof ThinkingUnavailableSchema>;
+
+/**
+ * Documented shape of `AgentResult.output` for chat-surface Principal turns.
+ *
+ * `AgentResultSchema.output` is intentionally `z.unknown()` per SDS §
+ * Boundaries — the discriminated-union refactor at the boundary layer is
+ * out-of-scope for SP 1.15. This interface documents the runtime shape
+ * consumers (cortex-runtime, UI) rely on.
+ *
+ * `empty_response_kind` is set by the empty-loop guard branch in
+ * `agent-gateway.ts`. Absent for normal exits.
+ */
+export interface ChatAgentOutput {
+  response: string;
+  contentType?: 'text' | 'openui';
+  thinkingContent?: string;
+  empty_response_kind?: EmptyResponseKind;
+  /**
+   * SP 1.17 RC-α-1 — structural signal that the model's request shape will
+   * not produce thinking on this multi-turn turn. Set by the gateway after
+   * a successful `parseResponse` when the derivation gate fires
+   * (`adapter.capabilities.extendedThinking` AND `context.length > 1` AND
+   * `thinkingContent` empty). Surfaced by the chat UI as an honest
+   * acknowledgment in the thinking disclosure. Tracked under `ref`
+   * (today: 'WR-172') for the upstream structural fix.
+   */
+  thinking_unavailable?: ThinkingUnavailable;
+}
+
 const AgentResultBaseSchema = z
   .object({
     correlation: GatewayCorrelationSchema,

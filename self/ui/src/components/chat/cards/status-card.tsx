@@ -44,6 +44,7 @@ export function StatusCard({
   const result = StatusCardSchema.safeParse(props)
   if (!result.success) {
     console.warn('[StatusCard] Validation failed:', result.error.format(), 'Received props:', props)
+    console.trace('[StatusCard] Invalid props emitter stack')
     return (
       <div
         data-testid="status-card-invalid"
@@ -129,10 +130,12 @@ export function StatusCard({
             style={{
               marginTop: 'var(--nous-space-sm)',
               fontSize: 'var(--nous-font-size-xs)',
-              color: 'var(--nous-fg-muted)',
+              color: actionOutcome.result?.ok === false
+                ? 'var(--nous-state-blocked)'
+                : 'var(--nous-fg-muted)',
             }}
           >
-            {actionOutcome.label}
+            {actionOutcome.result?.message ?? actionOutcome.label}
           </div>
         )}
       </CardContent>

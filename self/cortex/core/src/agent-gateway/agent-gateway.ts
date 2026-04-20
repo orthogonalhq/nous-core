@@ -2,6 +2,7 @@ import { randomUUID } from 'node:crypto';
 import {
   AgentInputSchema,
   AgentResultSchema,
+  EMPTY_RESPONSE_MARKER,
   GatewayContextFrameSchema,
   NousError,
   ValidationError,
@@ -9,7 +10,9 @@ import {
   type AgentGatewayConfig,
   type AgentInput,
   type AgentResult,
+  type ChatAgentOutput,
   type CriticalActionCategory,
+  type EmptyResponseKind,
   type GatewayBudgetExhaustionReason,
   type GatewayContextFrame,
   type DispatchOrchestratorRequest,
@@ -24,6 +27,7 @@ import {
   type IModelProvider,
   type ModelRole,
   type ProjectId,
+  type ThinkingUnavailable,
   type ToolDefinition,
   type RouteContext,
   type TraceEvidenceReference,
@@ -31,7 +35,7 @@ import {
   type WitnessActor,
   type WitnessEventId,
 } from '@nous/shared';
-import { parseModelOutput, type ParsedModelOutput } from '../output-parser.js';
+import { type ParsedModelOutput } from '../output-parser.js';
 import {
   BudgetTracker,
   estimateBudgetUnits,
@@ -56,7 +60,9 @@ import {
 import { GatewayOutbox } from './outbox.js';
 import { composeSystemPrompt } from './system-prompt-composer.js';
 import { resolveAdapter, resolveProviderTypeFromConfig } from './adapters/index.js';
-import type { ILogChannel } from '@nous/shared';
+import { isToolErrorPayload } from '../internal-mcp/tool-error-helpers.js';
+import { resolveDispatchParameterPlaceholders } from './placeholder-resolver.js';
+import type { ILogChannel, ModelResponse, ModelStreamChunk } from '@nous/shared';
 import type { ProviderAdapter } from './adapters/types.js';
 
 /** No-op log channel used when no ILogChannel is provided. */
@@ -79,6 +85,62 @@ function deriveDefaultModelRole(agentClass: AgentClass | undefined): ModelRole {
   if (!agentClass) return 'cortex-chat'; // I5 first-run fallback
   return DEFAULT_MODEL_ROLE_BY_CLASS[agentClass];
 }
+
+/**
+ * SP 1.15 RC-1 — single source of truth for the empty-exit marker text given
+ * a discriminator. Used by the gateway's `buildSingleTurnResult` AND by
+ * `cortex-runtime.finalizeChatStmTurn` (STM write) so the marker substitution
+ * logic exists in exactly one place. Exported for cross-module (same-package)
+ * reuse — `default: never` exhaustiveness check fails the typechecker if a
+ * future cycle adds a new `EmptyResponseKind` value without updating this
+ * switch.
+ *
+ * SP 1.17 narrows the switch from 3 arms to 1 (collapsed) — the
+ * `narrate_without_dispatch` arm and the heuristic detector + structured
+ * fallback marker pathway it served are removed in full per SDS § 1.3.
+ */
+export const markerForKind = (kind: EmptyResponseKind): string => {
+  switch (kind) {
+    case 'thinking_only_no_finalizer':
+    case 'no_output_at_all':
+      return EMPTY_RESPONSE_MARKER;
+    default: {
+      const _exhaustive: never = kind;
+      return _exhaustive;
+    }
+  }
+};
+
+/**
+ * SP 1.17 RC-α-1 — structural derivation gate for the `thinking_unavailable`
+ * signal. Returns a populated `ThinkingUnavailable` only when ALL three
+ * structural conditions hold:
+ *
+ *   1. The adapter declares `extendedThinking` capability.
+ *   2. The OUTGOING request is multi-turn (`context.length > 1`, i.e., at
+ *      least one prior assistant frame exists in the conversation).
+ *   3. The actually-received `parsedOutput.thinkingContent` is empty/absent
+ *      after trim.
+ *
+ * NEVER inspects response content. NEVER applies regex / token matching.
+ * The `ref` is the upstream tracking work-register row (today: WR-172) so
+ * the UI render can cite the structural fix without coupling chat-surface
+ * copy to work-register naming. SP 1.17 SDS Invariant I-3 / I-5.
+ */
+export const deriveThinkingUnavailable = (args: {
+  adapter: ProviderAdapter;
+  validInput: AgentInput;
+  parsedOutput: ParsedModelOutput;
+}): ThinkingUnavailable | undefined => {
+  if (!args.adapter.capabilities.extendedThinking) return undefined;
+  if (args.validInput.context.length <= 1) return undefined;
+  const tc = args.parsedOutput.thinkingContent;
+  if (typeof tc === 'string' && tc.trim().length > 0) return undefined;
+  return {
+    reason: 'multi-turn request shape — provider/model template does not surface thinking',
+    ref: 'WR-172',
+  };
+};
 
 const DEFAULT_MODEL_REQUIREMENTS = {
   profile: 'review-standard',
@@ -251,34 +313,78 @@ export class AgentGateway implements IAgentGateway {
           userMessage: lastUserFrame?.content?.slice(0, 500) ?? '(no user message)',
         });
 
-        const modelResponse = await provider.invoke({
-          role: this.config.modelRole ?? deriveDefaultModelRole(this.config.agentClass),
-          input: formatted.input,
-          projectId,
-          traceId,
-          agentClass: this.agentClass,
-          correlationRunId: correlation.runId,
-          correlationParentId: correlation.parentId,
-        });
+        // Streaming decision (cycle-5 SP 1.13 RC-2):
+        //
+        // Two gates govern streaming, replacing the single canStream gate that
+        // existed pre-cycle-5. The cycle-1 SP 1.9 RC-2 invariant ("tool-bearing
+        // turns must use invoke() because ModelStreamChunk has no toolCalls field
+        // — streaming would drop tool_calls") is preserved on canStreamContent.
+        // canStreamThinking has no such constraint because thinking content does
+        // not interfere with tool_calls extraction.
+        //
+        // Precedence when both gates are true (no tools, extendedThinking adapter,
+        // stream-capable provider, eventBus): use invokeWithStreaming. That path
+        // already emits BOTH content and thinking chunks (agent-gateway.ts:543-556),
+        // so it dominates — no double-stream.
+        const canStreamContent = !!this.config.eventBus
+          && adapter.capabilities.streaming
+          && typeof provider.stream === 'function'
+          && (!tools || tools.length === 0);
+
+        const canStreamThinking = !!this.config.eventBus
+          && adapter.capabilities.extendedThinking
+          && typeof provider.invokeWithThinkingStream === 'function';
+
+        const modelResponse = canStreamContent
+          ? await this.invokeWithStreaming(provider, adapter, formatted, traceId, projectId, correlation)
+          : canStreamThinking
+            ? await provider.invokeWithThinkingStream!(
+                {
+                  role: this.config.modelRole ?? deriveDefaultModelRole(this.config.agentClass),
+                  input: formatted.input,
+                  projectId: projectId as ProjectId | undefined,
+                  traceId: traceId as TraceId,
+                  agentClass: this.agentClass,
+                  ...(correlation.runId ? { correlationRunId: correlation.runId } : {}),
+                  ...(correlation.parentId ? { correlationParentId: correlation.parentId } : {}),
+                },
+                this.config.eventBus!,
+                traceId as TraceId,
+              )
+            : await provider.invoke({
+                role: this.config.modelRole ?? deriveDefaultModelRole(this.config.agentClass),
+                input: formatted.input,
+                projectId,
+                traceId,
+                agentClass: this.agentClass,
+                correlationRunId: correlation.runId,
+                correlationParentId: correlation.parentId,
+              });
 
         budgetTracker.recordModelUsage(modelResponse.usage);
 
+        // SP 1.17 RC-β-1.1 (Option iii) — the gateway reads `recovery` as
+        // structural metadata (pass-through into the debug log) for
+        // telemetry/log-level decisions only. Content rendering does NOT
+        // branch on `recovery` — Invariant I-2.
         this.log.debug('model response received', {
           agentClass: this.agentClass,
           outputType: typeof modelResponse.output,
           outputLength: typeof modelResponse.output === 'string' ? modelResponse.output.length : 'non-string',
           hasUsage: !!modelResponse.usage,
           rawOutput: modelResponse.output,
+          recovery: modelResponse.recovery,
         });
 
-        // Strategy delegation: responseParser (harness) or parseModelOutput (built-in)
-        const usingHarnessParser = !!this.config.harness?.responseParser;
-        const parsedOutput: ParsedModelOutput = usingHarnessParser
-          ? (this.config.harness!.responseParser!(modelResponse.output, traceId) as ParsedModelOutput)
-          : parseModelOutput(modelResponse.output, traceId);
+        // Adapter-based parsing: use the same adapter resolved at line 241 for
+        // formatRequest() so format and parse come from the same adapter for the
+        // live provider within one turn. The harness `responseParser` field is
+        // retained on the type for back-compat (see O-1 in SP 1.11 Out-of-Scope)
+        // but is no longer read here.
+        const parsedOutput: ParsedModelOutput = adapter.parseResponse(modelResponse.output, traceId);
 
         this.log.debug('parser selection', {
-          usingHarnessParser,
+          adapterProviderSignature: this.cachedAdapterProviderSignature,
           outputType: typeof modelResponse.output,
           parsedResponse: parsedOutput.response.slice(0, 100),
           parsedToolCalls: parsedOutput.toolCalls.length,
@@ -316,6 +422,25 @@ export class AgentGateway implements IAgentGateway {
           );
         }
 
+        // SP 1.17 RC-α-1 — derive the structural `thinking_unavailable`
+        // signal once per model invocation (post-parseResponse). Pure
+        // structural fact (capability + multi-turn + thinkingContent absence);
+        // never inspects content. Invariant I-3 / I-5.
+        const thinkingUnavailable = deriveThinkingUnavailable({
+          adapter,
+          validInput,
+          parsedOutput,
+        });
+        if (thinkingUnavailable) {
+          this.log.info('thinking unavailable derived', {
+            agentClass: this.agentClass,
+            reason: thinkingUnavailable.reason,
+            ref: thinkingUnavailable.ref,
+            contextLength: validInput.context.length,
+            extendedThinkingCapability: adapter.capabilities.extendedThinking,
+          });
+        }
+
         // Single-turn exit: return immediately after one model invocation.
         // No tool handling, no task_complete required.
         if (this.config.harness?.loopConfig?.singleTurn) {
@@ -325,6 +450,8 @@ export class AgentGateway implements IAgentGateway {
             this.buildSingleTurnResult(
               parsedOutput, sequencer, budgetTracker, evidenceRefs,
               validInput, context.length, startedAt,
+              undefined,
+              thinkingUnavailable,
             ),
             'gateway:completed',
             traceId,
@@ -332,16 +459,38 @@ export class AgentGateway implements IAgentGateway {
           );
         }
 
-        // Conversational exit: if the model responded with text and no tool
-        // calls, the turn is complete. Only continue looping when there are
-        // pending tool calls to execute.
-        if (parsedOutput.toolCalls.length === 0 && parsedOutput.response.trim()) {
-          this.log.debug('conversational exit (no tool calls)', { agentClass: this.agentClass });
+        // Conversational exit: if the model produced no tool calls, the turn
+        // is complete. This covers both normal text responses and empty
+        // responses. Without this guard, an empty response with zero tool
+        // calls loops forever (BT Round 1, RC-1).
+        //
+        // SP 1.17 — collapsed from 4 cases (a/b/c/d) to 2 (a/d) per SDS § 1.3.
+        // Cases (b) `fromFallback` UNCONDITIONAL classification and (c)
+        // `detectNarrateWithoutDispatch` heuristic adjudication are removed
+        // in full (Invariant I-5 — no content classifiers anywhere). The
+        // SP 1.16 RC-β contract gap is closed at the contract layer instead
+        // (Option iii — provider returns `recovery?` structural metadata).
+        if (parsedOutput.toolCalls.length === 0) {
+          let emptyResponseKind: EmptyResponseKind | undefined;
+          if (!parsedOutput.response.trim()) {
+            // SP 1.15 RC-1 — case (a) — derive the empty-exit discriminator so
+            // the user-facing surface gets EMPTY_RESPONSE_MARKER + a typed
+            // signal instead of a silent assistant bubble.
+            emptyResponseKind = parsedOutput.thinkingContent && parsedOutput.thinkingContent.trim().length > 0
+              ? 'thinking_only_no_finalizer'
+              : 'no_output_at_all';
+            this.log.warn('empty model response with no tool calls — exiting loop', { agentClass: this.agentClass, emptyResponseKind });
+          } else {
+            // case (d) — default no-op: normal conversational exit.
+            this.log.debug('conversational exit (no tool calls)', { agentClass: this.agentClass });
+          }
           budgetTracker.recordTurn();
           return this.finalizeTerminalResult(
             this.buildSingleTurnResult(
               parsedOutput, sequencer, budgetTracker, evidenceRefs,
               validInput, context.length, startedAt,
+              emptyResponseKind,
+              thinkingUnavailable,
             ),
             'gateway:completed',
             traceId,
@@ -486,6 +635,78 @@ export class AgentGateway implements IAgentGateway {
         return this.handleObservationTool(args);
       default:
         return this.handleStandardTool(args);
+    }
+  }
+
+  /**
+   * Invoke the provider using streaming, emitting chunks via the event bus.
+   * Falls back to invoke() if streaming fails.
+   */
+  /**
+   * Invoke the provider using streaming, emitting chunks via the event bus.
+   * Falls back to invoke() if streaming fails.
+   */
+  private async invokeWithStreaming(
+    provider: IModelProvider,
+    _adapter: ProviderAdapter,
+    formatted: { input: unknown },
+    traceId: string,
+    projectId: string | undefined,
+    correlation: { runId: string; parentId?: string; sequence: number },
+  ): Promise<import('@nous/shared').ModelResponse> {
+    const eventBus = this.config.eventBus!;
+    const request = {
+      role: this.config.modelRole ?? deriveDefaultModelRole(this.config.agentClass),
+      input: formatted.input,
+      projectId: projectId as ProjectId | undefined,
+      traceId: traceId as TraceId,
+      agentClass: this.agentClass,
+      ...(correlation.runId ? { correlationRunId: correlation.runId } : {}),
+      ...(correlation.parentId ? { correlationParentId: correlation.parentId } : {}),
+    };
+
+    try {
+      let accumulatedContent = '';
+      let accumulatedThinking = '';
+      let lastUsage: ModelStreamChunk['usage'];
+
+      for await (const chunk of provider.stream!(request)) {
+        if (chunk.thinking) {
+          accumulatedThinking += chunk.thinking;
+          eventBus.publish('chat:thinking-chunk', {
+            content: chunk.thinking,
+            traceId,
+          });
+        }
+        if (chunk.content) {
+          accumulatedContent += chunk.content;
+          eventBus.publish('chat:content-chunk', {
+            content: chunk.content,
+            traceId,
+          });
+        }
+        if (chunk.usage) {
+          lastUsage = chunk.usage;
+        }
+      }
+
+      // Build a ModelResponse-compatible result from accumulated chunks
+      const output = accumulatedThinking
+        ? { response: accumulatedContent, thinkingContent: accumulatedThinking }
+        : accumulatedContent;
+
+      return {
+        output,
+        usage: {
+          inputTokens: lastUsage?.inputTokens ?? 0,
+          outputTokens: lastUsage?.outputTokens ?? 0,
+        },
+        traceId: traceId as TraceId,
+        providerId: provider.getConfig().id,
+      };
+    } catch (err) {
+      this.log.warn('streaming failed, falling back to invoke()', { error: String(err) });
+      return provider.invoke(request);
     }
   }
 
@@ -635,13 +856,7 @@ export class AgentGateway implements IAgentGateway {
             // Rejected — produce tool_error frame matching handleStandardTool catch path
             frameByIndex.set(
               index,
-              this.createContextFrame(
-                'tool',
-                'tool_error',
-                normalizeToolError(toolCall.name, result.reason),
-                toolCall.name,
-                toolCall.id ? { tool_call_id: toolCall.id } : undefined,
-              ),
+              this.buildToolErrorFrame(toolCall.name, toolCall.id, result.reason),
             );
           }
         });
@@ -752,12 +967,7 @@ export class AgentGateway implements IAgentGateway {
       }
 
       immediate.set(index, {
-        contextFrame: this.createContextFrame(
-          'tool',
-          'tool_error',
-          normalizeToolError(prepared.toolName, result.reason),
-          prepared.toolName,
-        ),
+        contextFrame: this.buildToolErrorFrame(prepared.toolName, undefined, result.reason),
       });
     });
 
@@ -778,9 +988,13 @@ export class AgentGateway implements IAgentGateway {
     startedAt: string;
   }): Promise<ToolHandlingResult> {
     try {
+      const resolvedParams = resolveDispatchParameterPlaceholders(
+        args.params,
+        args.input.execution,
+      );
       const value = await this.config.toolSurface.executeTool(
         args.toolName,
-        args.params,
+        resolvedParams,
         args.input.execution,
       );
 
@@ -807,13 +1021,7 @@ export class AgentGateway implements IAgentGateway {
       }
 
       return {
-        contextFrame: this.createContextFrame(
-          'tool',
-          'tool_error',
-          normalizeToolError(args.toolName, error),
-          args.toolName,
-          args.toolCallId ? { tool_call_id: args.toolCallId } : undefined,
-        ),
+        contextFrame: this.buildToolErrorFrame(args.toolName, args.toolCallId, error),
       };
     }
   }
@@ -1343,17 +1551,40 @@ export class AgentGateway implements IAgentGateway {
     input: AgentInput,
     contextLength: number,
     startedAt: string,
+    emptyResponseKind?: EmptyResponseKind,
+    thinkingUnavailable?: ThinkingUnavailable,
   ): AgentResult {
     const now = this.now();
     const nowMs = this.nowMs();
     const correlation = sequencer.snapshot();
+    // SP 1.15 RC-1 — when the empty-loop guard fires, the user-visible output
+    // carries the EMPTY_RESPONSE_MARKER (selected via `markerForKind`
+    // exhaustive switch) + the empty-response discriminator. The witness
+    // packet (v3Packet.payload.data.response below) keeps the raw model
+    // output so the witness's view of "what the model actually emitted" is
+    // unchanged.
+    //
+    // SP 1.17 RC-α-1 — `thinkingUnavailable` is the structurally-derived
+    // signal indicating the model's request shape will not surface thinking
+    // on this turn. Spread additively into both arms so the chat UI can
+    // render an honest acknowledgment in the thinking disclosure.
+    const baseOutput: ChatAgentOutput = emptyResponseKind
+      ? {
+          response: markerForKind(emptyResponseKind),
+          contentType: parsedOutput.contentType,
+          thinkingContent: parsedOutput.thinkingContent,
+          empty_response_kind: emptyResponseKind,
+          ...(thinkingUnavailable ? { thinking_unavailable: thinkingUnavailable } : {}),
+        }
+      : {
+          response: parsedOutput.response,
+          contentType: parsedOutput.contentType,
+          thinkingContent: parsedOutput.thinkingContent,
+          ...(thinkingUnavailable ? { thinking_unavailable: thinkingUnavailable } : {}),
+        };
     return AgentResultSchema.parse({
       status: 'completed' as const,
-      output: {
-        response: parsedOutput.response,
-        contentType: parsedOutput.contentType,
-        thinkingContent: parsedOutput.thinkingContent,
-      },
+      output: baseOutput,
       v3Packet: {
         nous: { v: 3 as const },
         route: {
@@ -1553,6 +1784,42 @@ export class AgentGateway implements IAgentGateway {
       metadata,
       createdAt: this.now(),
     });
+  }
+
+  /**
+   * Build a `tool_error` GatewayContextFrame from a thrown error. When the
+   * error carries a structured `ToolErrorPayload` on `NousError.context`,
+   * the message body (which already includes "Available tools: ..." and any
+   * "Did you mean: ..." suggestion) is used verbatim and the
+   * `tool_error_kind` discriminator is propagated into frame metadata so the
+   * model and downstream consumers can branch on failure class. Otherwise
+   * the legacy `normalizeToolError` shape is preserved unchanged for
+   * runtime errors.
+   *
+   * Used by all three rejection sites (handleStandardTool catch,
+   * handleToolCalls partitioned-rejected, handleDispatchBatch rejected) so
+   * the recovery contract is uniform across single-tool, concurrent, and
+   * batched dispatch paths.
+   */
+  private buildToolErrorFrame(
+    toolName: string,
+    toolCallId: string | undefined,
+    error: unknown,
+  ): GatewayContextFrame {
+    const payload =
+      error instanceof NousError && isToolErrorPayload(error.context)
+        ? error.context
+        : null;
+    const content = payload
+      ? (error as NousError).message
+      : normalizeToolError(toolName, error);
+    const metadata: Record<string, unknown> | undefined = (() => {
+      const base: Record<string, unknown> = {};
+      if (toolCallId) base.tool_call_id = toolCallId;
+      if (payload) base.tool_error_kind = payload.tool_error_kind;
+      return Object.keys(base).length > 0 ? base : undefined;
+    })();
+    return this.createContextFrame('tool', 'tool_error', content, toolName, metadata);
   }
 
   private async executeWithWitness<T>(

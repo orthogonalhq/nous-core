@@ -9,8 +9,9 @@
  * without knowing which platform they run on.
  */
 import { useState, createContext, useContext } from 'react';
-import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
-import { httpBatchLink } from '@trpc/client';
+import { QueryClient, QueryClientProvider, QueryCache } from '@tanstack/react-query';
+import { createTRPCClient, httpBatchLink } from '@trpc/client';
+import type { AppRouter } from '@nous/shared-server';
 import superjson from 'superjson';
 import { trpc } from './client';
 
@@ -76,9 +77,30 @@ export interface TransportProviderProps {
 }
 
 export function TransportProvider({ config, children }: TransportProviderProps) {
+  // Vanilla tRPC client for non-React contexts (QueryCache.onError)
+  const [vanillaClient] = useState(() =>
+    createTRPCClient<AppRouter>({
+      links: [httpBatchLink({ url: config.trpcUrl, transformer: superjson })],
+    }),
+  );
+
   const [queryClient] = useState(() => new QueryClient({
+    queryCache: new QueryCache({
+      onError: (error) => {
+        void vanillaClient.notifications.raise.mutate({
+          kind: 'toast' as const,
+          projectId: null,
+          title: 'Query Error',
+          message: error instanceof Error ? error.message : 'An unexpected error occurred',
+          transient: true,
+          source: 'transport',
+          toast: { severity: 'error' as const },
+        });
+      },
+    }),
     defaultOptions: { queries: { retry: 1 } },
   }));
+
   const [trpcClient] = useState(() =>
     trpc.createClient({
       links: [

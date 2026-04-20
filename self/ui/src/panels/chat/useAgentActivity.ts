@@ -34,11 +34,15 @@ export function useAgentActivity(enabled: boolean) {
         }
       }
 
-      // Activity ends — idle after brief delay to avoid flicker
-      if (
-        (channel === 'thought:turn-lifecycle' && p.phase === 'turn-complete') ||
-        channel === 'inference:stream-complete'
-      ) {
+      // Turn complete — authoritative signal, clear immediately
+      if (channel === 'thought:turn-lifecycle' && p.phase === 'turn-complete') {
+        if (idleTimerRef.current) clearTimeout(idleTimerRef.current)
+        idleTimerRef.current = null
+        setAgentActive(false)
+      }
+
+      // Inference stream complete — may fire mid-reasoning, delay to avoid flicker
+      if (channel === 'inference:stream-complete') {
         if (idleTimerRef.current) clearTimeout(idleTimerRef.current)
         idleTimerRef.current = setTimeout(() => {
           setAgentActive(false)

@@ -38,7 +38,8 @@ function ChatPageContent() {
     }
   }, [linkedProjectId, projectId, setProjectId]);
 
-  const chatApi = useChatApi({ projectId: projectId ?? undefined });
+  const sessionId = searchParams.get('sessionId') ?? undefined;
+  const chatApi = useChatApi({ projectId: projectId ?? undefined, sessionId });
 
   if (!projectId) {
     return (

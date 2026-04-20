@@ -1,4 +1,4 @@
-import { describe, it, expect, vi, beforeEach } from 'vitest';
+import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import type { ProviderId } from '@nous/shared';
 import { NousError, ValidationError } from '@nous/shared';
 import { OpenAiCompatibleProvider } from '../openai-provider.js';
@@ -136,5 +136,54 @@ describe('OpenAiCompatibleProvider', () => {
         abortSignal: controller.signal,
       }),
     ).rejects.toMatchObject({ code: 'ABORTED' });
+  });
+});
+
+describe('OpenAiCompatibleProvider — fetchWithTimeout classification (SP 1.16 RC-β.2 / β6)', () => {
+  beforeEach(() => {
+    vi.useFakeTimers();
+    vi.stubGlobal('fetch', vi.fn());
+    vi.stubGlobal('process', {
+      ...process,
+      env: { ...process.env, OPENAI_API_KEY: 'test-key' },
+    });
+  });
+  afterEach(() => {
+    vi.useRealTimers();
+  });
+
+  it('timeout abort is classified as OpenAI request timed out (NOT endpoint unreachable)', async () => {
+    const provider = new OpenAiCompatibleProvider(
+      MOCK_CONFIG,
+      { apiKey: 'test-key', timeoutMs: 50 },
+    );
+    let capturedReason: unknown;
+    vi.mocked(fetch).mockImplementation((_url, init) => {
+      return new Promise((_resolve, reject) => {
+        const sig = (init as RequestInit).signal;
+        sig?.addEventListener('abort', () => {
+          capturedReason = (sig as AbortSignal).reason;
+          const err = new Error('aborted');
+          err.name = 'AbortError';
+          reject(err);
+        });
+      });
+    });
+
+    const promise = provider.invoke({
+      role: 'cortex-chat',
+      input: { prompt: 'hi' },
+      traceId: '00000000-0000-0000-0000-000000000002' as any,
+    });
+    let caught: NousError | undefined;
+    const settled = promise.catch((e) => { caught = e as NousError; });
+
+    await vi.advanceTimersByTimeAsync(60);
+    await settled;
+    expect(caught).toBeInstanceOf(NousError);
+    expect(caught?.message).toContain('OpenAI request timed out after');
+    expect(caught?.message).not.toContain('OpenAI endpoint unreachable');
+    expect(capturedReason).toBeInstanceOf(DOMException);
+    expect((capturedReason as DOMException).name).toBe('AbortError');
   });
 });

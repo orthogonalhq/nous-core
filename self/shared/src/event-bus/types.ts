@@ -218,6 +218,20 @@ export const InferenceStreamStartPayloadSchema = z.object({
 });
 export type InferenceStreamStartPayload = z.infer<typeof InferenceStreamStartPayloadSchema>;
 
+// --- Chat Streaming Chunks (WR-152) ---
+
+export const ChatThinkingChunkPayloadSchema = z.object({
+  content: z.string(),
+  traceId: z.string(),
+});
+export type ChatThinkingChunkPayload = z.infer<typeof ChatThinkingChunkPayloadSchema>;
+
+export const ChatContentChunkPayloadSchema = z.object({
+  content: z.string(),
+  traceId: z.string(),
+});
+export type ChatContentChunkPayload = z.infer<typeof ChatContentChunkPayloadSchema>;
+
 export const InferenceAccumulatorSnapshotPayloadSchema = z.object({
   totalInputTokens: z.number().int().nonnegative(),
   totalOutputTokens: z.number().int().nonnegative(),
@@ -365,6 +379,8 @@ export interface EventChannelMap {
   'ollama:version-info': OllamaVersionInfoPayload;
   'notification:raised': NotificationRaisedPayload;
   'notification:updated': NotificationUpdatedPayload;
+  'chat:thinking-chunk': ChatThinkingChunkPayload;
+  'chat:content-chunk': ChatContentChunkPayload;
 }
 
 /**

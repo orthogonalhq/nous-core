@@ -41,7 +41,7 @@ const MessageSchema = z.object({
     type: z.literal('function'),
     function: z.object({
       name: z.string(),
-      arguments: z.string(),
+      arguments: z.union([z.string(), z.record(z.unknown())]),
     }),
   })).optional(),
 });
@@ -58,6 +58,7 @@ export const TextModelInputSchema = z.union([
     system: z.union([z.string(), z.array(z.unknown())]).optional(),
     systemSegments: z.array(z.string()).optional(),
     stream: z.boolean().optional(),
+    think: z.boolean().optional(),
   }),
 ]);
 export type TextModelInput = z.infer<typeof TextModelInputSchema>;

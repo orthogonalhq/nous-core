@@ -98,6 +98,19 @@ describe('chat.sendMessage', () => {
     expect(result.traceId).toBe('trace-123');
   });
 
+  it('passes sessionId (UUID) and scope: principal to handleChatTurn', async () => {
+    const ctx = createMockContext();
+    const caller = await getCaller(ctx);
+
+    await caller.chat.sendMessage({ message: 'Hello' });
+
+    const callArgs = ctx.gatewayRuntime.handleChatTurn.mock.calls[0][0];
+    expect(callArgs.sessionId).toMatch(
+      /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i,
+    );
+    expect(callArgs.scope).toBe('principal');
+  });
+
   it('does NOT call coreExecutor.executeTurn', async () => {
     const ctx = createMockContext();
     const caller = await getCaller(ctx);
@@ -105,6 +118,145 @@ describe('chat.sendMessage', () => {
     await caller.chat.sendMessage({ message: 'Hello' });
 
     expect(ctx.coreExecutor.executeTurn).not.toHaveBeenCalled();
+  });
+});
+
+describe('chat.sendMessage — sessionId', () => {
+  async function getCaller(ctx: any) {
+    const { chatRouter } = await import('../src/trpc/routers/chat.js');
+    const { router: createRouter } = await import('../src/trpc/trpc.js');
+    const testRouter = createRouter({ chat: chatRouter });
+    return testRouter.createCaller(ctx);
+  }
+
+  it('uses provided sessionId instead of generating one', async () => {
+    const ctx = createMockContext();
+    const caller = await getCaller(ctx);
+    const providedId = '11111111-1111-1111-1111-111111111111';
+
+    await caller.chat.sendMessage({ message: 'Hello', sessionId: providedId });
+
+    const callArgs = ctx.gatewayRuntime.handleChatTurn.mock.calls[0][0];
+    expect(callArgs.sessionId).toBe(providedId);
+  });
+
+  it('generates sessionId when not provided', async () => {
+    const ctx = createMockContext();
+    const caller = await getCaller(ctx);
+
+    await caller.chat.sendMessage({ message: 'Hello' });
+
+    const callArgs = ctx.gatewayRuntime.handleChatTurn.mock.calls[0][0];
+    expect(callArgs.sessionId).toMatch(
+      /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i,
+    );
+  });
+});
+
+describe('chat.getHistory — sessionId filter', () => {
+  async function getCaller(ctx: any) {
+    const { chatRouter } = await import('../src/trpc/routers/chat.js');
+    const { router: createRouter } = await import('../src/trpc/trpc.js');
+    const testRouter = createRouter({ chat: chatRouter });
+    return testRouter.createCaller(ctx);
+  }
+
+  it('filters entries by sessionId when provided', async () => {
+    const sessA = 'aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa';
+    const sessB = 'bbbbbbbb-bbbb-bbbb-bbbb-bbbbbbbbbbbb';
+    const ctx = createMockContext();
+    ctx.stmStore.getContext.mockResolvedValue({
+      entries: [
+        { role: 'user', content: 'msg1', timestamp: '2026-01-01T00:00:00Z', metadata: { sessionId: sessA } },
+        { role: 'assistant', content: 'resp1', timestamp: '2026-01-01T00:01:00Z', metadata: { sessionId: sessA } },
+        { role: 'user', content: 'msg2', timestamp: '2026-01-01T00:02:00Z', metadata: { sessionId: sessB } },
+      ],
+      summary: undefined,
+      tokenCount: 0,
+    });
+    const caller = await getCaller(ctx);
+
+    const result = await caller.chat.getHistory({ projectId: '00000000-0000-0000-0000-000000000001', sessionId: sessA });
+
+    expect(result.entries).toHaveLength(2);
+    expect(result.entries.every((e: any) => e.metadata.sessionId === sessA)).toBe(true);
+  });
+
+  it('returns all entries when no sessionId filter', async () => {
+    const ctx = createMockContext();
+    ctx.stmStore.getContext.mockResolvedValue({
+      entries: [
+        { role: 'user', content: 'msg1', timestamp: '2026-01-01T00:00:00Z', metadata: { sessionId: 'aaa' } },
+        { role: 'user', content: 'msg2', timestamp: '2026-01-01T00:02:00Z', metadata: { sessionId: 'bbb' } },
+      ],
+      summary: undefined,
+      tokenCount: 0,
+    });
+    const caller = await getCaller(ctx);
+
+    const result = await caller.chat.getHistory({ projectId: '00000000-0000-0000-0000-000000000001' });
+
+    expect(result.entries).toHaveLength(2);
+  });
+});
+
+describe('chat.listSessions', () => {
+  async function getCaller(ctx: any) {
+    const { chatRouter } = await import('../src/trpc/routers/chat.js');
+    const { router: createRouter } = await import('../src/trpc/trpc.js');
+    const testRouter = createRouter({ chat: chatRouter });
+    return testRouter.createCaller(ctx);
+  }
+
+  it('groups entries by sessionId and returns sorted sessions', async () => {
+    const ctx = createMockContext();
+    ctx.stmStore.getContext.mockResolvedValue({
+      entries: [
+        { role: 'user', content: 'Hello session A', timestamp: '2026-01-01T00:00:00Z', metadata: { sessionId: 'aaa', scope: 'principal' } },
+        { role: 'assistant', content: 'Response A', timestamp: '2026-01-01T00:01:00Z', metadata: { sessionId: 'aaa', scope: 'principal' } },
+        { role: 'user', content: 'Hello session B', timestamp: '2026-01-01T01:00:00Z', metadata: { sessionId: 'bbb', scope: 'project_thread' } },
+      ],
+      summary: undefined,
+      tokenCount: 0,
+    });
+    const caller = await getCaller(ctx);
+
+    const result = await caller.chat.listSessions({ projectId: '00000000-0000-0000-0000-000000000001' });
+
+    expect(result).toHaveLength(2);
+    // Sorted by lastTimestamp descending — session B is newer
+    expect(result[0].sessionId).toBe('bbb');
+    expect(result[0].scope).toBe('project_thread');
+    expect(result[0].firstMessage).toBe('Hello session B');
+    expect(result[1].sessionId).toBe('aaa');
+    expect(result[1].firstMessage).toBe('Hello session A');
+  });
+
+  it('skips entries without sessionId', async () => {
+    const ctx = createMockContext();
+    ctx.stmStore.getContext.mockResolvedValue({
+      entries: [
+        { role: 'user', content: 'Legacy msg', timestamp: '2026-01-01T00:00:00Z' },
+        { role: 'user', content: 'New msg', timestamp: '2026-01-01T01:00:00Z', metadata: { sessionId: 'aaa', scope: 'principal' } },
+      ],
+      summary: undefined,
+      tokenCount: 0,
+    });
+    const caller = await getCaller(ctx);
+
+    const result = await caller.chat.listSessions({ projectId: '00000000-0000-0000-0000-000000000001' });
+
+    expect(result).toHaveLength(1);
+    expect(result[0].sessionId).toBe('aaa');
+  });
+
+  it('returns empty array when no projectId', async () => {
+    const ctx = createMockContext();
+    const caller = await getCaller(ctx);
+
+    const result = await caller.chat.listSessions({});
+
+    expect(result).toEqual([]);
   });
 });
 
@@ -135,6 +287,21 @@ describe('chat.sendAction', () => {
     expect(result.message).toBe('Follow-up response');
     expect(result.traceId).toBe('trace-123');
     expect(result.contentType).toBe('text');
+  });
+
+  it('followup action passes sessionId and scope: principal to handleChatTurn', async () => {
+    const ctx = createMockContext();
+    const caller = await getCaller(ctx);
+
+    await caller.chat.sendAction({
+      action: { actionType: 'followup', cardId: 'card-1', payload: { prompt: 'Tell me more' } },
+    });
+
+    const callArgs = ctx.gatewayRuntime.handleChatTurn.mock.calls[0][0];
+    expect(callArgs.sessionId).toMatch(
+      /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i,
+    );
+    expect(callArgs.scope).toBe('principal');
   });
 
   it('followup action does NOT call coreExecutor.executeTurn', async () => {

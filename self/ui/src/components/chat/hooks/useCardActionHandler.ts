@@ -33,7 +33,7 @@ export function useCardActionHandler({ chatApi, setMessages }: UseCardActionHand
 
       if (!chatApi.sendAction) return
 
-      chatApi.sendAction(action).then(() => {
+      chatApi.sendAction(action).then((result) => {
         setMessages(prev =>
           prev.map((msg, i) =>
             i === messageIndex
@@ -43,6 +43,26 @@ export function useCardActionHandler({ chatApi, setMessages }: UseCardActionHand
                     actionType: action.actionType,
                     label: action.actionType,
                     timestamp: new Date().toISOString(),
+                    result,
+                  },
+                }
+              : msg,
+          ),
+        )
+      }).catch((err) => {
+        setMessages(prev =>
+          prev.map((msg, i) =>
+            i === messageIndex
+              ? {
+                  ...msg,
+                  actionOutcome: {
+                    actionType: action.actionType,
+                    label: action.actionType,
+                    timestamp: new Date().toISOString(),
+                    result: {
+                      ok: false,
+                      message: err instanceof Error ? err.message : 'Action failed',
+                    },
                   },
                 }
               : msg,

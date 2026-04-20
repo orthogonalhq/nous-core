@@ -242,6 +242,55 @@ describe('createOllamaAdapter', () => {
       expect(messages[1]).toEqual({ role: 'user', content: 'tool output' });
     });
 
+    it('SP 1.15 RC-3 — includes `name` on tool result message when frame.name is set', () => {
+      const adapter = createOllamaAdapter('gemma4:12b');
+      const result = adapter.formatRequest({
+        systemPrompt: 'prompt',
+        context: [
+          {
+            role: 'tool' as const,
+            content: 'workflow listing',
+            source: 'tool_result' as const,
+            createdAt: new Date().toISOString(),
+            name: 'workflow_list',
+            metadata: { tool_call_id: 'call_xyz' },
+          },
+        ],
+      });
+      const input = result.input as Record<string, unknown>;
+      const messages = input.messages as Array<Record<string, unknown>>;
+      expect(messages[1]).toEqual({
+        role: 'tool',
+        content: 'workflow listing',
+        tool_call_id: 'call_xyz',
+        name: 'workflow_list',
+      });
+    });
+
+    it('SP 1.15 RC-3 — backwards-compat regression: omits `name` when frame.name is undefined', () => {
+      const adapter = createOllamaAdapter('gemma4:12b');
+      const result = adapter.formatRequest({
+        systemPrompt: 'prompt',
+        context: [
+          {
+            role: 'tool' as const,
+            content: 'no-name result',
+            source: 'tool_result' as const,
+            createdAt: new Date().toISOString(),
+            metadata: { tool_call_id: 'call_xyz' },
+          },
+        ],
+      });
+      const input = result.input as Record<string, unknown>;
+      const messages = input.messages as Array<Record<string, unknown>>;
+      expect(messages[1]).toEqual({
+        role: 'tool',
+        content: 'no-name result',
+        tool_call_id: 'call_xyz',
+      });
+      expect(messages[1]).not.toHaveProperty('name');
+    });
+
     it('emits tool_calls array on assistant message with metadata.tool_calls', () => {
       const adapter = createOllamaAdapter('gemma4:12b');
       const result = adapter.formatRequest({
@@ -271,7 +320,7 @@ describe('createOllamaAdapter', () => {
             type: 'function',
             function: {
               name: 'get_weather',
-              arguments: '{"city":"NYC"}',
+              arguments: { city: 'NYC' },
             },
           },
         ],
@@ -338,7 +387,7 @@ describe('createOllamaAdapter', () => {
         tool_calls: [{
           id: 'call_w',
           type: 'function',
-          function: { name: 'get_weather', arguments: '{"city":"NYC"}' },
+          function: { name: 'get_weather', arguments: { city: 'NYC' } },
         }],
       });
       expect(messages[3]).toEqual({
@@ -346,6 +395,60 @@ describe('createOllamaAdapter', () => {
         content: '72°F and sunny',
         tool_call_id: 'call_w',
       });
+    });
+
+    it('BT R4 RC-1 regression — arguments passed as object (Ollama /api/chat wire format)', () => {
+      // Regression test for BT R4 RC-1 (WR-159 phase 1.12).
+      //
+      // Ollama's NATIVE /api/chat endpoint decodes tool_calls[].function.arguments
+      // via the Go ToolCallFunctionArguments.UnmarshalJSON which expects a JSON
+      // OBJECT (orderedmap-backed map[string]any), NOT a JSON-string-of-an-object.
+      // See ollama/ollama:main api/types.go lines 240-249 (ToolCallFunctionArguments
+      // declaration) and 307-310 (UnmarshalJSON via json.Unmarshal into orderedmap).
+      //
+      // Pre-fix, ollama-adapter.ts:269 wrapped tc.input in JSON.stringify, which
+      // produced a string-shaped value Ollama's parser rejected with HTTP 400
+      // "Value looks like object, but can't find closing '}' symbol".
+      // BT R4 turn 3 evidence: .worklog/sprints/feat/chat-experience-quality/phase-1/behavioral-testing/round-4.mdx
+      //
+      // Positive assertion: arguments deep-equals the expected object.
+      // Negative assertion: arguments is NOT a string. The negative assertion
+      // catches future naive refactors that re-introduce stringification.
+      const adapter = createOllamaAdapter('gemma4:12b');
+      const result = adapter.formatRequest({
+        systemPrompt: 'p',
+        context: [
+          {
+            role: 'assistant' as const,
+            content: 'Let me check.',
+            source: 'model_output' as const,
+            createdAt: new Date().toISOString(),
+            metadata: {
+              tool_calls: [
+                { id: 'call_x', name: 'workflow_list', input: { projectId: 'p1' } },
+              ],
+            },
+          },
+          {
+            role: 'tool' as const,
+            content: 'tool result content',
+            source: 'tool_result' as const,
+            createdAt: new Date().toISOString(),
+            metadata: { tool_call_id: 'call_x' },
+          },
+        ],
+      });
+      const input = result.input as Record<string, unknown>;
+      const messages = input.messages as Array<Record<string, unknown>>;
+      // system + assistant(tool_calls) + tool(tool_call_id) — three messages.
+      const assistantMsg = messages[1] as Record<string, unknown>;
+      const toolCalls = assistantMsg.tool_calls as Array<Record<string, unknown>>;
+      const fn = toolCalls[0].function as Record<string, unknown>;
+      // Positive: arguments is the exact object the gateway provided.
+      expect(fn.arguments).toEqual({ projectId: 'p1' });
+      // Negative: arguments is NOT a string (catches future refactors that
+      // re-introduce JSON.stringify).
+      expect(typeof fn.arguments).not.toBe('string');
     });
 
     it('does not emit tool_calls for assistant frame without metadata.tool_calls', () => {
@@ -607,5 +710,31 @@ describe('Ollama adapter regression — text-listed fallback', () => {
     const result = adapter.parseResponse('Just a text response', TRACE_ID);
     expect(result.response).toBe('Just a text response');
     expect(result.toolCalls).toEqual([]);
+  });
+});
+
+describe('createOllamaAdapter — formatRequest sets result.think (SP 1.16 RC-α / α7)', () => {
+  it('sets result.think === true when extendedThinking capability is true (tool-bearing turn)', () => {
+    const adapter = createOllamaAdapter('llama3.2:3b');
+    expect(adapter.capabilities.extendedThinking).toBe(true);
+    const result = adapter.formatRequest({
+      systemPrompt: 'sys',
+      context: [makeFrame('user', 'hi')],
+      toolDefinitions: [SAMPLE_TOOL],
+    });
+    expect((result.input as Record<string, unknown>).think).toBe(true);
+  });
+
+  it('sets result.think === true on non-tool-bearing turns too (placement OUTSIDE tool block)', () => {
+    const adapter = createOllamaAdapter('llama3.2:3b');
+    const result = adapter.formatRequest({
+      systemPrompt: 'sys',
+      context: [makeFrame('user', 'hi')],
+      toolDefinitions: [],
+    });
+    // Load-bearing: the activation must NOT be gated on tool presence.
+    expect((result.input as Record<string, unknown>).think).toBe(true);
+    // And tools key must not be present when no tools were supplied.
+    expect((result.input as Record<string, unknown>).tools).toBeUndefined();
   });
 });

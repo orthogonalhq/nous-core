@@ -15,6 +15,7 @@ import type {
   ModelRequest,
   ModelResponse,
   ModelStreamChunk,
+  TraceId,
 } from '@nous/shared';
 
 export interface ObservableProviderMeta {
@@ -58,6 +59,47 @@ export class ObservableProvider implements IModelProvider {
     } catch { /* fire-and-forget */ }
 
     return response;
+  }
+
+  /**
+   * Optional `invokeWithThinkingStream` pass-through. Exposed via a getter so
+   * `typeof wrapped.invokeWithThinkingStream === 'function'` returns `true`
+   * ONLY when the inner provider implements the method (SDS Invariant I-9).
+   *
+   * On success the wrapper emits `inference:call-complete` mirroring the
+   * `invoke()` emission path, so existing latency/usage observability keeps
+   * working for the new dispatch path.
+   */
+  get invokeWithThinkingStream():
+    | ((request: ModelRequest, eventBus: IEventBus, traceId: TraceId) => Promise<ModelResponse>)
+    | undefined {
+    if (typeof this.inner.invokeWithThinkingStream !== 'function') return undefined;
+    const inner = this.inner;
+    const observabilityBus = this.eventBus;
+    const meta = this.meta;
+    return async (request, eventBus, traceId) => {
+      const start = Date.now();
+      const response = await inner.invokeWithThinkingStream!(request, eventBus, traceId);
+      const latencyMs = Date.now() - start;
+      try {
+        observabilityBus.publish('inference:call-complete', {
+          providerId: meta.providerId,
+          modelId: meta.modelId,
+          agentClass: request.agentClass,
+          traceId: request.traceId,
+          projectId: request.projectId,
+          laneKey: meta.laneKey,
+          inputTokens: response.usage.inputTokens,
+          outputTokens: response.usage.outputTokens,
+          latencyMs,
+          routingDecision: undefined,
+          emittedAt: new Date().toISOString(),
+          correlationRunId: request.correlationRunId,
+          correlationParentId: request.correlationParentId,
+        });
+      } catch { /* fire-and-forget */ }
+      return response;
+    };
   }
 
   stream(request: ModelRequest): AsyncIterable<ModelStreamChunk> {

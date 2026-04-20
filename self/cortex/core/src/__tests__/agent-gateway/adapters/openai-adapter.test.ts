@@ -101,6 +101,53 @@ describe('createOpenAiAdapter', () => {
       });
     });
 
+    it('SP 1.15 RC-3 — includes `name` on tool result message when frame.name is set', () => {
+      const result = adapter.formatRequest({
+        systemPrompt: 'test',
+        context: [
+          {
+            role: 'tool' as const,
+            content: 'workflow listing',
+            source: 'tool_result' as const,
+            createdAt: '2026-01-01T00:00:00Z',
+            name: 'workflow_list',
+            metadata: { tool_call_id: 'call_xyz' },
+          },
+        ],
+      });
+      const input = result.input as Record<string, unknown>;
+      const messages = input.messages as Array<Record<string, unknown>>;
+      expect(messages[1]).toEqual({
+        role: 'tool',
+        content: 'workflow listing',
+        tool_call_id: 'call_xyz',
+        name: 'workflow_list',
+      });
+    });
+
+    it('SP 1.15 RC-3 — backwards-compat regression: omits `name` when frame.name is undefined', () => {
+      const result = adapter.formatRequest({
+        systemPrompt: 'test',
+        context: [
+          {
+            role: 'tool' as const,
+            content: 'no-name result',
+            source: 'tool_result' as const,
+            createdAt: '2026-01-01T00:00:00Z',
+            metadata: { tool_call_id: 'call_xyz' },
+          },
+        ],
+      });
+      const input = result.input as Record<string, unknown>;
+      const messages = input.messages as Array<Record<string, unknown>>;
+      expect(messages[1]).toEqual({
+        role: 'tool',
+        content: 'no-name result',
+        tool_call_id: 'call_xyz',
+      });
+      expect(messages[1]).not.toHaveProperty('name');
+    });
+
     it('falls back to role: user for tool frame without metadata.tool_call_id', () => {
       const result = adapter.formatRequest({
         systemPrompt: 'test',

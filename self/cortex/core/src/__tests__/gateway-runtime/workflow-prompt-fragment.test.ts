@@ -36,4 +36,27 @@ describe('WORKFLOW_PROMPT_FRAGMENT — content contract', () => {
     expect(typeof WORKFLOW_PROMPT_FRAGMENT).toBe('string');
     expect(WORKFLOW_PROMPT_FRAGMENT.length).toBeGreaterThan(100);
   });
+
+  // ── SP 1.15 RC-4 — tool-result-recognition anchor ──
+  it('SP 1.15 RC-4 — contains the **Tool results:** anchor', () => {
+    expect(WORKFLOW_PROMPT_FRAGMENT).toContain('**Tool results:**');
+  });
+
+  it('SP 1.15 RC-4 — contains the load-bearing semantic ("Treat this as the answer to your call")', () => {
+    expect(WORKFLOW_PROMPT_FRAGMENT).toContain('Treat this as the answer to your call');
+  });
+
+  // ── SP 1.16 RC-β.1 — action-discipline anchor ──
+  it('SP 1.16 RC-β.1 — contains the **Action discipline:** anchor', () => {
+    expect(WORKFLOW_PROMPT_FRAGMENT).toContain('**Action discipline:**');
+  });
+
+  it('SP 1.16 RC-β.1 — contains the load-bearing semantic ("Do NOT describe an action as completed")', () => {
+    expect(WORKFLOW_PROMPT_FRAGMENT).toContain('Do NOT describe an action as completed');
+  });
+
+  // ── SP 1.13 RC-1 anti-namespacing anchor (regression preservation) ──
+  it('SP 1.13 RC-1 — preserves the do-not-prefix-tool-name guidance', () => {
+    expect(WORKFLOW_PROMPT_FRAGMENT).toContain('Do not prefix or suffix the name');
+  });
 });

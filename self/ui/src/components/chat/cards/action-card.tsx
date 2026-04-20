@@ -103,12 +103,27 @@ export function ActionCard({
           }}
         >
           {stale && actionOutcome ? (
-            <Badge
-              data-testid="action-card-outcome"
-              variant="secondary"
-            >
-              {actionOutcome.label}
-            </Badge>
+            <>
+              <Badge
+                data-testid="action-card-outcome"
+                variant={actionOutcome.result?.ok === false ? 'destructive' : 'secondary'}
+              >
+                {actionOutcome.label}
+              </Badge>
+              {actionOutcome.result?.message && (
+                <span
+                  data-testid="action-card-result-message"
+                  style={{
+                    fontSize: 'var(--nous-font-size-xs)',
+                    color: actionOutcome.result.ok === false
+                      ? 'var(--nous-state-blocked)'
+                      : 'var(--nous-fg-muted)',
+                  }}
+                >
+                  {actionOutcome.result.message}
+                </span>
+              )}
+            </>
           ) : stale ? (
             data.actions.map((action, i) => (
               <Button

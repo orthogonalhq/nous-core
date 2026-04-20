@@ -245,7 +245,7 @@ export function createOllamaAdapter(modelId?: string, log?: ILogChannel): Provid
         : input.systemPrompt;
 
       // Build messages array
-      const messages: Array<{ role: string; content: string; tool_call_id?: string; tool_calls?: unknown[] }> = [
+      const messages: Array<{ role: string; content: string; tool_call_id?: string; tool_calls?: unknown[]; name?: string }> = [
         { role: 'system', content: systemPrompt },
       ];
 
@@ -266,7 +266,7 @@ export function createOllamaAdapter(modelId?: string, log?: ILogChannel): Provid
               type: 'function' as const,
               function: {
                 name: tc.name,
-                arguments: (() => { try { return JSON.stringify(tc.input ?? {}); } catch { return '{}'; } })(),
+                arguments: (tc.input && typeof tc.input === 'object') ? tc.input : {},
               },
             }));
           messages.push({
@@ -278,11 +278,15 @@ export function createOllamaAdapter(modelId?: string, log?: ILogChannel): Provid
         }
 
         // Tool result with tool_call_id metadata → OpenAI-compatible tool result message
+        // SP 1.15 RC-3 — include `name` so the model can recognize which tool's
+        // result this frame represents (BT R7 surfaced tool-result frames being
+        // ignored; the missing `name` field was the load-bearing cause).
         if (frame.role === 'tool' && frame.metadata?.tool_call_id) {
           messages.push({
             role: 'tool',
             content,
             tool_call_id: frame.metadata.tool_call_id as string,
+            ...(frame.name ? { name: frame.name } : {}),
           });
           continue;
         }
@@ -319,6 +323,18 @@ export function createOllamaAdapter(modelId?: string, log?: ILogChannel): Provid
         // GOTCHA: streaming + thinking mode breaks tool call parsing.
         // Force stream: false when tools are present for reliable tool calling.
         result.stream = false;
+      }
+
+      // SP 1.16 RC-α — Activate native-thinking output on the wire when the
+      // adapter declares `extendedThinking: true`. Required by Ollama's /api/chat
+      // for thinking-capable models per Ollama API v0.4.0+. The adapter declares
+      // `extendedThinking: true` unconditionally at line 234, so this activation
+      // is unconditional today. Future model-aware tightening (Goals Decision D
+      // note; α5 — out of SP 1.16 scope) would gate this on a model-capability
+      // check. Mirrors the SP 1.15 RC-2 wire-mode-honoring precedent at the
+      // `result.stream = false` setter above.
+      if (capabilities.extendedThinking) {
+        result.think = true;
       }
 
       // Pass model requirements metadata

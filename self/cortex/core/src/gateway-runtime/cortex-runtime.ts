@@ -39,7 +39,8 @@ import type {
   PromptFormatterInput,
   ProviderVendor,
 } from '@nous/shared';
-import { GatewayContextFrameSchema } from '@nous/shared';
+import { GatewayContextFrameSchema, type EmptyResponseKind } from '@nous/shared';
+import { markerForKind } from '../agent-gateway/agent-gateway.js';
 import { AgentGatewayFactory, createInboxFrame } from '../agent-gateway/index.js';
 import {
   createInternalMcpSurfaceBundle,
@@ -48,6 +49,7 @@ import {
 } from '../internal-mcp/index.js';
 import { detectAndStripNarration } from '../output-parser.js';
 import { CARD_PROMPT_FRAGMENT } from './card-prompt-fragment.js';
+import { extractCardsFromResponse } from './card-extractor.js';
 import { WORKFLOW_PROMPT_FRAGMENT } from './workflow-prompt-fragment.js';
 import { getOrchestratorPrompt } from '../prompts/index.js';
 import { resolvePromptConfig, composeSystemPromptFromConfig, resolveAgentProfile } from './prompt-strategy.js';
@@ -305,9 +307,11 @@ implements IPrincipalSystemGatewayRuntime, ISystemInboxSubmissionService {
       agentId: principalAgentId,
       toolSurface: principalToolSurface,
       lifecycleHooks: principalBase.lifecycleHooks,
-      baseSystemPrompt:
-        this.deps.principalBaseSystemPrompt
-          ?? composeSystemPromptFromConfig(resolvePromptConfig('Cortex::Principal')),
+      // composeFromProfile already emits identity + taskFrame + guardrails
+      // from the profile. Only pass an explicit override if the caller
+      // provided one (avoids 2x duplication of Principal config in the
+      // assembled prompt — BT Round 2, RC-1).
+      baseSystemPrompt: this.deps.principalBaseSystemPrompt,
       outbox: new HealthTrackingOutboxSink('Cortex::Principal', this.healthSink, this.deps.eventBus),
     });
     this.principalGateway = this.gatewayFactory.create(this.principalGatewayConfig);
@@ -483,7 +487,35 @@ implements IPrincipalSystemGatewayRuntime, ISystemInboxSubmissionService {
   async handleChatTurn(input: ChatTurnInput): Promise<ChatTurnResult> {
     this.checkAttachOrWarn();
     const parsed = ChatTurnInputSchema.parse(input);
-    const { message, projectId, traceId } = parsed;
+    const { message, projectId, traceId, sessionId, scope } = parsed;
+
+    // Emit turn-start lifecycle event for subscribers like useAgentActivity
+    // (BT Round 2, RC-2). The deprecated GatewayBackedTurnExecutor was the
+    // only previous emitter; without this, the activity indicator never
+    // received a clear signal for tool-capable Principal turns.
+    this.deps.thoughtEmitter?.emitTurnLifecycle({
+      traceId,
+      phase: 'turn-start',
+      status: 'started',
+      sequence: 0,
+      emittedAt: this.now(),
+    });
+
+    try {
+      return await this.handleChatTurnInner(parsed);
+    } finally {
+      this.deps.thoughtEmitter?.emitTurnLifecycle({
+        traceId,
+        phase: 'turn-complete',
+        status: 'completed',
+        sequence: 0,
+        emittedAt: this.now(),
+      });
+    }
+  }
+
+  private async handleChatTurnInner(parsed: ChatTurnInput): Promise<ChatTurnResult> {
+    const { message, projectId, traceId, sessionId, scope } = parsed;
 
     // Opctl gate check
     if (projectId && this.deps.opctlService) {
@@ -565,6 +597,11 @@ implements IPrincipalSystemGatewayRuntime, ISystemInboxSubmissionService {
     }
     const responseText = normalized.cleaned;
 
+    // Extract structured cards from inline XML for tool-call-compatible delivery
+    const cards = resolved.contentType === 'openui'
+      ? extractCardsFromResponse(responseText)
+      : undefined;
+
     // Finalize STM
     await this.finalizeChatStmTurn(
       projectId,
@@ -573,6 +610,11 @@ implements IPrincipalSystemGatewayRuntime, ISystemInboxSubmissionService {
       traceId,
       result.evidenceRefs,
       resolved.contentType,
+      resolved.thinkingContent,
+      sessionId,
+      scope,
+      cards,
+      resolved.empty_response_kind,
     );
 
     return {
@@ -580,6 +622,9 @@ implements IPrincipalSystemGatewayRuntime, ISystemInboxSubmissionService {
       traceId,
       contentType: resolved.contentType,
       thinkingContent: resolved.thinkingContent,
+      ...(cards && cards.length > 0 ? { cards } : {}),
+      ...(resolved.empty_response_kind ? { empty_response_kind: resolved.empty_response_kind } : {}),
+      ...(resolved.thinking_unavailable ? { thinking_unavailable: resolved.thinking_unavailable } : {}),
     };
   }
 
@@ -819,14 +864,35 @@ implements IPrincipalSystemGatewayRuntime, ISystemInboxSubmissionService {
     return result;
   }
 
-  private resolveChatResponse(result: AgentResult): { response: string; contentType: 'text' | 'openui'; thinkingContent?: string } {
+  private resolveChatResponse(result: AgentResult): { response: string; contentType: 'text' | 'openui'; thinkingContent?: string; empty_response_kind?: EmptyResponseKind; thinking_unavailable?: { reason: string; ref: string } } {
     if (result.status === 'completed') {
-      const output = result.output as { response?: unknown; output?: unknown; contentType?: unknown; thinkingContent?: unknown } | string;
+      const output = result.output as { response?: unknown; output?: unknown; contentType?: unknown; thinkingContent?: unknown; empty_response_kind?: unknown; thinking_unavailable?: unknown } | string;
 
       // Extract thinkingContent from structured output (undefined for direct-string outputs)
       const thinkingContent = (typeof output === 'object' && output !== null && typeof output.thinkingContent === 'string')
         ? output.thinkingContent
         : undefined;
+
+      // SP 1.15 RC-1 — extract the empty-loop discriminator if the gateway set it.
+      const empty_response_kind = (typeof output === 'object' && output !== null && typeof output.empty_response_kind === 'string')
+        ? output.empty_response_kind as EmptyResponseKind
+        : undefined;
+
+      // SP 1.17 RC-α-1 — extract the structurally-derived thinking-unavailable
+      // signal if the gateway set it. Pure pass-through; the runtime does NOT
+      // adjudicate or transform — UI render owns presentation.
+      const thinking_unavailable = (
+        typeof output === 'object' &&
+        output !== null &&
+        typeof output.thinking_unavailable === 'object' &&
+        output.thinking_unavailable !== null &&
+        typeof (output.thinking_unavailable as { reason?: unknown }).reason === 'string' &&
+        typeof (output.thinking_unavailable as { ref?: unknown }).ref === 'string'
+      )
+        ? output.thinking_unavailable as { reason: string; ref: string }
+        : undefined;
+
+      const tuSpread = thinking_unavailable ? { thinking_unavailable } : {};
 
       // 1. Direct string — use as-is
       if (typeof output === 'string') return { response: output, contentType: 'text' };
@@ -834,7 +900,13 @@ implements IPrincipalSystemGatewayRuntime, ISystemInboxSubmissionService {
       // 2. { response: string } — extract .response
       if (typeof output?.response === 'string') {
         const ct = output.contentType === 'openui' ? 'openui' as const : 'text' as const;
-        return { response: output.response, contentType: ct, thinkingContent };
+        return {
+          response: output.response,
+          contentType: ct,
+          thinkingContent,
+          ...(empty_response_kind ? { empty_response_kind } : {}),
+          ...tuSpread,
+        };
       }
 
       // 3. Recursive one-level unwrap: { output: { response: string } }
@@ -849,6 +921,7 @@ implements IPrincipalSystemGatewayRuntime, ISystemInboxSubmissionService {
           response: ((output as { output: { response: string } }).output).response,
           contentType: 'text',
           thinkingContent,
+          ...tuSpread,
         };
       }
 
@@ -858,7 +931,7 @@ implements IPrincipalSystemGatewayRuntime, ISystemInboxSubmissionService {
         if (keys.length === 1) {
           const value = (output as Record<string, unknown>)[keys[0]];
           if (typeof value === 'string') {
-            return { response: value, contentType: 'text', thinkingContent };
+            return { response: value, contentType: 'text', thinkingContent, ...tuSpread };
           }
         }
       }
@@ -868,6 +941,7 @@ implements IPrincipalSystemGatewayRuntime, ISystemInboxSubmissionService {
         response: '```json\n' + JSON.stringify(output, null, 2) + '\n```',
         contentType: 'text',
         thinkingContent,
+        ...tuSpread,
       };
     }
     if (result.status === 'escalated') return { response: `[escalated: ${result.reason}]`, contentType: 'text' };
@@ -888,6 +962,15 @@ implements IPrincipalSystemGatewayRuntime, ISystemInboxSubmissionService {
       }));
     }
     for (const entry of stmContext.entries ?? []) {
+      // SP 1.15 RC-1 — SKIP STM entries tagged with `empty_response_kind`.
+      // EMPTY_RESPONSE_MARKER is a UX signal, not model context. Including
+      // it in next-turn context would poison reasoning with our own
+      // boilerplate text. The metadata tag is preserved so this policy is
+      // reversible if BT R8 evidence shows a coherence regression.
+      const meta = (entry as { metadata?: Record<string, unknown> }).metadata;
+      if (meta && typeof meta.empty_response_kind === 'string') {
+        continue;
+      }
       frames.push(GatewayContextFrameSchema.parse({
         role: entry.role,
         source: 'initial_context',
@@ -905,24 +988,45 @@ implements IPrincipalSystemGatewayRuntime, ISystemInboxSubmissionService {
     traceId: string,
     evidenceRefs: TraceEvidenceReference[],
     contentType?: 'text' | 'openui',
+    thinkingContent?: string,
+    sessionId?: string,
+    scope?: string,
+    cards?: Array<{ type: string; props: Record<string, unknown> }>,
+    emptyResponseKind?: EmptyResponseKind,
   ): Promise<void> {
     if (!projectId || !this.deps.stmStore) return;
 
     const timestamp = this.now();
     try {
+      const userMetadata: Record<string, unknown> = {};
+      if (sessionId) userMetadata.sessionId = sessionId;
+      if (scope) userMetadata.scope = scope;
       await this.deps.stmStore.append(projectId as ProjectId, {
         role: 'user',
         content: userMessage,
         timestamp,
+        ...(Object.keys(userMetadata).length > 0 ? { metadata: userMetadata } : {}),
       });
+      // SP 1.15 RC-1 + SP 1.16 RC-β.1 — when the empty-loop or narrate-without-
+      // dispatch guard fired upstream, the STM entry stores the appropriate
+      // marker (selected via shared `markerForKind` exhaustive switch) as
+      // content and tags the metadata so buildChatContextFrames can SKIP it
+      // on the next turn (avoids marker-text bleeding into model context;
+      // SP 1.15 SKIP policy continuity per Invariant I-13).
+      const assistantContent = emptyResponseKind ? markerForKind(emptyResponseKind) : assistantResponse;
+      const assistantMetadata: Record<string, unknown> = {};
+      if (contentType && contentType !== 'text') assistantMetadata.contentType = contentType;
+      if (thinkingContent) assistantMetadata.thinkingContent = thinkingContent;
+      if (sessionId) assistantMetadata.sessionId = sessionId;
+      if (scope) assistantMetadata.scope = scope;
+      if (cards && cards.length > 0) assistantMetadata.cards = cards;
+      if (emptyResponseKind) assistantMetadata.empty_response_kind = emptyResponseKind;
       const entry: { role: 'assistant'; content: string; timestamp: string; metadata?: Record<string, unknown> } = {
         role: 'assistant',
-        content: assistantResponse,
+        content: assistantContent,
         timestamp,
+        ...(Object.keys(assistantMetadata).length > 0 ? { metadata: assistantMetadata } : {}),
       };
-      if (contentType && contentType !== 'text') {
-        entry.metadata = { contentType };
-      }
       await this.deps.stmStore.append(projectId as ProjectId, entry);
 
       const stmContext = await this.deps.stmStore.getContext(projectId as ProjectId);
@@ -957,7 +1061,7 @@ implements IPrincipalSystemGatewayRuntime, ISystemInboxSubmissionService {
     agentId: string;
     toolSurface: AgentGatewayConfig['toolSurface'];
     lifecycleHooks: AgentGatewayConfig['lifecycleHooks'];
-    baseSystemPrompt: string;
+    baseSystemPrompt?: string;
     outbox?: IGatewayOutboxSink;
   }): AgentGatewayConfig {
     // WR-138 row #5: Option α vendor resolution chain per
@@ -1000,6 +1104,7 @@ implements IPrincipalSystemGatewayRuntime, ISystemInboxSubmissionService {
       nowMs: this.nowMs,
       idFactory: this.idFactory,
       log: this.deps.logger?.channel('nous:gateway'),
+      eventBus: this.deps.eventBus,
     };
   }
 

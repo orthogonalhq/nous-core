@@ -32,6 +32,7 @@ import type {
   ICredentialInjector,
   ILogger,
   IOpctlService,
+  IThoughtEmitter,
   IngressDispatchOutcome,
   IngressTriggerEnvelope,
   MemoryMutationRequest,
@@ -190,14 +191,39 @@ export const ChatTurnInputSchema = z.object({
   message: z.string().min(1),
   projectId: z.string().uuid().optional(),
   traceId: z.string().uuid(),
+  sessionId: z.string().uuid().optional(),
+  scope: z.enum(['principal', 'project_thread', 'orphan_thread']).optional(),
 }).strict();
 export type ChatTurnInput = z.infer<typeof ChatTurnInputSchema>;
+
+// SP 1.17 RC-α-1 — literal-shape duplicate of `@nous/shared`
+// `ThinkingUnavailableSchema`. Inlined per the cortex-core does-not-import-
+// from-shared-runtime convention; cross-package consistency test in
+// `self/shared/src/__tests__/types/agent-gateway.test.ts` enforces parity.
+const ThinkingUnavailableLiteralSchema = z.object({
+  reason: z.string(),
+  ref: z.string(),
+}).strict();
 
 export const ChatTurnResultSchema = z.object({
   response: z.string(),
   traceId: z.string(),
   contentType: z.enum(['text', 'openui']).optional(),
   thinkingContent: z.string().optional(),
+  cards: z.array(z.object({
+    type: z.string(),
+    props: z.record(z.string(), z.unknown()),
+  })).optional(),
+  // SP 1.15 RC-1 — propagated from AgentResult.output.empty_response_kind
+  // so the UI can render <details open> on the thinking disclosure. Mirrors
+  // EmptyResponseKindSchema in @nous/shared (single source of truth at the
+  // gateway boundary; this duplication is the same pattern ChatMessage uses).
+  // SP 1.17 narrows from 3 to 2 values per SDS § 1.3.
+  empty_response_kind: z.enum(['thinking_only_no_finalizer', 'no_output_at_all']).optional(),
+  // SP 1.17 RC-α-1 — propagated from AgentResult.output.thinking_unavailable
+  // so the chat UI can render an honest acknowledgment in the thinking
+  // disclosure. Additive optional field; literal duplicated per convention.
+  thinking_unavailable: ThinkingUnavailableLiteralSchema.optional(),
 }).strict();
 export type ChatTurnResult = z.infer<typeof ChatTurnResultSchema>;
 
@@ -279,6 +305,12 @@ export interface PrincipalSystemGatewayRuntimeDeps {
   backlogConfig?: Partial<BacklogQueueConfig>;
   eventBus?: IEventBus;
   notificationService?: INotificationService;
+  /** Thought emitter for chat-turn lifecycle events (BT Round 2, RC-2).
+   *  When provided, CortexRuntime.handleChatTurn emits turn-start /
+   *  turn-complete events on `thought:turn-lifecycle`. Without it,
+   *  subscribers like useAgentActivity never receive a clear signal
+   *  for tool-capable Principal turns (which can't stream). */
+  thoughtEmitter?: IThoughtEmitter;
   /** Concrete store instance for dev-only tools (WR-151 SP 1.4). */
   notificationStore?: DocumentNotificationStore;
   // STM and MWC dependencies (SP 1.2 — WR-124)

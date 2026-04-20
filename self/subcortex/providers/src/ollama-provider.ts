@@ -6,16 +6,34 @@
  */
 import { NousError, ValidationError } from '@nous/shared';
 import type {
+  IEventBus,
   IModelProvider,
   ModelProviderConfig,
   ModelRequest,
   ModelResponse,
   ModelStreamChunk,
+  TraceId,
 } from '@nous/shared';
 import { TextModelInputSchema } from './schemas.js';
 
 const DEFAULT_ENDPOINT = 'http://localhost:11434';
 const DEFAULT_TIMEOUT_MS = 60_000;
+
+/**
+ * SP 1.17 RC-β-1.1 (Option iii) — classifies a thrown error as recoverable
+ * via same-provider re-issue (`invokeWithThinkingStream` → `invoke`). Returns
+ * true for `'PROVIDER_UNAVAILABLE'` only — that code covers transport
+ * failures (timeout, connection error, malformed response) for which a
+ * second `invoke()` attempt is meaningful. Returns false for `'ABORTED'`
+ * (user-initiated cancel — recovery would re-issue work the user does not
+ * want) and `'MODEL_NOT_FOUND'` (deterministic config error — secondary
+ * call would fail identically). Any non-`NousError` (unexpected runtime
+ * exception) returns false; the error propagates to the caller.
+ */
+function isRecoverableProviderError(err: unknown): boolean {
+  if (!(err instanceof NousError)) return false;
+  return err.code === 'PROVIDER_UNAVAILABLE';
+}
 
 export class OllamaProvider implements IModelProvider {
   private readonly config: ModelProviderConfig;
@@ -104,6 +122,11 @@ export class OllamaProvider implements IModelProvider {
     let buffer = '';
     let usage: ModelStreamChunk['usage'];
 
+    // Per-stream-call <think> tag tracker. Allocated fresh inside the
+    // generator body so each stream invocation gets independent state
+    // (SDS Invariant I-4 — no cross-call state leakage).
+    const thinkState: ThinkTagState = { insideThink: false, pendingPrefix: '' };
+
     try {
       while (true) {
         const { done, value } = await reader.read();
@@ -116,7 +139,16 @@ export class OllamaProvider implements IModelProvider {
         for (const line of lines) {
           if (!line.trim()) continue;
           const data = JSON.parse(line) as OllamaStreamChunk;
-          const content = data.response ?? data.message?.content ?? '';
+          const rawContent = data.response ?? data.message?.content ?? '';
+          const nativeThinking = data.message?.thinking ?? data.thinking ?? '';
+
+          // Apply <think> tag tracker. State carries across iterations so
+          // tags split across SSE lines are correctly extracted.
+          const { contentOut, thinkingOut } = applyThinkTagTracker(
+            rawContent,
+            thinkState,
+            data.done ?? false,
+          );
 
           if (data.done && data.eval_count != null) {
             usage = {
@@ -125,8 +157,10 @@ export class OllamaProvider implements IModelProvider {
             };
           }
 
+          const mergedThinking = (nativeThinking + thinkingOut) || undefined;
           yield {
-            content,
+            content: contentOut,
+            thinking: mergedThinking,
             done: data.done ?? false,
             usage: data.done ? usage : undefined,
           };
@@ -137,10 +171,297 @@ export class OllamaProvider implements IModelProvider {
     }
   }
 
+  /**
+   * Optional `invokeWithThinkingStream` — drives `/api/chat` and accumulates
+   * the response into the same shape `invoke()` returns (the full
+   * `OllamaChatResponse.message` object including `content`, `thinking`, and
+   * `tool_calls`). Publishes `chat:thinking-chunk` events on the event bus so
+   * the UI can render thinking content while the gateway still receives the
+   * full structured `ModelResponse` for tool-call extraction.
+   *
+   * Wire-mode honoring (SP 1.15 RC-2 — restores the cycle-1 SP 1.9 RC-2
+   * invariant after SP 1.13 inadvertently regressed it):
+   * - `body.stream` is honored via `body.stream ?? true`. Explicit `false`
+   *   is preserved (the adapter sets `result.stream = false` when tools are
+   *   present — see ollama-adapter.ts:319-322 — to keep tool-call extraction
+   *   reliable). The cycle-1 SP 1.9 RC-2 invariant for non-tool-bearing
+   *   turns (progressive thinking) is preserved by defaulting to streaming.
+   *
+   * Per-branch SSE emission (SDS Invariants I-10 + I-11):
+   * - Streaming branch: N `chat:thinking-chunk` events, one per delta.
+   * - Non-streaming branch: exactly 1 event with the full `thinking` field.
+   * The downstream UI subscriber (ChatPanel.tsx:147-170) accepts both
+   * cardinalities by accumulating into `streamingThinking` either way.
+   *
+   * Failure semantics (SP 1.17 RC-β-1.1 / Option iii — internalized):
+   * - Primary path drives `/api/chat` (streaming or non-streaming per
+   *   `body.stream`).
+   * - On a recoverable primary failure (a `NousError` whose `code` is
+   *   `'PROVIDER_UNAVAILABLE'` — covers timeout, connection error, malformed
+   *   response), the method internally re-issues via `this.invoke(request)`
+   *   and stamps the returned `ModelResponse` with the structural
+   *   `recovery: { method: 'invoke', primaryError, primaryMessage }` field.
+   * - On a non-recoverable error (`'ABORTED'` user-initiated cancel,
+   *   `'MODEL_NOT_FOUND'` deterministic config error), the typed primary
+   *   error propagates — no recovery is attempted.
+   * - The `recovery` structural metadata is the ONLY signal of internal
+   *   recovery; the gateway consumes it for telemetry / log-level decisions
+   *   only and MUST NOT branch on it for content classification (Invariant
+   *   I-1 / I-2).
+   */
+  async invokeWithThinkingStream(
+    request: ModelRequest,
+    eventBus: IEventBus,
+    traceId: TraceId,
+  ): Promise<ModelResponse> {
+    try {
+      return await this.invokeWithThinkingStreamPrimary(request, eventBus, traceId);
+    } catch (err) {
+      if (!isRecoverableProviderError(err)) {
+        throw err;
+      }
+      const primary = err as NousError;
+      // SP 1.17 RC-β-1.1 — log line renamed from the SP 1.16 gateway-side
+      // 'invokeWithThinkingStream failed, falling back to invoke()' to make
+      // the recovery posture explicit and distinguish it from any future
+      // gateway-side log.
+      console.warn('[nous:ollama-provider] invokeWithThinkingStream primary failed; recovering via invoke()', {
+        error: String(err),
+        primaryErrorCode: primary.code,
+      });
+      const recovered = await this.invoke(request);
+      return {
+        ...recovered,
+        recovery: {
+          method: 'invoke',
+          primaryError: primary.code,
+          primaryMessage: primary.message.slice(0, 500),
+        },
+      };
+    }
+  }
+
+  private async invokeWithThinkingStreamPrimary(
+    request: ModelRequest,
+    eventBus: IEventBus,
+    traceId: TraceId,
+  ): Promise<ModelResponse> {
+    const input = this.validateInput(request.input);
+    const start = Date.now();
+    const body = this.buildRequestBody(input);
+    const url = this.getUrl(body);
+    // SP 1.15 RC-2 — honor body.stream when set (explicit `false` from the
+    // adapter is preserved); default to streaming when undefined. Use `??`
+    // not `||` so `false` is treated as a valid explicit value.
+    const effectiveStream = (body as { stream?: boolean }).stream ?? true;
+
+    const response = await this.fetchWithTimeout(url, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      signal: request.abortSignal,
+      body: JSON.stringify({ ...body, stream: effectiveStream }),
+    });
+
+    if (!response.ok) {
+      await this.handleError(response);
+    }
+
+    if (effectiveStream) {
+      return this.processStreamingThinkingResponse(response, eventBus, traceId, start, url, body, request.traceId);
+    }
+    return this.processNonStreamingThinkingResponse(response, eventBus, traceId, start, url, body, request.traceId);
+  }
+
+  private async processStreamingThinkingResponse(
+    response: Response,
+    eventBus: IEventBus,
+    traceId: TraceId,
+    start: number,
+    url: string,
+    _body: Record<string, unknown>,
+    requestTraceId: TraceId,
+  ): Promise<ModelResponse> {
+    const reader = response.body?.getReader();
+    if (!reader) {
+      throw new NousError('No response body', 'PROVIDER_UNAVAILABLE');
+    }
+
+    const decoder = new TextDecoder();
+    let buffer = '';
+    let accumulatedContent = '';
+    let accumulatedThinking = '';
+    let accumulatedToolCalls: OllamaToolCall[] | undefined;
+    let accumulatedRole: string | undefined;
+    let usage: ModelResponse['usage'] = { inputTokens: undefined, outputTokens: undefined };
+    let chunkCount = 0;
+    let hadToolCalls = false;
+    let doneReason: string | undefined;
+
+    // Per-call <think> tracker (SDS Invariant I-4 — fresh state).
+    const thinkState: ThinkTagState = { insideThink: false, pendingPrefix: '' };
+
+    try {
+      while (true) {
+        const { done, value } = await reader.read();
+        if (done) break;
+
+        buffer += decoder.decode(value, { stream: true });
+        const lines = buffer.split('\n');
+        buffer = lines.pop() ?? '';
+
+        for (const line of lines) {
+          if (!line.trim()) continue;
+          chunkCount += 1;
+          const data = JSON.parse(line) as OllamaStreamChunk;
+          const rawContent = data.response ?? data.message?.content ?? '';
+          const nativeThinking = data.message?.thinking ?? data.thinking ?? '';
+
+          // Capture tool_calls / role / done_reason as the SSE stream
+          // surfaces them. Tool calls usually arrive on the final chunk
+          // for tool-bearing turns.
+          if (data.message?.tool_calls && data.message.tool_calls.length > 0) {
+            accumulatedToolCalls = data.message.tool_calls;
+            hadToolCalls = true;
+          }
+          if (data.message?.role && !accumulatedRole) {
+            accumulatedRole = data.message.role;
+          }
+          if (data.done_reason) doneReason = data.done_reason;
+
+          // Apply <think> tag tracker.
+          const { contentOut, thinkingOut } = applyThinkTagTracker(
+            rawContent,
+            thinkState,
+            data.done ?? false,
+          );
+
+          accumulatedContent += contentOut;
+          const thinkingDelta = nativeThinking + thinkingOut;
+          if (thinkingDelta.length > 0) {
+            accumulatedThinking += thinkingDelta;
+            // Publish each thinking delta progressively so the UI can render
+            // it during the turn. Same channel and payload shape the
+            // existing invokeWithStreaming path uses (agent-gateway.ts:545).
+            try {
+              eventBus.publish('chat:thinking-chunk', {
+                content: thinkingDelta,
+                traceId,
+              });
+            } catch { /* fire-and-forget */ }
+          }
+
+          if (data.done) {
+            if (data.eval_count != null) {
+              usage = {
+                inputTokens: data.prompt_eval_count,
+                outputTokens: data.eval_count,
+                computeMs: Date.now() - start,
+              };
+            } else {
+              usage = { ...usage, computeMs: Date.now() - start };
+            }
+          }
+        }
+      }
+    } finally {
+      reader.releaseLock();
+    }
+
+    // Build a message object that matches OllamaChatResponse.message shape so
+    // the gateway's adapter parseResponse path consumes it identically to
+    // today's invoke() output.
+    const messageObj: Record<string, unknown> = {};
+    if (accumulatedRole) messageObj.role = accumulatedRole;
+    messageObj.content = accumulatedContent;
+    if (accumulatedThinking) messageObj.thinking = accumulatedThinking;
+    if (accumulatedToolCalls && accumulatedToolCalls.length > 0) {
+      messageObj.tool_calls = accumulatedToolCalls;
+    }
+
+    console.debug('[nous:ollama-provider] invokeWithThinkingStream complete', {
+      url,
+      accumulatedContentLength: accumulatedContent.length,
+      accumulatedThinkingLength: accumulatedThinking.length,
+      chunkCount,
+      hadToolCalls,
+      doneReason,
+    });
+
+    return {
+      output: messageObj,
+      providerId: this.config.id,
+      usage,
+      traceId: requestTraceId,
+    };
+  }
+
+  private async processNonStreamingThinkingResponse(
+    response: Response,
+    eventBus: IEventBus,
+    traceId: TraceId,
+    start: number,
+    url: string,
+    _body: Record<string, unknown>,
+    requestTraceId: TraceId,
+  ): Promise<ModelResponse> {
+    let data: OllamaChatResponse;
+    try {
+      data = (await response.json()) as OllamaChatResponse;
+    } catch {
+      throw new NousError('Invalid JSON in non-streaming response', 'PROVIDER_UNAVAILABLE');
+    }
+
+    const messageObj: Record<string, unknown> = {};
+    if (data.message?.role) messageObj.role = data.message.role;
+    messageObj.content = data.message?.content ?? '';
+    if (data.message?.thinking) messageObj.thinking = data.message.thinking;
+    if (data.message?.tool_calls && data.message.tool_calls.length > 0) {
+      messageObj.tool_calls = data.message.tool_calls;
+    }
+
+    // SDS Invariant I-11 — emit thinking as a single chat:thinking-chunk
+    // event with the FULL thinking text. The UI's streamingThinking
+    // accumulator at ChatPanel.tsx:147-170 populates in one frame.
+    if (data.message?.thinking && data.message.thinking.length > 0) {
+      try {
+        eventBus.publish('chat:thinking-chunk', {
+          content: data.message.thinking,
+          traceId,
+        });
+      } catch { /* fire-and-forget — same posture as the streaming branch */ }
+    }
+
+    const usage: ModelResponse['usage'] = data.eval_count != null
+      ? {
+          inputTokens: data.prompt_eval_count,
+          outputTokens: data.eval_count,
+          computeMs: Date.now() - start,
+        }
+      : { computeMs: Date.now() - start };
+
+    console.debug('[nous:ollama-provider] invokeWithThinkingStream complete (non-streaming branch)', {
+      url,
+      accumulatedContentLength: typeof messageObj.content === 'string' ? messageObj.content.length : 0,
+      accumulatedThinkingLength: typeof messageObj.thinking === 'string' ? messageObj.thinking.length : 0,
+      chunkCount: 1,
+      hadToolCalls: !!(data.message?.tool_calls && data.message.tool_calls.length > 0),
+      doneReason: data.done_reason,
+    });
+
+    return {
+      output: messageObj,
+      providerId: this.config.id,
+      usage,
+      traceId: requestTraceId,
+    };
+  }
+
   private validateInput(input: unknown): {
     prompt?: string;
     messages?: Array<{ role: string; content: string | unknown[]; tool_call_id?: string; tool_calls?: unknown[] }>;
     tools?: Array<Record<string, unknown>>;
+    stream?: boolean;
+    think?: boolean;
   } {
     const result = TextModelInputSchema.safeParse(input);
     if (!result.success) {
@@ -150,7 +471,13 @@ export class OllamaProvider implements IModelProvider {
       }));
       throw new ValidationError('Invalid model input', errors);
     }
-    return result.data;
+    return result.data as {
+      prompt?: string;
+      messages?: Array<{ role: string; content: string | unknown[]; tool_call_id?: string; tool_calls?: unknown[] }>;
+      tools?: Array<Record<string, unknown>>;
+      stream?: boolean;
+      think?: boolean;
+    };
   }
 
   private buildRequestBody(
@@ -158,6 +485,8 @@ export class OllamaProvider implements IModelProvider {
       prompt?: string;
       messages?: Array<{ role: string; content: string | unknown[]; tool_call_id?: string; tool_calls?: unknown[] }>;
       tools?: Array<Record<string, unknown>>;
+      stream?: boolean;
+      think?: boolean;
     },
   ): Record<string, unknown> {
     const base: Record<string, unknown> = { model: this.config.modelId };
@@ -183,6 +512,24 @@ export class OllamaProvider implements IModelProvider {
       });
     }
 
+    // SP 1.15 RC-2 — propagate `stream` from the validated input so the
+    // dispatcher's `body.stream ?? true` honoring works. The Ollama adapter
+    // sets `result.stream = false` when tools are present (ollama-adapter.ts
+    // GOTCHA setter); preserving that wire-mode signal end-to-end is the
+    // contract requirement.
+    if (typeof input.stream === 'boolean') {
+      body.stream = input.stream;
+    }
+
+    // SP 1.16 RC-α — propagate `think` from the validated input so the Ollama
+    // adapter's `result.think = true` setter (created at SP 1.16 RC-α / α4) is
+    // honored end-to-end on the wire body. Pattern mirrors the SP 1.15 Tier 5
+    // deviation #1 `stream` propagation above. Ollama API v0.4.0+ accepts
+    // `think: true` on /api/chat; non-thinking models silently ignore the field.
+    if (typeof input.think === 'boolean') {
+      body.think = input.think;
+    }
+
     return body;
   }
 
@@ -197,8 +544,14 @@ export class OllamaProvider implements IModelProvider {
     init: RequestInit,
   ): Promise<Response> {
     const timeoutController = new AbortController();
+    // SP 1.16 RC-β.2 / β1 — abort with a DOMException(name: 'AbortError') so
+    // the catch block's `(e as Error).name === 'AbortError'` branch fires for
+    // timeout aborts (the prior string-reason form `'provider_timeout'` was
+    // surfaced as the rejection's `.message`/`.cause`, NOT as a name change,
+    // so the timeout path silently fell through to the generic
+    // "Ollama not available at ${endpoint}: undefined" branch).
     const timeout = setTimeout(
-      () => timeoutController.abort('provider_timeout'),
+      () => timeoutController.abort(new DOMException('provider_timeout', 'AbortError')),
       this.timeoutMs,
     );
     const signal = init.signal
@@ -212,14 +565,20 @@ export class OllamaProvider implements IModelProvider {
       });
       return response;
     } catch (e) {
+      // SP 1.16 RC-β.2 / β2 — hoist the timeout-controller signal check above
+      // the AbortError name check so a timeout-driven abort is classified as
+      // a timeout regardless of which class of exception the runtime surfaces
+      // (DOMException vs Error). Belt-and-suspenders against runtime drift.
+      if (timeoutController.signal.aborted) {
+        throw new NousError(
+          `Ollama request timed out after ${this.timeoutMs}ms`,
+          'PROVIDER_UNAVAILABLE',
+          { failoverReasonCode: 'PRV-PROVIDER-UNAVAILABLE' },
+        );
+      }
+      // After SP 1.16 RC-β.2 hoist, this branch reaches user-initiated aborts
+      // only (the timeout-driven abort has already been classified above).
       if ((e as Error).name === 'AbortError') {
-        if (timeoutController.signal.aborted) {
-          throw new NousError(
-            `Ollama request timed out after ${this.timeoutMs}ms`,
-            'PROVIDER_UNAVAILABLE',
-            { failoverReasonCode: 'PRV-PROVIDER-UNAVAILABLE' },
-          );
-        }
         throw new NousError('Ollama request aborted.', 'ABORTED');
       }
       throw new NousError(
@@ -288,8 +647,109 @@ interface OllamaChatResponse {
 
 interface OllamaStreamChunk {
   response?: string;
-  message?: { content?: string };
+  message?: {
+    content?: string;
+    /** Thinking/reasoning content from models that support it (e.g. Gemma 4 native) */
+    thinking?: string;
+    /** Tool calls — present on the final chunk for tool-bearing turns */
+    tool_calls?: OllamaToolCall[];
+    role?: string;
+  };
+  /** Defensive top-level thinking fallback for models that emit it outside `message` */
+  thinking?: string;
   done?: boolean;
+  done_reason?: string;
   eval_count?: number;
   prompt_eval_count?: number;
+}
+
+/** Per-`<think>`-tag-tracker state. Allocated fresh per stream invocation. */
+interface ThinkTagState {
+  insideThink: boolean;
+  pendingPrefix: string;
+}
+
+/** Output of one tracker step. */
+interface ThinkTagStepResult {
+  contentOut: string;
+  thinkingOut: string;
+}
+
+/**
+ * Compute the length of the longest suffix of `text` that is a prefix of
+ * `tag`. Used to buffer partial tag matches at the end of a chunk so the
+ * next chunk can resolve them. Bounded by `tag.length - 1` to avoid
+ * matching the full tag (which would have already been handled by indexOf).
+ */
+function longestSuffixThatIsPrefix(text: string, tag: string): number {
+  const max = Math.min(text.length, tag.length - 1);
+  for (let len = max; len > 0; len -= 1) {
+    if (text.endsWith(tag.substring(0, len))) return len;
+  }
+  return 0;
+}
+
+/**
+ * Apply the `<think>...</think>` tag tracker to one incoming raw-content
+ * delta. Mutates `state` in place to carry across calls within a single
+ * stream invocation. Returns the per-call split into content vs thinking.
+ *
+ * State invariants:
+ *  - `insideThink` flips between `<think>` open and `</think>` close events.
+ *  - `pendingPrefix` buffers a partial tag prefix at the end of a chunk
+ *    (e.g., `<thi`) so the next chunk can resolve it.
+ *
+ * On end-of-stream (caller signals via `done=true`), any non-empty
+ * `pendingPrefix` is flushed as literal text to whichever stream the
+ * current `insideThink` indicates — partial tags at end-of-stream are not
+ * magically completed.
+ */
+function applyThinkTagTracker(
+  rawContent: string,
+  state: ThinkTagState,
+  done: boolean,
+): ThinkTagStepResult {
+  let text = state.pendingPrefix + rawContent;
+  state.pendingPrefix = '';
+  let contentOut = '';
+  let thinkingOut = '';
+
+  while (text.length > 0) {
+    if (state.insideThink) {
+      const closeIdx = text.indexOf('</think>');
+      if (closeIdx >= 0) {
+        thinkingOut += text.substring(0, closeIdx);
+        text = text.substring(closeIdx + 8); // 8 = '</think>'.length
+        state.insideThink = false;
+      } else {
+        const partialLen = longestSuffixThatIsPrefix(text, '</think>');
+        thinkingOut += text.substring(0, text.length - partialLen);
+        state.pendingPrefix = text.substring(text.length - partialLen);
+        text = '';
+      }
+    } else {
+      const openIdx = text.indexOf('<think>');
+      if (openIdx >= 0) {
+        contentOut += text.substring(0, openIdx);
+        text = text.substring(openIdx + 7); // 7 = '<think>'.length
+        state.insideThink = true;
+      } else {
+        const partialLen = longestSuffixThatIsPrefix(text, '<think>');
+        contentOut += text.substring(0, text.length - partialLen);
+        state.pendingPrefix = text.substring(text.length - partialLen);
+        text = '';
+      }
+    }
+  }
+
+  // On stream done with non-empty pendingPrefix: flush as literal to whichever
+  // stream the current insideThink state indicates (partial tags at end-of-stream
+  // are not magically completed).
+  if (done && state.pendingPrefix.length > 0) {
+    if (state.insideThink) thinkingOut += state.pendingPrefix;
+    else contentOut += state.pendingPrefix;
+    state.pendingPrefix = '';
+  }
+
+  return { contentOut, thinkingOut };
 }

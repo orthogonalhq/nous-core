@@ -11,6 +11,7 @@ import { useCardActionHandler } from '../components/chat/hooks/useCardActionHand
 // Side-effect import: registers all 5 card types at module evaluation time
 import '../components/chat/cards/index'
 
+import { MarkdownRenderer } from '../components/chat'
 import { ChatInput } from './chat/ChatInput'
 import { ChatMessageList } from './chat/ChatMessageList'
 import { AmbientTeleprompter } from './chat/AmbientTeleprompter'
@@ -100,6 +101,7 @@ export function ChatPanel(props: ChatPanelProps) {
     const [messages, setMessages] = useState<ChatMessage[]>([])
     const [input, setInput] = useState('')
     const [sending, setSending] = useState(false)
+    const [queuedMessages, setQueuedMessages] = useState<string[]>([])
     const [historyError, setHistoryError] = useState<string | null>(null)
 
     // --- Unread response badge ---
@@ -140,6 +142,32 @@ export function ChatPanel(props: ChatPanelProps) {
         () => deriveActiveTraceId(inlineThoughts, assistantTraceIds),
         [inlineThoughts, assistantTraceIds],
     )
+
+    // --- Streaming content buffer (progressive rendering) ---
+    const [streamingContent, setStreamingContent] = useState('')
+    const [streamingThinking, setStreamingThinking] = useState('')
+
+    useEventSubscription({
+        channels: ['chat:content-chunk'],
+        onEvent: (_channel, payload) => {
+            const p = payload as { content: string }
+            if (p.content) {
+                setStreamingContent(prev => prev + p.content)
+            }
+        },
+        enabled: sending,
+    })
+
+    useEventSubscription({
+        channels: ['chat:thinking-chunk'],
+        onEvent: (_channel, payload) => {
+            const p = payload as { content: string }
+            if (p.content) {
+                setStreamingThinking(prev => prev + p.content)
+            }
+        },
+        enabled: sending,
+    })
 
     // --- Agent activity tracking (sidebar modes only) ---
     const isSmall = stage === 'small'
@@ -184,18 +212,27 @@ export function ChatPanel(props: ChatPanelProps) {
     }, [chatApi])
 
     // --- Send ---
-    const send = async () => {
-        if (!input.trim() || sending || !chatApi?.send) return
-        const userMsg = input.trim()
-        setInput('')
+
+    // invoke() performs the actual chatApi.send call. Shared by:
+    //   - immediate-send path (called from send() when no turn is in flight)
+    //   - drain path (called from the queue-drain effect after a turn ends)
+    // The skipUserAppend flag suppresses the user-message append in the
+    // drain path because the enqueue path already appended the entry
+    // (with queued=true) at submission time.
+    const invoke = async (userMsg: string, skipUserAppend = false) => {
         setSending(true)
         onSendStart?.()
 
-        const userEntry: ChatMessage = { role: 'user', content: userMsg, timestamp: new Date().toISOString() }
-        setMessages(prev => [...prev, userEntry])
+        if (!skipUserAppend) {
+            const userEntry: ChatMessage = { role: 'user', content: userMsg, timestamp: new Date().toISOString() }
+            setMessages(prev => [...prev, userEntry])
+        }
 
         try {
-            const result = await chatApi.send(userMsg)
+            const result = await chatApi!.send(userMsg)
+            // Reconcile: authoritative response replaces streaming buffer
+            setStreamingContent('')
+            setStreamingThinking('')
             setMessages(prev => [...prev, {
                 role: 'assistant',
                 content: result.response,
@@ -203,6 +240,9 @@ export function ChatPanel(props: ChatPanelProps) {
                 traceId: result.traceId,
                 contentType: result.contentType,
                 thinkingContent: result.thinkingContent,
+                cards: result.cards,
+                ...(result.empty_response_kind ? { empty_response_kind: result.empty_response_kind } : {}),
+                ...(result.thinking_unavailable ? { thinking_unavailable: result.thinking_unavailable } : {}),
             }])
         } catch {
             setMessages(prev => [...prev, {
@@ -214,6 +254,51 @@ export function ChatPanel(props: ChatPanelProps) {
             setSending(false)
         }
     }
+
+    // send() is the input-event entry point. Dispatches to either:
+    //   - enqueue (if a turn is currently in flight: sending=true)
+    //   - immediate invoke (if idle)
+    // Both paths share the !input.trim() and !chatApi?.send guards.
+    const send = () => {
+        if (!input.trim() || !chatApi?.send) return
+        const userMsg = input.trim()
+        setInput('')
+
+        if (sending) {
+            // Enqueue — FIFO order preserved by array push at tail
+            setQueuedMessages(prev => [...prev, userMsg])
+            setMessages(prev => [...prev, {
+                role: 'user',
+                content: userMsg,
+                timestamp: new Date().toISOString(),
+                queued: true,
+            }])
+            return
+        }
+
+        invoke(userMsg)
+    }
+
+    // Queue drain: fires on the sending: true → false transition.
+    // Pops the FIFO head of queuedMessages, clears the queued flag on the
+    // matching message-list entry, and invokes the pop'd message via the
+    // shared invoke() helper with skipUserAppend=true (the enqueue path
+    // already appended the entry).
+    useEffect(() => {
+        if (sending || queuedMessages.length === 0) return
+        const [next, ...rest] = queuedMessages
+        setQueuedMessages(rest)
+        // Clear the queued flag on the oldest queued user-message entry (FIFO).
+        setMessages(prev => {
+            const idx = prev.findIndex(m => m.queued && m.role === 'user')
+            if (idx < 0) return prev
+            const copy = [...prev]
+            const { queued: _queued, ...rest2 } = copy[idx]
+            copy[idx] = rest2 as ChatMessage
+            return copy
+        })
+        invoke(next, true)
+    }, [sending, queuedMessages])
 
     // --- Input focus/blur forwarding ---
     const handleFocus = useCallback(() => {
@@ -318,6 +403,21 @@ export function ChatPanel(props: ChatPanelProps) {
                             activeTraceId={activeTraceId}
                             onCardAction={handleCardAction}
                         />
+                        {sending && (streamingThinking || streamingContent) && (
+                            <div style={styles.streamingPreview}>
+                                {streamingThinking && (
+                                    <details open style={styles.streamingThinkingDetails}>
+                                        <summary style={styles.streamingThinkingSummary}>Thinking…</summary>
+                                        <div style={styles.streamingThinkingBody}>
+                                            <MarkdownRenderer content={streamingThinking} />
+                                        </div>
+                                    </details>
+                                )}
+                                {streamingContent && (
+                                    <MarkdownRenderer content={streamingContent} />
+                                )}
+                            </div>
+                        )}
                     </div>
                     {inputSection}
                 </div>
@@ -381,5 +481,31 @@ const styles = {
     },
     spinnerIcon: {
         animation: 'spin 1s linear infinite',
+    },
+    streamingPreview: {
+        padding: 'var(--nous-space-sm) 0',
+        opacity: 0.8,
+        borderLeft: '2px solid var(--nous-accent)',
+        paddingLeft: 'var(--nous-space-md)',
+    },
+    streamingThinkingDetails: {
+        maxWidth: '100%',
+        borderRadius: 'var(--nous-radius-md)',
+        border: '1px solid var(--nous-border)',
+        background: 'var(--nous-surface-nested)',
+        marginBottom: 'var(--nous-space-sm)',
+        fontSize: 'var(--nous-font-size-xs)',
+    },
+    streamingThinkingSummary: {
+        cursor: 'pointer',
+        padding: 'var(--nous-space-sm) var(--nous-space-md)',
+        fontFamily: 'var(--nous-font-family-mono)',
+        color: 'var(--nous-fg-muted)',
+        userSelect: 'none' as const,
+    },
+    streamingThinkingBody: {
+        padding: '0 var(--nous-space-md) var(--nous-space-sm)',
+        color: 'var(--nous-fg-subtle)',
+        lineHeight: '1.5',
     },
 } as const

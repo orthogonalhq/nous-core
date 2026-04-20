@@ -49,6 +49,8 @@ const ALL_CHANNELS: (keyof EventChannelMap)[] = [
   'ollama:version-info',
   'notification:raised',
   'notification:updated',
+  'chat:thinking-chunk',
+  'chat:content-chunk',
 ];
 
 const HEARTBEAT_INTERVAL_MS = 30_000;

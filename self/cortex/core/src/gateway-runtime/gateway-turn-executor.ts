@@ -233,6 +233,9 @@ export class GatewayBackedTurnExecutor implements ICoreExecutor {
       validInput.traceId,
       result.evidenceRefs,
       resolved.contentType,
+      undefined, // thinkingContent not available in GatewayBackedTurnExecutor path
+      undefined, // sessionId not available via TurnInput
+      undefined, // scope not available via TurnInput
     );
     this.emitLifecycle(traceId, 'stm-finalize', 'completed');
 
@@ -439,6 +442,9 @@ export class GatewayBackedTurnExecutor implements ICoreExecutor {
     traceId: TraceId,
     evidenceRefs: TraceEvidenceReference[],
     contentType?: 'text' | 'openui',
+    thinkingContent?: string,
+    sessionId?: string,
+    scope?: string,
   ): Promise<void> {
     if (!projectId) {
       return;
@@ -446,19 +452,26 @@ export class GatewayBackedTurnExecutor implements ICoreExecutor {
 
     const timestamp = this.now();
     try {
+      const userMetadata: Record<string, unknown> = {};
+      if (sessionId) userMetadata.sessionId = sessionId;
+      if (scope) userMetadata.scope = scope;
       await this.deps.stmStore.append(projectId, {
         role: 'user',
         content: userMessage,
         timestamp,
+        ...(Object.keys(userMetadata).length > 0 ? { metadata: userMetadata } : {}),
       });
+      const assistantMetadata: Record<string, unknown> = {};
+      if (contentType && contentType !== 'text') assistantMetadata.contentType = contentType;
+      if (thinkingContent) assistantMetadata.thinkingContent = thinkingContent;
+      if (sessionId) assistantMetadata.sessionId = sessionId;
+      if (scope) assistantMetadata.scope = scope;
       const assistantEntry: { role: 'assistant'; content: string; timestamp: string; metadata?: Record<string, unknown> } = {
         role: 'assistant',
         content: assistantResponse,
         timestamp,
+        ...(Object.keys(assistantMetadata).length > 0 ? { metadata: assistantMetadata } : {}),
       };
-      if (contentType && contentType !== 'text') {
-        assistantEntry.metadata = { contentType };
-      }
       await this.deps.stmStore.append(projectId, assistantEntry);
 
       const stmContext = await this.deps.stmStore.getContext(projectId);
