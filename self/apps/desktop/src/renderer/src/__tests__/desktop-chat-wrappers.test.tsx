@@ -22,14 +22,6 @@ const PROJECT_B = 'bbbbbbbb-bbbb-bbbb-bbbb-bbbbbbbbbbbb'
 const mutateAsyncMock = vi.hoisted(() => vi.fn())
 const useShellContextMock = vi.hoisted(() => vi.fn(() => ({ activeProjectId: PROJECT_A })))
 const useChatApiMock = vi.hoisted(() => vi.fn(() => ({})))
-// SP 1.9 BT R3 — the welcome trigger now reads
-// `trpc.config.getWelcomeMessageSent` as the persisted gate. Tests assert
-// the mount-once contract assuming the persisted flag is `false` on
-// initial mount; mocks return `{ data: false }` and the post-success
-// invalidation is a stubbed no-op.
-const welcomeSentDataMock = vi.hoisted(() => ({ value: false as boolean | undefined }))
-const invalidateWelcomeSentMock = vi.hoisted(() => vi.fn().mockResolvedValue(undefined))
-const invalidateChatHistoryMock = vi.hoisted(() => vi.fn().mockResolvedValue(undefined))
 
 vi.mock('@nous/ui/panels', () => ({
   ChatPanel: ({ params }: { params: unknown }) => (
@@ -50,19 +42,6 @@ vi.mock('@nous/transport', () => ({
         useMutation: () => ({ mutateAsync: mutateAsyncMock }),
       },
     },
-    config: {
-      getWelcomeMessageSent: {
-        useQuery: () => ({ data: welcomeSentDataMock.value }),
-      },
-    },
-    useUtils: () => ({
-      config: {
-        getWelcomeMessageSent: { invalidate: invalidateWelcomeSentMock },
-      },
-      chat: {
-        getHistory: { invalidate: invalidateChatHistoryMock },
-      },
-    }),
   },
 }))
 

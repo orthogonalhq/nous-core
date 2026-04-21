@@ -212,35 +212,6 @@ export function currentRoleAssignment(
 }
 
 
-/**
- * Recompose the Cortex::Principal and Cortex::System gateway harnesses
- * using each class's currently-assigned provider vendor. Call this after a
- * config change that affects harness composition (e.g. personality config
- * write or agent-block clear) — `composeHarnessStrategies` reads
- * `configReader.getPersonalityConfig()` at compose time, so without a
- * recompose the live harness keeps the stale personality.
- *
- * Each class's vendor is derived from `modelRoleAssignments` →
- * `providerRegistry.getProvider(...).vendor`. Falls back to the bootstrap
- * default (anthropic) when no role assignment is present (matches the
- * `providerIdByClass` boot map). Silently no-ops for a class when no
- * provider is available.
- */
-export function recomposeAgentHarnesses(ctx: NousContext): void {
-  const ROLE_BY_CLASS: Record<'Cortex::Principal' | 'Cortex::System', ModelRole> = {
-    'Cortex::Principal': 'cortex-chat',
-    'Cortex::System': 'cortex-system',
-  };
-  for (const agentClass of ['Cortex::Principal', 'Cortex::System'] as const) {
-    const assignment = currentRoleAssignment(ctx, ROLE_BY_CLASS[agentClass]);
-    const providerId = assignment?.providerId ?? WELL_KNOWN_PROVIDER_IDS.anthropic;
-    const vendor = ctx.providerRegistry.getProvider(providerId)?.getConfig().vendor;
-    if (vendor) {
-      ctx.gatewayRuntime.recomposeHarnessForClass(agentClass, vendor);
-    }
-  }
-}
-
 function sortProvidersForDefault(
   providers: ProviderConfigEntry[],
 ): ProviderConfigEntry[] {

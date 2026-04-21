@@ -77,7 +77,6 @@ vi.mock('../src/bootstrap', () => ({
   parseSelectedModelSpec: bootstrapMock.parseSelectedModelSpec,
   updateRoleAssignment: bootstrapMock.updateRoleAssignment,
   upsertProviderConfig: bootstrapMock.upsertProviderConfig,
-  recomposeAgentHarnesses: vi.fn(),
 }));
 
 // SP 1.3 — `agent_identity` added to FIRST_RUN_STEP_VALUES per SDS § 0 Note 2.

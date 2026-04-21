@@ -68,23 +68,6 @@ vi.mock('@nous/transport', () => ({
         useMutation: () => ({ mutateAsync: mutateAsyncMock }),
       },
     },
-    config: {
-      // SP 1.9 BT R3 — persisted gate query. Initial mount sees `false`
-      // so the trigger fires; the post-success invalidation is a no-op
-      // in tests (mutateAsync settles before the next render observes
-      // a refetch).
-      getWelcomeMessageSent: {
-        useQuery: () => ({ data: false }),
-      },
-    },
-    useUtils: () => ({
-      config: {
-        getWelcomeMessageSent: { invalidate: vi.fn().mockResolvedValue(undefined) },
-      },
-      chat: {
-        getHistory: { invalidate: vi.fn().mockResolvedValue(undefined) },
-      },
-    }),
   },
 }))
 

@@ -10,10 +10,6 @@ export const configRouter = router({
     return ctx.config.get();
   }),
 
-  getWelcomeMessageSent: publicProcedure.query(({ ctx }) => {
-    return ctx.config.getWelcomeMessageSent();
-  }),
-
   update: publicProcedure
     .input(
       z.object({
