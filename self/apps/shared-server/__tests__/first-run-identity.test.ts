@@ -51,6 +51,12 @@ function makeContext(scaffold: ReturnType<typeof createScaffold>) {
   return {
     dataDir: scaffold.dir,
     config: scaffold.config,
+    // SP 1.9 — `writeIdentity` invokes `recomposeAgentHarnesses(ctx)`,
+    // which dereferences providerRegistry + gatewayRuntime. Stub both;
+    // the recompose is a side effect orthogonal to the assertions in
+    // this file (which target config-block state).
+    providerRegistry: { getProvider: () => undefined },
+    gatewayRuntime: { recomposeHarnessForClass: () => {} },
   } as unknown as Parameters<typeof firstRunRouter.createCaller>[0];
 }
 

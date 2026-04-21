@@ -20,6 +20,7 @@ import {
   normalizeSpecForLocalLookup,
   pullOllamaModel,
 } from '../../ollama-detection';
+import { recomposeAgentHarnesses } from '../../bootstrap';
 
 /**
  * SP 1.5 — registry-availability validation map keyed by `modelSpec`.
@@ -386,6 +387,12 @@ export const firstRunRouter = router({
         await ctx.config.setAgentName(input.name);
         await ctx.config.setPersonalityConfig(input.personality);
         await ctx.config.setUserProfile(input.profile);
+        // SP 1.9 BT R3 fix — recompose live harness so the new identity
+        // takes effect on the next gateway turn. Without this, the harness
+        // composed at bootstrap keeps the empty/stale personality and the
+        // agent reverts to the model's default identity ("I am a large
+        // language model trained by Google").
+        recomposeAgentHarnesses(ctx);
         const state = await markStepComplete(ctx.dataDir, 'agent_identity');
         return FirstRunActionResultSchema.parse({
           success: true,
@@ -412,6 +419,10 @@ export const firstRunRouter = router({
     //     helper lives at `self/apps/shared-server/src/first-run.ts`
     //     (folds SDS-review Note 5 line-citation alignment).
     await ctx.config.clearAgentBlock();
+    // SP 1.9 BT R3 fix — recompose harness with the now-default personality
+    // so the live harness reflects the cleared agent block. Otherwise the
+    // pre-reset personality survives in-memory until the next bootstrap.
+    recomposeAgentHarnesses(ctx);
     return resetFirstRunState(ctx.dataDir);
   }),
 });

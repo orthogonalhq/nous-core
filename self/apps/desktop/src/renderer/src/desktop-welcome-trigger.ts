@@ -1,65 +1,58 @@
 /**
- * SP 1.8 Fix #14 — Shared welcome-trigger hook.
+ * SP 1.8 Fix #14 / SP 1.9 BT R3 fix — Shared welcome-trigger hook.
  *
  * `useFireWelcomeOnMount(activeProjectId)` centralizes the one-shot
- * welcome-emission firing concern that previously lived inline inside
- * `DesktopChatPanel`. Both `DesktopChatPanel` (dockview) and
- * `ConnectedChatSurface` (simple mode) now invoke this hook so the
- * welcome turn fires once on first-run completion regardless of which
- * shell mode the user lands in. The persisted `welcomeMessageSent` flag
- * (set inside the welcome-coordinator after STM append) remains the
- * cross-mount idempotency gate.
+ * welcome-emission firing concern. Both `DesktopChatPanel` (dockview) and
+ * `ConnectedChatSurface` (simple mode) invoke this hook so the welcome
+ * turn fires once on first-run completion regardless of which shell mode
+ * the user lands in.
  *
- * Trace: SP 1.8 SDS § 4.8 / Goals C13 / C14 / C15 / C16; Plan Task #14;
- * ADR 023; Invariant A (set-after-await).
+ * Two gates:
  *
- * --- BINDING IMPLEMENTATION INVARIANT (SDS § 0 Note 2 / I10 / Goals C13) ---
+ *   1. Persisted gate (cross-mount): the `config.getWelcomeMessageSent`
+ *      tRPC query is the source of truth. When the wizard reset clears
+ *      the agent block, this query re-fetches `false` and the gate
+ *      re-opens — fixing the BT R3 wizard-reset bug where the prior
+ *      ref-only latch survived wizard runs and silently blocked re-fire.
  *
- * `welcomeFiredRef.current = true` MUST be set AFTER the await, conditional
- * on the result. Setting it before the await reproduces the BT R2 bug
- * (Issue 3) — when `activeProjectId === null` at first render the
- * coordinator returns `{ welcomeFired: false, reason: 'no_project_id' }`
- * but the latch then prevents the next render's retry, so the welcome
- * never fires.
+ *   2. In-memory `latchRef` (per-mount): set after a successful fire OR
+ *      on any non-retryable failure (composition_error, empty_response,
+ *      stm_append_error, already_sent). Resets whenever the persisted
+ *      flag transitions back to `false`, so a real wizard reset is not
+ *      blocked. The latch closes the per-mount fire window during the
+ *      brief interval between mutation success and query refetch.
  *
- * The latch rule:
+ * The `'no_project_id'` outcome is the BT R2 dockview-race retry path
+ * (Invariant A / SDS § 0 Note 2): it leaves the latch `false` so the
+ * next render with a non-null `activeProjectId` re-fires.
  *
- *   if (
- *     result.welcomeFired === true ||
- *     (result.welcomeFired === false && result.reason !== 'no_project_id')
- *   ) {
- *     welcomeFiredRef.current = true
- *   }
+ * After a successful fire we invalidate `chat.getHistory` so the chat
+ * surface re-fetches and renders the new welcome turn. Without this,
+ * the assistant entry is appended to STM but the renderer's React
+ * Query cache does not know — the user sees nothing until they send
+ * their own message (which incidentally invalidates history).
  *
- * `'no_project_id'` outcomes leave the ref `false` so the next render
- * with a non-null `activeProjectId` re-fires (the dockview RC-3b retry
- * path). All other `welcomeFired: false` reasons (`already_sent`,
- * `composition_error`, `empty_response`, `stm_append_error`) latch the
- * ref because the coordinator already evaluated the persisted flag and
- * either succeeded (already_sent) or hit a non-retryable failure.
+ * `inFlightRef` is the StrictMode synchronous concurrency guard.
  */
 import { useEffect, useRef } from 'react'
 import { trpc } from '@nous/transport'
 
 export function useFireWelcomeOnMount(activeProjectId: string | null): void {
-  // `welcomeFiredRef` is the BINDING latch (Invariant A): set to `true`
-  // ONLY after the await, conditional on the result. `'no_project_id'`
-  // outcomes leave it `false` so the next render with a non-null
-  // `activeProjectId` re-fires.
-  const welcomeFiredRef = useRef(false)
-  // `inFlightRef` is a synchronous concurrency guard for StrictMode
-  // double-invocation in development (per Goals C15 / SP 1.6 T15
-  // contract). It latches synchronously to coalesce StrictMode's
-  // back-to-back effect invocations, and is reset in `finally` so a
-  // legitimate retry (e.g., after `'no_project_id'`) is not blocked.
-  // This guard does NOT replace the BINDING `welcomeFiredRef` post-await
-  // contract — it only prevents the same render's effect from racing
-  // itself.
+  const welcomeSentQuery = trpc.config.getWelcomeMessageSent.useQuery()
+  const latchRef = useRef(false)
   const inFlightRef = useRef(false)
   const fireWelcome = trpc.chat.fireWelcomeIfUnsent.useMutation()
+  const utils = trpc.useUtils()
 
   useEffect(() => {
-    if (welcomeFiredRef.current) return
+    if (welcomeSentQuery.data === false) {
+      latchRef.current = false
+    }
+  }, [welcomeSentQuery.data])
+
+  useEffect(() => {
+    if (welcomeSentQuery.data !== false) return
+    if (latchRef.current) return
     if (activeProjectId === null) return
     if (inFlightRef.current) return
 
@@ -68,25 +61,25 @@ export function useFireWelcomeOnMount(activeProjectId: string | null): void {
     void (async () => {
       try {
         const result = await fireWelcome.mutateAsync({ projectId })
-        // BINDING — set-after-await, conditional. See doc-comment above.
         if (
           result.welcomeFired === true ||
           (result.welcomeFired === false && result.reason !== 'no_project_id')
         ) {
-          welcomeFiredRef.current = true
+          latchRef.current = true
         }
-        // else: leave `welcomeFiredRef` `false` so the next render with a
-        // non-null `activeProjectId` re-fires (dockview RC-3b retry path).
+        if (result.welcomeFired === true) {
+          await Promise.all([
+            utils.config.getWelcomeMessageSent.invalidate(),
+            utils.chat.getHistory.invalidate({ projectId }),
+          ])
+        }
       } catch {
-        // Defensive only — the coordinator never throws (failure modes
-        // are returned as `welcomeFired: false`). A throw at this surface
-        // is a transport-layer error (network, serialization). Log via
-        // console; do not propagate (must not block the host render).
+        // Defensive — coordinator returns failures as `welcomeFired: false`.
+        // A throw here is a transport-layer error (network, serialization).
         console.warn('[nous:welcome] fireWelcomeIfUnsent transport error')
       } finally {
         inFlightRef.current = false
       }
     })()
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [activeProjectId])
+  }, [activeProjectId, welcomeSentQuery.data])
 }
