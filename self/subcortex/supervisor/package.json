@@ -1,0 +1,27 @@
+{
+  "name": "@nous/subcortex-supervisor",
+  "version": "0.0.1",
+  "private": true,
+  "description": "Supervisor Phase-B service skeleton, outbox sink, and ring buffers for Nous-OSS (WR-162 SP 3).",
+  "type": "module",
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "import": "./dist/index.js",
+      "require": "./dist/index.js",
+      "default": "./dist/index.js"
+    }
+  },
+  "scripts": {
+    "build": "tsc --build",
+    "typecheck": "tsc --noEmit",
+    "test": "vitest run",
+    "clean": "rm -rf dist"
+  },
+  "dependencies": {
+    "@nous/shared": "workspace:*"
+  },
+  "devDependencies": {
+    "vitest": "^2.1.0"
+  }
+}
