@@ -108,6 +108,10 @@ import {
   InMemoryProjectControlStateStore,
 } from '@nous/subcortex-opctl';
 import { MaoProjectionService, InferenceProjectionAdapter } from '@nous/subcortex-mao';
+import {
+  SupervisorService,
+  SupervisorOutboxSink,
+} from '@nous/subcortex-supervisor';
 import { registerCodingAgentNodeTypes } from '@nous/subcortex-coding-agents';
 import { GtmGateCalculator } from '@nous/subcortex-gtm';
 import { CostGovernanceService, createPricingTable } from '@nous/subcortex-cost';
@@ -908,6 +912,23 @@ export function createNousServices(config?: BootstrapConfig): NousContext {
     runtime,
     instanceRoot,
   });
+  // WR-162 SP 3 — construct the supervisor service AFTER healthAggregator /
+  // outbox prep is in scope and BEFORE MaoProjectionService. The service is
+  // wired as a MAO dep (DNR-B3 invariant — buildAgentProjection still emits
+  // `undefined` for the three supervisor fields in SP 3; SP 6 flips the
+  // read) and is passed to the runtime below along with a factory seam for
+  // its outbox sink. `maxObservationQueueDepth: 1024` matches the default
+  // ring-buffer capacity; SP 4 may tune this per telemetry.
+  const supervisorEnabled: boolean =
+    (resolvedConfig as { supervisor?: { enabled?: boolean } }).supervisor
+      ?.enabled ?? true;
+  const supervisorService = new SupervisorService({
+    config: {
+      enabled: supervisorEnabled,
+      maxObservationQueueDepth: 1024,
+    },
+  });
+
   const maoProjectionService = new MaoProjectionService({
     opctlService,
     workflowEngine,
@@ -918,6 +939,7 @@ export function createNousServices(config?: BootstrapConfig): NousContext {
     eventBus,
     inferenceAdapter,
     projectStore,
+    supervisorService,
   });
   const workmodeAdmissionGuard = new WorkmodeAdmissionGuard();
   const publicMcpNamespaceStore = new NamespaceRegistryStore(documentStore);
@@ -1311,7 +1333,24 @@ export function createNousServices(config?: BootstrapConfig): NousContext {
     recoveryLedgerStore,
     recoveryOrchestrator,
     logger,
+    // WR-162 SP 3 — supervisor seams. The factory closes over the
+    // package-local `SupervisorOutboxSink` constructor so cortex-core
+    // never imports `@nous/subcortex-supervisor` directly.
+    supervisorService,
+    createSupervisorOutboxSink: (s) => new SupervisorOutboxSink(s as SupervisorService),
   });
+
+  // WR-162 SP 3 — start supervision after the runtime is constructed. The
+  // call is idempotent per SUPV-SP3-001; `supervisor.enabled: false`
+  // invokes the construct-but-no-op path (SUPV-SP3-002) so downstream
+  // observability surfaces still see a concrete service reference.
+  const supervisorHandle = gatewayRuntime.startSupervision({
+    enabled: supervisorEnabled,
+  });
+  // Surface the handle so later shutdown paths can drain/stop supervision
+  // alongside other bootstrap handles. No direct caller in SP 3; SP 4+
+  // consumers may drain via `supervisorHandle.stop()`.
+  void supervisorHandle;
 
   // WR-138 row #8 / CPAL § 6: attach providers exactly once after
   // `ProviderRegistry` is populated and before the runtime is exposed via

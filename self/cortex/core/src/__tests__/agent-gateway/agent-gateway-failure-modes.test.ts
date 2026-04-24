@@ -15,7 +15,13 @@ describe('AgentGateway failure modes', () => {
     ).rejects.toBeInstanceOf(ValidationError);
   });
 
-  it('returns error when the outbox sink fails during turn acknowledgement', async () => {
+  it('isolates an outbox sink failure — the turn does NOT surface as an error (OBS-002)', async () => {
+    // WR-162 SP 3 — the composite `GatewayOutbox` fans sinks out via
+    // `Promise.allSettled` and logs rejections instead of re-throwing them
+    // (OBS-002 + OBS-005). Previously a single-sink throw surfaced as
+    // `result.status === 'error'`; under the new contract sink isolation
+    // preserves turn completion while the rejection is structured-logged.
+    const outboxEmit = vi.fn().mockRejectedValue(new Error('outbox unavailable'));
     const { gateway } = createGatewayHarness({
       outputs: [
         JSON.stringify({
@@ -25,7 +31,7 @@ describe('AgentGateway failure modes', () => {
       ],
       outbox: {
         events: [],
-        emit: vi.fn().mockRejectedValue(new Error('outbox unavailable')),
+        emit: outboxEmit,
       } as never,
     });
 
@@ -39,7 +45,10 @@ describe('AgentGateway failure modes', () => {
       }),
     );
 
-    expect(result.status).toBe('error');
+    // OBS-002 isolation: the throw was swallowed and logged, not propagated.
+    expect(result.status).not.toBe('error');
+    // The sink was still invoked (the rejection was routed through it).
+    expect(outboxEmit).toHaveBeenCalled();
   });
 
   it('returns suspended when the provider lane lease is held', async () => {

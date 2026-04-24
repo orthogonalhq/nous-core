@@ -175,4 +175,7 @@ export const DEFAULT_SYSTEM_CONFIG: SystemConfig = {
   cost: {
     enforcementEnabled: false,
   },
+  supervisor: {
+    enabled: true,
+  },
 };

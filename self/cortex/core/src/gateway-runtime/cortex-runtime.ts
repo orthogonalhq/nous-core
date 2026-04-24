@@ -26,11 +26,14 @@ import type {
   IRecoveryOrchestrator,
   IRetryPolicyEvaluator,
   IRollbackPolicyEvaluator,
+  ISupervisorHandle,
+  ISupervisorService,
   IngressDispatchOutcome,
   IngressTriggerEnvelope,
   ProjectId,
   RecoveryOrchestratorContext,
   StmContext,
+  SupervisorConfig,
   ToolDefinition,
   TraceEvidenceReference,
   TraceId,
@@ -243,6 +246,15 @@ implements IPrincipalSystemGatewayRuntime, ISystemInboxSubmissionService {
   private readonly rollbackPolicyEvaluator: IRollbackPolicyEvaluator;
   private readonly log: ILogChannel;
 
+  // WR-162 SP 3 — supervisor state. Runtime receives the concrete service
+  // via deps (dependency-layer rule — @nous/cortex-core never imports
+  // @nous/subcortex-supervisor directly). `supervisorOutboxSink` is built
+  // lazily at `startSupervision()` time via the factory seam and attached
+  // to every subsequent `createChildGateway(...)` sink list (OBS-004).
+  private readonly supervisorService: ISupervisorService | null;
+  private supervisorHandle: ISupervisorHandle | null = null;
+  private supervisorOutboxSink: IGatewayOutboxSink | null = null;
+
   constructor(private readonly deps: PrincipalSystemGatewayRuntimeDeps = {}) {
     this.healthSink = new GatewayRuntimeHealthSink({ eventBus: deps.eventBus, notificationService: deps.notificationService });
     this.replicaProvider = new SystemContextReplicaProvider(this.healthSink);
@@ -260,6 +272,11 @@ implements IPrincipalSystemGatewayRuntime, ISystemInboxSubmissionService {
     this.retryPolicyEvaluator = new RetryPolicyEvaluator();
     this.rollbackPolicyEvaluator = new RollbackPolicyEvaluator();
     this.log = deps.logger?.channel('nous:cortex-runtime') ?? { debug() {}, info() {}, warn() {}, error() {}, isEnabled() { return false; } };
+
+    // WR-162 SP 3 — supervisor dep. The service instance is constructed by
+    // the composition root; absence means no supervision (tests / legacy
+    // bootstrap paths).
+    this.supervisorService = deps.supervisorService ?? null;
 
     this.healthSink.completeBootStep('subcortex_initialized', this.now());
     this.healthSink.completeBootStep('internal_mcp_registered', this.now());
@@ -300,6 +317,10 @@ implements IPrincipalSystemGatewayRuntime, ISystemInboxSubmissionService {
     ];
     // WR-138 row #6: capture config before handing it to the factory so
     // attachProviders() can recompose in place.
+    // WR-162 SP 3 — migrate Principal outbox wiring to `outboxSinks` for
+    // explicit composite-list shape. OBS-002: supervisor sink does NOT
+    // attach to Principal/System outboxes; only child gateways created
+    // after `startSupervision()` receive it (OBS-004, see createChildGateway).
     this.principalGatewayConfig = this.createGatewayConfig({
       agentClass: 'Cortex::Principal',
       agentId: principalAgentId,
@@ -308,7 +329,9 @@ implements IPrincipalSystemGatewayRuntime, ISystemInboxSubmissionService {
       baseSystemPrompt:
         this.deps.principalBaseSystemPrompt
           ?? composeSystemPromptFromConfig(resolvePromptConfig('Cortex::Principal')),
-      outbox: new HealthTrackingOutboxSink('Cortex::Principal', this.healthSink, this.deps.eventBus),
+      outboxSinks: [
+        new HealthTrackingOutboxSink('Cortex::Principal', this.healthSink, this.deps.eventBus),
+      ],
     });
     this.principalGateway = this.gatewayFactory.create(this.principalGatewayConfig);
     this.healthSink.markGatewayBooted({
@@ -334,7 +357,9 @@ implements IPrincipalSystemGatewayRuntime, ISystemInboxSubmissionService {
       lifecycleHooks: systemBundle.lifecycleHooks,
       baseSystemPrompt: this.deps.systemBaseSystemPrompt
         ?? composeSystemPromptFromConfig(resolvePromptConfig('Cortex::System'), this.systemTools),
-      outbox: new HealthTrackingOutboxSink('Cortex::System', this.healthSink, this.deps.eventBus),
+      outboxSinks: [
+        new HealthTrackingOutboxSink('Cortex::System', this.healthSink, this.deps.eventBus),
+      ],
     });
     this.systemGateway = this.gatewayFactory.create(this.systemGatewayConfig);
     this.healthSink.markGatewayBooted({
@@ -585,6 +610,66 @@ implements IPrincipalSystemGatewayRuntime, ISystemInboxSubmissionService {
 
   async whenIdle(): Promise<void> {
     await this.systemBacklogQueue.whenIdle();
+  }
+
+  /**
+   * WR-162 SP 3 — start supervision. Idempotent per SUPV-SP3-001: second
+   * call returns the stored handle and does NOT re-register sinks.
+   *
+   * - `config.enabled === false` (SUPV-SP3-002): delegate to the service,
+   *   which returns an inert handle (`isActive() === false`). No sink is
+   *   built; child gateways created afterward do NOT receive a supervisor
+   *   sink.
+   * - `config.enabled === true` (or absent): delegate to the service, then
+   *   construct the supervisor outbox sink via the injected factory seam.
+   *   The sink is attached by `createChildGateway` to every child gateway
+   *   built from this point on (OBS-004).
+   *
+   * Pre-existing child gateways are NOT retroactively wired — OBS-004 V1
+   * scope limitation.
+   */
+  startSupervision(config: SupervisorConfig): ISupervisorHandle {
+    // SUPV-SP3-001: idempotent — return the stored handle on second call.
+    if (this.supervisorHandle !== null) {
+      return this.supervisorHandle;
+    }
+
+    if (this.supervisorService === null) {
+      // No service wired — return an inert handle so callers can still
+      // probe the state. Mirrors the `enabled: false` disposition shape.
+      const inert: ISupervisorHandle = {
+        stop: async () => {},
+        isActive: () => false,
+      };
+      this.supervisorHandle = inert;
+      return inert;
+    }
+
+    // Delegate lifecycle to the service (service decides inert vs. active
+    // per config.enabled).
+    const handle = this.supervisorService.startSupervision(config);
+    this.supervisorHandle = handle;
+
+    // Only attach sinks to subsequent child gateways when supervision
+    // is active (SUPV-SP3-002 construct-but-no-op precludes sink build).
+    if (handle.isActive()) {
+      if (this.deps.createSupervisorOutboxSink) {
+        this.supervisorOutboxSink = this.deps.createSupervisorOutboxSink(
+          this.supervisorService,
+        );
+      } else {
+        // Fallback no-op sink — only exercised in tests that wire the
+        // service without the factory. Production bootstrap always
+        // passes the factory.
+        this.supervisorOutboxSink = {
+          async emit(): Promise<void> {
+            // no-op
+          },
+        };
+      }
+    }
+
+    return handle;
   }
 
   async listBacklogEntries(filter?: { status?: import('./backlog-types.js').BacklogEntryStatus }): Promise<BacklogEntry[]> {
@@ -958,7 +1043,15 @@ implements IPrincipalSystemGatewayRuntime, ISystemInboxSubmissionService {
     toolSurface: AgentGatewayConfig['toolSurface'];
     lifecycleHooks: AgentGatewayConfig['lifecycleHooks'];
     baseSystemPrompt: string;
-    outbox?: IGatewayOutboxSink;
+    /**
+     * Composite outbox sinks — WR-162 SP 3 § OBS-002. The
+     * `HealthTrackingOutboxSink` always leads the list for Principal /
+     * System / child gateways; `SupervisorOutboxSink` is appended by
+     * `createChildGateway` when `supervisorHandle !== null` (OBS-004).
+     * Absent for child gateways created before `startSupervision()` and
+     * for gateways where supervision is disabled.
+     */
+    outboxSinks?: readonly IGatewayOutboxSink[];
   }): AgentGatewayConfig {
     // WR-138 row #5: Option α vendor resolution chain per
     // `cortex-provider-attach-lifecycle-v1.md` AC #9 and
@@ -988,7 +1081,7 @@ implements IPrincipalSystemGatewayRuntime, ISystemInboxSubmissionService {
       agentId: args.agentId as AgentGatewayConfig['agentId'],
       toolSurface: args.toolSurface,
       lifecycleHooks: args.lifecycleHooks,
-      outbox: args.outbox,
+      outboxSinks: args.outboxSinks,
       baseSystemPrompt: args.baseSystemPrompt,
       harness,
       defaultModelRequirements: this.deps.defaultModelRequirements,
@@ -1166,6 +1259,15 @@ implements IPrincipalSystemGatewayRuntime, ISystemInboxSubmissionService {
       baseSystemPrompt = getOrchestratorPrompt(dispatchIntent);
     }
 
+    // WR-162 SP 3 — OBS-004: attach `SupervisorOutboxSink` to child
+    // gateways created AFTER `startSupervision()` (and only when
+    // supervision is active). Pre-call child gateways have already
+    // captured their sink list; no retroactive mutation occurs.
+    const childOutboxSinks: IGatewayOutboxSink[] = [];
+    if (this.supervisorHandle !== null && this.supervisorOutboxSink !== null) {
+      childOutboxSinks.push(this.supervisorOutboxSink);
+    }
+
     return this.gatewayFactory.create(
       this.createGatewayConfig({
         agentClass: targetClass,
@@ -1173,6 +1275,7 @@ implements IPrincipalSystemGatewayRuntime, ISystemInboxSubmissionService {
         toolSurface: bundle.toolSurface,
         lifecycleHooks: bundle.lifecycleHooks,
         baseSystemPrompt,
+        outboxSinks: childOutboxSinks.length > 0 ? childOutboxSinks : undefined,
       }),
     );
   }

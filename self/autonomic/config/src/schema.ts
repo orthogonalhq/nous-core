@@ -155,6 +155,21 @@ export const CostConfigSchema = z.object({
 });
 export type CostConfig = z.infer<typeof CostConfigSchema>;
 
+// --- Supervisor Bootstrap Configuration ---
+// WR-162 SP 3 — supervisor-topology-architecture-v1.md + SP 3 SDS § Data Model.
+// `enabled: true` constructs an active `SupervisorService` + registers the
+// composite outbox sink on child gateways (OBS-004). `enabled: false` is
+// SUPV-SP3-002 (construct-but-no-op): `SupervisorService` is still built so
+// read procedures/tests can exercise the surface, but `startSupervision()`
+// returns an inert handle (`isActive() === false`) and no sink registers.
+// Detector/sentinel thresholds land in SP 4/SP 6.
+export const SupervisorBootstrapConfigSchema = z.object({
+  enabled: z.boolean().optional().default(true),
+});
+export type SupervisorBootstrapConfig = z.infer<
+  typeof SupervisorBootstrapConfigSchema
+>;
+
 // --- Full System Configuration ---
 export const SystemConfigSchema = z.object({
   profile: ProfileSchema,
@@ -169,5 +184,8 @@ export const SystemConfigSchema = z.object({
   }),
   logging: LoggingConfigSchema,
   cost: CostConfigSchema.optional().default({ enforcementEnabled: false }),
+  supervisor: SupervisorBootstrapConfigSchema.optional().default({
+    enabled: true,
+  }),
 });
 export type SystemConfig = z.infer<typeof SystemConfigSchema>;

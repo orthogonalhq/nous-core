@@ -8,6 +8,7 @@ import type {
   IOpctlService,
   IProjectStore,
   IScheduler,
+  ISupervisorService,
   IVoiceControlService,
   IWorkflowEngine,
   IWitnessService,
@@ -537,6 +538,15 @@ export interface MaoProjectionServiceDeps {
     softAlertFired: boolean;
     hardCeilingFired: boolean;
   } | null | undefined;
+  /**
+   * WR-162 SP 3 — trailing additive optional dep for downstream SP 6
+   * consumption. `buildAgentProjection` intentionally does NOT read this
+   * field in SP 3 (DNR-B3 preserved): the three supervisor fields
+   * (`guardrail_status`, `witness_integrity_status`, `sentinel_risk_score`)
+   * continue to land as `undefined` on the projection output. SP 6 flips
+   * the read. See `implementation-plan.mdx` task 22 + IT-2.
+   */
+  supervisorService?: ISupervisorService;
 }
 
 export class MaoProjectionService {

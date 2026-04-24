@@ -11,6 +11,7 @@ export {
   ProviderConfigEntrySchema,
   SecurityConfigSchema,
   StorageConfigSchema,
+  SupervisorBootstrapConfigSchema,
   SystemConfigSchema,
 } from './schema.js';
 export type {
@@ -23,6 +24,7 @@ export type {
   ProviderConfigEntry,
   SecurityConfig,
   StorageConfig,
+  SupervisorBootstrapConfig,
   SystemConfig,
 } from './schema.js';
 
