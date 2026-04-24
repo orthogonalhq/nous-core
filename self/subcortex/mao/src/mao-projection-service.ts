@@ -1080,17 +1080,24 @@ export class MaoProjectionService {
       ? await this.deps.workflowEngine.getRunGraph(selectedRun.runId)
       : null;
 
+    // WR-162 SP 6 (SUPV-SP6-005 + SUPV-SP6-007) — `buildAgentProjection` is
+    // now async because it awaits `ISupervisorService.getAgentSupervisorSnapshot`
+    // (Promise-returning per the landed SP 1 interface). Map+Promise.all
+    // replaces the synchronous `.map` chain.
     const agentProjections = selectedRun && selectedGraph
-      ? Object.entries(selectedRun.nodeStates)
-          .map(([nodeDefinitionId, nodeState]) =>
-            this.buildAgentProjection(
-              input.projectId,
-              selectedRun,
-              selectedGraph,
-              nodeDefinitionId,
-              nodeState,
-              controlState,
-            ))
+      ? await Promise.all(
+          Object.entries(selectedRun.nodeStates).map(
+            ([nodeDefinitionId, nodeState]) =>
+              this.buildAgentProjection(
+                input.projectId,
+                selectedRun,
+                selectedGraph,
+                nodeDefinitionId,
+                nodeState,
+                controlState,
+              ),
+          ),
+        )
       : [];
 
     const urgentAgentIds = agentProjections
@@ -1149,14 +1156,14 @@ export class MaoProjectionService {
     };
   }
 
-  private buildAgentProjection(
+  private async buildAgentProjection(
     projectId: ProjectId,
     run: WorkflowRunState,
     graph: NonNullable<Awaited<ReturnType<IWorkflowEngine['getRunGraph']>>>,
     nodeDefinitionId: string,
     nodeState: WorkflowNodeRunState,
     controlState: ProjectControlState,
-  ): MaoAgentProjection {
+  ): Promise<MaoAgentProjection> {
     const lifecycleState = mapLifecycleState(nodeState, controlState, run.status);
     const urgencyLevel = deriveUrgencyLevel(lifecycleState);
     const latestAttempt = nodeState.attempts[nodeState.attempts.length - 1];
@@ -1252,7 +1259,41 @@ export class MaoProjectionService {
       })(),
     };
 
-    return MaoAgentProjectionSchema.parse(projection);
+    // WR-162 SP 6 (SUPV-SP6-005) — real supervisor-field reads.
+    // Pre-SP-6 (SP 3): all three fields emitted as `undefined` unconditionally.
+    // Post-SP-6: when `deps.supervisorService` is wired, read per-agent snapshot
+    // and coalesce `sentinel_risk_score: null` → `undefined` per DNR-B3 (absence
+    // is the runtime signal; no placeholder strings).
+    const supervisorFields = await this.readSupervisorFields(nodeState.id);
+
+    return MaoAgentProjectionSchema.parse({
+      ...projection,
+      ...supervisorFields,
+    });
+  }
+
+  /**
+   * WR-162 SP 6 (SUPV-SP6-005 + SUPV-SP6-007 + SUPV-SP6-015) — supervisor
+   * field read helper. DNR-B3 preserved: absent supervisor service leaves all
+   * three fields `undefined`; null `sentinel_risk_score` coalesces to
+   * `undefined` (not `null`). No placeholder strings.
+   */
+  private async readSupervisorFields(agentId: string): Promise<{
+    guardrail_status?: import('@nous/shared').GuardrailStatus;
+    witness_integrity_status?: import('@nous/shared').WitnessIntegrityStatus;
+    sentinel_risk_score?: number;
+  }> {
+    if (this.deps.supervisorService === undefined) {
+      return {};
+    }
+    const snap = await this.deps.supervisorService.getAgentSupervisorSnapshot(
+      agentId,
+    );
+    return {
+      guardrail_status: snap.guardrail_status,
+      witness_integrity_status: snap.witness_integrity_status,
+      sentinel_risk_score: snap.sentinel_risk_score ?? undefined,
+    };
   }
 
   private buildProjectControlProjection(
