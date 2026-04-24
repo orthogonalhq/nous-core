@@ -29,6 +29,7 @@ import {
   DEFAULT_PROFILES,
 } from '@nous/autonomic-config';
 import type {
+  CostConfig,
   ModelRoleAssignment,
   Profile,
   ProviderConfigEntry,
@@ -790,12 +791,20 @@ export function createNousServices(config?: BootstrapConfig): NousContext {
     notificationStore,
     eventBus,
   });
+  // WR-162 SP 7 — single-site `cost.enforcementEnabled` config read
+  // (SUPV-SP7-011; Decision #6 § Specification Config key). The `?? false`
+  // coalesce is belt-and-suspenders per the decision: a partial on-disk
+  // YAML missing the `cost` block reads `undefined`; `CostConfigSchema`
+  // defaults `enforcementEnabled` to `false` when the block exists. Both
+  // paths resolve to the ratified default.
+  const costConfig = appConfig.get().cost as CostConfig | undefined;
   const costGovernanceService = new CostGovernanceService({
     eventBus,
     opctlService,
     pricingTable,
     getProjectConfig: () => undefined, // V1: policies managed via setBudgetPolicy
     notificationService,
+    enforcementEnabled: costConfig?.enforcementEnabled ?? false,
   });
   const inferenceAdapter = new InferenceProjectionAdapter(eventBus);
   const thoughtEmitter = new ThoughtEmitterImpl(eventBus);
@@ -1018,6 +1027,10 @@ export function createNousServices(config?: BootstrapConfig): NousContext {
     inferenceAdapter,
     projectStore,
     supervisorService,
+    // WR-162 SP 7 — always-on observability wire (Decision #6 § Bundled Item 7).
+    // NOT flag-gated; populates `MaoProjectSnapshot.budgetUtilization`
+    // regardless of `cost.enforcementEnabled`.
+    getBudgetStatus: (projectId) => costGovernanceService.getBudgetStatus(projectId),
   });
   const workmodeAdmissionGuard = new WorkmodeAdmissionGuard();
   const publicMcpNamespaceStore = new NamespaceRegistryStore(documentStore);
