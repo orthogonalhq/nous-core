@@ -22,6 +22,7 @@ export {
   validateConfirmationProof,
   getRequiredTier,
   issueSupervisorProof,
+  issueSystemProof,
 } from './confirmation.js';
 
 export type { ConfirmationTierDisplay } from './confirmation.js';

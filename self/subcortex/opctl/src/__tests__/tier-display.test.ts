@@ -30,25 +30,56 @@ describe('ConfirmationTierDisplay — WR-162 SP 2 surface', () => {
 });
 
 describe('T3_COOLDOWN_MS', () => {
-  it('ships with value 0 in SP 2 (SP 7 promotes to policy-configured value)', () => {
+  // UT-SP7-TD5: T3_COOLDOWN_MS constant assertion (V1 default).
+  it('ships with value 0 in V1 (post-V1 sprint can flip without breaking shape)', () => {
     expect(T3_COOLDOWN_MS).toBe(0);
   });
 });
 
-describe('getTierDisplay — SP 2 stub', () => {
-  it('throws "not yet implemented" for T0', () => {
-    expect(() => getTierDisplay('T0')).toThrow('not yet implemented');
+// ---------------------------------------------------------------------------
+// WR-162 SP 7 — getTierDisplay real implementation (UT-SP7-TD1..TD4)
+// Replaces the SP 2 stub-throw negative tests per Goals In Scope #8 flip rule.
+// ---------------------------------------------------------------------------
+
+describe('getTierDisplay — WR-162 SP 7 real implementation', () => {
+  // UT-SP7-TD1
+  it('returns the T0 shape (Immediate / low severity, no cooldownMs)', () => {
+    expect(getTierDisplay('T0')).toEqual({
+      level: 'T0',
+      label: 'Immediate',
+      severity: 'low',
+      rationaleKey: 'tier.t0.rationale',
+    });
   });
 
-  it('throws "not yet implemented" for T1', () => {
-    expect(() => getTierDisplay('T1')).toThrow('not yet implemented');
+  // UT-SP7-TD2
+  it('returns the T1 shape (Confirmation / medium severity, no cooldownMs)', () => {
+    expect(getTierDisplay('T1')).toEqual({
+      level: 'T1',
+      label: 'Confirmation',
+      severity: 'medium',
+      rationaleKey: 'tier.t1.rationale',
+    });
   });
 
-  it('throws "not yet implemented" for T2', () => {
-    expect(() => getTierDisplay('T2')).toThrow('not yet implemented');
+  // UT-SP7-TD3
+  it('returns the T2 shape (Two-step / high severity, no cooldownMs)', () => {
+    expect(getTierDisplay('T2')).toEqual({
+      level: 'T2',
+      label: 'Two-step',
+      severity: 'high',
+      rationaleKey: 'tier.t2.rationale',
+    });
   });
 
-  it('throws "not yet implemented" for T3', () => {
-    expect(() => getTierDisplay('T3')).toThrow('not yet implemented');
+  // UT-SP7-TD4
+  it('returns the T3 shape (Cooldown-gated / critical severity, cooldownMs = T3_COOLDOWN_MS)', () => {
+    expect(getTierDisplay('T3')).toEqual({
+      level: 'T3',
+      label: 'Cooldown-gated',
+      severity: 'critical',
+      rationaleKey: 'tier.t3.rationale',
+      cooldownMs: T3_COOLDOWN_MS,
+    });
   });
 });
