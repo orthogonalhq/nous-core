@@ -13,7 +13,7 @@ import type { IncomingMessage, ServerResponse } from 'node:http';
 import type { EventChannelMap, IEventBus } from '@nous/shared';
 
 /** All known channel names for subscribing to "all". */
-const ALL_CHANNELS: (keyof EventChannelMap)[] = [
+export const ALL_CHANNELS: (keyof EventChannelMap)[] = [
   'health:boot-step',
   'health:gateway-status',
   'health:issue',
@@ -49,6 +49,13 @@ const ALL_CHANNELS: (keyof EventChannelMap)[] = [
   'ollama:version-info',
   'notification:raised',
   'notification:updated',
+  // WR-162 SP 6 (SUPV-SP6-010) — supervisor channel allow-list extension.
+  // Channels exist in `EventChannelMap` (SP 1 landed); SSE exposes them here.
+  // Union size grows 36 → 40.
+  'supervisor:violation-detected',
+  'supervisor:enforcement-action',
+  'supervisor:anomaly-classified',
+  'supervisor:sentinel-status',
 ];
 
 const HEARTBEAT_INTERVAL_MS = 30_000;

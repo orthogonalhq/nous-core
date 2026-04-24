@@ -112,8 +112,12 @@ import { MaoProjectionService, InferenceProjectionAdapter } from '@nous/subcorte
 import {
   SupervisorService,
   SupervisorOutboxSink,
+  SupervisorRingBuffer,
   enforce as enforceSupervisor,
+  createSentinelModule,
+  createSentinelWitnessEmitter,
   type EnforcementDeps,
+  type SupervisorAnomalyRecord,
 } from '@nous/subcortex-supervisor';
 import { registerCodingAgentNodeTypes } from '@nous/subcortex-coding-agents';
 import { GtmGateCalculator } from '@nous/subcortex-gtm';
@@ -947,6 +951,42 @@ export function createNousServices(config?: BootstrapConfig): NousContext {
       return () => ++seq;
     })(),
   };
+  // WR-162 SP 6 (SUPV-SP6-014) — pull sentinel thresholds from the defaulted
+  // config. When `supervisor.enabled: false`, the sentinel slot is undefined
+  // by construction; `startSupervision` never allocates the heartbeat interval
+  // (SUPV-SP3-002 preserved via construction-presence gate).
+  const supervisorConfig = (resolvedConfig as {
+    supervisor?: {
+      enabled?: boolean;
+      sentinelThresholds?: {
+        retryCountPerWindow: number;
+        retryWindowSeconds: number;
+        escalationCountPerWindow: number;
+        escalationWindowSeconds: number;
+        stalledAgentIdleSeconds: number;
+        heartbeatIntervalMs: number;
+      };
+    };
+  }).supervisor;
+  const sentinelThresholds = supervisorConfig?.sentinelThresholds ?? {
+    retryCountPerWindow: 10,
+    retryWindowSeconds: 60,
+    escalationCountPerWindow: 3,
+    escalationWindowSeconds: 60,
+    stalledAgentIdleSeconds: 300,
+    heartbeatIntervalMs: 5000,
+  };
+  const sentinelAnomalyBuffer = new SupervisorRingBuffer<SupervisorAnomalyRecord>(200);
+  const sentinelModule = supervisorEnabled
+    ? createSentinelModule({
+        getNow: () => new Date().toISOString(),
+        thresholds: sentinelThresholds,
+        anomalyBuffer: sentinelAnomalyBuffer,
+        emitWitness: createSentinelWitnessEmitter(witnessService),
+        eventBus,
+      })
+    : undefined;
+
   const supervisorService = new SupervisorService({
     config: {
       enabled: supervisorEnabled,
@@ -958,6 +998,13 @@ export function createNousServices(config?: BootstrapConfig): NousContext {
       enforce: (violation, deps) => enforceSupervisor(violation, deps),
       deps: supervisorEnforcementDeps,
     },
+    sentinel: sentinelModule
+      ? {
+          module: sentinelModule,
+          heartbeatIntervalMs: sentinelThresholds.heartbeatIntervalMs,
+          anomalyBuffer: sentinelAnomalyBuffer,
+        }
+      : undefined,
   });
 
   const maoProjectionService = new MaoProjectionService({
@@ -1475,6 +1522,8 @@ export function createNousServices(config?: BootstrapConfig): NousContext {
     healthMonitor,
     tokenAccumulator,
     costGovernanceService,
+    // WR-162 SP 6 (SUPV-SP6-006) — supervisor service threaded into tRPC context.
+    supervisorService,
   };
 
   console.log(`[nous:${runtimeLabel}] bootstrap complete`);

@@ -28,6 +28,7 @@ import { systemActivityRouter } from './routers/system-activity';
 import { tasksRouter } from './routers/tasks';
 import { ollamaRouter } from './routers/ollama';
 import { notificationsRouter } from './routers/notifications';
+import { supervisorRouter } from './routers/supervisor';
 
 export const appRouter = router({
   projects: projectsRouter,
@@ -56,6 +57,8 @@ export const appRouter = router({
   cost: costRouter,
   ollama: ollamaRouter,
   notifications: notificationsRouter,
+  // WR-162 SP 6 — supervisor surface (three publicProcedure queries).
+  supervisor: supervisorRouter,
 });
 
 export type AppRouter = typeof appRouter;
