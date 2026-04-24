@@ -19,6 +19,7 @@
   },
   "dependencies": {
     "@nous/shared": "workspace:*",
+    "@nous/subcortex-opctl": "workspace:*",
     "zod": "^3.24.1"
   }
 }

@@ -38,6 +38,12 @@ export interface CostGovernanceServiceDeps {
   pricingTable: PricingTable;
   getProjectConfig: (projectId: string) => ProjectConfig | undefined;
   notificationService?: INotificationService;
+  /**
+   * WR-162 SP 7 — threads the `cost.enforcementEnabled` flag read through
+   * to `CostEnforcement` (Decision #6 Variant B1). Required (not optional)
+   * so every call-site states its flag posture explicitly.
+   */
+  enforcementEnabled: boolean;
 }
 
 interface AggregationEntry {
@@ -207,7 +213,10 @@ export class CostGovernanceService {
     private readonly deps: CostGovernanceServiceDeps,
     options?: { snapshotIntervalMs?: number },
   ) {
-    this.enforcement = new CostEnforcement({ opctlService: deps.opctlService });
+    this.enforcement = new CostEnforcement({
+      opctlService: deps.opctlService,
+      enforcementEnabled: deps.enforcementEnabled,
+    });
 
     // Subscribe to both inference event channels (SF-1)
     const callId = deps.eventBus.subscribe('inference:call-complete', (payload) => {
