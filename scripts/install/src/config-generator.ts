@@ -61,6 +61,9 @@ export function generateDefaultConfig(
       level: 0,
       channels: {},
     },
+    cost: {
+      enforcementEnabled: false,
+    },
   };
 
   return SystemConfigSchema.parse(config);

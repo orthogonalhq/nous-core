@@ -146,6 +146,15 @@ export const LoggingConfigSchema = z.object({
 }).optional().default({});
 export type LoggingConfig = z.infer<typeof LoggingConfigSchema>;
 
+// --- Cost Governance Configuration ---
+// WR-162 SP 2 — cost-enforcement-pause-fix-v1.md § Config key.
+// When `enforcementEnabled === false`, the ConfigLocked invariant is relaxed
+// for the enforcement pause window. Default posture is paused in V1.
+export const CostConfigSchema = z.object({
+  enforcementEnabled: z.boolean().optional().default(false),
+});
+export type CostConfig = z.infer<typeof CostConfigSchema>;
+
 // --- Full System Configuration ---
 export const SystemConfigSchema = z.object({
   profile: ProfileSchema,
@@ -159,5 +168,6 @@ export const SystemConfigSchema = z.object({
     traceSensitiveData: false,
   }),
   logging: LoggingConfigSchema,
+  cost: CostConfigSchema.optional().default({ enforcementEnabled: false }),
 });
 export type SystemConfig = z.infer<typeof SystemConfigSchema>;

@@ -2,26 +2,28 @@
  * @nous/autonomic-config — Configuration schema and validation for Nous-OSS.
  */
 export {
-  SystemConfigSchema,
-  PfcTierPresetSchema,
-  ModelRoleAssignmentSchema,
-  ProfileSchema,
-  StorageConfigSchema,
-  SecurityConfigSchema,
+  CostConfigSchema,
   DefaultsConfigSchema,
-  ProviderConfigEntrySchema,
   LoggingConfigSchema,
+  ModelRoleAssignmentSchema,
+  PfcTierPresetSchema,
+  ProfileSchema,
+  ProviderConfigEntrySchema,
+  SecurityConfigSchema,
+  StorageConfigSchema,
+  SystemConfigSchema,
 } from './schema.js';
 export type {
-  SystemConfig,
-  PfcTierPreset,
-  ModelRoleAssignment,
-  Profile,
-  StorageConfig,
-  SecurityConfig,
+  CostConfig,
   DefaultsConfig,
-  ProviderConfigEntry,
   LoggingConfig,
+  ModelRoleAssignment,
+  PfcTierPreset,
+  Profile,
+  ProviderConfigEntry,
+  SecurityConfig,
+  StorageConfig,
+  SystemConfig,
 } from './schema.js';
 
 export {
