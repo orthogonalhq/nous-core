@@ -1127,6 +1127,9 @@ importers:
         specifier: workspace:*
         version: link:../../shared
     devDependencies:
+      '@nous/subcortex-witnessd':
+        specifier: workspace:*
+        version: link:../witnessd
       vitest:
         specifier: ^2.1.0
         version: 2.1.9(@types/node@20.19.33)(jsdom@26.1.0)(lightningcss@1.30.2)

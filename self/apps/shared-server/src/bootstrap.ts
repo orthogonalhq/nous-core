@@ -922,11 +922,19 @@ export function createNousServices(config?: BootstrapConfig): NousContext {
   const supervisorEnabled: boolean =
     (resolvedConfig as { supervisor?: { enabled?: boolean } }).supervisor
       ?.enabled ?? true;
+  // WR-162 SP 4 — thread `witnessService` + `eventBus` into the supervisor
+  // so `runClassifier` can write detection witness events (EVID-SUP-001)
+  // and publish `supervisor:violation-detected`. `gatewayRunSnapshotRegistry`
+  // is supplied to the outbox sink factory below (SUPV-SP4-003 populator).
+  // `onEnforcementDispatch` is left at the default debug-log stub per
+  // SUPV-SP4-009; SP 5 threads the real `OpctlService.submitCommand` caller.
   const supervisorService = new SupervisorService({
     config: {
       enabled: supervisorEnabled,
       maxObservationQueueDepth: 1024,
     },
+    witnessService,
+    eventBus,
   });
 
   const maoProjectionService = new MaoProjectionService({
@@ -1336,8 +1344,20 @@ export function createNousServices(config?: BootstrapConfig): NousContext {
     // WR-162 SP 3 — supervisor seams. The factory closes over the
     // package-local `SupervisorOutboxSink` constructor so cortex-core
     // never imports `@nous/subcortex-supervisor` directly.
+    // WR-162 SP 4 — the sink is given a null-returning
+    // `GatewayRunSnapshotRegistry` by default. A future sub-phase (SP 5 /
+    // SP 6) threads the real `CortexRuntime` per-run registry accessor
+    // once it exists. Until then, identity enrichment stays null and the
+    // Identity-Completeness Gate drops outbox-sourced observations at
+    // `SupervisorService.runClassifier` entry. This is contract-grounded
+    // no-fire, not a silent weakening (SDS SUPV-SP4-003 revised + Risks
+    // table row 3).
     supervisorService,
-    createSupervisorOutboxSink: (s) => new SupervisorOutboxSink(s as SupervisorService),
+    createSupervisorOutboxSink: (s) =>
+      new SupervisorOutboxSink({
+        service: s as SupervisorService,
+        gatewayRunSnapshotRegistry: { get: () => null },
+      }),
   });
 
   // WR-162 SP 3 — start supervision after the runtime is constructed. The

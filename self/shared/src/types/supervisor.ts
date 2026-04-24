@@ -11,6 +11,7 @@
  * Types-only sub-phase (WR-162 SP 1): no runtime logic.
  */
 import { z } from 'zod';
+import { AgentClassSchema, GatewayToolCallSchema } from './agent-gateway.js';
 
 // --- Severity ladder (S0..S3) ---
 
@@ -130,6 +131,55 @@ export type SupervisorStatusSnapshot = z.infer<
 // witness verification vs. periodic health probe); the payload is opaque
 // at this layer — the classifier narrows per-source discriminants in SP 3.
 
+// --- Supervisor observation routing-target and lifecycle-transition ---
+// Per WR-162 SP 4 SDS § Data Model § Observation envelope extension.
+// Routing-target vocabulary drawn from `AgentClassSchema` + Principal-tier
+// `supervisor-scope-boundary-v1.md § Agent Class Ladder`. Lifecycle shape is
+// narrowed to {from,to} per `LifecycleTransitionPayloadSchema` (SP 4 uses
+// the from-state-reachability check; per-run state-machine tracking is SP 6).
+
+export const SupervisorRoutingTargetKindSchema = z.enum([
+  'Principal',
+  'Orchestrator',
+  'Worker',
+  'System',
+  'Cortex::Principal',
+  'Cortex::System',
+]);
+export type SupervisorRoutingTargetKind = z.infer<
+  typeof SupervisorRoutingTargetKindSchema
+>;
+
+export const SupervisorRoutingTargetSchema = z
+  .object({
+    kind: SupervisorRoutingTargetKindSchema,
+  })
+  .strict();
+export type SupervisorRoutingTarget = z.infer<typeof SupervisorRoutingTargetSchema>;
+
+export const SupervisorLifecycleTransitionSchema = z
+  .object({
+    from: z.string().min(1),
+    to: z.string().min(1),
+  })
+  .strict();
+export type SupervisorLifecycleTransition = z.infer<
+  typeof SupervisorLifecycleTransitionSchema
+>;
+
+// --- Raw observation envelope (input to classifier) ---
+// Per supervisor-observation-contract-v1.md (SP 1 base envelope) + SP 4
+// additive enrichment fields (SUPV-SP4-003 revised). Enrichment defaults
+// are `null` to preserve backward compat with SP 3 sink writes. Populated by
+// `SupervisorOutboxSink.emit(...)` from the `GatewayOutboxEvent` + the
+// injected `GatewayRunSnapshotRegistry` read view. Detectors treat any
+// `null` enrichment field as contract-grounded no-fire (no inference).
+//
+// The `source` tag identifies where the observation came from (outbox sink
+// vs. event-bus channel vs. witness verification vs. periodic health
+// probe); the payload is opaque at this layer — the classifier narrows
+// per-source discriminants in SP 3.
+
 export const SupervisorObservationSchema = z.object({
   observedAt: z.string().datetime(),
   source: z.enum([
@@ -139,5 +189,24 @@ export const SupervisorObservationSchema = z.object({
     'health_sink',
   ]),
   payload: z.unknown(),
+  // SP 4 additive-nullable enrichment fields (SUPV-SP4-003 revised).
+  agentId: z.string().nullable().default(null),
+  agentClass: AgentClassSchema.nullable().default(null),
+  runId: z.string().nullable().default(null),
+  projectId: z.string().nullable().default(null),
+  traceId: z.string().nullable().default(null),
+  toolCall: GatewayToolCallSchema.nullable().default(null),
+  routingTarget: SupervisorRoutingTargetSchema.nullable().default(null),
+  lifecycleTransition: SupervisorLifecycleTransitionSchema.nullable().default(null),
+  // SP 4 additive — optional per-action claim (for SUP-004 missing-authorization
+  // detection). When absent, SUP-004 contract-grounded no-fire.
+  actionClaim: z
+    .object({
+      actionCategory: z.string().min(1),
+      actionRef: z.string().min(1),
+    })
+    .strict()
+    .nullable()
+    .default(null),
 });
 export type SupervisorObservation = z.infer<typeof SupervisorObservationSchema>;
