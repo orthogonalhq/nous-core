@@ -92,6 +92,10 @@ export const defaultConversationContext: ConversationContext = {
   isAmbient: true,
 }
 
+/** Observe-column tabs (WR-162 SP 2 — observe-panel-tab-architecture-v1.md § Type model). */
+export const ObserveTabSchema = z.enum(['agents', 'system-load', 'cost-monitor'])
+export type ObserveTab = z.infer<typeof ObserveTabSchema>
+
 export interface ShellContextValue {
   mode: ShellMode
   breakpoint: ShellBreakpoint
@@ -103,15 +107,16 @@ export interface ShellContextValue {
   navigate: (routeId: string, params?: Record<string, unknown>) => void
   goBack: () => void
   onProjectChange?: (projectId: string) => void
+  // --- WR-162 SP 2 additions (contract-only; SP 11 wires runtime state) ---
+  activeObserveTab: ObserveTab
+  setActiveObserveTab: (tab: ObserveTab) => void
+  observePanelCollapsed: boolean
+  setObservePanelCollapsed: (v: boolean) => void
 }
 
 // --- Content Surface Types ---
 
 import type { ContentRouterRenderProps } from './ContentRouter'
-
-/** Routes available in the observe column */
-export const ObserveRouteSchema = z.enum(['mao', 'agent-logs', 'metrics', 'default', 'system-activity'])
-export type ObserveRoute = z.infer<typeof ObserveRouteSchema>
 
 /** Props for the ObservePanel container */
 export const ObservePanelPropsSchema = z.object({

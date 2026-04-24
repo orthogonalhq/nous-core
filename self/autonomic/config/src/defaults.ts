@@ -172,4 +172,7 @@ export const DEFAULT_SYSTEM_CONFIG: SystemConfig = {
     level: 0, // LogLevel.Debug
     channels: {},
   },
+  cost: {
+    enforcementEnabled: false,
+  },
 };

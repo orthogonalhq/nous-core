@@ -12,6 +12,7 @@ import type {
   RecoverySegment,
   RecoveryTerminalState,
 } from '../types/index.js';
+import type { IWitnessService } from './subcortex.js';
 
 /** Result of retry policy evaluation. */
 export type RetryPolicyResult =
@@ -157,4 +158,9 @@ export interface RecoveryOrchestratorContext {
   checkpoint_manager: ICheckpointManager;
   retry_evaluator: IRetryPolicyEvaluator;
   rollback_evaluator: IRollbackPolicyEvaluator;
+  // --- WR-162 SP 2 additions (contract-only; SP 8 wires runtime) ---
+  retry_budget?: number;
+  operation_class?: 'idempotent' | 'side-effect-producing' | 'irreversible';
+  side_effect_status?: 'unapplied' | 'partially-applied' | 'fully-applied';
+  witness?: IWitnessService;
 }

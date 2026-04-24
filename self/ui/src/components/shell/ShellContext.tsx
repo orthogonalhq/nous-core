@@ -4,6 +4,7 @@ import { createContext, useContext, type PropsWithChildren } from 'react'
 import {
   defaultConversationContext,
   type NavigationState,
+  type ObserveTab,
   type ShellBreakpoint,
   type ShellContextValue,
   type ShellMode,
@@ -30,6 +31,11 @@ export interface ShellProviderProps extends PropsWithChildren {
   navigate?: (routeId: string, params?: Record<string, unknown>) => void
   goBack?: () => void
   onProjectChange?: (projectId: string) => void
+  // --- WR-162 SP 2 additions (contract-only; SP 11 wires useState) ---
+  activeObserveTab?: ObserveTab
+  setActiveObserveTab?: (tab: ObserveTab) => void
+  observePanelCollapsed?: boolean
+  setObservePanelCollapsed?: (v: boolean) => void
 }
 
 export const ShellContext = createContext<ShellContextValue | null>(null)
@@ -46,6 +52,10 @@ export function ShellProvider({
   navigate = noop,
   goBack = noop,
   onProjectChange,
+  activeObserveTab = 'agents',
+  setActiveObserveTab = noop,
+  observePanelCollapsed = false,
+  setObservePanelCollapsed = noop,
 }: ShellProviderProps) {
   const resolvedActiveRoute = navigation?.activeRoute ?? activeRoute
 
@@ -64,6 +74,10 @@ export function ShellProvider({
     navigate,
     goBack,
     onProjectChange,
+    activeObserveTab,
+    setActiveObserveTab,
+    observePanelCollapsed,
+    setObservePanelCollapsed,
   }
 
   return (

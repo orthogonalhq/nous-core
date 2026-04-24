@@ -76,3 +76,39 @@ export function getRequiredTier(action: ControlAction): ConfirmationTier {
   if (action === 'pause' || action === 'stop_response' || action === 'retry_step') return 'T1';
   return 'T0';
 }
+
+// --- WR-162 SP 2 additions — failure-recovery-ux-patterns-v1.md § 9c ---
+//
+// Presentation metadata for confirmation-tier display. Implementation lands
+// in SP 7; this sub-phase only ships the type, constant, and stub.
+
+/**
+ * Presentation metadata for a confirmation tier — drives tier-display UI
+ * (severity pill, rationale copy, T3 cooldown). Per Decision #9 § 9c.
+ */
+export type ConfirmationTierDisplay = {
+  level: ConfirmationTier;
+  label: string;
+  severity: 'low' | 'medium' | 'high' | 'critical';
+  rationaleKey: string;
+  /** Present on T3 only. */
+  cooldownMs?: number;
+};
+
+/**
+ * T3 cooldown duration, in milliseconds. V1 value is `0` (no cooldown wired);
+ * SP 7 promotes this to the policy-configured value.
+ */
+export const T3_COOLDOWN_MS = 0;
+
+/**
+ * Returns presentation metadata for a confirmation tier.
+ *
+ * **Stub.** Implementation lands in SP 7. SP 2 ships the surface only so SP 7
+ * and SP 14 can import from `@nous/subcortex-opctl`.
+ */
+export function getTierDisplay(
+  _tier: ConfirmationTier,
+): ConfirmationTierDisplay {
+  throw new Error('not yet implemented');
+}

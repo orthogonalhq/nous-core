@@ -92,3 +92,5 @@ export * from './logging.js';
 export * from './notification.js';
 export * from './supervisor.js';
 export * from './supervisor-invariants.js';
+export * from './recovery-event-union.js';
+export * from './status-bar.js';

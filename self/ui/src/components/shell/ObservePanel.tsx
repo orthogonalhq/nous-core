@@ -4,10 +4,18 @@ import { clsx } from 'clsx'
 import { useShellContext } from './ShellContext'
 import { MaoPanel } from '../mao'
 import { SystemActivitySurface } from './SystemActivitySurface'
-import type { ObservePanelProps, ObserveRoute } from './types'
+import type { ObservePanelProps } from './types'
+
+/**
+ * File-local observe-route union. WR-162 SP 2 removes `ObserveRoute` /
+ * `OBSERVE_ROUTE_OVERRIDES` from `./types`. This panel keeps its existing
+ * route-override behavior verbatim until SP 11 rewires the panel around
+ * `ObserveTab`. Runtime behavior here is byte-identical to pre-SP-2.
+ */
+type LocalObserveRoute = 'mao' | 'default' | 'system-activity'
 
 /** Routes that get special observe content (non-MAO). Everything else defaults to MAO. */
-const OBSERVE_ROUTE_OVERRIDES: Record<string, ObserveRoute> = {
+const OBSERVE_ROUTE_OVERRIDES: Record<string, LocalObserveRoute> = {
   home: 'default',
   'system-activity': 'system-activity',
 }
@@ -15,7 +23,7 @@ const OBSERVE_ROUTE_OVERRIDES: Record<string, ObserveRoute> = {
 export function ObservePanel(props: ObservePanelProps) {
   const { activeRoute } = useShellContext()
 
-  const observeRoute: ObserveRoute = OBSERVE_ROUTE_OVERRIDES[activeRoute] ?? 'mao'
+  const observeRoute: LocalObserveRoute = OBSERVE_ROUTE_OVERRIDES[activeRoute] ?? 'mao'
 
   return (
     <div
