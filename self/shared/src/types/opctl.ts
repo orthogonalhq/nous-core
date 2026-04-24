@@ -62,20 +62,6 @@ export type ControlAction = z.infer<typeof ControlActionSchema>;
 export const ConfirmationTierSchema = z.enum(['T0', 'T1', 'T2', 'T3']);
 export type ConfirmationTier = z.infer<typeof ConfirmationTierSchema>;
 
-export const ACTION_TIER_MAP: Record<ControlAction, ConfirmationTier> = {
-  pause: 'T0',
-  resume: 'T0',
-  cancel: 'T1',
-  hard_stop: 'T3',
-  revert: 'T2',
-  retry: 'T1',
-  edit: 'T0',
-  stop_response: 'T0',
-  retry_step: 'T1',
-  revert_to_previous_state: 'T2',
-  edit_submitted_prompt: 'T0',
-} satisfies Record<ControlAction, ConfirmationTier>;
-
 // --- Control Command Envelope ---
 
 export const ControlCommandEnvelopeSchema = z.object({
