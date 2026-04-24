@@ -177,5 +177,13 @@ export const DEFAULT_SYSTEM_CONFIG: SystemConfig = {
   },
   supervisor: {
     enabled: true,
+    sentinelThresholds: {
+      retryCountPerWindow: 10,
+      retryWindowSeconds: 60,
+      escalationCountPerWindow: 3,
+      escalationWindowSeconds: 60,
+      stalledAgentIdleSeconds: 300,
+      heartbeatIntervalMs: 5000,
+    },
   },
 };

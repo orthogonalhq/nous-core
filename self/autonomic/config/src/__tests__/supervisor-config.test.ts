@@ -58,3 +58,51 @@ describe('DEFAULT_SYSTEM_CONFIG.supervisor', () => {
     expect(DEFAULT_SYSTEM_CONFIG.supervisor.enabled).toBe(true);
   });
 });
+
+// WR-162 SP 6 (SUPV-SP6-014) — UT-AC1 sentinelThresholds parsing.
+describe('SupervisorBootstrapConfigSchema.sentinelThresholds (SP 6)', () => {
+  it('parses an empty config to default thresholds (all six fields populated)', () => {
+    const result = SupervisorBootstrapConfigSchema.parse({});
+    expect(result.sentinelThresholds).toEqual({
+      retryCountPerWindow: 10,
+      retryWindowSeconds: 60,
+      escalationCountPerWindow: 3,
+      escalationWindowSeconds: 60,
+      stalledAgentIdleSeconds: 300,
+      heartbeatIntervalMs: 5000,
+    });
+  });
+
+  it('accepts a partial override (heartbeatIntervalMs)', () => {
+    const result = SupervisorBootstrapConfigSchema.parse({
+      sentinelThresholds: { heartbeatIntervalMs: 1000 },
+    });
+    expect(result.sentinelThresholds.heartbeatIntervalMs).toBe(1000);
+    expect(result.sentinelThresholds.retryCountPerWindow).toBe(10);
+    expect(result.sentinelThresholds.stalledAgentIdleSeconds).toBe(300);
+  });
+
+  it('rejects a negative retryCountPerWindow', () => {
+    expect(
+      SupervisorBootstrapConfigSchema.safeParse({
+        sentinelThresholds: { retryCountPerWindow: -1 },
+      }).success,
+    ).toBe(false);
+  });
+
+  it('rejects zero heartbeatIntervalMs (positive means > 0)', () => {
+    expect(
+      SupervisorBootstrapConfigSchema.safeParse({
+        sentinelThresholds: { heartbeatIntervalMs: 0 },
+      }).success,
+    ).toBe(false);
+  });
+
+  it('rejects a non-integer retryCountPerWindow', () => {
+    expect(
+      SupervisorBootstrapConfigSchema.safeParse({
+        sentinelThresholds: { retryCountPerWindow: 1.5 },
+      }).success,
+    ).toBe(false);
+  });
+});

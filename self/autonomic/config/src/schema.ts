@@ -162,9 +162,30 @@ export type CostConfig = z.infer<typeof CostConfigSchema>;
 // SUPV-SP3-002 (construct-but-no-op): `SupervisorService` is still built so
 // read procedures/tests can exercise the surface, but `startSupervision()`
 // returns an inert handle (`isActive() === false`) and no sink registers.
-// Detector/sentinel thresholds land in SP 4/SP 6.
+//
+// WR-162 SP 6 (SUPV-SP6-014) — `sentinelThresholds` nested object landed per
+// `sentinel-model-contract-v1.md § Threshold Configuration`. Values are read
+// once at bootstrap; no hot-reload in V1 (SUPV-SP3-002 posture inherited).
 export const SupervisorBootstrapConfigSchema = z.object({
   enabled: z.boolean().optional().default(true),
+  sentinelThresholds: z
+    .object({
+      retryCountPerWindow: z.number().int().positive().default(10),
+      retryWindowSeconds: z.number().int().positive().default(60),
+      escalationCountPerWindow: z.number().int().positive().default(3),
+      escalationWindowSeconds: z.number().int().positive().default(60),
+      stalledAgentIdleSeconds: z.number().int().positive().default(300),
+      heartbeatIntervalMs: z.number().int().positive().default(5000),
+    })
+    .optional()
+    .default({
+      retryCountPerWindow: 10,
+      retryWindowSeconds: 60,
+      escalationCountPerWindow: 3,
+      escalationWindowSeconds: 60,
+      stalledAgentIdleSeconds: 300,
+      heartbeatIntervalMs: 5000,
+    }),
 });
 export type SupervisorBootstrapConfig = z.infer<
   typeof SupervisorBootstrapConfigSchema
