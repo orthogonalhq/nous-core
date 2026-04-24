@@ -21,4 +21,15 @@ describe('generateDefaultConfig', () => {
     expect(config.modelRoleAssignments[0]?.role).toBe('cortex-chat');
     expect(config.modelRoleAssignments[0]?.providerId).toBe(expectedOllamaProviderId);
   });
+
+  it('includes supervisor.enabled === true in the parsed round-trip', () => {
+    // WR-162 SP 3 — `supervisor: { enabled: true }` is added to the config
+    // literal for operator on-disk visibility. The Zod `.default(...)` fallback
+    // would technically cover the literal's absence, but the explicit sibling
+    // matches the `cost` precedent (SP 2). This assertion locks that the
+    // parsed config carries the field so the config generator cannot silently
+    // regress to omitting it.
+    const config = generateDefaultConfig('./data', 'llama3.2:3b');
+    expect(config.supervisor.enabled).toBe(true);
+  });
 });

@@ -64,6 +64,9 @@ export function generateDefaultConfig(
     cost: {
       enforcementEnabled: false,
     },
+    supervisor: {
+      enabled: true,
+    },
   };
 
   return SystemConfigSchema.parse(config);
