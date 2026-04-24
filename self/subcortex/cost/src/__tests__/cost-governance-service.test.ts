@@ -123,6 +123,7 @@ describe('CostGovernanceService', () => {
         return policy ? { budgetPolicy: policy } : undefined;
       },
       notificationService: notificationService as unknown as INotificationService,
+      enforcementEnabled: false,
     };
 
     service = new CostGovernanceService(deps, { snapshotIntervalMs: 30_000 });
@@ -274,6 +275,7 @@ describe('CostGovernanceService', () => {
         const policy = budgetPolicies.get(pid);
         return policy ? { budgetPolicy: policy } : undefined;
       },
+      enforcementEnabled: false,
     };
     service = new CostGovernanceService(deps, { snapshotIntervalMs: 30_000 });
 
@@ -311,6 +313,7 @@ describe('CostGovernanceService', () => {
         const policy = budgetPolicies.get(pid);
         return policy ? { budgetPolicy: policy } : undefined;
       },
+      enforcementEnabled: false,
     };
     service = new CostGovernanceService(deps, { snapshotIntervalMs: 30_000 });
 
@@ -367,6 +370,26 @@ describe('CostGovernanceService', () => {
 
   // Test 10: Budget hard ceiling fires notification raise once + enforcement
   it('calls notificationService.raise with budget-exceeded once and triggers enforcement at hard ceiling', async () => {
+    // Re-build service with enforcementEnabled=true so the hard-ceiling path
+    // submits to opctl. The default beforeEach builds with
+    // enforcementEnabled=false (SP 2 ratified default); this test exercises
+    // the enabled branch per SUPV-SP7-012.
+    service.dispose();
+    const enabledDeps: CostGovernanceServiceDeps = {
+      eventBus: eventBus as unknown as IEventBus,
+      opctlService,
+      pricingTable,
+      getProjectConfig: (pid: string) => {
+        const config = projectConfigs.get(pid);
+        if (config) return config;
+        const policy = budgetPolicies.get(pid);
+        return policy ? { budgetPolicy: policy } : undefined;
+      },
+      notificationService: notificationService as unknown as INotificationService,
+      enforcementEnabled: true,
+    };
+    service = new CostGovernanceService(enabledDeps, { snapshotIntervalMs: 30_000 });
+
     budgetPolicies.set('project-1', {
       enabled: true,
       period: 'monthly',
@@ -414,6 +437,7 @@ describe('CostGovernanceService', () => {
         const policy = budgetPolicies.get(pid);
         return policy ? { budgetPolicy: policy } : undefined;
       },
+      enforcementEnabled: false,
     };
     service = new CostGovernanceService(deps, { snapshotIntervalMs: 30_000 });
 

@@ -107,6 +107,42 @@ export function issueSupervisorProof(
   });
 }
 
+/**
+ * WR-162 SP 7 — system-actor proof-issuance helper (Decision #6 Variant B1).
+ *
+ * Used by `CostEnforcement.triggerPause()` and future system-auto-issued
+ * opctl commands to carry a valid `ConfirmationProof` through
+ * `validateConfirmationProof` like every other actor — preserving the
+ * OPCTL-003 invariant that destructive controls require runtime-valid
+ * confirmation_proof.
+ *
+ * **Not a delegate of `issueConfirmationProof`.** Builds the proof body
+ * directly so the `signature: 'system-issued-stub-sig'` literal remains
+ * distinct from `issueConfirmationProof`'s `'stub-sig'` and from any
+ * signature `issueSupervisorProof` inherits via delegation. Distinct
+ * signature literals provide provenance in the witness trail until
+ * Matrix #46 lands cryptographic signing in lockstep for all three
+ * helpers.
+ */
+export function issueSystemProof(
+  action: ControlAction,
+  scope: ControlScope,
+): ConfirmationProof {
+  const tier = getRequiredTier(action);
+  const now = new Date();
+  const expiresAt = new Date(now.getTime() + PROOF_TTL_MS);
+  const scopeHash = hashScope(scope);
+  return ConfirmationProofSchema.parse({
+    proof_id: randomUUID(),
+    issued_at: now.toISOString(),
+    expires_at: expiresAt.toISOString(),
+    scope_hash: scopeHash,
+    action,
+    tier,
+    signature: 'system-issued-stub-sig',
+  });
+}
+
 // --- WR-162 SP 2 additions — failure-recovery-ux-patterns-v1.md § 9c ---
 //
 // Presentation metadata for confirmation-tier display. Implementation lands
@@ -132,13 +168,46 @@ export type ConfirmationTierDisplay = {
 export const T3_COOLDOWN_MS = 0;
 
 /**
- * Returns presentation metadata for a confirmation tier.
+ * Returns presentation metadata for a confirmation tier. Per Decision #9 § 9c.
  *
- * **Stub.** Implementation lands in SP 7. SP 2 ships the surface only so SP 7
- * and SP 14 can import from `@nous/subcortex-opctl`.
+ * WR-162 SP 7 replaces the SP 2 stub body with the 4-arm exhaustive switch.
+ * `ConfirmationTier` is a closed Zod enum (`'T0' | 'T1' | 'T2' | 'T3'`);
+ * TypeScript exhaustiveness covers all four arms at compile time — a future
+ * `'T4'` widening of `ConfirmationTierSchema` surfaces as a compile-time
+ * exhaustiveness error at this switch (the correct contract-defect surface).
  */
 export function getTierDisplay(
-  _tier: ConfirmationTier,
+  tier: ConfirmationTier,
 ): ConfirmationTierDisplay {
-  throw new Error('not yet implemented');
+  switch (tier) {
+    case 'T0':
+      return {
+        level: 'T0',
+        label: 'Immediate',
+        severity: 'low',
+        rationaleKey: 'tier.t0.rationale',
+      };
+    case 'T1':
+      return {
+        level: 'T1',
+        label: 'Confirmation',
+        severity: 'medium',
+        rationaleKey: 'tier.t1.rationale',
+      };
+    case 'T2':
+      return {
+        level: 'T2',
+        label: 'Two-step',
+        severity: 'high',
+        rationaleKey: 'tier.t2.rationale',
+      };
+    case 'T3':
+      return {
+        level: 'T3',
+        label: 'Cooldown-gated',
+        severity: 'critical',
+        rationaleKey: 'tier.t3.rationale',
+        cooldownMs: T3_COOLDOWN_MS,
+      };
+  }
 }

@@ -12,7 +12,9 @@ import type {
   ProjectId,
   ProjectControlState,
   OpctlSubmitResult,
+  ConfirmationProof,
 } from '@nous/shared';
+import { issueSystemProof } from '@nous/subcortex-opctl';
 
 /**
  * Minimal interface for the OpctlService methods CostEnforcement requires.
@@ -20,11 +22,25 @@ import type {
  */
 export interface IOpctlServiceForEnforcement {
   getProjectControlState(projectId: ProjectId): Promise<ProjectControlState>;
-  submitCommand(envelope: ControlCommandEnvelope): Promise<OpctlSubmitResult>;
+  submitCommand(
+    envelope: ControlCommandEnvelope,
+    confirmationProof?: ConfirmationProof,
+  ): Promise<OpctlSubmitResult>;
 }
 
 export interface CostEnforcementDeps {
   opctlService: IOpctlServiceForEnforcement;
+  /**
+   * WR-162 SP 7 — single-site flag gate for cost-enforcement pause dispatch
+   * (Decision #6 Variant B1). When `false`, `triggerPause` logs a skip record
+   * and returns without constructing or submitting a control envelope. When
+   * `true`, `triggerPause` issues a system-proof and submits the pause via
+   * `opctlService.submitCommand(envelope, proof)`.
+   *
+   * Required (not optional): tests must state their flag posture explicitly
+   * so the branch under exercise is unambiguous.
+   */
+  enforcementEnabled: boolean;
 }
 
 export interface EnforcementRecord {
@@ -33,6 +49,10 @@ export interface EnforcementRecord {
   spendAtTrigger: number;
   ceilingUsd: number;
   success: boolean;
+  /** Present when `enforcementEnabled === false` skipped the submit. */
+  skipped?: boolean;
+  /** Present on non-applied `OpctlSubmitResult` statuses or explicit skip. */
+  reason_code?: string;
 }
 
 /**
@@ -97,6 +117,24 @@ export class CostEnforcement {
       return; // Already paused or stopped — skip
     }
 
+    // WR-162 SP 7 — single-site `enforcementEnabled` flag gate (Decision #6
+    // Variant B1). This is the ONE AND ONLY predicate reading this flag in
+    // the `@nous/subcortex-cost` body; no defensive second gate inside
+    // envelope construction, the `submitCommand` callback, or the
+    // `issueSystemProof` call-site. See SUPV-SP7-008.
+    if (this.deps.enforcementEnabled === false) {
+      this.enforcementLog.push({
+        timestamp: Date.now(),
+        projectId,
+        spendAtTrigger,
+        ceilingUsd,
+        success: false,
+        skipped: true,
+        reason_code: 'enforcement_disabled',
+      });
+      return;
+    }
+
     const now = new Date();
     const envelope: ControlCommandEnvelope = {
       control_command_id: randomUUID() as ControlCommandId,
@@ -129,10 +167,35 @@ export class CostEnforcement {
     };
 
     let success = true;
+    let reasonCode: string | undefined;
     try {
-      await this.deps.opctlService.submitCommand(envelope);
+      const proof = issueSystemProof('pause', envelope.scope);
+      const result = await this.deps.opctlService.submitCommand(envelope, proof);
+      switch (result.status) {
+        case 'applied':
+          break;
+        case 'blocked':
+          success = false;
+          reasonCode = 'blocked';
+          break;
+        case 'rejected':
+          success = false;
+          reasonCode = 'rejected';
+          break;
+        default:
+          // SUPV-SP7-009: OpctlSubmitResultStatusSchema is a closed enum
+          // (`'applied' | 'blocked' | 'rejected'`). A future widening without
+          // an updated switch is a contract defect; throw loudly so the
+          // enclosing try/catch records `{ success: false }` WITHOUT a
+          // `reason_code` — matching pre-SP-7 catch semantics
+          // (SUPV-SP7-010). No `default: return` silent swallow.
+          throw new Error(
+            `CostEnforcement: unknown OpctlSubmitResult.status "${(result as { status: string }).status}" — OpctlSubmitResultStatusSchema contract was widened without an updated exhaustive switch.`,
+          );
+      }
     } catch {
       success = false;
+      // reasonCode intentionally undefined — matches pre-SP-7 catch semantics.
     }
 
     this.enforcementLog.push({
@@ -141,6 +204,7 @@ export class CostEnforcement {
       spendAtTrigger,
       ceilingUsd,
       success,
+      ...(reasonCode !== undefined ? { reason_code: reasonCode } : {}),
     });
   }
 
