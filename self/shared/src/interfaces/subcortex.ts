@@ -1247,6 +1247,15 @@ export interface IGtmGateCalculator {
  * SP 1 declares the shape so SP 3 can implement against it.
  */
 export interface SupervisorConfig {
+  /**
+   * Master on/off flag for supervision. WR-162 SP 3 § SUPV-SP3-002 —
+   * `enabled: false` is the "construct-but-no-op" disposition: the service
+   * is still constructed so read procedures/tests can exercise the surface,
+   * but `startSupervision()` returns an inert handle (`isActive() === false`)
+   * and no outbox sinks attach to child gateways (OBS-004 precondition).
+   * Default behaviour when the field is absent is `true` (enabled).
+   */
+  enabled?: boolean;
   /** Tunable drop-oldest vs. back-pressure queue policy per observation-contract § Internal Queuing. */
   queueOverflowPolicy?: 'drop_oldest' | 'back_pressure';
   /** Maximum internal observation queue depth before the overflow policy engages. */

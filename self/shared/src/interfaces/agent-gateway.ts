@@ -178,7 +178,20 @@ export interface AgentGatewayConfig {
   modelRouter?: IModelRouter;
   getProvider?: (providerId: ProviderId) => IModelProvider | null;
   lifecycleHooks?: IGatewayLifecycleHooks;
+  /**
+   * Single outbox sink — preserved for backward compatibility with the
+   * pre-WR-162-SP-3 single-sink shape. Mutually exclusive with
+   * `outboxSinks`: passing both is a precondition error at `AgentGateway`
+   * construction time. Prefer `outboxSinks` for new call sites.
+   */
   outbox?: IGatewayOutboxSink;
+  /**
+   * Composite outbox sink list — WR-162 SP 3 § OBS-001..005. When present,
+   * the gateway's internal `GatewayOutbox` fans each emitted event out to
+   * every sink via `Promise.allSettled`; sink failures are isolated and
+   * logged. Mutually exclusive with `outbox`.
+   */
+  outboxSinks?: readonly IGatewayOutboxSink[];
   witnessService?: IWitnessService;
   now?: () => string;
   nowMs?: () => number;
