@@ -348,10 +348,15 @@ export type SupervisorViolationDetectedPayload = z.infer<
   typeof SupervisorViolationDetectedPayloadSchema
 >;
 
+// WR-162 SP 6 (SUPV-SP6-008) — widened `severity` to include `'S2'` and
+// `action` to include `'stop_response'` per SP 5 → SP 6 carry-forward row 1.
+// SP 5 ships the synthetic S2 path with an EventBus-emit skip branch + a
+// `supervisor_enforcement_s2_emit_skipped_total` metric counter; post-widening
+// the S2 emit succeeds and the skip branch is dead code (removed in SP 6).
 export const SupervisorEnforcementActionPayloadSchema = z.object({
   sup_code: z.string().regex(/^SUP-\d{3}$/),
-  severity: z.enum(['S0', 'S1']),
-  action: z.enum(['hard_stop', 'auto_pause']),
+  severity: z.enum(['S0', 'S1', 'S2']),
+  action: z.enum(['hard_stop', 'auto_pause', 'stop_response']),
   scope: z.string(),
   command_id: z.string(),
   agent_id: z.string(),
