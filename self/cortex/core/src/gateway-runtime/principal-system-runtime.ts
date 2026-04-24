@@ -1118,6 +1118,22 @@ implements IPrincipalSystemGatewayRuntime, ISystemInboxSubmissionService {
   ): void {
     // no-op: legacy class, not wired into production
   }
+
+  /**
+   * WR-162 SP 3 (Option A — thin-throw). The legacy class does not
+   * implement supervision; it remains dormant-but-compiled per SDS §
+   * Invariants. Preserves `implements IPrincipalSystemGatewayRuntime`
+   * conformance after task 17 extends the interface with
+   * `startSupervision`. UT-5a locks the diagnostic surface.
+   */
+  // eslint-disable-next-line @typescript-eslint/no-unused-vars
+  startSupervision(
+    _config: import('@nous/shared').SupervisorConfig,
+  ): import('@nous/shared').ISupervisorHandle {
+    throw new Error(
+      'PrincipalSystemGatewayRuntime (legacy) does not support startSupervision; construct the runtime via createCortexRuntime / CortexRuntime instead.',
+    );
+  }
 }
 
 export function createPrincipalSystemGatewayRuntime(

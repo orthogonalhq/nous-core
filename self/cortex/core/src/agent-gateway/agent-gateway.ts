@@ -21,6 +21,7 @@ import {
   type GatewayTaskCompletionRequest,
   type IAgentGateway,
   type IAgentGatewayFactory,
+  type IGatewayOutboxSink,
   type IModelProvider,
   type ModelRole,
   type ProjectId,
@@ -131,7 +132,21 @@ export class AgentGateway implements IAgentGateway {
     this.idFactory = config.idFactory ?? randomUUID;
     this.log = config.log ?? NOOP_LOG;
     this.inbox = new GatewayInbox(this.now, this.idFactory);
-    this.outbox = new GatewayOutbox(config.outbox);
+    // WR-162 SP 3 — composite outbox wiring. `outbox` (single sink) and
+    // `outboxSinks` (array) are mutually exclusive; passing both is a
+    // precondition error. Otherwise normalize into a single array:
+    //   - explicit `outboxSinks` wins when present,
+    //   - else a single `outbox` sink is wrapped in a length-1 array,
+    //   - else empty — zero sinks, emits become schema-parse-only no-ops.
+    if (config.outboxSinks && config.outbox) {
+      throw new NousError(
+        'AgentGateway requires either `outbox` or `outboxSinks`, not both',
+        'CONFIG_ERROR',
+      );
+    }
+    const sinks: readonly IGatewayOutboxSink[] =
+      config.outboxSinks ?? (config.outbox ? [config.outbox] : []);
+    this.outbox = new GatewayOutbox(sinks, config.log);
 
     if (!config.modelProvider && (!config.modelRouter || !config.getProvider)) {
       throw new NousError(

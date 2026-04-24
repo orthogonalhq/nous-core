@@ -8,6 +8,7 @@ import type {
   IAgentGatewayFactory,
   ICheckpointManager,
   IEventBus,
+  IGatewayOutboxSink,
   IModelProvider,
   IModelRouter,
   INotificationService,
@@ -17,6 +18,8 @@ import type {
   IRecoveryLedgerStore,
   IRecoveryOrchestrator,
   IStmStore,
+  ISupervisorHandle,
+  ISupervisorService,
   ITaskStore,
   IToolExecutor,
   IWorkmodeAdmissionGuard,
@@ -38,6 +41,7 @@ import type {
   ModelRequirements,
   ProjectId,
   ProviderVendor,
+  SupervisorConfig,
   ToolDefinition,
 } from '@nous/shared';
 import type { DocumentNotificationStore } from '@nous/subcortex-notification';
@@ -294,6 +298,22 @@ export interface PrincipalSystemGatewayRuntimeDeps {
   /** Structured logger (WR-157). When provided, the runtime creates
    *  channels for itself, the gateways, and the backlog queue. */
   logger?: ILogger;
+  /**
+   * Concrete supervisor service (WR-162 SP 3). Injected by the composition
+   * root (`shared-server/src/bootstrap.ts`). The runtime never constructs
+   * the service itself — keeps `@nous/cortex-core` from depending on
+   * `@nous/subcortex-supervisor` (dependency-layer rule). When present,
+   * `startSupervision()` delegates lifecycle to this instance.
+   */
+  supervisorService?: ISupervisorService;
+  /**
+   * Factory seam for the supervisor outbox sink (WR-162 SP 3). The runtime
+   * MUST NOT import `@nous/subcortex-supervisor`; bootstrap passes a thin
+   * factory that closes over the package-local `SupervisorOutboxSink`
+   * constructor. When absent, the runtime falls back to a no-op sink (only
+   * exercised in tests that run without the supervisor package).
+   */
+  createSupervisorOutboxSink?: (service: ISupervisorService) => IGatewayOutboxSink;
 }
 
 export interface LaneLeaseReleasedEvent {
@@ -338,6 +358,16 @@ export interface IPrincipalSystemGatewayRuntime {
     agentClass: 'Cortex::Principal' | 'Cortex::System',
     vendorString: ProviderVendor,
   ): void;
+  /**
+   * WR-162 SP 3 — start supervision (idempotent per SUPV-SP3-001). Returns
+   * an `ISupervisorHandle` that reflects the supervisor lifecycle state.
+   * When `config.enabled === false` (SUPV-SP3-002), returns an inert
+   * handle (`isActive() === false`) and does not register sinks on child
+   * gateways. When `config.enabled === true` (or absent), registers
+   * `SupervisorOutboxSink` on every subsequent `createChildGateway(...)`
+   * per OBS-004. Pre-existing child gateways are NOT retroactively wired.
+   */
+  startSupervision(config: SupervisorConfig): ISupervisorHandle;
   whenIdle(): Promise<void>;
 }
 
