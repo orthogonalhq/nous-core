@@ -4,8 +4,8 @@ import * as React from 'react';
 import Link from 'next/link';
 import { useSearchParams } from 'next/navigation';
 import { WorkflowBuilderPanel } from '@nous/ui/panels';
+import { useShellContextOptional } from '@nous/ui/components';
 import { buildMaoReturnHref, readMaoNavigationContext } from '@/lib/mao-links';
-import { useProject } from '@/lib/project-context';
 
 export default function ProjectsPage() {
   return (
@@ -22,7 +22,9 @@ export default function ProjectsPage() {
 }
 
 function ProjectsPageContent() {
-  const { projectId, setProjectId } = useProject();
+  const shell = useShellContextOptional();
+  const projectId = shell?.activeProjectId ?? null;
+  const onProjectChange = shell?.onProjectChange;
   const searchParams = useSearchParams();
   const linkedProjectId = searchParams.get('projectId');
   const linkedRunId = searchParams.get('runId');
@@ -31,9 +33,9 @@ function ProjectsPageContent() {
 
   React.useEffect(() => {
     if (linkedProjectId && linkedProjectId !== projectId) {
-      setProjectId(linkedProjectId);
+      onProjectChange?.(linkedProjectId);
     }
-  }, [linkedProjectId, projectId, setProjectId]);
+  }, [linkedProjectId, projectId, onProjectChange]);
 
   if (!projectId) {
     return (

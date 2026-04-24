@@ -18,13 +18,14 @@ import {
   useChatStageManager,
   useLayoutState,
   useShellContext,
+  useArchiveFlow,
   isHomeSidebarEnabled,
   HOME_TOP_NAV,
   buildHomeSidebarSections,
   NotificationProvider,
   useNotificationBadge,
 } from '@nous/ui/components'
-import type { ShellMode, NavigationState } from '@nous/ui/components'
+import type { ShellMode, NavigationState, ProjectItem } from '@nous/ui/components'
 import { useEventSubscription, trpc } from '@nous/transport'
 import { useTasks, buildTasksSection } from '@nous/ui/hooks/useTasks'
 import { WebChromeShell } from '@/components/shell/web-chrome-shell'
@@ -34,7 +35,6 @@ import { buildWebCommands } from '@/components/shell/web-command-config'
 import { WEB_TOP_NAV, buildWebSidebarSections } from '@/components/shell/web-sidebar-config'
 import { WebConnectedChatSurface } from '@/components/shell/web-chat-wrappers'
 import { WEB_PANEL_DEFS } from '@/components/shell/web-panel-defs'
-import { ProjectProvider } from '@/lib/project-context'
 
 const WebDockviewShell = dynamic(
   () => import('@/components/shell/web-dockview-shell').then((mod) => ({ default: mod.WebDockviewShell })),
@@ -170,11 +170,6 @@ function ShellLayoutContent({
     setActiveRoute('home') // reset content route on project switch
   }, [])
 
-  // Stub project list for the project rail (tRPC wiring in follow-up)
-  const stubProjects = useMemo(() => [
-    { id: 'project-1', name: 'Default Project' },
-  ], [])
-
   const handleNavigate = useCallback((routeId: string) => {
     setActiveRoute(routeId)
   }, [])
@@ -221,7 +216,6 @@ function ShellLayoutContent({
         onProjectChange={handleProjectChange}
       >
         <NotificationProvider>
-        <ProjectProvider value={{ projectId, setProjectId }}>
           <CommandPalette
             isOpen={commandPaletteOpen}
             onClose={() => setCommandPaletteOpen(false)}
@@ -235,14 +229,12 @@ function ShellLayoutContent({
             projectId={projectId}
             handleProjectChange={handleProjectChange}
             handleNavigate={handleNavigate}
-            stubProjects={stubProjects}
             routes={routes}
             chatStageManager={chatStageManager}
             onDockviewApiReady={setDockviewApi}
           />
           {/* Next.js page outlet — hidden; shell uses ContentRouter for navigation */}
           <div style={{ display: 'none' }}>{children}</div>
-        </ProjectProvider>
         </NotificationProvider>
       </ShellProvider>
     </WebChromeShell>
@@ -261,7 +253,6 @@ function WebShellBody({
   projectId,
   handleProjectChange,
   handleNavigate,
-  stubProjects,
   routes,
   chatStageManager,
   onDockviewApiReady,
@@ -273,7 +264,6 @@ function WebShellBody({
   projectId: string | null
   handleProjectChange: (id: string) => void
   handleNavigate: (routeId: string) => void
-  stubProjects: Array<{ id: string; name: string }>
   routes: ReturnType<typeof createWebShellRoutes>
   chatStageManager: ReturnType<typeof useChatStageManager>
   onDockviewApiReady: (api: DockviewApi | null) => void
@@ -298,14 +288,102 @@ function WebShellBody({
     [sidebarCollapsed, setSidebarCollapsed],
   )
 
+  // WR-163 / 1.3 — live project data from trpc.projects.list (supersedes stubProjects).
+  const {
+    data: projectList,
+    isLoading: projectListLoading,
+    isError: projectListError,
+    refetch: refetchProjectList,
+  } = trpc.projects.list.useQuery()
+
+  const [isArchivedOpen, setIsArchivedOpen] = useState(false)
+  const {
+    data: archivedList,
+    isLoading: archivedLoading,
+    isError: archivedError,
+  } = trpc.projects.listArchived.useQuery(undefined, {
+    enabled: isArchivedOpen,
+  })
+
+  const projects: ProjectItem[] = useMemo(() => {
+    const active = (projectList ?? []).map((p: { id: string; name?: string; icon?: string; iconColor?: string }) => ({
+      id: p.id,
+      name: p.name ?? p.id,
+      icon: p.icon,
+      color: p.iconColor,
+      archived: false as const,
+    }))
+    const archived = (archivedList ?? []).map((p: { id: string; name?: string; icon?: string; iconColor?: string }) => ({
+      id: p.id,
+      name: p.name ?? p.id,
+      icon: p.icon,
+      color: p.iconColor,
+      archived: true as const,
+    }))
+    return [...active, ...archived]
+  }, [projectList, archivedList])
+
+  const utils = trpc.useUtils()
+  const archiveMutation = trpc.projects.archive.useMutation({
+    onSuccess: () => {
+      void utils.projects.list.invalidate()
+      void utils.projects.listArchived.invalidate()
+    },
+  })
+  const unarchiveMutation = trpc.projects.unarchive.useMutation({
+    onSuccess: () => {
+      void utils.projects.list.invalidate()
+      void utils.projects.listArchived.invalidate()
+    },
+  })
+  const createMutation = trpc.projects.create.useMutation({
+    onSuccess: () => {
+      void utils.projects.list.invalidate()
+    },
+  })
+
+  const [archiveErrorMessage, setArchiveErrorMessage] = useState<string | null>(null)
+  useEffect(() => {
+    if (!archiveErrorMessage) return
+    const t = window.setTimeout(() => setArchiveErrorMessage(null), 5000)
+    return () => window.clearTimeout(t)
+  }, [archiveErrorMessage])
+
+  const handleArchiveError = useCallback((err: unknown, op: 'archive' | 'unarchive') => {
+    const anyErr = err as { data?: { code?: string }; message?: string } | null
+    const code = anyErr?.data?.code
+    const msg = anyErr?.message
+    if (code === 'FORBIDDEN' && typeof msg === 'string' && msg.length > 0) {
+      setArchiveErrorMessage(msg)
+    } else {
+      setArchiveErrorMessage(`${op === 'archive' ? 'Archive' : 'Unarchive'} failed. Please try again.`)
+    }
+  }, [])
+
+  const archiveFlow = useArchiveFlow({
+    activeProjectId: projectId,
+    projects,
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    onArchive: (id) => archiveMutation.mutateAsync({ projectId: id as any }) as Promise<unknown>,
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    onUnarchive: (id) => unarchiveMutation.mutateAsync({ projectId: id as any }) as Promise<unknown>,
+    onCreateDefault: async () => {
+      const created = await createMutation.mutateAsync({ name: 'Default' })
+      return { id: (created as { id: string }).id }
+    },
+    onProjectChange: handleProjectChange,
+    onNavigateHome: () => handleNavigate('home'),
+    onError: handleArchiveError,
+  })
+
   return (
     <div style={{ flex: 1, minHeight: 0, height: '100%', overflow: 'hidden', position: 'relative' }}>
       {mode === 'simple' ? (
         <SimpleShellLayout
           projectRail={
             <ProjectSwitcherRail
-              projects={stubProjects}
-              activeProjectId={projectId ?? 'project-1'}
+              projects={projects}
+              activeProjectId={projectId ?? ''}
               onProjectSelect={(id) => {
                 setIsHomeContext(false)
                 handleProjectChange(id)
@@ -315,6 +393,16 @@ function WebShellBody({
                 handleNavigate('home')
               }}
               isHomeActive={isHomeContext}
+              onArchiveProject={(id) => { void archiveFlow.archive(id) }}
+              onUnarchiveProject={(id) => { void archiveFlow.unarchive(id) }}
+              isLoading={projectListLoading}
+              isError={projectListError}
+              onRetry={() => { void refetchProjectList() }}
+              archivedViewOpen={isArchivedOpen}
+              onToggleArchivedView={() => setIsArchivedOpen((v) => !v)}
+              archivedIsLoading={archivedLoading}
+              archivedIsError={archivedError}
+              archiveErrorMessage={archiveErrorMessage ?? undefined}
             />
           }
           sidebarCollapsed={sidebarCollapsed}
@@ -418,6 +506,7 @@ function WebAssetSidebarConnected({
       sections={sections}
       activeRoute={activeRoute}
       onNavigate={navigate}
+      onSettingsClick={() => navigate('settings')}
       collapsed={collapsed}
       onToggleCollapse={onToggleCollapse}
     />

@@ -99,6 +99,7 @@ function createProjectStore(configs: Map<string, ProjectConfig>): IProjectStore 
     create: vi.fn(),
     get: vi.fn().mockImplementation(async (id: ProjectId) => configs.get(id) ?? null),
     list: vi.fn(),
+    listArchived: vi.fn(),
     update: vi.fn(),
     archive: vi.fn(),
     unarchive: vi.fn(),

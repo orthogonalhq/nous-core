@@ -347,8 +347,11 @@ export interface IProjectStore {
   /** Get project configuration */
   get(id: ProjectId): Promise<ProjectConfig | null>;
 
-  /** List all projects */
+  /** List all active (non-archived) projects. */
   list(): Promise<ProjectConfig[]>;
+
+  /** List archived projects only. Added in sub-phase 1.3 (WR-163). */
+  listArchived(): Promise<ProjectConfig[]>;
 
   /** Update project configuration */
   update(id: ProjectId, updates: Partial<ProjectConfig>): Promise<void>;

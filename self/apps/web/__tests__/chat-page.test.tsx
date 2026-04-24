@@ -8,7 +8,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 const mocks = vi.hoisted(() => ({
   useChatApi: vi.fn(),
-  useProject: vi.fn(),
+  useShellContextOptional: vi.fn(),
   useSearchParams: vi.fn(),
   ChatPanel: vi.fn(),
 }));
@@ -17,8 +17,8 @@ vi.mock('@nous/transport', () => ({
   useChatApi: mocks.useChatApi,
 }));
 
-vi.mock('@/lib/project-context', () => ({
-  useProject: mocks.useProject,
+vi.mock('@nous/ui/components', () => ({
+  useShellContextOptional: mocks.useShellContextOptional,
 }));
 
 vi.mock('next/navigation', () => ({
@@ -37,9 +37,9 @@ import ChatPage from '@/app/(shell)/chat/page';
 describe('ChatPage', () => {
   beforeEach(() => {
     vi.clearAllMocks();
-    mocks.useProject.mockReturnValue({
-      projectId: '550e8400-e29b-41d4-a716-446655444001',
-      setProjectId: vi.fn(),
+    mocks.useShellContextOptional.mockReturnValue({
+      activeProjectId: '550e8400-e29b-41d4-a716-446655444001',
+      onProjectChange: vi.fn(),
     });
     mocks.useSearchParams.mockReturnValue({
       get: vi.fn(() => null),

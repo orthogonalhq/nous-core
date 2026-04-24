@@ -5,7 +5,7 @@ import Link from 'next/link';
 import { useSearchParams } from 'next/navigation';
 import { ChatPanel } from '@nous/ui/panels';
 import { useChatApi } from '@nous/transport';
-import { useProject } from '@/lib/project-context';
+import { useShellContextOptional } from '@nous/ui/components';
 import { buildMaoReturnHref, readMaoNavigationContext } from '@/lib/mao-links';
 
 export default function ChatPage() {
@@ -27,16 +27,18 @@ export default function ChatPage() {
 }
 
 function ChatPageContent() {
-  const { projectId, setProjectId } = useProject();
+  const shell = useShellContextOptional();
+  const projectId = shell?.activeProjectId ?? null;
+  const onProjectChange = shell?.onProjectChange;
   const searchParams = useSearchParams();
   const linkedProjectId = searchParams.get('projectId');
   const maoContext = readMaoNavigationContext(searchParams);
 
   React.useEffect(() => {
     if (linkedProjectId && linkedProjectId !== projectId) {
-      setProjectId(linkedProjectId);
+      onProjectChange?.(linkedProjectId);
     }
-  }, [linkedProjectId, projectId, setProjectId]);
+  }, [linkedProjectId, projectId, onProjectChange]);
 
   const chatApi = useChatApi({ projectId: projectId ?? undefined });
 

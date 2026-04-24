@@ -1240,6 +1240,12 @@ export const projectsRouter = router({
     return ctx.projectStore.list();
   }),
 
+  // Added in sub-phase 1.3 (WR-163 archived-projects view). Mirrors `list` but
+  // returns archived-status projects. Same opctl-less posture as `list`.
+  listArchived: publicProcedure.query(async ({ ctx }) => {
+    return ctx.projectStore.listArchived();
+  }),
+
   create: publicProcedure
     .input(
       z.object({

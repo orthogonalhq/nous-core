@@ -90,6 +90,9 @@ describe('knowledge-index refresh concurrency', () => {
         async list() {
           return [];
         },
+        async listArchived() {
+          return [];
+        },
         async update() {},
         async archive() {},
         async unarchive() {},

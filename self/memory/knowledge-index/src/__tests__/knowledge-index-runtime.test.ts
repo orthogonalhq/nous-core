@@ -55,6 +55,9 @@ function createProjectStore(projects: ProjectConfig[]) {
     async list() {
       return projects;
     },
+    async listArchived() {
+      return [];
+    },
     async update() {},
     async archive() {},
     async unarchive() {},

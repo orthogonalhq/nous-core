@@ -80,6 +80,7 @@ describe('Phase 6.1 — policy leakage regression', () => {
         return null;
       }),
       list: vi.fn(),
+      listArchived: vi.fn(),
       update: vi.fn(),
       archive: vi.fn(),
       unarchive: vi.fn(),
@@ -115,6 +116,7 @@ describe('Phase 6.1 — policy leakage regression', () => {
         return null;
       }),
       list: vi.fn(),
+      listArchived: vi.fn(),
       update: vi.fn(),
       archive: vi.fn(),
       unarchive: vi.fn(),
@@ -151,6 +153,7 @@ describe('Phase 6.1 — policy leakage regression', () => {
         id === FROM_ID ? createProjectConfig(FROM_ID) : null
       ),
       list: vi.fn(),
+      listArchived: vi.fn(),
       update: vi.fn(),
       archive: vi.fn(),
       unarchive: vi.fn(),

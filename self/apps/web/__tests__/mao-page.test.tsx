@@ -16,7 +16,7 @@ const { mocks, trpcMock } = vi.hoisted(() => {
     systemStatusUseQuery: vi.fn(),
     requestConfirmationProofUseMutation: vi.fn(),
     useUtils: vi.fn(),
-    useProject: vi.fn(),
+    useShellProjectShim: vi.fn(),
     useSearchParams: vi.fn(),
   };
   const t = {
@@ -41,8 +41,8 @@ const { mocks, trpcMock } = vi.hoisted(() => {
 vi.mock('@/lib/trpc', () => ({ trpc: trpcMock }));
 vi.mock('@nous/transport', () => ({ trpc: trpcMock, useEventSubscription: vi.fn() }));
 
-vi.mock('@/lib/project-context', () => ({
-  useProject: mocks.useProject,
+vi.mock('@/lib/use-shell-project-shim', () => ({
+  useShellProjectShim: mocks.useShellProjectShim,
 }));
 
 vi.mock('next/navigation', () => ({
@@ -62,7 +62,7 @@ describe('MaoPage', () => {
 
   beforeEach(() => {
     vi.clearAllMocks();
-    mocks.useProject.mockReturnValue({
+    mocks.useShellProjectShim.mockReturnValue({
       projectId: '550e8400-e29b-41d4-a716-446655445001',
       setProjectId: vi.fn(),
     });

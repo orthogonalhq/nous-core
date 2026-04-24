@@ -82,3 +82,14 @@ export function useShellContext(): ShellContextValue {
 
   return context
 }
+
+/**
+ * Non-throwing variant of `useShellContext` — returns `null` when the hook
+ * is invoked outside a `<ShellProvider>` subtree. Use this from modules that
+ * may be rendered during Next.js static-prerender or other pre-mount paths
+ * where the shell provider is not yet attached. For normal in-shell reads
+ * prefer the strict `useShellContext`.
+ */
+export function useShellContextOptional(): ShellContextValue | null {
+  return useContext(ShellContext)
+}

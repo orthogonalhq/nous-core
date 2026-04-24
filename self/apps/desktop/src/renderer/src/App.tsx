@@ -24,6 +24,7 @@ import {
   CommandPalette,
   ProjectSwitcherRail,
   AssetSidebar,
+  useArchiveFlow,
   useChatStageManager,
   useLayoutState,
   isHomeSidebarEnabled,
@@ -806,6 +807,12 @@ function DesktopShellWithProject({
   }, [projectList]) // eslint-disable-line react-hooks/exhaustive-deps
 
   const handleProjectChange = useCallback((projectId: string) => {
+    // WR-163 / 1.3 INV-3: on project switch, update the active project id AND
+    // notify the outer shell (which resets `activeRoute` to 'home' and clears
+    // the navigation context via `handleDesktopProjectChange`). View-state
+    // restore for the newly-active project runs automatically via 1.2's hook
+    // reactivity on `ShellContext.activeProjectId` — no explicit restore call
+    // is added here (INV-3 forbids it).
     setActiveProjectId(projectId)
     onProjectChange?.(projectId)
   }, [onProjectChange])
@@ -1124,13 +1131,96 @@ function DesktopAssetSidebarConnected({
 }
 
 function DesktopProjectRail({ isHomeContext, setIsHomeContext }: { isHomeContext: boolean; setIsHomeContext: (v: boolean) => void }) {
-  const { activeProjectId, activeRoute, navigate, onProjectChange } = useShellCtx()
-  const { data: projectList } = trpc.projects.list.useQuery()
+  const { activeProjectId, navigate, onProjectChange } = useShellCtx()
+  const {
+    data: projectList,
+    isLoading: projectListLoading,
+    isError: projectListError,
+    refetch: refetchProjectList,
+  } = trpc.projects.list.useQuery()
+
+  const [isArchivedOpen, setIsArchivedOpen] = React.useState(false)
+  const {
+    data: archivedList,
+    isLoading: archivedLoading,
+    isError: archivedError,
+  } = trpc.projects.listArchived.useQuery(undefined, {
+    enabled: isArchivedOpen,
+  })
 
   const projects = useMemo(
-    () => (projectList ?? []).map((p: { id: string; name?: string }) => ({ id: p.id, name: p.name ?? p.id })),
-    [projectList],
+    () => {
+      const active = (projectList ?? []).map((p: { id: string; name?: string; icon?: string; iconColor?: string }) => ({
+        id: p.id,
+        name: p.name ?? p.id,
+        icon: p.icon,
+        color: p.iconColor,
+        archived: false as const,
+      }))
+      const archived = (archivedList ?? []).map((p: { id: string; name?: string; icon?: string; iconColor?: string }) => ({
+        id: p.id,
+        name: p.name ?? p.id,
+        icon: p.icon,
+        color: p.iconColor,
+        archived: true as const,
+      }))
+      return [...active, ...archived]
+    },
+    [projectList, archivedList],
   )
+
+  const utils = trpc.useUtils()
+  const archiveMutation = trpc.projects.archive.useMutation({
+    onSuccess: () => {
+      void utils.projects.list.invalidate()
+      void utils.projects.listArchived.invalidate()
+    },
+  })
+  const unarchiveMutation = trpc.projects.unarchive.useMutation({
+    onSuccess: () => {
+      void utils.projects.list.invalidate()
+      void utils.projects.listArchived.invalidate()
+    },
+  })
+  const createMutation = trpc.projects.create.useMutation({
+    onSuccess: () => {
+      void utils.projects.list.invalidate()
+    },
+  })
+
+  const [archiveErrorMessage, setArchiveErrorMessage] = React.useState<string | null>(null)
+  useEffect(() => {
+    if (!archiveErrorMessage) return
+    const t = window.setTimeout(() => setArchiveErrorMessage(null), 5000)
+    return () => window.clearTimeout(t)
+  }, [archiveErrorMessage])
+
+  const handleArchiveError = useCallback((err: unknown, op: 'archive' | 'unarchive') => {
+    const anyErr = err as { data?: { code?: string }; message?: string } | null
+    const code = anyErr?.data?.code
+    const msg = anyErr?.message
+    if (code === 'FORBIDDEN' && typeof msg === 'string' && msg.length > 0) {
+      setArchiveErrorMessage(msg)
+    } else {
+      setArchiveErrorMessage(`${op === 'archive' ? 'Archive' : 'Unarchive'} failed. Please try again.`)
+    }
+  }, [])
+
+  const archiveFlow = useArchiveFlow({
+    activeProjectId,
+    projects,
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    onArchive: (id) => archiveMutation.mutateAsync({ projectId: id as any }) as Promise<unknown>,
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    onUnarchive: (id) => unarchiveMutation.mutateAsync({ projectId: id as any }) as Promise<unknown>,
+    onCreateDefault: async () => {
+      const created = await createMutation.mutateAsync({ name: 'Default' })
+      return { id: (created as { id: string }).id }
+    },
+    onProjectChange: (id) => onProjectChange?.(id),
+    onNavigateHome: () => navigate('home'),
+    onError: handleArchiveError,
+  })
 
   const handleHomeClick = useCallback(() => {
     setIsHomeContext(true)
@@ -1149,6 +1239,16 @@ function DesktopProjectRail({ isHomeContext, setIsHomeContext }: { isHomeContext
       onProjectSelect={handleProjectSelect}
       onHomeClick={handleHomeClick}
       isHomeActive={isHomeContext}
+      isLoading={projectListLoading}
+      isError={projectListError}
+      onRetry={() => { void refetchProjectList() }}
+      onArchiveProject={(id) => { void archiveFlow.archive(id) }}
+      onUnarchiveProject={(id) => { void archiveFlow.unarchive(id) }}
+      archivedViewOpen={isArchivedOpen}
+      onToggleArchivedView={() => setIsArchivedOpen((v) => !v)}
+      archivedIsLoading={archivedLoading}
+      archivedIsError={archivedError}
+      archiveErrorMessage={archiveErrorMessage ?? undefined}
     />
   )
 }
