@@ -41,13 +41,19 @@ export const InvariantPrefixSchema = z.enum([
   'PCP',
   'ING',
   'FR',
+  // WR-162 SP 4 — supervisor invariant prefix (SUP-001..SUP-012 per
+  // supervisor-violation-taxonomy-v1.md). See SUPV-SP4-006 for witnessd
+  // registration scope (SUP-001..SUP-008 in SP 4; SUP-009..SUP-012 deferred
+  // to SP 6 alongside `InvariantSeveritySchema`/`EnforcementActionSchema`
+  // widening).
+  'SUP',
 ]);
 export type InvariantPrefix = z.infer<typeof InvariantPrefixSchema>;
 
 export const InvariantCodeSchema = z
   .string()
   .regex(
-    /^(AUTH|EVID|MEM|CHAIN|ISO|PRV|OPCTL|START|ESC|MAO|GTM|POL|WMODE|PCP|ING|FR)-[A-Z0-9][A-Z0-9-]*$/,
+    /^(AUTH|EVID|MEM|CHAIN|ISO|PRV|OPCTL|START|ESC|MAO|GTM|POL|WMODE|PCP|ING|FR|SUP)-[A-Z0-9][A-Z0-9-]*$/,
   );
 export type InvariantCode = z.infer<typeof InvariantCodeSchema>;
 
@@ -58,6 +64,13 @@ export const CriticalActionCategorySchema = z.enum([
   'trace-persist',
   'opctl-command',
   'mao-projection',
+  // WR-162 SP 4 — supervisor-authored action categories per
+  // supervisor-evidence-contract-v1.md § New CriticalActionCategory Values.
+  // Mirrors `SUPERVISOR_CRITICAL_ACTION_CATEGORIES` in
+  // `./supervisor-invariants.ts` (SP 1 type-only constant; SP 4 extends the
+  // runtime Zod schema to match).
+  'supervisor-detection',
+  'supervisor-enforcement',
 ]);
 export type CriticalActionCategory = z.infer<typeof CriticalActionCategorySchema>;
 
