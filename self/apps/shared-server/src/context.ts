@@ -32,6 +32,7 @@ import type {
   IEventBus,
   IHealthAggregator,
   IHealthMonitor,
+  ISupervisorService,
 } from '@nous/shared';
 import type { PanelTranspiler } from '@nous/subcortex-apps';
 import type { ProviderRegistry, TokenAccumulatorService } from '@nous/subcortex-providers';
@@ -114,4 +115,14 @@ export interface NousContext {
   healthMonitor: IHealthMonitor;
   tokenAccumulator: TokenAccumulatorService;
   costGovernanceService: CostGovernanceService;
+  /**
+   * WR-162 SP 6 (SUPV-SP6-006) — supervisor service threaded from bootstrap.
+   * Required (not optional) — mirrors `maoProjectionService` / `healthAggregator`
+   * injection convention. The SUPV-SP3-002 construct-but-no-op gate at the
+   * service internals means `{ supervisor.enabled: false }` returns empty read
+   * responses by construction, so a required context field does not break the
+   * disabled path. Defensive double-gating (`if (ctx.supervisorService)`) in
+   * query bodies is explicitly forbidden per `feedback_no_heuristic_bandaids.md`.
+   */
+  supervisorService: ISupervisorService;
 }

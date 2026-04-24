@@ -14,13 +14,25 @@ import {
   AttestationReceiptIdSchema,
 } from './ids.js';
 
-export const InvariantSeveritySchema = z.enum(['S0', 'S1', 'S2']);
+// WR-162 SP 6 (SUPV-SP6-009 Option A) — widened to include 'S3' so that the
+// authoritative SP 1 mapping `SUPERVISOR_INVARIANT_SEVERITY_MAP` for
+// SUP-009..SUP-012 (sentinel-model-contract-v1.md § Severity Tier) is admitted
+// at the type level. The 'S3' literal is the sentinel warn-only tier; S0/S1/S2
+// remain the enforcement tiers (hard-stop/auto-pause/review).
+export const InvariantSeveritySchema = z.enum(['S0', 'S1', 'S2', 'S3']);
 export type InvariantSeverity = z.infer<typeof InvariantSeveritySchema>;
 
+// WR-162 SP 6 (SUPV-SP6-009 Option A) — widened to include 'warn' (kebab-case
+// per this schema's convention; distinct from the snake_case
+// `SupervisorEnforcementActionPayloadSchema.action` union). 'warn' is the
+// advisory S3 enforcement posture — sentinel classifies and emits a warning
+// trail but does NOT dispatch an opctl command (per
+// supervisor-escalation-policy-v1.md § S3 Warn Path).
 export const EnforcementActionSchema = z.enum([
   'hard-stop',
   'auto-pause',
   'review',
+  'warn',
 ]);
 export type EnforcementAction = z.infer<typeof EnforcementActionSchema>;
 

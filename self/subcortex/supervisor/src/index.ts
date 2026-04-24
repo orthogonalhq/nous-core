@@ -51,3 +51,20 @@ export type {
   ToolSurfaceReadonlyView,
   WitnessReadonlyView,
 } from './detection/types.js';
+// WR-162 SP 6 — sentinel classifier module.
+export {
+  createSentinelModule,
+  createSentinelWitnessEmitter,
+  SentinelContractDefectError,
+  type SentinelDeps,
+  type SentinelModule,
+  type SentinelThresholds,
+  type SentinelObservationIngress,
+  type SentinelClassificationResult,
+  type SupervisorAnomalyRecord,
+  type SentinelWitnessArgs,
+  type SentinelCompositeEntry,
+} from './sentinel.js';
+// WR-162 SP 6 — ring-buffer exposed for bootstrap sentinel-anomaly-buffer
+// construction. Supervisor internals remain the canonical backing store.
+export { RingBuffer as SupervisorRingBuffer } from './ring-buffer.js';

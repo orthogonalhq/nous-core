@@ -257,13 +257,20 @@ export function collectInvariantEventFindings(
   return findings;
 }
 
+// WR-162 SP 6 (SUPV-SP6-009 narrow branch addition) — the `S3` literal was
+// added to `InvariantSeveritySchema` so the closed-literal return type and
+// initializer must carry an `S3: number` bucket. S3 is the sentinel warn-only
+// tier; it does NOT promote to `review` status (advisory per
+// supervisor-escalation-policy-v1.md § S3 Warn Path) — `deriveVerificationStatus`
+// below treats S3 as non-escalating.
 export function countFindingsBySeverity(
   findings: InvariantFinding[],
-): { S0: number; S1: number; S2: number } {
+): { S0: number; S1: number; S2: number; S3: number } {
   const counts: Record<InvariantSeverity, number> = {
     S0: 0,
     S1: 0,
     S2: 0,
+    S3: 0,
   };
 
   for (const finding of findings) {
@@ -274,7 +281,7 @@ export function countFindingsBySeverity(
 }
 
 export function deriveVerificationStatus(
-  bySeverity: { S0: number; S1: number; S2: number },
+  bySeverity: { S0: number; S1: number; S2: number; S3: number },
 ): VerificationReportStatus {
   if (bySeverity.S0 > 0) {
     return 'fail';
@@ -282,5 +289,6 @@ export function deriveVerificationStatus(
   if (bySeverity.S1 > 0 || bySeverity.S2 > 0) {
     return 'review';
   }
+  // S3 is advisory; it does NOT promote the report to 'review'.
   return 'pass';
 }

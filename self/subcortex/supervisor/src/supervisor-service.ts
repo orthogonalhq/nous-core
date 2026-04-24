@@ -43,6 +43,7 @@ import {
   type SupervisorViolationDetectedPayload,
   type WitnessIntegrityStatus,
 } from '@nous/shared';
+import { setInterval as nodeSetInterval, clearInterval as nodeClearInterval } from 'node:timers';
 import { RingBuffer } from './ring-buffer.js';
 import { classify } from './classifier.js';
 import {
@@ -54,6 +55,12 @@ import type { AgentClassToolSurfaceRegistry } from './agent-class-tool-surface.j
 import type { BudgetReadonlyView } from './detection/types.js';
 import { emitDetectionWitness } from './witness-emission.js';
 import type { EnforcementDeps, EnforcementResult } from './enforcement.js';
+import type {
+  SentinelClassificationResult,
+  SentinelModule,
+  SentinelObservationIngress,
+  SupervisorAnomalyRecord,
+} from './sentinel.js';
 
 /**
  * WR-162 SP 5 — `SupervisorServiceDeps.enforcement` slot shape.
@@ -130,6 +137,24 @@ export interface SupervisorServiceDeps {
    * enforcement path so pre-existing tests continue to pass.
    */
   enforcement?: SupervisorEnforcementSlot;
+  /**
+   * WR-162 SP 6 — sentinel slot (SUPV-SP6-003 / SUPV-SP6-013).
+   *
+   * When provided, `startSupervision` allocates a heartbeat interval that
+   * publishes `supervisor:sentinel-status`, and `runClassifier` feeds
+   * sentinel-known observations into `module.observe(...)` then dispatches
+   * classifications via `module.dispatchClassification(...)`.
+   *
+   * When absent (SP 3/4/5 baseline), heartbeat is never allocated, sentinel
+   * observations are not fed, and the read methods return contract-grounded
+   * empty state. Construction-presence IS the gate — no second `if (enabled)`
+   * check inside callback / dispatch / query bodies.
+   */
+  sentinel?: {
+    readonly module: SentinelModule;
+    readonly heartbeatIntervalMs: number;
+    readonly anomalyBuffer: RingBuffer<SupervisorAnomalyRecord>;
+  };
 }
 
 type IdentityNullReason =
@@ -168,6 +193,21 @@ export class SupervisorService implements ISupervisorService {
   // WR-162 SP 5 — production enforcement slot (SUPV-SP5-005). Null when
   // unset; `processRecord` falls back to `onEnforcementDispatch`.
   private readonly enforcement: SupervisorEnforcementSlot | null;
+  // WR-162 SP 6 — sentinel slot + heartbeat state + instance counters +
+  // activeAgentTracker. Construction-presence IS the gate (SUPV-SP6-013).
+  private readonly sentinelSlot: SupervisorServiceDeps['sentinel'] | undefined;
+  private heartbeatHandle: ReturnType<typeof setInterval> | null = null;
+  private readonly activeAgentTracker = new Map<string, number>();
+  private readonly lifetime: {
+    violationsDetected: number;
+    anomaliesClassified: number;
+    enforcementsApplied: number;
+  } = {
+    violationsDetected: 0,
+    anomaliesClassified: 0,
+    enforcementsApplied: 0,
+  };
+  private witnessIntegritySignal: WitnessIntegrityStatus | undefined;
 
   constructor(private readonly deps: SupervisorServiceDeps = {}) {
     this.now = deps.now ?? (() => new Date().toISOString());
@@ -192,6 +232,8 @@ export class SupervisorService implements ISupervisorService {
       });
     this.metric = deps.metric ?? ((): void => undefined);
     this.enforcement = deps.enforcement ?? null;
+    // WR-162 SP 6 — sentinel slot stored at construction; no runtime mutation.
+    this.sentinelSlot = deps.sentinel;
     // Build the default detector context factory when overrides aren't
     // provided AND witnessService is available. When neither is available,
     // runClassifier is disabled regardless of `supervisorEnabled` (the
@@ -234,6 +276,15 @@ export class SupervisorService implements ISupervisorService {
     }
 
     this.active = true;
+    // WR-162 SP 6 (SUPV-SP6-003) — heartbeat-allocate branch. Construction-
+    // presence check on `sentinelSlot` replaces a second `if (enabled)` check;
+    // when `enabled: false` above returned early, this code is unreachable
+    // (single-gate invariant SUPV-SP6-013).
+    if (this.sentinelSlot !== undefined && this.heartbeatHandle === null) {
+      this.heartbeatHandle = nodeSetInterval(() => {
+        void this.heartbeatTick();
+      }, this.sentinelSlot.heartbeatIntervalMs);
+    }
     this.handle = {
       stop: async () => {
         await this.stopSupervision();
@@ -245,9 +296,108 @@ export class SupervisorService implements ISupervisorService {
 
   async stopSupervision(): Promise<void> {
     this.active = false;
+    // WR-162 SP 6 (SUPV-SP6-003) — idempotent heartbeat teardown; repeated
+    // calls see null and skip clearInterval(null).
+    if (this.heartbeatHandle !== null) {
+      nodeClearInterval(this.heartbeatHandle);
+      this.heartbeatHandle = null;
+    }
     this.violationBuffer.clear();
     this.anomalyBuffer.clear();
     this.sup006DedupSeen.clear();
+  }
+
+  /**
+   * WR-162 SP 6 (SUPV-SP6-003, SUPV-SP6-004, SUPV-SP6-016) — heartbeat tick.
+   *
+   * Order of operations:
+   *  (i)   Sweep idle agents and dispatch any SUP-011 classifications (uses
+   *        the same three-step dispatch as observe-driven classifications).
+   *  (ii)  Build the camelCase domain `SupervisorStatusSnapshot` via
+   *        `getStatusSnapshot()` — intentionally NOT wrapped in try/catch
+   *        (snapshot defects surface as contract-level bugs).
+   *  (iii) Project to the snake_case wire `SupervisorSentinelStatusPayload`
+   *        per SUPV-SP6-016 mapping table.
+   *  (iv)  Publish on EventBus inside a try/catch (error-contained; loop
+   *        survives EventBus backpressure / serialization transients).
+   *  (v)   SUP-007 periodic fan-out — SUPV-SP6-017 two-branch posture. At
+   *        code-start the `GatewayRunSnapshotRegistry.listAll()` accessor
+   *        was confirmed NOT available (SP 4 registry surface lacks it per
+   *        `self/subcortex/supervisor/src/gateway-run-registry.ts`
+   *        inspection — no `listAll` method). Deferral preserved. No
+   *        heuristic scan substitute (`feedback_no_heuristic_bandaids.md`).
+   */
+  private async heartbeatTick(): Promise<void> {
+    if (this.sentinelSlot === undefined) return;
+    // (i) SUP-011 idle sweep.
+    try {
+      const idleClassifications = this.sentinelSlot.module.sweepIdleAgents();
+      for (const c of idleClassifications) {
+        await this.sentinelSlot.module.dispatchClassification(c);
+        this.lifetime.anomaliesClassified += 1;
+      }
+    } catch (err) {
+      this.log?.warn?.('supervisor.sentinel_sweep_failed', {
+        err: err instanceof Error ? err.message : String(err),
+      });
+    }
+
+    if (this.eventBus === undefined) return;
+
+    // (ii) snapshot build — NOT wrapped; contract-level defects surface.
+    const snapshot = await this.getStatusSnapshot();
+
+    // (iii) camelCase domain → snake_case wire projection per SUPV-SP6-016.
+    const wirePayload = {
+      active: snapshot.active,
+      agents_monitored: snapshot.agentsMonitored,
+      violations_detected: snapshot.lifetime.violationsDetected,
+      anomalies_classified: snapshot.lifetime.anomaliesClassified,
+      risk_summary: snapshot.riskSummary,
+      reported_at: snapshot.reportedAt,
+    };
+
+    // (iv) EventBus publish — error-contained.
+    try {
+      await this.eventBus.publish('supervisor:sentinel-status', wirePayload);
+    } catch (err) {
+      this.log?.error?.('supervisor.sentinel_heartbeat_emit_failed', {
+        err: err instanceof Error ? err.message : String(err),
+      });
+      this.metric('supervisor_sentinel_heartbeat_emit_failed_total', {});
+    }
+
+    // (v) SUP-007 periodic fan-out — SUPV-SP6-017 branch (b): deferred.
+    // No-op until `GatewayRunSnapshotRegistry.listAll()` lands in a future
+    // phase. Do NOT substitute a heuristic scan of an unrelated surface.
+  }
+
+  /** WR-162 SP 6 (SUPV-SP6-012) — private helper for status snapshot. */
+  private bucketViolationsBySeverity(
+    rows: readonly SupervisorViolationRecord[],
+  ): { s0: number; s1: number; s2: number; s3: number } {
+    const counts = { s0: 0, s1: 0, s2: 0, s3: 0 };
+    for (const row of rows) {
+      const key = row.severity.toLowerCase() as 's0' | 's1' | 's2' | 's3';
+      if (key in counts) {
+        counts[key] += 1;
+      }
+    }
+    return counts;
+  }
+
+  /**
+   * WR-162 SP 6 — test-only introspection hook for the heartbeat tick.
+   * Invoking this bypasses the `setInterval` scheduler so unit tests can
+   * exercise the tick body deterministically. Not part of `ISupervisorService`.
+   */
+  async __test_heartbeatTick(): Promise<void> {
+    await this.heartbeatTick();
+  }
+
+  /** WR-162 SP 6 — test-only introspection: has the heartbeat interval been allocated? */
+  __test_heartbeatHandleAllocated(): boolean {
+    return this.heartbeatHandle !== null;
   }
 
   // --- Observation entry point (used by SupervisorOutboxSink) ---
@@ -396,6 +546,8 @@ export class SupervisorService implements ISupervisorService {
       return;
     }
     this.violationBuffer.push(parsed.data);
+    // WR-162 SP 6 (SUPV-SP6-012) — hot-path increment for status snapshot.
+    this.lifetime.violationsDetected += 1;
     this.log?.debug?.('supervisor.detection_fired', {
       supCode: parsed.data.supCode,
       severity: parsed.data.severity,
@@ -433,7 +585,19 @@ export class SupervisorService implements ISupervisorService {
     // test path), fall back to the log-stub `onEnforcementDispatch`.
     if (this.enforcement !== null) {
       try {
-        await this.enforcement.enforce(parsed.data, this.enforcement.deps);
+        const enforcementResult = await this.enforcement.enforce(
+          parsed.data,
+          this.enforcement.deps,
+        );
+        // WR-162 SP 6 (SUPV-SP6-012) — hot-path increment for status
+        // snapshot. Count enforcement as applied only when the dispatch
+        // reported a non-error terminal outcome.
+        if (
+          enforcementResult.status === 'applied' ||
+          enforcementResult.status === 'conflict_resolved'
+        ) {
+          this.lifetime.enforcementsApplied += 1;
+        }
       } catch (err) {
         this.log?.error?.('supervisor.enforcement_threw', {
           sup_code: parsed.data.supCode,
@@ -449,51 +613,147 @@ export class SupervisorService implements ISupervisorService {
     }
   }
 
-  // --- Read procedures (Phase-B zero-state stubs) ---
+  /**
+   * WR-162 SP 6 — sentinel observation feed. Callers (outbox sink,
+   * health-sink, tool-call tracker) feed observations here; sentinel
+   * `observe` runs, and any classification is dispatched.
+   *
+   * The `sentinelSlot === undefined` check IS the single gate (SUPV-SP6-013);
+   * when `supervisor.enabled: false` at bootstrap, the sentinel slot is never
+   * constructed so observations are trivially no-op. No second config flag is
+   * introduced.
+   */
+  async recordSentinelObservation(
+    obs: SentinelObservationIngress,
+  ): Promise<SentinelClassificationResult | null> {
+    if (this.sentinelSlot === undefined) return null;
+    // Update active-agent tracker for status snapshot.
+    try {
+      this.activeAgentTracker.set(obs.agentId, Date.parse(obs.at));
+    } catch {
+      // Ignore unparseable timestamps; observation is still fed through.
+    }
+    let classification: SentinelClassificationResult | null = null;
+    try {
+      classification = this.sentinelSlot.module.observe(obs);
+    } catch (err) {
+      this.log?.warn?.('supervisor.sentinel_observe_threw', {
+        type: obs.type,
+        err: err instanceof Error ? err.message : String(err),
+      });
+      return null;
+    }
+    if (classification !== null) {
+      await this.sentinelSlot.module.dispatchClassification(classification);
+      this.lifetime.anomaliesClassified += 1;
+    }
+    return classification;
+  }
 
-  async getRecentViolations(_input: {
+  /** WR-162 SP 6 — optional consumer surface for SP 4 witness-integrity signal. */
+  setWitnessIntegritySignal(signal: WitnessIntegrityStatus): void {
+    this.witnessIntegritySignal = signal;
+  }
+
+  // --- Read procedures (WR-162 SP 6 — real bodies per SUPV-SP6-011/012/007) ---
+
+  async getRecentViolations(input: {
     projectId?: string;
     limit?: number;
     since?: string;
   }): Promise<SupervisorViolationRecord[]> {
-    // SP 3 Phase-B: no classification pipeline yet; always empty.
-    // SP 4 populates the ring buffer via `runClassifier`; a future
-    // sub-phase will drain the buffer here (SP 6 tRPC surface).
-    return this.violationBuffer.snapshot();
+    // SUPV-SP6-011 — drain the SP 4 violationBuffer with projectId/since/limit
+    // filters. Zod at the tRPC boundary enforces limit <= 200.
+    let rows: SupervisorViolationRecord[] = this.violationBuffer.snapshot();
+    if (input.projectId !== undefined) {
+      const projectIdFilter = input.projectId;
+      rows = rows.filter((r) => r.projectId === projectIdFilter);
+    }
+    if (input.since !== undefined) {
+      const sinceMs = Date.parse(input.since);
+      if (!Number.isNaN(sinceMs)) {
+        rows = rows.filter((r) => Date.parse(r.detectedAt) >= sinceMs);
+      }
+    }
+    const limit = input.limit ?? 50;
+    return rows.slice(0, limit);
   }
 
   async getStatusSnapshot(): Promise<SupervisorStatusSnapshot> {
+    // SUPV-SP6-012 — real field computation from live SP 3/4/5/6 state.
+    const violationSnapshot = this.violationBuffer.snapshot();
     return {
       active: this.active,
-      agentsMonitored: 0,
-      activeViolationCounts: { s0: 0, s1: 0, s2: 0, s3: 0 },
+      agentsMonitored: this.activeAgentTracker.size,
+      activeViolationCounts: this.bucketViolationsBySeverity(violationSnapshot),
       lifetime: {
-        violationsDetected: 0,
-        anomaliesClassified: 0,
-        enforcementsApplied: 0,
+        violationsDetected: this.lifetime.violationsDetected,
+        anomaliesClassified: this.lifetime.anomaliesClassified,
+        enforcementsApplied: this.lifetime.enforcementsApplied,
       },
-      witnessIntegrity: 'intact' satisfies WitnessIntegrityStatus,
-      riskSummary: {},
+      witnessIntegrity: (this.witnessIntegritySignal ??
+        'intact') satisfies WitnessIntegrityStatus,
+      riskSummary:
+        this.sentinelSlot?.module.getCompositeRiskScoresAsRecord() ?? {},
       reportedAt: this.now(),
     };
   }
 
-  async getSentinelRiskScores(_input: {
+  async getSentinelRiskScores(input: {
     projectId?: string;
   }): Promise<SentinelRiskScore[]> {
-    // SP 3 Phase-B: sentinel module not wired; always empty.
-    return [];
+    if (this.sentinelSlot === undefined) return [];
+    const entries = this.sentinelSlot.module.getSentinelRiskScoresPerCode({
+      projectId: input.projectId,
+    });
+    // The sentinel module's `SentinelCompositeEntry` shape is already
+    // compatible with the SP 1 `SentinelRiskScore` schema (landed at
+    // `self/shared/src/types/supervisor.ts:87–101`: projectId +
+    // compositeRiskScore + activeAnomalies[] + reportedAt). Zod will parse
+    // at the tRPC boundary; the service returns the already-shaped entries.
+    return entries.map((e) => ({
+      projectId: e.projectId,
+      compositeRiskScore: e.compositeRiskScore,
+      activeAnomalies: e.activeAnomalies.map((a) => ({
+        supCode: a.supCode as SentinelRiskScore['activeAnomalies'][number]['supCode'],
+        riskScore: a.riskScore,
+        explanation: a.explanation,
+        agentId: a.agentId,
+        classifiedAt: a.classifiedAt,
+      })),
+      reportedAt: e.reportedAt,
+    }));
   }
 
-  async getAgentSupervisorSnapshot(_agentId: string): Promise<{
+  async getAgentSupervisorSnapshot(agentId: string): Promise<{
     guardrail_status: GuardrailStatus;
     witness_integrity_status: WitnessIntegrityStatus;
     sentinel_risk_score: number | null;
   }> {
+    // WR-162 SP 6 (SUPV-SP6-005 + SUPV-SP6-007) — return shape preserved per
+    // SP 1 ISupervisorService. When sentinel is wired, scan buffered
+    // anomalies for entries matching this agent and return `max(risk_score)`.
+    // `guardrail_status` and `witness_integrity_status` fall back to
+    // contract-grounded healthy defaults ('clear' / 'intact') when SP 3/4
+    // signals are absent (not placeholders per DNR-B3).
+    let sentinelRisk: number | null = null;
+    if (this.sentinelSlot !== undefined) {
+      const entries = this.sentinelSlot.module.getSentinelRiskScoresPerCode();
+      for (const entry of entries) {
+        for (const anomaly of entry.activeAnomalies) {
+          if (anomaly.agentId === agentId) {
+            sentinelRisk =
+              sentinelRisk === null
+                ? anomaly.riskScore
+                : Math.max(sentinelRisk, anomaly.riskScore);
+          }
+        }
+      }
+    }
     return {
       guardrail_status: 'clear',
-      witness_integrity_status: 'intact',
-      sentinel_risk_score: null,
+      witness_integrity_status: this.witnessIntegritySignal ?? 'intact',
+      sentinel_risk_score: sentinelRisk,
     };
   }
 

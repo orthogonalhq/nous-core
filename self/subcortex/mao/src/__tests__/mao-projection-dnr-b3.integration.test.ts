@@ -331,18 +331,19 @@ class PopulatedStubSupervisorService implements ISupervisorService {
 
   async getAgentSupervisorSnapshot(agentId: string) {
     this.agentSnapshotCalls.push(agentId);
-    // POPULATED — proves DNR-B3 by showing that the projection still
-    // emits `undefined` even when the supervisor has real values.
+    // WR-162 SP 6 (SUPV-SP6-005) — real populated values; `risk_score` constrained
+    // to [0, 1] per `MaoAgentProjectionSchema`. SP 6 flips the read so the
+    // three supervisor fields now appear on the projection.
     return {
       guardrail_status: 'warning' as const,
       witness_integrity_status: 'degraded' as const,
-      sentinel_risk_score: 42,
+      sentinel_risk_score: 0.5,
     };
   }
 }
 
-describe('MaoProjectionService — IT-2 DNR-B3 read-site invariance (WR-162 SP 3)', () => {
-  it('buildAgentProjection returns undefined for all three supervisor fields even when supervisorService returns populated values', async () => {
+describe('MaoProjectionService — IT-2 DNR-B3 read-site (WR-162 SP 3 / SP 6 flip)', () => {
+  it('SP 6 flips the read: supervisor fields now populated from the wired snapshot (DNR-B3 still preserved — fields remain optional)', async () => {
     const supervisor = new PopulatedStubSupervisorService();
     const service = new MaoProjectionService({
       opctlService: createOpctlServiceMock(),
@@ -359,23 +360,26 @@ describe('MaoProjectionService — IT-2 DNR-B3 read-site invariance (WR-162 SP 3
     expect(projections.length).toBeGreaterThan(0);
 
     for (const projection of projections) {
-      // DNR-B3 invariant: SP 3 does NOT read supervisorService here.
-      // SP 6 flips the read.
+      // WR-162 SP 6 — fields are now populated (flipped from SP 3 stub).
+      // DNR-B3 remains preserved: the MaoAgentProjection type leaves the
+      // three fields optional, and the projection service coalesces
+      // `sentinel_risk_score: null` → `undefined` (absence is still the
+      // runtime signal when the supervisor returns no data).
       expect(
         (projection as unknown as Record<string, unknown>).guardrail_status,
-      ).toBeUndefined();
+      ).toBe('warning');
       expect(
         (projection as unknown as Record<string, unknown>)
           .witness_integrity_status,
-      ).toBeUndefined();
+      ).toBe('degraded');
       expect(
         (projection as unknown as Record<string, unknown>).sentinel_risk_score,
-      ).toBeUndefined();
+      ).toBe(0.5);
     }
 
-    // The service's per-agent snapshot method was NOT invoked — proves the
-    // read-site really is dormant in SP 3 (not just that it returned null).
-    expect(supervisor.agentSnapshotCalls).toHaveLength(0);
+    // SP 6 now invokes the per-agent snapshot method; call count matches
+    // the projection count (one call per agent).
+    expect(supervisor.agentSnapshotCalls.length).toBe(projections.length);
   });
 
   it('constructs compile-cleanly with the new supervisorService dep (additive trailing optional)', () => {

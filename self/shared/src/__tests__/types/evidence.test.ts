@@ -2,6 +2,7 @@ import { describe, it, expect } from 'vitest';
 import {
   AttestationReceiptSchema,
   CriticalActionCategorySchema,
+  EnforcementActionSchema,
   InvariantCodeSchema,
   InvariantPrefixSchema,
   InvariantSeveritySchema,
@@ -254,10 +255,30 @@ describe('InvariantPrefixSchema', () => {
 });
 
 describe('InvariantSeveritySchema', () => {
-  it('only accepts S0/S1/S2', () => {
+  it('accepts S0/S1/S2/S3 (SP 6 SUPV-SP6-009 widening)', () => {
     expect(InvariantSeveritySchema.safeParse('S0').success).toBe(true);
     expect(InvariantSeveritySchema.safeParse('S1').success).toBe(true);
     expect(InvariantSeveritySchema.safeParse('S2').success).toBe(true);
-    expect(InvariantSeveritySchema.safeParse('S3').success).toBe(false);
+    // WR-162 SP 6 — `'S3'` is the sentinel warn-only tier; widened per
+    // `supervisor-invariants.ts § SUPERVISOR_INVARIANT_SEVERITY_MAP` for
+    // SUP-009..SUP-012. Pre-SP-6 this assertion locked at `.toBe(false)`.
+    expect(InvariantSeveritySchema.safeParse('S3').success).toBe(true);
+    expect(InvariantSeveritySchema.safeParse('S4').success).toBe(false);
+  });
+});
+
+describe('EnforcementActionSchema (SP 6 SUPV-SP6-009 widening)', () => {
+  it('accepts hard-stop / auto-pause / review / warn', () => {
+    expect(EnforcementActionSchema.safeParse('hard-stop').success).toBe(true);
+    expect(EnforcementActionSchema.safeParse('auto-pause').success).toBe(true);
+    expect(EnforcementActionSchema.safeParse('review').success).toBe(true);
+    // WR-162 SP 6 — `'warn'` is the advisory S3 posture; widened here so the
+    // SUP-009..SUP-012 witnessd registry rows at `{ S3, warn }` parse cleanly.
+    expect(EnforcementActionSchema.safeParse('warn').success).toBe(true);
+  });
+
+  it('rejects unknown enforcement actions', () => {
+    expect(EnforcementActionSchema.safeParse('terminate').success).toBe(false);
+    expect(EnforcementActionSchema.safeParse('hard_stop').success).toBe(false);
   });
 });

@@ -9,12 +9,16 @@
  *   (`hard_stop`/`auto_pause`) and is translated at the seam via
  *   `@nous/subcortex-supervisor`'s `enforcement-action-translator.ts`
  *   (SUPV-SP4-011).
- * - `BASE_POLICY['SUP']` fallback at `{ S2, review }` is a safe default for
- *   any un-registered SUP code that somehow reaches the mapper (SUPV-SP4-006-b).
- *   SUP-009..SUP-012 are deliberately NOT registered in SP 4 — SP 6 lands the
- *   `InvariantSeveritySchema`/`EnforcementActionSchema` widening (adds `S3` +
- *   `warn`) alongside explicit SUP-009..SUP-012 rows and removes this
- *   fallback (SUPV-SP4-006 revision).
+ *
+ * WR-162 SP 6 (SUPV-SP6-009 Option A) — SUP-009..SUP-012 registered here with
+ * `{ severity: 'S3', enforcement: 'warn' }` matching the SP 1 authoritative
+ * `SUPERVISOR_INVARIANT_SEVERITY_MAP` at
+ * `self/shared/src/types/supervisor-invariants.ts:56–59` verbatim. The SP 4
+ * `BASE_POLICY['SUP']` wildcard fallback is REMOVED; unknown SUP codes now
+ * return undefined from `SUP_POLICY[code]` and flow through the `base.severity`
+ * / `base.enforcement` path — but since the prefix `'SUP'` is no longer in
+ * `BASE_POLICY`, `base` is `undefined` for unregistered supervisor codes and
+ * the mapper rejects the lookup (contract tightening per SUPV-SP6-009 audit).
  */
 import type {
   EnforcementAction,
@@ -27,9 +31,13 @@ import type {
 } from '@nous/shared';
 import { InvariantEnforcementDecisionSchema } from '@nous/shared';
 
-const BASE_POLICY: Record<
-  InvariantPrefix,
-  { severity: InvariantSeverity; enforcement: EnforcementAction }
+// WR-162 SP 6 (SUPV-SP6-009) — `BASE_POLICY` uses a partial record because the
+// SP 4 `SUP` wildcard fallback is removed; unregistered SUP codes flow into
+// `mapInvariantToEnforcement` through the per-code `SUP_POLICY` lookup which
+// now carries SUP-001..SUP-012 explicitly and rejects unknown SUP codes at the
+// parse boundary (contract tightening per Goals SC 7 row 5).
+const BASE_POLICY: Partial<
+  Record<InvariantPrefix, { severity: InvariantSeverity; enforcement: EnforcementAction }>
 > = {
   AUTH: { severity: 'S0', enforcement: 'hard-stop' },
   CHAIN: { severity: 'S0', enforcement: 'hard-stop' },
@@ -47,21 +55,23 @@ const BASE_POLICY: Record<
   EVID: { severity: 'S1', enforcement: 'auto-pause' },
   MEM: { severity: 'S2', enforcement: 'review' },
   PRV: { severity: 'S1', enforcement: 'auto-pause' },
-  // WR-162 SP 4 — SUPV-SP4-006-b. Safe fallback for un-registered SUP codes.
-  // Every SUP code defined in SP 4 (SUP-001..SUP-008) has an explicit row in
-  // `SUP_POLICY` below and therefore never reaches this fallback in SP 4
-  // production paths. SUP-009..SUP-012 are deferred to SP 6 alongside the
-  // `InvariantSeveritySchema`/`EnforcementActionSchema` widening that will
-  // carry `S3`/`warn`.
-  SUP: { severity: 'S2', enforcement: 'review' },
+  // WR-162 SP 6 (SUPV-SP6-009) — `SUP` wildcard fallback REMOVED. All SUP
+  // codes (SUP-001..SUP-012) are registered explicitly in `SUP_POLICY` below;
+  // unknown SUP codes return undefined from the lookup and cause
+  // `mapInvariantToEnforcement` to throw via `InvariantEnforcementDecisionSchema.parse`.
 };
 
 /**
- * Per-code supervisor policy (SP 4 scope: SUP-001..SUP-008 only).
+ * Per-code supervisor policy. WR-162 SP 6 (SUPV-SP6-009) — SUP-009..SUP-012
+ * appended with `{ severity: 'S3', enforcement: 'warn' }` matching the SP 1
+ * authoritative `SUPERVISOR_INVARIANT_SEVERITY_MAP` at
+ * `self/shared/src/types/supervisor-invariants.ts:56–59` verbatim (single
+ * source of truth preserved). Post-registration, the `BASE_POLICY['SUP']`
+ * wildcard is removed; unknown SUP codes are rejected at invariant lookup.
  * Kebab-case values per witnessd domain's `EnforcementActionSchema`.
+ *
  * Mappings are taken verbatim from `supervisor-violation-taxonomy-v1.md
- * § Invariant Code Catalog` (cross-referenced to
- * `supervisor-evidence-contract-v1.md § Invariant-to-Severity Mappings`):
+ * § Invariant Code Catalog`:
  *
  *   SUP-001  S0  hard-stop   Worker agent-dispatch
  *   SUP-002  S0  hard-stop   Worker→Principal routing
@@ -71,9 +81,10 @@ const BASE_POLICY: Record<
  *   SUP-006  S1  auto-pause  Spawn-ceiling breach
  *   SUP-007  S0  hard-stop   Witness chain break
  *   SUP-008  S1  auto-pause  Missing lifecycle predecessor
- *
- * SUP-009..SUP-012 are NOT in this table — SP 6 lands them alongside the
- * `S3`/`warn` schema widening.
+ *   SUP-009  S3  warn        Excessive retry pattern (SP 6 sentinel)
+ *   SUP-010  S3  warn        Escalation storm (SP 6 sentinel)
+ *   SUP-011  S3  warn        Stalled agent (SP 6 sentinel)
+ *   SUP-012  S3  warn        Anomalous tool-usage pattern (SP 6 sentinel)
  */
 const SUP_POLICY: Readonly<
   Record<string, { severity: InvariantSeverity; enforcement: EnforcementAction }>
@@ -86,6 +97,11 @@ const SUP_POLICY: Readonly<
   'SUP-006': { severity: 'S1', enforcement: 'auto-pause' },
   'SUP-007': { severity: 'S0', enforcement: 'hard-stop' },
   'SUP-008': { severity: 'S1', enforcement: 'auto-pause' },
+  // WR-162 SP 6 (SUPV-SP6-009) — SUP-009..SUP-012 sentinel S3 warn tier.
+  'SUP-009': { severity: 'S3', enforcement: 'warn' },
+  'SUP-010': { severity: 'S3', enforcement: 'warn' },
+  'SUP-011': { severity: 'S3', enforcement: 'warn' },
+  'SUP-012': { severity: 'S3', enforcement: 'warn' },
 });
 
 export function getInvariantPrefix(code: InvariantCode): InvariantPrefix {
@@ -98,10 +114,10 @@ export function mapInvariantToEnforcement(
   const prefix = getInvariantPrefix(code);
   const base = BASE_POLICY[prefix];
 
-  // WR-162 SP 4 — supervisor per-code lookup (SUPV-SP4-006 revised).
-  // SUP-001..SUP-008 have explicit rows; SUP-009..SUP-012 fall through to
-  // BASE_POLICY['SUP'] (SUPV-SP4-006-b) until SP 6 widens the schemas and
-  // registers them explicitly.
+  // WR-162 SP 6 (SUPV-SP6-009) — supervisor per-code lookup with wildcard
+  // removed. SUP-001..SUP-012 have explicit rows in `SUP_POLICY`; unknown
+  // SUP codes reject at `.parse` via the undefined lookup (severity required
+  // field missing). This is the intended contract tightening.
   if (prefix === 'SUP') {
     const supRow = SUP_POLICY[code];
     if (supRow) {
@@ -111,10 +127,21 @@ export function mapInvariantToEnforcement(
         enforcement: supRow.enforcement,
       });
     }
+    // No fallback — parse intentionally fails for unknown SUP codes.
     return InvariantEnforcementDecisionSchema.parse({
       code,
-      severity: base.severity,
-      enforcement: base.enforcement,
+      severity: undefined,
+      enforcement: undefined,
+    });
+  }
+
+  // Non-SUP prefixes still require a base policy entry; a missing base is
+  // a contract-level defect that surfaces as a parse failure.
+  if (base === undefined) {
+    return InvariantEnforcementDecisionSchema.parse({
+      code,
+      severity: undefined,
+      enforcement: undefined,
     });
   }
 

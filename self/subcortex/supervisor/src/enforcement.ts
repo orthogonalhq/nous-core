@@ -357,13 +357,26 @@ export async function enforce(
     }
   }
 
-  // Step 7 — SUPV-SP5-002 + review N1 — EventBus emit (S2 skip in V1).
-  const isS0orS1 = violation.severity === 'S0' || violation.severity === 'S1';
-  if (isS0orS1) {
+  // Step 7 — SUPV-SP5-002 EventBus emit. WR-162 SP 6 (SUPV-SP6-008) widened
+  // `SupervisorEnforcementActionPayloadSchema.severity` to include `'S2'` and
+  // `action` to include `'stop_response'`; the SP 5 V1 S2 skip branch is
+  // removed — S2 emits flow through end-to-end post-widening.
+  const isSupportedSeverity =
+    violation.severity === 'S0' ||
+    violation.severity === 'S1' ||
+    violation.severity === 'S2';
+  if (isSupportedSeverity) {
     const publishPayload: SupervisorEnforcementActionPayload = {
       sup_code: violation.supCode,
-      severity: violation.severity as 'S0' | 'S1',
-      action: action === 'hard_stop' ? 'hard_stop' : 'auto_pause',
+      severity: violation.severity as 'S0' | 'S1' | 'S2',
+      // Opctl `ControlAction` → payload action (snake_case supervisor domain):
+      // opctl `pause` → payload `auto_pause`; `hard_stop` stays; `stop_response` stays.
+      action:
+        action === 'hard_stop'
+          ? 'hard_stop'
+          : action === 'stop_response'
+            ? 'stop_response'
+            : 'auto_pause',
       scope: JSON.stringify(envelope.scope),
       command_id: envelope.control_command_id,
       agent_id: violation.agentId,
@@ -383,14 +396,6 @@ export async function enforce(
         sup_code: violation.supCode,
       });
     }
-  } else if (violation.severity === 'S2') {
-    deps.logger?.debug?.('supervisor.enforcement_s2_emit_skipped_pending_sp6', {
-      sup_code: violation.supCode,
-      action,
-    });
-    deps.metric?.('supervisor_enforcement_s2_emit_skipped_total', {
-      sup_code: violation.supCode,
-    });
   }
 
   // Step 8: witness emission. Runs AFTER submit so a throw in submit

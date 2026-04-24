@@ -280,8 +280,11 @@ describe('enforce — UT-EN5 rejected branch', () => {
   });
 });
 
-describe('enforce — UT-EN6 S2 consumer-path EventBus skip (review N1)', () => {
-  it('S2 + applied → zero supervisor:enforcement-action emits; metric incremented; witness still written', async () => {
+describe('enforce — UT-EN6 S2 consumer-path EventBus emit (SP 6 SUPV-SP6-008)', () => {
+  it('S2 + applied → supervisor:enforcement-action emits once; skip counter stays 0; witness still written', async () => {
+    // WR-162 SP 6 flip: `SupervisorEnforcementActionPayloadSchema` widened to
+    // admit `severity: 'S2'` + `action: 'stop_response'`; the SP 5 V1 skip
+    // branch is removed. Pre-SP-6 this test asserted zero emits + counter ++.
     const { svc } = mkOpctlService({
       status: 'applied',
       control_command_id: randomUUID(),
@@ -296,10 +299,16 @@ describe('enforce — UT-EN6 S2 consumer-path EventBus skip (review N1)', () => 
       metric: metric as EnforcementDeps['metric'],
     });
     await enforce(mkViolation({ severity: 'S2' }), deps);
-    expect(eventBus.publish).not.toHaveBeenCalled();
+    expect(eventBus.publish).toHaveBeenCalledTimes(1);
+    // Payload: `severity: 'S2'` + `action: 'stop_response'` per widened schema.
+    const call = (eventBus.publish as unknown as { mock: { calls: unknown[][] } }).mock.calls[0];
+    expect(call?.[0]).toBe('supervisor:enforcement-action');
+    const payload = call?.[1] as { severity: string; action: string };
+    expect(payload.severity).toBe('S2');
+    expect(payload.action).toBe('stop_response');
     expect(witnessService.appendInvariant).toHaveBeenCalledTimes(1);
     const names = metric.mock.calls.map((c) => c[0]);
-    expect(names).toContain('supervisor_enforcement_s2_emit_skipped_total');
+    expect(names).not.toContain('supervisor_enforcement_s2_emit_skipped_total');
   });
 });
 
