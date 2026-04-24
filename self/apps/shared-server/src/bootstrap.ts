@@ -106,11 +106,14 @@ import {
   InMemoryStartLockStore,
   InMemoryScopeLockStore,
   InMemoryProjectControlStateStore,
+  issueSupervisorProof,
 } from '@nous/subcortex-opctl';
 import { MaoProjectionService, InferenceProjectionAdapter } from '@nous/subcortex-mao';
 import {
   SupervisorService,
   SupervisorOutboxSink,
+  enforce as enforceSupervisor,
+  type EnforcementDeps,
 } from '@nous/subcortex-supervisor';
 import { registerCodingAgentNodeTypes } from '@nous/subcortex-coding-agents';
 import { GtmGateCalculator } from '@nous/subcortex-gtm';
@@ -922,12 +925,28 @@ export function createNousServices(config?: BootstrapConfig): NousContext {
   const supervisorEnabled: boolean =
     (resolvedConfig as { supervisor?: { enabled?: boolean } }).supervisor
       ?.enabled ?? true;
-  // WR-162 SP 4 — thread `witnessService` + `eventBus` into the supervisor
-  // so `runClassifier` can write detection witness events (EVID-SUP-001)
-  // and publish `supervisor:violation-detected`. `gatewayRunSnapshotRegistry`
-  // is supplied to the outbox sink factory below (SUPV-SP4-003 populator).
-  // `onEnforcementDispatch` is left at the default debug-log stub per
-  // SUPV-SP4-009; SP 5 threads the real `OpctlService.submitCommand` caller.
+  // WR-162 SP 5 — construct the production enforcement deps and thread
+  // them into `new SupervisorService(...)` via the additive `enforcement`
+  // slot. The SUPV-SP5-005 slot replaces the SP 4 `onEnforcementDispatch`
+  // log stub with the real `enforce(...)` pipeline: supervisor → opctl
+  // submit → witness + EventBus. The proof issuer chooses path (b)
+  // (`issueSupervisorProof`) per SUPV-SP5-004; SP 7 swaps in
+  // `issueSystemProof` with a one-line rename.
+  const supervisorEnforcementDeps: EnforcementDeps = {
+    opctlService: {
+      submitCommand: (envelope, proof) =>
+        opctlService.submitCommand(envelope, proof),
+    },
+    witnessService,
+    eventBus,
+    proofIssuer: (args) => issueSupervisorProof(args.action, args.scope),
+    actorId: '00000000-0000-0000-0000-000000000001',
+    actorSessionId: '00000000-0000-0000-0000-000000000002',
+    nextActorSeq: (() => {
+      let seq = 0;
+      return () => ++seq;
+    })(),
+  };
   const supervisorService = new SupervisorService({
     config: {
       enabled: supervisorEnabled,
@@ -935,6 +954,10 @@ export function createNousServices(config?: BootstrapConfig): NousContext {
     },
     witnessService,
     eventBus,
+    enforcement: {
+      enforce: (violation, deps) => enforceSupervisor(violation, deps),
+      deps: supervisorEnforcementDeps,
+    },
   });
 
   const maoProjectionService = new MaoProjectionService({
