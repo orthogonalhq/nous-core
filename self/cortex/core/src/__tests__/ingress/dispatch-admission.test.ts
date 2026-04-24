@@ -65,6 +65,7 @@ function createProjectStore(): IProjectStore {
     create: async () => projectConfig.id,
     get: async () => projectConfig,
     list: async () => [projectConfig],
+    listArchived: async () => [],
     update: async () => undefined,
     archive: async () => undefined,
     unarchive: async () => undefined,

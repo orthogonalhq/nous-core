@@ -46,6 +46,9 @@ function createProjectStore(projects: ProjectConfig[]): IProjectStore {
     async list() {
       return projects;
     },
+    async listArchived() {
+      return [];
+    },
     async update(): Promise<void> {},
     async archive(): Promise<void> {},
     async unarchive(): Promise<void> {},

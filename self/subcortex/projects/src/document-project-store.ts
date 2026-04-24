@@ -63,6 +63,28 @@ export class DocumentProjectStore implements IProjectStore {
     return result;
   }
 
+  /**
+   * List archived projects (mirrors `list()` with the `status: 'archived'`
+   * filter). Added in sub-phase 1.3 (WR-163 archived-projects view) — SDS
+   * Decision C.
+   */
+  async listArchived(): Promise<ProjectConfig[]> {
+    const raw = await this.documentStore.query<Record<string, unknown>>(
+      COLLECTION,
+      { where: { status: 'archived' } },
+    );
+
+    const result: ProjectConfig[] = [];
+    for (const item of raw) {
+      const parsed = ProjectDocumentSchema.safeParse(item);
+      if (parsed.success) {
+        const { status: _status, ...config } = parsed.data;
+        result.push(config as ProjectConfig);
+      }
+    }
+    return result;
+  }
+
   async update(id: ProjectId, updates: Partial<ProjectConfig>): Promise<void> {
     const existing = await this.documentStore.get<Record<string, unknown>>(
       COLLECTION,

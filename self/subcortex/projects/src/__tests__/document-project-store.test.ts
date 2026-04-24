@@ -150,6 +150,33 @@ describe('DocumentProjectStore', () => {
     expect(list[0]?.id).toBe(PROJECT_ID);
   });
 
+  it('listArchived() returns only archived projects (WR-163 SDS Decision C)', async () => {
+    // Seed one archived project + one active project.
+    const ARCHIVED_ID = '00000000-0000-0000-0000-000000000050' as ProjectId;
+    const activeConfig = createProjectConfig();
+    const archivedConfig = { ...createProjectConfig(), id: ARCHIVED_ID, name: 'Archived Project' };
+
+    await store.create(activeConfig);
+    await store.create(archivedConfig);
+    await store.archive(ARCHIVED_ID);
+
+    const archivedList = await store.listArchived();
+    expect(archivedList.length).toBe(1);
+    expect(archivedList[0]?.id).toBe(ARCHIVED_ID);
+    expect(archivedList[0]?.name).toBe('Archived Project');
+
+    // Active list remains unaffected by listArchived.
+    const activeList = await store.list();
+    expect(activeList.length).toBe(1);
+    expect(activeList[0]?.id).toBe(PROJECT_ID);
+  });
+
+  it('listArchived() returns empty when no projects are archived', async () => {
+    await store.create(createProjectConfig());
+    const archivedList = await store.listArchived();
+    expect(archivedList.length).toBe(0);
+  });
+
   it('update() merges changes', async () => {
     await store.create(createProjectConfig());
     await store.update(PROJECT_ID, {

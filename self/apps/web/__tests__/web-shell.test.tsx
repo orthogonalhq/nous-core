@@ -108,6 +108,8 @@ vi.mock('@nous/ui/components', () => ({
     setState: vi.fn(),
     hydrated: true,
   }),
+  // Phase 1.3 archive flow hook (WR-163 multi-project interaction).
+  useArchiveFlow: () => ({ archive: vi.fn(), unarchive: vi.fn(), isRunning: false }),
   // WR-151 — Notification provider and badge hook stubs.
   NotificationProvider: (props: any) => React.createElement(React.Fragment, null, props.children),
   useNotificationBadge: () => 0,
@@ -123,7 +125,11 @@ vi.mock('@nous/transport', () => ({
   useEventSubscription: () => {},
   trpc: {
     projects: {
-      list: { useQuery: () => ({ data: [], isLoading: false, error: null }) },
+      list: { useQuery: () => ({ data: [], isLoading: false, isError: false, error: null, refetch: vi.fn() }) },
+      listArchived: { useQuery: () => ({ data: [], isLoading: false, isError: false }) },
+      archive: { useMutation: () => ({ mutateAsync: vi.fn() }) },
+      unarchive: { useMutation: () => ({ mutateAsync: vi.fn() }) },
+      create: { useMutation: () => ({ mutateAsync: vi.fn() }) },
     },
     tasks: {
       list: { useQuery: () => ({ data: [], isLoading: false, error: null }) },
@@ -140,6 +146,10 @@ vi.mock('@nous/transport', () => ({
         list: { invalidate: vi.fn() },
         get: { invalidate: vi.fn() },
         executions: { invalidate: vi.fn() },
+      },
+      projects: {
+        list: { invalidate: vi.fn() },
+        listArchived: { invalidate: vi.fn() },
       },
     }),
   },
@@ -164,11 +174,9 @@ vi.mock('next/navigation', () => ({
   usePathname: () => '/',
 }))
 
-vi.mock('@/lib/project-context', () => ({
-  ProjectProvider: ({ children, value }: any) => {
-    return React.createElement('div', { 'data-testid': 'project-provider', 'data-project-id': value.projectId ?? '' }, children)
-  },
-}))
+// Phase 1.3 — `@/lib/project-context` deleted. No provider to mock; the
+// shell uses `ShellProvider`'s `activeProjectId` as the single source of
+// truth. Kept as a comment for traceability.
 
 vi.mock('@/components/shell/web-chrome-shell', () => ({
   WebChromeShell: (props: any) => {

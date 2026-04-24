@@ -9,12 +9,12 @@ import {
   MaoServicesProvider,
 } from '@nous/ui/components';
 import type { MaoServicesContextValue } from '@nous/ui/components';
-import { useProject } from '@/lib/project-context';
+import { useShellProjectShim } from '@/lib/use-shell-project-shim';
 
 function useWebMaoServices(): MaoServicesContextValue {
   return {
     Link,
-    useProject,
+    useProject: useShellProjectShim,
     useSearchParams,
   };
 }

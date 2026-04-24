@@ -2,7 +2,7 @@
 
 import { Suspense } from 'react';
 import { useSearchParams } from 'next/navigation';
-import { useProject } from '@/lib/project-context';
+import { useShellContextOptional } from '@nous/ui/components';
 import { trpc } from '@/lib/trpc';
 import { Card, CardHeader, CardTitle, CardContent, Collapsible, CollapsibleTrigger, CollapsibleContent, Badge } from '@nous/ui';
 
@@ -28,7 +28,8 @@ export default function TracesPage() {
 }
 
 function TracesPageContent() {
-  const { projectId } = useProject();
+  const shell = useShellContextOptional();
+  const projectId = shell?.activeProjectId ?? null;
   const searchParams = useSearchParams();
   const selectedTraceId = searchParams.get('traceId');
   const { data: traces, isLoading } = trpc.traces.list.useQuery(

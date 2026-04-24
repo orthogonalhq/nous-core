@@ -383,7 +383,8 @@ export type AssetSection = z.infer<typeof AssetSectionSchema>
 
 export const ProjectSwitcherRailPropsSchema = z.object({
   projects: z.array(ProjectItemSchema),
-  activeProjectId: z.string().min(1),
+  // Active project id may be empty while the list loads — allow empty string.
+  activeProjectId: z.string(),
   onProjectSelect: z.custom<(projectId: string) => void>(
     (value) => typeof value === 'function',
     'onProjectSelect function is required',
@@ -398,6 +399,30 @@ export const ProjectSwitcherRailPropsSchema = z.object({
     'onHomeClick function is required',
   ).optional(),
   isHomeActive: z.boolean().optional(),
+  // 1.3 additive props — live-data + archive surface.
+  isLoading: z.boolean().optional(),
+  isError: z.boolean().optional(),
+  errorMessage: z.string().optional(),
+  onRetry: z.custom<() => void>(
+    (value) => typeof value === 'function',
+    'onRetry function is required',
+  ).optional(),
+  onArchiveProject: z.custom<(projectId: string) => void | Promise<void>>(
+    (value) => typeof value === 'function',
+    'onArchiveProject function is required',
+  ).optional(),
+  onUnarchiveProject: z.custom<(projectId: string) => void | Promise<void>>(
+    (value) => typeof value === 'function',
+    'onUnarchiveProject function is required',
+  ).optional(),
+  archivedViewOpen: z.boolean().optional(),
+  onToggleArchivedView: z.custom<() => void>(
+    (value) => typeof value === 'function',
+    'onToggleArchivedView function is required',
+  ).optional(),
+  archivedIsLoading: z.boolean().optional(),
+  archivedIsError: z.boolean().optional(),
+  archiveErrorMessage: z.string().optional(),
 })
 export type ProjectSwitcherRailProps = z.infer<typeof ProjectSwitcherRailPropsSchema>
 

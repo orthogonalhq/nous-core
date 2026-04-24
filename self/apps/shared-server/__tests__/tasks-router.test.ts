@@ -79,6 +79,7 @@ function createMockContext(tasks: Record<string, unknown>[] = []) {
       update: vi.fn().mockResolvedValue(undefined),
       create: vi.fn(),
       list: vi.fn(),
+      listArchived: vi.fn(),
       archive: vi.fn(),
       unarchive: vi.fn(),
     },

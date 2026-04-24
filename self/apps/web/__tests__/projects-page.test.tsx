@@ -7,13 +7,13 @@ import { cleanup, render, screen } from '@testing-library/react';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 const mocks = vi.hoisted(() => ({
-  useProject: vi.fn(),
+  useShellContextOptional: vi.fn(),
   useSearchParams: vi.fn(),
   WorkflowBuilderPanel: vi.fn(),
 }));
 
-vi.mock('@/lib/project-context', () => ({
-  useProject: mocks.useProject,
+vi.mock('@nous/ui/components', () => ({
+  useShellContextOptional: mocks.useShellContextOptional,
 }));
 
 vi.mock('next/navigation', () => ({
@@ -32,9 +32,9 @@ import ProjectsPage from '@/app/(shell)/projects/page';
 describe('ProjectsPage', () => {
   beforeEach(() => {
     vi.clearAllMocks();
-    mocks.useProject.mockReturnValue({
-      projectId: '550e8400-e29b-41d4-a716-446655443001',
-      setProjectId: vi.fn(),
+    mocks.useShellContextOptional.mockReturnValue({
+      activeProjectId: '550e8400-e29b-41d4-a716-446655443001',
+      onProjectChange: vi.fn(),
     });
     mocks.useSearchParams.mockReturnValue({
       get: vi.fn(() => null),
@@ -57,9 +57,9 @@ describe('ProjectsPage', () => {
   });
 
   it('shows project selection prompt when no project is selected', () => {
-    mocks.useProject.mockReturnValue({
-      projectId: null,
-      setProjectId: vi.fn(),
+    mocks.useShellContextOptional.mockReturnValue({
+      activeProjectId: null,
+      onProjectChange: vi.fn(),
     });
 
     render(<ProjectsPage />);
