@@ -47,6 +47,7 @@
     "@nous/subcortex-registry": "workspace:*",
     "@nous/subcortex-router": "workspace:*",
     "@nous/subcortex-scheduler": "workspace:*",
+    "@nous/subcortex-supervisor": "workspace:*",
     "@nous/subcortex-tools": "workspace:*",
     "@nous/subcortex-voice-control": "workspace:*",
     "@nous/subcortex-witnessd": "workspace:*",
