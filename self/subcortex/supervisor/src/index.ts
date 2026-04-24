@@ -16,7 +16,16 @@ export {
   SupervisorService,
   createSupervisorService,
   type SupervisorServiceDeps,
+  type SupervisorEnforcementSlot,
 } from './supervisor-service.js';
+export {
+  enforce,
+  EnforcementContractDefectError,
+  type EnforcementDeps,
+  type EnforcementResult,
+  type EnforcementOpctlService,
+  type ProofIssuer,
+} from './enforcement.js';
 export {
   SupervisorOutboxSink,
   type SupervisorOutboxSinkDeps,

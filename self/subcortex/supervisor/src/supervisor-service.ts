@@ -53,6 +53,21 @@ import {
 import type { AgentClassToolSurfaceRegistry } from './agent-class-tool-surface.js';
 import type { BudgetReadonlyView } from './detection/types.js';
 import { emitDetectionWitness } from './witness-emission.js';
+import type { EnforcementDeps, EnforcementResult } from './enforcement.js';
+
+/**
+ * WR-162 SP 5 — `SupervisorServiceDeps.enforcement` slot shape.
+ * Additive and optional; SP 4 baseline tests construct `SupervisorService`
+ * without this slot and continue to hit the `onEnforcementDispatch`
+ * log-stub fallback. SP 5 production (bootstrap) supplies both.
+ */
+export interface SupervisorEnforcementSlot {
+  readonly enforce: (
+    violation: SupervisorViolationRecord,
+    deps: EnforcementDeps,
+  ) => Promise<EnforcementResult>;
+  readonly deps: EnforcementDeps;
+}
 
 /** Default ring-buffer capacity when `config.maxObservationQueueDepth` is absent. */
 const DEFAULT_MAX_DEPTH = 1024;
@@ -101,6 +116,20 @@ export interface SupervisorServiceDeps {
   readEventsForAuthorization?: DetectorContextFactoryDeps['readEventsForAuthorization'];
   /** Metric counter hook — default is a no-op. */
   metric?: SupervisorMetricCounter;
+  /**
+   * WR-162 SP 5 — production enforcement slot (SUPV-SP5-005).
+   *
+   * When provided, `processRecord` routes via
+   * `await deps.enforcement.enforce(finalized, deps.enforcement.deps)`
+   * instead of the SP 4 log-stub `onEnforcementDispatch`. Errors thrown
+   * by `enforce` are caught in `processRecord` and surfaced via metric
+   * + log (`supervisor_enforcement_threw_total`) without propagating
+   * to the outer classify loop.
+   *
+   * When absent (SP 4 baseline), `onEnforcementDispatch` remains the
+   * enforcement path so pre-existing tests continue to pass.
+   */
+  enforcement?: SupervisorEnforcementSlot;
 }
 
 type IdentityNullReason =
@@ -136,6 +165,9 @@ export class SupervisorService implements ISupervisorService {
   private readonly detectorContextFactory: DetectorContextFactory | null;
   private readonly metric: SupervisorMetricCounter;
   private readonly sup006DedupSeen = new Set<string>();
+  // WR-162 SP 5 — production enforcement slot (SUPV-SP5-005). Null when
+  // unset; `processRecord` falls back to `onEnforcementDispatch`.
+  private readonly enforcement: SupervisorEnforcementSlot | null;
 
   constructor(private readonly deps: SupervisorServiceDeps = {}) {
     this.now = deps.now ?? (() => new Date().toISOString());
@@ -159,6 +191,7 @@ export class SupervisorService implements ISupervisorService {
         });
       });
     this.metric = deps.metric ?? ((): void => undefined);
+    this.enforcement = deps.enforcement ?? null;
     // Build the default detector context factory when overrides aren't
     // provided AND witnessService is available. When neither is available,
     // runClassifier is disabled regardless of `supervisorEnabled` (the
@@ -392,7 +425,26 @@ export class SupervisorService implements ISupervisorService {
       SUPERVISOR_INVARIANT_SEVERITY_MAP[
         parsed.data.supCode as keyof typeof SUPERVISOR_INVARIANT_SEVERITY_MAP
       ]?.enforcement;
-    if (supervisorAction !== undefined) {
+    // WR-162 SP 5 — SUPV-SP5-005 production routing. When the
+    // enforcement slot is wired (bootstrap path), dispatch to the
+    // real `enforce(...)` function fire-and-await. Errors are caught
+    // here so the outer classify loop continues processing subsequent
+    // records (no propagation). When the slot is absent (SP 4 baseline
+    // test path), fall back to the log-stub `onEnforcementDispatch`.
+    if (this.enforcement !== null) {
+      try {
+        await this.enforcement.enforce(parsed.data, this.enforcement.deps);
+      } catch (err) {
+        this.log?.error?.('supervisor.enforcement_threw', {
+          sup_code: parsed.data.supCode,
+          severity: parsed.data.severity,
+          err: err instanceof Error ? err.message : String(err),
+        });
+        this.metric('supervisor_enforcement_threw_total', {
+          sup_code: parsed.data.supCode,
+        });
+      }
+    } else if (supervisorAction !== undefined) {
       this.onEnforcementDispatch(parsed.data, supervisorAction);
     }
   }

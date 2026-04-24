@@ -36,16 +36,17 @@ export async function emitDetectionWitness(
     code: violation.supCode as InvariantCode,
     actionCategory: 'supervisor-detection',
     actionRef: `${violation.supCode}-${violation.runId}`,
-    actor: 'system',
+    // WR-162 SP 5 — SUPV-SP5-008. Flipped from 'system' to 'supervisor'
+    // post-`WitnessActorSchema` widening (SUPV-SP5-007). The SP 4
+    // `supervisorActor` breadcrumb is dropped — the actor field is now
+    // the authoritative carrier.
+    actor: 'supervisor',
     detail: {
       severity: violation.severity,
       agentId: violation.agentId,
       agentClass: violation.agentClass,
       runId: violation.runId,
       projectId: violation.projectId,
-      // SUPV-SP4-008 forward-compat breadcrumb. SP 5 widens
-      // `WitnessActorSchema` to include 'supervisor' and flips `actor`.
-      supervisorActor: 'supervisor',
       reason: args.reason ?? '',
       evidenceFromDetector: args.evidenceFromDetector ?? {},
     },
@@ -81,7 +82,8 @@ export async function emitEnforcementWitness(
     code: args.supCode as InvariantCode,
     actionCategory: 'supervisor-enforcement',
     actionRef: `${args.supCode}-${args.commandId}`,
-    actor: 'system',
+    // WR-162 SP 5 — SUPV-SP5-008 flip (see `emitDetectionWitness`).
+    actor: 'supervisor',
     detail: {
       severity: args.severity,
       action: args.action,
@@ -90,7 +92,6 @@ export async function emitEnforcementWitness(
       agentClass: args.agentClass,
       runId: args.runId,
       projectId: args.projectId,
-      supervisorActor: 'supervisor',
       evidenceRefs: [...args.evidenceRefs],
     },
     occurredAt: args.enforcedAt,

@@ -22,6 +22,7 @@
     "@nous/shared": "workspace:*"
   },
   "devDependencies": {
+    "@nous/subcortex-opctl": "workspace:*",
     "@nous/subcortex-witnessd": "workspace:*",
     "vitest": "^2.1.0"
   }
