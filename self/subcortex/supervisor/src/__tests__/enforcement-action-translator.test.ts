@@ -20,8 +20,10 @@ describe('toWitnessdEnforcement (supervisor → witnessd)', () => {
     expect(toWitnessdEnforcement('require_review')).toBe('review');
   });
 
-  it("warn throws with SP-6 deferral message", () => {
-    expect(() => toWitnessdEnforcement('warn')).toThrow(/SUPV-SP4-006/);
+  it('warn → warn (SP 6 widened EnforcementActionSchema)', () => {
+    // WR-162 SP 6 (SUPV-SP6-009) — witnessd `EnforcementActionSchema` now
+    // admits `'warn'`; the SP 4 deferral throw branch is closed.
+    expect(toWitnessdEnforcement('warn')).toBe('warn');
   });
 });
 
@@ -36,6 +38,10 @@ describe('fromWitnessdEnforcement (witnessd → supervisor)', () => {
 
   it('review → require_review', () => {
     expect(fromWitnessdEnforcement('review')).toBe('require_review');
+  });
+
+  it('warn → warn (SP 6 widened EnforcementActionSchema)', () => {
+    expect(fromWitnessdEnforcement('warn')).toBe('warn');
   });
 });
 

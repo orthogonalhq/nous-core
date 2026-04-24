@@ -54,10 +54,9 @@ export function toWitnessdEnforcement(
     case 'require_review':
       return 'review';
     case 'warn':
-      throw new Error(
-        "supervisor enforcement 'warn' is not representable in witnessd EnforcementActionSchema; " +
-          'deferred to SP 6 alongside schema widening (SUPV-SP4-006)',
-      );
+      // WR-162 SP 6 (SUPV-SP6-009) — widened `EnforcementActionSchema` to
+      // include `'warn'`; the SP 4 deferral branch (throw) is closed.
+      return 'warn';
     default: {
       // Compile-time exhaustiveness check. If a future supervisor enum
       // value lands without updating this switch, TypeScript flags it
@@ -73,14 +72,13 @@ export function toWitnessdEnforcement(
 }
 
 /**
- * Witnessd (kebab) → Supervisor (snake). Reverse direction. Never returns
- * `'warn'` because witnessd cannot represent it in SP 4. Used by sites
- * that need to normalise a witnessd decision back into the supervisor
- * domain (primarily tests; SP 5+ may land production callers).
+ * Witnessd (kebab) → Supervisor (snake). Reverse direction. WR-162 SP 6
+ * (SUPV-SP6-009) widened witnessd's `EnforcementActionSchema` to include
+ * `'warn'`; mapping to supervisor-domain `'warn'` is now symmetric.
  */
 export function fromWitnessdEnforcement(
   a: EnforcementAction,
-): Exclude<SupervisorEnforcementAction, 'warn'> {
+): SupervisorEnforcementAction {
   switch (a) {
     case 'hard-stop':
       return 'hard_stop';
@@ -88,6 +86,8 @@ export function fromWitnessdEnforcement(
       return 'auto_pause';
     case 'review':
       return 'require_review';
+    case 'warn':
+      return 'warn';
     default: {
       const _exhaustive: never = a;
       throw new Error(
