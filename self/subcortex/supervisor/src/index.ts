@@ -1,14 +1,44 @@
 /**
- * @nous/subcortex-supervisor — Phase-B supervisor service skeleton,
- * composite-outbox sink, and factory entry points for WR-162 SP 3.
+ * @nous/subcortex-supervisor — supervisor service skeleton, detector
+ * classifier, witness emission helpers, composite-outbox sink, and factory
+ * entry points (WR-162 SP 3 + SP 4).
  *
  * The private `RingBuffer` helper is deliberately NOT exported — callers
  * should interact with the service surface (`recordObservation`, read
- * procedures) only.
+ * procedures, `runClassifier`) only.
+ *
+ * Detectors, the classifier function, and detector-context types are
+ * package-internal too (they are reachable through `SupervisorService`).
+ * Re-exporting them would break the SUPV-SP4-001 gate-bypass property
+ * (see SDS § Failure Modes — "SUPV-SP4-001 gate accidentally bypassed").
  */
 export {
   SupervisorService,
   createSupervisorService,
   type SupervisorServiceDeps,
 } from './supervisor-service.js';
-export { SupervisorOutboxSink } from './supervisor-outbox-sink.js';
+export {
+  SupervisorOutboxSink,
+  type SupervisorOutboxSinkDeps,
+} from './supervisor-outbox-sink.js';
+export {
+  emitDetectionWitness,
+  emitEnforcementWitness,
+  type EmitDetectionWitnessArgs,
+  type EmitEnforcementWitnessArgs,
+} from './witness-emission.js';
+export {
+  toWitnessdEnforcement,
+  fromWitnessdEnforcement,
+  type SupervisorEnforcementActionSP4,
+} from './enforcement-action-translator.js';
+export {
+  defaultAgentClassToolSurfaceRegistry,
+  type AgentClassToolSurfaceRegistry,
+} from './agent-class-tool-surface.js';
+export type { GatewayRunSnapshotRegistry } from './gateway-run-registry.js';
+export type {
+  BudgetReadonlyView,
+  ToolSurfaceReadonlyView,
+  WitnessReadonlyView,
+} from './detection/types.js';
