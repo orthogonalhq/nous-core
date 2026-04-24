@@ -141,26 +141,23 @@ describe('mapInvariantToEnforcement — pre-existing prefix regression (UT-WD2)'
   });
 });
 
-describe('mapInvariantToEnforcement — SUP-009..SUP-012 fallback (UT-WD3 / SUPV-SP4-006-b)', () => {
-  // Deferred to SP 6; SP 6 adds explicit rows at { S3, warn } (after widening
-  // `InvariantSeveritySchema` and `EnforcementActionSchema`) and removes the
-  // `BASE_POLICY['SUP']` fallback. Until then, these codes resolve to the
-  // safe fallback `{ S2, review }`.
+describe('mapInvariantToEnforcement — SUP-009..SUP-012 landed (UT-WD3 / SUPV-SP6-009)', () => {
+  // WR-162 SP 6 (SUPV-SP6-009 Option A) — SUP-009..SUP-012 registered
+  // explicitly at `{ S3, warn }`; `BASE_POLICY['SUP']` wildcard removed.
+  // Pre-SP-6 these codes fell through to the safe `{ S2, review }` fallback.
   for (const code of ['SUP-009', 'SUP-010', 'SUP-011', 'SUP-012'] as const) {
-    it(`${code} falls through to BASE_POLICY['SUP'] { S2, review }`, () => {
+    it(`${code} now maps to { S3, warn }`, () => {
       expect(mapInvariantToEnforcement(code)).toEqual({
         code,
-        severity: 'S2',
-        enforcement: 'review',
+        severity: 'S3',
+        enforcement: 'warn',
       });
     });
   }
 
-  it('SUP-099 (arbitrary un-registered SUP code) falls through to { S2, review }', () => {
-    expect(mapInvariantToEnforcement('SUP-099')).toEqual({
-      code: 'SUP-099',
-      severity: 'S2',
-      enforcement: 'review',
-    });
+  it('unknown SUP code (SUP-099) is now rejected at invariant lookup', () => {
+    // Post-wildcard-removal: unknown SUP codes throw at `.parse(...)`. This
+    // is the intended contract tightening (Goals SC 7 row 5).
+    expect(() => mapInvariantToEnforcement('SUP-099')).toThrow();
   });
 });
