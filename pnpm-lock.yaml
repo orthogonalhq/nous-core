@@ -1127,6 +1127,9 @@ importers:
         specifier: workspace:*
         version: link:../../shared
     devDependencies:
+      '@nous/subcortex-opctl':
+        specifier: workspace:*
+        version: link:../opctl
       '@nous/subcortex-witnessd':
         specifier: workspace:*
         version: link:../witnessd

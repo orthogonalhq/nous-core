@@ -73,7 +73,10 @@ describe('emitDetectionWitness (UT-W1, UT-W3)', () => {
     expect(calls[0]?.actionCategory).toBe('supervisor-detection');
     expect(calls[0]?.actionRef).toBe(`SUP-001-${RUN_ID}`);
     expect(calls[0]?.detail.severity).toBe('S0');
-    expect(calls[0]?.detail.supervisorActor).toBe('supervisor');
+    // WR-162 SP 5 — SUPV-SP5-008 flip: actor is now 'supervisor'
+    // (was 'system' in SP 4); the `supervisorActor` breadcrumb is gone.
+    expect(calls[0]?.actor).toBe('supervisor');
+    expect('supervisorActor' in (calls[0]?.detail ?? {})).toBe(false);
     expect(calls[0]?.code).toBe('SUP-001');
   });
 });
@@ -101,5 +104,8 @@ describe('emitEnforcementWitness (UT-W2)', () => {
     expect(calls[0]?.detail.commandId).toBe('cmd-42');
     expect(calls[0]?.detail.action).toBe('hard_stop');
     expect(calls[0]?.detail.evidenceRefs).toEqual(['evt-1', 'evt-2']);
+    // WR-162 SP 5 — SUPV-SP5-008 flip assertion.
+    expect(calls[0]?.actor).toBe('supervisor');
+    expect('supervisorActor' in (calls[0]?.detail ?? {})).toBe(false);
   });
 });

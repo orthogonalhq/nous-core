@@ -6,6 +6,7 @@ import { randomUUID, createHash } from 'node:crypto';
 import type {
   ControlCommandEnvelope,
   ControlAction,
+  ControlScope,
   ConfirmationProof,
   ConfirmationProofRequest,
   ConfirmationTier,
@@ -75,6 +76,35 @@ export function getRequiredTier(action: ControlAction): ConfirmationTier {
   if (action === 'cancel' || action === 'revert_to_previous_state' || action === 'edit_submitted_prompt') return 'T2';
   if (action === 'pause' || action === 'stop_response' || action === 'retry_step') return 'T1';
   return 'T0';
+}
+
+/**
+ * WR-162 SP 5 — supervisor-tier proof-issuance helper (SUPV-SP5-004 path (b)).
+ *
+ * Thin wrapper over `issueConfirmationProof({ action, scope, tier })` that
+ * uses the same `getRequiredTier(action)` tier lookup every principal-
+ * authored proof flows through. This is the **first production caller**
+ * path for supervisor enforcement: `enforce(...)` in
+ * `@nous/subcortex-supervisor` imports this helper via the `ProofIssuer`
+ * DI seam wired at bootstrap.
+ *
+ * Policy citation: `supervisor-escalation-policy-v1.md § Special Notes`
+ * — supervisor commands carry a `ConfirmationProof` that converges at
+ * runtime on the same `validateConfirmationProof` gate every actor goes
+ * through. Path (a) would reuse `issueSystemProof`; SP 5 picks path (b)
+ * because `issueSystemProof` does not exist yet (SP 7 lands it). When
+ * SP 7 ships, the `bootstrap.ts` wiring swaps the closure in one line;
+ * this helper may be migrated or kept alongside `issueSystemProof`.
+ */
+export function issueSupervisorProof(
+  action: ControlAction,
+  scope: ControlScope,
+): ConfirmationProof {
+  return issueConfirmationProof({
+    action,
+    scope,
+    tier: getRequiredTier(action),
+  });
 }
 
 // --- WR-162 SP 2 additions — failure-recovery-ux-patterns-v1.md § 9c ---

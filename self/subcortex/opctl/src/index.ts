@@ -15,10 +15,21 @@ export { InMemoryScopeLockStore } from './scope-lock.js';
 export { InMemoryStartLockStore } from './start-lock.js';
 export { OpctlService } from './opctl-service.js';
 
-export { T3_COOLDOWN_MS, getTierDisplay } from './confirmation.js';
+export {
+  T3_COOLDOWN_MS,
+  getTierDisplay,
+  issueConfirmationProof,
+  validateConfirmationProof,
+  getRequiredTier,
+  issueSupervisorProof,
+} from './confirmation.js';
 
 export type { ConfirmationTierDisplay } from './confirmation.js';
-export type { ProjectControlStateStore } from './project-control-state.js';
+export type {
+  ProjectControlStateStore,
+  SupervisorEnforcementLockFields,
+  SupervisorEnforcementLockSnapshot,
+} from './project-control-state.js';
 export type { ReplayStore } from './replay-store.js';
 export type { ScopeLockStore } from './scope-lock.js';
 export type { StartLockStore } from './start-lock.js';

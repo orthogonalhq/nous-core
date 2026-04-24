@@ -90,6 +90,10 @@ export const WitnessActorSchema = z.enum([
   'system',
   'orchestration_agent',
   'worker_agent',
+  // WR-162 SP 5 — widens for supervisor witness emission (SUPV-SP5-007/008).
+  // Flipped in `self/subcortex/supervisor/src/witness-emission.ts` from
+  // `actor: 'system'` + `detail.supervisorActor: 'supervisor'` breadcrumb.
+  'supervisor',
 ]);
 export type WitnessActor = z.infer<typeof WitnessActorSchema>;
 
