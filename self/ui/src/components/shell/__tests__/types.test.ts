@@ -1,4 +1,4 @@
-import type { ChatStage, ConversationContext, ObserveRoute, ShellMode } from '../types'
+import type { ChatStage, ConversationContext, ObserveTab, ShellMode } from '../types'
 import {
   ColumnWidthsSchema,
   ContentRouteSchema,
@@ -8,7 +8,7 @@ import {
   RailSectionSchema,
   ShellBreakpointSchema,
   ShellModeSchema,
-  ObserveRouteSchema,
+  ObserveTabSchema,
   ObservePanelPropsSchema,
   ChatSurfacePropsSchema,
   HomeScreenPropsSchema,
@@ -163,14 +163,13 @@ describe('shell type schemas', () => {
     })
   })
 
-  it('parses valid ObserveRoute values and rejects invalid ones', () => {
-    const maoRoute: ObserveRoute = 'mao'
-    expect(maoRoute).toBe('mao')
-    expect(ObserveRouteSchema.safeParse('mao').success).toBe(true)
-    expect(ObserveRouteSchema.safeParse('default').success).toBe(true)
-    expect(ObserveRouteSchema.safeParse('agent-logs').success).toBe(true)
-    expect(ObserveRouteSchema.safeParse('metrics').success).toBe(true)
-    expect(ObserveRouteSchema.safeParse('unknown').success).toBe(false)
+  it('parses valid ObserveTab values and rejects invalid ones', () => {
+    const agentsTab: ObserveTab = 'agents'
+    expect(agentsTab).toBe('agents')
+    expect(ObserveTabSchema.safeParse('agents').success).toBe(true)
+    expect(ObserveTabSchema.safeParse('system-load').success).toBe(true)
+    expect(ObserveTabSchema.safeParse('cost-monitor').success).toBe(true)
+    expect(ObserveTabSchema.safeParse('unknown').success).toBe(false)
   })
 
   it('parses valid ObservePanelProps and rejects invalid shapes', () => {
