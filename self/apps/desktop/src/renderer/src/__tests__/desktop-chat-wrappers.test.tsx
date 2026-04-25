@@ -37,6 +37,16 @@ vi.mock('@nous/ui/components', () => ({
 vi.mock('@nous/transport', () => ({
   useChatApi: useChatApiMock,
   trpc: {
+    // SP 1.9 Fix #6 — useFireWelcomeOnMount now calls
+    // `trpc.useUtils().chat.getHistory.invalidate(...)` after
+    // welcomeFired === true.
+    useUtils: () => ({
+      chat: {
+        getHistory: {
+          invalidate: vi.fn().mockResolvedValue(undefined),
+        },
+      },
+    }),
     chat: {
       fireWelcomeIfUnsent: {
         useMutation: () => ({ mutateAsync: mutateAsyncMock }),

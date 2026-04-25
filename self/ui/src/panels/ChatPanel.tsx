@@ -281,16 +281,24 @@ export function ChatPanel(props: ChatPanelProps) {
     // that match an optimistic-send overlay entry (content + role + ±10s
     // timestamp window), drop the overlay entry. Card-outcome entries
     // survive in the overlay until panel unmount.
+    //
+    // Returns the previous overlay reference unchanged when nothing is
+    // pruned — important for stable render identity and to avoid an
+    // infinite render loop when `serverEntries` is recomputed on every
+    // render (e.g., test fixtures returning a new `data` object literal).
     useEffect(() => {
-        setLocalOverlay((prev) => prev.filter((o) => {
-            if (o.kind === 'card-outcome') return true
-            return !serverEntries.some(
-                (e) =>
-                    e.role === o.message.role &&
-                    e.content === o.message.content &&
-                    Math.abs(Date.parse(e.timestamp) - Date.parse(o.message.timestamp)) < 10_000,
-            )
-        }))
+        setLocalOverlay((prev) => {
+            const next = prev.filter((o) => {
+                if (o.kind === 'card-outcome') return true
+                return !serverEntries.some(
+                    (e) =>
+                        e.role === o.message.role &&
+                        e.content === o.message.content &&
+                        Math.abs(Date.parse(e.timestamp) - Date.parse(o.message.timestamp)) < 10_000,
+                )
+            })
+            return next.length === prev.length ? prev : next
+        })
     }, [serverEntries])
 
     // --- Send ---

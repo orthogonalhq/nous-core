@@ -34,9 +34,15 @@ import { vi } from 'vitest'
 import type { ChatMessage } from '../ChatPanel'
 
 let mockEntries: Array<Record<string, unknown>> = []
+// Cached `data` shape — re-created only when `setMockHistoryEntries` is
+// called. Stable reference equality across `useQuery` invocations within
+// the same test prevents an infinite re-render loop in the prune useEffect
+// (which depends on `serverEntries` derived from `historyQuery.data`).
+let mockData: { entries: Array<Record<string, unknown>> } = { entries: mockEntries }
 
 export function setMockHistoryEntries(entries: Array<Record<string, unknown>>): void {
   mockEntries = entries
+  mockData = { entries }
 }
 
 /**
@@ -83,10 +89,19 @@ export function makeTrpcMock(extras?: Record<string, unknown>): Record<string, u
           },
         },
       }),
+      // Other routers consumed by ChatPanel descendants (e.g.,
+      // ThoughtSummary calls `trpc.traces.get.useQuery` — without this
+      // stub the descendant render throws "Cannot read properties of
+      // undefined" at the trpc.traces lookup).
+      traces: {
+        get: {
+          useQuery: () => ({ data: null, isLoading: false, isError: false }),
+        },
+      },
       chat: {
         getHistory: {
           useQuery: () => ({
-            data: { entries: mockEntries },
+            data: mockData,
             isSuccess: true,
             isError: false,
             isLoading: false,

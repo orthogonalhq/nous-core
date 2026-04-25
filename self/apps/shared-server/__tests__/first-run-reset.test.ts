@@ -65,6 +65,24 @@ function makeContext(scaffold: ReturnType<typeof createScaffoldWithProviders>) {
   } as unknown as Parameters<typeof firstRunRouter.createCaller>[0];
 }
 
+// SP 1.9 Task #17 R2 — recompose-trigger context.
+function makeRecomposeContext(scaffold: ReturnType<typeof createScaffoldWithProviders>) {
+  const recomposeSpy = vi.fn();
+  const getProviderSpy = vi.fn(() => ({
+    getConfig: () => ({ vendor: 'ollama' }),
+  }));
+  return {
+    ctx: {
+      dataDir: scaffold.dir,
+      config: scaffold.config,
+      getProvider: getProviderSpy,
+      gatewayRuntime: { recomposeHarnessForClass: recomposeSpy },
+    } as unknown as Parameters<typeof firstRunRouter.createCaller>[0],
+    recomposeSpy,
+    getProviderSpy,
+  };
+}
+
 beforeEach(() => {
   testDirs = [];
 });
@@ -223,5 +241,23 @@ describe('SP 1.6 — reset reissue (welcome re-fires after wizard reset)', () =>
     expect(append).toHaveBeenCalledTimes(1);
     expect(result.welcomeFired).toBe(true);
     expect(scaffold.config.getWelcomeMessageSent()).toBe(true);
+  });
+});
+
+// SP 1.9 Task #17 R2 — recompose-trigger coverage on resetWizard
+// (Goals C5 / Plan Q-SDS-Vendor-1).
+describe('firstRun.resetWizard (SP 1.9) — recompose trigger', () => {
+  it('R2: resetWizard triggers recomposeHarnessForClass after clearAgentBlock', async () => {
+    const scaffold = createScaffoldWithProviders();
+    const { ctx, recomposeSpy, getProviderSpy } = makeRecomposeContext(scaffold);
+    const caller = firstRunRouter.createCaller(ctx);
+
+    await caller.resetWizard();
+
+    expect(getProviderSpy).toHaveBeenCalledTimes(1);
+    expect(recomposeSpy).toHaveBeenCalledTimes(1);
+    expect(recomposeSpy).toHaveBeenCalledWith('Cortex::Principal', 'ollama');
+    // Sanity — clearAgentBlock still ran (readers return defaults).
+    expect(scaffold.config.getAgentName()).toBe('Nous');
   });
 });

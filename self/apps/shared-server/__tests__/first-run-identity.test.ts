@@ -9,7 +9,7 @@
 //
 // Uses a real ConfigManager with a temp-file configPath and a real dataDir
 // for wizard state. Calls the tRPC procedure via the router's caller.
-import { afterEach, beforeEach, describe, expect, it } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import {
   mkdirSync,
   rmSync,
@@ -52,6 +52,40 @@ function makeContext(scaffold: ReturnType<typeof createScaffold>) {
     dataDir: scaffold.dir,
     config: scaffold.config,
   } as unknown as Parameters<typeof firstRunRouter.createCaller>[0];
+}
+
+// SP 1.9 Tasks #8 + #9 — make a richer context that carries the
+// `getProvider` + `gatewayRuntime` surfaces consumed by
+// `resolvePrincipalVendor` + `recomposeHarnessForClass`. Used by Task #17
+// cases R1 / R2 / R3.
+function makeRecomposeContext(
+  scaffold: ReturnType<typeof createScaffold>,
+  opts: {
+    vendor?: string;
+    getProviderThrows?: boolean;
+    providerNull?: boolean;
+  } = {},
+) {
+  const recomposeSpy = vi.fn();
+  const getProviderSpy = vi.fn(() => {
+    if (opts.getProviderThrows) {
+      throw new Error('provider lookup failed');
+    }
+    if (opts.providerNull) return null;
+    return {
+      getConfig: () => ({ vendor: opts.vendor ?? 'ollama' }),
+    };
+  });
+  return {
+    ctx: {
+      dataDir: scaffold.dir,
+      config: scaffold.config,
+      getProvider: getProviderSpy,
+      gatewayRuntime: { recomposeHarnessForClass: recomposeSpy },
+    } as unknown as Parameters<typeof firstRunRouter.createCaller>[0],
+    recomposeSpy,
+    getProviderSpy,
+  };
 }
 
 beforeEach(() => {
@@ -146,6 +180,69 @@ describe('firstRun.writeIdentity (SP 1.3 — Decisions 3 + 7)', () => {
     const state = await getFirstRunState(scaffold.dir);
     expect(state.steps.agent_identity.status).toBe('complete');
     expect(typeof state.steps.agent_identity.completedAt).toBe('string');
+  });
+
+  // SP 1.9 Task #17 — Axis A-adjacent recompose-trigger coverage
+  // (Goals C4 / C5 / Plan Q-SDS-Vendor-1).
+
+  // R1 — writeIdentity triggers recompose with the resolved vendor.
+  it('R1 (SP 1.9): writeIdentity triggers recomposeHarnessForClass after setUserProfile', async () => {
+    const scaffold = createScaffold();
+    const { ctx, recomposeSpy, getProviderSpy } = makeRecomposeContext(scaffold, {
+      vendor: 'ollama',
+    });
+    const caller = firstRunRouter.createCaller(ctx);
+
+    await caller.writeIdentity({
+      name: 'Atlas',
+      personality: { preset: 'balanced' },
+      profile: {},
+    });
+
+    expect(getProviderSpy).toHaveBeenCalledTimes(1);
+    expect(recomposeSpy).toHaveBeenCalledTimes(1);
+    expect(recomposeSpy).toHaveBeenCalledWith('Cortex::Principal', 'ollama');
+  });
+
+  // R3 — graceful-degradation: ctx.getProvider throws → resolver returns
+  // 'text' → recompose still called with 'text' (SDS § 0 Note 10).
+  it('R3 (SP 1.9): writeIdentity recompose graceful-degrades to "text" on getProvider error', async () => {
+    const scaffold = createScaffold();
+    const warnSpy = vi.spyOn(console, 'warn').mockImplementation(() => {});
+    const { ctx, recomposeSpy } = makeRecomposeContext(scaffold, {
+      getProviderThrows: true,
+    });
+    const caller = firstRunRouter.createCaller(ctx);
+
+    await caller.writeIdentity({
+      name: 'Atlas',
+      personality: { preset: 'balanced' },
+      profile: {},
+    });
+
+    expect(recomposeSpy).toHaveBeenCalledTimes(1);
+    expect(recomposeSpy).toHaveBeenCalledWith('Cortex::Principal', 'text');
+    // resolvePrincipalVendor's inner catch logs a warn line.
+    expect(warnSpy).toHaveBeenCalled();
+    warnSpy.mockRestore();
+  });
+
+  // R3b — provider returns null (not registered yet) → 'text' fallback.
+  it('R3b (SP 1.9): writeIdentity recompose graceful-degrades to "text" when provider is not registered', async () => {
+    const scaffold = createScaffold();
+    const { ctx, recomposeSpy } = makeRecomposeContext(scaffold, {
+      providerNull: true,
+    });
+    const caller = firstRunRouter.createCaller(ctx);
+
+    await caller.writeIdentity({
+      name: 'Atlas',
+      personality: { preset: 'balanced' },
+      profile: {},
+    });
+
+    expect(recomposeSpy).toHaveBeenCalledTimes(1);
+    expect(recomposeSpy).toHaveBeenCalledWith('Cortex::Principal', 'text');
   });
 
   // T4 (F1) — partial-write resilience
