@@ -4,6 +4,9 @@
  * Phase 5.4 — Failure-Recovery Checkpoint, Retry, and Resume Governance.
  */
 import { describe, it, expect } from 'vitest';
+import { tmpdir } from 'node:os';
+import { join } from 'node:path';
+import { randomUUID } from 'node:crypto';
 import { InMemoryRecoveryLedgerStore } from '../../recovery/recovery-ledger-store.js';
 import { CheckpointManager } from '../../recovery/checkpoint-manager.js';
 import { RetryPolicyEvaluator } from '../../recovery/retry-policy-evaluator.js';
@@ -14,10 +17,17 @@ const RUN_ID = '550e8400-e29b-41d4-a716-446655440000';
 const PROJECT_ID = '660e8400-e29b-41d4-a716-446655440001';
 const HASH = 'a'.repeat(64);
 
+function makeTmpDir(): string {
+  return join(tmpdir(), 'nous-recovery-test', randomUUID());
+}
+
 describe('Recovery flow integration', () => {
   it('end-to-end: prepare → commit → orchestrate → recovery_completed', async () => {
     const ledger = new InMemoryRecoveryLedgerStore();
-    const manager = new CheckpointManager(ledger);
+    const manager = new CheckpointManager(ledger, {
+      dir: makeTmpDir(),
+      triggerPolicy: 'node-boundary',
+    });
     const retryEvaluator = new RetryPolicyEvaluator();
     const rollbackEvaluator = new RollbackPolicyEvaluator();
     const orchestrator = new RecoveryOrchestrator();
@@ -54,7 +64,10 @@ describe('Recovery flow integration', () => {
 
   it('end-to-end: no checkpoint → recovery_failed_hard_stop', async () => {
     const ledger = new InMemoryRecoveryLedgerStore();
-    const manager = new CheckpointManager(ledger);
+    const manager = new CheckpointManager(ledger, {
+      dir: makeTmpDir(),
+      triggerPolicy: 'node-boundary',
+    });
     const orchestrator = new RecoveryOrchestrator();
 
     const terminalState = await orchestrator.run({
