@@ -4,6 +4,7 @@ import * as React from 'react'
 import { clsx } from 'clsx'
 import { ColumnDivider } from './ColumnDivider'
 import { CollapsibleObserveEdge } from './CollapsibleObserveEdge'
+import { useShellContext } from './ShellContext'
 import type { ChatStage, ShellBreakpoint, SimpleShellLayoutProps } from './types'
 
 const DEFAULT_SIDEBAR_WIDTH = 320
@@ -57,6 +58,13 @@ export function SimpleShellLayout({
 }: SimpleShellLayoutProps & Omit<React.HTMLAttributes<HTMLDivElement>, 'content'>) {
     const containerRef = React.useRef<HTMLDivElement | null>(null)
     const chatOverlayRef = React.useRef<HTMLDivElement | null>(null)
+    // SUPV-SP11-006 — single-site mirror-write reconciles the boolean
+    // (context) channel with the pixel (host) channel. The host owns the
+    // actual `grid-template-column` value via `observeWidth`; the context
+    // owns the boolean `observePanelCollapsed`. The edge writes both via
+    // its own `handleClick`; this layout re-asserts the boolean from the
+    // post-flip width inside `handleObserveExpandToggle`.
+    const { setObservePanelCollapsed } = useShellContext()
     // Use prop if provided, otherwise fallback to internal state (backwards compat)
     const [internalStage, setInternalStage] = React.useState<ChatStage>('small')
     const chatStage = chatStageProp ?? internalStage
@@ -125,10 +133,14 @@ export function SimpleShellLayout({
         observeWidthRef.current = next
         setObserveWidth(next)
         onColumnResize?.({ sidebar: sidebarWidthRef.current, observe: next })
+        // SUPV-SP11-006 — single-site mirror-write reconciles boolean (context)
+        // with pixel (host) channel. The post-flip width is the authoritative
+        // value; mirror it to the boolean to keep both channels aligned.
+        setObservePanelCollapsed(next < COLLAPSED_THRESHOLD)
         setIsAnimating(true)
         if (animationTimerRef.current) clearTimeout(animationTimerRef.current)
         animationTimerRef.current = setTimeout(() => setIsAnimating(false), 200)
-    }, [onColumnResize])
+    }, [onColumnResize, setObservePanelCollapsed])
 
     const showObserve = breakpoint === 'full'
     const observeExpanded = showObserve && observeWidth >= COLLAPSED_THRESHOLD
