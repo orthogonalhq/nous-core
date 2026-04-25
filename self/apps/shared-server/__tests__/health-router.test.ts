@@ -4,7 +4,11 @@ import type {
   SystemStatusSnapshot,
   ProviderHealthSnapshot,
   AgentStatusSnapshot,
+  SupervisorStatusSnapshot,
+  BudgetStatus,
+  MaoSystemSnapshot,
 } from '@nous/shared';
+import { StatusBarSnapshotSchema } from '@nous/shared';
 
 /**
  * Mock all router dependencies so we can isolate the health router.
@@ -127,7 +131,16 @@ function createMockHealthAggregator(): IHealthAggregator {
   };
 }
 
-function createMockContext(healthAggregator: IHealthAggregator) {
+interface MockContextOverrides {
+  supervisorService?: { getStatusSnapshot: () => Promise<SupervisorStatusSnapshot> };
+  costGovernanceService?: { getBudgetStatus: (projectId: string) => BudgetStatus };
+  maoProjectionService?: { getSystemSnapshot: (input: { densityMode: 'D1' | 'D2' | 'D3' }) => Promise<MaoSystemSnapshot> };
+}
+
+function createMockContext(
+  healthAggregator: IHealthAggregator,
+  overrides: MockContextOverrides = {},
+) {
   return {
     healthAggregator,
     documentStore: {
@@ -149,7 +162,7 @@ function createMockContext(healthAggregator: IHealthAggregator) {
     getProvider: () => null,
     witnessService: {},
     opctlService: {},
-    maoProjectionService: {},
+    maoProjectionService: overrides.maoProjectionService ?? {},
     gtmGateCalculator: {},
     knowledgeIndex: {},
     workflowEngine: {},
@@ -174,7 +187,91 @@ function createMockContext(healthAggregator: IHealthAggregator) {
     agentSessions: new Map(),
     eventBus: { subscribe: vi.fn(), unsubscribe: vi.fn(), publish: vi.fn() },
     healthMonitor: { check: vi.fn(), getMetrics: vi.fn() },
+    supervisorService: overrides.supervisorService ?? {},
+    costGovernanceService: overrides.costGovernanceService ?? {},
+    notificationService: {},
+    tokenAccumulator: {},
   } as any;
+}
+
+// ---------------------------------------------------------------------------
+// WR-162 SP 11 — getStatusBarSnapshot fixtures.
+// ---------------------------------------------------------------------------
+
+const SP11_NOW = '2026-04-25T12:00:00.000Z';
+
+function createMockSystemStatusForSP11(
+  overrides: Partial<SystemStatusSnapshot['backlogAnalytics']> = {},
+): SystemStatusSnapshot {
+  return {
+    bootStatus: 'ready',
+    completedBootSteps: ['subcortex_initialized', 'principal_booted'],
+    issueCodes: [],
+    inboxReady: true,
+    pendingSystemRuns: 0,
+    backlogAnalytics: {
+      queuedCount: 5,
+      activeCount: 0,
+      suspendedCount: 0,
+      completedInWindow: 0,
+      failedInWindow: 0,
+      pressureTrend: 'stable',
+      ...overrides,
+    },
+    collectedAt: SP11_NOW,
+  };
+}
+
+function createMockSupervisorSnapshot(
+  overrides: Partial<SupervisorStatusSnapshot> = {},
+): SupervisorStatusSnapshot {
+  return {
+    active: true,
+    agentsMonitored: 3,
+    activeViolationCounts: { s0: 0, s1: 0, s2: 0, s3: 0 },
+    lifetime: {
+      violationsDetected: 0,
+      anomaliesClassified: 0,
+      enforcementsApplied: 0,
+    },
+    witnessIntegrity: {
+      lastVerificationAt: SP11_NOW,
+      tipDigest: 'tip',
+      length: 0,
+      verified: true,
+    },
+    riskSummary: {},
+    reportedAt: SP11_NOW,
+    ...overrides,
+  };
+}
+
+function createMockBudgetStatus(overrides: Partial<BudgetStatus> = {}): BudgetStatus {
+  return {
+    hasBudget: true,
+    currentSpendUsd: 14.7,
+    budgetCeilingUsd: 20.0,
+    utilizationPercent: 73.5,
+    softAlertFired: false,
+    hardCeilingFired: false,
+    periodStart: '2026-04-01T00:00:00.000Z',
+    periodEnd: '2026-04-30T23:59:59.000Z',
+    projectControlState: 'running',
+    ...overrides,
+  };
+}
+
+function createMockMaoSnapshot(agentCount: number): MaoSystemSnapshot {
+  // Only the `.agents.length` is read by `safeActiveAgents`; the array
+  // contents are opaque for SP 11 purposes. Cast through `unknown` to
+  // bypass the rich `MaoAgentProjection` shape (owned by SP 1 / SP 8).
+  return {
+    agents: Array.from({ length: agentCount }, () => ({}) as unknown) as MaoSystemSnapshot['agents'],
+    leaseRoots: [],
+    projectControls: {},
+    densityMode: 'D2',
+    generatedAt: SP11_NOW,
+  };
 }
 
 describe('health tRPC router', () => {
@@ -309,6 +406,502 @@ describe('health tRPC router', () => {
       expect(aggregator.getSystemStatus).not.toHaveBeenCalled();
       expect(aggregator.getProviderHealth).not.toHaveBeenCalled();
       expect(aggregator.getAgentStatus).not.toHaveBeenCalled();
+    });
+  });
+
+  // =========================================================================
+  // WR-162 SP 11 — getStatusBarSnapshot procedure + four `safe*` helpers.
+  //
+  // SUPV-SP11-012 — `safeBackpressure` closed-form try/catch + threshold ladder.
+  // SUPV-SP11-013 — `safeCognitiveProfile` unconditional null (Decision #7 D.2).
+  // SUPV-SP11-014 — `safeBudget` closed-form try/catch + threshold ladder.
+  // SUPV-SP11-015 — `safeActiveAgents` closed-form try/catch.
+  // SUPV-SP11-016 — only-if-all-four-fail four-clause AND throw threshold.
+  // =========================================================================
+
+  describe('health.getStatusBarSnapshot', () => {
+    function makeAggregatorWithSystemStatus(status: SystemStatusSnapshot): IHealthAggregator {
+      return {
+        getSystemStatus: vi.fn().mockReturnValue(status),
+        getProviderHealth: vi.fn().mockReturnValue(createMockProviderHealth()),
+        getAgentStatus: vi.fn().mockReturnValue(createMockAgentStatus()),
+        dispose: vi.fn(),
+      };
+    }
+
+    it('UT-SP11-SAFE-BACKPRESSURE-HAPPY — returns nominal state with queueDepth + activeAgents', async () => {
+      const ctx = createMockContext(
+        makeAggregatorWithSystemStatus(createMockSystemStatusForSP11({ queuedCount: 5 })),
+        {
+          supervisorService: {
+            getStatusSnapshot: vi
+              .fn()
+              .mockResolvedValue(createMockSupervisorSnapshot({ agentsMonitored: 3 })),
+          },
+          maoProjectionService: {
+            getSystemSnapshot: vi.fn().mockResolvedValue(createMockMaoSnapshot(2)),
+          },
+        },
+      );
+      const caller = await getCaller(ctx);
+      const result = await caller.health.getStatusBarSnapshot({});
+      expect(result.backpressure).toEqual({ state: 'nominal', queueDepth: 5, activeAgents: 3 });
+    });
+
+    it('UT-SP11-SAFE-BACKPRESSURE-THROW — healthAggregator throw → backpressure null; other slots unaffected', async () => {
+      const aggregator: IHealthAggregator = {
+        getSystemStatus: vi.fn().mockImplementation(() => {
+          throw new Error('boom');
+        }),
+        getProviderHealth: vi.fn().mockReturnValue(createMockProviderHealth()),
+        getAgentStatus: vi.fn().mockReturnValue(createMockAgentStatus()),
+        dispose: vi.fn(),
+      };
+      const ctx = createMockContext(aggregator, {
+        supervisorService: {
+          getStatusSnapshot: vi.fn().mockResolvedValue(createMockSupervisorSnapshot()),
+        },
+        maoProjectionService: {
+          getSystemSnapshot: vi.fn().mockResolvedValue(createMockMaoSnapshot(1)),
+        },
+      });
+      const caller = await getCaller(ctx);
+      const result = await caller.health.getStatusBarSnapshot({});
+      expect(result.backpressure).toBeNull();
+      // Other slots are unaffected — activeAgents non-null because mao didn't throw.
+      expect(result.activeAgents).not.toBeNull();
+    });
+
+    it('UT-SP11-SAFE-BACKPRESSURE-CRITICAL — s0 violation → state=critical', async () => {
+      const ctx = createMockContext(
+        makeAggregatorWithSystemStatus(createMockSystemStatusForSP11()),
+        {
+          supervisorService: {
+            getStatusSnapshot: vi.fn().mockResolvedValue(
+              createMockSupervisorSnapshot({
+                activeViolationCounts: { s0: 1, s1: 0, s2: 0, s3: 0 },
+              }),
+            ),
+          },
+          maoProjectionService: {
+            getSystemSnapshot: vi.fn().mockResolvedValue(createMockMaoSnapshot(0)),
+          },
+        },
+      );
+      const caller = await getCaller(ctx);
+      const result = await caller.health.getStatusBarSnapshot({});
+      expect(result.backpressure?.state).toBe('critical');
+    });
+
+    it('UT-SP11-SAFE-BACKPRESSURE-ELEVATED — s1 violation OR rising-equivalent → state=elevated', async () => {
+      // s1 violation
+      const ctx1 = createMockContext(
+        makeAggregatorWithSystemStatus(createMockSystemStatusForSP11()),
+        {
+          supervisorService: {
+            getStatusSnapshot: vi.fn().mockResolvedValue(
+              createMockSupervisorSnapshot({
+                activeViolationCounts: { s0: 0, s1: 1, s2: 0, s3: 0 },
+              }),
+            ),
+          },
+          maoProjectionService: {
+            getSystemSnapshot: vi.fn().mockResolvedValue(createMockMaoSnapshot(0)),
+          },
+        },
+      );
+      const caller1 = await getCaller(ctx1);
+      const result1 = await caller1.health.getStatusBarSnapshot({});
+      expect(result1.backpressure?.state).toBe('elevated');
+
+      // pressureTrend === 'increasing' (the verified field-name; SDS used
+      // 'rising' which doesn't exist on the schema)
+      const ctx2 = createMockContext(
+        makeAggregatorWithSystemStatus(
+          createMockSystemStatusForSP11({ pressureTrend: 'increasing' }),
+        ),
+        {
+          supervisorService: {
+            getStatusSnapshot: vi.fn().mockResolvedValue(createMockSupervisorSnapshot()),
+          },
+          maoProjectionService: {
+            getSystemSnapshot: vi.fn().mockResolvedValue(createMockMaoSnapshot(0)),
+          },
+        },
+      );
+      const caller2 = await getCaller(ctx2);
+      const result2 = await caller2.health.getStatusBarSnapshot({});
+      expect(result2.backpressure?.state).toBe('elevated');
+    });
+
+    it('UT-SP11-SAFE-COGNITIVE-NULL — cognitiveProfile is null and ctx is never accessed for that slot', async () => {
+      // Build a Proxy that throws on every property read; pass it via the
+      // wider ctx. `safeCognitiveProfile`'s body must NOT touch ctx (Decision
+      // #7 Option D.2). The whole-procedure can still construct because
+      // safeCognitiveProfile uses `_ctx`/`_projectId` and never reads them.
+      let cognitiveCtxAccessed = false;
+      const realCtx = createMockContext(
+        makeAggregatorWithSystemStatus(createMockSystemStatusForSP11()),
+        {
+          supervisorService: {
+            getStatusSnapshot: vi.fn().mockResolvedValue(createMockSupervisorSnapshot()),
+          },
+          maoProjectionService: {
+            getSystemSnapshot: vi.fn().mockResolvedValue(createMockMaoSnapshot(1)),
+          },
+        },
+      );
+      // Wrap the ctx in a Proxy that flags any access path that mentions
+      // 'cognitive' or 'profile'. (The `safe*` helpers do NOT route through
+      // such a path; the assertion is that no such handle is read.)
+      const trapped = new Proxy(realCtx, {
+        get(target, prop) {
+          if (typeof prop === 'string' && /cognitive|profile/i.test(prop)) {
+            cognitiveCtxAccessed = true;
+          }
+          return Reflect.get(target, prop);
+        },
+      });
+      const caller = await getCaller(trapped);
+      const result = await caller.health.getStatusBarSnapshot({ projectId: 'project-1' });
+      expect(result.cognitiveProfile).toBeNull();
+      expect(cognitiveCtxAccessed).toBe(false);
+    });
+
+    it('UT-SP11-SAFE-BUDGET-HAPPY — nominal: ratio < 75%, no alerts → state=nominal', async () => {
+      const ctx = createMockContext(
+        makeAggregatorWithSystemStatus(createMockSystemStatusForSP11()),
+        {
+          supervisorService: {
+            getStatusSnapshot: vi.fn().mockResolvedValue(createMockSupervisorSnapshot()),
+          },
+          costGovernanceService: {
+            getBudgetStatus: vi.fn().mockReturnValue(createMockBudgetStatus({ utilizationPercent: 73.5 })),
+          },
+          maoProjectionService: {
+            getSystemSnapshot: vi.fn().mockResolvedValue(createMockMaoSnapshot(0)),
+          },
+        },
+      );
+      const caller = await getCaller(ctx);
+      const result = await caller.health.getStatusBarSnapshot({ projectId: 'project-1' });
+      expect(result.budget).toEqual({
+        state: 'nominal',
+        spent: 14.7,
+        ceiling: 20,
+        period: '2026-04-01T00:00:00.000Z',
+      });
+    });
+
+    it('UT-SP11-SAFE-BUDGET-THRESHOLDS — exceeded / caution / warning ladder', async () => {
+      // exceeded
+      const ctx1 = createMockContext(
+        makeAggregatorWithSystemStatus(createMockSystemStatusForSP11()),
+        {
+          supervisorService: {
+            getStatusSnapshot: vi.fn().mockResolvedValue(createMockSupervisorSnapshot()),
+          },
+          costGovernanceService: {
+            getBudgetStatus: vi
+              .fn()
+              .mockReturnValue(createMockBudgetStatus({ hardCeilingFired: true })),
+          },
+          maoProjectionService: {
+            getSystemSnapshot: vi.fn().mockResolvedValue(createMockMaoSnapshot(0)),
+          },
+        },
+      );
+      const caller1 = await getCaller(ctx1);
+      expect((await caller1.health.getStatusBarSnapshot({ projectId: 'p' })).budget?.state).toBe(
+        'exceeded',
+      );
+
+      // caution
+      const ctx2 = createMockContext(
+        makeAggregatorWithSystemStatus(createMockSystemStatusForSP11()),
+        {
+          supervisorService: {
+            getStatusSnapshot: vi.fn().mockResolvedValue(createMockSupervisorSnapshot()),
+          },
+          costGovernanceService: {
+            getBudgetStatus: vi
+              .fn()
+              .mockReturnValue(createMockBudgetStatus({ softAlertFired: true })),
+          },
+          maoProjectionService: {
+            getSystemSnapshot: vi.fn().mockResolvedValue(createMockMaoSnapshot(0)),
+          },
+        },
+      );
+      const caller2 = await getCaller(ctx2);
+      expect((await caller2.health.getStatusBarSnapshot({ projectId: 'p' })).budget?.state).toBe(
+        'caution',
+      );
+
+      // warning (>= 75%)
+      const ctx3 = createMockContext(
+        makeAggregatorWithSystemStatus(createMockSystemStatusForSP11()),
+        {
+          supervisorService: {
+            getStatusSnapshot: vi.fn().mockResolvedValue(createMockSupervisorSnapshot()),
+          },
+          costGovernanceService: {
+            getBudgetStatus: vi
+              .fn()
+              .mockReturnValue(createMockBudgetStatus({ utilizationPercent: 80 })),
+          },
+          maoProjectionService: {
+            getSystemSnapshot: vi.fn().mockResolvedValue(createMockMaoSnapshot(0)),
+          },
+        },
+      );
+      const caller3 = await getCaller(ctx3);
+      expect((await caller3.health.getStatusBarSnapshot({ projectId: 'p' })).budget?.state).toBe(
+        'warning',
+      );
+    });
+
+    it('UT-SP11-SAFE-BUDGET-NO-PROJECT — projectId undefined → budget null and getBudgetStatus is not called', async () => {
+      const getBudgetStatus = vi.fn();
+      const ctx = createMockContext(
+        makeAggregatorWithSystemStatus(createMockSystemStatusForSP11()),
+        {
+          supervisorService: {
+            getStatusSnapshot: vi.fn().mockResolvedValue(createMockSupervisorSnapshot()),
+          },
+          costGovernanceService: { getBudgetStatus },
+          maoProjectionService: {
+            getSystemSnapshot: vi.fn().mockResolvedValue(createMockMaoSnapshot(1)),
+          },
+        },
+      );
+      const caller = await getCaller(ctx);
+      const result = await caller.health.getStatusBarSnapshot({});
+      expect(result.budget).toBeNull();
+      expect(getBudgetStatus).not.toHaveBeenCalled();
+    });
+
+    it('UT-SP11-SAFE-AGENTS-HAPPY — count > 0 → status=active; count = 0 → status=idle', async () => {
+      // active (3 agents)
+      const ctx1 = createMockContext(
+        makeAggregatorWithSystemStatus(createMockSystemStatusForSP11()),
+        {
+          supervisorService: {
+            getStatusSnapshot: vi.fn().mockResolvedValue(createMockSupervisorSnapshot()),
+          },
+          maoProjectionService: {
+            getSystemSnapshot: vi.fn().mockResolvedValue(createMockMaoSnapshot(3)),
+          },
+        },
+      );
+      const caller1 = await getCaller(ctx1);
+      const result1 = await caller1.health.getStatusBarSnapshot({});
+      expect(result1.activeAgents).toEqual({ count: 3, status: 'active' });
+
+      // idle (0 agents)
+      const ctx2 = createMockContext(
+        makeAggregatorWithSystemStatus(createMockSystemStatusForSP11()),
+        {
+          supervisorService: {
+            getStatusSnapshot: vi.fn().mockResolvedValue(createMockSupervisorSnapshot()),
+          },
+          maoProjectionService: {
+            getSystemSnapshot: vi.fn().mockResolvedValue(createMockMaoSnapshot(0)),
+          },
+        },
+      );
+      const caller2 = await getCaller(ctx2);
+      const result2 = await caller2.health.getStatusBarSnapshot({});
+      expect(result2.activeAgents).toEqual({ count: 0, status: 'idle' });
+    });
+
+    it('UT-SP11-SAFE-BUDGET-NO-HASBUDGET — hasBudget=false → budget null even with valid projectId', async () => {
+      const ctx = createMockContext(
+        makeAggregatorWithSystemStatus(createMockSystemStatusForSP11()),
+        {
+          supervisorService: {
+            getStatusSnapshot: vi.fn().mockResolvedValue(createMockSupervisorSnapshot()),
+          },
+          costGovernanceService: {
+            getBudgetStatus: vi
+              .fn()
+              .mockReturnValue(createMockBudgetStatus({ hasBudget: false })),
+          },
+          maoProjectionService: {
+            getSystemSnapshot: vi.fn().mockResolvedValue(createMockMaoSnapshot(0)),
+          },
+        },
+      );
+      const caller = await getCaller(ctx);
+      const result = await caller.health.getStatusBarSnapshot({ projectId: 'project-1' });
+      expect(result.budget).toBeNull();
+    });
+
+    it('UT-SP11-SAFE-BUDGET-THROW — costGovernanceService throw → budget null', async () => {
+      const ctx = createMockContext(
+        makeAggregatorWithSystemStatus(createMockSystemStatusForSP11()),
+        {
+          supervisorService: {
+            getStatusSnapshot: vi.fn().mockResolvedValue(createMockSupervisorSnapshot()),
+          },
+          costGovernanceService: {
+            getBudgetStatus: vi.fn().mockImplementation(() => {
+              throw new Error('budget boom');
+            }),
+          },
+          maoProjectionService: {
+            getSystemSnapshot: vi.fn().mockResolvedValue(createMockMaoSnapshot(1)),
+          },
+        },
+      );
+      const caller = await getCaller(ctx);
+      const result = await caller.health.getStatusBarSnapshot({ projectId: 'project-1' });
+      expect(result.budget).toBeNull();
+    });
+
+    it('UT-SP11-SAFE-AGENTS-THROW — maoProjectionService throw → activeAgents null', async () => {
+      const ctx = createMockContext(
+        makeAggregatorWithSystemStatus(createMockSystemStatusForSP11()),
+        {
+          supervisorService: {
+            getStatusSnapshot: vi.fn().mockResolvedValue(createMockSupervisorSnapshot()),
+          },
+          maoProjectionService: {
+            getSystemSnapshot: vi.fn().mockRejectedValue(new Error('mao boom')),
+          },
+        },
+      );
+      const caller = await getCaller(ctx);
+      const result = await caller.health.getStatusBarSnapshot({});
+      expect(result.activeAgents).toBeNull();
+    });
+
+    // ---- IT-SP11-SNAPSHOT-* integration tests ----
+
+    it('IT-SP11-SNAPSHOT-FULL — all four sources happy → aggregate parses through StatusBarSnapshotSchema (cognitiveProfile structurally null)', async () => {
+      const ctx = createMockContext(
+        makeAggregatorWithSystemStatus(createMockSystemStatusForSP11()),
+        {
+          supervisorService: {
+            getStatusSnapshot: vi.fn().mockResolvedValue(createMockSupervisorSnapshot()),
+          },
+          costGovernanceService: {
+            getBudgetStatus: vi.fn().mockReturnValue(createMockBudgetStatus()),
+          },
+          maoProjectionService: {
+            getSystemSnapshot: vi.fn().mockResolvedValue(createMockMaoSnapshot(2)),
+          },
+        },
+      );
+      const caller = await getCaller(ctx);
+      const result = await caller.health.getStatusBarSnapshot({ projectId: 'project-1' });
+      // Parses through the schema (the procedure already uses .output(...))
+      expect(StatusBarSnapshotSchema.safeParse(result).success).toBe(true);
+      // Three of four are non-null; cognitiveProfile is structurally null per
+      // SUPV-SP11-013 (Decision #7 Option D.2).
+      expect(result.backpressure).not.toBeNull();
+      expect(result.budget).not.toBeNull();
+      expect(result.activeAgents).not.toBeNull();
+      expect(result.cognitiveProfile).toBeNull();
+    });
+
+    it('IT-SP11-SNAPSHOT-PARTIAL-BACKPRESSURE-NULL — only backpressure source throws → backpressure null; others unaffected; no throw', async () => {
+      const aggregator: IHealthAggregator = {
+        getSystemStatus: vi.fn().mockImplementation(() => {
+          throw new Error('boom');
+        }),
+        getProviderHealth: vi.fn().mockReturnValue(createMockProviderHealth()),
+        getAgentStatus: vi.fn().mockReturnValue(createMockAgentStatus()),
+        dispose: vi.fn(),
+      };
+      const ctx = createMockContext(aggregator, {
+        supervisorService: {
+          getStatusSnapshot: vi.fn().mockResolvedValue(createMockSupervisorSnapshot()),
+        },
+        costGovernanceService: {
+          getBudgetStatus: vi.fn().mockReturnValue(createMockBudgetStatus()),
+        },
+        maoProjectionService: {
+          getSystemSnapshot: vi.fn().mockResolvedValue(createMockMaoSnapshot(1)),
+        },
+      });
+      const caller = await getCaller(ctx);
+      const result = await caller.health.getStatusBarSnapshot({ projectId: 'project-1' });
+      expect(result.backpressure).toBeNull();
+      expect(result.budget).not.toBeNull();
+      expect(result.activeAgents).not.toBeNull();
+    });
+
+    it('IT-SP11-SNAPSHOT-PARTIAL-BUDGET-NULL — budget source throws → budget null; others unaffected; no throw', async () => {
+      const ctx = createMockContext(
+        makeAggregatorWithSystemStatus(createMockSystemStatusForSP11()),
+        {
+          supervisorService: {
+            getStatusSnapshot: vi.fn().mockResolvedValue(createMockSupervisorSnapshot()),
+          },
+          costGovernanceService: {
+            getBudgetStatus: vi.fn().mockImplementation(() => {
+              throw new Error('budget boom');
+            }),
+          },
+          maoProjectionService: {
+            getSystemSnapshot: vi.fn().mockResolvedValue(createMockMaoSnapshot(1)),
+          },
+        },
+      );
+      const caller = await getCaller(ctx);
+      const result = await caller.health.getStatusBarSnapshot({ projectId: 'project-1' });
+      expect(result.budget).toBeNull();
+      expect(result.backpressure).not.toBeNull();
+      expect(result.activeAgents).not.toBeNull();
+    });
+
+    it('IT-SP11-SNAPSHOT-PARTIAL-AGENTS-NULL — MAO source throws → activeAgents null; others unaffected; no throw', async () => {
+      const ctx = createMockContext(
+        makeAggregatorWithSystemStatus(createMockSystemStatusForSP11()),
+        {
+          supervisorService: {
+            getStatusSnapshot: vi.fn().mockResolvedValue(createMockSupervisorSnapshot()),
+          },
+          costGovernanceService: {
+            getBudgetStatus: vi.fn().mockReturnValue(createMockBudgetStatus()),
+          },
+          maoProjectionService: {
+            getSystemSnapshot: vi.fn().mockRejectedValue(new Error('mao boom')),
+          },
+        },
+      );
+      const caller = await getCaller(ctx);
+      const result = await caller.health.getStatusBarSnapshot({ projectId: 'project-1' });
+      expect(result.activeAgents).toBeNull();
+      expect(result.backpressure).not.toBeNull();
+      expect(result.budget).not.toBeNull();
+    });
+
+    it('IT-SP11-SNAPSHOT-ALL-NULL-THROW — backpressure + budget + agents all throw + cognitive structurally null → procedure throws', async () => {
+      const aggregator: IHealthAggregator = {
+        getSystemStatus: vi.fn().mockImplementation(() => {
+          throw new Error('boom');
+        }),
+        getProviderHealth: vi.fn().mockReturnValue(createMockProviderHealth()),
+        getAgentStatus: vi.fn().mockReturnValue(createMockAgentStatus()),
+        dispose: vi.fn(),
+      };
+      const ctx = createMockContext(aggregator, {
+        supervisorService: {
+          getStatusSnapshot: vi.fn().mockRejectedValue(new Error('supervisor boom')),
+        },
+        costGovernanceService: {
+          getBudgetStatus: vi.fn().mockImplementation(() => {
+            throw new Error('budget boom');
+          }),
+        },
+        maoProjectionService: {
+          getSystemSnapshot: vi.fn().mockRejectedValue(new Error('mao boom')),
+        },
+      });
+      const caller = await getCaller(ctx);
+      await expect(caller.health.getStatusBarSnapshot({ projectId: 'project-1' })).rejects.toThrow();
     });
   });
 });
