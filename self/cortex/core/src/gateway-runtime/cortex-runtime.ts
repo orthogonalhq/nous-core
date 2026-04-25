@@ -338,7 +338,21 @@ implements IPrincipalSystemGatewayRuntime, ISystemInboxSubmissionService {
       lifecycleHooks: systemBundle.lifecycleHooks,
       baseSystemPrompt: this.deps.systemBaseSystemPrompt
         ?? composeSystemPromptFromConfig(
-             resolveAgentProfile('Cortex::System', undefined, this.deps.configReader?.getPersonalityConfig()),
+             // SP 1.9 Fix #3 step 1 — pass the agent-identity projection so
+             // Item 2 dimension-isolation is auditable (Invariant C). The
+             // System class IS NOT the chat surface; the projection is
+             // ignored inside `applyPersonalityToIdentity` for non-Principal
+             // classes (Goals C16). Passed for shape-consistency / drift
+             // prevention only.
+             resolveAgentProfile(
+               'Cortex::System',
+               undefined,
+               this.deps.configReader?.getPersonalityConfig(),
+               {
+                 name: this.deps.configReader?.getAgentName(),
+                 userProfile: this.deps.configReader?.getUserProfile(),
+               },
+             ),
              this.systemTools,
            ),
       outbox: new HealthTrackingOutboxSink('Cortex::System', this.healthSink, this.deps.eventBus),
@@ -1125,7 +1139,19 @@ implements IPrincipalSystemGatewayRuntime, ISystemInboxSubmissionService {
     // providerType is a vendor string, not a providerId — resolvePromptConfig
     // has no non-default branches today so this is a no-op; composable harness
     // WR replaces this callsite.
-    const profile = resolveAgentProfile(agentClass, providerType, this.deps.configReader?.getPersonalityConfig());
+    // SP 1.9 Fix #3 step 2 — plumb the agent-identity projection into the
+    // per-class harness so the configured agent-name + UserProfile fragments
+    // surface in the Principal's prompt (Goals C1 / C3). Non-Principal
+    // classes ignore the projection (Invariant C / Goals C16).
+    const profile = resolveAgentProfile(
+      agentClass,
+      providerType,
+      this.deps.configReader?.getPersonalityConfig(),
+      {
+        name: this.deps.configReader?.getAgentName(),
+        userProfile: this.deps.configReader?.getUserProfile(),
+      },
+    );
 
     return {
       promptFormatter: (input: PromptFormatterInput) =>
