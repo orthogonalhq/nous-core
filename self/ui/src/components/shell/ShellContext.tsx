@@ -1,6 +1,6 @@
 'use client'
 
-import { createContext, useContext, type PropsWithChildren } from 'react'
+import { createContext, useContext, useState, type PropsWithChildren } from 'react'
 import {
   defaultConversationContext,
   type NavigationState,
@@ -31,7 +31,10 @@ export interface ShellProviderProps extends PropsWithChildren {
   navigate?: (routeId: string, params?: Record<string, unknown>) => void
   goBack?: () => void
   onProjectChange?: (projectId: string) => void
-  // --- WR-162 SP 2 additions (contract-only; SP 11 wires useState) ---
+  // --- WR-162 SP 11 (SUPV-SP11-003) — uncontrolled `useState` pattern ---
+  // Host-provided values seed initial state on mount; host-provided setters
+  // are forward-invoked alongside the internal setter so a host can observe
+  // state changes without owning them.
   activeObserveTab?: ObserveTab
   setActiveObserveTab?: (tab: ObserveTab) => void
   observePanelCollapsed?: boolean
@@ -52,12 +55,30 @@ export function ShellProvider({
   navigate = noop,
   goBack = noop,
   onProjectChange,
-  activeObserveTab = 'agents',
-  setActiveObserveTab = noop,
-  observePanelCollapsed = false,
-  setObservePanelCollapsed = noop,
+  activeObserveTab: activeObserveTabProp,
+  setActiveObserveTab: setActiveObserveTabProp,
+  observePanelCollapsed: observePanelCollapsedProp,
+  setObservePanelCollapsed: setObservePanelCollapsedProp,
 }: ShellProviderProps) {
   const resolvedActiveRoute = navigation?.activeRoute ?? activeRoute
+
+  // SP 11 SUPV-SP11-003 — runtime state wired here. Internal useState is the
+  // canonical source; host-provided value props seed initial state on mount;
+  // host-provided setter props are forward-invoked alongside the internal setter
+  // so a host can observe state changes without owning them.
+  const [activeObserveTabInternal, setActiveObserveTabInternal] =
+    useState<ObserveTab>(activeObserveTabProp ?? 'agents')
+  const [observePanelCollapsedInternal, setObservePanelCollapsedInternal] =
+    useState<boolean>(observePanelCollapsedProp ?? false)
+
+  const setActiveObserveTabResolved = (tab: ObserveTab) => {
+    setActiveObserveTabInternal(tab)
+    setActiveObserveTabProp?.(tab)
+  }
+  const setObservePanelCollapsedResolved = (v: boolean) => {
+    setObservePanelCollapsedInternal(v)
+    setObservePanelCollapsedProp?.(v)
+  }
 
   const value: ShellContextValue = {
     mode,
@@ -74,10 +95,10 @@ export function ShellProvider({
     navigate,
     goBack,
     onProjectChange,
-    activeObserveTab,
-    setActiveObserveTab,
-    observePanelCollapsed,
-    setObservePanelCollapsed,
+    activeObserveTab: activeObserveTabInternal,
+    setActiveObserveTab: setActiveObserveTabResolved,
+    observePanelCollapsed: observePanelCollapsedInternal,
+    setObservePanelCollapsed: setObservePanelCollapsedResolved,
   }
 
   return (

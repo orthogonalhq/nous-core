@@ -3,13 +3,18 @@
 import * as React from 'react'
 import { clsx } from 'clsx'
 import { ChevronLeft, PanelRightClose } from 'lucide-react'
+import { useShellContext } from './ShellContext'
 
-const COLLAPSED_THRESHOLD = 60
 const PEEK_WIDTH = 32
 
 export interface CollapsibleObserveEdgeProps
     extends React.HTMLAttributes<HTMLDivElement> {
-    /** Current observe column width in pixels */
+    /**
+     * Current observe column width in pixels. WR-162 SP 11 (SUPV-SP11-004) —
+     * `width` is now a STYLING-ONLY hint; the canonical collapsed/expanded
+     * state derives from `useShellContext().observePanelCollapsed`. The
+     * pixel width still drives the `width` style on the panel container.
+     */
     width: number
     /** The last expanded width — used to keep the panel at full size when collapsed */
     expandedWidth?: number
@@ -27,11 +32,21 @@ export function CollapsibleObserveEdge({
     style,
     ...props
 }: CollapsibleObserveEdgeProps) {
-    const isCollapsed = width < COLLAPSED_THRESHOLD
+    // SUPV-SP11-004 — `data-state` derives from shell context, not pixel width.
+    const { observePanelCollapsed, setObservePanelCollapsed } = useShellContext()
+    const isCollapsed = observePanelCollapsed
 
     // Panel always renders at full expanded width.
     // When collapsed, the grid column clips it to PEEK_WIDTH — no transform needed.
     const panelWidth = isCollapsed ? expandedWidth : width
+
+    // SUPV-SP11-005 — two-write batched click handler. Both writes happen
+    // inside one synchronous handler; React 18+ automatic batching collapses
+    // them into one re-render.
+    const handleClick = () => {
+        setObservePanelCollapsed(!observePanelCollapsed)
+        onExpandToggle()
+    }
 
     return (
         <div
@@ -54,13 +69,13 @@ export function CollapsibleObserveEdge({
             }}
             {...props}
         >
-            
+
             {/* Expand button */}
             <button
                 type="button"
                 aria-label={isCollapsed ? 'Expand observe panel' : 'Collapse observe panel'}
                 data-action={isCollapsed ? 'expand' : 'collapse'}
-                onClick={onExpandToggle}
+                onClick={handleClick}
                 style={{
                     ...styles.toggleButton,
                     ...(isCollapsed ? {
@@ -84,7 +99,7 @@ export function CollapsibleObserveEdge({
                 type="button"
                 aria-label={isCollapsed ? 'Expand observe panel' : 'Collapse observe panel'}
                 data-action={isCollapsed ? 'expand' : 'collapse'}
-                onClick={onExpandToggle}
+                onClick={handleClick}
                 style={{
                     ...styles.toggleButton,
                     ...(isCollapsed ? {
