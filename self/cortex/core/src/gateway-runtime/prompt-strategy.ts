@@ -51,7 +51,9 @@ export interface AgentIdentityProjection {
  *
  * Pipeline order (binding — Invariant F / SDS § 0 Note 3):
  *   1. strip newlines (\\r and \\n -> single space)
- *   2. strip `<|...|>` AND `<|...` (open-only) chat-template markers
+ *   2. strip `<|...|>` AND `<|...` (open-only) chat-template markers via the
+ *      SDS-specified pattern `/<\|[^|]*(\|>|$)/g` — the `|$` alternation
+ *      covers the open-only variant where the marker has no closing `|>`
  *   3. collapse repeated whitespace into single spaces
  *   4. trim leading/trailing whitespace
  *   5. length-cap with ellipsis at the per-field maxLength (caller passes)
@@ -70,7 +72,10 @@ export interface AgentIdentityProjection {
  */
 function sanitizeForIdentityFragment(input: string, maxLength: number): string {
   let s = input.replace(/[\r\n]+/g, ' ');
-  s = s.replace(/<\|[^|]*\|>/g, '');
+  // SDS § 0 Note 3 step 2 — covers both closed (`<|...|>`) and open-only
+  // (`<|...` without trailing `|>`) chat-format markers via the `|$`
+  // alternation. Pattern matches the SDS-specified regex verbatim.
+  s = s.replace(/<\|[^|]*(\|>|$)/g, '');
   s = s.replace(/\s+/g, ' ');
   s = s.trim();
   if (s.length > maxLength) {

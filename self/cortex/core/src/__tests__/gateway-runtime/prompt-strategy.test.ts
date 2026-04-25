@@ -204,6 +204,15 @@ describe('SP 1.9 Item 2 — sanitization pipeline (Axis A case 6)', () => {
     expect(id).not.toContain('<|system|>');
   });
 
+  // 6.2b — open-only `<|...` (no trailing `|>`) marker stripped per SDS
+  // § 0 Note 3 step 2 (the `|$` alternation in `/<\|[^|]*(\|>|$)/g`).
+  it('6.2b: open-only <|... chat-template markers (no trailing |>) are stripped', () => {
+    const id = principalIdentity(undefined, 'before<|open-only');
+    expect(id).toContain('"before"');
+    expect(id).not.toContain('<|');
+    expect(id).not.toContain('open-only');
+  });
+
   // 6.3 — repeated whitespace collapsed
   it('6.3: repeated whitespace collapses into single spaces', () => {
     const id = principalIdentity(undefined, 'Andrew      Smith');
