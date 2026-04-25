@@ -2,12 +2,29 @@ import { useCallback, useContext } from 'react'
 import { ShellContext } from '../../shell/ShellContext'
 import type { CardAction } from '../openui-adapter/types'
 import type { ChatMessage, ActionResult } from '../../../panels/ChatPanel'
+import {
+  overlayKeyForCardOutcome,
+  type LocalOverlayEntry,
+} from '../../../panels/chat/merge-overlay'
 
 export interface UseCardActionHandlerOptions {
   chatApi: {
     sendAction?: (action: CardAction) => Promise<ActionResult>
   }
-  setMessages: React.Dispatch<React.SetStateAction<ChatMessage[]>>
+  /**
+   * SP 1.9 Item 1 — local overlay reducer setter. The card-outcome dispatch
+   * pushes a `{ kind: 'card-outcome', ... }` entry; `mergeHistoryWithOverlay`
+   * shallow-merges `actionOutcome` onto the matching server entry at render
+   * time. Replaces the SP 1.8 `setMessages` parallel-list mutation
+   * (Invariant H — old path deleted in same PR).
+   */
+  setLocalOverlay: React.Dispatch<React.SetStateAction<readonly LocalOverlayEntry[]>>
+  /**
+   * Snapshot of currently-rendered messages — used to look up the target
+   * entry's `traceId` for the overlay key (with `idx-${i}` fallback for
+   * pre-traceId messages).
+   */
+  messages: readonly ChatMessage[]
 }
 
 /**
@@ -15,12 +32,15 @@ export interface UseCardActionHandlerOptions {
  *
  * - `navigate` actions are handled client-side via shell context `navigate()`
  * - All other action types are dispatched via `chatApi.sendAction()`
- * - On successful dispatch, sets `actionOutcome` on the originating message
- *   to transition the card to stale state.
+ * - On dispatch resolution, pushes a `card-outcome` overlay entry that the
+ *   merge helper applies onto the originating message at render time
+ *   (transitions the card to stale state).
+ *
+ * SP 1.9 Item 1 ratified — Invariant D sole-overlay mechanism.
  *
  * Gracefully handles absence of ShellProvider — navigate actions become no-ops.
  */
-export function useCardActionHandler({ chatApi, setMessages }: UseCardActionHandlerOptions) {
+export function useCardActionHandler({ chatApi, setLocalOverlay, messages }: UseCardActionHandlerOptions) {
   const shellContext = useContext(ShellContext)
 
   return useCallback(
@@ -33,43 +53,48 @@ export function useCardActionHandler({ chatApi, setMessages }: UseCardActionHand
 
       if (!chatApi.sendAction) return
 
+      const target = messages[messageIndex]
+      const traceId = target?.traceId
+      const overlayKey = overlayKeyForCardOutcome(traceId, messageIndex, action.actionType)
+      const traceIdOrIndexKey = traceId ?? `idx-${messageIndex}`
+
       chatApi.sendAction(action).then((result) => {
-        setMessages(prev =>
-          prev.map((msg, i) =>
-            i === messageIndex
-              ? {
-                  ...msg,
-                  actionOutcome: {
-                    actionType: action.actionType,
-                    label: action.actionType,
-                    timestamp: new Date().toISOString(),
-                    result,
-                  },
-                }
-              : msg,
-          ),
-        )
+        setLocalOverlay((prev) => [
+          ...prev,
+          {
+            kind: 'card-outcome',
+            traceIdOrIndexKey,
+            key: overlayKey,
+            issuedAt: Date.now(),
+            actionOutcome: {
+              actionType: action.actionType,
+              label: action.actionType,
+              timestamp: new Date().toISOString(),
+              result,
+            },
+          },
+        ])
       }).catch((err) => {
-        setMessages(prev =>
-          prev.map((msg, i) =>
-            i === messageIndex
-              ? {
-                  ...msg,
-                  actionOutcome: {
-                    actionType: action.actionType,
-                    label: action.actionType,
-                    timestamp: new Date().toISOString(),
-                    result: {
-                      ok: false,
-                      message: err instanceof Error ? err.message : 'Action failed',
-                    },
-                  },
-                }
-              : msg,
-          ),
-        )
+        setLocalOverlay((prev) => [
+          ...prev,
+          {
+            kind: 'card-outcome',
+            traceIdOrIndexKey,
+            key: overlayKey,
+            issuedAt: Date.now(),
+            actionOutcome: {
+              actionType: action.actionType,
+              label: action.actionType,
+              timestamp: new Date().toISOString(),
+              result: {
+                ok: false,
+                message: err instanceof Error ? err.message : 'Action failed',
+              },
+            },
+          },
+        ])
       })
     },
-    [shellContext, chatApi, setMessages],
+    [shellContext, chatApi, setLocalOverlay, messages],
   )
 }

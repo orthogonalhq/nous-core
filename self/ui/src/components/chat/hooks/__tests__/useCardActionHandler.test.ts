@@ -7,6 +7,7 @@ import { useCardActionHandler } from '../useCardActionHandler'
 import { ShellProvider } from '../../../shell/ShellContext'
 import type { CardAction } from '../../openui-adapter/types'
 import type { ChatMessage } from '../../../../panels/ChatPanel'
+import type { LocalOverlayEntry } from '../../../../panels/chat/merge-overlay'
 
 const mockNavigate = vi.fn()
 
@@ -34,25 +35,28 @@ function createMessages(): ChatMessage[] {
       content: '<ActionCard title="Test" description="Do something" />',
       timestamp: '2026-01-01T00:01:00Z',
       contentType: 'openui' as const,
+      traceId: 't1',
     },
   ]
 }
 
 describe('useCardActionHandler', () => {
   let chatApi: ReturnType<typeof createMockChatApi>
-  let setMessages: ReturnType<typeof vi.fn>
+  let setLocalOverlay: ReturnType<typeof vi.fn>
+  let messages: ChatMessage[]
 
   beforeEach(() => {
     vi.clearAllMocks()
     chatApi = createMockChatApi()
-    setMessages = vi.fn()
+    setLocalOverlay = vi.fn()
+    messages = createMessages()
   })
 
   // ── Tier 2: Behavior Tests ──────────────────────────────────────────────
 
   it('navigate action calls useShellContext().navigate() with payload.panel', () => {
     const { result } = renderHook(
-      () => useCardActionHandler({ chatApi, setMessages }),
+      () => useCardActionHandler({ chatApi, setLocalOverlay, messages }),
       { wrapper: createWrapper() },
     )
 
@@ -71,7 +75,7 @@ describe('useCardActionHandler', () => {
 
   it('navigate action with extra payload fields forwards them as params', () => {
     const { result } = renderHook(
-      () => useCardActionHandler({ chatApi, setMessages }),
+      () => useCardActionHandler({ chatApi, setLocalOverlay, messages }),
       { wrapper: createWrapper() },
     )
 
@@ -90,7 +94,7 @@ describe('useCardActionHandler', () => {
 
   it('navigate action with only panel passes undefined params', () => {
     const { result } = renderHook(
-      () => useCardActionHandler({ chatApi, setMessages }),
+      () => useCardActionHandler({ chatApi, setLocalOverlay, messages }),
       { wrapper: createWrapper() },
     )
 
@@ -109,7 +113,7 @@ describe('useCardActionHandler', () => {
 
   it('navigate action does NOT call chatApi.sendAction', () => {
     const { result } = renderHook(
-      () => useCardActionHandler({ chatApi, setMessages }),
+      () => useCardActionHandler({ chatApi, setLocalOverlay, messages }),
       { wrapper: createWrapper() },
     )
 
@@ -128,7 +132,7 @@ describe('useCardActionHandler', () => {
 
   it('approve action calls chatApi.sendAction with the action', async () => {
     const { result } = renderHook(
-      () => useCardActionHandler({ chatApi, setMessages }),
+      () => useCardActionHandler({ chatApi, setLocalOverlay, messages }),
       { wrapper: createWrapper() },
     )
 
@@ -147,9 +151,12 @@ describe('useCardActionHandler', () => {
     expect(chatApi.sendAction).toHaveBeenCalledWith(action)
   })
 
-  it('after successful action, actionOutcome is set on message at correct index', async () => {
+  // SP 1.9 Item 1 — Axis C case 4: card-outcome overlay push uses traceId
+  // when the target message has one. Replaces the SP 1.8 `setMessages.map`
+  // assertion (Invariant H — old path deleted in same PR).
+  it('after successful action, card-outcome overlay entry is pushed with the right key', async () => {
     const { result } = renderHook(
-      () => useCardActionHandler({ chatApi, setMessages }),
+      () => useCardActionHandler({ chatApi, setLocalOverlay, messages }),
       { wrapper: createWrapper() },
     )
 
@@ -164,22 +171,41 @@ describe('useCardActionHandler', () => {
       await new Promise(r => setTimeout(r, 0))
     })
 
-    expect(setMessages).toHaveBeenCalled()
-    // Get the updater function and call it with mock messages
-    const updater = setMessages.mock.calls[0][0]
-    const messages = createMessages()
-    const updated = updater(messages)
-
-    // Index 0 (user message) should be unchanged
-    expect(updated[0].actionOutcome).toBeUndefined()
-    // Index 1 (assistant card message) should have actionOutcome
-    expect(updated[1].actionOutcome).toBeDefined()
-    expect(updated[1].actionOutcome.actionType).toBe('approve')
+    expect(setLocalOverlay).toHaveBeenCalled()
+    // Get the updater function and call it with empty overlay
+    const updater = setLocalOverlay.mock.calls[0][0] as (
+      prev: readonly LocalOverlayEntry[],
+    ) => readonly LocalOverlayEntry[]
+    const next = updater([])
+    expect(next).toHaveLength(1)
+    const entry = next[0]
+    expect(entry.kind).toBe('card-outcome')
+    if (entry.kind === 'card-outcome') {
+      // messages[1] has traceId 't1' so the key uses the traceId.
+      expect(entry.traceIdOrIndexKey).toBe('t1')
+      expect(entry.key).toBe('t1:approve')
+      expect(entry.actionOutcome.actionType).toBe('approve')
+      expect(entry.actionOutcome.label).toBe('approve')
+      expect(typeof entry.actionOutcome.timestamp).toBe('string')
+      expect(new Date(entry.actionOutcome.timestamp).toISOString()).toBe(entry.actionOutcome.timestamp)
+    }
   })
 
-  it('actionOutcome contains correct actionType and timestamp', async () => {
+  // SP 1.9 Item 1 — Axis C case 5: pre-traceId fallback. Target message has
+  // no `traceId` so the overlay key falls back to `idx-${i}`.
+  it('pre-traceId fallback: overlay entry uses idx-${i} when target has no traceId', async () => {
+    const noTrace: ChatMessage[] = [
+      { role: 'user', content: 'Hi', timestamp: '2026-01-01T00:00:00Z' },
+      {
+        role: 'assistant',
+        content: '<Card />',
+        timestamp: '2026-01-01T00:01:00Z',
+        contentType: 'openui',
+      },
+    ]
+
     const { result } = renderHook(
-      () => useCardActionHandler({ chatApi, setMessages }),
+      () => useCardActionHandler({ chatApi, setLocalOverlay, messages: noTrace }),
       { wrapper: createWrapper() },
     )
 
@@ -194,19 +220,22 @@ describe('useCardActionHandler', () => {
       await new Promise(r => setTimeout(r, 0))
     })
 
-    const updater = setMessages.mock.calls[0][0]
-    const updated = updater(createMessages())
-
-    expect(updated[1].actionOutcome.actionType).toBe('reject')
-    expect(updated[1].actionOutcome.label).toBe('reject')
-    expect(typeof updated[1].actionOutcome.timestamp).toBe('string')
-    // Timestamp should be a valid ISO string
-    expect(new Date(updated[1].actionOutcome.timestamp).toISOString()).toBe(updated[1].actionOutcome.timestamp)
+    const updater = setLocalOverlay.mock.calls[0][0] as (
+      prev: readonly LocalOverlayEntry[],
+    ) => readonly LocalOverlayEntry[]
+    const next = updater([])
+    expect(next).toHaveLength(1)
+    const entry = next[0]
+    expect(entry.kind).toBe('card-outcome')
+    if (entry.kind === 'card-outcome') {
+      expect(entry.traceIdOrIndexKey).toBe('idx-1')
+      expect(entry.key).toBe('idx-1:reject')
+    }
   })
 
   it('followup action calls chatApi.sendAction', async () => {
     const { result } = renderHook(
-      () => useCardActionHandler({ chatApi, setMessages }),
+      () => useCardActionHandler({ chatApi, setLocalOverlay, messages }),
       { wrapper: createWrapper() },
     )
 
@@ -227,9 +256,9 @@ describe('useCardActionHandler', () => {
 
   // ── Tier 3: Edge Case Tests ─────────────────────────────────────────────
 
-  it('action on out-of-bounds message index does not crash', async () => {
+  it('action on out-of-bounds message index does not crash; uses idx fallback', async () => {
     const { result } = renderHook(
-      () => useCardActionHandler({ chatApi, setMessages }),
+      () => useCardActionHandler({ chatApi, setLocalOverlay, messages }),
       { wrapper: createWrapper() },
     )
 
@@ -239,20 +268,30 @@ describe('useCardActionHandler', () => {
       payload: {},
     }
 
-    // Should not throw even with an out-of-bounds index
+    // Should not throw even with an out-of-bounds index (target lookup
+    // resolves to undefined; fallback key is `idx-999:approve`).
     await act(async () => {
       result.current(action, 999)
       await new Promise(r => setTimeout(r, 0))
     })
 
-    // setMessages still called (functional update handles bounds gracefully via .map)
-    expect(setMessages).toHaveBeenCalled()
+    expect(setLocalOverlay).toHaveBeenCalled()
+    const updater = setLocalOverlay.mock.calls[0][0] as (
+      prev: readonly LocalOverlayEntry[],
+    ) => readonly LocalOverlayEntry[]
+    const next = updater([])
+    expect(next).toHaveLength(1)
+    const entry = next[0]
+    expect(entry.kind).toBe('card-outcome')
+    if (entry.kind === 'card-outcome') {
+      expect(entry.traceIdOrIndexKey).toBe('idx-999')
+    }
   })
 
   it('does nothing when chatApi.sendAction is undefined', () => {
     const noSendApi = {} as { sendAction?: typeof chatApi.sendAction }
     const { result } = renderHook(
-      () => useCardActionHandler({ chatApi: noSendApi, setMessages }),
+      () => useCardActionHandler({ chatApi: noSendApi, setLocalOverlay, messages }),
       { wrapper: createWrapper() },
     )
 
@@ -266,7 +305,7 @@ describe('useCardActionHandler', () => {
       result.current(action, 0)
     })
 
-    // No crash, no setMessages call
-    expect(setMessages).not.toHaveBeenCalled()
+    // No crash, no setLocalOverlay call
+    expect(setLocalOverlay).not.toHaveBeenCalled()
   })
 })

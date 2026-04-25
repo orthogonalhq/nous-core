@@ -2,8 +2,11 @@ import { describe, expect, it } from 'vitest';
 import type { AgentClass } from '@nous/shared';
 import {
   resolveAgentProfile,
+  DEFAULT_AGENT_NAME,
   type AgentProfile,
   type PromptConfig,
+  type AgentIdentityProjection,
+  type UserProfile,
 } from '../../gateway-runtime/prompt-strategy.js';
 import type { PersonalityConfig } from '../../gateway-runtime/personality/index.js';
 
@@ -272,6 +275,162 @@ describe('resolveAgentProfile — edge cases', () => {
 // no-personality baseline.
 
 const MIGRATED_AGENT_CLASSES: AgentClass[] = ['Cortex::Principal', 'Cortex::System'];
+
+// ---------------------------------------------------------------------------
+// SP 1.9 Item 2 — Axis A cases 1, 2, 3, 4, 5, 8, 11
+// ---------------------------------------------------------------------------
+//
+// Per Plan Task #15 + SDS § 4.9 Axis A. These cases verify identity-projection
+// composition: dimension isolation under projection (case 1), composition
+// order (case 2), empty-profile fall-through (case 3), non-default name
+// (case 4), non-Principal non-leak (case 5), expertise × personality matrix
+// (case 8), and the strengthened-balanced-baseline (case 11).
+//
+// Axis A discipline: NO `trpc`, React Query, or `ChatPanel` imports. Pure
+// identity-composition testing.
+
+const FULL_PROJECTION: AgentIdentityProjection = {
+  name: 'Atlas',
+  userProfile: {
+    displayName: 'Andrew',
+    role: 'Principal engineer',
+    primaryUseCase: 'Building agent runtimes',
+    expertise: 'advanced',
+  },
+};
+
+const EMPTY_PROJECTION: AgentIdentityProjection = {
+  name: DEFAULT_AGENT_NAME,
+  userProfile: {},
+};
+
+describe('SP 1.9 Item 2 — agent-identity projection (Axis A)', () => {
+  // Case 1 — dimension isolation, extended (Goals C16). Mechanical
+  // dimensions byte-identical to pre-SP-1.9 even with full projection.
+  it('case 1: full projection preserves all mechanical dimensions byte-identical to baseline', () => {
+    const baseline = resolveAgentProfile('Cortex::Principal');
+    const withProjection = resolveAgentProfile(
+      'Cortex::Principal',
+      undefined,
+      { preset: 'balanced' },
+      FULL_PROJECTION,
+    );
+    expect(withProjection.contextBudget).toEqual(baseline.contextBudget);
+    expect(withProjection.compactionStrategy).toBe(baseline.compactionStrategy);
+    expect(withProjection.loopShape).toBe(baseline.loopShape);
+    expect(withProjection.toolConcurrency).toEqual(baseline.toolConcurrency);
+    expect(withProjection.escalationRules).toEqual(baseline.escalationRules);
+    expect(withProjection.outputContract).toBe(baseline.outputContract);
+    expect(withProjection.guardrails).toEqual(baseline.guardrails);
+    expect(withProjection.taskFrame).toBe(baseline.taskFrame);
+    expect(withProjection.toolPolicy).toBe(baseline.toolPolicy);
+  });
+
+  // Case 2 — composition order (Goals C1 / SDS Note 2). Fragments appear
+  // in the binding order: base → agent-name → displayName → role →
+  // expertise → primaryUseCase → personality.
+  it('case 2: identity fragments appear in binding composition order', () => {
+    const profile = resolveAgentProfile(
+      'Cortex::Principal',
+      undefined,
+      { preset: 'balanced' },
+      FULL_PROJECTION,
+    );
+    const id = profile.identity;
+    const namePos = id.indexOf('Your name is "Atlas"');
+    const displayPos = id.indexOf('preferred name is "Andrew"');
+    const rolePos = id.indexOf('role is "Principal engineer"');
+    const expertisePos = id.indexOf('expert register');
+    const useCasePos = id.indexOf('primary focus is "Building agent runtimes"');
+    expect(namePos).toBeGreaterThan(0);
+    expect(displayPos).toBeGreaterThan(namePos);
+    expect(rolePos).toBeGreaterThan(displayPos);
+    expect(expertisePos).toBeGreaterThan(rolePos);
+    expect(useCasePos).toBeGreaterThan(expertisePos);
+  });
+
+  // Case 3 — empty-profile fall-through (Goals C14 / Invariant I4).
+  // `name === DEFAULT_AGENT_NAME` and `userProfile: {}` produce zero
+  // projection fragments; `balanced` preset adds zero personality
+  // fragments — composed identity equals strengthened baseline.
+  it('case 3: empty projection (default name + empty profile) returns base identity', () => {
+    const baseline = resolveAgentProfile('Cortex::Principal');
+    const withEmpty = resolveAgentProfile(
+      'Cortex::Principal',
+      undefined,
+      { preset: 'balanced' },
+      EMPTY_PROJECTION,
+    );
+    expect(withEmpty.identity).toBe(baseline.identity);
+  });
+
+  // Case 4 — non-default name produces an agent-name fragment (Goals C1).
+  it('case 4: non-default name produces an agent-name fragment', () => {
+    const profile = resolveAgentProfile(
+      'Cortex::Principal',
+      undefined,
+      { preset: 'balanced' },
+      { name: 'Atlas', userProfile: {} },
+    );
+    expect(profile.identity).toContain('Your name is "Atlas"');
+  });
+
+  // Case 5 — non-Principal non-leak (Goals C16 / Invariant C). System,
+  // Orchestrator, Worker classes ignore the projection — composed identity
+  // is byte-identical to the no-projection result.
+  it.each(['Cortex::System', 'Orchestrator', 'Worker'] as const)(
+    'case 5: %s ignores fully-populated projection (dimension isolation)',
+    (agentClass) => {
+      const baseline = resolveAgentProfile(agentClass, undefined, { preset: 'balanced' });
+      const withProjection = resolveAgentProfile(
+        agentClass,
+        undefined,
+        { preset: 'balanced' },
+        FULL_PROJECTION,
+      );
+      expect(withProjection.identity).toBe(baseline.identity);
+    },
+  );
+
+  // Case 8 — 16-case expertise × personality matrix (Goals risk row 6).
+  // 4 presets × 4 expertise (3 enum + undefined) — every combination
+  // produces a non-empty identity with no overlap or override.
+  describe('case 8: expertise × personality matrix (4 × 4 = 16 cases)', () => {
+    const presets: PersonalityConfig['preset'][] = ['balanced', 'professional', 'efficient', 'thorough'];
+    const expertiseValues: Array<UserProfile['expertise'] | undefined> = [
+      undefined,
+      'beginner',
+      'intermediate',
+      'advanced',
+    ];
+    for (const preset of presets) {
+      for (const expertise of expertiseValues) {
+        it(`preset=${preset} expertise=${expertise ?? 'none'}: well-formed identity`, () => {
+          const profile = resolveAgentProfile(
+            'Cortex::Principal',
+            undefined,
+            { preset },
+            { name: 'Atlas', userProfile: { displayName: 'A', expertise } },
+          );
+          expect(profile.identity.length).toBeGreaterThan(0);
+          expect(profile.identity).toContain('Atlas');
+          expect(profile.identity).toContain('"A"');
+          // Expertise register directive present iff expertise was set.
+          if (expertise === 'beginner') expect(profile.identity).toContain('clear, accessible');
+          else if (expertise === 'intermediate') expect(profile.identity).toContain('working-practitioner');
+          else if (expertise === 'advanced') expect(profile.identity).toContain('expert register');
+        });
+      }
+    }
+  });
+
+  // Case 11 — strengthened-baseline (Goals C18). The pre-SP-1.9 byte-equal
+  // assertion now reflects the new strengthened identity (Fix #2 anchor).
+  it('case 11: strengthened baseline includes Fix #2 anchor phrase', () => {
+    const baseline = resolveAgentProfile('Cortex::Principal');
+    expect(baseline.identity).toContain('do not name the underlying model');
+  });
+});
 
 describe('WR-127 dimension isolation under cortex-runtime migration (C25)', () => {
   for (const agentClass of MIGRATED_AGENT_CLASSES) {

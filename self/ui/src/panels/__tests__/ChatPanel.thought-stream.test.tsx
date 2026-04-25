@@ -20,6 +20,33 @@ vi.mock('@nous/transport', () => ({
     }
   },
   trpc: {
+    // SP 1.9 Plan Task #14 — `useUtils()` + `chat.getHistory.useQuery`
+    // surface added so the SP 1.9 ChatPanel useQuery migration does not
+    // throw "Did you forget to wrap your App inside `withTRPC` HoC?" in
+    // this fixture's render. History is empty (the thought-stream tests
+    // exercise event-stream rendering, not the persisted history surface).
+    useUtils: () => ({
+      chat: {
+        getHistory: {
+          invalidate: vi.fn().mockResolvedValue(undefined),
+        },
+      },
+    }),
+    chat: {
+      getHistory: {
+        useQuery: () => ({
+          data: { entries: [] },
+          isSuccess: true,
+          isError: false,
+          isLoading: false,
+          isFetching: false,
+          refetch: vi.fn().mockResolvedValue(undefined),
+        }),
+      },
+      sendMessage: {
+        useMutation: () => ({ mutateAsync: vi.fn().mockResolvedValue({}) }),
+      },
+    },
     traces: {
       get: {
         useQuery: () => ({ data: null, isLoading: false, isError: false }),

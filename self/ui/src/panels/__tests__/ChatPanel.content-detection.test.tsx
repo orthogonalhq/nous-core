@@ -2,7 +2,15 @@
 
 import React from 'react'
 import { render, screen } from '@testing-library/react'
-import { describe, expect, it, beforeAll } from 'vitest'
+import { describe, expect, it, beforeAll, beforeEach, vi } from 'vitest'
+import {
+  makeTrpcMock,
+  setMockHistoryFromChatMessages,
+  setMockHistoryEntries,
+} from './chat-panel-trpc-mock'
+
+vi.mock('@nous/transport', () => makeTrpcMock())
+
 import { ChatPanel } from '../ChatPanel'
 import type { ChatAPI, ChatMessage } from '../ChatPanel'
 
@@ -11,7 +19,18 @@ beforeAll(() => {
   Element.prototype.scrollIntoView = () => {}
 })
 
+beforeEach(() => {
+  setMockHistoryEntries([])
+})
+
+// SP 1.9 Plan Task #14 — `chatApi.getHistory()` is no longer called by
+// ChatPanel (history flows through the `trpc.chat.getHistory.useQuery`
+// subscription). Tests that previously passed messages via
+// `makeChatApi(messages).getHistory()` now seed the useQuery mock via
+// `setMockHistoryFromChatMessages(messages)` BEFORE render. The returned
+// `ChatAPI` retains a no-op `getHistory` for test-fixture compatibility.
 function makeChatApi(messages: ChatMessage[]): ChatAPI {
+  setMockHistoryFromChatMessages(messages)
   return {
     send: async () => ({ response: 'ok', traceId: '123' }),
     getHistory: async () => messages,

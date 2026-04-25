@@ -2,13 +2,21 @@
 
 import React from 'react'
 import { render, screen } from '@testing-library/react'
-import { describe, expect, it, beforeAll } from 'vitest'
+import { describe, expect, it, beforeAll, beforeEach, vi } from 'vitest'
+import { makeTrpcMock, setMockHistoryEntries } from './chat-panel-trpc-mock'
+
+vi.mock('@nous/transport', () => makeTrpcMock())
+
 import { ChatPanel } from '../ChatPanel'
 import type { ChatAPI, ChatMessage, ChatPanelCoreProps } from '../ChatPanel'
 
 beforeAll(() => {
   // jsdom does not implement scrollIntoView
   Element.prototype.scrollIntoView = () => {}
+})
+
+beforeEach(() => {
+  setMockHistoryEntries([])
 })
 
 describe('ChatPanel', () => {

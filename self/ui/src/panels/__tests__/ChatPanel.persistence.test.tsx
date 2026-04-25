@@ -2,7 +2,15 @@
 
 import React from 'react'
 import { render, screen } from '@testing-library/react'
-import { describe, expect, it, beforeAll } from 'vitest'
+import { describe, expect, it, beforeAll, beforeEach, vi } from 'vitest'
+import {
+  makeTrpcMock,
+  setMockHistoryFromChatMessages,
+  setMockHistoryEntries,
+} from './chat-panel-trpc-mock'
+
+vi.mock('@nous/transport', () => makeTrpcMock())
+
 import { ChatPanel } from '../ChatPanel'
 import type { ChatAPI, ChatMessage } from '../ChatPanel'
 
@@ -10,7 +18,15 @@ beforeAll(() => {
   Element.prototype.scrollIntoView = () => {}
 })
 
+beforeEach(() => {
+  setMockHistoryEntries([])
+})
+
+// SP 1.9 Plan Task #14 — see ChatPanel.content-detection.test.tsx for the
+// migration-pattern note (history flows through useQuery mock instead of
+// chatApi.getHistory).
 function makeChatApi(messages: ChatMessage[]): ChatAPI {
+  setMockHistoryFromChatMessages(messages)
   return {
     send: async () => ({ response: 'ok', traceId: '123' }),
     getHistory: async () => messages,
