@@ -4,6 +4,9 @@
  * Phase 5.4 — Failure-Recovery Checkpoint, Retry, and Resume Governance.
  */
 import { describe, it, expect } from 'vitest';
+import { tmpdir } from 'node:os';
+import { join } from 'node:path';
+import { randomUUID } from 'node:crypto';
 import { InMemoryRecoveryLedgerStore } from '../../recovery/recovery-ledger-store.js';
 import { CheckpointManager } from '../../recovery/checkpoint-manager.js';
 
@@ -11,10 +14,17 @@ const RUN_ID = '550e8400-e29b-41d4-a716-446655440000';
 const PROJECT_ID = '660e8400-e29b-41d4-a716-446655440001';
 const HASH = 'a'.repeat(64);
 
+function makeTmpDir(): string {
+  return join(tmpdir(), 'nous-recovery-test', randomUUID());
+}
+
 describe('CheckpointManager', () => {
   it('prepare() writes prepare record and returns checkpoint_id', async () => {
     const ledger = new InMemoryRecoveryLedgerStore();
-    const manager = new CheckpointManager(ledger);
+    const manager = new CheckpointManager(ledger, {
+      dir: makeTmpDir(),
+      triggerPolicy: 'node-boundary',
+    });
     const result = await manager.prepare(RUN_ID, PROJECT_ID, {
       domain_scope: 'step_domain',
       state_vector_hash: HASH,
@@ -30,7 +40,10 @@ describe('CheckpointManager', () => {
 
   it('getLastCommitted returns null when no committed checkpoint', async () => {
     const ledger = new InMemoryRecoveryLedgerStore();
-    const manager = new CheckpointManager(ledger);
+    const manager = new CheckpointManager(ledger, {
+      dir: makeTmpDir(),
+      triggerPolicy: 'node-boundary',
+    });
     await manager.prepare(RUN_ID, PROJECT_ID, {
       domain_scope: 'step_domain',
       state_vector_hash: HASH,
@@ -46,7 +59,10 @@ describe('CheckpointManager', () => {
 
   it('commit() makes checkpoint resumable', async () => {
     const ledger = new InMemoryRecoveryLedgerStore();
-    const manager = new CheckpointManager(ledger);
+    const manager = new CheckpointManager(ledger, {
+      dir: makeTmpDir(),
+      triggerPolicy: 'node-boundary',
+    });
     const prep = await manager.prepare(RUN_ID, PROJECT_ID, {
       domain_scope: 'step_domain',
       state_vector_hash: HASH,
@@ -70,7 +86,10 @@ describe('CheckpointManager', () => {
 
   it('validateChain() returns valid for single checkpoint', async () => {
     const ledger = new InMemoryRecoveryLedgerStore();
-    const manager = new CheckpointManager(ledger);
+    const manager = new CheckpointManager(ledger, {
+      dir: makeTmpDir(),
+      triggerPolicy: 'node-boundary',
+    });
     await manager.prepare(RUN_ID, PROJECT_ID, {
       domain_scope: 'step_domain',
       state_vector_hash: HASH,
