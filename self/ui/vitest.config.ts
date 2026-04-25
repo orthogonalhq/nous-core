@@ -9,6 +9,7 @@ export default defineConfig({
   resolve: {
     alias: {
       '@nous/shared': path.resolve(__dirname, '../shared/src/index.ts'),
+      '@nous/subcortex-opctl': path.resolve(__dirname, '../subcortex/opctl/src/index.ts'),
       '@nous/transport': path.resolve(__dirname, '../transport/src/index.ts'),
     },
   },
