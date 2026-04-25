@@ -49,31 +49,44 @@ export interface AgentIdentityProjection {
 /**
  * SP 1.9 Item 2 — sanitization pipeline for free-text identity fragments.
  *
- * Pipeline order (binding — Invariant F):
+ * Pipeline order (binding — Invariant F / SDS § 0 Note 3):
  *   1. strip newlines (\\r and \\n -> single space)
- *   2. strip `<|...|>` style chat-template markers
+ *   2. strip `<|...|>` AND `<|...` (open-only) chat-template markers
  *   3. collapse repeated whitespace into single spaces
  *   4. trim leading/trailing whitespace
- *   5. length-cap with ellipsis at SANITIZE_MAX
+ *   5. length-cap with ellipsis at the per-field maxLength (caller passes)
  *   6. escape inner double-quotes (so the caller can safely wrap in `"..."`)
  *
  * Module-private — not exported. Unit-tested in `prompt-strategy.test.ts`
  * (Axis A, Task #16 case 6). All four free-text fields rendered into the
  * identity block (`agent.name`, `userProfile.displayName`, `userProfile.role`,
  * `userProfile.primaryUseCase`) flow through this single helper — Invariant F.
+ *
+ * Per-field caps (SDS § 0 Note 3 step 5 — passed by call sites):
+ *   - `agent.name`              → 120
+ *   - `userProfile.displayName` → 120
+ *   - `userProfile.role`        → 120
+ *   - `userProfile.primaryUseCase` → 500
  */
-const SANITIZE_MAX = 200;
-function sanitizeForIdentityFragment(input: string): string {
+function sanitizeForIdentityFragment(input: string, maxLength: number): string {
   let s = input.replace(/[\r\n]+/g, ' ');
   s = s.replace(/<\|[^|]*\|>/g, '');
   s = s.replace(/\s+/g, ' ');
   s = s.trim();
-  if (s.length > SANITIZE_MAX) {
-    s = s.slice(0, SANITIZE_MAX - 1) + '…';
+  if (s.length > maxLength) {
+    s = s.slice(0, maxLength - 1) + '…';
   }
   s = s.replace(/"/g, '\\"');
   return s;
 }
+
+// SDS § 0 Note 3 step 5 — per-field length caps. Surfaced as named
+// constants so each call site is self-documenting and a future schema-cap
+// change updates one place.
+const SANITIZE_MAX_AGENT_NAME = 120;
+const SANITIZE_MAX_DISPLAY_NAME = 120;
+const SANITIZE_MAX_ROLE = 120;
+const SANITIZE_MAX_PRIMARY_USE_CASE = 500;
 
 /**
  * SP 1.9 Item 2 — register-directive fragment for the user's `expertise`
@@ -121,7 +134,7 @@ function buildPrincipalIdentityFragments(
   const fragments: string[] = [];
 
   if (projection.name != null && projection.name !== DEFAULT_AGENT_NAME) {
-    const name = sanitizeForIdentityFragment(projection.name);
+    const name = sanitizeForIdentityFragment(projection.name, SANITIZE_MAX_AGENT_NAME);
     if (name.length > 0) {
       fragments.push(`Your name is "${name}".`);
     }
@@ -130,13 +143,13 @@ function buildPrincipalIdentityFragments(
   const profile = projection.userProfile;
   if (profile != null) {
     if (profile.displayName != null) {
-      const v = sanitizeForIdentityFragment(profile.displayName);
+      const v = sanitizeForIdentityFragment(profile.displayName, SANITIZE_MAX_DISPLAY_NAME);
       if (v.length > 0) {
         fragments.push(`The user's preferred name is "${v}".`);
       }
     }
     if (profile.role != null) {
-      const v = sanitizeForIdentityFragment(profile.role);
+      const v = sanitizeForIdentityFragment(profile.role, SANITIZE_MAX_ROLE);
       if (v.length > 0) {
         fragments.push(`The user's role is "${v}".`);
       }
@@ -145,7 +158,7 @@ function buildPrincipalIdentityFragments(
       fragments.push(expertiseFragment(profile.expertise));
     }
     if (profile.primaryUseCase != null) {
-      const v = sanitizeForIdentityFragment(profile.primaryUseCase);
+      const v = sanitizeForIdentityFragment(profile.primaryUseCase, SANITIZE_MAX_PRIMARY_USE_CASE);
       if (v.length > 0) {
         fragments.push(`The user's primary focus is "${v}".`);
       }

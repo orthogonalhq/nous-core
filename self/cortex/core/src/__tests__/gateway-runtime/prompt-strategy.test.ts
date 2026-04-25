@@ -216,16 +216,16 @@ describe('SP 1.9 Item 2 — sanitization pipeline (Axis A case 6)', () => {
     expect(id).toContain('"Andrew"');
   });
 
-  // 6.5 — length-cap with ellipsis
-  it('6.5: input over 200 chars is capped with ellipsis', () => {
+  // 6.5 — length-cap with ellipsis. Per SDS § 0 Note 3 step 5, agent.name
+  // caps at 120 (the per-field cap surfaced at the call site).
+  it('6.5: agent.name over its per-field cap (120) is truncated with ellipsis', () => {
     const longName = 'A'.repeat(300);
     const id = principalIdentity(longName, undefined);
     expect(id).toContain('…');
-    // Capped at SANITIZE_MAX (200) with the trailing ellipsis taking the
-    // last char of the cap.
+    // Capped at 120 with the trailing ellipsis taking the last char.
     const match = id.match(/"(A+)…"/);
     expect(match).not.toBeNull();
-    if (match) expect(match[1].length).toBe(199);
+    if (match) expect(match[1].length).toBe(119);
   });
 
   // 6.6 — inner double quotes escaped
@@ -257,6 +257,70 @@ describe('SP 1.9 Item 2 — sanitization pipeline (Axis A case 6)', () => {
   it('6.9: agent name equal to DEFAULT_AGENT_NAME yields no agent-name fragment', () => {
     const id = principalIdentity('Nous', undefined);
     expect(id).not.toContain('Your name is "Nous"');
+  });
+});
+
+// SP 1.9 — per-field length caps (SDS § 0 Note 3 step 5). One assertion per
+// field: agent.name 120 / displayName 120 / role 120 / primaryUseCase 500.
+// The sanitizer is module-private; we drive each cap through the public
+// `resolveAgentProfile` surface that consumes it for that field.
+describe('SP 1.9 Item 2 — per-field sanitizer caps (SDS § 0 Note 3 step 5)', () => {
+  function buildProfile(userProfile: {
+    displayName?: string;
+    role?: string;
+    primaryUseCase?: string;
+  }) {
+    return resolveAgentProfile(
+      'Cortex::Principal',
+      undefined,
+      { preset: 'balanced' },
+      { name: 'Atlas', userProfile },
+    ).identity;
+  }
+
+  it('agent.name caps at 120 chars (119 + ellipsis)', () => {
+    const longName = 'A'.repeat(300);
+    const id = resolveAgentProfile(
+      'Cortex::Principal',
+      undefined,
+      { preset: 'balanced' },
+      { name: longName, userProfile: {} },
+    ).identity;
+    const match = id.match(/Your name is "(A+)…"/);
+    expect(match).not.toBeNull();
+    if (match) expect(match[1].length).toBe(119);
+  });
+
+  it('userProfile.displayName caps at 120 chars (119 + ellipsis)', () => {
+    const longName = 'D'.repeat(300);
+    const id = buildProfile({ displayName: longName });
+    const match = id.match(/preferred name is "(D+)…"/);
+    expect(match).not.toBeNull();
+    if (match) expect(match[1].length).toBe(119);
+  });
+
+  it('userProfile.role caps at 120 chars (119 + ellipsis)', () => {
+    const longRole = 'R'.repeat(300);
+    const id = buildProfile({ role: longRole });
+    const match = id.match(/role is "(R+)…"/);
+    expect(match).not.toBeNull();
+    if (match) expect(match[1].length).toBe(119);
+  });
+
+  it('userProfile.primaryUseCase caps at 500 chars (499 + ellipsis); 200-char input survives uncapped', () => {
+    // 600-char input → 499 + ellipsis (cap at 500).
+    const longUseCase = 'P'.repeat(600);
+    const id = buildProfile({ primaryUseCase: longUseCase });
+    const match = id.match(/primary focus is "(P+)…"/);
+    expect(match).not.toBeNull();
+    if (match) expect(match[1].length).toBe(499);
+
+    // 200-char input → fully preserved (well under the 500 cap and would
+    // have been wrongly truncated under the prior shared 200-char cap).
+    const midUseCase = 'Q'.repeat(200);
+    const id2 = buildProfile({ primaryUseCase: midUseCase });
+    expect(id2).toContain(`primary focus is "${midUseCase}".`);
+    expect(id2).not.toMatch(/primary focus is "Q+…"/);
   });
 });
 
