@@ -2,11 +2,12 @@
  * First-run tRPC router.
  */
 import { z } from 'zod';
-import type { ModelProviderConfig, ProviderId } from '@nous/shared';
+import type { ModelProviderConfig, ProviderId, ProviderVendor } from '@nous/shared';
 import {
   PersonalityConfigSchema,
   UserProfileSchema,
 } from '@nous/autonomic-config';
+import type { NousContext } from '../../context';
 import { router, publicProcedure } from '../trpc';
 import {
   ValidationStateSchema,
@@ -115,6 +116,39 @@ const WriteIdentityInputSchema = z.object({
   personality: PersonalityConfigSchema,
   profile: UserProfileSchema,
 }).strict();
+
+/**
+ * SP 1.9 Fix #4 / Fix #5 — resolve the current Principal-class vendor for
+ * the harness recompose call following `writeIdentity` / `resetWizard`.
+ *
+ * Mirrors the registry-lookup idiom at `web/server/bootstrap.ts:50-53`
+ * and `desktop/server/main.ts:224-227` — consult the provider registry
+ * for the well-known Ollama provider and read `.getConfig().vendor`.
+ *
+ * Distinct from `preferences.ts:578-580` (which takes vendor from
+ * `providerConfig.vendor` constructed by `buildProviderSelection(modelSpec)`
+ * — a value-from-selection idiom). `first-run.ts` has no `modelSpec` input
+ * at the writeIdentity / resetWizard surfaces, so the registry-lookup
+ * idiom is the correct mirror.
+ *
+ * Graceful-degradation: on any lookup failure, return `'text'`. The
+ * `'text'` adapter still produces a valid composed harness (the
+ * recompose always runs); the next `attachProviders` /
+ * `preferences.setRoleAssignment` call re-syncs to the actual vendor.
+ * SDS § 0 Note 10 § "graceful-degradation". Goals risk row 3.
+ */
+function resolvePrincipalVendor(ctx: NousContext): ProviderVendor {
+  try {
+    const provider = ctx.getProvider(OLLAMA_WELL_KNOWN_PROVIDER_ID);
+    const vendor = provider?.getConfig().vendor;
+    if (vendor != null) return vendor;
+  } catch (err) {
+    console.warn(
+      `[nous:first-run] resolvePrincipalVendor failed: ${err instanceof Error ? err.message : String(err)}`,
+    );
+  }
+  return 'text';
+}
 
 function getProfilePolicy(ctx: { config: { get(): unknown } }) {
   const config = ctx.config.get() as {
@@ -387,6 +421,29 @@ export const firstRunRouter = router({
         await ctx.config.setPersonalityConfig(input.personality);
         await ctx.config.setUserProfile(input.profile);
         const state = await markStepComplete(ctx.dataDir, 'agent_identity');
+
+        // SP 1.9 Fix #4 — trigger harness recompose so the new agent-block
+        // state surfaces in the Principal's cached promptFormatter. Vendor
+        // lookup mirrors the web/desktop bootstrap registry-lookup idiom
+        // (web/server/bootstrap.ts:50-53; desktop/server/main.ts:224-227).
+        // Graceful-degradation per SDS § 0 Note 10: on any lookup failure,
+        // fall back to 'text' and let the next attachProviders /
+        // preferences.setRoleAssignment re-sync the adapter. SDS I8: the
+        // WR-148 turn-in-progress deferral is preserved by
+        // recomposeHarnessForClass internally.
+        try {
+          const vendor = resolvePrincipalVendor(ctx);
+          ctx.gatewayRuntime.recomposeHarnessForClass('Cortex::Principal', vendor);
+          console.info(
+            `[nous:first-run] recompose triggered for Cortex::Principal vendor=${vendor}`,
+          );
+        } catch (recomposeErr) {
+          const msg = recomposeErr instanceof Error ? recomposeErr.message : String(recomposeErr);
+          console.warn(
+            `[nous:first-run] recompose skipped after writeIdentity: ${msg}`,
+          );
+        }
+
         return FirstRunActionResultSchema.parse({
           success: true,
           state,
@@ -412,6 +469,24 @@ export const firstRunRouter = router({
     //     helper lives at `self/apps/shared-server/src/first-run.ts`
     //     (folds SDS-review Note 5 line-citation alignment).
     await ctx.config.clearAgentBlock();
+
+    // SP 1.9 Fix #5 — same recompose trigger as writeIdentity (Fix #4).
+    // After the agent block clears, the Principal's harness still holds
+    // the previous identity in its cached promptFormatter; the recompose
+    // forces it to re-read from `IConfig` (which now returns defaults).
+    try {
+      const vendor = resolvePrincipalVendor(ctx);
+      ctx.gatewayRuntime.recomposeHarnessForClass('Cortex::Principal', vendor);
+      console.info(
+        `[nous:first-run] recompose triggered for Cortex::Principal vendor=${vendor} (resetWizard)`,
+      );
+    } catch (recomposeErr) {
+      const msg = recomposeErr instanceof Error ? recomposeErr.message : String(recomposeErr);
+      console.warn(
+        `[nous:first-run] recompose skipped after resetWizard: ${msg}`,
+      );
+    }
+
     return resetFirstRunState(ctx.dataDir);
   }),
 });
