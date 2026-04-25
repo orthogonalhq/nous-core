@@ -1363,9 +1363,22 @@ export function createNousServices(config?: BootstrapConfig): NousContext {
     pfcEngine: Cortex,
   });
 
-  // Recovery component instantiation (Phase 1.2 — WR-072)
+  // Recovery component instantiation (Phase 1.2 — WR-072; Phase 1.9 — WR-162
+  // SP 9 wires CheckpointManagerDeps with the disk-snapshot dir, the
+  // node-boundary trigger policy, and the bootstrap witnessService for
+  // future snapshot-time emission (currently plumbed-but-unused per
+  // SUPV-SP9-013). The in-memory ledger remains the V1 wiring per IP § 0e
+  // outcome (c) — the disk-backed RecoveryLedgerStore is opt-in for a future
+  // sub-phase that promotes the recovery storage tier; SP 9 lands the
+  // disk-backed implementation alongside without rewiring bootstrap to it).
+  const recoveryDir =
+    process.env.NOUS_RECOVERY_DIR ?? join(instanceRoot, 'recovery');
   const recoveryLedgerStore = new InMemoryRecoveryLedgerStore();
-  const checkpointManager = new CheckpointManager(recoveryLedgerStore);
+  const checkpointManager = new CheckpointManager(recoveryLedgerStore, {
+    dir: recoveryDir,
+    triggerPolicy: 'node-boundary',
+    witness: witnessService,
+  });
   const recoveryOrchestrator = new RecoveryOrchestrator();
 
   const gatewayRuntime = createPrincipalSystemGatewayRuntime({
