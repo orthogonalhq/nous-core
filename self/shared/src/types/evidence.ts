@@ -59,13 +59,20 @@ export const InvariantPrefixSchema = z.enum([
   // to SP 6 alongside `InvariantSeveritySchema`/`EnforcementActionSchema`
   // widening).
   'SUP',
+  // WR-162 SP 8 — recovery-evidence invariant prefix per
+  // failure-recovery-architecture-v1.md § Recovery Evidence Events. The
+  // RecoveryOrchestrator's witness emission helper uses code `RECOVERY-EVT`
+  // paired with `actionCategory: 'recovery-evidence'`. Distinct from `FR`
+  // (which prefixes the SP 1 failure-recovery invariants FR-001..FR-N) so
+  // recovery emission events do not collide with SP 1 invariant codes.
+  'RECOVERY',
 ]);
 export type InvariantPrefix = z.infer<typeof InvariantPrefixSchema>;
 
 export const InvariantCodeSchema = z
   .string()
   .regex(
-    /^(AUTH|EVID|MEM|CHAIN|ISO|PRV|OPCTL|START|ESC|MAO|GTM|POL|WMODE|PCP|ING|FR|SUP)-[A-Z0-9][A-Z0-9-]*$/,
+    /^(AUTH|EVID|MEM|CHAIN|ISO|PRV|OPCTL|START|ESC|MAO|GTM|POL|WMODE|PCP|ING|FR|SUP|RECOVERY)-[A-Z0-9][A-Z0-9-]*$/,
   );
 export type InvariantCode = z.infer<typeof InvariantCodeSchema>;
 
@@ -83,6 +90,13 @@ export const CriticalActionCategorySchema = z.enum([
   // runtime Zod schema to match).
   'supervisor-detection',
   'supervisor-enforcement',
+  // WR-162 SP 8 — recovery-authored action category per
+  // failure-recovery-architecture-v1.md § Recovery Evidence Events.
+  // Discriminates recovery emission on the same witness chain as supervisor
+  // categories. Recovery events flow through `IWitnessService.appendInvariant`
+  // with `actionCategory: 'recovery-evidence'`; the 14 RecoveryEventTypeSchema
+  // literals are carried in `WitnessInvariantInput.detail.event_type`.
+  'recovery-evidence',
 ]);
 export type CriticalActionCategory = z.infer<typeof CriticalActionCategorySchema>;
 

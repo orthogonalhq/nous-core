@@ -83,6 +83,23 @@ describe('CriticalActionCategorySchema', () => {
       true,
     );
   });
+
+  // UT-SP8-CAT1 — WR-162 SP 8: recovery-evidence literal accepted (closed-enum
+  // widening per SUPV-SP8-002). Mirrors SP 4 happy-path additions for
+  // 'supervisor-detection' / 'supervisor-enforcement'.
+  it('accepts recovery-evidence (UT-SP8-CAT1)', () => {
+    expect(
+      CriticalActionCategorySchema.safeParse('recovery-evidence').success,
+    ).toBe(true);
+  });
+
+  // UT-SP8-CAT2 — WR-162 SP 8: negative-set re-anchor; underscore variant
+  // rejected (confirms the literal is matched exactly, not by fuzzy substring).
+  it('rejects recovery_evidence underscore variant (UT-SP8-CAT2)', () => {
+    expect(
+      CriticalActionCategorySchema.safeParse('recovery_evidence').success,
+    ).toBe(false);
+  });
 });
 
 describe('WitnessEventSchema', () => {
