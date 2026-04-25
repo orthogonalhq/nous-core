@@ -653,6 +653,12 @@ implements IPrincipalSystemGatewayRuntime, ISystemInboxSubmissionService {
           checkpoint_manager: this.checkpointManager,
           retry_evaluator: this.retryPolicyEvaluator,
           rollback_evaluator: this.rollbackPolicyEvaluator,
+          // WR-162 SP 8 — extended-context fields (SUPV-SP8-016).
+          // retry_budget / operation_class / side_effect_status omitted
+          // intentionally; not knowable from the workflow-engine failure
+          // surface (left as `undefined`; orchestrator falls back to
+          // documented defaults per SUPV-SP8-007 / SUPV-SP8-009).
+          witness: this.deps.witnessService,
         };
 
         const terminalState = await this.recoveryOrchestrator.run(recoveryContext);
