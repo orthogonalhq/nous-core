@@ -1,8 +1,8 @@
 // @vitest-environment jsdom
 
 import React from 'react'
-import { render, screen } from '@testing-library/react'
-import { describe, expect, it, vi } from 'vitest'
+import { render, screen, fireEvent } from '@testing-library/react'
+import { describe, expect, it } from 'vitest'
 import { ObservePanel } from '../ObservePanel'
 import { ShellProvider } from '../ShellContext'
 
@@ -12,212 +12,223 @@ class MockResizeObserver {
   unobserve() {}
   disconnect() {}
 }
-;(globalThis as any).ResizeObserver = MockResizeObserver
+;(globalThis as unknown as { ResizeObserver: unknown }).ResizeObserver = MockResizeObserver
 
-// ---- Transport mock (required by MaoOperatingSurface) ----
-
-vi.mock('@nous/transport', () => ({
-  trpc: {
-    useUtils: vi.fn().mockReturnValue({
-      mao: {
-        getProjectSnapshot: { invalidate: vi.fn() },
-        getAgentInspectProjection: { invalidate: vi.fn() },
-        getProjectControlProjection: { invalidate: vi.fn() },
-        getControlAuditHistory: { invalidate: vi.fn() },
-        getSystemSnapshot: { invalidate: vi.fn() },
-      },
-      health: { systemStatus: { invalidate: vi.fn() } },
-      projects: { dashboardSnapshot: { invalidate: vi.fn() } },
-      escalations: { listProjectQueue: { invalidate: vi.fn() } },
-    }),
-    mao: {
-      getSystemSnapshot: {
-        useQuery: vi.fn().mockReturnValue({ data: null, isLoading: true }),
-      },
-      getProjectSnapshot: {
-        useQuery: vi.fn().mockReturnValue({ data: null, isLoading: true }),
-      },
-      getAgentInspectProjection: {
-        useQuery: vi.fn().mockReturnValue({ data: null, isLoading: true }),
-      },
-      getControlAuditHistory: {
-        useQuery: vi.fn().mockReturnValue({ data: null, isLoading: true }),
-      },
-      requestProjectControl: {
-        useMutation: vi.fn().mockReturnValue({ mutate: vi.fn(), isPending: false }),
-      },
-    },
-    opctl: {
-      requestConfirmationProof: {
-        useMutation: vi.fn().mockReturnValue({ mutate: vi.fn(), isPending: false }),
-      },
-    },
-    health: {
-      systemStatus: {
-        useQuery: vi.fn().mockReturnValue({ data: null, isLoading: true }),
-      },
-    },
-    projects: {
-      list: {
-        useQuery: vi.fn().mockReturnValue({ data: [], isLoading: false }),
-      },
-      dashboardSnapshot: {
-        useQuery: vi.fn().mockReturnValue({ data: null, isLoading: true }),
-      },
-    },
-  },
-  useEventSubscription: vi.fn(),
-}))
-
+/**
+ * WR-162 SP 11 — ObservePanel keep-mounted-hide-inactive contract.
+ *
+ * SUPV-SP11-001 (keep-mounted container) + SUPV-SP11-002 (closed-enum
+ * three-button switcher) verified here. The panel renders three sibling
+ * `<div data-tab-slot>` elements at all times; only the active slot has
+ * `display: 'flex'`. The switcher renders three `<button role="tab">`
+ * elements; clicking each updates `activeObserveTab` via shell context.
+ */
 describe('ObservePanel', () => {
-  it('renders without crashing when wrapped in ShellProvider', () => {
-    render(
+  it('UT-SP11-OBSERVE-RENDER — renders three sibling tab slots + tablist + three role=tab buttons', () => {
+    const { container } = render(
       <ShellProvider>
         <ObservePanel />
       </ShellProvider>,
     )
+    // Three tab slots present in DOM regardless of active state
+    expect(container.querySelector('[data-tab-slot="agents"]')).toBeTruthy()
+    expect(container.querySelector('[data-tab-slot="system-load"]')).toBeTruthy()
+    expect(container.querySelector('[data-tab-slot="cost-monitor"]')).toBeTruthy()
+    // Tablist + three buttons
+    expect(container.querySelector('[role="tablist"]')).toBeTruthy()
+    expect(container.querySelectorAll('[role="tab"]').length).toBe(3)
+    expect(container.querySelector('[data-tab-id="agents"]')).toBeTruthy()
+    expect(container.querySelector('[data-tab-id="system-load"]')).toBeTruthy()
+    expect(container.querySelector('[data-tab-id="cost-monitor"]')).toBeTruthy()
   })
 
-  it('accepts className prop', () => {
-    render(
+  it('UT-SP11-OBSERVE-AGENTS-ACTIVE — agents slot has display:flex; others have display:none', () => {
+    const { container } = render(
+      <ShellProvider activeObserveTab="agents">
+        <ObservePanel />
+      </ShellProvider>,
+    )
+    const agents = container.querySelector('[data-tab-slot="agents"]') as HTMLElement
+    const systemLoad = container.querySelector('[data-tab-slot="system-load"]') as HTMLElement
+    const costMonitor = container.querySelector('[data-tab-slot="cost-monitor"]') as HTMLElement
+    expect(agents.style.display).toBe('flex')
+    expect(systemLoad.style.display).toBe('none')
+    expect(costMonitor.style.display).toBe('none')
+  })
+
+  it('UT-SP11-OBSERVE-SYSTEM-LOAD-ACTIVE — system-load slot has display:flex; others have display:none', () => {
+    const { container } = render(
+      <ShellProvider activeObserveTab="system-load">
+        <ObservePanel />
+      </ShellProvider>,
+    )
+    const agents = container.querySelector('[data-tab-slot="agents"]') as HTMLElement
+    const systemLoad = container.querySelector('[data-tab-slot="system-load"]') as HTMLElement
+    const costMonitor = container.querySelector('[data-tab-slot="cost-monitor"]') as HTMLElement
+    expect(systemLoad.style.display).toBe('flex')
+    expect(agents.style.display).toBe('none')
+    expect(costMonitor.style.display).toBe('none')
+  })
+
+  it('UT-SP11-OBSERVE-COST-MONITOR-ACTIVE — cost-monitor slot has display:flex; others have display:none', () => {
+    const { container } = render(
+      <ShellProvider activeObserveTab="cost-monitor">
+        <ObservePanel />
+      </ShellProvider>,
+    )
+    const agents = container.querySelector('[data-tab-slot="agents"]') as HTMLElement
+    const systemLoad = container.querySelector('[data-tab-slot="system-load"]') as HTMLElement
+    const costMonitor = container.querySelector('[data-tab-slot="cost-monitor"]') as HTMLElement
+    expect(costMonitor.style.display).toBe('flex')
+    expect(agents.style.display).toBe('none')
+    expect(systemLoad.style.display).toBe('none')
+  })
+
+  it('UT-SP11-OBSERVE-SWITCHER-AGENTS — clicking system-load button activates the system-load slot', () => {
+    const { container } = render(
+      <ShellProvider>
+        <ObservePanel />
+      </ShellProvider>,
+    )
+    const systemLoadBtn = container.querySelector('[data-tab-id="system-load"]') as HTMLButtonElement
+    fireEvent.click(systemLoadBtn)
+    const systemLoad = container.querySelector('[data-tab-slot="system-load"]') as HTMLElement
+    const agents = container.querySelector('[data-tab-slot="agents"]') as HTMLElement
+    expect(systemLoad.style.display).toBe('flex')
+    expect(agents.style.display).toBe('none')
+  })
+
+  it('UT-SP11-OBSERVE-SWITCHER-SYSTEM-LOAD — clicking cost-monitor button activates the cost-monitor slot', () => {
+    const { container } = render(
+      <ShellProvider>
+        <ObservePanel />
+      </ShellProvider>,
+    )
+    const costMonitorBtn = container.querySelector('[data-tab-id="cost-monitor"]') as HTMLButtonElement
+    fireEvent.click(costMonitorBtn)
+    const costMonitor = container.querySelector('[data-tab-slot="cost-monitor"]') as HTMLElement
+    expect(costMonitor.style.display).toBe('flex')
+  })
+
+  it('UT-SP11-OBSERVE-SWITCHER-COST-MONITOR — clicking agents button activates the agents slot', () => {
+    const { container } = render(
+      <ShellProvider activeObserveTab="cost-monitor">
+        <ObservePanel />
+      </ShellProvider>,
+    )
+    const agentsBtn = container.querySelector('[data-tab-id="agents"]') as HTMLButtonElement
+    fireEvent.click(agentsBtn)
+    const agents = container.querySelector('[data-tab-slot="agents"]') as HTMLElement
+    expect(agents.style.display).toBe('flex')
+  })
+
+  it('UT-SP11-OBSERVE-CLASSNAME — accepts className prop and applies it to wrapper', () => {
+    const { container } = render(
       <ShellProvider>
         <ObservePanel className="test-class" />
       </ShellProvider>,
     )
+    const wrapper = container.querySelector('[data-shell-component="observe-panel"]') as HTMLElement
+    expect(wrapper.className).toContain('test-class')
   })
 
-  it('renders canonical MaoOperatingSurface when activeRoute is workflows', () => {
+  it('UT-SP11-OBSERVE-DELETION — no SP-2 placeholder text and no MAO Operating Surface render', () => {
     render(
-      <ShellProvider activeRoute="workflows">
+      <ShellProvider>
         <ObservePanel />
       </ShellProvider>,
     )
-    expect(screen.getByText('MAO Operating Surface')).toBeTruthy()
+    // The SP 2 placeholder text is gone
+    expect(screen.queryByText('No observe content for this view')).toBeNull()
+    // MAO Operating Surface is no longer rendered (SP 12 wires real tab hosts later)
+    expect(screen.queryByText('MAO Operating Surface')).toBeNull()
   })
 
-  it('renders canonical MaoOperatingSurface when activeRoute is workflow-detail', () => {
-    render(
-      <ShellProvider activeRoute="workflow-detail">
+  it('UT-SP11-OBSERVE-ARIA-SELECTED — only the active tab button has aria-selected="true"', () => {
+    const { container } = render(
+      <ShellProvider activeObserveTab="system-load">
         <ObservePanel />
       </ShellProvider>,
     )
-    expect(screen.getByText('MAO Operating Surface')).toBeTruthy()
+    expect(
+      container.querySelector('[data-tab-id="system-load"]')?.getAttribute('aria-selected'),
+    ).toBe('true')
+    expect(
+      container.querySelector('[data-tab-id="agents"]')?.getAttribute('aria-selected'),
+    ).toBe('false')
+    expect(
+      container.querySelector('[data-tab-id="cost-monitor"]')?.getAttribute('aria-selected'),
+    ).toBe('false')
   })
 
-  it('renders default placeholder when activeRoute is home', () => {
-    render(
-      <ShellProvider activeRoute="home">
+  it('UT-SP11-OBSERVE-DATA-ACTIVE — only the active tab button has data-active="true"', () => {
+    const { container } = render(
+      <ShellProvider activeObserveTab="cost-monitor">
         <ObservePanel />
       </ShellProvider>,
     )
-    expect(screen.getByText('No observe content for this view')).toBeTruthy()
+    expect(
+      container.querySelector('[data-tab-id="cost-monitor"]')?.getAttribute('data-active'),
+    ).toBe('true')
+    expect(
+      container.querySelector('[data-tab-id="agents"]')?.getAttribute('data-active'),
+    ).toBe('false')
+    expect(
+      container.querySelector('[data-tab-id="system-load"]')?.getAttribute('data-active'),
+    ).toBe('false')
   })
 
-  it('renders MaoOperatingSurface when activeRoute is skills', () => {
-    render(
-      <ShellProvider activeRoute="skills">
+  it('UT-SP11-OBSERVE-ARIA-HIDDEN — only the active tab slot has aria-hidden="false"', () => {
+    const { container } = render(
+      <ShellProvider activeObserveTab="agents">
         <ObservePanel />
       </ShellProvider>,
     )
-    expect(screen.getByText('MAO Operating Surface')).toBeTruthy()
+    expect(container.querySelector('[data-tab-slot="agents"]')?.getAttribute('aria-hidden')).toBe(
+      'false',
+    )
+    expect(
+      container.querySelector('[data-tab-slot="system-load"]')?.getAttribute('aria-hidden'),
+    ).toBe('true')
+    expect(
+      container.querySelector('[data-tab-slot="cost-monitor"]')?.getAttribute('aria-hidden'),
+    ).toBe('true')
   })
 
-  it('renders MaoOperatingSurface when activeRoute is tasks', () => {
-    render(
-      <ShellProvider activeRoute="tasks">
+  it('UT-SP11-OBSERVE-TABLIST-LABEL — tablist has aria-label="Observe panel tabs"', () => {
+    const { container } = render(
+      <ShellProvider>
         <ObservePanel />
       </ShellProvider>,
     )
-    expect(screen.getByText('MAO Operating Surface')).toBeTruthy()
+    expect(container.querySelector('[role="tablist"]')?.getAttribute('aria-label')).toBe(
+      'Observe panel tabs',
+    )
   })
 
-  it('renders MaoOperatingSurface when activeRoute is agents', () => {
-    render(
-      <ShellProvider activeRoute="agents">
+  it('UT-SP11-OBSERVE-TAB-LABELS — three buttons render the labels Agents / System Load / Cost Monitor', () => {
+    const { container } = render(
+      <ShellProvider>
         <ObservePanel />
       </ShellProvider>,
     )
-    expect(screen.getByText('MAO Operating Surface')).toBeTruthy()
+    expect(container.querySelector('[data-tab-id="agents"]')?.textContent).toBe('Agents')
+    expect(container.querySelector('[data-tab-id="system-load"]')?.textContent).toBe('System Load')
+    expect(container.querySelector('[data-tab-id="cost-monitor"]')?.textContent).toBe(
+      'Cost Monitor',
+    )
   })
 
-  it('renders MaoOperatingSurface when activeRoute is agent-detail', () => {
-    render(
-      <ShellProvider activeRoute="agent-detail">
+  it('UT-SP11-OBSERVE-DEFAULT-TAB — default activeObserveTab is "agents" without an explicit prop', () => {
+    const { container } = render(
+      <ShellProvider>
         <ObservePanel />
       </ShellProvider>,
     )
-    expect(screen.getByText('MAO Operating Surface')).toBeTruthy()
-  })
-
-  it('renders MaoOperatingSurface when activeRoute is task-detail', () => {
-    render(
-      <ShellProvider activeRoute="task-detail">
-        <ObservePanel />
-      </ShellProvider>,
-    )
-    expect(screen.getByText('MAO Operating Surface')).toBeTruthy()
-  })
-
-  it('renders MaoOperatingSurface when activeRoute is threads', () => {
-    render(
-      <ShellProvider activeRoute="threads">
-        <ObservePanel />
-      </ShellProvider>,
-    )
-    expect(screen.getByText('MAO Operating Surface')).toBeTruthy()
-  })
-
-  it('renders MaoOperatingSurface when activeRoute is apps', () => {
-    render(
-      <ShellProvider activeRoute="apps">
-        <ObservePanel />
-      </ShellProvider>,
-    )
-    expect(screen.getByText('MAO Operating Surface')).toBeTruthy()
-  })
-
-  it('renders MaoOperatingSurface when activeRoute is dashboard', () => {
-    render(
-      <ShellProvider activeRoute="dashboard">
-        <ObservePanel />
-      </ShellProvider>,
-    )
-    expect(screen.getByText('MAO Operating Surface')).toBeTruthy()
-  })
-
-  it('renders MaoOperatingSurface when activeRoute is org-chart', () => {
-    render(
-      <ShellProvider activeRoute="org-chart">
-        <ObservePanel />
-      </ShellProvider>,
-    )
-    expect(screen.getByText('MAO Operating Surface')).toBeTruthy()
-  })
-
-  it('renders MaoOperatingSurface when activeRoute is inbox', () => {
-    render(
-      <ShellProvider activeRoute="inbox">
-        <ObservePanel />
-      </ShellProvider>,
-    )
-    expect(screen.getByText('MAO Operating Surface')).toBeTruthy()
-  })
-
-  it('renders MaoOperatingSurface for dynamic sidebar routeIds (e.g. campaign-1)', () => {
-    render(
-      <ShellProvider activeRoute="campaign-1">
-        <ObservePanel />
-      </ShellProvider>,
-    )
-    expect(screen.getByText('MAO Operating Surface')).toBeTruthy()
-  })
-
-  it('renders MaoOperatingSurface for unknown routes (defaults to mao)', () => {
-    render(
-      <ShellProvider activeRoute="some-unknown-route">
-        <ObservePanel />
-      </ShellProvider>,
-    )
-    expect(screen.getByText('MAO Operating Surface')).toBeTruthy()
+    const agents = container.querySelector('[data-tab-slot="agents"]') as HTMLElement
+    expect(agents.style.display).toBe('flex')
+    expect(
+      container.querySelector('[data-tab-id="agents"]')?.getAttribute('aria-selected'),
+    ).toBe('true')
   })
 })

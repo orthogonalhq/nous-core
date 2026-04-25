@@ -5,6 +5,7 @@ import { act } from 'react'
 import { createRoot, type Root } from 'react-dom/client'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { SimpleShellLayout } from '../SimpleShellLayout'
+import { ShellProvider } from '../ShellContext'
 
 let container: HTMLDivElement
 let root: Root
@@ -40,15 +41,17 @@ async function renderLayout(
 ) {
   await act(async () => {
     root.render(
-      <SimpleShellLayout
-        projectRail={<div>rail</div>}
-        sidebar={<div>sidebar</div>}
-        content={<div>content</div>}
-        observe={<div>observe</div>}
-        chatSlot={({ stage }) => <div data-testid="chat">{stage}</div>}
-        chatStage="small"
-        {...overrides}
-      />,
+      <ShellProvider>
+        <SimpleShellLayout
+          projectRail={<div>rail</div>}
+          sidebar={<div>sidebar</div>}
+          content={<div>content</div>}
+          observe={<div>observe</div>}
+          chatSlot={({ stage }) => <div data-testid="chat">{stage}</div>}
+          chatStage="small"
+          {...overrides}
+        />
+      </ShellProvider>,
     )
     await flush()
   })
@@ -202,16 +205,18 @@ describe('SimpleShellLayout', () => {
     // Re-render with collapsed=false — the underlying sidebarWidth state is still 300
     await act(async () => {
       root.render(
-        <SimpleShellLayout
-          projectRail={<div>rail</div>}
-          sidebar={<div>sidebar</div>}
-          content={<div>content</div>}
-          observe={<div>observe</div>}
-          chatSlot={({ stage }) => <div data-testid="chat">{stage}</div>}
-          chatStage="small"
-          sidebarCollapsed={false}
-          initialWidths={{ sidebar: 300 }}
-        />,
+        <ShellProvider>
+          <SimpleShellLayout
+            projectRail={<div>rail</div>}
+            sidebar={<div>sidebar</div>}
+            content={<div>content</div>}
+            observe={<div>observe</div>}
+            chatSlot={({ stage }) => <div data-testid="chat">{stage}</div>}
+            chatStage="small"
+            sidebarCollapsed={false}
+            initialWidths={{ sidebar: 300 }}
+          />
+        </ShellProvider>,
       )
       await flush()
     })
@@ -234,15 +239,17 @@ describe('SimpleShellLayout', () => {
     // Re-render with sidebarCollapsed: true
     await act(async () => {
       root.render(
-        <SimpleShellLayout
-          projectRail={<div>rail</div>}
-          sidebar={<div>sidebar</div>}
-          content={<div>content</div>}
-          observe={<div>observe</div>}
-          chatSlot={({ stage }) => <div data-testid="chat">{stage}</div>}
-          chatStage="small"
-          sidebarCollapsed={true}
-        />,
+        <ShellProvider>
+          <SimpleShellLayout
+            projectRail={<div>rail</div>}
+            sidebar={<div>sidebar</div>}
+            content={<div>content</div>}
+            observe={<div>observe</div>}
+            chatSlot={({ stage }) => <div data-testid="chat">{stage}</div>}
+            chatStage="small"
+            sidebarCollapsed={true}
+          />
+        </ShellProvider>,
       )
       await flush()
     })
