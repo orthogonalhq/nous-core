@@ -185,6 +185,10 @@ export interface ChatSurfaceProps {
   onInputFocus?: () => void
   onUnreadMessage?: () => void
   onMessagesRead?: () => void
+  /** SP 1.9 Fix #7 — forwarded to ChatPanel's `chat.getHistory.useQuery`. */
+  projectId?: string
+  /** SP 1.9 Fix #7 — forwarded to ChatPanel's `chat.getHistory.useQuery`. */
+  sessionId?: string
 }
 
 /** Props for the HomeScreen landing surface */
