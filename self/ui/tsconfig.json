@@ -16,6 +16,7 @@
     "baseUrl": ".",
     "paths": {
       "@nous/shared": ["../shared/src/index.ts"],
+      "@nous/subcortex-opctl": ["../subcortex/opctl/src/index.ts"],
       "@nous/transport": ["../transport/src/index.ts"]
     }
   },
