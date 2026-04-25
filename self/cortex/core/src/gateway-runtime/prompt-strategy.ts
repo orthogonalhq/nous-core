@@ -101,13 +101,14 @@ const SANITIZE_MAX_PRIMARY_USE_CASE = 500;
 function expertiseFragment(
   expertise: NonNullable<UserProfile['expertise']>,
 ): string {
+  // SDS § 0 Note 4 — verbatim register-directive prose per enum value.
   switch (expertise) {
     case 'beginner':
-      return 'Use clear, accessible language. Define technical terms when first introduced. Favour concrete examples over abstract framing.';
+      return "When explaining concepts relevant to the user's work, favor accessible language and ground abstractions in concrete examples; avoid jargon unless you also define it.";
     case 'intermediate':
-      return 'Match a working-practitioner register. Skip basics the user already understands; do not over-define common terms.';
+      return 'When explaining concepts, use domain-appropriate vocabulary; you may skip foundational definitions unless the user asks.';
     case 'advanced':
-      return 'Match an expert register. Skip basics; assume fluency with domain vocabulary; favour precision and density over hand-holding.';
+      return "When explaining concepts, speak at a technical peer's register; be concise with foundational material and go deeper on nuance.";
     default: {
       const _exhaustive: never = expertise;
       throw new Error(
@@ -141,7 +142,10 @@ function buildPrincipalIdentityFragments(
   if (projection.name != null && projection.name !== DEFAULT_AGENT_NAME) {
     const name = sanitizeForIdentityFragment(projection.name, SANITIZE_MAX_AGENT_NAME);
     if (name.length > 0) {
-      fragments.push(`Your name is "${name}".`);
+      // SDS § 0 Note 2 fragment-template (verbatim) — agentNameFragment.
+      fragments.push(
+        `Your name is "${name}". When asked your name or who you are, introduce yourself as "${name}".`,
+      );
     }
   }
 
@@ -150,13 +154,15 @@ function buildPrincipalIdentityFragments(
     if (profile.displayName != null) {
       const v = sanitizeForIdentityFragment(profile.displayName, SANITIZE_MAX_DISPLAY_NAME);
       if (v.length > 0) {
-        fragments.push(`The user's preferred name is "${v}".`);
+        // SDS § 0 Note 2 fragment-template (verbatim) — userDisplayNameFragment.
+        fragments.push(`You are speaking with "${v}".`);
       }
     }
     if (profile.role != null) {
       const v = sanitizeForIdentityFragment(profile.role, SANITIZE_MAX_ROLE);
       if (v.length > 0) {
-        fragments.push(`The user's role is "${v}".`);
+        // SDS § 0 Note 2 fragment-template (verbatim) — userRoleFragment.
+        fragments.push(`The user's role is described as "${v}".`);
       }
     }
     if (profile.expertise != null) {
@@ -165,7 +171,8 @@ function buildPrincipalIdentityFragments(
     if (profile.primaryUseCase != null) {
       const v = sanitizeForIdentityFragment(profile.primaryUseCase, SANITIZE_MAX_PRIMARY_USE_CASE);
       if (v.length > 0) {
-        fragments.push(`The user's primary focus is "${v}".`);
+        // SDS § 0 Note 2 fragment-template (verbatim) — userPrimaryUseCaseFragment.
+        fragments.push(`The user is primarily working on: "${v}".`);
       }
     }
   }

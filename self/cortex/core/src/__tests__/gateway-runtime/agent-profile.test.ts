@@ -326,10 +326,13 @@ describe('SP 1.9 Item 2 — agent-identity projection (Axis A)', () => {
     expect(withProjection.toolPolicy).toBe(baseline.toolPolicy);
   });
 
-  // Case 2 — composition order (Goals C1 / SDS Note 2). Fragments appear
-  // in the binding order: base → agent-name → displayName → role →
-  // expertise → primaryUseCase → personality.
-  it('case 2: identity fragments appear in binding composition order', () => {
+  // Case 2 — composition order (Goals C1 / SDS § 0 Note 2). Fragments
+  // appear in the binding order: base → agent-name → displayName → role →
+  // expertise → primaryUseCase → personality. Substrings are SDS-verbatim
+  // (Note 2 templates table) — not the implementation's own template
+  // literals — so this test catches a future implementation drift away
+  // from the SDS-specified wording.
+  it('case 2: identity fragments appear in binding composition order (SDS Note 2 verbatim wording)', () => {
     const profile = resolveAgentProfile(
       'Cortex::Principal',
       undefined,
@@ -337,11 +340,21 @@ describe('SP 1.9 Item 2 — agent-identity projection (Axis A)', () => {
       FULL_PROJECTION,
     );
     const id = profile.identity;
-    const namePos = id.indexOf('Your name is "Atlas"');
-    const displayPos = id.indexOf('preferred name is "Andrew"');
-    const rolePos = id.indexOf('role is "Principal engineer"');
-    const expertisePos = id.indexOf('expert register');
-    const useCasePos = id.indexOf('primary focus is "Building agent runtimes"');
+    // SDS § 0 Note 2 verbatim fragment-templates:
+    //   agentNameFragment        → `Your name is "<name>". When asked your name or who you are, introduce yourself as "<name>".`
+    //   userDisplayNameFragment  → `You are speaking with "<displayName>".`
+    //   userRoleFragment         → `The user's role is described as "<sanitizedRole>".`
+    //   userExpertiseFragment    → `When explaining concepts, speak at a technical peer's register; ...` (advanced — Note 4)
+    //   userPrimaryUseCaseFragment → `The user is primarily working on: "<sanitizedPrimaryUseCase>".`
+    const namePos = id.indexOf(
+      'Your name is "Atlas". When asked your name or who you are, introduce yourself as "Atlas".',
+    );
+    const displayPos = id.indexOf('You are speaking with "Andrew".');
+    const rolePos = id.indexOf('The user\'s role is described as "Principal engineer".');
+    const expertisePos = id.indexOf(
+      "When explaining concepts, speak at a technical peer's register; be concise with foundational material and go deeper on nuance.",
+    );
+    const useCasePos = id.indexOf('The user is primarily working on: "Building agent runtimes".');
     expect(namePos).toBeGreaterThan(0);
     expect(displayPos).toBeGreaterThan(namePos);
     expect(rolePos).toBeGreaterThan(displayPos);
@@ -416,9 +429,22 @@ describe('SP 1.9 Item 2 — agent-identity projection (Axis A)', () => {
           expect(profile.identity).toContain('Atlas');
           expect(profile.identity).toContain('"A"');
           // Expertise register directive present iff expertise was set.
-          if (expertise === 'beginner') expect(profile.identity).toContain('clear, accessible');
-          else if (expertise === 'intermediate') expect(profile.identity).toContain('working-practitioner');
-          else if (expertise === 'advanced') expect(profile.identity).toContain('expert register');
+          // Substrings are from the SDS § 0 Note 4 verbatim templates
+          // (not the implementation's own switch arms) — catches a future
+          // drift away from SDS wording.
+          if (expertise === 'beginner') {
+            expect(profile.identity).toContain(
+              "favor accessible language and ground abstractions in concrete examples",
+            );
+          } else if (expertise === 'intermediate') {
+            expect(profile.identity).toContain(
+              'use domain-appropriate vocabulary; you may skip foundational definitions',
+            );
+          } else if (expertise === 'advanced') {
+            expect(profile.identity).toContain(
+              "speak at a technical peer's register",
+            );
+          }
         });
       }
     }

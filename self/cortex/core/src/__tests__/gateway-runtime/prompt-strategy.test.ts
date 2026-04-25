@@ -243,21 +243,23 @@ describe('SP 1.9 Item 2 — sanitization pipeline (Axis A case 6)', () => {
     expect(id).toContain('"And\\"rew"');
   });
 
-  // 6.7 — empty string after sanitization is dropped (no fragment emitted)
+  // 6.7 — empty string after sanitization is dropped (no fragment emitted).
+  // Substring is from SDS § 0 Note 2 verbatim displayName template.
   it('6.7: empty string after sanitization yields no fragment', () => {
     const id = principalIdentity(undefined, '   ');
-    expect(id).not.toContain('preferred name is');
+    expect(id).not.toContain('You are speaking with');
   });
 
   // 6.8 — multi-pipeline: every transform is applied in order. (Identity
   // composition uses `\n\n` between fragments — the assertion is that the
   // sanitized fragment text itself contains no newlines, not the surrounding
-  // identity block.)
+  // identity block.) Substring is from SDS § 0 Note 2 verbatim displayName
+  // template.
   it('6.8: full pipeline (newlines + markers + whitespace + cap + escape)', () => {
     const id = principalIdentity(undefined, '  Andrew\n<|inject|>"hello"   world  ');
     expect(id).toContain('"Andrew \\"hello\\" world"');
     expect(id).not.toContain('<|inject|>');
-    const fragmentMatch = id.match(/preferred name is "([^"]+(?:\\"[^"]*)*)"/);
+    const fragmentMatch = id.match(/You are speaking with "([^"]+(?:\\"[^"]*)*)"/);
     expect(fragmentMatch).not.toBeNull();
     if (fragmentMatch) expect(fragmentMatch[1]).not.toContain('\n');
   });
@@ -303,7 +305,8 @@ describe('SP 1.9 Item 2 — per-field sanitizer caps (SDS § 0 Note 3 step 5)', 
   it('userProfile.displayName caps at 120 chars (119 + ellipsis)', () => {
     const longName = 'D'.repeat(300);
     const id = buildProfile({ displayName: longName });
-    const match = id.match(/preferred name is "(D+)…"/);
+    // SDS § 0 Note 2 verbatim displayName template: `You are speaking with "<v>".`
+    const match = id.match(/You are speaking with "(D+)…"/);
     expect(match).not.toBeNull();
     if (match) expect(match[1].length).toBe(119);
   });
@@ -311,16 +314,18 @@ describe('SP 1.9 Item 2 — per-field sanitizer caps (SDS § 0 Note 3 step 5)', 
   it('userProfile.role caps at 120 chars (119 + ellipsis)', () => {
     const longRole = 'R'.repeat(300);
     const id = buildProfile({ role: longRole });
-    const match = id.match(/role is "(R+)…"/);
+    // SDS § 0 Note 2 verbatim role template: `The user's role is described as "<v>".`
+    const match = id.match(/The user's role is described as "(R+)…"/);
     expect(match).not.toBeNull();
     if (match) expect(match[1].length).toBe(119);
   });
 
   it('userProfile.primaryUseCase caps at 500 chars (499 + ellipsis); 200-char input survives uncapped', () => {
-    // 600-char input → 499 + ellipsis (cap at 500).
+    // 600-char input → 499 + ellipsis (cap at 500). SDS § 0 Note 2
+    // verbatim template: `The user is primarily working on: "<v>".`
     const longUseCase = 'P'.repeat(600);
     const id = buildProfile({ primaryUseCase: longUseCase });
-    const match = id.match(/primary focus is "(P+)…"/);
+    const match = id.match(/The user is primarily working on: "(P+)…"/);
     expect(match).not.toBeNull();
     if (match) expect(match[1].length).toBe(499);
 
@@ -328,8 +333,8 @@ describe('SP 1.9 Item 2 — per-field sanitizer caps (SDS § 0 Note 3 step 5)', 
     // have been wrongly truncated under the prior shared 200-char cap).
     const midUseCase = 'Q'.repeat(200);
     const id2 = buildProfile({ primaryUseCase: midUseCase });
-    expect(id2).toContain(`primary focus is "${midUseCase}".`);
-    expect(id2).not.toMatch(/primary focus is "Q+…"/);
+    expect(id2).toContain(`The user is primarily working on: "${midUseCase}".`);
+    expect(id2).not.toMatch(/The user is primarily working on: "Q+…"/);
   });
 });
 
@@ -343,12 +348,14 @@ describe('SP 1.9 Item 2 — adversarial composition (Axis A case 7)', () => {
       { name: 'Atlas', userProfile: { primaryUseCase: adversarial } },
     );
     const id = profile.identity;
-    // The user text is quoted (wrapped in `"..."`).
-    expect(id).toMatch(/primary focus is "[^"]+"/);
+    // The user text is quoted (wrapped in `"..."`). Substring is from SDS
+    // § 0 Note 2 verbatim primaryUseCase template:
+    //   `The user is primarily working on: "<sanitizedPrimaryUseCase>".`
+    expect(id).toMatch(/The user is primarily working on: "[^"]+"/);
     // No raw newlines from the adversarial input survive in the identity
     // block (the surrounding scaffolding still uses `\n\n` separators —
     // but the adversarial fragment itself is single-line).
-    const fragmentMatch = id.match(/primary focus is "([^"]+)"/);
+    const fragmentMatch = id.match(/The user is primarily working on: "([^"]+)"/);
     expect(fragmentMatch).not.toBeNull();
     if (fragmentMatch) {
       expect(fragmentMatch[1]).not.toContain('\n');
