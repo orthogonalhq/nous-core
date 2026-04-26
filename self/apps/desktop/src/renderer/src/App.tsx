@@ -21,6 +21,7 @@ import {
   ShellProvider,
   useShellContext as useShellCtx,
   ObservePanel,
+  StatusBar as ShellStatusBar,
   CommandPalette,
   ProjectSwitcherRail,
   AssetSidebar,
@@ -903,6 +904,7 @@ function DesktopSimpleShell({
         />
       }
       observe={<ObservePanel />}
+      statusBar={<ShellStatusBar />}
       chatStage={chatStageManager.chatStage}
       onClickOutside={chatStageManager.handleClickOutside}
       chatSlot={({ stage }) => (
