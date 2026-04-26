@@ -20,7 +20,12 @@ vi.mock('@nous/transport', () => ({
   useEventSubscription: vi.fn(),
 }));
 
-import { MaoAuditTrailPanel } from '../mao-audit-trail-panel';
+import {
+  MaoAuditTrailPanel,
+  ACTOR_VISUAL,
+  type ActorVisualTreatment,
+} from '../mao-audit-trail-panel';
+import type { ControlActorType } from '@nous/shared';
 
 const MOCK_PROJECT_ID = '550e8400-e29b-41d4-a716-446655445001' as any;
 
@@ -136,5 +141,150 @@ describe('MaoAuditTrailPanel', () => {
     expect(screen.getByText('not_applicable')).toBeTruthy();
     expect(screen.getByText('mao-control:cmd-001')).toBeTruthy();
     expect(screen.getByText('evidence://stop')).toBeTruthy();
+  });
+});
+
+// --- WR-162 SP 14 (SUPV-SP14-014..016) — audit-trail polish ---
+
+function makeEntry(overrides: Record<string, unknown>) {
+  return {
+    commandId: 'cmd-' + (overrides.commandId ?? '0000'),
+    action: 'pause_project',
+    actorId: 'actor-1',
+    reason: 'reason text',
+    reasonCode: 'mao_project_control_applied',
+    at: '2026-03-10T01:00:00.000Z',
+    evidenceRefs: ['evidence://ref-1'],
+    resumeReadinessStatus: 'not_applicable',
+    decisionRef: 'mao-control:cmd-x',
+    ...overrides,
+  };
+}
+
+describe('UT-SP14-AT — audit-trail polish (SUPV-SP14-014..016)', () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+    mockUseQuery = vi.fn().mockReturnValue({
+      data: [],
+      isLoading: false,
+      isError: false,
+    });
+  });
+
+  afterEach(() => {
+    cleanup();
+  });
+
+  // UT-SP14-AT-SUPERVISOR-ACTOR — five-literal coverage
+  it('UT-SP14-AT-SUPERVISOR-ACTOR — five ControlActorType literals route through ACTOR_VISUAL', () => {
+    const literals: ControlActorType[] = [
+      'principal',
+      'orchestration_agent',
+      'worker_agent',
+      'system_agent',
+      'supervisor',
+    ];
+    const entries = literals.map((literal, i) =>
+      makeEntry({
+        commandId: `${i}`,
+        actor_type: literal,
+        actorId: `${literal}-id`,
+      }),
+    );
+    mockUseQuery = vi.fn().mockReturnValue({
+      data: entries,
+      isLoading: false,
+      isError: false,
+    });
+    render(<MaoAuditTrailPanel projectId={MOCK_PROJECT_ID} />);
+    for (const literal of literals) {
+      const badge = screen.getByTestId(`audit-actor-${literal}`);
+      expect(badge).toBeTruthy();
+      expect(badge.textContent).toContain(ACTOR_VISUAL[literal].badge);
+    }
+    // Only the supervisor row carries the glyph distinction.
+    expect(screen.getByTestId('audit-actor-supervisor-glyph')).toBeTruthy();
+  });
+
+  // UT-SP14-AT-FALLBACK — entries without actor_type default to 'principal' baseline
+  it('UT-SP14-AT-FALLBACK — entries without actor_type default to principal baseline', () => {
+    mockUseQuery = vi.fn().mockReturnValue({
+      data: [makeEntry({ commandId: 'a' })],
+      isLoading: false,
+      isError: false,
+    });
+    render(<MaoAuditTrailPanel projectId={MOCK_PROJECT_ID} />);
+    expect(screen.getByTestId('audit-actor-principal')).toBeTruthy();
+    // No supervisor glyph when actor_type is absent.
+    expect(screen.queryByTestId('audit-actor-supervisor-glyph')).toBeNull();
+  });
+
+  // UT-SP14-AT-EVIDENCE-REF — three-attribute pattern (SUPV-SP14-014)
+  it('UT-SP14-AT-EVIDENCE-REF — expanded evidence refs render with the SP 13 three-attribute pattern', () => {
+    const fixedCommandId = 'aaaa-bbbb-cccc-dddd-eeeeeeee9999';
+    mockUseQuery = vi.fn().mockReturnValue({
+      data: [
+        {
+          commandId: fixedCommandId,
+          action: 'pause_project',
+          actorId: 'principal-1',
+          reason: 'reason text',
+          reasonCode: 'mao_project_control_applied',
+          at: '2026-03-10T01:00:00.000Z',
+          evidenceRefs: ['evidence://e1', 'evidence://e2'],
+          resumeReadinessStatus: 'not_applicable',
+          decisionRef: 'mao-control:cmd-x',
+        },
+      ],
+      isLoading: false,
+      isError: false,
+    });
+    render(<MaoAuditTrailPanel projectId={MOCK_PROJECT_ID} />);
+    fireEvent.click(screen.getByText('reason text'));
+    const list = screen.getByTestId('audit-evidence-ref-list');
+    const refs = list.querySelectorAll('[data-mao-evidence-ref]');
+    expect(refs.length).toBe(2);
+    for (const node of Array.from(refs)) {
+      expect(node.getAttribute('data-mao-evidence-source')).toBe('audit-trail');
+      expect(node.getAttribute('data-mao-evidence-command-id')).toBe(fixedCommandId);
+    }
+  });
+
+  // UT-SP14-AT-DNR-I1 — eleven event-type non-suppression check via render-all
+  it('UT-SP14-AT-DNR-I1 — audit-trail renders all entries without filtering on event type', () => {
+    const entries = Array.from({ length: 11 }, (_, i) =>
+      makeEntry({ commandId: String(i), reason: `entry-${i}` }),
+    );
+    mockUseQuery = vi.fn().mockReturnValue({
+      data: entries,
+      isLoading: false,
+      isError: false,
+    });
+    render(<MaoAuditTrailPanel projectId={MOCK_PROJECT_ID} />);
+    for (let i = 0; i < 11; i++) {
+      expect(screen.getByText(`entry-${i}`)).toBeTruthy();
+    }
+  });
+});
+
+describe('UT-SP14-CAT-ACTOR-TYPE — closed Record over five-literal admit', () => {
+  it('ACTOR_VISUAL covers all five ControlActorType literals exhaustively', () => {
+    const expected: ControlActorType[] = [
+      'principal',
+      'orchestration_agent',
+      'worker_agent',
+      'system_agent',
+      'supervisor',
+    ];
+    expect(Object.keys(ACTOR_VISUAL).sort()).toEqual([...expected].sort());
+    // Only the supervisor row carries the glyph distinction.
+    const supervisorRow: ActorVisualTreatment = ACTOR_VISUAL.supervisor;
+    expect(supervisorRow.glyph).toBe('supervisor');
+    expect(supervisorRow.badge).toBe('Supervisor');
+    expect(supervisorRow.toneSeverity).toBe('high');
+    // Non-supervisor rows render no glyph.
+    for (const literal of expected.filter((x) => x !== 'supervisor')) {
+      expect(ACTOR_VISUAL[literal].glyph).toBeNull();
+    }
   });
 });

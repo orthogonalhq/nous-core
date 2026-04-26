@@ -3,7 +3,12 @@
 import * as React from 'react';
 import { cleanup, fireEvent, render, screen } from '@testing-library/react';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-import { MaoProjectControls } from '../mao-project-controls';
+import {
+  MaoProjectControls,
+  TOAST_BODY_BY_OUTCOME,
+  classifyOutcome,
+  type OpctlSubmitToastOutcome,
+} from '../mao-project-controls';
 import type { MaoProjectControlResult, MaoProjectSnapshot } from '@nous/shared';
 
 const UUID_REGEX = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
@@ -270,5 +275,259 @@ describe('MaoProjectControls', () => {
         commandId: expect.stringMatching(UUID_REGEX),
       }),
     );
+  });
+});
+
+// --- WR-162 SP 14 (SUPV-SP14-001..006) — Project-controls polish ---
+
+function makeResult(
+  overrides: Partial<MaoProjectControlResult>,
+): MaoProjectControlResult {
+  return {
+    command_id: 'cmd-result',
+    project_id: '11111111-1111-1111-1111-111111111111',
+    accepted: true,
+    status: 'applied',
+    from_state: 'running',
+    to_state: 'paused_review',
+    reason_code: 'mao_project_control_applied',
+    decision_ref: 'mao-control:cmd-result',
+    impactSummary: {
+      activeRunCount: 0,
+      activeAgentCount: 0,
+      blockedAgentCount: 0,
+      urgentAgentCount: 0,
+      affectedScheduleCount: 0,
+      evidenceRefs: [],
+    },
+    evidenceRefs: [],
+    readiness_status: 'not_applicable',
+    ...overrides,
+  } as unknown as MaoProjectControlResult;
+}
+
+describe('UT-SP14-PC — project-controls polish (SUPV-SP14-001..006)', () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+  });
+
+  afterEach(() => {
+    cleanup();
+  });
+
+  // UT-SP14-PC-BANNER-PRESENT
+  it('UT-SP14-PC-BANNER-PRESENT — renders scope-lock banner after submit', () => {
+    render(
+      <MaoProjectControls
+        snapshot={createSnapshot()}
+        pending={false}
+        lastResult={null}
+        onRequestControl={vi.fn()}
+      />,
+    );
+    const textarea = screen.getByPlaceholderText(/operator reason/i);
+    fireEvent.change(textarea, { target: { value: 'Pause for review' } });
+    fireEvent.click(screen.getByText('Pause Project'));
+    expect(screen.getByTestId('scope-lock-banner')).toBeTruthy();
+    expect(screen.getByTestId('scope-lock-banner').getAttribute('data-banner-action')).toBe('pause_project');
+  });
+
+  // UT-SP14-PC-BANNER-ABSENT
+  it('UT-SP14-PC-BANNER-ABSENT — does not render banner before any submit', () => {
+    render(
+      <MaoProjectControls
+        snapshot={createSnapshot()}
+        pending={false}
+        lastResult={null}
+        onRequestControl={vi.fn()}
+      />,
+    );
+    expect(screen.queryByTestId('scope-lock-banner')).toBeNull();
+  });
+
+  // UT-SP14-PC-AUTO-CLEAR
+  it('UT-SP14-PC-AUTO-CLEAR — banner clears when lastResult.status === "applied"', () => {
+    const { rerender } = render(
+      <MaoProjectControls
+        snapshot={createSnapshot()}
+        pending={false}
+        lastResult={null}
+        onRequestControl={vi.fn()}
+      />,
+    );
+    const textarea = screen.getByPlaceholderText(/operator reason/i);
+    fireEvent.change(textarea, { target: { value: 'Pause' } });
+    fireEvent.click(screen.getByText('Pause Project'));
+    expect(screen.getByTestId('scope-lock-banner')).toBeTruthy();
+
+    rerender(
+      <MaoProjectControls
+        snapshot={createSnapshot()}
+        pending={false}
+        lastResult={makeResult({ status: 'applied' })}
+        onRequestControl={vi.fn()}
+      />,
+    );
+    expect(screen.queryByTestId('scope-lock-banner')).toBeNull();
+  });
+
+  // UT-SP14-PC-BANNER-PERSIST-ON-CONFLICT — banner persists for blocked_conflict_resolved
+  it('UT-SP14-PC-BANNER-PERSIST-ON-CONFLICT — banner persists when lastResult is blocked_conflict_resolved', () => {
+    const { rerender } = render(
+      <MaoProjectControls
+        snapshot={createSnapshot()}
+        pending={false}
+        lastResult={null}
+        onRequestControl={vi.fn()}
+      />,
+    );
+    const textarea = screen.getByPlaceholderText(/operator reason/i);
+    fireEvent.change(textarea, { target: { value: 'Pause' } });
+    fireEvent.click(screen.getByText('Pause Project'));
+    expect(screen.getByTestId('scope-lock-banner')).toBeTruthy();
+
+    rerender(
+      <MaoProjectControls
+        snapshot={createSnapshot()}
+        pending={false}
+        lastResult={makeResult({
+          status: 'blocked',
+          reason_code: 'opctl_conflict_resolved',
+        })}
+        onRequestControl={vi.fn()}
+      />,
+    );
+    expect(screen.getByTestId('scope-lock-banner')).toBeTruthy();
+  });
+
+  // UT-SP14-PC-TOAST-PER-OUTCOME — closed Record exhaustiveness over four outcomes
+  it('UT-SP14-PC-TOAST-PER-OUTCOME — TOAST_BODY_BY_OUTCOME admits all four outcomes', () => {
+    const expected: OpctlSubmitToastOutcome[] = [
+      'applied',
+      'rejected',
+      'blocked_conflict_resolved',
+      'blocked_other',
+    ];
+    expect(Object.keys(TOAST_BODY_BY_OUTCOME).sort()).toEqual([...expected].sort());
+    expect(TOAST_BODY_BY_OUTCOME.applied.tone).toBe('success');
+    expect(TOAST_BODY_BY_OUTCOME.rejected.tone).toBe('error');
+    expect(TOAST_BODY_BY_OUTCOME.blocked_conflict_resolved.tone).toBe('info');
+    expect(TOAST_BODY_BY_OUTCOME.blocked_other.tone).toBe('warn');
+  });
+
+  // UT-SP14-PC-TOAST-CLASSIFY — closed pure discriminator
+  it('UT-SP14-PC-TOAST-CLASSIFY — classifyOutcome maps the four submit-result branches', () => {
+    expect(classifyOutcome(makeResult({ status: 'applied' }))).toBe('applied');
+    expect(classifyOutcome(makeResult({ status: 'rejected' }))).toBe('rejected');
+    expect(
+      classifyOutcome(
+        makeResult({
+          status: 'blocked',
+          reason_code: 'opctl_conflict_resolved',
+        }),
+      ),
+    ).toBe('blocked_conflict_resolved');
+    expect(
+      classifyOutcome(
+        makeResult({ status: 'blocked', reason_code: 'OPCTL-006' }),
+      ),
+    ).toBe('blocked_other');
+  });
+
+  // UT-SP14-PC-TOAST-RENDERED — toast surfaces in DOM after lastResult arrives
+  it('UT-SP14-PC-TOAST-RENDERED — toast renders on lastResult dispatch', () => {
+    const { rerender } = render(
+      <MaoProjectControls
+        snapshot={createSnapshot()}
+        pending={false}
+        lastResult={null}
+        onRequestControl={vi.fn()}
+      />,
+    );
+    rerender(
+      <MaoProjectControls
+        snapshot={createSnapshot()}
+        pending={false}
+        lastResult={makeResult({ status: 'applied' })}
+        onRequestControl={vi.fn()}
+      />,
+    );
+    const toast = screen.getByTestId('project-controls-toast');
+    expect(toast).toBeTruthy();
+    expect(toast.getAttribute('data-toast-tone')).toBe('success');
+    expect(toast.textContent).toContain('Command applied');
+  });
+
+  // UT-SP14-PC-CANCEL-QUEUED — renderer-only abandon-the-promise
+  it('UT-SP14-PC-CANCEL-QUEUED — clicking "Cancel queued" clears banner + emits info toast', () => {
+    render(
+      <MaoProjectControls
+        snapshot={createSnapshot()}
+        pending={false}
+        lastResult={null}
+        onRequestControl={vi.fn()}
+      />,
+    );
+    const textarea = screen.getByPlaceholderText(/operator reason/i);
+    fireEvent.change(textarea, { target: { value: 'Hard stop' } });
+    fireEvent.click(screen.getByText('Hard Stop Project'));
+    expect(screen.getByTestId('scope-lock-banner')).toBeTruthy();
+
+    fireEvent.click(screen.getByTestId('scope-lock-cancel-queued'));
+    expect(screen.queryByTestId('scope-lock-banner')).toBeNull();
+
+    const toast = screen.getByTestId('project-controls-toast');
+    expect(toast.getAttribute('data-toast-tone')).toBe('info');
+    expect(toast.textContent).toContain('Cancellation visual');
+  });
+
+  // UT-SP14-PC-TIER-BADGE — each control button carries a tier badge
+  it('UT-SP14-PC-TIER-BADGE — three control buttons each render a tier badge', () => {
+    render(
+      <MaoProjectControls
+        snapshot={createSnapshot()}
+        pending={false}
+        lastResult={null}
+        onRequestControl={vi.fn()}
+      />,
+    );
+    const badges = document.querySelectorAll('[data-tier-badge]');
+    expect(badges.length).toBe(3);
+    const levels = Array.from(badges).map((el) => el.getAttribute('data-tier-badge'));
+    // pause_project → pause → T1; resume_project → resume → T3; hard_stop_project → hard_stop → T3.
+    expect(levels).toEqual(['T1', 'T3', 'T3']);
+  });
+
+  // UT-SP14-PC-TIER-BADGE-SEVERITY — severity-token reuses SP 13 CSS-var pipeline
+  it('UT-SP14-PC-TIER-BADGE-SEVERITY — tier badges carry the SP 13 severity-token', () => {
+    render(
+      <MaoProjectControls
+        snapshot={createSnapshot()}
+        pending={false}
+        lastResult={null}
+        onRequestControl={vi.fn()}
+      />,
+    );
+    const badges = document.querySelectorAll('[data-tier-severity]');
+    const severities = Array.from(badges).map((el) =>
+      el.getAttribute('data-tier-severity'),
+    );
+    // pause→T1→medium; resume→T3→critical; hard_stop→T3→critical.
+    expect(severities).toEqual(['medium', 'critical', 'critical']);
+  });
+
+  // UT-SP14-PC-DNR-F1 / DNR-A4 — three controls present at all times
+  it('UT-SP14-PC-DNR-F1 — three project-control buttons remain present', () => {
+    render(
+      <MaoProjectControls
+        snapshot={createSnapshot()}
+        pending={false}
+        lastResult={null}
+        onRequestControl={vi.fn()}
+      />,
+    );
+    expect(screen.getByText('Pause Project')).toBeTruthy();
+    expect(screen.getByText('Resume Project')).toBeTruthy();
+    expect(screen.getByText('Hard Stop Project')).toBeTruthy();
   });
 });
