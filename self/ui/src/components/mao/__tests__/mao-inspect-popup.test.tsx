@@ -210,3 +210,148 @@ describe('MaoInspectPopup', () => {
     expect(screen.getByText('Audit trail')).toBeTruthy();
   });
 });
+
+/**
+ * UT-SP13-POPUP-* — SP 13 polish coverage on inspect-popup.
+ *
+ * Per SDS § Invariants SUPV-SP13-024 + SUPV-SP13-025 + SUPV-SP13-026; Goals
+ * SC-18 / SC-19 / SC-20 / SC-21.
+ */
+describe('UT-SP13-POPUP — SP 13 polish coverage', () => {
+  it('UT-SP13-POPUP-MOTION-REDUCED — popup CSS rule wraps motion-suppression under prefers-reduced-motion: reduce', () => {
+    const matchMediaMock = vi.fn().mockImplementation((query: string) => ({
+      matches: query === '(prefers-reduced-motion: reduce)',
+      media: query,
+      onchange: null,
+      addListener: vi.fn(),
+      removeListener: vi.fn(),
+      addEventListener: vi.fn(),
+      removeEventListener: vi.fn(),
+      dispatchEvent: vi.fn(() => false),
+    }));
+    Object.defineProperty(window, 'matchMedia', {
+      writable: true,
+      configurable: true,
+      value: matchMediaMock,
+    });
+
+    const agent = createAgent();
+    const { container } = render(
+      <Wrapper>
+        <MaoInspectPopup open={true} onClose={vi.fn()} agent={agent} projectSnapshot={null} />
+      </Wrapper>,
+    );
+
+    const styleNode = container.querySelector('style[data-style-id="mao-inspect-popup-motion"]');
+    expect(styleNode).toBeTruthy();
+    const css = styleNode?.textContent ?? '';
+    expect(css).toMatch(/@media \(prefers-reduced-motion: reduce\)[\s\S]*transition: none/);
+    expect(css).toMatch(/@media \(prefers-reduced-motion: reduce\)[\s\S]*transform: none/);
+  });
+
+  it('UT-SP13-POPUP-FOCUS — popup container is programmatically focused on open', () => {
+    const agent = createAgent();
+    const { rerender } = render(
+      <Wrapper>
+        <MaoInspectPopup open={false} onClose={vi.fn()} agent={agent} projectSnapshot={null} />
+      </Wrapper>,
+    );
+
+    rerender(
+      <Wrapper>
+        <MaoInspectPopup open={true} onClose={vi.fn()} agent={agent} projectSnapshot={null} />
+      </Wrapper>,
+    );
+
+    const container = screen.getByTestId('inspect-popup-container');
+    // Container has tabIndex={-1} for programmatic focus.
+    expect(container.getAttribute('tabindex')).toBe('-1');
+    expect(document.activeElement).toBe(container);
+  });
+
+  it('UT-SP13-POPUP-SUP-PRESENT — supervisor-state header renders worst-severity chip when at least one supervisor field is present', () => {
+    const agent = createAgent({
+      guardrail_status: 'enforced' as any,
+    });
+
+    render(
+      <Wrapper>
+        <MaoInspectPopup open={true} onClose={vi.fn()} agent={agent} projectSnapshot={null} />
+      </Wrapper>,
+    );
+
+    const header = screen.getByTestId('mao-supervisor-header');
+    expect(header).toBeTruthy();
+    expect(header.getAttribute('data-mao-severity')).toBe('critical');
+    expect(header.textContent).toMatch(/Supervisor state: critical/);
+  });
+
+  it('UT-SP13-POPUP-SUP-PRESENT-ORDERED — worst-severity (critical > high > medium > low) selected from mixed supervisor fields', () => {
+    const agent = createAgent({
+      guardrail_status: 'clear' as any, // low
+      witness_integrity_status: 'degraded' as any, // medium
+      sentinel_risk_score: 0.8 as any, // critical (band [0.75, 1.0])
+    });
+
+    render(
+      <Wrapper>
+        <MaoInspectPopup open={true} onClose={vi.fn()} agent={agent} projectSnapshot={null} />
+      </Wrapper>,
+    );
+
+    const header = screen.getByTestId('mao-supervisor-header');
+    // Worst is critical (sentinel 0.8 → critical band).
+    expect(header.getAttribute('data-mao-severity')).toBe('critical');
+  });
+
+  it('UT-SP13-POPUP-SUP-ABSENT — no supervisor header DOM when all three supervisor fields are absent', () => {
+    const agent = createAgent();
+
+    render(
+      <Wrapper>
+        <MaoInspectPopup open={true} onClose={vi.fn()} agent={agent} projectSnapshot={null} />
+      </Wrapper>,
+    );
+
+    expect(screen.queryByTestId('mao-supervisor-header')).toBeNull();
+    expect(screen.queryByText(/Supervisor state:/)).toBeNull();
+    // Placeholder absence assertions per SC-39 mirror.
+    expect(screen.queryByText('N/A')).toBeNull();
+    expect(screen.queryByText('Unknown')).toBeNull();
+  });
+
+  it('UT-SP13-POPUP-DNR-C3 — SP 13 polish itself adds no destructive control to the popup (supervisor-state header is read-only)', () => {
+    /*
+     * DNR-C3 invariant binding: SP 13 polish must not introduce any NEW
+     * destructive control surface to the popup. The existing
+     * `MaoProjectControls` path (mounted from the operating surface via
+     * `onRequestControl`) is preserved per DNR-F1 — its presence is verified
+     * by `mao-page.test.tsx § submits governed project controls` and by the
+     * `MaoProjectControls` component test suite. This test verifies that
+     * SP 13's NEW additions (supervisor-state header at SUPV-SP13-025) carry
+     * no destructive role/button — the header is read-only.
+     */
+    const agent = createAgent({
+      guardrail_status: 'enforced' as any,
+    });
+
+    render(
+      <Wrapper>
+        <MaoInspectPopup
+          open={true}
+          onClose={vi.fn()}
+          agent={agent}
+          projectSnapshot={null}
+        />
+      </Wrapper>,
+    );
+
+    // Supervisor header IS rendered (severity-routed) and does NOT contain
+    // any button or role-actionable element.
+    const header = screen.getByTestId('mao-supervisor-header');
+    expect(header).toBeTruthy();
+    // Header subtree contains no <button> or role=button.
+    expect(header.querySelector('button')).toBeNull();
+    expect(header.querySelector('[role="button"]')).toBeNull();
+  });
+});

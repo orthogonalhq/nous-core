@@ -477,3 +477,100 @@ describe('MaoDensityGrid state color handling', () => {
     expect(button?.style.backgroundColor).toBe('var(--nous-state-blocked-tone-bg)')
   })
 })
+
+/**
+ * UT-SP13-DENSITY-* — SP 13 polish surface coverage on the density grid.
+ *
+ * Per SDS § Invariants SUPV-SP13-007 + SUPV-SP13-008 + SUPV-SP13-009; Goals
+ * SC-8 / SC-9 / SC-10. Mirrors the SP 10 / SP 12 matchMedia mock pattern at
+ * `recovery-hard-stop-actions.test.tsx § UT-SP10-HARDSTOP-REDUCED-MOTION`
+ * for the reduced-motion fixture.
+ */
+describe('UT-SP13-DENSITY — SP 13 polish surface coverage', () => {
+  it('UT-SP13-DENSITY-AFFORDANCE — design-token CSS rules are emitted in the grid scope', () => {
+    const tile = createTile()
+    const snapshot = createSnapshot('D2', [tile])
+
+    const { container } = render(
+      <MaoDensityGrid snapshot={snapshot} selectedAgentId={null} onSelectTile={noop} />,
+    )
+
+    // Inline style block carrying SUPV-SP13-007 design-token affordances.
+    const styleNode = container.querySelector(
+      'style[data-style-id="mao-density-grid-affordance"]',
+    )
+    expect(styleNode).toBeTruthy()
+    const css = styleNode?.textContent ?? ''
+    expect(css).toContain('--nous-state-active-tone-bg')
+    expect(css).toContain('--nous-border-focus')
+    expect(css).toContain('@media (prefers-reduced-motion: reduce)')
+    // D0-D2 button carries the data-mao-tile attribute (SUPV-SP13-007 hook).
+    const button = container.querySelector('[data-mao-tile]') as HTMLElement | null
+    expect(button).toBeTruthy()
+  })
+
+  it('UT-SP13-DENSITY-D3-CUE — static "tap" cue renders at D3 only', () => {
+    const tile = createTile()
+    const snapshot = createSnapshot('D3', [tile])
+
+    const { container } = render(
+      <MaoDensityGrid snapshot={snapshot} selectedAgentId={null} onSelectTile={noop} />,
+    )
+
+    const cue = container.querySelector('[data-mao-cue="tap-to-inspect"]')
+    expect(cue).toBeTruthy()
+    expect(cue?.textContent).toBe('tap')
+  })
+
+  it('UT-SP13-DENSITY-NO-CUE-AT-LOWER-DENSITIES — static cue does NOT render at D0/D1/D2', () => {
+    for (const mode of ['D0', 'D1', 'D2'] as const) {
+      const tile = createTile({ agent_id: `tile-${mode.toLowerCase()}` })
+      const snapshot = createSnapshot(mode, [tile])
+
+      const { container, unmount } = render(
+        <MaoDensityGrid snapshot={snapshot} selectedAgentId={null} onSelectTile={noop} />,
+      )
+
+      const cue = container.querySelector('[data-mao-cue="tap-to-inspect"]')
+      expect(cue).toBeNull()
+      unmount()
+    }
+  })
+
+  it('UT-SP13-DENSITY-REDUCED-MOTION — CSS rule wraps motion-suppression under prefers-reduced-motion: reduce', () => {
+    // matchMedia mock per SP 10 precedent.
+    const matchMediaMock = vi.fn().mockImplementation((query: string) => ({
+      matches: query === '(prefers-reduced-motion: reduce)',
+      media: query,
+      onchange: null,
+      addListener: vi.fn(),
+      removeListener: vi.fn(),
+      addEventListener: vi.fn(),
+      removeEventListener: vi.fn(),
+      dispatchEvent: vi.fn(() => false),
+    }))
+    Object.defineProperty(window, 'matchMedia', {
+      writable: true,
+      configurable: true,
+      value: matchMediaMock,
+    })
+
+    const tile = createTile()
+    const snapshot = createSnapshot('D2', [tile])
+
+    const { container } = render(
+      <MaoDensityGrid snapshot={snapshot} selectedAgentId={null} onSelectTile={noop} />,
+    )
+
+    // Verify the inline `<style>` block contains the SUPV-SP13-009 motion-
+    // suppression rule. Visibility is unconditional on motion preference;
+    // only `transition` / `transform` / `animation` are suppressed.
+    const styleNode = container.querySelector(
+      'style[data-style-id="mao-density-grid-affordance"]',
+    )
+    expect(styleNode).toBeTruthy()
+    const css = styleNode?.textContent ?? ''
+    expect(css).toMatch(/@media \(prefers-reduced-motion: reduce\)[\s\S]*transition: none/)
+    expect(css).toMatch(/data-mao-urgent-indicator[\s\S]*animation: none/)
+  })
+})

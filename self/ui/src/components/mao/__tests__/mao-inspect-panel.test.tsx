@@ -7,8 +7,8 @@ import { MaoInspectPanel } from '../mao-inspect-panel'
 import { MaoServicesProvider } from '../mao-services-context'
 import type { MaoAgentInspectProjection } from '@nous/shared'
 
-function FakeLink({ href, className, children }: { href: string; className?: string; children: React.ReactNode }) {
-  return <a href={href} className={className}>{children}</a>
+function FakeLink({ href, className, children, ...rest }: { href: string; className?: string; children: React.ReactNode; [key: string]: unknown }) {
+  return <a href={href} className={className} {...(rest as Record<string, string>)}>{children}</a>
 }
 
 const mockServices = {
@@ -413,5 +413,215 @@ describe('MaoInspectPanel inference history', () => {
     const table = screen.getByTestId('inference-history-table')
     const rows = table.querySelectorAll('tbody tr')
     expect(rows.length).toBe(50)
+  })
+})
+
+/**
+ * UT-SP13-INSPECT-* — SP 13 polish coverage on inspect-panel.
+ *
+ * Per SDS § Invariants SUPV-SP13-013/014/015/021/022; Goals SC-11 / SC-15
+ * / SC-17 / N3 closure.
+ */
+describe('UT-SP13-INSPECT — SP 13 polish coverage', () => {
+  it('UT-SP13-INSPECT-EVIDENCE-LIVE-CLICK — evidence-ref deep-link routes through buildMaoSurfaceHref to a non-null href (Goals N3)', () => {
+    const inspect = createInspect({
+      agent: {
+        agent_id: 'agent-001',
+        current_step: 'Evidence step',
+        dispatch_state: 'dispatched',
+        state: 'running',
+        risk_level: 'low',
+        attention_level: 'normal',
+        progress_percent: 50,
+        reflection_cycle_count: 0,
+        urgency_level: 'normal',
+        workflow_run_id: 'run-001',
+        workflow_node_definition_id: 'node-001',
+        deepLinks: [],
+        evidenceRefs: ['evidence:abc123'],
+        reasoning_log_redaction_state: 'none',
+        reasoning_log_preview: {
+          class: 'tool_invocation',
+          summary: 'Tool summary',
+          evidenceRef: 'evidence:abc123',
+          redactionClass: 'public_operator',
+          previewMode: 'inline',
+          chatLink: {
+            target: 'chat',
+            projectId: 'proj-001',
+          } as unknown,
+        },
+      } as any,
+    })
+
+    const { container } = render(
+      <MaoInspectPanel inspect={inspect} isLoading={false} />,
+      { wrapper: Wrapper },
+    )
+
+    // The chat link renders as an <a> with the three-attribute render
+    // contract (SUPV-SP13-013).
+    const link = container.querySelector(
+      'a[data-mao-evidence-ref="chat"]',
+    ) as HTMLAnchorElement | null
+    expect(link).toBeTruthy()
+    // href is non-empty and routes through buildMaoSurfaceHref convention.
+    expect(link?.getAttribute('href') ?? '').toMatch(/^\/chat\?/)
+    // evidence source attribute carries the witness-link source identifier.
+    expect(link?.getAttribute('data-mao-evidence-source')).toBe('evidence:abc123')
+  })
+
+  it('UT-SP13-INSPECT-EVIDENCE-MUTED-FALLBACK — when buildMaoSurfaceHref returns null, muted span is rendered (existing behaviour preserved)', () => {
+    const inspect = createInspect({
+      agent: {
+        agent_id: 'agent-001',
+        current_step: 'Evidence step',
+        dispatch_state: 'dispatched',
+        state: 'running',
+        risk_level: 'low',
+        attention_level: 'normal',
+        progress_percent: 50,
+        reflection_cycle_count: 0,
+        urgency_level: 'normal',
+        workflow_run_id: 'run-001',
+        workflow_node_definition_id: 'node-001',
+        deepLinks: [],
+        evidenceRefs: [],
+        reasoning_log_redaction_state: 'none',
+        reasoning_log_preview: {
+          class: 'tool_invocation',
+          summary: 'Tool summary',
+          evidenceRef: 'evidence:def',
+          redactionClass: 'public_operator',
+          previewMode: 'inline',
+          chatLink: {
+            // 'artifact' resolves to null per buildMaoSurfaceHref switch.
+            target: 'artifact',
+            projectId: 'proj-001',
+          } as unknown,
+        },
+      } as any,
+    })
+
+    const { container } = render(
+      <MaoInspectPanel inspect={inspect} isLoading={false} />,
+      { wrapper: Wrapper },
+    )
+
+    // The 'artifact' link target resolves to null → muted <span> path.
+    const muted = container.querySelector('span[data-mao-evidence-ref="artifact"]')
+    expect(muted).toBeTruthy()
+    expect(muted?.tagName).toBe('SPAN')
+  })
+
+  it('UT-SP13-REDACTION-DISTINGUISHABILITY-NONE — "none" maps to "Full reasoning" badge with low-severity style', () => {
+    const inspect = createInspect({
+      agent: {
+        agent_id: 'agent-001',
+        current_step: 'Step',
+        dispatch_state: 'dispatched',
+        state: 'running',
+        risk_level: 'low',
+        attention_level: 'normal',
+        progress_percent: 50,
+        reflection_cycle_count: 0,
+        urgency_level: 'normal',
+        workflow_run_id: 'run-001',
+        workflow_node_definition_id: 'node-001',
+        deepLinks: [],
+        evidenceRefs: [],
+        reasoning_log_redaction_state: 'none',
+        reasoning_log_preview: {
+          class: 'tool_invocation',
+          summary: 'Tool summary',
+          evidenceRef: 'evidence:abc',
+          redactionClass: 'public_operator',
+          previewMode: 'inline',
+        },
+      } as any,
+    })
+
+    render(<MaoInspectPanel inspect={inspect} isLoading={false} />, {
+      wrapper: Wrapper,
+    })
+
+    const badge = screen.getByTestId('redaction-visual-badge')
+    expect(badge.getAttribute('data-mao-redaction-state')).toBe('none')
+    expect(badge.getAttribute('data-mao-redaction-style')).toBe('low')
+    expect(badge.textContent).toBe('Full reasoning')
+  })
+
+  it('UT-SP13-REDACTION-DISTINGUISHABILITY-PARTIAL — "partial" maps to "Partially redacted" badge with medium-severity style', () => {
+    const inspect = createInspect({
+      agent: {
+        agent_id: 'agent-001',
+        current_step: 'Step',
+        dispatch_state: 'dispatched',
+        state: 'running',
+        risk_level: 'low',
+        attention_level: 'normal',
+        progress_percent: 50,
+        reflection_cycle_count: 0,
+        urgency_level: 'normal',
+        workflow_run_id: 'run-001',
+        workflow_node_definition_id: 'node-001',
+        deepLinks: [],
+        evidenceRefs: [],
+        reasoning_log_redaction_state: 'partial',
+        reasoning_log_preview: {
+          class: 'tool_invocation',
+          summary: 'Tool summary',
+          evidenceRef: 'evidence:abc',
+          redactionClass: 'restricted',
+          previewMode: 'inline',
+        },
+      } as any,
+    })
+
+    render(<MaoInspectPanel inspect={inspect} isLoading={false} />, {
+      wrapper: Wrapper,
+    })
+
+    const badge = screen.getByTestId('redaction-visual-badge')
+    expect(badge.getAttribute('data-mao-redaction-state')).toBe('partial')
+    expect(badge.getAttribute('data-mao-redaction-style')).toBe('medium')
+    expect(badge.textContent).toBe('Partially redacted')
+  })
+
+  it('UT-SP13-REDACTION-DISTINGUISHABILITY-RESTRICTED — "restricted" maps to "Reasoning restricted" badge with high-severity style', () => {
+    const inspect = createInspect({
+      agent: {
+        agent_id: 'agent-001',
+        current_step: 'Step',
+        dispatch_state: 'dispatched',
+        state: 'running',
+        risk_level: 'low',
+        attention_level: 'normal',
+        progress_percent: 50,
+        reflection_cycle_count: 0,
+        urgency_level: 'normal',
+        workflow_run_id: 'run-001',
+        workflow_node_definition_id: 'node-001',
+        deepLinks: [],
+        evidenceRefs: [],
+        reasoning_log_redaction_state: 'restricted',
+        reasoning_log_preview: {
+          class: 'tool_invocation',
+          summary: 'Tool summary',
+          evidenceRef: 'evidence:abc',
+          redactionClass: 'restricted',
+          previewMode: 'inspect_only',
+        },
+      } as any,
+    })
+
+    render(<MaoInspectPanel inspect={inspect} isLoading={false} />, {
+      wrapper: Wrapper,
+    })
+
+    const badge = screen.getByTestId('redaction-visual-badge')
+    expect(badge.getAttribute('data-mao-redaction-state')).toBe('restricted')
+    expect(badge.getAttribute('data-mao-redaction-style')).toBe('high')
+    expect(badge.textContent).toBe('Reasoning restricted')
   })
 })
