@@ -625,3 +625,96 @@ describe('UT-SP13-INSPECT — SP 13 polish coverage', () => {
     expect(badge.textContent).toBe('Reasoning restricted')
   })
 })
+
+/**
+ * SP 15 — UT-SP15-INSP-MATRIX (SUPV-SP15-001).
+ *
+ * Closed-product `describe.each` over the supervisor-field × severity-band
+ * domain. Per `feedback_no_heuristic_bandaids.md`: the matrix iterates over
+ * the closed enum literals defined by `GuardrailStatus`, `WitnessIntegrityStatus`,
+ * and the `SENTINEL_RISK_BANDS` table — no string-pattern matching, no
+ * post-hoc detection. Each cell asserts chip presence + the data-mao-severity
+ * attribute resolves to the SP 13 closed-form severity token.
+ */
+const GUARDRAIL_BAND_FIXTURES = [
+  { status: 'clear', severity: 'low' },
+  { status: 'warning', severity: 'medium' },
+  { status: 'violation', severity: 'high' },
+  { status: 'enforced', severity: 'critical' },
+] as const
+
+const WITNESS_BAND_FIXTURES = [
+  { status: 'intact', severity: 'low' },
+  { status: 'degraded', severity: 'medium' },
+  { status: 'broken', severity: 'high' },
+] as const
+
+const SENTINEL_BAND_FIXTURES = [
+  { score: 0.1, severity: 'low' },
+  { score: 0.4, severity: 'medium' },
+  { score: 0.7, severity: 'high' },
+  { score: 0.95, severity: 'critical' },
+] as const
+
+describe('UT-SP15-INSP-MATRIX — supervisor-field × severity-band cross-component matrix (panel)', () => {
+  it.each(GUARDRAIL_BAND_FIXTURES)(
+    'UT-SP15-INSP-MATRIX-GUARDRAIL — guardrail_status=$status renders chip with data-mao-severity=$severity',
+    ({ status, severity }) => {
+      const inspect = createInspect({
+        agent: {
+          ...createInspect().agent,
+          guardrail_status: status,
+        } as MaoAgentInspectProjection['agent'],
+      })
+      render(<MaoInspectPanel inspect={inspect} isLoading={false} />, {
+        wrapper: Wrapper,
+      })
+      const section = screen.getByTestId('mao-supervisor-section')
+      const chip = within(section).getByText((_, node) => {
+        return node?.getAttribute('data-mao-guardrail') === status
+      })
+      expect(chip.getAttribute('data-mao-severity')).toBe(severity)
+    },
+  )
+
+  it.each(WITNESS_BAND_FIXTURES)(
+    'UT-SP15-INSP-MATRIX-WITNESS — witness_integrity_status=$status renders chip with data-mao-severity=$severity',
+    ({ status, severity }) => {
+      const inspect = createInspect({
+        agent: {
+          ...createInspect().agent,
+          witness_integrity_status: status,
+        } as MaoAgentInspectProjection['agent'],
+      })
+      render(<MaoInspectPanel inspect={inspect} isLoading={false} />, {
+        wrapper: Wrapper,
+      })
+      const section = screen.getByTestId('mao-supervisor-section')
+      const chip = within(section).getByText((_, node) => {
+        return node?.getAttribute('data-mao-witness-integrity') === status
+      })
+      expect(chip.getAttribute('data-mao-severity')).toBe(severity)
+    },
+  )
+
+  it.each(SENTINEL_BAND_FIXTURES)(
+    'UT-SP15-INSP-MATRIX-SENTINEL — sentinel_risk_score=$score resolves to severity=$severity',
+    ({ score, severity }) => {
+      const inspect = createInspect({
+        agent: {
+          ...createInspect().agent,
+          sentinel_risk_score: score,
+        } as MaoAgentInspectProjection['agent'],
+      })
+      render(<MaoInspectPanel inspect={inspect} isLoading={false} />, {
+        wrapper: Wrapper,
+      })
+      const section = screen.getByTestId('mao-supervisor-section')
+      const chip = within(section).getByText((_, node) => {
+        const v = node?.getAttribute('data-mao-sentinel-risk')
+        return v !== null && v !== undefined && Number(v) === Math.round(score * 100) / 100
+      })
+      expect(chip.getAttribute('data-mao-severity')).toBe(severity)
+    },
+  )
+})

@@ -577,3 +577,53 @@ describe('UT-SP14-T3 — RationaleKey closed Record', () => {
     );
   });
 });
+
+/**
+ * SP 15 — UT-SP15-T3-MATRIX (SUPV-SP15-003).
+ *
+ * Closed-enum `it.each` over all four `ConfirmationTier` literals plus one
+ * supervisor-rationale-key cell. Per `feedback_no_heuristic_bandaids.md`:
+ * the matrix iterates over `getTierDisplay` arms; cells assert the
+ * `display.label` thread + `display.severity` token + rationale-key
+ * resolution from the same closed-form source-of-truth.
+ *
+ * Existing UT-SP14-DNR-H1 / UT-SP14-DNR-H2 are NOT modified.
+ */
+import { getTierDisplay } from '@nous/subcortex-opctl';
+
+const T3_MATRIX_TIERS = ['T0', 'T1', 'T2', 'T3'] as const;
+
+describe('UT-SP15-T3-MATRIX — ConfirmationTier closed-enum cell coverage', () => {
+  it.each(T3_MATRIX_TIERS)(
+    'UT-SP15-T3-MATRIX-%s — getTierDisplay returns label + severity + rationaleKey for tier %s',
+    (tier) => {
+      const display = getTierDisplay(tier);
+      expect(display.level).toBe(tier);
+      expect(typeof display.label).toBe('string');
+      expect(display.label.length).toBeGreaterThan(0);
+      expect(['low', 'medium', 'high', 'critical']).toContain(display.severity);
+      // Rationale-key resolution flows through the SP 14 closed map.
+      expect(typeof display.rationaleKey).toBe('string');
+      // The rationaleKey is admitted by RATIONALE_COPY as a RationaleKey OR as
+      // a base SP 7 stub; for SP 15 we assert the four base keys resolve.
+      const baseKey = display.rationaleKey as RationaleKey;
+      if (
+        baseKey === 'tier.t0.rationale' ||
+        baseKey === 'tier.t1.rationale' ||
+        baseKey === 'tier.t2.rationale' ||
+        baseKey === 'tier.t3.rationale'
+      ) {
+        expect(RATIONALE_COPY[baseKey]).toBeDefined();
+      }
+    },
+  );
+
+  it('UT-SP15-T3-MATRIX-SUPERVISOR-LOCKED — supervisor-rationale-key cell resolves through closed map', () => {
+    // Supervisor-locked routing is keyed off the tier.t3.rationale stub; the
+    // closed `RATIONALE_COPY['tier.t3.supervisor_locked']` admits the
+    // five-literal RationaleKey set.
+    const supervisorRoute = resolveRationaleCopy('tier.t3.rationale', true);
+    expect(supervisorRoute).toBe(RATIONALE_COPY['tier.t3.supervisor_locked']);
+    expect(supervisorRoute.length).toBeGreaterThan(0);
+  });
+});

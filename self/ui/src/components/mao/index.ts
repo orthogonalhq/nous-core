@@ -53,9 +53,6 @@ export type { MaoEdgeConnectorProps } from './mao-edge-connector';
 export { MaoInspectPopup } from './mao-inspect-popup';
 export type { MaoInspectPopupProps } from './mao-inspect-popup';
 
-export { MaoSystemHealthStrip } from './mao-system-health-strip';
-export type { MaoSystemHealthStripProps } from './mao-system-health-strip';
-
 // WR-162 SP 10 — Recovery terminal-state UX components + T2 floor helper.
 // See `.worklog/sprints/feat/system-observability-and-control/phase-1/phase-1.10/sds.mdx`.
 export { RecoveryStateBanner } from './recovery-state-banner';
