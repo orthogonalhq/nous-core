@@ -45,6 +45,7 @@ export function SimpleShellLayout({
     content,
     observe,
     chatSlot,
+    statusBar,
     chatStage: chatStageProp,
     onClickOutside,
     breakpoint = 'full',
@@ -260,6 +261,14 @@ export function SimpleShellLayout({
                     transition: 'height var(--nous-duration-slow) var(--nous-ease-out), background var(--nous-duration-slow) var(--nous-ease-out)',
                 }}
             >
+                {statusBar !== undefined ? (
+                    <div
+                        data-shell-area="status-bar"
+                        style={{ height: '16px', minHeight: '16px', flexShrink: 0 }}
+                    >
+                        {statusBar}
+                    </div>
+                ) : null}
                 {chatSlot({ stage: chatStage, onStageChange: internalSetChatStage ?? (() => { }) })}
             </div>
 

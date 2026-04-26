@@ -426,6 +426,14 @@ export const SimpleShellLayoutPropsSchema = z.object({
   sidebar: requiredReactNodeSchema,
   content: requiredReactNodeSchema,
   observe: requiredReactNodeSchema,
+  /**
+   * WR-162 SP 12 (SUPV-SP12-013) — optional 16px-tall status bar slot
+   * rendered adjacent to the chat overlay. Lives OUTSIDE the panel grid
+   * (HF-019 / Decision #3 grid-external rule). Mount target: the SP 12
+   * `<StatusBar />` from `@nous/ui`. Backwards-compatible — when omitted,
+   * the layout reserves zero pixels.
+   */
+  statusBar: optionalReactNodeSchema.optional(),
   chatSlot: z.custom<(props: { stage: ChatStage; onStageChange: (stage: ChatStage) => void }) => ReactNode>(
     (value) => typeof value === 'function',
     'chatSlot render function is required',
