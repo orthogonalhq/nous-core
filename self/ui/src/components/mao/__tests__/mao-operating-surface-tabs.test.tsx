@@ -420,25 +420,10 @@ describe('MaoOperatingSurface tab behavior', () => {
     expect(systemData?.projectControls[sentinelId]).toBeUndefined();
   });
 
-  it('system tab shows system health strip when snapshot is loaded', () => {
-    mockGetSystemSnapshotQuery = vi.fn().mockReturnValue({
-      data: createSystemSnapshot({
-        agents: [],
-        projectControls: { ['p1' as ProjectId]: {} as any },
-      }),
-      isLoading: false,
-    });
-
-    const Wrapper = createWrapper(null);
-
-    render(
-      <Wrapper>
-        <MaoOperatingSurface />
-      </Wrapper>,
-    );
-
-    expect(screen.getByTestId('system-health-strip')).toBeTruthy();
-  });
+  // WR-162 SP 15 Phase B Task 6 — `system tab shows system health strip when
+  // snapshot is loaded` removed atomically with the consumer migration that
+  // deleted the `MaoSystemHealthStrip` render block (Decision #12 § Files to
+  // remove). The strip is no longer rendered; the assertion is obsolete.
 });
 
 /**

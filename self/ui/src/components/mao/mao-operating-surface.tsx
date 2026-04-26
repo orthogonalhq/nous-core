@@ -22,7 +22,6 @@ import { MaoLeaseTree } from './mao-lease-tree';
 import { MaoProjectControls } from './mao-project-controls';
 import { MaoRunGraph } from './mao-run-graph';
 import { resolveAgentLabel } from './mao-workflow-group-card';
-import { MaoSystemHealthStrip } from './mao-system-health-strip';
 import {
   MaoT3ConfirmationDialog,
   T3_ACTIONS,
@@ -599,9 +598,6 @@ export function MaoOperatingSurface() {
       {/* Bottom strip — pinned below scrollable area */}
       <div data-testid="bottom-strip" style={{ display: 'flex', flexDirection: 'column', gap: 'var(--nous-space-lg)', flexShrink: 0, padding: '0 var(--nous-space-4xl) var(--nous-space-4xl)' }}>
         <MaoBacklogPressureCard />
-        {activeTab === 'system' && systemSnapshot ? (
-          <MaoSystemHealthStrip snapshot={systemSnapshot} />
-        ) : null}
       </div>
 
       {/* Inspect popup — both tabs, outside scrollable area */}
