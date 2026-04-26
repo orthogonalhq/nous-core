@@ -2,9 +2,29 @@
 
 import React from 'react'
 import { render, screen, fireEvent } from '@testing-library/react'
-import { describe, expect, it } from 'vitest'
+import { describe, expect, it, vi } from 'vitest'
 import { ObservePanel } from '../ObservePanel'
 import { ShellProvider } from '../ShellContext'
+
+// SP 12 — mock the deep tab-host trees so the placeholder-swap regression
+// suite can render real tab hosts shallowly without pulling in MAO + dashboard
+// dependency graphs at unit-test scope.
+vi.mock('../../mao/MaoPanel', () => ({
+  MaoPanel: () => <div data-testid="agents-tab-real-content" />,
+}))
+vi.mock('../SystemActivitySurface', () => ({
+  SystemActivitySurface: () => <div data-testid="system-activity-real-content" />,
+}))
+vi.mock('../../../panels/dashboard/widgets/SystemStatusWidget', () => ({
+  SystemStatusWidget: () => <div data-testid="system-status-real-content" />,
+}))
+vi.mock('../../../panels/dashboard/widgets/ProviderHealthWidget', () => ({
+  ProviderHealthWidget: () => <div data-testid="provider-health-real-content" />,
+}))
+vi.mock('../../../panels/dashboard/widgets/CostDashboardWidget', () => ({
+  CostDashboardWidgetCore: () => <div data-testid="cost-dashboard-core-real-content" />,
+  CostDashboardWidget: () => <div data-testid="cost-dashboard-core-real-content" />,
+}))
 
 // Mock ResizeObserver for jsdom
 class MockResizeObserver {
@@ -230,5 +250,51 @@ describe('ObservePanel', () => {
     expect(
       container.querySelector('[data-tab-id="agents"]')?.getAttribute('aria-selected'),
     ).toBe('true')
+  })
+
+  // ── SP 12 (SUPV-SP12-001) — placeholder swap regression cases ──────────────
+  it('UT-SP12-OBSERVE-REAL-TAB-AGENTS — agents slot renders the real AgentsTab content (not a null placeholder)', () => {
+    const { container } = render(
+      <ShellProvider activeObserveTab="agents">
+        <ObservePanel />
+      </ShellProvider>,
+    )
+    const slot = container.querySelector('[data-tab-slot="agents"]') as HTMLElement
+    expect(slot.querySelector('[data-testid="agents-tab-real-content"]')).toBeTruthy()
+  })
+
+  it('UT-SP12-OBSERVE-REAL-TAB-SYSTEM-LOAD — system-load slot renders the real SystemLoadTab content', () => {
+    const { container } = render(
+      <ShellProvider activeObserveTab="system-load">
+        <ObservePanel />
+      </ShellProvider>,
+    )
+    const slot = container.querySelector('[data-tab-slot="system-load"]') as HTMLElement
+    expect(slot.querySelector('[data-shell-component="system-load-tab"]')).toBeTruthy()
+    expect(slot.querySelector('[data-testid="system-activity-real-content"]')).toBeTruthy()
+  })
+
+  it('UT-SP12-OBSERVE-REAL-TAB-COST-MONITOR — cost-monitor slot renders the real CostMonitorTab content', () => {
+    const { container } = render(
+      <ShellProvider activeObserveTab="cost-monitor">
+        <ObservePanel />
+      </ShellProvider>,
+    )
+    const slot = container.querySelector('[data-tab-slot="cost-monitor"]') as HTMLElement
+    expect(slot.querySelector('[data-shell-component="cost-monitor-tab"]')).toBeTruthy()
+    expect(slot.querySelector('[data-testid="cost-dashboard-core-real-content"]')).toBeTruthy()
+  })
+
+  it('UT-SP12-OBSERVE-CONTAINER-SHAPE — three sibling tabpanels + tablist + three tabs (regression guard)', () => {
+    const { container } = render(
+      <ShellProvider>
+        <ObservePanel />
+      </ShellProvider>,
+    )
+    expect(container.querySelectorAll('[role="tabpanel"]').length).toBe(3)
+    expect(container.querySelectorAll('[role="tab"]').length).toBe(3)
+    expect(container.querySelector('[role="tablist"]')?.getAttribute('aria-label')).toBe(
+      'Observe panel tabs',
+    )
   })
 })

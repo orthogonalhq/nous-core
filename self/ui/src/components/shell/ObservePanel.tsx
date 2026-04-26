@@ -3,15 +3,18 @@
 import { clsx } from 'clsx'
 import { useShellContext } from './ShellContext'
 import type { ObservePanelProps, ObserveTab } from './types'
+import { AgentsTab } from './observe-tabs/AgentsTab'
+import { SystemLoadTab } from './observe-tabs/SystemLoadTab'
+import { CostMonitorTab } from './observe-tabs/CostMonitorTab'
 
 /**
  * WR-162 SP 11 (SUPV-SP11-001 + SUPV-SP11-002 + SUPV-SP11-007) —
  * keep-mounted-hide-inactive observe panel. Three sibling tab slots exist
- * in the DOM at all times; inactive slots use `display: none`. Three
- * placeholder children (one per tab) render `null`; SP 12 wires real tab
- * hosts. The in-panel switcher renders three explicit buttons (closed-enum
- * shape over `ObserveTab`); clicking a button calls `setActiveObserveTab`
- * via shell context.
+ * in the DOM at all times; inactive slots use `display: none`. SP 12
+ * (SUPV-SP12-001) wires real tab hosts in place of the SP 11 `null`-
+ * returning placeholders. Container shape (tablist + three `<div
+ * role="tabpanel">` siblings + `display: flex|none` toggle + every aria
+ * attribute) is UNCHANGED from SP 11.
  *
  * The previous SP 2 route-conditional dispatch and `OBSERVE_ROUTE_OVERRIDES`
  * map are removed (Goals SC-2). The panel no longer reads `activeRoute`.
@@ -21,16 +24,6 @@ const TABS: ReadonlyArray<{ id: ObserveTab; label: string }> = [
   { id: 'system-load', label: 'System Load' },
   { id: 'cost-monitor', label: 'Cost Monitor' },
 ]
-
-function AgentsTabPlaceholder() {
-  return null
-}
-function SystemLoadTabPlaceholder() {
-  return null
-}
-function CostMonitorTabPlaceholder() {
-  return null
-}
 
 export function ObservePanel(props: ObservePanelProps) {
   const { activeObserveTab, setActiveObserveTab } = useShellContext()
@@ -76,7 +69,7 @@ export function ObservePanel(props: ObservePanelProps) {
         aria-hidden={activeObserveTab !== 'agents'}
         style={{ display: activeObserveTab === 'agents' ? 'flex' : 'none', height: '100%' }}
       >
-        <AgentsTabPlaceholder />
+        <AgentsTab />
       </div>
       <div
         role="tabpanel"
@@ -84,7 +77,7 @@ export function ObservePanel(props: ObservePanelProps) {
         aria-hidden={activeObserveTab !== 'system-load'}
         style={{ display: activeObserveTab === 'system-load' ? 'flex' : 'none', height: '100%' }}
       >
-        <SystemLoadTabPlaceholder />
+        <SystemLoadTab />
       </div>
       <div
         role="tabpanel"
@@ -92,7 +85,7 @@ export function ObservePanel(props: ObservePanelProps) {
         aria-hidden={activeObserveTab !== 'cost-monitor'}
         style={{ display: activeObserveTab === 'cost-monitor' ? 'flex' : 'none', height: '100%' }}
       >
-        <CostMonitorTabPlaceholder />
+        <CostMonitorTab />
       </div>
     </div>
   )

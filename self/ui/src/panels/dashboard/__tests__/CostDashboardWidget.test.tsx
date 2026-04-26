@@ -3,7 +3,7 @@
 import React from 'react'
 import { render, screen, fireEvent } from '@testing-library/react'
 import { describe, expect, it, vi, beforeEach } from 'vitest'
-import { CostDashboardWidget } from '../widgets/CostDashboardWidget'
+import { CostDashboardWidget, CostDashboardWidgetCore } from '../widgets/CostDashboardWidget'
 import type { IDockviewPanelProps } from 'dockview-react'
 
 // ─── Mocks ─────────────────────────────────────────────────────────────────────
@@ -287,5 +287,23 @@ describe('CostDashboardWidget', () => {
     expect(screen.getByText('Total Spend')).toBeTruthy()
     const allZeros = screen.getAllByText('$0.00')
     expect(allZeros.length).toBeGreaterThan(0)
+  })
+
+  // ── SP 12 (SUPV-SP12-015) — extraction parity regression case ──────────────
+  it('UT-SP12-COSTDASH-PARITY — wrapper and core render identical DOM structure', () => {
+    vi.mocked(trpc.cost.getBudgetStatus.useQuery).mockReturnValue({
+      data: mockBudgetStatus, isLoading: false, error: null,
+    } as any)
+    vi.mocked(trpc.cost.getCostSummary.useQuery).mockReturnValue({
+      data: mockCostSummary, isLoading: false, error: null,
+    } as any)
+    vi.mocked(trpc.cost.getCostBreakdown.useQuery).mockReturnValue({
+      data: [], isLoading: false, error: null,
+    } as any)
+
+    const { container: wrapperContainer } = render(<CostDashboardWidget {...dockviewProps} />)
+    const { container: coreContainer } = render(<CostDashboardWidgetCore />)
+    // Both containers wrap a single root child whose innerHTML must match.
+    expect(wrapperContainer.firstChild?.textContent).toBe(coreContainer.firstChild?.textContent)
   })
 })
