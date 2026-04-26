@@ -18,14 +18,17 @@ export { OpctlService } from './opctl-service.js';
 export {
   T3_COOLDOWN_MS,
   getTierDisplay,
+  getRequiredTier,
+} from './tier-display.js';
+
+export {
   issueConfirmationProof,
   validateConfirmationProof,
-  getRequiredTier,
   issueSupervisorProof,
   issueSystemProof,
 } from './confirmation.js';
 
-export type { ConfirmationTierDisplay } from './confirmation.js';
+export type { ConfirmationTierDisplay } from './tier-display.js';
 export type {
   ProjectControlStateStore,
   SupervisorEnforcementLockFields,

@@ -19,8 +19,8 @@ import { ConfirmationProofSchema } from '@nous/shared';
 import {
   issueSystemProof,
   validateConfirmationProof,
-  getRequiredTier,
 } from '../confirmation.js';
+import { getRequiredTier } from '../tier-display.js';
 
 const PROJECT_ID = randomUUID() as ProjectId;
 const HASH = createHash('sha256').update('payload').digest('hex');
