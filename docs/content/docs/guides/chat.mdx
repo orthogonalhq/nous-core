@@ -19,7 +19,7 @@ Nous processes your message through the full execution cycle: Cortex evaluation,
 
 ## Welcome Message (First Open)
 
-The first time you open the principal chat panel after finishing the first-run wizard, the agent emits a single greeting message. The welcome is part of the [first-run experience](/docs/getting-started/first-run) — the wizard configures the agent's identity, then the chat introduces it.
+The first time you open the principal chat panel after finishing the first-run wizard, the agent emits a single greeting message. The welcome appears in the chat UI on first chat open regardless of which chat surface you use, is durable across re-mount (closing the chat and reopening it shows the same single welcome, not a duplicate), and is not re-issued once the welcome flag has already been set. The welcome is part of the [first-run experience](/docs/getting-started/first-run) — the wizard configures the agent's identity, then the chat introduces it.
 
 ### When the welcome fires
 
@@ -35,7 +35,7 @@ A persistent flag (`agent.welcomeMessageSent` in `nous-config.json5`) tracks whe
 
 ### Personality and identity inheritance
 
-The welcome composes through the same prompt path as every chat turn, so anything that flows into a normal agent reply also flows into the welcome — your chosen agent name, the personality preset (or any individual trait overrides), the user profile context you optionally shared on the Identity step. There is no separate "welcome template"; the agent simply produces a first turn under the same composition contract.
+Your chosen agent name, the personality preset (or any individual trait overrides), and the user profile context you optionally shared on the Identity step shape every reply on the principal chat from the first chat turn onward — not only the welcome. The agent introduces itself under the name you chose, adapts its register to the expertise level you set, addresses you by your chosen display name, and reflects the personality preset's behavioural axes in its reply prose. The welcome composes through the same prompt path as every chat turn, so anything that flows into a normal agent reply also flows into the welcome; there is no separate "welcome template" and no separate every-reply template — the agent simply produces every turn under the same composition contract.
 
 ### Graceful degradation
 
