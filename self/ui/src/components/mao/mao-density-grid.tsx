@@ -34,6 +34,57 @@ const streamingPulseStyle: React.CSSProperties = {
   animation: 'nous-streaming-pulse 1.2s ease-in-out infinite',
 };
 
+/**
+ * SUPV-SP13-007 — Hover/focus/click affordance polish via design-system
+ * tokens. Closed-form CSS pseudo-class rules; no JS-based hover detection.
+ * SUPV-SP13-008 — D3/D4 inspect-only static cue (no animation, no
+ * attention-getter heuristic). SUPV-SP13-009 — urgent overlay visibility
+ * unconditional on motion preference; only `animation`/`transition` are
+ * suppressed under reduced-motion (visibility itself is not conditional).
+ * Per `feedback_no_heuristic_bandaids.md` "design-system token-driven;
+ * closed-form".
+ */
+const DENSITY_GRID_STYLE_ID = 'mao-density-grid-affordance';
+const DENSITY_GRID_CSS = `
+[data-mao-tile]:hover {
+  background-color: var(--nous-state-active-tone-bg);
+}
+[data-mao-tile]:focus-visible {
+  outline: 2px solid var(--nous-border-focus);
+  outline-offset: 2px;
+}
+[data-mao-tile]:active {
+  background-color: var(--nous-state-active-tone-bg);
+  transform: scale(0.98);
+}
+@media (prefers-reduced-motion: reduce) {
+  [data-mao-tile] {
+    transition: none;
+  }
+  [data-mao-tile]:active {
+    transform: none;
+  }
+  [data-mao-urgent-indicator],
+  [data-testid="urgent-indicator"],
+  [data-testid="urgent-icon"] {
+    animation: none;
+    transition: none;
+  }
+}
+`;
+
+const D3_D4_CUE_STYLE: React.CSSProperties = {
+  position: 'absolute',
+  bottom: 4,
+  right: 4,
+  fontSize: 'var(--nous-font-size-xs)',
+  color: 'var(--nous-fg-muted)',
+  background: 'var(--nous-bg-card)',
+  border: '1px solid var(--nous-border-subtle)',
+  paddingInline: 2,
+  borderRadius: 'var(--nous-radius-xs)',
+};
+
 function renderInferenceInfo(
   tile: MaoGridTileProjection,
   densityMode: MaoDensityMode,
@@ -192,6 +243,7 @@ export function MaoDensityGrid({
 
   return (
     <Card>
+      <style data-style-id={DENSITY_GRID_STYLE_ID}>{DENSITY_GRID_CSS}</style>
       <CardHeader style={{ borderBottom: '1px solid var(--nous-border-subtle)' }}>
         <CardTitle style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 'var(--nous-space-md)', fontSize: 'var(--nous-font-size-base)' }}>
           <span>Density grid</span>
@@ -234,8 +286,11 @@ export function MaoDensityGrid({
                         aria-label={`Inspect ${resolveAgentLabel(tile.agent)}`}
                         onClick={() => onSelectTile(tile)}
                         data-testid="density-tile-d4"
+                        data-mao-tile="D4"
+                        data-mao-density="D4"
                         className={visuals.pulse || undefined}
                         style={{
+                          position: 'relative',
                           width: '1.5rem',
                           height: '1.5rem',
                           borderRadius: 'var(--nous-radius-xs)',
@@ -272,8 +327,11 @@ export function MaoDensityGrid({
                     aria-label={`Inspect ${resolveAgentLabel(tile.agent)}`}
                     onClick={() => onSelectTile(tile)}
                     data-testid="density-tile-d3"
+                    data-mao-tile="D3"
+                    data-mao-density="D3"
                     className={visuals.pulse || undefined}
                     style={{
+                      position: 'relative',
                       display: 'inline-flex',
                       alignItems: 'center',
                       gap: 'var(--nous-space-2xs)',
@@ -281,6 +339,7 @@ export function MaoDensityGrid({
                       border: '1px solid',
                       paddingInline: '6px',
                       paddingBlock: 'var(--nous-space-2xs)',
+                      paddingRight: 'calc(6px + var(--nous-space-md))',
                       fontSize: 'var(--nous-font-size-xs)',
                       transition: 'background-color 0.15s',
                       ...(isSelected
@@ -292,6 +351,15 @@ export function MaoDensityGrid({
                     <span style={{ display: 'inline-block', width: '0.5rem', height: '0.5rem', borderRadius: '9999px', ...visuals.dotStyle }} />
                     <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', maxWidth: '4rem' }}>{resolveAgentLabel(tile.agent).slice(0, 16)}</span>
                     {urgent && <UrgentIcon />}
+                    {/*
+                      * SUPV-SP13-008 — D3/D4 inspect-only static cue. Static
+                      * visibility, no animation. Per
+                      * `feedback_no_heuristic_bandaids.md` "explicit static
+                      * visibility per density mode; no animated attention-getter."
+                      */}
+                    <span data-mao-cue="tap-to-inspect" style={D3_D4_CUE_STYLE} aria-hidden="true">
+                      tap
+                    </span>
                   </button>
                 );
               }
@@ -303,6 +371,8 @@ export function MaoDensityGrid({
                   type="button"
                   aria-label={`Inspect ${tile.agent.current_step}`}
                   onClick={() => onSelectTile(tile)}
+                  data-mao-tile={densityMode}
+                  data-mao-density={densityMode}
                   className={visuals.pulse || undefined}
                   style={{
                     borderRadius: 'var(--nous-radius-md)',
@@ -339,6 +409,7 @@ export function MaoDensityGrid({
                         variant="outline"
                         style={{ borderColor: '#ef4444', color: '#ef4444', backgroundColor: 'rgba(239,68,68,0.1)' }}
                         data-testid="urgent-indicator"
+                        data-mao-urgent-indicator="present"
                       >
                         URGENT
                       </Badge>
