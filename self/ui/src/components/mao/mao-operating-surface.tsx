@@ -40,6 +40,24 @@ const DENSITY_MODES: MaoDensityMode[] = ['D0', 'D1', 'D2', 'D3', 'D4'];
 
 type ActiveTab = 'system' | 'projects';
 
+/**
+ * SUPV-SP13-002 — Closed-form density-transition motion contract.
+ * Reduced-motion via `@media (prefers-reduced-motion: reduce)`; binary
+ * contract per `feedback_no_heuristic_bandaids.md`.
+ */
+const DENSITY_TRANSITION_STYLE_ID = 'mao-operating-surface-density-transition';
+const DENSITY_TRANSITION_CSS = `
+[data-mao-density-container] {
+  transition: background-color 150ms ease-out, opacity 150ms ease-out, transform 200ms ease-out;
+}
+@media (prefers-reduced-motion: reduce) {
+  [data-mao-density-container] {
+    transition: none;
+    transform: none;
+  }
+}
+`;
+
 interface PendingT3Action {
   action: MaoProjectControlAction;
   reason: string;
@@ -381,7 +399,17 @@ export function MaoOperatingSurface() {
     (snapshotQuery.isLoading || !snapshot);
 
   return (
-    <div style={{ position: 'relative', height: '100%', display: 'flex', flexDirection: 'column' }}>
+    <div
+      data-mao-density-container
+      style={{ position: 'relative', height: '100%', display: 'flex', flexDirection: 'column' }}
+    >
+    {/*
+      * SUPV-SP13-002 — Closed-form CSS transition rule + reduced-motion
+      * disable. Inline `<style>` block scopes the rule to the operating
+      * surface's `data-mao-density-container` element. Per
+      * `feedback_no_heuristic_bandaids.md` "binary motion contract."
+      */}
+    <style data-style-id={DENSITY_TRANSITION_STYLE_ID}>{DENSITY_TRANSITION_CSS}</style>
     <div style={{ flex: 1, minHeight: 0, overflow: 'auto', padding: 'var(--nous-space-4xl)', display: 'flex', flexDirection: 'column', gap: 'var(--nous-space-3xl)' }}>
       {/* Header */}
       <div style={{ display: 'flex', flexWrap: 'wrap', alignItems: 'flex-start', justifyContent: 'space-between', gap: 'var(--nous-space-2xl)' }}>
@@ -515,7 +543,30 @@ export function MaoOperatingSurface() {
               <p style={{ color: 'var(--nous-fg-muted)' }}>Loading MAO operating surface...</p>
             </div>
           ) : snapshot ? (
-            <div style={{ display: 'flex', flexDirection: 'column', gap: 'var(--nous-space-3xl)' }}>
+            <div
+              data-mao-projects-layout={projectsTab.densityMode}
+              style={
+                /*
+                 * SUPV-SP13-005 — Lease-tree / graph balance at mid densities
+                 * (D2). At D2, density grid and run graph share horizontal
+                 * space via `minmax(0, 1fr) minmax(0, 1.4fr)` (~42% / ~58%
+                 * split). At D0/D1/D3/D4 the existing single-column flex
+                 * layout is preserved verbatim (per `feedback_no_heuristic_bandaids.md`
+                 * "lease-tree / graph balance is layout-driven, not heuristic").
+                 */
+                projectsTab.densityMode === 'D2'
+                  ? {
+                      display: 'grid',
+                      gridTemplateColumns: 'minmax(0, 1fr) minmax(0, 1.4fr)',
+                      gap: 'var(--nous-space-md)',
+                    }
+                  : {
+                      display: 'flex',
+                      flexDirection: 'column',
+                      gap: 'var(--nous-space-3xl)',
+                    }
+              }
+            >
               <MaoDensityGrid
                 snapshot={snapshot}
                 selectedAgentId={projectsTab.selectedTarget?.agentId ?? null}

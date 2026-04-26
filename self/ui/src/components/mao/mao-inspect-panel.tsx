@@ -1,7 +1,12 @@
 'use client';
 
 import * as React from 'react';
-import type { MaoAgentInspectProjection, MaoSurfaceLink } from '@nous/shared';
+import type {
+  GuardrailStatus,
+  MaoAgentInspectProjection,
+  MaoSurfaceLink,
+  WitnessIntegrityStatus,
+} from '@nous/shared';
 import { Badge } from '../badge';
 import { Card, CardContent, CardHeader, CardTitle } from '../card';
 import { buildMaoSurfaceHref, formatShortId } from './mao-links';
@@ -11,6 +16,77 @@ import {
   AGENT_CLASS_COLORS,
   FALLBACK_CLASS_COLOR,
 } from './mao-workflow-group-card';
+
+/**
+ * SUPV-SP13-016 — Severity-token mapping form (closed `Record<>`).
+ * SUPV-SP13-019 — Sentinel risk-score band-table (closed array).
+ * SUPV-SP13-022 — Reasoning-log redaction-state visual-treatment mapping.
+ *
+ * Per `feedback_no_heuristic_bandaids.md`:
+ * - severity-token mapping is closed-form; compile-time exhaustiveness via
+ *   `Record<TLiteral, TToken>`.
+ * - sentinel risk-score band mapping is closed-form via single ordered
+ *   `for...of` over a closed `BAND_TABLE` constant.
+ * - supervisor-field absence is the UX signal — not a heuristic placeholder.
+ *
+ * Each constant is exported so that `mao-inspect-popup.tsx` can consume
+ * the same source-of-truth mappings (SDS § Failure Modes default disposition:
+ * re-export from `mao-inspect-panel.tsx`; new module-private file is the
+ * fallback; default disposition retained per IP Phase 0 Task 0b).
+ */
+export type SeverityToken = 'low' | 'medium' | 'high' | 'critical';
+
+export const SEVERITY_TOKEN_TO_CSS_VAR: Record<SeverityToken, string> = {
+  low: 'var(--nous-alert-success)',
+  medium: 'var(--nous-alert-warning)',
+  high: 'var(--nous-alert-error)',
+  critical: 'var(--nous-alert-critical)',
+};
+
+export const GUARDRAIL_SEVERITY: Record<GuardrailStatus, SeverityToken> = {
+  clear: 'low',
+  warning: 'medium',
+  violation: 'high',
+  enforced: 'critical',
+};
+
+export const WITNESS_INTEGRITY_SEVERITY: Record<WitnessIntegrityStatus, SeverityToken> = {
+  intact: 'low',
+  degraded: 'medium',
+  broken: 'high',
+};
+
+export const SENTINEL_RISK_BANDS: ReadonlyArray<{ readonly upper: number; readonly token: SeverityToken }> = [
+  { upper: 0.25, token: 'low' },
+  { upper: 0.5, token: 'medium' },
+  { upper: 0.75, token: 'high' },
+  { upper: 1.0, token: 'critical' },
+];
+
+export function resolveSentinelBand(score: number): SeverityToken {
+  for (const band of SENTINEL_RISK_BANDS) {
+    if (score < band.upper) return band.token;
+  }
+  return 'critical'; // catches score === 1.0
+}
+
+type ReasoningLogRedactionState = 'none' | 'partial' | 'restricted';
+type VisualTreatment = {
+  readonly badgeText: string;
+  readonly badgeStyle: 'low' | 'medium' | 'high';
+};
+
+export const REDACTION_VISUAL: Record<ReasoningLogRedactionState, VisualTreatment> = {
+  none: { badgeText: 'Full reasoning', badgeStyle: 'low' },
+  partial: { badgeText: 'Partially redacted', badgeStyle: 'medium' },
+  restricted: { badgeText: 'Reasoning restricted', badgeStyle: 'high' },
+};
+
+const REDACTION_STYLE_TO_CSS_VAR: Record<VisualTreatment['badgeStyle'], string> = {
+  low: SEVERITY_TOKEN_TO_CSS_VAR.low,
+  medium: SEVERITY_TOKEN_TO_CSS_VAR.medium,
+  high: SEVERITY_TOKEN_TO_CSS_VAR.high,
+};
 
 interface MaoInspectPanelProps {
   inspect: MaoAgentInspectProjection | null | undefined;
@@ -28,10 +104,12 @@ export function MaoInspectPanel({ inspect, isLoading, resolveAgentLabel }: MaoIn
     inspectData: MaoAgentInspectProjection,
     index: number,
   ) {
+    const evidenceRef =
+      inspectData.agent.reasoning_log_preview?.evidenceRef ?? undefined;
     const href = buildMaoSurfaceHref(link, {
       agentId: inspectData.agent.agent_id,
-      evidenceRef: inspectData.agent.reasoning_log_preview?.evidenceRef ?? undefined,
-      reasoningRef: inspectData.agent.reasoning_log_preview?.evidenceRef ?? undefined,
+      evidenceRef,
+      reasoningRef: evidenceRef,
     });
 
     const linkBase: React.CSSProperties = {
@@ -43,9 +121,14 @@ export function MaoInspectPanel({ inspect, isLoading, resolveAgentLabel }: MaoIn
     };
 
     if (!href) {
+      // SUPV-SP13-013 — muted span fall-through preserved verbatim when
+      // `buildMaoSurfaceHref` resolves to `null` (e.g., target lacks a
+      // routable surface).
       return (
         <span
           key={`${link.target}-${index}`}
+          data-mao-evidence-ref={link.target}
+          data-mao-evidence-source={evidenceRef ?? ''}
           style={{ ...linkBase, color: 'var(--nous-fg-muted)' }}
         >
           {link.target}
@@ -53,14 +136,96 @@ export function MaoInspectPanel({ inspect, isLoading, resolveAgentLabel }: MaoIn
       );
     }
 
+    // SUPV-SP13-013 — three-attribute render contract: source identifier
+    // (`data-mao-evidence-ref`), evidence source (`data-mao-evidence-source`),
+    // and resolved `href` for the deep-link affordance. Per
+    // `feedback_no_heuristic_bandaids.md` "evidence rendering is field-level,
+    // with closed-form deep-link affordances."
     return (
       <Link
         key={`${link.target}-${index}`}
         href={href}
+        data-mao-evidence-ref={link.target}
+        data-mao-evidence-source={evidenceRef ?? ''}
         style={linkBase}
       >
         {link.target}
       </Link>
+    );
+  }
+
+  /**
+   * SUPV-SP13-017 + SUPV-SP13-018 — Conditional supervisor-section
+   * rendering. When all three supervisor fields are absent, return `null` —
+   * NO DOM node is emitted. Per HF-019 dispatch-packet binding: "render
+   * `null` when no data is present — do not stub with placeholder data."
+   */
+  function renderSupervisorSection(
+    projection: MaoAgentInspectProjection['agent'],
+  ): React.ReactNode | null {
+    const guardrail = (projection as { guardrail_status?: GuardrailStatus }).guardrail_status;
+    const witness = (projection as { witness_integrity_status?: WitnessIntegrityStatus })
+      .witness_integrity_status;
+    const sentinel = (projection as { sentinel_risk_score?: number }).sentinel_risk_score;
+
+    const hasSupervisor =
+      guardrail !== undefined ||
+      witness !== undefined ||
+      sentinel !== undefined;
+
+    if (!hasSupervisor) {
+      return null;
+    }
+
+    return (
+      <section
+        data-testid="mao-supervisor-section"
+        data-mao-supervisor-section="present"
+        style={sectionStyle}
+      >
+        <div style={{ fontWeight: 500 }}>Supervisor</div>
+        <div style={{ display: 'flex', flexWrap: 'wrap', gap: 'var(--nous-space-sm)' }}>
+          {guardrail !== undefined ? (
+            <Badge
+              variant="outline"
+              data-mao-guardrail={guardrail}
+              data-mao-severity={GUARDRAIL_SEVERITY[guardrail]}
+              style={{
+                borderColor: SEVERITY_TOKEN_TO_CSS_VAR[GUARDRAIL_SEVERITY[guardrail]],
+                color: SEVERITY_TOKEN_TO_CSS_VAR[GUARDRAIL_SEVERITY[guardrail]],
+              }}
+            >
+              Guardrail: {guardrail}
+            </Badge>
+          ) : null}
+          {witness !== undefined ? (
+            <Badge
+              variant="outline"
+              data-mao-witness-integrity={witness}
+              data-mao-severity={WITNESS_INTEGRITY_SEVERITY[witness]}
+              style={{
+                borderColor: SEVERITY_TOKEN_TO_CSS_VAR[WITNESS_INTEGRITY_SEVERITY[witness]],
+                color: SEVERITY_TOKEN_TO_CSS_VAR[WITNESS_INTEGRITY_SEVERITY[witness]],
+              }}
+            >
+              Witness integrity: {witness}
+            </Badge>
+          ) : null}
+          {sentinel !== undefined ? (
+            <Badge
+              variant="outline"
+              data-mao-sentinel-risk={sentinel.toFixed(2)}
+              data-mao-severity={resolveSentinelBand(sentinel)}
+              style={{
+                borderColor: SEVERITY_TOKEN_TO_CSS_VAR[resolveSentinelBand(sentinel)],
+                color: SEVERITY_TOKEN_TO_CSS_VAR[resolveSentinelBand(sentinel)],
+              }}
+            >
+              Sentinel risk: {sentinel.toFixed(2)}
+            </Badge>
+          ) : null}
+        </div>
+      </section>
     );
   }
 
@@ -153,7 +318,19 @@ export function MaoInspectPanel({ inspect, isLoading, resolveAgentLabel }: MaoIn
               </div>
             </div>
 
-            {inspect.agent.reasoning_log_preview ? (
+            {(() => {
+              /*
+               * SUPV-SP13-021 + SUPV-SP13-022 — Reasoning-log redaction-state
+               * visual distinguishability via closed `Record<>` mapping. Three
+               * states map to three distinct badge texts + style severities.
+               * DNR-B4 binding.
+               */
+              const redactionState = (
+                inspect.agent as { reasoning_log_redaction_state?: ReasoningLogRedactionState }
+              ).reasoning_log_redaction_state ?? 'none';
+              const visual = REDACTION_VISUAL[redactionState];
+              const redactionColor = REDACTION_STYLE_TO_CSS_VAR[visual.badgeStyle];
+              return inspect.agent.reasoning_log_preview ? (
               <div style={{ display: 'flex', flexDirection: 'column', gap: 'var(--nous-space-sm)', borderRadius: 'var(--nous-radius-sm)', border: '1px solid var(--nous-border-subtle)', padding: 'var(--nous-space-xl)' }}>
                 <div style={{ display: 'flex', flexWrap: 'wrap', gap: 'var(--nous-space-sm)' }}>
                   <Badge variant="outline">
@@ -164,6 +341,15 @@ export function MaoInspectPanel({ inspect, isLoading, resolveAgentLabel }: MaoIn
                   </Badge>
                   <Badge variant="outline">
                     {inspect.agent.reasoning_log_preview.previewMode}
+                  </Badge>
+                  <Badge
+                    variant="outline"
+                    data-testid="redaction-visual-badge"
+                    data-mao-redaction-state={redactionState}
+                    data-mao-redaction-style={visual.badgeStyle}
+                    style={{ borderColor: redactionColor, color: redactionColor }}
+                  >
+                    {visual.badgeText}
                   </Badge>
                 </div>
                 <p>{inspect.agent.reasoning_log_preview.summary}</p>
@@ -187,7 +373,16 @@ export function MaoInspectPanel({ inspect, isLoading, resolveAgentLabel }: MaoIn
                     : null}
                 </div>
               </div>
-            ) : null}
+            ) : null;
+            })()}
+
+            {/*
+              * SUPV-SP13-017 + SUPV-SP13-018 — Conditional supervisor section.
+              * Renders only when at least one of guardrail_status,
+              * witness_integrity_status, or sentinel_risk_score is present;
+              * otherwise emits ZERO DOM nodes (no placeholder).
+              */}
+            {renderSupervisorSection(inspect.agent)}
 
             <div style={sectionStyle}>
               <div style={{ fontWeight: 500 }}>Latest attempt</div>
