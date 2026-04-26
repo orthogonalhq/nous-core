@@ -19,7 +19,8 @@ import {
   type IWitnessService,
 } from '@nous/shared';
 import { validateEnvelope } from './envelope.js';
-import { issueConfirmationProof, validateConfirmationProof, getRequiredTier } from './confirmation.js';
+import { issueConfirmationProof, validateConfirmationProof } from './confirmation.js';
+import { getRequiredTier } from './tier-display.js';
 import { resolveScope } from './scope.js';
 import type { ReplayStore } from './replay-store.js';
 import type { StartLockStore } from './start-lock.js';

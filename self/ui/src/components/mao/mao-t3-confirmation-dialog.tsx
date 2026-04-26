@@ -7,8 +7,13 @@ import type {
   MaoProjectControlAction,
   ProjectId,
 } from '@nous/shared';
+import {
+  getTierDisplay,
+  type ConfirmationTierDisplay,
+} from '@nous/subcortex-opctl';
 import { Button } from '../button';
 import { trpc } from '@nous/transport';
+import { SEVERITY_TOKEN_TO_CSS_VAR } from './mao-inspect-panel';
 
 /**
  * T3 actions that require a confirmation dialog before mutation.
@@ -37,6 +42,70 @@ const IMPACT_LABELS: Record<MaoProjectControlAction, string> = {
     'Immediately halt all activity for this project. Active agents will be terminated.',
 };
 
+// --- WR-162 SP 14 SUPV-SP14-011 — closed RationaleKey + supervisor-state resolver ---
+//
+// Closed `Record<RationaleKey, string>` covers the four tier rationales plus the
+// supervisor-locked T3 variant (per ESC-001 acknowledgment outcome at Goals SC-11).
+// `resolveRationaleCopy` is the closed pure resolver: when a T3 dialog is shown
+// against a supervisor-locked scope (`MaoAgentProjection.guardrail_status ===
+// 'enforced'` per SP 6 read), the supervisor-locked copy renders.
+export type RationaleKey =
+  | 'tier.t0.rationale'
+  | 'tier.t1.rationale'
+  | 'tier.t2.rationale'
+  | 'tier.t3.rationale'
+  | 'tier.t3.supervisor_locked';
+
+export const RATIONALE_COPY: Record<RationaleKey, string> = {
+  'tier.t0.rationale':
+    'Immediate execution. No additional confirmation required.',
+  'tier.t1.rationale':
+    'One-step confirmation. The action proceeds once you confirm.',
+  'tier.t2.rationale':
+    'Two-step confirmation. Review the impact summary before confirming.',
+  'tier.t3.rationale':
+    'Cooldown-gated confirmation. Destructive scope requires explicit acknowledgment.',
+  'tier.t3.supervisor_locked':
+    'Supervisor lock active (ESC-001). Acknowledge the supervisor-enforced state before this destructive action proceeds.',
+};
+
+export function resolveRationaleCopy(
+  rationaleKey: RationaleKey,
+  supervisorLocked: boolean,
+): string {
+  if (supervisorLocked && rationaleKey === 'tier.t3.rationale') {
+    return RATIONALE_COPY['tier.t3.supervisor_locked'];
+  }
+  return RATIONALE_COPY[rationaleKey];
+}
+
+/**
+ * SUPV-SP14-012 — Closed conditional cooldown structure. V1 `T3_COOLDOWN_MS = 0`
+ * means the countdown is not rendered today. The closed conditional is forward-
+ * compatible: when SP 7 promotes `T3_COOLDOWN_MS` to a positive value, the
+ * countdown wires up automatically without component-shape change.
+ */
+function Countdown({ ms }: { ms: number }) {
+  const [remaining, setRemaining] = React.useState(ms);
+  React.useEffect(() => {
+    setRemaining(ms);
+    if (ms <= 0) return;
+    const start = Date.now();
+    const interval = setInterval(() => {
+      const elapsed = Date.now() - start;
+      const next = Math.max(0, ms - elapsed);
+      setRemaining(next);
+      if (next <= 0) clearInterval(interval);
+    }, 100);
+    return () => clearInterval(interval);
+  }, [ms]);
+  return (
+    <span data-testid="t3-cooldown" data-cooldown-remaining-ms={remaining}>
+      Cooldown: {Math.ceil(remaining / 1000)}s
+    </span>
+  );
+}
+
 export interface MaoT3ConfirmationDialogProps {
   open: boolean;
   action: MaoProjectControlAction;
@@ -48,6 +117,21 @@ export interface MaoT3ConfirmationDialogProps {
     blockedAgentCount: number;
     urgentAgentCount: number;
   };
+  /**
+   * SUPV-SP14-011 — Optional supervisor-locked-scope flag derived by parent
+   * from `MaoAgentProjection.guardrail_status === 'enforced'` (SP 6 read).
+   * Defaults to `false`; existing consumers see no behavior change. DNR-J1
+   * holds: this is an additive optional prop justified at SDS.
+   */
+  supervisorLocked?: boolean;
+  /**
+   * SUPV-SP14-013 — Optional last-submission result. When `reason_code` is
+   * non-undefined, the dialog renders the reason-code surface in the dialog
+   * body. Renders nothing otherwise. Additive optional prop (DNR-J1).
+   */
+  result?: {
+    reason_code?: string;
+  };
   onConfirm: (proof: ConfirmationProof) => void;
   onCancel: () => void;
 }
@@ -58,6 +142,8 @@ export function MaoT3ConfirmationDialog({
   projectId,
   projectName,
   impactSummary,
+  supervisorLocked,
+  result,
   onConfirm,
   onCancel,
 }: MaoT3ConfirmationDialogProps) {
@@ -69,6 +155,22 @@ export function MaoT3ConfirmationDialog({
       setConfirmedProof(proof);
     },
   });
+
+  // SUPV-SP14-008 — `useMemo` over `getTierDisplay('T3')`. The resolver is
+  // pure but stable across renders; memoizing avoids redundant work and pins
+  // the closed `display.label` / `display.severity` / `display.rationaleKey`
+  // / `display.cooldownMs` surface for the rest of the render tree.
+  const display: ConfirmationTierDisplay = React.useMemo(
+    () => getTierDisplay('T3'),
+    [],
+  );
+
+  // SUPV-SP14-011 — supervisor-locked rationale copy (closed Record over
+  // five-literal `RationaleKey` admit).
+  const rationaleCopy = resolveRationaleCopy(
+    display.rationaleKey as RationaleKey,
+    supervisorLocked ?? false,
+  );
 
   // Reset proof display state when dialog opens/closes
   React.useEffect(() => {
@@ -233,12 +335,45 @@ export function MaoT3ConfirmationDialog({
     <div style={overlayBase} data-testid="t3-confirmation-dialog">
       <div style={backdropStyle} onClick={onCancel} aria-hidden="true" />
       <div style={panelStyle}>
-        <h2 style={{ fontSize: 'var(--nous-font-size-lg)', fontWeight: 600 }}>
+        <h2
+          style={{
+            fontSize: 'var(--nous-font-size-lg)',
+            fontWeight: 600,
+            // SUPV-SP14-008 — severity-token replaces inline `'#ef4444'` hardcode.
+            color: SEVERITY_TOKEN_TO_CSS_VAR[display.severity],
+          }}
+        >
           Confirm T3 action
         </h2>
-        <p style={{ marginTop: 'var(--nous-space-sm)', fontSize: 'var(--nous-font-size-sm)', color: 'var(--nous-fg-muted)' }}>
-          This action requires explicit confirmation before it can proceed.
+        {/* SUPV-SP14-008 — `display.label` thread (sibling node preserves the
+            DNR-H1 `'Confirm T3 action'` heading verbatim per SC-39). */}
+        <div
+          data-testid="t3-tier-label"
+          data-tier-level={display.level}
+          data-tier-severity={display.severity}
+          style={{
+            marginTop: 'var(--nous-space-2xs)',
+            fontSize: 'var(--nous-font-size-sm)',
+            color: SEVERITY_TOKEN_TO_CSS_VAR[display.severity],
+            fontWeight: 500,
+          }}
+        >
+          {display.label}
+        </div>
+        <p
+          style={{ marginTop: 'var(--nous-space-sm)', fontSize: 'var(--nous-font-size-sm)', color: 'var(--nous-fg-muted)' }}
+          data-testid="t3-rationale-copy"
+          data-rationale-key={display.rationaleKey}
+          data-supervisor-locked={(supervisorLocked ?? false) ? 'true' : 'false'}
+        >
+          {rationaleCopy}
         </p>
+
+        {display.cooldownMs !== undefined && display.cooldownMs > 0 ? (
+          <div style={{ marginTop: 'var(--nous-space-md)' }}>
+            <Countdown ms={display.cooldownMs} />
+          </div>
+        ) : null}
 
         <div style={{ marginTop: 'var(--nous-space-2xl)', display: 'flex', flexDirection: 'column', gap: 'var(--nous-space-md)' }}>
           <div style={cellBase}>
@@ -267,10 +402,41 @@ export function MaoT3ConfirmationDialog({
               </div>
             ) : null}
           </div>
+
+          {/* SUPV-SP14-013 — Reason-code surface. Renders only when result?.reason_code is non-undefined. */}
+          {result?.reason_code !== undefined ? (
+            <dl
+              data-testid="t3-reason-code"
+              style={{
+                ...cellBase,
+                margin: 0,
+                display: 'flex',
+                flexDirection: 'column',
+                gap: 'var(--nous-space-2xs)',
+              }}
+            >
+              <dt style={labelStyle}>Reason</dt>
+              <dd style={{ margin: 0, fontSize: 'var(--nous-font-size-sm)' }}>
+                {result.reason_code}
+              </dd>
+            </dl>
+          ) : null}
         </div>
 
         {proofMutation.isError ? (
-          <div style={{ marginTop: 'var(--nous-space-md)', borderRadius: 'var(--nous-radius-sm)', border: '1px solid rgba(239,68,68,0.4)', backgroundColor: 'rgba(239,68,68,0.1)', paddingInline: 'var(--nous-space-md)', paddingBlock: 'var(--nous-space-sm)', fontSize: 'var(--nous-font-size-sm)', color: '#ef4444' }}>
+          <div
+            style={{
+              marginTop: 'var(--nous-space-md)',
+              borderRadius: 'var(--nous-radius-sm)',
+              border: '1px solid rgba(239,68,68,0.4)',
+              backgroundColor: 'rgba(239,68,68,0.1)',
+              paddingInline: 'var(--nous-space-md)',
+              paddingBlock: 'var(--nous-space-sm)',
+              fontSize: 'var(--nous-font-size-sm)',
+              // SUPV-SP14-008 — severity-token replaces inline `'#ef4444'` hardcode.
+              color: SEVERITY_TOKEN_TO_CSS_VAR[display.severity],
+            }}
+          >
             Failed to obtain confirmation proof. Please try again.
           </div>
         ) : null}

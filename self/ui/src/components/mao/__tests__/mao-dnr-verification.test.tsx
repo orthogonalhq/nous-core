@@ -296,3 +296,160 @@ describe('UT-SP13-DNR-C4 — urgent overlay visibility unconditional on motion p
     expect(urgentBadge.getAttribute('data-mao-urgent-indicator')).toBe('present');
   });
 });
+
+// --- WR-162 SP 14 (SUPV-SP14-018) — DNR row regression guards ---
+
+import { MaoProjectControls } from '../mao-project-controls';
+import {
+  MaoT3ConfirmationDialog,
+  type MaoT3ConfirmationDialogProps,
+} from '../mao-t3-confirmation-dialog';
+
+vi.mock('@nous/transport', () => ({
+  trpc: {
+    useUtils: vi.fn().mockReturnValue({
+      mao: { getControlAuditHistory: { invalidate: vi.fn() } },
+    }),
+    mao: {
+      getControlAuditHistory: {
+        useQuery: vi.fn().mockReturnValue({ data: [], isLoading: false, isError: false }),
+      },
+    },
+    opctl: {
+      requestConfirmationProof: {
+        useMutation: vi.fn().mockReturnValue({
+          mutate: vi.fn(),
+          isPending: false,
+          isError: false,
+        }),
+      },
+    },
+  },
+  useEventSubscription: vi.fn(),
+}));
+
+function makeProjectControlsSnapshot(): MaoProjectSnapshot {
+  return {
+    projectId: '11111111-1111-1111-1111-111111111111',
+    densityMode: 'D2',
+    workflowRunId: '22222222-2222-2222-2222-222222222222',
+    controlProjection: {
+      project_id: '11111111-1111-1111-1111-111111111111',
+      project_control_state: 'running',
+      active_agent_count: 1,
+      blocked_agent_count: 0,
+      urgent_agent_count: 0,
+      pfc_project_review_status: 'none',
+      pfc_project_recommendation: 'continue',
+      resume_readiness_status: 'not_applicable',
+      resume_readiness_evidence_refs: [],
+    },
+    grid: [],
+    graph: { projectId: '11111111-1111-1111-1111-111111111111', nodes: [], edges: [], generatedAt: '2026-03-10T01:00:00.000Z' },
+    urgentOverlay: { urgentAgentIds: [], blockedAgentIds: [], generatedAt: '2026-03-10T01:00:00.000Z' },
+    summary: {
+      activeAgentCount: 1,
+      blockedAgentCount: 0,
+      failedAgentCount: 0,
+      waitingPfcAgentCount: 0,
+      urgentAgentCount: 0,
+    },
+    diagnostics: { runtimePosture: 'single_process_local' },
+    generatedAt: '2026-03-10T01:00:00.000Z',
+  } as unknown as MaoProjectSnapshot;
+}
+
+describe('UT-SP14-DNR — DNR row regression guards', () => {
+  afterEach(() => cleanup());
+
+  // UT-SP14-DNR-A4 / DNR-F1 — three project-control buttons remain present
+  it('UT-SP14-DNR-A4 / DNR-F1 — three project controls present in MaoProjectControls', () => {
+    render(
+      <MaoProjectControls
+        snapshot={makeProjectControlsSnapshot()}
+        pending={false}
+        lastResult={null}
+        onRequestControl={vi.fn()}
+      />,
+    );
+    expect(screen.getByText('Pause Project')).toBeTruthy();
+    expect(screen.getByText('Resume Project')).toBeTruthy();
+    expect(screen.getByText('Hard Stop Project')).toBeTruthy();
+  });
+
+  // UT-SP14-DNR-F3 — Cortex review surface preserved
+  it('UT-SP14-DNR-F3 — Cortex review surface preserved post-polish', () => {
+    render(
+      <MaoProjectControls
+        snapshot={makeProjectControlsSnapshot()}
+        pending={false}
+        lastResult={null}
+        onRequestControl={vi.fn()}
+      />,
+    );
+    expect(screen.getByTestId('cortex-review-section')).toBeTruthy();
+  });
+
+  // UT-SP14-DNR-F4 — admission guardrails (Pause Project disabled when paused)
+  it('UT-SP14-DNR-F4 — admission guardrail visible: Pause disabled when state is paused_review', () => {
+    const snapshot = makeProjectControlsSnapshot();
+    (snapshot.controlProjection as any).project_control_state = 'paused_review';
+    render(
+      <MaoProjectControls
+        snapshot={snapshot}
+        pending={false}
+        lastResult={null}
+        onRequestControl={vi.fn()}
+      />,
+    );
+    const pauseBtn = screen.getByText('Pause Project').closest('button');
+    expect(pauseBtn).toBeTruthy();
+    expect((pauseBtn as HTMLButtonElement).disabled).toBe(true);
+  });
+
+  // UT-SP14-DNR-F5 — reason capture flow preserved
+  it('UT-SP14-DNR-F5 — reason capture textarea preserved; submit blocked without reason', () => {
+    const onRequestControl = vi.fn();
+    render(
+      <MaoProjectControls
+        snapshot={makeProjectControlsSnapshot()}
+        pending={false}
+        lastResult={null}
+        onRequestControl={onRequestControl}
+      />,
+    );
+    const textarea = screen.getByPlaceholderText(/operator reason/i);
+    expect(textarea).toBeTruthy();
+    // Without reason, button is disabled.
+    const pause = screen.getByText('Pause Project').closest('button');
+    expect((pause as HTMLButtonElement).disabled).toBe(true);
+  });
+
+  // UT-SP14-DNR-J1 — additive optional supervisorLocked + result props (no new required prop)
+  it('UT-SP14-DNR-J1 — MaoT3ConfirmationDialogProps remain shape-compatible (optional supervisorLocked + result)', () => {
+    // TypeScript-compile-time check via assignability.
+    const props: MaoT3ConfirmationDialogProps = {
+      open: true,
+      action: 'resume_project',
+      projectId: '550e8400-e29b-41d4-a716-446655445001' as any,
+      onConfirm: vi.fn(),
+      onCancel: vi.fn(),
+    };
+    expect(props.supervisorLocked).toBeUndefined();
+    expect(props.result).toBeUndefined();
+  });
+
+  // UT-SP14-DNR-J2 — render-contract under existing host
+  it('UT-SP14-DNR-J2 — MaoT3ConfirmationDialog mounts under existing host fixture without crashing', () => {
+    render(
+      <MaoT3ConfirmationDialog
+        open={true}
+        action="resume_project"
+        projectId={'550e8400-e29b-41d4-a716-446655445001' as any}
+        onConfirm={vi.fn()}
+        onCancel={vi.fn()}
+      />,
+    );
+    expect(screen.getByTestId('t3-confirmation-dialog')).toBeTruthy();
+  });
+});

@@ -3,7 +3,7 @@ import {
   T3_COOLDOWN_MS,
   getTierDisplay,
   type ConfirmationTierDisplay,
-} from '../confirmation.js';
+} from '../tier-display.js';
 
 describe('ConfirmationTierDisplay — WR-162 SP 2 surface', () => {
   it('accepts a structurally valid literal (type-level compile guard)', () => {

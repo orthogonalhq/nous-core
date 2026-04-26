@@ -2,9 +2,14 @@
 
 import { describe, expect, it } from 'vitest';
 import {
+  ControlActionSchema,
+  ControlActorTypeSchema,
+  ConfirmationTierSchema,
   GuardrailStatusSchema,
   MaoDensityModeSchema,
   MaoEventTypeSchema,
+  MaoProjectControlActionSchema,
+  OpctlSubmitResultSchema,
   WitnessIntegrityStatusSchema,
 } from '@nous/shared';
 import {
@@ -15,6 +20,14 @@ import {
   SEVERITY_TOKEN_TO_CSS_VAR,
   WITNESS_INTEGRITY_SEVERITY,
 } from '../mao-inspect-panel';
+import {
+  TOAST_BODY_BY_OUTCOME,
+  classifyOutcome,
+  type OpctlSubmitToastOutcome,
+} from '../mao-project-controls';
+import { ACTOR_VISUAL } from '../mao-audit-trail-panel';
+import { ACTION_MAP } from '../mao-t3-confirmation-dialog';
+import { randomUUID } from 'node:crypto';
 
 /**
  * UT-SP13-CAT-* + UT-SP13-SENTINEL-BANDS — D1-style closed-enum admission
@@ -113,6 +126,164 @@ describe('SP 13 closed-enum admission regression guards', () => {
     }
     // Negative — non-MAO suppressed event type rejected.
     expect(MaoEventTypeSchema.safeParse('mao_phantom_emission').success).toBe(false);
+  });
+
+  // --- WR-162 SP 14 (SUPV-SP14-017) — D1-style closed-enum admission carry-forward ---
+
+  it('UT-SP14-CAT-TIER — ConfirmationTierSchema admits T0..T3 and rejects unknown', () => {
+    expect(ConfirmationTierSchema.safeParse('T0').success).toBe(true);
+    expect(ConfirmationTierSchema.safeParse('T1').success).toBe(true);
+    expect(ConfirmationTierSchema.safeParse('T2').success).toBe(true);
+    expect(ConfirmationTierSchema.safeParse('T3').success).toBe(true);
+    expect(ConfirmationTierSchema.safeParse('T4').success).toBe(false);
+  });
+
+  it('UT-SP14-CAT-SEVERITY — tier-display severity union maps closed to four CSS-var literals', () => {
+    expect(SEVERITY_TOKEN_TO_CSS_VAR.low).toBeDefined();
+    expect(SEVERITY_TOKEN_TO_CSS_VAR.medium).toBeDefined();
+    expect(SEVERITY_TOKEN_TO_CSS_VAR.high).toBeDefined();
+    expect(SEVERITY_TOKEN_TO_CSS_VAR.critical).toBeDefined();
+  });
+
+  it('UT-SP14-CAT-PROJECT-CONTROL-ACTION-REASSERT — three literals; no cancel_queued literal', () => {
+    expect(MaoProjectControlActionSchema.safeParse('pause_project').success).toBe(true);
+    expect(MaoProjectControlActionSchema.safeParse('resume_project').success).toBe(true);
+    expect(MaoProjectControlActionSchema.safeParse('hard_stop_project').success).toBe(true);
+    expect(MaoProjectControlActionSchema.safeParse('cancel_queued').success).toBe(false);
+  });
+
+  it('UT-SP14-CAT-CONTROL-ACTION-REASSERT — SP 14 routes-through three of the eleven literals', () => {
+    expect(ControlActionSchema.safeParse('pause').success).toBe(true);
+    expect(ControlActionSchema.safeParse('resume').success).toBe(true);
+    expect(ControlActionSchema.safeParse('hard_stop').success).toBe(true);
+    // Non-action literal rejected.
+    expect(ControlActionSchema.safeParse('cancel_queued').success).toBe(false);
+    // ACTION_MAP exhaustively maps the three project-control actions to ControlAction.
+    expect(ACTION_MAP.pause_project).toBe('pause');
+    expect(ACTION_MAP.resume_project).toBe('resume');
+    expect(ACTION_MAP.hard_stop_project).toBe('hard_stop');
+  });
+
+  it('UT-SP14-CAT-ACTOR-TYPE — ControlActorTypeSchema admits all five literals; closed Record exhaustiveness', () => {
+    expect(ControlActorTypeSchema.safeParse('principal').success).toBe(true);
+    expect(ControlActorTypeSchema.safeParse('orchestration_agent').success).toBe(true);
+    expect(ControlActorTypeSchema.safeParse('worker_agent').success).toBe(true);
+    expect(ControlActorTypeSchema.safeParse('system_agent').success).toBe(true);
+    expect(ControlActorTypeSchema.safeParse('supervisor').success).toBe(true);
+    expect(ControlActorTypeSchema.safeParse('operator').success).toBe(false);
+    expect(Object.keys(ACTOR_VISUAL).sort()).toEqual([
+      'orchestration_agent',
+      'principal',
+      'supervisor',
+      'system_agent',
+      'worker_agent',
+    ]);
+  });
+
+  it('UT-SP14-CAT-OPCTL-REASON-CODE — OpctlSubmitResultSchema admits the four SP-14 routed reason codes; classifyOutcome maps correctly', () => {
+    const baseAccepted = {
+      command_id: randomUUID(),
+      project_id: randomUUID(),
+      accepted: true,
+      from_state: 'running' as const,
+      to_state: 'paused_review' as const,
+      decision_ref: 'mao-control:cmd-x',
+      impactSummary: {
+        activeRunCount: 0,
+        activeAgentCount: 0,
+        blockedAgentCount: 0,
+        urgentAgentCount: 0,
+        affectedScheduleCount: 0,
+        evidenceRefs: [] as string[],
+      },
+      evidenceRefs: [] as string[],
+      readiness_status: 'not_applicable' as const,
+    };
+    // applied
+    expect(
+      classifyOutcome({
+        ...baseAccepted,
+        status: 'applied',
+        reason_code: 'mao_project_control_applied',
+      } as any),
+    ).toBe('applied');
+    // rejected
+    expect(
+      classifyOutcome({
+        ...baseAccepted,
+        accepted: false,
+        status: 'rejected',
+        reason_code: 'OPCTL-006',
+      } as any),
+    ).toBe('rejected');
+    // blocked_conflict_resolved
+    expect(
+      classifyOutcome({
+        ...baseAccepted,
+        accepted: false,
+        status: 'blocked',
+        reason_code: 'opctl_conflict_resolved',
+      } as any),
+    ).toBe('blocked_conflict_resolved');
+    // blocked_other (e.g., supervisor_enforcement_lock or OPCTL-003)
+    expect(
+      classifyOutcome({
+        ...baseAccepted,
+        accepted: false,
+        status: 'blocked',
+        reason_code: 'supervisor_enforcement_lock',
+      } as any),
+    ).toBe('blocked_other');
+    // OpctlSubmitResultSchema admits a runtime sample with the four reason codes
+    const reasonCodes = [
+      'opctl_conflict_resolved',
+      'supervisor_enforcement_lock',
+      'OPCTL-003',
+      'OPCTL-006',
+    ];
+    for (const code of reasonCodes) {
+      const sample = OpctlSubmitResultSchema.safeParse({
+        control_command_id: randomUUID(),
+        status: 'blocked',
+        reason: 'sample',
+        reason_code: code,
+      });
+      expect(sample.success).toBe(true);
+    }
+  });
+
+  it('UT-SP14-CAT-MAO-EVENT-TYPES-REASSERT — eleven literals admitted; unknown rejected', () => {
+    const eleven = [
+      'mao_agent_state_projected',
+      'mao_density_mode_changed',
+      'mao_urgent_overlay_applied',
+      'mao_urgent_overlay_cleared',
+      'mao_project_control_requested',
+      'mao_project_control_applied',
+      'mao_project_control_blocked',
+      'mao_pfc_project_recommendation_updated',
+      'mao_project_resume_readiness_passed',
+      'mao_project_resume_readiness_blocked',
+      'mao_graph_lineage_rendered',
+    ] as const;
+    for (const literal of eleven) {
+      expect(MaoEventTypeSchema.safeParse(literal).success).toBe(true);
+    }
+    expect(MaoEventTypeSchema.safeParse('mao_phantom_emission').success).toBe(false);
+  });
+
+  it('UT-SP14-CAT-RATIONALE-KEY — TOAST_BODY_BY_OUTCOME closed Record over four OpctlSubmitToastOutcome literals', () => {
+    const expected: OpctlSubmitToastOutcome[] = [
+      'applied',
+      'rejected',
+      'blocked_conflict_resolved',
+      'blocked_other',
+    ];
+    expect(Object.keys(TOAST_BODY_BY_OUTCOME).sort()).toEqual([...expected].sort());
+    expect(TOAST_BODY_BY_OUTCOME.applied.tone).toBe('success');
+    expect(TOAST_BODY_BY_OUTCOME.rejected.tone).toBe('error');
+    expect(TOAST_BODY_BY_OUTCOME.blocked_conflict_resolved.tone).toBe('info');
+    expect(TOAST_BODY_BY_OUTCOME.blocked_other.tone).toBe('warn');
   });
 
   it('UT-SP13-SENTINEL-BANDS — boundary-value tests on the closed band-table', () => {
