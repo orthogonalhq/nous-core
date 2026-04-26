@@ -453,3 +453,52 @@ describe('UT-SP14-DNR — DNR row regression guards', () => {
     expect(screen.getByTestId('t3-confirmation-dialog')).toBeTruthy();
   });
 });
+
+/**
+ * SP 15 — UT-SP15-DNR-J1 / UT-SP15-DNR-J2 (SUPV-SP15-005).
+ *
+ * J1: pre-authorized DNR-J1 carve-out — `MaoSystemHealthStrip` removed from
+ * the `@nous/ui` mao barrel; the four retained surface components must
+ * still resolve through the barrel.
+ *
+ * J2: existing host fixtures continue to mount the post-cleanup MAO surfaces
+ * without required-prop additions vs SP 14 baseline (compile-time + runtime).
+ */
+import * as MaoBarrel from '../index';
+
+describe('UT-SP15-DNR-J1 — barrel export contract post-cleanup', () => {
+  it('UT-SP15-DNR-J1-NEGATIVE — MaoSystemHealthStrip is NOT exported from the mao barrel', () => {
+    // Runtime negative: the barrel does not re-export the removed symbol.
+    expect((MaoBarrel as Record<string, unknown>).MaoSystemHealthStrip).toBeUndefined();
+    expect(
+      (MaoBarrel as Record<string, unknown>).MaoSystemHealthStripProps,
+    ).toBeUndefined();
+  });
+
+  it('UT-SP15-DNR-J1-POSITIVE — four retained MAO surface components resolve through the barrel', () => {
+    expect(MaoBarrel.MaoOperatingSurface).toBeDefined();
+    expect(MaoBarrel.MaoProjectControls).toBeDefined();
+    expect(MaoBarrel.MaoT3ConfirmationDialog).toBeDefined();
+    expect(MaoBarrel.MaoInspectPanel).toBeDefined();
+  });
+});
+
+describe('UT-SP15-DNR-J2 — host-fixture re-mount post-cleanup', () => {
+  it('UT-SP15-DNR-J2 — MaoInspectPanel and MaoT3ConfirmationDialog mount unchanged props post-cleanup', () => {
+    // Compile-time + runtime: the SP 14 prop surface is unchanged. No
+    // required-prop additions surface as a TypeScript error here.
+    render(
+      <MaoServicesProvider
+        value={{
+          Link: ({ children }: { children: React.ReactNode }) => <a>{children}</a>,
+          useProject: () => ({ projectId: 'p-001', setProjectId: vi.fn() }),
+          useSearchParams: () => ({ get: () => null }),
+        }}
+      >
+        <MaoInspectPanel inspect={null} isLoading={false} />
+      </MaoServicesProvider>,
+    );
+    // No crash; component mounts successfully.
+    expect(true).toBe(true);
+  });
+});

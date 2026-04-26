@@ -320,6 +320,69 @@ describe('UT-SP13-POPUP — SP 13 polish coverage', () => {
     expect(screen.queryByText('Unknown')).toBeNull();
   });
 
+  /**
+   * SP 15 — UT-SP15-INSP-MATRIX (popup variant, SUPV-SP15-001).
+   *
+   * Closed-product `it.each` over the supervisor-field × severity-band
+   * domain. Asserts the popup header `data-mao-severity` resolves to the
+   * SP 13 closed-form severity token for each single-field fixture.
+   */
+  it.each([
+    { status: 'clear', severity: 'low' },
+    { status: 'warning', severity: 'medium' },
+    { status: 'violation', severity: 'high' },
+    { status: 'enforced', severity: 'critical' },
+  ] as const)(
+    'UT-SP15-INSP-MATRIX-POPUP-GUARDRAIL — guardrail_status=$status header severity=$severity',
+    ({ status, severity }) => {
+      const agent = createAgent({ guardrail_status: status as any });
+      render(
+        <Wrapper>
+          <MaoInspectPopup open={true} onClose={vi.fn()} agent={agent} projectSnapshot={null} />
+        </Wrapper>,
+      );
+      const header = screen.getByTestId('mao-supervisor-header');
+      expect(header.getAttribute('data-mao-severity')).toBe(severity);
+    },
+  );
+
+  it.each([
+    { status: 'intact', severity: 'low' },
+    { status: 'degraded', severity: 'medium' },
+    { status: 'broken', severity: 'high' },
+  ] as const)(
+    'UT-SP15-INSP-MATRIX-POPUP-WITNESS — witness_integrity_status=$status header severity=$severity',
+    ({ status, severity }) => {
+      const agent = createAgent({ witness_integrity_status: status as any });
+      render(
+        <Wrapper>
+          <MaoInspectPopup open={true} onClose={vi.fn()} agent={agent} projectSnapshot={null} />
+        </Wrapper>,
+      );
+      const header = screen.getByTestId('mao-supervisor-header');
+      expect(header.getAttribute('data-mao-severity')).toBe(severity);
+    },
+  );
+
+  it.each([
+    { score: 0.1, severity: 'low' },
+    { score: 0.4, severity: 'medium' },
+    { score: 0.7, severity: 'high' },
+    { score: 0.95, severity: 'critical' },
+  ] as const)(
+    'UT-SP15-INSP-MATRIX-POPUP-SENTINEL — sentinel_risk_score=$score header severity=$severity',
+    ({ score, severity }) => {
+      const agent = createAgent({ sentinel_risk_score: score as any });
+      render(
+        <Wrapper>
+          <MaoInspectPopup open={true} onClose={vi.fn()} agent={agent} projectSnapshot={null} />
+        </Wrapper>,
+      );
+      const header = screen.getByTestId('mao-supervisor-header');
+      expect(header.getAttribute('data-mao-severity')).toBe(severity);
+    },
+  );
+
   it('UT-SP13-POPUP-DNR-C3 — SP 13 polish itself adds no destructive control to the popup (supervisor-state header is read-only)', () => {
     /*
      * DNR-C3 invariant binding: SP 13 polish must not introduce any NEW

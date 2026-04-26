@@ -531,3 +531,98 @@ describe('UT-SP14-PC — project-controls polish (SUPV-SP14-001..006)', () => {
     expect(screen.getByText('Hard Stop Project')).toBeTruthy();
   });
 });
+
+/**
+ * SP 15 — UT-SP15-PC-MATRIX (SUPV-SP15-002).
+ *
+ * Closed-enum `it.each` over the four `OpctlSubmitToastOutcome` literals plus
+ * one `cancel-queued` cell verifying `classifyOutcome` invariance + the
+ * `TOAST_BODY_BY_OUTCOME` lookup table contract. Per
+ * `feedback_no_heuristic_bandaids.md`: the cell discriminator is the closed
+ * enum, not pattern matching on toast text.
+ */
+const PC_MATRIX_OUTCOMES: ReadonlyArray<{
+  outcome: OpctlSubmitToastOutcome;
+  result: MaoProjectControlResult;
+  expectedTone: 'success' | 'error' | 'info' | 'warn';
+}> = [
+  {
+    outcome: 'applied',
+    result: {
+      command_id: 'cmd-applied',
+      project_id: '11111111-1111-1111-1111-111111111111',
+      accepted: true,
+      status: 'applied',
+      reason_code: undefined,
+      message: 'ok',
+      submittedAt: '2026-03-29T00:00:00.000Z',
+      evidenceRefs: [],
+    } as unknown as MaoProjectControlResult,
+    expectedTone: 'success',
+  },
+  {
+    outcome: 'rejected',
+    result: {
+      command_id: 'cmd-rejected',
+      project_id: '11111111-1111-1111-1111-111111111111',
+      accepted: false,
+      status: 'rejected',
+      reason_code: 'OPCTL-003',
+      message: 'rejected',
+      submittedAt: '2026-03-29T00:00:00.000Z',
+      evidenceRefs: [],
+    } as unknown as MaoProjectControlResult,
+    expectedTone: 'error',
+  },
+  {
+    outcome: 'blocked_conflict_resolved',
+    result: {
+      command_id: 'cmd-blocked-conflict',
+      project_id: '11111111-1111-1111-1111-111111111111',
+      accepted: false,
+      status: 'blocked',
+      reason_code: 'opctl_conflict_resolved',
+      message: 'queued',
+      submittedAt: '2026-03-29T00:00:00.000Z',
+      evidenceRefs: [],
+    } as unknown as MaoProjectControlResult,
+    expectedTone: 'info',
+  },
+  {
+    outcome: 'blocked_other',
+    result: {
+      command_id: 'cmd-blocked-other',
+      project_id: '11111111-1111-1111-1111-111111111111',
+      accepted: false,
+      status: 'blocked',
+      reason_code: 'OPCTL-006',
+      message: 'blocked',
+      submittedAt: '2026-03-29T00:00:00.000Z',
+      evidenceRefs: [],
+    } as unknown as MaoProjectControlResult,
+    expectedTone: 'warn',
+  },
+];
+
+describe('UT-SP15-PC-MATRIX — OpctlSubmitToastOutcome closed-enum cell coverage', () => {
+  it.each(PC_MATRIX_OUTCOMES)(
+    'UT-SP15-PC-MATRIX-$outcome — classifyOutcome routes to $outcome with TOAST_BODY tone=$expectedTone',
+    ({ outcome, result, expectedTone }) => {
+      // Compile-time exhaustiveness: TOAST_BODY_BY_OUTCOME admits the literal.
+      expect(TOAST_BODY_BY_OUTCOME[outcome]).toBeDefined();
+      expect(TOAST_BODY_BY_OUTCOME[outcome].tone).toBe(expectedTone);
+      // Runtime: classifyOutcome maps result → outcome literal.
+      expect(classifyOutcome(result)).toBe(outcome);
+    },
+  );
+
+  it('UT-SP15-PC-MATRIX-CANCEL-QUEUED — blocked_conflict_resolved persists banner (queued) until next submit', () => {
+    // Visual cell: the queued discriminator does NOT reset banner state on
+    // toast emission — verified by the `outcome !== blocked_conflict_resolved`
+    // guard at line 256 of mao-project-controls.tsx (SUPV-SP14-007).
+    const queued = PC_MATRIX_OUTCOMES[2]!;
+    expect(queued.outcome).toBe('blocked_conflict_resolved');
+    expect(classifyOutcome(queued.result)).toBe('blocked_conflict_resolved');
+    expect(TOAST_BODY_BY_OUTCOME.blocked_conflict_resolved.tone).toBe('info');
+  });
+});

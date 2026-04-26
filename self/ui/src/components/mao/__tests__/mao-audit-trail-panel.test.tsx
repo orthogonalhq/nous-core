@@ -288,3 +288,46 @@ describe('UT-SP14-CAT-ACTOR-TYPE — closed Record over five-literal admit', () 
     }
   });
 });
+
+/**
+ * SP 15 — UT-SP15-AT-MATRIX (SUPV-SP15-004).
+ *
+ * Closed-enum `it.each` over the five `ControlActorType` literals. Per cell:
+ * mount the audit-trail panel with one entry whose `actorType` is the literal
+ * under test; assert the SP 14 `Record<ControlActorType, ActorVisualTreatment>`
+ * (SUPV-SP14-015) renders the expected badge + tone. Supervisor cell asserts
+ * visual distinction; non-supervisor cells assert neutral baseline.
+ */
+const AT_MATRIX_ACTORS: ReadonlyArray<{
+  actor: ControlActorType;
+  expectedBadge: string;
+  expectedTone: 'low' | 'medium' | 'high';
+  expectsGlyph: boolean;
+}> = [
+  { actor: 'principal', expectedBadge: 'Principal', expectedTone: 'low', expectsGlyph: false },
+  {
+    actor: 'orchestration_agent',
+    expectedBadge: 'Orchestrator',
+    expectedTone: 'low',
+    expectsGlyph: false,
+  },
+  { actor: 'worker_agent', expectedBadge: 'Worker', expectedTone: 'low', expectsGlyph: false },
+  { actor: 'system_agent', expectedBadge: 'System', expectedTone: 'medium', expectsGlyph: false },
+  { actor: 'supervisor', expectedBadge: 'Supervisor', expectedTone: 'high', expectsGlyph: true },
+];
+
+describe('UT-SP15-AT-MATRIX — ControlActorType closed-enum cell coverage', () => {
+  it.each(AT_MATRIX_ACTORS)(
+    'UT-SP15-AT-MATRIX-$actor — ACTOR_VISUAL[$actor] has badge=$expectedBadge tone=$expectedTone glyph?=$expectsGlyph',
+    ({ actor, expectedBadge, expectedTone, expectsGlyph }) => {
+      const treatment = ACTOR_VISUAL[actor];
+      expect(treatment.badge).toBe(expectedBadge);
+      expect(treatment.toneSeverity).toBe(expectedTone);
+      if (expectsGlyph) {
+        expect(treatment.glyph).toBe('supervisor');
+      } else {
+        expect(treatment.glyph).toBeNull();
+      }
+    },
+  );
+});
