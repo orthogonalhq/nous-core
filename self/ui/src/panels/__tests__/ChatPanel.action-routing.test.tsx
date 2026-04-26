@@ -2,7 +2,15 @@
 
 import React from 'react'
 import { render, screen, fireEvent, waitFor } from '@testing-library/react'
-import { describe, expect, it, vi, beforeAll } from 'vitest'
+import { describe, expect, it, vi, beforeAll, beforeEach } from 'vitest'
+import {
+  makeTrpcMock,
+  setMockHistoryFromChatMessages,
+  setMockHistoryEntries,
+} from './chat-panel-trpc-mock'
+
+vi.mock('@nous/transport', () => makeTrpcMock())
+
 import { ChatPanel } from '../ChatPanel'
 import type { ChatAPI, ChatMessage } from '../ChatPanel'
 import { ShellProvider } from '../../components/shell/ShellContext'
@@ -12,9 +20,16 @@ beforeAll(() => {
   Element.prototype.scrollIntoView = () => {}
 })
 
+beforeEach(() => {
+  setMockHistoryEntries([])
+})
+
 const mockNavigate = vi.fn()
 
+// SP 1.9 Plan Task #14 — see ChatPanel.content-detection.test.tsx for the
+// migration-pattern note (history flows through useQuery mock).
 function makeChatApi(messages: ChatMessage[], sendAction = vi.fn().mockResolvedValue({ ok: true, message: 'Submitted' })): ChatAPI {
+  setMockHistoryFromChatMessages(messages)
   return {
     send: vi.fn().mockResolvedValue({ response: 'ok', traceId: '123' }),
     getHistory: vi.fn().mockResolvedValue(messages),

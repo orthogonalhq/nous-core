@@ -10,6 +10,176 @@ import type { AgentClass, ToolConcurrencyConfig, ToolDefinition } from '@nous/sh
 import type { PersonalityConfig } from './personality/index.js';
 import { collectFragmentsByTarget, resolvePersonality } from './personality/index.js';
 
+// SP 1.9 Item 2 — structural mirror of `@nous/autonomic-config` `UserProfile`
+// (schema.ts:201-206 — `displayName`, `role`, `primaryUseCase` strings;
+// `expertise` enum). Mirrored locally so `@nous/cortex-core` stays decoupled
+// from `@nous/autonomic-config` (no new package edge). Schema is BINDING-frozen
+// for SP 1.9 (SDS I2 / Goals Constraint 4) so structural drift is not a risk.
+// If the schema gains a field in a future sub-phase, this mirror updates with
+// it — drift is caught at the Principal-runtime call site (cortex-runtime.ts
+// lines 339, 1128) where `IConfig.getUserProfile()` is read and passed in.
+export interface UserProfile {
+  readonly displayName?: string;
+  readonly role?: string;
+  readonly primaryUseCase?: string;
+  readonly expertise?: 'beginner' | 'intermediate' | 'advanced';
+}
+
+// ---------------------------------------------------------------------------
+// SP 1.9 Item 2 — agent identity projection
+// ---------------------------------------------------------------------------
+
+/** SP 1.9 Item 2 — default agent name surfaced in identity composition. */
+export const DEFAULT_AGENT_NAME = 'Nous';
+
+/**
+ * SP 1.9 Item 2 — projection passed to `resolveAgentProfile` /
+ * `applyPersonalityToIdentity` carrying the user-configured agent name and
+ * the user-profile fragments to weave into the Principal identity block.
+ *
+ * Per SDS § 0 Note 2 / Invariant C, only `Cortex::Principal` consumes this
+ * projection — non-Principal classes ignore it (gated inside
+ * `applyPersonalityToIdentity`).
+ */
+export interface AgentIdentityProjection {
+  readonly name?: string;
+  readonly userProfile?: UserProfile;
+}
+
+/**
+ * SP 1.9 Item 2 — sanitization pipeline for free-text identity fragments.
+ *
+ * Pipeline order (binding — Invariant F / SDS § 0 Note 3):
+ *   1. strip newlines (\\r and \\n -> single space)
+ *   2. strip `<|...|>` AND `<|...` (open-only) chat-template markers via the
+ *      SDS-specified pattern `/<\|[^|]*(\|>|$)/g` — the `|$` alternation
+ *      covers the open-only variant where the marker has no closing `|>`
+ *   3. collapse repeated whitespace into single spaces
+ *   4. trim leading/trailing whitespace
+ *   5. length-cap with ellipsis at the per-field maxLength (caller passes)
+ *   6. escape inner double-quotes (so the caller can safely wrap in `"..."`)
+ *
+ * Module-private — not exported. Unit-tested in `prompt-strategy.test.ts`
+ * (Axis A, Task #16 case 6). All four free-text fields rendered into the
+ * identity block (`agent.name`, `userProfile.displayName`, `userProfile.role`,
+ * `userProfile.primaryUseCase`) flow through this single helper — Invariant F.
+ *
+ * Per-field caps (SDS § 0 Note 3 step 5 — passed by call sites):
+ *   - `agent.name`              → 120
+ *   - `userProfile.displayName` → 120
+ *   - `userProfile.role`        → 120
+ *   - `userProfile.primaryUseCase` → 500
+ */
+function sanitizeForIdentityFragment(input: string, maxLength: number): string {
+  let s = input.replace(/[\r\n]+/g, ' ');
+  // SDS § 0 Note 3 step 2 — covers both closed (`<|...|>`) and open-only
+  // (`<|...` without trailing `|>`) chat-format markers via the `|$`
+  // alternation. Pattern matches the SDS-specified regex verbatim.
+  s = s.replace(/<\|[^|]*(\|>|$)/g, '');
+  s = s.replace(/\s+/g, ' ');
+  s = s.trim();
+  if (s.length > maxLength) {
+    s = s.slice(0, maxLength - 1) + '…';
+  }
+  s = s.replace(/"/g, '\\"');
+  return s;
+}
+
+// SDS § 0 Note 3 step 5 — per-field length caps. Surfaced as named
+// constants so each call site is self-documenting and a future schema-cap
+// change updates one place.
+const SANITIZE_MAX_AGENT_NAME = 120;
+const SANITIZE_MAX_DISPLAY_NAME = 120;
+const SANITIZE_MAX_ROLE = 120;
+const SANITIZE_MAX_PRIMARY_USE_CASE = 500;
+
+/**
+ * SP 1.9 Item 2 — register-directive fragment for the user's `expertise`
+ * level. Exhaustive switch over the three enum branches; no `default` so
+ * a future enum-widening fails type-check.
+ */
+function expertiseFragment(
+  expertise: NonNullable<UserProfile['expertise']>,
+): string {
+  // SDS § 0 Note 4 — verbatim register-directive prose per enum value.
+  switch (expertise) {
+    case 'beginner':
+      return "When explaining concepts relevant to the user's work, favor accessible language and ground abstractions in concrete examples; avoid jargon unless you also define it.";
+    case 'intermediate':
+      return 'When explaining concepts, use domain-appropriate vocabulary; you may skip foundational definitions unless the user asks.';
+    case 'advanced':
+      return "When explaining concepts, speak at a technical peer's register; be concise with foundational material and go deeper on nuance.";
+    default: {
+      const _exhaustive: never = expertise;
+      throw new Error(
+        `expertiseFragment: unhandled expertise value "${_exhaustive as string}"`,
+      );
+    }
+  }
+}
+
+/**
+ * SP 1.9 Item 2 — assemble the Principal identity-block fragments from a
+ * projection. Composition order is BINDING (per SDS § Data Model § Composition
+ * order, Q-SDS-Item2-2):
+ *
+ *   1. agent-name (gated on `name != null && name !== DEFAULT_AGENT_NAME`)
+ *   2. userProfile.displayName
+ *   3. userProfile.role
+ *   4. userProfile.expertise (register directive)
+ *   5. userProfile.primaryUseCase
+ *
+ * Each free-text field passes through `sanitizeForIdentityFragment`
+ * (Invariant F). Empty / undefined projection produces an empty array
+ * (Goals C14 — empty-profile fall-through preserved).
+ */
+function buildPrincipalIdentityFragments(
+  projection: AgentIdentityProjection | undefined,
+): readonly string[] {
+  if (projection == null) return [];
+  const fragments: string[] = [];
+
+  if (projection.name != null && projection.name !== DEFAULT_AGENT_NAME) {
+    const name = sanitizeForIdentityFragment(projection.name, SANITIZE_MAX_AGENT_NAME);
+    if (name.length > 0) {
+      // SDS § 0 Note 2 fragment-template (verbatim) — agentNameFragment.
+      fragments.push(
+        `Your name is "${name}". When asked your name or who you are, introduce yourself as "${name}".`,
+      );
+    }
+  }
+
+  const profile = projection.userProfile;
+  if (profile != null) {
+    if (profile.displayName != null) {
+      const v = sanitizeForIdentityFragment(profile.displayName, SANITIZE_MAX_DISPLAY_NAME);
+      if (v.length > 0) {
+        // SDS § 0 Note 2 fragment-template (verbatim) — userDisplayNameFragment.
+        fragments.push(`You are speaking with "${v}".`);
+      }
+    }
+    if (profile.role != null) {
+      const v = sanitizeForIdentityFragment(profile.role, SANITIZE_MAX_ROLE);
+      if (v.length > 0) {
+        // SDS § 0 Note 2 fragment-template (verbatim) — userRoleFragment.
+        fragments.push(`The user's role is described as "${v}".`);
+      }
+    }
+    if (profile.expertise != null) {
+      fragments.push(expertiseFragment(profile.expertise));
+    }
+    if (profile.primaryUseCase != null) {
+      const v = sanitizeForIdentityFragment(profile.primaryUseCase, SANITIZE_MAX_PRIMARY_USE_CASE);
+      if (v.length > 0) {
+        // SDS § 0 Note 2 fragment-template (verbatim) — userPrimaryUseCaseFragment.
+        fragments.push(`The user is primarily working on: "${v}".`);
+      }
+    }
+  }
+
+  return fragments;
+}
+
 // ---------------------------------------------------------------------------
 // Types
 // ---------------------------------------------------------------------------
@@ -114,7 +284,10 @@ const PRINCIPAL_DEFAULT_CONFIG: PromptConfig = {
     'friendly without being sycophantic. ' +
     'When the user asks you to do something that requires execution (running code, managing files, ' +
     'orchestrating workflows, creating content), use your tools to handle it. ' +
-    'Acknowledge the request naturally and let them know you\'re on it.',
+    'Acknowledge the request naturally and let them know you\'re on it. ' +
+    // SP 1.9 Fix #2 — identity anchor (≤180 chars budget per SDS § 0 Note 5).
+    'Do not describe yourself as a generic large language model and do not name the underlying model provider. ' +
+    'When asked who you are, answer in the first person as yourself, not as any model.',
   taskFrame:
     'Have a natural conversation with the user. Answer their questions directly. ' +
     'If they ask for work that requires execution, use your tools to handle it. ' +
@@ -294,14 +467,27 @@ export function resolveAgentProfile(
   agentClass: AgentClass,
   providerId?: string,
   personalityConfig?: PersonalityConfig,
+  agentIdentityProjection?: AgentIdentityProjection,
 ): AgentProfile {
   const promptConfig = resolvePromptConfig(agentClass, providerId);
   const dimensions = DIMENSIONS_BY_CLASS[agentClass];
 
   // Personality application: affects identity and outputContract only.
   // guardrails and mechanical dimensions are never personality-affected.
-  const identity = personalityConfig != null
-    ? applyPersonalityToIdentity(promptConfig.identity, personalityConfig)
+  // SP 1.9 Item 2 — when a projection is supplied, identity composition runs
+  // even if `personalityConfig` is null (so the projection fragments still
+  // surface). The dimension-isolation gate inside `applyPersonalityToIdentity`
+  // (Invariant C) restricts projection-fragment emission to
+  // `Cortex::Principal` so non-Principal classes remain byte-identical.
+  const composeIdentity =
+    personalityConfig != null || agentIdentityProjection != null;
+  const identity = composeIdentity
+    ? applyPersonalityToIdentity(
+        agentClass,
+        promptConfig.identity,
+        personalityConfig ?? { preset: 'balanced' },
+        agentIdentityProjection,
+      )
     : promptConfig.identity;
   const outputContract = personalityConfig != null
     ? applyPersonalityToOutputContract(dimensions.outputContract, personalityConfig)
@@ -337,12 +523,27 @@ export function resolveAgentProfile(
  * `baseIdentity` unchanged — SDS I2.
  */
 function applyPersonalityToIdentity(
+  agentClass: AgentClass,
   baseIdentity: string,
   personalityConfig: PersonalityConfig,
+  agentIdentityProjection?: AgentIdentityProjection,
 ): string {
   const axes = resolvePersonality(personalityConfig);
   const fragments = collectFragmentsByTarget(axes);
-  const allFragments = [...fragments.identity, ...fragments.outputContract];
+  const personalityFragments = [...fragments.identity, ...fragments.outputContract];
+
+  // SP 1.9 Invariant C — dimension-isolation gate. UserProfile-and-agent-name
+  // fragment emission is restricted to `Cortex::Principal` only. Non-Principal
+  // classes (System / Orchestrator / Worker) see personality fragments but
+  // NOT projection fragments — regardless of whether the caller passed a
+  // non-empty projection. This is the auditable single-place enforcement.
+  if (agentClass !== 'Cortex::Principal') {
+    if (personalityFragments.length === 0) return baseIdentity;
+    return [baseIdentity, ...personalityFragments].join('\n\n');
+  }
+
+  const identityFragments = buildPrincipalIdentityFragments(agentIdentityProjection);
+  const allFragments = [...identityFragments, ...personalityFragments];
   if (allFragments.length === 0) return baseIdentity;
   return [baseIdentity, ...allFragments].join('\n\n');
 }

@@ -25,6 +25,24 @@ const WELCOME_TEXT = 'Hello — happy to help.'
 const mutateAsyncMock = vi.hoisted(() => vi.fn())
 const useShellContextMock = vi.hoisted(() => vi.fn(() => ({ activeProjectId: PROJECT_ID })))
 const useChatApiMock = vi.hoisted(() => vi.fn())
+// SP 1.9 Fix #6 — `useFireWelcomeOnMount` now calls
+// `trpc.useUtils().chat.getHistory.invalidate({ projectId })` after
+// `welcomeFired === true`. Hoisted mocks let assertions verify the call.
+const invalidateMock = vi.hoisted(() => vi.fn().mockResolvedValue(undefined))
+const useUtilsMock = vi.hoisted(() => vi.fn(() => ({
+  chat: { getHistory: { invalidate: invalidateMock } },
+})))
+// SP 1.9 Fix #7 — ChatPanel migrates to `trpc.chat.getHistory.useQuery`.
+// The Plan-Task-#18 Axis B coverage drives the mock to return distinct
+// pre-/post-invalidate states; tests can override via `useQueryMock`.
+const useQueryMock = vi.hoisted(() => vi.fn(() => ({
+  data: { entries: [] },
+  isSuccess: true,
+  isError: false,
+  isLoading: false,
+  isFetching: false,
+  refetch: vi.fn().mockResolvedValue(undefined),
+})))
 
 vi.mock('@nous/ui/panels', () => ({
   // Render history entries as plain text rows so T23 can assert the
@@ -62,10 +80,20 @@ vi.mock('@nous/ui/components', () => ({
 
 vi.mock('@nous/transport', () => ({
   useChatApi: useChatApiMock,
+  useEventSubscription: () => undefined,
   trpc: {
+    useUtils: useUtilsMock,
     chat: {
       fireWelcomeIfUnsent: {
         useMutation: () => ({ mutateAsync: mutateAsyncMock }),
+      },
+      // SP 1.9 Fix #7 — ChatPanel useQuery consumer surface (Plan Task
+      // #18 Axis B coverage drives this).
+      getHistory: {
+        useQuery: useQueryMock,
+      },
+      sendMessage: {
+        useMutation: () => ({ mutateAsync: vi.fn().mockResolvedValue({}) }),
       },
     },
   },
@@ -142,4 +170,66 @@ describe('SP 1.6 — wizard → workspace → chat init E2E', () => {
     // No welcome-specific attribute on the rendered row (Goals C9):
     expect(first.getAttribute('data-welcome')).toBeNull()
   })
+})
+
+// SP 1.9 Plan Task #18 — Axis B cases (4, 5, 6) for Fix #6 invalidate
+// contract + welcome-fired-false branch coverage (Goals C11, C12, C13).
+describe('SP 1.9 — Fix #6 useFireWelcomeOnMount invalidate contract', () => {
+  beforeEach(() => {
+    mutateAsyncMock.mockReset()
+    invalidateMock.mockClear()
+    useShellContextMock.mockReturnValue({ activeProjectId: PROJECT_ID })
+    useChatApiMock.mockReturnValue({
+      getHistory: vi.fn().mockResolvedValue({ entries: [] }),
+    })
+  })
+
+  afterEach(() => {
+    vi.clearAllMocks()
+  })
+
+  // Case 4 — welcome-end-to-end: on welcomeFired=true the invalidate
+  // fires with the active projectId so ChatPanel's useQuery refetches
+  // and the welcome surfaces in the simple-mode chat UI (Goals C11).
+  it('case 4: welcomeFired=true triggers chat.getHistory.invalidate({ projectId })', async () => {
+    mutateAsyncMock.mockResolvedValue({ welcomeFired: true, traceId: 'tr-1' })
+    render(<ConnectedChatSurface />)
+    // Allow the async hook chain to settle (mutateAsync → invalidate).
+    await Promise.resolve()
+    await Promise.resolve()
+    await Promise.resolve()
+
+    expect(mutateAsyncMock).toHaveBeenCalledTimes(1)
+    expect(mutateAsyncMock).toHaveBeenCalledWith({ projectId: PROJECT_ID })
+    expect(invalidateMock).toHaveBeenCalledTimes(1)
+    expect(invalidateMock).toHaveBeenCalledWith({ projectId: PROJECT_ID })
+  })
+
+  // Case 6 — five welcomeFired=false branches do NOT invalidate.
+  // (Goals C13 — `welcomeFired: false` reasons must not trigger spurious
+  // re-renders.)
+  const FALSE_BRANCHES: Array<
+    | { welcomeFired: false; reason: 'already_sent' }
+    | { welcomeFired: false; reason: 'composition_error' }
+    | { welcomeFired: false; reason: 'empty_response' }
+    | { welcomeFired: false; reason: 'stm_append_error' }
+    | { welcomeFired: false; reason: 'no_project_id' }
+  > = [
+    { welcomeFired: false, reason: 'already_sent' },
+    { welcomeFired: false, reason: 'composition_error' },
+    { welcomeFired: false, reason: 'empty_response' },
+    { welcomeFired: false, reason: 'stm_append_error' },
+    { welcomeFired: false, reason: 'no_project_id' },
+  ]
+
+  for (const result of FALSE_BRANCHES) {
+    it(`case 6.${result.reason}: welcomeFired=false reason=${result.reason} does NOT invalidate`, async () => {
+      mutateAsyncMock.mockResolvedValue(result)
+      render(<ConnectedChatSurface />)
+      await Promise.resolve()
+      await Promise.resolve()
+      await Promise.resolve()
+      expect(invalidateMock).not.toHaveBeenCalled()
+    })
+  }
 })

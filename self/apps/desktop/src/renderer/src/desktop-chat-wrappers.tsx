@@ -33,7 +33,20 @@ export function DesktopChatPanel(props: IDockviewPanelProps & { sessionId?: stri
 
   useFireWelcomeOnMount(activeProjectId)
 
-  return <ChatPanel {...props} params={{ chatApi }} />
+  // SP 1.9 Fix #7 — thread `projectId` + `sessionId` so ChatPanel's
+  // `trpc.chat.getHistory.useQuery` can subscribe (gated `enabled:
+  // projectId != null`). Without these, the useQuery short-circuits and
+  // the welcome turn never surfaces in the rendered history.
+  return (
+    <ChatPanel
+      {...props}
+      params={{
+        chatApi,
+        projectId: activeProjectId ?? undefined,
+        sessionId: props.sessionId,
+      }}
+    />
+  )
 }
 
 /** Wrapper that wires ChatSurface to tRPC via useChatApi (simple mode).
@@ -47,5 +60,7 @@ export function ConnectedChatSurface({ sessionId, stage, onStageChange, onSendSt
   const { activeProjectId } = useShellContext()
   const chatApi = useChatApi({ projectId: activeProjectId ?? undefined, sessionId })
   useFireWelcomeOnMount(activeProjectId)
-  return <ChatSurface chatApi={chatApi} stage={stage} onStageChange={onStageChange} onSendStart={onSendStart} isPinned={isPinned} onTogglePin={onTogglePin} onInputFocus={onInputFocus} onUnreadMessage={onUnreadMessage} onMessagesRead={onMessagesRead} />
+  // SP 1.9 Fix #7 — thread `projectId` + `sessionId` through ChatSurface so
+  // ChatPanel's `chat.getHistory.useQuery` is enabled in simple-mode.
+  return <ChatSurface chatApi={chatApi} stage={stage} onStageChange={onStageChange} onSendStart={onSendStart} isPinned={isPinned} onTogglePin={onTogglePin} onInputFocus={onInputFocus} onUnreadMessage={onUnreadMessage} onMessagesRead={onMessagesRead} projectId={activeProjectId ?? undefined} sessionId={sessionId} />
 }
