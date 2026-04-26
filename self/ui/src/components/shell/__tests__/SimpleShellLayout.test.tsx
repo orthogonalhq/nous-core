@@ -256,4 +256,33 @@ describe('SimpleShellLayout', () => {
     chat = getArea('chat')
     expect(chat.style.minWidth).toBe('var(--nous-chat-overlay-min-width)')
   })
+
+  // ── SP 12 (SUPV-SP12-013 + SUPV-SP12-014) — statusBar slot reservation ────
+  it('UT-SP12-LAYOUT-STATUSBAR-RESERVATION — when statusBar prop is supplied, a 16px reservation div renders inside chat overlay', async () => {
+    await renderLayout({ statusBar: <div data-testid="sb-marker">SB</div> })
+    const sb = container.querySelector('[data-shell-area="status-bar"]') as HTMLElement
+    expect(sb).toBeTruthy()
+    expect(sb.style.height).toBe('16px')
+    expect(sb.querySelector('[data-testid="sb-marker"]')).toBeTruthy()
+    // The status-bar reservation lives inside the chat overlay (grid-external).
+    const chat = getArea('chat')
+    expect(chat.contains(sb)).toBe(true)
+  })
+
+  it('UT-SP12-LAYOUT-STATUSBAR-OPTIONAL — when statusBar prop is omitted, no reservation div renders (backwards compat)', async () => {
+    await renderLayout()
+    expect(container.querySelector('[data-shell-area="status-bar"]')).toBeNull()
+  })
+
+  it('UT-SP12-LAYOUT-WR141-PRESERVED — collapse semantics unchanged when statusBar is also supplied', async () => {
+    await renderLayout({
+      sidebarCollapsed: true,
+      statusBar: <div data-testid="sb-marker">SB</div>,
+    })
+    // WR-141 invariant: chat overlay still has the unconditional minWidth floor.
+    const chat = getArea('chat')
+    expect(chat.style.minWidth).toBe('var(--nous-chat-overlay-min-width)')
+    // Status bar still renders.
+    expect(container.querySelector('[data-shell-area="status-bar"]')).toBeTruthy()
+  })
 })
