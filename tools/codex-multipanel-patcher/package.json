@@ -1,0 +1,67 @@
+{
+  "name": "codex-parallel-panels",
+  "displayName": "Codex - Parallel Panels",
+  "description": "Orthogonal standalone launcher for running multiple Codex CLI agents side by side.",
+  "version": "0.2.0",
+  "publisher": "Orthogonal",
+  "license": "MIT",
+  "engines": {
+    "vscode": "^1.96.2"
+  },
+  "categories": [
+    "Other"
+  ],
+  "activationEvents": [
+    "onCommand:codexParallelPanels.newAgent",
+    "onCommand:codexParallelPanels.newAgentInWorktree",
+    "onCommand:codexParallelPanels.showAll"
+  ],
+  "main": "./extension.js",
+  "contributes": {
+    "commands": [
+      {
+        "command": "codexParallelPanels.newAgent",
+        "title": "New Codex Agent Terminal",
+        "category": "Codex - Parallel Panels",
+        "icon": "$(plus)"
+      },
+      {
+        "command": "codexParallelPanels.newAgentInWorktree",
+        "title": "New Codex Agent in Git Worktree",
+        "category": "Codex - Parallel Panels",
+        "icon": "$(git-branch-create)"
+      },
+      {
+        "command": "codexParallelPanels.showAll",
+        "title": "Show Codex Agent Terminals",
+        "category": "Codex - Parallel Panels",
+        "icon": "$(terminal)"
+      }
+    ],
+    "configuration": {
+      "type": "object",
+      "title": "Codex - Parallel Panels",
+      "properties": {
+        "codexParallelPanels.codexCommand": {
+          "type": "string",
+          "default": "codex",
+          "description": "Command used to start Codex CLI."
+        },
+        "codexParallelPanels.startCommandArgs": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          },
+          "default": [],
+          "description": "Extra arguments appended when starting Codex CLI."
+        },
+        "codexParallelPanels.terminalLocation": {
+          "type": "string",
+          "enum": ["editor", "panel"],
+          "default": "editor",
+          "description": "Where new Codex terminals should open."
+        }
+      }
+    }
+  }
+}
