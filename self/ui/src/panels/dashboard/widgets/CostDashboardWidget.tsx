@@ -84,7 +84,15 @@ function tabButtonStyle(active: boolean): CSSProperties {
 
 // ─── Widget ───────────���────────────────────────────────────────────────────────
 
-export function CostDashboardWidget(_props: IDockviewPanelProps) {
+/**
+ * WR-162 SP 12 (SUPV-SP12-015) — propless shared core.
+ *
+ * Consumed by both the existing dockview wrapper (`CostDashboardWidget`)
+ * and the new `CostMonitorTab` observe-child wrapper. The body is the
+ * original `CostDashboardWidget` body verbatim (no re-implementation;
+ * behavior parity preserved).
+ */
+export function CostDashboardWidgetCore() {
   const { activeProjectId } = useShellContext()
   const [activeTab, setActiveTab] = useState<GroupBy>('provider')
   const utils = trpc.useUtils()
@@ -335,4 +343,13 @@ export function CostDashboardWidget(_props: IDockviewPanelProps) {
       )}
     </div>
   )
+}
+
+/**
+ * WR-162 SP 12 (SUPV-SP12-015) — dockview wrapper preserved for the existing
+ * `'cost-dashboard'` panel registry mapping. Behavior unchanged — thin
+ * pass-through to the extracted core.
+ */
+export function CostDashboardWidget(_props: IDockviewPanelProps) {
+  return <CostDashboardWidgetCore />
 }
