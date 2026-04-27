@@ -82,9 +82,22 @@ export function TransportProvider({ config, children }: TransportProviderProps) 
   const [trpcClient] = useState(() =>
     trpc.createClient({
       links: [
+        // WR-162 SP 1.16 (SUPV-SP1.16-001 / SUPV-SP1.16-002 / SUPV-SP1.16-003)
+        // — RC-2 contract cap: bound the link's per-batch URL length and item
+        // count to prevent first-paint fan-out from producing a single oversize
+        // GET URL that browsers reject (Chromium ~8KB header line ⇒ 431).
+        // `7000` lies ~1KB below the binding browser limit (defense-in-depth
+        // headroom); `1000` items is well above any plausible legitimate batch
+        // (~96 in BT R1 was the failure case) and well below pathological
+        // micro-query fan-outs. tRPC v11 splits any oversize batch into
+        // multiple sub-requests automatically; consumers above the link see
+        // per-operation results unchanged. See `phase-1.16/sds.mdx` Mechanism
+        // Choice rows 1-3 for cap-value rationale.
         httpBatchLink({
           url: config.trpcUrl,
           transformer: superjson,
+          maxURLLength: 7000,
+          maxItems: 1000,
         }),
       ],
     }),
