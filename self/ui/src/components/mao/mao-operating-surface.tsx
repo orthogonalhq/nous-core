@@ -131,44 +131,6 @@ export function MaoOperatingSurface() {
     },
   });
 
-  // ---- System tab event subscription ----
-  useEventSubscription({
-    channels: [
-      'mao:projection-changed',
-      'mao:control-action',
-      'inference:stream-start',
-      'inference:stream-complete',
-      'inference:accumulator-snapshot',
-    ],
-    onEvent: () => {
-      void utils.mao.getSystemSnapshot.invalidate();
-    },
-    enabled: activeTab === 'system',
-  });
-
-  // ---- Projects tab event subscription ----
-  useEventSubscription({
-    channels: [
-      'mao:projection-changed',
-      'mao:control-action',
-      'inference:stream-start',
-      'inference:stream-complete',
-      'inference:accumulator-snapshot',
-    ],
-    onEvent: () => {
-      void utils.mao.getProjectSnapshot.invalidate();
-    },
-    enabled: activeTab === 'projects' && !!projectId,
-  });
-
-  // ---- Navigation context sync ----
-  React.useEffect(() => {
-    if (linkedProjectId && linkedProjectId !== projectId) {
-      setProjectId(linkedProjectId);
-      setActiveTab('projects');
-    }
-  }, [linkedProjectId, projectId, setProjectId]);
-
   // ---- System tab query ----
   const systemSnapshotQuery = trpc.mao.getSystemSnapshot.useQuery(
     { densityMode: systemTab.densityMode },
@@ -186,6 +148,51 @@ export function MaoOperatingSurface() {
       enabled: activeTab === 'projects' && projectId != null,
     },
   );
+
+  // ---- System tab event subscription ----
+  // WR-162 SP 1.16 (SUPV-SP1.16-008) — RC-1b first-data gate. SSE events
+  // arriving before the initial query resolves are absorbed by the initial
+  // fetch; invalidating before first data feeds the hydration-window
+  // batch-tick cascade (BT R1 32× amplifier).
+  useEventSubscription({
+    channels: [
+      'mao:projection-changed',
+      'mao:control-action',
+      'inference:stream-start',
+      'inference:stream-complete',
+      'inference:accumulator-snapshot',
+    ],
+    onEvent: () => {
+      if (systemSnapshotQuery.data === undefined) return;
+      void utils.mao.getSystemSnapshot.invalidate();
+    },
+    enabled: activeTab === 'system',
+  });
+
+  // ---- Projects tab event subscription ----
+  // WR-162 SP 1.16 (SUPV-SP1.16-008) — RC-1b first-data gate. See above.
+  useEventSubscription({
+    channels: [
+      'mao:projection-changed',
+      'mao:control-action',
+      'inference:stream-start',
+      'inference:stream-complete',
+      'inference:accumulator-snapshot',
+    ],
+    onEvent: () => {
+      if (snapshotQuery.data === undefined) return;
+      void utils.mao.getProjectSnapshot.invalidate();
+    },
+    enabled: activeTab === 'projects' && !!projectId,
+  });
+
+  // ---- Navigation context sync ----
+  React.useEffect(() => {
+    if (linkedProjectId && linkedProjectId !== projectId) {
+      setProjectId(linkedProjectId);
+      setActiveTab('projects');
+    }
+  }, [linkedProjectId, projectId, setProjectId]);
 
   // ---- Inspect popup state ----
   // For the popup, we derive the agent from the active tab's selectedTarget.

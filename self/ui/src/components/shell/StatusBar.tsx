@@ -62,9 +62,16 @@ export function StatusBar() {
     projectId: activeProjectId ?? undefined,
   })
 
+  // WR-162 SP 1.16 (SUPV-SP1.16-008) — RC-1b first-data gate. SSE events
+  // delivered BEFORE the initial tRPC query resolves are absorbed by the
+  // initial fetch itself; invalidating before first data multiplies the
+  // hydration-window batch tick (BT R1 32× amplifier). The R-8 contract
+  // ("one invalidate per change event in steady state") holds verbatim once
+  // first data has arrived.
   useEventSubscription({
     channels: STATUS_BAR_CHANNELS as EventChannel[],
     onEvent: () => {
+      if (snapshotQuery.data === undefined) return
       void utils.health.getStatusBarSnapshot.invalidate()
     },
   })

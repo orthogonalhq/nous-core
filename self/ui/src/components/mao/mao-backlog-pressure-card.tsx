@@ -28,9 +28,14 @@ export function MaoBacklogPressureCard() {
   const utils = trpc.useUtils();
   const statusQuery = trpc.health.systemStatus.useQuery();
 
+  // WR-162 SP 1.16 (SUPV-SP1.16-008) — RC-1b first-data gate. SSE events
+  // arriving before the initial query resolves are absorbed by the initial
+  // fetch; invalidating before first data feeds the hydration-window
+  // batch-tick cascade (BT R1 32× amplifier).
   useEventSubscription({
     channels: ['mao:projection-changed'],
     onEvent: () => {
+      if (statusQuery.data === undefined) return;
       void utils.health.systemStatus.invalidate();
     },
     enabled: true,
