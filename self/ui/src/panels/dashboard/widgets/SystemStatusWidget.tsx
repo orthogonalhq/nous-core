@@ -43,6 +43,10 @@ export function SystemStatusWidget(_props: IDockviewPanelProps) {
   const utils = trpc.useUtils()
   const { data, isLoading, error } = trpc.health.systemStatus.useQuery()
 
+  // WR-162 SP 1.16 (SUPV-SP1.16-008) — RC-1b first-data gate. SSE events
+  // arriving before the initial query resolves are absorbed by the initial
+  // fetch; invalidating before first data feeds the hydration-window
+  // batch-tick cascade (BT R1 32× amplifier).
   useEventSubscription({
     channels: [
       'health:boot-step',
@@ -51,6 +55,7 @@ export function SystemStatusWidget(_props: IDockviewPanelProps) {
       'health:backlog-analytics',
     ],
     onEvent: () => {
+      if (data === undefined) return
       void utils.health.systemStatus.invalidate()
     },
   })
