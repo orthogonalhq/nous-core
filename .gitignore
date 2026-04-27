@@ -58,6 +58,7 @@ yarn-error.log*
 /*.md
 !/README.md
 !/CONTRIBUTING.md
+!/AGENTS.md
 !/LICENSE
 !/LICENSE.md
 
