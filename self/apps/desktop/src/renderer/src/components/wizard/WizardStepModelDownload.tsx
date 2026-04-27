@@ -9,7 +9,37 @@ import {
   type FirstRunState,
   type WizardStepProps,
 } from './types'
-import { trpcMutate } from './trpc-fetch'
+import { trpcMutate, trpcQuery } from './trpc-fetch'
+
+// SP 1.5 — Validation state for model recommendations (Decision 5).
+// Mirrors the server-side `ValidationState` enum from
+// `@nous/shared-server`, kept inline so the renderer does not import a
+// runtime symbol from the shared-server package (the wizard's
+// `trpc-fetch.ts` raw-fetch transport is the renderer's only seam onto
+// the shared-server surface — see SDS § 1.3).
+type ValidationState = 'validated' | 'pending' | 'unavailable' | 'offline'
+
+const VALIDATION_ARIA_LABELS: Record<ValidationState, string> = {
+  validated: 'Available',
+  pending: 'Validating availability',
+  unavailable: 'Not currently available',
+  offline: 'Cannot verify availability',
+}
+
+function ValidationIndicator({ state }: { state: ValidationState }) {
+  return (
+    <div
+      className="nous-wizard__option-validation"
+      role="status"
+      aria-label={VALIDATION_ARIA_LABELS[state]}
+    >
+      <span className={`nous-wizard__option-validation-dot--${state}`} />
+      <span className="nous-wizard__option-validation-label">
+        {VALIDATION_ARIA_LABELS[state]}
+      </span>
+    </div>
+  )
+}
 
 export interface WizardStepModelDownloadProps extends WizardStepProps {
   selectedModelSpec: string | null
@@ -37,6 +67,8 @@ export function WizardStepModelDownload({
   const [customModelId, setCustomModelId] = useState('')
   const [downloadRequested, setDownloadRequested] = useState(false)
   const [localError, setLocalError] = useState<string | null>(null)
+  const [customValidationState, setCustomValidationState] =
+    useState<ValidationState>('pending')
   const finalizeRef = useRef(false)
   const recommendedModelSpec = getRecommendedModelSpec(prerequisites)
   const options = useMemo(
@@ -97,13 +129,55 @@ export function WizardStepModelDownload({
         throw new Error(providerResult.error ?? 'The backend could not configure the selected model.')
       }
 
-      onStepComplete(providerResult.state)
+      // SP 1.5 — auto-role-assign on the download path (Decision 3,
+      // wizard-step-roster-v1). Replaces the SP 1.1 placeholder
+      // `firstRun.completeStep('role_assignment')` with a real assignment of
+      // all four canonical roles to the freshly-configured model. The
+      // mutation calls `markStepComplete('role_assignment')` internally
+      // (`first-run.ts:233`), so no follow-up `completeStep` is needed.
+      const assignResult = await trpcMutate<FirstRunActionResult>(
+        'firstRun.assignRoles',
+        {
+          assignments: [
+            { role: 'cortex-chat', modelSpec: resolvedModelSpec },
+            { role: 'cortex-system', modelSpec: resolvedModelSpec },
+            { role: 'orchestrators', modelSpec: resolvedModelSpec },
+            { role: 'workers', modelSpec: resolvedModelSpec },
+          ],
+        },
+      )
+      if (!assignResult.success) {
+        throw new Error(
+          assignResult.error ?? 'The backend could not assign the selected model to its roles.',
+        )
+      }
+
+      const finalState: FirstRunState = assignResult.state
+      onStepComplete(finalState)
     } catch (error) {
       finalizeRef.current = false
       const message = error instanceof Error ? error.message : String(error)
       setLocalError(message)
       setActionError(message)
       setActionInProgress(false)
+    }
+  }
+
+  // SP 1.5 — runtime availability check for user-typed custom specs that
+  // are NOT present in the curated recommendation set. Invoked from
+  // `handleDownload` on submit only — never per keystroke (Goals C15).
+  // Failures (network errors, transport throws) degrade to `'offline'`
+  // rather than blocking the download.
+  const validateCustomSpec = async (modelSpec: string): Promise<void> => {
+    setCustomValidationState('pending')
+    try {
+      const result = await trpcQuery<{ modelSpec: string; state: ValidationState }>(
+        'firstRun.validateModelAvailability',
+        { modelSpec },
+      )
+      setCustomValidationState(result?.state ?? 'offline')
+    } catch {
+      setCustomValidationState('offline')
     }
   }
 
@@ -118,9 +192,18 @@ export function WizardStepModelDownload({
       // model there's no provider to configure. User can add models later via
       // Settings > Local Models.
       await trpcMutate<FirstRunState>('firstRun.completeStep', { step: 'model_download' })
-      const nextState = await trpcMutate<FirstRunState>('firstRun.completeStep', {
+      let nextState = await trpcMutate<FirstRunState>('firstRun.completeStep', {
         step: 'provider_config',
       })
+      // Skip path retains placeholder per SP 1.5 SDS § 0 Note 3 (Path A); no
+      // modelSpec is available because firstRun.configureProvider is also
+      // skipped. Real role assignment requires a configured provider, which
+      // the user can complete later via Settings > Local Models.
+      if (nextState.steps.role_assignment.status !== 'complete') {
+        nextState = await trpcMutate<FirstRunState>('firstRun.completeStep', {
+          step: 'role_assignment',
+        })
+      }
       onStepComplete(nextState)
     } catch (error) {
       finalizeRef.current = false
@@ -143,6 +226,19 @@ export function WizardStepModelDownload({
     setDownloadRequested(true)
     setActionInProgress(true)
 
+    // SP 1.5 — runtime availability check for user-typed custom specs that
+    // are NOT in the curated recommendation set (Goals C15). Recommended
+    // specs already have validation state in `prerequisites.validation`.
+    // Validation is informational; the download proceeds in parallel.
+    if (resolvedModelSpec) {
+      const inRecommendationSet = options.some(
+        (option) => option.modelSpec === resolvedModelSpec,
+      )
+      if (!inRecommendationSet) {
+        void validateCustomSpec(resolvedModelSpec)
+      }
+    }
+
     try {
       await window.electronAPI.ollama.pullModel(parsedModel.modelId)
     } catch (error) {
@@ -155,17 +251,92 @@ export function WizardStepModelDownload({
     }
   }
 
+  // SP 1.8 Fix #11 — surface detected hardware + tier-to-recommendation
+  // mapping. Reads `prerequisites.hardware` and the new optional
+  // `prerequisites.recommendations.tier` / `.tierLabel` (added in Fix #10
+  // for the local-first branch; absent for remote-only). Renders an
+  // explanatory section between the hero and the recommendation list so
+  // the user can see the link from their hardware to the per-tier set.
+  // Trace: SDS § 4.7 / Goals C11 / Plan Task #11.
+  const hardware = prerequisites?.hardware
+  const tierLabel = prerequisites?.recommendations.tierLabel ?? null
+  const ramGB = hardware ? Math.max(1, Math.round(hardware.totalMemoryMB / 1024)) : null
+  const cpuCores = hardware?.cpuCores ?? null
+  const gpuDetected = hardware?.gpu.detected ?? false
+  const gpuName = hardware?.gpu.name ?? null
+  const tierRecommendationTitles: string[] = []
+  if (tierLabel && prerequisites?.recommendations) {
+    if (prerequisites.recommendations.singleModel) {
+      tierRecommendationTitles.push(prerequisites.recommendations.singleModel.displayName)
+    }
+    for (const entry of prerequisites.recommendations.multiModel) {
+      if (!tierRecommendationTitles.includes(entry.recommendation.displayName)) {
+        tierRecommendationTitles.push(entry.recommendation.displayName)
+      }
+    }
+  }
+
   return (
     <div className="nous-wizard__stack">
       <section className="nous-wizard__hero">
         <div className="nous-wizard__eyebrow">Model recommendation</div>
         <h1 className="nous-wizard__title">Download the local model that fits this machine.</h1>
         <p className="nous-wizard__subtitle">
-          The recommendation engine has already picked a starting point from your
-          hardware profile. You can keep the default, switch to a recommended
-          alternative, or type a custom Ollama model id.
+          Recommendations are tailored to your detected hardware. Adjust below if needed.
         </p>
       </section>
+
+      {hardware ? (
+        <section
+          className="nous-wizard__card nous-wizard__hardware-summary"
+          data-testid="wizard-hardware-summary"
+          aria-labelledby="wizard-hardware-summary-heading"
+        >
+          <h2
+            id="wizard-hardware-summary-heading"
+            className="nous-wizard__section-title"
+          >
+            Detected hardware
+          </h2>
+          <ul className="nous-wizard__meta-list" data-testid="wizard-hardware-meta">
+            {ramGB !== null ? (
+              <li data-testid="wizard-hardware-ram">
+                <strong>RAM:</strong> {ramGB} GB
+              </li>
+            ) : null}
+            {cpuCores !== null ? (
+              <li data-testid="wizard-hardware-cpu">
+                <strong>CPU cores:</strong> {cpuCores}
+              </li>
+            ) : null}
+            <li data-testid="wizard-hardware-gpu">
+              <strong>GPU:</strong>{' '}
+              {gpuDetected
+                ? gpuName
+                  ? `Detected (${gpuName})`
+                  : 'Detected'
+                : 'Not detected'}
+            </li>
+            {tierLabel ? (
+              <li data-testid="wizard-hardware-tier">
+                <strong>Tier:</strong> {tierLabel}
+              </li>
+            ) : null}
+          </ul>
+          {tierLabel ? (
+            <p
+              className="nous-wizard__section-copy"
+              data-testid="wizard-hardware-tier-link"
+            >
+              These specs map to the <strong>{tierLabel}</strong> tier, which
+              recommends:
+              {tierRecommendationTitles.length > 0
+                ? ` ${tierRecommendationTitles.join(', ')}.`
+                : null}
+            </p>
+          ) : null}
+        </section>
+      ) : null}
 
       <div className="nous-wizard__grid">
         <section className="nous-wizard__card">
@@ -177,6 +348,10 @@ export function WizardStepModelDownload({
           <div className="nous-wizard__option-list">
             {options.map((option) => {
               const isSelected = option.modelSpec === resolvedModelSpec
+              // SP 1.5 — per-card validation indicator. Cards in any state
+              // remain selectable (Goals C12); the indicator is informational.
+              const validationState: ValidationState =
+                prerequisites?.validation?.[option.modelSpec] ?? 'pending'
               return (
                 <button
                   key={option.modelSpec}
@@ -189,6 +364,7 @@ export function WizardStepModelDownload({
                   <div className="nous-wizard__option-meta">
                     {option.modelSpec} · {formatRamRequiredLabel(option.ramRequiredMB)}
                   </div>
+                  <ValidationIndicator state={validationState} />
                 </button>
               )
             })}
@@ -217,6 +393,15 @@ export function WizardStepModelDownload({
               placeholder="qwen2.5:7b"
             />
           </label>
+          {/*
+            SP 1.5 — runtime availability indicator for the custom-spec input.
+            Defaults to `'pending'`; transitions when `validateCustomSpec`
+            resolves on submit (Goals C15). The indicator is informational
+            and never blocks download.
+          */}
+          <div data-testid="wizard-custom-spec-validation">
+            <ValidationIndicator state={customValidationState} />
+          </div>
 
           <p className="nous-wizard__helper-text" data-testid="wizard-model-library-info-link">
             Don&rsquo;t see what you want?{' '}

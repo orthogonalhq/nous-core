@@ -18,6 +18,7 @@ Nous uses JSON5 for configuration. The config file is validated at load time wit
 | `pfcTierPresets` | Capability definitions per tier |
 | `modelRoleAssignments` | Which provider fulfills which model role |
 | `providers` | Provider configurations (Ollama, OpenAI-compatible, etc.) |
+| `agent` | Agent identity, personality, welcome-message tracking, and user profile (optional; absent in default config — populated by the first-run wizard or by hand-editing) |
 | `defaults` | Default project settings |
 | `storage` | Storage backends and options |
 | `security` | Trace sensitivity, optional settings |
@@ -109,6 +110,40 @@ Saved Principal and System model selections are restored into this structure at 
 - **endpoint** (optional): Use the provider base URL (for example `https://api.openai.com` or `https://api.anthropic.com`), not the full `/v1/chat/completions` path.
 
 Provider types: `text`, `image`, `video`, `vision`, `embedding`, `external-api`.
+
+## Agent
+
+The `agent` block stores agent identity and personality settings authored by the first-run wizard's [Identity step](/docs/guides/identity) or by direct hand-edit of the JSON5 file. This `agent` section is independent of the top-level `profile` (deployment profile) section above — they share no fields.
+
+```json5
+{
+  "agent": {
+    "name": "Nia",
+    "personality": {
+      "preset": "balanced",
+      "overrides": { "thoroughness": "strict" }
+    },
+    "welcomeMessageSent": true,
+    "profile": {
+      "displayName": "Andrew",
+      "role": "Software engineer",
+      "primaryUseCase": "Architecture exploration",
+      "expertise": "advanced"
+    }
+  }
+}
+```
+
+- **`name`** (string, optional) — Display name for the agent. When absent, readers return the typed default `"Nous"`.
+- **`personality`** (object, optional) — Personality preset plus optional per-axis overrides. `preset` is one of `balanced`, `professional`, `efficient`, `thorough`. `overrides` is a partial map of `TraitAxes` (`thoroughness`, `initiative`, `candor`, `communicationStyle`, `codeStyle`). When absent, readers return the typed default `{ preset: "balanced" }` and the production prompt path is byte-identical to the pre-personality baseline (regression-parity invariant).
+- **`welcomeMessageSent`** (boolean, optional) — Tracks whether the welcome message has been delivered (consumed by the welcome-message wiring in SP 1.6). When absent, readers return the typed default `false`.
+- **`profile`** (object, optional) — Typed user-profile sub-fields, all optional: `displayName`, `role`, `primaryUseCase`, `expertise` (`'beginner' | 'intermediate' | 'advanced'`). When absent, readers return the typed default `{}`. The schema is additive over time — new fields may be added in future sub-phases without breaking existing configs; renames or removals are migrations.
+
+**Read-time defaults — never persisted on read.** The entire `agent` block is absent from the default system config. Readers (`getAgentName`, `getPersonalityConfig`, `getUserProfile`, `getWelcomeMessageSent`) synthesize their typed defaults at read time without writing to disk. The `agent` key first appears in `nous-config.json5` only after the user completes the first-run [Identity step](/docs/guides/identity) or hand-edits the file.
+
+**Reset semantics.** The `firstRun.resetWizard` tRPC mutation clears the entire `agent` block while leaving `providers` and `modelRoleAssignments` untouched. After reset, all four readers return their typed defaults again.
+
+**JSON5 comment caveat.** Writes to `nous-config.json5` (e.g. when the wizard's `firstRun.writeIdentity` procedure runs) emit JSON, not JSON5 — any comments you add to the file by hand are lost on the next write. This is a pre-existing Phase 1 tradeoff documented in the `ConfigManager` source. Hand-editors who rely on comments should be aware that wizard-driven writes will strip them.
 
 ## Storage
 

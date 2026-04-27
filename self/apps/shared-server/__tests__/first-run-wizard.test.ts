@@ -79,8 +79,17 @@ vi.mock('../src/bootstrap', () => ({
   upsertProviderConfig: bootstrapMock.upsertProviderConfig,
 }));
 
+// SP 1.3 — `agent_identity` added to FIRST_RUN_STEP_VALUES per SDS § 0 Note 2.
+// Treat it as already-complete in this fixture (existing pre-SP-1.3 wizard
+// scenarios bypass the identity step).
 function createWizardState(
-  currentStep: 'ollama_check' | 'model_download' | 'provider_config' | 'role_assignment' | 'complete',
+  currentStep:
+    | 'ollama_check'
+    | 'agent_identity'
+    | 'model_download'
+    | 'provider_config'
+    | 'role_assignment'
+    | 'complete',
 ) {
   const completed = currentStep === 'complete';
   return {
@@ -91,15 +100,24 @@ function createWizardState(
         status:
           currentStep === 'ollama_check' ? 'pending' : 'complete',
       },
+      agent_identity: {
+        status:
+          currentStep === 'ollama_check' || currentStep === 'agent_identity'
+            ? 'pending'
+            : 'complete',
+      },
       model_download: {
         status:
-          currentStep === 'ollama_check' || currentStep === 'model_download'
+          currentStep === 'ollama_check' ||
+          currentStep === 'agent_identity' ||
+          currentStep === 'model_download'
             ? 'pending'
             : 'complete',
       },
       provider_config: {
         status:
           currentStep === 'ollama_check' ||
+          currentStep === 'agent_identity' ||
           currentStep === 'model_download' ||
           currentStep === 'provider_config'
             ? 'pending'
@@ -189,6 +207,21 @@ function createMockContext() {
           allowRemoteProviders: false,
         },
       }),
+      // SP 1.3 — IConfig agent-block readers/writers (Decision 7).
+      // Stubbed out for the mocked first-run.ts paths exercised by this
+      // suite (downloadModel / configureProvider / completeStep /
+      // resetWizard). The new writeIdentity procedure has dedicated
+      // integration tests in `first-run-identity.test.ts` with a real
+      // ConfigManager.
+      getAgentName: vi.fn().mockReturnValue('Nous'),
+      getPersonalityConfig: vi.fn().mockReturnValue({ preset: 'balanced' }),
+      getUserProfile: vi.fn().mockReturnValue({}),
+      getWelcomeMessageSent: vi.fn().mockReturnValue(false),
+      setAgentName: vi.fn().mockResolvedValue(undefined),
+      setPersonalityConfig: vi.fn().mockResolvedValue(undefined),
+      setUserProfile: vi.fn().mockResolvedValue(undefined),
+      setWelcomeMessageSent: vi.fn().mockResolvedValue(undefined),
+      clearAgentBlock: vi.fn().mockResolvedValue(undefined),
     },
   } as any;
 }
@@ -292,6 +325,11 @@ describe('first-run wizard router', () => {
       recommendations: expect.objectContaining({
         profileName: 'local-only',
       }),
+      // SP 1.5 — `checkPrerequisites` includes a registry-availability
+      // validation map keyed by `modelSpec`. The test environment cannot
+      // reach the registry, so every spec resolves to `'offline'` (graceful
+      // degradation per Decision 5).
+      validation: expect.any(Object),
     });
     expect(recommendModelsMock).toHaveBeenCalledWith(
       expect.objectContaining({
@@ -413,5 +451,74 @@ describe('first-run wizard router', () => {
       'ollama_check',
     );
     expect(firstRunMock.resetFirstRunState).toHaveBeenCalledWith(ctx.dataDir);
+  });
+});
+
+// SP 1.8 Fix #9 — Cross-axis derivation tests for `buildValidationMap`.
+// Validates the local-axis short-circuit (Goals C7 / C9) and the
+// `(local)` log-line annotation (Goals C8). Trace: SDS § 4.5 / Plan Task #9.
+describe('buildValidationMap — cross-axis derivation (RC-2a + RC-2b)', () => {
+  let consoleInfoSpy: ReturnType<typeof vi.spyOn>;
+  let fetchMock: ReturnType<typeof vi.fn>;
+
+  beforeEach(async () => {
+    fetchMock = vi.fn();
+    vi.stubGlobal('fetch', fetchMock);
+    consoleInfoSpy = vi.spyOn(console, 'info').mockImplementation(() => undefined);
+    // Clear the per-spec cache between tests (the local-axis short-circuit
+    // does NOT write the cache, but the registry path does).
+    const { __resetRegistryAvailabilityCacheForTesting } = await vi.importActual<
+      typeof import('../src/ollama-detection')
+    >('../src/ollama-detection');
+    __resetRegistryAvailabilityCacheForTesting();
+  });
+
+  afterEach(() => {
+    vi.restoreAllMocks();
+    vi.unstubAllGlobals();
+  });
+
+  async function loadBuildValidationMap() {
+    return (await import('../src/trpc/routers/first-run')).buildValidationMap;
+  }
+
+  it('locally-installed spec short-circuits to "validated" without invoking the registry HEAD probe (BT R2 spec-mismatch case)', async () => {
+    const buildValidationMap = await loadBuildValidationMap();
+    const result = await buildValidationMap(
+      ['ollama:qwen2.5:32b'],
+      ['qwen2.5:32b'],
+    );
+    expect(result).toEqual({ 'ollama:qwen2.5:32b': 'validated' });
+    expect(fetchMock).not.toHaveBeenCalled();
+    expect(consoleInfoSpy).toHaveBeenCalledWith(
+      '[nous:first-run] validation: ollama:qwen2.5:32b -> validated (local)',
+    );
+  });
+
+  it('falls through to the registry HEAD probe when the spec is NOT locally installed', async () => {
+    fetchMock.mockResolvedValue({
+      ok: true,
+      status: 200,
+    } as Response);
+    const buildValidationMap = await loadBuildValidationMap();
+    const result = await buildValidationMap(['ollama:qwen2.5:32b'], []);
+    expect(result['ollama:qwen2.5:32b']).toBe('validated');
+    expect(fetchMock).toHaveBeenCalledTimes(1);
+  });
+
+  it('mixed list: locally-installed short-circuits; registry-only falls through', async () => {
+    fetchMock.mockResolvedValue({
+      ok: false,
+      status: 404,
+    } as Response);
+    const buildValidationMap = await loadBuildValidationMap();
+    const result = await buildValidationMap(
+      ['ollama:qwen2.5:32b', 'ollama:llama3.2:3b'],
+      ['qwen2.5:32b'],
+    );
+    expect(result['ollama:qwen2.5:32b']).toBe('validated');
+    expect(result['ollama:llama3.2:3b']).toBe('unavailable');
+    // Only the non-local spec hit the network.
+    expect(fetchMock).toHaveBeenCalledTimes(1);
   });
 });

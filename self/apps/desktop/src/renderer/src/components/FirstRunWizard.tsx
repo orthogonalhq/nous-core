@@ -1,31 +1,37 @@
 import { useEffect, useState } from 'react'
-import { WizardStepConfirmation } from './wizard/WizardStepConfirmation'
 import { WizardStepIndicator } from './wizard/WizardStepIndicator'
-import { WizardStepModelDownload } from './wizard/WizardStepModelDownload'
-import { WizardStepOllamaSetup } from './wizard/WizardStepOllamaSetup'
-import { WizardStepRoleAssignment } from './wizard/WizardStepRoleAssignment'
-import { WizardStepWelcome } from './wizard/WizardStepWelcome'
 import './wizard/wizard.css'
 import {
   BACKEND_STEP_TO_WIZARD_STEP,
+  FIRST_RUN_STEP_VALUES,
+  PREVIOUS_STEP_MAP,
   WIZARD_STEPS,
+  WIZARD_STEP_REGISTRY,
+  type WizardStepId,
+} from './wizard/registry'
+
+// SP 1.7 Fix #6 — module-private helper. Returns the next-in-registry step
+// id after `currentId`, or `null` if `currentId` is the last entry (or not
+// found, defensive). Not exported; if a future sub-phase needs this
+// elsewhere, it migrates to `wizard/registry.ts` with a unit test.
+function deriveNextRegistryStepAfter(
+  currentId: WizardStepId,
+  registry: typeof WIZARD_STEP_REGISTRY,
+): WizardStepId | null {
+  const idx = registry.findIndex((entry) => entry.id === currentId)
+  if (idx === -1 || idx === registry.length - 1) return null
+  return registry[idx + 1].id
+}
+import {
   getRecommendedModelSpec,
+  INITIAL_IDENTITY_DRAFT,
   type FirstRunPrerequisites,
   type FirstRunState,
+  type IdentityDraft,
   type OllamaStatus,
   type RoleAssignments,
-  type WizardStepId,
 } from './wizard/types'
-import { trpcQuery, trpcMutate } from './wizard/trpc-fetch'
-
-/** Back-navigation map: from each step, where does Back take you? */
-const PREVIOUS_STEP_MAP: Record<WizardStepId, WizardStepId | null> = {
-  welcome: null,
-  'ollama-setup': 'welcome',
-  'model-download': 'ollama-setup',
-  'role-assignment': 'model-download',
-  confirmation: 'role-assignment',
-}
+import { trpcMutate, trpcQuery } from './wizard/trpc-fetch'
 
 type RoleAssignmentMode = 'default' | 'advanced'
 
@@ -45,21 +51,37 @@ export function FirstRunWizard({
   const [ollamaStatus, setOllamaStatus] = useState<OllamaStatus | null>(null)
   const [selectedModelSpec, setSelectedModelSpec] = useState<string | null>(null)
   const [roleAssignments, setRoleAssignments] = useState<RoleAssignments>({})
+  // SP 1.8 Fix #3 — Identity draft slice lifted to the orchestrator so
+  // back-nav re-entry into the identity step retains entered values.
+  // `clearIdentityDraft` is invoked from `handleResetWizard` so a wizard
+  // reset wipes both the backend `agent` block (via `firstRun.resetWizard`)
+  // AND the renderer-side draft. Trace: SDS § 4.2 / Goals C3 / Plan Task #3 /
+  // Invariant C.
+  const [identityDraft, setIdentityDraft] = useState<IdentityDraft>(INITIAL_IDENTITY_DRAFT)
   const [roleAssignmentMode, setRoleAssignmentMode] =
     useState<RoleAssignmentMode>('default')
   const [actionInProgress, setActionInProgress] = useState(false)
   const [actionError, setActionError] = useState<string | null>(null)
   const [welcomeCompleted, setWelcomeCompleted] = useState(
-    initialState.currentStep !== 'ollama_check',
+    // SP 1.7 Fix #5 (Edit B) — registry-aware predicate. The head of the
+    // backend manifest is now `'agent_identity'` (post-Fix-#1), but a
+    // resume state with `currentStep === FIRST_RUN_STEP_VALUES[0]` legitimately
+    // means "user is at the start" — so welcome stays gated until the user
+    // clicks Continue. Resume from any later backend step skips welcome.
+    initialState.currentStep !== FIRST_RUN_STEP_VALUES[0],
   )
   // Client-side override for back navigation. Lets users revisit prior steps
   // without changing backend state. Cleared when user completes a step normally.
   const [currentStepOverride, setCurrentStepOverride] = useState<WizardStepId | null>(null)
 
-  const derivedCurrentWizardStep: WizardStepId =
-    firstRunState.currentStep === 'ollama_check' && !welcomeCompleted
-      ? 'welcome'
-      : BACKEND_STEP_TO_WIZARD_STEP[firstRunState.currentStep]
+  // SP 1.7 Fix #5 (Edit A) — frontier-then-welcome derivation. The frontier
+  // is the wizard step backed by the backend's current step; welcome is a
+  // UI-only step gated by `welcomeCompleted` (no backend correspondence).
+  const frontierWizardStep: WizardStepId =
+    BACKEND_STEP_TO_WIZARD_STEP[firstRunState.currentStep]
+  const derivedCurrentWizardStep: WizardStepId = welcomeCompleted
+    ? frontierWizardStep
+    : 'welcome'
 
   const currentWizardStep: WizardStepId = currentStepOverride ?? derivedCurrentWizardStep
   const previousStep = PREVIOUS_STEP_MAP[currentWizardStep]
@@ -115,7 +137,10 @@ export function FirstRunWizard({
   }, [])
 
   useEffect(() => {
-    if (firstRunState.currentStep !== 'ollama_check') {
+    // SP 1.7 Fix #5 (Edit C) — registry-aware resume sync. When backend
+    // state advances past `FIRST_RUN_STEP_VALUES[0]`, the user has clearly
+    // moved past welcome; lift the welcome gate.
+    if (firstRunState.currentStep !== FIRST_RUN_STEP_VALUES[0]) {
       setWelcomeCompleted(true)
     }
   }, [firstRunState.currentStep])
@@ -128,7 +153,18 @@ export function FirstRunWizard({
   const applyStepCompletion = (label: string, nextState: FirstRunState) => {
     console.log(`[nous:wizard] Step completed: ${label}`)
     setFirstRunState(nextState)
-    setCurrentStepOverride(null) // clear back-nav override on real advancement
+    // SP 1.7 Fix #6 — always-set advancement (Design A). Advance the override
+    // to the next-in-registry step from the *currently-rendered* wizard step
+    // (NOT the just-completed backend step's wizard mapping — those differ
+    // when the user back-navigated and is now completing an earlier step).
+    // The override is set even when it equals the new frontier; the next
+    // render's derivation reads the override and the rendered step id is
+    // unchanged. The override is cleared (set to `null`) only when the
+    // helper returns `null` — i.e., the user just completed the last
+    // registry entry (`confirmation`); the wizard exits via `onFinish` →
+    // `onComplete()` and the `null` override is correct.
+    const nextId = deriveNextRegistryStepAfter(currentWizardStep, WIZARD_STEP_REGISTRY)
+    setCurrentStepOverride(nextId)
     setActionError(null)
     setActionInProgress(false)
   }
@@ -136,9 +172,17 @@ export function FirstRunWizard({
   const handleBack = () => {
     if (!previousStep) return
     if (previousStep === 'welcome') {
-      // Welcome is a UI-only step gated by welcomeCompleted
+      // Welcome is a UI-only step gated by welcomeCompleted. Per SP 1.7
+      // Fix #5, the welcome gate is registry-aware (`currentStep !==
+      // FIRST_RUN_STEP_VALUES[0]`). When the backend state is still at the
+      // head (`FIRST_RUN_STEP_VALUES[0]`, i.e. `agent_identity`),
+      // toggling welcomeCompleted reveals welcome. When the backend state
+      // has advanced past the head, set the override to 'welcome' so the
+      // renderer dispatches to it directly. Toggle welcomeCompleted in
+      // both cases so the welcome render isn't immediately re-derived
+      // away on the next render.
       setWelcomeCompleted(false)
-      setCurrentStepOverride(null)
+      setCurrentStepOverride('welcome')
     } else {
       setCurrentStepOverride(previousStep)
     }
@@ -153,8 +197,20 @@ export function FirstRunWizard({
       const nextState = await trpcMutate<FirstRunState>('firstRun.resetWizard')
       setFirstRunState(nextState)
       setWelcomeCompleted(false)
+      // SP 1.7 Fix #6 reset-path interaction — clear any stale override
+      // from the prior session (e.g., `'confirmation'` if the user
+      // back-navigated from confirmation before clicking Reset). Without
+      // this, the next render would resolve `currentWizardStep` to the
+      // stale override instead of `'welcome'`.
+      setCurrentStepOverride(null)
       setRoleAssignments({})
       setRoleAssignmentMode('default')
+      // SP 1.8 Fix #3c / Invariant C — clear the renderer-side identity draft
+      // alongside the backend `agent` block reset (parallel to
+      // `setRoleAssignments({})` above). Without this, the user-typed
+      // identity values would survive a reset and re-render on the next
+      // identity-step mount.
+      setIdentityDraft(INITIAL_IDENTITY_DRAFT)
       setSelectedModelSpec(getRecommendedModelSpec(prerequisites))
       await loadPrerequisites()
     } catch (error) {
@@ -175,6 +231,101 @@ export function FirstRunWizard({
     setActionInProgress,
     setActionError,
   }
+
+  // Registry-driven render dispatch. Lookup the current entry; throw a clear
+  // error if the id is unknown (should never happen — registry validators
+  // guarantee WizardStepId covers every reachable state). Per-step prop
+  // shapes are preserved verbatim through the `buildStepProps` resolver.
+  const currentEntry = WIZARD_STEP_REGISTRY.find((entry) => entry.id === currentWizardStep)
+  if (!currentEntry) {
+    throw new Error(`[nous:wizard] Unknown step id: ${currentWizardStep}`)
+  }
+
+  // Per-step prop resolver. The component types differ (welcome takes an
+  // `onContinue`; ollama takes `ollamaStatus` + `refreshOllamaStatus`; etc.),
+  // so we build each step's prop object verbatim here rather than via a
+  // discriminated union. This preserves each step component's existing prop
+  // interface without requiring a renderer-side cast at the dispatch site.
+  // The registry type erases `TComponent` to `unknown`; the switch on
+  // `currentWizardStep` plus the component's own prop validation guarantees
+  // type correctness at the call site.
+  const StepComponent = currentEntry.component as unknown as React.ComponentType<Record<string, unknown>>
+  const stepProps = (() => {
+    switch (currentWizardStep) {
+      case 'welcome':
+        return {
+          ...sharedProps,
+          onStepComplete: (nextState: FirstRunState) => {
+            applyStepCompletion('welcome', nextState)
+          },
+          onContinue: () => {
+            console.log('[nous:wizard] Step completed: welcome')
+            setWelcomeCompleted(true)
+            // SP 1.7 Fix #6 — always-set advancement (Design A). Advance to
+            // the next-in-registry step (post-Fix-#1: `agent_identity`).
+            // Setting the override (instead of clearing it) ensures that on
+            // the back-then-Continue path from welcome we land at the next
+            // user-facing step, not the backend frontier (which may be
+            // arbitrarily far ahead, e.g. `confirmation`).
+            const nextId = deriveNextRegistryStepAfter('welcome', WIZARD_STEP_REGISTRY)
+            setCurrentStepOverride(nextId)
+          },
+        }
+      case 'agent_identity':
+        // SP 1.8 Fix #3b — thread the orchestrator-owned identity draft
+        // slice into the identity step's props per the
+        // WizardStepIdentityProps contract (SDS § 4.2 / Plan Task #3b).
+        return {
+          ...sharedProps,
+          identityDraft,
+          setIdentityDraft,
+          onStepComplete: (nextState: FirstRunState) => {
+            applyStepCompletion('agent_identity', nextState)
+          },
+        }
+      case 'ollama-setup':
+        return {
+          ...sharedProps,
+          ollamaStatus,
+          refreshOllamaStatus,
+          onStepComplete: (nextState: FirstRunState) => {
+            applyStepCompletion('ollama_check', nextState)
+          },
+        }
+      case 'model-download':
+        return {
+          ...sharedProps,
+          selectedModelSpec,
+          setSelectedModelSpec,
+          onStepComplete: (nextState: FirstRunState) => {
+            applyStepCompletion('model_download/provider_config', nextState)
+          },
+        }
+      case 'confirmation':
+        return {
+          ...sharedProps,
+          selectedModelSpec,
+          roleAssignments,
+          ollamaStatus,
+          onStepComplete: (nextState: FirstRunState) => {
+            applyStepCompletion('confirmation', nextState)
+          },
+          onFinish: () => {
+            console.log('[nous:wizard] Step completed: confirmation')
+            onComplete()
+          },
+        }
+      default:
+        throw new Error(`[nous:wizard] Unknown step id: ${currentWizardStep satisfies never}`)
+    }
+  })()
+
+  // `roleAssignmentMode` is retained for SP 1.5 (auto-role-assign will reuse
+  // the existing state shape). Reference it here so the linter does not flag
+  // the state hook as unused during SP 1.1.
+  void roleAssignmentMode
+  void setRoleAssignments
+  void setRoleAssignmentMode
 
   return (
     <div className="nous-wizard">
@@ -230,71 +381,7 @@ export function FirstRunWizard({
           </div>
         ) : null}
 
-        {currentWizardStep === 'welcome' ? (
-          <WizardStepWelcome
-            {...sharedProps}
-            onStepComplete={(nextState) => {
-              applyStepCompletion('welcome', nextState)
-            }}
-            onContinue={() => {
-              console.log('[nous:wizard] Step completed: welcome')
-              setWelcomeCompleted(true)
-              setCurrentStepOverride(null)
-            }}
-          />
-        ) : null}
-
-        {currentWizardStep === 'ollama-setup' ? (
-          <WizardStepOllamaSetup
-            {...sharedProps}
-            ollamaStatus={ollamaStatus}
-            refreshOllamaStatus={refreshOllamaStatus}
-            onStepComplete={(nextState) => {
-              applyStepCompletion('ollama_check', nextState)
-            }}
-          />
-        ) : null}
-
-        {currentWizardStep === 'model-download' ? (
-          <WizardStepModelDownload
-            {...sharedProps}
-            selectedModelSpec={selectedModelSpec}
-            setSelectedModelSpec={setSelectedModelSpec}
-            onStepComplete={(nextState) => {
-              applyStepCompletion('model_download/provider_config', nextState)
-            }}
-          />
-        ) : null}
-
-        {currentWizardStep === 'role-assignment' ? (
-          <WizardStepRoleAssignment
-            {...sharedProps}
-            selectedModelSpec={selectedModelSpec}
-            roleAssignments={roleAssignments}
-            setRoleAssignments={setRoleAssignments}
-            roleAssignmentMode={roleAssignmentMode}
-            setRoleAssignmentMode={setRoleAssignmentMode}
-            onStepComplete={(nextState) => {
-              applyStepCompletion('role_assignment', nextState)
-            }}
-          />
-        ) : null}
-
-        {currentWizardStep === 'confirmation' ? (
-          <WizardStepConfirmation
-            {...sharedProps}
-            selectedModelSpec={selectedModelSpec}
-            roleAssignments={roleAssignments}
-            ollamaStatus={ollamaStatus}
-            onStepComplete={(nextState) => {
-              applyStepCompletion('confirmation', nextState)
-            }}
-            onFinish={() => {
-              console.log('[nous:wizard] Step completed: confirmation')
-              onComplete()
-            }}
-          />
-        ) : null}
+        <StepComponent {...(stepProps as Record<string, unknown>)} />
       </div>
     </div>
   )

@@ -37,9 +37,15 @@ describe('first-run state', () => {
 
     const state = await getFirstRunState(dir);
 
-    expect(state.currentStep).toBe('ollama_check');
+    // SP 1.7 Fix #1 — wizard tuple reorder (ADR 022) places
+    // `agent_identity` as the new head of FIRST_RUN_STEP_VALUES, so the
+    // default `currentStep` is now `'agent_identity'` (was `'ollama_check'`).
+    expect(state.currentStep).toBe('agent_identity');
     expect(state.complete).toBe(false);
     expect(state.steps.ollama_check.status).toBe('pending');
+    // SP 1.3 — `agent_identity` added to FIRST_RUN_STEP_VALUES per
+    // SDS § 0 Note 2; the default state includes it as pending.
+    expect(state.steps.agent_identity.status).toBe('pending');
     expect(state.steps.model_download.status).toBe('pending');
     expect(state.steps.provider_config.status).toBe('pending');
     expect(state.steps.role_assignment.status).toBe('pending');
@@ -53,7 +59,9 @@ describe('first-run state', () => {
     const { getFirstRunState } = await loadModule();
     const state = await getFirstRunState(dir);
 
-    expect(state.currentStep).toBe('ollama_check');
+    // SP 1.7 Fix #1 — wizard tuple reorder (ADR 022); default head is now
+    // `'agent_identity'`. Corruption fallback returns the default state.
+    expect(state.currentStep).toBe('agent_identity');
     expect(state.complete).toBe(false);
   });
 
@@ -69,7 +77,9 @@ describe('first-run state', () => {
     const state = await getFirstRunState(dir);
 
     expect(state.steps.ollama_check.status).toBe('complete');
-    expect(state.currentStep).toBe('model_download');
+    // SP 1.3 — `agent_identity` was inserted between ollama_check and
+    // model_download in FIRST_RUN_STEP_VALUES (SDS § 0 Note 2 / § 1.4).
+    expect(state.currentStep).toBe('agent_identity');
   });
 
   it('marks the entire wizard complete after the final step and writes the legacy flag', async () => {
@@ -81,6 +91,7 @@ describe('first-run state', () => {
     } = await loadModule();
 
     await markStepComplete(dir, 'ollama_check');
+    await markStepComplete(dir, 'agent_identity');
     await markStepComplete(dir, 'model_download');
     await markStepComplete(dir, 'provider_config');
     await markStepComplete(dir, 'role_assignment');
@@ -128,9 +139,11 @@ describe('first-run state', () => {
     const resetState = await resetFirstRunState(dir);
     const state = await getFirstRunState(dir);
 
-    expect(resetState.currentStep).toBe('ollama_check');
+    // SP 1.7 Fix #1 — wizard tuple reorder (ADR 022); reset returns to the
+    // new head `'agent_identity'` (was `'ollama_check'`).
+    expect(resetState.currentStep).toBe('agent_identity');
     expect(resetState.complete).toBe(false);
-    expect(state.currentStep).toBe('ollama_check');
+    expect(state.currentStep).toBe('agent_identity');
     expect(existsSync(join(dir, '.nous-first-run-complete'))).toBe(false);
   });
 

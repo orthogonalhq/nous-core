@@ -135,6 +135,30 @@ export {
   ORCHESTRATOR_SYSTEM_PROMPT,
 } from './prompts/index.js';
 
+// ── 9b. Personality (gateway-runtime sub-module) ─────────────────────────────
+// SP 1.4 (WR-161) — surface the personality registry/presets/types from the
+// `@nous/cortex-core` package barrel so renderer surfaces (`WizardStepIdentity`)
+// can iterate `PRESETS` and `TRAIT_REGISTRY` without reaching into the
+// gateway-runtime sub-tree. Per ADR 018: PersonalityConfig is canonically
+// defined here; `@nous/shared` carries a structural mirror adjacent to
+// `PromptFormatterInput`.
+export {
+  PRESETS,
+  TRAIT_REGISTRY,
+  defineTrait,
+  resolvePersonality,
+  collectFragmentsByTarget,
+} from './gateway-runtime/personality/index.js';
+export type {
+  PersonalityConfig,
+  PersonalityPreset,
+  TraitAxes,
+  TraitDefinition,
+  TraitInjection,
+  TraitValueDefinition,
+  FragmentsByTarget,
+} from './gateway-runtime/personality/index.js';
+
 // ── 10. Gateway runtime — boot, turn executor bridge, backlog, health ────────
 export {
   CortexRuntime,

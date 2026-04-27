@@ -28,12 +28,35 @@ export const HardwareSpecSchema = z.object({
 
 export type HardwareSpec = z.infer<typeof HardwareSpecSchema>;
 
+/**
+ * Validation state for a single recommended model spec, surfaced through the
+ * first-run wizard's recommendation card and custom-spec input. Added in
+ * SP 1.5 per Decision 5 (model-search-approach-v1, runtime availability check).
+ *
+ * - `'validated'` — the spec was confirmed available on the Ollama registry.
+ * - `'pending'` — the validation has not yet completed (or not yet started).
+ * - `'unavailable'` — the spec parsed but the registry returned 404 (or the
+ *   spec is malformed and Stage A short-circuited without a network call).
+ * - `'offline'` — the registry could not be reached (timeout, DNS failure,
+ *   network error, or 5xx). The card stays selectable; the user is informed
+ *   that availability could not be verified.
+ */
+export const ValidationStateSchema = z.enum([
+  'validated',
+  'pending',
+  'unavailable',
+  'offline',
+]);
+
+export type ValidationState = z.infer<typeof ValidationStateSchema>;
+
 export const ModelRecommendationSchema = z.object({
   modelId: z.string(),
   modelSpec: z.string(),
   displayName: z.string(),
   ramRequiredMB: z.number().int().nonnegative(),
   reason: z.string(),
+  validationState: ValidationStateSchema.default('pending'),
 });
 
 export type ModelRecommendation = z.infer<typeof ModelRecommendationSchema>;
@@ -45,12 +68,29 @@ export const RoleModelRecommendationSchema = z.object({
 
 export type RoleModelRecommendation = z.infer<typeof RoleModelRecommendationSchema>;
 
+// SP 1.8 Fix #10 — `tier` and `tierLabel` are optional fields populated by
+// `buildLocalRecommendations` (the local-first hardware-tier branch) and
+// left unset by `buildRemoteRecommendations` and the no-providers branch.
+// They surface in the wizard's `WizardStepModelDownload` explanatory
+// section so the user can see how their detected hardware maps to the
+// per-tier recommendation set. Additive optional schema fields per
+// Invariant I12 (JSON-serializable; no migration). Trace: SDS § 4.6 /
+// Goals C10 / Plan Task #10.
+export const RecommendationTierSchema = z.enum([
+  'tiny',
+  'small',
+  'medium',
+  'large',
+]);
+
 export const RecommendationResultSchema = z.object({
   singleModel: ModelRecommendationSchema.nullable(),
   multiModel: z.array(RoleModelRecommendationSchema),
   hardwareSpec: HardwareSpecSchema,
   profileName: z.string(),
   advisory: z.string(),
+  tier: RecommendationTierSchema.optional(),
+  tierLabel: z.string().optional(),
 });
 
 export type RecommendationResult = z.infer<typeof RecommendationResultSchema>;
@@ -61,8 +101,35 @@ export type RecommendationProfilePolicy = {
   allowRemoteProviders?: boolean;
 };
 
-type RecommendationTier = 'tiny' | 'small' | 'medium' | 'large';
+type RecommendationTier = z.infer<typeof RecommendationTierSchema>;
 
+// SP 1.8 Fix #10 — per-tier human-readable label vocabulary. Surfaced by
+// `WizardStepModelDownload`'s explanatory section so the user sees the
+// link from their detected hardware to the recommendation set.
+const TIER_LABELS: Record<RecommendationTier, string> = {
+  tiny: 'Compact (low-memory)',
+  small: 'Balanced (entry-to-mid desktop)',
+  medium: 'Mid-spec (stronger reasoning)',
+  large: 'High-spec (advanced reasoning)',
+};
+
+/**
+ * Curated Ollama-library catalog used by `recommendModels` to seed the
+ * first-run wizard's model recommendations.
+ *
+ * Catalog refresh policy (SP 1.5 / Decision 5 — model-search-approach-v1):
+ *   - Catalog identifiers are source-controlled; no admin UI for runtime edits
+ *     (Goals Constraint 14, SDS I14).
+ *   - Each entry's `validationState` defaults to `'pending'` via the schema;
+ *     the runtime availability check (`checkRegistryAvailability`) populates
+ *     the validation map served alongside the recommendation by
+ *     `firstRun.checkPrerequisites`.
+ *   - Identifiers verified against the Ollama library at SP 1.5 ship
+ *     (April 2026). The four below remain currently published and continue
+ *     to receive long-term release support; they are the canonical SP 1.5
+ *     baseline. If a future tier needs a newer identifier, refresh by direct
+ *     edit and bump the verification date in this comment.
+ */
 const LOCAL_MODEL_CATALOG: Record<RecommendationTier, ModelRecommendation> = {
   tiny: {
     modelId: 'llama3.2:3b',
@@ -70,6 +137,7 @@ const LOCAL_MODEL_CATALOG: Record<RecommendationTier, ModelRecommendation> = {
     displayName: 'Llama 3.2 3B',
     ramRequiredMB: 4096,
     reason: 'Best fit for low-memory systems and first-run downloads.',
+    validationState: 'pending',
   },
   small: {
     modelId: 'qwen2.5:7b',
@@ -77,6 +145,7 @@ const LOCAL_MODEL_CATALOG: Record<RecommendationTier, ModelRecommendation> = {
     displayName: 'Qwen 2.5 7B',
     ramRequiredMB: 8192,
     reason: 'Balanced local model for everyday desktop orchestration and chat.',
+    validationState: 'pending',
   },
   medium: {
     modelId: 'qwen2.5:14b',
@@ -84,6 +153,7 @@ const LOCAL_MODEL_CATALOG: Record<RecommendationTier, ModelRecommendation> = {
     displayName: 'Qwen 2.5 14B',
     ramRequiredMB: 16384,
     reason: 'Mid-spec recommendation for stronger reasoning with manageable local requirements.',
+    validationState: 'pending',
   },
   large: {
     modelId: 'qwen2.5:32b',
@@ -91,6 +161,7 @@ const LOCAL_MODEL_CATALOG: Record<RecommendationTier, ModelRecommendation> = {
     displayName: 'Qwen 2.5 32B',
     ramRequiredMB: 32768,
     reason: 'High-spec recommendation for local-first advanced reasoning.',
+    validationState: 'pending',
   },
 };
 
@@ -100,6 +171,7 @@ const REMOTE_SINGLE_MODEL: ModelRecommendation = {
   displayName: 'Claude Sonnet 4',
   ramRequiredMB: 0,
   reason: 'Remote-first fallback when the active profile does not allow local providers.',
+  validationState: 'pending',
 };
 
 const REMOTE_REASONER_MODEL: ModelRecommendation = {
@@ -108,6 +180,7 @@ const REMOTE_REASONER_MODEL: ModelRecommendation = {
   displayName: 'Claude Opus 4',
   ramRequiredMB: 0,
   reason: 'Higher-capability remote reasoner recommendation for remote-only profiles.',
+  validationState: 'pending',
 };
 
 const REMOTE_SUPPORT_MODEL: ModelRecommendation = {
@@ -116,6 +189,7 @@ const REMOTE_SUPPORT_MODEL: ModelRecommendation = {
   displayName: 'GPT-4o',
   ramRequiredMB: 0,
   reason: 'General-purpose remote support model for assistant, tool, and vision roles.',
+  validationState: 'pending',
 };
 
 function bytesToMegabytes(bytes: number): number {
@@ -346,6 +420,11 @@ function buildLocalRecommendations(
     hardwareSpec: spec,
     profileName: 'local-first',
     advisory,
+    // SP 1.8 Fix #10 — populate `tier` + `tierLabel` so the wizard's
+    // explanatory section can surface the hardware-to-recommendation
+    // mapping (Goals C11 / Plan Task #10b).
+    tier,
+    tierLabel: TIER_LABELS[tier],
   });
 }
 

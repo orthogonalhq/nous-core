@@ -106,6 +106,60 @@ ollama pull llama3.2:3b
 
 **Fix:** First-run completes when you send a message and receive a response, or when a project exists. Ensure Ollama is running so the health check and model invocation succeed.
 
+## Model Recommendation Shows "Cannot verify availability"
+
+**Symptom:** During the first-run Model Download step, one or more recommendation cards (or the custom-spec input) shows a gray dot and the label **Cannot verify availability**.
+
+**Meaning:** The wizard's `HEAD` probe to `https://ollama.com/library/<model>` timed out, was refused, or failed at DNS / network / 5xx. Nous cannot prove the model is currently published, but it does not assume the model is missing — your local Ollama daemon may already have the model cached, or registry coverage may be reachable from the daemon even when the renderer cannot reach it.
+
+**Fix:**
+- Check the machine's general internet connectivity (`https://ollama.com/library` should load in a browser).
+- If you are behind a corporate proxy or split-DNS, confirm `ollama.com` resolves and is reachable from the same network the wizard process uses.
+- The card is **still selectable** — pressing **Download** will attempt the pull through Ollama, which may succeed even when the wizard probe failed. If the pull also fails, the wizard surfaces the underlying Ollama error in place.
+- The probe result is cached for 30 minutes per spec. Restart the wizard (or call `firstRun.resetWizard`) to force a fresh check.
+
+## Model Recommendation Shows "Not currently available"
+
+**Symptom:** A recommendation card or the custom-spec input shows an amber dot and the label **Not currently available**.
+
+**Meaning:** The Ollama library returned 404 for that exact identifier, or the spec is malformed (empty, missing the `ollama:` prefix, or pointing to a non-Ollama provider). The model is not currently published at that exact spec.
+
+**Fix:**
+- Pick a different recommendation card if one is shown as **Available**.
+- For custom specs, double-check the model identifier on `https://ollama.com/library`. A common cause is using a deprecated tag (for example `llama3:8b` after that line moved to `llama3.2:8b`).
+- The card is **still selectable** — Nous lets you try the download anyway. If the pull fails for the same 404 reason, the wizard surfaces the underlying Ollama error in place.
+
+## Model Recommendation Stays in "Validating availability"
+
+**Symptom:** The amber animated dot and the label **Validating availability** never resolve to one of the other three states.
+
+**Meaning:** The check is bounded by a 3-second timeout per spec, so this state should clear within seconds. Persisting in this state usually means either the renderer never received the prerequisites response, or the underlying Ollama library probe is hung at the network layer below the timeout.
+
+**Fix:**
+- Check the desktop log for `[nous:first-run] validation map: <n> validated, <m> unavailable, <k> offline` — if the line is present, the validation map was returned and a stuck `'pending'` indicates a renderer-side bug rather than a network issue (please report).
+- If the log line is absent, the prerequisites query has not yet returned. Confirm the desktop backend (`@nous/shared-server`) is running and reachable.
+- Restart the wizard via `firstRun.resetWizard` to re-issue the prerequisites query from scratch.
+
+## No Welcome Appears on First Chat Open
+
+**Symptom:** You finished the first-run wizard and opened the chat panel for the first time, but no welcome message appeared.
+
+**Meaning:** The welcome is a one-shot composition gated by the persisted `agent.welcomeMessageSent` flag. There are three common reasons it would not appear:
+
+- The model provider was unreachable when chat opened, so the composition failed and the flag stayed `false`. The welcome will retry on the next chat panel mount.
+- The flag was already `true` from a prior session — for example you completed the wizard once before, the welcome already fired, and re-opening chat short-circuits.
+- The renderer's mount-once guard latched but the underlying mutation never completed (for example, the desktop backend was unreachable at the moment of mount).
+
+**Fix:**
+
+- Verify the model provider is healthy. If you are using a local Ollama model, run `ollama serve` and confirm the recommended model is pulled. If you are using a cloud provider, confirm the API key is configured (Configuration > Provider Keys) and reachable.
+- Reopen the chat panel after restoring provider health — the welcome retries on the next mount when the flag is still `false`.
+- If you want to re-experience the welcome from a clean state, call the `firstRun.resetWizard` mutation (see [tRPC Procedures § firstRun](/docs/api/procedures#firstrun)). This clears the entire `agent` block including `welcomeMessageSent`; after re-completing the wizard, the next chat panel mount fires a fresh welcome composed against whatever identity you configure.
+- If the renderer mount-once guard appears stuck, fully restart the desktop app — the guard is per-mount and resets on app restart.
+- The chat is never blocked by a welcome failure; if the rest of chat works normally, the missing welcome is a cosmetic carry-forward only and a `resetWizard` will recover it on the next first-run.
+
+See also [Chat § Welcome Message (First Open)](/docs/guides/chat#welcome-message-first-open) for the welcome's lifecycle and reset semantics.
+
 ## Memory Inspector Shows a Global-Scope Warning
 
 **Symptom:** The `/memory` page shows a reason-code banner after you switch Scope to `Global only` or `Project + global`, and global entries do not appear.

@@ -20,6 +20,8 @@ export function ChatSurface(props: ChatSurfaceProps) {
       onInputFocus={props.onInputFocus}
       onUnreadMessage={props.onUnreadMessage}
       onMessagesRead={props.onMessagesRead}
+      projectId={props.projectId}
+      sessionId={props.sessionId}
     />
   )
 }

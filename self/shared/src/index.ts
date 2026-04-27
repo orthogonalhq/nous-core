@@ -55,3 +55,30 @@ export type { ICommunicationGatewayService } from './interfaces/subcortex.js';
 export type { IPublicMcpGatewayService } from './interfaces/subcortex.js';
 export type { IVoiceControlService } from './interfaces/subcortex.js';
 export type { EndpointTrustSurfaceSummary } from './types/endpoint-trust.js';
+export {
+  FIRST_RUN_STEP_VALUES,
+  FirstRunStepSchema,
+  FirstRunCurrentStepSchema,
+  FirstRunStepStatusSchema,
+  FirstRunStepStateSchema,
+  FirstRunStateSchema,
+  buildFirstRunStateStepsSchema,
+  defineWizardStep,
+  deriveFirstRunStepValues,
+  deriveFirstRunStateSchema,
+  deriveBackendStepToWizardStep,
+  derivePreviousStepMap,
+  deriveWizardStepIds,
+  validateWizardRegistry,
+  assertRegistryMatchesManifest,
+  WizardRegistryInvariantError,
+} from './wizard-registry.js';
+export type {
+  FirstRunStep,
+  FirstRunCurrentStep,
+  FirstRunStepStatus,
+  FirstRunStepState,
+  FirstRunState,
+  WizardStepDefinition,
+  WizardRegistryInvariantCode,
+} from './wizard-registry.js';

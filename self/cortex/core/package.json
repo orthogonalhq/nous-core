@@ -10,6 +10,12 @@
       "import": "./dist/index.js",
       "require": "./dist/index.js",
       "default": "./dist/index.js"
+    },
+    "./personality": {
+      "types": "./dist/gateway-runtime/personality/index.d.ts",
+      "import": "./dist/gateway-runtime/personality/index.js",
+      "require": "./dist/gateway-runtime/personality/index.js",
+      "default": "./dist/gateway-runtime/personality/index.js"
     }
   },
   "scripts": {

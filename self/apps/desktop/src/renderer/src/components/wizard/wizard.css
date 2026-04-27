@@ -62,7 +62,7 @@
 
 .nous-wizard__stepper {
   display: grid;
-  grid-template-columns: repeat(5, minmax(0, 1fr));
+  grid-template-columns: repeat(var(--nous-wizard-step-count, 4), minmax(0, 1fr));
   gap: var(--nous-space-md);
   margin-bottom: var(--nous-space-3xl);
   padding: var(--nous-space-xl);
@@ -352,6 +352,79 @@
   font-size: var(--nous-font-size-xs);
 }
 
+/*
+ * SP 1.5 — registry-availability validation indicator on recommendation
+ * cards (Decision 5). Renders inside `.nous-wizard__option` and beside the
+ * custom-spec input. Four states map to four dot colors: validated (green),
+ * pending (animated/spinning), unavailable (amber), offline (gray).
+ */
+.nous-wizard__option-validation {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--nous-space-sm);
+  margin-top: var(--nous-space-md);
+  padding: var(--nous-space-xs) var(--nous-space-md);
+  border-radius: var(--nous-badge-radius);
+  background: color-mix(in srgb, var(--nous-bg-input) 48%, transparent);
+  border: 1px solid var(--nous-divider-subtle);
+  font-size: var(--nous-font-size-xs);
+  color: var(--nous-fg-muted);
+}
+
+.nous-wizard__option-validation-dot--validated,
+.nous-wizard__option-validation-dot--pending,
+.nous-wizard__option-validation-dot--unavailable,
+.nous-wizard__option-validation-dot--offline {
+  display: inline-block;
+  width: var(--nous-indicator-size, 8px);
+  height: var(--nous-indicator-size, 8px);
+  border-radius: var(--nous-radius-full);
+  flex-shrink: 0;
+}
+
+.nous-wizard__option-validation-dot--validated {
+  background: var(--nous-state-complete);
+}
+
+.nous-wizard__option-validation-dot--pending {
+  background: var(--nous-state-active);
+  animation: nous-wizard-validation-spin 1.2s linear infinite;
+}
+
+.nous-wizard__option-validation-dot--unavailable {
+  background: var(--nous-state-waiting);
+}
+
+.nous-wizard__option-validation-dot--offline {
+  background: var(--nous-state-idle);
+}
+
+.nous-wizard__option-validation-label {
+  color: var(--nous-fg-muted);
+  font-size: var(--nous-font-size-xs);
+}
+
+@keyframes nous-wizard-validation-spin {
+  0% {
+    opacity: 0.45;
+    transform: scale(0.85);
+  }
+  50% {
+    opacity: 1;
+    transform: scale(1.05);
+  }
+  100% {
+    opacity: 0.45;
+    transform: scale(0.85);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .nous-wizard__option-validation-dot--pending {
+    animation: none;
+  }
+}
+
 .nous-wizard__alert {
   margin-bottom: var(--nous-space-2xl);
   padding: var(--nous-space-lg) var(--nous-space-xl);
@@ -454,5 +527,107 @@
   }
   100% {
     left: 100%;
+  }
+}
+
+/* ---------------------------------------------------------------------------
+ * SP 1.7 Fix #8 — additive rules for the identity step (sub-stage container,
+ * disclosure block, horizontal radio row). Additive only; no existing rule
+ * altered or removed (Goals C8). All selectors scoped under `.nous-wizard__`.
+ * ---------------------------------------------------------------------------
+ */
+
+.nous-wizard__identity {
+  display: flex;
+  flex-direction: column;
+  gap: var(--nous-space-2xl);
+  transition: opacity 200ms ease, transform 200ms ease;
+}
+
+.nous-wizard__identity--reduced-motion {
+  transition: none;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .nous-wizard__identity,
+  .nous-wizard__identity--animated {
+    transition: none;
+  }
+}
+
+.nous-wizard__disclosure {
+  padding: var(--nous-space-lg) var(--nous-space-xl);
+  border: 1px solid var(--nous-card-border);
+  border-left: 3px solid var(--nous-accent, #4a9eff);
+  border-radius: var(--nous-radius-md);
+  background: color-mix(in srgb, var(--nous-card-bg) 92%, transparent);
+  color: var(--nous-fg-muted);
+  font-size: var(--nous-font-size-sm);
+  line-height: 1.55;
+}
+
+.nous-wizard__disclosure > p {
+  margin: 0;
+}
+
+.nous-wizard__disclosure > p + p {
+  margin-top: var(--nous-space-xs);
+}
+
+.nous-wizard__radio-row {
+  display: flex;
+  flex-direction: row;
+  flex-wrap: wrap;
+  gap: var(--nous-space-lg);
+}
+
+.nous-wizard__radio-row > label {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--nous-space-sm);
+  cursor: pointer;
+  color: var(--nous-fg);
+  font-size: var(--nous-font-size-sm);
+}
+
+/* SP 1.8 Fix #12 — additive rules for the hardware-summary explanatory
+   section in WizardStepModelDownload (Goals C11 / C12, Plan Task #12).
+   No existing rule altered. `prefers-reduced-motion: reduce` is honored
+   on the subtle background transition. */
+
+.nous-wizard__hardware-summary {
+  display: flex;
+  flex-direction: column;
+  gap: var(--nous-space-sm);
+  background: color-mix(in srgb, var(--nous-card-bg) 96%, transparent);
+  transition: background 200ms ease;
+}
+
+.nous-wizard__meta-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+  gap: var(--nous-space-xs) var(--nous-space-md);
+  color: var(--nous-fg);
+  font-size: var(--nous-font-size-sm);
+}
+
+.nous-wizard__meta-list > li {
+  display: flex;
+  flex-direction: row;
+  gap: var(--nous-space-xs);
+  align-items: baseline;
+}
+
+.nous-wizard__meta-list > li > strong {
+  color: var(--nous-fg-muted);
+  font-weight: 600;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .nous-wizard__hardware-summary {
+    transition: none;
   }
 }

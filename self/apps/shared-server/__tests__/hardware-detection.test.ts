@@ -188,6 +188,95 @@ describe('hardware detection', () => {
     );
   });
 
+  // SP 1.5 — U1: `recommendModels` carries `validationState: 'pending'`
+  // default on every emitted recommendation.
+  it('U1 — recommendModels emits validationState: pending by default', async () => {
+    const { recommendModels } = await loadModule();
+
+    const result = recommendModels(
+      {
+        totalMemoryMB: 24576,
+        availableMemoryMB: 16000,
+        cpuCores: 12,
+        cpuModel: 'AMD Ryzen 9',
+        platform: 'linux',
+        arch: 'x64',
+        gpu: { detected: true, name: 'RTX 4070', vramMB: 12288 },
+      },
+      {
+        name: 'local-only',
+        allowLocalProviders: true,
+        allowRemoteProviders: false,
+      },
+    );
+
+    expect(result.singleModel?.validationState).toBe('pending');
+    for (const entry of result.multiModel) {
+      expect(entry.recommendation.validationState).toBe('pending');
+    }
+  });
+
+  // SP 1.5 — U2: every refreshed catalog entry validates against
+  // ModelRecommendationSchema.
+  it('U2 — recommendModels output validates against ModelRecommendationSchema across tiers', async () => {
+    const { recommendModels, ModelRecommendationSchema } = await loadModule();
+
+    for (const totalMemoryMB of [4096, 8192, 16384, 32768]) {
+      const result = recommendModels(
+        {
+          totalMemoryMB,
+          availableMemoryMB: Math.floor(totalMemoryMB / 2),
+          cpuCores: 8,
+          cpuModel: 'Test CPU',
+          platform: 'linux',
+          arch: 'x64',
+          gpu: { detected: false },
+        },
+        {
+          name: 'local-only',
+          allowLocalProviders: true,
+          allowRemoteProviders: false,
+        },
+      );
+
+      if (result.singleModel) {
+        expect(() => ModelRecommendationSchema.parse(result.singleModel)).not.toThrow();
+      }
+      for (const entry of result.multiModel) {
+        expect(() => ModelRecommendationSchema.parse(entry.recommendation)).not.toThrow();
+      }
+    }
+  });
+
+  // SP 1.5 — U3: resolveRecommendationTier regression — tier resolution
+  // continues to map RAM correctly with the (refreshed) catalog.
+  it('U3 — tier resolution regression: 4 GB → tiny, 8 GB → small, 16 GB → medium, 32 GB → large', async () => {
+    const { recommendModels } = await loadModule();
+    const profile = {
+      name: 'local-only',
+      allowLocalProviders: true,
+      allowRemoteProviders: false,
+    };
+    const baseSpec = {
+      availableMemoryMB: 2048,
+      cpuCores: 4,
+      cpuModel: 'Test CPU',
+      platform: 'linux',
+      arch: 'x64',
+      gpu: { detected: false },
+    } as const;
+
+    const tiny = recommendModels({ ...baseSpec, totalMemoryMB: 4096 }, profile);
+    const small = recommendModels({ ...baseSpec, totalMemoryMB: 8192 }, profile);
+    const medium = recommendModels({ ...baseSpec, totalMemoryMB: 16384 }, profile);
+    const large = recommendModels({ ...baseSpec, totalMemoryMB: 32768 }, profile);
+
+    expect(tiny.singleModel?.modelSpec).toBe('ollama:llama3.2:3b');
+    expect(small.singleModel?.modelSpec).toBe('ollama:qwen2.5:7b');
+    expect(medium.singleModel?.modelSpec).toBe('ollama:qwen2.5:14b');
+    expect(large.singleModel?.modelSpec).toBe('ollama:qwen2.5:32b');
+  });
+
   it('recommendModels honors remote-only profile boundaries', async () => {
     const { recommendModels } = await loadModule();
 

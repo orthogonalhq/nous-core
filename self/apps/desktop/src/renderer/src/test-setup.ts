@@ -32,10 +32,15 @@ export const DEFAULT_OLLAMA_STATUS: OllamaStatus = {
 }
 
 export const DEFAULT_WIZARD_STATE: FirstRunState = {
-  currentStep: 'ollama_check',
+  // SP 1.7 Fix #1 / Fix #3 — fresh first-run state's `currentStep` is now
+  // `'agent_identity'` (head of `FIRST_RUN_STEP_VALUES` after the SP 1.7
+  // tuple reorder, mirrored by `createDefaultFirstRunState` in
+  // shared-server/first-run.ts).
+  currentStep: 'agent_identity',
   complete: false,
   steps: {
     ollama_check: { status: 'pending' },
+    agent_identity: { status: 'pending' },
     model_download: { status: 'pending' },
     provider_config: { status: 'pending' },
     role_assignment: { status: 'pending' },
@@ -65,6 +70,7 @@ export const DEFAULT_PREREQUISITES: FirstRunPrerequisites = {
       displayName: 'Qwen 2.5 7B',
       ramRequiredMB: 8192,
       reason: 'Balanced local default for desktop orchestration.',
+      validationState: 'pending',
     },
     multiModel: [
       {
@@ -75,6 +81,7 @@ export const DEFAULT_PREREQUISITES: FirstRunPrerequisites = {
           displayName: 'Qwen 2.5 14B',
           ramRequiredMB: 16384,
           reason: 'Use the stronger local model for heavier reasoning.',
+          validationState: 'pending',
         },
       },
     ],

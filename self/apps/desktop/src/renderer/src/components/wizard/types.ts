@@ -10,6 +10,7 @@ import type {
   FirstRunPrerequisites,
   FirstRunStep,
 } from '@nous/shared-server'
+import type { PersonalityConfig } from '@nous/cortex-core/personality'
 
 export type FirstRunCurrentStep = FirstRunState['currentStep']
 
@@ -29,12 +30,12 @@ export type RoleAssignments = Partial<Record<ModelRole, string>>
 export type ModelRecommendation = NonNullable<FirstRunPrerequisites['recommendations']['singleModel']>
 export type RoleModelRecommendation = FirstRunPrerequisites['recommendations']['multiModel'][number]
 
-export type WizardStepId =
-  | 'welcome'
-  | 'ollama-setup'
-  | 'model-download'
-  | 'role-assignment'
-  | 'confirmation'
+export {
+  BACKEND_STEP_TO_WIZARD_STEP,
+  WIZARD_STEPS,
+  WIZARD_STEP_REGISTRY,
+} from './registry'
+export type { WizardStepId, WizardStepDefinition } from './registry'
 
 export type WizardModelOption = {
   modelId: string
@@ -42,12 +43,6 @@ export type WizardModelOption = {
   displayName: string
   reason: string
   ramRequiredMB: number
-}
-
-export type WizardStepDefinition = {
-  id: WizardStepId
-  label: string
-  backendStep: FirstRunStep | null
 }
 
 export interface WizardStepProps {
@@ -60,23 +55,42 @@ export interface WizardStepProps {
   onStepComplete: (nextState: FirstRunState) => void
 }
 
-export const MODEL_ROLES = ModelRoleSchema.options
-
-export const BACKEND_STEP_TO_WIZARD_STEP: Record<FirstRunCurrentStep, WizardStepId> = {
-  ollama_check: 'ollama-setup',
-  model_download: 'model-download',
-  provider_config: 'model-download',
-  role_assignment: 'role-assignment',
-  complete: 'confirmation',
+// SP 1.8 Fix #2 — Identity draft shape lifted to the orchestrator
+// (`FirstRunWizard`) so back-nav into the identity step retains entered
+// values. `subStage` is NOT included — the sub-stage cursor remains
+// component-local per SP 1.4 Goals item 11 (sub-stage progress is
+// ephemeral and not persisted; on remount the component restarts at
+// sub-stage A). The lifted slice carries only entered field values.
+//
+// Trace: SP 1.8 SDS § Data Model § Identity draft contract; Goals C1 / C2 / C4;
+// Implementation Plan Task #2; Invariant B.
+export interface ProfileFormState {
+  displayName?: string
+  role?: string
+  primaryUseCase?: string
+  expertise?: 'beginner' | 'intermediate' | 'advanced'
 }
 
-export const WIZARD_STEPS: WizardStepDefinition[] = [
-  { id: 'welcome', label: 'Welcome', backendStep: null },
-  { id: 'ollama-setup', label: 'Ollama', backendStep: 'ollama_check' },
-  { id: 'model-download', label: 'Model', backendStep: 'model_download' },
-  { id: 'role-assignment', label: 'Roles', backendStep: 'role_assignment' },
-  { id: 'confirmation', label: 'Finish', backendStep: null },
-]
+export interface IdentityDraft {
+  name: string
+  personality: PersonalityConfig
+  profile: ProfileFormState
+  advancedOpen: boolean
+}
+
+export const INITIAL_IDENTITY_DRAFT: IdentityDraft = {
+  name: '',
+  personality: { preset: 'balanced' },
+  profile: {},
+  advancedOpen: false,
+}
+
+export interface WizardStepIdentityProps extends WizardStepProps {
+  identityDraft: IdentityDraft
+  setIdentityDraft: (next: IdentityDraft) => void
+}
+
+export const MODEL_ROLES = ModelRoleSchema.options
 
 export function parseModelSpec(modelSpec: string): { provider: string; modelId: string } | null {
   const [provider, ...modelIdParts] = modelSpec.split(':')
