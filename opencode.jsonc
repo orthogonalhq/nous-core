@@ -1,0 +1,78 @@
+{
+  "$schema": "https://opencode.ai/config.json",
+  "shell": "pwsh",
+  "model": "openai/gpt-5.5",
+  "small_model": "openai/gpt-5.5",
+  "default_agent": "orchestrator",
+  "permission": {
+    "read": "allow",
+    "glob": "allow",
+    "grep": "allow",
+    "list": "allow",
+    "edit": "ask",
+    "bash": "ask",
+    "task": "ask",
+    "write-dispatch-packet": "allow",
+    "resolve-worker-profile": "allow",
+    "poll-worker-result": "allow",
+    "verify-artifacts": "allow",
+    "sop-artifact-checkpoint": "allow",
+    "launch-codex-worker": "ask",
+    "launch-claude-worker": "ask",
+    "webfetch": "deny",
+    "websearch": "deny",
+    "external_directory": "ask"
+  },
+  "instructions": [
+    "AGENTS.md"
+  ],
+  "compaction": {
+    "auto": true,
+    "prune": true,
+    "reserved": 20000
+  },
+  "watcher": {
+    "ignore": [
+      ".opencode/state/runs/**",
+      ".opencode/state/witness/**",
+      ".opencode/state/session-state/**",
+      ".worklog/opencode-harness/runs/**",
+      ".worklog/opencode-harness/witness/**",
+      "node_modules/**",
+      "dist/**",
+      ".git/**"
+    ]
+  },
+  "command": {
+    "bootstrap-orchestrator": {
+      "description": "Bootstrap a Nous SOP orchestration lane",
+      "agent": "orchestrator",
+      "template": "Bootstrap a Nous SOP orchestration lane: $ARGUMENTS. Read root AGENTS.md first. If it routes into .skills/AGENTS.md, follow that file as authoritative. Then take the orchestrator role required by the SOP. If a required workflow, file, or tool is missing, stop immediately and report the exact blocker. Do not run extra shell/list/search diagnostics after a missing authoritative SOP entrypoint unless the user explicitly asks for diagnostics. Do not offer or list creation, scaffolding, substitution, or relocation of private SOP authority as a next option unless the user explicitly asks for that work. The default next action is to use a target worktree that already contains the required .skills files."
+    },
+    "resume-sop": {
+      "description": "Resume the current SOP lane from durable state",
+      "agent": "orchestrator",
+      "template": "Resume the current SOP lane. Inspect .opencode/state/ dispatches, runs, witness events, and response packets for harness recovery evidence. Verify canonical SOP artifacts in .worklog/... before advancing. If state is ambiguous, stop with the exact missing evidence."
+    },
+    "dispatch-worker": {
+      "description": "Create and launch a durable SOP worker dispatch",
+      "agent": "orchestrator",
+      "template": "Create a durable worker dispatch for: $ARGUMENTS. First resolve a named worker profile with resolve-worker-profile. If the profile is missing or ambiguous, stop and report the exact candidates/blocker instead of guessing. If the resolved profile is opencode-native, do not create a CLI worker dispatch; PM ideation, gap-analysis, and wr-creation stay inline under Orchestrator::pm-planning. Use the resolved dispatch_args when calling write-dispatch-packet, including profile_id, runner, model_selection, model_cli_arg, capability_profile, and canonical route ids when returned. Runtime dispatch packets, worker response packets, launcher logs, witness events, and checkpoints live under .opencode/state/ by default. SOP artifacts must use canonical SOP paths in .worklog/planning-cycles/, .worklog/sprint-planning/, or .worklog/sprints/<type>/<feature>/. Use runtime_response_path for the worker response packet and sop_artifacts for workflow artifacts to verify. Do not treat the runtime response packet as a SOP artifact unless this is explicitly a transport-only smoke test. write-dispatch-packet appends appendAuthorization by default. Then launch with the resolved launch.tool and launch.args. The launcher appends appendCompletion after a real worker run. Prefer dry_run for first-time or smoke-test launches. For Codex workers, use launch-codex-worker and pass model only when resolve-worker-profile returned a non-empty model_cli_arg. Do not pass model_selection values such as codex-cli-default as CLI model ids. For Claude workers, use launch-claude-worker and pass model/effort/tool settings from the profile. After the dispatch packet, launch manifest, runtime response path, and SOP artifact paths are known, call sop-artifact-checkpoint with the major artifact paths, witness paths, and concise resume-critical state so compaction runs when this turn idles. Return the profile id, dispatch path, runtime response path, SOP artifact paths, launch manifest path, worker exit code when executed, witness paths, and verification criteria."
+    },
+    "smoke-codex-worker": {
+      "description": "Smoke test Codex CLI worker dispatch",
+      "agent": "orchestrator",
+      "template": "Run a Codex CLI worker smoke test: $ARGUMENTS. Use write-dispatch-packet, then launch-codex-worker. Do not pass a model override unless the user explicitly names a Codex/OpenAI model. Prefer dry_run=true unless the user explicitly asks for a real worker run. Use confirm_execute=true only for real worker runs. Use poll-worker-result after a real worker run. After the dispatch/launch artifact is created, call sop-artifact-checkpoint with compact=false unless the user is explicitly smoke testing compaction too. Defaults: run_id smoke-codex-worker; role Harness::transport-smoke; sop_entrypoint .opencode/transport-smoke/ENTRY.md; capability_profile transport-smoke; task: This is a harness transport smoke only. Do not edit source files. Complete with status succeeded and result CODEX_WORKER_SMOKE_OK.; runtime_response_path .opencode/state/runs/smoke-codex-worker/response.md; sop_artifacts omitted for transport-only smoke; codex_path omitted unless needed, explicit path C:/nvm4w/nodejs/codex.cmd; sandbox read-only; timeout_seconds 180. For a full-access write smoke, set bypass_approvals_and_sandbox=true; keep runtime output under .opencode/state/runs/<run-id>/ and only use .worklog/... when the smoke intentionally creates a canonical SOP artifact. For canonical SOP worker validation, do not use this transport smoke command; dispatch the real worker profile instead."
+    },
+    "smoke-claude-worker": {
+      "description": "Smoke test Claude Code CLI worker dispatch",
+      "agent": "orchestrator",
+      "template": "Run a Claude Code CLI worker smoke test: $ARGUMENTS. Use write-dispatch-packet, then launch-claude-worker. Prefer model sonnet unless the user explicitly names another Claude model. Prefer dry_run=true unless the user explicitly asks for a real worker run. Use confirm_execute=true only for real worker runs. Use poll-worker-result after a real worker run. After the dispatch/launch artifact is created, call sop-artifact-checkpoint with compact=false unless the user is explicitly smoke testing compaction too. Defaults: run_id smoke-claude-worker; role Harness::transport-smoke; sop_entrypoint .opencode/transport-smoke/ENTRY.md; capability_profile transport-smoke; task: This is a harness transport smoke only. Do not edit source files. Complete with status succeeded and result CLAUDE_WORKER_SMOKE_OK.; runtime_response_path .opencode/state/runs/smoke-claude-worker/claude-result.json; sop_artifacts omitted for transport-only smoke; claude_path omitted unless needed, explicit path C:/Users/andre/.local/bin/claude.exe; model sonnet; permission_mode default; no_session_persistence true; timeout_seconds 180. For a full-access write smoke, set dangerously_skip_permissions=true; keep runtime output under .opencode/state/runs/<run-id>/ and only use .worklog/... when the smoke intentionally creates a canonical SOP artifact. For canonical SOP worker validation, do not use this transport smoke command; dispatch the real worker profile instead."
+    },
+    "verify-artifacts": {
+      "description": "Verify required SOP artifacts exist",
+      "agent": "orchestrator",
+      "template": "Verify the SOP artifacts requested by: $ARGUMENTS. Use verify-artifacts. Do not advance the gate unless every required artifact exists inside the assigned worktree. When verification represents a major SOP artifact or gate event, call sop-artifact-checkpoint with the verified artifact paths and next allowed action."
+    }
+  }
+}

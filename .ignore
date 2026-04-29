@@ -1,0 +1,14 @@
+# Keep OpenCode search/list visibility for SOP authority and worklog artifacts even
+# when target projects gitignore these private/runtime directories.
+!.skills
+!.skills/**
+!.architecture
+!.architecture/**
+!.opencode
+!.opencode/**
+.opencode/node_modules
+.opencode/node_modules/**
+!.worklog
+!.worklog/**
+.worklog/.git
+.worklog/.git/**

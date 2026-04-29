@@ -42,6 +42,7 @@ yarn-error.log*
 *.sqlite-wal
 
 # Internal (private, not for public repo)
+/.opencode/
 /.architecture/
 /.skills/
 /.worklog/
