@@ -26,12 +26,13 @@ export function useTabState(initialDensity: MaoDensityMode = 'D2'): UseTabStateR
   const [selectedTarget, setSelectedTarget] = React.useState<InspectTarget | null>(null);
   const [scrollPosition, setScrollPosition] = React.useState(0);
 
-  return {
+  // SUPV-SP1.17-006 — return identity stable when state values are content-stable; useState setters are identity-stable per React invariant (SUPV-SP1.17-021); SDS phase-1.17 Mechanism Choice row RC-B4.
+  return React.useMemo<UseTabStateReturn>(() => ({
     densityMode,
     setDensityMode,
     selectedTarget,
     setSelectedTarget,
     scrollPosition,
     setScrollPosition,
-  };
+  }), [densityMode, selectedTarget, scrollPosition]);
 }
