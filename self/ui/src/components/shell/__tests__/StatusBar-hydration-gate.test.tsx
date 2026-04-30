@@ -103,4 +103,30 @@ describe('StatusBar — RC-1b hydration-window first-data gate (SUPV-SP1.16-008)
     // R-8: one invalidate per change event in steady state.
     expect(mockInvalidate).toHaveBeenCalledTimes(3)
   })
+
+  it('Phase 1.17 SUPV-SP1.17-011: 12-channel SSE subscription invokes invalidate exactly once per change event in steady state (post-SP-1.17 fix)', () => {
+    // Post-SP-1.17 invariant: even after the RC-B contract fixes land,
+    // the SP 12 R-8 contract holds — exactly N invalidates per N events
+    // delivered in steady state. NOT > N (regression check) and NOT < N
+    // (SP 12 R-8 check). Validates that none of the RC-B memo changes
+    // accidentally collapsed the event-driven invalidate path.
+    mockGetStatusBarSnapshotUseQuery.mockReturnValue({ data: happySnapshot })
+
+    render(
+      <ShellProvider>
+        <StatusBar />
+      </ShellProvider>,
+    )
+
+    const sub = mockEventSubscriptions[0]!
+
+    // Deliver one event on each of three distinct channels.
+    sub.onEvent(STATUS_BAR_CHANNELS[0]!, {} as never)
+    sub.onEvent(STATUS_BAR_CHANNELS[1]!, {} as never)
+    sub.onEvent(STATUS_BAR_CHANNELS[2]!, {} as never)
+
+    expect(mockInvalidate).toHaveBeenCalledTimes(3)
+    expect(mockInvalidate).not.toHaveBeenCalledTimes(2)
+    expect(mockInvalidate).not.toHaveBeenCalledTimes(4)
+  })
 })

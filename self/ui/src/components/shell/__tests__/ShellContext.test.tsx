@@ -174,3 +174,212 @@ describe('ShellContext — SP 11 runtime fields', () => {
     expect(container.querySelector('[data-testid="collapsed"]')?.textContent).toBe('true')
   })
 })
+
+// ---------------------------------------------------------------------------
+// Phase 1.17 SUPV-SP1.17-004 — RC-B3 contract identity-stability test for
+// ShellContext `value`. Validates that the value reference is stable across
+// no-input-change parent re-renders (consumers behind React.memo would still
+// re-render due to context broadcast — but value identity stability is the
+// load-bearing contract for downstream useMemo/useEffect deps that read the
+// value object).
+// ---------------------------------------------------------------------------
+
+describe('ShellContext — Phase 1.17 SUPV-SP1.17-004 RC-B3 value identity stability', () => {
+  let container: HTMLDivElement
+  let root: Root
+
+  beforeEach(() => {
+    container = document.createElement('div')
+    document.body.appendChild(container)
+    root = createRoot(container)
+  })
+
+  afterEach(async () => {
+    await act(async () => {
+      root.unmount()
+    })
+    container.remove()
+  })
+
+  function ValueRefCapture({ refs }: { refs: unknown[] }) {
+    const ctx = useShellContext()
+    refs.push(ctx)
+    return <div data-testid="bp">{ctx.breakpoint}</div>
+  }
+
+  it('Phase 1.17 SUPV-SP1.17-004: ShellContext value identity is stable when no observed input has changed', async () => {
+    const refs: unknown[] = []
+    await act(async () => {
+      root.render(
+        <ShellProvider mode="simple" breakpoint="full" activeRoute="home">
+          <ValueRefCapture refs={refs} />
+        </ShellProvider>,
+      )
+    })
+
+    expect(refs.length).toBeGreaterThanOrEqual(1)
+    const firstRef = refs[refs.length - 1]
+
+    // Re-render the parent with the SAME props (no observed input changed).
+    await act(async () => {
+      root.render(
+        <ShellProvider mode="simple" breakpoint="full" activeRoute="home">
+          <ValueRefCapture refs={refs} />
+        </ShellProvider>,
+      )
+    })
+
+    const latestRef = refs[refs.length - 1]
+    expect(latestRef).toBe(firstRef)
+  })
+
+  it('Phase 1.17 SUPV-SP1.17-004: ShellContext value identity changes and consumer reads new scalar when breakpoint changes', async () => {
+    const refs: unknown[] = []
+    await act(async () => {
+      root.render(
+        <ShellProvider mode="simple" breakpoint="full" activeRoute="home">
+          <ValueRefCapture refs={refs} />
+        </ShellProvider>,
+      )
+    })
+    const firstRef = refs[refs.length - 1]
+    expect(container.querySelector('[data-testid="bp"]')?.textContent).toBe('full')
+
+    await act(async () => {
+      root.render(
+        <ShellProvider mode="simple" breakpoint="medium" activeRoute="home">
+          <ValueRefCapture refs={refs} />
+        </ShellProvider>,
+      )
+    })
+    const latestRef = refs[refs.length - 1]
+    expect(latestRef).not.toBe(firstRef)
+    expect(container.querySelector('[data-testid="bp"]')?.textContent).toBe('medium')
+  })
+})
+
+// ---------------------------------------------------------------------------
+// Phase 1.17 SUPV-SP1.17-008 — RC-B3 host-prop-forwarding regression test.
+// Validates that the `useCallback` dep array on the resolved setters includes
+// the host-passed setter prop, so re-passing a new function reference is
+// observed at the next call. Preserves SP 11 SUPV-SP11-003 contract.
+// ---------------------------------------------------------------------------
+
+describe('ShellContext — Phase 1.17 SUPV-SP1.17-008 host-prop forwarding regression', () => {
+  let container: HTMLDivElement
+  let root: Root
+
+  beforeEach(() => {
+    container = document.createElement('div')
+    document.body.appendChild(container)
+    root = createRoot(container)
+  })
+
+  afterEach(async () => {
+    await act(async () => {
+      root.unmount()
+    })
+    container.remove()
+  })
+
+  function ManualTabSetterConsumer({ onReady }: { onReady: (fn: (t: ObserveTab) => void) => void }) {
+    const ctx = useShellContext()
+    React.useEffect(() => {
+      onReady(ctx.setActiveObserveTab)
+    }, [ctx.setActiveObserveTab, onReady])
+    return null
+  }
+
+  function ManualCollapsedSetterConsumer({ onReady }: { onReady: (fn: (v: boolean) => void) => void }) {
+    const ctx = useShellContext()
+    React.useEffect(() => {
+      onReady(ctx.setObservePanelCollapsed)
+    }, [ctx.setObservePanelCollapsed, onReady])
+    return null
+  }
+
+  it('Phase 1.17 SUPV-SP1.17-008: setActiveObserveTab forwards to the latest host-provided setter prop', async () => {
+    const calls: { which: 'A' | 'B'; tab: ObserveTab }[] = []
+    const spyA = (tab: ObserveTab) => calls.push({ which: 'A', tab })
+    const spyB = (tab: ObserveTab) => calls.push({ which: 'B', tab })
+
+    let latestSetter: ((t: ObserveTab) => void) | null = null
+    const onReady = (fn: (t: ObserveTab) => void) => {
+      latestSetter = fn
+    }
+
+    await act(async () => {
+      root.render(
+        <ShellProvider setActiveObserveTab={spyA}>
+          <ManualTabSetterConsumer onReady={onReady} />
+        </ShellProvider>,
+      )
+    })
+
+    await act(async () => {
+      latestSetter?.('agents')
+    })
+    expect(calls).toEqual([{ which: 'A', tab: 'agents' }])
+
+    // Re-render with a different host setter; the resolved `setActiveObserveTab`
+    // identity must change because `setActiveObserveTabProp` is in the
+    // useCallback deps.
+    await act(async () => {
+      root.render(
+        <ShellProvider setActiveObserveTab={spyB}>
+          <ManualTabSetterConsumer onReady={onReady} />
+        </ShellProvider>,
+      )
+    })
+
+    await act(async () => {
+      latestSetter?.('system-load')
+    })
+
+    const aCalls = calls.filter((c) => c.which === 'A')
+    const bCalls = calls.filter((c) => c.which === 'B')
+    expect(aCalls).toHaveLength(1)
+    expect(bCalls).toEqual([{ which: 'B', tab: 'system-load' }])
+  })
+
+  it('Phase 1.17 SUPV-SP1.17-008: setObservePanelCollapsed forwards to the latest host-provided setter prop', async () => {
+    const calls: { which: 'A' | 'B'; v: boolean }[] = []
+    const spyA = (v: boolean) => calls.push({ which: 'A', v })
+    const spyB = (v: boolean) => calls.push({ which: 'B', v })
+
+    let latestSetter: ((v: boolean) => void) | null = null
+    const onReady = (fn: (v: boolean) => void) => {
+      latestSetter = fn
+    }
+
+    await act(async () => {
+      root.render(
+        <ShellProvider setObservePanelCollapsed={spyA}>
+          <ManualCollapsedSetterConsumer onReady={onReady} />
+        </ShellProvider>,
+      )
+    })
+
+    await act(async () => {
+      latestSetter?.(true)
+    })
+    expect(calls).toEqual([{ which: 'A', v: true }])
+
+    await act(async () => {
+      root.render(
+        <ShellProvider setObservePanelCollapsed={spyB}>
+          <ManualCollapsedSetterConsumer onReady={onReady} />
+        </ShellProvider>,
+      )
+    })
+
+    await act(async () => {
+      latestSetter?.(false)
+    })
+
+    const aCalls = calls.filter((c) => c.which === 'A')
+    const bCalls = calls.filter((c) => c.which === 'B')
+    expect(aCalls).toHaveLength(1)
+    expect(bCalls).toEqual([{ which: 'B', v: false }])
+  })
+})
