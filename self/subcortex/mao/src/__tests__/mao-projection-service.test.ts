@@ -1204,8 +1204,8 @@ describe('MaoProjectionService', () => {
     });
   });
 
-  describe('SSE event publication (WR-105)', () => {
-    it('publishes mao:projection-changed after getSystemSnapshot', async () => {
+  describe('SSE event publication (WR-105 / SP 1.18 Fix #1+#2)', () => {
+    it('does NOT publish mao:projection-changed from getSystemSnapshot (.query() = no side effects)', async () => {
       const eventBus = mockEventBus();
       const projectStore = createProjectStoreMock([PROJECT_ID]);
       const { service, setControlState } = createService(createWorkflowRun(), { projectStore, eventBus });
@@ -1213,17 +1213,17 @@ describe('MaoProjectionService', () => {
 
       await service.getSystemSnapshot({ densityMode: 'D2' });
 
-      expect(eventBus.publish).toHaveBeenCalledWith('mao:projection-changed', {});
+      expect(eventBus.publish).not.toHaveBeenCalledWith('mao:projection-changed', expect.anything());
     });
 
-    it('publishes event even when agents list is empty', async () => {
+    it('does NOT publish mao:projection-changed from getSystemSnapshot when agents list is empty', async () => {
       const eventBus = mockEventBus();
       const projectStore = createProjectStoreMock([]);
       const { service } = createService(createWorkflowRun(), { projectStore, eventBus });
 
       await service.getSystemSnapshot({ densityMode: 'D2' });
 
-      expect(eventBus.publish).toHaveBeenCalledWith('mao:projection-changed', {});
+      expect(eventBus.publish).not.toHaveBeenCalledWith('mao:projection-changed', expect.anything());
     });
 
     it('does not throw when eventBus is absent', async () => {
@@ -1231,6 +1231,127 @@ describe('MaoProjectionService', () => {
       const { service } = createService(createWorkflowRun(), { projectStore });
 
       await expect(service.getSystemSnapshot({ densityMode: 'D2' })).resolves.toBeDefined();
+    });
+
+    // SP 1.18 Fix #1 — getProjectSnapshot must not publish on read.
+    it('does NOT publish mao:projection-changed from getProjectSnapshot (.query() = no side effects)', async () => {
+      const eventBus = mockEventBus();
+      const { service, setControlState } = createService(createWorkflowRun(), { eventBus });
+      setControlState('paused_review');
+
+      await service.getProjectSnapshot({ projectId: PROJECT_ID, densityMode: 'D2' });
+
+      expect(eventBus.publish).not.toHaveBeenCalledWith('mao:projection-changed', expect.anything());
+    });
+
+    it('does NOT publish mao:projection-changed from getProjectSnapshot when called repeatedly', async () => {
+      const eventBus = mockEventBus();
+      const { service, setControlState } = createService(createWorkflowRun(), { eventBus });
+      setControlState('paused_review');
+
+      await service.getProjectSnapshot({ projectId: PROJECT_ID, densityMode: 'D2' });
+      await service.getProjectSnapshot({ projectId: PROJECT_ID, densityMode: 'D2' });
+      await service.getProjectSnapshot({ projectId: PROJECT_ID, densityMode: 'D2' });
+
+      expect(eventBus.publish).not.toHaveBeenCalledWith('mao:projection-changed', expect.anything());
+    });
+
+    it('does NOT publish mao:projection-changed from getSystemSnapshot when called repeatedly', async () => {
+      const eventBus = mockEventBus();
+      const projectStore = createProjectStoreMock([PROJECT_ID]);
+      const { service, setControlState } = createService(createWorkflowRun(), { projectStore, eventBus });
+      setControlState('running');
+
+      await service.getSystemSnapshot({ densityMode: 'D2' });
+      await service.getSystemSnapshot({ densityMode: 'D2' });
+      await service.getSystemSnapshot({ densityMode: 'D2' });
+
+      expect(eventBus.publish).not.toHaveBeenCalledWith('mao:projection-changed', expect.anything());
+    });
+  });
+
+  // SP 1.18 Fix #5 — mutation-driven mao:projection-changed publisher contract.
+  describe('SP 1.18 Fix #5 — requestProjectControl publishes mao:projection-changed', () => {
+    it('publishes once with { projectId } on accepted mutation', async () => {
+      const eventBus = mockEventBus();
+      const { service, setControlState } = createService(createWorkflowRun(), { eventBus });
+      setControlState('running');
+
+      await service.requestProjectControl(
+        makeControlRequest({ action: 'pause_project' }),
+      );
+
+      const calls = (eventBus.publish as any).mock.calls.filter(
+        (c: unknown[]) => c[0] === 'mao:projection-changed',
+      );
+      expect(calls).toHaveLength(1);
+      expect(calls[0][1]).toEqual({ projectId: PROJECT_ID });
+    });
+
+    it('does NOT publish on T3 blocked path (no confirmation proof)', async () => {
+      const eventBus = mockEventBus();
+      const { service, setControlState } = createService(createWorkflowRun('waiting'), { eventBus });
+      setControlState('paused_review');
+
+      const result = await service.requestProjectControl(
+        makeControlRequest({ action: 'resume_project' }),
+        // No proof — T3 preflight rejects before opctl submitCommand
+      );
+
+      expect(result.accepted).toBe(false);
+      expect(result.status).toBe('blocked');
+      expect(eventBus.publish).not.toHaveBeenCalledWith('mao:projection-changed', expect.anything());
+    });
+
+    it('does NOT publish on T3 hard_stop blocked path (no confirmation proof)', async () => {
+      const eventBus = mockEventBus();
+      const { service } = createService(createWorkflowRun(), { eventBus });
+
+      const result = await service.requestProjectControl(
+        makeControlRequest({ action: 'hard_stop_project' }),
+      );
+
+      expect(result.accepted).toBe(false);
+      expect(eventBus.publish).not.toHaveBeenCalledWith('mao:projection-changed', expect.anything());
+    });
+
+    it('payload contains the correct projectId from the input request', async () => {
+      const eventBus = mockEventBus();
+      const { service, setControlState } = createService(createWorkflowRun(), { eventBus });
+      setControlState('running');
+
+      const customCommandId = randomUUID();
+      await service.requestProjectControl(
+        makeControlRequest({ command_id: customCommandId, action: 'pause_project' }),
+      );
+
+      const projectionCall = (eventBus.publish as any).mock.calls.find(
+        (c: unknown[]) => c[0] === 'mao:projection-changed',
+      );
+      expect(projectionCall).toBeDefined();
+      expect(projectionCall[1]).toEqual({ projectId: PROJECT_ID });
+      // Must NOT contain command_id or other input fields.
+      expect(projectionCall[1]).not.toHaveProperty('command_id');
+    });
+
+    it('publish fires AFTER state mutation has been committed', async () => {
+      const eventBus = mockEventBus();
+      const { service, opctlService, setControlState } = createService(createWorkflowRun(), { eventBus });
+      setControlState('running');
+
+      const submitSpy = vi.spyOn(opctlService, 'submitCommand');
+
+      await service.requestProjectControl(
+        makeControlRequest({ action: 'pause_project' }),
+      );
+
+      const submitOrder = submitSpy.mock.invocationCallOrder[0];
+      const publishCall = (eventBus.publish as any).mock.calls.findIndex(
+        (c: unknown[]) => c[0] === 'mao:projection-changed',
+      );
+      expect(publishCall).toBeGreaterThanOrEqual(0);
+      const publishOrder = (eventBus.publish as any).mock.invocationCallOrder[publishCall];
+      expect(submitOrder).toBeLessThan(publishOrder);
     });
   });
 

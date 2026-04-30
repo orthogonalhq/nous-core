@@ -9,10 +9,19 @@ import {
   MaoSystemSnapshotInputSchema,
   ConfirmationProofSchema,
 } from '@nous/shared';
+import type { IReadEventBus } from '@nous/shared';
 import { router, publicProcedure } from '../trpc';
 
+// SP 1.18 Fix #4 (b.2) — typed-context narrow for .query() handlers.
+// Narrows ctx.eventBus from IEventBus to IReadEventBus; a future
+// .query() handler that tries ctx.eventBus.publish(...) fails to typecheck.
+// Mutation handlers continue to use `publicProcedure` and receive the full IEventBus.
+const readProcedure = publicProcedure.use(({ ctx, next }) =>
+  next({ ctx: { ...ctx, eventBus: ctx.eventBus as IReadEventBus } }),
+);
+
 export const maoRouter = router({
-  getAgentProjections: publicProcedure
+  getAgentProjections: readProcedure
     .input(z.object({ projectId: z.string().uuid() }))
     .query(async ({ ctx, input }) => {
       return ctx.maoProjectionService.getAgentProjections(
@@ -20,7 +29,7 @@ export const maoRouter = router({
       );
     }),
 
-  getProjectControlProjection: publicProcedure
+  getProjectControlProjection: readProcedure
     .input(z.object({ projectId: z.string().uuid() }))
     .query(async ({ ctx, input }) => {
       return ctx.maoProjectionService.getProjectControlProjection(
@@ -28,19 +37,19 @@ export const maoRouter = router({
       );
     }),
 
-  getProjectSnapshot: publicProcedure
+  getProjectSnapshot: readProcedure
     .input(MaoProjectSnapshotInputSchema)
     .query(async ({ ctx, input }) => {
       return ctx.maoProjectionService.getProjectSnapshot(input);
     }),
 
-  getAgentInspectProjection: publicProcedure
+  getAgentInspectProjection: readProcedure
     .input(MaoAgentInspectInputSchema)
     .query(async ({ ctx, input }) => {
       return ctx.maoProjectionService.getAgentInspectProjection(input);
     }),
 
-  getRunGraphSnapshot: publicProcedure
+  getRunGraphSnapshot: readProcedure
     .input(MaoProjectSnapshotInputSchema)
     .query(async ({ ctx, input }) => {
       return ctx.maoProjectionService.getRunGraphSnapshot(input);
@@ -60,7 +69,7 @@ export const maoRouter = router({
       );
     }),
 
-  getControlAuditHistory: publicProcedure
+  getControlAuditHistory: readProcedure
     .input(z.object({ projectId: z.string().uuid() }))
     .query(async ({ ctx, input }) => {
       return ctx.maoProjectionService.getControlAuditHistory(
@@ -68,7 +77,7 @@ export const maoRouter = router({
       );
     }),
 
-  getSystemSnapshot: publicProcedure
+  getSystemSnapshot: readProcedure
     .input(MaoSystemSnapshotInputSchema)
     .query(async ({ ctx, input }) => {
       return ctx.maoProjectionService.getSystemSnapshot(input);

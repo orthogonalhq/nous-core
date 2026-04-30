@@ -6,4 +6,4 @@
  * validation schemas.
  */
 export * from './types.js';
-export type { IEventBus } from './interface.js';
+export type { IEventBus, IReadEventBus } from './interface.js';
