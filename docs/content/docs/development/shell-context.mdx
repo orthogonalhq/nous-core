@@ -1,0 +1,58 @@
+---
+title: Shell Context Hooks
+description: Consumer guide for useShellContext and useShellContextOptional in @nous/ui
+---
+
+# Shell Context Hooks
+
+The web and desktop shells share a single React context — `ShellContext` (in `@nous/ui` at `self/ui/src/components/shell/ShellContext.tsx`) — that exposes the active project id, the project-change handler, and other shell-level state to components that render inside the shell tree.
+
+Sub-phase 1.3 of the project-model-and-settings work consolidated the previous web-only `ProjectContext` into this shared `ShellContext`. As part of that consolidation, two hooks are exported.
+
+## `useShellContext()` — strict variant (default)
+
+Use this hook in components that are always rendered inside `<ShellProvider>`. It throws if called outside the provider, which is the behavior you want for in-shell wiring — accidental renders outside the shell tree fail loudly at runtime instead of silently passing `undefined` through the consumer.
+
+```tsx
+import { useShellContext } from '@nous/ui';
+
+function InShellWidget() {
+  const { activeProjectId, onProjectChange } = useShellContext();
+  // ...
+}
+```
+
+This is the default. Reach for it unless you specifically need the non-throwing variant.
+
+## `useShellContextOptional()` — non-throwing variant
+
+Use this hook when the consuming component may render outside `<ShellProvider>` — most commonly in pages that Next.js statically prerenders, where the page component is analyzed without mounting the full shell.
+
+It returns `null` instead of throwing when no provider is in scope. Consumers handle the `null` case (typically by rendering a loading or empty state) until the shell mounts and the provider is in the tree.
+
+```tsx
+import { useShellContextOptional } from '@nous/ui';
+
+export default function ProjectsPage() {
+  const shell = useShellContextOptional();
+  if (!shell) return null; // SSR-prerender path
+  const { activeProjectId } = shell;
+  // ...
+}
+```
+
+### When to use the optional variant
+
+Pick `useShellContextOptional` when any of the following is true:
+
+- The component is a top-level Next.js page that participates in static prerendering and is reachable without the shell mounted.
+- The component is shared between in-shell and out-of-shell render paths and you cannot guarantee a provider in every path.
+- You are migrating a legacy consumer that previously read from a separate context and you want a defensive fallback during the migration window.
+
+Otherwise, prefer `useShellContext` so renders outside the shell tree continue to fail loudly.
+
+## Migration Notes
+
+The previous web-only `self/apps/web/lib/project-context.tsx` and its `useProject` / `<ProjectProvider>` exports have been removed. Migrated consumers read `activeProjectId` and `onProjectChange` directly from `useShellContextOptional()` (in pages) or `useShellContext()` (inside the shell subtree).
+
+For the MAO surface, the `MaoServicesContextValue.useProject` contract is preserved bit-for-bit by a thin web-side shim (`self/apps/web/lib/use-shell-project-shim.tsx`) that adapts `ShellContext` into the existing `useProject`-shaped contract. Existing MAO consumers do not need to change.
