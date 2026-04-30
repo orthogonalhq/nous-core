@@ -677,9 +677,9 @@ export class MaoProjectionService {
       budgetUtilization,
       generatedAt: context.generatedAt,
     });
-    this.deps.eventBus?.publish('mao:projection-changed', {
-      projectId: parsed.projectId,
-    });
+    // SP 1.18 Fix #1/#2 — .query() = no eventBus.publish; this method is side-effect-free.
+    // Contract: read handlers MUST NOT publish change events on any channel.
+    // Regression-prevented by the IReadEventBus typed split applied at routers/mao.ts.
     return snapshot;
   }
 
@@ -934,6 +934,16 @@ export class MaoProjectionService {
     }
     this.controlAuditByProject.set(parsed.project_id, auditHistory);
 
+    // SP 1.18 Fix #5 — publish on accepted state transition only.
+    // Contract: mao:projection-changed has at least one mutation-driven publisher
+    // after Fix #1 + Fix #2 strip the read-side publishes. Gated on accepted === true
+    // so blocked / rejected / preflight-rejected paths do not re-introduce the cascade.
+    if (accepted) {
+      this.deps.eventBus?.publish('mao:projection-changed', {
+        projectId: parsed.project_id,
+      });
+    }
+
     await this.emitProjectionEvent(
       accepted ? 'mao_project_control_applied' : 'mao_project_control_blocked',
       {
@@ -1062,8 +1072,9 @@ export class MaoProjectionService {
       generatedAt,
     });
 
-    this.deps.eventBus?.publish('mao:projection-changed', {});
-
+    // SP 1.18 Fix #1/#2 — .query() = no eventBus.publish; this method is side-effect-free.
+    // Contract: read handlers MUST NOT publish change events on any channel.
+    // Regression-prevented by the IReadEventBus typed split applied at routers/mao.ts.
     return snapshot;
   }
 
