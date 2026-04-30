@@ -24,12 +24,71 @@ pnpm dev:cli -- projects create --name "My Project"
 
 ## Switching Projects
 
-**Web UI:** Click a project in the sidebar. The chat, traces, and memory views update to that project's context.
+**Web UI:** Click a project avatar in the project switcher rail. The chat, traces, MAO, and memory views update to that project's context.
+
+**Desktop:** Same — click a project avatar in the rail.
+
+When you switch projects:
+
+- The active route resets to the project home view.
+- Navigation history clears, so the back affordance starts fresh on the new project.
+- Per-project view state (last-opened layout, focused entities, navigation breadcrumbs landed in earlier sub-phases) is restored automatically for the project you just switched to.
+
+This behavior is identical on web and desktop — switching feels the same on both surfaces.
 
 **CLI:**
 ```bash
 pnpm dev:cli -- projects switch -p <project-id>
 ```
+
+## Multi-Project Interaction (Phase 1.3)
+
+Phase 1.3 of the project-model-and-settings work brings the project switcher rail to parity across web and desktop and adds the archive lifecycle.
+
+### Project Avatars on the Rail
+
+Each project on the rail renders as a 32-pixel avatar circle. The avatar follows a deterministic precedence:
+
+1. If the project sets a `lucide:<IconName>` icon, the rail renders the named lucide icon at 18 pixels with a white foreground.
+2. If the project sets an `emoji:<glyph>` icon, the rail renders the glyph at 18 pixels.
+3. Otherwise, the rail renders the first letter of the project name.
+
+The avatar background uses the project's `color` if one is set, otherwise a deterministic color derived from the project id. Archived projects render at reduced opacity so they read as inactive at a glance.
+
+The picker UX for selecting an icon or color ships with the per-project Settings Identity page in sub-phase 1.4. In 1.3 the rail renders whatever icon and color the project record carries — choosing them is not yet a user-facing action.
+
+### Archive a Project
+
+Right-click on a project avatar in the rail (long-press on touch surfaces) to open the rail context menu. Choose **Archive**.
+
+If you archive a project that is not currently active, the project disappears from the default rail and becomes available under the Archived disclosure (see below).
+
+If you archive the project that is currently active, Nous handles the active-project handoff for you:
+
+- If at least one other active (non-archived) project exists, Nous switches the active project to the most-recently-used remaining peer (with a deterministic tie-break by project id when recency is unavailable).
+- If no other active projects remain, Nous auto-creates a new project named **Default** and makes it active.
+
+After the active-project handoff, the shell navigates to the project home and clears navigation history, the same way an explicit project switch behaves.
+
+### View Archived Projects
+
+The rail has an Archived disclosure (a toggle below the active project list). Expand it to see archived projects rendered as dimmed avatars. Archived avatars are not selectable as the active project — they are display-only until you unarchive them.
+
+### Unarchive a Project
+
+Right-click on an archived avatar in the Archived disclosure and choose **Unarchive**. The project moves back to the active rail and becomes selectable again.
+
+### When Archive or Unarchive is Blocked
+
+Projects that the runtime is currently operating on can be in a control state that blocks archive operations — for example `hard_stopped` or `resuming`. If you try to archive or unarchive a project in one of those states, Nous surfaces the server's reason inline on the rail as a non-blocking status strip and the project remains unchanged. Resolve the underlying control state (acknowledge the escalation, finish the resume, or wait for the hard-stop to clear) and try again.
+
+The archive UX is intentionally restricted to the right-click context menu in this version — there is no always-visible archive button on the rail. This keeps the rail compact and avoids accidental archive on click.
+
+## Settings Entry Point
+
+The asset sidebar header in the web shell now has a settings gear icon. Clicking it navigates to the Settings route scoped to the active project.
+
+The Settings route renders the per-project Settings UI pages (Identity, Budget and Limits, Models, Governance) starting in sub-phase 1.4 — in 1.3 the entry point is wired and reachable, and the page contents land in the next sub-phase.
 
 ## Project Types
 
