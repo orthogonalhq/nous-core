@@ -1,6 +1,6 @@
 'use client'
 
-import { createContext, useContext, useState, type PropsWithChildren } from 'react'
+import { createContext, useCallback, useContext, useMemo, useState, type PropsWithChildren } from 'react'
 import {
   defaultConversationContext,
   type NavigationState,
@@ -71,16 +71,19 @@ export function ShellProvider({
   const [observePanelCollapsedInternal, setObservePanelCollapsedInternal] =
     useState<boolean>(observePanelCollapsedProp ?? false)
 
-  const setActiveObserveTabResolved = (tab: ObserveTab) => {
+  // SUPV-SP1.17-005, SUPV-SP1.17-008 (preserves SP 11 SUPV-SP11-003 host-prop forwarding).
+  const setActiveObserveTabResolved = useCallback((tab: ObserveTab) => {
     setActiveObserveTabInternal(tab)
     setActiveObserveTabProp?.(tab)
-  }
-  const setObservePanelCollapsedResolved = (v: boolean) => {
+  }, [setActiveObserveTabProp])
+  // SUPV-SP1.17-005, SUPV-SP1.17-008 (preserves SP 11 SUPV-SP11-003 host-prop forwarding).
+  const setObservePanelCollapsedResolved = useCallback((v: boolean) => {
     setObservePanelCollapsedInternal(v)
     setObservePanelCollapsedProp?.(v)
-  }
+  }, [setObservePanelCollapsedProp])
 
-  const value: ShellContextValue = {
+  // SUPV-SP1.17-004 — value identity stable when no observed input has changed; React.memo bypassed by context broadcast (SUPV-SP1.17-022); SDS phase-1.17 Mechanism Choice row RC-B3.
+  const value = useMemo<ShellContextValue>(() => ({
     mode,
     breakpoint,
     activeRoute: resolvedActiveRoute,
@@ -99,7 +102,22 @@ export function ShellProvider({
     setActiveObserveTab: setActiveObserveTabResolved,
     observePanelCollapsed: observePanelCollapsedInternal,
     setObservePanelCollapsed: setObservePanelCollapsedResolved,
-  }
+  }), [
+    mode,
+    breakpoint,
+    resolvedActiveRoute,
+    navigationParams,
+    navigation,
+    conversation,
+    activeProjectId,
+    navigate,
+    goBack,
+    onProjectChange,
+    activeObserveTabInternal,
+    setActiveObserveTabResolved,
+    observePanelCollapsedInternal,
+    setObservePanelCollapsedResolved,
+  ])
 
   return (
     <ShellContext.Provider value={value}>

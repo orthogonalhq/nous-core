@@ -613,13 +613,15 @@ export function App() {
 
   // Health data is now fetched via trpc hooks directly in dashboard widgets.
 
-  const navigation = {
+  // SUPV-SP1.17-001 — value identity stable while activeRoute is content-stable; SDS phase-1.17 Mechanism Choice row RC-B1.
+  const navigation = useMemo(() => ({
     activeRoute,
     history: [activeRoute],
     canGoBack: activeRoute !== DEFAULT_ROUTE,
-  }
+  }), [activeRoute])
 
-  const nativePanelDefs = NATIVE_PANEL_DEFS.map((def) => {
+  // SUPV-SP1.17-002 — chained memo on the actual content-derivation path; SDS phase-1.17 Mechanism Choice row RC-B2.
+  const nativePanelDefs = useMemo(() => NATIVE_PANEL_DEFS.map((def) => {
     if (def.id !== 'preferences') {
       return def
     }
@@ -628,9 +630,18 @@ export function App() {
       ...def,
       params: buildPreferencesPanelParams,
     }
-  })
+  }), [buildPreferencesPanelParams])
 
-  const panelDefs = [...nativePanelDefs, ...appPanels.map(toAppPanelDef)]
+  const panelDefs = useMemo(
+    () => [...nativePanelDefs, ...appPanels.map(toAppPanelDef)],
+    [nativePanelDefs, appPanels],
+  )
+
+  // SUPV-SP1.17-003 — Set identity stable while appPanels is content-stable; hardening (non-load-bearing for BT R3).
+  const activeAppPanelIds = useMemo(
+    () => new Set(appPanels.map((panel) => panel.dockview_panel_id)),
+    [appPanels],
+  )
 
   const loadingShell = (
     <ChromeShell
@@ -728,7 +739,7 @@ export function App() {
         <DockviewShell
           savedLayout={savedLayout}
           onApiReady={setDockviewApi}
-          activeAppPanelIds={new Set(appPanels.map((panel) => panel.dockview_panel_id))}
+          activeAppPanelIds={activeAppPanelIds}
           panelDefs={panelDefs}
         />
       )}

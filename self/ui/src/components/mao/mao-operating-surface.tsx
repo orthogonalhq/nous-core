@@ -253,6 +253,12 @@ export function MaoOperatingSurface() {
   }, [activeTabState]);
 
   // ---- Projects tab: auto-select logic ----
+  // SUPV-SP1.17-007 / SUPV-SP1.17-023 — react-query v5 default `structuralSharing: true`
+  // returns the prior reference for deep-equal data, so `snapshotQuery.data`
+  // identity is stable across no-op refetches; combined with RC-B4
+  // (use-tab-state useMemo) the `currentSelectionValid || currentNodeValid`
+  // short-circuit at line 277 cleanly defuses the auto-select cascade.
+  // SDS phase-1.17 Mechanism Choice row RC-A1 Candidate (ii).
   React.useEffect(() => {
     if (activeTab !== 'projects') return;
     if (!snapshotQuery.data) return;
