@@ -1,0 +1,38 @@
+{
+  "command_family": "claude -p",
+  "dry_run": false,
+  "run_id": "WR-163-phase-1.4-preflight-cleanup",
+  "cwd": "S:\\Localhost\\Nous\\nous-core\\.claude\\worktrees\\feat-project-model-and-settings",
+  "executable": "claude",
+  "command": [
+    "claude",
+    "-p",
+    "Read .opencode\\state\\dispatch\\WR-163-phase-1.4-preflight-cleanup.md.\nDo not merely summarize the dispatch packet; execute the task declared in it.\nBootstrap the named SOP role, execute only that dispatch, and write required artifacts.\nValidate Scope Guard against the dispatch route fields before doing procedure work.\nYour final result must state the witness_authorization_id and completion status: succeeded, failed, or denied.\nWrite your final response packet to .opencode\\state\\runs\\WR-163-phase-1.4-preflight-cleanup\\claude-result.json or include it in the JSON result.\nFor transport smoke tasks that request a marker string, include that marker as the result, not only as a quoted instruction.\n---\nnous:\n  v: 3\n  route:\n    emitter:\n      id: engineer-workflow-sop::Orchestrator::phase-implementation::dispatch-preflight-cleanup\n    target:\n      id: engineer-workflow-sop::Worker::preflight-cleanup-exec::execute-preflight-cleanup\n  authority:\n    lease:\n      issued_by: Cortex:System::workflow-router\n  envelope:\n    direction: internal\n    type: dispatch\n  correlation:\n    handoff_id: 'HF-WR163-1.4-PRE-001'\n    correlation_id: 'WR-163-phase-1.4-preflight-cleanup'\n    cycle: n/a\n    emitted_at_utc: '2026-05-01T00:00:00Z'\n    emitted_at_unix_ms: '1767225600000'\n    sequence_in_run: '3'\n    emitted_at_unix_us: '1767225600000000'\n  payload:\n    schema: preflight-cleanup-dispatch.v1\n    artifact_type: preflight\n  requirements:\n    model:\n      profile: review-implementation\n      fallback_policy: block_if_unmet\n  retry:\n    policy: value-proportional\n    depth: iterative\n    importance_tier: high\n    expected_quality_gain: 0.25\n    estimated_tokens: 1800\n    estimated_compute_minutes: 1.0\n    token_price_ref: .worklog/benchmarks/pricing-rates-stub.mdx\n    compute_price_ref: .worklog/benchmarks/pricing-rates-stub.mdx\n    decision: continue\n    decision_log_ref: .worklog/benchmarks/WR-163-phase-1.4-preflight-cleanup-decision-log.mdx\n    benchmark_tier: nightly\n    self_repair:\n      required_on_fail_close: true\n      orchestration_state: deferred\n      approval_role: cortex:system\n      implementation_mode: dispatch-team\n      plan_ref: .worklog/benchmarks/self-repair/full-plan-todo.mdx\n---\nYou are the engineer-workflow-sop::Worker::preflight-cleanup-exec::execute-preflight-cleanup agent.\n1. Rehydrate context by loading every required path: @AGENTS.md, @.skills/engineer-workflow-sop/SKILL.md, @.skills/engineer-workflow-sop/shared/dispatch-model.md, @.skills/engineer-workflow-sop/shared/revision-cycle-protocol.md, @.skills/engineer-workflow-sop/preflight-agent/ENTRY.md.\n2. Execute and complete the task strictly per your SOP.\n3. End your response with all required packet output(s) for this surface.\n\nYou are the Pre-flight Cleanup WorkerAgent.\nOperate in `skill:engineer-workflow-sop:preflight_cleanup_exec`.\n\nRead:\n1. @.skills/engineer-workflow-sop/preflight-agent/ENTRY.md\n2. @.skills/engineer-workflow-sop/shared/branch-pr-convention.md\n3. @.skills/engineer-workflow-sop/orchestrator/procedures/preflight-resolution.md\n\nTask:\nResolve pre-flight/branch-readiness blockers for Phase 1.4:\n- Source blocker handoff: HF-WR163-1.4-PG-001\n- Blocking condition: Implementation prompt generated and verified at `.worklog/sprints/feat/project-model-and-settings/phase-1/phase-1.4/implementation-agent-prompt.md`, but `.worklog` is dirty/unpushed, failing Implementation Dispatch pre-check Artifact Persist Atomicity. Parent branch/target branch readiness must also be verified.\n- Parent branch: feat/project-model-and-settings\n- Target branch: feat/project-model-and-settings.1.4/settings-ui-pages\n- Nested repo target branch: feat/project-model-and-settings\n\nRequired execution:\n1. Inspect dirty scope in the worktree's parent repo and each nested repo (`<worktree>/.architecture`, `<worktree>/.worklog`, `<worktree>/.skills`) via `git -C <worktree>/<repo> status`.\n2. For each nested repo with uncommitted changes: verify it is on a named branch; if detached HEAD, create a named branch first. Commit changes grouped by concern. This dirt represents a prior Artifact Persist Atomicity violation — record the violation in the completion packet.\n3. Commit parent repo changes inside the worktree only if present, grouped by concern.\n4. Ensure target branch exists from parent branch and checkout target branch.\n5. Ensure each nested repo is on branch `feat/project-model-and-settings` when writable; `.skills` is read-only and may remain on main if clean per SOP.\n6. Confirm full working tree is clean: parent repo and each nested repo status porcelain empty and log @{u}..HEAD empty.\n7. Push each nested-repo branch that received commits to its own remote, then push the parent repo branch. If any push fails, stop and report `status: blocked`.\n8. Under no circumstances touch the main tree (`s:/Localhost/Nous/nous-core`). All operations are scoped to the worktree.\n\nOutput:\nUse `@.skills/engineer-workflow-sop/orchestrator/responses/preflight-cleanup-complete.md`.\nResolve with:\n- `[HANDOFF_ID]`: `HF-WR163-1.4-PRE-001`\n- `[CORRELATION_ID]`: `WR-163-phase-1.4-preflight-cleanup`\n- `[SOURCE_HANDOFF_ID]`: `HF-WR163-1.4-PG-001`\n- `[PHASE_LABEL]`: `Phase 1`\n- `[SUB_PHASE_LABEL]`: `Phase 1.4`\n- `[PARENT_PHASE_BRANCH]`: `feat/project-model-and-settings`\n- `[TARGET_SUB_PHASE_BRANCH]`: `feat/project-model-and-settings.1.4/settings-ui-pages`",
+    "--output-format",
+    "json",
+    "--allowedTools",
+    "Read,Grep,Glob,Bash,Edit,Write,MultiEdit",
+    "--no-session-persistence",
+    "--dangerously-skip-permissions",
+    "--model",
+    "sonnet",
+    "--effort",
+    "medium",
+    "--permission-mode",
+    "bypassPermissions"
+  ],
+  "dispatch_path": ".opencode\\state\\dispatch\\WR-163-phase-1.4-preflight-cleanup.md",
+  "runtime_response_path": ".opencode\\state\\runs\\WR-163-phase-1.4-preflight-cleanup\\claude-result.json",
+  "result_path": ".opencode\\state\\runs\\WR-163-phase-1.4-preflight-cleanup\\claude-result.json",
+  "route": {
+    "emitter_id": "engineer-workflow-sop::Orchestrator::phase-implementation::dispatch-preflight-cleanup",
+    "target_id": "engineer-workflow-sop::Worker::preflight-cleanup-exec::execute-preflight-cleanup",
+    "receive_id": "Orchestrator::engineer-workflow"
+  },
+  "witness_authorization_id": "",
+  "stderr_log": ".opencode\\state\\runs\\WR-163-phase-1.4-preflight-cleanup\\claude.stderr.log",
+  "timeout_seconds": 1800,
+  "permission_mode": "dangerously-skip-permissions",
+  "effort": "medium",
+  "no_session_persistence": true
+}
