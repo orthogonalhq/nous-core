@@ -27,6 +27,8 @@ import {
   AssetSidebarPropsSchema,
   ProjectSwitcherRailPropsSchema,
   SimpleShellLayoutPropsSchema,
+  WorkspaceRouteIdentitySchema,
+  WorkspaceRouteParamsSchema,
 } from '../types'
 
 describe('shell type schemas', () => {
@@ -148,6 +150,44 @@ describe('shell type schemas', () => {
         id: 'home',
         label: 'Home',
         component: 'not-a-component',
+      }).success,
+    ).toBe(false)
+  })
+
+  it('parses workspace route identity as UI projection metadata', () => {
+    expect(
+      WorkspaceRouteIdentitySchema.safeParse({
+        routeId: 'workflow-detail',
+        label: 'Workflow Detail',
+        surface: 'project',
+        params: { definitionId: 'wf-1' },
+      }).success,
+    ).toBe(true)
+
+    expect(WorkspaceRouteParamsSchema.safeParse({ taskId: 'task-1' }).success).toBe(true)
+    expect(WorkspaceRouteParamsSchema.safeParse(undefined).success).toBe(true)
+
+    expect(
+      WorkspaceRouteIdentitySchema.safeParse({
+        routeId: '',
+        label: 'Workflow Detail',
+        surface: 'project',
+      }).success,
+    ).toBe(false)
+
+    expect(
+      WorkspaceRouteIdentitySchema.safeParse({
+        routeId: 'chat',
+        label: '',
+        surface: 'chat',
+      }).success,
+    ).toBe(false)
+
+    expect(
+      WorkspaceRouteIdentitySchema.safeParse({
+        routeId: 'chat',
+        label: 'Chat',
+        surface: 'browser-url',
       }).success,
     ).toBe(false)
   })

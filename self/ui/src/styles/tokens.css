@@ -230,6 +230,8 @@
   --nous-observe-expanded-width:        280px;
   --nous-observe-min-width:             32px;
   --nous-chat-overlay-min-width:        320px;  /* WR-141 — chat overlay floor when sidebar collapsed */
+  --nous-workspace-route-header-height: 64px;
+  --nous-workspace-canvas-padding-x:    32px;
 
   /* -- Chat overlay heights (per stage) */
   --nous-chat-height-small:             fit-content;

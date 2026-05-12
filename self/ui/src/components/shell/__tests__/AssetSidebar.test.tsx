@@ -21,6 +21,7 @@ async function flush() {
 const TOP_NAV: SidebarTopNavItem[] = [
   { id: 'dashboard', label: 'Dashboard', icon: <span>D</span>, routeId: 'dashboard' },
   { id: 'inbox', label: 'Inbox', icon: <span>I</span>, routeId: 'inbox' },
+  { id: 'chat', label: 'Chat', icon: <span>C</span>, routeId: 'chat' },
 ]
 
 const SECTIONS: AssetSection[] = [
@@ -93,6 +94,19 @@ describe('AssetSidebar', () => {
     const inbox = container.querySelector('[data-list-item="inbox"]')
     expect(dashboard).toBeTruthy()
     expect(inbox).toBeTruthy()
+  })
+
+  it('renders Project and Chat navigation through the same sidebar list-item path', async () => {
+    await renderSidebar({ activeRoute: 'chat' })
+
+    const dashboard = container.querySelector('[data-list-item="dashboard"]')
+    const chat = container.querySelector('[data-list-item="chat"]')
+    expect(dashboard?.tagName).toBe('BUTTON')
+    expect(chat?.tagName).toBe('BUTTON')
+    expect(chat?.getAttribute('data-state')).toBe('active')
+    expect(chat?.getAttribute('aria-current')).toBe('page')
+    expect(container.querySelector('[data-shell-component="status-bar"]')).toBeNull()
+    expect(container.querySelector('[data-shell-component="menu-bar"]')).toBeNull()
   })
 
   it('highlights active route in top nav', async () => {

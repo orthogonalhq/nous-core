@@ -33,7 +33,9 @@ function createDockviewApi(openPanelIds: string[] = []): DockviewApi {
 
 async function openViewMenu() {
   const trigger = screen.getByText('View')
-  fireEvent.pointerDown(trigger)
+  trigger.focus()
+  fireEvent.pointerDown(trigger, { button: 0, ctrlKey: false })
+  fireEvent.keyDown(trigger, { key: 'ArrowDown' })
   fireEvent.click(trigger)
 
   await waitFor(() => {
@@ -100,7 +102,7 @@ describe('AppMenuBar', () => {
     expect(screen.getByText('Toggle Developer Mode')).toBeInTheDocument()
     expect(screen.getByText('Ctrl+Shift+D')).toBeInTheDocument()
     expect(screen.getByText('Ctrl+K')).toBeInTheDocument()
-    expect(screen.getByText('Command Palette')).toHaveAttribute('data-disabled')
+    expect(screen.getByText('Command Palette').closest('[role="menuitem"]')).toHaveAttribute('data-disabled')
 
     rerender(
       <AppMenuBar
@@ -114,7 +116,7 @@ describe('AppMenuBar', () => {
     await openViewMenu()
 
     expect(screen.getByText('Toggle Developer Mode')).toBeInTheDocument()
-    expect(screen.getByText('Command Palette')).toHaveAttribute('data-disabled')
+    expect(screen.getByText('Command Palette').closest('[role="menuitem"]')).toHaveAttribute('data-disabled')
   })
 
   it('calls onModeToggle when the developer mode item is selected', async () => {

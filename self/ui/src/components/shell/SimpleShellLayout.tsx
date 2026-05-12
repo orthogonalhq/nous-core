@@ -172,7 +172,7 @@ export function SimpleShellLayout({
         position: 'relative',
         width: '100%',
         height: '100%',
-        background: 'var(--nous-bg-base)',
+        background: 'var(--nous-workspace-canvas-bg)',
         transition: isAnimating ? 'grid-template-columns var(--nous-duration-normal) var(--nous-ease-out)' : undefined,
         ...style,
     }
