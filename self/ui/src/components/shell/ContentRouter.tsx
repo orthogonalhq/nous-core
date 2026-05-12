@@ -2,18 +2,21 @@
 
 import * as React from 'react'
 import { clsx } from 'clsx'
+import type { WorkspaceRouteIdentity } from './types'
 
 export interface ContentRouterRenderProps {
   navigate: (routeId: string, params?: Record<string, unknown>) => void
   goBack: () => void
   canGoBack: boolean
   params?: Record<string, unknown>
+  routeIdentity?: WorkspaceRouteIdentity
 }
 
 export interface ContentRouterProps
   extends React.HTMLAttributes<HTMLDivElement> {
   activeRoute: string
   routes: Record<string, React.ComponentType<ContentRouterRenderProps>>
+  routeIdentities?: Record<string, Omit<WorkspaceRouteIdentity, 'params'>>
   onNavigate?: (route: string, params?: Record<string, unknown>) => void
   /** Params to pass to the component when navigation is driven by the activeRoute prop */
   navigationParams?: Record<string, unknown>
@@ -28,6 +31,7 @@ function stackEntryEquals(a: StackEntry, b: StackEntry): boolean {
 export function ContentRouter({
   activeRoute,
   routes,
+  routeIdentities,
   onNavigate,
   navigationParams: externalParams,
   className,
@@ -100,10 +104,24 @@ export function ContentRouter({
   const currentRoute = stack[stack.length - 1]?.route ?? ''
   const ActiveRoute = routes[currentRoute]
   const canGoBack = stack.length > 1
+  const currentIdentityTemplate = routeIdentities?.[currentRoute]
+  const currentIdentity: WorkspaceRouteIdentity | undefined = currentIdentityTemplate
+    ? { ...currentIdentityTemplate, params: navigationParams }
+    : currentRoute
+      ? {
+          routeId: currentRoute,
+          label: currentRoute,
+          surface: currentRoute === 'chat' ? 'chat' : 'workspace',
+          params: navigationParams,
+        }
+      : undefined
 
   return (
     <div
       className={clsx('nous-content-router', className)}
+      data-workspace-route-id={currentIdentity?.routeId}
+      data-workspace-route-label={currentIdentity?.label}
+      data-workspace-route-surface={currentIdentity?.surface}
       style={{
         display: 'flex',
         height: '100%',
@@ -112,8 +130,27 @@ export function ContentRouter({
         gap: 'var(--nous-space-sm)',
         ...style,
       }}
-      {...props}
+        {...props}
     >
+      {currentIdentity ? (
+        <div
+          data-workspace-route-identity="true"
+          style={{
+            display: 'flex',
+            alignItems: 'center',
+            gap: 'var(--nous-space-sm)',
+            minHeight: 'var(--nous-workspace-route-header-height)',
+            padding: '0 var(--nous-workspace-canvas-padding-x)',
+            borderBottom: '1px solid var(--nous-workspace-shell-border)',
+            color: 'var(--nous-workspace-route-label-fg)',
+            fontSize: 'var(--nous-font-size-sm)',
+            fontWeight: 600,
+          }}
+        >
+          <span>{currentIdentity.label}</span>
+        </div>
+      ) : null}
+
       {canGoBack ? (
         <div
           style={{
@@ -153,8 +190,20 @@ export function ContentRouter({
             goBack={goBack}
             canGoBack={canGoBack}
             params={navigationParams}
+            routeIdentity={currentIdentity}
           />
-        ) : null}
+        ) : (
+          <div
+            role="status"
+            data-workspace-route-missing="true"
+            style={{
+              padding: 'var(--nous-space-3xl)',
+              color: 'var(--nous-text-secondary)',
+            }}
+          >
+            Workspace route unavailable: {currentRoute || 'none'}
+          </div>
+        )}
       </div>
     </div>
   )

@@ -6,6 +6,7 @@ import {
   InboxView,
   ChatTabView,
   type ContentRouterRenderProps,
+  type WorkspaceRouteIdentity,
 } from '@nous/ui/components'
 import {
   STUB_THREADS,
@@ -35,4 +36,24 @@ export const BASE_SIMPLE_MODE_ROUTES: Record<string, React.ComponentType<Content
   chat: ChatTabView,
   usage: (props: ContentRouterRenderProps) => <PlaceholderRoute {...props} label="Usage" />,
   marketplace: (props: ContentRouterRenderProps) => <PlaceholderRoute {...props} label="Marketplace" />,
+}
+
+export const BASE_SIMPLE_MODE_ROUTE_IDENTITIES: Record<string, Omit<WorkspaceRouteIdentity, 'params'>> = {
+  home: { routeId: 'home', label: 'Workspace Home', surface: 'workspace' },
+  threads: { routeId: 'threads', label: 'Threads', surface: 'workspace' },
+  workflows: { routeId: 'workflows', label: 'Workflows', surface: 'project' },
+  skills: { routeId: 'skills', label: 'Skills', surface: 'workspace' },
+  apps: { routeId: 'apps', label: 'Apps', surface: 'workspace' },
+  dashboard: { routeId: 'dashboard', label: 'Dashboard', surface: 'project' },
+  'org-chart': { routeId: 'org-chart', label: 'Organization Chart', surface: 'project' },
+  inbox: { routeId: 'inbox', label: 'Inbox', surface: 'project' },
+  'workflow-detail': { routeId: 'workflow-detail', label: 'Workflow Detail', surface: 'project' },
+  tasks: { routeId: 'tasks', label: 'Tasks', surface: 'project' },
+  'task-detail': { routeId: 'task-detail', label: 'Task Detail', surface: 'project' },
+  'task-create': { routeId: 'task-create', label: 'Create Task', surface: 'project' },
+  agents: { routeId: 'agents', label: 'Agents', surface: 'project' },
+  'agent-detail': { routeId: 'agent-detail', label: 'Agent Detail', surface: 'project' },
+  chat: { routeId: 'chat', label: 'Chat', surface: 'chat' },
+  usage: { routeId: 'usage', label: 'Usage', surface: 'workspace' },
+  marketplace: { routeId: 'marketplace', label: 'Marketplace', surface: 'workspace' },
 }

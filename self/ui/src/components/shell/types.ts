@@ -72,6 +72,16 @@ export const ContentRouteSchema = z.object({
 })
 export type ContentRoute = z.infer<typeof ContentRouteSchema>
 
+export const WorkspaceRouteParamsSchema = z.record(z.string(), z.unknown()).optional()
+
+export const WorkspaceRouteIdentitySchema = z.object({
+  routeId: z.string().min(1),
+  label: z.string().min(1),
+  surface: z.enum(['project', 'chat', 'workspace']),
+  params: WorkspaceRouteParamsSchema,
+})
+export type WorkspaceRouteIdentity = z.infer<typeof WorkspaceRouteIdentitySchema>
+
 export interface NavigationState {
   activeRoute: string
   history: string[]
