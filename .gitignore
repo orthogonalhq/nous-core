@@ -42,12 +42,11 @@ yarn-error.log*
 *.sqlite-wal
 
 # Internal (private, not for public repo)
-/.opencode/
 /.apps/
 /.contracts/
 /.projects/
 /.workflows/
-# .architecture, .skills, .worklog are private git submodules
+# .architecture, .skills, .worklog, .opencode are private git submodules
 # (see .gitmodules). Public clones will 404 on submodule init —
 # this is expected; public repo functions standalone per the
 # conditional in AGENTS.md (the "If .skills/ is present" branch).

@@ -1,13 +1,13 @@
 # Submodule Reintroduction — Migration Runbook
 
 **Status:** Active migration. Branch `feat/reintroduce-private-submodules`.
-**Audience:** Internal contributors with private-clone access. Any worktree with active in-flight work in `.architecture/`, `.worklog/`, or `.skills/`.
+**Audience:** Internal contributors with private-clone access. Any worktree with active in-flight work in `.architecture/`, `.worklog/`, `.skills/`, or `.opencode/`.
 
 ---
 
 ## Why this is happening
 
-`.architecture/`, `.worklog/`, and `.skills/` were git submodules until commit `35d84bbe` (2026-04-16) removed them as part of public-repo presentation cleanup. The removal solved the public-repo problem but introduced operational friction across worktrees: every cross-cutting metadata write (WR captures, AGENTS.md updates, SOP changes) requires manual cross-clone synchronization, costing ~4 hours per day across active sprints.
+`.architecture/`, `.worklog/`, `.skills/`, and `.opencode/` were git submodules (or live in the same "private nested repo" architecture) until commit `35d84bbe` (2026-04-16) removed the submodule references as part of public-repo presentation cleanup. The removal solved the public-repo problem but introduced operational friction across worktrees: every cross-cutting metadata write (WR captures, AGENTS.md updates, SOP changes) requires manual cross-clone synchronization, costing ~4 hours per day across active sprints.
 
 This PR reintroduces the submodules with explicit "private submodule, public clones may 404" labeling. Public clones gracefully degrade via the existing `AGENTS.md` conditional. Internal clones get atomic cross-worktree visibility.
 
@@ -28,9 +28,12 @@ Before migrating ANY worktree, verify nested-repo state is at a clean checkpoint
 git -C <worktree>/.architecture status --porcelain
 git -C <worktree>/.worklog status --porcelain
 git -C <worktree>/.skills status --porcelain
+git -C <worktree>/.opencode status --porcelain
 ```
 
 Each MUST be empty. If any has uncommitted work, finish the in-flight commit + push per Artifact Persist Atomicity before proceeding. The migration must NOT clobber uncommitted nested-repo work.
+
+For `.opencode/` specifically: runtime state under `.opencode/state/runs/` (worker dispatch results, stderr logs) is a known recurring polluter — it must be either committed under `.worklog/` or moved out before migration. Leaving it untracked-in-place will trip `status --porcelain`.
 
 Also verify each nested-repo clone has pushed everything to origin:
 
@@ -38,6 +41,7 @@ Also verify each nested-repo clone has pushed everything to origin:
 git -C <worktree>/.architecture log @{u}..HEAD
 git -C <worktree>/.worklog log @{u}..HEAD
 git -C <worktree>/.skills log @{u}..HEAD
+git -C <worktree>/.opencode log @{u}..HEAD
 ```
 
 Each MUST be empty (no unpushed commits).
@@ -50,7 +54,7 @@ Assumes the parent PR has merged to `dev` and the worktree's parent branch will 
    ```bash
    git -C <worktree>/.architecture rev-parse HEAD
    git -C <worktree>/.architecture branch --show-current
-   # repeat for .worklog and .skills
+   # repeat for .worklog, .skills, .opencode
    ```
    Record these — you'll restore them after submodule init.
 
@@ -68,6 +72,7 @@ Assumes the parent PR has merged to `dev` and the worktree's parent branch will 
    git -C <worktree>/.architecture checkout <sprint-branch>
    git -C <worktree>/.worklog checkout <sprint-branch>
    git -C <worktree>/.skills checkout <sprint-branch>
+   git -C <worktree>/.opencode checkout <sprint-branch>   # often opencode-payload or main
    ```
    Verify with `git -C <worktree>/<repo> branch --show-current` — must NOT be empty (no detached HEAD).
 

@@ -80,7 +80,7 @@ pnpm build
 
 ### A note on private submodules
 
-This repo references three private submodules under `.architecture/`, `.worklog/`, and `.skills/`. They contain internal design documents, sprint working artifacts, and SOP/process recipes — the "code open, recipes private" stance.
+This repo references four private submodules under `.architecture/`, `.worklog/`, `.skills/`, and `.opencode/`. They contain internal design documents, sprint working artifacts, SOP/process recipes, and the OpenCode harness adapter — the "code open, recipes private" stance.
 
 For **public clones**, these submodule paths will return 404 on `git submodule update --init`. **This is expected.** The repo functions standalone — every public-facing surface (`AGENTS.md`, build, test, CI) has a conditional that detects whether the private clones are present and degrades gracefully when they are not. You do not need to initialize the submodules to build or run Nous from a public clone.
 
