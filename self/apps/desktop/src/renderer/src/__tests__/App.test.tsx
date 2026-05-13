@@ -252,6 +252,10 @@ describe('App', () => {
     expect(screen.getByText('No observe content for this view')).toBeInTheDocument()
     expect(screen.queryByText('Dockview shell')).not.toBeInTheDocument()
     expect(screen.queryByText('Status bar')).not.toBeInTheDocument()
+    const chat = document.querySelector('[data-shell-area="chat"]') as HTMLElement | null
+    expect(chat?.dataset.chatOwner).toBe('Cortex:Principal')
+    expect(chat?.dataset.chatContainer).toBe('principal-drawer')
+    expect(chat?.getAttribute('aria-label')).toBe('Cortex Principal chat drawer')
     expect(mock.mode.get).toHaveBeenCalledTimes(1)
   })
 
@@ -268,6 +272,7 @@ describe('App', () => {
 
     expect(await screen.findByText('Dockview shell')).toBeInTheDocument()
     expect(screen.getByText('Status bar')).toBeInTheDocument()
+    expect(document.querySelector('[data-chat-container="principal-drawer"]')).toBeNull()
     expect(mock.mode.get).toHaveBeenCalledTimes(1)
   })
 
