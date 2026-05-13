@@ -230,6 +230,13 @@
   --nous-observe-expanded-width:        280px;
   --nous-observe-min-width:             32px;
   --nous-chat-overlay-min-width:        320px;  /* WR-141 — chat overlay floor when sidebar collapsed */
+  --nous-chat-drawer-expanded-width:    560px;
+  --nous-chat-drawer-bottom-offset:     12px;
+  --nous-chat-drawer-left-offset:       12px;
+  --nous-chat-drawer-radius:            14px;
+  --nous-chat-drawer-bg:                rgba(1, 1, 1, 0.82);
+  --nous-chat-drawer-border:            rgba(255, 255, 255, 0.08);
+  --nous-chat-drawer-shadow:            0 24px 60px rgba(0, 0, 0, 0.44);
   --nous-workspace-route-header-height: 64px;
   --nous-workspace-canvas-padding-x:    32px;
 
