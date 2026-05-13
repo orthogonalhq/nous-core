@@ -289,4 +289,23 @@ describe('useChatStageManager', () => {
     act(() => result.current.handleClickOutside())
     expect(result.current.chatStage).toBe('small')
   })
+
+  it('preserves stage ownership across drawer geometry states without local duplication', () => {
+    const { result } = renderHook(() => useChatStageManager())
+
+    act(() => result.current.signalSending())
+    expect(result.current.chatStage).toBe('ambient_small')
+
+    act(() => result.current.signalPfcDecision())
+    expect(result.current.chatStage).toBe('ambient_large')
+
+    act(() => result.current.expandToFull())
+    expect(result.current.chatStage).toBe('full')
+
+    act(() => result.current.minimizeToAmbientLarge())
+    expect(result.current.chatStage).toBe('ambient_large')
+
+    act(() => result.current.collapseToSmall())
+    expect(result.current.chatStage).toBe('small')
+  })
 })

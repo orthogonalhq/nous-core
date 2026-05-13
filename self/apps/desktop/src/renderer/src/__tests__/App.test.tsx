@@ -1,4 +1,5 @@
 import { act, fireEvent, render, screen, waitFor } from '@testing-library/react'
+import type { ReactNode } from 'react'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import {
   createElectronAPIMock,
@@ -12,7 +13,90 @@ const trpcFetchMock = vi.hoisted(() => ({
   trpcMutate: vi.fn(),
 }))
 
+const transportMock = vi.hoisted(() => ({
+  createDesktopTransport: vi.fn((config: unknown) => config),
+  useEventSubscription: vi.fn(),
+  useUtils: vi.fn(() => ({
+    notifications: {
+      countActive: { invalidate: vi.fn() },
+    },
+    mao: {
+      getSystemSnapshot: { invalidate: vi.fn() },
+      getProjectSnapshot: { invalidate: vi.fn() },
+      getAgentInspectProjection: { invalidate: vi.fn() },
+      getProjectControlProjection: { invalidate: vi.fn() },
+      getControlAuditHistory: { invalidate: vi.fn() },
+    },
+    health: {
+      systemStatus: { invalidate: vi.fn() },
+    },
+    escalations: {
+      listProjectQueue: { invalidate: vi.fn() },
+    },
+    tasks: {
+      list: { invalidate: vi.fn() },
+      get: { invalidate: vi.fn() },
+      executions: { invalidate: vi.fn() },
+    },
+    projects: {
+      listWorkflowDefinitions: { invalidate: vi.fn() },
+      dashboardSnapshot: { invalidate: vi.fn() },
+    },
+  })),
+  projectListQuery: vi.fn(() => ({ data: [{ id: 'project-1', name: 'Project' }] })),
+  projectCreateMutation: vi.fn(() => ({ mutateAsync: vi.fn(async () => ({ id: 'project-1' })) })),
+  notificationCountQuery: vi.fn(() => ({ data: 0 })),
+}))
+
 vi.mock('../components/wizard/trpc-fetch', () => trpcFetchMock)
+
+vi.mock('@nous/transport', () => {
+  return {
+    TransportProvider: ({ children }: { children: ReactNode }) => <>{children}</>,
+    createDesktopTransport: transportMock.createDesktopTransport,
+    useEventSubscription: transportMock.useEventSubscription,
+    trpc: {
+      useUtils: transportMock.useUtils,
+      projects: {
+        list: { useQuery: transportMock.projectListQuery },
+        create: { useMutation: transportMock.projectCreateMutation },
+        listWorkflowDefinitions: { useQuery: vi.fn(() => ({ data: [] })) },
+        saveWorkflowSpec: { useMutation: vi.fn(() => ({ mutateAsync: vi.fn() })) },
+        renameWorkflowDefinition: { useMutation: vi.fn(() => ({ mutateAsync: vi.fn() })) },
+        deleteWorkflowDefinition: { useMutation: vi.fn(() => ({ mutateAsync: vi.fn() })) },
+      },
+      tasks: {
+        list: { useQuery: vi.fn(() => ({ data: [] })) },
+        get: { useQuery: vi.fn(() => ({ data: null })) },
+        executions: { useQuery: vi.fn(() => ({ data: [] })) },
+        create: { useMutation: vi.fn(() => ({ mutateAsync: vi.fn() })) },
+        update: { useMutation: vi.fn(() => ({ mutateAsync: vi.fn() })) },
+        delete: { useMutation: vi.fn(() => ({ mutateAsync: vi.fn() })) },
+        toggle: { useMutation: vi.fn(() => ({ mutateAsync: vi.fn() })) },
+        trigger: { useMutation: vi.fn(() => ({ mutateAsync: vi.fn() })) },
+      },
+      notifications: {
+        countActive: { useQuery: transportMock.notificationCountQuery },
+      },
+      mao: {
+        requestProjectControl: { useMutation: vi.fn(() => ({ mutateAsync: vi.fn() })) },
+        getSystemSnapshot: { useQuery: vi.fn(() => ({ data: null })) },
+        getProjectSnapshot: { useQuery: vi.fn(() => ({ data: null })) },
+        getAgentInspectProjection: { useQuery: vi.fn(() => ({ data: null })) },
+        getControlAuditHistory: { useQuery: vi.fn(() => ({ data: [] })) },
+      },
+      health: {
+        systemStatus: { useQuery: vi.fn(() => ({ data: null })) },
+      },
+      escalations: {
+        listProjectQueue: { useQuery: vi.fn(() => ({ data: [] })) },
+      },
+      opctl: {
+        requestConfirmationProof: { useMutation: vi.fn(() => ({ mutateAsync: vi.fn() })) },
+      },
+    },
+  }
+})
 
 const dockviewApiMock = vi.hoisted(() => ({
   panels: [] as never[],
@@ -68,6 +152,8 @@ vi.mock('@nous/ui/panels', () => {
     AgentPanel: Panel,
     PreferencesPanel: Panel,
     WorkflowBuilderPanel: Panel,
+    TaskDetailView: Panel,
+    TaskCreateForm: Panel,
     useCodexBarApi: () => null,
     useDashboardApi: () => null,
   }
@@ -84,6 +170,11 @@ vi.mock('../components/TitleBar', () => ({
 
 vi.mock('../components/StatusBar', () => ({
   StatusBar: () => <div>Status bar</div>,
+}))
+
+vi.mock('../desktop-chat-wrappers', () => ({
+  DesktopChatPanel: () => <div>Desktop chat panel</div>,
+  ConnectedChatSurface: () => <div>Chat surface</div>,
 }))
 
 vi.mock('../components/FirstRunWizard', () => ({
@@ -131,6 +222,12 @@ describe('App', () => {
     })
     trpcFetchMock.trpcMutate.mockResolvedValue(null)
     trpcFetchMock.setBackendPort.mockClear()
+    transportMock.createDesktopTransport.mockClear()
+    transportMock.useEventSubscription.mockClear()
+    transportMock.useUtils.mockClear()
+    transportMock.projectListQuery.mockClear()
+    transportMock.projectCreateMutation.mockClear()
+    transportMock.notificationCountQuery.mockClear()
   })
 
   it('starts in simple mode by default', async () => {
@@ -154,6 +251,11 @@ describe('App', () => {
     // Observe column renders (ObservePanel default view text)
     expect(screen.getByText('No observe content for this view')).toBeInTheDocument()
     expect(screen.queryByText('Dockview shell')).not.toBeInTheDocument()
+    expect(screen.queryByText('Status bar')).not.toBeInTheDocument()
+    const chat = document.querySelector('[data-shell-area="chat"]') as HTMLElement | null
+    expect(chat?.dataset.chatOwner).toBe('Cortex:Principal')
+    expect(chat?.dataset.chatContainer).toBe('principal-drawer')
+    expect(chat?.getAttribute('aria-label')).toBe('Cortex Principal chat drawer')
     expect(mock.mode.get).toHaveBeenCalledTimes(1)
   })
 
@@ -169,6 +271,8 @@ describe('App', () => {
     render(<App />)
 
     expect(await screen.findByText('Dockview shell')).toBeInTheDocument()
+    expect(screen.getByText('Status bar')).toBeInTheDocument()
+    expect(document.querySelector('[data-chat-container="principal-drawer"]')).toBeNull()
     expect(mock.mode.get).toHaveBeenCalledTimes(1)
   })
 
@@ -234,6 +338,7 @@ describe('App', () => {
 
   it('skips persisting the layout when serialization fails', async () => {
     const mock = installMock()
+    mock.mode.get.mockResolvedValue('developer')
     const warnSpy = vi.spyOn(console, 'warn').mockImplementation(() => {})
     const circularLayout: Record<string, unknown> = {}
     circularLayout.self = circularLayout
@@ -272,6 +377,7 @@ describe('App', () => {
 
   it('catches synchronous layout persistence errors without crashing', async () => {
     const mock = installMock()
+    mock.mode.get.mockResolvedValue('developer')
     const errorSpy = vi.spyOn(console, 'error').mockImplementation(() => {})
     const syncError = new Error('An object could not be cloned')
 
@@ -316,7 +422,8 @@ describe('App', () => {
   })
 
   it('shows the dockview shell when first-run is already complete', async () => {
-    installMock()
+    const mock = installMock()
+    mock.mode.get.mockResolvedValue('developer')
     trpcFetchMock.trpcQuery.mockImplementation(async (procedure: string) => {
       if (procedure === 'firstRun.getWizardState') return createFirstRunState({ currentStep: 'complete', complete: true })
       if (procedure === 'packages.listAppPanels') return []
@@ -329,7 +436,8 @@ describe('App', () => {
   })
 
   it('transitions from the wizard shell to dockview after completion', async () => {
-    installMock()
+    const mock = installMock()
+    mock.mode.get.mockResolvedValue('developer')
     // Default trpcQuery mock returns incomplete wizard state
 
     render(<App />)
@@ -400,7 +508,8 @@ describe('App', () => {
   })
 
   it('wires the preferences panel reset callback back into app initialization', async () => {
-    installMock()
+    const mock = installMock()
+    mock.mode.get.mockResolvedValue('developer')
     let wizardCallCount = 0
     trpcFetchMock.trpcQuery.mockImplementation(async (procedure: string) => {
       if (procedure === 'firstRun.getWizardState') {
@@ -437,7 +546,7 @@ describe('App', () => {
   })
 
   it('opens command palette with Ctrl+K', async () => {
-    const mock = installMock()
+    installMock()
     trpcFetchMock.trpcQuery.mockImplementation(async (procedure: string) => {
       if (procedure === 'firstRun.getWizardState') return createFirstRunState({ currentStep: 'complete', complete: true })
       if (procedure === 'packages.listAppPanels') return []
@@ -463,7 +572,7 @@ describe('App', () => {
   })
 
   it('closes command palette with Escape', async () => {
-    const mock = installMock()
+    installMock()
     trpcFetchMock.trpcQuery.mockImplementation(async (procedure: string) => {
       if (procedure === 'firstRun.getWizardState') return createFirstRunState({ currentStep: 'complete', complete: true })
       if (procedure === 'packages.listAppPanels') return []
@@ -494,7 +603,7 @@ describe('App', () => {
   })
 
   it('navigates via command palette', async () => {
-    const mock = installMock()
+    installMock()
     trpcFetchMock.trpcQuery.mockImplementation(async (procedure: string) => {
       if (procedure === 'firstRun.getWizardState') return createFirstRunState({ currentStep: 'complete', complete: true })
       if (procedure === 'packages.listAppPanels') return []

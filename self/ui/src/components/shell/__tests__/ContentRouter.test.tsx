@@ -36,10 +36,26 @@ function ParamRoute({ params }: ContentRouterRenderProps) {
   return <div data-testid="param-route">Param: {params?.definitionId as string ?? 'none'}</div>
 }
 
+function IdentityRoute({ routeIdentity }: ContentRouterRenderProps) {
+  return (
+    <div data-testid="identity-route">
+      {routeIdentity?.routeId}:{routeIdentity?.surface}:{routeIdentity?.params?.taskId as string ?? 'none'}
+    </div>
+  )
+}
+
 const routes = {
   home: HomeRoute,
   details: DetailsRoute,
   'workflow-detail': ParamRoute,
+  'task-detail': IdentityRoute,
+}
+
+const routeIdentities = {
+  home: { routeId: 'home', label: 'Workspace Home', surface: 'workspace' as const },
+  details: { routeId: 'details', label: 'Details', surface: 'workspace' as const },
+  'workflow-detail': { routeId: 'workflow-detail', label: 'Workflow Detail', surface: 'project' as const },
+  'task-detail': { routeId: 'task-detail', label: 'Task Detail', surface: 'project' as const },
 }
 
 async function renderRouter(
@@ -50,6 +66,7 @@ async function renderRouter(
       <ContentRouter
         activeRoute="home"
         routes={routes}
+        routeIdentities={routeIdentities}
         {...overrides}
       />,
     )
@@ -116,12 +133,27 @@ describe('ContentRouter', () => {
     expect(onNavigate).toHaveBeenCalledWith('home', undefined)
   })
 
-  it('renders nothing when the active route is unknown', async () => {
+  it('renders visible fallback when the active route is unknown', async () => {
     await renderRouter({
       activeRoute: 'missing',
     })
 
-    expect(container.textContent?.trim()).toBe('')
+    expect(container.textContent).toContain('Workspace route unavailable: missing')
+    expect(container.querySelector('[data-workspace-route-missing="true"]')).toBeTruthy()
+  })
+
+  it('renders route identity as visible workspace projection metadata', async () => {
+    await renderRouter({
+      activeRoute: 'task-detail',
+      navigationParams: { taskId: 'task-1' },
+    })
+
+    const router = container.querySelector('.nous-content-router') as HTMLElement
+    expect(router.dataset.workspaceRouteId).toBe('task-detail')
+    expect(router.dataset.workspaceRouteLabel).toBe('Task Detail')
+    expect(router.dataset.workspaceRouteSurface).toBe('project')
+    expect(container.querySelector('[data-workspace-route-identity="true"]')?.textContent).toContain('Task Detail')
+    expect(container.textContent).toContain('task-detail:project:task-1')
   })
 
   it('pushes distinct stack entries for same route with different params', async () => {
@@ -143,6 +175,7 @@ describe('ContentRouter', () => {
           activeRoute="workflow-detail"
           navigationParams={{ definitionId: 'b' }}
           routes={routes}
+          routeIdentities={routeIdentities}
           onNavigate={onNavigate}
         />,
       )
@@ -184,6 +217,7 @@ describe('ContentRouter', () => {
           activeRoute="workflow-detail"
           navigationParams={{ definitionId: 'a' }}
           routes={routes}
+          routeIdentities={routeIdentities}
           onNavigate={onNavigate}
         />,
       )

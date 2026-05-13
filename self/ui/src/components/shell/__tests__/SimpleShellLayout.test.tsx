@@ -81,6 +81,12 @@ describe('SimpleShellLayout', () => {
     expect(getArea('chat')).toBeTruthy()
   })
 
+  it('uses the shell-specific workspace canvas token for the frame background', async () => {
+    await renderLayout()
+    const layout = container.firstElementChild as HTMLDivElement
+    expect(layout.style.background).toBe('var(--nous-workspace-canvas-bg)')
+  })
+
   it('sets single-row grid-template-areas on the container', async () => {
     await renderLayout()
     const layout = container.firstElementChild as HTMLDivElement
@@ -93,13 +99,17 @@ describe('SimpleShellLayout', () => {
     expect(layout.style.gridTemplateRows).toBe('minmax(0, 1fr)')
   })
 
-  it('chat overlay is positioned absolutely', async () => {
+  it('chat drawer is positioned as a Cortex Principal simple-shell container', async () => {
     await renderLayout()
     const chat = getArea('chat')
     expect(chat.style.position).toBe('absolute')
-    expect(chat.style.bottom).toBe('0px')
-    expect(chat.style.left).toBe('0px')
+    expect(chat.style.bottom).toBe('var(--nous-chat-drawer-bottom-offset)')
+    expect(chat.style.left).toBe('var(--nous-chat-drawer-left-offset)')
     expect(chat.style.zIndex).toBe('10')
+    expect(chat.getAttribute('data-chat-owner')).toBe('Cortex:Principal')
+    expect(chat.getAttribute('data-chat-container')).toBe('principal-drawer')
+    expect(chat.getAttribute('role')).toBe('complementary')
+    expect(chat.getAttribute('aria-label')).toBe('Cortex Principal chat drawer')
   })
 
   it('applies initial widths as CSS custom properties', async () => {
@@ -170,16 +180,87 @@ describe('SimpleShellLayout', () => {
     expect(divider).toBeTruthy()
   })
 
-  it('chat overlay has transition for smooth animation', async () => {
+  it('chat drawer has transition for smooth animation', async () => {
     await renderLayout()
     const chat = getArea('chat')
-    expect(chat.style.transition).toBe('height var(--nous-duration-slow) var(--nous-ease-out), background var(--nous-duration-slow) var(--nous-ease-out)')
+    expect(chat.style.transition).toBe('width var(--nous-duration-slow) var(--nous-ease-out), height var(--nous-duration-slow) var(--nous-ease-out), background var(--nous-duration-slow) var(--nous-ease-out)')
   })
 
   it('sets data-chat-stage attribute on chat overlay', async () => {
     await renderLayout({ chatStage: 'ambient_large' })
     const chat = getArea('chat')
     expect(chat.getAttribute('data-chat-stage')).toBe('ambient_large')
+  })
+
+  it('keeps small and ambient_small stages scoped to the rail and asset-sidebar drawer width', async () => {
+    await renderLayout({ chatStage: 'small' })
+    let chat = getArea('chat')
+    expect(chat.style.width).toBe('var(--shell-chat-drawer-collapsed-width)')
+
+    await act(async () => {
+      root.render(
+        <SimpleShellLayout
+          projectRail={<div>rail</div>}
+          sidebar={<div>sidebar</div>}
+          content={<div>content</div>}
+          observe={<div>observe</div>}
+          chatSlot={({ stage }) => <div data-testid="chat">{stage}</div>}
+          chatStage="ambient_small"
+        />,
+      )
+      await flush()
+    })
+    chat = getArea('chat')
+    expect(chat.style.width).toBe('var(--shell-chat-drawer-collapsed-width)')
+  })
+
+  it('expands ambient_large and full stages without creating drawer-local stage state', async () => {
+    await renderLayout({ chatStage: 'ambient_large' })
+    let chat = getArea('chat')
+    expect(chat.style.width).toBe('min(var(--nous-chat-drawer-expanded-width), var(--shell-chat-drawer-available-width))')
+    expect(chat.style.maxWidth).toBe('var(--shell-chat-drawer-available-width)')
+
+    await act(async () => {
+      root.render(
+        <SimpleShellLayout
+          projectRail={<div>rail</div>}
+          sidebar={<div>sidebar</div>}
+          content={<div>content</div>}
+          observe={<div>observe</div>}
+          chatSlot={({ stage }) => <div data-testid="chat">{stage}</div>}
+          chatStage="full"
+        />,
+      )
+      await flush()
+    })
+    chat = getArea('chat')
+    expect(chat.style.width).toBe('var(--shell-chat-drawer-available-width)')
+    expect(chat.getAttribute('data-chat-stage')).toBe('full')
+  })
+
+  it('sets the available drawer width from desktop observe geometry', async () => {
+    await renderLayout({ initialWidths: { observe: 280 } })
+    const layout = container.firstElementChild as HTMLDivElement
+    expect(layout.style.getPropertyValue('--shell-chat-drawer-available-width')).toBe(
+      'calc(100% - var(--shell-observe-width) - 5px)',
+    )
+
+    await act(async () => {
+      root.render(
+        <SimpleShellLayout
+          projectRail={<div>rail</div>}
+          sidebar={<div>sidebar</div>}
+          content={<div>content</div>}
+          observe={<div>observe</div>}
+          chatSlot={({ stage }) => <div data-testid="chat">{stage}</div>}
+          chatStage="small"
+          breakpoint="medium"
+        />,
+      )
+      await flush()
+    })
+    const nextLayout = container.firstElementChild as HTMLDivElement
+    expect(nextLayout.style.getPropertyValue('--shell-chat-drawer-available-width')).toBe('100%')
   })
 
   // ── WR-141: whole-sidebar collapse ────────────────────────────────────
@@ -225,7 +306,7 @@ describe('SimpleShellLayout', () => {
     expect(sidebarDivider).toBeNull()
   })
 
-  it('chat overlay carries min-width: var(--nous-chat-overlay-min-width) regardless of sidebarCollapsed state', async () => {
+  it('chat drawer carries min-width: var(--nous-chat-overlay-min-width) regardless of sidebarCollapsed state', async () => {
     // Default (sidebarCollapsed undefined)
     await renderLayout()
     let chat = getArea('chat')

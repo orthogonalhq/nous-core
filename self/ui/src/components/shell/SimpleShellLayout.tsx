@@ -22,6 +22,14 @@ export const CHAT_STAGE_HEIGHT: Record<ChatStage, string> = {
     full: 'var(--nous-chat-height-full)',
 }
 
+/** Maps chat stage → drawer width inside the simple-shell workspace. */
+export const CHAT_STAGE_DRAWER_WIDTH: Record<ChatStage, string> = {
+    small: 'var(--shell-chat-drawer-collapsed-width)',
+    ambient_small: 'var(--shell-chat-drawer-collapsed-width)',
+    ambient_large: 'min(var(--nous-chat-drawer-expanded-width), var(--shell-chat-drawer-available-width))',
+    full: 'var(--shell-chat-drawer-available-width)',
+}
+
 /** Sidebar width caps per breakpoint */
 const BREAKPOINT_SIDEBAR: Record<ShellBreakpoint, number> = {
     full: DEFAULT_SIDEBAR_WIDTH,
@@ -36,6 +44,8 @@ function clampWidth(width: number, minimum: number, maximum: number): number {
 type SimpleShellStyle = React.CSSProperties & {
     '--shell-sidebar-width': string
     '--shell-observe-width': string
+    '--shell-chat-drawer-collapsed-width': string
+    '--shell-chat-drawer-available-width': string
 }
 
 export function SimpleShellLayout({
@@ -145,6 +155,10 @@ export function SimpleShellLayout({
         : `${effectiveSidebarWidth}px`
 
     const chatOverlayHeight = CHAT_STAGE_HEIGHT[chatStage]
+    const chatDrawerWidth = CHAT_STAGE_DRAWER_WIDTH[chatStage]
+    const chatDrawerAvailableWidth = showObserve
+        ? 'calc(100% - var(--shell-observe-width) - 5px)'
+        : '100%'
 
     // Click-outside handler — single handler on the layout container
     const handleLayoutClick = React.useCallback((e: React.MouseEvent) => {
@@ -157,6 +171,8 @@ export function SimpleShellLayout({
     const layoutStyle: SimpleShellStyle = {
         '--shell-sidebar-width': resolvedSidebarWidthCss,
         '--shell-observe-width': `${observeWidth}px`,
+        '--shell-chat-drawer-collapsed-width': 'calc(var(--nous-project-rail-width) + var(--shell-sidebar-width))',
+        '--shell-chat-drawer-available-width': chatDrawerAvailableWidth,
         display: 'grid',
         minWidth: 0,
         gridTemplateAreas: '"rail sidebar . content . observe"',
@@ -172,12 +188,12 @@ export function SimpleShellLayout({
         position: 'relative',
         width: '100%',
         height: '100%',
-        background: 'var(--nous-bg-base)',
+        background: 'var(--nous-workspace-canvas-bg)',
         transition: isAnimating ? 'grid-template-columns var(--nous-duration-normal) var(--nous-ease-out)' : undefined,
         ...style,
     }
 
-    const chatOverlayBackground = chatStage === 'full' ? 'var(--nous-bg-chat-full)' : 'rgba(0, 0, 0, 0)';
+    const chatOverlayBackground = chatStage === 'full' ? 'var(--nous-bg-chat-full)' : 'var(--nous-chat-drawer-bg)'
 
     return (
         <div
@@ -222,30 +238,33 @@ export function SimpleShellLayout({
                 </CollapsibleObserveEdge>
             </div>
 
-            {/* Chat overlay — anchored to bottom of rail+sidebar area */}
+            {/* Chat drawer — Cortex:Principal container inside the simple-shell workspace. */}
             <div
                 ref={chatOverlayRef}
                 data-shell-area="chat"
+                data-chat-owner="Cortex:Principal"
+                data-chat-container="principal-drawer"
                 data-chat-stage={chatStage}
+                role="complementary"
+                aria-label="Cortex Principal chat drawer"
                 style={{
                     position: 'absolute',
-                    bottom: 0,
-                    left: 0,
-                    width: `calc(var(--nous-project-rail-width) + var(--shell-sidebar-width))`,
-                    // WR-141 — unconditional floor so the overlay does not visually break
-                    // in `chat:small` when the sidebar collapses to 32px (rail+sidebar = 94px).
-                    // Overhang into the content area is accepted; bubble mode is deferred to WR-143.
+                    bottom: 'var(--nous-chat-drawer-bottom-offset)',
+                    left: 'var(--nous-chat-drawer-left-offset)',
+                    width: chatDrawerWidth,
                     minWidth: 'var(--nous-chat-overlay-min-width)',
+                    maxWidth: 'var(--shell-chat-drawer-available-width)',
                     height: chatOverlayHeight,
                     zIndex: 10,
                     pointerEvents: 'auto',
                     background: chatOverlayBackground,
-                    border: 'none',
-                    borderRadius: '0px',
+                    border: '1px solid var(--nous-chat-drawer-border)',
+                    borderRadius: 'var(--nous-chat-drawer-radius)',
+                    boxShadow: chatStage === 'small' ? 'none' : 'var(--nous-chat-drawer-shadow)',
                     display: 'flex',
                     flexDirection: 'column',
                     overflow: 'hidden',
-                    transition: 'height var(--nous-duration-slow) var(--nous-ease-out), background var(--nous-duration-slow) var(--nous-ease-out)',
+                    transition: 'width var(--nous-duration-slow) var(--nous-ease-out), height var(--nous-duration-slow) var(--nous-ease-out), background var(--nous-duration-slow) var(--nous-ease-out)',
                 }}
             >
                 {chatSlot({ stage: chatStage, onStageChange: internalSetChatStage ?? (() => { }) })}

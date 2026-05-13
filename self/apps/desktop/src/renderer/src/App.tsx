@@ -45,7 +45,7 @@ import { panelComponents } from './desktop-panel-map'
 import { RAIL_SECTIONS } from './desktop-rail-config'
 import { buildDesktopCommands } from './desktop-command-config'
 import { DESKTOP_TOP_NAV, buildDesktopSidebarSections } from './desktop-sidebar-config'
-import { BASE_SIMPLE_MODE_ROUTES } from './desktop-routes'
+import { BASE_SIMPLE_MODE_ROUTES, BASE_SIMPLE_MODE_ROUTE_IDENTITIES } from './desktop-routes'
 import { useTasks, buildTasksSection } from '@nous/ui/hooks/useTasks'
 import { useWorkflows, buildWorkflowsSection } from '@nous/ui/hooks/useWorkflows'
 import { ConfirmDeleteDialog, NotificationProvider, useNotificationBadge } from '@nous/ui/components'
@@ -591,6 +591,11 @@ export function App() {
     settings: SettingsRouteRenderer,
   }), [SettingsRouteRenderer])
 
+  const simpleModeRouteIdentities = useMemo(() => ({
+    ...BASE_SIMPLE_MODE_ROUTE_IDENTITIES,
+    settings: { routeId: 'settings', label: 'Settings', surface: 'workspace' as const },
+  }), [])
+
   const handleDesktopProjectChange = useCallback((newProjectId: string) => {
     setIsHomeContext(false)
     setActiveRoute(DEFAULT_ROUTE) // reset content route on project switch
@@ -719,6 +724,7 @@ export function App() {
           activeRoute={activeRoute}
           handleNavigate={handleNavigate}
           simpleModeRoutes={simpleModeRoutes}
+          simpleModeRouteIdentities={simpleModeRouteIdentities}
           navigationParams={navigationParams}
           isHomeContext={isHomeContext}
           setIsHomeContext={setIsHomeContext}
@@ -834,6 +840,7 @@ function DesktopSimpleShell({
   activeRoute,
   handleNavigate,
   simpleModeRoutes,
+  simpleModeRouteIdentities,
   navigationParams,
   isHomeContext,
   setIsHomeContext,
@@ -841,6 +848,7 @@ function DesktopSimpleShell({
   activeRoute: string
   handleNavigate: (routeId: string, params?: Record<string, unknown>) => void
   simpleModeRoutes: Record<string, any>
+  simpleModeRouteIdentities: Record<string, any>
   navigationParams?: Record<string, unknown>
   isHomeContext: boolean
   setIsHomeContext: (value: boolean) => void
@@ -898,6 +906,7 @@ function DesktopSimpleShell({
         <ContentRouter
           activeRoute={activeRoute}
           routes={simpleModeRoutes}
+          routeIdentities={simpleModeRouteIdentities}
           onNavigate={handleNavigate}
           navigationParams={navigationParams}
         />
