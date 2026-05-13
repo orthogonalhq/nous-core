@@ -1,0 +1,16 @@
+[submodule ".architecture"]
+	path = .architecture
+	url = https://github.com/orthogonalhq/nous-core-architecture.git
+	branch = main
+[submodule ".worklog"]
+	path = .worklog
+	url = https://github.com/orthogonalhq/nous-core-worklog.git
+	branch = main
+[submodule ".skills"]
+	path = .skills
+	url = https://github.com/orthogonalhq/nous-skills.git
+	branch = main
+[submodule ".opencode"]
+	path = .opencode
+	url = https://github.com/orthogonalhq/nous-open-code.git
+	branch = main

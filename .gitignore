@@ -42,14 +42,16 @@ yarn-error.log*
 *.sqlite-wal
 
 # Internal (private, not for public repo)
-/.opencode/
-/.architecture/
-/.skills/
-/.worklog/
 /.apps/
 /.contracts/
 /.projects/
 /.workflows/
+# .architecture, .skills, .worklog, .opencode are private git submodules
+# (see .gitmodules). Public clones will 404 on submodule init —
+# this is expected; public repo functions standalone per the
+# conditional in AGENTS.md (the "If .skills/ is present" branch).
+# DO NOT re-add them to .gitignore: they must be parent-tracked
+# gitlinks for cross-worktree visibility.
 
 # Misc
 *.pem
