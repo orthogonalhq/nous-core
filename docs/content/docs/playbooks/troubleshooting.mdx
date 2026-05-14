@@ -32,13 +32,26 @@ ollama pull llama3.2:3b
 
 **Symptom:** `pnpm dev:desktop` exits before Electron opens and prints a native compatibility failure for `better-sqlite3`. The diagnostic may include fields such as `runtime=PATH node`, `errorCode=ERR_DLOPEN_FAILED`, `NODE_MODULE_VERSION`, `compiledAbi`, or `requiredAbi`.
 
-**Meaning:** The installed `better-sqlite3` native addon was compiled for a different Node ABI than the PATH `node` runtime used by the desktop backend child process. The launcher fails before `electron-vite dev` starts so the app does not enter an opaque backend restart loop.
+If the dev wrapper is bypassed or a failure reaches Electron main, the primary backend launch-boundary diagnostic is:
+
+```text
+[nous:desktop] native compatibility check failed for better-sqlite3
+runtime=PATH node
+node=<PATH node version>
+abi=<PATH node ABI>
+errorCode=<loader or probe error code>
+```
+
+If the native compatibility probe itself returns malformed successful output, such as `{ "ok": true }` without the expected runtime facts, backend launch fails closed with `errorCode=INVALID_PROBE_OUTPUT` rather than treating the probe as compatible.
+
+**Meaning:** The installed `better-sqlite3` native addon was compiled for a different Node ABI than the PATH `node` runtime used by the desktop backend child process, or the compatibility probe could not prove the required runtime facts. The wrapper can fail before `electron-vite dev` starts. Electron main also checks before backend `fork()`, so bypassed-launch failures stop before backend child assignment, readiness waiting, or repeated backend restart scheduling.
 
 **Fix:**
 - Confirm that `node` on PATH is the intended desktop backend runtime.
 - Rebuild or reinstall dependencies so `better-sqlite3` is compiled for that PATH Node runtime.
 - Re-run `pnpm dev:desktop` after the native dependency is rebuilt or reinstalled.
-- If you bypassed the launcher and see `[nous:desktop-server] native compatibility diagnostic`, treat it as the same native ABI issue; backend startup still fails closed and readiness is not sent.
+- If you bypassed the wrapper, first look for `[nous:desktop] native compatibility check failed for better-sqlite3`; this is the Electron main launch-boundary check and it stops backend spawn before the restart loop can begin.
+- If you run the backend directly or hit a lower-level fallback and see `[nous:desktop-server] native compatibility diagnostic`, treat it as the same native ABI issue; backend startup still fails closed and readiness is not sent.
 - Do not treat this as fixing WR-176 baseline typecheck/build failures; those remain tracked separately.
 
 ## pnpm install Fails (EPERM, Windows)
