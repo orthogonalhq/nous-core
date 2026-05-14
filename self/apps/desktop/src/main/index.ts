@@ -27,6 +27,13 @@ import {
   type UpdateProgress,
   type UpdateResult,
 } from './ollama-installer'
+import {
+  createNativeCompatibilityProbeSource,
+  formatNativeCompatibilityFailure,
+  normalizeInvalidNativeCompatibilityCheck,
+  normalizeNativeCompatibilityResult,
+  type NativeCompatibilityCheckResult,
+} from '../../server/native-compatibility'
 
 interface StoredLayout {
   version: 1
@@ -96,6 +103,66 @@ let ollamaStopPromise: Promise<void> | null = null
 let ollamaSuppressRestartOnExit = false
 let ollamaHealthCheckInFlight = false
 let activeOllamaPull: Promise<void> | null = null
+
+function parseNativeCompatibilityProbeOutput(output: string): NativeCompatibilityCheckResult {
+  const lastJsonLine = output.trim().split(/\r?\n/).filter(Boolean).at(-1)
+
+  if (!lastJsonLine) {
+    return normalizeInvalidNativeCompatibilityCheck(
+      'EMPTY_PROBE_OUTPUT',
+      'The better-sqlite3 compatibility check did not produce a diagnostic result.',
+    )
+  }
+
+  try {
+    return normalizeNativeCompatibilityResult(JSON.parse(lastJsonLine))
+  } catch {
+    return normalizeInvalidNativeCompatibilityCheck(
+      'INVALID_PROBE_OUTPUT',
+      'The better-sqlite3 compatibility check produced an invalid diagnostic result.',
+    )
+  }
+}
+
+async function runBackendNativeCompatibilityCheck(nodeCommand: string): Promise<NativeCompatibilityCheckResult> {
+  try {
+    const { stdout } = await execFileAsync(nodeCommand, ['-e', createNativeCompatibilityProbeSource()], {
+      encoding: 'utf8',
+      env: {
+        ...process.env,
+        ELECTRON_RUN_AS_NODE: undefined,
+      },
+    })
+
+    return parseNativeCompatibilityProbeOutput(stdout)
+  } catch (err) {
+    const stdout = typeof err === 'object' && err !== null && 'stdout' in err
+      ? String((err as { stdout?: unknown }).stdout ?? '')
+      : ''
+
+    const parsed = parseNativeCompatibilityProbeOutput(stdout)
+    if (parsed.diagnostic.errorCode !== 'EMPTY_PROBE_OUTPUT') {
+      return parsed
+    }
+
+    const errorCode = typeof err === 'object' && err !== null && 'code' in err && typeof (err as { code?: unknown }).code === 'string'
+      ? (err as { code: string }).code
+      : 'PROBE_EXEC_FAILED'
+
+    return normalizeInvalidNativeCompatibilityCheck(
+      errorCode,
+      'Unable to execute PATH node for the better-sqlite3 compatibility check. Ensure Node.js >=22 is available on PATH.',
+    )
+  }
+}
+
+function shouldRestartBackendAfterExit(options: {
+  appQuitting: boolean
+  exitCode: number | null
+  nativeCompatibilityFailure: boolean
+}): boolean {
+  return !options.appQuitting && options.exitCode !== 0 && !options.nativeCompatibilityFailure
+}
 
 function buildOllamaStatus(
   state: OllamaLifecycleState,
@@ -567,102 +634,120 @@ function resolveServerEntryPath(): string {
  */
 function spawnBackendServer(port: number): Promise<number> {
   return new Promise((resolve, reject) => {
-    const serverPath = resolveServerEntryPath()
-    const args = [`--port=${port}`]
+    void (async () => {
+      const serverPath = resolveServerEntryPath()
+      const args = [`--port=${port}`]
 
-    // Set data dir to app's userData directory for production isolation
-    const dataDir = app.getPath('userData')
-    args.push(`--data-dir=${join(dataDir, 'data')}`)
-    args.push(`--config-path=${join(dataDir, 'data', 'config.json')}`)
+      // Set data dir to app's userData directory for production isolation
+      const dataDir = app.getPath('userData')
+      args.push(`--data-dir=${join(dataDir, 'data')}`)
+      args.push(`--config-path=${join(dataDir, 'data', 'config.json')}`)
 
-    console.log(`[nous:desktop] spawning backend server: ${serverPath} ${args.join(' ')}`)
+      console.log(`[nous:desktop] spawning backend server: ${serverPath} ${args.join(' ')}`)
 
-    const isDev = process.env['NODE_ENV'] === 'development'
+      const isDev = process.env['NODE_ENV'] === 'development'
 
-    // Use system Node.js (not Electron's embedded Node) to avoid native module
-    // version mismatches (better-sqlite3 compiled for system Node, not Electron).
-    // fork() with explicit execPath uses system node while preserving IPC channel.
-    // Use 'node' from PATH — fork with execPath bypasses Electron's embedded Node
-    const systemNode = 'node'
+      // Use system Node.js (not Electron's embedded Node) to avoid native module
+      // version mismatches (better-sqlite3 compiled for system Node, not Electron).
+      // fork() with explicit execPath uses system node while preserving IPC channel.
+      // Use 'node' from PATH — fork with execPath bypasses Electron's embedded Node
+      const systemNode = 'node'
 
-    console.log(
-      `[nous:desktop] backend runtime contract: execPath=${systemNode} (PATH), parentNode=${process.version}, parentAbi=${process.versions.modules ?? 'unknown'}`,
-    )
+      console.log(
+        `[nous:desktop] backend runtime contract: execPath=${systemNode} (PATH), parentNode=${process.version}, parentAbi=${process.versions.modules ?? 'unknown'}`,
+      )
 
-    let child: ChildProcess
-    if (isDev) {
-      child = fork(serverPath, args, {
-        stdio: ['pipe', 'inherit', 'inherit', 'ipc'],
-        execPath: systemNode,
-        env: {
-          ...process.env,
-          NODE_ENV: 'development',
-          ELECTRON_RUN_AS_NODE: undefined,
-        },
-        execArgv: ['--import', 'tsx'],
-      })
-    } else {
-      child = fork(serverPath, args, {
-        stdio: ['pipe', 'inherit', 'inherit', 'ipc'],
-        execPath: systemNode,
-        env: {
-          ...process.env,
-          NODE_ENV: 'production',
-          ELECTRON_RUN_AS_NODE: undefined,
-        },
-      })
-    }
-
-    backendChild = child
-    if (child.pid != null) registerChild(child.pid)
-
-    const timeout = setTimeout(() => {
-      reject(new Error('Backend server did not signal readiness within 30 seconds'))
-    }, 30_000)
-
-    child.on('message', (msg: unknown) => {
-      if (typeof msg === 'object' && msg !== null && (msg as any).type === 'ready') {
-        clearTimeout(timeout)
-        backendPort = (msg as any).port ?? port
-        backendReady = true
-        console.log(`[nous:desktop] backend server ready on port ${backendPort}`)
-        resolve(backendPort!)
+      const compatibility = await runBackendNativeCompatibilityCheck(systemNode)
+      if (!compatibility.ok) {
+        console.error(formatNativeCompatibilityFailure(compatibility.diagnostic))
+        reject(new Error('Desktop backend native compatibility check failed.'))
         return
       }
 
-      if (isBackendOllamaRequestMessage(msg)) {
-        void handleBackendOllamaRequest(msg).then((response) => {
-          child.send?.(response)
+      console.log(
+        `[nous:desktop] backend native compatibility check passed: module=${compatibility.diagnostic.moduleName} runtime=${compatibility.diagnostic.runtime} node=${compatibility.diagnostic.nodeVersion ?? 'unknown'} abi=${compatibility.diagnostic.nodeAbi ?? 'unknown'}`,
+      )
+
+      let child: ChildProcess
+      if (isDev) {
+        child = fork(serverPath, args, {
+          stdio: ['pipe', 'inherit', 'inherit', 'ipc'],
+          execPath: systemNode,
+          env: {
+            ...process.env,
+            NODE_ENV: 'development',
+            ELECTRON_RUN_AS_NODE: undefined,
+          },
+          execArgv: ['--import', 'tsx'],
+        })
+      } else {
+        child = fork(serverPath, args, {
+          stdio: ['pipe', 'inherit', 'inherit', 'ipc'],
+          execPath: systemNode,
+          env: {
+            ...process.env,
+            NODE_ENV: 'production',
+            ELECTRON_RUN_AS_NODE: undefined,
+          },
         })
       }
-    })
 
-    child.on('error', (err) => {
-      clearTimeout(timeout)
-      console.error('[nous:desktop] backend server error:', err)
-      reject(err)
-    })
+      backendChild = child
+      if (child.pid != null) registerChild(child.pid)
 
-    child.on('exit', (code, signal) => {
-      clearTimeout(timeout)
-      console.log(`[nous:desktop] backend server exited (code=${code}, signal=${signal})`)
-      backendChild = null
-      backendReady = false
-      backendReadyPromise = null
-      backendPort = null
+      const timeout = setTimeout(() => {
+        reject(new Error('Backend server did not signal readiness within 30 seconds'))
+      }, 30_000)
 
-      // Auto-restart if the app is still running and it wasn't a clean shutdown
-      if (!isAppQuitting && code !== 0) {
-        console.log('[nous:desktop] scheduling backend restart...')
-        setTimeout(() => {
-          if (!isAppQuitting) {
-            startBackend().catch((err) => {
-              console.error('[nous:desktop] backend restart failed:', err)
-            })
-          }
-        }, 2000)
-      }
-    })
+      child.on('message', (msg: unknown) => {
+        if (typeof msg === 'object' && msg !== null && (msg as any).type === 'ready') {
+          clearTimeout(timeout)
+          backendPort = (msg as any).port ?? port
+          backendReady = true
+          console.log(`[nous:desktop] backend server ready on port ${backendPort}`)
+          resolve(backendPort!)
+          return
+        }
+
+        if (isBackendOllamaRequestMessage(msg)) {
+          void handleBackendOllamaRequest(msg).then((response) => {
+            child.send?.(response)
+          })
+        }
+      })
+
+      child.on('error', (err) => {
+        clearTimeout(timeout)
+        console.error('[nous:desktop] backend server error:', err)
+        reject(err)
+      })
+
+      child.on('exit', (code, signal) => {
+        clearTimeout(timeout)
+        console.log(`[nous:desktop] backend server exited (code=${code}, signal=${signal})`)
+        backendChild = null
+        backendReady = false
+        backendReadyPromise = null
+        backendPort = null
+
+        // Auto-restart if the app is still running and it wasn't a clean shutdown.
+        // Deterministic native compatibility failures are rejected before spawn.
+        if (shouldRestartBackendAfterExit({
+          appQuitting: isAppQuitting,
+          exitCode: code,
+          nativeCompatibilityFailure: false,
+        })) {
+          console.log('[nous:desktop] scheduling backend restart...')
+          setTimeout(() => {
+            if (!isAppQuitting) {
+              startBackend().catch((err) => {
+                console.error('[nous:desktop] backend restart failed:', err)
+              })
+            }
+          }, 2000)
+        }
+      })
+    })().catch(reject)
   })
 }
 
