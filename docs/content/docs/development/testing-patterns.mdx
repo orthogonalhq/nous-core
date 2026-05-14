@@ -82,9 +82,17 @@ Aim for **80% coverage on behavioral code**. Exclude type definitions, stub impl
 
 `pnpm dev:desktop` delegates to `@nous/desktop dev`, which runs `node scripts/start-dev.mjs` before Electron starts. The desktop dev launcher preflights the external `better-sqlite3` native addon with the PATH `node` runtime, matching the desktop backend child-process runtime contract.
 
-The preflight validates that PATH `node` can load `better-sqlite3` and reports runtime/native ABI facts when it cannot. It does not install packages, rebuild native dependencies, or mutate the workspace. Recovery remains an explicit developer action: rebuild or reinstall dependencies with the PATH Node runtime, then rerun `pnpm dev:desktop`.
+The wrapper preflight validates that PATH `node` can load `better-sqlite3` and reports runtime/native ABI facts when it cannot. Electron main also enforces the same native compatibility contract at the backend spawn boundary before backend `fork()`, child assignment, readiness waiting, or restart scheduling. Both checks must avoid installing packages, rebuilding native dependencies, or mutating the workspace. Recovery remains an explicit developer action: rebuild or reinstall dependencies with the PATH Node runtime, then rerun `pnpm dev:desktop`.
 
-Tests for this launch path should model the seam deterministically instead of relying on the current workstation ABI state. Mock the native compatibility probe and assert the behavior around pass/fail diagnostics, PATH `node` usage, no install/rebuild side effects, and the fact that `electron-vite dev` starts only after a compatibility pass.
+Tests for this launch path should model the seams deterministically instead of relying on the current workstation ABI state. Mock the native compatibility probe and assert the behavior around pass/fail diagnostics, PATH `node` usage, no install/rebuild side effects, and the fact that `electron-vite dev` starts only after a wrapper compatibility pass.
+
+Backend spawn-boundary coverage should separately assert that:
+
+- successful probe output requires the expected deterministic facts, including `moduleName=better-sqlite3`, `runtime=PATH node`, `nodeVersion`, and `nodeAbi` or an approved equivalent contract;
+- malformed successful probe output such as `{ "ok": true }` fails closed instead of allowing backend spawn;
+- mismatched module or runtime identity fails closed;
+- deterministic native compatibility failure is rejected before backend `fork()`, child assignment, readiness waiting, or restart scheduling;
+- ordinary non-native backend exits remain restartable under the existing parent restart policy.
 
 Do not treat this launch preflight as evidence that baseline typecheck/build issues are fixed. WR-176 continues to own private package/type resolution and desktop server-vite `@nous/shared` build failures.
 

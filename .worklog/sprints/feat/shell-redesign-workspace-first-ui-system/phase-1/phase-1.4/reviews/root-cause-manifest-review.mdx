@@ -1,0 +1,108 @@
+---
+title: "Root Cause Manifest Review"
+description: "WR-175 Phase 1.4 BT Round 2 root cause manifest review"
+date: 2026-05-14
+status: complete
+verdict: "Approved With Notes"
+---
+
+# Root Cause Manifest Review - WR-175 Phase 1.4 BT Round 2
+
+## Cycle 1
+
+**Reviewing:** Cycle 1 of root-cause-manifest.mdx
+
+**Verdict:** Approved With Notes
+
+## Scope Guard
+
+| Field | Finding | Disposition |
+|---|---|---|
+| Target identity | Dispatch identifies `research-planning-sop::Worker::discovery-review::review-discovery`; this maps to `Worker::discovery-review`. | Valid |
+| Review lane | Fix-track Root Cause Manifest review for BT Round 2 residual desktop launch failure. | Valid |
+| Artifact under review | `.worklog/sprints/feat/shell-redesign-workspace-first-ui-system/phase-1/phase-1.4/root-cause-manifest.mdx` | Valid |
+| Output path | `.worklog/sprints/feat/shell-redesign-workspace-first-ui-system/phase-1/phase-1.4/reviews/root-cause-manifest-review.mdx` | Valid |
+| Boundary | Review only; no product/source/process edits. | Valid |
+
+## Criterion Analysis
+
+### C1: Bug Chain Completeness - Pass
+
+The symptom is observable and specific: desktop launch reaches backend startup, logs `better-sqlite3` native ABI facts, exits, schedules restart, and does not reach an observable workspace shell (`root-cause-manifest.mdx:54-58`; source evidence from `round-2.mdx:23-82`).
+
+The proximate cause traces through concrete runtime surfaces: Electron main forks the backend with PATH `node` (`self/apps/desktop/src/main/index.ts:568-613`), backend startup constructs shared services before listen/readiness (`self/apps/desktop/server/main.ts:207-219`), shared-server bootstrap constructs SQLite stores (`self/apps/shared-server/src/bootstrap.ts:677-699`), and storage loads `better-sqlite3` at construction (`self/autonomic/storage/src/sqlite-document-store.ts:10-15`, `self/autonomic/storage/src/sqlite-document-store.ts:29-36`). The parent restart loop is also cited accurately (`self/apps/desktop/src/main/index.ts:646-664`).
+
+The root causes are logically connected to the symptom: Phase 1.3 added a dev-wrapper check and server-side diagnostics, but Round 2 evidence shows the observed path still reached Electron main/backend startup and then repeated restart after deterministic native incompatibility (`root-cause-manifest.mdx:66-72`). This distinguishes the prior fix's diagnostic success from the remaining launch-contract failure.
+
+### C2: Schema Constraint Accuracy - Pass
+
+The schema/contract table is accurate against inspected sources. Root package Node/pnpm policy is `node >=22` and `pnpm@10.6.2` (`package.json:7-10`). Desktop `dev` routes through `node scripts/start-dev.mjs`, while `preview` and build/dist scripts are separate paths (`self/apps/desktop/package.json:7-18`). The dev launcher compatibility check and pass/fail behavior are at `self/apps/desktop/scripts/start-dev.mjs:92-163`. Backend runtime selection is PATH `node` with `fork(..., execPath: systemNode)` (`self/apps/desktop/src/main/index.ts:580-613`). Server bundling targets `node22` and externalizes `better-sqlite3` (`self/apps/desktop/vite.server.config.ts:15-28`). The diagnostic shape matches `NativeCompatibilityDiagnostic` (`self/apps/desktop/server/native-compatibility.ts:1-10`). Native dependency and lockfile refs match `better-sqlite3 ^11.9.1` and locked `11.10.0` (`self/autonomic/storage/package.json:20-26`, `pnpm-lock.yaml:641-648`, `pnpm-lock.yaml:3862-3864`).
+
+### C3: Fix Map Completeness - Pass
+
+The fix map lists the required modification surfaces for the residual failure: backend spawn/runtime enforcement, restart-loop classification, reusable bounded diagnostics, wrapper/package path verification, regression tests, and worklog verification (`root-cause-manifest.mdx:196-205`). This covers all links in the bug chain without requiring storage semantics redesign or WR-176 baseline cleanup.
+
+No obvious missing implementation surface appears for the stated fix ratification input. The map intentionally keeps `self/autonomic/storage/**` out of the change set because the manifest preserves fail-fast storage construction and places enforcement before or at the desktop launch/runtime boundary.
+
+### C4: Fix Map Ordering - Pass
+
+The dependency order is coherent. The authoritative backend spawn/runtime contract is first, restart-loop handling depends on native failure classification and launch-boundary behavior, diagnostic alignment supports both earlier entries, package-wrapper verification follows the new authoritative contract, and tests depend on the selected behavior (`root-cause-manifest.mdx:198-205`). Worklog verification is correctly last.
+
+### C5: Regression Risk Coverage - Pass
+
+The regression risk assessment covers each affected surface or fix outcome: backend process manager, native classification/restart suppression, runtime mismatch between probe and `execPath`, server readiness, storage fail-fast behavior, WR-176 scope boundary, docs, and tests (`root-cause-manifest.mdx:283-294`). Mitigations are concrete and cite exact behaviors/tests to preserve, not generic "add tests" language.
+
+### C6: Evidence Quality - Pass
+
+The artifact uses concrete repo-root paths and file:line references throughout. Spot checks against source and carry-forward artifacts confirm the key citations are reasonable: Round 2 raw log and classification (`round-2.mdx:23-103`), Phase 1.3 completion and preserved restart behavior (`phase-1.3/completion-report.mdx:24-42`, `phase-1.3/completion-report.mdx:76-84`), backend spawn/restart source (`self/apps/desktop/src/main/index.ts:568-664`), fatal diagnostic source (`self/apps/desktop/server/main.ts:379-386`, `self/apps/desktop/server/native-compatibility.ts:34-71`), and test seams (`self/apps/desktop/__tests__/native-compatibility.test.ts:17-138`).
+
+### C7: No Scope Creep - Pass
+
+The fix map stays on the desktop launch/runtime startup blocker and explicitly excludes WR-176 typecheck/build/build-output failures, web parity, shell UI redesign, and storage semantic redesign (`root-cause-manifest.mdx:104-111`, `root-cause-manifest.mdx:149-154`, `root-cause-manifest.mdx:287-294`). This is aligned with Round 2's `Fix it` classification and `track_separately_count: 0` (`round-2.mdx:97-103`).
+
+### C8: Outcome Completeness - Pass
+
+The preflight outcome required the manifest to explain what Phase 1.3 changed, why Round 2 still failed, classify scope, and audit regression/downstream risk (`preflight.mdx:30-32`). The manifest satisfies this end-to-end: it records Phase 1.3's wrapper/diagnostic changes (`root-cause-manifest.mdx:35-42`), identifies the residual backend launch/restart path (`root-cause-manifest.mdx:44-49`, `root-cause-manifest.mdx:66-72`), classifies the issue as in scope for WR-175 BT (`root-cause-manifest.mdx:104-111`), and includes downstream/risk audits (`root-cause-manifest.mdx:209-294`).
+
+The unknown exact Round 2 command is not hidden. It is carried as a remaining unknown and bounded by observed runtime behavior (`root-cause-manifest.mdx:21-25`). That is sufficient for fix ratification because the raw log proves Electron main/backend startup occurred and the fix map targets that observed path.
+
+### C9: Cross-Cut Grouping - Pass
+
+The cross-cut analysis separates the three recurrence contributors without conflating them: wrapper-only enforcement coverage, restart classification, and insufficient regression coverage (`root-cause-manifest.mdx:115-123`). It also states the shared architectural finding: Phase 1.3 improved diagnosis but did not make native compatibility an authoritative launch invariant for every path that reaches `spawnBackendServer()`.
+
+### C10: Fix-Layer Justification - Pass
+
+Each root cause evaluates Symptom, Contract, and Boundary options (`root-cause-manifest.mdx:162-193`). The chosen Contract layer is justified by authority and blast radius: enforce compatibility at the runtime boundary that selects PATH `node`, bound deterministic native failures before they become restart loops, and add deterministic launch/restart-path tests. The manifest does not choose a symptom-layer heuristic over a broken upstream contract.
+
+### C11: Hardening Test - Pass
+
+Every root cause has a hardening entry (`root-cause-manifest.mdx:273-279`). The answers are specific to the codebase and recurrence class: backend spawn refuses/fails boundedly under selected PATH Node incompatibility, deterministic native ABI failures do not become generic restarts, and tests simulate the Round 2 backend launch/restart path.
+
+### C12: Downstream Effect Audit - Pass
+
+Every fix map entry has corresponding downstream analysis (`root-cause-manifest.mdx:209-269`). Very likely classifications cite call paths and behavior evidence; maybe classifications stop without deeper recursion, as required. Very likely Risk conclusions are reflected in the regression risk table, including ordinary restart suppression risk, test-source-level insufficiency, readiness/storage preservation, and runtime mismatch risk (`root-cause-manifest.mdx:231-269`, `root-cause-manifest.mdx:283-294`). Recursion halts below the depth limit.
+
+### C13: Surface Ownership (structural only) - Pass
+
+The Surface Ownership section is present between Cross-Cut Analysis and Fix-Layer Decision (`root-cause-manifest.mdx:127-160`). Every root cause appears in the owning-surface table, owning surfaces are concrete, existing contract refs use file:line format, Constraint Space is populated with citations, Rejected Alternatives cite evidence, and Surface-Gap Finding states that all root causes have existing owners.
+
+## Issues Found
+
+None.
+
+## Notes
+
+- Non-blocking: the exact command used by the Principal for Round 2 remains unknown, but the manifest does not overclaim command-line causality. It grounds the fix map in the observed Electron main/backend runtime path and records the unknown explicitly (`root-cause-manifest.mdx:21-25`).
+- Non-blocking: this is a feature-sprint worklog path carrying a fix-track artifact for BT fix routing. The artifact itself declares `track: fix`, and the review criteria are the fix-track Root Cause Manifest criteria.
+
+## Observation for Orchestrator Escalation (not a review issue)
+
+None.
+
+## Required Changes
+
+None.
+
+## Verdict
+
+Approved With Notes. The manifest is evidence-grounded, distinguishes Phase 1.3 diagnostic/guard improvements from the remaining Round 2 launchability failure, and is sufficient to feed fix ratification.
