@@ -78,6 +78,16 @@ Aim for **80% coverage on behavioral code**. Exclude type definitions, stub impl
 - For package-only runs, use `pnpm --filter <package-name> test`.
 - Avoid ad-hoc root `vitest run` invocations that bypass the intended workspace configuration.
 
+## Desktop Dev Launch Native Compatibility
+
+`pnpm dev:desktop` delegates to `@nous/desktop dev`, which runs `node scripts/start-dev.mjs` before Electron starts. The desktop dev launcher preflights the external `better-sqlite3` native addon with the PATH `node` runtime, matching the desktop backend child-process runtime contract.
+
+The preflight validates that PATH `node` can load `better-sqlite3` and reports runtime/native ABI facts when it cannot. It does not install packages, rebuild native dependencies, or mutate the workspace. Recovery remains an explicit developer action: rebuild or reinstall dependencies with the PATH Node runtime, then rerun `pnpm dev:desktop`.
+
+Tests for this launch path should model the seam deterministically instead of relying on the current workstation ABI state. Mock the native compatibility probe and assert the behavior around pass/fail diagnostics, PATH `node` usage, no install/rebuild side effects, and the fact that `electron-vite dev` starts only after a compatibility pass.
+
+Do not treat this launch preflight as evidence that baseline typecheck/build issues are fixed. WR-176 continues to own private package/type resolution and desktop server-vite `@nous/shared` build failures.
+
 ## Rendered Web Tests
 
 - In `@nous/web`, server-side suites continue to run in the default `node` environment.
