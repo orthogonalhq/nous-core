@@ -82,13 +82,15 @@ Aim for **80% coverage on behavioral code**. Exclude type definitions, stub impl
 
 `pnpm dev:desktop` delegates to `@nous/desktop dev`, which runs `node scripts/start-dev.mjs` before Electron starts. The desktop dev launcher preflights the external `better-sqlite3` native addon with the PATH `node` runtime, matching the desktop backend child-process runtime contract.
 
-The wrapper preflight validates that PATH `node` can load `better-sqlite3` and reports runtime/native ABI facts when it cannot. Electron main also enforces the same native compatibility contract at the backend spawn boundary before backend `fork()`, child assignment, readiness waiting, or restart scheduling. Both checks must avoid installing packages, rebuilding native dependencies, or mutating the workspace. Recovery remains an explicit developer action: rebuild or reinstall dependencies with the PATH Node runtime, then rerun `pnpm dev:desktop`.
+The wrapper preflight validates that PATH `node` can exercise the production-equivalent `better-sqlite3` construction path, not just import the package. A compatibility pass requires requiring `better-sqlite3`, constructing a no-user-data SQLite database such as `new Database(':memory:')`, explicitly closing that temporary database handle, and only then reporting success. Electron main also enforces the same native compatibility contract at the backend spawn boundary before backend `fork()`, child assignment, readiness waiting, or restart scheduling. Both checks must avoid installing packages, rebuilding native dependencies, mutating the workspace, or touching the desktop user data store. Recovery remains an explicit developer action: rebuild or reinstall dependencies with the PATH Node runtime, then rerun `pnpm dev:desktop`.
 
-Tests for this launch path should model the seams deterministically instead of relying on the current workstation ABI state. Mock the native compatibility probe and assert the behavior around pass/fail diagnostics, PATH `node` usage, no install/rebuild side effects, and the fact that `electron-vite dev` starts only after a wrapper compatibility pass.
+Tests for this launch path should model the seams deterministically instead of relying on the current workstation ABI state. Mock or execute the native compatibility probe and assert constructor-equivalent native binding exercise, explicit close/cleanup of any temporary database handle or file, pass/fail diagnostics, PATH `node` usage, no install/rebuild side effects, and the fact that `electron-vite dev` starts only after a wrapper compatibility pass.
 
 Backend spawn-boundary coverage should separately assert that:
 
 - successful probe output requires the expected deterministic facts, including `moduleName=better-sqlite3`, `runtime=PATH node`, `nodeVersion`, and `nodeAbi` or an approved equivalent contract;
+- successful probe behavior proves constructor-equivalent SQLite construction and explicit close/cleanup; import-only or package-load-only success is insufficient;
+- import-pass/constructor-fail is a fail-closed regression class and must be covered by deterministic tests;
 - malformed successful probe output such as `{ "ok": true }` fails closed instead of allowing backend spawn;
 - mismatched module or runtime identity fails closed;
 - deterministic native compatibility failure is rejected before backend `fork()`, child assignment, readiness waiting, or restart scheduling;
