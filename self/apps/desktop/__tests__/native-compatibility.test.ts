@@ -18,6 +18,38 @@ async function importStartDev() {
   return import(`${startDevPath}?t=${Date.now()}-${Math.random()}`);
 }
 
+function executeProbeSource(
+  source: string,
+  requireImpl: (moduleName: string) => unknown,
+): { exitCode: number | undefined; result: Record<string, unknown> } {
+  const logs: string[] = [];
+  let exitCode: number | undefined;
+  const processLike = {
+    version: 'v24.0.0',
+    versions: { modules: '137' },
+    exit: (code: number) => {
+      exitCode = code;
+      throw new Error('__probe_exit__');
+    },
+  };
+  const consoleLike = {
+    log: (value: unknown) => logs.push(String(value)),
+  };
+
+  try {
+    Function('require', 'console', 'process', source)(requireImpl, consoleLike, processLike);
+  } catch (error) {
+    if (!(error instanceof Error) || error.message !== '__probe_exit__') {
+      throw error;
+    }
+  }
+
+  return {
+    exitCode,
+    result: JSON.parse(logs.at(-1) ?? '{}') as Record<string, unknown>,
+  };
+}
+
 describe('desktop native compatibility launch contract', () => {
   it('checks better-sqlite3 with PATH node before spawning electron-vite', async () => {
     const startDev = await importStartDev();
@@ -87,6 +119,71 @@ describe('desktop native compatibility launch contract', () => {
     expect(probeSource).not.toContain('npm install');
   });
 
+  it('fails closed when better-sqlite3 import passes but database construction fails', async () => {
+    const startDev = await importStartDev();
+    const nativeError = Object.assign(
+      new Error('was compiled against NODE_MODULE_VERSION 127. This version of Node.js requires NODE_MODULE_VERSION 137.'),
+      { code: 'ERR_DLOPEN_FAILED' },
+    );
+    const requireImpl = vi.fn((moduleName: string) => {
+      expect(moduleName).toBe('better-sqlite3');
+      return function Database() {
+        throw nativeError;
+      };
+    });
+
+    const backendProbe = executeProbeSource(createNativeCompatibilityProbeSource(), requireImpl);
+    const wrapperProbe = executeProbeSource(startDev.createNativeCompatibilityProbeSource(), requireImpl);
+
+    expect(backendProbe.exitCode).toBe(1);
+    expect(wrapperProbe.exitCode).toBe(1);
+    expect(normalizeNativeCompatibilityResult(backendProbe.result)).toMatchObject({
+      ok: false,
+      diagnostic: {
+        moduleName: 'better-sqlite3',
+        runtime: 'PATH node',
+        nodeVersion: 'v24.0.0',
+        nodeAbi: '137',
+        errorCode: 'ERR_DLOPEN_FAILED',
+        compiledAbi: '127',
+        requiredAbi: '137',
+      },
+    });
+    expect(startDev.normalizeNativeCompatibilityResult(wrapperProbe.result)).toMatchObject({
+      ok: false,
+      diagnostic: {
+        moduleName: 'better-sqlite3',
+        runtime: 'PATH node',
+        nodeVersion: 'v24.0.0',
+        nodeAbi: '137',
+        errorCode: 'ERR_DLOPEN_FAILED',
+        compiledAbi: '127',
+        requiredAbi: '137',
+      },
+    });
+  });
+
+  it('constructs and closes an in-memory database before reporting success', async () => {
+    const startDev = await importStartDev();
+    const events: string[] = [];
+    const requireImpl = vi.fn((moduleName: string) => {
+      expect(moduleName).toBe('better-sqlite3');
+      return function Database(this: { close: () => void }, path: string) {
+        events.push(`construct:${path}`);
+        this.close = () => events.push('close');
+      };
+    });
+
+    const backendProbe = executeProbeSource(createNativeCompatibilityProbeSource(), requireImpl);
+    const wrapperProbe = executeProbeSource(startDev.createNativeCompatibilityProbeSource(), requireImpl);
+
+    expect(events).toEqual(['construct::memory:', 'close', 'construct::memory:', 'close']);
+    expect(backendProbe.exitCode).toBe(0);
+    expect(wrapperProbe.exitCode).toBe(0);
+    expect(normalizeNativeCompatibilityResult(backendProbe.result)).toMatchObject({ ok: true });
+    expect(startDev.normalizeNativeCompatibilityResult(wrapperProbe.result)).toMatchObject({ ok: true });
+  });
+
   it('spawns electron-vite only through the checked launcher seam', async () => {
     const startDev = await importStartDev();
     const spawnImpl = vi.fn(() => ({ on: vi.fn() }));
@@ -151,6 +248,19 @@ describe('desktop native compatibility launch contract', () => {
 
   it('fails closed for malformed successful native compatibility probe output', () => {
     expect(normalizeNativeCompatibilityResult({ ok: true })).toMatchObject({
+      ok: false,
+      diagnostic: {
+        moduleName: 'better-sqlite3',
+        runtime: 'PATH node',
+        errorCode: 'INVALID_PROBE_OUTPUT',
+      },
+    });
+  });
+
+  it('dev wrapper fails closed for malformed successful native compatibility probe output', async () => {
+    const startDev = await importStartDev();
+
+    expect(startDev.normalizeNativeCompatibilityResult({ ok: true })).toMatchObject({
       ok: false,
       diagnostic: {
         moduleName: 'better-sqlite3',
@@ -277,9 +387,26 @@ describe('desktop native compatibility launch contract', () => {
     const probeSource = createNativeCompatibilityProbeSource();
 
     expect(probeSource).toContain('require("better-sqlite3")');
+    expect(probeSource).toContain("new Database(':memory:')");
+    expect(probeSource).toContain('database.close()');
     expect(probeSource).toContain('runtime: "PATH node"');
     expect(probeSource).toContain('process.versions.modules');
     expect(probeSource).not.toContain('pnpm rebuild');
     expect(probeSource).not.toContain('npm install');
+  });
+
+  it('keeps wrapper and backend probe source semantically equivalent', async () => {
+    const startDev = await importStartDev();
+    const backendProbeSource = createNativeCompatibilityProbeSource();
+    const wrapperProbeSource = startDev.createNativeCompatibilityProbeSource();
+
+    for (const source of [backendProbeSource, wrapperProbeSource]) {
+      expect(source).toContain('require("better-sqlite3")');
+      expect(source).toContain("new Database(':memory:')");
+      expect(source).toContain('database.close()');
+      expect(source).toContain('runtime: "PATH node"');
+      expect(source).not.toContain('pnpm rebuild');
+      expect(source).not.toContain('npm install');
+    }
   });
 });

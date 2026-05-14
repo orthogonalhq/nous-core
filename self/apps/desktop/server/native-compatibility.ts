@@ -49,7 +49,9 @@ const result = {
   nodeAbi: process.versions.modules,
 };
 try {
-  require(${JSON.stringify(NATIVE_MODULE_NAME)});
+  const Database = require(${JSON.stringify(NATIVE_MODULE_NAME)});
+  const database = new Database(':memory:');
+  database.close();
   result.ok = true;
 } catch (error) {
   result.ok = false;
