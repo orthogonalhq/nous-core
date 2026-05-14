@@ -31,7 +31,9 @@ const result = {
   nodeAbi: process.versions.modules,
 };
 try {
-  require(${JSON.stringify(NATIVE_MODULE_NAME)});
+  const Database = require(${JSON.stringify(NATIVE_MODULE_NAME)});
+  const database = new Database(':memory:');
+  database.close();
   result.ok = true;
 } catch (error) {
   result.ok = false;
@@ -55,13 +57,21 @@ export function extractNativeAbiVersions(message) {
 }
 
 export function normalizeNativeCompatibilityResult(result, fallback = {}) {
+  const requestedOk = result?.ok === true
+  const validSuccess = requestedOk &&
+    result?.moduleName === NATIVE_MODULE_NAME &&
+    result?.runtime === NATIVE_RUNTIME_LABEL &&
+    typeof result?.nodeVersion === 'string' &&
+    typeof result?.nodeAbi === 'string'
   const diagnostic = {
-    moduleName: result?.moduleName ?? NATIVE_MODULE_NAME,
-    runtime: result?.runtime ?? NATIVE_RUNTIME_LABEL,
+    moduleName: NATIVE_MODULE_NAME,
+    runtime: NATIVE_RUNTIME_LABEL,
     nodeVersion: result?.nodeVersion ?? fallback.nodeVersion,
     nodeAbi: result?.nodeAbi ?? fallback.nodeAbi,
-    errorCode: result?.errorCode,
-    remediation: `Rebuild or reinstall ${NATIVE_MODULE_NAME} with the PATH node runtime before launching the desktop app.`,
+    errorCode: result?.errorCode ?? (requestedOk && !validSuccess ? 'INVALID_PROBE_OUTPUT' : undefined),
+    remediation: requestedOk && !validSuccess
+      ? `The ${NATIVE_MODULE_NAME} compatibility check produced an invalid success result and was rejected before launching the desktop app.`
+      : `Rebuild or reinstall ${NATIVE_MODULE_NAME} with the PATH node runtime before launching the desktop app.`,
   }
 
   const { compiledAbi, requiredAbi } = extractNativeAbiVersions(result?.errorMessage)
@@ -69,7 +79,7 @@ export function normalizeNativeCompatibilityResult(result, fallback = {}) {
   if (requiredAbi) diagnostic.requiredAbi = requiredAbi
 
   return {
-    ok: result?.ok === true,
+    ok: validSuccess,
     diagnostic,
   }
 }

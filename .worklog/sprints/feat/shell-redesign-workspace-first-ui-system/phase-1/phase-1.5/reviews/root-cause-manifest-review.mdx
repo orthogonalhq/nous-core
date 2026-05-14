@@ -1,0 +1,172 @@
+---
+title: "Root Cause Manifest Review"
+description: "Discovery review for WR-175 BT Round 3 false-positive native compatibility probe recurrence"
+track: fix
+date: 2026-05-14
+status: Complete
+verdict: Approved
+---
+
+# Root Cause Manifest Review - WR-175 BT Round 3
+
+## Cycle 1
+
+**Reviewing:** Cycle 1 of `root-cause-manifest.mdx`
+
+**Review artifact:** `.worklog/sprints/feat/shell-redesign-workspace-first-ui-system/phase-1/phase-1.5/root-cause-manifest.mdx`
+
+**Review scope:** Whether the manifest is grounded, sufficiently explains the false-positive probe recurrence, and can feed ratification.
+
+## Criterion Analysis
+
+### C1: Bug Chain Completeness - Pass
+
+The manifest states the observable symptom clearly: Round 3 cannot reach the workspace-first shell because both native checks report pass and the backend then fails with `ERR_DLOPEN_FAILED`, `compiledAbi=127`, and `requiredAbi=137` before scheduling restart (`root-cause-manifest.mdx:57-65`). The proximate cause is traced through the backend launch helper, import-only probe source, production service graph, `SqliteDocumentStore`, and `better-sqlite3` constructor binding load (`root-cause-manifest.mdx:61-65`). Root causes are explicit and cited: weaker probe operation, duplicated probe semantics, and tests that validate ordering/source predicates rather than SQLite construction equivalence (`root-cause-manifest.mdx:67-73`). The chain from pass diagnostics to production constructor failure is logical and complete.
+
+### C2: Schema Constraint Accuracy - Pass
+
+The Schema Constraints table uses package/script/runtime/probe contracts rather than Zod schema definitions, which is appropriate for this native launch-contract bug. The cited constraints are consistent with the reviewed code: root scripts delegate to the desktop dev launcher, the wrapper probe uses PATH `node` and `require("better-sqlite3")`, backend launch runs `runBackendNativeCompatibilityCheck(systemNode)` before `fork()`, production storage constructs SQLite stores before readiness, and the native binding is loaded in the `Database` constructor (`root-cause-manifest.mdx:79-88`). No inaccurate enum/type/schema claim was found.
+
+### C3: Fix Map Completeness - Pass
+
+The fix map covers the necessary code surfaces: shared/backend probe source, dev wrapper probe, backend launch pass logging/spawn boundary, tests, and worklog evidence (`root-cause-manifest.mdx:197-205`). These entries trace to RC-1 through RC-3 and are specific enough to guide implementation. The map also keeps storage semantics as the equivalence target rather than modifying storage behavior, which matches the bug chain.
+
+### C4: Fix Map Ordering - Pass
+
+Ordering is dependency-correct. The backend probe semantic is listed first, wrapper alignment depends on it, backend launch behavior depends on the corrected probe pass condition, tests depend on the code changes, and worklog evidence follows verification (`root-cause-manifest.mdx:199-205`). No dependency inversion was found.
+
+### C5: Regression Risk Coverage - Pass
+
+The Regression Risk Assessment identifies risks for the affected surfaces: user-data mutation, leaked SQLite handles, residual semantic differences, wrapper/backend drift, ordinary restart regression, diagnostic detail loss, and WR-176 scope creep (`root-cause-manifest.mdx:273-283`). Mitigations are concrete, including `:memory:` or throwaway database usage, closing handles, centralization or paired semantic tests, preserving `shouldRestartBackendAfterExit()`, and preserving ABI extraction.
+
+### C6: Evidence Quality - Pass
+
+The manifest uses concrete file:line references throughout the bug chain, affected surfaces, ownership, constraints, fix map, and evidence refs (`root-cause-manifest.mdx:32-45`, `root-cause-manifest.mdx:61-73`, `root-cause-manifest.mdx:92-103`, `root-cause-manifest.mdx:128-159`, `root-cause-manifest.mdx:287-295`). Spot-checks confirmed the core citations: `createNativeCompatibilityProbeSource()` currently only calls `require("better-sqlite3")`, production storage calls `new Database(dbPath)`, and `better-sqlite3/lib/database.js` loads `better_sqlite3.node` in the constructor.
+
+### C7: No Scope Creep - Pass
+
+The fix map stays inside the declared desktop native compatibility launch-contract recurrence. It rejects UI changes, restart policy as the primary fix, storage semantic redesign, runtime/package boundary redesign, and WR-176 cleanup (`root-cause-manifest.mdx:149-155`). The manifest keeps WR-176 and web parity out of scope while retaining them as context where needed (`root-cause-manifest.mdx:105-113`, `root-cause-manifest.mdx:146-147`).
+
+### C8: Outcome Completeness - Pass
+
+The preflight outcome required explaining why Phase 1.4 guards reported pass while backend startup still failed, comparing probe behavior to production SQLite construction, and mapping a bounded contract-layer fix. The manifest resolves those unknowns directly: import-only probe success does not force the native binding load, while production fails at `new Database(...)` during `SqliteDocumentStore` construction (`root-cause-manifest.mdx:17-24`, `root-cause-manifest.mdx:49-52`, `root-cause-manifest.mdx:61-65`). The fix map would make the selected PATH Node construct and close a SQLite database before reporting pass, aligning the guard with the expected user action path from `pnpm --filter @nous/desktop dev` to backend launch (`root-cause-manifest.mdx:199-205`).
+
+### C9: Cross-Cut Grouping - Pass
+
+The Cross-Cut Analysis groups the recurrence around a shared contract-equivalence failure: Phase 1.4 placed enforcement at the right boundary but used the wrong proof of compatibility (`root-cause-manifest.mdx:116-125`). It correctly relates duplicated probe behavior and inadequate regression tests to the same false-positive pass class rather than treating them as unrelated bugs.
+
+### C10: Fix-Layer Justification - Pass
+
+Each root cause evaluates Symptom, Contract, and Boundary options and chooses Contract for reasons grounded in enforcement semantics and blast radius, not speed (`root-cause-manifest.mdx:163-193`). The decisions avoid a symptom-only workaround over a broken upstream contract and correctly reject broader runtime/package redesign for this BT fix lane.
+
+### C11: Hardening Test - Pass
+
+Every root cause has a hardening-test entry. The entries state that recurrence is prevented only if the guard constructs/closes SQLite under PATH Node, wrapper and backend semantics remain shared or tested as equivalent, and tests simulate import-pass/constructor-fail recurrence (`root-cause-manifest.mdx:263-269`). These are codebase-specific and directly target the Round 3 failure class.
+
+### C12: Downstream Effect Audit - Fail
+
+The Downstream Effect Audit covers the constructor-equivalent backend probe, wrapper alignment, launch/restart preservation, and behavior-level tests (`root-cause-manifest.mdx:209-259`). However, the Fix Map has five entries, and entry #5 is the worklog/verification evidence update (`root-cause-manifest.mdx:205`). There is no corresponding Downstream Effect Audit section for that fifth Fix Map entry. The review template requires every Fix Map entry to have a corresponding downstream section and says to reject if any fix has no downstream analysis. This is a small but blocking artifact-structure issue before ratification.
+
+### C13: Surface Ownership - Pass
+
+The Surface Ownership section is present between Cross-Cut Analysis and Fix-Layer Decision, every root cause is covered, owning surfaces are concrete, existing contracts use file:line references, Constraint Space is populated with file:line citations, Rejected Alternatives cite constraints, and Surface-Gap Finding explicitly states none (`root-cause-manifest.mdx:128-159`). Co-owned responsibilities are split between launch contract, production SQLite startup, dev launcher contract, and regression coverage.
+
+## Issues Found
+
+| Severity | Criterion | Issue | Required Change |
+|---|---|---|---|
+| blocker | C12 | Fix Map entry #5 has no corresponding Downstream Effect Audit section, despite C12 requiring one downstream analysis section for every Fix Map entry. | Add a downstream audit section for the `.worklog/.../phase-1.5/*` evidence/update entry, or remove it from the Fix Map if it is not intended to be a fix-map item. |
+
+## Observation for Orchestrator Escalation (not a review issue)
+
+None.
+
+## Ratification Readiness
+
+The manifest is substantively grounded and sufficiently explains the false-positive probe recurrence. It can feed ratification after the C12 structural gap is corrected because the root cause, scope boundary, fix layer, and implementation map are otherwise coherent and evidence-backed.
+
+## Verdict
+
+Needs Revision
+
+## Cycle 2
+
+**Reviewing:** Cycle 2 of `root-cause-manifest.mdx`
+
+**Review artifact:** `.worklog/sprints/feat/shell-redesign-workspace-first-ui-system/phase-1/phase-1.5/root-cause-manifest.mdx`
+
+**Review scope:** Verify the Cycle 1 C12 blocker was addressed and re-check the manifest against the root-cause manifest criteria, including Cycle 2 revision-history accuracy.
+
+## Criterion Analysis
+
+### C1: Bug Chain Completeness - Pass
+
+The bug chain remains complete. The manifest still traces the Round 3 symptom from both native compatibility checks reporting pass into the backend `ERR_DLOPEN_FAILED` failure at `new Database(...)`, then through restart scheduling (`root-cause-manifest.mdx:57-65`). The proximate cause and root causes connect the import-only probe contract to production SQLite construction and test coverage gaps (`root-cause-manifest.mdx:61-73`). No Cycle 2 change weakened this chain.
+
+### C2: Schema Constraint Accuracy - Pass
+
+The Schema Constraints table remains accurate for the launch/runtime contracts under review: root dev command delegation, desktop dev wrapper behavior, backend launch probe behavior, production SQLite construction, native binding load timing, and server bundle externalization are all stated with concrete file:line evidence (`root-cause-manifest.mdx:79-88`). No inaccurate schema/type/allowed-value claim was found.
+
+### C3: Fix Map Completeness - Pass
+
+The fix map continues to cover all required surfaces: backend/shared probe source, dev wrapper probe alignment, backend launch pass/spawn behavior, regression tests, and Phase 1.5 worklog evidence (`root-cause-manifest.mdx:197-205`). The Cycle 1 blocker did not require changing the fix map, and no missing implementation surface is apparent from the documented bug chain.
+
+### C4: Fix Map Ordering - Pass
+
+The dependency ordering remains coherent. Probe semantic correction precedes wrapper alignment and launch behavior validation; tests follow the code-path changes; worklog evidence follows implementation and verification (`root-cause-manifest.mdx:199-205`).
+
+### C5: Regression Risk Coverage - Pass
+
+Regression risks remain concrete and tied to the affected surfaces: persistent file mutation, leaked handles, incomplete semantic equivalence, wrapper/backend drift, ordinary restart regression, diagnostic detail loss, and WR-176 scope creep (`root-cause-manifest.mdx:293-303`). Mitigations are specific enough to guide implementation and verification.
+
+### C6: Evidence Quality - Pass
+
+The manifest continues to use concrete repo-root paths and file:line references across observations, hypotheses, bug chain, affected surfaces, ownership, fix map, downstream audit, and evidence refs (`root-cause-manifest.mdx:32-45`, `root-cause-manifest.mdx:61-73`, `root-cause-manifest.mdx:92-103`, `root-cause-manifest.mdx:128-159`, `root-cause-manifest.mdx:307-315`). The Cycle 2 addition for Fix #5 also cites the Phase 1.4 and Round 3 evidence it relies on (`root-cause-manifest.mdx:267-278`).
+
+### C7: No Scope Creep - Pass
+
+The manifest remains scoped to the desktop native compatibility launch-contract recurrence. It explicitly rejects shell UI changes, restart policy as the primary fix, storage semantic redesign, package/runtime redesign, and WR-176 cleanup (`root-cause-manifest.mdx:149-155`). The added Cycle 2 downstream section concerns only worklog evidence for the same Phase 1.5 fix path (`root-cause-manifest.mdx:261-279`).
+
+### C8: Outcome Completeness - Pass
+
+The preflight outcome remains satisfied end-to-end: the manifest explains why Phase 1.4 checks could pass while backend startup failed, compares import-only probing to production SQLite construction, and maps a bounded contract-layer fix that makes the selected PATH Node construct and close SQLite before reporting pass (`root-cause-manifest.mdx:17-24`, `root-cause-manifest.mdx:49-52`, `root-cause-manifest.mdx:197-205`).
+
+### C9: Cross-Cut Grouping - Pass
+
+The cross-cut analysis still groups the recurrence around the shared architectural pattern: correct enforcement placement but insufficient proof of production-equivalent native compatibility (`root-cause-manifest.mdx:116-125`). Duplicated probe behavior and inadequate tests are correctly tied to that contract-equivalence failure.
+
+### C10: Fix-Layer Justification - Pass
+
+Each root cause still evaluates Symptom, Contract, and Boundary layers and chooses Contract for reasons grounded in pass-condition semantics and blast radius (`root-cause-manifest.mdx:163-193`). No symptom-layer workaround is selected over a broken upstream contract.
+
+### C11: Hardening Test - Pass
+
+Each root cause has a hardening-test entry that states the recurrence-prevention condition concretely: construct/close SQLite under PATH Node, keep wrapper and backend probe semantics shared or equivalently tested, and test import-pass/constructor-fail behavior (`root-cause-manifest.mdx:283-289`).
+
+### C12: Downstream Effect Audit - Pass
+
+The Cycle 1 blocker is addressed. Fix Map entry #5 now has a corresponding `Fix #5: Worklog verification evidence update` section in the Downstream Effect Audit (`root-cause-manifest.mdx:261-279`). That section explains the expected downstream effect of preserving the distinction between Phase 1.4 boundary-placement evidence and Phase 1.5 probe-equivalence evidence, cites the relevant Phase 1.4 and Round 3 artifacts, and stops recursion after a `Maybe` finding as required (`root-cause-manifest.mdx:263-279`). All five Fix Map entries now have corresponding downstream analysis sections (`root-cause-manifest.mdx:211-279`).
+
+### C13: Surface Ownership - Pass
+
+The Surface Ownership section remains present and structurally complete between Cross-Cut Analysis and Fix-Layer Decision. It covers all root causes, names concrete owning surfaces, cites existing contracts with file:line references, includes populated constraints and rejected alternatives, and declares no surface gap (`root-cause-manifest.mdx:128-159`).
+
+### C14: Revision History Accuracy - Pass
+
+Cycle 2 adds a Revision History section that accurately describes the changes made from Cycle 1 to Cycle 2: the new Downstream Effect Audit section for Fix Map entry #5 and the revision-history entry itself (`root-cause-manifest.mdx:339-350`). The first change traces directly to the prior C12 blocker (`root-cause-manifest-review.mdx:66-78`). No undocumented changes outside the review feedback were found in the reviewed manifest.
+
+## Issues Found
+
+None.
+
+## Observation for OrchestrationAgent Escalation (not a review issue)
+
+None.
+
+## Required Changes
+
+None.
+
+## Verdict
+
+Approved. The Cycle 1 C12 blocker is fixed, all review criteria pass, and the manifest is ready for Principal review/ratification.
