@@ -23,6 +23,10 @@ import {
 } from '@nous/shared-server';
 import type { OllamaModelPullProgress, OllamaStatus } from '@nous/shared-server';
 import { createHTTPHandler } from '@trpc/server/adapters/standalone';
+import {
+  formatNativeCompatibilityDiagnostic,
+  getNativeCompatibilityDiagnostic,
+} from './native-compatibility';
 
 type ParentOllamaAction = 'getStatus' | 'start' | 'stop';
 
@@ -373,6 +377,11 @@ async function main() {
 }
 
 main().catch((err) => {
+  const nativeDiagnostic = getNativeCompatibilityDiagnostic(err);
+  if (nativeDiagnostic) {
+    console.error(formatNativeCompatibilityDiagnostic(nativeDiagnostic));
+  }
+
   console.error('[nous:desktop-server] fatal error:', err);
   process.exit(1);
 });

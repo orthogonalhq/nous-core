@@ -28,6 +28,19 @@ ollama pull llama3.2:3b
 - If `4317` was busy, installer/dev may have started on the next free port; use the printed URL (or set `--api-url` in CLI)
 - If using a different port, set `--api-url` for CLI
 
+## Desktop Dev Launch Fails Before Electron Opens
+
+**Symptom:** `pnpm dev:desktop` exits before Electron opens and prints a native compatibility failure for `better-sqlite3`. The diagnostic may include fields such as `runtime=PATH node`, `errorCode=ERR_DLOPEN_FAILED`, `NODE_MODULE_VERSION`, `compiledAbi`, or `requiredAbi`.
+
+**Meaning:** The installed `better-sqlite3` native addon was compiled for a different Node ABI than the PATH `node` runtime used by the desktop backend child process. The launcher fails before `electron-vite dev` starts so the app does not enter an opaque backend restart loop.
+
+**Fix:**
+- Confirm that `node` on PATH is the intended desktop backend runtime.
+- Rebuild or reinstall dependencies so `better-sqlite3` is compiled for that PATH Node runtime.
+- Re-run `pnpm dev:desktop` after the native dependency is rebuilt or reinstalled.
+- If you bypassed the launcher and see `[nous:desktop-server] native compatibility diagnostic`, treat it as the same native ABI issue; backend startup still fails closed and readiness is not sent.
+- Do not treat this as fixing WR-176 baseline typecheck/build failures; those remain tracked separately.
+
 ## pnpm install Fails (EPERM, Windows)
 
 **Symptom:** `pnpm install` fails with permission errors on Windows.

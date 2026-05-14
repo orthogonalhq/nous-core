@@ -585,6 +585,10 @@ function spawnBackendServer(port: number): Promise<number> {
     // Use 'node' from PATH — fork with execPath bypasses Electron's embedded Node
     const systemNode = 'node'
 
+    console.log(
+      `[nous:desktop] backend runtime contract: execPath=${systemNode} (PATH), parentNode=${process.version}, parentAbi=${process.versions.modules ?? 'unknown'}`,
+    )
+
     let child: ChildProcess
     if (isDev) {
       child = fork(serverPath, args, {
