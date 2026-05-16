@@ -188,7 +188,12 @@ export function SimpleShellLayout({
         position: 'relative',
         width: '100%',
         height: '100%',
-        background: 'var(--nous-workspace-canvas-bg)',
+        boxSizing: 'border-box',
+        padding: 'var(--nous-workspace-shell-inset)',
+        gap: 0,
+        background: 'var(--nous-workspace-shell-frame-bg)',
+        border: '1px solid var(--nous-workspace-shell-border)',
+        boxShadow: 'inset 0 1px 0 rgba(255, 255, 255, 0.035)',
         transition: isAnimating ? 'grid-template-columns var(--nous-duration-normal) var(--nous-ease-out)' : undefined,
         ...style,
     }
@@ -206,21 +211,31 @@ export function SimpleShellLayout({
         >
             <div
                 data-shell-area="rail"
-                style={{ gridArea: 'rail' }}
+                style={{ gridArea: 'rail', overflow: 'hidden' }}
             >
                 {projectRail}
             </div>
 
             <div
                 data-shell-area="sidebar"
-                style={{ gridArea: 'sidebar' }}
+                style={{ gridArea: 'sidebar', overflow: 'hidden', borderInlineEnd: '1px solid var(--nous-workspace-sidebar-border)' }}
             >
                 {sidebar}
             </div>
 
             <div
                 data-shell-area="content"
-                style={{ gridArea: 'content' }}
+                data-visual-shell-fidelity="workspace-canvas"
+                style={{
+                    gridArea: 'content',
+                    minWidth: 0,
+                    overflow: 'hidden',
+                    background: 'var(--nous-workspace-canvas-bg)',
+                    backgroundImage: 'var(--nous-workspace-canvas-overlay)',
+                    border: '1px solid var(--nous-workspace-shell-border)',
+                    borderRadius: 'var(--nous-radius-xl)',
+                    boxShadow: 'inset 0 1px 0 rgba(255, 255, 255, 0.03)',
+                }}
             >
                 {content}
             </div>

@@ -143,10 +143,41 @@ const PANEL_ADD_ORDER = [
 
 const DEFAULT_ROUTE = 'home'
 const MODE_STORAGE_KEY = 'nous:shell-mode'
+const VISUAL_ACCEPTANCE_MODE_PARAM = 'nous-visual-shell-mode'
 
+type ShellModeSource = 'default' | 'persisted' | 'visual-acceptance-override'
 
 function parseShellMode(value: unknown): ShellMode | null {
   return value === 'simple' || value === 'developer' ? value : null
+}
+
+function getLaunchParam(name: string): string | null {
+  const searchValue = new URLSearchParams(window.location.search).get(name)
+  if (searchValue !== null) {
+    return searchValue
+  }
+
+  const hashQueryIndex = window.location.hash.indexOf('?')
+  if (hashQueryIndex === -1) {
+    return null
+  }
+
+  return new URLSearchParams(window.location.hash.slice(hashQueryIndex + 1)).get(name)
+}
+
+function getVisualAcceptanceModeOverride(): ShellMode | null {
+  const rawMode = getLaunchParam(VISUAL_ACCEPTANCE_MODE_PARAM)
+  if (rawMode === null) {
+    return null
+  }
+
+  const mode = parseShellMode(rawMode)
+  if (mode === 'simple') {
+    return mode
+  }
+
+  console.warn(`[nous:mode] Ignoring invalid ${VISUAL_ACCEPTANCE_MODE_PARAM} override`)
+  return null
 }
 
 const modePersistence = {
@@ -261,17 +292,20 @@ function ChromeShell({
   dockviewApi,
   panelDefs,
   mode,
+  modeSource,
   onModeToggle,
 }: {
   children: React.ReactNode
   dockviewApi: DockviewApi | null
   panelDefs: PanelDef[]
   mode: ShellMode
+  modeSource: ShellModeSource
   onModeToggle: () => void
 }) {
   return (
     <div
       data-shell-mode={mode}
+      data-shell-mode-source={modeSource}
       style={{
         display: 'flex',
         flexDirection: 'column',
@@ -304,6 +338,7 @@ export function App() {
   const [dockviewApi, setDockviewApi] = useState<DockviewApi | null>(null)
   const [appPanels, setAppPanels] = useState<AppPanelSnapshot[]>([])
   const [mode, setMode] = useState<ShellMode>('simple')
+  const [modeSource, setModeSource] = useState<ShellModeSource>('default')
   const [activeRoute, setActiveRoute] = useState(DEFAULT_ROUTE)
   const [isHomeContext, setIsHomeContext] = useState(false)
   const [commandPaletteOpen, setCommandPaletteOpen] = useState(false)
@@ -439,9 +474,24 @@ export function App() {
     let cancelled = false
 
     void modePersistence.get().then((storedMode) => {
-      if (!cancelled && storedMode) {
+      if (cancelled) {
+        return
+      }
+
+      const visualAcceptanceMode = getVisualAcceptanceModeOverride()
+      if (visualAcceptanceMode) {
+        console.log(`[nous:mode] Using visual acceptance mode: ${visualAcceptanceMode}`)
+        setMode(visualAcceptanceMode)
+        setModeSource('visual-acceptance-override')
+        return
+      }
+
+      if (storedMode) {
         console.log(`[nous:mode] Loaded mode: ${storedMode}`)
         setMode(storedMode)
+        setModeSource('persisted')
+      } else {
+        setModeSource('default')
       }
     })
 
@@ -515,6 +565,7 @@ export function App() {
       }
 
       console.log(`[nous:mode] Mode switched: ${previousMode} -> ${nextMode}`)
+      setModeSource('persisted')
       void modePersistence.set(nextMode)
       return nextMode
     })
@@ -524,6 +575,7 @@ export function App() {
     setMode((previousMode) => {
       const nextMode = previousMode === 'simple' ? 'developer' : 'simple'
       console.log(`[nous:mode] Mode switched: ${previousMode} -> ${nextMode}`)
+      setModeSource('persisted')
       void modePersistence.set(nextMode)
       return nextMode
     })
@@ -641,6 +693,7 @@ export function App() {
       dockviewApi={null}
       panelDefs={panelDefs}
       mode={mode}
+      modeSource={modeSource}
       onModeToggle={handleModeToggle}
     >
       <div
@@ -698,6 +751,7 @@ export function App() {
         dockviewApi={null}
         panelDefs={panelDefs}
         mode={mode}
+        modeSource={modeSource}
         onModeToggle={handleModeToggle}
       >
         <FirstRunWizard
@@ -759,6 +813,7 @@ export function App() {
       dockviewApi={dockviewApi}
       panelDefs={panelDefs}
       mode={mode}
+      modeSource={modeSource}
       onModeToggle={handleModeToggle}
     >
       {transportConfig ? (

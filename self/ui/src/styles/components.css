@@ -56,9 +56,13 @@
   /* ── Panel content ─────────────────────────────────────────────────── */
   --nous-content-bg:    var(--nous-bg-base);
   --nous-chat-full-bg:  #1A1A1A;
-  --nous-workspace-shell-border:   var(--nous-border-subtle);
-  --nous-workspace-canvas-bg:      var(--nous-bg-base);
-  --nous-workspace-route-label-fg: var(--nous-fg-muted);
+  --nous-workspace-shell-border:   var(--nous-workspace-shell-frame-border);
+  --nous-workspace-canvas-bg:      #040404;
+  --nous-workspace-canvas-overlay: var(--nous-workspace-canvas-sheen);
+  --nous-workspace-route-label-fg: var(--nous-fg);
+  --nous-workspace-route-meta-fg:  var(--nous-fg-subtle);
+  --nous-workspace-route-card-bg:  rgba(255, 255, 255, 0.035);
+  --nous-workspace-route-card-border: rgba(255, 255, 255, 0.075);
 
   /* ── Tab bar ─────────────────────────────────────────────────────── */
   --nous-tab-bar-bg:      var(--nous-bg);
