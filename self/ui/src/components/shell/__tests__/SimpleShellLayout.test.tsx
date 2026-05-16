@@ -81,10 +81,15 @@ describe('SimpleShellLayout', () => {
     expect(getArea('chat')).toBeTruthy()
   })
 
-  it('uses the shell-specific workspace canvas token for the frame background', async () => {
+  it('uses shell-specific frame and canvas tokens for visible workspace fidelity', async () => {
     await renderLayout()
     const layout = container.firstElementChild as HTMLDivElement
-    expect(layout.style.background).toBe('var(--nous-workspace-canvas-bg)')
+    expect(layout.style.background).toBe('var(--nous-workspace-shell-frame-bg)')
+    expect(layout.style.border).toBe('1px solid var(--nous-workspace-shell-border)')
+    const content = getArea('content')
+    expect(content.getAttribute('data-visual-shell-fidelity')).toBe('workspace-canvas')
+    expect(content.getAttribute('style')).toContain('var(--nous-workspace-canvas-overlay)')
+    expect(content.getAttribute('style')).toContain('var(--nous-workspace-shell-border)')
   })
 
   it('sets single-row grid-template-areas on the container', async () => {

@@ -239,6 +239,17 @@
   --nous-chat-drawer-shadow:            0 24px 60px rgba(0, 0, 0, 0.44);
   --nous-workspace-route-header-height: 64px;
   --nous-workspace-canvas-padding-x:    32px;
+  --nous-workspace-shell-inset:         10px;
+  --nous-workspace-shell-frame-bg:      #020202;
+  --nous-workspace-shell-frame-border:  rgba(255, 255, 255, 0.07);
+  --nous-workspace-canvas-sheen:        radial-gradient(circle at 20% 0%, rgba(255, 255, 255, 0.055), transparent 34%), linear-gradient(135deg, rgba(255, 255, 255, 0.025), transparent 42%);
+  --nous-workspace-route-card-bg:       rgba(255, 255, 255, 0.035);
+  --nous-workspace-route-card-border:   rgba(255, 255, 255, 0.075);
+  --nous-workspace-route-chip-bg:       rgba(255, 255, 255, 0.07);
+  --nous-workspace-route-chip-fg:       #f4f4f4;
+  --nous-workspace-rail-active-bg:      rgba(255, 255, 255, 0.11);
+  --nous-workspace-sidebar-bg:          #060606;
+  --nous-workspace-sidebar-border:      rgba(255, 255, 255, 0.06);
 
   /* -- Chat overlay heights (per stage) */
   --nous-chat-height-small:             fit-content;

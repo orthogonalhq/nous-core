@@ -24,6 +24,22 @@ export interface ContentRouterProps
 
 type StackEntry = { route: string; params?: Record<string, unknown> }
 
+function formatRouteParams(params?: Record<string, unknown>): string | null {
+  if (!params) {
+    return null
+  }
+
+  const entries = Object.entries(params)
+    .filter(([, value]) => value !== undefined && value !== null)
+    .slice(0, 2)
+
+  if (entries.length === 0) {
+    return null
+  }
+
+  return entries.map(([key, value]) => `${key}: ${String(value)}`).join(' / ')
+}
+
 function stackEntryEquals(a: StackEntry, b: StackEntry): boolean {
   return a.route === b.route && JSON.stringify(a.params) === JSON.stringify(b.params)
 }
@@ -115,6 +131,7 @@ export function ContentRouter({
           params: navigationParams,
         }
       : undefined
+  const routeParamSummary = formatRouteParams(currentIdentity?.params)
 
   return (
     <div
@@ -135,19 +152,61 @@ export function ContentRouter({
       {currentIdentity ? (
         <div
           data-workspace-route-identity="true"
+          data-visual-shell-fidelity="route-identity"
           style={{
             display: 'flex',
             alignItems: 'center',
+            justifyContent: 'space-between',
             gap: 'var(--nous-space-sm)',
-            minHeight: 'var(--nous-workspace-route-header-height)',
-            padding: '0 var(--nous-workspace-canvas-padding-x)',
-            borderBottom: '1px solid var(--nous-workspace-shell-border)',
+            minHeight: 'calc(var(--nous-workspace-route-header-height) + 10px)',
+            margin: 'var(--nous-space-2xl) var(--nous-workspace-canvas-padding-x) var(--nous-space-md)',
+            padding: 'var(--nous-space-md) var(--nous-space-lg)',
+            border: '1px solid var(--nous-workspace-route-card-border)',
+            borderRadius: 'var(--nous-radius-xl)',
+            background: 'var(--nous-workspace-route-card-bg)',
             color: 'var(--nous-workspace-route-label-fg)',
-            fontSize: 'var(--nous-font-size-sm)',
-            fontWeight: 600,
+            boxShadow: 'inset 0 1px 0 rgba(255, 255, 255, 0.035)',
           }}
         >
-          <span>{currentIdentity.label}</span>
+          <div style={{ display: 'flex', minWidth: 0, flexDirection: 'column', gap: 'var(--nous-space-xs)' }}>
+            <span
+              style={{
+                fontSize: 'var(--nous-font-size-xl)',
+                fontWeight: 600,
+                letterSpacing: '-0.02em',
+              }}
+            >
+              {currentIdentity.label}
+            </span>
+            <span
+              data-workspace-route-param-summary={routeParamSummary ?? undefined}
+              style={{
+                color: 'var(--nous-workspace-route-meta-fg)',
+                fontFamily: 'var(--nous-font-family-mono)',
+                fontSize: 'var(--nous-font-size-xs)',
+                textTransform: 'uppercase',
+                letterSpacing: '0.08em',
+              }}
+            >
+              {currentIdentity.routeId}{routeParamSummary ? ` / ${routeParamSummary}` : ''}
+            </span>
+          </div>
+          <span
+            data-workspace-route-surface-chip={currentIdentity.surface}
+            style={{
+              flexShrink: 0,
+              borderRadius: '999px',
+              background: 'var(--nous-workspace-route-chip-bg)',
+              color: 'var(--nous-workspace-route-chip-fg)',
+              fontFamily: 'var(--nous-font-family-mono)',
+              fontSize: 'var(--nous-font-size-xs)',
+              letterSpacing: '0.08em',
+              padding: 'var(--nous-space-xs) var(--nous-space-md)',
+              textTransform: 'uppercase',
+            }}
+          >
+            {currentIdentity.surface}
+          </span>
         </div>
       ) : null}
 

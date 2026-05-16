@@ -303,7 +303,7 @@ function ListItem({
             style={{
                 ...s.listItemButton,
                 background: isActive
-                    ? 'var(--nous-bg-active)'
+                    ? 'var(--nous-workspace-rail-active-bg)'
                     : hovered && !disabled
                         ? 'var(--nous-bg-hover)'
                         : 'transparent',
@@ -635,7 +635,8 @@ const s = {
         minWidth: 0,
         overflow: 'hidden',
         position: 'relative' as const,
-        background: 'var(--nous-bg-surface)',
+        background: 'var(--nous-workspace-sidebar-bg)',
+        boxShadow: 'inset -1px 0 0 var(--nous-workspace-sidebar-border)',
     },
 
     // ── Header ──────────────────────────────────────────────────────────
@@ -643,8 +644,8 @@ const s = {
         display: 'flex',
         alignItems: 'center',
         justifyContent: 'space-between',
-        padding: 'var(--nous-space-xl) var(--nous-space-md)',
-        borderBottom: '1px solid var(--nous-border-subtle)',
+        padding: 'var(--nous-space-2xl) var(--nous-space-lg) var(--nous-space-xl)',
+        borderBottom: '1px solid var(--nous-workspace-sidebar-border)',
         flexShrink: 0,
     },
     headerProjectName: {
@@ -665,7 +666,7 @@ const s = {
         display: 'flex',
         flexDirection: 'column' as const,
         gap: 'var(--nous-space-xs)',
-        padding: 'var(--nous-space-2xl)',
+        padding: 'var(--nous-space-xl) var(--nous-space-lg)',
         minHeight: 0,
     },
 
@@ -676,8 +677,8 @@ const s = {
         gap: 'var(--nous-space-lg)',
         width: '100%',
         border: 'none',
-        borderRadius: 'var(--nous-radius-md)',
-        padding: 'var(--nous-space-sm)',
+        borderRadius: 'var(--nous-radius-lg)',
+        padding: 'var(--nous-space-sm) var(--nous-space-md)',
         fontFamily: 'var(--nous-font-family)',
         fontSize: 'var(--nous-font-size-md)',
         color: 'var(--nous-text-secondary)',
@@ -736,8 +737,8 @@ const s = {
     topNavGroup: {
         display: 'flex',
         flexDirection: 'column' as const,
-        gap: 1,
-        padding: '0 var(--nous-space-xs)',
+        gap: 'var(--nous-space-xs)',
+        padding: 0,
         paddingBottom: 'var(--nous-space-lg)',
     },
 
@@ -746,7 +747,7 @@ const s = {
         display: 'flex',
         flexDirection: 'column' as const,
         gap: 'var(--nous-space-lg)',
-        padding: '0 var(--nous-space-xs)',
+        padding: 0,
         marginTop: 'var(--nous-space-sm)',
     },
 

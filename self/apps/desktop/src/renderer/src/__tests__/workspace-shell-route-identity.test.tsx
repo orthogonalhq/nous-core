@@ -68,6 +68,11 @@ describe('desktop workspace shell route identity', () => {
     const router = container.querySelector('.nous-content-router') as HTMLElement
     expect(router.dataset.workspaceRouteId).toBe('workflow-detail')
     expect(router.dataset.workspaceRouteSurface).toBe('project')
+    const identity = container.querySelector('[data-visual-shell-fidelity="route-identity"]') as HTMLElement
+    expect(identity).toBeTruthy()
+    expect(identity.textContent).toContain('Workflow Detail')
+    expect(identity.textContent).toContain('workflow-detail / definitionId: wf-1')
+    expect(container.querySelector('[data-workspace-route-surface-chip="project"]')).toBeTruthy()
     expect(container.textContent).toContain('Workflow Detail:project:wf-1')
     expect(window.location.href).not.toContain('wf-1')
   })
