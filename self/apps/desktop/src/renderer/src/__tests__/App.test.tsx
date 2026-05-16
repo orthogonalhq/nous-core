@@ -213,6 +213,7 @@ describe('App', () => {
     dockviewApiMock.removePanel.mockClear()
     dockviewApiMock.panels.length = 0
     window.localStorage.clear()
+    window.history.pushState({}, '', '/')
 
     // Default trpc-fetch mock: return incomplete wizard state
     trpcFetchMock.trpcQuery.mockImplementation(async (procedure: string) => {
@@ -274,6 +275,55 @@ describe('App', () => {
     expect(screen.getByText('Status bar')).toBeInTheDocument()
     expect(document.querySelector('[data-chat-container="principal-drawer"]')).toBeNull()
     expect(mock.mode.get).toHaveBeenCalledTimes(1)
+  })
+
+  it('uses the WR-175 visual acceptance override without mutating persisted developer mode', async () => {
+    const mock = installMock()
+    mock.mode.get.mockResolvedValue('developer')
+    window.history.pushState({}, '', '/?nous-visual-shell-mode=simple')
+    trpcFetchMock.trpcQuery.mockImplementation(async (procedure: string) => {
+      if (procedure === 'firstRun.getWizardState') return createFirstRunState({ currentStep: 'complete', complete: true })
+      if (procedure === 'packages.listAppPanels') return []
+      return null
+    })
+
+    render(<App />)
+
+    await waitFor(() => {
+      expect(document.querySelector('[data-shell-area="rail"]')).not.toBeNull()
+    })
+
+    const shell = document.querySelector('[data-shell-mode-source="visual-acceptance-override"]') as HTMLElement | null
+    expect(shell?.dataset.shellMode).toBe('simple')
+    expect(screen.queryByText('Dockview shell')).not.toBeInTheDocument()
+    expect(document.querySelector('[data-chat-container="principal-drawer"]')).not.toBeNull()
+    expect(mock.mode.get).toHaveBeenCalledTimes(1)
+    expect(mock.mode.set).not.toHaveBeenCalled()
+  })
+
+  it('ignores invalid visual acceptance overrides and preserves persisted developer mode', async () => {
+    const mock = installMock()
+    const warnSpy = vi.spyOn(console, 'warn').mockImplementation(() => {})
+    mock.mode.get.mockResolvedValue('developer')
+    window.history.pushState({}, '', '/?nous-visual-shell-mode=developer')
+    trpcFetchMock.trpcQuery.mockImplementation(async (procedure: string) => {
+      if (procedure === 'firstRun.getWizardState') return createFirstRunState({ currentStep: 'complete', complete: true })
+      if (procedure === 'packages.listAppPanels') return []
+      return null
+    })
+
+    try {
+      render(<App />)
+
+      expect(await screen.findByText('Dockview shell')).toBeInTheDocument()
+      expect(document.querySelector('[data-shell-mode-source="persisted"]')).not.toBeNull()
+      expect(mock.mode.set).not.toHaveBeenCalled()
+      expect(warnSpy).toHaveBeenCalledWith(
+        '[nous:mode] Ignoring invalid nous-visual-shell-mode override',
+      )
+    } finally {
+      warnSpy.mockRestore()
+    }
   })
 
   it('toggles mode with the keyboard shortcut and persists the change', async () => {
