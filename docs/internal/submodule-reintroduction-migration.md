@@ -108,9 +108,23 @@ git merge origin/dev
 git submodule init
 git submodule absorbgitdirs
 
-# 3. Verify
-git submodule status   # should show pinned SHAs cleanly (no `-` or `+` prefix on the SHAs)
-git status             # parent should be clean (no "modified content")
+# 3. If any submodule was MISSING pre-migration (path didn't exist), `submodule init`
+#    above will have left it uncloned. Populate it now:
+git submodule update --init
+# Freshly-cloned submodules land DETACHED at the pinned SHA. For any submodule
+# whose working tree was freshly populated (not absorbed from an existing clone),
+# checkout a named branch — typically `main` for closed sprints, or the sprint
+# branch if you're on case 2/3:
+for R in .architecture .worklog .skills .opencode; do
+  CURRENT_BRANCH=$(git -C $R branch --show-current)
+  if [ -z "$CURRENT_BRANCH" ]; then
+    git -C $R checkout main   # or the sprint branch, per your case
+  fi
+done
+
+# 4. Verify
+git submodule status   # `+` prefix is OK (working tree ahead of pin); `U` is conflict
+git status             # parent's "modified content" entries are OK during sprint flow
 pnpm install --frozen-lockfile && pnpm build  # confirm nothing broke
 ```
 
@@ -309,7 +323,7 @@ Update this table as each worktree migrates. Record date, case, and any anomalie
 | Worktree | Status | Case | Date | Notes |
 |---|---|---|---|---|
 | `nous-core` (main tree, `dev`) | — | — | — | Authored PR #365 + this runbook v2 |
-| `feat-chat-experience-quality` | Pending | 2 | — | WR-159 closed; case 2 (legacy branch on `.worklog`); CANARY candidate for v2 |
+| `feat-chat-experience-quality` | **Migrated** | 2 | 2026-05-13 | WR-159 closed; case 2 CANARY for v2. Successful: 1 submodule-pin conflict on `.worklog` resolved by taking local (local was strictly newer than dev's pin); `.opencode` was missing pre-migration and auto-populated via `submodule update --init`. Post-migration `pnpm install` passed. Runbook gap surfaced: case 1/case 2 procedures need explicit "checkout named branch on freshly-cloned submodules" step (added in this same commit). |
 | `feat-onboarding-agent-identity` | Pending | 2 | — | WR-161 closed; case 2 |
 | `feat-wr-175-qualification` | Pending | 3 | — | WR-175 active sprint (post-Phase-1, BT-fix sub-phase in flight); case 3; migrate at next clean checkpoint, after BT round 2 closes |
 | `feat-system-observability-and-control` | Pending | 3 | — | WR-162 active; case 3; migrate at sub-phase boundary |
