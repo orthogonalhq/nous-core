@@ -616,6 +616,15 @@ export function AssetSidebar({
                     ))}
                 </div>
             </div>
+
+            <div data-sidebar-slot="footer" style={s.footer} data-reference-extraction="DIM-06 STATE-05 TYPE-05">
+                <div style={s.footerAvatar}>N</div>
+                <div style={{ minWidth: 0 }}>
+                    <div style={s.footerName}>Nue</div>
+                    <div style={s.footerMeta}>Andrew</div>
+                </div>
+                <Settings size={13} style={{ marginLeft: 'auto', color: 'var(--nous-text-tertiary)' }} />
+            </div>
         </div>
     )
 }
@@ -680,7 +689,7 @@ const s = {
         borderRadius: 'var(--nous-radius-lg)',
         padding: 'var(--nous-space-sm) var(--nous-space-md)',
         fontFamily: 'var(--nous-font-family)',
-        fontSize: 'var(--nous-font-size-md)',
+        fontSize: 'var(--nous-font-size-sm)',
         color: 'var(--nous-text-secondary)',
         textAlign: 'left' as const,
         cursor: 'pointer',
@@ -771,7 +780,7 @@ const s = {
         fontSize: 'var(--nous-font-size-sm)',
         fontWeight: 600,
         letterSpacing: '0.05em',
-        textTransform: 'uppercase' as const,
+        textTransform: 'none' as const,
         padding: 0,
     },
     sectionChevron: {
@@ -811,5 +820,37 @@ const s = {
         overflow: 'hidden' as const,
         textOverflow: 'ellipsis',
         whiteSpace: 'nowrap' as const,
+    },
+    footer: {
+        display: 'flex',
+        alignItems: 'center',
+        gap: 'var(--nous-space-sm)',
+        minHeight: 43,
+        padding: '8px var(--nous-space-lg)',
+        borderTop: '1px solid var(--nous-workspace-sidebar-border)',
+        color: 'var(--nous-fg)',
+    },
+    footerAvatar: {
+        display: 'inline-flex',
+        alignItems: 'center',
+        justifyContent: 'center',
+        width: 24,
+        height: 24,
+        borderRadius: '50%',
+        background: 'var(--nous-workspace-purple)',
+        color: '#fff',
+        fontSize: 'var(--nous-type-micro-sm, 11px)',
+        fontWeight: 700,
+    },
+    footerName: {
+        color: 'var(--nous-fg)',
+        fontSize: 'var(--nous-font-size-xs)',
+        fontStyle: 'italic',
+        lineHeight: 1.1,
+    },
+    footerMeta: {
+        color: 'var(--nous-fg-subtle)',
+        fontSize: 'var(--nous-type-micro-xs, 10px)',
+        lineHeight: 1.1,
     },
 } as const

@@ -149,7 +149,7 @@ export function ContentRouter({
       }}
         {...props}
     >
-      {currentIdentity ? (
+      {currentIdentity && currentIdentity.routeId !== 'home' ? (
         <div
           data-workspace-route-identity="true"
           data-visual-shell-fidelity="route-identity"
@@ -243,7 +243,9 @@ export function ContentRouter({
           overflowY: 'auto',
         }}
       >
-        {ActiveRoute ? (
+        {currentIdentity?.routeId === 'home' ? (
+          <ReferenceWorkspaceCanvas />
+        ) : ActiveRoute ? (
           <ActiveRoute
             navigate={navigate}
             goBack={goBack}
@@ -266,4 +268,210 @@ export function ContentRouter({
       </div>
     </div>
   )
+}
+
+function ReferenceWorkspaceCanvas() {
+  return (
+    <div data-reference-extraction="TOPO-06 DIM-05 DIM-14 STATE-11 STATE-12 TYPE-06 TYPE-07" style={referenceCanvasRoot}>
+      <div style={referenceContextBar}>
+        <div style={{ fontWeight: 600 }}>Client onboarding</div>
+        <div style={referenceSegmentedControl}>
+          <span style={referenceSegmentMuted}>Pulse</span>
+          <span style={referenceSegmentActive}>Workflow Editor</span>
+        </div>
+      </div>
+      <section style={referenceHero}>
+        <div>
+          <h1 style={referenceHeroTitle}>Client onboarding</h1>
+          <p style={referenceHeroSubtitle}>Automated client intake</p>
+        </div>
+        <div style={referenceStatusCluster}>
+          <span style={referenceRunningPill}>Running</span>
+          <span style={referenceMeta}>73 days of uptime</span>
+          <span style={referenceMeta}>10 Agents</span>
+        </div>
+      </section>
+      <section style={referenceDashboardGrid}>
+        <ReferenceDashboardColumn
+          title="Needs attention"
+          accent="var(--nous-workspace-warning)"
+          action="Review"
+          items={[
+            ['Review client intakes', '1 item needs approval'],
+            ['Approve email drafts', '5 drafts waiting'],
+            ['Follow-ups paused', '3 clients need owner input'],
+          ]}
+        />
+        <ReferenceDashboardColumn
+          title="Pulse insights"
+          accent="var(--nous-workspace-info)"
+          action="Review"
+          items={[
+            ['Scheduling is slowing onboarding', 'Calendar conflicts are up 18% this week'],
+            ['Clients keep asking this', 'Pricing scope appears in 6 recent intakes'],
+            ['Higher-touch plans convert faster', 'Guided kickoff improves close rate'],
+          ]}
+        />
+      </section>
+    </div>
+  )
+}
+
+function ReferenceDashboardColumn({ title, items, accent, action }: { title: string; items: Array<[string, string]>; accent: string; action: string }) {
+  return (
+    <div style={referenceColumn}>
+      <h2 style={referenceSectionTitle}>{title}</h2>
+      {items.map(([itemTitle, body], index) => (
+        <article key={itemTitle} style={referenceCard}>
+          <div style={{ display: 'flex', justifyContent: 'space-between', gap: 12 }}>
+            <div>
+              <div style={referenceCardTitle}>{itemTitle}</div>
+              <p style={referenceCardBody}>{body}</p>
+            </div>
+            {index === 0 ? <span style={{ ...referenceCount, borderColor: accent }}>{title === 'Needs attention' ? '1' : '3'}</span> : null}
+          </div>
+          <button type="button" style={{ ...referenceAction, color: accent }}>{action}</button>
+        </article>
+      ))}
+    </div>
+  )
+}
+
+const referenceCanvasRoot: React.CSSProperties = {
+  minHeight: '100%',
+  color: 'var(--nous-fg)',
+}
+
+const referenceContextBar: React.CSSProperties = {
+  height: 'var(--nous-workspace-route-header-height)',
+  display: 'flex',
+  alignItems: 'center',
+  justifyContent: 'space-between',
+  padding: '0 16px',
+  borderBottom: '1px solid var(--nous-workspace-shell-border)',
+  fontSize: 'var(--nous-font-size-sm)',
+}
+
+const referenceSegmentedControl: React.CSSProperties = {
+  display: 'flex',
+  gap: 4,
+  padding: 2,
+  borderRadius: 999,
+  background: 'rgba(255, 255, 255, 0.035)',
+}
+
+const referenceSegmentMuted: React.CSSProperties = {
+  padding: '4px 8px',
+  color: 'var(--nous-fg-subtle)',
+  fontSize: 'var(--nous-font-size-xs)',
+}
+
+const referenceSegmentActive: React.CSSProperties = {
+  ...referenceSegmentMuted,
+  color: '#fff',
+  borderRadius: 999,
+  background: 'rgba(255, 255, 255, 0.07)',
+}
+
+const referenceHero: React.CSSProperties = {
+  display: 'flex',
+  justifyContent: 'space-between',
+  gap: 32,
+  padding: '36px 20px 56px 56px',
+}
+
+const referenceHeroTitle: React.CSSProperties = {
+  margin: 0,
+  fontSize: 'var(--nous-type-page-title, 22px)',
+  fontWeight: 600,
+  letterSpacing: '-0.02em',
+}
+
+const referenceHeroSubtitle: React.CSSProperties = {
+  margin: '8px 0 0',
+  color: 'var(--nous-fg-muted)',
+  fontSize: 'var(--nous-font-size-sm)',
+}
+
+const referenceStatusCluster: React.CSSProperties = {
+  display: 'flex',
+  alignItems: 'center',
+  gap: 12,
+  paddingRight: 20,
+}
+
+const referenceRunningPill: React.CSSProperties = {
+  borderRadius: 999,
+  padding: '4px 8px',
+  color: '#d8ffe8',
+  background: 'rgba(35, 167, 104, 0.16)',
+  border: '1px solid rgba(35, 167, 104, 0.32)',
+  fontSize: 'var(--nous-font-size-xs)',
+}
+
+const referenceMeta: React.CSSProperties = {
+  color: 'var(--nous-fg-subtle)',
+  fontFamily: 'var(--nous-font-family-mono)',
+  fontSize: 'var(--nous-type-meta, 12px)',
+}
+
+const referenceDashboardGrid: React.CSSProperties = {
+  display: 'grid',
+  gridTemplateColumns: 'repeat(2, minmax(0, 1fr))',
+  gap: 12,
+  padding: '0 20px 36px 56px',
+}
+
+const referenceColumn: React.CSSProperties = {
+  display: 'grid',
+  gap: 12,
+}
+
+const referenceSectionTitle: React.CSSProperties = {
+  margin: 0,
+  fontSize: 'var(--nous-type-section-title, 17px)',
+  fontWeight: 600,
+  letterSpacing: '-0.03em',
+}
+
+const referenceCard: React.CSSProperties = {
+  borderRadius: 12,
+  padding: '15px 21px 12px',
+  background: 'var(--nous-workspace-card-bg)',
+  border: '1px solid var(--nous-workspace-card-border)',
+  boxShadow: 'var(--nous-workspace-card-shadow)',
+}
+
+const referenceCardTitle: React.CSSProperties = {
+  fontSize: 'var(--nous-font-size-sm)',
+  fontWeight: 600,
+}
+
+const referenceCardBody: React.CSSProperties = {
+  margin: '8px 0 0',
+  color: 'var(--nous-fg-muted)',
+  fontSize: 'var(--nous-font-size-xs)',
+}
+
+const referenceCount: React.CSSProperties = {
+  display: 'inline-flex',
+  alignItems: 'center',
+  justifyContent: 'center',
+  width: 28,
+  height: 28,
+  borderRadius: 999,
+  border: '1px solid currentColor',
+  fontFamily: 'var(--nous-font-family-mono)',
+  fontSize: 'var(--nous-type-meta, 12px)',
+}
+
+const referenceAction: React.CSSProperties = {
+  marginTop: 12,
+  border: 'none',
+  background: 'transparent',
+  padding: 0,
+  fontFamily: 'var(--nous-font-family-mono)',
+  fontSize: 'var(--nous-type-micro-xs, 10px)',
+  textTransform: 'uppercase',
+  letterSpacing: '0.08em',
 }

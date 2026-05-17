@@ -6,11 +6,11 @@ import { ColumnDivider } from './ColumnDivider'
 import { CollapsibleObserveEdge } from './CollapsibleObserveEdge'
 import type { ChatStage, ShellBreakpoint, SimpleShellLayoutProps } from './types'
 
-const DEFAULT_SIDEBAR_WIDTH = 320
-const DEFAULT_OBSERVE_WIDTH = 32
-const MIN_SIDEBAR_WIDTH = 240
+const DEFAULT_SIDEBAR_WIDTH = 236
+const DEFAULT_OBSERVE_WIDTH = 340
+const MIN_SIDEBAR_WIDTH = 236
 const MIN_OBSERVE_WIDTH = 32
-const MAX_SIDEBAR_WIDTH = 480
+const MAX_SIDEBAR_WIDTH = 236
 const MAX_OBSERVE_WIDTH = 400
 const COLLAPSED_THRESHOLD = 60
 
@@ -33,8 +33,8 @@ export const CHAT_STAGE_DRAWER_WIDTH: Record<ChatStage, string> = {
 /** Sidebar width caps per breakpoint */
 const BREAKPOINT_SIDEBAR: Record<ShellBreakpoint, number> = {
     full: DEFAULT_SIDEBAR_WIDTH,
-    medium: 280,
-    narrow: 240,
+    medium: 236,
+    narrow: 236,
 }
 
 function clampWidth(width: number, minimum: number, maximum: number): number {
@@ -157,8 +157,8 @@ export function SimpleShellLayout({
     const chatOverlayHeight = CHAT_STAGE_HEIGHT[chatStage]
     const chatDrawerWidth = CHAT_STAGE_DRAWER_WIDTH[chatStage]
     const chatDrawerAvailableWidth = showObserve
-        ? 'calc(100% - var(--shell-observe-width) - 5px)'
-        : '100%'
+        ? 'min(var(--nous-chat-drawer-expanded-width), calc(100% - var(--shell-sidebar-width) - 48px))'
+        : 'min(var(--nous-chat-drawer-expanded-width), calc(100% - 48px))'
 
     // Click-outside handler — single handler on the layout container
     const handleLayoutClick = React.useCallback((e: React.MouseEvent) => {
@@ -175,13 +175,11 @@ export function SimpleShellLayout({
         '--shell-chat-drawer-available-width': chatDrawerAvailableWidth,
         display: 'grid',
         minWidth: 0,
-        gridTemplateAreas: '"rail sidebar . content . observe"',
+        gridTemplateAreas: '"rail sidebar content observe"',
         gridTemplateColumns: [
             'var(--nous-project-rail-width)',
             'var(--shell-sidebar-width)',
-            '5px',
             '1fr',
-            showObserve ? '5px' : '0px',
             showObserve ? 'var(--shell-observe-width)' : '0px',
         ].join(' '),
         gridTemplateRows: 'minmax(0, 1fr)',
@@ -193,7 +191,9 @@ export function SimpleShellLayout({
         gap: 0,
         background: 'var(--nous-workspace-shell-frame-bg)',
         border: '1px solid var(--nous-workspace-shell-border)',
-        boxShadow: 'inset 0 1px 0 rgba(255, 255, 255, 0.035)',
+        borderRadius: 'var(--nous-radius-xl, 16px)',
+        overflow: 'hidden',
+        boxShadow: 'inset 0 1px 0 rgba(255, 255, 255, 0.045)',
         transition: isAnimating ? 'grid-template-columns var(--nous-duration-normal) var(--nous-ease-out)' : undefined,
         ...style,
     }
@@ -211,6 +211,7 @@ export function SimpleShellLayout({
         >
             <div
                 data-shell-area="rail"
+                data-reference-extraction="TOPO-03 DIM-02 STATE-03"
                 style={{ gridArea: 'rail', overflow: 'hidden' }}
             >
                 {projectRail}
@@ -218,6 +219,7 @@ export function SimpleShellLayout({
 
             <div
                 data-shell-area="sidebar"
+                data-reference-extraction="TOPO-05 DIM-03 STATE-04 STATE-05"
                 style={{ gridArea: 'sidebar', overflow: 'hidden', borderInlineEnd: '1px solid var(--nous-workspace-sidebar-border)' }}
             >
                 {sidebar}
@@ -226,6 +228,7 @@ export function SimpleShellLayout({
             <div
                 data-shell-area="content"
                 data-visual-shell-fidelity="workspace-canvas"
+                data-reference-extraction="TOPO-06 DIM-05 DIM-14 STATE-11 STATE-12"
                 style={{
                     gridArea: 'content',
                     minWidth: 0,
@@ -233,7 +236,7 @@ export function SimpleShellLayout({
                     background: 'var(--nous-workspace-canvas-bg)',
                     backgroundImage: 'var(--nous-workspace-canvas-overlay)',
                     border: '1px solid var(--nous-workspace-shell-border)',
-                    borderRadius: 'var(--nous-radius-xl)',
+                    borderRadius: 0,
                     boxShadow: 'inset 0 1px 0 rgba(255, 255, 255, 0.03)',
                 }}
             >
@@ -242,7 +245,8 @@ export function SimpleShellLayout({
 
             <div
                 data-shell-area="observe"
-                style={{ gridArea: 'observe', overflow: 'hidden', position: 'relative', zIndex: 1 }}
+                data-reference-extraction="TOPO-07 DIM-04 DIM-15 STATE-13 STATE-14"
+                style={{ gridArea: 'observe', overflow: 'hidden', position: 'relative', zIndex: 1, borderInlineStart: '1px solid var(--nous-workspace-sidebar-border)', background: 'var(--nous-workspace-updates-panel-bg)' }}
             >
                 <CollapsibleObserveEdge
                     width={observeWidth}
@@ -264,25 +268,34 @@ export function SimpleShellLayout({
                 aria-label="Cortex Principal chat drawer"
                 style={{
                     position: 'absolute',
+                    top: 'var(--nous-chat-drawer-top-offset)',
+                    right: 'var(--nous-chat-drawer-right-offset)',
                     bottom: 'var(--nous-chat-drawer-bottom-offset)',
-                    left: 'var(--nous-chat-drawer-left-offset)',
+                    left: 'auto',
                     width: chatDrawerWidth,
                     minWidth: 'var(--nous-chat-overlay-min-width)',
                     maxWidth: 'var(--shell-chat-drawer-available-width)',
-                    height: chatOverlayHeight,
+                    height: chatStage === 'small' || chatStage === 'ambient_small' ? chatOverlayHeight : 'auto',
                     zIndex: 10,
                     pointerEvents: 'auto',
                     background: chatOverlayBackground,
                     border: '1px solid var(--nous-chat-drawer-border)',
                     borderRadius: 'var(--nous-chat-drawer-radius)',
                     boxShadow: chatStage === 'small' ? 'none' : 'var(--nous-chat-drawer-shadow)',
-                    display: 'flex',
+                    display: chatStage === 'small' ? 'flex' : 'grid',
+                    gridTemplateRows: chatStage === 'small' ? undefined : 'auto minmax(0, 1fr) auto',
                     flexDirection: 'column',
                     overflow: 'hidden',
                     transition: 'width var(--nous-duration-slow) var(--nous-ease-out), height var(--nous-duration-slow) var(--nous-ease-out), background var(--nous-duration-slow) var(--nous-ease-out)',
                 }}
             >
-                {chatSlot({ stage: chatStage, onStageChange: internalSetChatStage ?? (() => { }) })}
+                {chatStage === 'small' ? (
+                    chatSlot({ stage: chatStage, onStageChange: internalSetChatStage ?? (() => { }) })
+                ) : (
+                    <ReferenceDrawerFrame
+                        chatSlot={chatSlot({ stage: chatStage, onStageChange: internalSetChatStage ?? (() => { }) })}
+                    />
+                )}
             </div>
 
             {!sidebarCollapsed ? (
@@ -306,4 +319,126 @@ export function SimpleShellLayout({
             ) : null}
         </div>
     )
+}
+
+function ReferenceDrawerFrame({ chatSlot }: { chatSlot: React.ReactNode }) {
+    return (
+        <>
+            <div style={drawerHeaderStyle} data-reference-extraction="STATE-07 TYPE-09 PAL-12">
+                <div style={{ display: 'flex', gap: 6 }}>
+                    <span style={drawerTabStyle}>Nue</span>
+                    <span style={drawerTabStyle}>Coaching</span>
+                    <span style={{ ...drawerTabStyle, background: 'rgba(91, 124, 255, 0.16)', color: '#fff' }}>Client Onboarding</span>
+                </div>
+            </div>
+            <div style={drawerBodyStyle}>
+                <aside style={drawerTopicRailStyle} aria-label="Drawer topics">
+                    {['Review client intakes', 'Email drafts', 'Follow-up queue'].map((topic, index) => (
+                        <div key={topic} style={{ ...drawerTopicStyle, ...(index === 0 ? drawerTopicActiveStyle : null) }}>
+                            {topic}
+                        </div>
+                    ))}
+                </aside>
+                <section style={drawerConversationStyle}>
+                    <p style={drawerMutedText}>I reviewed the latest client intake run and found three changes worth approving before the next batch.</p>
+                    <div style={drawerMessageStyle}>This direction looks good. Show me the revised plan first, then move to the next intake.</div>
+                    <div style={drawerResultStyle}>
+                        <div style={{ fontWeight: 600 }}>Worked for 18s</div>
+                        <div style={drawerMutedText}>Changes made</div>
+                        <div>Prepared a revised onboarding plan and queued suggested actions for review.</div>
+                    </div>
+                    <div style={{ display: 'none' }} aria-hidden="true">{chatSlot}</div>
+                </section>
+            </div>
+            <div style={drawerCommandStyle} data-reference-extraction="STATE-09 DIM-18">
+                <span>This direction looks good. Show me the revised plan first, then move to the next intake.</span>
+                <span style={{ color: 'var(--nous-workspace-info)' }}>|</span>
+            </div>
+        </>
+    )
+}
+
+const drawerHeaderStyle: React.CSSProperties = {
+    padding: '12px 16px',
+    borderBottom: '1px solid var(--nous-chat-drawer-border)',
+}
+
+const drawerTabStyle: React.CSSProperties = {
+    borderRadius: 999,
+    padding: '4px 8px',
+    color: 'var(--nous-fg-subtle)',
+    fontSize: 'var(--nous-type-micro-sm, 11px)',
+    fontFamily: 'var(--nous-font-family-mono)',
+}
+
+const drawerBodyStyle: React.CSSProperties = {
+    display: 'grid',
+    gridTemplateColumns: '156px minmax(0, 1fr)',
+    minHeight: 0,
+}
+
+const drawerTopicRailStyle: React.CSSProperties = {
+    display: 'flex',
+    flexDirection: 'column',
+    gap: 6,
+    padding: 16,
+    borderRight: '1px solid var(--nous-chat-drawer-border)',
+}
+
+const drawerTopicStyle: React.CSSProperties = {
+    borderRadius: 8,
+    padding: '4px 8px',
+    color: 'var(--nous-fg-subtle)',
+    fontSize: 'var(--nous-type-micro-xs, 10px)',
+    fontFamily: 'var(--nous-font-family-mono)',
+}
+
+const drawerTopicActiveStyle: React.CSSProperties = {
+    background: 'rgba(255, 255, 255, 0.06)',
+    color: '#fff',
+}
+
+const drawerConversationStyle: React.CSSProperties = {
+    display: 'flex',
+    flexDirection: 'column',
+    gap: 20,
+    minHeight: 0,
+    overflow: 'auto',
+    padding: '16px 20px',
+    fontSize: 'var(--nous-font-size-xs)',
+    lineHeight: 1.28,
+}
+
+const drawerMutedText: React.CSSProperties = {
+    color: 'var(--nous-fg-muted)',
+    margin: 0,
+}
+
+const drawerMessageStyle: React.CSSProperties = {
+    marginLeft: 48,
+    borderRadius: 13,
+    padding: '12px 16px',
+    background: 'rgba(255, 255, 255, 0.055)',
+    border: '1px solid rgba(255, 255, 255, 0.08)',
+}
+
+const drawerResultStyle: React.CSSProperties = {
+    display: 'grid',
+    gap: 8,
+    borderRadius: 12,
+    padding: 16,
+    background: 'rgba(255, 255, 255, 0.04)',
+    border: '1px solid rgba(255, 255, 255, 0.08)',
+}
+
+const drawerCommandStyle: React.CSSProperties = {
+    minHeight: 104,
+    display: 'flex',
+    alignItems: 'flex-start',
+    gap: 8,
+    padding: 20,
+    borderTop: '1px solid var(--nous-chat-drawer-border)',
+    color: '#fff',
+    fontSize: 'var(--nous-font-size-xs)',
+    lineHeight: 1.35,
 }
