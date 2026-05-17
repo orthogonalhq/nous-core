@@ -104,13 +104,14 @@ describe('ObservePanel', () => {
     expect(screen.getByText('MAO Operating Surface')).toBeTruthy()
   })
 
-  it('renders default placeholder when activeRoute is home', () => {
+  it('renders Workspace updates reference rail when activeRoute is home', () => {
     render(
       <ShellProvider activeRoute="home">
         <ObservePanel />
       </ShellProvider>,
     )
-    expect(screen.getByText('No observe content for this view')).toBeTruthy()
+    expect(screen.getByText('Workspace updates')).toBeTruthy()
+    expect(screen.getByText('Morning emails finished')).toBeTruthy()
   })
 
   it('renders MaoOperatingSurface when activeRoute is skills', () => {

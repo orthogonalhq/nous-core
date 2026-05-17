@@ -95,7 +95,7 @@ describe('SimpleShellLayout', () => {
   it('sets single-row grid-template-areas on the container', async () => {
     await renderLayout()
     const layout = container.firstElementChild as HTMLDivElement
-    expect(layout.style.gridTemplateAreas).toBe('"rail sidebar . content . observe"')
+    expect(layout.style.gridTemplateAreas).toBe('"rail sidebar content observe"')
   })
 
   it('uses single-row grid (1fr)', async () => {
@@ -108,8 +108,9 @@ describe('SimpleShellLayout', () => {
     await renderLayout()
     const chat = getArea('chat')
     expect(chat.style.position).toBe('absolute')
+    expect(chat.style.top).toBe('var(--nous-chat-drawer-top-offset)')
+    expect(chat.style.right).toBe('var(--nous-chat-drawer-right-offset)')
     expect(chat.style.bottom).toBe('var(--nous-chat-drawer-bottom-offset)')
-    expect(chat.style.left).toBe('var(--nous-chat-drawer-left-offset)')
     expect(chat.style.zIndex).toBe('10')
     expect(chat.getAttribute('data-chat-owner')).toBe('Cortex:Principal')
     expect(chat.getAttribute('data-chat-container')).toBe('principal-drawer')
@@ -120,15 +121,15 @@ describe('SimpleShellLayout', () => {
   it('applies initial widths as CSS custom properties', async () => {
     await renderLayout({ initialWidths: { sidebar: 300, observe: 100 } })
     const layout = container.firstElementChild as HTMLDivElement
-    expect(layout.style.getPropertyValue('--shell-sidebar-width')).toBe('300px')
+    expect(layout.style.getPropertyValue('--shell-sidebar-width')).toBe('236px')
     expect(layout.style.getPropertyValue('--shell-observe-width')).toBe('100px')
   })
 
   it('clamps sidebar width to min/max', async () => {
     await renderLayout({ initialWidths: { sidebar: 100 } })
     const layout = container.firstElementChild as HTMLDivElement
-    // 100 < 240 min, so clamped to 240
-    expect(layout.style.getPropertyValue('--shell-sidebar-width')).toBe('240px')
+    // Reference sidebar is fixed at extracted 236px width.
+    expect(layout.style.getPropertyValue('--shell-sidebar-width')).toBe('236px')
   })
 
   it('hides observe at medium breakpoint', async () => {
@@ -149,8 +150,7 @@ describe('SimpleShellLayout', () => {
   it('caps sidebar width per breakpoint', async () => {
     await renderLayout({ breakpoint: 'medium', initialWidths: { sidebar: 400 } })
     const layout = container.firstElementChild as HTMLDivElement
-    // medium cap is 280
-    expect(layout.style.getPropertyValue('--shell-sidebar-width')).toBe('280px')
+    expect(layout.style.getPropertyValue('--shell-sidebar-width')).toBe('236px')
   })
 
   it('sets data-breakpoint on container', async () => {
@@ -159,10 +159,10 @@ describe('SimpleShellLayout', () => {
     expect(layout.getAttribute('data-breakpoint')).toBe('narrow')
   })
 
-  it('renders sidebar ColumnDivider (observe collapsed by default)', async () => {
+  it('renders sidebar and updates ColumnDividers when reference updates rail is visible by default', async () => {
     await renderLayout()
     const dividers = container.querySelectorAll('[role="separator"]')
-    expect(dividers.length).toBe(1)
+    expect(dividers.length).toBe(2)
   })
 
   it('renders both ColumnDividers when observe is expanded', async () => {
@@ -247,7 +247,7 @@ describe('SimpleShellLayout', () => {
     await renderLayout({ initialWidths: { observe: 280 } })
     const layout = container.firstElementChild as HTMLDivElement
     expect(layout.style.getPropertyValue('--shell-chat-drawer-available-width')).toBe(
-      'calc(100% - var(--shell-observe-width) - 5px)',
+      'min(var(--nous-chat-drawer-expanded-width), calc(100% - var(--shell-sidebar-width) - 48px))',
     )
 
     await act(async () => {
@@ -265,7 +265,16 @@ describe('SimpleShellLayout', () => {
       await flush()
     })
     const nextLayout = container.firstElementChild as HTMLDivElement
-    expect(nextLayout.style.getPropertyValue('--shell-chat-drawer-available-width')).toBe('100%')
+    expect(nextLayout.style.getPropertyValue('--shell-chat-drawer-available-width')).toBe('min(var(--nous-chat-drawer-expanded-width), calc(100% - 48px))')
+  })
+
+  it('renders reference drawer tabs, topics, result, and command input when open', async () => {
+    await renderLayout({ chatStage: 'ambient_large' })
+    const chat = getArea('chat')
+    expect(chat.textContent).toContain('Client Onboarding')
+    expect(chat.textContent).toContain('Review client intakes')
+    expect(chat.textContent).toContain('Worked for 18s')
+    expect(chat.textContent).toContain('This direction looks good. Show me the revised plan first')
   })
 
   // ── WR-141: whole-sidebar collapse ────────────────────────────────────
@@ -302,7 +311,7 @@ describe('SimpleShellLayout', () => {
       await flush()
     })
     layout = container.firstElementChild as HTMLDivElement
-    expect(layout.style.getPropertyValue('--shell-sidebar-width')).toBe('300px')
+    expect(layout.style.getPropertyValue('--shell-sidebar-width')).toBe('236px')
   })
 
   it('does not render the sidebar ColumnDivider when sidebarCollapsed={true}', async () => {
