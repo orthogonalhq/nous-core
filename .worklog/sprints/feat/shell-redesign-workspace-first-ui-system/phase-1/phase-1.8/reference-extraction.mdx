@@ -1,0 +1,259 @@
+---
+title: "Reference Extraction — WR-175 Phase 1.8"
+date: 2026-05-17
+status: Hard-gate reference artifact for review before implementation coding
+track: fix
+sprint: feat/shell-redesign-workspace-first-ui-system
+phase: phase-1.8
+branch: feat/shell-redesign-workspace-first-ui-system.1.8/reference-driven-shell-reconstruction
+controlling_artifact: .worklog/sprints/feat/shell-redesign-workspace-first-ui-system/phase-1/phase-1.8/ratified-fix-approach.mdx
+---
+
+# Reference Extraction — WR-175 Phase 1.8
+
+## Status
+
+This is the hard pre-coding reference extraction artifact required by the ratified Phase 1.8 fix approach. It converts the binding marketing design-system specimen and screenshot into citeable criteria for downstream Goals, SDS, Plan, implementation trace, and Completion Report evidence.
+
+Implementation coding remains blocked until this artifact is reviewed/accepted. Generic dark UI tuning, DOM metadata, token assertions, and tests alone are not sufficient to satisfy WR-175 strict visual fidelity.
+
+## Reference Inventory
+
+### Worklog and Scope Inputs Read Fully
+
+| Ref | Source | Evidence Extracted |
+|---|---|---|
+| INV-WL-01 | `.worklog/sprints/feat/shell-redesign-workspace-first-ui-system/phase-1/phase-1.8/ratified-fix-approach.mdx` | Requires this artifact before coding and mandates topology, dimensions, palette, typography, visible states, acceptance screenshots, and deviations. |
+| INV-WL-02 | `.worklog/sprints/feat/shell-redesign-workspace-first-ui-system/phase-1/phase-1.8/root-cause-manifest.mdx` | Root causes are missing topology extraction, dimensions/geometry, palette/token mapping, typography/content-state hierarchy, and screenshot comparison evidence. |
+| INV-WL-03 | `.worklog/sprints/feat/shell-redesign-workspace-first-ui-system/phase-1/phase-1.8/reviews/root-cause-manifest-review.mdx` | Review approves the manifest and preserves the gate: implementation planning/coding stays blocked until the extraction artifact exists and is reviewed/accepted. |
+| INV-WL-04 | `.worklog/sprints/feat/shell-redesign-workspace-first-ui-system/phase-1/phase-1.7/behavioral-testing/round-7.mdx` | Negative-control BT evidence: prior result did not match references; no mapped dimensions, palette/layout extraction, screenshot comparison, token mapping, or topology match. |
+| INV-WL-05 | `.architecture/roadmap/feat/shell-redesign-workspace-first-ui-system/phase-scope.md` | Phase 1 scope is desktop/app workspace-first shell polish, simple chat frame, asset-sidebar Project / Chat model, agent drawer as simple-shell container, developer-mode non-regression. |
+| INV-WL-06 | `.architecture/roadmap/feat/shell-redesign-workspace-first-ui-system/index.md` | Repeats Phase 1 acceptance boundary and records Phase 1 close with WR-176 build/typecheck carry-forward, not a visual-fidelity pass. |
+
+### Design-System Source Inspected Directly
+
+| Ref | Source | Lines/Region | Evidence Extracted |
+|---|---|---:|---|
+| INV-DS-01 | `S:\Localhost\Nous\nous-marketing-website\src\app\design-system\page.tsx` | 1-11 | Design-system entry renders `DesignSystemDoc`; this is the inspected entrypoint. |
+| INV-DS-02 | `S:\Localhost\Nous\nous-marketing-website\src\components\design-system\nous-design-system.tsx` | 6-34, 73-155 | Specimen is canonical; component/token extraction guidance names shell frame, topbar controls, project rail, asset sidebar, workspace header, operational cards, updates rail, agent drawer, typography, and state accents. |
+| INV-DS-03 | `S:\Localhost\Nous\nous-marketing-website\src\components\design-system\design-system-theme-shell.tsx` | 6-48 | Default design-system theme is dark; alternate light/rust exist but the default specimen is dark. |
+| INV-DS-04 | `S:\Localhost\Nous\nous-marketing-website\src\components\design-system\mockup\components\workspace-mockup.tsx` | 10-35 | Defines `chat`/`workspace` modes and shell topology: outer topbar/rail grid, inset app frame, sidebar, context panel, updates panel, absolute agent drawer, noise overlay, outer border overlay. |
+| INV-DS-05 | `S:\Localhost\Nous\nous-marketing-website\src\components\design-system\mockup\components\chrome.tsx` | 7-127 | Defines app topbar, Workspaces selected state, search, window controls, icon rail project buttons, rail separator, create action. |
+| INV-DS-06 | `S:\Localhost\Nous\nous-marketing-website\src\components\design-system\mockup\components\asset-sidebar.tsx` | 6-53 | Defines Coaching asset sidebar header, nav, active Client onboarding row, sections, footer user/control area. |
+| INV-DS-07 | `S:\Localhost\Nous\nous-marketing-website\src\components\design-system\mockup\components\context-panel.tsx` | 8-55 | Defines Client onboarding context bar, mode tabs, hero, Running status, two dashboard columns: Needs attention and Pulse insights. |
+| INV-DS-08 | `S:\Localhost\Nous\nous-marketing-website\src\components\design-system\mockup\components\workspace-updates.tsx` | 7-29 | Defines right Workspace updates rail, controls, compact update-card list, bottom fade. |
+| INV-DS-09 | `S:\Localhost\Nous\nous-marketing-website\src\components\design-system\mockup\components\agent-drawer.tsx` | 9-119 | Defines open/collapsed drawer states, absolute right-side drawer geometry, tabs, topic rail, conversation/result body, command input. |
+| INV-DS-10 | `S:\Localhost\Nous\nous-marketing-website\src\components\design-system\mockup\components\primitives.tsx` | 7-167 | Defines active nav state, segmented active state, chips, buttons, surface card, command input, glyph-button active/tone/hover states. |
+| INV-DS-11 | `S:\Localhost\Nous\nous-marketing-website\src\components\design-system\mockup\components\cards.tsx` | 8-52 | Defines dashboard section titles, work cards, insight cards, update mini cards, counts, review actions, timestamp treatment. |
+| INV-DS-12 | `S:\Localhost\Nous\nous-marketing-website\src\components\design-system\mockup\components\workspace-mockup.module.css` | 1-22 | Defines outer border overlay: 1px masked radial border, `--nous-radius-xl`, top white-alpha to bottom black-alpha. |
+| INV-DS-13 | `S:\Localhost\Nous\nous-marketing-website\src\components\design-system\mockup\components\data.ts` | 1 | Re-exports mockup copy arrays for sidebar, cards, and updates. |
+| INV-DS-14 | `S:\Localhost\Nous\nous-marketing-website\src\content\mockup-copy.ts` | 1-146 | Defines exact visible copy and fixture states for topbar, sidebar, context panel, agent drawer, attention cards, insight cards, and updates. |
+
+### Token Sources Inspected Directly
+
+| Ref | Source | Lines/Region | Evidence Extracted |
+|---|---|---:|---|
+| INV-TOK-01 | `S:\Localhost\Nous\nous-marketing-website\src\styles\tokens\primitives.css` | 1-76 | Primitive dark palette, foreground hierarchy, accents, alpha ladder, radii, spacing, sans/mono families. |
+| INV-TOK-02 | `S:\Localhost\Nous\nous-marketing-website\src\styles\tokens\app-theme.css` | 1-229 | Default dark app theme maps primitives into foreground, background, stroke, accent, shadow, texture, app chrome, updates panel, and page tokens. |
+| INV-TOK-03 | `S:\Localhost\Nous\nous-marketing-website\src\styles\tokens\components.css` | 1-251 | Component dimensions, spacing, drawer geometry, card/control/nav/icon/type tokens, dark and alternate theme overrides. |
+
+### Image Reference Inspected Directly
+
+| Ref | Source | Evidence Extracted |
+|---|---|---|
+| INV-IMG-01 | `C:\Users\andre\Downloads\Nous Shell - Workspaces - 2x zoom.png` | Image observation confirms a full-window dark shell with outer topbar, left icon rail, Coaching sidebar, Client onboarding canvas, right Workspace updates rail, and large right-side `Client Onboarding` drawer overlay. Exact screenshot pixel measurements were not extracted; criteria from this source are marked image-observed. |
+
+## Shell Topology Extraction
+
+### Topology Criteria
+
+| ID | Source Type | Reference | Criterion | Required Relationship | Downstream Mapping |
+|---|---|---|---|---|---|
+| TOPO-01 | Code-derived | `workspace-mockup.tsx:23-35` | Shell root is one relative grid with `grid-cols-[var(--nous-shell-rail-width)_minmax(0,1fr)]` and `grid-rows-[var(--nous-shell-topbar-height)_1fr]`, rounded outer frame, overflow hidden, chrome background. | Topbar spans both columns; rail occupies left/lower cell; inset app frame occupies right/lower cell; drawer is absolute over the root. | Simple/workspace shell root. |
+| TOPO-02 | Code-derived | `chrome.tsx:14-44` | Topbar contains back/forward controls, centered brand/mode/search cluster, and right window controls. | Topbar is not a sidebar/header inside the app frame; it is outer chrome above rail and app frame. | Desktop simple shell topbar/chrome boundary. |
+| TOPO-03 | Code-derived | `chrome.tsx:69-127` | Left icon rail is icon-only project switching with Home, separator, Coaching, Messages, lower separator, and create action. | Rail is separate from the asset sidebar and shares outer chrome background; it stops above the frame inset/userbar area. | Project rail/simple shell rail. |
+| TOPO-04 | Code-derived | `workspace-mockup.tsx:27-31` | Inset app frame is a three-column grid: asset sidebar, flexible context/workspace canvas, updates rail. | The app frame is inset from the outer chrome and has rounded inner border; sidebar/canvas/updates are siblings. | Workspace app frame layout. |
+| TOPO-05 | Code-derived | `asset-sidebar.tsx:6-53` | Asset sidebar is the left column in the app frame with Coaching header, primary nav, grouped sections, and footer user area. | Project / Chat relationship belongs inside this asset/sidebar content surface, not in native menu/status chrome. | Asset/sidebar column. |
+| TOPO-06 | Code-derived | `context-panel.tsx:8-55` | Workspace canvas is the middle column with a fixed-height context bar then scrollable canvas body. | Context bar stays at top of canvas; body holds hero/status and dashboard columns. | Route identity and workspace canvas. |
+| TOPO-07 | Code-derived | `workspace-updates.tsx:7-29` | Workspace updates rail is the right column in the app frame with border-left, header controls, scrollable update list, and bottom fade. | Updates rail is always visible in the workspace specimen behind the drawer; it is not replaced by the drawer. | Observe/updates surface. |
+| TOPO-08 | Code-derived | `agent-drawer.tsx:25-89` | Agent drawer is an absolute right-side overlay with fixed width, top/bottom/right offsets, rounded border, glass background, tabs, topic rail, body, and command input. | Drawer overlays the canvas/updates region and is not a grid column or Dockview panel. | `Cortex:Principal` simple-shell container. |
+| TOPO-09 | Image-observed | `Nous Shell - Workspaces - 2x zoom.png` | Principal-visible specimen shows a large overlay drawer covering the right side while the Workspace updates rail remains visible behind/around it. | Completion screenshots must prove overlay stacking and not merely a side-by-side chat panel. | Launched app screenshot checkpoint. |
+| TOPO-10 | Scope-derived | `phase-scope.md:25-32` | Strict reconstruction target is desktop/app simple/workspace shell; developer-mode Dockview is non-regression only. | Developer mode must not be redesigned to satisfy this specimen. | Scope guard for SDS/Plan. |
+
+### Hierarchy Summary
+
+The required hierarchy is: outer shell root -> outer topbar plus left icon rail -> inset app frame -> asset sidebar plus context/workspace canvas plus workspace updates rail -> absolute `Cortex:Principal` drawer overlay above the app frame. This hierarchy is the topology acceptance target; an app-native grid with unrelated rail/sidebar/content/observe/chat regions must either be reconciled to these rows or recorded as an accepted deviation before implementation.
+
+## Dimensions and Spacing Extraction
+
+### Frame and Region Dimensions
+
+| ID | Source Type | Reference | Token/Value | Criterion | Downstream Mapping |
+|---|---|---|---|---|---|
+| DIM-01 | Token-derived | `components.css:4` | `--nous-shell-topbar-height: 35px` | Outer topbar height is 35px. | Topbar height. |
+| DIM-02 | Token-derived | `components.css:5` | `--nous-shell-rail-width: 50px` | Icon rail width is 50px. | Project rail width. |
+| DIM-03 | Token-derived | `components.css:6` | `--nous-shell-sidebar-width: 236px` | Asset sidebar width is 236px. | Coaching/sidebar column. |
+| DIM-04 | Token-derived | `components.css:7` | `--nous-shell-updates-width: 340px` | Workspace updates rail width is 340px. | Updates/observe rail. |
+| DIM-05 | Token-derived | `components.css:8` | `--nous-shell-contextbar-height: 40px` | Context/workspace header height is 40px. | Canvas context bar. |
+| DIM-06 | Token-derived | `components.css:9` | `--nous-shell-userbar-height: 43px` | Rail/sidebar userbar height is 43px. | Rail bottom/sidebar footer. |
+| DIM-07 | Token-derived | `components.css:10` | `--nous-shell-frame-inset: 6px` | Inset frame has 6px bottom/right inset from outer chrome; rail bottom also uses the inset. | App-frame inset. |
+| DIM-08 | Token-derived | `components.css:26-27` | `--nous-demo-frame-height: 820px`; `--nous-demo-frame-min-width: 1180px` | Design-system specimen frame defaults to 820px tall and minimum width 1180px. | Visual acceptance viewport/frame expectation. |
+| DIM-09 | Code-derived | `workspace-mockup.tsx:24,27` | Grid formulas | Root uses rail + flexible app column; inset frame uses `236px minmax(0,1fr) 340px`. | Shell grid. |
+| DIM-10 | Image-observed | `Nous Shell - Workspaces - 2x zoom.png` | No pixel value extracted | Image shows full-window widescreen composition at 2x zoom; do not invent exact dimensions from the image. | Completion screenshot comparison caveat. |
+
+### Topbar, Rail, Sidebar, Canvas, Updates Spacing
+
+| ID | Source Type | Reference | Token/Value | Criterion | Downstream Mapping |
+|---|---|---|---|---|---|
+| DIM-11 | Token-derived | `components.css:12-23` | Topbar padding/gaps/search/tab tokens | Topbar uses 12px horizontal padding, 32px content gap, 8px brand gap, 16px window-control gap, 310px x 26px search, 12px/3px tab padding, 2px tablist padding. | Topbar controls. |
+| DIM-12 | Token-derived | `components.css:24-25` | `--nous-kbd-padding-x: 6px`; `--nous-kbd-padding-y: 1px` | Search shortcut key uses compact mono kbd padding. | Topbar search shortcut. |
+| DIM-13 | Token-derived | `components.css:29-41` | Sidebar padding and section tokens | Sidebar uses 20px horizontal padding, 16px top header padding, 20px header y-padding, 12px header gap, 20px nav section gap, 8px nav top padding, 6px nav item padding, 8px footer padding. | Asset/sidebar content density. |
+| DIM-14 | Token-derived | `components.css:43-53` | Workspace header/canvas tokens | Canvas uses 16px header x-padding, 32px header group gap, 56px left canvas padding, 36px y-padding, 20px right padding, 56px hero bottom margin, 12px dashboard gap. | Workspace canvas. |
+| DIM-15 | Token-derived | `components.css:99-105` | Updates tokens | Updates rail uses 20px x-padding, 10px top padding, 32px header bottom margin, 8px title/action gaps, 12px list gap, 16px scroll gutter. | Updates rail. |
+| DIM-16 | Token-derived | `components.css:147-149` | `--nous-rail-item-margin: 5px 4px`; `--nous-rail-separator-width: 38px`; `--nous-rail-separator-offset: 7px` | Rail buttons and separators must use compact icon-only spacing. | Project rail. |
+
+### Drawer Geometry and Component Density
+
+| ID | Source Type | Reference | Token/Value | Criterion | Downstream Mapping |
+|---|---|---|---|---|---|
+| DIM-17 | Token-derived | `components.css:55-58` | `--nous-drawer-width: 580px`; `--nous-drawer-top: 100px`; `--nous-drawer-inset: 13px`; `--nous-drawer-floating-inset: 24px` | Open drawer is 580px wide, starts 100px from top, and is inset 13px from right/bottom; collapsed floating launcher is inset 24px. | Chat/drawer overlay. |
+| DIM-18 | Token-derived | `components.css:59-90` | Drawer internal spacing tokens | Drawer header is 16px x-padding/12px y-padding; topics use 16px scroll margin, 6px gap, 8px x/4px y item padding; body uses 20px x/16px y; command min-height is 104px with 20px internal padding. | Drawer content density. |
+| DIM-19 | Token-derived | `components.css:67-80` | Drawer message/result tokens | Drawer message offset-left is 48px, radius 13px, margin-y 32px, 16px x/12px y padding; result gap 20px. | Drawer conversation/result layout. |
+| DIM-20 | Token-derived | `components.css:107-128` | Card spacing tokens | Cards use 21px x-padding, 15px y-padding, 12px bottom padding, 20px count inset, 12px card stack gap, 8px body margins, 12px/20px action margins. | Dashboard and update cards. |
+| DIM-21 | Token-derived | `components.css:129-146` | Control/icon sizes | Control sizes are 24px/32px/48px; icon sizes are 9px/14px/20px/24px/28px; nav icon 18px; project icon 19px. | Buttons, rail, nav, tabs. |
+| DIM-22 | Token-derived | `primitives.css:51-59` | Radius ladder `4px`, `5px`, `6px`, `7px`, `8px`, `10px`, `12px`, `16px`, `999px` | Rounded surfaces must use the reference radius ladder rather than arbitrary app-local radii. | Shell/card/control/drawer radii. |
+| DIM-23 | Token-derived | `primitives.css:61-68` | Space ladder `4px` through `40px` | Use existing space ladder where not more specific component tokens apply. | Token mapping. |
+
+## Palette and Surface Extraction
+
+### Primitive and Theme Palette
+
+| ID | Source Type | Reference | Token/Value | Criterion | Downstream Mapping |
+|---|---|---|---|---|---|
+| PAL-01 | Token-derived | `primitives.css:2-10` | `--nous-color-black-950: #050505`; `925: #080808`; `900: #101010`; `875: #111212`; `850: #111213`; `825: #121212`; `800: #171717`; `775: #1a1c1e`; `700: #202020` | Dark surfaces use a near-black stepped ladder, not a single flat black. | Shell surface tokens. |
+| PAL-02 | Token-derived | `app-theme.css:17-35` | `--nous-bg-canvas`, `chrome`, `shell`, `panel`, `input`, `control-bar`, `inset`, `elevated`, `control-active`, `overlay`, `selected-subtle`, `card`, `message`, `overlay-glass` | Default dark theme maps surface roles to primitive black/alpha tokens. | App token mapping. |
+| PAL-03 | Token-derived | `primitives.css:12-23`; `app-theme.css:4-15` | Foreground hierarchy from `#ffffff` through `#333338` | Text roles must preserve foreground hierarchy: title/primary/body/secondary/muted/subtle/quieter/minimal. | Typography and icon color mapping. |
+| PAL-04 | Token-derived | `app-theme.css:36-41` | `--nous-stroke-ghost: rgba(255,255,255,0.01)` through `--nous-stroke-emphasis: rgba(255,255,255,0.16)` | Hairlines use white-alpha stroke ladder. | Borders/dividers. |
+| PAL-05 | Token-derived | `app-theme.css:43-59` | Blue info `#5b7cff`/`#8eb4ea`; purple workspace `#6d3df2`/`#391289`; green success `#23a768`/`#1a8c54`; yellow warning `#f0c400` | Accent roles are blue focus/info, purple workspace identity, green running/success, yellow review/warning. | Active tabs, project rail, chips, review buttons. |
+| PAL-06 | Token-derived | `app-theme.css:61-65` | Card/overlay/drawer shadows | Card shadow is inset white-alpha plus black drop shadow; drawer shadow is `-8px -8px 14px 7px rgba(7,7,7,0.75)`. | Card and drawer depth. |
+| PAL-07 | Token-derived | `app-theme.css:67-95`; `components.css:91-98` | Noise textures, app chrome radial gradients, drawer overlay bg, updates fade, reference panel bg | Surfaces are textured/gradient glass, not plain flat panels. | Chrome/app frame/updates/drawer. |
+| PAL-08 | Token-derived | `components.css:107-182` | Component role tokens for card, icon, nav, panel header, drawer body/result/meta/message, command input | Implementation should map app styles to component role tokens before inventing local colors. | Components and shell CSS. |
+
+### Image-Observed Surface Roles
+
+| ID | Source Type | Reference | Observed Role | Criterion | Downstream Mapping |
+|---|---|---|---|---|---|
+| PAL-09 | Image-observed | `Nous Shell - Workspaces - 2x zoom.png` | Overall shell is very dark but region boundaries remain visible through subtle hairlines and low-contrast surface steps. | Do not satisfy fidelity by simply making the UI darker; visible region anatomy must remain legible. | Visual review checkpoint. |
+| PAL-10 | Image-observed | `Nous Shell - Workspaces - 2x zoom.png` | Active Workspaces tab uses blue icon/bright text within selected topbar control; Chat/Developer are muted. | Selected topbar state must be visibly distinct and match reference role hierarchy. | Topbar selected state. |
+| PAL-11 | Image-observed | `Nous Shell - Workspaces - 2x zoom.png` | Coaching project tile is purple; Messages tile is green; Running chip is green; Review actions are yellow/blue by card column. | Accent colors carry semantic state and workspace identity. | Rail, status, cards. |
+| PAL-12 | Image-observed | `Nous Shell - Workspaces - 2x zoom.png` | Drawer is glassy dark with brighter text and stronger border/shadow than the background updates rail. | Drawer must read as an overlay layer above the workspace, not as another flat column. | Drawer overlay. |
+
+## Typography Extraction
+
+### Type Tokens and Families
+
+| ID | Source Type | Reference | Token/Value | Criterion | Downstream Mapping |
+|---|---|---|---|---|---|
+| TYPE-01 | Token-derived | `primitives.css:70-75` | `--nous-font-sans`: Inter/system; `--nous-font-mono`: Fira Code/SFMono/Menlo/Consolas | Shell uses compact sans with mono metadata/token syntax. | Global shell font mapping. |
+| TYPE-02 | Token-derived | `components.css:184-189` | `--nous-type-micro-xs: 10px`; `micro-sm: 11px`; `meta: 12px`; `section-title: 17px`; `page-title: 22px`; drawer leading `1.28` | Dense shell type scale is explicit and must be preserved or mapped. | Type scale. |
+| TYPE-03 | Code-derived | `nous-design-system.tsx:52-64,147-150` | Intro/section docs use mono eyebrow, 2xl/4xl doc heading, text-sm descriptions | Design-system page typography is not the app specimen hierarchy; use for docs context only. | Non-target caveat. |
+
+### Specimen Typography Hierarchy
+
+| ID | Source Type | Reference | Criterion | Visible Labels/Hierarchy | Downstream Mapping |
+|---|---|---|---|---|---|
+| TYPE-04 | Code-derived | `chrome.tsx:20-36` | Topbar brand is `text-sm font-medium tracking-wide`; tabs/search are `text-xs`; kbd uses mono micro. | `Nous`, `Chat`, `Workspaces`, `Developer`, `Search...`, `⌘ K`. | Topbar typography. |
+| TYPE-05 | Code-derived | `asset-sidebar.tsx:14-17,31-46`; `primitives.tsx:26-38` | Sidebar title and nav rows are `text-sm font-semibold`; user name is `text-xs/tight italic`; section labels are muted semibold. | `Coaching`, `Inbox`, `Pulse`, `Workflows`, active `Client onboarding`, footer `Nue`/`Andrew`. | Asset/sidebar typography. |
+| TYPE-06 | Code-derived | `context-panel.tsx:13-35` | Context header is text-sm semibold; hero title uses `--nous-type-page-title` 22px semibold with -0.02em tracking; subtitle is muted medium-size; status metadata is mono text-xs. | `Client onboarding`, `Automated client intake`, `Running`, `73 days of uptime`, `10 Agents`. | Workspace header/hero. |
+| TYPE-07 | Code-derived | `cards.tsx:8-39` | Dashboard column titles use 17px semibold -0.03em; card titles use text-sm semibold; card bodies use text-xs; buttons use mono 10px. | `Needs attention`, `Pulse insights`, card titles and `Review`. | Dashboard cards. |
+| TYPE-08 | Code-derived | `workspace-updates.tsx:10-24`; `cards.tsx:44-50` | Updates header is text-sm semibold; timestamps are mono 10px; update title is text-xs semibold; update body is 11px. | `Workspace updates`, `Morning emails finished`, update timestamps. | Updates rail. |
+| TYPE-09 | Code-derived | `agent-drawer.tsx:39-87,96-119` | Drawer topics are mono micro; body is text-xs with leading 1.28; result headings are semibold; change labels are mono 12px semibold; command input text is text-xs leading-4. | Topics, message, `Worked for 18s`, `Changes made`, `Suggested actions`, command text. | Drawer/chat typography. |
+| TYPE-10 | Image-observed | `Nous Shell - Workspaces - 2x zoom.png` | Visual hierarchy shows the largest app text is the canvas hero `Client onboarding`; drawer title/tabs and dashboard headers are secondary; metadata and timestamps are dim mono. | Completion screenshot must preserve hierarchy, not just copy strings. | Visual acceptance. |
+
+## Interaction and Visible States Extraction
+
+### Selected Rail, Sidebar, and Topbar States
+
+| ID | Source Type | Reference | Criterion | Downstream Mapping |
+|---|---|---|---|---|
+| STATE-01 | Code-derived | `workspace-mockup.tsx:10-20`; `chrome.tsx:25-28,48-67` | Mockup mode is `chat` or `workspace`; Workspaces tab is active in workspace mode, Chat active in chat mode, Developer remains non-interactive/muted in specimen. | Topbar mode state. |
+| STATE-02 | Code-derived | `primitives.tsx:42-58`; `context-panel.tsx:19-21` | Context segmented tabs show active Pulse when chat mode and active Workflow Editor when workspace mode. | Workspace header state. |
+| STATE-03 | Code-derived | `chrome.tsx:69-127`; `mockup-copy.ts:97-111` | Rail shows Home, Coaching, Messages, and Create project; Coaching and Messages use colored project tiles but no text labels in rail. | Rail project state. |
+| STATE-04 | Code-derived | `asset-sidebar.tsx:24-39`; `mockup-copy.ts:55-95`; `primitives.tsx:26-38` | Sidebar active item is `Client onboarding`; active row uses selected-subtle bg, border soft, active fg; sections are Workflows, Tasks, Chats. | Sidebar selected state. |
+| STATE-05 | Image-observed | `Nous Shell - Workspaces - 2x zoom.png` | Selected sidebar row is a soft rounded rectangle around `Client onboarding`, with muted icons and strong label. | Visual review checkpoint. |
+
+### Chat/Drawer States
+
+| ID | Source Type | Reference | Criterion | Downstream Mapping |
+|---|---|---|---|---|
+| STATE-06 | Code-derived | `agent-drawer.tsx:9-23` | Drawer has an internal open/closed state; closed state is a round floating Nous launcher at bottom/right using drawer floating inset. | Drawer collapsed state. |
+| STATE-07 | Code-derived | `agent-drawer.tsx:25-47`; `mockup-copy.ts:5-32` | Open drawer tabs are `Nue`, `Coaching`, active `Client Onboarding`; topics list has active first topic `Review client intakes`. | Drawer header/topic state. |
+| STATE-08 | Code-derived | `agent-drawer.tsx:48-87`; `mockup-copy.ts:9-25` | Open drawer body shows intro, user message, `Worked for 18s`, ready/details/nothing-sent result, changes made, suggested actions. | Drawer conversation/result state. |
+| STATE-09 | Code-derived | `agent-drawer.tsx:96-119`; `mockup-copy.ts:9` | Command input contains exact text `This direction looks good. Show me the revised plan first, then move to the next intake.` with visible caret and toolbar icons. | Drawer command input state. |
+| STATE-10 | Image-observed | `Nous Shell - Workspaces - 2x zoom.png` | Drawer is open in the reference screenshot and partially obscures right-side workspace content while retaining scrollable body and bottom command input. | Completion screenshot checkpoint. |
+
+### Workspace Update/List and Canvas States
+
+| ID | Source Type | Reference | Criterion | Downstream Mapping |
+|---|---|---|---|---|
+| STATE-11 | Code-derived | `context-panel.tsx:26-49`; `mockup-copy.ts:34-54` | Canvas hero state is `Client onboarding` / `Automated client intake` with `Running`, `73 days of uptime`, `10 Agents`. | Workspace hero/status. |
+| STATE-12 | Code-derived | `mockup-copy.ts:123-133`; `cards.tsx:20-39` | Needs-attention cards: `Review client intakes` count 1, `Approve email drafts` count 5, `Follow-ups paused` count 3, with yellow Review action. Pulse insight cards: `Scheduling is slowing onboarding`, `Clients keep asking this`, `Higher-touch plans convert faster`, with blue Review action. | Dashboard list state. |
+| STATE-13 | Code-derived | `workspace-updates.tsx:7-29`; `mockup-copy.ts:113-146` | Updates rail title is `Workspace updates`; update list starts with `Morning emails finished` at `2 min ago`, then `Invoice draft created`, `Content idea saved`, `Schedule conflict spotted`, etc. | Updates rail fixture state. |
+| STATE-14 | Image-observed | `Nous Shell - Workspaces - 2x zoom.png` | Reference screenshot shows some update/list content behind the open drawer; completion must not hide/remove the updates rail entirely. | Visual review checkpoint. |
+
+## Implementation Mapping Checklist
+
+Downstream Goals, SDS, Plan, and Completion Report must cite these IDs. Any planned source change on the active simple/workspace shell must map to at least one criterion below or to an approved deviation row added during review.
+
+| Checklist ID | Required Criterion IDs | Acceptance Use |
+|---|---|---|
+| MAP-TOPO | `TOPO-01` through `TOPO-10` | Prove active shell region hierarchy and drawer ownership match the reference topology. |
+| MAP-DIM | `DIM-01` through `DIM-23` | Prove region dimensions, spacing, drawer geometry, component density, radii, and token-derived spacing are either implemented or explicitly deviated. |
+| MAP-PAL | `PAL-01` through `PAL-12` | Prove palette/surface roles and accents use reference token grammar and image-observed layering. |
+| MAP-TYPE | `TYPE-01` through `TYPE-10` | Prove typography families, scale, labels, weights, and hierarchy match the specimen. |
+| MAP-STATE | `STATE-01` through `STATE-14` | Prove selected states, drawer states, workspace dashboard states, and updates states are visible in the launched app. |
+| MAP-SCOPE | `TOPO-10`, `INV-WL-05`, `INV-WL-06` | Preserve desktop/app simple/workspace target and developer-mode Dockview non-regression boundary. |
+| MAP-EVIDENCE | `BT-01` through `BT-10`, `NG-01` through `NG-08` | Ensure Completion Report contains screenshot evidence and does not close on proxy evidence. |
+
+## BT Acceptance Checkpoints
+
+The Principal should inspect a launched desktop/app simple/workspace shell, not a design-system page and not a DOM-only harness. The Completion Report must include screenshot evidence mapped back to the criterion IDs in this artifact.
+
+| ID | Principal-Visible Checkpoint | Required Screenshot Evidence | Failure Condition |
+|---|---|---|---|
+| BT-01 | Launched app shows the full reference topology: outer topbar, left icon rail, inset app frame, Coaching sidebar, Client onboarding canvas, Workspace updates rail, and open `Cortex:Principal`/Client Onboarding drawer overlay. | Full-window screenshot with annotations or comparison notes citing `TOPO-01` through `TOPO-09`. | Missing region, wrong hierarchy, drawer as flat column/Dockview panel, or no open drawer. |
+| BT-02 | Topbar selected state matches workspace specimen: `Nous`, `Chat`, active `Workspaces`, muted `Developer`, `Search...`, `⌘ K`, window controls. | Cropped topbar screenshot citing `TOPO-02`, `DIM-11`, `PAL-10`, `TYPE-04`, `STATE-01`. | Selected state indistinct, missing search/shortcut, topbar inside app frame instead of outer chrome. |
+| BT-03 | Rail/sidebar relationship matches specimen: icon-only rail plus separate Coaching asset sidebar with active Client onboarding row and footer user area. | Left-region screenshot citing `TOPO-03` through `TOPO-05`, `DIM-02`, `DIM-03`, `STATE-03` through `STATE-05`. | Project/Chat rendered as menu/status chrome, rail/sidebar merged incorrectly, active row absent. |
+| BT-04 | Workspace canvas shows Client onboarding hero, Running status, uptime/agent metadata, Needs attention and Pulse insights columns. | Center-canvas screenshot citing `TOPO-06`, `DIM-14`, `TYPE-06`, `TYPE-07`, `STATE-11`, `STATE-12`. | Route identity card substitutes for the specimen hierarchy or required fixture states are missing without approved deviation. |
+| BT-05 | Updates rail remains present with Workspace updates title, compact update list, controls, and bottom fade, even with drawer open. | Right-region screenshot citing `TOPO-07`, `DIM-04`, `DIM-15`, `STATE-13`, `STATE-14`. | Updates rail removed, replaced by generic observe panel, or fully hidden by drawer with no rail evidence. |
+| BT-06 | Drawer overlay matches reference placement and density: 580px target width, 100px top offset, 13px right/bottom inset, glass surface, header tabs, topics, result body, command input. | Drawer screenshot citing `TOPO-08`, `DIM-17` through `DIM-19`, `PAL-12`, `TYPE-09`, `STATE-06` through `STATE-10`. | Drawer is a Dockview panel, full-height side column, or lacks reference header/body/input states. |
+| BT-07 | Palette uses reference dark token grammar with subtle surface steps, hairlines, noise/gradient treatment, and semantic accents. | Full-window and region crops citing `PAL-01` through `PAL-12`. | Generic dark UI tweaks without reference token mapping, flat black panels, or incorrect accents. |
+| BT-08 | Typography hierarchy matches specimen: compact sans, mono metadata, 22px hero title, 17px dashboard headers, dim timestamps, text-xs body density. | Typography-focused screenshots or annotated crops citing `TYPE-01` through `TYPE-10`. | Copy is present but hierarchy/scale/weight/density visibly diverges. |
+| BT-09 | Developer-mode/Dockview is verified separately as non-regression, not used as the visual target. | Completion Report section with separate developer-mode evidence citing `TOPO-10` and phase scope. | Developer mode is redesigned to match specimen or used to claim simple/workspace fidelity. |
+| BT-10 | Completion Report includes launched-app screenshots and maps every visual claim to criterion IDs from this artifact. | Report references artifact path and includes screenshot evidence for `BT-01` through `BT-08`. | Source diffs, DOM metadata, tests, or token assertions are presented as strict fidelity proof without screenshots. |
+
+## Explicit Non-Goals and Caveats
+
+| ID | Non-Goal / Caveat | Rationale |
+|---|---|---|
+| NG-01 | Do not use generic dark UI tweaks as fidelity. | Round 7 failed because broad dark/dense categories replaced actual reference extraction. |
+| NG-02 | Do not accept DOM metadata, unit tests, structural selectors, or token assertions alone as strict visual proof. | They are useful proxies but cannot prove Principal-visible reference fidelity without launched-app screenshots. |
+| NG-03 | Do not invent measurements from the screenshot where token/code values are absent. | This artifact distinguishes token-derived, code-derived, scope-derived, and image-observed criteria. |
+| NG-04 | Do not treat the marketing design-system documentation chrome as the target shell. | The target is the canonical workspace specimen rendered by `WorkspaceMockup`, not the surrounding docs page UI. |
+| NG-05 | Do not redesign developer-mode Dockview to satisfy WR-175. | Developer mode is a non-regression surface per Phase 1 scope. |
+| NG-06 | Do not reroute this fix into provider/tool behavior, native-launch compatibility, web parity, or NousOS platform work. | Those are out of scope for the WR-175 Phase 1.8 reference-fidelity root cause. |
+| NG-07 | Do not silently substitute runtime data if specimen fixture states are unavailable. | Fixture/runtime gaps must be explicit deviations or fixture needs before coding. |
+| NG-08 | Do not claim completion if launched-app screenshot capture is blocked. | A blocked visual capture must block strict visual completion rather than become a pass. |
+
+## Extraction Source-Type Legend
+
+| Source Type | Meaning |
+|---|---|
+| Token-derived | Exact value from CSS token source. |
+| Code-derived | Exact topology/state/content/relationship from component source. |
+| Scope-derived | Acceptance/scope rule from ratified worklog or architecture source. |
+| Image-observed | Visual role observed in the provided screenshot without unsupported numeric measurement. |
+
+## Gate Result
+
+This artifact provides the pre-coding extraction surface required by `.worklog/sprints/feat/shell-redesign-workspace-first-ui-system/phase-1/phase-1.8/ratified-fix-approach.mdx`. It does not authorize coding by itself; review/approval of this artifact is still required before Phase 1.8 implementation planning or source changes.
