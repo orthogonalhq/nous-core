@@ -57,12 +57,16 @@
   --nous-content-bg:    var(--nous-bg-base);
   --nous-chat-full-bg:  #1A1A1A;
   --nous-workspace-shell-border:   var(--nous-workspace-shell-frame-border);
-  --nous-workspace-canvas-bg:      #040404;
+  --nous-workspace-canvas-bg:      #101010;
   --nous-workspace-canvas-overlay: var(--nous-workspace-canvas-sheen);
   --nous-workspace-route-label-fg: var(--nous-fg);
   --nous-workspace-route-meta-fg:  var(--nous-fg-subtle);
   --nous-workspace-route-card-bg:  rgba(255, 255, 255, 0.035);
   --nous-workspace-route-card-border: rgba(255, 255, 255, 0.075);
+  --nous-workspace-updates-panel-bg: var(--nous-workspace-updates-bg);
+  --nous-workspace-card-bg: rgba(255, 255, 255, 0.045);
+  --nous-workspace-card-border: rgba(255, 255, 255, 0.085);
+  --nous-workspace-card-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.05), 0 18px 36px rgba(0, 0, 0, 0.28);
 
   /* ── Tab bar ─────────────────────────────────────────────────────── */
   --nous-tab-bar-bg:      var(--nous-bg);

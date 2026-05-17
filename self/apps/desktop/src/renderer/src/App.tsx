@@ -782,6 +782,7 @@ export function App() {
           navigationParams={navigationParams}
           isHomeContext={isHomeContext}
           setIsHomeContext={setIsHomeContext}
+          visualAcceptance={modeSource === 'visual-acceptance-override'}
         />
       ) : (
         <DockviewShell
@@ -899,6 +900,7 @@ function DesktopSimpleShell({
   navigationParams,
   isHomeContext,
   setIsHomeContext,
+  visualAcceptance = false,
 }: {
   activeRoute: string
   handleNavigate: (routeId: string, params?: Record<string, unknown>) => void
@@ -907,8 +909,16 @@ function DesktopSimpleShell({
   navigationParams?: Record<string, unknown>
   isHomeContext: boolean
   setIsHomeContext: (value: boolean) => void
+  visualAcceptance?: boolean
 }) {
   const chatStageManager = useChatStageManager()
+  const visualAcceptanceOpenedRef = useRef(false)
+
+  useEffect(() => {
+    if (!visualAcceptance || visualAcceptanceOpenedRef.current) return
+    visualAcceptanceOpenedRef.current = true
+    chatStageManager.expandToAmbientLarge()
+  }, [chatStageManager, visualAcceptance])
 
   // WR-141 — single-call-plus-prop-drill per primary contract § State Ownership.
   // This call is intentionally placed inside `DesktopSimpleShell` (the wiring-site
@@ -1141,10 +1151,11 @@ function DesktopAssetSidebarConnected({
   }, [deleteConfirm, tasksApi, workflowsApi])
 
   const projectName = useMemo(() => {
-    if (!projectList || !activeProjectId) return 'Project'
+    if (activeRoute === 'home') return 'Coaching'
+    if (!projectList || !activeProjectId) return 'Coaching'
     const proj = projectList.find((p: { id: string }) => p.id === activeProjectId)
-    return proj?.name ?? 'Project'
-  }, [projectList, activeProjectId])
+    return proj?.name ?? 'Coaching'
+  }, [projectList, activeProjectId, activeRoute])
 
   const topNavWithBadge = useMemo(
     () => DESKTOP_TOP_NAV.map((item) =>

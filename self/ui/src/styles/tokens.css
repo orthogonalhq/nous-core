@@ -219,37 +219,51 @@
   --nous-column-divider-width:  1px;
 
   /* -- Simple shell geometry */
-  --nous-project-rail-width:            62px;
-  --nous-rail-avatar-size:              40px;
+  --nous-project-rail-width:            50px;
+  --nous-rail-avatar-size:              32px;
   --nous-rail-indicator-width:          4px;
   --nous-rail-indicator-height:         30px;
-  --nous-asset-sidebar-default-width:   320px;
-  --nous-asset-sidebar-min-width:       240px;
+  --nous-asset-sidebar-default-width:   236px;
+  --nous-asset-sidebar-min-width:       236px;
   --nous-asset-sidebar-collapsed-width: 32px;   /* WR-141 — dedicated, NOT shared with observe */
   --nous-observe-collapsed-width:       32px;
-  --nous-observe-expanded-width:        280px;
+  --nous-observe-expanded-width:        340px;
   --nous-observe-min-width:             32px;
   --nous-chat-overlay-min-width:        320px;  /* WR-141 — chat overlay floor when sidebar collapsed */
-  --nous-chat-drawer-expanded-width:    560px;
-  --nous-chat-drawer-bottom-offset:     12px;
-  --nous-chat-drawer-left-offset:       12px;
-  --nous-chat-drawer-radius:            14px;
-  --nous-chat-drawer-bg:                rgba(1, 1, 1, 0.82);
-  --nous-chat-drawer-border:            rgba(255, 255, 255, 0.08);
-  --nous-chat-drawer-shadow:            0 24px 60px rgba(0, 0, 0, 0.44);
-  --nous-workspace-route-header-height: 64px;
-  --nous-workspace-canvas-padding-x:    32px;
-  --nous-workspace-shell-inset:         10px;
-  --nous-workspace-shell-frame-bg:      #020202;
-  --nous-workspace-shell-frame-border:  rgba(255, 255, 255, 0.07);
-  --nous-workspace-canvas-sheen:        radial-gradient(circle at 20% 0%, rgba(255, 255, 255, 0.055), transparent 34%), linear-gradient(135deg, rgba(255, 255, 255, 0.025), transparent 42%);
+  --nous-chat-drawer-expanded-width:    580px;
+  --nous-chat-drawer-top-offset:        100px;
+  --nous-chat-drawer-bottom-offset:     13px;
+  --nous-chat-drawer-right-offset:      13px;
+  --nous-chat-drawer-left-offset:       auto;
+  --nous-chat-drawer-radius:            16px;
+  --nous-chat-drawer-bg:                rgba(8, 8, 8, 0.86);
+  --nous-chat-drawer-border:            rgba(255, 255, 255, 0.12);
+  --nous-chat-drawer-shadow:            -8px -8px 14px 7px rgba(7, 7, 7, 0.75), 0 28px 80px rgba(0, 0, 0, 0.58);
+  --nous-workspace-route-header-height: 40px;
+  --nous-workspace-canvas-padding-x:    56px;
+  --nous-workspace-shell-inset:         6px;
+  --nous-workspace-shell-frame-bg:      #050505;
+  --nous-workspace-shell-frame-border:  rgba(255, 255, 255, 0.10);
+  --nous-workspace-canvas-sheen:        radial-gradient(circle at 20% 0%, rgba(255, 255, 255, 0.06), transparent 32%), linear-gradient(135deg, rgba(255, 255, 255, 0.025), transparent 42%), radial-gradient(circle at 70% 30%, rgba(109, 61, 242, 0.08), transparent 28%);
   --nous-workspace-route-card-bg:       rgba(255, 255, 255, 0.035);
   --nous-workspace-route-card-border:   rgba(255, 255, 255, 0.075);
   --nous-workspace-route-chip-bg:       rgba(255, 255, 255, 0.07);
   --nous-workspace-route-chip-fg:       #f4f4f4;
-  --nous-workspace-rail-active-bg:      rgba(255, 255, 255, 0.11);
-  --nous-workspace-sidebar-bg:          #060606;
-  --nous-workspace-sidebar-border:      rgba(255, 255, 255, 0.06);
+  --nous-workspace-rail-active-bg:      rgba(255, 255, 255, 0.10);
+  --nous-workspace-sidebar-bg:          #080808;
+  --nous-workspace-sidebar-border:      rgba(255, 255, 255, 0.08);
+  --nous-workspace-updates-width:       340px;
+  --nous-workspace-updates-bg:          rgba(17, 18, 19, 0.72);
+  --nous-workspace-updates-fade:        linear-gradient(to bottom, rgba(17, 18, 19, 0), rgba(17, 18, 19, 0.96));
+  --nous-workspace-success:             #23a768;
+  --nous-workspace-warning:             #f0c400;
+  --nous-workspace-info:                #5b7cff;
+  --nous-workspace-purple:              #6d3df2;
+  --nous-type-page-title:               22px;
+  --nous-type-section-title:            17px;
+  --nous-type-meta:                     12px;
+  --nous-type-micro-xs:                 10px;
+  --nous-type-micro-sm:                 11px;
 
   /* -- Chat overlay heights (per stage) */
   --nous-chat-height-small:             fit-content;

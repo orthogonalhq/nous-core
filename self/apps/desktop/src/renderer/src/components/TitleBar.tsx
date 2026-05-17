@@ -5,7 +5,7 @@ import type { DockviewApi } from 'dockview-react'
 import type { ShellMode } from '@nous/ui/components'
 import type { PanelDef } from '../App'
 import { AppMenuBar } from './MenuBar'
-import { Search } from 'lucide-react'
+import { ChevronLeft, ChevronRight, Search } from 'lucide-react'
 
 // Electron-specific CSS property not in standard CSSProperties
 type ElectronStyle = CSSProperties & { WebkitAppRegion?: 'drag' | 'no-drag' }
@@ -50,20 +50,36 @@ export function TitleBar({
       style={{
         display: 'flex',
         alignItems: 'center',
-        height: 'var(--nous-titlebar-height)',
-        minHeight: 'var(--nous-titlebar-height)',
-        background: 'var(--nous-bg-surface)',
+        height: 'var(--nous-shell-topbar-height, 35px)',
+        minHeight: 'var(--nous-shell-topbar-height, 35px)',
+        background: 'var(--nous-workspace-shell-frame-bg)',
+        borderBottom: '1px solid var(--nous-workspace-shell-border)',
         userSelect: 'none',
         flexShrink: 0,
         WebkitAppRegion: 'drag',
       } as ElectronStyle}
     >
+      <div
+        style={{
+          display: 'flex',
+          alignItems: 'center',
+          gap: 8,
+          paddingLeft: 12,
+          WebkitAppRegion: 'no-drag',
+          flexShrink: 0,
+        } as ElectronStyle}
+        data-reference-extraction="TOPO-02 DIM-11 STATE-01"
+      >
+        <button type="button" aria-label="Back" style={topbarIconButton}><ChevronLeft size={14} /></button>
+        <button type="button" aria-label="Forward" style={topbarIconButton}><ChevronRight size={14} /></button>
+      </div>
+
       {/* App branding — left anchor, no-drag */}
       <div
         style={{
           display: 'flex',
           alignItems: 'center',
-          padding: '0 var(--nous-space-2xl)',
+          padding: '0 16px',
           WebkitAppRegion: 'no-drag',
           pointerEvents: 'none',
           flexShrink: 0,
@@ -72,12 +88,13 @@ export function TitleBar({
         <span
           style={{
             fontSize: 'var(--nous-font-size-sm)',
-            fontFamily: 'var(--nous-font-family-mono)',
+            fontFamily: 'var(--nous-font-family)',
             fontWeight: 500,
+            letterSpacing: '0.04em',
             color: 'var(--nous-fg)',
           }}
         >
-          Agent Name
+          Nous
         </span>
       </div>
 
@@ -91,6 +108,25 @@ export function TitleBar({
         />
       )}
 
+      {mode === 'simple' && (
+        <div
+          style={{
+            display: 'flex',
+            alignItems: 'center',
+            gap: 2,
+            padding: 2,
+            borderRadius: 999,
+            background: 'rgba(255, 255, 255, 0.035)',
+            WebkitAppRegion: 'no-drag',
+          } as ElectronStyle}
+          data-reference-extraction="STATE-01 PAL-10 TYPE-04"
+        >
+          <span style={topbarTabMuted}>Chat</span>
+          <span style={topbarTabActive}>Workspaces</span>
+          <span style={topbarTabMuted}>Developer</span>
+        </div>
+      )}
+
       {/* Centered search bar + flex spacers */}
       <div style={{ flex: 1 }} />
       <div
@@ -98,12 +134,13 @@ export function TitleBar({
         style={{
           display: 'flex',
           alignItems: 'center',
-          gap: 'var(--nous-space-md)',
+          gap: 8,
           width: 300,
           height: 26,
-          padding: '0 var(--nous-space-xl)',
-          background: 'var(--nous-surface)',
-          borderRadius: 'var(--nous-radius-md)',
+          padding: '0 12px',
+          background: '#101010',
+          border: '1px solid rgba(255, 255, 255, 0.08)',
+          borderRadius: 8,
           WebkitAppRegion: 'no-drag',
           cursor: 'text',
           flexShrink: 0,
@@ -122,7 +159,20 @@ export function TitleBar({
             textOverflow: 'ellipsis',
           }}
         >
-          Search everything...
+          Search...
+        </span>
+        <span
+          style={{
+            marginLeft: 'auto',
+            border: '1px solid rgba(255, 255, 255, 0.10)',
+            borderRadius: 5,
+            padding: '1px 6px',
+            color: 'var(--nous-fg-subtle)',
+            fontFamily: 'var(--nous-font-family-mono)',
+            fontSize: 'var(--nous-type-micro-xs, 10px)',
+          }}
+        >
+          ⌘ K
         </span>
       </div>
       <div style={{ flex: 1 }} />
@@ -142,7 +192,7 @@ export function TitleBar({
           onMouseLeave={() => setBtnHover(null)}
           style={{
             width: 'var(--nous-titlebar-btn-width)',
-            height: 'var(--nous-titlebar-height)',
+            height: 'var(--nous-shell-topbar-height, 35px)',
             display: 'flex',
             alignItems: 'center',
             justifyContent: 'center',
@@ -165,7 +215,7 @@ export function TitleBar({
           onMouseLeave={() => setBtnHover(null)}
           style={{
             width: 'var(--nous-titlebar-btn-width)',
-            height: 'var(--nous-titlebar-height)',
+            height: 'var(--nous-shell-topbar-height, 35px)',
             display: 'flex',
             alignItems: 'center',
             justifyContent: 'center',
@@ -188,7 +238,7 @@ export function TitleBar({
           onMouseLeave={() => setBtnHover(null)}
           style={{
             width: 'var(--nous-titlebar-btn-width)',
-            height: 'var(--nous-titlebar-height)',
+            height: 'var(--nous-shell-topbar-height, 35px)',
             display: 'flex',
             alignItems: 'center',
             justifyContent: 'center',
@@ -206,4 +256,34 @@ export function TitleBar({
       </div>
     </div>
   )
+}
+
+const topbarIconButton: CSSProperties = {
+  display: 'inline-flex',
+  alignItems: 'center',
+  justifyContent: 'center',
+  width: 24,
+  height: 24,
+  border: '1px solid rgba(255, 255, 255, 0.06)',
+  borderRadius: 7,
+  background: 'rgba(255, 255, 255, 0.025)',
+  color: 'var(--nous-fg-subtle)',
+  padding: 0,
+}
+
+const topbarTabMuted: CSSProperties = {
+  display: 'inline-flex',
+  alignItems: 'center',
+  height: 24,
+  padding: '3px 12px',
+  borderRadius: 999,
+  color: 'var(--nous-fg-subtle)',
+  fontSize: 'var(--nous-font-size-xs)',
+}
+
+const topbarTabActive: CSSProperties = {
+  ...topbarTabMuted,
+  color: '#ffffff',
+  background: 'rgba(91, 124, 255, 0.14)',
+  border: '1px solid rgba(91, 124, 255, 0.28)',
 }

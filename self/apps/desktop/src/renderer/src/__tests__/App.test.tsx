@@ -245,12 +245,8 @@ describe('App', () => {
       expect(document.querySelector('[data-shell-area="rail"]')).not.toBeNull()
     })
 
-    // HomeScreen renders a greeting (time-dependent)
-    expect(
-      screen.getByText(/Good (morning|afternoon|evening), User/),
-    ).toBeInTheDocument()
-    // Observe column renders (ObservePanel default view text)
-    expect(screen.getByText('No observe content for this view')).toBeInTheDocument()
+    expect(screen.getAllByText('Client onboarding').length).toBeGreaterThan(0)
+    expect(screen.getByText('Workspace updates')).toBeInTheDocument()
     expect(screen.queryByText('Dockview shell')).not.toBeInTheDocument()
     expect(screen.queryByText('Status bar')).not.toBeInTheDocument()
     const chat = document.querySelector('[data-shell-area="chat"]') as HTMLElement | null

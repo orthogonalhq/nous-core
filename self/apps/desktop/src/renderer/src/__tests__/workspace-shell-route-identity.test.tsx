@@ -77,6 +77,26 @@ describe('desktop workspace shell route identity', () => {
     expect(window.location.href).not.toContain('wf-1')
   })
 
+  it('renders the Client onboarding workspace hierarchy for the visual acceptance route', async () => {
+    await act(async () => {
+      root.render(
+        <ContentRouter
+          activeRoute="home"
+          routes={{ home: RouteProbe }}
+          routeIdentities={BASE_SIMPLE_MODE_ROUTE_IDENTITIES}
+        />,
+      )
+      await flush()
+    })
+
+    expect(container.textContent).toContain('Client onboarding')
+    expect(container.textContent).toContain('Automated client intake')
+    expect(container.textContent).toContain('Running')
+    expect(container.textContent).toContain('Needs attention')
+    expect(container.textContent).toContain('Pulse insights')
+    expect(container.querySelector('[data-visual-shell-fidelity="route-identity"]')).toBeNull()
+  })
+
   it('renders Project and Chat selections as asset-sidebar content, not status or menu chrome', async () => {
     const onNavigate = vi.fn()
     await act(async () => {
@@ -85,16 +105,18 @@ describe('desktop workspace shell route identity', () => {
           projectName="Client onboarding"
           topNav={DESKTOP_TOP_NAV}
           sections={buildDesktopSidebarSections()}
-          activeRoute="chat"
+          activeRoute="home"
           onNavigate={onNavigate}
         />,
       )
       await flush()
     })
 
+    const clientOnboarding = container.querySelector('[data-list-item="client-onboarding"]') as HTMLButtonElement
+    expect(clientOnboarding).toBeTruthy()
+    expect(clientOnboarding.getAttribute('data-state')).toBe('active')
     const chat = container.querySelector('[data-list-item="chat"]') as HTMLButtonElement
     expect(chat).toBeTruthy()
-    expect(chat.getAttribute('data-state')).toBe('active')
     expect(container.querySelector('[data-shell-component="status-bar"]')).toBeNull()
     expect(container.querySelector('[data-shell-component="menu-bar"]')).toBeNull()
 
