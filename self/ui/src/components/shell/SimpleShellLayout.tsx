@@ -322,45 +322,100 @@ export function SimpleShellLayout({
 }
 
 function ReferenceDrawerFrame({ chatSlot }: { chatSlot: React.ReactNode }) {
+    const topics = ['Review client intakes', 'Email drafts', 'Follow-up queue', 'Plan next intake']
+    const changes = ['Updated intake scoring thresholds', 'Drafted revised approval plan', 'Prepared owner follow-up queue']
+    const actions = ['Approve revised plan', 'Send next intake', 'Open source notes']
+
     return (
         <>
             <div style={drawerHeaderStyle} data-reference-extraction="STATE-07 TYPE-09 PAL-12">
-                <div style={{ display: 'flex', gap: 6 }}>
+                <div style={{ display: 'flex', gap: 6, alignItems: 'center' }}>
                     <span style={drawerTabStyle}>Nue</span>
                     <span style={drawerTabStyle}>Coaching</span>
                     <span style={{ ...drawerTabStyle, background: 'rgba(91, 124, 255, 0.16)', color: '#fff' }}>Client Onboarding</span>
                 </div>
+                <div style={drawerHeaderActionsStyle} aria-label="Drawer actions">
+                    <button type="button" style={drawerGlyphButtonStyle}>History</button>
+                    <button type="button" style={drawerGlyphButtonStyle}>Close</button>
+                </div>
             </div>
             <div style={drawerBodyStyle}>
-                <aside style={drawerTopicRailStyle} aria-label="Drawer topics">
-                    {['Review client intakes', 'Email drafts', 'Follow-up queue'].map((topic, index) => (
-                        <div key={topic} style={{ ...drawerTopicStyle, ...(index === 0 ? drawerTopicActiveStyle : null) }}>
+                <nav style={drawerTopicRailStyle} aria-label="Drawer topics">
+                    {topics.map((topic, index) => (
+                        <button type="button" key={topic} style={{ ...drawerTopicStyle, ...(index === 0 ? drawerTopicActiveStyle : null) }}>
                             {topic}
-                        </div>
+                        </button>
                     ))}
-                </aside>
+                </nav>
                 <section style={drawerConversationStyle}>
-                    <p style={drawerMutedText}>I reviewed the latest client intake run and found three changes worth approving before the next batch.</p>
+                    <p style={drawerIntroText}>I reviewed the latest client intake run and found three changes worth approving before the next batch.</p>
                     <div style={drawerMessageStyle}>This direction looks good. Show me the revised plan first, then move to the next intake.</div>
                     <div style={drawerResultStyle}>
-                        <div style={{ fontWeight: 600 }}>Worked for 18s</div>
-                        <div style={drawerMutedText}>Changes made</div>
-                        <div>Prepared a revised onboarding plan and queued suggested actions for review.</div>
+                        <div style={drawerResultMetaStyle}>Worked for 18s</div>
+                        <h3 style={drawerResultTitleStyle}>The revised plan is ready.</h3>
+                        <p style={drawerMutedText}>I tightened the intake review path, kept owner approvals explicit, and staged the next batch so nothing has been sent yet.</p>
+                        <div style={drawerDetailsGridStyle}>
+                            <span>Details</span>
+                            <span>3 approval points</span>
+                            <span>Status</span>
+                            <span>Nothing has been sent yet.</span>
+                        </div>
+                        <div>
+                            <h4 style={drawerSectionLabelStyle}>Changes made</h4>
+                            <div style={drawerListStyle}>
+                                {changes.map((change) => <div key={change} style={drawerListItemStyle}>{change}</div>)}
+                            </div>
+                        </div>
+                        <div>
+                            <h4 style={drawerSectionLabelStyle}>Suggested actions</h4>
+                            <div style={drawerActionListStyle}>
+                                {actions.map((action) => <button type="button" key={action} style={drawerActionButtonStyle}>{action}</button>)}
+                            </div>
+                        </div>
                     </div>
                     <div style={{ display: 'none' }} aria-hidden="true">{chatSlot}</div>
                 </section>
             </div>
             <div style={drawerCommandStyle} data-reference-extraction="STATE-09 DIM-18">
-                <span>This direction looks good. Show me the revised plan first, then move to the next intake.</span>
-                <span style={{ color: 'var(--nous-workspace-info)' }}>|</span>
+                <div style={drawerCommandInputStyle}>
+                    <span>This direction looks good. Show me the revised plan first, then move to the next intake.</span>
+                    <span style={{ color: 'var(--nous-workspace-info)' }}>|</span>
+                </div>
+                <div style={drawerCommandToolbarStyle} aria-label="Command toolbar">
+                    <span>Attach</span>
+                    <span>Reference</span>
+                    <span>Voice</span>
+                    <span style={{ marginLeft: 'auto', color: 'var(--nous-workspace-info)' }}>Send</span>
+                </div>
             </div>
         </>
     )
 }
 
 const drawerHeaderStyle: React.CSSProperties = {
+    display: 'flex',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    gap: 12,
     padding: '12px 16px',
     borderBottom: '1px solid var(--nous-chat-drawer-border)',
+}
+
+const drawerHeaderActionsStyle: React.CSSProperties = {
+    display: 'flex',
+    alignItems: 'center',
+    gap: 8,
+}
+
+const drawerGlyphButtonStyle: React.CSSProperties = {
+    height: 24,
+    border: '1px solid rgba(255, 255, 255, 0.08)',
+    borderRadius: 999,
+    background: 'rgba(255, 255, 255, 0.035)',
+    color: 'var(--nous-fg-subtle)',
+    fontFamily: 'var(--nous-font-family-mono)',
+    fontSize: 'var(--nous-type-micro-xs, 10px)',
+    padding: '0 8px',
 }
 
 const drawerTabStyle: React.CSSProperties = {
@@ -373,28 +428,33 @@ const drawerTabStyle: React.CSSProperties = {
 
 const drawerBodyStyle: React.CSSProperties = {
     display: 'grid',
-    gridTemplateColumns: '156px minmax(0, 1fr)',
+    gridTemplateRows: 'auto minmax(0, 1fr)',
     minHeight: 0,
 }
 
 const drawerTopicRailStyle: React.CSSProperties = {
     display: 'flex',
-    flexDirection: 'column',
     gap: 6,
-    padding: 16,
-    borderRight: '1px solid var(--nous-chat-drawer-border)',
+    minWidth: 0,
+    overflowX: 'auto',
+    padding: '16px 16px 0',
 }
 
 const drawerTopicStyle: React.CSSProperties = {
-    borderRadius: 8,
+    flex: '0 0 auto',
+    border: '1px solid transparent',
+    borderRadius: 999,
+    background: 'transparent',
     padding: '4px 8px',
     color: 'var(--nous-fg-subtle)',
     fontSize: 'var(--nous-type-micro-xs, 10px)',
     fontFamily: 'var(--nous-font-family-mono)',
+    cursor: 'default',
 }
 
 const drawerTopicActiveStyle: React.CSSProperties = {
     background: 'rgba(255, 255, 255, 0.06)',
+    borderColor: 'rgba(255, 255, 255, 0.10)',
     color: '#fff',
 }
 
@@ -407,6 +467,12 @@ const drawerConversationStyle: React.CSSProperties = {
     padding: '16px 20px',
     fontSize: 'var(--nous-font-size-xs)',
     lineHeight: 1.28,
+}
+
+const drawerIntroText: React.CSSProperties = {
+    color: 'var(--nous-fg-muted)',
+    margin: 0,
+    maxWidth: 360,
 }
 
 const drawerMutedText: React.CSSProperties = {
@@ -424,21 +490,95 @@ const drawerMessageStyle: React.CSSProperties = {
 
 const drawerResultStyle: React.CSSProperties = {
     display: 'grid',
-    gap: 8,
+    gap: 16,
     borderRadius: 12,
     padding: 16,
     background: 'rgba(255, 255, 255, 0.04)',
     border: '1px solid rgba(255, 255, 255, 0.08)',
 }
 
+const drawerResultMetaStyle: React.CSSProperties = {
+    color: 'var(--nous-fg-subtle)',
+    fontFamily: 'var(--nous-font-family-mono)',
+    fontSize: 'var(--nous-type-micro-sm, 11px)',
+    fontWeight: 600,
+}
+
+const drawerResultTitleStyle: React.CSSProperties = {
+    margin: 0,
+    color: 'var(--nous-fg)',
+    fontSize: 'var(--nous-font-size-sm)',
+    fontWeight: 600,
+}
+
+const drawerDetailsGridStyle: React.CSSProperties = {
+    display: 'grid',
+    gridTemplateColumns: '96px minmax(0, 1fr)',
+    gap: '8px 12px',
+    color: 'var(--nous-fg-muted)',
+    fontSize: 'var(--nous-type-micro-sm, 11px)',
+}
+
+const drawerSectionLabelStyle: React.CSSProperties = {
+    margin: '0 0 8px',
+    color: 'var(--nous-fg)',
+    fontFamily: 'var(--nous-font-family-mono)',
+    fontSize: 'var(--nous-type-meta, 12px)',
+    fontWeight: 600,
+}
+
+const drawerListStyle: React.CSSProperties = {
+    display: 'grid',
+    gap: 8,
+}
+
+const drawerListItemStyle: React.CSSProperties = {
+    borderRadius: 8,
+    padding: '8px 10px',
+    background: 'rgba(255, 255, 255, 0.035)',
+    border: '1px solid rgba(255, 255, 255, 0.065)',
+    color: 'var(--nous-fg-muted)',
+}
+
+const drawerActionListStyle: React.CSSProperties = {
+    display: 'flex',
+    flexWrap: 'wrap',
+    gap: 8,
+}
+
+const drawerActionButtonStyle: React.CSSProperties = {
+    border: '1px solid rgba(91, 124, 255, 0.28)',
+    borderRadius: 999,
+    background: 'rgba(91, 124, 255, 0.10)',
+    color: '#dfe6ff',
+    fontFamily: 'var(--nous-font-family-mono)',
+    fontSize: 'var(--nous-type-micro-xs, 10px)',
+    padding: '5px 9px',
+}
+
 const drawerCommandStyle: React.CSSProperties = {
     minHeight: 104,
-    display: 'flex',
-    alignItems: 'flex-start',
-    gap: 8,
+    display: 'grid',
+    gridTemplateRows: 'minmax(0, 1fr) auto',
+    gap: 12,
     padding: 20,
     borderTop: '1px solid var(--nous-chat-drawer-border)',
     color: '#fff',
     fontSize: 'var(--nous-font-size-xs)',
     lineHeight: 1.35,
+}
+
+const drawerCommandInputStyle: React.CSSProperties = {
+    display: 'flex',
+    alignItems: 'flex-start',
+    gap: 8,
+}
+
+const drawerCommandToolbarStyle: React.CSSProperties = {
+    display: 'flex',
+    alignItems: 'center',
+    gap: 12,
+    color: 'var(--nous-fg-subtle)',
+    fontFamily: 'var(--nous-font-family-mono)',
+    fontSize: 'var(--nous-type-micro-xs, 10px)',
 }

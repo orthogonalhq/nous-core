@@ -112,6 +112,20 @@ describe('ProjectSwitcherRail', () => {
     expect(onNew).toHaveBeenCalled()
   })
 
+  it('renders reference Coaching and Messages rail colors for visual fixtures', async () => {
+    await renderRail({
+      projects: [
+        { id: 'coaching', name: 'Coaching', icon: 'C' },
+        { id: 'messages', name: 'Messages', icon: 'M' },
+      ],
+      activeProjectId: 'coaching',
+    })
+    const coaching = container.querySelector('[data-project-id="coaching"]') as HTMLElement
+    const messages = container.querySelector('[data-project-id="messages"]') as HTMLElement
+    expect(coaching.style.background).toBe('var(--nous-workspace-purple)')
+    expect(messages.style.background).toBe('var(--nous-workspace-success)')
+  })
+
   it('does not render new project button when onNewProject is omitted', async () => {
     await renderRail()
     const btn = container.querySelector('[data-rail-action="new-project"]')
@@ -145,7 +159,7 @@ describe('ProjectSwitcherRail', () => {
     const indicator = wrapper?.querySelector('[data-active-indicator]') as HTMLElement
     expect(indicator).toBeTruthy()
     expect(indicator.style.width).toBe('var(--nous-rail-indicator-width)')
-    expect(indicator.style.background).toBe('var(--nous-fg-muted)')
+    expect(indicator.style.background).toBe('var(--nous-workspace-route-chip-fg)')
   })
 
   it('does not render active indicator for inactive projects', async () => {

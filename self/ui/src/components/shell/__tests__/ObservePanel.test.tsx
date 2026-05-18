@@ -112,6 +112,9 @@ describe('ObservePanel', () => {
     )
     expect(screen.getByText('Workspace updates')).toBeTruthy()
     expect(screen.getByText('Morning emails finished')).toBeTruthy()
+    expect(screen.getByText('Approval queue refreshed')).toBeTruthy()
+    expect(screen.getByLabelText('Filter workspace updates')).toBeTruthy()
+    expect(screen.getByLabelText('Open workspace updates')).toBeTruthy()
   })
 
   it('renders MaoOperatingSurface when activeRoute is skills', () => {

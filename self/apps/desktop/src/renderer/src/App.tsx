@@ -29,6 +29,8 @@ import {
   isHomeSidebarEnabled,
   HOME_TOP_NAV,
   buildHomeSidebarSections,
+  VISUAL_HOME_TOP_NAV,
+  buildVisualHomeSidebarSections,
   type ContentRouterRenderProps,
   type ShellMode,
   type CommandGroup,
@@ -949,16 +951,17 @@ function DesktopSimpleShell({
     enabled: true,
   })
 
-  const showHomeSidebar = isHomeContext && isHomeSidebarEnabled()
+  const showVisualSpecimenSidebar = visualAcceptance && isHomeContext
+  const showHomeSidebar = isHomeContext && (showVisualSpecimenSidebar || isHomeSidebarEnabled())
 
   return (
     <SimpleShellLayout
-      projectRail={<DesktopProjectRail isHomeContext={isHomeContext} setIsHomeContext={setIsHomeContext} />}
+      projectRail={<DesktopProjectRail isHomeContext={isHomeContext} setIsHomeContext={setIsHomeContext} visualAcceptance={visualAcceptance} />}
       sidebarCollapsed={sidebarCollapsed}
       onSidebarCollapseChange={setSidebarCollapsed}
       sidebar={
         showHomeSidebar
-          ? <DesktopHomeSidebar collapsed={sidebarCollapsed} onToggleCollapse={handleToggleCollapse} />
+          ? <DesktopHomeSidebar collapsed={sidebarCollapsed} onToggleCollapse={handleToggleCollapse} visualAcceptance={showVisualSpecimenSidebar} />
           : (
             <DesktopAssetSidebarConnected
               chatStage={chatStageManager.chatStage}
@@ -1188,13 +1191,27 @@ function DesktopAssetSidebarConnected({
   )
 }
 
-function DesktopProjectRail({ isHomeContext, setIsHomeContext }: { isHomeContext: boolean; setIsHomeContext: (v: boolean) => void }) {
+const VISUAL_RAIL_PROJECTS = [
+  { id: 'coaching', name: 'Coaching', icon: 'C' },
+  { id: 'messages', name: 'Messages', icon: 'M' },
+]
+
+function DesktopProjectRail({
+  isHomeContext,
+  setIsHomeContext,
+  visualAcceptance = false,
+}: {
+  isHomeContext: boolean
+  setIsHomeContext: (v: boolean) => void
+  visualAcceptance?: boolean
+}) {
   const { activeProjectId, activeRoute, navigate, onProjectChange } = useShellCtx()
   const { data: projectList } = trpc.projects.list.useQuery()
 
+  const useVisualRail = visualAcceptance && isHomeContext
   const projects = useMemo(
-    () => (projectList ?? []).map((p: { id: string; name?: string }) => ({ id: p.id, name: p.name ?? p.id })),
-    [projectList],
+    () => useVisualRail ? VISUAL_RAIL_PROJECTS : (projectList ?? []).map((p: { id: string; name?: string }) => ({ id: p.id, name: p.name ?? p.id })),
+    [projectList, useVisualRail],
   )
 
   const handleHomeClick = useCallback(() => {
@@ -1203,40 +1220,53 @@ function DesktopProjectRail({ isHomeContext, setIsHomeContext }: { isHomeContext
   }, [navigate, setIsHomeContext])
 
   const handleProjectSelect = useCallback((id: string) => {
+    if (useVisualRail) {
+      setIsHomeContext(true)
+      if (id === 'coaching') navigate('home')
+      return
+    }
     setIsHomeContext(false)
     onProjectChange?.(id)
-  }, [onProjectChange, setIsHomeContext])
+  }, [navigate, onProjectChange, setIsHomeContext, useVisualRail])
+
+  const handleNewProject = useCallback(() => {
+    if (useVisualRail) return
+  }, [useVisualRail])
 
   return (
     <ProjectSwitcherRail
       projects={projects}
-      activeProjectId={activeProjectId ?? ''}
+      activeProjectId={useVisualRail ? 'coaching' : activeProjectId ?? ''}
       onProjectSelect={handleProjectSelect}
+      onNewProject={useVisualRail ? handleNewProject : undefined}
       onHomeClick={handleHomeClick}
-      isHomeActive={isHomeContext}
+      isHomeActive={isHomeContext && !useVisualRail}
     />
   )
 }
 
-function DesktopHomeSidebar({ collapsed, onToggleCollapse }: { collapsed?: boolean; onToggleCollapse?: () => void }) {
+function DesktopHomeSidebar({ collapsed, onToggleCollapse, visualAcceptance = false }: { collapsed?: boolean; onToggleCollapse?: () => void; visualAcceptance?: boolean }) {
   const { activeRoute, navigate } = useShellCtx()
   const badgeCount = useNotificationBadge()
 
-  const sections = useMemo(() => buildHomeSidebarSections(), [])
+  const sections = useMemo(
+    () => visualAcceptance ? buildVisualHomeSidebarSections() : buildHomeSidebarSections(),
+    [visualAcceptance],
+  )
 
   const topNavWithBadge = useMemo(
-    () => HOME_TOP_NAV.map((item) =>
-      item.id === 'home-inbox' ? { ...item, badge: badgeCount > 0 ? badgeCount : undefined } : item,
+    () => (visualAcceptance ? VISUAL_HOME_TOP_NAV : HOME_TOP_NAV).map((item) =>
+      item.id === 'home-inbox' || item.id === 'visual-inbox' ? { ...item, badge: badgeCount > 0 ? badgeCount : undefined } : item,
     ),
-    [badgeCount],
+    [badgeCount, visualAcceptance],
   )
 
   return (
     <AssetSidebar
-      projectName="Home"
+      projectName={visualAcceptance ? 'Coaching' : 'Home'}
       topNav={topNavWithBadge}
       sections={sections}
-      activeRoute={activeRoute}
+      activeRoute={visualAcceptance && activeRoute === 'home' ? 'home' : activeRoute}
       onNavigate={navigate}
       collapsed={collapsed}
       onToggleCollapse={onToggleCollapse}
