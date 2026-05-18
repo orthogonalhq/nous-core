@@ -1,0 +1,108 @@
+---
+title: "WR-175 Round 9 Screenshot Fidelity Audit"
+date: 2026-05-18
+status: audit_artifact_only
+worktree: "S:\\Localhost\\Nous\\nous-core\\.claude\\worktrees\\feat-wr-175-qualification"
+branch_tip_under_test: "e3454c7ae37d82c885b4d61226576a24d4f76d16"
+current_state_screenshot: "C:\\Users\\andre\\Pictures\\Screenshots\\Screenshot 2026-05-17 204535.png"
+verdict: still_materially_off_target
+---
+
+# WR-175 Round 9 Screenshot Fidelity Audit
+
+## Audit Boundary
+
+This is a visual fidelity audit only. No source code was edited and no implementation branch was created. The observed app state is the provided current-app screenshot, inspected directly:
+
+`C:\Users\andre\Pictures\Screenshots\Screenshot 2026-05-17 204535.png`
+
+The screenshot appears to be a launched simple/workspace app state for `Client onboarding` with topbar, left rail, Coaching sidebar, center canvas, and right Workspace updates rail. It does not show the required large right-side open `Client Onboarding` drawer overlay from the reference.
+
+## Reference And Current-State Inventory
+
+| Category | Path / Source | Inspection Result |
+|---|---|---|
+| Current app screenshot | `C:\Users\andre\Pictures\Screenshots\Screenshot 2026-05-17 204535.png` | Inspected directly. App has full shell regions but no large agent drawer overlay. |
+| Image reference | `C:\Users\andre\Downloads\Nous Shell - Workspaces - 2x zoom.png` | Inspected directly. Reference shows full-window dark shell with topbar, rail, Coaching sidebar, Client onboarding canvas, Workspace updates rail, and large open drawer overlay covering the right-center. |
+| Design-system entry | `S:\Localhost\Nous\nous-marketing-website\src\app\design-system\page.tsx` | Inspected directly. Entrypoint renders `DesignSystemDoc`. |
+| Marketing design-system components | `S:\Localhost\Nous\nous-marketing-website\src\components\design-system` | Inspected directly, including `workspace-mockup.tsx`, `chrome.tsx`, `asset-sidebar.tsx`, `context-panel.tsx`, `workspace-updates.tsx`, `agent-drawer.tsx`, and related primitives/cards. |
+| Marketing tokens | `S:\Localhost\Nous\nous-marketing-website\src\styles\tokens` | Inspected directly, including `primitives.css`, `app-theme.css`, and `components.css`. |
+| Reference extraction | `.worklog/sprints/feat/shell-redesign-workspace-first-ui-system/phase-1/phase-1.8/reference-extraction.mdx` | Used as the canonical reference ID map. |
+| Prior audit | `.worklog/sprints/feat/shell-redesign-workspace-first-ui-system/phase-1/phase-1.9/reference-fidelity-audit.mdx` | Used for prior gap framing and close-enough preservation areas. |
+| Completion report | `.worklog/sprints/feat/shell-redesign-workspace-first-ui-system/phase-1/phase-1.9/completion-report.mdx` | Read as implementation claim context only; screenshot pixels are the audit authority here. |
+| Round 9 test plan | `.worklog/sprints/feat/shell-redesign-workspace-first-ui-system/phase-1/phase-1.9/behavioral-testing/test-plan.mdx` | Used for Round 9 expected visual outcomes. |
+
+## Side-By-Side Visual Audit
+
+| Major Region | Reference Target | Observed Current Screenshot | Fidelity Result |
+|---|---|---|---|
+| Topbar | Outer chrome topbar with back/forward, centered `Nous` brand, Chat / active Workspaces / muted Developer cluster, 310px search, shortcut, and window controls. | Topbar has back/forward, `Nous`, active `Workspaces`, `Chat`, `Developer`, search, shortcut, and window controls. Brand/mode/search read more left-weighted and compact than the reference, with less centered breathing room. | Close but not exact. Preserve the available labels and active state; improve only topbar composition if another iteration occurs. |
+| Rail | Icon-only outer rail with Home, separator, purple Coaching tile, green Messages tile, lower separator, and create action. | Rail is icon-only and distinct from the sidebar. It shows a top outlined icon and a green active tile marked `D`; the purple Coaching database tile and green Messages relationship from the reference are not visually established. Bottom create action is not visible in the captured region. | Partially matched topology, materially weaker reference state. |
+| Sidebar | Coaching asset sidebar with purple avatar, `Inbox`, `Pulse`, grouped Workflows / Tasks / Chats, active `Client onboarding`, named reference items, and `Nue` / `Andrew` footer. | Sidebar title is `Coaching`; active `Client onboarding` is present; footer shows `Nue` / `Andrew`. Primary order/content differs (`Client onboarding`, `Pulse`, `Inbox`, `Chat` near the top), sections include non-reference items (`Workflow`, `Hello`, `Hihihi`, `Test`, `Marketing`, `Customer Service`, agents). | Recognizably close in frame, still off in specimen fixture fidelity. |
+| Canvas | Context header plus hero `Client onboarding`, subtitle, `Running`, uptime/agent metadata, two dashboard columns with reference card treatments and compact dark density. | Canvas shows `Client onboarding`, `Automated client intake`, `Running`, `73 days of uptime`, `10 Agents`, and two columns with six cards. Overall skeleton is close. It is more sparse at the top and cards appear flatter/lighter than the reference image. | One of the strongest areas; preserve skeleton and refine density/copy/surface only if iterating. |
+| Updates Rail | Always-visible right Workspace updates rail behind/around the open drawer, compact header controls, list of update cards, and bottom fade. | Updates rail is visible and has a list of compact cards. It also contains an input card (`What can I help you with?`) and text-pill controls (`Filter`, `Open`) that do not match the reference header/control treatment. Because the drawer is absent, the required layered rail-behind-drawer relationship is not visible. | Partially matched rail presence; layered relationship fails due to missing drawer. |
+| Drawer | Large absolute right-side glass drawer, about 580px wide, starting below the topbar, with tabs `Nue` / `Coaching` / active `Client Onboarding`, topic pills, result body, suggested actions, and bottom command input. | No large drawer overlay is present in the screenshot. The right rail contains a small command/input card, but this is not the reference drawer. | Critical miss. This prevents acceptance. |
+| Surfaces / Palette | Stepped near-black surfaces, subtle white-alpha hairlines, radial/noise texture, semantic purple/green/yellow/blue accents, drawer glass/shadow layering. | Current shell uses dark surfaces and semantic accents, but card and sidebar surfaces read more generic medium-dark gray than the reference image. Region boundaries are legible. The absent drawer removes the most important glass/shadow layer from the visual composition. | Directionally close but not sufficient for strict fidelity. |
+| Typography | Compact sans hierarchy, mono metadata/timestamps, 22px hero, 17px section headers, dim metadata, dense card text. | Typography is compact and largely readable. Hero/title and metadata hierarchy are present. Compared with the reference, the current screenshot is smaller/tighter in topbar/sidebar and somewhat less refined in card/update hierarchy. | Moderate match; not the primary blocker. |
+| Spacing / Density | 35px topbar, 50px rail, 236px sidebar, 340px updates rail, 40px context bar, 580px drawer overlay, compact controls/cards. | Region proportions are broadly in the reference family. The canvas is relatively empty below the first card rows, and the missing drawer leaves too much uncovered center/right space relative to the reference composition. | Region dimensions are close enough to preserve, but density/layering remains off because the drawer is not shown. |
+
+## Coverage And Score By Reference Group
+
+| Reference Group | IDs | Screenshot Coverage | Score | Notes |
+|---|---|---:|---:|---|
+| Inventory / Evidence | `INV-DS-*`, `INV-TOK-*`, `INV-IMG-01` | Direct current screenshot plus required references inspected. | 10/10 | Audit inputs are sufficient. |
+| Topology | `TOPO-01` through `TOPO-10` | Topbar, rail, sidebar, canvas, and updates rail are visible; drawer overlay topology is absent. | 6/10 | `TOPO-08` and `TOPO-09` fail visually. |
+| Dimensions / Spacing | `DIM-01` through `DIM-23` | Major shell widths/heights look broadly aligned; drawer dimensions cannot be credited because no drawer is visible. | 6/10 | Preserve shell proportions; drawer geometry unproven. |
+| Palette / Surface | `PAL-01` through `PAL-12` | Dark shell, accents, and hairlines are visible; glass drawer and strong overlay depth absent. | 6/10 | `PAL-12` fails; flatness remains visible. |
+| Typography | `TYPE-01` through `TYPE-10` | Hero, metadata, cards, sidebar, topbar, and updates use compact hierarchy; drawer typography absent. | 6/10 | `TYPE-09` cannot pass without drawer. |
+| Visible States | `STATE-01` through `STATE-14` | Active Workspaces, Client onboarding, Running, dashboard, and updates states appear. Sidebar fixture and drawer states are incomplete/absent. | 6/10 | `STATE-06` through `STATE-10` fail; `STATE-03` through `STATE-05` partially match. |
+| BT Full Topology | `BT-01` | Full shell exists but required open drawer overlay is missing. | 5/10 | Not acceptable as WR-175 strict topology proof. |
+| Topbar | `BT-02` | Required labels and active Workspaces are visible. | 7/10 | Composition and centered cluster still drift. |
+| Rail / Sidebar | `BT-03` | Separate rail/sidebar and active item exist; reference fixture content drifts. | 5/10 | Reads like a product sidebar more than the specimen. |
+| Canvas | `BT-04` | Client onboarding hero/status/dashboard is visible and close. | 7/10 | Strongest region; preserve. |
+| Updates Rail | `BT-05` | Updates rail is present, but not visibly layered behind an open drawer and includes non-reference input treatment. | 5/10 | Presence is close; relationship is not. |
+| Drawer | `BT-06` | Required large open drawer is not visible. | 0/10 | Principal-visible blocker. |
+| Palette / Layering | `BT-07` | Dark grammar is present but lacks reference drawer glass layer and still reads flatter. | 5/10 | Missing overlay dominates. |
+| Typography | `BT-08` | Most non-drawer type hierarchy is serviceable; drawer type state absent. | 6/10 | Cannot pass strict audit without drawer. |
+| Developer Scope | `BT-09`, `TOPO-10` | Not assessable from this screenshot. | N/A | This audit uses only the provided current workspace screenshot. |
+| Evidence Mapping | `BT-10`, `NG-01` through `NG-08` | This artifact maps visual claims to reference IDs and does not substitute source/tests for pixels. | 10/10 | Audit-only compliance met. |
+
+## Close Enough; Preserve
+
+| Area | Preserve Rationale |
+|---|---|
+| Overall shell frame | The screenshot has the correct broad family: topbar, icon rail, asset sidebar, central canvas, and right updates rail. Do not replace the entire shell composition. |
+| Canvas skeleton | The `Client onboarding` hero, status metadata, and two-column dashboard are recognizably aligned with the reference and should be retained. |
+| Active Workspaces topbar state | The selected Workspaces tab, search, shortcut, and window controls are visible and directionally correct. |
+| Dark/accent direction | The dark palette, green running state, yellow/blue card actions, and blue/purple accents are present enough to retune rather than restart. |
+| Sidebar/footer relationship | `Coaching`, active `Client onboarding`, and `Nue` / `Andrew` footer are visible; this relationship should be preserved while fixture drift is narrowed. |
+| Updates rail presence | The rail exists on the right and contains multiple update cards; preserve the always-visible rail concept. |
+
+## Remaining Gaps Ranked By Principal-Visible Impact
+
+1. Missing open drawer overlay. This is the dominant reference feature in `INV-IMG-01`, `TOPO-08`, `TOPO-09`, `DIM-17` through `DIM-19`, `PAL-12`, `TYPE-09`, `STATE-06` through `STATE-10`, and `BT-06`. Without it, the screenshot cannot be accepted as WR-175 visual fidelity.
+2. Sidebar and rail specimen state drift. `TOPO-03` through `TOPO-05`, `STATE-03` through `STATE-05`, and `BT-03` expect the fixed Home / Coaching / Messages rail and reference Coaching sidebar content. The observed sidebar includes extra/non-reference sections and labels that make the screenshot read product-generic.
+3. Updates rail is not in the required layered composition. `TOPO-07`, `STATE-13`, `STATE-14`, and `BT-05` require the rail to remain visible behind/around the open drawer. The rail is visible, but the drawer is absent and an input card appears where reference update cards/control treatment should dominate.
+4. Topbar composition still drifts. `TOPO-02`, `DIM-11`, `PAL-10`, `TYPE-04`, and `BT-02` are partially satisfied by labels and active state, but the screenshot lacks the centered brand/mode/search balance of the reference image.
+5. Surface layering remains less refined. `PAL-01` through `PAL-12` and `BT-07` are directionally present, but the screenshot reads as flatter medium-dark panels without the reference drawer glass/shadow layer.
+6. Density and hierarchy are close but not fully reference-calibrated. `DIM-14`, `DIM-15`, `TYPE-06` through `TYPE-08`, and `BT-08` are serviceable in the canvas and updates list, but the overall screenshot has more empty center/right space because the drawer layer is absent.
+
+## Narrow Next-Iteration Target List
+
+If another iteration is needed, keep it limited to these visual target categories:
+
+| Priority | Target Category | Reference IDs | Observed Screenshot Gap |
+|---:|---|---|---|
+| 1 | Restore/show the required large open `Client Onboarding` drawer overlay in the captured workspace state. | `TOPO-08`, `TOPO-09`, `DIM-17` through `DIM-19`, `PAL-12`, `TYPE-09`, `STATE-06` through `STATE-10`, `BT-06` | No large drawer overlay is visible; right side shows only updates rail/input. |
+| 2 | Re-establish drawer-over-updates layering. | `TOPO-07`, `TOPO-09`, `STATE-10`, `STATE-14`, `BT-05`, `BT-06` | The updates rail is visible but not partially covered by or visually behind the drawer. |
+| 3 | Narrow rail/sidebar fixture drift. | `TOPO-03` through `TOPO-05`, `DIM-02`, `DIM-03`, `STATE-03` through `STATE-05`, `BT-03` | Current rail/sidebar contain non-reference project/status labels and do not clearly show the purple Coaching plus green Messages reference relationship. |
+| 4 | Tighten topbar cluster and active Workspaces treatment. | `TOPO-02`, `DIM-01`, `DIM-11`, `DIM-12`, `PAL-10`, `TYPE-04`, `STATE-01`, `BT-02` | Labels are present, but brand/mode/search do not match the centered, balanced reference composition. |
+| 5 | Retune surface depth only after the drawer is visible. | `PAL-01` through `PAL-12`, `BT-07` | Current dark surfaces are directionally close but still flatter than the reference, especially without overlay glass/shadow. |
+
+## Acceptance Statement
+
+This screenshot is **still materially off-target** for WR-175 strict visual fidelity.
+
+It is not a failure to launch and it is not a complete miss: the shell topology, canvas, active topbar state, dark palette direction, sidebar/footer relationship, and updates rail are materially closer than the pre-Phase 1.9 gap profile. However, the provided screenshot cannot be accepted because the reference-defining large open `Client Onboarding` drawer overlay is absent, and several fixture/state details still read as app-generic rather than the marketing design-system specimen.
+
+Acceptance status: **still materially off-target**, with partial acceptance only for the non-drawer shell frame and canvas direction.
