@@ -59,6 +59,12 @@ const updates = [
   ['8 min ago', 'Invoice draft created', 'A draft invoice is ready for Client onboarding.'],
   ['14 min ago', 'Content idea saved', 'Pulse captured a reusable onboarding FAQ.'],
   ['21 min ago', 'Schedule conflict spotted', 'Two kickoff windows overlap next Tuesday.'],
+  ['28 min ago', 'Intake form cleaned up', 'Duplicate company fields were merged before the next send.'],
+  ['34 min ago', 'Follow-up owner assigned', 'Andrew now owns the two high-touch plan follow-ups.'],
+  ['42 min ago', 'Pricing question grouped', 'Six recent clients asked about implementation scope.'],
+  ['51 min ago', 'Kickoff note prepared', 'Nue drafted the revised kickoff summary for review.'],
+  ['1 hr ago', 'Approval queue refreshed', 'Three review items are ready in Client onboarding.'],
+  ['1 hr ago', 'Plan snapshot saved', 'The revised onboarding plan is available for handoff.'],
 ]
 
 function WorkspaceUpdatesRail() {
@@ -67,8 +73,8 @@ function WorkspaceUpdatesRail() {
       <header style={updatesHeader}>
         <h2 style={updatesTitle}>Workspace updates</h2>
         <div style={updatesControls} aria-label="Workspace update controls">
-          <span />
-          <span />
+          <button type="button" aria-label="Filter workspace updates" style={updatesControlButton}>Filter</button>
+          <button type="button" aria-label="Open workspace updates" style={updatesControlButton}>Open</button>
         </div>
       </header>
       <div style={updatesList}>
@@ -113,17 +119,29 @@ const updatesControls: CSSProperties = {
   gap: 8,
 }
 
+const updatesControlButton: CSSProperties = {
+  height: 24,
+  border: '1px solid rgba(255, 255, 255, 0.08)',
+  borderRadius: 999,
+  background: 'rgba(255, 255, 255, 0.035)',
+  color: 'var(--nous-fg-subtle)',
+  fontFamily: 'var(--nous-font-family-mono)',
+  fontSize: 'var(--nous-type-micro-xs, 10px)',
+  padding: '0 8px',
+}
+
 const updatesList: CSSProperties = {
   display: 'grid',
-  gap: 12,
+  gap: 10,
   paddingRight: 16,
 }
 
 const updateCard: CSSProperties = {
   borderRadius: 10,
-  padding: '12px 14px',
-  background: 'rgba(255, 255, 255, 0.035)',
-  border: '1px solid rgba(255, 255, 255, 0.07)',
+  padding: '10px 12px',
+  background: 'var(--nous-workspace-card-bg)',
+  border: '1px solid var(--nous-workspace-card-border)',
+  boxShadow: 'var(--nous-workspace-card-shadow)',
 }
 
 const updateTime: CSSProperties = {
@@ -150,7 +168,7 @@ const updatesFade: CSSProperties = {
   left: 0,
   right: 0,
   bottom: 0,
-  height: 72,
+  height: 36,
   background: 'var(--nous-workspace-updates-fade)',
   pointerEvents: 'none',
 }

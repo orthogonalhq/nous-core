@@ -5,7 +5,7 @@ import type { DockviewApi } from 'dockview-react'
 import type { ShellMode } from '@nous/ui/components'
 import type { PanelDef } from '../App'
 import { AppMenuBar } from './MenuBar'
-import { ChevronLeft, ChevronRight, Search } from 'lucide-react'
+import { ChevronLeft, ChevronRight, MessageCircle, PanelTop, Code2, Search } from 'lucide-react'
 
 // Electron-specific CSS property not in standard CSSProperties
 type ElectronStyle = CSSProperties & { WebkitAppRegion?: 'drag' | 'no-drag' }
@@ -74,12 +74,13 @@ export function TitleBar({
         <button type="button" aria-label="Forward" style={topbarIconButton}><ChevronRight size={14} /></button>
       </div>
 
-      {/* App branding — left anchor, no-drag */}
+      {/* App branding — simple mode clusters brand, tabs, and search like the reference chrome. */}
       <div
         style={{
           display: 'flex',
           alignItems: 'center',
-          padding: '0 16px',
+          gap: 8,
+          padding: '0 16px 0 32px',
           WebkitAppRegion: 'no-drag',
           pointerEvents: 'none',
           flexShrink: 0,
@@ -110,35 +111,35 @@ export function TitleBar({
 
       {mode === 'simple' && (
         <div
-          style={{
-            display: 'flex',
-            alignItems: 'center',
-            gap: 2,
-            padding: 2,
-            borderRadius: 999,
-            background: 'rgba(255, 255, 255, 0.035)',
+        style={{
+          display: 'flex',
+          alignItems: 'center',
+          gap: 3,
+          padding: 2,
+          borderRadius: 999,
+          background: 'rgba(255, 255, 255, 0.035)',
             WebkitAppRegion: 'no-drag',
           } as ElectronStyle}
           data-reference-extraction="STATE-01 PAL-10 TYPE-04"
         >
-          <span style={topbarTabMuted}>Chat</span>
-          <span style={topbarTabActive}>Workspaces</span>
-          <span style={topbarTabMuted}>Developer</span>
+          <span style={topbarTabMuted}><MessageCircle size={12} />Chat</span>
+          <span style={topbarTabActive}><PanelTop size={12} />Workspaces</span>
+          <span style={topbarTabMuted}><Code2 size={12} />Developer</span>
         </div>
       )}
 
       {/* Centered search bar + flex spacers */}
-      <div style={{ flex: 1 }} />
+      <div style={{ flex: mode === 'simple' ? '0 1 32px' : 1 }} />
       <div
         role="search"
         style={{
           display: 'flex',
           alignItems: 'center',
           gap: 8,
-          width: 300,
+          width: 310,
           height: 26,
           padding: '0 12px',
-          background: '#101010',
+          background: 'var(--nous-search-bg)',
           border: '1px solid rgba(255, 255, 255, 0.08)',
           borderRadius: 8,
           WebkitAppRegion: 'no-drag',
@@ -274,6 +275,7 @@ const topbarIconButton: CSSProperties = {
 const topbarTabMuted: CSSProperties = {
   display: 'inline-flex',
   alignItems: 'center',
+  gap: 6,
   height: 24,
   padding: '3px 12px',
   borderRadius: 999,

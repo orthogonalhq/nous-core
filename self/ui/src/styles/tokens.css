@@ -12,6 +12,14 @@
   /* ── Backgrounds ─────────────────────────────────────────────────────── */
   --nous-surface:        #030303;  /* outer "table" — panels sit on top of this */
   --nous-surface-nested: #131313;  /* inset surface — nested widget gaps inside a panel */
+  --nous-black-950:      #050505;
+  --nous-black-925:      #080808;
+  --nous-black-900:      #101010;
+  --nous-black-875:      #111212;
+  --nous-black-850:      #111213;
+  --nous-black-825:      #121212;
+  --nous-black-800:      #171717;
+  --nous-black-775:      #1a1c1e;
   --nous-bg:             #131313;
   --nous-bg-base:        #010101;
   --nous-bg-surface:     #050505;
@@ -198,6 +206,7 @@
 
   /* ── Chrome dimensions ─────────────────────────────────────────────── */
   --nous-titlebar-height:    32px;
+  --nous-shell-topbar-height: 35px;
   --nous-statusbar-height:   22px;
   --nous-titlebar-btn-width: 46px;
   --nous-dv-tab-height:      35px;
@@ -236,13 +245,13 @@
   --nous-chat-drawer-right-offset:      13px;
   --nous-chat-drawer-left-offset:       auto;
   --nous-chat-drawer-radius:            16px;
-  --nous-chat-drawer-bg:                rgba(8, 8, 8, 0.86);
+  --nous-chat-drawer-bg:                rgba(8, 8, 8, 0.90);
   --nous-chat-drawer-border:            rgba(255, 255, 255, 0.12);
   --nous-chat-drawer-shadow:            -8px -8px 14px 7px rgba(7, 7, 7, 0.75), 0 28px 80px rgba(0, 0, 0, 0.58);
   --nous-workspace-route-header-height: 40px;
   --nous-workspace-canvas-padding-x:    56px;
   --nous-workspace-shell-inset:         6px;
-  --nous-workspace-shell-frame-bg:      #050505;
+  --nous-workspace-shell-frame-bg:      var(--nous-black-950);
   --nous-workspace-shell-frame-border:  rgba(255, 255, 255, 0.10);
   --nous-workspace-canvas-sheen:        radial-gradient(circle at 20% 0%, rgba(255, 255, 255, 0.06), transparent 32%), linear-gradient(135deg, rgba(255, 255, 255, 0.025), transparent 42%), radial-gradient(circle at 70% 30%, rgba(109, 61, 242, 0.08), transparent 28%);
   --nous-workspace-route-card-bg:       rgba(255, 255, 255, 0.035);
@@ -250,10 +259,10 @@
   --nous-workspace-route-chip-bg:       rgba(255, 255, 255, 0.07);
   --nous-workspace-route-chip-fg:       #f4f4f4;
   --nous-workspace-rail-active-bg:      rgba(255, 255, 255, 0.10);
-  --nous-workspace-sidebar-bg:          #080808;
+  --nous-workspace-sidebar-bg:          var(--nous-black-925);
   --nous-workspace-sidebar-border:      rgba(255, 255, 255, 0.08);
   --nous-workspace-updates-width:       340px;
-  --nous-workspace-updates-bg:          rgba(17, 18, 19, 0.72);
+  --nous-workspace-updates-bg:          rgba(17, 18, 19, 0.78);
   --nous-workspace-updates-fade:        linear-gradient(to bottom, rgba(17, 18, 19, 0), rgba(17, 18, 19, 0.96));
   --nous-workspace-success:             #23a768;
   --nous-workspace-warning:             #f0c400;

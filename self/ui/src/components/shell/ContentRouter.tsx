@@ -274,11 +274,15 @@ function ReferenceWorkspaceCanvas() {
   return (
     <div data-reference-extraction="TOPO-06 DIM-05 DIM-14 STATE-11 STATE-12 TYPE-06 TYPE-07" style={referenceCanvasRoot}>
       <div style={referenceContextBar}>
-        <div style={{ fontWeight: 600 }}>Client onboarding</div>
+        <div style={referenceContextTitle}>
+          <span style={referenceContextIcon}>C</span>
+          <span>Client onboarding</span>
+        </div>
         <div style={referenceSegmentedControl}>
           <span style={referenceSegmentMuted}>Pulse</span>
           <span style={referenceSegmentActive}>Workflow Editor</span>
         </div>
+        <button type="button" aria-label="Client onboarding settings" style={referenceHeaderButton}>Settings</button>
       </div>
       <section style={referenceHero}>
         <div>
@@ -297,9 +301,9 @@ function ReferenceWorkspaceCanvas() {
           accent="var(--nous-workspace-warning)"
           action="Review"
           items={[
-            ['Review client intakes', '1 item needs approval'],
-            ['Approve email drafts', '5 drafts waiting'],
-            ['Follow-ups paused', '3 clients need owner input'],
+            ['Review client intakes', '1 item needs approval', '1'],
+            ['Approve email drafts', '5 drafts waiting', '5'],
+            ['Follow-ups paused', '3 clients need owner input', '3'],
           ]}
         />
         <ReferenceDashboardColumn
@@ -307,9 +311,9 @@ function ReferenceWorkspaceCanvas() {
           accent="var(--nous-workspace-info)"
           action="Review"
           items={[
-            ['Scheduling is slowing onboarding', 'Calendar conflicts are up 18% this week'],
-            ['Clients keep asking this', 'Pricing scope appears in 6 recent intakes'],
-            ['Higher-touch plans convert faster', 'Guided kickoff improves close rate'],
+            ['Scheduling is slowing onboarding', 'Calendar conflicts are up 18% this week', '18%'],
+            ['Clients keep asking this', 'Pricing scope appears in 6 recent intakes', '6'],
+            ['Higher-touch plans convert faster', 'Guided kickoff improves close rate', '+12%'],
           ]}
         />
       </section>
@@ -317,18 +321,18 @@ function ReferenceWorkspaceCanvas() {
   )
 }
 
-function ReferenceDashboardColumn({ title, items, accent, action }: { title: string; items: Array<[string, string]>; accent: string; action: string }) {
+function ReferenceDashboardColumn({ title, items, accent, action }: { title: string; items: Array<[string, string, string]>; accent: string; action: string }) {
   return (
     <div style={referenceColumn}>
       <h2 style={referenceSectionTitle}>{title}</h2>
-      {items.map(([itemTitle, body], index) => (
+      {items.map(([itemTitle, body, count]) => (
         <article key={itemTitle} style={referenceCard}>
           <div style={{ display: 'flex', justifyContent: 'space-between', gap: 12 }}>
             <div>
               <div style={referenceCardTitle}>{itemTitle}</div>
               <p style={referenceCardBody}>{body}</p>
             </div>
-            {index === 0 ? <span style={{ ...referenceCount, borderColor: accent }}>{title === 'Needs attention' ? '1' : '3'}</span> : null}
+            <span style={{ ...referenceCount, borderColor: accent }}>{count}</span>
           </div>
           <button type="button" style={{ ...referenceAction, color: accent }}>{action}</button>
         </article>
@@ -344,12 +348,45 @@ const referenceCanvasRoot: React.CSSProperties = {
 
 const referenceContextBar: React.CSSProperties = {
   height: 'var(--nous-workspace-route-header-height)',
-  display: 'flex',
+  display: 'grid',
+  gridTemplateColumns: 'minmax(0, 1fr) auto minmax(0, 1fr)',
   alignItems: 'center',
-  justifyContent: 'space-between',
+  gap: 16,
   padding: '0 16px',
   borderBottom: '1px solid var(--nous-workspace-shell-border)',
   fontSize: 'var(--nous-font-size-sm)',
+}
+
+const referenceContextTitle: React.CSSProperties = {
+  display: 'flex',
+  alignItems: 'center',
+  gap: 8,
+  minWidth: 0,
+  fontWeight: 600,
+}
+
+const referenceContextIcon: React.CSSProperties = {
+  display: 'inline-flex',
+  alignItems: 'center',
+  justifyContent: 'center',
+  width: 20,
+  height: 20,
+  borderRadius: 6,
+  background: 'rgba(109, 61, 242, 0.22)',
+  color: '#e7ddff',
+  fontSize: 'var(--nous-type-micro-xs, 10px)',
+  fontWeight: 700,
+}
+
+const referenceHeaderButton: React.CSSProperties = {
+  justifySelf: 'end',
+  border: '1px solid rgba(255, 255, 255, 0.08)',
+  borderRadius: 999,
+  background: 'rgba(255, 255, 255, 0.035)',
+  color: 'var(--nous-fg-subtle)',
+  fontFamily: 'var(--nous-font-family-mono)',
+  fontSize: 'var(--nous-type-micro-xs, 10px)',
+  padding: '3px 8px',
 }
 
 const referenceSegmentedControl: React.CSSProperties = {

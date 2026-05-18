@@ -102,15 +102,18 @@ afterEach(async () => {
 
 describe('ContentRouter', () => {
   it('renders the component matching the active route', async () => {
-    await renderRouter()
+    await renderRouter({ activeRoute: 'details' })
 
-    expect(container.textContent).toContain('Open details')
+    expect(container.textContent).toContain('Details screen')
   })
 
   it('navigates forward and back while notifying onNavigate', async () => {
     const onNavigate = vi.fn()
 
-    await renderRouter({ onNavigate })
+    await renderRouter({
+      routeIdentities: { ...routeIdentities, home: { routeId: 'home-route', label: 'Workspace Home', surface: 'workspace' as const } },
+      onNavigate,
+    })
 
     await act(async () => {
       getButtonByText('Open details').dispatchEvent(
@@ -131,6 +134,17 @@ describe('ContentRouter', () => {
 
     expect(container.textContent).toContain('Open details')
     expect(onNavigate).toHaveBeenCalledWith('home', undefined)
+  })
+
+  it('renders the Client onboarding reference canvas for the home route', async () => {
+    await renderRouter()
+
+    expect(container.textContent).toContain('Client onboarding')
+    expect(container.textContent).toContain('Automated client intake')
+    expect(container.textContent).toContain('10 Agents')
+    expect(container.textContent).toContain('Approve email drafts')
+    expect(container.textContent).toContain('Higher-touch plans convert faster')
+    expect(container.querySelector('[aria-label="Client onboarding settings"]')).toBeTruthy()
   })
 
   it('renders visible fallback when the active route is unknown', async () => {

@@ -274,7 +274,21 @@ describe('SimpleShellLayout', () => {
     expect(chat.textContent).toContain('Client Onboarding')
     expect(chat.textContent).toContain('Review client intakes')
     expect(chat.textContent).toContain('Worked for 18s')
+    expect(chat.textContent).toContain('The revised plan is ready.')
+    expect(chat.textContent).toContain('Nothing has been sent yet.')
+    expect(chat.textContent).toContain('Changes made')
+    expect(chat.textContent).toContain('Suggested actions')
     expect(chat.textContent).toContain('This direction looks good. Show me the revised plan first')
+    expect(chat.textContent).toContain('Attach')
+    expect(chat.textContent).toContain('Send')
+  })
+
+  it('keeps the support chat slot mounted but hidden in the reference drawer', async () => {
+    await renderLayout({ chatStage: 'ambient_large' })
+    const supportSlot = container.querySelector('[data-testid="chat"]') as HTMLElement
+    expect(supportSlot).toBeTruthy()
+    expect(supportSlot.textContent).toBe('ambient_large')
+    expect(supportSlot.parentElement?.getAttribute('aria-hidden')).toBe('true')
   })
 
   // ── WR-141: whole-sidebar collapse ────────────────────────────────────

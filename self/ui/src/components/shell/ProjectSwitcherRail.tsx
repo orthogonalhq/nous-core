@@ -10,6 +10,8 @@ import { isHomeSidebarEnabled } from './feature-flags'
 
 /** Deterministic hue from project ID via simple hash. */
 function avatarColorFromId(id: string): string {
+    if (id === 'coaching') return 'var(--nous-workspace-purple)'
+    if (id === 'messages') return 'var(--nous-workspace-success)'
     let hash = 0
     for (let i = 0; i < id.length; i++) {
         hash = (hash * 31 + id.charCodeAt(i)) | 0
@@ -180,8 +182,8 @@ const styles = {
     },
     divider: {
         display: 'block',
-        width: '60%',
-        height: '2px',
+        width: 38,
+        height: 1,
         borderRadius: '1px',
         background: 'var(--nous-border-subtle)',
         flexShrink: 0,
@@ -190,7 +192,7 @@ const styles = {
         display: 'flex',
         flexDirection: 'column' as const,
         alignItems: 'center',
-        gap: 'var(--nous-space-sm)',
+        gap: 'var(--nous-space-xs)',
         flex: '1 1 0%',
         overflowY: 'auto' as const,
         width: '100%',
@@ -229,11 +231,11 @@ const styles = {
         justifyContent: 'center',
         width: 'var(--nous-rail-avatar-size)',
         height: 'var(--nous-rail-avatar-size)',
-        borderRadius: 'var(--nous-radius-lg)',
+        borderRadius: 'var(--nous-radius-md)',
         border: '2px solid transparent',
         color: 'var(--nous-fg-on-color)',
-        fontSize: 'var(--nous-font-size-2xl)',
-        fontWeight: 700,
+        fontSize: 'var(--nous-font-size-sm)',
+        fontWeight: 600,
         cursor: 'pointer',
         transition: 'var(--nous-hover-button-transition)',
         padding: 0,
