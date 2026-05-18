@@ -341,8 +341,10 @@ export function App() {
   const [appPanels, setAppPanels] = useState<AppPanelSnapshot[]>([])
   const [mode, setMode] = useState<ShellMode>('simple')
   const [modeSource, setModeSource] = useState<ShellModeSource>('default')
+  const [modeHydrated, setModeHydrated] = useState(false)
   const [activeRoute, setActiveRoute] = useState(DEFAULT_ROUTE)
   const [isHomeContext, setIsHomeContext] = useState(false)
+  const [wr175ReferenceLaunchEligible, setWr175ReferenceLaunchEligible] = useState(true)
   const [commandPaletteOpen, setCommandPaletteOpen] = useState(false)
   const [backendPort, setBackendPort] = useState<number | null>(null)
 
@@ -358,6 +360,8 @@ export function App() {
     setSavedLayout(undefined)
     setDockviewApi(null)
     setAppPanels([])
+    setModeHydrated(false)
+    setWr175ReferenceLaunchEligible(true)
 
     const startedAt = Date.now()
     let backendReady = false
@@ -485,6 +489,7 @@ export function App() {
         console.log(`[nous:mode] Using visual acceptance mode: ${visualAcceptanceMode}`)
         setMode(visualAcceptanceMode)
         setModeSource('visual-acceptance-override')
+        setModeHydrated(true)
         return
       }
 
@@ -495,6 +500,7 @@ export function App() {
       } else {
         setModeSource('default')
       }
+      setModeHydrated(true)
     })
 
     return () => {
@@ -542,6 +548,8 @@ export function App() {
     console.log('[nous:wizard] Phase: wizard → main')
     setSavedLayout(undefined)
     setDockviewApi(null)
+    setModeHydrated(false)
+    setWr175ReferenceLaunchEligible(true)
     setPhase('main')
   }, [])
 
@@ -552,6 +560,9 @@ export function App() {
   const [navigationParams, setNavigationParams] = useState<Record<string, unknown> | undefined>(undefined)
 
   const handleNavigate = useCallback((routeId: string, params?: Record<string, unknown>) => {
+    if (routeId !== DEFAULT_ROUTE) {
+      setWr175ReferenceLaunchEligible(false)
+    }
     setActiveRoute(routeId)
     setNavigationParams(params)
   }, [])
@@ -568,6 +579,7 @@ export function App() {
 
       console.log(`[nous:mode] Mode switched: ${previousMode} -> ${nextMode}`)
       setModeSource('persisted')
+      setWr175ReferenceLaunchEligible(false)
       void modePersistence.set(nextMode)
       return nextMode
     })
@@ -578,6 +590,7 @@ export function App() {
       const nextMode = previousMode === 'simple' ? 'developer' : 'simple'
       console.log(`[nous:mode] Mode switched: ${previousMode} -> ${nextMode}`)
       setModeSource('persisted')
+      setWr175ReferenceLaunchEligible(false)
       void modePersistence.set(nextMode)
       return nextMode
     })
@@ -650,7 +663,8 @@ export function App() {
     settings: { routeId: 'settings', label: 'Settings', surface: 'workspace' as const },
   }), [])
 
-  const handleDesktopProjectChange = useCallback((newProjectId: string) => {
+  const handleDesktopProjectChange = useCallback(() => {
+    setWr175ReferenceLaunchEligible(false)
     setIsHomeContext(false)
     setActiveRoute(DEFAULT_ROUTE) // reset content route on project switch
   }, [])
@@ -689,6 +703,7 @@ export function App() {
   })
 
   const panelDefs = [...nativePanelDefs, ...appPanels.map(toAppPanelDef)]
+  const wr175ReferenceAcceptance = modeHydrated && wr175ReferenceLaunchEligible && mode === 'simple' && activeRoute === DEFAULT_ROUTE && navigationParams === undefined
 
   const loadingShell = (
     <ChromeShell
@@ -784,7 +799,7 @@ export function App() {
           navigationParams={navigationParams}
           isHomeContext={isHomeContext}
           setIsHomeContext={setIsHomeContext}
-          visualAcceptance={modeSource === 'visual-acceptance-override'}
+          visualAcceptance={wr175ReferenceAcceptance}
         />
       ) : (
         <DockviewShell
@@ -917,10 +932,25 @@ function DesktopSimpleShell({
   const visualAcceptanceOpenedRef = useRef(false)
 
   useEffect(() => {
-    if (!visualAcceptance || visualAcceptanceOpenedRef.current) return
-    visualAcceptanceOpenedRef.current = true
-    chatStageManager.expandToAmbientLarge()
+    if (visualAcceptance) {
+      if (!visualAcceptanceOpenedRef.current) {
+        visualAcceptanceOpenedRef.current = true
+        chatStageManager.expandToAmbientLarge()
+      }
+      return
+    }
+
+    if (visualAcceptanceOpenedRef.current) {
+      visualAcceptanceOpenedRef.current = false
+      chatStageManager.collapseToSmall()
+    }
   }, [chatStageManager, visualAcceptance])
+
+  useEffect(() => {
+    if (visualAcceptance && !isHomeContext) {
+      setIsHomeContext(true)
+    }
+  }, [isHomeContext, setIsHomeContext, visualAcceptance])
 
   // WR-141 — single-call-plus-prop-drill per primary contract § State Ownership.
   // This call is intentionally placed inside `DesktopSimpleShell` (the wiring-site
