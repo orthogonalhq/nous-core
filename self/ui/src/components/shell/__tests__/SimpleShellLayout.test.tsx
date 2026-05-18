@@ -107,10 +107,12 @@ describe('SimpleShellLayout', () => {
   it('chat drawer is positioned as a Cortex Principal simple-shell container', async () => {
     await renderLayout()
     const chat = getArea('chat')
+    const observe = getArea('observe')
     expect(chat.style.position).toBe('absolute')
     expect(chat.style.top).toBe('var(--nous-chat-drawer-top-offset)')
     expect(chat.style.right).toBe('var(--nous-chat-drawer-right-offset)')
     expect(chat.style.bottom).toBe('var(--nous-chat-drawer-bottom-offset)')
+    expect(observe.style.zIndex).toBe('1')
     expect(chat.style.zIndex).toBe('10')
     expect(chat.getAttribute('data-chat-owner')).toBe('Cortex:Principal')
     expect(chat.getAttribute('data-chat-container')).toBe('principal-drawer')
@@ -271,6 +273,7 @@ describe('SimpleShellLayout', () => {
   it('renders reference drawer tabs, topics, result, and command input when open', async () => {
     await renderLayout({ chatStage: 'ambient_large' })
     const chat = getArea('chat')
+    expect(chat.style.boxShadow).toBe('var(--nous-chat-drawer-shadow)')
     expect(chat.textContent).toContain('Client Onboarding')
     expect(chat.textContent).toContain('Review client intakes')
     expect(chat.textContent).toContain('Worked for 18s')

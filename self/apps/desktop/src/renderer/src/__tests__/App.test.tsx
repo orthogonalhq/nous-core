@@ -253,7 +253,11 @@ describe('App', () => {
     expect(chat?.dataset.chatOwner).toBe('Cortex:Principal')
     expect(chat?.dataset.chatContainer).toBe('principal-drawer')
     expect(chat?.getAttribute('aria-label')).toBe('Cortex Principal chat drawer')
+    await waitFor(() => {
+      expect(chat?.dataset.chatStage).toBe('ambient_large')
+    })
     expect(mock.mode.get).toHaveBeenCalledTimes(1)
+    expect(mock.mode.set).not.toHaveBeenCalled()
   })
 
   it('loads developer mode from persisted state', async () => {
@@ -292,7 +296,34 @@ describe('App', () => {
     const shell = document.querySelector('[data-shell-mode-source="visual-acceptance-override"]') as HTMLElement | null
     expect(shell?.dataset.shellMode).toBe('simple')
     expect(screen.queryByText('Dockview shell')).not.toBeInTheDocument()
-    expect(document.querySelector('[data-chat-container="principal-drawer"]')).not.toBeNull()
+    const chat = document.querySelector('[data-chat-container="principal-drawer"]') as HTMLElement | null
+    expect(chat).not.toBeNull()
+    await waitFor(() => {
+      expect(chat?.dataset.chatStage).toBe('ambient_large')
+    })
+    expect(mock.mode.get).toHaveBeenCalledTimes(1)
+    expect(mock.mode.set).not.toHaveBeenCalled()
+  })
+
+  it('opens the WR-175 reference drawer for persisted simple mode without persisting drawer state', async () => {
+    const mock = installMock()
+    mock.mode.get.mockResolvedValue('simple')
+    trpcFetchMock.trpcQuery.mockImplementation(async (procedure: string) => {
+      if (procedure === 'firstRun.getWizardState') return createFirstRunState({ currentStep: 'complete', complete: true })
+      if (procedure === 'packages.listAppPanels') return []
+      return null
+    })
+
+    render(<App />)
+
+    await waitFor(() => {
+      expect(document.querySelector('[data-shell-area="rail"]')).not.toBeNull()
+    })
+
+    const chat = document.querySelector('[data-chat-container="principal-drawer"]') as HTMLElement | null
+    await waitFor(() => {
+      expect(chat?.dataset.chatStage).toBe('ambient_large')
+    })
     expect(mock.mode.get).toHaveBeenCalledTimes(1)
     expect(mock.mode.set).not.toHaveBeenCalled()
   })
@@ -676,5 +707,36 @@ describe('App', () => {
     await waitFor(() => {
       expect(screen.queryByRole('dialog', { name: 'Command palette' })).not.toBeInTheDocument()
     })
+  })
+
+  it('does not keep the WR-175 reference drawer active after non-home navigation', async () => {
+    installMock()
+    trpcFetchMock.trpcQuery.mockImplementation(async (procedure: string) => {
+      if (procedure === 'firstRun.getWizardState') return createFirstRunState({ currentStep: 'complete', complete: true })
+      if (procedure === 'packages.listAppPanels') return []
+      return null
+    })
+
+    render(<App />)
+
+    await waitFor(() => {
+      expect(document.querySelector('[data-shell-area="rail"]')).not.toBeNull()
+    })
+
+    const chat = document.querySelector('[data-shell-area="chat"]') as HTMLElement | null
+    await waitFor(() => {
+      expect(chat?.dataset.chatStage).toBe('ambient_large')
+    })
+
+    fireEvent.keyDown(window, {
+      ctrlKey: true,
+      key: 'k',
+    })
+    fireEvent.click(screen.getByTestId('command-item-nav-threads'))
+
+    await waitFor(() => {
+      expect(chat?.dataset.chatStage).toBe('small')
+    })
+    expect(screen.getByText('MAO Operating Surface')).toBeInTheDocument()
   })
 })
