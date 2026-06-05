@@ -16,7 +16,16 @@ It lives on your machine, learns how you work, and gets better the longer you us
 [![License](https://img.shields.io/badge/license-AGPL--3.0-blue?style=for-the-badge)](LICENSE)
 [![Last Commit](https://img.shields.io/github/last-commit/orthogonalhq/nous-core/dev?style=for-the-badge)](https://github.com/orthogonalhq/nous-core/commits/dev)
 
-> **Status**: Active development. v1 launches in weeks. Contributions welcome — see [CONTRIBUTING.md](CONTRIBUTING.md).
+---
+### Get Involved
+
+[![OpenNous](https://img.shields.io/github/stars/orthogonalhq/nous-core?style=for-the-badge&color=ffee8c&labelColor=0a0a0a&logo=data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHZpZXdCb3g9IjAgMCAyMCAyMCIgd2lkdGg9IjIwIiBoZWlnaHQ9IjIwIj4KICA8Y2lyY2xlIGN4PSI4IiBjeT0iMTEuNSIgcj0iNiIgZmlsbD0ibm9uZSIgc3Ryb2tlPSJ3aGl0ZSIgc3Ryb2tlLXdpZHRoPSIyLjIiLz4KICA8Y2lyY2xlIGN4PSIxNi41IiBjeT0iNSIgcj0iMiIgZmlsbD0ibm9uZSIgc3Ryb2tlPSJ3aGl0ZSIgc3Ryb2tlLXdpZHRoPSIxLjQiLz4KPC9zdmc+Cg==&logoColor=white)](https://github.com/orthogonalhq/nous-core)
+[![Download](https://img.shields.io/badge/-Download_Nous-white?style=for-the-badge&color=0057B7&labelColor=0a0a0a&logo=data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHZpZXdCb3g9IjAgMCAyMCAyMCIgd2lkdGg9IjIwIiBoZWlnaHQ9IjIwIj4KICA8Y2lyY2xlIGN4PSI4IiBjeT0iMTEuNSIgcj0iNiIgZmlsbD0ibm9uZSIgc3Ryb2tlPSJ3aGl0ZSIgc3Ryb2tlLXdpZHRoPSIyLjIiLz4KICA8Y2lyY2xlIGN4PSIxNi41IiBjeT0iNSIgcj0iMiIgZmlsbD0ibm9uZSIgc3Ryb2tlPSJ3aGl0ZSIgc3Ryb2tlLXdpZHRoPSIxLjQiLz4KPC9zdmc+Cg==)](https://orthg.nl/download)
+[![Discord](https://img.shields.io/badge/-Discord-white?style=for-the-badge&color=5865F2&labelColor=0a0a0a&logo=discord&logoColor=white)](https://discord.gg/39uDKGDwqd)
+
+Contributions welcome — check out the [open issues](https://github.com/orthogonalhq/nous-core/issues) or read the [contributing guide](https://github.com/orthogonalhq/nous-core/blob/main/CONTRIBUTING.md).
+
+Join the conversation on [Discord](https://discord.gg/39uDKGDwqd)
 
 ---
 
