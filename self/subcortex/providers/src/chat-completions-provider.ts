@@ -1,5 +1,5 @@
 /**
- * OpenAiCompatibleProvider — IModelProvider for OpenAI-compatible APIs.
+ * ChatCompletionsProvider — IModelProvider for Chat Completions APIs.
  *
  * Uses /v1/chat/completions. API key from constructor or OPENAI_API_KEY env.
  * Endpoint from config or OPENAI_API_BASE env or https://api.openai.com.
@@ -17,7 +17,7 @@ import { TextModelInputSchema } from './schemas.js';
 const DEFAULT_ENDPOINT = 'https://api.openai.com';
 const DEFAULT_TIMEOUT_MS = 60_000;
 
-export class OpenAiCompatibleProvider implements IModelProvider {
+export class ChatCompletionsProvider implements IModelProvider {
   private readonly config: ModelProviderConfig;
   private readonly endpoint: string;
   private readonly apiKey: string;

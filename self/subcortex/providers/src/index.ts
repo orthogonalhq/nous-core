@@ -2,8 +2,9 @@
  * @nous/subcortex-providers — Model provider adapters for Nous-OSS.
  */
 export { AnthropicProvider } from './anthropic-provider.js';
+export * from './definitions/index.js';
 export { OllamaProvider } from './ollama-provider.js';
-export { OpenAiCompatibleProvider } from './openai-provider.js';
+export { ChatCompletionsProvider } from './chat-completions-provider.js';
 export { ProviderRegistry } from './provider-registry.js';
 export { InferenceLane, LeaseHeldError } from './inference-lane.js';
 export { InferenceLaneRegistry } from './inference-lane-registry.js';

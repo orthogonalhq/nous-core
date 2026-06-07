@@ -1,10 +1,10 @@
 import { ConfigError } from '@nous/shared';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { AnthropicProvider } from '../anthropic-provider.js';
+import { ChatCompletionsProvider } from '../chat-completions-provider.js';
 import { ProviderRegistry } from '../provider-registry.js';
 import { LaneAwareProvider } from '../lane-aware-provider.js';
 import { OllamaProvider } from '../ollama-provider.js';
-import { OpenAiCompatibleProvider } from '../openai-provider.js';
 
 afterEach(() => {
   delete process.env.ANTHROPIC_API_KEY;
@@ -239,7 +239,7 @@ describe('ProviderRegistry', () => {
     expect(provider.getConfig().endpoint).toBe('https://api.anthropic.com');
   });
 
-  it('routes non-Anthropic remote providers to OpenAiCompatibleProvider inside LaneAwareProvider', () => {
+  it('routes non-Anthropic remote providers to ChatCompletionsProvider inside LaneAwareProvider', () => {
     process.env.OPENAI_API_KEY = 'test-openai-key';
 
     const registry = new ProviderRegistry({
@@ -265,7 +265,7 @@ describe('ProviderRegistry', () => {
     ) as any;
 
     expect(provider).toBeInstanceOf(LaneAwareProvider);
-    expect(provider.inner).toBeInstanceOf(OpenAiCompatibleProvider);
+    expect(provider.inner).toBeInstanceOf(ChatCompletionsProvider);
   });
 
   it('constructor skips non-local entries when API key is unavailable', () => {

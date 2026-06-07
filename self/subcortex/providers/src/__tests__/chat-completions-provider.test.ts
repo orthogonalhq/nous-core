@@ -1,7 +1,7 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import type { ProviderId } from '@nous/shared';
 import { NousError, ValidationError } from '@nous/shared';
-import { OpenAiCompatibleProvider } from '../openai-provider.js';
+import { ChatCompletionsProvider } from '../chat-completions-provider.js';
 
 const MOCK_CONFIG = {
   id: '00000000-0000-0000-0000-000000000001' as ProviderId,
@@ -12,7 +12,7 @@ const MOCK_CONFIG = {
   capabilities: ['text'],
 };
 
-describe('OpenAiCompatibleProvider', () => {
+describe('ChatCompletionsProvider', () => {
   beforeEach(() => {
     vi.stubGlobal('fetch', vi.fn());
     vi.stubGlobal('process', {
@@ -22,7 +22,7 @@ describe('OpenAiCompatibleProvider', () => {
   });
 
   it('implements IModelProvider — getConfig returns config', () => {
-    const provider = new OpenAiCompatibleProvider(MOCK_CONFIG, {
+    const provider = new ChatCompletionsProvider(MOCK_CONFIG, {
       apiKey: 'test-key',
     });
     expect(provider.getConfig()).toEqual(MOCK_CONFIG);
@@ -33,13 +33,13 @@ describe('OpenAiCompatibleProvider', () => {
     delete process.env.OPENAI_API_KEY;
     expect(
       () =>
-        new OpenAiCompatibleProvider(MOCK_CONFIG),
+        new ChatCompletionsProvider(MOCK_CONFIG),
     ).toThrow(NousError);
     process.env.OPENAI_API_KEY = orig;
   });
 
   it('invoke() validates input — rejects invalid with ValidationError', async () => {
-    const provider = new OpenAiCompatibleProvider(MOCK_CONFIG, {
+    const provider = new ChatCompletionsProvider(MOCK_CONFIG, {
       apiKey: 'test-key',
     });
     vi.mocked(fetch).mockResolvedValue({
@@ -60,7 +60,7 @@ describe('OpenAiCompatibleProvider', () => {
   });
 
   it('invoke() with valid prompt returns ModelResponse', async () => {
-    const provider = new OpenAiCompatibleProvider(MOCK_CONFIG, {
+    const provider = new ChatCompletionsProvider(MOCK_CONFIG, {
       apiKey: 'test-key',
     });
     vi.mocked(fetch).mockResolvedValue({
@@ -84,7 +84,7 @@ describe('OpenAiCompatibleProvider', () => {
   });
 
   it('invoke() throws PROVIDER_AUTH_FAILED on 401', async () => {
-    const provider = new OpenAiCompatibleProvider(MOCK_CONFIG, {
+    const provider = new ChatCompletionsProvider(MOCK_CONFIG, {
       apiKey: 'bad-key',
     });
     vi.mocked(fetch).mockResolvedValue({
@@ -113,7 +113,7 @@ describe('OpenAiCompatibleProvider', () => {
   });
 
   it('invoke() surfaces external abort as ABORTED', async () => {
-    const provider = new OpenAiCompatibleProvider(MOCK_CONFIG, {
+    const provider = new ChatCompletionsProvider(MOCK_CONFIG, {
       apiKey: 'test-key',
     });
     vi.mocked(fetch).mockImplementation(async (_url, init) => {
@@ -139,7 +139,7 @@ describe('OpenAiCompatibleProvider', () => {
   });
 });
 
-describe('OpenAiCompatibleProvider — fetchWithTimeout classification (SP 1.16 RC-β.2 / β6)', () => {
+describe('ChatCompletionsProvider — fetchWithTimeout classification (SP 1.16 RC-β.2 / β6)', () => {
   beforeEach(() => {
     vi.useFakeTimers();
     vi.stubGlobal('fetch', vi.fn());
@@ -153,7 +153,7 @@ describe('OpenAiCompatibleProvider — fetchWithTimeout classification (SP 1.16 
   });
 
   it('timeout abort is classified as OpenAI request timed out (NOT endpoint unreachable)', async () => {
-    const provider = new OpenAiCompatibleProvider(
+    const provider = new ChatCompletionsProvider(
       MOCK_CONFIG,
       { apiKey: 'test-key', timeoutMs: 50 },
     );

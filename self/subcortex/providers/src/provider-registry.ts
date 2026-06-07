@@ -25,7 +25,7 @@ import { InferenceLaneRegistry } from './inference-lane-registry.js';
 import { LaneAwareProvider } from './lane-aware-provider.js';
 import { ObservableProvider } from './observable-provider.js';
 import { OllamaProvider } from './ollama-provider.js';
-import { OpenAiCompatibleProvider } from './openai-provider.js';
+import { ChatCompletionsProvider } from './chat-completions-provider.js';
 
 export class ProviderRegistry {
   private readonly providers = new Map<string, IModelProvider>();
@@ -186,7 +186,7 @@ export class ProviderRegistry {
   private resolveVendor(config: ModelProviderConfig): ProviderVendor {
     if (config.isLocal) return 'ollama';
     if (this.isAnthropicProvider(config)) return 'anthropic';
-    // Current default: any non-local, non-Anthropic config is OpenAI-compatible.
+    // Current default: any non-local, non-Anthropic config uses Chat Completions.
     // Any future plugin subclass that needs disambiguation should extend this
     // helper with a new branch rather than stamping `'openai'` by default.
     return 'openai';
@@ -217,7 +217,7 @@ export class ProviderRegistry {
         ? new AnthropicProvider(normalizedConfig, {
             apiKey: this.resolveRemoteApiKey(normalizedConfig),
           })
-        : new OpenAiCompatibleProvider(normalizedConfig, {
+        : new ChatCompletionsProvider(normalizedConfig, {
             apiKey: this.resolveRemoteApiKey(normalizedConfig),
           });
     const lane = this.laneRegistry.getOrCreate(normalizedConfig);

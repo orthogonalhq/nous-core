@@ -2,7 +2,7 @@
   "name": "@nous/subcortex-providers",
   "version": "0.0.1",
   "private": true,
-  "description": "Model provider adapters for Nous-OSS — Ollama and OpenAI-compatible",
+  "description": "Model provider implementations for Nous-OSS — Ollama, Chat Completions, and Anthropic",
   "type": "module",
   "exports": {
     ".": {
