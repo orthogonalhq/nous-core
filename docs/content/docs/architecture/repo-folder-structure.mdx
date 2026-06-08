@@ -408,8 +408,11 @@ Model provider adapters and metadata definitions for all model types.
 
 ```
 providers/
-├── adapters/                         # Provider adapter module objects
-├── definitions/                      # Static provider metadata catalog
+├── adapter-registry.ts                # Provider adapter registry
+├── adapters/                         # Concrete provider adapter modules only
+├── provider-adapters.ts               # Public concrete adapter export surface
+├── provider-definitions.ts            # Static provider metadata catalog
+├── shared/                            # Shared adapter contracts and helpers
 ├── local/                            # Local runtime models
 ├── remote/                           # Remote API models
 └── wasm/                             # WASM models
@@ -424,7 +427,7 @@ Responsibilities:
 * Report token/compute usage
 * Abstract provider-specific differences
 
-The static typed provider definition catalog lives in `self/subcortex/providers/src/definitions/`. The catalog contains metadata-only definitions for Anthropic, Chat Completions-compatible remote providers, and Ollama, and exports literal-derived provider key types. Provider adapter modules live in `self/subcortex/providers/src/adapters/`. Runtime bootstrap and credential loading still use the current provider-registration paths until the catalog is consumed by bootstrap.
+The static typed provider definition catalog is aggregated by `self/subcortex/providers/src/provider-definitions.ts`; each provider metadata constant lives with its owning provider module. The catalog contains metadata-only definitions for Anthropic, Chat Completions-compatible remote providers, and Ollama, and exports literal-derived provider key types. Concrete provider adapter modules live in `self/subcortex/providers/src/adapters/`, which contains only concrete provider adapter implementation files. `self/subcortex/providers/src/provider-adapters.ts` owns the public concrete-adapter export surface, while shared adapter contracts, output helpers, and protocol/fallback adapters live in `self/subcortex/providers/src/shared/`.
 
 Phase 12.5 adds in-process per-endpoint inference lanes in `self/subcortex/providers/src/inference-lane.ts`, `inference-lane-registry.ts`, and `lane-aware-provider.ts`. These files own bounded concurrency, agent-class priority ordering, Principal-only preemption, exclusive voice-call lease handling, wait-estimate analytics, and the narrow lease-release notification seam while preserving existing routing and failover authority above the concrete providers.
 

@@ -12,16 +12,34 @@
       "default": "./dist/index.js"
     },
     "./adapters": {
-      "types": "./dist/adapters/index.d.ts",
-      "import": "./dist/adapters/index.js",
-      "require": "./dist/adapters/index.js",
-      "default": "./dist/adapters/index.js"
+      "types": "./dist/provider-adapters.d.ts",
+      "import": "./dist/provider-adapters.js",
+      "require": "./dist/provider-adapters.js",
+      "default": "./dist/provider-adapters.js"
     },
-    "./adapters/output": {
-      "types": "./dist/adapters/output.d.ts",
-      "import": "./dist/adapters/output.js",
-      "require": "./dist/adapters/output.js",
-      "default": "./dist/adapters/output.js"
+    "./shared": {
+      "types": "./dist/shared/index.d.ts",
+      "import": "./dist/shared/index.js",
+      "require": "./dist/shared/index.js",
+      "default": "./dist/shared/index.js"
+    },
+    "./shared/output": {
+      "types": "./dist/shared/output.d.ts",
+      "import": "./dist/shared/output.js",
+      "require": "./dist/shared/output.js",
+      "default": "./dist/shared/output.js"
+    },
+    "./adapter-registry": {
+      "types": "./dist/adapter-registry.d.ts",
+      "import": "./dist/adapter-registry.js",
+      "require": "./dist/adapter-registry.js",
+      "default": "./dist/adapter-registry.js"
+    },
+    "./provider-definitions": {
+      "types": "./dist/provider-definitions.d.ts",
+      "import": "./dist/provider-definitions.js",
+      "require": "./dist/provider-definitions.js",
+      "default": "./dist/provider-definitions.js"
     }
   },
   "scripts": {

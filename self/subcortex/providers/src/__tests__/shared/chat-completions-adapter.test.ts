@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { createChatCompletionsAdapter } from '../../adapters/chat-completions-adapter.js';
+import { createChatCompletionsAdapter } from '../../shared/chat-completions-adapter.js';
 import type { TraceId, ToolDefinition } from '@nous/shared';
 
 const TRACE_ID = '550e8400-e29b-41d4-a716-446655440103' as TraceId;

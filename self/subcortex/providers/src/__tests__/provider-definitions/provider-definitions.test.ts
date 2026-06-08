@@ -5,7 +5,7 @@ import { describe, expect, it } from 'vitest';
 import {
   PROVIDER_DEFINITIONS,
   ProviderDefinitionSchema,
-} from '../../definitions/index.js';
+} from '../../provider-definitions.js';
 
 const expectedDefinitions = {
   anthropic: {
@@ -60,21 +60,32 @@ describe('provider definitions catalog', () => {
     }
   });
 
-  it('keeps provider definition leaves metadata-only', () => {
-    const definitionsDir = dirname(fileURLToPath(import.meta.url))
-      .replace(`${join('src', '__tests__', 'definitions')}`, join('src', 'definitions'));
-    const leafFiles = ['anthropic.ts', 'chat-completions.ts', 'ollama.ts'];
+  it('keeps provider definition constants metadata-only', () => {
+    const providersSrcDir = dirname(fileURLToPath(import.meta.url))
+      .replace(`${join('src', '__tests__', 'provider-definitions')}`, 'src');
+    const providerFiles = [
+      'anthropic-provider.ts',
+      'chat-completions-provider.ts',
+      'ollama-provider.ts',
+    ];
     const forbidden = [
       /fetch/,
       /process\.env/,
       /new (AnthropicProvider|ChatCompletionsProvider|OllamaProvider)/,
-      /from ['"].*provider\.js['"]/,
     ];
 
-    for (const file of leafFiles) {
-      const source = readFileSync(join(definitionsDir, file), 'utf8');
+    for (const file of providerFiles) {
+      const source = readFileSync(join(providersSrcDir, file), 'utf8');
+      const definitionStart = source.indexOf('_PROVIDER_DEFINITION = {');
+      const definitionEnd = source.indexOf('} as const satisfies ProviderDefinition;', definitionStart);
+      expect(definitionStart).toBeGreaterThanOrEqual(0);
+      expect(definitionEnd).toBeGreaterThan(definitionStart);
+      const definitionSource = source.slice(
+        definitionStart,
+        definitionEnd + '} as const satisfies ProviderDefinition;'.length,
+      );
       for (const pattern of forbidden) {
-        expect(source).not.toMatch(pattern);
+        expect(definitionSource).not.toMatch(pattern);
       }
     }
   });

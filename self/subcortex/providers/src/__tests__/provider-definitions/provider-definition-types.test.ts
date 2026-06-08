@@ -5,7 +5,7 @@ import {
   type BootstrapProviderKey,
   type ProviderDefinition,
   type ProviderVendorKey,
-} from '../../definitions/index.js';
+} from '../../provider-definitions.js';
 import type { ProviderId } from '@nous/shared';
 
 type Equal<A, B> =

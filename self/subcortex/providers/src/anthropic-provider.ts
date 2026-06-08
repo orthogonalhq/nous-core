@@ -5,13 +5,44 @@ import type {
   ModelRequest,
   ModelResponse,
   ModelStreamChunk,
+  ProviderId,
 } from '@nous/shared';
+import type { ProviderDefinition } from './provider-definitions.js';
 import { TextModelInputSchema, type TextModelInput } from './schemas.js';
 
 const DEFAULT_ENDPOINT = 'https://api.anthropic.com';
+const DEFAULT_MODEL_ID = 'claude-sonnet-4-20250514';
 const DEFAULT_TIMEOUT_MS = 60_000;
 const DEFAULT_MAX_TOKENS = 4096;
 const ANTHROPIC_VERSION = '2023-06-01';
+
+export const ANTHROPIC_PROVIDER_DEFINITION = {
+  vendorKey: 'anthropic',
+  displayName: 'Anthropic',
+  wellKnownProviderId: '10000000-0000-0000-0000-000000000001' as ProviderId,
+  providerType: 'text',
+  providerClass: 'remote_text',
+  protocol: 'anthropic-messages',
+  adapterKey: 'anthropic',
+  defaultEndpoint: DEFAULT_ENDPOINT,
+  defaultModelId: DEFAULT_MODEL_ID,
+  auth: {
+    envVar: 'ANTHROPIC_API_KEY',
+    vaultKeyNamespace: 'anthropic',
+    required: true,
+    purpose: 'api_key',
+  },
+  headers: {
+    'anthropic-version': ANTHROPIC_VERSION,
+  },
+  capabilities: {
+    streaming: true,
+    cacheControl: true,
+    extendedThinking: true,
+    nativeToolUse: true,
+  },
+  isLocal: false,
+} as const satisfies ProviderDefinition;
 
 interface AnthropicMessageResponse {
   content?: Array<{ type?: string; text?: string; name?: string; input?: unknown; thinking?: string }>;

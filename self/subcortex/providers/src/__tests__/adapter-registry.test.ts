@@ -2,13 +2,15 @@ import { describe, expect, it } from 'vitest';
 import {
   ADAPTER_MODULES,
   buildAdapterRegistry,
-  defineProviderAdapter,
   normalizeAdapterKey,
   resolveAdapter,
   resolveAdapterKeyFromConfig,
+} from '../adapter-registry.js';
+import {
   textAdapter,
-} from '../../adapters/index.js';
-import type { ProviderAdapter } from '../../adapters/types.js';
+  defineProviderAdapter,
+} from '../shared/index.js';
+import type { ProviderAdapter } from '../shared/adapter-types.js';
 
 const testAdapter: ProviderAdapter = {
   capabilities: {

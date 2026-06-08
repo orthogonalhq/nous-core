@@ -11,11 +11,38 @@ import type {
   ModelRequest,
   ModelResponse,
   ModelStreamChunk,
+  ProviderId,
 } from '@nous/shared';
+import type { ProviderDefinition } from './provider-definitions.js';
 import { TextModelInputSchema } from './schemas.js';
 
 const DEFAULT_ENDPOINT = 'https://api.openai.com';
+const DEFAULT_MODEL_ID = 'gpt-4o';
 const DEFAULT_TIMEOUT_MS = 60_000;
+
+export const CHAT_COMPLETIONS_PROVIDER_DEFINITION = {
+  vendorKey: 'openai',
+  displayName: 'Chat Completions',
+  wellKnownProviderId: '10000000-0000-0000-0000-000000000002' as ProviderId,
+  providerType: 'text',
+  providerClass: 'remote_text',
+  protocol: 'chat-completions',
+  adapterKey: 'chat-completions',
+  defaultEndpoint: DEFAULT_ENDPOINT,
+  defaultModelId: DEFAULT_MODEL_ID,
+  auth: {
+    envVar: 'OPENAI_API_KEY',
+    vaultKeyNamespace: 'openai',
+    required: true,
+    purpose: 'api_key',
+  },
+  modelListEndpoint: '/v1/models',
+  capabilities: {
+    streaming: true,
+    nativeToolUse: true,
+  },
+  isLocal: false,
+} as const satisfies ProviderDefinition;
 
 export class ChatCompletionsProvider implements IModelProvider {
   private readonly config: ModelProviderConfig;

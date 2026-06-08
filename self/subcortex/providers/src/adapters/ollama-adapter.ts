@@ -11,14 +11,14 @@
  * The adapter sets stream: false when tools are present.
  */
 import type { ILogChannel, TraceId } from '@nous/shared';
-import type { ParsedModelOutput } from './output.js';
+import type { ParsedModelOutput } from '../shared/output.js';
 import {
   defineProviderAdapter,
   type AdapterCapabilities,
   type AdapterFormatInput,
   type AdapterFormattedRequest,
   type ProviderAdapter,
-} from './types.js';
+} from '../shared/adapter-types.js';
 
 // ── Model capability detection ────────────────────────────────────────────────
 

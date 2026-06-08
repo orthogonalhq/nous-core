@@ -1,14 +1,14 @@
 import type { ILogChannel } from '@nous/shared';
-import { PROVIDER_DEFINITIONS } from '../definitions/index.js';
-import { anthropicAdapter } from './anthropic-adapter.js';
-import { chatCompletionsAdapter } from './chat-completions-adapter.js';
-import { ollamaAdapter } from './ollama-adapter.js';
-import { textAdapter } from './text-adapter.js';
+import { PROVIDER_DEFINITIONS } from './provider-definitions.js';
+import { anthropicAdapter } from './adapters/anthropic-adapter.js';
+import { ollamaAdapter } from './adapters/ollama-adapter.js';
+import { chatCompletionsAdapter } from './shared/chat-completions-adapter.js';
+import { textAdapter } from './shared/text-adapter.js';
 import type {
   ProviderAdapter,
   ProviderAdapterCreateOptions,
   ProviderAdapterModule,
-} from './types.js';
+} from './shared/adapter-types.js';
 
 export const ADAPTER_MODULES = [
   anthropicAdapter,

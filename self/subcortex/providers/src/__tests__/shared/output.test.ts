@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { parseModelOutput, type ParsedModelOutput } from '../../adapters/output.js';
+import { parseModelOutput, type ParsedModelOutput } from '../../shared/output.js';
 import type { TraceId } from '@nous/shared';
 
 const TRACE_ID = '550e8400-e29b-41d4-a716-446655440000' as TraceId;
