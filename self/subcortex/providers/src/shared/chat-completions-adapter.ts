@@ -6,7 +6,7 @@ import {
   type AdapterFormatInput,
   type AdapterFormattedRequest,
   type ProviderAdapter,
-} from './types.js';
+} from './adapter-types.js';
 
 const CHAT_COMPLETIONS_ADAPTER_CAPABILITIES: AdapterCapabilities = {
   nativeToolUse: true,

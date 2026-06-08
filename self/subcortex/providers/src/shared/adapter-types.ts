@@ -6,7 +6,7 @@ import type {
   ToolDefinition,
   TraceId,
 } from '@nous/shared';
-import type { ProviderAdapterKey } from '../definitions/types.js';
+import type { ProviderAdapterKey } from '../provider-definitions.js';
 import type { ParsedModelOutput } from './output.js';
 
 /**

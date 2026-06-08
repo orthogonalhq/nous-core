@@ -31,7 +31,7 @@ import {
   PROVIDER_DEFINITIONS,
   type ProviderDefinition,
   type ProviderVendorKey,
-} from './definitions/index.js';
+} from './provider-definitions.js';
 
 export interface ProviderRegistryOptions {
   laneRegistry?: InferenceLaneRegistry;

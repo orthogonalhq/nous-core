@@ -9,6 +9,9 @@ import {
   type ProviderType,
   type ProviderVendor,
 } from '@nous/shared';
+import { ANTHROPIC_PROVIDER_DEFINITION } from './anthropic-provider.js';
+import { CHAT_COMPLETIONS_PROVIDER_DEFINITION } from './chat-completions-provider.js';
+import { OLLAMA_PROVIDER_DEFINITION } from './ollama-provider.js';
 
 export const ProviderProtocolSchema = z.string().min(1);
 export type ProviderProtocol =
@@ -102,5 +105,24 @@ export type ProviderDefinitionInput = Omit<ProviderDefinition, 'vendorKey'> & {
 
 export function defineProvider<const T extends ProviderDefinitionInput>(definition: T): T {
   ProviderDefinitionSchema.parse(definition);
+  return definition;
+}
+
+export const PROVIDER_DEFINITIONS = [
+  ANTHROPIC_PROVIDER_DEFINITION,
+  CHAT_COMPLETIONS_PROVIDER_DEFINITION,
+  OLLAMA_PROVIDER_DEFINITION,
+] as const satisfies readonly ProviderDefinition[];
+
+export type ProviderVendorKey = (typeof PROVIDER_DEFINITIONS)[number]['vendorKey'];
+export type BootstrapProviderKey = ProviderVendorKey;
+
+export function resolveProviderDefinition(vendorKey: ProviderVendorKey): ProviderDefinition {
+  const definition = PROVIDER_DEFINITIONS.find(
+    (candidate) => candidate.vendorKey === vendorKey,
+  );
+  if (!definition) {
+    throw new Error(`Provider definition is missing for vendor key '${vendorKey}'`);
+  }
   return definition;
 }

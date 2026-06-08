@@ -12,12 +12,41 @@ import type {
   ModelRequest,
   ModelResponse,
   ModelStreamChunk,
+  ProviderId,
   TraceId,
 } from '@nous/shared';
+import type { ProviderDefinition } from './provider-definitions.js';
 import { TextModelInputSchema } from './schemas.js';
 
 const DEFAULT_ENDPOINT = 'http://localhost:11434';
+const DEFAULT_MODEL_ID = 'llama3.2';
 const DEFAULT_TIMEOUT_MS = 60_000;
+
+export const OLLAMA_PROVIDER_DEFINITION = {
+  vendorKey: 'ollama',
+  displayName: 'Ollama',
+  wellKnownProviderId: '10000000-0000-0000-0000-000000000003' as ProviderId,
+  providerType: 'text',
+  providerClass: 'local_text',
+  protocol: 'ollama',
+  adapterKey: 'ollama',
+  defaultEndpoint: DEFAULT_ENDPOINT,
+  defaultModelId: DEFAULT_MODEL_ID,
+  auth: {
+    required: false,
+    purpose: 'api_key',
+  },
+  modelListEndpoint: '/api/tags',
+  healthCheckEndpoint: '/api/tags',
+  capabilities: {
+    streaming: true,
+    extendedThinking: true,
+    nativeToolUse: true,
+    modelListing: true,
+    healthCheck: true,
+  },
+  isLocal: true,
+} as const satisfies ProviderDefinition;
 
 /**
  * SP 1.17 RC-β-1.1 (Option iii) — classifies a thrown error as recoverable
