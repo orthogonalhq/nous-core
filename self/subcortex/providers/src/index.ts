@@ -10,12 +10,23 @@ export { OllamaProvider } from './ollama-provider.js';
 export { ChatCompletionsProvider } from './chat-completions-provider.js';
 export { ProviderRegistry } from './provider-registry.js';
 export type { ProviderRegistryOptions } from './provider-registry.js';
-export { InferenceLane, LeaseHeldError } from './inference-lane.js';
-export { InferenceLaneRegistry } from './inference-lane-registry.js';
-export { LaneAwareProvider } from './lane-aware-provider.js';
-export { ObservableProvider } from './observable-provider.js';
-export type { ObservableProviderMeta } from './observable-provider.js';
-export { TokenAccumulatorService } from './token-accumulator-service.js';
-export type { WindowSummary, ProviderBreakdownEntry } from './token-accumulator-service.js';
+export {
+  InferenceLane,
+  InferenceLaneRegistry,
+  LaneAwareProvider,
+  LeaseHeldError,
+  ObservableProvider,
+  TokenAccumulatorService,
+} from '@nous/subcortex-inference-runtime';
+export type {
+  InferenceLaneAnalytics,
+  InferenceLaneLeaseState,
+  InferencePriority,
+  LaneLeaseReleasedEvent,
+  LaneWaitEstimate,
+  ObservableProviderMeta,
+  ProviderBreakdownEntry,
+  WindowSummary,
+} from '@nous/subcortex-inference-runtime';
 export { TextModelInputSchema } from './schemas.js';
 export type { TextModelInput } from './schemas.js';

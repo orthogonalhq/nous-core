@@ -89,10 +89,10 @@ import { ModelRouter } from '@nous/subcortex-router';
 import {
   PROVIDER_DEFINITIONS,
   ProviderRegistry,
-  TokenAccumulatorService,
   type ProviderDefinition,
   type ProviderVendorKey,
 } from '@nous/subcortex-providers';
+import { TokenAccumulatorService } from '@nous/subcortex-inference-runtime';
 import {
   DiscoverProjectsTool,
   EchoTool,

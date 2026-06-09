@@ -34,7 +34,8 @@ import type {
   IHealthMonitor,
 } from '@nous/shared';
 import type { PanelTranspiler } from '@nous/subcortex-apps';
-import type { ProviderRegistry, TokenAccumulatorService } from '@nous/subcortex-providers';
+import type { TokenAccumulatorService } from '@nous/subcortex-inference-runtime';
+import type { ProviderRegistry } from '@nous/subcortex-providers';
 import type { CostGovernanceService } from '@nous/subcortex-cost';
 import type {
   IPrincipalSystemGatewayRuntime,

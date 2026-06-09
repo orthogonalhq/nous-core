@@ -362,6 +362,9 @@ importers:
       '@nous/subcortex-gtm':
         specifier: workspace:*
         version: link:../../subcortex/gtm
+      '@nous/subcortex-inference-runtime':
+        specifier: workspace:*
+        version: link:../../subcortex/inference-runtime
       '@nous/subcortex-mao':
         specifier: workspace:*
         version: link:../../subcortex/mao
@@ -659,6 +662,9 @@ importers:
       '@nous/shared':
         specifier: workspace:*
         version: link:../../shared
+      '@nous/subcortex-providers':
+        specifier: workspace:*
+        version: link:../../subcortex/providers
       '@nous/subcortex-workflows':
         specifier: workspace:*
         version: link:../../subcortex/workflows
@@ -678,15 +684,15 @@ importers:
       '@nous/memory-stm':
         specifier: workspace:*
         version: link:../../memory/stm
+      '@nous/subcortex-inference-runtime':
+        specifier: workspace:*
+        version: link:../../subcortex/inference-runtime
       '@nous/subcortex-notification':
         specifier: workspace:*
         version: link:../../subcortex/notification
       '@nous/subcortex-projects':
         specifier: workspace:*
         version: link:../../subcortex/projects
-      '@nous/subcortex-providers':
-        specifier: workspace:*
-        version: link:../../subcortex/providers
       '@nous/subcortex-router':
         specifier: workspace:*
         version: link:../../subcortex/router
@@ -975,6 +981,12 @@ importers:
         specifier: ^2.1.0
         version: 2.1.9(@types/node@20.19.33)(jsdom@26.1.0)(lightningcss@1.30.2)
 
+  self/subcortex/inference-runtime:
+    dependencies:
+      '@nous/shared':
+        specifier: workspace:*
+        version: link:../../shared
+
   self/subcortex/mao:
     dependencies:
       '@nous/shared':
@@ -1047,6 +1059,9 @@ importers:
       '@nous/shared':
         specifier: workspace:*
         version: link:../../shared
+      '@nous/subcortex-inference-runtime':
+        specifier: workspace:*
+        version: link:../inference-runtime
       zod:
         specifier: ^3.24.1
         version: 3.25.76

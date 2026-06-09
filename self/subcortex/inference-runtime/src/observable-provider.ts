@@ -136,7 +136,11 @@ export class ObservableProvider implements IModelProvider {
               } catch { /* fire-and-forget */ }
             }
 
-            const result = await iterator.next();
+            const activeIterator = iterator;
+            if (!activeIterator) {
+              throw new Error('Provider stream iterator was not initialized');
+            }
+            const result = await activeIterator.next();
 
             if (!result.done) {
               const chunk = result.value;

@@ -1,11 +1,11 @@
 import { afterEach, describe, expect, it } from 'vitest';
 import type { ProviderId, TraceId } from '@nous/shared';
+import { LaneAwareProvider } from '@nous/subcortex-inference-runtime';
 import {
   ADAPTER_MODULES,
   ADAPTER_REGISTRY,
   AnthropicProvider,
   ChatCompletionsProvider,
-  LaneAwareProvider,
   OllamaProvider,
   PROVIDER_DEFINITIONS,
   ProviderRegistry,

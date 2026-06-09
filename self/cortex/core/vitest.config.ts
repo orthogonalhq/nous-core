@@ -26,6 +26,10 @@ export default defineConfig({
         __dirname,
         '../../subcortex/providers/src/index.ts',
       ),
+      '@nous/subcortex-inference-runtime': path.resolve(
+        __dirname,
+        '../../subcortex/inference-runtime/src/index.ts',
+      ),
       '@nous/subcortex-router': path.resolve(
         __dirname,
         '../../subcortex/router/src/index.ts',

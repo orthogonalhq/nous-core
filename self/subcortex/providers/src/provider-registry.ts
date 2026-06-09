@@ -20,11 +20,13 @@ import {
   ModelProviderConfigSchema,
 } from '@nous/shared';
 import type { ProviderConfigEntry } from '@nous/autonomic-config';
-import type { LaneLeaseReleasedEvent } from './inference-lane-registry.js';
+import type { LaneLeaseReleasedEvent } from '@nous/subcortex-inference-runtime';
+import {
+  InferenceLaneRegistry,
+  LaneAwareProvider,
+  ObservableProvider,
+} from '@nous/subcortex-inference-runtime';
 import { AnthropicProvider } from './anthropic-provider.js';
-import { InferenceLaneRegistry } from './inference-lane-registry.js';
-import { LaneAwareProvider } from './lane-aware-provider.js';
-import { ObservableProvider } from './observable-provider.js';
 import { OllamaProvider } from './ollama-provider.js';
 import { ChatCompletionsProvider } from './chat-completions-provider.js';
 import {

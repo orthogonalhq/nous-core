@@ -39,6 +39,7 @@
     "@nous/subcortex-router": "workspace:*",
     "@nous/subcortex-tools": "workspace:*",
     "@nous/subcortex-notification": "workspace:*",
-    "@nous/subcortex-projects": "workspace:*"
+    "@nous/subcortex-projects": "workspace:*",
+    "@nous/subcortex-inference-runtime": "workspace:*"
   }
 }

@@ -1,4 +1,4 @@
-import { describe, expect, it, vi } from 'vitest';
+import { describe, expect, it } from 'vitest';
 import { InferenceLane, LeaseHeldError } from '../inference-lane.js';
 import type { ModelStreamChunk } from '@nous/shared';
 

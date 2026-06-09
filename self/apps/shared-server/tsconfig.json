@@ -10,7 +10,15 @@
     "forceConsistentCasingInFileNames": true,
     "resolveJsonModule": true,
     "isolatedModules": true,
-    "noEmit": true
+    "noEmit": true,
+    "paths": {
+      "@nous/shared": [
+        "../../shared/src/index.ts"
+      ],
+      "@nous/subcortex-inference-runtime": [
+        "../../subcortex/inference-runtime/src/index.ts"
+      ]
+    }
   },
   "include": ["src/**/*.ts"],
   "exclude": ["node_modules", "dist", "__tests__"]
