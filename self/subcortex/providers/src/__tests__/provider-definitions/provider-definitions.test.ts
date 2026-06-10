@@ -6,6 +6,7 @@ import {
   PROVIDER_DEFINITIONS,
   ProviderDefinitionSchema,
 } from '../../provider-definitions.js';
+import { ProviderDefinitionSchema as SchemaProviderDefinitionSchema } from '../../schemas/provider-definition.js';
 
 const expectedDefinitions = {
   anthropic: {
@@ -38,6 +39,7 @@ describe('provider definitions catalog', () => {
   });
 
   it('validates every definition through ProviderDefinitionSchema', () => {
+    expect(ProviderDefinitionSchema).toBe(SchemaProviderDefinitionSchema);
     for (const definition of PROVIDER_DEFINITIONS) {
       expect(ProviderDefinitionSchema.parse(definition)).toEqual(definition);
     }

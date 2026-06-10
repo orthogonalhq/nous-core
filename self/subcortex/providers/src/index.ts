@@ -10,7 +10,7 @@ export {
   AdapterCapabilitiesSchema,
   defineProviderAdapter,
   ProviderAdapterModuleSchema,
-} from './shared/adapter-types.js';
+} from './schemas/provider-adapter.js';
 export type {
   AdapterCapabilities,
   AdapterFormatInput,
@@ -19,7 +19,7 @@ export type {
   ProviderAdapter,
   ProviderAdapterCreateOptions,
   ProviderAdapterModule,
-} from './shared/adapter-types.js';
+} from './schemas/provider-adapter.js';
 export {
   detectAndStripNarration,
   parseModelOutput,

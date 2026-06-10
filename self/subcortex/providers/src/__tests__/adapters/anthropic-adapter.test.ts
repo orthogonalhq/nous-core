@@ -1,6 +1,6 @@
 import { describe, it, expect } from 'vitest';
 import { createAnthropicAdapter } from '../../providers/anthropic/adapter.js';
-import type { AdapterFormatInput } from '../../shared/adapter-types.js';
+import type { AdapterFormatInput } from '../../schemas/provider-adapter.js';
 
 describe('createAnthropicAdapter', () => {
   const adapter = createAnthropicAdapter();

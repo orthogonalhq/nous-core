@@ -6,9 +6,9 @@ import {
   resolveAdapter,
   resolveAdapterKeyFromConfig,
 } from '../adapter-registry.js';
-import { defineProviderAdapter } from '../shared/adapter-types.js';
+import { defineProviderAdapter } from '../schemas/provider-adapter.js';
 import { textAdapter } from '../shared/text-adapter.js';
-import type { ProviderAdapter } from '../shared/adapter-types.js';
+import type { ProviderAdapter } from '../schemas/provider-adapter.js';
 
 const testAdapter: ProviderAdapter = {
   capabilities: {

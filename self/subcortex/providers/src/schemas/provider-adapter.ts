@@ -6,8 +6,8 @@ import type {
   ToolDefinition,
   TraceId,
 } from '@nous/shared';
-import type { ProviderAdapterKey } from '../provider-definitions.js';
-import type { ParsedModelOutput } from './output.js';
+import type { ParsedModelOutput } from '../shared/output.js';
+import type { ProviderAdapterKey } from './provider-definition.js';
 
 /**
  * Static capability manifest — declares what the provider/adapter supports.

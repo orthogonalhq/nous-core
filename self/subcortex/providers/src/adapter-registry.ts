@@ -1,12 +1,12 @@
 import type { ILogChannel } from '@nous/shared';
 import { PROVIDER_DEFINITIONS } from './provider-definitions.js';
-import { CERTIFIED_PROVIDER_ADAPTER_MODULES } from './generated/adapter-modules.generated.js';
+import { CERTIFIED_PROVIDER_ADAPTER_MODULES } from './provider-adapters.js';
 import { textAdapter } from './shared/text-adapter.js';
 import type {
   ProviderAdapter,
   ProviderAdapterCreateOptions,
   ProviderAdapterModule,
-} from './shared/adapter-types.js';
+} from './schemas/provider-adapter.js';
 
 export const ADAPTER_MODULES = [
   ...CERTIFIED_PROVIDER_ADAPTER_MODULES,

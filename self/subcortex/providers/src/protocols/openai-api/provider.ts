@@ -13,7 +13,7 @@ import type {
   ModelStreamChunk,
   ProviderId,
 } from '@nous/shared';
-import type { ProviderDefinition } from '../../provider-definitions.js';
+import type { ProviderDefinition } from '../../schemas/provider-definition.js';
 import { TextModelInputSchema } from '../../schemas/text-model-input.js';
 
 const DEFAULT_ENDPOINT = 'https://api.openai.com';

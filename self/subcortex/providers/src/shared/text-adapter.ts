@@ -6,7 +6,7 @@ import {
   type AdapterFormatInput,
   type AdapterFormattedRequest,
   type ProviderAdapter,
-} from './adapter-types.js';
+} from '../schemas/provider-adapter.js';
 
 const TEXT_ADAPTER_CAPABILITIES: AdapterCapabilities = {
   nativeToolUse: false,

@@ -409,10 +409,13 @@ Model provider adapters and metadata definitions for all model types.
 ```
 providers/
 ├── adapter-registry.ts                # Provider adapter registry
-├── provider-adapters.ts               # Public concrete adapter export surface
-├── provider-definitions.ts            # Static provider metadata catalog
+├── provider-adapters.ts               # Generated public concrete adapter export surface
+├── provider-definitions.ts            # Generated static provider metadata catalog
+├── provider-factories.ts              # Generated public provider factory catalog
 ├── providers/                         # Provider leaves with metadata, providers, and leaf-owned adapters
-├── shared/                            # Shared adapter contracts and helpers
+├── protocols/                         # Shared protocol adapters and transports
+├── schemas/                           # Hand-written provider, adapter, and factory contracts
+├── shared/                            # Shared output helpers and fallback adapters
 ├── local/                            # Local runtime models
 ├── remote/                           # Remote API models
 └── wasm/                             # WASM models
@@ -427,7 +430,7 @@ Responsibilities:
 * Report token/compute usage
 * Abstract provider-specific differences
 
-The static typed provider definition catalog is aggregated by `self/subcortex/providers/src/provider-definitions.ts`; each provider metadata constant lives with its owning provider module. The catalog contains metadata-only definitions for Anthropic, Chat Completions-compatible remote providers, and Ollama, and exports literal-derived provider key types. Concrete provider-owned adapter modules live in their provider leaves, such as `self/subcortex/providers/src/providers/anthropic/adapter.ts` and `self/subcortex/providers/src/providers/ollama/adapter.ts`. `self/subcortex/providers/src/provider-adapters.ts` owns the public concrete-adapter export surface, while shared adapter contracts, output helpers, and protocol/fallback adapters live in `self/subcortex/providers/src/shared/`.
+The static typed provider definition catalog is generated directly into `self/subcortex/providers/src/provider-definitions.ts`; each provider metadata constant lives with its owning provider module. The catalog contains metadata-only definitions for Anthropic, Chat Completions-compatible remote providers, and Ollama, and exports literal-derived provider key types. Concrete provider-owned adapter modules live in their provider leaves, such as `self/subcortex/providers/src/providers/anthropic/adapter.ts` and `self/subcortex/providers/src/providers/ollama/adapter.ts`. `self/subcortex/providers/src/provider-adapters.ts` owns the generated public concrete-adapter export surface, and `provider-factories.ts` owns the generated provider factory catalog. Hand-written provider, adapter, and factory contracts live in `self/subcortex/providers/src/schemas/`; parsed-output helpers and fallback adapters live in `self/subcortex/providers/src/shared/`.
 
 Phase 12.5 adds in-process per-endpoint inference lanes in `self/subcortex/providers/src/inference-lane.ts`, `inference-lane-registry.ts`, and `lane-aware-provider.ts`. These files own bounded concurrency, agent-class priority ordering, Principal-only preemption, exclusive voice-call lease handling, wait-estimate analytics, and the narrow lease-release notification seam while preserving existing routing and failover authority above the concrete providers.
 

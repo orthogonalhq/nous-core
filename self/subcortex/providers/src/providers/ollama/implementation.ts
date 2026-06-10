@@ -15,7 +15,7 @@ import type {
   ProviderId,
   TraceId,
 } from '@nous/shared';
-import type { ProviderDefinition } from '../../provider-definitions.js';
+import type { ProviderDefinition } from '../../schemas/provider-definition.js';
 import { TextModelInputSchema } from '../../schemas/text-model-input.js';
 
 const DEFAULT_ENDPOINT = 'http://localhost:11434';

@@ -1,5 +1,5 @@
 import { ChatCompletionsProvider } from '../../protocols/openai-api/provider.js';
-import type { ProviderFactoryModule } from '../../provider-factories.js';
+import type { ProviderFactoryModule } from '../../schemas/provider-factory.js';
 
 export const providerFactory = {
   vendorKey: 'openai',

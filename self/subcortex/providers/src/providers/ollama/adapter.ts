@@ -18,7 +18,7 @@ import {
   type AdapterFormatInput,
   type AdapterFormattedRequest,
   type ProviderAdapter,
-} from '../../shared/adapter-types.js';
+} from '../../schemas/provider-adapter.js';
 
 // ── Model capability detection ────────────────────────────────────────────────
 

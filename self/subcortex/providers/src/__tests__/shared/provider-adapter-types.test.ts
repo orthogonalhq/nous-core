@@ -2,7 +2,7 @@ import { describe, expect, it } from 'vitest';
 import {
   defineProviderAdapter,
   type ProviderAdapter,
-} from '../../shared/adapter-types.js';
+} from '../../schemas/provider-adapter.js';
 
 const adapter: ProviderAdapter = {
   capabilities: {
