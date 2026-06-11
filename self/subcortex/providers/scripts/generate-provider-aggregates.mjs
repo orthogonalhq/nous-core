@@ -241,7 +241,7 @@ async function checkGenerated(generated) {
       staleFiles.push(toPosix(path.relative(packageRoot, filePath)));
       continue;
     }
-    if (actual !== expected) {
+    if (normalizeLineEndings(actual) !== expected) {
       staleFiles.push(toPosix(path.relative(packageRoot, filePath)));
     }
   }
@@ -276,4 +276,8 @@ async function checkGenerated(generated) {
 
 function toPosix(value) {
   return value.split(path.sep).join('/');
+}
+
+function normalizeLineEndings(value) {
+  return value.replace(/\r\n/g, '\n');
 }
