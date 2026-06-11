@@ -20,8 +20,14 @@ export {
 } from './lifecycle-hooks.js';
 export { composeSystemPrompt } from './system-prompt-composer.js';
 
-// WR-127 adapter types and implementations
-export { resolveAdapter, createTextAdapter, createOpenAiAdapter, createAnthropicAdapter } from './adapters/index.js';
+// Provider adapter compatibility surface. Concrete implementations are owned by
+// @nous/subcortex-providers.
+export {
+  createAnthropicAdapter,
+  createChatCompletionsAdapter,
+  createTextAdapter,
+  resolveAdapter,
+} from './adapters/index.js';
 export type {
   AdapterCapabilities,
   AdapterFormatInput,

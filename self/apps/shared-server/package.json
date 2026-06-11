@@ -38,6 +38,7 @@
     "@nous/subcortex-escalation": "workspace:*",
     "@nous/subcortex-notification": "workspace:*",
     "@nous/subcortex-gtm": "workspace:*",
+    "@nous/subcortex-inference-runtime": "workspace:*",
     "@nous/subcortex-mao": "workspace:*",
     "@nous/subcortex-nudges": "workspace:*",
     "@nous/subcortex-opctl": "workspace:*",

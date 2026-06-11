@@ -73,7 +73,7 @@ export {
   estimateUsageUnits,
   resolveAdapter,
   createTextAdapter,
-  createOpenAiAdapter,
+  createChatCompletionsAdapter,
   createAnthropicAdapter,
 } from './agent-gateway/index.js';
 export type {

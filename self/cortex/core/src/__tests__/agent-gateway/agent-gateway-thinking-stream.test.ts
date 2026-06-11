@@ -276,7 +276,8 @@ describe('AgentGateway SP 1.13 RC-2 thinking-stream dispatch', () => {
     // (SP 1.13 Tier 4 test gap). Mocks the fetch boundary only; uses real
     // OllamaProvider, real LaneAwareProvider, real ObservableProvider, and a
     // real AgentGateway with the ollama adapter.
-    const { OllamaProvider, LaneAwareProvider, ObservableProvider, InferenceLane } = await import('@nous/subcortex-providers');
+    const { OllamaProvider } = await import('@nous/subcortex-providers');
+    const { LaneAwareProvider, ObservableProvider, InferenceLane } = await import('@nous/subcortex-inference-runtime');
 
     // Mock fetch to return a non-streaming Ollama /api/chat response
     const fetchSpy = vi.fn().mockResolvedValue({

@@ -1,10 +1,10 @@
 import { ConfigError } from '@nous/shared';
 import { afterEach, describe, expect, it, vi } from 'vitest';
-import { AnthropicProvider } from '../anthropic-provider.js';
-import { ProviderRegistry } from '../provider-registry.js';
-import { LaneAwareProvider } from '../lane-aware-provider.js';
-import { OllamaProvider } from '../ollama-provider.js';
-import { OpenAiCompatibleProvider } from '../openai-provider.js';
+import { LaneAwareProvider } from '@nous/subcortex-inference-runtime';
+import { AnthropicProvider } from '../providers/anthropic/implementation.js';
+import { ChatCompletionsProvider } from '../protocols/openai-api/provider.js';
+import { ProviderRegistry } from '../runtime/provider-runtime.js';
+import { OllamaProvider } from '../providers/ollama/implementation.js';
 
 afterEach(() => {
   delete process.env.ANTHROPIC_API_KEY;
@@ -152,7 +152,7 @@ describe('ProviderRegistry', () => {
     ).toBe(false);
   });
 
-  it('normalizes anthropic remote providers to the Anthropic endpoint', () => {
+  it('resolves legacy anthropic provider ids to the Anthropic endpoint', () => {
     process.env.ANTHROPIC_API_KEY = 'test-anthropic-key';
 
     const registry = new ProviderRegistry({
@@ -163,7 +163,7 @@ describe('ProviderRegistry', () => {
     } as any);
 
     registry.registerProvider({
-      id: '00000000-0000-0000-0000-000000000013' as any,
+      id: '10000000-0000-0000-0000-000000000001' as any,
       name: 'anthropic',
       type: 'text',
       endpoint: 'https://api.openai.com',
@@ -175,7 +175,7 @@ describe('ProviderRegistry', () => {
 
     expect(
       registry
-        .getProvider('00000000-0000-0000-0000-000000000013' as any)
+        .getProvider('10000000-0000-0000-0000-000000000001' as any)
         ?.getConfig().endpoint,
     ).toBe('https://api.anthropic.com');
   });
@@ -209,8 +209,8 @@ describe('ProviderRegistry', () => {
     expect(provider.inner).toBeInstanceOf(AnthropicProvider);
   });
 
-  it('routes anthropic name configs to AnthropicProvider inside LaneAwareProvider', () => {
-    process.env.ANTHROPIC_API_KEY = 'test-anthropic-key';
+  it('does not use provider name heuristics for vendor resolution', () => {
+    process.env.OPENAI_API_KEY = 'test-openai-key';
 
     const registry = new ProviderRegistry({
       get: () => ({ providers: [] }),
@@ -224,7 +224,7 @@ describe('ProviderRegistry', () => {
       name: 'Anthropic Claude',
       type: 'text',
       endpoint: 'https://example.com/proxy',
-      modelId: 'claude-sonnet-4-20250514',
+      modelId: 'gpt-4o',
       isLocal: false,
       capabilities: ['chat', 'streaming'],
       providerClass: 'remote_text',
@@ -235,11 +235,12 @@ describe('ProviderRegistry', () => {
     ) as any;
 
     expect(provider).toBeInstanceOf(LaneAwareProvider);
-    expect(provider.inner).toBeInstanceOf(AnthropicProvider);
-    expect(provider.getConfig().endpoint).toBe('https://api.anthropic.com');
+    expect(provider.inner).toBeInstanceOf(ChatCompletionsProvider);
+    expect(provider.getConfig().vendor).toBe('openai');
+    expect(provider.getConfig().endpoint).toBe('https://api.openai.com');
   });
 
-  it('routes non-Anthropic remote providers to OpenAiCompatibleProvider inside LaneAwareProvider', () => {
+  it('routes non-Anthropic remote providers to ChatCompletionsProvider inside LaneAwareProvider', () => {
     process.env.OPENAI_API_KEY = 'test-openai-key';
 
     const registry = new ProviderRegistry({
@@ -265,7 +266,38 @@ describe('ProviderRegistry', () => {
     ) as any;
 
     expect(provider).toBeInstanceOf(LaneAwareProvider);
-    expect(provider.inner).toBeInstanceOf(OpenAiCompatibleProvider);
+    expect(provider.inner).toBeInstanceOf(ChatCompletionsProvider);
+  });
+
+  it('resolves remote providers by vendor field before endpoint matching', () => {
+    process.env.ANTHROPIC_API_KEY = 'test-anthropic-key';
+
+    const registry = new ProviderRegistry({
+      get: () => ({ providers: [] }),
+      getSection: vi.fn(),
+      update: vi.fn(),
+      reload: vi.fn(),
+    } as any);
+
+    registry.registerProvider({
+      id: '00000000-0000-0000-0000-000000000018' as any,
+      name: 'anthropic-proxy',
+      type: 'text',
+      endpoint: 'https://example.com/proxy',
+      modelId: 'claude-sonnet-4-20250514',
+      isLocal: false,
+      capabilities: ['chat', 'streaming'],
+      providerClass: 'remote_text',
+      vendor: 'anthropic',
+    });
+
+    const provider = registry.getProvider(
+      '00000000-0000-0000-0000-000000000018' as any,
+    ) as any;
+
+    expect(provider).toBeInstanceOf(LaneAwareProvider);
+    expect(provider.inner).toBeInstanceOf(AnthropicProvider);
+    expect(provider.getConfig().endpoint).toBe('https://api.anthropic.com');
   });
 
   it('constructor skips non-local entries when API key is unavailable', () => {

@@ -6,7 +6,6 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import type { ModelRole, ProviderId, TraceId } from '@nous/shared';
 import { ConfigManager, DEFAULT_PROFILES, DEFAULT_SYSTEM_CONFIG } from '@nous/autonomic-config';
 import {
-  OLLAMA_WELL_KNOWN_PROVIDER_ID,
   WELL_KNOWN_PROVIDER_IDS,
   buildProviderConfig,
   createNousServices,
@@ -260,6 +259,51 @@ describe('provider lifecycle wiring', () => {
     expect(process.env.OPENAI_API_KEY).toBe('sk-test-openai');
   });
 
+  it('loadStoredApiKeys derives vault keys and env vars from provider definitions', async () => {
+    const { ctx, credentialVaultService } = createLifecycleContext();
+
+    await credentialVaultService.store(SYSTEM_APP_ID, {
+      key: vaultKey('anthropic'),
+      value: 'sk-test-anthropic',
+      credential_type: 'api_key',
+      target_host: 'api.anthropic.com',
+      injection_location: 'header',
+      injection_key: 'x-api-key',
+    });
+    await credentialVaultService.store(SYSTEM_APP_ID, {
+      key: vaultKey('openai'),
+      value: 'sk-test-openai',
+      credential_type: 'api_key',
+      target_host: 'api.openai.com',
+      injection_location: 'header',
+      injection_key: 'Authorization',
+    });
+
+    await loadStoredApiKeys(ctx);
+
+    expect(process.env.ANTHROPIC_API_KEY).toBe('sk-test-anthropic');
+    expect(process.env.OPENAI_API_KEY).toBe('sk-test-openai');
+  });
+
+  it('loadStoredApiKeys warns when a provider vault lookup fails', async () => {
+    const { ctx } = createLifecycleContext();
+    const warnSpy = vi.spyOn(console, 'warn').mockImplementation(() => undefined);
+    let calls = 0;
+    ctx.credentialVaultService.resolveForInjection = vi.fn(async () => {
+      calls += 1;
+      if (calls === 1) {
+        throw new Error('vault unavailable');
+      }
+      return null;
+    });
+
+    await loadStoredApiKeys(ctx);
+
+    expect(warnSpy).toHaveBeenCalledWith(
+      expect.stringContaining("Vault key 'api_key_anthropic' resolution failed"),
+    );
+  });
+
   it('registerStoredProviders updates providers, assignments, and profile for cloud keys', async () => {
     const { ctx, state } = createLifecycleContext();
     process.env.OPENAI_API_KEY = 'sk-test-openai';
@@ -388,6 +432,25 @@ describe('provider lifecycle wiring', () => {
     );
     expect(state.providers).toHaveLength(1);
     expect(state.providers[0]!.modelId).toBe('gpt-4o');
+  });
+
+  it('buildProviderConfig derives provider endpoints and ids from provider definitions', async () => {
+    expect(buildProviderConfig('anthropic')).toEqual(
+      expect.objectContaining({
+        id: WELL_KNOWN_PROVIDER_IDS.anthropic,
+        endpoint: 'https://api.anthropic.com',
+        modelId: 'claude-sonnet-4-20250514',
+        vendor: 'anthropic',
+      }),
+    );
+    expect(buildProviderConfig('openai')).toEqual(
+      expect.objectContaining({
+        id: WELL_KNOWN_PROVIDER_IDS.openai,
+        endpoint: 'https://api.openai.com',
+        modelId: 'gpt-4o',
+        vendor: 'openai',
+      }),
+    );
   });
 
   it('registerStoredProviders preserves user-selected modelId across restart cycle', async () => {

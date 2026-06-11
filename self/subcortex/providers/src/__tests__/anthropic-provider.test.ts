@@ -1,7 +1,7 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import type { ProviderId } from '@nous/shared';
 import { NousError, ValidationError } from '@nous/shared';
-import { AnthropicProvider } from '../anthropic-provider.js';
+import { AnthropicProvider } from '../providers/anthropic/implementation.js';
 
 const MOCK_CONFIG = {
   id: '00000000-0000-0000-0000-000000000101' as ProviderId,

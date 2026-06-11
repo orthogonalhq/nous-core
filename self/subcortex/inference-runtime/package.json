@@ -1,0 +1,24 @@
+{
+  "name": "@nous/subcortex-inference-runtime",
+  "version": "0.0.1",
+  "private": true,
+  "description": "Inference runtime middleware for Nous-OSS - lane scheduling, provider decorators, and usage accumulation",
+  "type": "module",
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "import": "./dist/index.js",
+      "require": "./dist/index.js",
+      "default": "./dist/index.js"
+    }
+  },
+  "scripts": {
+    "build": "tsc --build",
+    "typecheck": "tsc --noEmit",
+    "test": "vitest run --config vitest.config.ts",
+    "clean": "rm -rf dist"
+  },
+  "dependencies": {
+    "@nous/shared": "workspace:*"
+  }
+}

@@ -1,0 +1,58 @@
+---
+title: Schemas ABI Reference
+description: Nous-side provider adapter contracts
+---
+
+# Schemas ABI Reference
+
+The provider package uses hand-written ABI contracts under `self/subcortex/providers/src/schemas/`. Provider leaves should satisfy these contracts rather than invent local types.
+
+## Provider Definition
+
+`src/schemas/provider-definition.ts` defines:
+
+- `ProviderDefinitionSchema`
+- `ProviderDefinition`
+- `ProviderProtocol`
+- `ProviderAdapterKey`
+- provider auth metadata
+- provider capability metadata
+
+Definitions are metadata only. They describe identity, protocol, default endpoint/model, credential namespace, locality, and capabilities. They should not read environment variables, instantiate providers, or perform network calls.
+
+## Provider Adapter
+
+`src/schemas/provider-adapter.ts` defines:
+
+- `AdapterCapabilities`
+- `AdapterFormatInput`
+- `AdapterFormattedRequest`
+- `ProviderAdapter`
+- `ProviderAdapterModule`
+- `defineProviderAdapter(...)`
+
+Adapters translate canonical prompt/context/tool data into provider request shape and parse provider responses back to `ParsedModelOutput`. `parseResponse(...)` must return a fallback instead of throwing on malformed or surprising provider output.
+
+## Provider Factory
+
+`src/schemas/provider-factory.ts` defines:
+
+- `ProviderFactoryCreateOptions`
+- `ProviderFactoryModule`
+
+Factories construct concrete `IModelProvider` instances from runtime model config and resolved credential material. Normal factories are thin: they select the provider class and pass options through.
+
+## Request Input And Parsed Output
+
+`src/schemas/text-model-input.ts` defines `TextModelInputSchema`, which provider implementations use when validating incoming text-model request input.
+
+`src/shared/output.ts` defines `ParsedModelOutput`, the canonical parsed model result returned by adapters. Adapter parsing should populate response text, tool calls, memory candidates, content type, and provider-specific optional fields through that shared shape.
+
+## Contract Rules
+
+- Definitions are metadata only.
+- Adapters are stateless translators.
+- Provider implementations own network calls and provider-specific error handling.
+- Factories construct providers from runtime config and credentials.
+- `parseResponse(...)` must not throw.
+- Generated catalogs expose certified leaves; they are not authoring surfaces.

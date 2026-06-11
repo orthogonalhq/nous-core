@@ -11,6 +11,7 @@
   "scripts": {
     "build": "pnpm -r run build",
     "typecheck": "pnpm -r run typecheck",
+    "check:generated": "pnpm --filter @nous/subcortex-providers run check:generated",
     "lint": "oxlint self/",
     "format": "oxlint --fix self/",
     "test": "vitest run --pool threads",

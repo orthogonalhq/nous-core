@@ -31,6 +31,14 @@ export default defineConfig({
         __dirname,
         '../../subcortex/projects/src/index.ts',
       ),
+      '@nous/subcortex-providers': path.resolve(
+        __dirname,
+        '../../subcortex/providers/src/index.ts',
+      ),
+      '@nous/subcortex-inference-runtime': path.resolve(
+        __dirname,
+        '../../subcortex/inference-runtime/src/index.ts',
+      ),
       '@nous/subcortex-workflows': path.resolve(
         __dirname,
         '../../subcortex/workflows/src/index.ts',

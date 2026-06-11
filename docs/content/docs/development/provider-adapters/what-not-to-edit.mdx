@@ -1,0 +1,47 @@
+---
+title: What Not To Edit
+description: Guardrails for provider adapter contributors
+---
+
+# What Not To Edit
+
+Provider additions should be leaf-shaped. If a normal provider contribution requires central runtime branches, stop and check whether the provider is really changing policy rather than adding a certified leaf.
+
+## Do Not Hand-Edit Generated Catalogs
+
+Do not hand-edit:
+
+- `self/subcortex/providers/src/provider-adapters.ts`
+- `self/subcortex/providers/src/provider-definitions.ts`
+- `self/subcortex/providers/src/provider-factories.ts`
+
+Run `pnpm --filter @nous/subcortex-providers run generate:providers` instead.
+
+## Do Not Add Fake Certified Providers
+
+`self/subcortex/providers/src/providers/` is for certified provider leaves only. Do not add generic fake providers there as examples or fixtures. Use tests and fixtures for test-only shapes.
+
+## Do Not Misplace Protocol Logic
+
+- Do not put OpenAI-compatible reusable protocol logic into a vendor leaf if multiple vendors can share it.
+- Use `src/protocols/openai-api/**` for Chat Completions-compatible behavior.
+- Create `src/protocols/<protocol>/` for new reusable protocol families.
+- Reserve `src/shared/**` for actual generic helper modules.
+
+## Do Not Add Runtime Vendor Branches
+
+Do not edit `src/adapter-resolver.ts` for a normal provider addition unless adapter resolution policy itself changes.
+
+Do not add new central vendor branch maps in runtime code. Provider construction should flow through generated factories and `src/runtime/provider-runtime.ts`.
+
+## Do Not Put Runtime Behavior In Definitions
+
+Provider definitions must not:
+
+- read environment variables,
+- make network calls,
+- instantiate provider classes,
+- import concrete provider runtime code just for side effects, or
+- contain provider-specific bootstrap branches.
+
+Definitions are metadata. Adapters translate. Implementations execute. Factories construct.

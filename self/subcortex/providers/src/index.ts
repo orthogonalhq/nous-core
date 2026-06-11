@@ -1,16 +1,59 @@
 /**
  * @nous/subcortex-providers — Model provider adapters for Nous-OSS.
  */
-export { AnthropicProvider } from './anthropic-provider.js';
-export { OllamaProvider } from './ollama-provider.js';
-export { OpenAiCompatibleProvider } from './openai-provider.js';
-export { ProviderRegistry } from './provider-registry.js';
-export { InferenceLane, LeaseHeldError } from './inference-lane.js';
-export { InferenceLaneRegistry } from './inference-lane-registry.js';
-export { LaneAwareProvider } from './lane-aware-provider.js';
-export { ObservableProvider } from './observable-provider.js';
-export type { ObservableProviderMeta } from './observable-provider.js';
-export { TokenAccumulatorService } from './token-accumulator-service.js';
-export type { WindowSummary, ProviderBreakdownEntry } from './token-accumulator-service.js';
-export { TextModelInputSchema } from './schemas.js';
-export type { TextModelInput } from './schemas.js';
+export { AnthropicProvider } from './providers/anthropic/implementation.js';
+export * from './adapter-resolver.js';
+export * from './provider-adapters.js';
+export * from './provider-definitions.js';
+export * from './provider-factories.js';
+export {
+  AdapterCapabilitiesSchema,
+  defineProviderAdapter,
+  ProviderAdapterModuleSchema,
+} from './schemas/provider-adapter.js';
+export type {
+  AdapterCapabilities,
+  AdapterFormatInput,
+  AdapterFormattedRequest,
+  AdapterRegistry,
+  ProviderAdapter,
+  ProviderAdapterCreateOptions,
+  ProviderAdapterModule,
+} from './schemas/provider-adapter.js';
+export {
+  detectAndStripNarration,
+  parseModelOutput,
+} from './shared/output.js';
+export type { ParsedModelOutput } from './shared/output.js';
+export {
+  chatCompletionsAdapter,
+  createChatCompletionsAdapter,
+} from './protocols/openai-api/adapter.js';
+export {
+  createTextAdapter,
+  textAdapter,
+} from './shared/text-adapter.js';
+export { OllamaProvider } from './providers/ollama/implementation.js';
+export { ChatCompletionsProvider } from './protocols/openai-api/provider.js';
+export { ProviderRegistry } from './runtime/provider-runtime.js';
+export type { ProviderRegistryOptions } from './runtime/provider-runtime.js';
+export {
+  InferenceLane,
+  InferenceLaneRegistry,
+  LaneAwareProvider,
+  LeaseHeldError,
+  ObservableProvider,
+  TokenAccumulatorService,
+} from '@nous/subcortex-inference-runtime';
+export type {
+  InferenceLaneAnalytics,
+  InferenceLaneLeaseState,
+  InferencePriority,
+  LaneLeaseReleasedEvent,
+  LaneWaitEstimate,
+  ObservableProviderMeta,
+  ProviderBreakdownEntry,
+  WindowSummary,
+} from '@nous/subcortex-inference-runtime';
+export { TextModelInputSchema } from './schemas/text-model-input.js';
+export type { TextModelInput } from './schemas/text-model-input.js';

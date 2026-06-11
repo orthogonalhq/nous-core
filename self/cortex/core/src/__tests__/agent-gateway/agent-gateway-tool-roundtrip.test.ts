@@ -12,9 +12,11 @@
  */
 import { describe, expect, it } from 'vitest';
 import type { GatewayContextFrame, TraceId } from '@nous/shared';
-import { createOpenAiAdapter } from '../../agent-gateway/adapters/openai-adapter.js';
-import { createOllamaAdapter } from '../../agent-gateway/adapters/ollama-adapter.js';
-import { createAnthropicAdapter } from '../../agent-gateway/adapters/anthropic-adapter.js';
+import {
+  createAnthropicAdapter,
+  createChatCompletionsAdapter,
+  createOllamaAdapter,
+} from '../../agent-gateway/adapters/index.js';
 
 const TRACE_ID = '550e8400-e29b-41d4-a716-446655440300' as TraceId;
 
@@ -74,8 +76,8 @@ function simulateGatewayContextAccumulation(
 }
 
 describe('Adapter tool round-trip formatting', () => {
-  describe('OpenAI adapter round-trip', () => {
-    const adapter = createOpenAiAdapter();
+  describe('Chat Completions adapter round-trip', () => {
+    const adapter = createChatCompletionsAdapter();
 
     it('parses tool_calls from response, then re-formats context frames correctly', () => {
       // Step 1: Parse a provider response with tool_calls
@@ -266,8 +268,8 @@ describe('Adapter tool round-trip formatting', () => {
       expect(toolMsg.name).toBe('workflow_list');
     });
 
-    it('OpenAI adapter — when frame.name is set on the tool result frame, the wire message includes it', () => {
-      const adapter = createOpenAiAdapter();
+    it('Chat Completions adapter — when frame.name is set on the tool result frame, the wire message includes it', () => {
+      const adapter = createChatCompletionsAdapter();
       const frames: GatewayContextFrame[] = [
         {
           role: 'user',

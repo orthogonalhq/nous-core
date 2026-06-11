@@ -137,6 +137,8 @@ All code lives under `self/`, organized by cognitive layer.
 
 See [CONTRIBUTING.md](CONTRIBUTING.md) for the contribution tier system, where to start, and how to navigate the codebase.
 
+Model provider adapter contributors should start with the provider adapter docs in `docs/content/docs/development/provider-adapters/` and the Anthropic reference leaf at `self/subcortex/providers/src/providers/anthropic/`.
+
 **Issues**: Check the issue tracker for `good-first-issue` labels — real, scoped tasks at the integration layer.
 
 **Discord**: [Join the community](https://discord.gg/39uDKGDwqd) — ask questions, share what you're building, see what's happening.

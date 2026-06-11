@@ -17,7 +17,7 @@ Nous uses JSON5 for configuration. The config file is validated at load time wit
 | `pfcTier` | Cortex tier 0–5 (see [Cortex Mode Capability Matrix](/docs/architecture/Cortex-mode-capability-matrix)) |
 | `pfcTierPresets` | Capability definitions per tier |
 | `modelRoleAssignments` | Which provider fulfills which model role |
-| `providers` | Provider configurations (Ollama, OpenAI-compatible, etc.) |
+| `providers` | Provider configurations (Ollama, Chat Completions-compatible remote providers, etc.) |
 | `agent` | Agent identity, personality, welcome-message tracking, and user profile (optional; absent in default config — populated by the first-run wizard or by hand-editing) |
 | `defaults` | Default project settings |
 | `storage` | Storage backends and options |
@@ -105,7 +105,8 @@ Saved Principal and System model selections are restored into this structure at 
 ```
 
 - **providerClass** (optional): `local_text` | `remote_text` — used for credential segregation and profile boundary.
-- **vendor** (optional): Provider vendor key for adapter selection. Known values: `anthropic`, `openai`, `ollama`, `text`. Auto-detected from provider configuration if omitted. Unknown values fall back to the text adapter.
+- **vendor** (optional): Certified provider vendor key for adapter selection. Known vendor values include `anthropic`, `openai`, and `ollama`; see [Provider Adapters](/docs/development/provider-adapters) for how vendor keys map to provider leaves. Unknown values fall back through the adapter resolver rather than becoming certified vendors.
+- **adapterKey** (derived internally): Adapter implementation key resolved from the provider definition, such as `anthropic`, `chat-completions`, or `ollama`. `text` is the fallback adapter key, not a certified provider vendor.
 - **meetsProfiles** (optional): Array of capability profiles (e.g. `review-standard`, `review-implementation`). Router enforces that the selected provider meets the required profile unless Principal override evidence is present.
 - **endpoint** (optional): Use the provider base URL (for example `https://api.openai.com` or `https://api.anthropic.com`), not the full `/v1/chat/completions` path.
 

@@ -86,7 +86,13 @@ import { DocumentArtifactStore } from '@nous/subcortex-artifacts';
 import { DocumentEscalationStore, EscalationService } from '@nous/subcortex-escalation';
 import { DocumentNotificationStore, NotificationService } from '@nous/subcortex-notification';
 import { ModelRouter } from '@nous/subcortex-router';
-import { ProviderRegistry, TokenAccumulatorService } from '@nous/subcortex-providers';
+import {
+  PROVIDER_DEFINITIONS,
+  ProviderRegistry,
+  type ProviderDefinition,
+  type ProviderVendorKey,
+} from '@nous/subcortex-providers';
+import { TokenAccumulatorService } from '@nous/subcortex-inference-runtime';
 import {
   DiscoverProjectsTool,
   EchoTool,
@@ -146,27 +152,39 @@ import type { NousContext } from './context';
 import type { IDocumentStore, IIngressGateway, IVectorStore } from '@nous/shared';
 
 const MOCK_PROVIDER_ID = '00000000-0000-0000-0000-000000000001' as ProviderId;
-type CloudProviderName = 'anthropic' | 'openai';
-type ProviderName = CloudProviderName | 'ollama';
+type ProviderName = ProviderVendorKey;
+type ProviderDefinitionEntry = (typeof PROVIDER_DEFINITIONS)[number];
 type ParsedModelSpec = { provider: ProviderName; modelId: string };
 
-
-const CLOUD_PROVIDER_ENV_VARS: Record<CloudProviderName, string> = {
-  anthropic: 'ANTHROPIC_API_KEY',
-  openai: 'OPENAI_API_KEY',
-};
-
-export const WELL_KNOWN_PROVIDER_IDS: Record<CloudProviderName, ProviderId> = {
-  anthropic: '10000000-0000-0000-0000-000000000001' as ProviderId,
-  openai: '10000000-0000-0000-0000-000000000002' as ProviderId,
-};
+export const WELL_KNOWN_PROVIDER_IDS: Record<ProviderVendorKey, ProviderId> =
+  Object.fromEntries(
+    PROVIDER_DEFINITIONS.map((definition) => [
+      definition.vendorKey,
+      definition.wellKnownProviderId,
+    ]),
+  ) as Record<ProviderVendorKey, ProviderId>;
 export const OLLAMA_WELL_KNOWN_PROVIDER_ID =
-  '10000000-0000-0000-0000-000000000003' as ProviderId;
+  WELL_KNOWN_PROVIDER_IDS.ollama;
 
-const CLOUD_PROVIDER_DEFAULT_MODELS: Record<CloudProviderName, string> = {
-  anthropic: 'claude-sonnet-4-20250514',
-  openai: 'gpt-4o',
-};
+function providerDefinitionFor(provider: ProviderVendorKey): ProviderDefinitionEntry {
+  const definition = PROVIDER_DEFINITIONS.find(
+    (candidate) => candidate.vendorKey === provider,
+  );
+  if (!definition) {
+    throw new Error(`Provider definition is missing for vendor key '${provider}'`);
+  }
+  return definition;
+}
+
+function cloudProviderDefinitions(): ProviderDefinitionEntry[] {
+  return PROVIDER_DEFINITIONS.filter(
+    (definition) => definition.auth.required && !definition.isLocal,
+  );
+}
+
+function providerDefaultModels(): string[] {
+  return PROVIDER_DEFINITIONS.map((definition) => definition.defaultModelId);
+}
 
 // ─── Configuration helpers ─────────────────────────────────────────────────
 
@@ -175,13 +193,16 @@ const CLOUD_PROVIDER_DEFAULT_MODELS: Record<CloudProviderName, string> = {
  * Enables the app to run without a config file (development mode).
  */
 function hasConfiguredCloudKey(): boolean {
-  return (Object.values(CLOUD_PROVIDER_ENV_VARS) as string[]).some(
-    (envVar) => !!process.env[envVar],
-  );
+  return cloudProviderDefinitions().some((definition) => {
+    const auth: ProviderDefinition['auth'] = definition.auth;
+    return !!auth.envVar && !!process.env[auth.envVar];
+  });
 }
 
-function hasConfiguredProviderKey(provider: CloudProviderName): boolean {
-  return !!process.env[CLOUD_PROVIDER_ENV_VARS[provider]];
+function hasConfiguredProviderKey(provider: ProviderVendorKey): boolean {
+  const auth: ProviderDefinition['auth'] = providerDefinitionFor(provider).auth;
+  const envVar = auth.envVar;
+  return !!envVar && !!process.env[envVar];
 }
 
 export function currentProviderEntries(ctx: NousContext): ProviderConfigEntry[] {
@@ -190,15 +211,11 @@ export function currentProviderEntries(ctx: NousContext): ProviderConfigEntry[] 
 }
 
 function isProviderName(provider: string): provider is ProviderName {
-  return (
-    provider === 'anthropic' ||
-    provider === 'openai' ||
-    provider === 'ollama'
-  );
+  return PROVIDER_DEFINITIONS.some((definition) => definition.vendorKey === provider);
 }
 
-function isCloudProvider(provider: ProviderName): provider is CloudProviderName {
-  return provider === 'anthropic' || provider === 'openai';
+function isCloudProvider(provider: ProviderName): boolean {
+  return !providerDefinitionFor(provider).isLocal;
 }
 
 export function currentRoleAssignment(
@@ -332,34 +349,21 @@ export function parseSelectedModelSpec(
 }
 
 export function buildProviderConfig(
-  provider: CloudProviderName,
+  provider: ProviderVendorKey,
   providerId: ProviderId = WELL_KNOWN_PROVIDER_IDS[provider],
-  modelId: string = CLOUD_PROVIDER_DEFAULT_MODELS[provider],
+  modelId: string = providerDefinitionFor(provider).defaultModelId,
 ): ModelProviderConfig {
-  if (provider === 'anthropic') {
-    return {
-      id: providerId,
-      name: provider,
-      type: 'text',
-      endpoint: 'https://api.anthropic.com',
-      modelId,
-      isLocal: false,
-      capabilities: ['chat', 'streaming'],
-      providerClass: 'remote_text',
-      vendor: provider,
-    };
-  }
-
+  const definition = providerDefinitionFor(provider);
   return {
     id: providerId,
-    name: provider,
-    type: 'text',
-    endpoint: 'https://api.openai.com',
+    name: definition.vendorKey,
+    type: definition.providerType,
+    endpoint: definition.defaultEndpoint,
     modelId,
-    isLocal: false,
+    isLocal: definition.isLocal,
     capabilities: ['chat', 'streaming'],
-    providerClass: 'remote_text',
-    vendor: provider,
+    providerClass: definition.providerClass,
+    vendor: definition.vendorKey,
   };
 }
 
@@ -368,32 +372,18 @@ export function buildOllamaProviderConfig(
   providerId: ProviderId = OLLAMA_WELL_KNOWN_PROVIDER_ID,
   endpoint?: string,
 ): ModelProviderConfig {
+  const definition = providerDefinitionFor('ollama');
   return {
     id: providerId,
-    name: 'ollama',
-    type: 'text',
-    endpoint: endpoint ?? 'http://localhost:11434',
+    name: definition.vendorKey,
+    type: definition.providerType,
+    endpoint: endpoint ?? definition.defaultEndpoint,
     modelId,
-    isLocal: true,
+    isLocal: definition.isLocal,
     capabilities: ['chat', 'streaming'],
-    providerClass: 'local_text',
-    vendor: 'ollama',
+    providerClass: definition.providerClass,
+    vendor: definition.vendorKey,
   };
-}
-
-function selectedModelProviderId(selection: ParsedModelSpec): ProviderId {
-  return isCloudProvider(selection.provider)
-    ? WELL_KNOWN_PROVIDER_IDS[selection.provider]
-    : OLLAMA_WELL_KNOWN_PROVIDER_ID;
-}
-
-function buildSelectedProviderConfig(
-  selection: ParsedModelSpec,
-  providerId: ProviderId = selectedModelProviderId(selection),
-): ModelProviderConfig {
-  return isCloudProvider(selection.provider)
-    ? buildProviderConfig(selection.provider, providerId, selection.modelId)
-    : buildOllamaProviderConfig(selection.modelId, providerId);
 }
 
 function canApplySelectedModel(selection: ParsedModelSpec): boolean {
@@ -429,7 +419,7 @@ export async function upsertProviderConfig(
   // incoming config carries a default value (restart-driven upsert). When the
   // incoming modelId is NOT a default, it's a deliberate user change — accept it.
   const newEntry = toProviderConfigEntry(providerConfig);
-  const defaultModels = Object.values(CLOUD_PROVIDER_DEFAULT_MODELS) as string[];
+  const defaultModels = providerDefaultModels();
   const incomingIsDefault = defaultModels.includes(providerConfig.modelId);
   if (existingEntry?.modelId && incomingIsDefault && existingEntry.modelId !== providerConfig.modelId) {
     console.log(
@@ -785,7 +775,6 @@ export function createNousServices(config?: BootstrapConfig): NousContext {
       submit: async (envelope) => schedulerIngressGateway.submit(envelope),
     },
   });
-  const providerRegistry = new ProviderRegistry(appConfig, { eventBus });
   const tokenAccumulator = new TokenAccumulatorService(eventBus);
   const pricingTable = createPricingTable();
   const notificationService = new NotificationService({
@@ -815,6 +804,10 @@ export function createNousServices(config?: BootstrapConfig): NousContext {
   });
   const credentialVaultService = new CredentialVaultService({
     documentStore,
+  });
+  const providerRegistry = new ProviderRegistry(appConfig, {
+    eventBus,
+    credentialVaultService,
   });
   const credentialOAuthBroker = new CredentialOAuthBroker({
     vaultService: credentialVaultService,
@@ -1438,12 +1431,15 @@ export function createNousServices(config?: BootstrapConfig): NousContext {
  */
 export async function loadStoredApiKeys(ctx: NousContext): Promise<void> {
   const SYSTEM_APP_ID = 'nous:system';
-  const keyMap: Array<{ vaultKey: string; envVar: string }> = [
-    { vaultKey: 'api_key_anthropic', envVar: 'ANTHROPIC_API_KEY' },
-    { vaultKey: 'api_key_openai', envVar: 'OPENAI_API_KEY' },
-  ];
 
-  for (const { vaultKey, envVar } of keyMap) {
+  for (const definition of PROVIDER_DEFINITIONS) {
+    const auth: ProviderDefinition['auth'] = definition.auth;
+    if (!auth.vaultKeyNamespace || !auth.envVar) {
+      continue;
+    }
+
+    const vaultKey = `api_key_${auth.vaultKeyNamespace}`;
+    const envVar = auth.envVar;
     try {
       const resolved = await ctx.credentialVaultService.resolveForInjection(
         SYSTEM_APP_ID,
@@ -1453,8 +1449,11 @@ export async function loadStoredApiKeys(ctx: NousContext): Promise<void> {
         process.env[envVar] = resolved.secretValue;
         console.log(`[nous:bootstrap] Loaded stored ${envVar} from credential vault`);
       }
-    } catch {
-      // Ignore — key may not exist
+    } catch (error) {
+      console.warn(
+        `[nous:bootstrap] Vault key '${vaultKey}' resolution failed: ` +
+          `${error instanceof Error ? error.message : String(error)}`,
+      );
     }
   }
 }
@@ -1462,19 +1461,24 @@ export async function loadStoredApiKeys(ctx: NousContext): Promise<void> {
 export async function registerStoredProviders(ctx: NousContext): Promise<void> {
   await ensureCloudCompatibleProfile(ctx);
 
-  const availableProviders = (
-    Object.keys(WELL_KNOWN_PROVIDER_IDS) as CloudProviderName[]
-  ).filter((provider) => !!process.env[CLOUD_PROVIDER_ENV_VARS[provider]]);
+  const availableProviders = cloudProviderDefinitions().filter((definition) => {
+    const auth: ProviderDefinition['auth'] = definition.auth;
+    return !!auth.envVar && !!process.env[auth.envVar];
+  });
 
-  for (const provider of availableProviders) {
+  for (const definition of availableProviders) {
     await upsertProviderConfig(
       ctx,
-      buildProviderConfig(provider),
+      buildProviderConfig(definition.vendorKey),
     );
   }
 
   if (!currentRoleAssignment(ctx, 'cortex-chat') && availableProviders.length > 0) {
-    await updateRoleAssignment(ctx, 'cortex-chat', WELL_KNOWN_PROVIDER_IDS[availableProviders[0]!]);
+    await updateRoleAssignment(
+      ctx,
+      'cortex-chat',
+      WELL_KNOWN_PROVIDER_IDS[availableProviders[0]!.vendorKey],
+    );
   }
 
   if (availableProviders.length === 0) {
@@ -1484,8 +1488,8 @@ export async function registerStoredProviders(ctx: NousContext): Promise<void> {
 
 export async function registerConfiguredProvider(
   ctx: NousContext,
-  provider: CloudProviderName,
-  modelId: string = CLOUD_PROVIDER_DEFAULT_MODELS[provider],
+  provider: ProviderVendorKey,
+  modelId: string = providerDefinitionFor(provider).defaultModelId,
 ): Promise<void> {
   await ensureCloudCompatibleProfile(ctx);
   await upsertProviderConfig(
@@ -1511,7 +1515,7 @@ export async function registerConfiguredProvider(
 
 export async function removeConfiguredProvider(
   ctx: NousContext,
-  provider: CloudProviderName,
+  provider: ProviderVendorKey,
 ): Promise<void> {
   const providerId = WELL_KNOWN_PROVIDER_IDS[provider];
   await removeProviderConfig(ctx, providerId);

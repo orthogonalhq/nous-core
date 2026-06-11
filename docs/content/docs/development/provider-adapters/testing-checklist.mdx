@@ -1,0 +1,57 @@
+---
+title: Testing Checklist
+description: Acceptance checklist for certified provider adapter contributions
+---
+
+# Testing Checklist
+
+Every provider contribution should include tests that prove the provider's own API shape. Do not only copy Anthropic-shaped fixtures.
+
+## Definition Tests
+
+- `ProviderDefinitionSchema` validates the new definition.
+- `PROVIDER_DEFINITIONS` contains the provider.
+- `vendorKey`, `adapterKey`, `protocol`, auth metadata, default endpoint, and default model are correct.
+- Local providers mark `auth.required: false`; remote providers declare their env var and vault namespace.
+
+## Codegen Tests
+
+- Generated catalogs are fresh.
+- Public exports include the certified provider leaf.
+- The provider leaf has the required generator files.
+
+## Adapter Tests
+
+- `formatRequest(...)` maps system prompt, context, tool definitions, and model requirements correctly.
+- `parseResponse(...)` handles text output, tool calls, malformed output, and provider-specific response shapes.
+- `parseResponse(...)` returns a fallback instead of throwing.
+- Streaming and tool-use behavior are covered when the adapter declares those capabilities.
+
+## Provider Implementation Tests
+
+- Incoming input is validated through `TextModelInputSchema` or the correct provider-specific schema.
+- Base endpoint handling avoids double slashes and full-path misconfiguration.
+- Credentials are sent through the provider's required auth shape.
+- 401, 403, 429, unavailable, timeout, and abort behavior map to the expected Nous errors.
+- Stream events are parsed and released correctly when streaming is supported.
+
+## Runtime Tests
+
+- `resolveAdapterKeyFromConfig(...)` resolves through provider definitions and falls back safely.
+- `ProviderRegistry` can construct the provider when credentials are present.
+- Missing credentials skip or fail according to current runtime behavior.
+
+## Suggested Commands
+
+```bash
+pnpm --filter @nous/subcortex-providers run check:generated
+pnpm --filter @nous/subcortex-providers run typecheck
+pnpm --filter @nous/subcortex-providers exec vitest run src/__tests__/provider-codegen.test.ts src/__tests__/public-exports.test.ts src/__tests__/provider-definitions src/__tests__/adapter-resolver.test.ts src/__tests__/provider-pipeline-integration.test.ts --config vitest.config.ts
+```
+
+For docs-only work:
+
+```bash
+pnpm --filter docs lint
+pnpm --filter docs build
+```

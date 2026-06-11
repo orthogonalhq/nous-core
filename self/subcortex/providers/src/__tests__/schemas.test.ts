@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { TextModelInputSchema } from '../schemas.js';
+import { TextModelInputSchema } from '../schemas/text-model-input.js';
 
 // ---------------------------------------------------------------------------
 // Tier 1 — Contract Tests (backward compatibility)

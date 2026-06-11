@@ -6,49 +6,81 @@ name: CI Release
 on:
   pull_request:
     branches: [main]
-    paths-ignore:
-      - '**.md'
-      - '**.mdx'
-      - '.architecture'
-      - '.worklog'
-      - '.skills'
-      - 'docs/**'
-      - 'LICENSE*'
 
 jobs:
   check:
     name: Check
     runs-on: ubuntu-latest
+    outputs:
+      ci_relevant: ${{ steps.changed-files.outputs.ci_relevant }}
 
     steps:
       - name: Checkout
         uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Classify changed files
+        id: changed-files
+        shell: bash
+        env:
+          BASE_SHA: ${{ github.event.pull_request.base.sha }}
+          HEAD_SHA: ${{ github.event.pull_request.head.sha }}
+        run: |
+          set -euo pipefail
+
+          ci_relevant=false
+          while IFS= read -r path; do
+            [ -z "$path" ] && continue
+            case "$path" in
+              *.md|*.mdx|docs/*|.architecture|.architecture/*|.worklog|.worklog/*|.skills|.skills/*|LICENSE*) ;;
+              *) ci_relevant=true; break ;;
+            esac
+          done < <(git diff --name-only "$BASE_SHA" "$HEAD_SHA")
+
+          echo "ci_relevant=$ci_relevant" >> "$GITHUB_OUTPUT"
+
+      - name: No-op for documentation-only changes
+        if: steps.changed-files.outputs.ci_relevant != 'true'
+        run: echo "Only documentation/worklog/architecture metadata changed; required CI check passes without runtime validation."
 
       - name: Install pnpm
+        if: steps.changed-files.outputs.ci_relevant == 'true'
         uses: pnpm/action-setup@v4
 
       - name: Setup Node.js
+        if: steps.changed-files.outputs.ci_relevant == 'true'
         uses: actions/setup-node@v4
         with:
           node-version: '22'
           cache: 'pnpm'
 
       - name: Install dependencies
+        if: steps.changed-files.outputs.ci_relevant == 'true'
         run: pnpm install
 
+      - name: Check generated provider aggregates
+        if: steps.changed-files.outputs.ci_relevant == 'true'
+        run: pnpm run check:generated
+
       - name: Build
+        if: steps.changed-files.outputs.ci_relevant == 'true'
         run: pnpm run build
 
       - name: Typecheck
+        if: steps.changed-files.outputs.ci_relevant == 'true'
         run: pnpm run typecheck
 
       - name: Lint
+        if: steps.changed-files.outputs.ci_relevant == 'true'
         run: pnpm run lint
 
       - name: Test (with coverage)
+        if: steps.changed-files.outputs.ci_relevant == 'true'
         run: pnpm run test --coverage
 
       - name: Upload coverage to Codecov
+        if: steps.changed-files.outputs.ci_relevant == 'true'
         uses: codecov/codecov-action@v4
         with:
           files: ./coverage/lcov.info
@@ -56,6 +88,7 @@ jobs:
           fail_ci_if_error: false
 
       - name: Benchmark Tier 0
+        if: steps.changed-files.outputs.ci_relevant == 'true'
         run: pnpm run benchmark:tier0
 
   desktop:
@@ -69,28 +102,39 @@ jobs:
 
     steps:
       - name: Checkout
+        if: needs.check.outputs.ci_relevant == 'true'
         uses: actions/checkout@v4
 
       - name: Install pnpm
+        if: needs.check.outputs.ci_relevant == 'true'
         uses: pnpm/action-setup@v4
 
       - name: Setup Node.js
+        if: needs.check.outputs.ci_relevant == 'true'
         uses: actions/setup-node@v4
         with:
           node-version: '22'
           cache: 'pnpm'
 
       - name: Install dependencies
+        if: needs.check.outputs.ci_relevant == 'true'
         run: pnpm install
 
       - name: Build workspace packages
+        if: needs.check.outputs.ci_relevant == 'true'
         run: pnpm run build
 
       - name: Download Electron binary
+        if: needs.check.outputs.ci_relevant == 'true'
         run: node node_modules/electron/install.js
 
       - name: Build desktop distributable
+        if: needs.check.outputs.ci_relevant == 'true'
         run: pnpm --filter @nous/desktop run build:dist
+
+      - name: No-op for documentation-only changes
+        if: needs.check.outputs.ci_relevant != 'true'
+        run: echo "Only documentation/worklog/architecture metadata changed; required desktop check passes without packaging."
 
   webapp-smoke:
     name: Smoke (web)
@@ -99,24 +143,30 @@ jobs:
 
     steps:
       - name: Checkout
+        if: needs.check.outputs.ci_relevant == 'true'
         uses: actions/checkout@v4
 
       - name: Install pnpm
+        if: needs.check.outputs.ci_relevant == 'true'
         uses: pnpm/action-setup@v4
 
       - name: Setup Node.js
+        if: needs.check.outputs.ci_relevant == 'true'
         uses: actions/setup-node@v4
         with:
           node-version: '22'
           cache: 'pnpm'
 
       - name: Install dependencies
+        if: needs.check.outputs.ci_relevant == 'true'
         run: pnpm install
 
       - name: Build
+        if: needs.check.outputs.ci_relevant == 'true'
         run: pnpm run build
 
       - name: Start server and verify
+        if: needs.check.outputs.ci_relevant == 'true'
         run: |
           cd self/apps/web
           npx next start -p 3123 &
@@ -133,3 +183,7 @@ jobs:
           else
             echo "Web app smoke start passed (HTTP $STATUS)"
           fi
+
+      - name: No-op for documentation-only changes
+        if: needs.check.outputs.ci_relevant != 'true'
+        run: echo "Only documentation/worklog/architecture metadata changed; required web smoke check passes without starting the app."

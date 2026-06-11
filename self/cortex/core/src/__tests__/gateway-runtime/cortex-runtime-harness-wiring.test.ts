@@ -61,7 +61,7 @@ function composeHarnessStrategies(
 describe('Provider vendor resolution via ModelProviderConfig.vendor (WR-138)', () => {
   it.each<[ProviderVendor | undefined, string]>([
     ['anthropic', 'anthropic'],
-    ['openai', 'openai'],
+    ['openai', 'chat-completions'],
     ['ollama', 'ollama'],
     ['text', 'text'],
     // Open-string extensibility: unknown vendors fall through to the text
@@ -152,7 +152,7 @@ describe('Harness strategies composition', () => {
   });
 
   it('works with all adapter types', () => {
-    for (const providerType of ['anthropic', 'openai', 'ollama', 'text', 'unknown']) {
+    for (const providerType of ['anthropic', 'chat-completions', 'openai', 'ollama', 'text', 'unknown']) {
       const harness = composeHarnessStrategies('Cortex::Principal', providerType);
       expect(harness.promptFormatter).toBeTypeOf('function');
       expect(harness.responseParser).toBeTypeOf('function');

@@ -14,6 +14,10 @@ import { runOpctlRequestProof } from './commands/opctl.js';
 const DEFAULT_API_PORT = process.env.NOUS_WEB_PORT ?? '4317';
 const DEFAULT_API_URL = process.env.NOUS_API_URL ?? `http://localhost:${DEFAULT_API_PORT}`;
 
+function setExitCode(code: number): void {
+  process.exitCode = code;
+}
+
 async function main(): Promise<number> {
   const program = new Command();
   program
@@ -34,7 +38,7 @@ async function main(): Promise<number> {
       console.error(`[nous:cli] command=send`);
       const client = createCliTrpcClient(opts.apiUrl);
       const code = await runSend(client, message, opts.project);
-      process.exit(code);
+      setExitCode(code);
     });
 
   const projectsCmd = program
@@ -47,7 +51,7 @@ async function main(): Promise<number> {
       console.error(`[nous:cli] command=projects-list`);
       const client = createCliTrpcClient(program.opts().apiUrl);
       const code = await runProjectsList(client);
-      process.exit(code);
+      setExitCode(code);
     });
   projectsCmd
     .command('create')
@@ -57,7 +61,7 @@ async function main(): Promise<number> {
       console.error(`[nous:cli] command=projects-create`);
       const client = createCliTrpcClient(program.opts().apiUrl);
       const code = await runProjectsCreate(client, opts.name);
-      process.exit(code);
+      setExitCode(code);
     });
   projectsCmd
     .command('switch')
@@ -67,13 +71,13 @@ async function main(): Promise<number> {
       console.error(`[nous:cli] command=projects-switch`);
       const client = createCliTrpcClient(program.opts().apiUrl);
       const code = await runProjectsSwitch(client, opts.project);
-      process.exit(code);
+      setExitCode(code);
     });
   projectsCmd.action(async () => {
     console.error(`[nous:cli] command=projects`);
     const client = createCliTrpcClient(program.opts().apiUrl);
     const code = await runProjectsList(client);
-    process.exit(code);
+    setExitCode(code);
   });
 
   const pkgCmd = program
@@ -89,7 +93,8 @@ async function main(): Promise<number> {
       const opts = program.opts();
       if (!opts.project) {
         console.error('`pkg install` requires `--project`.');
-        process.exit(1);
+        setExitCode(1);
+        return;
       }
       const client = createCliTrpcClient(opts.apiUrl);
       const code = await runPkgInstall(client, packageId, {
@@ -98,7 +103,7 @@ async function main(): Promise<number> {
         versionRange: cmdOpts.version,
         json: opts.json ?? false,
       });
-      process.exit(code);
+      setExitCode(code);
     });
   pkgCmd
     .command('discover')
@@ -141,7 +146,7 @@ async function main(): Promise<number> {
         muteProjectCandidateId: cmdOpts.muteProject,
         muteGlobalCandidateId: cmdOpts.muteGlobal,
       });
-      process.exit(code);
+      setExitCode(code);
     });
   pkgCmd.action(async () => {
     console.error(`[nous:cli] command=pkg`);
@@ -151,7 +156,7 @@ async function main(): Promise<number> {
       projectId: opts.project,
       json: opts.json ?? false,
     });
-    process.exit(code);
+    setExitCode(code);
   });
 
   const configCmd = program
@@ -165,7 +170,7 @@ async function main(): Promise<number> {
       const opts = program.opts();
       const client = createCliTrpcClient(opts.apiUrl);
       const code = await runConfigGet(client, opts.json ?? false);
-      process.exit(code);
+      setExitCode(code);
     });
   configCmd
     .command('set')
@@ -175,14 +180,14 @@ async function main(): Promise<number> {
       console.error(`[nous:cli] command=config-set`);
       const client = createCliTrpcClient(program.opts().apiUrl);
       const code = await runConfigSet(client, cmdOpts);
-      process.exit(code);
+      setExitCode(code);
     });
   configCmd.action(async () => {
     console.error(`[nous:cli] command=config`);
     const opts = program.opts();
     const client = createCliTrpcClient(opts.apiUrl);
     const code = await runConfigGet(client, opts.json ?? false);
-    process.exit(code);
+    setExitCode(code);
   });
 
   const witnessCmd = program
@@ -202,7 +207,7 @@ async function main(): Promise<number> {
         toSequence: cmdOpts.to,
         json: opts.json ?? false,
       });
-      process.exit(code);
+      setExitCode(code);
     });
   witnessCmd
     .command('list')
@@ -216,7 +221,7 @@ async function main(): Promise<number> {
         limit: cmdOpts.limit,
         json: opts.json ?? false,
       });
-      process.exit(code);
+      setExitCode(code);
     });
   witnessCmd
     .command('get')
@@ -230,7 +235,7 @@ async function main(): Promise<number> {
         id: cmdOpts.id,
         json: opts.json ?? false,
       });
-      process.exit(code);
+      setExitCode(code);
     });
   witnessCmd.action(async () => {
     console.error(`[nous:cli] command=witness`);
@@ -239,7 +244,7 @@ async function main(): Promise<number> {
     const code = await runWitnessList(client, {
       json: opts.json ?? false,
     });
-    process.exit(code);
+    setExitCode(code);
   });
 
   const opctlCmd = program
@@ -269,19 +274,26 @@ async function main(): Promise<number> {
         reason: cmdOpts.reason,
         json: opts.json ?? false,
       });
-      process.exit(code);
+      setExitCode(code);
     });
   opctlCmd.action(async () => {
     console.error(`[nous:cli] command=opctl`);
     console.error('Use: nous opctl request-proof --action <action> --tier <tier>');
-    process.exit(0);
+    setExitCode(0);
   });
 
-  program.parse();
+  await program.parseAsync();
+  const exitCode = process.exitCode;
+  if (typeof exitCode === 'number') {
+    return exitCode;
+  }
+  if (typeof exitCode === 'string') {
+    return Number.parseInt(exitCode, 10) || 1;
+  }
   return 0;
 }
 
 main().catch((err) => {
   console.error(err);
-  process.exit(1);
+  process.exitCode = 1;
 });

@@ -75,6 +75,10 @@ export default defineConfig({
         __dirname,
         '../../subcortex/providers/src/index.ts',
       ),
+      '@nous/subcortex-inference-runtime': resolve(
+        __dirname,
+        '../../subcortex/inference-runtime/src/index.ts',
+      ),
       '@nous/subcortex-mao': resolve(__dirname, '../../subcortex/mao/src/index.ts'),
       '@nous/subcortex-gtm': resolve(__dirname, '../../subcortex/gtm/src/index.ts'),
       '@nous/subcortex-workflows': resolve(

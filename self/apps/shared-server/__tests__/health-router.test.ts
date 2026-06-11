@@ -26,7 +26,40 @@ vi.mock('@nous/subcortex-mao', () => ({}));
 vi.mock('@nous/subcortex-nudges', () => ({}));
 vi.mock('@nous/subcortex-opctl', () => ({}));
 vi.mock('@nous/subcortex-projects', () => ({}));
-vi.mock('@nous/subcortex-providers', () => ({}));
+vi.mock('@nous/subcortex-providers', () => ({
+  PROVIDER_DEFINITIONS: [
+    {
+      vendorKey: 'anthropic',
+      wellKnownProviderId: '10000000-0000-0000-0000-000000000001',
+      defaultModelId: 'claude-sonnet-4-20250514',
+      defaultEndpoint: 'https://api.anthropic.com',
+      providerType: 'text',
+      providerClass: 'remote_text',
+      auth: { envVar: 'ANTHROPIC_API_KEY', vaultKeyNamespace: 'anthropic', required: true },
+      isLocal: false,
+    },
+    {
+      vendorKey: 'openai',
+      wellKnownProviderId: '10000000-0000-0000-0000-000000000002',
+      defaultModelId: 'gpt-4o',
+      defaultEndpoint: 'https://api.openai.com',
+      providerType: 'text',
+      providerClass: 'remote_text',
+      auth: { envVar: 'OPENAI_API_KEY', vaultKeyNamespace: 'openai', required: true },
+      isLocal: false,
+    },
+    {
+      vendorKey: 'ollama',
+      wellKnownProviderId: '10000000-0000-0000-0000-000000000003',
+      defaultModelId: 'llama3.2',
+      defaultEndpoint: 'http://localhost:11434',
+      providerType: 'text',
+      providerClass: 'local_text',
+      auth: { required: false },
+      isLocal: true,
+    },
+  ],
+}));
 vi.mock('@nous/subcortex-public-mcp', () => ({}));
 vi.mock('@nous/subcortex-registry', () => ({}));
 vi.mock('@nous/subcortex-router', () => ({}));

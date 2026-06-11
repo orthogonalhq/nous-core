@@ -16,6 +16,7 @@ const nextConfig: NextConfig = {
     '@nous/subcortex-projects',
     '@nous/subcortex-router',
     '@nous/subcortex-providers',
+    '@nous/subcortex-inference-runtime',
     '@nous/subcortex-tools',
     '@nous/autonomic-embeddings',
     '@nous/autonomic-storage',

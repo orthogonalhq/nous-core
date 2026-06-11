@@ -2,7 +2,7 @@
   "name": "@nous/subcortex-providers",
   "version": "0.0.1",
   "private": true,
-  "description": "Model provider adapters for Nous-OSS — Ollama and OpenAI-compatible",
+  "description": "Model provider implementations for Nous-OSS — Ollama, Chat Completions, and Anthropic",
   "type": "module",
   "exports": {
     ".": {
@@ -10,16 +10,55 @@
       "import": "./dist/index.js",
       "require": "./dist/index.js",
       "default": "./dist/index.js"
+    },
+    "./adapters": {
+      "types": "./dist/provider-adapters.d.ts",
+      "import": "./dist/provider-adapters.js",
+      "require": "./dist/provider-adapters.js",
+      "default": "./dist/provider-adapters.js"
+    },
+    "./shared/output": {
+      "types": "./dist/shared/output.d.ts",
+      "import": "./dist/shared/output.js",
+      "require": "./dist/shared/output.js",
+      "default": "./dist/shared/output.js"
+    },
+    "./adapter-resolver": {
+      "types": "./dist/adapter-resolver.d.ts",
+      "import": "./dist/adapter-resolver.js",
+      "require": "./dist/adapter-resolver.js",
+      "default": "./dist/adapter-resolver.js"
+    },
+    "./provider-definitions": {
+      "types": "./dist/provider-definitions.d.ts",
+      "import": "./dist/provider-definitions.js",
+      "require": "./dist/provider-definitions.js",
+      "default": "./dist/provider-definitions.js"
+    },
+    "./provider-factories": {
+      "types": "./dist/provider-factories.d.ts",
+      "import": "./dist/provider-factories.js",
+      "require": "./dist/provider-factories.js",
+      "default": "./dist/provider-factories.js"
+    },
+    "./protocols/openai-api": {
+      "types": "./dist/protocols/openai-api/index.d.ts",
+      "import": "./dist/protocols/openai-api/index.js",
+      "require": "./dist/protocols/openai-api/index.js",
+      "default": "./dist/protocols/openai-api/index.js"
     }
   },
   "scripts": {
-    "build": "tsc --build",
-    "typecheck": "tsc --noEmit",
+    "generate:providers": "node scripts/generate-provider-aggregates.mjs",
+    "check:generated": "node scripts/generate-provider-aggregates.mjs --check",
+    "build": "pnpm run check:generated && tsc --build",
+    "typecheck": "pnpm run check:generated && pnpm --filter \"@nous/subcortex-providers^...\" exec tsc --build --force && tsc --noEmit",
     "clean": "rm -rf dist"
   },
   "dependencies": {
     "@nous/shared": "workspace:*",
     "@nous/autonomic-config": "workspace:*",
+    "@nous/subcortex-inference-runtime": "workspace:*",
     "zod": "^3.24.1"
   }
 }

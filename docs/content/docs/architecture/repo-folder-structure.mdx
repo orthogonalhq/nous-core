@@ -404,13 +404,19 @@ Router does not execute models directly.
 
 ### providers/
 
-Model provider adapters for all model types.
+Model provider adapters and metadata definitions for all model types.
 
 ```
 providers/
-├── local/                            # Local runtime models
-├── remote/                           # Remote API models
-└── wasm/                             # WASM models
+├── adapter-resolver.ts                # Provider adapter resolver
+├── provider-adapters.ts               # Generated public concrete adapter export surface
+├── provider-definitions.ts            # Generated static provider metadata catalog
+├── provider-factories.ts              # Generated public provider factory catalog
+├── providers/                         # Provider leaves with metadata, providers, and leaf-owned adapters
+├── protocols/                         # Shared protocol adapters and transports
+├── schemas/                           # Hand-written provider, adapter, and factory contracts
+├── shared/                            # Shared output helpers and fallback adapters
+└── runtime/                           # ProviderRegistry and inference-runtime composition
 ```
 
 Responsibilities:
@@ -422,7 +428,11 @@ Responsibilities:
 * Report token/compute usage
 * Abstract provider-specific differences
 
-Phase 12.5 adds in-process per-endpoint inference lanes in `self/subcortex/providers/src/inference-lane.ts`, `inference-lane-registry.ts`, and `lane-aware-provider.ts`. These files own bounded concurrency, agent-class priority ordering, Principal-only preemption, exclusive voice-call lease handling, wait-estimate analytics, and the narrow lease-release notification seam while preserving existing routing and failover authority above the concrete providers.
+The static typed provider definition catalog is generated directly into `self/subcortex/providers/src/provider-definitions.ts`; each provider metadata constant lives with its owning provider leaf. The catalog contains metadata-only definitions for Anthropic, OpenAI Chat Completions, and Ollama, and exports literal-derived provider key types. Concrete provider-owned adapter modules live in provider leaves such as `self/subcortex/providers/src/providers/anthropic/adapter.ts` and `self/subcortex/providers/src/providers/ollama/adapter.ts`. Shared protocol adapters live under `self/subcortex/providers/src/protocols/`; the OpenAI leaf wraps `self/subcortex/providers/src/protocols/openai-api/`.
+
+`self/subcortex/providers/src/provider-adapters.ts` owns the generated public concrete-adapter export surface, and `provider-factories.ts` owns the generated provider factory catalog. Hand-written provider, adapter, and factory contracts live in `self/subcortex/providers/src/schemas/`; parsed-output helpers and fallback adapters live in `self/subcortex/providers/src/shared/`.
+
+Lane behavior is composed through `@nous/subcortex-inference-runtime` from `self/subcortex/providers/src/runtime/provider-runtime.ts`. The file preserves the public `ProviderRegistry` class name while keeping concurrency, failover, and runtime composition out of individual provider leaves.
 
 No orchestration logic lives here.
 

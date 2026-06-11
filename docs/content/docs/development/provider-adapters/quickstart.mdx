@@ -1,0 +1,73 @@
+---
+title: Quickstart
+description: Build the smallest certified provider leaf
+---
+
+# Quickstart
+
+This path is for a new certified model provider adapter. It assumes Node.js 22+, pnpm 10+, and repository dependencies installed with `pnpm install`.
+
+## Choose The Protocol Path
+
+| Provider shape | Starting point |
+|---|---|
+| New native API | Create a provider-specific leaf with `implementation.ts` and `adapter.ts` |
+| OpenAI Chat Completions-compatible API | Reuse `self/subcortex/providers/src/protocols/openai-api/**` |
+| Local provider like Ollama | Use the Ollama leaf as the local-runtime comparison point |
+| Shared behavior across several vendors | Put reusable behavior under `src/protocols/<protocol>/` |
+
+## Add The Leaf
+
+Create a lowercase ASCII kebab-case vendor folder:
+
+```text
+self/subcortex/providers/src/providers/<vendor>/
+├── definition.ts
+├── adapter.ts
+├── provider.ts
+├── implementation.ts
+└── index.ts
+```
+
+`implementation.ts` is needed when the leaf owns request execution. It is not required when the provider leaf wraps a shared protocol implementation, as `src/providers/openai/` does.
+
+## Fill The Contracts
+
+1. In `definition.ts`, export `providerDefinition`.
+2. In `adapter.ts`, export `providerAdapter`.
+3. In `provider.ts`, export `providerFactory`.
+4. In `index.ts`, re-export the leaf's public exports for generator imports.
+5. Keep definitions as metadata only: no environment reads, network calls, concrete provider instantiation, or bootstrap branches.
+
+The definition should use `as const satisfies ProviderDefinition`. The factory should use `as const satisfies ProviderFactoryModule`.
+
+## Regenerate Catalogs
+
+```bash
+pnpm --filter @nous/subcortex-providers run generate:providers
+pnpm --filter @nous/subcortex-providers run check:generated
+```
+
+Generated files are expected to change when a provider leaf is added or renamed:
+
+```text
+self/subcortex/providers/src/provider-definitions.ts
+self/subcortex/providers/src/provider-adapters.ts
+self/subcortex/providers/src/provider-factories.ts
+```
+
+Do not edit those files by hand.
+
+## Run Focused Checks
+
+```bash
+pnpm --filter @nous/subcortex-providers run typecheck
+pnpm --filter @nous/subcortex-providers exec vitest run src/__tests__/provider-codegen.test.ts src/__tests__/public-exports.test.ts src/__tests__/provider-definitions src/__tests__/adapter-resolver.test.ts src/__tests__/provider-pipeline-integration.test.ts --config vitest.config.ts
+```
+
+For docs-only changes, run:
+
+```bash
+pnpm --filter docs lint
+pnpm --filter docs build
+```

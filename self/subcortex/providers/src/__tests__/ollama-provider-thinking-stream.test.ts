@@ -1,7 +1,7 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import type { IEventBus, ProviderId } from '@nous/shared';
 import { NousError } from '@nous/shared';
-import { OllamaProvider } from '../ollama-provider.js';
+import { OllamaProvider } from '../providers/ollama/implementation.js';
 
 const MOCK_CONFIG = {
   id: '00000000-0000-0000-0000-000000000001' as ProviderId,

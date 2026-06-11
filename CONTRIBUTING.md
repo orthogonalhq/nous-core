@@ -50,18 +50,13 @@ A channel integration App:
 
 #### Model Provider Adapters
 
-```typescript
-// self/shared/src/interfaces/subcortex.ts
-export interface IModelProvider {
-  invoke(request: ModelRequest): Promise<ModelResponse>;
-  stream(request: ModelRequest): AsyncIterable<ModelStreamChunk>;
-  getConfig(): ModelProviderConfig;
-}
-```
+Model provider adapters are certified provider leaves under `self/subcortex/providers/src/providers/<vendor>/`. Start with the provider adapter docs and use `self/subcortex/providers/src/providers/anthropic/` as the real reference leaf for native provider shape.
 
-**Reference implementations**: `self/subcortex/providers/src/ollama-provider.ts` (local Ollama) and `openai-provider.ts` (OpenAI-compatible).
+**Reference leaf**: `self/subcortex/providers/src/providers/anthropic/`.
 
-**What it looks like**: implement `IModelProvider` for a new backend (Anthropic, Gemini, Mistral, local GGUF), validate inputs against `TextModelInputSchema`, export from the providers package.
+**OpenAI-compatible protocol reference**: `self/subcortex/providers/src/protocols/openai-api/provider.ts` plus the wrapper leaf in `self/subcortex/providers/src/providers/openai/`.
+
+**What it looks like**: add a provider leaf with `definition.ts`, `adapter.ts`, `provider.ts`, optional `implementation.ts`, and `index.ts`; satisfy the schema ABI contracts; regenerate provider catalogs; add tests for definition aggregation, adapter behavior, provider construction, credential handling, and runtime resolution.
 
 #### MCP Tool Surface Extensions
 
@@ -200,7 +195,7 @@ The core orchestration loop and memory architecture are not open for drive-by co
 | If you're interested in... | Look at | Start with | Tier |
 |---|---|---|---|
 | Chat platform adapters (Discord, Matrix, etc.) | Nous App model — SDK pending release | Watch this repo for the SDK | 1 |
-| Model provider adapters (Anthropic, Gemini, etc.) | `self/subcortex/providers/src/` | `ollama-provider.ts` as reference | 1 |
+| Model provider adapters (Anthropic, Gemini, etc.) | `docs/content/docs/development/provider-adapters/quickstart.mdx` and `self/subcortex/providers/src/providers/anthropic/` | Anthropic reference leaf and provider adapter docs | 1 |
 | Agent adapters (Claude Code, Codex, etc.) | `self/shared/src/types/adapter.ts` | `AgentAdapter` interface and Zod schemas | 1 |
 | MCP tool extensions | `self/cortex/core/src/internal-mcp/` | `catalog.ts` and `capability-handlers.ts` | 1 |
 | Communication gateway runtime | `self/subcortex/communication-gateway/src/` | `delivery-orchestrator.ts` | 1 |

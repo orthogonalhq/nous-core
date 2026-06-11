@@ -28,45 +28,79 @@ on:
       - 'fix/**'
       - 'refactor/**'
       - 'chore/**'
-    paths-ignore:
-      - '**.md'
-      - '**.mdx'
-      - '.architecture'
-      - '.worklog'
-      - '.skills'
-      - 'docs/**'
-      - 'LICENSE*'
-      - '.github/workflows/ci-release*.yml'
 
 jobs:
   check:
     name: Check
     runs-on: ubuntu-latest
+    outputs:
+      ci_relevant: ${{ steps.changed-files.outputs.ci_relevant }}
 
     steps:
       - name: Checkout
         uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Classify changed files
+        id: changed-files
+        shell: bash
+        env:
+          BASE_SHA: ${{ github.event_name == 'pull_request' && github.event.pull_request.base.sha || github.event.before }}
+          HEAD_SHA: ${{ github.event_name == 'pull_request' && github.event.pull_request.head.sha || github.sha }}
+        run: |
+          set -euo pipefail
+
+          if [ -z "$BASE_SHA" ] || [[ "$BASE_SHA" =~ ^0+$ ]]; then
+            BASE_SHA="$(git rev-parse "$HEAD_SHA^")"
+          fi
+
+          ci_relevant=false
+          while IFS= read -r path; do
+            [ -z "$path" ] && continue
+            case "$path" in
+              *.md|*.mdx|docs/*|.architecture|.architecture/*|.worklog|.worklog/*|.skills|.skills/*|LICENSE*|.github/workflows/ci-release*.yml) ;;
+              *) ci_relevant=true; break ;;
+            esac
+          done < <(git diff --name-only "$BASE_SHA" "$HEAD_SHA")
+
+          echo "ci_relevant=$ci_relevant" >> "$GITHUB_OUTPUT"
+
+      - name: No-op for documentation-only changes
+        if: steps.changed-files.outputs.ci_relevant != 'true'
+        run: echo "Only documentation/worklog/architecture metadata changed; required CI check passes without runtime validation."
 
       - name: Install pnpm
+        if: steps.changed-files.outputs.ci_relevant == 'true'
         uses: pnpm/action-setup@v4
 
       - name: Setup Node.js
+        if: steps.changed-files.outputs.ci_relevant == 'true'
         uses: actions/setup-node@v4
         with:
           node-version: '22'
           cache: 'pnpm'
 
       - name: Install dependencies
+        if: steps.changed-files.outputs.ci_relevant == 'true'
         run: pnpm install
 
+      - name: Check generated provider aggregates
+        if: steps.changed-files.outputs.ci_relevant == 'true'
+        run: pnpm run check:generated
+
       - name: Build
+        if: steps.changed-files.outputs.ci_relevant == 'true'
         run: pnpm run build
 
       - name: Typecheck
+        if: steps.changed-files.outputs.ci_relevant == 'true'
         run: pnpm run typecheck
 
       - name: Lint
+        if: steps.changed-files.outputs.ci_relevant == 'true'
         run: pnpm run lint
 
       - name: Test
+        if: steps.changed-files.outputs.ci_relevant == 'true'
         run: pnpm run test

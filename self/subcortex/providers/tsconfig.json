@@ -6,12 +6,14 @@
     "composite": true,
     "paths": {
       "@nous/shared": ["../../shared/src/index.ts"],
-      "@nous/autonomic-config": ["../../autonomic/config/src/index.ts"]
+      "@nous/autonomic-config": ["../../autonomic/config/src/index.ts"],
+      "@nous/subcortex-inference-runtime": ["../inference-runtime/src/index.ts"]
     }
   },
   "include": ["src"],
   "references": [
     { "path": "../../shared" },
-    { "path": "../../autonomic/config" }
+    { "path": "../../autonomic/config" },
+    { "path": "../inference-runtime" }
   ]
 }
