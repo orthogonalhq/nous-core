@@ -1,0 +1,13 @@
+{
+  "title": "Provider Adapters",
+  "pages": [
+    "index",
+    "quickstart",
+    "anthropic-reference",
+    "provider-leaf-anatomy",
+    "schemas-abi-reference",
+    "generated-catalogs-workflow",
+    "testing-checklist",
+    "what-not-to-edit"
+  ]
+}

@@ -1,0 +1,45 @@
+---
+title: Provider Leaf Anatomy
+description: File responsibilities and protocol decisions for certified provider leaves
+---
+
+# Provider Leaf Anatomy
+
+A certified provider leaf is a small package-local driver. The generator discovers leaf folders under `self/subcortex/providers/src/providers/` and builds the public catalogs from their standard exports.
+
+```text
+self/subcortex/providers/src/providers/<vendor>/
+├── definition.ts       # exports providerDefinition
+├── adapter.ts          # exports providerAdapter
+├── provider.ts         # exports providerFactory
+├── implementation.ts   # provider class and constants, when leaf-owned
+└── index.ts            # leaf public exports for generator imports
+```
+
+## Required Files
+
+The generator requires `definition.ts`, `adapter.ts`, `provider.ts`, and `index.ts`. It validates provider leaf directory names with lowercase ASCII kebab-case starting with a letter, then creates unique generated aliases from those names.
+
+`implementation.ts` is a convention, not a generator requirement. Use it when the leaf owns request execution. The OpenAI leaf intentionally has no `implementation.ts`; it reuses `self/subcortex/providers/src/protocols/openai-api/provider.ts`.
+
+## Keys And Protocols
+
+| Name | Meaning |
+|---|---|
+| `vendorKey` | Certified provider identity, such as `anthropic`, `openai`, or `ollama` |
+| `adapterKey` | Adapter implementation key used by resolver/runtime, such as `anthropic`, `chat-completions`, or `ollama` |
+| `protocol` | Wire/API family, such as `anthropic-messages`, `chat-completions`, or `ollama` |
+
+A vendor can reuse a shared adapter key when it speaks an existing protocol. OpenAI's `vendorKey` is `openai`, while its adapter key is `chat-completions`.
+
+## Protocol Decision Table
+
+| If your provider... | Do this |
+|---|---|
+| Speaks OpenAI Chat Completions | Reuse `src/protocols/openai-api/**` and wrap it with a provider leaf |
+| Has the same vendor API but different defaults or credentials | Keep vendor-specific metadata in the leaf and reuse shared protocol logic |
+| Has a new wire protocol | Write provider-specific `adapter.ts` and `implementation.ts` |
+| Shares behavior across multiple vendors | Put reusable behavior in `src/protocols/<protocol>/` |
+| Needs generic output fallback behavior | Use `src/shared/` only for truly generic helpers |
+
+Normal provider additions should not edit `src/adapter-resolver.ts` or add runtime vendor branches. Adapter resolution should flow from definitions and generated catalogs unless the resolution policy itself changes.

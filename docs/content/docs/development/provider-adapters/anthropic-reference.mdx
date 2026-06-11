@@ -1,0 +1,98 @@
+---
+title: Anthropic Reference
+description: Walkthrough of the real Anthropic provider leaf
+---
+
+# Anthropic Reference
+
+Use `self/subcortex/providers/src/providers/anthropic/` as the reference leaf for structure, exports, and defensive parsing. Treat Anthropic's wire protocol details as provider-specific unless your provider actually implements the Anthropic Messages API.
+
+## File Walkthrough
+
+| File | Role |
+|---|---|
+| `definition.ts` | Re-exports `ANTHROPIC_PROVIDER_DEFINITION` as `providerDefinition` |
+| `implementation.ts` | Owns the provider class, default endpoint/model, credential handling, request execution, streaming, and metadata constant |
+| `adapter.ts` | Exports `providerAdapter`, `anthropicAdapter`, and `createAnthropicAdapter(...)` |
+| `provider.ts` | Exports `providerFactory` for runtime construction |
+| `index.ts` | Re-exports the leaf surface for generator imports |
+
+## Definition Shape
+
+Anthropic's leaf keeps metadata with the implementation constants and re-exports it through `definition.ts`:
+
+```ts
+export {
+  ANTHROPIC_PROVIDER_DEFINITION as providerDefinition,
+} from './implementation.js';
+```
+
+The metadata constant uses the typed definition contract:
+
+```ts
+export const ANTHROPIC_PROVIDER_DEFINITION = {
+  vendorKey: 'anthropic',
+  displayName: 'Anthropic',
+  providerType: 'text',
+  providerClass: 'remote_text',
+  protocol: 'anthropic-messages',
+  adapterKey: 'anthropic',
+  auth: {
+    envVar: 'ANTHROPIC_API_KEY',
+    vaultKeyNamespace: 'anthropic',
+    required: true,
+    purpose: 'api_key',
+  },
+  isLocal: false,
+} as const satisfies ProviderDefinition;
+```
+
+Copy the shape, not the values. Your provider needs its own `vendorKey`, protocol, adapter key, endpoint, default model, auth metadata, and capabilities.
+
+## Adapter Shape
+
+Anthropic exports a stateless adapter module with `defineProviderAdapter(...)`:
+
+```ts
+export const providerAdapter = defineProviderAdapter({
+  adapterKey: 'anthropic',
+  displayName: 'Anthropic',
+  protocol: 'anthropic-messages',
+  capabilities: ANTHROPIC_CAPABILITIES,
+  create(options) {
+    return createAnthropicAdapter(options?.log);
+  },
+});
+```
+
+Inside `createAnthropicAdapter(...)`, `formatRequest(...)` translates canonical prompt/context/tool input into Anthropic request shape, and `parseResponse(...)` translates provider output back into `ParsedModelOutput`.
+
+`parseResponse(...)` must not throw. Anthropic catches parse errors, logs them when a log channel exists, and returns a text fallback.
+
+## Factory Shape
+
+`provider.ts` is small and stable:
+
+```ts
+export const providerFactory = {
+  vendorKey: 'anthropic',
+  create(config, options) {
+    return new AnthropicProvider(config, { apiKey: options?.apiKey });
+  },
+} as const satisfies ProviderFactoryModule;
+```
+
+Factory code constructs the concrete `IModelProvider` from runtime config and resolved credentials. It should not add central runtime branches elsewhere for a normal provider addition.
+
+## Anthropic-Only Behavior
+
+Do not copy these details unless your provider documents the same semantics:
+
+- The `anthropic-version` header.
+- Messages API content block shapes.
+- `cache_control` system segment handling.
+- Extended thinking blocks.
+- Anthropic tool schema normalization and top-level combinator flattening.
+- Anthropic stream event parsing.
+
+The reusable lesson is the leaf shape: typed metadata, stateless adapter module, factory module, non-throwing response parsing, and tests that prove the provider's real API shape.

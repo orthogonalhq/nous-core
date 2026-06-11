@@ -1,0 +1,47 @@
+---
+title: Provider Adapters
+description: Contributor guide for certified model provider adapters
+---
+
+# Provider Adapters
+
+Certified provider adapters are the signed-driver-style integration points that let Nous talk to model vendors without adding one-off runtime branches. A provider leaf declares the vendor metadata, exports an adapter, exports a provider factory, and lets the generated catalogs make the leaf discoverable.
+
+Most contributors work in one provider leaf:
+
+```text
+self/subcortex/providers/src/providers/<vendor>/
+├── definition.ts
+├── adapter.ts
+├── provider.ts
+├── implementation.ts
+└── index.ts
+```
+
+Some leaves do not need their own `implementation.ts`. The OpenAI leaf reuses `self/subcortex/providers/src/protocols/openai-api/provider.ts` and wraps it with certified `openai` metadata, adapter, and factory exports.
+
+## Boundary Map
+
+| Area | What it owns | Contributor posture |
+|---|---|---|
+| `src/providers/<vendor>/` | Certified provider leaf files | Add or update these for a provider |
+| `src/schemas/` | Nous-side provider, adapter, and factory ABI | Read before changing contracts |
+| `src/protocols/<protocol>/` | Reusable protocol logic | Reuse for compatible APIs |
+| `src/shared/` | Truly generic output helpers and fallback adapters | Avoid dumping provider convenience code here |
+| `src/provider-definitions.ts` | Generated provider metadata catalog | Regenerate, do not hand-edit |
+| `src/provider-adapters.ts` | Generated certified adapter catalog | Regenerate, do not hand-edit |
+| `src/provider-factories.ts` | Generated provider factory catalog | Regenerate, do not hand-edit |
+| `src/adapter-resolver.ts` | Adapter-key resolution policy | Do not edit for a normal provider addition |
+| `src/runtime/provider-runtime.ts` | `ProviderRegistry` and inference-runtime composition | Do not add vendor branches for normal additions |
+
+## Reading Order
+
+1. [Quickstart](/docs/development/provider-adapters/quickstart) for the first working leaf.
+2. [Anthropic Reference](/docs/development/provider-adapters/anthropic-reference) for a real native provider walkthrough.
+3. [Provider Leaf Anatomy](/docs/development/provider-adapters/provider-leaf-anatomy) for file responsibilities and protocol choices.
+4. [Schemas ABI Reference](/docs/development/provider-adapters/schemas-abi-reference) for the contracts.
+5. [Generated Catalogs Workflow](/docs/development/provider-adapters/generated-catalogs-workflow) for code generation.
+6. [Testing Checklist](/docs/development/provider-adapters/testing-checklist) before opening a PR.
+7. [What Not To Edit](/docs/development/provider-adapters/what-not-to-edit) when you are unsure where a change belongs.
+
+Use Anthropic as the reference leaf for shape, naming, exports, tests, and failure handling. Do not copy Anthropic's wire protocol unless your provider really has Anthropic Messages API semantics.
