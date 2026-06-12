@@ -137,6 +137,7 @@ export type CertifiedProviderAdapterKey =
 function providerAdapterExtraExports(vendor) {
   const extrasByVendor = new Map([
     ['anthropic', ['createAnthropicAdapter']],
+    ['codex-cli', ['createCodexCliAdapter', 'renderCodexCliPrompt']],
     ['ollama', ['createOllamaAdapter', 'isToolCapableModel']],
     ['openai', ['createChatCompletionsAdapter']],
   ]);

@@ -21,6 +21,12 @@ const expectedDefinitions = {
     defaultModelId: 'gpt-4o',
     envVar: 'OPENAI_API_KEY',
   },
+  'codex-cli': {
+    wellKnownProviderId: '10000000-0000-0000-0000-000000000004',
+    defaultEndpoint: 'http://localhost',
+    defaultModelId: 'codex-cli/default',
+    envVar: undefined,
+  },
   ollama: {
     wellKnownProviderId: '10000000-0000-0000-0000-000000000003',
     defaultEndpoint: 'http://localhost:11434',
@@ -33,6 +39,7 @@ describe('provider definitions catalog', () => {
   it('contains exactly the current validation roster by vendorKey', () => {
     expect(PROVIDER_DEFINITIONS.map((definition) => definition.vendorKey).sort()).toEqual([
       'anthropic',
+      'codex-cli',
       'ollama',
       'openai',
     ]);
@@ -67,6 +74,7 @@ describe('provider definitions catalog', () => {
       .replace(`${join('src', '__tests__', 'provider-definitions')}`, 'src');
     const providerFiles = [
       join('providers', 'anthropic', 'implementation.ts'),
+      join('providers', 'codex-cli', 'definition.ts'),
       join('protocols', 'openai-api', 'provider.ts'),
       join('providers', 'ollama', 'implementation.ts'),
     ];

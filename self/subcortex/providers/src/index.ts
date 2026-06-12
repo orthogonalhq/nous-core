@@ -29,6 +29,8 @@ export {
   chatCompletionsAdapter,
   createChatCompletionsAdapter,
 } from './protocols/openai-api/adapter.js';
+export * from './protocols/agent-cli/index.js';
+export { CodexCliProvider } from './providers/codex-cli/implementation.js';
 export {
   createTextAdapter,
   textAdapter,
