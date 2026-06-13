@@ -4,12 +4,101 @@ import { ModelRoleSchema } from '@nous/shared';
 
 const SYSTEM_APP_ID = 'nous:system';
 const MODEL_ROLES = ModelRoleSchema.options;
+const CODEX_CLI_DEFAULT_MODEL = {
+  id: 'codex-cli:codex-cli/default',
+  name: 'Codex CLI (default)',
+  provider: 'codex-cli',
+  providerLabel: 'Codex CLI',
+  available: true,
+};
+const providerDefinitionsMock = vi.hoisted(() => ({
+  PROVIDER_DEFINITIONS: [
+    {
+      vendorKey: 'anthropic',
+      displayName: 'Anthropic',
+      wellKnownProviderId: '10000000-0000-0000-0000-000000000001',
+      providerType: 'text',
+      providerClass: 'remote_text',
+      protocol: 'anthropic-messages',
+      adapterKey: 'anthropic',
+      defaultEndpoint: 'https://api.anthropic.com',
+      defaultModelId: 'claude-sonnet-4-20250514',
+      auth: {
+        envVar: 'ANTHROPIC_API_KEY',
+        vaultKeyNamespace: 'anthropic',
+        required: true,
+        purpose: 'api_key',
+      },
+      capabilities: { streaming: true },
+      isLocal: false,
+    },
+    {
+      vendorKey: 'codex-cli',
+      displayName: 'Codex CLI',
+      wellKnownProviderId: '10000000-0000-0000-0000-000000000004',
+      providerType: 'text',
+      providerClass: 'local_text',
+      protocol: 'agent-cli',
+      adapterKey: 'codex-cli',
+      defaultEndpoint: 'http://localhost',
+      defaultModelId: 'codex-cli/default',
+      auth: {
+        required: false,
+        purpose: 'api_key',
+      },
+      capabilities: { streaming: false },
+      isLocal: true,
+      agentCli: {
+        auth: { kind: 'local_session' },
+      },
+    },
+    {
+      vendorKey: 'ollama',
+      displayName: 'Ollama',
+      wellKnownProviderId: '10000000-0000-0000-0000-000000000003',
+      providerType: 'text',
+      providerClass: 'local_text',
+      protocol: 'ollama',
+      adapterKey: 'ollama',
+      defaultEndpoint: 'http://localhost:11434',
+      defaultModelId: 'llama3',
+      auth: {
+        required: false,
+        purpose: 'api_key',
+      },
+      capabilities: { streaming: true, modelListing: true },
+      isLocal: true,
+    },
+    {
+      vendorKey: 'openai',
+      displayName: 'Chat Completions',
+      wellKnownProviderId: '10000000-0000-0000-0000-000000000002',
+      providerType: 'text',
+      providerClass: 'remote_text',
+      protocol: 'chat-completions',
+      adapterKey: 'chat-completions',
+      defaultEndpoint: 'https://api.openai.com',
+      defaultModelId: 'gpt-4o',
+      auth: {
+        envVar: 'OPENAI_API_KEY',
+        vaultKeyNamespace: 'openai',
+        required: true,
+        purpose: 'api_key',
+      },
+      modelListEndpoint: '/v1/models',
+      capabilities: { streaming: true },
+      isLocal: false,
+    },
+  ],
+}));
 
 const detectOllamaMock = vi.hoisted(() => vi.fn());
 const bootstrapConstants = vi.hoisted(() => ({
   WELL_KNOWN_PROVIDER_IDS: {
     anthropic: '10000000-0000-0000-0000-000000000001',
     openai: '10000000-0000-0000-0000-000000000002',
+    ollama: '10000000-0000-0000-0000-000000000003',
+    'codex-cli': '10000000-0000-0000-0000-000000000004',
   },
   OLLAMA_WELL_KNOWN_PROVIDER_ID: '10000000-0000-0000-0000-000000000003',
 }));
@@ -43,13 +132,15 @@ vi.mock('../src/bootstrap', () => ({
   upsertProviderConfig: bootstrapMock.upsertProviderConfig,
 }));
 
+vi.mock('@nous/subcortex-providers', () => providerDefinitionsMock);
+
 function vaultKey(provider: 'anthropic' | 'openai'): string {
   return `api_key_${provider}`;
 }
 
 function parseSelectedModelSpecMock(
   spec: string | null | undefined,
-): { provider: 'anthropic' | 'openai' | 'ollama'; modelId: string } | null {
+): { provider: 'anthropic' | 'openai' | 'ollama' | 'codex-cli'; modelId: string } | null {
   if (!spec) {
     return null;
   }
@@ -59,7 +150,8 @@ function parseSelectedModelSpecMock(
   if (
     (provider !== 'anthropic' &&
       provider !== 'openai' &&
-      provider !== 'ollama') ||
+      provider !== 'ollama' &&
+      provider !== 'codex-cli') ||
     modelId.length === 0
   ) {
     return null;
@@ -72,9 +164,13 @@ function parseSelectedModelSpecMock(
 }
 
 function buildProviderConfigMock(
-  provider: 'anthropic' | 'openai',
+  provider: 'anthropic' | 'openai' | 'codex-cli',
   providerId = bootstrapConstants.WELL_KNOWN_PROVIDER_IDS[provider],
-  modelId = provider === 'anthropic' ? 'claude-sonnet-4-20250514' : 'gpt-4o',
+  modelId = provider === 'anthropic'
+    ? 'claude-sonnet-4-20250514'
+    : provider === 'codex-cli'
+      ? 'codex-cli/default'
+      : 'gpt-4o',
 ) {
   return {
     id: providerId,
@@ -83,11 +179,13 @@ function buildProviderConfigMock(
     endpoint:
       provider === 'anthropic'
         ? 'https://api.anthropic.com'
-        : 'https://api.openai.com',
+        : provider === 'codex-cli'
+          ? 'http://localhost'
+          : 'https://api.openai.com',
     modelId,
-    isLocal: false,
-    capabilities: ['chat', 'streaming'],
-    providerClass: 'remote_text' as const,
+    isLocal: provider === 'codex-cli',
+    capabilities: provider === 'codex-cli' ? ['chat'] : ['chat', 'streaming'],
+    providerClass: provider === 'codex-cli' ? 'local_text' as const : 'remote_text' as const,
   };
 }
 
@@ -244,6 +342,8 @@ describe('preferences router', () => {
     );
     bootstrapMock.buildProviderConfig.mockReset();
     bootstrapMock.buildProviderConfig.mockImplementation(buildProviderConfigMock);
+    bootstrapMock.currentProviderEntries.mockReset();
+    bootstrapMock.currentProviderEntries.mockReturnValue([]);
     bootstrapMock.currentRoleAssignment.mockReset();
     bootstrapMock.currentRoleAssignment.mockReturnValue(undefined);
     bootstrapMock.parseSelectedModelSpec.mockReset();
@@ -335,6 +435,19 @@ describe('preferences router', () => {
           maskedKey: null,
         }),
       );
+    });
+
+    it('keeps Codex CLI out of API-key credential rows', async () => {
+      const { ctx } = createMockContext();
+      const preferencesRouter = await loadPreferencesRouter();
+      const caller = preferencesRouter.createCaller(ctx);
+
+      const apiKeys = await caller.getApiKeys();
+
+      expect(apiKeys.map((entry) => entry.provider)).toEqual([
+        'anthropic',
+        'openai',
+      ]);
     });
   });
 
@@ -540,6 +653,58 @@ describe('preferences router', () => {
       );
     });
 
+    it('assigns Codex CLI through the provider-definition config path', async () => {
+      const { ctx } = createMockContext();
+      const preferencesRouter = await loadPreferencesRouter();
+      const caller = preferencesRouter.createCaller(ctx);
+
+      const result = await caller.setRoleAssignment({
+        role: 'workers',
+        modelSpec: 'codex-cli:codex-cli/default',
+      });
+
+      expect(result).toEqual({ success: true });
+      expect(bootstrapMock.buildProviderConfig).toHaveBeenCalledWith(
+        'codex-cli',
+        bootstrapConstants.WELL_KNOWN_PROVIDER_IDS['codex-cli'],
+        'codex-cli/default',
+      );
+      expect(bootstrapMock.buildOllamaProviderConfig).not.toHaveBeenCalled();
+      expect(bootstrapMock.upsertProviderConfig).toHaveBeenCalledWith(
+        ctx,
+        expect.objectContaining({
+          id: bootstrapConstants.WELL_KNOWN_PROVIDER_IDS['codex-cli'],
+          name: 'codex-cli',
+          modelId: 'codex-cli/default',
+          capabilities: ['chat'],
+        }),
+      );
+      expect(bootstrapMock.updateRoleAssignment).toHaveBeenCalledWith(
+        ctx,
+        'workers',
+        bootstrapConstants.WELL_KNOWN_PROVIDER_IDS['codex-cli'],
+      );
+    });
+
+    it('clears role assignments when modelSpec is null', async () => {
+      const { ctx } = createMockContext();
+      const preferencesRouter = await loadPreferencesRouter();
+      const caller = preferencesRouter.createCaller(ctx);
+
+      const result = await caller.setRoleAssignment({
+        role: 'cortex-system',
+        modelSpec: null,
+      });
+
+      expect(result).toEqual({ success: true });
+      expect(bootstrapMock.upsertProviderConfig).not.toHaveBeenCalled();
+      expect(bootstrapMock.updateRoleAssignment).toHaveBeenCalledWith(
+        ctx,
+        'cortex-system',
+        null,
+      );
+    });
+
     it('returns an error for invalid model specs', async () => {
       const { ctx } = createMockContext();
       const preferencesRouter = await loadPreferencesRouter();
@@ -562,6 +727,18 @@ describe('preferences router', () => {
   });
 
   describe('getAvailableModels', () => {
+    it('includes Codex CLI default model without credentials or Ollama', async () => {
+      const { ctx } = createMockContext();
+      const preferencesRouter = await loadPreferencesRouter();
+      const caller = preferencesRouter.createCaller(ctx);
+      const fetchMock = vi.mocked(globalThis.fetch);
+
+      const result = await caller.getAvailableModels();
+
+      expect(fetchMock).not.toHaveBeenCalled();
+      expect(result.models).toEqual([CODEX_CLI_DEFAULT_MODEL]);
+    });
+
     it('fetches Anthropic models dynamically and maps display names to the existing shape', async () => {
       const { ctx, credentialVaultService } = createMockContext();
       const preferencesRouter = await loadPreferencesRouter();
@@ -612,14 +789,17 @@ describe('preferences router', () => {
           id: 'anthropic:claude-sonnet-4-20250514',
           name: 'Claude Sonnet 4',
           provider: 'anthropic',
+          providerLabel: 'Anthropic',
           available: true,
         },
         {
           id: 'anthropic:claude-opus-4-20250514',
           name: 'Claude Opus 4',
           provider: 'anthropic',
+          providerLabel: 'Anthropic',
           available: true,
         },
+        CODEX_CLI_DEFAULT_MODEL,
       ]);
       expect(
         result.models.some(
@@ -676,14 +856,17 @@ describe('preferences router', () => {
           id: 'openai:gpt-4o',
           name: 'gpt-4o',
           provider: 'openai',
+          providerLabel: 'OpenAI',
           available: true,
         },
         {
           id: 'openai:o3-mini',
           name: 'o3-mini',
           provider: 'openai',
+          providerLabel: 'OpenAI',
           available: true,
         },
+        CODEX_CLI_DEFAULT_MODEL,
       ]);
     });
 
@@ -709,8 +892,10 @@ describe('preferences router', () => {
           id: 'ollama:llama3.2:3b',
           name: 'llama3.2:3b',
           provider: 'ollama',
+          providerLabel: 'Ollama',
           available: true,
         },
+        CODEX_CLI_DEFAULT_MODEL,
       ]);
     });
 
@@ -738,14 +923,17 @@ describe('preferences router', () => {
           id: 'anthropic:claude-sonnet-4-20250514',
           name: 'Claude Sonnet 4 (cached)',
           provider: 'anthropic',
+          providerLabel: 'Anthropic',
           available: false,
         },
         {
           id: 'anthropic:claude-opus-4-20250514',
           name: 'Claude Opus 4 (cached)',
           provider: 'anthropic',
+          providerLabel: 'Anthropic',
           available: false,
         },
+        CODEX_CLI_DEFAULT_MODEL,
       ]);
     });
 
@@ -773,8 +961,10 @@ describe('preferences router', () => {
           id: 'openai:gpt-4o',
           name: 'GPT-4o (cached)',
           provider: 'openai',
+          providerLabel: 'OpenAI',
           available: false,
         },
+        CODEX_CLI_DEFAULT_MODEL,
       ]);
     });
 
@@ -819,8 +1009,10 @@ describe('preferences router', () => {
           id: 'openai:gpt-4o',
           name: 'gpt-4o',
           provider: 'openai',
+          providerLabel: 'OpenAI',
           available: true,
         },
+        CODEX_CLI_DEFAULT_MODEL,
       ]);
       expect(second.models).toEqual(first.models);
 
@@ -834,8 +1026,10 @@ describe('preferences router', () => {
           id: 'openai:o3',
           name: 'o3',
           provider: 'openai',
+          providerLabel: 'OpenAI',
           available: true,
         },
+        CODEX_CLI_DEFAULT_MODEL,
       ]);
     });
   });

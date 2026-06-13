@@ -47,17 +47,18 @@ export interface AvailableModel {
   id: string
   name: string
   provider: string
+  providerLabel?: string
   available: boolean
 }
 
 export interface RoleAssignmentDisplayEntry {
   role: string
-  providerId: string | null
+  modelSpec: string | null
+  providerId?: string | null
 }
 
 export interface HydratedRoleAssignmentDisplayEntry extends RoleAssignmentDisplayEntry {
   displayName?: string | null
-  modelSpec?: string | null
 }
 
 export interface RecommendedModel {
@@ -95,7 +96,7 @@ export interface PreferencesApi {
   getRoleAssignments?: () => Promise<RoleAssignmentDisplayEntry[]>
   getHardwareRecommendations?: () => Promise<HardwareRecommendations>
   setRoleAssignment?: (
-    input: { role: string; modelSpec: string },
+    input: { role: string; modelSpec: string | null },
   ) => Promise<{ success: boolean; error?: string }>
   listOllamaModels?: () => Promise<{ models: OllamaModelEntry[] }>
   pullOllamaModel?: (name: string) => Promise<{ success: boolean }>

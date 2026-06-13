@@ -36,6 +36,10 @@ function emptyPendingValues(): PendingValues {
   }, {} as PendingValues)
 }
 
+function optgroupLabel(provider: string, models: AvailableModel[]): string {
+  return models[0]?.providerLabel ?? provider.charAt(0).toUpperCase() + provider.slice(1)
+}
+
 export function ModelConfigPage({ api }: ModelConfigPageProps) {
   const [availableModels, setAvailableModels] = useState<AvailableModel[]>([])
   const [currentValues, setCurrentValues] = useState<RoleValues>(emptyRoleValues)
@@ -58,7 +62,7 @@ export function ModelConfigPage({ api }: ModelConfigPageProps) {
         const nextValues = emptyRoleValues()
         for (const role of ModelRoleSchema.options) {
           const entry = assignmentsResult.find((a: any) => a.role === role)
-          nextValues[role] = entry?.providerId ?? null
+          nextValues[role] = entry?.modelSpec ?? entry?.providerId ?? null
         }
         setCurrentValues(nextValues)
         setPendingValues(() => {
@@ -94,8 +98,11 @@ export function ModelConfigPage({ api }: ModelConfigPageProps) {
     setModelFeedback(null)
     try {
       for (const role of ModelRoleSchema.options) {
-        if (pendingValues[role]) {
-          await api.setRoleAssignment({ role, modelSpec: pendingValues[role] })
+        if (pendingValues[role] !== (currentValues[role] ?? '')) {
+          await api.setRoleAssignment({
+            role,
+            modelSpec: pendingValues[role] || null,
+          })
         }
       }
       const nextValues = emptyRoleValues()
@@ -141,7 +148,7 @@ export function ModelConfigPage({ api }: ModelConfigPageProps) {
               >
                 <option value="">Auto-detect (best available)</option>
                 {Object.entries(modelsByProvider).map(([provider, models]) => (
-                  <optgroup key={provider} label={provider.charAt(0).toUpperCase() + provider.slice(1)}>
+                  <optgroup key={provider} label={optgroupLabel(provider, models)}>
                     {models.filter((m) => m.available).map((m) => (
                       <option key={m.id} value={m.id}>
                         {m.name}

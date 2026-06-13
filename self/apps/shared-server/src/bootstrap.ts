@@ -186,6 +186,13 @@ function providerDefaultModels(): string[] {
   return PROVIDER_DEFINITIONS.map((definition) => definition.defaultModelId);
 }
 
+function modelProviderCapabilities(definition: ProviderDefinitionEntry): string[] {
+  return [
+    'chat',
+    ...(definition.capabilities?.streaming ? ['streaming'] : []),
+  ];
+}
+
 // ─── Configuration helpers ─────────────────────────────────────────────────
 
 /**
@@ -361,7 +368,7 @@ export function buildProviderConfig(
     endpoint: definition.defaultEndpoint,
     modelId,
     isLocal: definition.isLocal,
-    capabilities: ['chat', 'streaming'],
+    capabilities: modelProviderCapabilities(definition),
     providerClass: definition.providerClass,
     vendor: definition.vendorKey,
   };
@@ -380,7 +387,7 @@ export function buildOllamaProviderConfig(
     endpoint: endpoint ?? definition.defaultEndpoint,
     modelId,
     isLocal: definition.isLocal,
-    capabilities: ['chat', 'streaming'],
+    capabilities: modelProviderCapabilities(definition),
     providerClass: definition.providerClass,
     vendor: definition.vendorKey,
   };

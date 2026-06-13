@@ -66,10 +66,11 @@ export function usePreferencesApi() {
         const record = await utilsRef.current.preferences.getRoleAssignments.fetch()
         return Object.entries(record).map(([role, assignment]) => ({
           role,
-          providerId: (assignment as any)?.modelSpec ?? null,
+          providerId: (assignment as any)?.providerId ?? null,
+          modelSpec: (assignment as any)?.modelSpec ?? null,
         }))
       },
-      setRoleAssignment: async (input: { role: string; modelSpec: string }) => {
+      setRoleAssignment: async (input: { role: string; modelSpec: string | null }) => {
         return setRoleAssignmentRef.current(input as any)
       },
       // Setup wizard

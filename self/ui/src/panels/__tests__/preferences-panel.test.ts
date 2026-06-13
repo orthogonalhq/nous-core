@@ -234,6 +234,7 @@ describe('Model selector API contract', () => {
         {
           role: 'orchestrators',
           providerId: '10000000-0000-0000-0000-000000000003',
+          modelSpec: 'ollama:llama3.2:3b',
         },
       ]),
       setRoleAssignment: async () => ({ success: true }),
@@ -280,6 +281,7 @@ describe('Model selector API contract', () => {
 
     const roleAssignment: RoleAssignmentDisplayEntry = {
       role: 'orchestrators',
+      modelSpec: 'ollama:llama3.2:3b',
       providerId: '10000000-0000-0000-0000-000000000003',
     };
     expect(roleAssignment.role).toBe('orchestrators');
@@ -294,12 +296,13 @@ describe('Model selector API contract', () => {
       {
         role: 'orchestrators',
         providerId: '10000000-0000-0000-0000-000000000003',
+        modelSpec: 'ollama:llama3.2:3b',
       },
     ]);
   });
 
   it('setRoleAssignment accepts a role and modelSpec', async () => {
-    let captured: { role: string; modelSpec: string } | null = null;
+    let captured: { role: string; modelSpec: string | null } | null = null;
     const api: PreferencesApi = {
       ...createFullApi(),
       setRoleAssignment: async (input) => {
