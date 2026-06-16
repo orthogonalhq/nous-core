@@ -615,6 +615,32 @@ export function ChatPanel(props: ChatPanelProps) {
     // --- Visible messages (ambient_large caps at 5 for performance) ---
     const visibleMessages = stage === 'ambient_large' ? mergedMessages.slice(-5) : mergedMessages
 
+    useEffect(() => {
+        const lastMessage = visibleMessages[visibleMessages.length - 1]
+        const assistantMessages = visibleMessages.filter((m) => m.role === 'assistant')
+        const lastAssistant = assistantMessages[assistantMessages.length - 1]
+
+        logChatPanelRenderer('render-snapshot', {
+            stage,
+            serverEntryCount: serverEntries.length,
+            localOverlayCount: localOverlay.length,
+            mergedMessageCount: mergedMessages.length,
+            visibleMessageCount: visibleMessages.length,
+            assistantCount: assistantMessages.length,
+            lastRole: lastMessage?.role ?? null,
+            lastContentLength: lastMessage?.content.length ?? 0,
+            lastAssistantTraceId: lastAssistant?.traceId ?? null,
+            lastAssistantContentLength: lastAssistant?.content.length ?? 0,
+            lastAssistantPreview: lastAssistant?.content.slice(0, 80) ?? null,
+        })
+    }, [
+        localOverlay.length,
+        mergedMessages,
+        serverEntries.length,
+        stage,
+        visibleMessages,
+    ])
+
     // --- Ambient gradient (shared across both ambient stages) ---
     const isAmbient = stage === 'ambient_small' || stage === 'ambient_large'
     const ambientGradient = isAmbient ? <div style={styles.ambientGradient} /> : null

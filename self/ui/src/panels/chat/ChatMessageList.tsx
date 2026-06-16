@@ -34,6 +34,24 @@ export function ChatMessageList({
         messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' })
     }, [messages])
 
+    useEffect(() => {
+        const assistantMessages = messages.filter((m) => m.role === 'assistant')
+        const lastMessage = messages[messages.length - 1]
+        const lastAssistant = assistantMessages[assistantMessages.length - 1]
+
+        console.warn('[ChatPanelRenderer] message-list-rendered', {
+            messageCount: messages.length,
+            assistantCount: assistantMessages.length,
+            lastRole: lastMessage?.role ?? null,
+            lastContentLength: lastMessage?.content.length ?? 0,
+            lastAssistantTraceId: lastAssistant?.traceId ?? null,
+            lastAssistantContentLength: lastAssistant?.content.length ?? 0,
+            lastAssistantPreview: lastAssistant?.content.slice(0, 80) ?? null,
+            sending,
+            activeTraceId,
+        })
+    }, [activeTraceId, messages, sending])
+
     const lastAssistantIndex = findLastAssistantIndex(messages)
 
     return (
@@ -95,6 +113,42 @@ function ChatMessageRow({
     const emptyResponseLogKey = emptyResponseDiagnostic
         ? getAssistantRenderLogKey(message)
         : null
+    const assistantRenderLogKey = isAssistant
+        ? getAssistantRenderLogKey(message)
+        : null
+
+    useEffect(() => {
+        if (!isAssistant || !assistantRenderLogKey) return
+
+        console.warn('[ChatPanelRenderer] assistant-row-rendered', {
+            traceId: message.traceId ?? null,
+            timestamp: message.timestamp,
+            contentLength: message.content.length,
+            contentPreview: message.content.slice(0, 80),
+            hasTextContent,
+            hasStructuredCards,
+            cardCount: message.cards?.length ?? 0,
+            hasThinkingContent: Boolean(message.thinkingContent),
+            hasThinkingUnavailable: Boolean(message.thinking_unavailable),
+            emptyResponseKind: message.empty_response_kind ?? null,
+            isLastAssistant,
+            sending,
+        })
+    }, [
+        assistantRenderLogKey,
+        hasStructuredCards,
+        hasTextContent,
+        isAssistant,
+        isLastAssistant,
+        message.cards?.length,
+        message.content,
+        message.empty_response_kind,
+        message.thinkingContent,
+        message.thinking_unavailable,
+        message.timestamp,
+        message.traceId,
+        sending,
+    ])
 
     useEffect(() => {
         if (!emptyResponseDiagnostic || !emptyResponseLogKey) return
