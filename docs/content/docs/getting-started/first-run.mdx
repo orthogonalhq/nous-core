@@ -90,7 +90,7 @@ If you already have projects or have completed the first-run flow before, Nous r
 
 During first run, Nous generates and persists:
 
-- **Default config** — Cortex tier 3, Ollama as the reasoner provider.
+- **Default config** — Cortex tier 3, Ollama as the default provider for all four model roles.
 - **Storage** — SQLite database in your data directory.
 - **Projects** — Empty; create your first project from the sidebar.
 - **Agent identity** — Your `name`, `personality`, and `profile` choices land in the `agent` block of `nous-config.json5`. Skipping any step keeps the typed defaults (`"Nous"`, `{ preset: "balanced" }`, `{}`) until you decide otherwise. A `welcomeMessageSent: boolean` field is also persisted; it flips to `true` after the agent's first welcome message lands in chat, and clears back to `false` on `firstRun.resetWizard` so a fresh first-run experience always re-fires the welcome. See [Configuration Schema § Agent](/docs/configuration/config-schema#agent).

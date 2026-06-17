@@ -29,8 +29,28 @@ The generator requires `definition.ts`, `adapter.ts`, `provider.ts`, and `index.
 | `vendorKey` | Certified provider identity, such as `anthropic`, `openai`, or `ollama` |
 | `adapterKey` | Adapter implementation key used by resolver/runtime, such as `anthropic`, `chat-completions`, or `ollama` |
 | `protocol` | Wire/API family, such as `anthropic-messages`, `chat-completions`, or `ollama` |
+| `executionCapabilityProfile` | Optional provider-definition declared execution profile for CLI-style providers: `one_shot_command`, `session_bound_command`, or `persistent_process`. Declared on the provider definition so selection-time role compatibility filtering can use it before constructing a runtime instance. |
 
 A vendor can reuse a shared adapter key when it speaks an existing protocol. OpenAI's `vendorKey` is `openai`, while its adapter key is `chat-completions`.
+
+Do not hand-author built-in provider UUIDs in leaves. Built-in provider ids are derived centrally from `vendorKey` by `self/subcortex/providers/src/provider-identity.ts` and hydrated into the generated `PROVIDER_DEFINITIONS` catalog. User/custom provider instances still receive generated persisted ids at runtime; certified built-in leaves should focus on semantic identity and metadata.
+
+For agent-CLI providers, lifecycle behavior is contextual. Declare the adapter's execution capability on the provider definition so model-selection and assignment surfaces can filter incompatible roles before runtime. The runtime CLI session manager still enforces the same capability contract defensively when a caller bypasses Settings/config validation.
+
+Example:
+
+```ts
+export const CODEX_CLI_PROVIDER_DEFINITION = {
+  vendorKey: 'codex-cli',
+  displayName: 'Codex CLI',
+  protocol: AGENT_CLI_PROTOCOL_ID,
+  adapterKey: 'codex-cli',
+  executionCapabilityProfile: 'session_bound_command',
+  // No wellKnownProviderId here — generated centrally from vendorKey.
+} as const satisfies ProviderDefinitionLeaf;
+```
+
+`session_bound_command` means the CLI can maintain command/session context but does not expose a strict persistent process suitable for Cortex persistent chat. Cortex Chat/System require `persistent_process`; Settings disables/rejects command-bound CLI providers for those roles while leaving them available for compatible agent roles.
 
 ## Protocol Decision Table
 

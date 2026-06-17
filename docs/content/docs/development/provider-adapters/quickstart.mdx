@@ -38,8 +38,10 @@ self/subcortex/providers/src/providers/<vendor>/
 3. In `provider.ts`, export `providerFactory`.
 4. In `index.ts`, re-export the leaf's public surface. The generator requires this file as part of leaf validation, but imports `definition.ts`, `adapter.ts`, and `provider.ts` directly.
 5. Keep definitions as metadata only: no environment reads, network calls, concrete provider instantiation, or bootstrap branches.
+6. Do not hand-author `wellKnownProviderId`. Built-in provider IDs are deterministically derived from the provider-definition `vendorKey`; use a semantic `vendorKey` instead.
+7. For CLI-style providers, declare `executionCapabilityProfile` on the provider definition (e.g. `session_bound_command` or `persistent_process`). Selection-time role compatibility filtering uses this profile to determine which model roles the provider can fill. See [Schemas & ABI Reference](/docs/development/provider-adapters/schemas-abi-reference) for profile values and [Testing Checklist](/docs/development/provider-adapters/testing-checklist) for role assignment test expectations.
 
-The definition should use `as const satisfies ProviderDefinition`. The factory should use `as const satisfies ProviderFactoryModule`.
+The definition should use `as const satisfies ProviderDefinitionLeaf`. The generated provider catalog hydrates each leaf into a full `ProviderDefinition` by deriving the built-in `wellKnownProviderId` from `vendorKey`. The factory should use `as const satisfies ProviderFactoryModule`.
 
 ## Regenerate Catalogs
 

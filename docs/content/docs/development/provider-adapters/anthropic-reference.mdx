@@ -56,7 +56,7 @@ export const ANTHROPIC_PROVIDER_DEFINITION = {
     nativeToolUse: true,
   },
   isLocal: false,
-} as const satisfies ProviderDefinition;
+} as const satisfies ProviderDefinitionLeaf;
 ```
 
 Copy the shape, not the values. Your provider needs its own `vendorKey`, protocol, adapter key, endpoint, default model, auth metadata, and capabilities.

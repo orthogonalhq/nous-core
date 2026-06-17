@@ -50,11 +50,21 @@ Saved cloud keys are restored on startup, so configured cloud models should reap
 
 ## Model Assignments
 
-Assign model roles to providers. For example, the `reasoner` role might be fulfilled by Ollama, OpenAI, or Anthropic. The router uses these assignments to route requests.
+Assign model roles to providers. For example, the `cortex-chat` role might be fulfilled by Ollama, OpenAI, or Anthropic. The router uses these assignments to route requests.
 
-When you save a model selection, Nous applies the change immediately — the in-memory provider configuration and reasoner assignment are updated at runtime without requiring a restart. Invalid model specs are rejected gracefully without corrupting the active provider config.
+When you save a model selection, Nous applies the change immediately — the in-memory provider configuration and model role assignment are updated at runtime without requiring a restart. Invalid model specs are rejected gracefully without corrupting the active provider config.
 
 Principal and System model selections are saved separately and restored on startup. When a saved cloud selection is restored, Nous automatically moves out of a strict local-only profile so the remote provider can be routed without hand-editing config.
+
+### Local CLI Providers
+
+Certified CLI-backed providers, such as Codex CLI, are local providers. They use local tool authentication rather than vault-backed API keys, so the corresponding CLI must already be installed and logged in on the machine running Nous.
+
+CLI-backed providers declare an `executionCapabilityProfile` on their provider definition. Selection-time compatibility validation uses this profile to determine which model roles a CLI provider can fill. Cortex Chat and Cortex System roles require a `persistent_process` profile; providers that declare a different profile are disabled or rejected for those roles at assignment time rather than failing at runtime.
+
+Codex CLI declares `session_bound_command` and is incompatible with Cortex Chat/System persistent-process roles. It remains available for compatible command-bound agent roles. Transient and batch Codex work continues to use one-shot `codex exec`.
+
+CLI providers that satisfy the required role profile can be used in chat-bound contexts. The model router selects a provider id; the runtime CLI session manager keeps a session-keyed wrapper for chat-bound turns. If a chat-bound CLI session cannot be started or restarted, Nous surfaces a provider-session error instead of silently falling back to one-shot behavior. This runtime fail-close is defense-in-depth for bypassed or stale configuration; the primary guardrail is selection-time role compatibility. Role compatibility policy is defined in `self/apps/shared-server/src/provider-capability-compatibility.ts`.
 
 ## System Health
 

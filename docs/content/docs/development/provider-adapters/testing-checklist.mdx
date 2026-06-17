@@ -13,6 +13,8 @@ Every provider contribution should include tests that prove the provider's own A
 - `PROVIDER_DEFINITIONS` contains the provider.
 - `vendorKey`, `adapterKey`, `protocol`, auth metadata, default endpoint, and default model are correct.
 - Local providers mark `auth.required: false`; remote providers declare their env var and vault namespace.
+- Built-in provider leaves do not hand-author `wellKnownProviderId`; generated catalogs derive stable ids from `vendorKey`.
+- CLI-style providers declare the correct `executionCapabilityProfile` on the provider definition.
 
 ## Codegen Tests
 
@@ -26,6 +28,7 @@ Every provider contribution should include tests that prove the provider's own A
 - `parseResponse(...)` handles text output, tool calls, malformed output, and provider-specific response shapes.
 - `parseResponse(...)` returns a fallback instead of throwing.
 - Streaming and tool-use behavior are covered when the adapter declares those capabilities.
+- CLI-style adapters cover request/response behavior appropriate to the execution profile declared by the provider definition.
 
 ## Provider Implementation Tests
 
@@ -40,6 +43,9 @@ Every provider contribution should include tests that prove the provider's own A
 - `resolveAdapterKeyFromConfig(...)` resolves through provider definitions and falls back safely.
 - `ProviderRegistry` can construct the provider when credentials are present.
 - Missing credentials skip or fail according to current runtime behavior.
+- Agent-CLI providers cover runtime CLI session manager behavior when chat-bound sessions are supported: fixture-aware session keys, wrapper reuse, scoped teardown, restart failure surfacing, and one-shot preservation for transient/batch invocations.
+- Role assignment tests prove incompatible CLI providers are disabled/rejected for Cortex persistent-chat roles and remain selectable for compatible agent roles.
+- Provider registry tests prove both derived built-in ids and legacy persisted ids resolve to the same built-in provider definition where compatibility aliases are required.
 
 ## Suggested Commands
 
