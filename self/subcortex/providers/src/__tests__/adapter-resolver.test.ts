@@ -52,6 +52,7 @@ describe('adapter resolver', () => {
     expect(ADAPTER_MODULES.map((module) => module.adapterKey)).toEqual([
       'anthropic',
       'codex-cli',
+      'chat-completions',
       'ollama',
       'chat-completions',
       'text',

@@ -53,6 +53,7 @@ describe('provider definition to adapter to registry pipeline', () => {
     expect(PROVIDER_DEFINITIONS.map((definition) => definition.vendorKey)).toEqual([
       'anthropic',
       'codex-cli',
+      'deepinfra',
       'ollama',
       'openai',
     ]);
@@ -122,6 +123,11 @@ describe('provider definition to adapter to registry pipeline', () => {
         expected: 'Chat response',
       },
       {
+        adapterKey: 'chat-completions',
+        output: { choices: [{ message: { content: 'DeepInfra response' } }] },
+        expected: 'DeepInfra response',
+      },
+      {
         adapterKey: 'codex-cli',
         output: 'Codex CLI response',
         expected: 'Codex CLI response',
@@ -160,6 +166,7 @@ describe('provider definition to adapter to registry pipeline', () => {
     const expectedClassByVendor = {
       anthropic: AnthropicProvider,
       'codex-cli': CodexCliProvider,
+      'deepinfra': ChatCompletionsProvider,
       openai: ChatCompletionsProvider,
       ollama: OllamaProvider,
     };
