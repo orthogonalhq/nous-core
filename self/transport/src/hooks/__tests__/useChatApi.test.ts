@@ -67,6 +67,26 @@ describe('useChatApi — getHistory', () => {
     expect(history[1].thinkingContent).toBe('I should greet the user warmly')
   })
 
+  it('maps traceId from history entry metadata', async () => {
+    mockFetch.getHistory.mockResolvedValueOnce({
+      entries: [
+        {
+          role: 'assistant',
+          content: 'Hi there',
+          timestamp: '2026-04-14T00:00:01Z',
+          metadata: { traceId: 'trace-from-stm' },
+        },
+      ],
+      summary: undefined,
+      tokenCount: 0,
+    })
+
+    const { result } = renderHook(() => useChatApi({ projectId: 'proj-1' }))
+    const history = await result.current.getHistory()
+
+    expect(history[0].traceId).toBe('trace-from-stm')
+  })
+
   it('maps empty response and thinking-unavailable metadata from history entries', async () => {
     mockFetch.getHistory.mockResolvedValueOnce({
       entries: [

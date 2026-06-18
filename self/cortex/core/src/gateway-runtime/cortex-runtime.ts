@@ -1099,6 +1099,7 @@ implements IPrincipalSystemGatewayRuntime, ISystemInboxSubmissionService {
       // SP 1.15 SKIP policy continuity per Invariant I-13).
       const assistantContent = emptyResponseKind ? markerForKind(emptyResponseKind) : assistantResponse;
       const assistantMetadata: Record<string, unknown> = {};
+      assistantMetadata.traceId = traceId;
       if (contentType && contentType !== 'text') assistantMetadata.contentType = contentType;
       if (thinkingContent) assistantMetadata.thinkingContent = thinkingContent;
       if (sessionId) assistantMetadata.sessionId = sessionId;

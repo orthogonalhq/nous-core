@@ -171,17 +171,6 @@ function renderSendingPanel() {
   return { ...result, resolveSend, flushHistory }
 }
 
-/**
- * Creates a ChatPanel in idle state (not sending).
- */
-function renderIdlePanel() {
-  const mockApi: ChatAPI = {
-    send: vi.fn().mockResolvedValue({ response: 'ok', traceId: 'trace-1' }),
-    getHistory: async () => [],
-  }
-  return render(<ChatPanel chatApi={mockApi} />)
-}
-
 describe('ChatPanel — Inline Thought Stream', () => {
   beforeEach(() => {
     latestCallbacks.clear()
@@ -253,7 +242,38 @@ describe('ChatPanel — Inline Thought Stream', () => {
     expect(screen.getByText('Reflecting\u2026')).toBeTruthy()
   })
 
-  it('shows turn-complete as "Done" (Q5)', () => {
+  it('treats turn-complete as a lifecycle boundary, not a persistent "Done" thought', async () => {
+    const { resolveSend, flushHistory } = renderSendingPanel()
+
+    act(() => {
+      emitEvent('thought:turn-lifecycle', makeLifecyclePayload({
+        phase: 'gateway-run',
+        status: 'started',
+      }))
+    })
+
+    expect(screen.getByText('Thinking\u2026')).toBeTruthy()
+
+    act(() => {
+      emitEvent('thought:turn-lifecycle', makeLifecyclePayload({
+        phase: 'turn-complete',
+        status: 'completed',
+      }))
+    })
+
+    expect(screen.queryByText('Done')).toBeNull()
+    expect(screen.queryByTestId('inline-thought-group')).toBeNull()
+
+    await act(async () => {
+      resolveSend({ response: 'Complete', traceId: 'trace-1' })
+    })
+    await act(async () => { flushHistory() })
+
+    expect(screen.getByText('1 action')).toBeTruthy()
+    expect(screen.queryByText('Done')).toBeNull()
+  })
+
+  it('suppresses bare turn-complete events', () => {
     renderSendingPanel()
 
     act(() => {
@@ -263,7 +283,8 @@ describe('ChatPanel — Inline Thought Stream', () => {
       }))
     })
 
-    expect(screen.getByText('Done')).toBeTruthy()
+    expect(screen.queryByText('Done')).toBeNull()
+    expect(screen.queryByTestId('inline-thought-group')).toBeNull()
   })
 
   it('suppresses turn-start, opctl-check, stm-finalize, trace-record, response-resolved (Q5)', () => {

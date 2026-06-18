@@ -195,6 +195,7 @@ export function ChatPanel(props: ChatPanelProps) {
 
     // --- Inline thought items (filtered, prose-style) ---
     const [inlineThoughts, setInlineThoughts] = useState<InlineThoughtItem[]>([])
+    const [completedTraceIds, setCompletedTraceIds] = useState<ReadonlySet<string>>(() => new Set())
 
     useEventSubscription({
         channels: ['thought:pfc-decision', 'thought:turn-lifecycle'],
@@ -202,6 +203,17 @@ export function ChatPanel(props: ChatPanelProps) {
             const event: ThoughtEvent = {
                 channel: channel as ThoughtEvent['channel'],
                 payload: payload as any,
+            }
+            if (event.channel === 'thought:turn-lifecycle') {
+                const lifecycle = event.payload as { phase?: string; traceId?: string }
+                if (lifecycle.phase === 'turn-complete' && typeof lifecycle.traceId === 'string') {
+                    setCompletedTraceIds(prev => {
+                        if (prev.has(lifecycle.traceId!)) return prev
+                        const next = new Set(prev)
+                        next.add(lifecycle.traceId!)
+                        return next
+                    })
+                }
             }
             const item = formatThoughtEvent(event)
             if (item) {
@@ -224,8 +236,8 @@ export function ChatPanel(props: ChatPanelProps) {
         [inlineThoughts],
     )
     const activeTraceId = useMemo(
-        () => deriveActiveTraceId(inlineThoughts, assistantTraceIds),
-        [inlineThoughts, assistantTraceIds],
+        () => deriveActiveTraceId(inlineThoughts, assistantTraceIds, completedTraceIds),
+        [inlineThoughts, assistantTraceIds, completedTraceIds],
     )
 
     // --- Streaming content buffer (progressive rendering) ---

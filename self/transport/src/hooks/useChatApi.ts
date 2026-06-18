@@ -14,6 +14,7 @@ interface ChatApiShape {
     role: 'user' | 'assistant'
     content: string
     timestamp: string
+    traceId?: string
     contentType?: 'text' | 'openui'
     thinkingContent?: string
     empty_response_kind?: 'thinking_only_no_finalizer' | 'no_output_at_all'
@@ -81,17 +82,25 @@ export function useChatApi(options?: UseChatApiOptions): ChatApiShape {
         const data = await utilsRef.current.chat.getHistory.fetch(params as any)
         return (data?.entries ?? [])
           .filter((e: any) => e.role === 'user' || e.role === 'assistant')
-          .map((e: any) => ({
-            role: e.role as 'user' | 'assistant',
-            content: e.content,
-            timestamp: e.timestamp,
-            ...(e.metadata?.contentType ? { contentType: e.metadata.contentType as 'text' | 'openui' } : {}),
-            ...(e.metadata?.thinkingContent ? { thinkingContent: e.metadata.thinkingContent as string } : {}),
-            ...(e.metadata?.empty_response_kind ? { empty_response_kind: e.metadata.empty_response_kind as 'thinking_only_no_finalizer' | 'no_output_at_all' } : {}),
-            ...(e.metadata?.thinking_unavailable ? { thinking_unavailable: e.metadata.thinking_unavailable as { reason: string; ref: string } } : {}),
-            ...(e.metadata?.actionOutcome ? { actionOutcome: e.metadata.actionOutcome as { actionType: string; label: string; timestamp: string } } : {}),
-            ...(e.metadata?.cards ? { cards: e.metadata.cards as Array<{ type: string; props: Record<string, unknown> }> } : {}),
-          }))
+          .map((e: any) => {
+            const traceId = typeof e.traceId === 'string'
+              ? e.traceId
+              : typeof e.metadata?.traceId === 'string'
+                ? e.metadata.traceId
+                : undefined
+            return {
+              role: e.role as 'user' | 'assistant',
+              content: e.content,
+              timestamp: e.timestamp,
+              ...(traceId ? { traceId } : {}),
+              ...(e.metadata?.contentType ? { contentType: e.metadata.contentType as 'text' | 'openui' } : {}),
+              ...(e.metadata?.thinkingContent ? { thinkingContent: e.metadata.thinkingContent as string } : {}),
+              ...(e.metadata?.empty_response_kind ? { empty_response_kind: e.metadata.empty_response_kind as 'thinking_only_no_finalizer' | 'no_output_at_all' } : {}),
+              ...(e.metadata?.thinking_unavailable ? { thinking_unavailable: e.metadata.thinking_unavailable as { reason: string; ref: string } } : {}),
+              ...(e.metadata?.actionOutcome ? { actionOutcome: e.metadata.actionOutcome as { actionType: string; label: string; timestamp: string } } : {}),
+              ...(e.metadata?.cards ? { cards: e.metadata.cards as Array<{ type: string; props: Record<string, unknown> }> } : {}),
+            }
+          })
       },
       sendAction: async (action: CardAction) => {
         const input: Record<string, unknown> = { action }
