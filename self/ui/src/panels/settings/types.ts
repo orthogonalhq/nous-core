@@ -13,10 +13,11 @@ export type { ShellMode } from '../../components/shell/types'
 
 // ─── Canonical types (primary definitions — formerly in PreferencesPanel.tsx) ──
 
-export type Provider = 'anthropic' | 'openai'
+export type Provider = string
 
 export interface ApiKeyEntry {
   provider: Provider
+  displayName: string
   configured: boolean
   maskedKey: string | null
   createdAt: string | null

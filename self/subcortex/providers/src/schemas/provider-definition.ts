@@ -31,9 +31,23 @@ export type ProviderAdapterKey =
 export const ProviderCredentialPurposeSchema = z.literal('api_key');
 export type ProviderCredentialPurpose = z.infer<typeof ProviderCredentialPurposeSchema>;
 
+export const ProviderAuthHeaderSchemeSchema = z.enum(['raw', 'bearer']);
+export type ProviderAuthHeaderScheme = z.infer<typeof ProviderAuthHeaderSchemeSchema>;
+
+export const ProviderAuthHeaderDefinitionSchema = z.object({
+  name: z.string().min(1),
+  scheme: ProviderAuthHeaderSchemeSchema,
+}).strict();
+
+export interface ProviderAuthHeaderDefinition {
+  name: string;
+  scheme: ProviderAuthHeaderScheme;
+}
+
 export const ProviderAuthDefinitionSchema = z.object({
   envVar: z.string().min(1).optional(),
   vaultKeyNamespace: z.string().min(1).optional(),
+  header: ProviderAuthHeaderDefinitionSchema.optional(),
   required: z.boolean(),
   purpose: ProviderCredentialPurposeSchema,
 }).strict();
@@ -41,6 +55,7 @@ export const ProviderAuthDefinitionSchema = z.object({
 export interface ProviderAuthDefinition {
   envVar?: string;
   vaultKeyNamespace?: string;
+  header?: ProviderAuthHeaderDefinition;
   required: boolean;
   purpose: ProviderCredentialPurpose;
 }
@@ -136,6 +151,7 @@ export const ProviderDefinitionSchema = z.object({
   headers: z.record(z.string(), z.string()).optional(),
   modelListEndpoint: z.string().min(1).optional(),
   healthCheckEndpoint: z.string().min(1).optional(),
+  chatModelPrefixes: z.array(z.string().min(1)).optional(),
   capabilities: ProviderCapabilityDefinitionSchema.optional(),
   executionCapabilityProfile: CliExecutionCapabilityProfileSchema.optional(),
   agentCli: AgentCliProviderMetadataSchema.optional(),
@@ -156,6 +172,7 @@ export interface ProviderDefinition {
   headers?: Record<string, string>;
   modelListEndpoint?: string;
   healthCheckEndpoint?: string;
+  chatModelPrefixes?: string[];
   capabilities?: ProviderCapabilityDefinition;
   executionCapabilityProfile?: CliExecutionCapabilityProfile;
   agentCli?: AgentCliProviderMetadata;

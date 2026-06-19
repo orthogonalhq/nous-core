@@ -35,10 +35,18 @@ const providerDefinitionsMock = vi.hoisted(() => ({
       auth: {
         envVar: 'ANTHROPIC_API_KEY',
         vaultKeyNamespace: 'anthropic',
+        header: {
+          name: 'x-api-key',
+          scheme: 'raw',
+        },
         required: true,
         purpose: 'api_key',
       },
-      capabilities: { streaming: true },
+      headers: {
+        'anthropic-version': '2023-06-01',
+      },
+      modelListEndpoint: '/v1/models',
+      capabilities: { streaming: true, modelListing: true },
       isLocal: false,
     },
     {
@@ -91,7 +99,7 @@ const providerDefinitionsMock = vi.hoisted(() => ({
     },
     {
       vendorKey: 'openai',
-      displayName: 'Chat Completions',
+      displayName: 'OpenAI',
       wellKnownProviderId: '10000000-0000-0000-0000-000000000002',
       providerType: 'text',
       providerClass: 'remote_text',
@@ -102,11 +110,41 @@ const providerDefinitionsMock = vi.hoisted(() => ({
       auth: {
         envVar: 'OPENAI_API_KEY',
         vaultKeyNamespace: 'openai',
+        header: {
+          name: 'Authorization',
+          scheme: 'bearer',
+        },
         required: true,
         purpose: 'api_key',
       },
       modelListEndpoint: '/v1/models',
-      capabilities: { streaming: true },
+      chatModelPrefixes: ['gpt-4o', 'gpt-4', 'o1', 'o3', 'o4'],
+      capabilities: { streaming: true, modelListing: true },
+      isLocal: false,
+    },
+    {
+      vendorKey: 'fixture',
+      displayName: 'Fixture AI',
+      wellKnownProviderId: '10000000-0000-0000-0000-000000000005',
+      providerType: 'text',
+      providerClass: 'remote_text',
+      protocol: 'chat-completions',
+      adapterKey: 'chat-completions',
+      defaultEndpoint: 'https://fixture.example.com',
+      defaultModelId: 'fixture-default',
+      auth: {
+        envVar: 'FIXTURE_API_KEY',
+        vaultKeyNamespace: 'fixture',
+        header: {
+          name: 'X-Fixture-Key',
+          scheme: 'raw',
+        },
+        required: true,
+        purpose: 'api_key',
+      },
+      modelListEndpoint: '/v1/models',
+      healthCheckEndpoint: '/health',
+      capabilities: { streaming: true, modelListing: true },
       isLocal: false,
     },
   ],
@@ -154,7 +192,7 @@ vi.mock('../src/bootstrap', () => ({
 
 vi.mock('@nous/subcortex-providers', () => providerDefinitionsMock);
 
-function vaultKey(provider: 'anthropic' | 'openai'): string {
+function vaultKey(provider: string): string {
   return `api_key_${provider}`;
 }
 
@@ -421,6 +459,7 @@ describe('preferences router', () => {
       expect(apiKeys).toContainEqual(
         expect.objectContaining({
           provider: 'anthropic',
+          displayName: 'Anthropic',
           configured: true,
           maskedKey: 'sk-ant-...1234',
         }),
@@ -451,10 +490,38 @@ describe('preferences router', () => {
       expect(apiKeys).toContainEqual(
         expect.objectContaining({
           provider: 'openai',
+          displayName: 'OpenAI',
           configured: false,
           maskedKey: null,
         }),
       );
+    });
+
+    it('tests fixture API keys through health-check endpoint metadata', async () => {
+      const { ctx } = createMockContext();
+      const preferencesRouter = await loadPreferencesRouter();
+      const caller = preferencesRouter.createCaller(ctx);
+      const fetchMock = vi.mocked(globalThis.fetch);
+
+      fetchMock.mockImplementationOnce(
+        async (input: RequestInfo | URL, init?: RequestInit) => {
+          expect(input).toBe('https://fixture.example.com/health');
+          expect(init).toMatchObject({
+            method: 'GET',
+            headers: {
+              'X-Fixture-Key': 'fixture-key',
+            },
+          });
+          return jsonResponse({ ok: true });
+        },
+      );
+
+      const result = await caller.testApiKey({
+        provider: 'fixture' as never,
+        key: 'fixture-key',
+      });
+
+      expect(result).toEqual({ valid: true, error: null });
     });
 
     it('keeps Codex CLI out of API-key credential rows', async () => {
@@ -467,7 +534,15 @@ describe('preferences router', () => {
       expect(apiKeys.map((entry) => entry.provider)).toEqual([
         'anthropic',
         'openai',
+        'fixture',
       ]);
+      expect(apiKeys).toContainEqual(
+        expect.objectContaining({
+          provider: 'fixture',
+          displayName: 'Fixture AI',
+          configured: false,
+        }),
+      );
     });
   });
 
@@ -1014,6 +1089,62 @@ describe('preferences router', () => {
       ]);
     });
 
+    it('discovers a fixture OpenAI-compatible provider without first-party prefix filtering', async () => {
+      const { ctx, credentialVaultService } = createMockContext();
+      const preferencesRouter = await loadPreferencesRouter();
+      const caller = preferencesRouter.createCaller(ctx);
+      const fetchMock = vi.mocked(globalThis.fetch);
+
+      await credentialVaultService.store(SYSTEM_APP_ID, {
+        key: vaultKey('fixture'),
+        value: 'fixture-key',
+        credential_type: 'api_key',
+        target_host: 'fixture.example.com',
+        injection_location: 'header',
+        injection_key: 'X-Fixture-Key',
+      });
+
+      fetchMock.mockImplementationOnce(
+        async (input: RequestInfo | URL, init?: RequestInit) => {
+          expect(input).toBe('https://fixture.example.com/v1/models');
+          expect(init).toMatchObject({
+            method: 'GET',
+            headers: {
+              'X-Fixture-Key': 'fixture-key',
+            },
+          });
+
+          return jsonResponse({
+            object: 'list',
+            data: [
+              { id: 'fixture-chat', object: 'model', owned_by: 'fixture' },
+              { id: 'fixture-embedding', object: 'model', owned_by: 'fixture' },
+            ],
+          });
+        },
+      );
+
+      const result = await caller.getAvailableModels();
+
+      expect(result.models).toEqual([
+        {
+          id: 'fixture:fixture-chat',
+          name: 'fixture-chat',
+          provider: 'fixture',
+          providerLabel: 'Fixture AI',
+          available: true,
+        },
+        {
+          id: 'fixture:fixture-embedding',
+          name: 'fixture-embedding',
+          provider: 'fixture',
+          providerLabel: 'Fixture AI',
+          available: true,
+        },
+        CODEX_CLI_DEFAULT_MODEL,
+      ]);
+    });
+
     it('skips providers without keys and keeps Ollama detection unchanged', async () => {
       const { ctx } = createMockContext();
       const preferencesRouter = await loadPreferencesRouter();
@@ -1175,6 +1306,64 @@ describe('preferences router', () => {
         },
         CODEX_CLI_DEFAULT_MODEL,
       ]);
+    });
+
+    it('invalidates cached provider models when keys are updated or deleted', async () => {
+      const { ctx, credentialVaultService } = createMockContext();
+      const preferencesRouter = await loadPreferencesRouter();
+      const caller = preferencesRouter.createCaller(ctx);
+      const fetchMock = vi.mocked(globalThis.fetch);
+
+      await credentialVaultService.store(SYSTEM_APP_ID, {
+        key: vaultKey('openai'),
+        value: 'sk-openai-cache-1',
+        credential_type: 'api_key',
+        target_host: 'api.openai.com',
+        injection_location: 'header',
+        injection_key: 'Authorization',
+      });
+
+      fetchMock
+        .mockImplementationOnce(
+          async (_input: RequestInfo | URL, init?: RequestInit) => {
+            expect(init?.headers).toMatchObject({
+              Authorization: 'Bearer sk-openai-cache-1',
+            });
+            return jsonResponse({
+              object: 'list',
+              data: [{ id: 'gpt-4o', object: 'model', owned_by: 'openai' }],
+            });
+          },
+        )
+        .mockImplementationOnce(
+          async (_input: RequestInfo | URL, init?: RequestInit) => {
+            expect(init?.headers).toMatchObject({
+              Authorization: 'Bearer sk-openai-cache-2',
+            });
+            return jsonResponse({
+              object: 'list',
+              data: [{ id: 'o3', object: 'model', owned_by: 'openai' }],
+            });
+          },
+        );
+
+      const first = await caller.getAvailableModels();
+      await caller.setApiKey({
+        provider: 'openai',
+        key: 'sk-openai-cache-2',
+      });
+      const second = await caller.getAvailableModels();
+      await caller.deleteApiKey({ provider: 'openai' });
+      const third = await caller.getAvailableModels();
+
+      expect(fetchMock).toHaveBeenCalledTimes(2);
+      expect(first.models[0]).toEqual(
+        expect.objectContaining({ id: 'openai:gpt-4o' }),
+      );
+      expect(second.models[0]).toEqual(
+        expect.objectContaining({ id: 'openai:o3' }),
+      );
+      expect(third.models).toEqual([CODEX_CLI_DEFAULT_MODEL]);
     });
   });
 });
