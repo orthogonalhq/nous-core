@@ -46,6 +46,7 @@ function configFromDefinition(definition: (typeof PROVIDER_DEFINITIONS)[number])
 afterEach(() => {
   delete process.env.ANTHROPIC_API_KEY;
   delete process.env.OPENAI_API_KEY;
+  delete process.env.MOONSHOT_API_KEY;
 });
 
 describe('provider definition to adapter to registry pipeline', () => {
@@ -53,6 +54,7 @@ describe('provider definition to adapter to registry pipeline', () => {
     expect(PROVIDER_DEFINITIONS.map((definition) => definition.vendorKey)).toEqual([
       'anthropic',
       'codex-cli',
+      'moonshot',
       'ollama',
       'openai',
     ]);
@@ -60,6 +62,7 @@ describe('provider definition to adapter to registry pipeline', () => {
       'claude-sonnet-4-20250514',
     );
     expect(resolveProviderDefinition('openai').adapterKey).toBe('chat-completions');
+    expect(resolveProviderDefinition('moonshot').adapterKey).toBe('chat-completions');
     expect(resolveProviderDefinition('ollama').auth.required).toBe(false);
   });
 
@@ -155,11 +158,13 @@ describe('provider definition to adapter to registry pipeline', () => {
   it('constructs providers from registry-derived definitions with env-var credentials', () => {
     process.env.ANTHROPIC_API_KEY = 'test-anthropic-key';
     process.env.OPENAI_API_KEY = 'test-openai-key';
+    process.env.MOONSHOT_API_KEY = 'test-moonshot-key';
 
     const registry = new ProviderRegistry(createEmptyConfig());
     const expectedClassByVendor = {
       anthropic: AnthropicProvider,
       'codex-cli': CodexCliProvider,
+      moonshot: ChatCompletionsProvider,
       openai: ChatCompletionsProvider,
       ollama: OllamaProvider,
     };
@@ -195,6 +200,7 @@ describe('provider definition to adapter to registry pipeline', () => {
       LaneAwareProvider,
     );
     expect(registry.getProvider(resolveProviderDefinition('openai').wellKnownProviderId)).toBeNull();
+    expect(registry.getProvider(resolveProviderDefinition('moonshot').wellKnownProviderId)).toBeNull();
     expect(registry.getProvider(resolveProviderDefinition('ollama').wellKnownProviderId)).toBeInstanceOf(
       LaneAwareProvider,
     );
