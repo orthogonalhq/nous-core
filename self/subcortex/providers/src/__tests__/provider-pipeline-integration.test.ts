@@ -16,7 +16,9 @@ import {
   defineProviderAdapter,
   resolveProviderDefinition,
   textAdapter,
+  huggingfaceTgiAdapter,
 } from '../index.js';
+import { preprocess } from 'zod/v4';
 
 const TRACE_ID = '550e8400-e29b-41d4-a716-446655440000' as TraceId;
 
@@ -53,6 +55,7 @@ describe('provider definition to adapter to registry pipeline', () => {
     expect(PROVIDER_DEFINITIONS.map((definition) => definition.vendorKey)).toEqual([
       'anthropic',
       'codex-cli',
+      'huggingface-tgi',
       'ollama',
       'openai',
     ]);
@@ -61,6 +64,7 @@ describe('provider definition to adapter to registry pipeline', () => {
     );
     expect(resolveProviderDefinition('openai').adapterKey).toBe('chat-completions');
     expect(resolveProviderDefinition('ollama').auth.required).toBe(false);
+    expect(resolveProviderDefinition('huggingface-tgi').adapterKey).toBe('chat-completions')
   });
 
   it('makes a leaf provider definition discoverable through typed aggregation', () => {
@@ -155,6 +159,7 @@ describe('provider definition to adapter to registry pipeline', () => {
   it('constructs providers from registry-derived definitions with env-var credentials', () => {
     process.env.ANTHROPIC_API_KEY = 'test-anthropic-key';
     process.env.OPENAI_API_KEY = 'test-openai-key';
+    // process.env.HUGGINGFACE_API_KEY = 'test-hf-key';
 
     const registry = new ProviderRegistry(createEmptyConfig());
     const expectedClassByVendor = {
@@ -162,6 +167,8 @@ describe('provider definition to adapter to registry pipeline', () => {
       'codex-cli': CodexCliProvider,
       openai: ChatCompletionsProvider,
       ollama: OllamaProvider,
+      'huggingface-tgi': ChatCompletionsProvider
+
     };
 
     for (const definition of PROVIDER_DEFINITIONS) {
@@ -194,6 +201,7 @@ describe('provider definition to adapter to registry pipeline', () => {
     expect(registry.getProvider(resolveProviderDefinition('codex-cli').wellKnownProviderId)).toBeInstanceOf(
       LaneAwareProvider,
     );
+    expect(registry.getProvider(resolveProviderDefinition('huggingface-tgi').wellKnownProviderId)).toBeNull()
     expect(registry.getProvider(resolveProviderDefinition('openai').wellKnownProviderId)).toBeNull();
     expect(registry.getProvider(resolveProviderDefinition('ollama').wellKnownProviderId)).toBeInstanceOf(
       LaneAwareProvider,

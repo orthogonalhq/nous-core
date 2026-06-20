@@ -419,12 +419,12 @@ describe('ProviderRegistry', () => {
   });
 
   it('skipped cloud entry can be registered after construction via registerProvider', () => {
-    // No ANTHROPIC_API_KEY set — Anthropic entry skipped during construction
+    // No ANTHROPIC_API_KEY set — Anthropic entry skipped during construction.
     const registry = new ProviderRegistry({
       get: () => ({
         providers: [
           {
-            id: '10000000-0000-0000-0000-000000000004',
+            id: '10000000-0000-0000-0000-000000000001',
             name: 'anthropic',
             type: 'text',
             endpoint: 'https://api.anthropic.com',
@@ -442,13 +442,15 @@ describe('ProviderRegistry', () => {
 
     // Verify skipped
     expect(
-      registry.getProvider('10000000-0000-0000-0000-000000000004' as any),
+      registry.getProvider('10000000-0000-0000-0000-000000000001' as any),
     ).toBeNull();
 
-    // Simulate loadStoredApiKeys → registerStoredProviders
     process.env.ANTHROPIC_API_KEY = 'test-key';
+
+    // Simulate loadStoredApiKeys → registerStoredProviders.
+    registry.removeProvider('10000000-0000-0000-0000-000000000004' as any);
     registry.registerProvider({
-      id: '10000000-0000-0000-0000-000000000004' as any,
+      id: '10000000-0000-0000-0000-000000000001' as any,
       name: 'anthropic',
       type: 'text',
       endpoint: 'https://api.anthropic.com',
@@ -459,7 +461,7 @@ describe('ProviderRegistry', () => {
     });
 
     expect(
-      registry.getProvider('10000000-0000-0000-0000-000000000004' as any),
+      registry.getProvider('10000000-0000-0000-0000-000000000001' as any),
     ).toBeInstanceOf(LaneAwareProvider);
     expect(registry.listProviders()).toHaveLength(1);
   });
