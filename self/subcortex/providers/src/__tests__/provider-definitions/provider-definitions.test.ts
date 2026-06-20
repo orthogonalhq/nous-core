@@ -22,7 +22,7 @@ const expectedDefinitions = {
   },
   moonshot: {
     defaultEndpoint: 'https://api.moonshot.ai',
-    defaultModelId: 'kimi-k2-0711-preview',
+    defaultModelId: 'kimi-k2.6',
     envVar: 'MOONSHOT_API_KEY',
   },
   'codex-cli': {

@@ -48,7 +48,7 @@ describe('moonshot provider leaf — definition', () => {
     expect(MOONSHOT_PROVIDER_DEFINITION.protocol).toBe('chat-completions');
     expect(MOONSHOT_PROVIDER_DEFINITION.adapterKey).toBe('chat-completions');
     expect(MOONSHOT_PROVIDER_DEFINITION.defaultEndpoint).toBe('https://api.moonshot.ai');
-    expect(MOONSHOT_PROVIDER_DEFINITION.defaultModelId).toBe('kimi-k2-0711-preview');
+    expect(MOONSHOT_PROVIDER_DEFINITION.defaultModelId).toBe('kimi-k2.6');
     expect(MOONSHOT_PROVIDER_DEFINITION.isLocal).toBe(false);
     expect(MOONSHOT_PROVIDER_DEFINITION.auth).toEqual({
       envVar: 'MOONSHOT_API_KEY',
@@ -80,7 +80,7 @@ describe('moonshot provider leaf — adapter (Kimi chat completions shape)', () 
     const parsed = adapter.parseResponse(
       {
         id: 'chatcmpl-kimi',
-        model: 'kimi-k2-0711-preview',
+        model: 'kimi-k2.6',
         choices: [{ message: { role: 'assistant', content: 'Hello from Kimi' } }],
         usage: { prompt_tokens: 10, completion_tokens: 3 },
       },

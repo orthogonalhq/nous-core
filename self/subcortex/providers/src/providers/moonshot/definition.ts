@@ -1,7 +1,7 @@
 import type { ProviderDefinitionLeaf } from '../../schemas/provider-definition.js';
 
 const DEFAULT_ENDPOINT = 'https://api.moonshot.ai';
-const DEFAULT_MODEL_ID = 'kimi-k2-0711-preview';
+const DEFAULT_MODEL_ID = 'kimi-k2.6';
 
 export const MOONSHOT_PROVIDER_DEFINITION = {
   vendorKey: 'moonshot',
