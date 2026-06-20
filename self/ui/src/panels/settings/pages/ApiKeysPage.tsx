@@ -12,7 +12,6 @@ import {
   inputStyle,
   selectStyle,
   feedbackStyle,
-  PROVIDER_LABELS,
 } from '../styles'
 import { testStoredProviderKey, formatFeedbackError } from './helpers'
 
@@ -22,7 +21,7 @@ export interface ApiKeysPageProps {
 
 export function ApiKeysPage({ api }: ApiKeysPageProps) {
   const [apiKeys, setApiKeys] = useState<ApiKeyEntry[]>([])
-  const [addProvider, setAddProvider] = useState<Provider>('anthropic')
+  const [addProvider, setAddProvider] = useState<Provider>('')
   const [addKey, setAddKey] = useState('')
   const [saving, setSaving] = useState(false)
   const [feedback, setFeedback] = useState<FeedbackState | null>(null)
@@ -32,6 +31,11 @@ export function ApiKeysPage({ api }: ApiKeysPageProps) {
     try {
       const keys = await api.getApiKeys()
       setApiKeys(keys)
+      setAddProvider((current) => (
+        current && keys.some((entry) => entry.provider === current)
+          ? current
+          : (keys[0]?.provider ?? '')
+      ))
     } catch (err) {
       setFeedback(formatFeedbackError(err))
     }
@@ -41,8 +45,13 @@ export function ApiKeysPage({ api }: ApiKeysPageProps) {
     void loadKeys()
   }, [loadKeys])
 
+  const providerLabelFor = useCallback(
+    (provider: Provider) => apiKeys.find((entry) => entry.provider === provider)?.displayName ?? provider,
+    [apiKeys],
+  )
+
   const handleSaveAndTest = async () => {
-    if (!addKey.trim()) return
+    if (!addKey.trim() || !addProvider) return
     setSaving(true)
     setFeedback(null)
     try {
@@ -53,7 +62,7 @@ export function ApiKeysPage({ api }: ApiKeysPageProps) {
         return
       }
       await api.setApiKey({ provider: addProvider, key: addKey.trim() })
-      setFeedback({ message: `${PROVIDER_LABELS[addProvider]} API key saved and verified.`, success: true })
+      setFeedback({ message: `${providerLabelFor(addProvider)} API key saved and verified.`, success: true })
       setAddKey('')
       await loadKeys()
     } catch (err) {
@@ -67,7 +76,7 @@ export function ApiKeysPage({ api }: ApiKeysPageProps) {
     setTestingProvider(provider)
     setFeedback(null)
     try {
-      setFeedback(await testStoredProviderKey(api as PreferencesApi, provider))
+      setFeedback(await testStoredProviderKey(api as PreferencesApi, provider, providerLabelFor(provider)))
     } catch (err) {
       setFeedback(formatFeedbackError(err))
     } finally {
@@ -78,7 +87,7 @@ export function ApiKeysPage({ api }: ApiKeysPageProps) {
   const handleDelete = async (provider: Provider) => {
     try {
       await api.deleteApiKey({ provider })
-      setFeedback({ message: `${PROVIDER_LABELS[provider]} API key deleted.`, success: true })
+      setFeedback({ message: `${providerLabelFor(provider)} API key deleted.`, success: true })
       await loadKeys()
     } catch (err) {
       setFeedback(formatFeedbackError(err))
@@ -95,7 +104,7 @@ export function ApiKeysPage({ api }: ApiKeysPageProps) {
             <div style={rowStyle}>
               <div style={{ display: 'flex', alignItems: 'center', gap: 'var(--nous-space-md)' }}>
                 <span style={{ fontWeight: 'var(--nous-font-weight-semibold)' as never, fontSize: 'var(--nous-font-size-base)' }}>
-                  {PROVIDER_LABELS[entry.provider]}
+                  {entry.displayName}
                 </span>
                 <span style={badgeStyle(entry.configured)}>
                   {entry.configured ? 'Configured' : 'Not configured'}
@@ -143,8 +152,12 @@ export function ApiKeysPage({ api }: ApiKeysPageProps) {
               value={addProvider}
               onChange={(e) => setAddProvider(e.target.value as Provider)}
             >
-              <option value="anthropic">Anthropic</option>
-              <option value="openai">OpenAI</option>
+              {apiKeys.length === 0 && <option value="">No API-key providers</option>}
+              {apiKeys.map((entry) => (
+                <option key={entry.provider} value={entry.provider}>
+                  {entry.displayName}
+                </option>
+              ))}
             </select>
             <input
               type="password"
@@ -156,11 +169,11 @@ export function ApiKeysPage({ api }: ApiKeysPageProps) {
             <button
               style={{
                 ...btnStyle('primary'),
-                opacity: saving || !addKey.trim() ? 0.5 : 1,
-                cursor: saving || !addKey.trim() ? 'not-allowed' : 'pointer',
+                opacity: saving || !addKey.trim() || !addProvider ? 0.5 : 1,
+                cursor: saving || !addKey.trim() || !addProvider ? 'not-allowed' : 'pointer',
               }}
               onClick={handleSaveAndTest}
-              disabled={saving || !addKey.trim()}
+              disabled={saving || !addKey.trim() || !addProvider}
             >
               {saving ? 'Saving...' : 'Save & Test'}
             </button>

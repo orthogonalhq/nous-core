@@ -187,8 +187,9 @@ describe('SystemStatusPage', () => {
 describe('ApiKeysPage', () => {
   const makeApi = () => ({
     getApiKeys: vi.fn().mockResolvedValue([
-      { provider: 'anthropic' as const, configured: true, maskedKey: 'sk-***abc', createdAt: '2026-01-01' },
-      { provider: 'openai' as const, configured: false, maskedKey: null, createdAt: null },
+      { provider: 'anthropic', displayName: 'Anthropic', configured: true, maskedKey: 'sk-***abc', createdAt: '2026-01-01' },
+      { provider: 'openai', displayName: 'OpenAI', configured: false, maskedKey: null, createdAt: null },
+      { provider: 'fixture', displayName: 'Fixture AI', configured: false, maskedKey: null, createdAt: null },
     ]),
     setApiKey: vi.fn().mockResolvedValue({ stored: true }),
     deleteApiKey: vi.fn().mockResolvedValue({ deleted: true }),
@@ -292,7 +293,8 @@ describe('ApiKeysPage', () => {
     const options = Array.from(container.querySelectorAll('select option')).map(
       (option) => option.textContent,
     )
-    expect(options).toEqual(['Anthropic', 'OpenAI'])
+    expect(options).toEqual(['Anthropic', 'OpenAI', 'Fixture AI'])
+    expect(container.textContent).toContain('Fixture AI')
     expect(container.textContent).not.toContain('Codex CLI')
   })
 })

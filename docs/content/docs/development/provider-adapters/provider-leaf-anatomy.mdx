@@ -29,9 +29,14 @@ The generator requires `definition.ts`, `adapter.ts`, `provider.ts`, and `index.
 | `vendorKey` | Certified provider identity, such as `anthropic`, `openai`, or `ollama` |
 | `adapterKey` | Adapter implementation key used by resolver/runtime, such as `anthropic`, `chat-completions`, or `ollama` |
 | `protocol` | Wire/API family, such as `anthropic-messages`, `chat-completions`, or `ollama` |
+| `auth.header` | API-key header metadata for Settings key tests and model discovery, using `{ name, scheme: 'raw' \| 'bearer' }` |
+| `modelListEndpoint` | Relative endpoint that opts the provider into dynamic model discovery, such as `/v1/models` |
+| `modelListFormat` | Model-list response-envelope format parser. Current values are `anthropic-models` and `openai-models`; the names describe response shapes, not exclusive provider identities. |
 | `executionCapabilityProfile` | Optional provider-definition declared execution profile for CLI-style providers: `one_shot_command`, `session_bound_command`, or `persistent_process`. Declared on the provider definition so selection-time role compatibility filtering can use it before constructing a runtime instance. |
 
 A vendor can reuse a shared adapter key when it speaks an existing protocol. OpenAI's `vendorKey` is `openai`, while its adapter key is `chat-completions`.
+
+For API-key providers, `auth.purpose`, `auth.required`, `auth.envVar`, and `auth.vaultKeyNamespace` make the provider eligible for a vault-backed Settings key field. Add `auth.header` plus `modelListEndpoint`/`modelListFormat` when the provider should also support dynamic model discovery. There is no Settings component or runtime vendor branch to edit for a normal provider leaf.
 
 Do not hand-author built-in provider UUIDs in leaves. Built-in provider ids are derived centrally from `vendorKey` by `self/subcortex/providers/src/provider-identity.ts` and hydrated into the generated `PROVIDER_DEFINITIONS` catalog. User/custom provider instances still receive generated persisted ids at runtime; certified built-in leaves should focus on semantic identity and metadata.
 

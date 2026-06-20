@@ -15,18 +15,15 @@ The Cortex (Prefrontal Cortex) tier controls how much oversight Nous applies. Ti
 
 ## Provider Keys
 
-Nous currently supports vault-backed API-key setup for:
-
-- **Anthropic**
-- **OpenAI**
+Nous supports vault-backed API-key setup for any certified provider definition that declares API-key auth metadata. Current certified API-key providers include Anthropic and OpenAI, and future certified providers appear here through the same registry-driven path.
 
 Saving a key does three things immediately:
 
 - Stores the secret in the credential vault instead of the plain-text config file
-- Registers the matching remote provider in the active runtime
-- Adds that provider's cloud models to the available-model list without requiring a restart
+- Registers the matching provider in the active runtime
+- Adds that provider's discovered models to the available-model list without requiring a restart
 
-Deleting a key removes that provider from active routing and from the cloud-model list. If no cloud providers remain, Nous falls back to local-only routing behavior.
+Deleting a key removes that provider from active routing and from the discovered-model list. If no remote API providers remain, Nous falls back to local-only routing behavior.
 
 The key-test action can validate either:
 
@@ -35,18 +32,15 @@ The key-test action can validate either:
 
 ## Available Models
 
-The model picker combines:
+The model picker combines models discovered from provider definitions and static/default entries for providers that do not support dynamic discovery.
 
-- Local Ollama models detected from the running Ollama instance
-- Cloud models discovered dynamically from the Anthropic and OpenAI `/v1/models` APIs
+Remote API providers are queried when their certified definition declares a model-list endpoint and a vault key is available. Successful remote responses are cached in-memory for 5 minutes to avoid redundant API calls. When a provider API is unreachable or returns an error, the picker falls back to that provider's default model marked unavailable.
 
-Cloud model lists are fetched live when you open the configuration panel. Successful responses are cached in-memory for 5 minutes to avoid redundant API calls. When a provider API is unreachable or returns an error, the picker falls back to a minimal static model list marked as stale.
+Local providers can participate in the same metadata-driven discovery path. Ollama uses its configured endpoint and OpenAI-compatible `/v1/models` response, and local discovery is not cached so pulls/deletes are reflected on the next read.
 
-Providers without a stored API key are skipped silently — no error is shown and no API call is attempted.
+Remote API providers without a stored API key are skipped silently — no error is shown and no API call is attempted. Fetched model IDs are treated as the source of truth; Nous does not filter OpenAI-compatible model lists by model-family prefix.
 
-OpenAI models are filtered to chat-capable families (gpt-4, o-series) on a best-effort basis. Anthropic models are returned as-is from the API.
-
-Saved cloud keys are restored on startup, so configured cloud models should reappear automatically after restart.
+Saved remote API keys are restored on startup, so configured remote models should reappear automatically after restart.
 
 ## Model Assignments
 

@@ -23,6 +23,25 @@ Definitions are metadata only. They describe identity, protocol, default endpoin
 
 Provider leaves satisfy `ProviderDefinitionLeaf`. The generated provider catalog hydrates each leaf into a full `ProviderDefinition` by deriving the built-in `wellKnownProviderId` from `vendorKey`. This keeps contributor-authored leaves semantic while preserving stable runtime ids.
 
+### API-Key Provider Discovery And Health Metadata
+
+API-key providers become Settings-visible through metadata on the definition leaf. A provider is treated as a registry-backed API-key provider when its auth metadata declares `purpose: 'api_key'`, `required: true`, `envVar`, and `vaultKeyNamespace`. When those fields are present, Settings can show a vault-backed key field without a provider-specific UI branch.
+
+Dynamic model discovery is also definition-driven. A leaf opts in by declaring a model-list endpoint and a supported response-envelope format:
+
+| Field | Contract |
+|---|---|
+| `auth.header` | Header metadata used for API-key injection during key tests and model discovery. Shape: `{ name, scheme }`, where `scheme` is `raw` or `bearer`. Required API-key providers must declare it; missing header metadata causes key-test/discovery to fail closed. |
+| `modelListEndpoint` | Relative endpoint used for model discovery, such as `/v1/models`. If omitted, dynamic discovery does not run for that provider. |
+| `modelListFormat` | Response-envelope format parser. Current values are `anthropic-models` and `openai-models`; these describe response shapes, not exclusive provider identities. |
+| `healthCheckEndpoint` | Optional relative endpoint for key testing. When present, key tests use it; otherwise they fall back to `modelListEndpoint`. |
+| `capabilities.modelListing` | Advertises that the provider exposes model-list discovery. |
+| `capabilities.healthCheck` | Advertises that the provider exposes a dedicated health-check surface. |
+
+Discovery runs through the shared definition-driven path instead of vendor-specific registration code. Remote discovery uses a short in-memory cache after successful responses; local providers that declare discovery, such as Ollama, use their configured endpoint and bypass that remote cache. Fetched model IDs are returned as the provider reports them; Nous does not filter OpenAI-compatible responses by model-family prefix. On HTTP, parse, or network failure, the provider's `defaultModelId` is returned as an unavailable fallback entry.
+
+If `modelListFormat` is omitted, the current implementation can infer a format for known protocols such as `anthropic-messages` and `chat-completions`. New contributors should still prefer declaring the format explicitly so the response shape is reviewable at the leaf.
+
 `executionCapabilityProfile` lives on the provider definition for CLI-style providers because assignment and Settings surfaces need it before constructing a runtime provider instance:
 
 | Value | Meaning |
