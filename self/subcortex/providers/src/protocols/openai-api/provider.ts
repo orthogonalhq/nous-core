@@ -50,11 +50,10 @@ export class ChatCompletionsProvider implements IModelProvider {
 
   constructor(
     config: ModelProviderConfig,
-    options?: { apiKey?: string; endpoint?:string; timeoutMs?: number },
+    options?: { apiKey?: string; timeoutMs?: number },
   ) {
     this.config = config;
     this.endpoint =
-      options.endpoint ??
       config.endpoint ??
       process.env.OPENAI_API_BASE ??
       DEFAULT_ENDPOINT;
