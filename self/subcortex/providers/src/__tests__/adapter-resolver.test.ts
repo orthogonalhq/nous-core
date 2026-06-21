@@ -54,6 +54,7 @@ describe('adapter resolver', () => {
       'codex-cli',
       'ollama',
       'chat-completions',
+      'openclaw',
       'text',
     ]);
   });
