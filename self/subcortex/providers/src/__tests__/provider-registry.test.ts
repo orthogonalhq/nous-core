@@ -9,6 +9,7 @@ import { OllamaProvider } from '../providers/ollama/implementation.js';
 afterEach(() => {
   delete process.env.ANTHROPIC_API_KEY;
   delete process.env.OPENAI_API_KEY;
+  vi.restoreAllMocks();
 });
 
 describe('ProviderRegistry', () => {
@@ -113,6 +114,55 @@ describe('ProviderRegistry', () => {
         capabilities: ['text'],
       }),
     ).toThrow(ConfigError);
+  });
+
+  it('does not emit unknown-vendor fallback diagnostics for generated providers with factories', () => {
+    const info = vi.spyOn(console, 'info').mockImplementation(() => {});
+    const registry = new ProviderRegistry({
+      get: () => ({ providers: [] }),
+      getSection: vi.fn(),
+      update: vi.fn(),
+      reload: vi.fn(),
+    } as any);
+
+    registry.registerProvider({
+      id: '10000000-0000-0000-0000-000000000004' as any,
+      name: 'Codex CLI',
+      type: 'text',
+      endpoint: 'http://localhost',
+      modelId: 'codex-cli/default',
+      isLocal: true,
+      capabilities: ['text', 'streaming'],
+      providerClass: 'local_text',
+      vendor: 'codex-cli',
+    });
+
+    expect(info.mock.calls.flat().join('\n')).not.toContain('adapter will fall back to text');
+  });
+
+  it('keeps unknown-vendor fallback diagnostics when no generated factory exists', () => {
+    process.env.OPENAI_API_KEY = 'test-openai-key';
+    const info = vi.spyOn(console, 'info').mockImplementation(() => {});
+    const registry = new ProviderRegistry({
+      get: () => ({ providers: [] }),
+      getSection: vi.fn(),
+      update: vi.fn(),
+      reload: vi.fn(),
+    } as any);
+
+    registry.registerProvider({
+      id: '00000000-0000-0000-0000-000000000020' as any,
+      name: 'Unknown Local Provider',
+      type: 'text',
+      endpoint: 'http://localhost',
+      modelId: 'unknown/default',
+      isLocal: true,
+      capabilities: ['text'],
+      providerClass: 'local_text',
+      vendor: 'unknown-generated-provider',
+    });
+
+    expect(info.mock.calls.flat().join('\n')).toContain('adapter will fall back to text');
   });
 
   it('removeProvider removes an existing provider and returns true', () => {

@@ -7,6 +7,7 @@ import {
   AnthropicProvider,
   ChatCompletionsProvider,
   CERTIFIED_PROVIDER_FACTORIES,
+  CodexCliProvider,
   OllamaProvider,
   PROVIDER_DEFINITIONS,
   ProviderRegistry,
@@ -51,6 +52,7 @@ describe('provider definition to adapter to registry pipeline', () => {
   it('aggregates all production provider definitions by vendor key', () => {
     expect(PROVIDER_DEFINITIONS.map((definition) => definition.vendorKey)).toEqual([
       'anthropic',
+      'codex-cli',
       'ollama',
       'openai',
     ]);
@@ -120,6 +122,11 @@ describe('provider definition to adapter to registry pipeline', () => {
         expected: 'Chat response',
       },
       {
+        adapterKey: 'codex-cli',
+        output: 'Codex CLI response',
+        expected: 'Codex CLI response',
+      },
+      {
         adapterKey: 'ollama',
         output: { content: 'Ollama response' },
         expected: 'Ollama response',
@@ -152,6 +159,7 @@ describe('provider definition to adapter to registry pipeline', () => {
     const registry = new ProviderRegistry(createEmptyConfig());
     const expectedClassByVendor = {
       anthropic: AnthropicProvider,
+      'codex-cli': CodexCliProvider,
       openai: ChatCompletionsProvider,
       ollama: OllamaProvider,
     };
@@ -183,6 +191,9 @@ describe('provider definition to adapter to registry pipeline', () => {
     } as any);
 
     expect(registry.getProvider(resolveProviderDefinition('anthropic').wellKnownProviderId)).toBeNull();
+    expect(registry.getProvider(resolveProviderDefinition('codex-cli').wellKnownProviderId)).toBeInstanceOf(
+      LaneAwareProvider,
+    );
     expect(registry.getProvider(resolveProviderDefinition('openai').wellKnownProviderId)).toBeNull();
     expect(registry.getProvider(resolveProviderDefinition('ollama').wellKnownProviderId)).toBeInstanceOf(
       LaneAwareProvider,

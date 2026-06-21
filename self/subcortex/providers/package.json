@@ -46,12 +46,18 @@
       "import": "./dist/protocols/openai-api/index.js",
       "require": "./dist/protocols/openai-api/index.js",
       "default": "./dist/protocols/openai-api/index.js"
+    },
+    "./protocols/agent-cli": {
+      "types": "./dist/protocols/agent-cli/index.d.ts",
+      "import": "./dist/protocols/agent-cli/index.js",
+      "require": "./dist/protocols/agent-cli/index.js",
+      "default": "./dist/protocols/agent-cli/index.js"
     }
   },
   "scripts": {
     "generate:providers": "node scripts/generate-provider-aggregates.mjs",
     "check:generated": "node scripts/generate-provider-aggregates.mjs --check",
-    "build": "pnpm run check:generated && tsc --build",
+    "build": "pnpm run check:generated && tsc --build --force",
     "typecheck": "pnpm run check:generated && pnpm --filter \"@nous/subcortex-providers^...\" exec tsc --build --force && tsc --noEmit",
     "clean": "rm -rf dist"
   },

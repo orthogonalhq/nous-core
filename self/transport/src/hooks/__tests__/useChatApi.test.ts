@@ -67,6 +67,56 @@ describe('useChatApi — getHistory', () => {
     expect(history[1].thinkingContent).toBe('I should greet the user warmly')
   })
 
+  it('maps traceId from history entry metadata', async () => {
+    mockFetch.getHistory.mockResolvedValueOnce({
+      entries: [
+        {
+          role: 'assistant',
+          content: 'Hi there',
+          timestamp: '2026-04-14T00:00:01Z',
+          metadata: { traceId: 'trace-from-stm' },
+        },
+      ],
+      summary: undefined,
+      tokenCount: 0,
+    })
+
+    const { result } = renderHook(() => useChatApi({ projectId: 'proj-1' }))
+    const history = await result.current.getHistory()
+
+    expect(history[0].traceId).toBe('trace-from-stm')
+  })
+
+  it('maps empty response and thinking-unavailable metadata from history entries', async () => {
+    mockFetch.getHistory.mockResolvedValueOnce({
+      entries: [
+        {
+          role: 'assistant',
+          content: '',
+          timestamp: '2026-04-14T00:00:01Z',
+          metadata: {
+            empty_response_kind: 'thinking_only_no_finalizer',
+            thinking_unavailable: {
+              reason: 'provider/model template does not surface thinking',
+              ref: 'WR-172',
+            },
+          },
+        },
+      ],
+      summary: undefined,
+      tokenCount: 0,
+    })
+
+    const { result } = renderHook(() => useChatApi({ projectId: 'proj-1' }))
+    const history = await result.current.getHistory()
+
+    expect(history[0].empty_response_kind).toBe('thinking_only_no_finalizer')
+    expect(history[0].thinking_unavailable).toEqual({
+      reason: 'provider/model template does not surface thinking',
+      ref: 'WR-172',
+    })
+  })
+
   it('omits thinkingContent when not present in metadata (backward compat)', async () => {
     mockFetch.getHistory.mockResolvedValueOnce({
       entries: [
@@ -123,6 +173,28 @@ describe('useChatApi — sessionId', () => {
     expect(mockMutateAsync.sendMessage).toHaveBeenCalledWith(
       expect.objectContaining({ message: 'Hello', projectId: 'proj-1', sessionId: 'sess-abc' }),
     )
+  })
+
+  it('send returns diagnostic metadata from the mutation result', async () => {
+    mockMutateAsync.sendMessage.mockResolvedValueOnce({
+      response: 'Reply',
+      traceId: 'trace-1',
+      contentType: 'text',
+      empty_response_kind: 'no_output_at_all',
+      thinking_unavailable: {
+        reason: 'provider/model template does not surface thinking',
+        ref: 'WR-172',
+      },
+    })
+
+    const { result } = renderHook(() => useChatApi({ projectId: 'proj-1', sessionId: 'sess-abc' }))
+    const response = await result.current.send('Hello')
+
+    expect(response.empty_response_kind).toBe('no_output_at_all')
+    expect(response.thinking_unavailable).toEqual({
+      reason: 'provider/model template does not surface thinking',
+      ref: 'WR-172',
+    })
   })
 
   it('getHistory passes sessionId to fetch when provided', async () => {

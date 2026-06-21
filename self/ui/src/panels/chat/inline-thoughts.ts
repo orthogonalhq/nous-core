@@ -16,7 +16,7 @@ export interface InlineThoughtItem {
 //   gateway-run started  → "Thinking…"
 //   PFC tool-execution   → "Using [tool name]"
 //   PFC reflection       → "Reflecting…"
-//   turn-complete        → "Done"
+//   turn-complete        → lifecycle boundary only (not displayed)
 //   Everything else      → suppressed
 // ---------------------------------------------------------------------------
 
@@ -25,9 +25,6 @@ export function formatThoughtEvent(event: ThoughtEvent): InlineThoughtItem | nul
     const p = event.payload as ThoughtTurnLifecyclePayload
     if (p.phase === 'gateway-run' && p.status === 'started') {
       return { text: 'Thinking\u2026', traceId: p.traceId, timestamp: p.emittedAt }
-    }
-    if (p.phase === 'turn-complete') {
-      return { text: 'Done', traceId: p.traceId, timestamp: p.emittedAt }
     }
     return null
   }
@@ -79,9 +76,11 @@ export function groupThoughtsByTrace(
 export function deriveActiveTraceId(
   items: InlineThoughtItem[],
   assistantTraceIds: Set<string>,
+  completedTraceIds: ReadonlySet<string> = new Set(),
 ): string | null {
   for (let i = items.length - 1; i >= 0; i--) {
     const traceId = items[i].traceId
+    if (completedTraceIds.has(traceId)) continue
     if (!assistantTraceIds.has(traceId)) return traceId
   }
   return null

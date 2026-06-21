@@ -60,7 +60,7 @@ When Anthropic or OpenAI credentials are restored at startup and the active prof
 {
   "modelRoleAssignments": [
     {
-      "role": "reasoner",
+      "role": "cortex-chat",
       "providerId": "550e8400-e29b-41d4-a716-446655440002",
       "fallbackProviderId": "550e8400-e29b-41d4-a716-446655440001"
     }
@@ -68,9 +68,9 @@ When Anthropic or OpenAI credentials are restored at startup and the active prof
 }
 ```
 
-`providerId` and optional `fallbackProviderId` must be valid UUIDs matching provider `id` values in the `providers` array. Roles: `orchestrator`, `reasoner`, `tool-advisor`, `summarizer`, `embedder`, `reranker`, `vision`.
+`providerId` and optional `fallbackProviderId` must be valid UUIDs matching provider `id` values in the `providers` array. Built-in provider ids are deterministically derived from certified provider-definition `vendorKey` values at runtime and surfaced through provider config identity; custom/user provider instances use persisted generated ids. Model assignment writers validate role compatibility before saving so command-bound CLI providers cannot be assigned to Cortex persistent-chat roles. Roles: `cortex-chat`, `cortex-system`, `orchestrators`, `workers`.
 
-Saved Principal and System model selections are restored into this structure at startup. When both saved selections are available, Nous uses the primary selection as `providerId` and the secondary selection as `fallbackProviderId` for the active `reasoner` assignment.
+Saved Principal and System model selections are restored into this structure at startup. When both saved selections are available, Nous uses the primary selection as `providerId` and the secondary selection as `fallbackProviderId` for the active `cortex-chat` assignment.
 
 ## Providers
 
@@ -111,6 +111,16 @@ Saved Principal and System model selections are restored into this structure at 
 - **endpoint** (optional): Use the provider base URL (for example `https://api.openai.com` or `https://api.anthropic.com`), not the full `/v1/chat/completions` path.
 
 Provider types: `text`, `image`, `video`, `vision`, `embedding`, `external-api`.
+
+### Codex CLI Provider
+
+The certified `codex-cli` provider is a local text provider that shells out to the installed Codex CLI. It does not use an API key in `nous-config.json5`; it uses the local Codex CLI login session instead. Install and authenticate Codex outside Nous before assigning this provider to a model role.
+
+For transient and batch work, Codex CLI still runs through the one-shot `codex exec` command path. The Codex provider declares `session_bound_command`, which means it is command/session-bound and does not expose a strict long-lived process protocol.
+
+Cortex Chat and Cortex System require `persistent_process` semantics for `agent-cli` providers. Settings disables/rejects Codex CLI for those Cortex roles instead of letting the chat path fail later. Codex CLI can still be used in compatible command-bound agent roles.
+
+When a compatible CLI provider is used in a chat-bound context, the runtime session key is derived from the provider id, chat fixture role, and chat session id. Project-scoped chat also includes `projectId`; system-wide chat omits it. Conversation history remains in Cortex STM, not in provider session state.
 
 ## Agent
 

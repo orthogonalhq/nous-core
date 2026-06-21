@@ -411,6 +411,7 @@ providers/
 ├── adapter-resolver.ts                # Provider adapter resolver
 ├── provider-adapters.ts               # Generated public concrete adapter export surface
 ├── provider-definitions.ts            # Generated static provider metadata catalog
+├── provider-identity.ts               # Built-in provider id derivation and legacy id aliases
 ├── provider-factories.ts              # Generated public provider factory catalog
 ├── providers/                         # Provider leaves with metadata, providers, and leaf-owned adapters
 ├── protocols/                         # Shared protocol adapters and transports
@@ -428,11 +429,15 @@ Responsibilities:
 * Report token/compute usage
 * Abstract provider-specific differences
 
-The static typed provider definition catalog is generated directly into `self/subcortex/providers/src/provider-definitions.ts`; each provider metadata constant lives with its owning provider leaf. The catalog contains metadata-only definitions for Anthropic, OpenAI Chat Completions, and Ollama, and exports literal-derived provider key types. Concrete provider-owned adapter modules live in provider leaves such as `self/subcortex/providers/src/providers/anthropic/adapter.ts` and `self/subcortex/providers/src/providers/ollama/adapter.ts`. Shared protocol adapters live under `self/subcortex/providers/src/protocols/`; the OpenAI leaf wraps `self/subcortex/providers/src/protocols/openai-api/`.
+The static typed provider definition catalog is generated directly into `self/subcortex/providers/src/provider-definitions.ts`; each provider metadata constant lives with its owning provider leaf. Leaves declare semantic identity (`vendorKey`), protocol/default metadata, capabilities, and optional CLI execution capability. They do not hand-author built-in provider UUIDs. `self/subcortex/providers/src/provider-identity.ts` derives stable built-in provider ids from `vendorKey` and keeps legacy id aliases for existing persisted configs. The catalog contains metadata-only definitions for Anthropic, OpenAI Chat Completions, Ollama, and Codex CLI, and exports literal-derived provider key types. Concrete provider-owned adapter modules live in provider leaves such as `self/subcortex/providers/src/providers/anthropic/adapter.ts`, `self/subcortex/providers/src/providers/ollama/adapter.ts`, and `self/subcortex/providers/src/providers/codex-cli/adapter.ts`. Shared protocol adapters live under `self/subcortex/providers/src/protocols/`; the OpenAI leaf wraps `self/subcortex/providers/src/protocols/openai-api/`.
 
 `self/subcortex/providers/src/provider-adapters.ts` owns the generated public concrete-adapter export surface, and `provider-factories.ts` owns the generated provider factory catalog. Hand-written provider, adapter, and factory contracts live in `self/subcortex/providers/src/schemas/`; parsed-output helpers and fallback adapters live in `self/subcortex/providers/src/shared/`.
 
 Lane behavior is composed through `@nous/subcortex-inference-runtime` from `self/subcortex/providers/src/runtime/provider-runtime.ts`. The file preserves the public `ProviderRegistry` class name while keeping concurrency, failover, and runtime composition out of individual provider leaves.
+
+Agent-CLI provider lifecycle is composed in `self/subcortex/providers/src/runtime/cli-session-manager.ts`. Runtime callers declare a required execution capability when a chat surface needs stronger semantics. The session manager fails closed if a command-bound CLI provider is used where a persistent process is required. Transient and batch invocations continue to use the provider's command execution path. The session manager derives keys from provider id, fixture role, chat session id, and project id only for project-scoped chat. It tracks process/session lifecycle state, not chat memory.
+
+Model/role assignment compatibility lives in `self/apps/shared-server/src/provider-capability-compatibility.ts`. It is product policy, not provider leaf code: Cortex Chat/System require `persistent_process` for `agent-cli` providers, while command-bound CLI agents such as Codex CLI can remain available for compatible worker/orchestrator roles.
 
 No orchestration logic lives here.
 

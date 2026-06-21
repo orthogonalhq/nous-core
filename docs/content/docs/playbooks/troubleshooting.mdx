@@ -100,6 +100,28 @@ ollama pull llama3.2:3b
 - Model selections are applied immediately at runtime. If the selected model spec is invalid or malformed, it is rejected without corrupting provider config — check the configuration panel for error feedback.
 - If the selected model is from a cloud provider, ensure the provider key is still configured and valid.
 
+## CLI Provider Session Restart Fails
+
+**Symptom:** Chat fails with `PROVIDER_SESSION_RESTART_FAILED`, or a local CLI-backed provider fails at the start of a chat turn.
+
+**Meaning:** The selected provider uses the agent-CLI protocol and the runtime could not start or reuse the chat-bound provider session. Nous does not silently fall back to one-shot execution for chat-bound CLI fixtures. This error applies to compatible persistent-process CLI providers that are validly assigned to a chat role.
+
+If Codex CLI appears in a Cortex Chat/System provider-session failure, the root cause is a stale or bypassed role assignment — Codex CLI declares `session_bound_command` and is not compatible with Cortex Chat/System persistent-process roles. Fix the model role assignment in Configuration rather than troubleshooting the CLI session.
+
+**Fix (for compatible persistent-process CLI providers):**
+- Confirm the provider CLI is installed and runnable from the same environment that starts Nous.
+- Confirm local CLI authentication is valid.
+- If another executable shadows the expected one, set the appropriate CLI binary environment variable (e.g. `NOUS_CODEX_CLI_BIN` or `CODEX_CLI_BIN` for Codex).
+- Retry the chat turn after fixing the CLI environment. A lost chat-bound session is recreated on the next turn for the same provider/session key.
+
+## Codex CLI Provider Uses One-Shot
+
+**Symptom:** A Codex CLI invocation starts a fresh `codex exec` process.
+
+**Meaning:** This is expected. Codex CLI declares `session_bound_command` — it is command/session-bound and does not expose a `persistent_process` protocol. Transient and batch work uses one-shot `codex exec`. Cortex Chat and Cortex System roles require `persistent_process` and must use a different compatible provider.
+
+**Fix:** No recovery is needed. Codex CLI is designed for command-bound agent roles and one-shot batch work. If you need a CLI provider for Cortex Chat/System, assign a provider that declares `persistent_process`.
+
 ## First-Run Loop
 
 **Symptom:** First-run flow keeps appearing.

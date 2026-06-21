@@ -31,6 +31,9 @@ import type {
   ModelRequest,
   ModelResponse,
   ModelStreamChunk,
+  ChatFixtureScope,
+  CliExecutionCapabilityProfile,
+  CliSessionTeardownReason,
   ToolResult,
   ToolDefinition,
   ProjectConfig,
@@ -290,6 +293,42 @@ export interface IModelProvider {
 
   /** Get provider configuration */
   getConfig(): ModelProviderConfig;
+}
+
+export interface CliSessionContext {
+  readonly providerId: ProviderId;
+  readonly sessionId?: string;
+  readonly scope?: ChatFixtureScope;
+  readonly projectId?: string;
+  readonly provider: IModelProvider;
+  readonly providerProtocol?: string;
+  readonly executionCapabilityProfile?: CliExecutionCapabilityProfile;
+  /**
+   * Minimum execution capability required by the caller for this chat use case.
+   * Callers such as Cortex chat use this as a guardrail so command-bound CLI
+   * adapters are not treated as compatible with persistent-chat semantics.
+   */
+  readonly requiredExecutionCapabilityProfile?: CliExecutionCapabilityProfile;
+}
+
+export interface TeardownScope {
+  readonly providerId?: ProviderId;
+  readonly sessionId?: string;
+  readonly fixtureRole?: ChatFixtureScope;
+}
+
+export interface ICliSessionManager {
+  /**
+   * Return a chat-turn provider. Agent-CLI chat fixtures receive a
+   * session-aware wrapper; non-CLI or non-chat invocations pass through.
+   */
+  resolveForChatTurn(context: CliSessionContext): IModelProvider;
+
+  /** Tear down sessions matching the provided reason and scope. */
+  teardown(reason: CliSessionTeardownReason, scope: TeardownScope): void;
+
+  /** Tear down all managed CLI sessions, used during app/backend shutdown. */
+  teardownAll(): void;
 }
 
 export interface IToolExecutor {

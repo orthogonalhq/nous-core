@@ -117,6 +117,28 @@ describe('SystemStatusPage', () => {
       getSystemStatus: vi.fn().mockResolvedValue({
         ollama: { running: true, models: ['llama3'] },
         configuredProviders: ['anthropic'],
+        providerConnections: [
+          {
+            provider: 'anthropic',
+            displayName: 'Anthropic',
+            authKind: 'api_key',
+            configured: true,
+            selectable: true,
+            status: 'ready',
+            message: 'API key is configured.',
+          },
+          {
+            provider: 'codex-cli',
+            displayName: 'Codex CLI',
+            authKind: 'local_session',
+            configured: false,
+            selectable: true,
+            status: 'not_checked',
+            message: 'Uses the local Codex CLI login session; run `codex login` outside Nous.',
+            setupCommand: 'npm install -g @openai/codex',
+            versionCommand: 'codex --version',
+          },
+        ],
         credentialVaultHealthy: true,
       }),
     }
@@ -130,10 +152,16 @@ describe('SystemStatusPage', () => {
     expect(el).not.toBeNull()
     expect(container.textContent).toContain('Running')
     expect(container.textContent).toContain('Anthropic')
+    expect(container.textContent).toContain('Provider Connections')
+    expect(container.textContent).toContain('Codex CLI')
+    expect(container.textContent).toContain('Local session')
+    expect(container.textContent).toContain('Not checked')
+    expect(container.textContent).toContain('codex login')
+    expect(container.textContent).toContain('npm install -g @openai/codex')
     expect(container.textContent).toContain('Healthy')
   })
 
-  it('shows Not running when Ollama is down', async () => {
+  it('shows Not running when Ollama is down and falls back to configured providers', async () => {
     const api = {
       getSystemStatus: vi.fn().mockResolvedValue({
         ollama: { running: false, models: [] },
@@ -148,6 +176,8 @@ describe('SystemStatusPage', () => {
     })
 
     expect(container.textContent).toContain('Not running')
+    expect(container.textContent).toContain('Active Providers')
+    expect(container.textContent).toContain('None')
     expect(container.textContent).toContain('Unavailable')
   })
 })
@@ -157,8 +187,9 @@ describe('SystemStatusPage', () => {
 describe('ApiKeysPage', () => {
   const makeApi = () => ({
     getApiKeys: vi.fn().mockResolvedValue([
-      { provider: 'anthropic' as const, configured: true, maskedKey: 'sk-***abc', createdAt: '2026-01-01' },
-      { provider: 'openai' as const, configured: false, maskedKey: null, createdAt: null },
+      { provider: 'anthropic', displayName: 'Anthropic', configured: true, maskedKey: 'sk-***abc', createdAt: '2026-01-01' },
+      { provider: 'openai', displayName: 'OpenAI', configured: false, maskedKey: null, createdAt: null },
+      { provider: 'fixture', displayName: 'Fixture AI', configured: false, maskedKey: null, createdAt: null },
     ]),
     setApiKey: vi.fn().mockResolvedValue({ stored: true }),
     deleteApiKey: vi.fn().mockResolvedValue({ deleted: true }),
@@ -251,6 +282,21 @@ describe('ApiKeysPage', () => {
 
     expect(container.textContent).toContain('Invalid key')
   })
+
+  it('does not render Codex CLI as an API-key provider option', async () => {
+    const api = makeApi()
+    await act(async () => {
+      root.render(<ApiKeysPage api={api} />)
+      await flush()
+    })
+
+    const options = Array.from(container.querySelectorAll('select option')).map(
+      (option) => option.textContent,
+    )
+    expect(options).toEqual(['Anthropic', 'OpenAI', 'Fixture AI'])
+    expect(container.textContent).toContain('Fixture AI')
+    expect(container.textContent).not.toContain('Codex CLI')
+  })
 })
 
 // ─── ModelConfigPage ─────────────────────────────────────────────────────────
@@ -259,8 +305,30 @@ describe('ModelConfigPage', () => {
   const makeApi = () => ({
     getAvailableModels: vi.fn().mockResolvedValue({
       models: [
-        { id: 'claude-3', name: 'Claude 3', provider: 'anthropic', available: true },
-        { id: 'gpt-4', name: 'GPT-4', provider: 'openai', available: true },
+        { id: 'claude-3', name: 'Claude 3', provider: 'anthropic', providerLabel: 'Anthropic', available: true },
+        { id: 'gpt-4', name: 'GPT-4', provider: 'openai', providerLabel: 'OpenAI', available: true },
+        {
+          id: 'codex-cli:codex-cli/default',
+          name: 'Codex CLI (default)',
+          provider: 'codex-cli',
+          providerLabel: 'Codex CLI',
+          available: true,
+          authKind: 'local_session',
+          availabilityReason: 'Uses the local Codex CLI login session; run `codex login` outside Nous.',
+          executionCapabilityProfile: 'session_bound_command',
+          roleCompatibility: {
+            'cortex-chat': {
+              selectable: false,
+              reason: 'Codex CLI declares session_bound_command, but cortex-chat requires persistent_process for persistent Cortex chat.',
+            },
+            'cortex-system': {
+              selectable: false,
+              reason: 'Codex CLI declares session_bound_command, but cortex-system requires persistent_process for persistent Cortex chat.',
+            },
+            orchestrators: { selectable: true },
+            workers: { selectable: true },
+          },
+        },
       ],
     }),
     getRoleAssignments: vi.fn().mockResolvedValue([]),
@@ -291,6 +359,51 @@ describe('ModelConfigPage', () => {
 
     const selects = container.querySelectorAll('select')
     expect(selects).toHaveLength(4)
+  })
+
+  it('renders Codex CLI model option under its provider label', async () => {
+    const api = makeApi()
+    await act(async () => {
+      root.render(<ModelConfigPage api={api} />)
+      await flush()
+    })
+
+    const codexGroups = Array.from(container.querySelectorAll('optgroup')).filter(
+      (group) => group.label === 'Codex CLI',
+    )
+    const codexOptions = Array.from(container.querySelectorAll('option')).filter(
+      (option) => option.value === 'codex-cli:codex-cli/default',
+    )
+
+    expect(codexGroups).toHaveLength(4)
+    expect(codexOptions).toHaveLength(4)
+    expect(codexOptions[0].textContent).toContain('local session required')
+  })
+
+  it('disables Codex CLI for persistent Cortex chat roles but leaves it selectable for workers', async () => {
+    const api = makeApi()
+    await act(async () => {
+      root.render(<ModelConfigPage api={api} />)
+      await flush()
+    })
+
+    const chatSelect = container.querySelector<HTMLSelectElement>('#role-select-cortex-chat')!
+    const systemSelect = container.querySelector<HTMLSelectElement>('#role-select-cortex-system')!
+    const workerSelect = container.querySelector<HTMLSelectElement>('#role-select-workers')!
+    const chatCodex = Array.from(chatSelect.querySelectorAll('option')).find(
+      (option) => option.value === 'codex-cli:codex-cli/default',
+    )!
+    const systemCodex = Array.from(systemSelect.querySelectorAll('option')).find(
+      (option) => option.value === 'codex-cli:codex-cli/default',
+    )!
+    const workerCodex = Array.from(workerSelect.querySelectorAll('option')).find(
+      (option) => option.value === 'codex-cli:codex-cli/default',
+    )!
+
+    expect(chatCodex.disabled).toBe(true)
+    expect(chatCodex.textContent).toContain('incompatible')
+    expect(systemCodex.disabled).toBe(true)
+    expect(workerCodex.disabled).toBe(false)
   })
 
   it('save button calls api.setRoleAssignment for cortex-chat', async () => {
@@ -379,6 +492,34 @@ describe('ModelConfigPage', () => {
     })
   })
 
+  it('save button calls api.setRoleAssignment with Codex CLI model spec', async () => {
+    const api = makeApi()
+    await act(async () => {
+      root.render(<ModelConfigPage api={api} />)
+      await flush()
+    })
+
+    const select = container.querySelector<HTMLSelectElement>('#role-select-workers')!
+    await act(async () => {
+      select.value = 'codex-cli:codex-cli/default'
+      select.dispatchEvent(new Event('change', { bubbles: true }))
+      await flush()
+    })
+
+    const saveButton = Array.from(container.querySelectorAll('button')).find(
+      (b) => b.textContent === 'Save',
+    )!
+    await act(async () => {
+      saveButton.click()
+      await flush()
+    })
+
+    expect(api.setRoleAssignment).toHaveBeenCalledWith({
+      role: 'workers',
+      modelSpec: 'codex-cli:codex-cli/default',
+    })
+  })
+
   it('returns null when getAvailableModels is undefined', async () => {
     const api = {
       getAvailableModels: undefined,
@@ -404,10 +545,18 @@ describe('ModelConfigPage', () => {
       ],
     })
     api.getRoleAssignments.mockResolvedValue([
-      { role: 'cortex-chat', providerId: 'anthropic:claude-sonnet-4-20250514' },
-      { role: 'orchestrators', providerId: 'openai:gpt-4o' },
-      { role: 'cortex-system', providerId: null },
-      { role: 'workers', providerId: null },
+      {
+        role: 'cortex-chat',
+        providerId: '10000000-0000-0000-0000-000000000001',
+        modelSpec: 'anthropic:claude-sonnet-4-20250514',
+      },
+      {
+        role: 'orchestrators',
+        providerId: '10000000-0000-0000-0000-000000000002',
+        modelSpec: 'openai:gpt-4o',
+      },
+      { role: 'cortex-system', providerId: null, modelSpec: null },
+      { role: 'workers', providerId: null, modelSpec: null },
     ])
 
     await act(async () => {
@@ -430,6 +579,44 @@ describe('ModelConfigPage', () => {
       (b) => b.textContent === 'Save',
     )!
     expect(saveButton.disabled).toBe(true)
+  })
+
+  it('clears a persisted role assignment when Auto-detect is saved', async () => {
+    const api = makeApi()
+    api.getRoleAssignments.mockResolvedValue([
+      {
+        role: 'workers',
+        providerId: '10000000-0000-0000-0000-000000000004',
+        modelSpec: 'codex-cli:codex-cli/default',
+      },
+    ])
+
+    await act(async () => {
+      root.render(<ModelConfigPage api={api} />)
+      await flush()
+    })
+
+    const select = container.querySelector<HTMLSelectElement>('#role-select-workers')!
+    expect(select.value).toBe('codex-cli:codex-cli/default')
+
+    await act(async () => {
+      select.value = ''
+      select.dispatchEvent(new Event('change', { bubbles: true }))
+      await flush()
+    })
+
+    const saveButton = Array.from(container.querySelectorAll('button')).find(
+      (b) => b.textContent === 'Save',
+    )!
+    await act(async () => {
+      saveButton.click()
+      await flush()
+    })
+
+    expect(api.setRoleAssignment).toHaveBeenCalledWith({
+      role: 'workers',
+      modelSpec: null,
+    })
   })
 
   it('no-models fallback renders with 4-slot layout', async () => {

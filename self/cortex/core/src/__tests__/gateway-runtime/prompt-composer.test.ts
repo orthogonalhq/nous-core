@@ -113,6 +113,30 @@ describe('composeFromProfile', () => {
     expect(result.systemPrompt).not.toContain('Available Tools');
   });
 
+  it('with toolPolicy omit and native adapter support — still omits tools entirely', () => {
+    const omitProfile: AgentProfile = { ...BASE_PROFILE, toolPolicy: 'omit' };
+    const result = composeFromProfile(omitProfile, NATIVE_TOOL_CAPABILITIES, {
+      agentClass: 'Cortex::Principal',
+      taskInstructions: 'Task.',
+      tools: TOOLS,
+    });
+    expect(result.toolDefinitions).toBeUndefined();
+    expect(result.systemPrompt).not.toContain('Available Tools');
+    expect(result.systemPrompt).not.toContain('lookup_status');
+  });
+
+  it('with toolPolicy native and no native adapter support — omits tools entirely', () => {
+    const nativeProfile: AgentProfile = { ...BASE_PROFILE, toolPolicy: 'native' };
+    const result = composeFromProfile(nativeProfile, TEXT_CAPABILITIES, {
+      agentClass: 'Cortex::Principal',
+      taskInstructions: 'Task.',
+      tools: TOOLS,
+    });
+    expect(result.toolDefinitions).toBeUndefined();
+    expect(result.systemPrompt).not.toContain('Available Tools');
+    expect(result.systemPrompt).not.toContain('lookup_status');
+  });
+
   it('empty tools array — no tools section in either mode', () => {
     const result = composeFromProfile(BASE_PROFILE, TEXT_CAPABILITIES, {
       agentClass: 'Worker',

@@ -17,14 +17,47 @@ The provider package uses hand-written ABI contracts under `self/subcortex/provi
 - `ProviderAdapterKey`
 - provider auth metadata
 - provider capability metadata
+- optional CLI execution capability metadata
 
-Definitions are metadata only. They describe identity, protocol, default endpoint/model, credential namespace, locality, and capabilities. They should not read environment variables, instantiate providers, or perform network calls.
+Definitions are metadata only. They describe identity, protocol, default endpoint/model, credential namespace, locality, and capabilities. They should not read environment variables, instantiate providers, perform network calls, or hand-author built-in provider UUIDs.
+
+Provider leaves satisfy `ProviderDefinitionLeaf`. The generated provider catalog hydrates each leaf into a full `ProviderDefinition` by deriving the built-in `wellKnownProviderId` from `vendorKey`. This keeps contributor-authored leaves semantic while preserving stable runtime ids.
+
+### API-Key Provider Discovery And Health Metadata
+
+API-key providers become Settings-visible through metadata on the definition leaf. A provider is treated as a registry-backed API-key provider when its auth metadata declares `purpose: 'api_key'`, `required: true`, `envVar`, and `vaultKeyNamespace`. When those fields are present, Settings can show a vault-backed key field without a provider-specific UI branch.
+
+Dynamic model discovery is also definition-driven. A leaf opts in by declaring a model-list endpoint and a supported response-envelope format:
+
+| Field | Contract |
+|---|---|
+| `auth.header` | Header metadata used for API-key injection during key tests and model discovery. Shape: `{ name, scheme }`, where `scheme` is `raw` or `bearer`. Required API-key providers must declare it; missing header metadata causes key-test/discovery to fail closed. |
+| `modelListEndpoint` | Relative endpoint used for model discovery, such as `/v1/models`. If omitted, dynamic discovery does not run for that provider. |
+| `modelListFormat` | Response-envelope format parser. Current values are `anthropic-models` and `openai-models`; these describe response shapes, not exclusive provider identities. |
+| `healthCheckEndpoint` | Optional relative endpoint for key testing. When present, key tests use it; otherwise they fall back to `modelListEndpoint`. |
+| `capabilities.modelListing` | Advertises that the provider exposes model-list discovery. |
+| `capabilities.healthCheck` | Advertises that the provider exposes a dedicated health-check surface. |
+
+Discovery runs through the shared definition-driven path instead of vendor-specific registration code. Remote discovery uses a short in-memory cache after successful responses; local providers that declare discovery, such as Ollama, use their configured endpoint and bypass that remote cache. Fetched model IDs are returned as the provider reports them; Nous does not filter OpenAI-compatible responses by model-family prefix. On HTTP, parse, or network failure, the provider's `defaultModelId` is returned as an unavailable fallback entry.
+
+If `modelListFormat` is omitted, the current implementation can infer a format for known protocols such as `anthropic-messages` and `chat-completions`. New contributors should still prefer declaring the format explicitly so the response shape is reviewable at the leaf.
+
+`executionCapabilityProfile` lives on the provider definition for CLI-style providers because assignment and Settings surfaces need it before constructing a runtime provider instance:
+
+| Value | Meaning |
+|---|---|
+| `one_shot_command` | Each request is a separate command/process execution. |
+| `session_bound_command` | The CLI can preserve command/session context, but does not expose a strict long-lived process protocol. |
+| `persistent_process` | The provider supports a strict long-lived process protocol suitable for persistent chat surfaces. |
+
+Cortex persistent-chat roles require `persistent_process` for `agent-cli` providers. Shared-server role compatibility filtering disables/rejects incompatible assignments at selection time; the runtime CLI session manager retains a fail-close check as defense-in-depth.
 
 ## Provider Adapter
 
 `src/schemas/provider-adapter.ts` defines:
 
 - `AdapterCapabilities`
+- `AdapterExecutionCapabilityProfileSchema` — the Zod enum (`one_shot_command`, `session_bound_command`, `persistent_process`) that defines valid CLI execution profiles. The schema lives in the adapter source, but CLI capability is declared on the provider definition for selection-time filtering (see [Provider Definition](#provider-definition)).
 - `AdapterFormatInput`
 - `AdapterFormattedRequest`
 - `ProviderAdapter`
@@ -32,6 +65,8 @@ Definitions are metadata only. They describe identity, protocol, default endpoin
 - `defineProviderAdapter(...)`
 
 Adapters translate canonical prompt/context/tool data into provider request shape and parse provider responses back to `ParsedModelOutput`. `parseResponse(...)` must return a fallback instead of throwing on malformed or surprising provider output.
+
+Adapters remain stateless translators. Keep role policy out of adapters: role compatibility is product assignment policy in `self/apps/shared-server/src/provider-capability-compatibility.ts`, while runtime enforcement lives in `CliSessionManager`.
 
 ## Provider Factory
 
@@ -51,6 +86,8 @@ Factories construct concrete `IModelProvider` instances from runtime model confi
 ## Contract Rules
 
 - Definitions are metadata only.
+- Provider leaves use `ProviderDefinitionLeaf`; generated catalogs hydrate stable built-in ids from `vendorKey`.
+- CLI execution capability is declared on the provider definition for selection-time filtering.
 - Adapters are stateless translators.
 - Provider implementations own network calls and provider-specific error handling.
 - Factories construct providers from runtime config and credentials.

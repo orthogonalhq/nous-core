@@ -15,18 +15,15 @@ The Cortex (Prefrontal Cortex) tier controls how much oversight Nous applies. Ti
 
 ## Provider Keys
 
-Nous currently supports vault-backed API-key setup for:
-
-- **Anthropic**
-- **OpenAI**
+Nous supports vault-backed API-key setup for any certified provider definition that declares API-key auth metadata. Current certified API-key providers include Anthropic and OpenAI, and future certified providers appear here through the same registry-driven path.
 
 Saving a key does three things immediately:
 
 - Stores the secret in the credential vault instead of the plain-text config file
-- Registers the matching remote provider in the active runtime
-- Adds that provider's cloud models to the available-model list without requiring a restart
+- Registers the matching provider in the active runtime
+- Adds that provider's discovered models to the available-model list without requiring a restart
 
-Deleting a key removes that provider from active routing and from the cloud-model list. If no cloud providers remain, Nous falls back to local-only routing behavior.
+Deleting a key removes that provider from active routing and from the discovered-model list. If no remote API providers remain, Nous falls back to local-only routing behavior.
 
 The key-test action can validate either:
 
@@ -35,26 +32,33 @@ The key-test action can validate either:
 
 ## Available Models
 
-The model picker combines:
+The model picker combines models discovered from provider definitions and static/default entries for providers that do not support dynamic discovery.
 
-- Local Ollama models detected from the running Ollama instance
-- Cloud models discovered dynamically from the Anthropic and OpenAI `/v1/models` APIs
+Remote API providers are queried when their certified definition declares a model-list endpoint and a vault key is available. Successful remote responses are cached in-memory for 5 minutes to avoid redundant API calls. When a provider API is unreachable or returns an error, the picker falls back to that provider's default model marked unavailable.
 
-Cloud model lists are fetched live when you open the configuration panel. Successful responses are cached in-memory for 5 minutes to avoid redundant API calls. When a provider API is unreachable or returns an error, the picker falls back to a minimal static model list marked as stale.
+Local providers can participate in the same metadata-driven discovery path. Ollama uses its configured endpoint and OpenAI-compatible `/v1/models` response, and local discovery is not cached so pulls/deletes are reflected on the next read.
 
-Providers without a stored API key are skipped silently — no error is shown and no API call is attempted.
+Remote API providers without a stored API key are skipped silently — no error is shown and no API call is attempted. Fetched model IDs are treated as the source of truth; Nous does not filter OpenAI-compatible model lists by model-family prefix.
 
-OpenAI models are filtered to chat-capable families (gpt-4, o-series) on a best-effort basis. Anthropic models are returned as-is from the API.
-
-Saved cloud keys are restored on startup, so configured cloud models should reappear automatically after restart.
+Saved remote API keys are restored on startup, so configured remote models should reappear automatically after restart.
 
 ## Model Assignments
 
-Assign model roles to providers. For example, the `reasoner` role might be fulfilled by Ollama, OpenAI, or Anthropic. The router uses these assignments to route requests.
+Assign model roles to providers. For example, the `cortex-chat` role might be fulfilled by Ollama, OpenAI, or Anthropic. The router uses these assignments to route requests.
 
-When you save a model selection, Nous applies the change immediately — the in-memory provider configuration and reasoner assignment are updated at runtime without requiring a restart. Invalid model specs are rejected gracefully without corrupting the active provider config.
+When you save a model selection, Nous applies the change immediately — the in-memory provider configuration and model role assignment are updated at runtime without requiring a restart. Invalid model specs are rejected gracefully without corrupting the active provider config.
 
 Principal and System model selections are saved separately and restored on startup. When a saved cloud selection is restored, Nous automatically moves out of a strict local-only profile so the remote provider can be routed without hand-editing config.
+
+### Local CLI Providers
+
+Certified CLI-backed providers, such as Codex CLI, are local providers. They use local tool authentication rather than vault-backed API keys, so the corresponding CLI must already be installed and logged in on the machine running Nous.
+
+CLI-backed providers declare an `executionCapabilityProfile` on their provider definition. Selection-time compatibility validation uses this profile to determine which model roles a CLI provider can fill. Cortex Chat and Cortex System roles require a `persistent_process` profile; providers that declare a different profile are disabled or rejected for those roles at assignment time rather than failing at runtime.
+
+Codex CLI declares `session_bound_command` and is incompatible with Cortex Chat/System persistent-process roles. It remains available for compatible command-bound agent roles. Transient and batch Codex work continues to use one-shot `codex exec`.
+
+CLI providers that satisfy the required role profile can be used in chat-bound contexts. The model router selects a provider id; the runtime CLI session manager keeps a session-keyed wrapper for chat-bound turns. If a chat-bound CLI session cannot be started or restarted, Nous surfaces a provider-session error instead of silently falling back to one-shot behavior. This runtime fail-close is defense-in-depth for bypassed or stale configuration; the primary guardrail is selection-time role compatibility. Role compatibility policy is defined in `self/apps/shared-server/src/provider-capability-compatibility.ts`.
 
 ## System Health
 

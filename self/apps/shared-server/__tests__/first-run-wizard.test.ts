@@ -15,6 +15,7 @@ const bootstrapConstants = vi.hoisted(() => ({
   WELL_KNOWN_PROVIDER_IDS: {
     anthropic: '10000000-0000-0000-0000-000000000001',
     openai: '10000000-0000-0000-0000-000000000002',
+    'codex-cli': '10000000-0000-0000-0000-000000000004',
   },
   OLLAMA_WELL_KNOWN_PROVIDER_ID: '10000000-0000-0000-0000-000000000003',
 }));
@@ -135,7 +136,7 @@ function createWizardState(
 
 function parseSelectedModelSpecMock(
   spec: string | null | undefined,
-): { provider: 'anthropic' | 'openai' | 'ollama'; modelId: string } | null {
+): { provider: 'anthropic' | 'openai' | 'ollama' | 'codex-cli'; modelId: string } | null {
   if (!spec) {
     return null;
   }
@@ -145,7 +146,8 @@ function parseSelectedModelSpecMock(
   if (
     (provider !== 'anthropic' &&
       provider !== 'openai' &&
-      provider !== 'ollama') ||
+      provider !== 'ollama' &&
+      provider !== 'codex-cli') ||
     modelId.length === 0
   ) {
     return null;
@@ -158,9 +160,13 @@ function parseSelectedModelSpecMock(
 }
 
 function buildProviderConfigMock(
-  provider: 'anthropic' | 'openai',
+  provider: 'anthropic' | 'openai' | 'codex-cli',
   providerId = bootstrapConstants.WELL_KNOWN_PROVIDER_IDS[provider],
-  modelId = provider === 'anthropic' ? 'claude-sonnet-4-20250514' : 'gpt-4o',
+  modelId = provider === 'anthropic'
+    ? 'claude-sonnet-4-20250514'
+    : provider === 'codex-cli'
+      ? 'codex-cli/default'
+      : 'gpt-4o',
 ) {
   return {
     id: providerId,
@@ -169,11 +175,13 @@ function buildProviderConfigMock(
     endpoint:
       provider === 'anthropic'
         ? 'https://api.anthropic.com'
+        : provider === 'codex-cli'
+          ? 'http://localhost'
         : 'https://api.openai.com',
     modelId,
-    isLocal: false,
+    isLocal: provider === 'codex-cli',
     capabilities: ['chat', 'streaming'],
-    providerClass: 'remote_text' as const,
+    providerClass: provider === 'codex-cli' ? 'local_text' as const : 'remote_text' as const,
   };
 }
 
@@ -430,6 +438,26 @@ describe('first-run wizard router', () => {
       success: true,
       state: createWizardState('complete'),
     });
+  });
+
+  it('rejects Codex CLI assignment for Cortex persistent chat during first-run', async () => {
+    const ctx = createMockContext();
+
+    const firstRunRouter = await loadFirstRunRouter();
+    const caller = firstRunRouter.createCaller(ctx);
+    const result = await caller.assignRoles({
+      assignments: [
+        {
+          role: 'cortex-chat',
+          modelSpec: 'codex-cli:codex-cli/default',
+        },
+      ],
+    });
+
+    expect(result.success).toBe(false);
+    expect(result.error).toContain('requires persistent_process');
+    expect(bootstrapMock.upsertProviderConfig).not.toHaveBeenCalled();
+    expect(bootstrapMock.updateRoleAssignment).not.toHaveBeenCalled();
   });
 
   it('delegates completeStep and resetWizard to the first-run state module', async () => {

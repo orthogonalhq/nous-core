@@ -1,0 +1,105 @@
+---
+title: CLI Provider Guide
+description: Contributor guide for CLI-backed provider leaves
+---
+
+# CLI Provider Guide
+
+This page covers the contributor contract for CLI-backed provider leaves — providers that wrap a local command-line tool rather than a remote HTTP API. CLI leaves use the same `ProviderDefinitionLeaf` shape as API providers, with additional requirements around execution capability declaration.
+
+## Why CLI Providers Need a Dedicated Contract
+
+CLI providers differ from API providers in lifecycle: an API provider opens an HTTP connection, while a CLI provider spawns or attaches to a local process. Some CLI tools run a single command and exit; others maintain session state; others expose a persistent process protocol.
+
+Nous needs to know the provider's execution model **before runtime** so that Settings, model-role assignment, and Cortex surfaces can filter incompatible providers at selection time rather than failing mid-conversation. The `executionCapabilityProfile` field on the provider definition serves this purpose.
+
+## Provider Definition Shape
+
+CLI leaves export a `ProviderDefinitionLeaf` from `definition.ts`, just like API leaves. The key differences:
+
+- **`vendorKey`** provides semantic identity. Do not hand-author `wellKnownProviderId`; the generated catalog derives stable built-in IDs from `vendorKey`.
+- **`executionCapabilityProfile`** is required for CLI providers. It declares the provider's execution model so selection-time filtering can enforce role compatibility.
+- **`protocol`** should reference the agent-CLI protocol identifier.
+
+### Example
+
+```ts
+import type { ProviderDefinitionLeaf } from '../../schemas/provider-definition';
+import { AGENT_CLI_PROTOCOL_ID } from '../../protocols/agent-cli/constants';
+
+export const providerDefinition = {
+  vendorKey: 'my-cli-tool',
+  displayName: 'My CLI Tool',
+  protocol: AGENT_CLI_PROTOCOL_ID,
+  adapterKey: 'my-cli-tool',
+  executionCapabilityProfile: 'session_bound_command',
+  // No wellKnownProviderId — generated centrally from vendorKey.
+} as const satisfies ProviderDefinitionLeaf;
+```
+
+## Execution Capability Profiles
+
+The `executionCapabilityProfile` field accepts one of three values:
+
+| Value | Meaning |
+|---|---|
+| `one_shot_command` | Each request is a separate command/process execution. No session state is preserved between invocations. |
+| `session_bound_command` | The CLI can preserve command/session context across invocations, but does not expose a strict long-lived process protocol. |
+| `persistent_process` | The provider supports a strict long-lived process protocol suitable for persistent chat surfaces. |
+
+Choose the profile that matches your CLI tool's actual capability. Declaring an inaccurate profile causes either unnecessary rejection (too restrictive) or runtime failures (too permissive).
+
+## Selection-Time Compatibility Guardrails
+
+Cortex Chat and Cortex System roles require `persistent_process` for `agent-cli` providers. At model-role assignment time, Settings disables or rejects CLI providers that declare an incompatible profile for those roles.
+
+This means:
+
+- A CLI provider declaring `persistent_process` can fill any role, including Cortex Chat and Cortex System.
+- A CLI provider declaring `session_bound_command` or `one_shot_command` is available for compatible command-bound agent roles but **cannot** be assigned to Cortex persistent chat roles.
+- Codex CLI, for example, declares `session_bound_command` and is incompatible with Cortex Chat/System. It remains useful for compatible agent roles and one-shot batch work via `codex exec`.
+
+Role compatibility policy is defined in `self/apps/shared-server/src/provider-capability-compatibility.ts`.
+
+## Runtime Fail-Close (Defense in Depth)
+
+Selection-time filtering is the primary guardrail. However, the runtime CLI session manager retains a fail-close check as defense-in-depth for cases where configuration is stale or bypassed.
+
+If a CLI provider that does not satisfy the required execution profile reaches the runtime session manager (due to a config race, manual override, or stale persisted assignment), the session manager refuses to create the session and surfaces a provider-session error rather than silently degrading to one-shot behavior.
+
+This two-layer approach — selection-time rejection plus runtime fail-close — ensures that incompatible providers never silently serve a role they cannot fulfill.
+
+## Contributor Checklist
+
+When adding a new CLI provider leaf:
+
+- [ ] Create the leaf folder under `self/subcortex/providers/src/providers/<vendor>/` with `definition.ts`, `adapter.ts`, `provider.ts`, and `index.ts`.
+- [ ] Export `providerDefinition` with a semantic `vendorKey` and no hand-authored `wellKnownProviderId`.
+- [ ] Declare `executionCapabilityProfile` on the provider definition with the correct profile value.
+- [ ] Regenerate catalogs: `pnpm --filter @nous/subcortex-providers run generate:providers`
+- [ ] Verify `ProviderDefinitionSchema` validates the new definition.
+- [ ] Verify the provider appears in `PROVIDER_DEFINITIONS` with the correct derived built-in ID.
+- [ ] Add role assignment tests proving incompatible CLI providers are disabled/rejected for Cortex persistent-chat roles and remain selectable for compatible roles.
+- [ ] Add CLI session manager tests covering session lifecycle for the declared execution profile.
+- [ ] Run the full provider test suite:
+  ```bash
+  pnpm --filter @nous/subcortex-providers run check:generated
+  pnpm --filter @nous/subcortex-providers run typecheck
+  pnpm --filter @nous/subcortex-providers exec vitest run \
+    src/__tests__/provider-codegen.test.ts \
+    src/__tests__/public-exports.test.ts \
+    src/__tests__/provider-definitions \
+    src/__tests__/adapter-resolver.test.ts \
+    src/__tests__/provider-pipeline-integration.test.ts \
+    --config vitest.config.ts
+  ```
+
+## Related Pages
+
+- [Quickstart](/docs/development/provider-adapters/quickstart) — build the smallest certified provider leaf
+- [Provider Leaf Anatomy](/docs/development/provider-adapters/provider-leaf-anatomy) — file responsibilities and protocol decisions
+- [Schemas & ABI Reference](/docs/development/provider-adapters/schemas-abi-reference) — provider definition, adapter, and factory contracts
+- [Testing Checklist](/docs/development/provider-adapters/testing-checklist) — acceptance checklist for provider contributions
+- [Configuration](/docs/guides/config) — model assignments and CLI provider role compatibility in Settings
+- [Chat](/docs/guides/chat) — CLI provider sessions in chat-bound contexts
+- [Troubleshooting](/docs/playbooks/troubleshooting) — CLI provider session restart failures and one-shot behavior

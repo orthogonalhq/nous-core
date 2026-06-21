@@ -16,10 +16,10 @@ type Equal<A, B> =
 type Expect<T extends true> = T;
 
 type _ProviderVendorKeyIsExact = Expect<
-  Equal<ProviderVendorKey, 'anthropic' | 'openai' | 'ollama'>
+  Equal<ProviderVendorKey, 'anthropic' | 'codex-cli' | 'openai' | 'ollama'>
 >;
 type _BootstrapProviderKeyIsExact = Expect<
-  Equal<BootstrapProviderKey, 'anthropic' | 'openai' | 'ollama'>
+  Equal<BootstrapProviderKey, 'anthropic' | 'codex-cli' | 'openai' | 'ollama'>
 >;
 type _ProviderVendorKeyDoesNotWiden = Expect<Equal<string extends ProviderVendorKey ? true : false, false>>;
 
@@ -29,7 +29,7 @@ describe('provider definition type derivation', () => {
       (definition) => definition.vendorKey,
     );
 
-    expect(keys.sort()).toEqual(['anthropic', 'ollama', 'openai']);
+    expect(keys.sort()).toEqual(['anthropic', 'codex-cli', 'ollama', 'openai']);
   });
 
   it('supports local leaf-addition fixtures without production branch logic', () => {

@@ -1,8 +1,8 @@
 // @vitest-environment jsdom
 
 import React from 'react'
-import { render, screen, act, fireEvent } from '@testing-library/react'
-import { describe, expect, it, beforeAll, beforeEach, vi } from 'vitest'
+import { render, screen, act, fireEvent, waitFor } from '@testing-library/react'
+import { describe, expect, it, beforeAll, beforeEach, afterEach, vi } from 'vitest'
 import {
   makeTrpcMock,
   setMockHistoryEntries,
@@ -18,8 +18,15 @@ beforeAll(() => {
   Element.prototype.scrollIntoView = () => {}
 })
 
+let consoleWarnSpy: ReturnType<typeof vi.spyOn>
+
 beforeEach(() => {
   setMockHistoryEntries([])
+  consoleWarnSpy = vi.spyOn(console, 'warn').mockImplementation(() => undefined)
+})
+
+afterEach(() => {
+  consoleWarnSpy.mockRestore()
 })
 
 // ---------------------------------------------------------------------------
@@ -66,6 +73,12 @@ async function submitMessage(value: string) {
   await act(async () => {
     fireEvent.keyDown(ta, { key: 'Enter', shiftKey: false })
   })
+}
+
+function expectBefore(first: HTMLElement, second: HTMLElement) {
+  expect(
+    Boolean(first.compareDocumentPosition(second) & Node.DOCUMENT_POSITION_FOLLOWING),
+  ).toBe(true)
 }
 
 // ---------------------------------------------------------------------------
@@ -188,6 +201,50 @@ describe('ChatPanel — RC-3 queue-while-thinking', () => {
     })
     await flush()
     expect(sendSpy).toHaveBeenCalledTimes(3)
+  })
+
+  it('renders each queued assistant response before later queued user messages', async () => {
+    const deferreds = [
+      createDeferred<{ response: string; traceId: string }>(),
+      createDeferred<{ response: string; traceId: string }>(),
+      createDeferred<{ response: string; traceId: string }>(),
+    ]
+    let callIndex = 0
+    const sendSpy = vi.fn((_msg: string) => {
+      const d = deferreds[callIndex]
+      callIndex += 1
+      return d.promise
+    })
+    const api = makeChatApi(sendSpy)
+
+    render(<ChatPanel chatApi={api} />)
+    await flush()
+
+    await submitMessage('m1')
+    await flush()
+    await submitMessage('m2')
+    await flush()
+    await submitMessage('m3')
+    await flush()
+
+    await act(async () => {
+      deferreds[0].resolve({ response: 'r1', traceId: '' })
+    })
+    await flush()
+    await waitFor(() => {
+      expect(sendSpy).toHaveBeenCalledTimes(2)
+    })
+
+    await act(async () => {
+      deferreds[1].resolve({ response: 'r2', traceId: '' })
+    })
+    await flush()
+
+    const m2 = screen.getByText('m2')
+    const r2 = await screen.findByText('r2')
+    const m3 = screen.getByText('m3')
+    expectBefore(m2, r2)
+    expectBefore(r2, m3)
   })
 
   // T5 — Tier 2 behavior — no double-submit

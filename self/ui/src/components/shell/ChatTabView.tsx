@@ -235,7 +235,13 @@ function SessionView({
         <ChevronLeft size={14} />
         <span>Back to {projectName}</span>
       </button>
-      <ChatPanel chatApi={chatApi} className="flex-1" stage="full" />
+      <ChatPanel
+        chatApi={chatApi}
+        projectId={projectId}
+        sessionId={sessionId}
+        className="flex-1"
+        stage="full"
+      />
     </div>
   )
 }

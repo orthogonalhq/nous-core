@@ -5,6 +5,7 @@ export { AnthropicProvider } from './providers/anthropic/implementation.js';
 export * from './adapter-resolver.js';
 export * from './provider-adapters.js';
 export * from './provider-definitions.js';
+export * from './provider-identity.js';
 export * from './provider-factories.js';
 export {
   AdapterCapabilitiesSchema,
@@ -29,6 +30,8 @@ export {
   chatCompletionsAdapter,
   createChatCompletionsAdapter,
 } from './protocols/openai-api/adapter.js';
+export * from './protocols/agent-cli/index.js';
+export { CodexCliProvider } from './providers/codex-cli/implementation.js';
 export {
   createTextAdapter,
   textAdapter,
@@ -37,6 +40,14 @@ export { OllamaProvider } from './providers/ollama/implementation.js';
 export { ChatCompletionsProvider } from './protocols/openai-api/provider.js';
 export { ProviderRegistry } from './runtime/provider-runtime.js';
 export type { ProviderRegistryOptions } from './runtime/provider-runtime.js';
+export {
+  CliSessionManager,
+  deriveProviderSessionKey,
+} from './runtime/cli-session-manager.js';
+export type {
+  CliSessionManagerOptions,
+  CliSessionSnapshot,
+} from './runtime/cli-session-manager.js';
 export {
   InferenceLane,
   InferenceLaneRegistry,

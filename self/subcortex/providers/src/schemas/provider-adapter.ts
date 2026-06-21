@@ -1,5 +1,6 @@
 import { z } from 'zod';
 import type {
+  CliExecutionCapabilityProfile,
   GatewayContextFrame,
   ILogChannel,
   ModelRequirements,
@@ -29,6 +30,12 @@ export const AdapterCapabilitiesSchema = z.object({
   extendedThinking: z.boolean(),
   streaming: z.boolean(),
 }).strict();
+
+export const AdapterExecutionCapabilityProfileSchema = z.enum([
+  'one_shot_command',
+  'session_bound_command',
+  'persistent_process',
+]);
 
 /**
  * Input to the adapter's request formatter.
@@ -88,6 +95,7 @@ export interface ProviderAdapterModule {
   readonly displayName: string;
   readonly protocol: string;
   readonly capabilities: AdapterCapabilities;
+  readonly executionCapabilityProfile?: CliExecutionCapabilityProfile;
   create(options?: ProviderAdapterCreateOptions): ProviderAdapter;
 }
 
@@ -96,6 +104,7 @@ export const ProviderAdapterModuleSchema = z.object({
   displayName: z.string().min(1),
   protocol: z.string().min(1),
   capabilities: AdapterCapabilitiesSchema,
+  executionCapabilityProfile: AdapterExecutionCapabilityProfileSchema.optional(),
   create: z.function(),
 }).strict();
 

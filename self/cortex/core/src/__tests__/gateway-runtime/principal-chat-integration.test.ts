@@ -1,7 +1,10 @@
 import { describe, expect, it, vi } from 'vitest';
 import { EMPTY_RESPONSE_MARKER } from '@nous/shared';
-import type { IModelProvider } from '@nous/shared';
-import { createPrincipalSystemGatewayRuntime } from '../../gateway-runtime/index.js';
+import type { ICliSessionManager, IModelProvider } from '@nous/shared';
+import {
+  createPrincipalSystemGatewayRuntime,
+  type PrincipalSystemGatewayRuntimeDeps,
+} from '../../gateway-runtime/index.js';
 import {
   createDocumentStore,
   createModelProvider,
@@ -48,6 +51,7 @@ function createOllamaShapedProviderForChat(messages: Array<{ content: string; th
 function createChatRuntime(args?: {
   principalOutputs?: unknown[];
   stmEntries?: Array<{ role: string; content: string; timestamp: string }>;
+  deps?: Partial<PrincipalSystemGatewayRuntimeDeps>;
 }) {
   const stmEntries: Array<{ role: string; content: string; timestamp: string }> = [];
   const stmStore = {
@@ -104,6 +108,7 @@ function createChatRuntime(args?: {
         return `00000000-0000-4000-8000-${suffix}`;
       };
     })(),
+    ...args?.deps,
   });
 
   return { runtime, stmStore, mwcPipeline, stmEntries };
@@ -159,6 +164,54 @@ describe('PrincipalSystemGatewayRuntime — handleChatTurn', () => {
     });
 
     expect(stmStore.getContext).toHaveBeenCalledWith('00000000-0000-4000-8000-000000000001');
+  });
+
+  it('declares persistent-process capability as required for Codex CLI Cortex chat', async () => {
+    const codexProvider: IModelProvider = {
+      invoke: vi.fn().mockResolvedValue({
+        output: 'Codex reply',
+        providerId: PROVIDER_ID,
+        usage: {},
+        traceId: TRACE_ID,
+      }),
+      stream: vi.fn(),
+      getConfig: vi.fn().mockReturnValue({
+        id: PROVIDER_ID,
+        name: 'Codex CLI',
+        type: 'text',
+        vendor: 'codex-cli',
+        modelId: 'codex-cli/default',
+        isLocal: true,
+        capabilities: ['text'],
+      }),
+    };
+    const cliSessionManager: ICliSessionManager = {
+      resolveForChatTurn: vi.fn(({ provider }) => provider),
+      teardown: vi.fn(),
+      teardownAll: vi.fn(),
+    };
+    const { runtime } = createChatRuntime({
+      deps: {
+        cliSessionManager,
+        getProvider: vi.fn().mockReturnValue(codexProvider),
+        providerIdByClass: { 'Cortex::Principal': PROVIDER_ID },
+      },
+    });
+
+    await runtime.handleChatTurn({
+      message: 'What is 2+2?',
+      sessionId: '00000000-0000-4000-8000-000000000123',
+      scope: 'principal',
+      traceId: '00000000-0000-4000-8000-000000000099',
+    });
+
+    expect(cliSessionManager.resolveForChatTurn).toHaveBeenCalledWith(
+      expect.objectContaining({
+        providerProtocol: 'agent-cli',
+        executionCapabilityProfile: 'session_bound_command',
+        requiredExecutionCapabilityProfile: 'persistent_process',
+      }),
+    );
   });
 
   it('works without stmStore (graceful degradation)', async () => {

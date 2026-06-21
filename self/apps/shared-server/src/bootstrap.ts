@@ -88,6 +88,7 @@ import { DocumentNotificationStore, NotificationService } from '@nous/subcortex-
 import { ModelRouter } from '@nous/subcortex-router';
 import {
   PROVIDER_DEFINITIONS,
+  CliSessionManager,
   ProviderRegistry,
   type ProviderDefinition,
   type ProviderVendorKey,
@@ -155,6 +156,7 @@ const MOCK_PROVIDER_ID = '00000000-0000-0000-0000-000000000001' as ProviderId;
 type ProviderName = ProviderVendorKey;
 type ProviderDefinitionEntry = (typeof PROVIDER_DEFINITIONS)[number];
 type ParsedModelSpec = { provider: ProviderName; modelId: string };
+const registeredCliSessionShutdownManagers = new WeakSet<CliSessionManager>();
 
 export const WELL_KNOWN_PROVIDER_IDS: Record<ProviderVendorKey, ProviderId> =
   Object.fromEntries(
@@ -184,6 +186,13 @@ function cloudProviderDefinitions(): ProviderDefinitionEntry[] {
 
 function providerDefaultModels(): string[] {
   return PROVIDER_DEFINITIONS.map((definition) => definition.defaultModelId);
+}
+
+function modelProviderCapabilities(definition: ProviderDefinitionEntry): string[] {
+  return [
+    'chat',
+    ...(definition.capabilities?.streaming ? ['streaming'] : []),
+  ];
 }
 
 // ─── Configuration helpers ─────────────────────────────────────────────────
@@ -361,7 +370,7 @@ export function buildProviderConfig(
     endpoint: definition.defaultEndpoint,
     modelId,
     isLocal: definition.isLocal,
-    capabilities: ['chat', 'streaming'],
+    capabilities: modelProviderCapabilities(definition),
     providerClass: definition.providerClass,
     vendor: definition.vendorKey,
   };
@@ -380,7 +389,7 @@ export function buildOllamaProviderConfig(
     endpoint: endpoint ?? definition.defaultEndpoint,
     modelId,
     isLocal: definition.isLocal,
-    capabilities: ['chat', 'streaming'],
+    capabilities: modelProviderCapabilities(definition),
     providerClass: definition.providerClass,
     vendor: definition.vendorKey,
   };
@@ -809,6 +818,8 @@ export function createNousServices(config?: BootstrapConfig): NousContext {
     eventBus,
     credentialVaultService,
   });
+  const cliSessionManager = new CliSessionManager();
+  registerCliSessionShutdown(cliSessionManager);
   const credentialOAuthBroker = new CredentialOAuthBroker({
     vaultService: credentialVaultService,
   });
@@ -1321,6 +1332,7 @@ export function createNousServices(config?: BootstrapConfig): NousContext {
     recoveryLedgerStore,
     recoveryOrchestrator,
     logger,
+    cliSessionManager,
     // SP 1.3 — Decision 4 production wiring of PersonalityConfig.
     // The cortex-runtime call sites (cortex-runtime.ts:308-310 / 335-336)
     // consume `configReader.getPersonalityConfig()` for the Principal/System
@@ -1402,6 +1414,7 @@ export function createNousServices(config?: BootstrapConfig): NousContext {
     appRuntimeService,
     credentialVaultService,
     providerRegistry,
+    cliSessionManager,
     panelTranspiler,
     dataDir,
     codingAgentMaoEvents,
@@ -1415,6 +1428,19 @@ export function createNousServices(config?: BootstrapConfig): NousContext {
 
   console.log(`[nous:${runtimeLabel}] bootstrap complete`);
   return context;
+}
+
+function registerCliSessionShutdown(cliSessionManager: CliSessionManager): void {
+  if (registeredCliSessionShutdownManagers.has(cliSessionManager)) return;
+  registeredCliSessionShutdownManagers.add(cliSessionManager);
+
+  const teardown = () => {
+    cliSessionManager.teardownAll();
+  };
+
+  process.once('beforeExit', teardown);
+  process.once('SIGINT', teardown);
+  process.once('SIGTERM', teardown);
 }
 
 /**

@@ -2,10 +2,21 @@
  * Preferences tRPC router — API key management, system status, and model selection.
  */
 import { z } from 'zod';
-import { ModelRoleSchema, type ModelRole, type ProviderId } from '@nous/shared';
+import {
+  ModelRoleSchema,
+  type CliExecutionCapabilityProfile,
+  type ModelRole,
+  type ProviderId,
+} from '@nous/shared';
+import {
+  PROVIDER_DEFINITIONS,
+  type ProviderDefinition,
+  type ProviderVendorKey,
+} from '@nous/subcortex-providers';
 import type { NousContext } from '../../context';
 import { router, publicProcedure } from '../trpc';
 import { detectOllama } from '../../ollama-detection';
+import { getOllamaEndpointFromContext } from '../../ollama-config';
 import {
   OLLAMA_WELL_KNOWN_PROVIDER_ID,
   WELL_KNOWN_PROVIDER_IDS,
@@ -19,17 +30,89 @@ import {
   updateRoleAssignment,
   upsertProviderConfig,
 } from '../../bootstrap';
+import {
+  assertProviderDefinitionCompatibleWithRole,
+  roleCompatibilityMapForProviderDefinition,
+  type RoleCompatibilityResult,
+} from '../../provider-capability-compatibility';
+import {
+  fetchProviderModels,
+  providerSupportsModelDiscovery,
+  testProviderApiKey,
+  type ProviderModelDiscoveryResult,
+} from '../../provider-model-discovery';
 
 const SYSTEM_APP_ID = 'nous:system';
 
-const ProviderSchema = z.enum(['anthropic', 'openai']);
+type ProviderDefinitionEntry = (typeof PROVIDER_DEFINITIONS)[number];
+
+function providerAuth(
+  definition: ProviderDefinitionEntry,
+): ProviderDefinition['auth'] {
+  return definition.auth as ProviderDefinition['auth'];
+}
+
+function providerCapabilities(
+  definition: ProviderDefinitionEntry,
+): ProviderDefinition['capabilities'] {
+  return definition.capabilities as ProviderDefinition['capabilities'];
+}
+
+function providerAgentCli(
+  definition: ProviderDefinitionEntry,
+): ProviderDefinition['agentCli'] {
+  return (definition as ProviderDefinition).agentCli;
+}
+
+function isApiKeyProviderDefinition(
+  definition: ProviderDefinitionEntry,
+): boolean {
+  const auth = providerAuth(definition);
+  return (
+    auth.purpose === 'api_key' &&
+    auth.required === true &&
+    !!auth.envVar &&
+    !!auth.vaultKeyNamespace
+  );
+}
+
+function apiKeyProviderDefinitions(): ProviderDefinitionEntry[] {
+  return PROVIDER_DEFINITIONS.filter(isApiKeyProviderDefinition);
+}
+
+function providerDefinitionFor(
+  provider: ProviderVendorKey,
+): ProviderDefinitionEntry {
+  const definition = PROVIDER_DEFINITIONS.find(
+    (candidate) => candidate.vendorKey === provider,
+  );
+  if (!definition) {
+    throw new Error(`Provider definition is missing for vendor key '${provider}'`);
+  }
+  return definition;
+}
+
+function isApiKeyProviderKey(value: string): value is ProviderVendorKey {
+  return apiKeyProviderDefinitions().some(
+    (definition) => definition.vendorKey === value,
+  );
+}
+
+const ProviderSchema = z.string().refine(isApiKeyProviderKey, {
+  message: 'Unsupported API-key provider',
+}) as z.ZodType<ProviderVendorKey>;
 type Provider = z.infer<typeof ProviderSchema>;
 
 type AvailableModel = {
   id: string;
   name: string;
   provider: string;
+  providerLabel?: string;
   available: boolean;
+  authKind?: ProviderAuthKind;
+  availabilityReason?: string;
+  executionCapabilityProfile?: CliExecutionCapabilityProfile;
+  roleCompatibility?: Partial<Record<ModelRole, RoleCompatibilityResult>>;
 };
 
 type CachedModelList = {
@@ -37,12 +120,6 @@ type CachedModelList = {
   fetchedAt: number;
 };
 
-type CloudModelFetchResult = {
-  models: AvailableModel[];
-  cacheable: boolean;
-};
-
-const CLOUD_PROVIDERS: Provider[] = ['anthropic', 'openai'];
 const MODEL_ROLES = [...ModelRoleSchema.options] as ModelRole[];
 const MODEL_CACHE_TTL_MS = 5 * 60 * 1000;
 const modelCache = new Map<Provider, CachedModelList>();
@@ -53,78 +130,100 @@ type RoleAssignmentSummary = {
   modelSpec: string | null;
 };
 
-const AnthropicModelSchema = z.object({
-  id: z.string(),
-  display_name: z.string(),
-  type: z.string(),
-});
+type ProviderConnectionStatus =
+  | 'ready'
+  | 'missing_credentials'
+  | 'not_running'
+  | 'not_checked'
+  | 'unavailable';
 
-const AnthropicModelsResponseSchema = z.object({
-  data: z.array(AnthropicModelSchema),
-  has_more: z.boolean().optional(),
-  first_id: z.string().optional(),
-  last_id: z.string().optional(),
-});
+type ProviderAuthKind = 'api_key' | 'local_session' | 'none' | 'custom';
 
-const OpenAIModelSchema = z.object({
-  id: z.string(),
-  object: z.string(),
-  owned_by: z.string(),
-});
-
-const OpenAIModelsResponseSchema = z.object({
-  data: z.array(OpenAIModelSchema),
-  object: z.string(),
-});
-
-const ANTHROPIC_FALLBACK_MODELS: AvailableModel[] = [
-  {
-    id: 'anthropic:claude-sonnet-4-20250514',
-    name: 'Claude Sonnet 4 (cached)',
-    provider: 'anthropic',
-    available: false,
-  },
-  {
-    id: 'anthropic:claude-opus-4-20250514',
-    name: 'Claude Opus 4 (cached)',
-    provider: 'anthropic',
-    available: false,
-  },
-];
-
-const OPENAI_FALLBACK_MODELS: AvailableModel[] = [
-  {
-    id: 'openai:gpt-4o',
-    name: 'GPT-4o (cached)',
-    provider: 'openai',
-    available: false,
-  },
-];
-
-const OPENAI_CHAT_MODEL_PREFIXES = ['gpt-4o', 'gpt-4', 'o1', 'o3', 'o4'];
-
-const PROVIDER_CONFIG: Record<
-  Provider,
-  {
-    envVar: string;
-    targetHost: string;
-    injectionKey: string;
-  }
-> = {
-  anthropic: {
-    envVar: 'ANTHROPIC_API_KEY',
-    targetHost: 'api.anthropic.com',
-    injectionKey: 'x-api-key',
-  },
-  openai: {
-    envVar: 'OPENAI_API_KEY',
-    targetHost: 'api.openai.com',
-    injectionKey: 'Authorization',
-  },
+type ProviderConnection = {
+  provider: string;
+  displayName: string;
+  authKind: ProviderAuthKind;
+  configured: boolean;
+  selectable: boolean;
+  status: ProviderConnectionStatus;
+  message?: string;
+  setupCommand?: string;
+  versionCommand?: string;
 };
 
 function vaultKey(provider: Provider): string {
-  return `api_key_${provider}`;
+  const namespace = providerAuth(providerDefinitionFor(provider)).vaultKeyNamespace ?? provider;
+  return `api_key_${namespace}`;
+}
+
+function providerLabelFor(provider: ProviderVendorKey): string {
+  return providerDefinitionFor(provider).displayName;
+}
+
+function providerAuthKind(
+  definition: ProviderDefinitionEntry,
+): ProviderAuthKind {
+  if (isApiKeyProviderDefinition(definition)) {
+    return 'api_key';
+  }
+
+  const agentCliAuthKind = providerAgentCli(definition)?.auth.kind;
+  if (agentCliAuthKind === 'local_session' || agentCliAuthKind === 'none') {
+    return agentCliAuthKind;
+  }
+
+  if (agentCliAuthKind === 'api_key') {
+    return 'api_key';
+  }
+
+  if (agentCliAuthKind) {
+    return 'custom';
+  }
+
+  return 'none';
+}
+
+function providerAvailabilityReason(
+  definition: ProviderDefinitionEntry,
+): string | undefined {
+  const agentCli = providerAgentCli(definition);
+  return agentCli?.auth.description ?? agentCli?.install?.notes;
+}
+
+function providerMetadataForModel(definition: ProviderDefinitionEntry): Pick<
+  AvailableModel,
+  'executionCapabilityProfile' | 'roleCompatibility'
+> {
+  const providerDefinition = definition as ProviderDefinition;
+  const roleCompatibility = roleCompatibilityMapForProviderDefinition(providerDefinition, MODEL_ROLES);
+  return {
+    ...(providerDefinition.executionCapabilityProfile
+      ? { executionCapabilityProfile: providerDefinition.executionCapabilityProfile }
+      : {}),
+    ...(providerDefinition.protocol === 'agent-cli' ? { roleCompatibility } : {}),
+  };
+}
+
+function apiKeyCredentialConfig(provider: Provider): {
+  envVar: string;
+  targetHost: string;
+  injectionKey: string;
+} {
+  const definition = providerDefinitionFor(provider);
+  const auth = providerAuth(definition);
+  const envVar = auth.envVar;
+  if (!envVar) {
+    throw new Error(`Provider '${provider}' is missing API-key envVar metadata`);
+  }
+  if (!auth.header) {
+    throw new Error(`Provider '${provider}' is missing API-key header metadata`);
+  }
+
+  return {
+    envVar,
+    targetHost: new URL(definition.defaultEndpoint).host,
+    injectionKey: auth.header.name,
+  };
 }
 
 function maskApiKey(key: string): string {
@@ -136,6 +235,120 @@ function maskApiKey(key: string): string {
 
 function cloneModels(models: AvailableModel[]): AvailableModel[] {
   return models.map((model) => ({ ...model }));
+}
+
+function defaultSelectableModels(): AvailableModel[] {
+  return PROVIDER_DEFINITIONS.filter((definition) => {
+    const capabilities = providerCapabilities(definition);
+    return (
+      !isApiKeyProviderDefinition(definition) &&
+      capabilities?.modelListing !== true
+    );
+  }).map((definition) => {
+    const availabilityReason = providerAvailabilityReason(definition);
+    return {
+      id: `${definition.vendorKey}:${definition.defaultModelId}`,
+      name: `${definition.displayName} (default)`,
+      provider: definition.vendorKey,
+      providerLabel: providerLabelFor(definition.vendorKey),
+      available: true,
+      authKind: providerAuthKind(definition),
+      ...(availabilityReason ? { availabilityReason } : {}),
+      ...providerMetadataForModel(definition),
+    };
+  });
+}
+
+async function providerConnectionForApiKeyProvider(
+  ctx: NousContext,
+  definition: ProviderDefinitionEntry,
+): Promise<ProviderConnection> {
+  const provider = definition.vendorKey as Provider;
+  const metadata = await ctx.credentialVaultService.getMetadata(
+    SYSTEM_APP_ID,
+    vaultKey(provider),
+  );
+  const configured = !!metadata;
+
+  return {
+    provider,
+    displayName: providerLabelFor(provider),
+    authKind: 'api_key',
+    configured,
+    selectable: configured,
+    status: configured ? 'ready' : 'missing_credentials',
+    message: configured
+      ? 'API key is configured.'
+      : `Add a ${providerLabelFor(provider)} API key before using this provider.`,
+  };
+}
+
+function providerConnectionForAgentCliProvider(
+  definition: ProviderDefinitionEntry,
+): ProviderConnection {
+  const install = providerAgentCli(definition)?.install;
+  const message = providerAvailabilityReason(definition);
+
+  return {
+    provider: definition.vendorKey,
+    displayName: definition.displayName,
+    authKind: providerAuthKind(definition),
+    configured: false,
+    selectable: true,
+    status: 'not_checked',
+    ...(message ? { message } : {}),
+    ...(install?.command ? { setupCommand: install.command } : {}),
+    ...(install?.versionCommand ? { versionCommand: install.versionCommand } : {}),
+  };
+}
+
+function providerConnectionForOllama(ollamaStatus: {
+  running: boolean;
+}): ProviderConnection {
+  const configured = ollamaStatus.running;
+
+  return {
+    provider: 'ollama',
+    displayName: providerLabelFor('ollama'),
+    authKind: 'none',
+    configured,
+    selectable: configured,
+    status: configured ? 'ready' : 'not_running',
+    message: configured
+      ? 'Ollama is running.'
+      : 'Start Ollama before using local Ollama models.',
+  };
+}
+
+async function getProviderConnections(
+  ctx: NousContext,
+  ollamaStatus: { running: boolean },
+): Promise<ProviderConnection[]> {
+  return Promise.all(
+    PROVIDER_DEFINITIONS.map((definition) => {
+      if (isApiKeyProviderDefinition(definition)) {
+        return providerConnectionForApiKeyProvider(ctx, definition);
+      }
+
+      if (definition.vendorKey === 'ollama') {
+        return Promise.resolve(providerConnectionForOllama(ollamaStatus));
+      }
+
+      if (providerAgentCli(definition)) {
+        return Promise.resolve(providerConnectionForAgentCliProvider(definition));
+      }
+
+      const connection: ProviderConnection = {
+        provider: definition.vendorKey,
+        displayName: definition.displayName,
+        authKind: providerAuthKind(definition),
+        configured: false,
+        selectable: false,
+        status: 'not_checked',
+      };
+      return Promise.resolve(connection);
+    }),
+  );
 }
 
 function buildProviderSelection(
@@ -162,10 +375,6 @@ function buildProviderSelection(
   };
 }
 
-function isOpenAIChatModel(modelId: string): boolean {
-  return OPENAI_CHAT_MODEL_PREFIXES.some((prefix) => modelId.startsWith(prefix));
-}
-
 function getCachedModels(provider: Provider): AvailableModel[] | null {
   const cached = modelCache.get(provider);
   if (!cached) {
@@ -183,160 +392,68 @@ function getCachedModels(provider: Provider): AvailableModel[] | null {
   return cloneModels(cached.models);
 }
 
-async function fetchAnthropicModels(
-  apiKey: string,
-): Promise<CloudModelFetchResult> {
-  try {
-    const response = await fetch('https://api.anthropic.com/v1/models', {
-      method: 'GET',
-      headers: {
-        'x-api-key': apiKey,
-        'anthropic-version': '2023-06-01',
-      },
-    });
-
-    if (!response.ok) {
-      console.warn(
-        `[nous:preferences] Failed to fetch anthropic models: HTTP ${response.status}. Using fallback list.`,
-      );
-      return {
-        models: cloneModels(ANTHROPIC_FALLBACK_MODELS),
-        cacheable: false,
-      };
-    }
-
-    const parsed = AnthropicModelsResponseSchema.safeParse(await response.json());
-    if (!parsed.success) {
-      console.warn(
-        '[nous:preferences] Failed to parse anthropic /v1/models response. Using fallback list.',
-      );
-      return {
-        models: cloneModels(ANTHROPIC_FALLBACK_MODELS),
-        cacheable: false,
-      };
-    }
-
-    if (parsed.data.has_more) {
-      console.warn(
-        '[nous:preferences] Anthropic /v1/models has_more=true - some models may not be listed',
-      );
-    }
-
-    const models = parsed.data.data.map((model) => ({
-      id: `anthropic:${model.id}`,
-      name: model.display_name,
-      provider: 'anthropic',
-      available: true,
-    }));
-
-    console.info(
-      `[nous:preferences] Fetched ${models.length} models from anthropic /v1/models`,
-    );
-
-    return { models, cacheable: true };
-  } catch (err) {
-    const message = err instanceof Error ? err.message : String(err);
-    console.warn(
-      `[nous:preferences] Network error fetching anthropic models: ${message}. Using fallback list.`,
-    );
-    return {
-      models: cloneModels(ANTHROPIC_FALLBACK_MODELS),
-      cacheable: false,
-    };
-  }
+function shouldCacheModelDiscovery(definition: ProviderDefinition): boolean {
+  return !definition.isLocal;
 }
 
-async function fetchOpenAIModels(apiKey: string): Promise<CloudModelFetchResult> {
-  try {
-    const response = await fetch('https://api.openai.com/v1/models', {
-      method: 'GET',
-      headers: {
-        Authorization: `Bearer ${apiKey}`,
-      },
-    });
-
-    if (!response.ok) {
-      console.warn(
-        `[nous:preferences] Failed to fetch openai models: HTTP ${response.status}. Using fallback list.`,
-      );
-      return {
-        models: cloneModels(OPENAI_FALLBACK_MODELS),
-        cacheable: false,
-      };
-    }
-
-    const parsed = OpenAIModelsResponseSchema.safeParse(await response.json());
-    if (!parsed.success) {
-      console.warn(
-        '[nous:preferences] Failed to parse openai /v1/models response. Using fallback list.',
-      );
-      return {
-        models: cloneModels(OPENAI_FALLBACK_MODELS),
-        cacheable: false,
-      };
-    }
-
-    const models = parsed.data.data
-      .filter((model) => isOpenAIChatModel(model.id))
-      .map((model) => ({
-        id: `openai:${model.id}`,
-        name: model.id,
-        provider: 'openai',
-        available: true,
-      }));
-
-    console.info(
-      `[nous:preferences] Fetched ${models.length} models from openai /v1/models`,
-    );
-
-    return { models, cacheable: true };
-  } catch (err) {
-    const message = err instanceof Error ? err.message : String(err);
-    console.warn(
-      `[nous:preferences] Network error fetching openai models: ${message}. Using fallback list.`,
-    );
-    return {
-      models: cloneModels(OPENAI_FALLBACK_MODELS),
-      cacheable: false,
-    };
-  }
-}
-
-async function getCloudModelsForProvider(
+async function getDiscoveredModelsForProvider(
   ctx: NousContext,
   provider: Provider,
+  options: { baseUrl?: string } = {},
 ): Promise<AvailableModel[]> {
   try {
-    const resolved = await ctx.credentialVaultService.resolveForInjection(
-      SYSTEM_APP_ID,
-      vaultKey(provider),
-    );
+    const definition = providerDefinitionFor(provider);
+    const auth = providerAuth(definition);
+    let apiKey = '';
 
-    if (!resolved?.secretValue) {
+    if (auth.required) {
+      const resolved = await ctx.credentialVaultService.resolveForInjection(
+        SYSTEM_APP_ID,
+        vaultKey(provider),
+      );
+
+      if (!resolved?.secretValue) {
+        console.debug(
+          `[nous:preferences] Skipping ${provider} model fetch - no API key configured`,
+        );
+        return [];
+      }
+      apiKey = resolved.secretValue;
+    }
+
+    if (shouldCacheModelDiscovery(definition as ProviderDefinition)) {
+      const cachedModels = getCachedModels(provider);
+      if (cachedModels) {
+        return cachedModels;
+      }
+    }
+
+    if (!providerSupportsModelDiscovery(definition as ProviderDefinition)) {
       console.debug(
-        `[nous:preferences] Skipping ${provider} model fetch - no API key configured`,
+        `[nous:preferences] Skipping ${provider} model fetch - no model-list endpoint configured`,
       );
       return [];
     }
 
-    const cachedModels = getCachedModels(provider);
-    if (cachedModels) {
-      return cachedModels;
-    }
+    const result: ProviderModelDiscoveryResult = await fetchProviderModels(
+      definition as ProviderDefinition,
+      apiKey,
+      fetch,
+      { baseUrl: options.baseUrl },
+    );
+    const models = result.models.map((model) => ({
+      ...model,
+      ...providerMetadataForModel(definition),
+    }));
 
-    const result =
-      provider === 'anthropic'
-        ? await fetchAnthropicModels(resolved.secretValue)
-        : await fetchOpenAIModels(resolved.secretValue);
-
-    if (result.cacheable) {
+    if (result.cacheable && shouldCacheModelDiscovery(definition as ProviderDefinition)) {
       modelCache.set(provider, {
-        models: cloneModels(result.models),
+        models: cloneModels(models),
         fetchedAt: Date.now(),
       });
     }
 
-    return cloneModels(result.models);
+    return cloneModels(models);
   } catch (err) {
     const message = err instanceof Error ? err.message : String(err);
     console.warn(
@@ -348,15 +465,17 @@ async function getCloudModelsForProvider(
 
 export const preferencesRouter = router({
   getApiKeys: publicProcedure.query(async ({ ctx }) => {
-    const providers: Provider[] = ['anthropic', 'openai'];
+    const providers = apiKeyProviderDefinitions();
     const results: Array<{
       provider: Provider;
+      displayName: string;
       configured: boolean;
       maskedKey: string | null;
       createdAt: string | null;
     }> = [];
 
-    for (const provider of providers) {
+    for (const definition of providers) {
+      const provider = definition.vendorKey;
       const metadata = await ctx.credentialVaultService.getMetadata(
         SYSTEM_APP_ID,
         vaultKey(provider),
@@ -371,6 +490,7 @@ export const preferencesRouter = router({
 
         results.push({
           provider,
+          displayName: providerLabelFor(provider),
           configured: true,
           maskedKey: resolved ? maskApiKey(resolved.secretValue) : null,
           createdAt: metadata.created_at,
@@ -378,6 +498,7 @@ export const preferencesRouter = router({
       } else {
         results.push({
           provider,
+          displayName: providerLabelFor(provider),
           configured: false,
           maskedKey: null,
           createdAt: null,
@@ -396,7 +517,7 @@ export const preferencesRouter = router({
       }),
     )
     .mutation(async ({ ctx, input }) => {
-      const config = PROVIDER_CONFIG[input.provider];
+      const config = apiKeyCredentialConfig(input.provider);
 
       await ctx.credentialVaultService.store(SYSTEM_APP_ID, {
         key: vaultKey(input.provider),
@@ -409,6 +530,7 @@ export const preferencesRouter = router({
 
       // Set in process environment for immediate SDK access
       process.env[config.envVar] = input.key;
+      modelCache.delete(input.provider);
       await registerConfiguredProvider(ctx, input.provider);
       console.log(
         `[nous:preferences] setApiKey: registered provider ${input.provider}`,
@@ -424,7 +546,7 @@ export const preferencesRouter = router({
       }),
     )
     .mutation(async ({ ctx, input }) => {
-      const config = PROVIDER_CONFIG[input.provider];
+      const config = apiKeyCredentialConfig(input.provider);
 
       const result = await ctx.credentialVaultService.revoke(SYSTEM_APP_ID, {
         key: vaultKey(input.provider),
@@ -433,6 +555,7 @@ export const preferencesRouter = router({
 
       // Clear from process environment
       delete process.env[config.envVar];
+      modelCache.delete(input.provider);
       await removeConfiguredProvider(ctx, input.provider);
       console.log(
         `[nous:preferences] deleteApiKey: removed provider ${input.provider}`,
@@ -466,36 +589,10 @@ export const preferencesRouter = router({
           };
         }
 
-        if (input.provider === 'anthropic') {
-          const response = await fetch('https://api.anthropic.com/v1/models', {
-            method: 'GET',
-            headers: {
-              'x-api-key': resolvedKey,
-              'anthropic-version': '2023-06-01',
-            },
-          });
-          if (response.ok) {
-            return { valid: true, error: null };
-          }
-          const body = await response.text();
-          return { valid: false, error: `HTTP ${response.status}: ${body.slice(0, 200)}` };
-        }
-
-        if (input.provider === 'openai') {
-          const response = await fetch('https://api.openai.com/v1/models', {
-            method: 'GET',
-            headers: {
-              Authorization: `Bearer ${resolvedKey}`,
-            },
-          });
-          if (response.ok) {
-            return { valid: true, error: null };
-          }
-          const body = await response.text();
-          return { valid: false, error: `HTTP ${response.status}: ${body.slice(0, 200)}` };
-        }
-
-        return { valid: false, error: `Unknown provider: ${input.provider}` };
+        return await testProviderApiKey(
+          providerDefinitionFor(input.provider) as ProviderDefinition,
+          resolvedKey,
+        );
       } catch (err) {
         const message = err instanceof Error ? err.message : String(err);
         return { valid: false, error: message };
@@ -503,22 +600,27 @@ export const preferencesRouter = router({
     }),
 
   getAvailableModels: publicProcedure.query(async ({ ctx }) => {
-    // Get Ollama models
-    const ollamaStatus = await detectOllama();
-    const ollamaModels = ollamaStatus.models.map((m) => ({
-      id: `ollama:${m}`,
-      name: m,
-      provider: 'ollama' as const,
-      available: ollamaStatus.running,
-    }));
-
-    // Get cloud models from the provider APIs
-    const cloudModelResults = await Promise.all(
-      CLOUD_PROVIDERS.map((provider) => getCloudModelsForProvider(ctx, provider)),
+    const ollamaEndpoint = getOllamaEndpointFromContext(ctx);
+    const ollamaStatus = await detectOllama(ollamaEndpoint);
+    const discoverableProviders = PROVIDER_DEFINITIONS
+      .filter((definition) => providerSupportsModelDiscovery(definition as ProviderDefinition))
+      .filter((definition) => {
+        if (isApiKeyProviderDefinition(definition)) {
+          return true;
+        }
+        return definition.protocol === 'ollama' && ollamaStatus.running;
+      })
+      .map((definition) => definition.vendorKey);
+    const discoveredModelResults = await Promise.all(
+      discoverableProviders.map((provider) => getDiscoveredModelsForProvider(
+        ctx,
+        provider,
+        provider === 'ollama' ? { baseUrl: ollamaEndpoint } : undefined,
+      )),
     );
-    const cloudModels = cloudModelResults.flat();
+    const discoveredModels = discoveredModelResults.flat();
 
-    return { models: [...ollamaModels, ...cloudModels] };
+    return { models: [...discoveredModels, ...defaultSelectableModels()] };
   }),
 
   getRoleAssignments: publicProcedure.query(async ({ ctx }) => {
@@ -549,10 +651,18 @@ export const preferencesRouter = router({
     .input(
       z.object({
         role: ModelRoleSchema,
-        modelSpec: z.string(),
+        modelSpec: z.string().nullable(),
       }),
     )
     .mutation(async ({ ctx, input }) => {
+      if (!input.modelSpec) {
+        await updateRoleAssignment(ctx, input.role, null);
+        console.info(
+          `[nous:preferences] Cleared ${input.role} assignment for auto-detect`,
+        );
+        return { success: true };
+      }
+
       const selectedModel = parseSelectedModelSpec(input.modelSpec);
       if (!selectedModel) {
         const error = `Cannot parse model spec: ${input.modelSpec}`;
@@ -562,6 +672,10 @@ export const preferencesRouter = router({
 
       try {
         const { providerId, providerConfig } = buildProviderSelection(selectedModel);
+        assertProviderDefinitionCompatibleWithRole(
+          input.role,
+          providerDefinitionFor(selectedModel.provider),
+        );
 
         await upsertProviderConfig(ctx, providerConfig);
         await updateRoleAssignment(ctx, input.role, providerId);
@@ -593,35 +707,11 @@ export const preferencesRouter = router({
     }),
 
   getSystemStatus: publicProcedure.query(async ({ ctx }) => {
-    // Determine which providers are configured
-    const providers = CLOUD_PROVIDERS;
-    const configuredProviders: string[] = [];
-
-    for (const provider of providers) {
-      const metadata = await ctx.credentialVaultService.getMetadata(
-        SYSTEM_APP_ID,
-        vaultKey(provider),
-      );
-      if (metadata) {
-        configuredProviders.push(provider);
-      }
-    }
-
-    // Check Ollama status
-    let ollamaRunning = false;
-    let ollamaModels: string[] = [];
-    try {
-      const response = await fetch('http://127.0.0.1:11434/api/tags', {
-        signal: AbortSignal.timeout(2000),
-      });
-      if (response.ok) {
-        ollamaRunning = true;
-        const body = (await response.json()) as { models?: Array<{ name: string }> };
-        ollamaModels = body.models?.map((m) => m.name) ?? [];
-      }
-    } catch {
-      // Ollama not reachable
-    }
+    const ollamaStatus = await detectOllama();
+    const providerConnections = await getProviderConnections(ctx, ollamaStatus);
+    const configuredProviders = providerConnections
+      .filter((connection) => connection.authKind === 'api_key' && connection.configured)
+      .map((connection) => connection.provider);
 
     let credentialVaultHealthy = false
     try {
@@ -633,10 +723,11 @@ export const preferencesRouter = router({
 
     return {
       ollama: {
-        running: ollamaRunning,
-        models: ollamaModels,
+        running: ollamaStatus.running,
+        models: ollamaStatus.models,
       },
       configuredProviders,
+      providerConnections,
       credentialVaultHealthy,
     };
   }),

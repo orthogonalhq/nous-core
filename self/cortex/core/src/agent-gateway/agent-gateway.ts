@@ -26,6 +26,7 @@ import {
   type IAgentGatewayFactory,
   type IModelProvider,
   type ModelRole,
+  type ModelProviderConfig,
   type ProjectId,
   type ThinkingUnavailable,
   type ToolDefinition,
@@ -58,11 +59,12 @@ import {
   parseTaskCompletionRequest,
 } from './lifecycle-hooks.js';
 import { GatewayOutbox } from './outbox.js';
-import { composeSystemPrompt } from './system-prompt-composer.js';
+import { composeFromProfile } from '../gateway-runtime/prompt-composer.js';
+import { resolveAgentProfile } from '../gateway-runtime/prompt-strategy.js';
 import { resolveAdapter, resolveProviderTypeFromConfig } from './adapters/index.js';
 import { isToolErrorPayload } from '../internal-mcp/tool-error-helpers.js';
 import { resolveDispatchParameterPlaceholders } from './placeholder-resolver.js';
-import type { ILogChannel, ModelResponse, ModelStreamChunk } from '@nous/shared';
+import type { ILogChannel, ModelStreamChunk } from '@nous/shared';
 import type { ProviderAdapter } from './adapters/types.js';
 
 /** No-op log channel used when no ILogChannel is provided. */
@@ -84,6 +86,10 @@ const DEFAULT_MODEL_ROLE_BY_CLASS: Record<AgentClass, ModelRole> = {
 function deriveDefaultModelRole(agentClass: AgentClass | undefined): ModelRole {
   if (!agentClass) return 'cortex-chat'; // I5 first-run fallback
   return DEFAULT_MODEL_ROLE_BY_CLASS[agentClass];
+}
+
+function deriveEffectiveAgentClass(agentClass: AgentClass | undefined): AgentClass {
+  return agentClass ?? 'Cortex::Principal';
 }
 
 /**
@@ -226,6 +232,18 @@ export class AgentGateway implements IAgentGateway {
     return this.cachedAdapter;
   }
 
+  private tryGetProviderConfig(provider: IModelProvider): ModelProviderConfig | undefined {
+    try {
+      return provider.getConfig();
+    } catch (error) {
+      this.log.warn('provider config unavailable', {
+        agentClass: this.agentClass,
+        error: error instanceof Error ? error.message : String(error),
+      });
+      return undefined;
+    }
+  }
+
   getInboxHandle() {
     return this.inbox.getHandle();
   }
@@ -275,39 +293,59 @@ export class AgentGateway implements IAgentGateway {
         const tools = await this.config.toolSurface.listTools();
         const provider = await this.resolveProvider(validInput, traceId);
 
-        // Strategy delegation: promptFormatter (harness) or composeSystemPrompt (built-in)
-        let systemPrompt: string | string[];
-        if (this.config.harness?.promptFormatter) {
-          const formatted = this.config.harness.promptFormatter({
-            agentClass: this.agentClass,
-            taskInstructions: validInput.taskInstructions,
-            baseSystemPrompt: this.config.baseSystemPrompt,
-            execution: validInput.execution,
-            tools,
-          });
-          systemPrompt = formatted.systemPrompt;
-        } else {
-          systemPrompt = composeSystemPrompt({
-            agentClass: this.agentClass,
-            taskInstructions: validInput.taskInstructions,
-            baseSystemPrompt: this.config.baseSystemPrompt,
-            execution: validInput.execution,
-            tools,
-          });
-        }
+        const adapter = this.resolveAdapterFromProvider(provider);
+        const providerConfig = this.tryGetProviderConfig(provider);
+        const effectiveAgentClass = deriveEffectiveAgentClass(this.agentClass);
+        const providerType = resolveProviderTypeFromConfig(provider);
+        const promptOutput = this.config.harness?.promptFormatter
+          ? this.config.harness.promptFormatter({
+              agentClass: effectiveAgentClass,
+              taskInstructions: validInput.taskInstructions,
+              baseSystemPrompt: this.config.baseSystemPrompt,
+              execution: validInput.execution,
+              tools,
+            })
+          : composeFromProfile(
+              resolveAgentProfile(effectiveAgentClass, providerType),
+              adapter.capabilities,
+              {
+                agentClass: effectiveAgentClass,
+                taskInstructions: validInput.taskInstructions,
+                baseSystemPrompt: this.config.baseSystemPrompt,
+                execution: validInput.execution,
+                tools,
+              },
+            );
+
+        const systemPrompt = promptOutput.systemPrompt;
+        const formattedToolDefinitions = adapter.capabilities.nativeToolUse
+          ? promptOutput.toolDefinitions
+          : undefined;
+        const systemPromptText = Array.isArray(systemPrompt)
+          ? systemPrompt.join('\n\n')
+          : systemPrompt;
+        const textListedToolsVisible =
+          tools.length > 0 && systemPromptText.includes('Available Tools:');
+        const modelVisibleToolCount =
+          (formattedToolDefinitions?.length ?? 0) + (textListedToolsVisible ? tools.length : 0);
 
         const correlation = sequencer.snapshot();
 
         // Use adapter.formatRequest() — converts { systemPrompt, context, toolDefinitions }
         // into provider-specific format (Anthropic, OpenAI, Ollama, or text).
-        const adapter = this.resolveAdapterFromProvider(provider);
-        const formatted = adapter.formatRequest({ systemPrompt, context, toolDefinitions: tools });
+        const formatted = adapter.formatRequest({
+          systemPrompt,
+          context,
+          toolDefinitions: formattedToolDefinitions,
+        });
 
         // Extract the last user message from context for logging
         const lastUserFrame = [...context].reverse().find(f => f.role === 'user');
 
         this.log.debug('invoke provider', {
           agentClass: this.agentClass,
+          providerId: providerConfig?.id,
+          providerType,
           hasHarness: !!this.config.harness,
           inputKeys: Object.keys(formatted.input),
           userMessage: lastUserFrame?.content?.slice(0, 500) ?? '(no user message)',
@@ -326,14 +364,42 @@ export class AgentGateway implements IAgentGateway {
         // stream-capable provider, eventBus): use invokeWithStreaming. That path
         // already emits BOTH content and thinking chunks (agent-gateway.ts:543-556),
         // so it dominates — no double-stream.
-        const canStreamContent = !!this.config.eventBus
+        const hasEventBus = !!this.config.eventBus;
+        const providerStreamAvailable = typeof provider.stream === 'function';
+        const providerThinkingStreamAvailable = typeof provider.invokeWithThinkingStream === 'function';
+        const toolCount = tools?.length ?? 0;
+        const canStreamContent = hasEventBus
           && adapter.capabilities.streaming
-          && typeof provider.stream === 'function'
-          && (!tools || tools.length === 0);
+          && providerStreamAvailable
+          && modelVisibleToolCount === 0;
 
-        const canStreamThinking = !!this.config.eventBus
+        const canStreamThinking = hasEventBus
           && adapter.capabilities.extendedThinking
-          && typeof provider.invokeWithThinkingStream === 'function';
+          && providerThinkingStreamAvailable;
+
+        this.log.debug('streaming gate diagnostics', {
+          agentClass: this.agentClass,
+          providerType: this.cachedAdapterProviderSignature,
+          eventBusAvailable: hasEventBus,
+          toolCount,
+          modelVisibleToolCount,
+          content: {
+            adapterStreaming: adapter.capabilities.streaming,
+            providerStreamAvailable,
+            blockedByTools: modelVisibleToolCount > 0,
+            selected: canStreamContent,
+          },
+          thinking: {
+            adapterExtendedThinking: adapter.capabilities.extendedThinking,
+            providerThinkingStreamAvailable,
+            selected: canStreamThinking,
+          },
+          selectedPath: canStreamContent
+            ? 'content_stream'
+            : canStreamThinking
+              ? 'thinking_stream'
+              : 'invoke',
+        });
 
         const modelResponse = canStreamContent
           ? await this.invokeWithStreaming(provider, adapter, formatted, traceId, projectId, correlation)
@@ -404,7 +470,7 @@ export class AgentGateway implements IAgentGateway {
           const metadata: Record<string, unknown> | undefined =
             parsedOutput.toolCalls.length > 0
               ? {
-                  tool_calls: parsedOutput.toolCalls.map((tc) => ({
+                  tool_calls: parsedOutput.toolCalls.map((tc: { id?: string; name: string; params: unknown }) => ({
                     id: tc.id,
                     name: tc.name,
                     input: tc.params,
@@ -655,6 +721,7 @@ export class AgentGateway implements IAgentGateway {
     correlation: { runId: string; parentId?: string; sequence: number },
   ): Promise<import('@nous/shared').ModelResponse> {
     const eventBus = this.config.eventBus!;
+    const providerConfig = provider.getConfig();
     const request = {
       role: this.config.modelRole ?? deriveDefaultModelRole(this.config.agentClass),
       input: formatted.input,
@@ -666,13 +733,27 @@ export class AgentGateway implements IAgentGateway {
     };
 
     try {
+      const streamStartedAt = Date.now();
       let accumulatedContent = '';
       let accumulatedThinking = '';
+      let contentChunkCount = 0;
+      let thinkingChunkCount = 0;
       let lastUsage: ModelStreamChunk['usage'];
+
+      this.log.debug('content streaming invocation started', {
+        agentClass: this.agentClass,
+        providerId: providerConfig.id,
+        modelId: providerConfig.modelId,
+        traceId,
+        projectId,
+        correlationRunId: correlation.runId,
+        correlationParentId: correlation.parentId,
+      });
 
       for await (const chunk of provider.stream!(request)) {
         if (chunk.thinking) {
           accumulatedThinking += chunk.thinking;
+          thinkingChunkCount += 1;
           eventBus.publish('chat:thinking-chunk', {
             content: chunk.thinking,
             traceId,
@@ -680,6 +761,7 @@ export class AgentGateway implements IAgentGateway {
         }
         if (chunk.content) {
           accumulatedContent += chunk.content;
+          contentChunkCount += 1;
           eventBus.publish('chat:content-chunk', {
             content: chunk.content,
             traceId,
@@ -689,6 +771,22 @@ export class AgentGateway implements IAgentGateway {
           lastUsage = chunk.usage;
         }
       }
+
+      this.log.debug('content streaming invocation completed', {
+        agentClass: this.agentClass,
+        providerId: providerConfig.id,
+        modelId: providerConfig.modelId,
+        traceId,
+        projectId,
+        correlationRunId: correlation.runId,
+        correlationParentId: correlation.parentId,
+        contentChunkCount,
+        thinkingChunkCount,
+        contentLength: accumulatedContent.length,
+        thinkingLength: accumulatedThinking.length,
+        latencyMs: Date.now() - streamStartedAt,
+        usage: lastUsage,
+      });
 
       // Build a ModelResponse-compatible result from accumulated chunks
       const output = accumulatedThinking
@@ -702,10 +800,19 @@ export class AgentGateway implements IAgentGateway {
           outputTokens: lastUsage?.outputTokens ?? 0,
         },
         traceId: traceId as TraceId,
-        providerId: provider.getConfig().id,
+        providerId: providerConfig.id,
       };
     } catch (err) {
-      this.log.warn('streaming failed, falling back to invoke()', { error: String(err) });
+      this.log.warn('streaming failed, falling back to invoke()', {
+        agentClass: this.agentClass,
+        providerId: providerConfig.id,
+        modelId: providerConfig.modelId,
+        traceId,
+        projectId,
+        correlationRunId: correlation.runId,
+        correlationParentId: correlation.parentId,
+        error: String(err),
+      });
       return provider.invoke(request);
     }
   }

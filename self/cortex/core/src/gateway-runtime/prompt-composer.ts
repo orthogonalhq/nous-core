@@ -50,8 +50,10 @@ export function composeFromProfile(
   // Tool handling based on policy and adapter capabilities
   let toolDefinitions: ToolDefinition[] | undefined;
 
-  if (profile.toolPolicy === 'native' || adapterCapabilities.nativeToolUse) {
-    // Tools go in API body — return them as toolDefinitions
+  if (profile.toolPolicy !== 'omit' && adapterCapabilities.nativeToolUse) {
+    // Native-capable adapters receive tools in the provider API body. A
+    // profile's `native` policy is an omission policy when the adapter has no
+    // native tool channel; it must not be downgraded into prompt-listed tools.
     toolDefinitions = input.tools && input.tools.length > 0 ? input.tools : undefined;
   } else if (profile.toolPolicy === 'text-listed' && input.tools && input.tools.length > 0) {
     // Tools listed as text names in prompt (current behavior)

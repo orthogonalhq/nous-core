@@ -31,6 +31,7 @@ import {
   PROVIDER_DEFINITIONS,
   type ProviderDefinition,
 } from '../provider-definitions.js';
+import { isKnownProviderIdForVendor } from '../provider-identity.js';
 import { resolveProviderFactory } from '../provider-factories.js';
 
 export interface ProviderRegistryOptions {
@@ -192,7 +193,7 @@ export class ProviderRegistry {
     }
 
     const byProviderId = PROVIDER_DEFINITIONS.find(
-      (definition) => definition.wellKnownProviderId === config.id,
+      (definition) => isKnownProviderIdForVendor(config.id, definition.vendorKey),
     );
     if (byProviderId) return byProviderId;
 
@@ -238,7 +239,11 @@ export class ProviderRegistry {
     // honors any upstream stamping (constructor entry loop / registerProvider)
     // and fills in the field if the caller bypassed the upstream sites.
     const resolvedVendor = baseConfig.vendor ?? this.resolveVendor(baseConfig);
-    if (!KNOWN_PROVIDER_VENDORS.includes(resolvedVendor as (typeof KNOWN_PROVIDER_VENDORS)[number])) {
+    const providerFactory = resolveProviderFactory(resolvedVendor);
+    if (
+      !providerFactory &&
+      !KNOWN_PROVIDER_VENDORS.includes(resolvedVendor as (typeof KNOWN_PROVIDER_VENDORS)[number])
+    ) {
       console.info(
         `[nous:providers] Provider ${baseConfig.id} stamped with unknown vendor ` +
           `'${resolvedVendor}' — adapter will fall back to text. Add a vendor ` +
@@ -249,7 +254,6 @@ export class ProviderRegistry {
       ...baseConfig,
       vendor: resolvedVendor,
     };
-    const providerFactory = resolveProviderFactory(resolvedVendor);
     const provider = providerFactory
       ? providerFactory.create(normalizedConfig, {
           apiKey: this.resolveRemoteApiKey(normalizedConfig),

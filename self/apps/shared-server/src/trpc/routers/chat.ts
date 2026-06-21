@@ -29,7 +29,15 @@ export const chatRouter = router({
         scope: 'principal' as const,
       });
 
-      return { response: result.response, traceId: result.traceId, contentType: result.contentType, thinkingContent: result.thinkingContent, cards: result.cards };
+      return {
+        response: result.response,
+        traceId: result.traceId,
+        contentType: result.contentType,
+        thinkingContent: result.thinkingContent,
+        cards: result.cards,
+        empty_response_kind: result.empty_response_kind,
+        thinking_unavailable: result.thinking_unavailable,
+      };
     }),
 
   getHistory: publicProcedure

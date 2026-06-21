@@ -4,6 +4,11 @@
 import { z } from 'zod';
 import type { ModelProviderConfig, ProviderId, ProviderVendor } from '@nous/shared';
 import {
+  PROVIDER_DEFINITIONS,
+  type ProviderDefinition,
+  type ProviderVendorKey,
+} from '@nous/subcortex-providers';
+import {
   PersonalityConfigSchema,
   UserProfileSchema,
 } from '@nous/autonomic-config';
@@ -102,6 +107,17 @@ import {
   updateRoleAssignment,
   upsertProviderConfig,
 } from '../../bootstrap';
+import { assertProviderDefinitionCompatibleWithRole } from '../../provider-capability-compatibility';
+
+function providerDefinitionFor(provider: ProviderVendorKey): ProviderDefinition {
+  const definition = PROVIDER_DEFINITIONS.find(
+    (candidate) => candidate.vendorKey === provider,
+  );
+  if (!definition) {
+    throw new Error(`Provider definition is missing for vendor key '${provider}'`);
+  }
+  return definition as ProviderDefinition;
+}
 
 // SP 1.3 — JSON-serializable identity-step payload for the wizard's
 // `WizardStepIdentity` (SP 1.4) submit at sub-stage C completion.
@@ -169,6 +185,7 @@ function getProfilePolicy(ctx: { config: { get(): unknown } }) {
 function buildProviderSelection(
   modelSpec: string,
 ): {
+  provider: ProviderVendorKey;
   providerId: ProviderId;
   providerConfig: ModelProviderConfig;
 } | null {
@@ -179,6 +196,7 @@ function buildProviderSelection(
 
   if (selectedModel.provider === 'ollama') {
     return {
+      provider: selectedModel.provider,
       providerId: OLLAMA_WELL_KNOWN_PROVIDER_ID,
       providerConfig: buildOllamaProviderConfig(
         selectedModel.modelId,
@@ -189,6 +207,7 @@ function buildProviderSelection(
 
   const providerId = WELL_KNOWN_PROVIDER_IDS[selectedModel.provider];
   return {
+    provider: selectedModel.provider,
     providerId,
     providerConfig: buildProviderConfig(
       selectedModel.provider,
@@ -324,6 +343,7 @@ export const firstRunRouter = router({
       }
 
       try {
+        assertProviderDefinitionCompatibleWithRole('cortex-chat', providerDefinitionFor(selection.provider));
         await upsertProviderConfig(ctx, selection.providerConfig);
         await updateRoleAssignment(ctx, 'cortex-chat', selection.providerId);
         const state = await markStepComplete(ctx.dataDir, 'provider_config');
@@ -374,6 +394,10 @@ export const firstRunRouter = router({
             continue;
           }
 
+          assertProviderDefinitionCompatibleWithRole(
+            assignment.role,
+            providerDefinitionFor(assignment.provider),
+          );
           await upsertProviderConfig(ctx, assignment.providerConfig);
           await updateRoleAssignment(ctx, assignment.role, assignment.providerId);
           console.info(

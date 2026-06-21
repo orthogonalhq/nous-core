@@ -51,6 +51,7 @@ describe('adapter resolver', () => {
   it('aggregates all canonical adapter modules', () => {
     expect(ADAPTER_MODULES.map((module) => module.adapterKey)).toEqual([
       'anthropic',
+      'codex-cli',
       'ollama',
       'chat-completions',
       'text',
@@ -60,6 +61,7 @@ describe('adapter resolver', () => {
   it('resolves canonical adapter keys', () => {
     expect(resolveAdapter('anthropic').capabilities.cacheControl).toBe(true);
     expect(resolveAdapter('chat-completions').capabilities.nativeToolUse).toBe(true);
+    expect(resolveAdapter('codex-cli').capabilities.streaming).toBe(true);
     expect(resolveAdapter('ollama').capabilities.extendedThinking).toBe(true);
     expect(resolveAdapter('text').capabilities.nativeToolUse).toBe(false);
   });
@@ -86,6 +88,7 @@ describe('adapter resolver', () => {
 
   it('resolves current provider definition vendors', () => {
     expect(resolveAdapterKeyFromConfig(makeProvider({ vendor: 'anthropic' }))).toBe('anthropic');
+    expect(resolveAdapterKeyFromConfig(makeProvider({ vendor: 'codex-cli' }))).toBe('codex-cli');
     expect(resolveAdapterKeyFromConfig(makeProvider({ vendor: 'ollama' }))).toBe('ollama');
   });
 
