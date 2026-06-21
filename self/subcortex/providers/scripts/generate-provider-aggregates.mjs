@@ -139,6 +139,7 @@ function providerAdapterExtraExports(vendor) {
     ['anthropic', ['createAnthropicAdapter']],
     ['codex-cli', ['CODEX_CLI_EXECUTION_CAPABILITY_PROFILE', 'createCodexCliAdapter', 'renderCodexCliPrompt']],
     ['ollama', ['createOllamaAdapter', 'isToolCapableModel']],
+    ['openclaw', ['OPENCLAW_EXECUTION_CAPABILITY_PROFILE', 'createOpenClawAdapter', 'renderOpenClawPrompt']],
     ['openai', ['createChatCompletionsAdapter']],
   ]);
   const extras = extrasByVendor.get(vendor) ?? [];
