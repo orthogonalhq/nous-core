@@ -30,6 +30,11 @@ const expectedDefinitions = {
     defaultModelId: 'llama3.2',
     envVar: undefined,
   },
+  groq: {
+    defaultEndpoint: 'https://api.groq.com/openai',
+    defaultModelId: 'llama-3.3-70b-versatile',
+    envVar: 'GROQ_API_KEY',
+  },
 } as const;
 
 describe('provider definitions catalog', () => {
@@ -37,6 +42,7 @@ describe('provider definitions catalog', () => {
     expect(PROVIDER_DEFINITIONS.map((definition) => definition.vendorKey).sort()).toEqual([
       'anthropic',
       'codex-cli',
+      'groq',
       'ollama',
       'openai',
     ]);
