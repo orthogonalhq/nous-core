@@ -9,6 +9,7 @@ import { resolveProviderFactory } from '../provider-factories.js';
 import { deriveBuiltInProviderId } from '../provider-identity.js';
 import { resolveAdapter, resolveAdapterKeyFromConfig } from '../adapter-resolver.js';
 import { ChatCompletionsProvider } from '../protocols/openai-api/provider.js';
+import type { ProviderDefinitionLeaf } from '../schemas/provider-definition.js';
 import { providerDefinition } from '../providers/perplexity/definition.js';
 import { providerFactory } from '../providers/perplexity/provider.js';
 import { providerAdapter } from '../providers/perplexity/adapter.js';
@@ -47,9 +48,12 @@ describe('Perplexity provider definition', () => {
   });
 
   it('does not declare dynamic model discovery (no public model-list endpoint)', () => {
-    expect(providerDefinition.modelListEndpoint).toBeUndefined();
-    expect(providerDefinition.modelListFormat).toBeUndefined();
-    expect(providerDefinition.capabilities?.modelListing).toBeUndefined();
+    // The leaf is narrowed by `as const`; widen to the leaf contract so the
+    // optional discovery fields are addressable and asserted absent.
+    const leaf: ProviderDefinitionLeaf = providerDefinition;
+    expect(leaf.modelListEndpoint).toBeUndefined();
+    expect(leaf.modelListFormat).toBeUndefined();
+    expect(leaf.capabilities?.modelListing).toBeUndefined();
   });
 
   it('does not hand-author wellKnownProviderId on the leaf', () => {
