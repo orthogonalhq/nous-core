@@ -46,6 +46,7 @@ function configFromDefinition(definition: (typeof PROVIDER_DEFINITIONS)[number])
 afterEach(() => {
   delete process.env.ANTHROPIC_API_KEY;
   delete process.env.OPENAI_API_KEY;
+  delete process.env.PERPLEXITY_API_KEY;
 });
 
 describe('provider definition to adapter to registry pipeline', () => {
@@ -55,6 +56,7 @@ describe('provider definition to adapter to registry pipeline', () => {
       'codex-cli',
       'ollama',
       'openai',
+      'perplexity',
     ]);
     expect(resolveProviderDefinition('anthropic').defaultModelId).toBe(
       'claude-sonnet-4-20250514',
@@ -155,6 +157,7 @@ describe('provider definition to adapter to registry pipeline', () => {
   it('constructs providers from registry-derived definitions with env-var credentials', () => {
     process.env.ANTHROPIC_API_KEY = 'test-anthropic-key';
     process.env.OPENAI_API_KEY = 'test-openai-key';
+    process.env.PERPLEXITY_API_KEY = 'test-perplexity-key';
 
     const registry = new ProviderRegistry(createEmptyConfig());
     const expectedClassByVendor = {
@@ -162,6 +165,7 @@ describe('provider definition to adapter to registry pipeline', () => {
       'codex-cli': CodexCliProvider,
       openai: ChatCompletionsProvider,
       ollama: OllamaProvider,
+      perplexity: ChatCompletionsProvider,
     };
 
     for (const definition of PROVIDER_DEFINITIONS) {

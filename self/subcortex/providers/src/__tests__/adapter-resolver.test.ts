@@ -49,7 +49,11 @@ function makeThrowingProvider() {
 
 describe('adapter resolver', () => {
   it('aggregates all canonical adapter modules', () => {
-    expect(ADAPTER_MODULES.map((module) => module.adapterKey)).toEqual([
+    // Every OpenAI-compatible leaf (openai, perplexity, …) re-exports the same
+    // shared `chat-completions` adapter module, so it appears once per such
+    // vendor in the raw aggregate; resolution dedupes by adapterKey. Assert the
+    // set of distinct adapter keys rather than the per-leaf multiplicity.
+    expect([...new Set(ADAPTER_MODULES.map((module) => module.adapterKey))]).toEqual([
       'anthropic',
       'codex-cli',
       'ollama',

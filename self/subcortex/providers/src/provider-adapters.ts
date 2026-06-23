@@ -4,18 +4,21 @@ import { providerAdapter as anthropicProviderAdapter } from './providers/anthrop
 import { providerAdapter as codexCliProviderAdapter } from './providers/codex-cli/adapter.js';
 import { providerAdapter as ollamaProviderAdapter } from './providers/ollama/adapter.js';
 import { providerAdapter as openaiProviderAdapter } from './providers/openai/adapter.js';
+import { providerAdapter as perplexityProviderAdapter } from './providers/perplexity/adapter.js';
 
 export * from './schemas/provider-adapter.js';
 export { providerAdapter as anthropicAdapter, createAnthropicAdapter } from './providers/anthropic/adapter.js';
 export { providerAdapter as codexCliAdapter, CODEX_CLI_EXECUTION_CAPABILITY_PROFILE, createCodexCliAdapter, renderCodexCliPrompt } from './providers/codex-cli/adapter.js';
 export { providerAdapter as ollamaAdapter, createOllamaAdapter, isToolCapableModel } from './providers/ollama/adapter.js';
 export { providerAdapter as openaiAdapter, createChatCompletionsAdapter } from './providers/openai/adapter.js';
+export { providerAdapter as perplexityAdapter } from './providers/perplexity/adapter.js';
 
 export const CERTIFIED_PROVIDER_ADAPTER_MODULES = [
   anthropicProviderAdapter,
   codexCliProviderAdapter,
   ollamaProviderAdapter,
   openaiProviderAdapter,
+  perplexityProviderAdapter,
 ] as const satisfies readonly ProviderAdapterModule[];
 
 export type CertifiedProviderAdapterKey =

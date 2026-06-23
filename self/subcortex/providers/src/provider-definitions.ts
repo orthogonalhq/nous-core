@@ -5,6 +5,7 @@ import { providerDefinition as anthropicProviderDefinition } from './providers/a
 import { providerDefinition as codexCliProviderDefinition } from './providers/codex-cli/definition.js';
 import { providerDefinition as ollamaProviderDefinition } from './providers/ollama/definition.js';
 import { providerDefinition as openaiProviderDefinition } from './providers/openai/definition.js';
+import { providerDefinition as perplexityProviderDefinition } from './providers/perplexity/definition.js';
 
 export * from './schemas/provider-definition.js';
 
@@ -13,6 +14,7 @@ const PROVIDER_DEFINITION_LEAVES = [
   codexCliProviderDefinition,
   ollamaProviderDefinition,
   openaiProviderDefinition,
+  perplexityProviderDefinition,
 ] as const satisfies readonly ProviderDefinitionLeaf[];
 
 export const PROVIDER_DEFINITIONS = hydrateProviderDefinitions(PROVIDER_DEFINITION_LEAVES);

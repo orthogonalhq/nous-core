@@ -4,6 +4,7 @@ import { providerFactory as anthropicProviderFactory } from './providers/anthrop
 import { providerFactory as codexCliProviderFactory } from './providers/codex-cli/provider.js';
 import { providerFactory as ollamaProviderFactory } from './providers/ollama/provider.js';
 import { providerFactory as openaiProviderFactory } from './providers/openai/provider.js';
+import { providerFactory as perplexityProviderFactory } from './providers/perplexity/provider.js';
 
 export * from './schemas/provider-factory.js';
 
@@ -12,6 +13,7 @@ export const CERTIFIED_PROVIDER_FACTORIES = [
   codexCliProviderFactory,
   ollamaProviderFactory,
   openaiProviderFactory,
+  perplexityProviderFactory,
 ] as const satisfies readonly ProviderFactoryModule[];
 
 export type CertifiedProviderFactoryVendorKey =
