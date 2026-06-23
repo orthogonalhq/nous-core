@@ -49,14 +49,18 @@ function makeThrowingProvider() {
 
 describe('adapter resolver', () => {
   it('aggregates all canonical adapter modules', () => {
-    // `chat-completions` appears twice: both the openai and groq leaves reuse the
-    // shared chat-completions adapter. The resolver keys modules by adapterKey, so
-    // the duplicate collapses to a single resolvable module.
+    // `chat-completions` appears multiple times: the groq, llama-cpp, openai, and
+    // openrouter leaves all reuse the shared chat-completions adapter. The resolver
+    // keys modules by adapterKey, so the duplicates collapse to a single resolvable
+    // module. Order follows the generated CERTIFIED_PROVIDER_ADAPTER_MODULES
+    // (alphabetical by vendor) with the text fallback appended last.
     expect(ADAPTER_MODULES.map((module) => module.adapterKey)).toEqual([
       'anthropic',
       'codex-cli',
       'chat-completions',
+      'chat-completions',
       'ollama',
+      'chat-completions',
       'chat-completions',
       'text',
     ]);

@@ -79,6 +79,59 @@ describe('provider model discovery', () => {
     });
   });
 
+  it('parses OpenRouter-shaped responses that omit object/owned_by and carry extra fields', async () => {
+    // OpenRouter is OpenAI-compatible but returns richer model objects: no top-level
+    // `object`, and per-item `id`/`name`/`pricing`/… without `object` or `owned_by`.
+    const fetchImpl = vi.fn(async () => jsonResponse({
+      data: [
+        {
+          id: 'openai/gpt-4o',
+          name: 'OpenAI: GPT-4o',
+          created: 1,
+          context_length: 128000,
+          pricing: { prompt: '0', completion: '0' },
+        },
+        {
+          id: 'anthropic/claude-3.5-sonnet',
+          name: 'Anthropic: Claude 3.5 Sonnet',
+          created: 2,
+          context_length: 200000,
+          pricing: { prompt: '0', completion: '0' },
+        },
+      ],
+    }));
+
+    const result = await fetchProviderModels(
+      providerDefinition({
+        vendorKey: 'openrouter' as ProviderDefinition['vendorKey'],
+        displayName: 'OpenRouter',
+        defaultEndpoint: 'https://openrouter.ai/api',
+        defaultModelId: 'openrouter/auto',
+        modelListFormat: 'openai-models',
+      }),
+      'openrouter-key',
+      fetchImpl,
+    );
+
+    expect(result.cacheable).toBe(true);
+    expect(result.models).toEqual([
+      {
+        id: 'openrouter:openai/gpt-4o',
+        name: 'openai/gpt-4o',
+        provider: 'openrouter',
+        providerLabel: 'OpenRouter',
+        available: true,
+      },
+      {
+        id: 'openrouter:anthropic/claude-3.5-sonnet',
+        name: 'anthropic/claude-3.5-sonnet',
+        provider: 'openrouter',
+        providerLabel: 'OpenRouter',
+        available: true,
+      },
+    ]);
+  });
+
   it('falls back to the provider default model when discovery fails', async () => {
     const fetchImpl = vi.fn(async () => jsonResponse({ error: 'upstream' }, 503));
 

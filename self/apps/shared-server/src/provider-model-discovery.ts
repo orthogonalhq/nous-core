@@ -36,15 +36,19 @@ const AnthropicModelsResponseSchema = z.object({
   last_id: z.string().optional(),
 });
 
+// `object` and `owned_by` are optional: OpenAI includes them, but OpenAI-compatible
+// aggregators like OpenRouter return richer model objects (id/name/pricing/…) that
+// omit them. Requiring them caused OpenRouter discovery to fail and fall back to the
+// default model only. Only `id` is needed downstream.
 const OpenAIModelSchema = z.object({
   id: z.string(),
-  object: z.string(),
-  owned_by: z.string(),
+  object: z.string().optional(),
+  owned_by: z.string().optional(),
 });
 
 const OpenAIModelsResponseSchema = z.object({
   data: z.array(OpenAIModelSchema),
-  object: z.string(),
+  object: z.string().optional(),
 });
 
 function fallbackModelsFor(

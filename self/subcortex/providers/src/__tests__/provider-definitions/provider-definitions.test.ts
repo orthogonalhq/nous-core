@@ -40,6 +40,11 @@ const expectedDefinitions = {
     defaultModelId: 'llama3.2',
     envVar: undefined,
   },
+  openrouter: {
+    defaultEndpoint: 'https://openrouter.ai/api',
+    defaultModelId: 'openrouter/auto',
+    envVar: 'OPENROUTER_API_KEY',
+  },
 } as const;
 
 describe('provider definitions catalog', () => {
@@ -51,6 +56,7 @@ describe('provider definitions catalog', () => {
       'llama-cpp',
       'ollama',
       'openai',
+      'openrouter',
     ]);
   });
 
