@@ -34,8 +34,8 @@ describe('PreferencesApi type contract', () => {
   it('PreferencesApi shape supports all required methods', () => {
     const api: PreferencesApi = {
       getApiKeys: async () => [
-        { provider: 'anthropic', configured: true, maskedKey: 'sk-ant-...xxxx', createdAt: '2026-03-20T00:00:00Z' },
-        { provider: 'openai', configured: false, maskedKey: null, createdAt: null },
+        { provider: 'anthropic', displayName: 'Anthropic', configured: true, maskedKey: 'sk-ant-...xxxx', createdAt: '2026-03-20T00:00:00Z' },
+        { provider: 'openai', displayName: 'OpenAI', configured: false, maskedKey: null, createdAt: null },
       ],
       setApiKey: async () => ({ stored: true }),
       deleteApiKey: async () => ({ deleted: true }),
@@ -57,8 +57,8 @@ describe('PreferencesApi type contract', () => {
   it('getApiKeys returns correct shape', async () => {
     const api: PreferencesApi = {
       getApiKeys: async () => [
-        { provider: 'anthropic', configured: true, maskedKey: 'sk-ant-...xxxx', createdAt: '2026-03-20T00:00:00Z' },
-        { provider: 'openai', configured: false, maskedKey: null, createdAt: null },
+        { provider: 'anthropic', displayName: 'Anthropic', configured: true, maskedKey: 'sk-ant-...xxxx', createdAt: '2026-03-20T00:00:00Z' },
+        { provider: 'openai', displayName: 'OpenAI', configured: false, maskedKey: null, createdAt: null },
       ],
       setApiKey: async () => ({ stored: true }),
       deleteApiKey: async () => ({ deleted: true }),
@@ -169,7 +169,7 @@ describe('stored provider key testing helpers', () => {
     const testApiKey = vi.fn(async () => ({ valid: true, error: null }));
     const api = createBaseApi({ testApiKey });
 
-    await testStoredProviderKey(api, 'anthropic');
+    await testStoredProviderKey(api, 'anthropic', 'Anthropic');
 
     expect(testApiKey).toHaveBeenCalledWith({ provider: 'anthropic' });
   });
@@ -179,7 +179,7 @@ describe('stored provider key testing helpers', () => {
       testApiKey: async () => ({ valid: true, error: null }),
     });
 
-    await expect(testStoredProviderKey(api, 'openai')).resolves.toEqual({
+    await expect(testStoredProviderKey(api, 'openai', 'OpenAI')).resolves.toEqual({
       message: 'OpenAI API key is valid.',
       success: true,
     });
@@ -193,7 +193,7 @@ describe('stored provider key testing helpers', () => {
       }),
     });
 
-    await expect(testStoredProviderKey(api, 'anthropic')).resolves.toEqual({
+    await expect(testStoredProviderKey(api, 'anthropic', 'Anthropic')).resolves.toEqual({
       message: 'No API key configured for this provider. Store a key first.',
       success: false,
     });

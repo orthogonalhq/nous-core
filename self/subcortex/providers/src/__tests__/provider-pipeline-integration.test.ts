@@ -56,6 +56,8 @@ describe('provider definition to adapter to registry pipeline', () => {
       'anthropic',
       'codex-cli',
       'huggingface-tgi',
+      'groq',
+      'llama-cpp',
       'ollama',
       'openai',
     ]);
@@ -160,12 +162,15 @@ describe('provider definition to adapter to registry pipeline', () => {
     process.env.ANTHROPIC_API_KEY = 'test-anthropic-key';
     process.env.OPENAI_API_KEY = 'test-openai-key';
     // process.env.HUGGINGFACE_API_KEY = 'test-hf-key';
+    process.env.GROQ_API_KEY = 'test-groq-key';
 
     const registry = new ProviderRegistry(createEmptyConfig());
     const expectedClassByVendor = {
       anthropic: AnthropicProvider,
       'codex-cli': CodexCliProvider,
+      'llama-cpp': ChatCompletionsProvider,
       openai: ChatCompletionsProvider,
+      groq: ChatCompletionsProvider,
       ollama: OllamaProvider,
       'huggingface-tgi': ChatCompletionsProvider
 

@@ -34,7 +34,8 @@ export const OLLAMA_PROVIDER_DEFINITION = {
     required: false,
     purpose: 'api_key',
   },
-  modelListEndpoint: '/api/tags',
+  modelListEndpoint: '/v1/models',
+  modelListFormat: 'openai-models',
   healthCheckEndpoint: '/api/tags',
   capabilities: {
     streaming: true,

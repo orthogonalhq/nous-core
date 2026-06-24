@@ -27,17 +27,24 @@ export const ANTHROPIC_PROVIDER_DEFINITION = {
   auth: {
     envVar: 'ANTHROPIC_API_KEY',
     vaultKeyNamespace: 'anthropic',
+    header: {
+      name: 'x-api-key',
+      scheme: 'raw',
+    },
     required: true,
     purpose: 'api_key',
   },
   headers: {
     'anthropic-version': ANTHROPIC_VERSION,
   },
+  modelListEndpoint: '/v1/models',
+  modelListFormat: 'anthropic-models',
   capabilities: {
     streaming: true,
     cacheControl: true,
     extendedThinking: true,
     nativeToolUse: true,
+    modelListing: true,
   },
   isLocal: false,
 } as const satisfies ProviderDefinitionLeaf;

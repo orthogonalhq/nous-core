@@ -100,7 +100,10 @@ describe('usePreferencesApi', () => {
 
   describe('query delegation', () => {
     it('getApiKeys calls utils.preferences.getApiKeys.fetch', async () => {
-      const mockData = [{ provider: 'openai', configured: true, maskedKey: 'sk-***', createdAt: null }]
+      const mockData = [
+        { provider: 'openai', displayName: 'OpenAI', configured: true, maskedKey: 'sk-***', createdAt: null },
+        { provider: 'fixture', displayName: 'Fixture AI', configured: false, maskedKey: null, createdAt: null },
+      ]
       mockFetch.getApiKeys.mockResolvedValueOnce(mockData)
 
       const { result } = renderHook(() => usePreferencesApi())

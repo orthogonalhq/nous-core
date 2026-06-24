@@ -3,13 +3,12 @@
 import { useState, useEffect } from 'react'
 import type {
   PreferencesApi,
-  Provider,
   ProviderConnection,
   ProviderConnectionStatus,
   SystemStatus,
   FeedbackState,
 } from '../types'
-import { sectionStyle, sectionTitleStyle, cardStyle, rowStyle, badgeStyle, feedbackStyle, PROVIDER_LABELS } from '../styles'
+import { sectionStyle, sectionTitleStyle, cardStyle, rowStyle, badgeStyle, feedbackStyle } from '../styles'
 import { formatFeedbackError } from './helpers'
 
 export interface SystemStatusPageProps {
@@ -115,7 +114,7 @@ export function SystemStatusPage({ api }: SystemStatusPageProps) {
               <span>Active Providers</span>
               <span style={{ fontSize: 'var(--nous-font-size-sm)', color: 'var(--nous-fg-muted)' }}>
                 {systemStatus?.configuredProviders.length
-                  ? systemStatus.configuredProviders.map((p) => PROVIDER_LABELS[p as Provider] ?? p).join(', ')
+                  ? systemStatus.configuredProviders.join(', ')
                   : 'None'}
               </span>
             </div>
