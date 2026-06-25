@@ -1,5 +1,4 @@
 import type React from 'react'
-import type { Provider } from './types'
 
 // ─── Extracted style objects from PreferencesPanel.tsx (L142-276) ─────────────
 // Two token migrations applied per SDS:
@@ -140,11 +139,4 @@ export const actionRowStyle: React.CSSProperties = {
   justifyContent: 'flex-end',
   gap: 'var(--nous-space-sm)',
   marginTop: 'var(--nous-space-lg)',
-}
-
-// ─── Provider Labels (L278) ──────────────────────────────────────────────────
-
-export const PROVIDER_LABELS: Record<Provider, string> = {
-  anthropic: 'Anthropic',
-  openai: 'OpenAI',
 }

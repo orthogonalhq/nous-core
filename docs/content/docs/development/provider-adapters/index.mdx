@@ -45,3 +45,5 @@ Some leaves do not need their own `implementation.ts`. The OpenAI leaf reuses `s
 7. [What Not To Edit](/docs/development/provider-adapters/what-not-to-edit) when you are unsure where a change belongs.
 
 Use Anthropic as the reference leaf for shape, naming, exports, tests, and failure handling. Do not copy Anthropic's wire protocol unless your provider really has Anthropic Messages API semantics.
+
+For API-key providers, the definition leaf also drives product integration. `auth` metadata creates the vault-backed Settings key field, and `modelListEndpoint`/`modelListFormat` opt the provider into dynamic model discovery. Start with [Quickstart](/docs/development/provider-adapters/quickstart), then use [Schemas ABI Reference](/docs/development/provider-adapters/schemas-abi-reference#api-key-provider-discovery-and-health-metadata) for the discovery and health metadata contract.

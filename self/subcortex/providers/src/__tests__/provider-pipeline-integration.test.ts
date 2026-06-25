@@ -60,6 +60,8 @@ describe('provider definition to adapter to registry pipeline', () => {
       'anthropic',
       'codex-cli',
       'github-copilot-cli',
+      'groq',
+      'llama-cpp',
       'ollama',
       'openai',
     ]);
@@ -162,13 +164,16 @@ describe('provider definition to adapter to registry pipeline', () => {
   it('constructs providers from registry-derived definitions with env-var credentials', () => {
     process.env.ANTHROPIC_API_KEY = 'test-anthropic-key';
     process.env.OPENAI_API_KEY = 'test-openai-key';
+    process.env.GROQ_API_KEY = 'test-groq-key';
 
     const registry = new ProviderRegistry(createEmptyConfig());
     const expectedClassByVendor = {
       anthropic: AnthropicProvider,
       'codex-cli': CodexCliProvider,
       'github-copilot-cli': GitHubCopilotCliProvider,
+      'llama-cpp': ChatCompletionsProvider,
       openai: ChatCompletionsProvider,
+      groq: ChatCompletionsProvider,
       ollama: OllamaProvider,
     };
 

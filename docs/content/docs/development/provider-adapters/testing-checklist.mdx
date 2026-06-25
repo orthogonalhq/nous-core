@@ -15,6 +15,9 @@ Every provider contribution should include tests that prove the provider's own A
 - Local providers mark `auth.required: false`; remote providers declare their env var and vault namespace.
 - Built-in provider leaves do not hand-author `wellKnownProviderId`; generated catalogs derive stable ids from `vendorKey`.
 - CLI-style providers declare the correct `executionCapabilityProfile` on the provider definition.
+- API-key providers declare `auth.header` with the correct header name and `raw` or `bearer` scheme.
+- Providers that support dynamic model discovery declare `modelListEndpoint`, `modelListFormat`, and `capabilities.modelListing`.
+- `modelListFormat` matches the response envelope shape the endpoint actually returns; `openai-models` and `anthropic-models` are shape names, not vendor-only labels.
 
 ## Codegen Tests
 
@@ -43,6 +46,10 @@ Every provider contribution should include tests that prove the provider's own A
 - `resolveAdapterKeyFromConfig(...)` resolves through provider definitions and falls back safely.
 - `ProviderRegistry` can construct the provider when credentials are present.
 - Missing credentials skip or fail according to current runtime behavior.
+- Dynamic model discovery is covered for each declared `modelListFormat`, including successful parse, HTTP failure, parse failure, and network failure fallback behavior.
+- Key-test behavior uses `healthCheckEndpoint` when present and falls back to `modelListEndpoint` otherwise.
+- Remote discovery cache behavior and local-provider cache bypass behavior are covered when the provider participates in discovery.
+- Tests prove fetched model IDs are returned as reported by the provider; do not add model-family or prefix filtering expectations.
 - Agent-CLI providers cover runtime CLI session manager behavior when chat-bound sessions are supported: fixture-aware session keys, wrapper reuse, scoped teardown, restart failure surfacing, and one-shot preservation for transient/batch invocations.
 - Role assignment tests prove incompatible CLI providers are disabled/rejected for Cortex persistent-chat roles and remain selectable for compatible agent roles.
 - Provider registry tests prove both derived built-in ids and legacy persisted ids resolve to the same built-in provider definition where compatibility aliases are required.

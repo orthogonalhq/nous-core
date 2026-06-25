@@ -21,7 +21,7 @@ const DEFAULT_TIMEOUT_MS = 60_000;
 
 export const CHAT_COMPLETIONS_PROVIDER_DEFINITION = {
   vendorKey: 'openai',
-  displayName: 'Chat Completions',
+  displayName: 'OpenAI',
   providerType: 'text',
   providerClass: 'remote_text',
   protocol: 'chat-completions',
@@ -31,13 +31,19 @@ export const CHAT_COMPLETIONS_PROVIDER_DEFINITION = {
   auth: {
     envVar: 'OPENAI_API_KEY',
     vaultKeyNamespace: 'openai',
+    header: {
+      name: 'Authorization',
+      scheme: 'bearer',
+    },
     required: true,
     purpose: 'api_key',
   },
   modelListEndpoint: '/v1/models',
+  modelListFormat: 'openai-models',
   capabilities: {
     streaming: true,
     nativeToolUse: true,
+    modelListing: true,
   },
   isLocal: false,
 } as const satisfies ProviderDefinitionLeaf;

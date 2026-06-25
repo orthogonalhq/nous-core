@@ -33,7 +33,6 @@ The metadata constant uses the typed definition contract:
 export const ANTHROPIC_PROVIDER_DEFINITION = {
   vendorKey: 'anthropic',
   displayName: 'Anthropic',
-  wellKnownProviderId: '10000000-0000-0000-0000-000000000001' as ProviderId,
   providerType: 'text',
   providerClass: 'remote_text',
   protocol: 'anthropic-messages',
@@ -43,23 +42,32 @@ export const ANTHROPIC_PROVIDER_DEFINITION = {
   auth: {
     envVar: 'ANTHROPIC_API_KEY',
     vaultKeyNamespace: 'anthropic',
+    header: {
+      name: 'x-api-key',
+      scheme: 'raw',
+    },
     required: true,
     purpose: 'api_key',
   },
   headers: {
     'anthropic-version': ANTHROPIC_VERSION,
   },
+  modelListEndpoint: '/v1/models',
+  modelListFormat: 'anthropic-models',
   capabilities: {
     streaming: true,
     cacheControl: true,
     extendedThinking: true,
     nativeToolUse: true,
+    modelListing: true,
   },
   isLocal: false,
 } as const satisfies ProviderDefinitionLeaf;
 ```
 
-Copy the shape, not the values. Your provider needs its own `vendorKey`, protocol, adapter key, endpoint, default model, auth metadata, and capabilities.
+Copy the shape, not the values. Your provider needs its own `vendorKey`, protocol, adapter key, endpoint, default model, auth metadata, and capabilities. Do not hand-author `wellKnownProviderId`; it is derived by the provider registry.
+
+For API-key providers, `auth.header` tells Settings and the shared-server how to inject the key for health checks and model discovery. `modelListEndpoint` and `modelListFormat` opt the provider into dynamic model discovery; Anthropic uses the `anthropic-models` response shape.
 
 ## Adapter Shape
 
