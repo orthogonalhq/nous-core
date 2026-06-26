@@ -2,6 +2,7 @@
 import type { ProviderFactoryModule } from './schemas/provider-factory.js';
 import { providerFactory as anthropicProviderFactory } from './providers/anthropic/provider.js';
 import { providerFactory as codexCliProviderFactory } from './providers/codex-cli/provider.js';
+import { providerFactory as huggingfaceTgiProviderFactory } from './providers/huggingface-tgi/provider.js';
 import { providerFactory as groqProviderFactory } from './providers/groq/provider.js';
 import { providerFactory as llamaCppProviderFactory } from './providers/llama-cpp/provider.js';
 import { providerFactory as ollamaProviderFactory } from './providers/ollama/provider.js';
@@ -12,6 +13,7 @@ export * from './schemas/provider-factory.js';
 export const CERTIFIED_PROVIDER_FACTORIES = [
   anthropicProviderFactory,
   codexCliProviderFactory,
+  huggingfaceTgiProviderFactory,
   groqProviderFactory,
   llamaCppProviderFactory,
   ollamaProviderFactory,

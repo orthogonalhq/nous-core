@@ -25,18 +25,13 @@ const expectedDefinitions = {
     defaultModelId: 'codex-cli/default',
     envVar: undefined,
   },
+  'huggingface-tgi': {
+    defaultEndpoint: 'http://localhost:8080',
+    defaultModelId: 'deepseek-ai/DeepSeek-V3',
+    envVar: 'HUGGINGFACE_API_KEY',
+  },
   ollama: {
     defaultEndpoint: 'http://localhost:11434',
-    defaultModelId: 'llama3.2',
-    envVar: undefined,
-  },
-  groq: {
-    defaultEndpoint: 'https://api.groq.com/openai',
-    defaultModelId: 'llama-3.3-70b-versatile',
-    envVar: 'GROQ_API_KEY',
-  },
-  'llama-cpp': {
-    defaultEndpoint: 'http://localhost:8080',
     defaultModelId: 'llama3.2',
     envVar: undefined,
   },
@@ -47,6 +42,7 @@ describe('provider definitions catalog', () => {
     expect(PROVIDER_DEFINITIONS.map((definition) => definition.vendorKey).sort()).toEqual([
       'anthropic',
       'codex-cli',
+      'huggingface-tgi',
       'groq',
       'llama-cpp',
       'ollama',

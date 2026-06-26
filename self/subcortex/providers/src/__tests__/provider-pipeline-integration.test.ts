@@ -17,6 +17,7 @@ import {
   resolveProviderDefinition,
   textAdapter,
 } from '../index.js';
+import { preprocess } from 'zod/v4';
 
 const TRACE_ID = '550e8400-e29b-41d4-a716-446655440000' as TraceId;
 
@@ -53,6 +54,7 @@ describe('provider definition to adapter to registry pipeline', () => {
     expect(PROVIDER_DEFINITIONS.map((definition) => definition.vendorKey)).toEqual([
       'anthropic',
       'codex-cli',
+      'huggingface-tgi',
       'groq',
       'llama-cpp',
       'ollama',
@@ -63,6 +65,7 @@ describe('provider definition to adapter to registry pipeline', () => {
     );
     expect(resolveProviderDefinition('openai').adapterKey).toBe('chat-completions');
     expect(resolveProviderDefinition('ollama').auth.required).toBe(false);
+    expect(resolveProviderDefinition('huggingface-tgi').adapterKey).toBe('chat-completions')
   });
 
   it('makes a leaf provider definition discoverable through typed aggregation', () => {
@@ -157,6 +160,7 @@ describe('provider definition to adapter to registry pipeline', () => {
   it('constructs providers from registry-derived definitions with env-var credentials', () => {
     process.env.ANTHROPIC_API_KEY = 'test-anthropic-key';
     process.env.OPENAI_API_KEY = 'test-openai-key';
+    process.env.HUGGINGFACE_API_KEY = 'test-huggingface-key';
     process.env.GROQ_API_KEY = 'test-groq-key';
 
     const registry = new ProviderRegistry(createEmptyConfig());
@@ -167,6 +171,7 @@ describe('provider definition to adapter to registry pipeline', () => {
       openai: ChatCompletionsProvider,
       groq: ChatCompletionsProvider,
       ollama: OllamaProvider,
+      'huggingface-tgi': ChatCompletionsProvider,
     };
 
     for (const definition of PROVIDER_DEFINITIONS) {
@@ -188,7 +193,9 @@ describe('provider definition to adapter to registry pipeline', () => {
   it('skips auth-required providers without matching env vars and keeps Ollama credential-free', () => {
     const registry = new ProviderRegistry({
       get: () => ({
-        providers: PROVIDER_DEFINITIONS.map(configFromDefinition),
+        providers: PROVIDER_DEFINITIONS
+          .filter((definition) => definition.vendorKey !== 'huggingface-tgi')
+          .map(configFromDefinition),
       }),
       getSection: () => undefined,
       update: async () => undefined,
