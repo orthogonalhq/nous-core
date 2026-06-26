@@ -16,7 +16,6 @@ import {
   defineProviderAdapter,
   resolveProviderDefinition,
   textAdapter,
-  huggingfaceTgiAdapter,
 } from '../index.js';
 import { preprocess } from 'zod/v4';
 
@@ -161,7 +160,7 @@ describe('provider definition to adapter to registry pipeline', () => {
   it('constructs providers from registry-derived definitions with env-var credentials', () => {
     process.env.ANTHROPIC_API_KEY = 'test-anthropic-key';
     process.env.OPENAI_API_KEY = 'test-openai-key';
-    // process.env.HUGGINGFACE_API_KEY = 'test-hf-key';
+    process.env.HUGGINGFACE_API_KEY = 'test-huggingface-key';
     process.env.GROQ_API_KEY = 'test-groq-key';
 
     const registry = new ProviderRegistry(createEmptyConfig());
@@ -172,8 +171,7 @@ describe('provider definition to adapter to registry pipeline', () => {
       openai: ChatCompletionsProvider,
       groq: ChatCompletionsProvider,
       ollama: OllamaProvider,
-      'huggingface-tgi': ChatCompletionsProvider
-
+      'huggingface-tgi': ChatCompletionsProvider,
     };
 
     for (const definition of PROVIDER_DEFINITIONS) {
@@ -195,7 +193,9 @@ describe('provider definition to adapter to registry pipeline', () => {
   it('skips auth-required providers without matching env vars and keeps Ollama credential-free', () => {
     const registry = new ProviderRegistry({
       get: () => ({
-        providers: PROVIDER_DEFINITIONS.map(configFromDefinition),
+        providers: PROVIDER_DEFINITIONS
+          .filter((definition) => definition.vendorKey !== 'huggingface-tgi')
+          .map(configFromDefinition),
       }),
       getSection: () => undefined,
       update: async () => undefined,
@@ -206,7 +206,6 @@ describe('provider definition to adapter to registry pipeline', () => {
     expect(registry.getProvider(resolveProviderDefinition('codex-cli').wellKnownProviderId)).toBeInstanceOf(
       LaneAwareProvider,
     );
-    expect(registry.getProvider(resolveProviderDefinition('huggingface-tgi').wellKnownProviderId)).toBeNull()
     expect(registry.getProvider(resolveProviderDefinition('openai').wellKnownProviderId)).toBeNull();
     expect(registry.getProvider(resolveProviderDefinition('ollama').wellKnownProviderId)).toBeInstanceOf(
       LaneAwareProvider,

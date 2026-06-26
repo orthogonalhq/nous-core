@@ -4,7 +4,7 @@ export const providerDefinition = {
   vendorKey: 'huggingface-tgi',
   displayName: 'HuggingFace',
   providerType: 'text',
-  defaultModelId: 'gpt-5.4',
+  defaultModelId: 'deepseek-ai/DeepSeek-V3',
   providerClass: 'local_text',
   protocol: 'chat-completions',
   adapterKey: 'chat-completions',
