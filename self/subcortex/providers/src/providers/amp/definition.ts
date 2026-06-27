@@ -32,6 +32,10 @@ const AMP_LEAF = {
   providerType: 'text',
   providerClass: 'local_text',
   isLocal: true,
+  /** No HTTP endpoint — Amp is a local CLI process. */
+  defaultEndpoint: undefined,
+  /** Amp manages model selection internally; 'amp' identifies the CLI agent as the model. */
+  defaultModelId: 'amp',
   auth: {
     /** No API key required — Amp runs as a local process. */
     required: false,
