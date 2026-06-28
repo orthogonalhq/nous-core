@@ -150,8 +150,9 @@ export const ProviderDefinitionSchema = z.object({
   providerClass: ProviderClassSchema,
   protocol: ProviderProtocolSchema,
   adapterKey: ProviderAdapterKeySchema,
-  defaultEndpoint: z.string().url(),
+  defaultEndpoint: z.string().url().optional(),
   defaultModelId: z.string().min(1),
+  executionCapabilityProfile: z.string().min(1).optional(),
   auth: ProviderAuthDefinitionSchema,
   isLocal: z.boolean(),
   headers: z.record(z.string(), z.string()).optional(),
@@ -171,8 +172,9 @@ export interface ProviderDefinition {
   providerClass: ProviderClass;
   protocol: ProviderProtocol;
   adapterKey: ProviderAdapterKey;
-  defaultEndpoint: string;
+  defaultEndpoint?: string;
   defaultModelId: string;
+  executionCapabilityProfile?: string;
   auth: ProviderAuthDefinition;
   isLocal: boolean;
   headers?: Record<string, string>;

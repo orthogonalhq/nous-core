@@ -4,6 +4,7 @@
     "rootDir": "src",
     "outDir": "dist",
     "composite": true,
+    "types": ["node"],
     "paths": {
       "@nous/shared": ["../../shared/src/index.ts"],
       "@nous/autonomic-config": ["../../autonomic/config/src/index.ts"],
