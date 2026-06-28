@@ -19,6 +19,7 @@ describe('provider aggregate codegen', () => {
       .trim()
       .split(/\r?\n/);
     expect(output).toEqual([
+      'amp',
       'anthropic',
       'azure-openai',
       'codex-cli',

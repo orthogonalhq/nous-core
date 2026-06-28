@@ -52,7 +52,7 @@ export class AmpProvider implements IModelProvider {
     };
   }
 
-  async *stream(_request: ModelRequest): AsyncIterable<ModelStreamChunk> {
+  stream(_request: ModelRequest): AsyncIterable<ModelStreamChunk> {
     // Amp declares streaming: false — streaming is not supported.
     throw new NousError(
       'Amp CLI provider does not support streaming. Use invoke().',

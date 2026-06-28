@@ -4,6 +4,7 @@ import { LaneAwareProvider } from '@nous/subcortex-inference-runtime';
 import {
   ADAPTER_MODULES,
   ADAPTER_RESOLVER,
+  AmpProvider,
   AnthropicProvider,
   ChatCompletionsProvider,
   CERTIFIED_PROVIDER_FACTORIES,
@@ -44,8 +45,8 @@ function configFromDefinition(definition: (typeof PROVIDER_DEFINITIONS)[number])
     id: definition.wellKnownProviderId,
     name: definition.vendorKey,
     type: definition.providerType,
-    endpoint: definition.defaultEndpoint,
-    modelId: definition.defaultModelId,
+    endpoint: 'defaultEndpoint' in definition ? definition.defaultEndpoint : undefined,
+    modelId: 'defaultModelId' in definition ? (definition.defaultModelId ?? '') : '',
     isLocal: definition.isLocal,
     capabilities: ['chat', 'streaming'],
     providerClass: definition.providerClass,
@@ -73,6 +74,7 @@ afterEach(() => {
 describe('provider definition to adapter to registry pipeline', () => {
   it('aggregates all production provider definitions by vendor key', () => {
     expect(PROVIDER_DEFINITIONS.map((definition) => definition.vendorKey)).toEqual([
+      'amp',
       'anthropic',
       'azure-openai',
       'codex-cli',
@@ -214,6 +216,7 @@ describe('provider definition to adapter to registry pipeline', () => {
 
     const registry = new ProviderRegistry(createEmptyConfig());
     const expectedClassByVendor = {
+      amp: AmpProvider,
       anthropic: AnthropicProvider,
       'azure-openai': ChatCompletionsProvider,
       'codex-cli': CodexCliProvider,
