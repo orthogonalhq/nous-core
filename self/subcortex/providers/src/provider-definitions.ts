@@ -2,6 +2,7 @@
 import type { ProviderDefinition, ProviderDefinitionLeaf } from './schemas/provider-definition.js';
 import { hydrateProviderDefinitions } from './provider-identity.js';
 import { providerDefinition as anthropicProviderDefinition } from './providers/anthropic/definition.js';
+import { providerDefinition as cloudflareWorkersAiProviderDefinition } from './providers/cloudflare-workers-ai/definition.js';
 import { providerDefinition as codexCliProviderDefinition } from './providers/codex-cli/definition.js';
 import { providerDefinition as githubCopilotCliProviderDefinition } from './providers/github-copilot-cli/definition.js';
 import { providerDefinition as groqProviderDefinition } from './providers/groq/definition.js';
@@ -13,6 +14,7 @@ export * from './schemas/provider-definition.js';
 
 const PROVIDER_DEFINITION_LEAVES = [
   anthropicProviderDefinition,
+  cloudflareWorkersAiProviderDefinition,
   codexCliProviderDefinition,
   githubCopilotCliProviderDefinition,
   groqProviderDefinition,
