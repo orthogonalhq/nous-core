@@ -58,6 +58,7 @@ describe('provider definition to adapter to registry pipeline', () => {
   it('aggregates all production provider definitions by vendor key', () => {
     expect(PROVIDER_DEFINITIONS.map((definition) => definition.vendorKey)).toEqual([
       'anthropic',
+      'cloudflare-workers-ai',
       'codex-cli',
       'github-copilot-cli',
       'groq',
@@ -174,6 +175,7 @@ describe('provider definition to adapter to registry pipeline', () => {
       'llama-cpp': ChatCompletionsProvider,
       openai: ChatCompletionsProvider,
       groq: ChatCompletionsProvider,
+      'cloudflare-workers-ai': ChatCompletionsProvider,
       ollama: OllamaProvider,
     };
 
