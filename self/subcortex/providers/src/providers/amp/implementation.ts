@@ -88,7 +88,7 @@ export class AmpProvider implements IModelProvider {
 
   private runCli(prompt: string, signal?: AbortSignal): Promise<string> {
     return new Promise((resolve, reject) => {
-      const child = spawn(AMP_BINARY, ['--output', 'text'], {
+      const child = spawn(AMP_BINARY, ['-x'], {
         stdio: ['pipe', 'pipe', 'pipe'],
       });
 

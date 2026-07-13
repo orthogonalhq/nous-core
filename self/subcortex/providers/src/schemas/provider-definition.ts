@@ -152,7 +152,7 @@ export const ProviderDefinitionSchema = z.object({
   adapterKey: ProviderAdapterKeySchema,
   defaultEndpoint: z.string().url().optional(),
   defaultModelId: z.string().min(1),
-  executionCapabilityProfile: z.string().min(1).optional(),
+  executionCapabilityProfile: CliExecutionCapabilityProfileSchema.optional(),
   auth: ProviderAuthDefinitionSchema,
   isLocal: z.boolean(),
   headers: z.record(z.string(), z.string()).optional(),
@@ -160,7 +160,6 @@ export const ProviderDefinitionSchema = z.object({
   modelListFormat: ProviderModelListFormatSchema.optional(),
   healthCheckEndpoint: z.string().min(1).optional(),
   capabilities: ProviderCapabilityDefinitionSchema.optional(),
-  executionCapabilityProfile: CliExecutionCapabilityProfileSchema.optional(),
   agentCli: AgentCliProviderMetadataSchema.optional(),
 }).strict();
 
@@ -174,7 +173,7 @@ export interface ProviderDefinition {
   adapterKey: ProviderAdapterKey;
   defaultEndpoint?: string;
   defaultModelId: string;
-  executionCapabilityProfile?: string;
+  executionCapabilityProfile?: CliExecutionCapabilityProfile;
   auth: ProviderAuthDefinition;
   isLocal: boolean;
   headers?: Record<string, string>;
@@ -182,7 +181,6 @@ export interface ProviderDefinition {
   modelListFormat?: ProviderModelListFormat;
   healthCheckEndpoint?: string;
   capabilities?: ProviderCapabilityDefinition;
-  executionCapabilityProfile?: CliExecutionCapabilityProfile;
   agentCli?: AgentCliProviderMetadata;
 }
 
