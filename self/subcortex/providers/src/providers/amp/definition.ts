@@ -14,9 +14,10 @@
  */
 import type { ProviderDefinition, ProviderDefinitionLeaf } from '../../schemas/provider-definition.js';
 import { deriveBuiltInProviderId } from '../../provider-identity.js';
+import { AGENT_CLI_PROTOCOL_ID } from '../../protocols/agent-cli/index.js';
 
-/** Wire protocol identifier for CLI-backed agent providers. */
-export const AGENT_CLI_PROTOCOL_ID = 'agent-cli';
+export const AMP_DEFAULT_TIMEOUT_MS = 120_000;
+export const AMP_MAX_TIMEOUT_MS = 300_000;
 
 /**
  * Amp leaf — the contributor-authored portion of the provider definition.
@@ -40,6 +41,54 @@ const AMP_LEAF = {
     /** No API key required — Amp runs as a local process. */
     required: false,
     purpose: 'api_key',
+  },
+
+  capabilities: {
+    streaming: false,
+    nativeToolUse: false,
+    cacheControl: false,
+    extendedThinking: false,
+    healthCheck: false,
+  },
+
+  agentCli: {
+    command: {
+      executable: 'amp',
+      defaultArgs: ['-x'],
+    },
+
+    auth: {
+      kind: 'local_session',
+      description: 'Sign in once via `ampcode.com/install` outside Nous; the CLI reuses that session headlessly.',
+    },
+
+    headless: {
+      supported: true,
+      requiredArgs: [],
+    },
+
+    transcript: {
+      supported: true,
+      streams: ['stdout'],
+    },
+
+    timeout: {
+      defaultMs: AMP_DEFAULT_TIMEOUT_MS,
+      maxMs: AMP_MAX_TIMEOUT_MS,
+    },
+
+    failureBehavior: {
+      timeoutKind: 'timeout',
+      nonZeroExitKind: 'non_zero_exit',
+      spawnErrorKind: 'spawn_error',
+    },
+
+    caveats: [
+      'Prompt content is delivered via stdin (not argv) so it is not exposed through process listings or argv-based logging',
+      'Abort is honored only before process start; once `amp` is spawned the request runs to completion or timeout',
+    ],
+
+    targetIssueRefs: ['#287'],
   },
 } as const satisfies ProviderDefinitionLeaf;
 

@@ -14,7 +14,9 @@ import {
   type AdapterFormattedRequest,
   type ProviderAdapter,
 } from '../../schemas/provider-adapter.js';
-import { AGENT_CLI_PROTOCOL_ID } from './definition.js';
+import { AGENT_CLI_PROTOCOL_ID } from '../../protocols/agent-cli/index.js';
+
+export const AMP_EXECUTION_CAPABILITY_PROFILE = 'session_bound_command' as const;
 
 const AMP_CAPABILITIES: AdapterCapabilities = {
   nativeToolUse: false,
@@ -102,6 +104,7 @@ export const providerAdapter = defineProviderAdapter({
   displayName: 'Amp',
   protocol: AGENT_CLI_PROTOCOL_ID,
   capabilities: AMP_CAPABILITIES,
+  executionCapabilityProfile: AMP_EXECUTION_CAPABILITY_PROFILE,
   create() {
     return ampAdapter;
   },
