@@ -2,8 +2,11 @@
  * @nous/subcortex-providers — Model provider adapters for Nous-OSS.
  */
 export { AnthropicProvider } from './providers/anthropic/implementation.js';
+export { GeminiProvider } from './providers/gemini/implementation.js';
+export { MistralProvider } from './providers/mistral/implementation.js';
 export * from './adapter-resolver.js';
 export * from './provider-adapters.js';
+export { CODEX_CLI_EXECUTION_CAPABILITY_PROFILE } from './providers/codex-cli/adapter.js';
 export * from './provider-definitions.js';
 export * from './provider-identity.js';
 export * from './provider-factories.js';
@@ -34,6 +37,7 @@ export * from './protocols/agent-cli/index.js';
 export { CodexCliProvider } from './providers/codex-cli/implementation.js';
 export { GitHubCopilotCliProvider } from './providers/github-copilot-cli/provider.js';
 export { OpenClawProvider } from './providers/openclaw/implementation.js';
+export { QwenCodeProvider } from './providers/qwen-code/implementation.js';
 export {
   createTextAdapter,
   textAdapter,

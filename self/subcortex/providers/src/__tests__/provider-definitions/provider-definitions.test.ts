@@ -55,10 +55,20 @@ const expectedDefinitions = {
     defaultModelId: 'llama3.2',
     envVar: undefined,
   },
+  'qwen-code': {
+    defaultEndpoint: 'http://localhost',
+    defaultModelId: 'qwen-code/default',
+    envVar: undefined,
+  },
   deepinfra: {
     defaultEndpoint: 'https://api.deepinfra.com/v1/openai',
     defaultModelId: 'meta-llama/Meta-Llama-3.1-70B-Instruct',
     envVar: 'DEEPINFRA_API_KEY',
+  },
+  gemini: {
+    defaultEndpoint: 'https://generativelanguage.googleapis.com',
+    defaultModelId: 'gemini-2.5-flash',
+    envVar: 'GEMINI_API_KEY',
   },
   openrouter: {
     defaultEndpoint: 'https://openrouter.ai/api',
@@ -80,6 +90,11 @@ const expectedDefinitions = {
     defaultModelId: 'meta-llama/Llama-3.1-8B-Instruct',
     envVar: 'VLLM_API_KEY',
   },
+  mistral: {
+    defaultEndpoint: 'https://api.mistral.ai',
+    defaultModelId: 'mistral-large-latest',
+    envVar: 'MISTRAL_API_KEY',
+  },
 } as const;
 
 describe('provider definitions catalog', () => {
@@ -88,13 +103,16 @@ describe('provider definitions catalog', () => {
       'anthropic',
       'codex-cli',
       'deepinfra',
+      'gemini',
       'github-copilot-cli',
       'groq',
       'huggingface-tgi',
       'llama-cpp',
+      'mistral',
       'moonshot',
       'ollama',
       'openai',
+      'qwen-code',
       'openclaw',
       'openrouter',
       'perplexity',
@@ -139,16 +157,15 @@ describe('provider definitions catalog', () => {
       join('providers', 'ollama', 'implementation.ts'),
       join('providers', 'huggingface-tgi', 'definition.ts'),
       join('providers', 'llama-cpp', 'definition.ts'),
+      join('providers', 'mistral', 'implementation.ts'),
+      join('providers', 'qwen-code', 'definition.ts'),
       join('providers', 'deepinfra', 'definition.ts'),
+      join('providers', 'gemini', 'implementation.ts'),
       join('providers', 'openrouter', 'definition.ts'),
       join('providers', 'perplexity', 'definition.ts'),
       join('providers', 'vllm', 'definition.ts'),
     ];
-    const forbidden = [
-      /fetch/,
-      /process\.env/,
-      /new (AnthropicProvider|ChatCompletionsProvider|OllamaProvider)/,
-    ];
+    const forbidden = [/fetch/, /process\.env/, /new \w+Provider/];
 
     for (const file of providerFiles) {
       const source = readFileSync(join(providersSrcDir, file), 'utf8');

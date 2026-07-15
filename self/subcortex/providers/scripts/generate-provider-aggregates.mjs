@@ -141,6 +141,7 @@ function providerAdapterExtraExports(vendor) {
     ['ollama', ['createOllamaAdapter', 'isToolCapableModel']],
     ['openclaw', ['OPENCLAW_EXECUTION_CAPABILITY_PROFILE', 'createOpenClawAdapter', 'renderOpenClawPrompt']],
     ['openai', ['createChatCompletionsAdapter']],
+    ['qwen-code', ['QWEN_CODE_EXECUTION_CAPABILITY_PROFILE', 'createQwenCodeAdapter', 'renderQwenCodePrompt']],
   ]);
   const extras = extrasByVendor.get(vendor) ?? [];
   return extras.length > 0 ? `, ${extras.join(', ')}` : '';

@@ -24,6 +24,8 @@ export interface AgentCliEnvironmentPolicy {
 
 export interface AgentCliAbortSignal {
   readonly aborted: boolean;
+  readonly addEventListener?: AbortSignal['addEventListener'];
+  readonly removeEventListener?: AbortSignal['removeEventListener'];
 }
 
 export interface AgentCliRunnerOptions {

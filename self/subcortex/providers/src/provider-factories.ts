@@ -3,13 +3,16 @@ import type { ProviderFactoryModule } from './schemas/provider-factory.js';
 import { providerFactory as anthropicProviderFactory } from './providers/anthropic/provider.js';
 import { providerFactory as codexCliProviderFactory } from './providers/codex-cli/provider.js';
 import { providerFactory as deepinfraProviderFactory } from './providers/deepinfra/provider.js';
+import { providerFactory as geminiProviderFactory } from './providers/gemini/provider.js';
 import { providerFactory as githubCopilotCliProviderFactory } from './providers/github-copilot-cli/provider.js';
 import { providerFactory as groqProviderFactory } from './providers/groq/provider.js';
 import { providerFactory as huggingfaceTgiProviderFactory } from './providers/huggingface-tgi/provider.js';
 import { providerFactory as llamaCppProviderFactory } from './providers/llama-cpp/provider.js';
+import { providerFactory as mistralProviderFactory } from './providers/mistral/provider.js';
 import { providerFactory as moonshotProviderFactory } from './providers/moonshot/provider.js';
 import { providerFactory as ollamaProviderFactory } from './providers/ollama/provider.js';
 import { providerFactory as openaiProviderFactory } from './providers/openai/provider.js';
+import { providerFactory as qwenCodeProviderFactory } from './providers/qwen-code/provider.js';
 import { providerFactory as openclawProviderFactory } from './providers/openclaw/provider.js';
 import { providerFactory as openrouterProviderFactory } from './providers/openrouter/provider.js';
 import { providerFactory as perplexityProviderFactory } from './providers/perplexity/provider.js';
@@ -21,13 +24,16 @@ export const CERTIFIED_PROVIDER_FACTORIES = [
   anthropicProviderFactory,
   codexCliProviderFactory,
   deepinfraProviderFactory,
+  geminiProviderFactory,
   githubCopilotCliProviderFactory,
   groqProviderFactory,
   huggingfaceTgiProviderFactory,
   llamaCppProviderFactory,
+  mistralProviderFactory,
   moonshotProviderFactory,
   ollamaProviderFactory,
   openaiProviderFactory,
+  qwenCodeProviderFactory,
   openclawProviderFactory,
   openrouterProviderFactory,
   perplexityProviderFactory,

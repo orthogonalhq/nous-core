@@ -3,10 +3,12 @@ import type { ProviderAdapterModule } from './schemas/provider-adapter.js';
 import { providerAdapter as anthropicProviderAdapter } from './providers/anthropic/adapter.js';
 import { providerAdapter as codexCliProviderAdapter } from './providers/codex-cli/adapter.js';
 import { providerAdapter as deepinfraProviderAdapter } from './providers/deepinfra/adapter.js';
+import { providerAdapter as geminiProviderAdapter } from './providers/gemini/adapter.js';
 import { providerAdapter as githubCopilotCliProviderAdapter } from './providers/github-copilot-cli/adapter.js';
 import { providerAdapter as groqProviderAdapter } from './providers/groq/adapter.js';
 import { providerAdapter as huggingfaceTgiProviderAdapter } from './providers/huggingface-tgi/adapter.js';
 import { providerAdapter as llamaCppProviderAdapter } from './providers/llama-cpp/adapter.js';
+import { providerAdapter as mistralProviderAdapter } from './providers/mistral/adapter.js';
 import { providerAdapter as moonshotProviderAdapter } from './providers/moonshot/adapter.js';
 import { providerAdapter as ollamaProviderAdapter } from './providers/ollama/adapter.js';
 import { providerAdapter as openaiProviderAdapter } from './providers/openai/adapter.js';
@@ -14,18 +16,22 @@ import { providerAdapter as openclawProviderAdapter } from './providers/openclaw
 import { providerAdapter as openrouterProviderAdapter } from './providers/openrouter/adapter.js';
 import { providerAdapter as perplexityProviderAdapter } from './providers/perplexity/adapter.js';
 import { providerAdapter as vllmProviderAdapter } from './providers/vllm/adapter.js';
+import { providerAdapter as qwenCodeProviderAdapter } from './providers/qwen-code/adapter.js';
 
 export * from './schemas/provider-adapter.js';
 export { providerAdapter as anthropicAdapter, createAnthropicAdapter } from './providers/anthropic/adapter.js';
 export { providerAdapter as codexCliAdapter, CODEX_CLI_EXECUTION_CAPABILITY_PROFILE, createCodexCliAdapter, renderCodexCliPrompt } from './providers/codex-cli/adapter.js';
 export { providerAdapter as deepinfraAdapter } from './providers/deepinfra/adapter.js';
+export { providerAdapter as geminiAdapter } from './providers/gemini/adapter.js';
 export { providerAdapter as githubCopilotCliAdapter } from './providers/github-copilot-cli/adapter.js';
 export { providerAdapter as groqAdapter } from './providers/groq/adapter.js';
 export { providerAdapter as huggingfaceTgiAdapter } from './providers/huggingface-tgi/adapter.js';
 export { providerAdapter as llamaCppAdapter } from './providers/llama-cpp/adapter.js';
+export { providerAdapter as mistralAdapter } from './providers/mistral/adapter.js';
 export { providerAdapter as moonshotAdapter } from './providers/moonshot/adapter.js';
 export { providerAdapter as ollamaAdapter, createOllamaAdapter, isToolCapableModel } from './providers/ollama/adapter.js';
 export { providerAdapter as openaiAdapter, createChatCompletionsAdapter } from './providers/openai/adapter.js';
+export { providerAdapter as qwenCodeAdapter, QWEN_CODE_EXECUTION_CAPABILITY_PROFILE, createQwenCodeAdapter, renderQwenCodePrompt } from './providers/qwen-code/adapter.js';
 export { providerAdapter as openclawAdapter, OPENCLAW_EXECUTION_CAPABILITY_PROFILE, createOpenClawAdapter, renderOpenClawPrompt } from './providers/openclaw/adapter.js';
 export { providerAdapter as openrouterAdapter } from './providers/openrouter/adapter.js';
 export { providerAdapter as perplexityAdapter } from './providers/perplexity/adapter.js';
@@ -35,13 +41,16 @@ export const CERTIFIED_PROVIDER_ADAPTER_MODULES = [
   anthropicProviderAdapter,
   codexCliProviderAdapter,
   deepinfraProviderAdapter,
+  geminiProviderAdapter,
   githubCopilotCliProviderAdapter,
   groqProviderAdapter,
   huggingfaceTgiProviderAdapter,
   llamaCppProviderAdapter,
+  mistralProviderAdapter,
   moonshotProviderAdapter,
   ollamaProviderAdapter,
   openaiProviderAdapter,
+  qwenCodeProviderAdapter,
   openclawProviderAdapter,
   openrouterProviderAdapter,
   perplexityProviderAdapter,

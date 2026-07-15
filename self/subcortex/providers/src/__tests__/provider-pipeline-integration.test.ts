@@ -8,9 +8,12 @@ import {
   ChatCompletionsProvider,
   CERTIFIED_PROVIDER_FACTORIES,
   CodexCliProvider,
+  GeminiProvider,
   GitHubCopilotCliProvider,
+  MistralProvider,
   OllamaProvider,
   OpenClawProvider,
+  QwenCodeProvider,
   PROVIDER_DEFINITIONS,
   ProviderRegistry,
   buildAdapterResolver,
@@ -56,10 +59,12 @@ afterEach(() => {
   delete process.env.DEEPINFRA_API_KEY;
   delete process.env.MOONSHOT_API_KEY;
   delete process.env.GROQ_API_KEY;
+  delete process.env.GEMINI_API_KEY;
   delete process.env.HUGGINGFACE_API_KEY;
   delete process.env.OPENROUTER_API_KEY;
   delete process.env.PERPLEXITY_API_KEY;
   delete process.env.VLLM_API_KEY;
+  delete process.env.MISTRAL_API_KEY;
 });
 
 describe('provider definition to adapter to registry pipeline', () => {
@@ -68,13 +73,16 @@ describe('provider definition to adapter to registry pipeline', () => {
       'anthropic',
       'codex-cli',
       'deepinfra',
+      'gemini',
       'github-copilot-cli',
       'groq',
       'huggingface-tgi',
       'llama-cpp',
+      'mistral',
       'moonshot',
       'ollama',
       'openai',
+      'qwen-code',
       'openclaw',
       'openrouter',
       'perplexity',
@@ -190,8 +198,10 @@ describe('provider definition to adapter to registry pipeline', () => {
     process.env.HUGGINGFACE_API_KEY = 'test-huggingface-key';
     process.env.MOONSHOT_API_KEY = 'test-moonshot-key';
     process.env.GROQ_API_KEY = 'test-groq-key';
+    process.env.GEMINI_API_KEY = 'test-gemini-key';
     process.env.OPENROUTER_API_KEY = 'test-openrouter-key';
     process.env.PERPLEXITY_API_KEY = 'test-perplexity-key';
+    process.env.MISTRAL_API_KEY = 'test-mistral-key';
 
     const registry = new ProviderRegistry(createEmptyConfig());
     const expectedClassByVendor = {
@@ -201,9 +211,12 @@ describe('provider definition to adapter to registry pipeline', () => {
       moonshot: ChatCompletionsProvider,
       'llama-cpp': ChatCompletionsProvider,
       'deepinfra': ChatCompletionsProvider,
+      gemini: GeminiProvider,
       openai: ChatCompletionsProvider,
       groq: ChatCompletionsProvider,
+      mistral: MistralProvider,
       ollama: OllamaProvider,
+      'qwen-code': QwenCodeProvider,
       'huggingface-tgi': ChatCompletionsProvider,
       openclaw: OpenClawProvider,
       openrouter: ChatCompletionsProvider,
@@ -295,6 +308,7 @@ describe('provider definition to adapter to registry pipeline', () => {
     expect(resolver.resolveAdapter('missing').capabilities).toEqual(textAdapter.capabilities);
   });
 });
+
 
 describe('github-copilot-cli — role compatibility', () => {
   it('declares session_bound_command profile', () => {
