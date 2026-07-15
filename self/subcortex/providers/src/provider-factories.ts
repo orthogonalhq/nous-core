@@ -12,10 +12,11 @@ import { providerFactory as mistralProviderFactory } from './providers/mistral/p
 import { providerFactory as moonshotProviderFactory } from './providers/moonshot/provider.js';
 import { providerFactory as ollamaProviderFactory } from './providers/ollama/provider.js';
 import { providerFactory as openaiProviderFactory } from './providers/openai/provider.js';
-import { providerFactory as qwenCodeProviderFactory } from './providers/qwen-code/provider.js';
 import { providerFactory as openclawProviderFactory } from './providers/openclaw/provider.js';
 import { providerFactory as openrouterProviderFactory } from './providers/openrouter/provider.js';
 import { providerFactory as perplexityProviderFactory } from './providers/perplexity/provider.js';
+import { providerFactory as qwenCodeProviderFactory } from './providers/qwen-code/provider.js';
+import { providerFactory as togetherProviderFactory } from './providers/together/provider.js';
 import { providerFactory as vllmProviderFactory } from './providers/vllm/provider.js';
 
 export * from './schemas/provider-factory.js';
@@ -33,10 +34,11 @@ export const CERTIFIED_PROVIDER_FACTORIES = [
   moonshotProviderFactory,
   ollamaProviderFactory,
   openaiProviderFactory,
-  qwenCodeProviderFactory,
   openclawProviderFactory,
   openrouterProviderFactory,
   perplexityProviderFactory,
+  qwenCodeProviderFactory,
+  togetherProviderFactory,
   vllmProviderFactory,
 ] as const satisfies readonly ProviderFactoryModule[];
 

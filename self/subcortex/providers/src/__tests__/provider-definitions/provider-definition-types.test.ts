@@ -16,10 +16,10 @@ type Equal<A, B> =
 type Expect<T extends true> = T;
 
 type _ProviderVendorKeyIsExact = Expect<
-  Equal<ProviderVendorKey, 'anthropic' | 'codex-cli' | 'deepinfra' | 'gemini' | 'github-copilot-cli' | 'groq' | 'huggingface-tgi' | 'llama-cpp' | 'mistral' | 'moonshot' | 'openai' | 'ollama' | 'openclaw' | 'openrouter' | 'perplexity'| 'qwen-code' | 'vllm'>
+  Equal<ProviderVendorKey, 'anthropic' | 'codex-cli' | 'deepinfra' | 'gemini' | 'github-copilot-cli' | 'groq' | 'huggingface-tgi' | 'llama-cpp' | 'mistral' | 'moonshot' | 'openai' | 'ollama' | 'openclaw' | 'openrouter' | 'perplexity'| 'together' | 'qwen-code' | 'vllm'>
 >;
 type _BootstrapProviderKeyIsExact = Expect<
-  Equal<BootstrapProviderKey, 'anthropic' | 'codex-cli' | 'deepinfra' | 'gemini' | 'github-copilot-cli' | 'groq' | 'huggingface-tgi' | 'llama-cpp' | 'mistral' | 'moonshot' | 'openai' | 'ollama' | 'openclaw' | 'openrouter' | 'perplexity'| 'qwen-code' | 'vllm'>
+  Equal<BootstrapProviderKey, 'anthropic' | 'codex-cli' | 'deepinfra' | 'gemini' | 'github-copilot-cli' | 'groq' | 'huggingface-tgi' | 'llama-cpp' | 'mistral' | 'moonshot' | 'openai' | 'ollama' | 'openclaw' | 'openrouter' | 'perplexity'| 'together' | 'qwen-code' | 'vllm'>
 >;
 
 type _ProviderVendorKeyDoesNotWiden = Expect<Equal<string extends ProviderVendorKey ? true : false, false>>;
@@ -30,7 +30,7 @@ describe('provider definition type derivation', () => {
       (definition) => definition.vendorKey,
     );
 
-    expect(keys.sort()).toEqual(['anthropic', 'codex-cli', 'deepinfra', 'gemini', 'github-copilot-cli', 'groq', 'huggingface-tgi', 'llama-cpp', 'mistral', 'moonshot', 'ollama', 'openai', 'openclaw', 'openrouter', 'perplexity', 'qwen-code', 'vllm']);
+    expect(keys.sort()).toEqual(['anthropic', 'codex-cli', 'deepinfra', 'gemini', 'github-copilot-cli', 'groq', 'huggingface-tgi', 'llama-cpp', 'mistral', 'moonshot', 'ollama', 'openai', 'openclaw', 'openrouter', 'perplexity', 'qwen-code', 'together', 'vllm']);
   });
 
   it('supports local leaf-addition fixtures without production branch logic', () => {

@@ -69,24 +69,10 @@ afterEach(() => {
 
 describe('provider definition to adapter to registry pipeline', () => {
   it('aggregates all production provider definitions by vendor key', () => {
-    expect(PROVIDER_DEFINITIONS.map((definition) => definition.vendorKey)).toEqual([
-      'anthropic',
-      'codex-cli',
-      'deepinfra',
-      'gemini',
-      'github-copilot-cli',
-      'groq',
-      'huggingface-tgi',
-      'llama-cpp',
-      'mistral',
-      'moonshot',
-      'ollama',
-      'openai',
-      'qwen-code',
-      'openclaw',
-      'openrouter',
-      'perplexity',
-      'vllm',
+    expect(PROVIDER_DEFINITIONS.map((definition) => definition.vendorKey).sort()).toEqual([
+      'anthropic', 'codex-cli', 'deepinfra', 'gemini', 'github-copilot-cli', 'groq',
+      'huggingface-tgi', 'llama-cpp', 'mistral', 'moonshot', 'ollama', 'openai',
+      'openclaw', 'openrouter', 'perplexity', 'qwen-code', 'together', 'vllm',
     ]);
     expect(resolveProviderDefinition('anthropic').defaultModelId).toBe(
       'claude-sonnet-4-20250514',
@@ -201,6 +187,7 @@ describe('provider definition to adapter to registry pipeline', () => {
     process.env.GEMINI_API_KEY = 'test-gemini-key';
     process.env.OPENROUTER_API_KEY = 'test-openrouter-key';
     process.env.PERPLEXITY_API_KEY = 'test-perplexity-key';
+    process.env.TOGETHER_API_KEY = 'test-together-key';
     process.env.MISTRAL_API_KEY = 'test-mistral-key';
 
     const registry = new ProviderRegistry(createEmptyConfig());
@@ -221,6 +208,7 @@ describe('provider definition to adapter to registry pipeline', () => {
       openclaw: OpenClawProvider,
       openrouter: ChatCompletionsProvider,
       perplexity: ChatCompletionsProvider,
+      together: ChatCompletionsProvider,
       vllm: ChatCompletionsProvider,
     };
 

@@ -60,6 +60,11 @@ const expectedDefinitions = {
     defaultModelId: 'qwen-code/default',
     envVar: undefined,
   },
+  together: {
+    defaultEndpoint: 'https://api.together.ai',
+    defaultModelId: 'meta-llama/Llama-3.3-70B-Instruct-Turbo',
+    envVar: 'TOGETHER_API_KEY',
+  },
   deepinfra: {
     defaultEndpoint: 'https://api.deepinfra.com/v1/openai',
     defaultModelId: 'meta-llama/Meta-Llama-3.1-70B-Instruct',
@@ -100,23 +105,9 @@ const expectedDefinitions = {
 describe('provider definitions catalog', () => {
   it('contains exactly the current validation roster by vendorKey', () => {
     expect(PROVIDER_DEFINITIONS.map((definition) => definition.vendorKey).sort()).toEqual([
-      'anthropic',
-      'codex-cli',
-      'deepinfra',
-      'gemini',
-      'github-copilot-cli',
-      'groq',
-      'huggingface-tgi',
-      'llama-cpp',
-      'mistral',
-      'moonshot',
-      'ollama',
-      'openai',
-      'qwen-code',
-      'openclaw',
-      'openrouter',
-      'perplexity',
-      'vllm',
+      'anthropic', 'codex-cli', 'deepinfra', 'gemini', 'github-copilot-cli', 'groq',
+      'huggingface-tgi', 'llama-cpp', 'mistral', 'moonshot', 'ollama', 'openai',
+      'openclaw', 'openrouter', 'perplexity', 'qwen-code', 'together', 'vllm',
     ]);
   });
 

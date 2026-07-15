@@ -50,7 +50,7 @@ function makeThrowingProvider() {
 describe('adapter resolver', () => {
   it('aggregates all canonical adapter modules', () => {
     // `chat-completions` appears multiple times: deepinfra, groq,
-    // huggingface-tgi, llama-cpp, moonshot, openai, openrouter, perplexity,
+    // huggingface-tgi, llama-cpp, moonshot, openai, openrouter, perplexity, together
     // and vllm all reuse the shared chat-completions adapter. mistral uses
     // its own adapterKey for resolver isolation.
     // The resolver keys modules by adapterKey, so the duplicates collapse to a single
@@ -59,25 +59,22 @@ describe('adapter resolver', () => {
     expect(ADAPTER_MODULES.map((module) => module.adapterKey)).toEqual([
       'anthropic',
       'codex-cli',
-      'chat-completions',
+      'chat-completions',   // deepinfra
       'gemini',
       'github-copilot-cli',
-      'chat-completions',
-      'chat-completions',
-      'chat-completions',
+      'chat-completions',   // groq
+      'chat-completions',   // huggingface-tgi
+      'chat-completions',   // llama-cpp
       'mistral',
-      'chat-completions',
+      'chat-completions',   // moonshot
       'ollama',
-      'chat-completions',
+      'chat-completions',   // openai
       'openclaw',
-      'chat-completions',
-      'chat-completions',
-      'chat-completions',
-      'openclaw',
-      'chat-completions',
-      'chat-completions',
-      'chat-completions',
+      'chat-completions',   // openrouter
+      'chat-completions',   // perplexity
       'qwen-code',
+      'chat-completions',   // together
+      'chat-completions',   // vllm
       'text',
     ]);
   });
