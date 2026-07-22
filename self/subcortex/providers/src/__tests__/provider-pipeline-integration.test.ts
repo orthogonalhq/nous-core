@@ -62,6 +62,7 @@ afterEach(() => {
   delete process.env.GEMINI_API_KEY;
   delete process.env.HUGGINGFACE_API_KEY;
   delete process.env.OPENROUTER_API_KEY;
+  delete process.env.DASHSCOPE_API_KEY;
   delete process.env.PERPLEXITY_API_KEY;
   delete process.env.VLLM_API_KEY;
   delete process.env.MISTRAL_API_KEY;
@@ -73,6 +74,7 @@ describe('provider definition to adapter to registry pipeline', () => {
     expect(PROVIDER_DEFINITIONS.map((definition) => definition.vendorKey)).toEqual([
       'anthropic',
       'codex-cli',
+      'dashscope',
       'deepinfra',
       'gemini',
       'github-copilot-cli',
@@ -202,12 +204,16 @@ describe('provider definition to adapter to registry pipeline', () => {
     process.env.GROQ_API_KEY = 'test-groq-key';
     process.env.GEMINI_API_KEY = 'test-gemini-key';
     process.env.OPENROUTER_API_KEY = 'test-openrouter-key';
+    process.env.DASHSCOPE_API_KEY = 'test-dashscope-key';
     process.env.PERPLEXITY_API_KEY = 'test-perplexity-key';
+    process.env.MISTRAL_API_KEY = 'test-mistral-key';
+    process.env.XAI_API_KEY = 'test-xai-key';
 
     const registry = new ProviderRegistry(createEmptyConfig());
     const expectedClassByVendor = {
       anthropic: AnthropicProvider,
       'codex-cli': CodexCliProvider,
+      dashscope: ChatCompletionsProvider,
       'github-copilot-cli': GitHubCopilotCliProvider,
       moonshot: ChatCompletionsProvider,
       'llama-cpp': ChatCompletionsProvider,
@@ -260,6 +266,7 @@ describe('provider definition to adapter to registry pipeline', () => {
     expect(registry.getProvider(resolveProviderDefinition('openai').wellKnownProviderId)).toBeNull();
     expect(registry.getProvider(resolveProviderDefinition('moonshot').wellKnownProviderId)).toBeNull();
     expect(registry.getProvider(resolveProviderDefinition('openrouter').wellKnownProviderId)).toBeNull();
+    expect(registry.getProvider(resolveProviderDefinition('dashscope').wellKnownProviderId)).toBeNull();
     expect(registry.getProvider(resolveProviderDefinition('perplexity').wellKnownProviderId)).toBeNull();
     expect(registry.getProvider(resolveProviderDefinition('huggingface-tgi').wellKnownProviderId)).toBeInstanceOf(
       LaneAwareProvider,

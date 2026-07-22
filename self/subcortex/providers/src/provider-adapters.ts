@@ -2,6 +2,7 @@
 import type { ProviderAdapterModule } from './schemas/provider-adapter.js';
 import { providerAdapter as anthropicProviderAdapter } from './providers/anthropic/adapter.js';
 import { providerAdapter as codexCliProviderAdapter } from './providers/codex-cli/adapter.js';
+import { providerAdapter as dashscopeProviderAdapter } from './providers/dashscope/adapter.js';
 import { providerAdapter as deepinfraProviderAdapter } from './providers/deepinfra/adapter.js';
 import { providerAdapter as geminiProviderAdapter } from './providers/gemini/adapter.js';
 import { providerAdapter as githubCopilotCliProviderAdapter } from './providers/github-copilot-cli/adapter.js';
@@ -22,6 +23,7 @@ import { providerAdapter as xaiProviderAdapter } from './providers/xai/adapter.j
 export * from './schemas/provider-adapter.js';
 export { providerAdapter as anthropicAdapter, createAnthropicAdapter } from './providers/anthropic/adapter.js';
 export { providerAdapter as codexCliAdapter, CODEX_CLI_EXECUTION_CAPABILITY_PROFILE, createCodexCliAdapter, renderCodexCliPrompt } from './providers/codex-cli/adapter.js';
+export { providerAdapter as dashscopeAdapter } from './providers/dashscope/adapter.js';
 export { providerAdapter as deepinfraAdapter } from './providers/deepinfra/adapter.js';
 export { providerAdapter as geminiAdapter } from './providers/gemini/adapter.js';
 export { providerAdapter as githubCopilotCliAdapter } from './providers/github-copilot-cli/adapter.js';
@@ -42,6 +44,7 @@ export { providerAdapter as xaiAdapter } from './providers/xai/adapter.js';
 export const CERTIFIED_PROVIDER_ADAPTER_MODULES = [
   anthropicProviderAdapter,
   codexCliProviderAdapter,
+  dashscopeProviderAdapter,
   deepinfraProviderAdapter,
   geminiProviderAdapter,
   githubCopilotCliProviderAdapter,
