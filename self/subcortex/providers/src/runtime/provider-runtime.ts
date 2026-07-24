@@ -174,9 +174,15 @@ export class ProviderRegistry {
       return config;
     }
 
+    // Preserve an explicitly configured endpoint. BYOK providers such as
+    // Azure OpenAI have a per-resource host (e.g. https://acme.openai.azure.com)
+    // that the leaf definition cannot know ahead of time, so its
+    // `defaultEndpoint` is only a placeholder. Overwriting it here would send
+    // requests to the placeholder host. Fall back to the definition default
+    // only when the config does not carry an explicit endpoint. See #304/#425.
     return {
       ...config,
-      endpoint: definition.defaultEndpoint,
+      endpoint: config.endpoint ?? definition.defaultEndpoint,
     };
   }
 
