@@ -16,10 +16,10 @@ type Equal<A, B> =
 type Expect<T extends true> = T;
 
 type _ProviderVendorKeyIsExact = Expect<
-  Equal<ProviderVendorKey, 'anthropic' | 'azure-openai' | 'codex-cli' | 'dashscope' | 'deepinfra' | 'gemini' | 'github-copilot-cli' | 'groq' | 'huggingface-tgi' | 'llama-cpp' | 'mistral' | 'moonshot' | 'openai' | 'ollama' | 'openclaw' | 'openrouter' | 'perplexity' | 'qwen-code' | 'vllm' | 'xai'>
+  Equal<ProviderVendorKey, 'anthropic' | 'azure-openai' | 'codex-cli' | 'dashscope' | 'deepinfra' | 'gemini' | 'github-copilot-cli' | 'groq' | 'huggingface-tgi' | 'llama-cpp' | 'mistral' | 'moonshot' | 'openai' | 'ollama' | 'openclaw' | 'openrouter' | 'perplexity' | 'qwen-code' | 'vllm' | 'xai' | 'zhipu'>
 >;
 type _BootstrapProviderKeyIsExact = Expect<
-  Equal<BootstrapProviderKey, 'anthropic' | 'azure-openai' | 'codex-cli' | 'dashscope' | 'deepinfra' | 'gemini' | 'github-copilot-cli' | 'groq' | 'huggingface-tgi' | 'llama-cpp' | 'mistral' | 'moonshot' | 'openai' | 'ollama' | 'openclaw' | 'openrouter' | 'perplexity' | 'qwen-code' | 'vllm' | 'xai'>
+  Equal<BootstrapProviderKey, 'anthropic' | 'azure-openai' | 'codex-cli' | 'dashscope' | 'deepinfra' | 'gemini' | 'github-copilot-cli' | 'groq' | 'huggingface-tgi' | 'llama-cpp' | 'mistral' | 'moonshot' | 'openai' | 'ollama' | 'openclaw' | 'openrouter' | 'perplexity' | 'qwen-code' | 'vllm' | 'xai' | 'zhipu'>
 >;
 
 type _ProviderVendorKeyDoesNotWiden = Expect<Equal<string extends ProviderVendorKey ? true : false, false>>;
@@ -50,6 +50,7 @@ describe('provider definition type derivation', () => {
       'qwen-code',
       'vllm',
       'xai',
+      'zhipu',
     ]);
   });
 

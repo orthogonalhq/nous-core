@@ -20,6 +20,7 @@ import { providerFactory as perplexityProviderFactory } from './providers/perple
 import { providerFactory as qwenCodeProviderFactory } from './providers/qwen-code/provider.js';
 import { providerFactory as vllmProviderFactory } from './providers/vllm/provider.js';
 import { providerFactory as xaiProviderFactory } from './providers/xai/provider.js';
+import { providerFactory as zhipuProviderFactory } from './providers/zhipu/provider.js';
 
 export * from './schemas/provider-factory.js';
 
@@ -44,6 +45,7 @@ export const CERTIFIED_PROVIDER_FACTORIES = [
   qwenCodeProviderFactory,
   vllmProviderFactory,
   xaiProviderFactory,
+  zhipuProviderFactory,
 ] as const satisfies readonly ProviderFactoryModule[];
 
 export type CertifiedProviderFactoryVendorKey =

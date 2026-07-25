@@ -68,6 +68,7 @@ afterEach(() => {
   delete process.env.VLLM_API_KEY;
   delete process.env.MISTRAL_API_KEY;
   delete process.env.XAI_API_KEY;
+  delete process.env.ZHIPU_API_KEY;
 });
 
 describe('provider definition to adapter to registry pipeline', () => {
@@ -92,7 +93,8 @@ describe('provider definition to adapter to registry pipeline', () => {
       'perplexity',
       'qwen-code',
       'vllm',
-      'xai'
+      'xai',
+      'zhipu'
     ]);
     expect(resolveProviderDefinition('anthropic').defaultModelId).toBe(
       'claude-sonnet-4-20250514',
@@ -211,6 +213,7 @@ describe('provider definition to adapter to registry pipeline', () => {
     process.env.PERPLEXITY_API_KEY = 'test-perplexity-key';
     process.env.MISTRAL_API_KEY = 'test-mistral-key';
     process.env.XAI_API_KEY = 'test-xai-key';
+    process.env.ZHIPU_API_KEY = 'test-zhipu-key';
 
     const registry = new ProviderRegistry(createEmptyConfig());
     const expectedClassByVendor = {
@@ -234,6 +237,7 @@ describe('provider definition to adapter to registry pipeline', () => {
       perplexity: ChatCompletionsProvider,
       vllm: ChatCompletionsProvider,
       xai: ChatCompletionsProvider,
+      zhipu: ChatCompletionsProvider,
     };
 
     for (const definition of PROVIDER_DEFINITIONS) {

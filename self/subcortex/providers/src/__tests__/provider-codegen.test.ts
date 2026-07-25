@@ -39,6 +39,7 @@ describe('provider aggregate codegen', () => {
       'qwen-code',
       'vllm',
       'xai',
+      'zhipu',
     ]);
   });
 

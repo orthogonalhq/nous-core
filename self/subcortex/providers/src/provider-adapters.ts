@@ -20,6 +20,7 @@ import { providerAdapter as perplexityProviderAdapter } from './providers/perple
 import { providerAdapter as qwenCodeProviderAdapter } from './providers/qwen-code/adapter.js';
 import { providerAdapter as vllmProviderAdapter } from './providers/vllm/adapter.js';
 import { providerAdapter as xaiProviderAdapter } from './providers/xai/adapter.js';
+import { providerAdapter as zhipuProviderAdapter } from './providers/zhipu/adapter.js';
 
 export * from './schemas/provider-adapter.js';
 export { providerAdapter as anthropicAdapter, createAnthropicAdapter } from './providers/anthropic/adapter.js';
@@ -42,6 +43,7 @@ export { providerAdapter as perplexityAdapter } from './providers/perplexity/ada
 export { providerAdapter as qwenCodeAdapter, QWEN_CODE_EXECUTION_CAPABILITY_PROFILE, createQwenCodeAdapter, renderQwenCodePrompt } from './providers/qwen-code/adapter.js';
 export { providerAdapter as vllmAdapter } from './providers/vllm/adapter.js';
 export { providerAdapter as xaiAdapter } from './providers/xai/adapter.js';
+export { providerAdapter as zhipuAdapter } from './providers/zhipu/adapter.js';
 
 export const CERTIFIED_PROVIDER_ADAPTER_MODULES = [
   anthropicProviderAdapter,
@@ -64,6 +66,7 @@ export const CERTIFIED_PROVIDER_ADAPTER_MODULES = [
   qwenCodeProviderAdapter,
   vllmProviderAdapter,
   xaiProviderAdapter,
+  zhipuProviderAdapter,
 ] as const satisfies readonly ProviderAdapterModule[];
 
 export type CertifiedProviderAdapterKey =
