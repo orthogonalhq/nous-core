@@ -6,6 +6,7 @@ import {
   ADAPTER_RESOLVER,
   AnthropicProvider,
   ChatCompletionsProvider,
+  CohereProvider,
   CERTIFIED_PROVIDER_FACTORIES,
   CodexCliProvider,
   GeminiProvider,
@@ -203,6 +204,7 @@ describe('provider definition to adapter to registry pipeline', () => {
     process.env.OPENAI_API_KEY = 'test-openai-key';
     process.env.DEEPINFRA_API_KEY = 'test-deepinfra-key';
     process.env.HUGGINGFACE_API_KEY = 'test-huggingface-key';
+    process.env.COHERE_API_KEY = 'test-cohere-key';
     process.env.MOONSHOT_API_KEY = 'test-moonshot-key';
     process.env.GROQ_API_KEY = 'test-groq-key';
     process.env.GEMINI_API_KEY = 'test-gemini-key';
@@ -217,6 +219,7 @@ describe('provider definition to adapter to registry pipeline', () => {
       anthropic: AnthropicProvider,
       'azure-openai': ChatCompletionsProvider,
       'codex-cli': CodexCliProvider,
+      cohere: CohereProvider,
       dashscope: ChatCompletionsProvider,
       'github-copilot-cli': GitHubCopilotCliProvider,
       moonshot: ChatCompletionsProvider,

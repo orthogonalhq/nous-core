@@ -4,6 +4,7 @@
 export { AnthropicProvider } from './providers/anthropic/implementation.js';
 export { GeminiProvider } from './providers/gemini/implementation.js';
 export { MistralProvider } from './providers/mistral/implementation.js';
+export { CohereProvider } from './providers/cohere/implementation.js';
 export * from './adapter-resolver.js';
 export * from './provider-adapters.js';
 export { CODEX_CLI_EXECUTION_CAPABILITY_PROFILE } from './providers/codex-cli/adapter.js';
