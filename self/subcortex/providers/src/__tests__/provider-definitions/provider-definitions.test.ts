@@ -20,6 +20,11 @@ const expectedDefinitions = {
     defaultModelId: 'gpt-4o',
     envVar: 'AZURE_OPENAI_API_KEY',
   },
+  cohere: {
+    defaultEndpoint: 'https://api.cohere.com',
+    defaultModelId: 'command-a-03-2025',
+    envVar: 'COHERE_API_KEY',
+  },
   openai: {
     defaultEndpoint: 'https://api.openai.com',
     defaultModelId: 'gpt-4o',
@@ -118,6 +123,7 @@ describe('provider definitions catalog', () => {
       'anthropic',
       'azure-openai',
       'codex-cli',
+      'cohere',
       'dashscope',
       'deepinfra',
       'gemini',
@@ -171,6 +177,7 @@ describe('provider definitions catalog', () => {
       join('providers', 'anthropic', 'implementation.ts'),
       join('providers', 'azure-openai', 'definition.ts'),
       join('providers', 'codex-cli', 'definition.ts'),
+      join('providers', 'cohere', 'implementation.ts'),
       join('providers', 'dashscope', 'definition.ts'),
       join('providers', 'openclaw', 'definition.ts'),
       join('protocols', 'openai-api', 'provider.ts'),

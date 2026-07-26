@@ -77,6 +77,7 @@ describe('provider definition to adapter to registry pipeline', () => {
       'anthropic',
       'azure-openai',
       'codex-cli',
+      'cohere',
       'dashscope',
       'deepinfra',
       'gemini',
