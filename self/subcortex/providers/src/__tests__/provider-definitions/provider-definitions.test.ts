@@ -60,6 +60,11 @@ const expectedDefinitions = {
     defaultModelId: 'qwen-code/default',
     envVar: undefined,
   },
+  tabnine: {
+    defaultEndpoint: 'http://localhost',
+    defaultModelId: 'tabnine/default',
+    envVar: undefined,
+  },
   deepinfra: {
     defaultEndpoint: 'https://api.deepinfra.com/v1/openai',
     defaultModelId: 'meta-llama/Meta-Llama-3.1-70B-Instruct',
@@ -121,6 +126,7 @@ describe('provider definitions catalog', () => {
       'openrouter',
       'perplexity',
       'qwen-code',
+      'tabnine',
       'vllm',
       'xai'
     ]);
@@ -165,6 +171,7 @@ describe('provider definitions catalog', () => {
       join('providers', 'llama-cpp', 'definition.ts'),
       join('providers', 'mistral', 'implementation.ts'),
       join('providers', 'qwen-code', 'definition.ts'),
+      join('providers', 'tabnine', 'definition.ts'),
       join('providers', 'deepinfra', 'definition.ts'),
       join('providers', 'gemini', 'implementation.ts'),
       join('providers', 'openrouter', 'definition.ts'),

@@ -16,6 +16,7 @@ import { providerFactory as openclawProviderFactory } from './providers/openclaw
 import { providerFactory as openrouterProviderFactory } from './providers/openrouter/provider.js';
 import { providerFactory as perplexityProviderFactory } from './providers/perplexity/provider.js';
 import { providerFactory as qwenCodeProviderFactory } from './providers/qwen-code/provider.js';
+import { providerFactory as tabnineProviderFactory } from './providers/tabnine/provider.js';
 import { providerFactory as vllmProviderFactory } from './providers/vllm/provider.js';
 import { providerFactory as xaiProviderFactory } from './providers/xai/provider.js';
 
@@ -38,6 +39,7 @@ export const CERTIFIED_PROVIDER_FACTORIES = [
   openrouterProviderFactory,
   perplexityProviderFactory,
   qwenCodeProviderFactory,
+  tabnineProviderFactory,
   vllmProviderFactory,
   xaiProviderFactory,
 ] as const satisfies readonly ProviderFactoryModule[];

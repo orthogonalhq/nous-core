@@ -16,6 +16,7 @@ import { providerAdapter as openclawProviderAdapter } from './providers/openclaw
 import { providerAdapter as openrouterProviderAdapter } from './providers/openrouter/adapter.js';
 import { providerAdapter as perplexityProviderAdapter } from './providers/perplexity/adapter.js';
 import { providerAdapter as qwenCodeProviderAdapter } from './providers/qwen-code/adapter.js';
+import { providerAdapter as tabnineProviderAdapter } from './providers/tabnine/adapter.js';
 import { providerAdapter as vllmProviderAdapter } from './providers/vllm/adapter.js';
 import { providerAdapter as xaiProviderAdapter } from './providers/xai/adapter.js';
 
@@ -36,6 +37,7 @@ export { providerAdapter as openclawAdapter, OPENCLAW_EXECUTION_CAPABILITY_PROFI
 export { providerAdapter as openrouterAdapter } from './providers/openrouter/adapter.js';
 export { providerAdapter as perplexityAdapter } from './providers/perplexity/adapter.js';
 export { providerAdapter as qwenCodeAdapter, QWEN_CODE_EXECUTION_CAPABILITY_PROFILE, createQwenCodeAdapter, renderQwenCodePrompt } from './providers/qwen-code/adapter.js';
+export { providerAdapter as tabnineAdapter } from './providers/tabnine/adapter.js';
 export { providerAdapter as vllmAdapter } from './providers/vllm/adapter.js';
 export { providerAdapter as xaiAdapter } from './providers/xai/adapter.js';
 
@@ -56,6 +58,7 @@ export const CERTIFIED_PROVIDER_ADAPTER_MODULES = [
   openrouterProviderAdapter,
   perplexityProviderAdapter,
   qwenCodeProviderAdapter,
+  tabnineProviderAdapter,
   vllmProviderAdapter,
   xaiProviderAdapter,
 ] as const satisfies readonly ProviderAdapterModule[];

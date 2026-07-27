@@ -73,6 +73,7 @@ describe('adapter resolver', () => {
       'chat-completions',       
       'chat-completions',        
       'qwen-code',
+      'tabnine',
       'chat-completions',
       'chat-completions',
       'text',
