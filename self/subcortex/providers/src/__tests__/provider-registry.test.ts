@@ -215,14 +215,11 @@ describe('ProviderRegistry', () => {
       reload: vi.fn(),
     } as any);
 
-    // No endpoint configured: a legacy anthropic well-known id resolves to the
-    // anthropic definition, and normalization fills in the definition default
-    // (see #425 — configured endpoints are now preserved, so the fallback is
-    // only exercised when no endpoint is present).
     registry.registerProvider({
       id: '10000000-0000-0000-0000-000000000001' as any,
       name: 'anthropic',
       type: 'text',
+      endpoint: 'https://api.openai.com',
       modelId: 'claude-sonnet-4-20250514',
       isLocal: false,
       capabilities: ['chat', 'streaming'],
@@ -293,9 +290,7 @@ describe('ProviderRegistry', () => {
     expect(provider).toBeInstanceOf(LaneAwareProvider);
     expect(provider.inner).toBeInstanceOf(ChatCompletionsProvider);
     expect(provider.getConfig().vendor).toBe('openai');
-    // An explicitly configured endpoint is preserved (see #425): normalization
-    // only fills in the definition default when no endpoint is configured.
-    expect(provider.getConfig().endpoint).toBe('https://example.com/proxy');
+    expect(provider.getConfig().endpoint).toBe('https://api.openai.com');
   });
 
   it('routes non-Anthropic remote providers to ChatCompletionsProvider inside LaneAwareProvider', () => {
@@ -355,9 +350,7 @@ describe('ProviderRegistry', () => {
 
     expect(provider).toBeInstanceOf(LaneAwareProvider);
     expect(provider.inner).toBeInstanceOf(AnthropicProvider);
-    // Vendor field wins for resolution, and the explicitly configured proxy
-    // endpoint is preserved rather than replaced by the definition default (#425).
-    expect(provider.getConfig().endpoint).toBe('https://example.com/proxy');
+    expect(provider.getConfig().endpoint).toBe('https://api.anthropic.com');
   });
 
   it('preserves a BYOK Azure OpenAI resource endpoint through registry normalization (#425)', async () => {
