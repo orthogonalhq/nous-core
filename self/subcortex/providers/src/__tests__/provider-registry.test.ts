@@ -10,6 +10,8 @@ afterEach(() => {
   delete process.env.ANTHROPIC_API_KEY;
   delete process.env.OPENAI_API_KEY;
   delete process.env.OPENROUTER_API_KEY;
+  delete process.env.AZURE_OPENAI_API_KEY;
+  delete process.env.AZURE_OPENAI_API_VERSION;
   vi.restoreAllMocks();
 });
 
@@ -349,6 +351,64 @@ describe('ProviderRegistry', () => {
     expect(provider).toBeInstanceOf(LaneAwareProvider);
     expect(provider.inner).toBeInstanceOf(AnthropicProvider);
     expect(provider.getConfig().endpoint).toBe('https://api.anthropic.com');
+  });
+
+  it('preserves a BYOK Azure OpenAI resource endpoint through registry normalization (#425)', async () => {
+    process.env.AZURE_OPENAI_API_KEY = 'test-azure-key';
+
+    const registry = new ProviderRegistry({
+      get: () => ({ providers: [] }),
+      getSection: vi.fn(),
+      update: vi.fn(),
+      reload: vi.fn(),
+    } as any);
+
+    // A real Azure OpenAI resource has a per-resource host. The azure-openai
+    // leaf definition can only carry a placeholder default, so the registry
+    // must not overwrite the user's configured endpoint with it.
+    registry.registerProvider({
+      id: '00000000-0000-0000-0000-000000000019' as any,
+      name: 'Azure OpenAI',
+      type: 'text',
+      endpoint: 'https://acme-resource.openai.azure.com',
+      modelId: 'my-gpt4o-deployment',
+      isLocal: false,
+      capabilities: ['chat', 'streaming'],
+      providerClass: 'remote_text',
+      vendor: 'azure-openai',
+    });
+
+    const provider = registry.getProvider(
+      '00000000-0000-0000-0000-000000000019' as any,
+    ) as any;
+
+    expect(provider).toBeInstanceOf(LaneAwareProvider);
+    expect(provider.inner).toBeInstanceOf(ChatCompletionsProvider);
+    // Configured resource endpoint is preserved, not replaced by the placeholder.
+    expect(provider.getConfig().endpoint).toBe('https://acme-resource.openai.azure.com');
+    expect(provider.getConfig().endpoint).not.toContain('your-resource');
+
+    // Prove the endpoint actually flows through to the invoked URL.
+    const fetchMock = vi.fn().mockResolvedValue({
+      ok: true,
+      json: async () => ({
+        choices: [{ message: { content: 'hi' } }],
+        usage: { prompt_tokens: 1, completion_tokens: 1 },
+      }),
+    } as Response);
+    vi.stubGlobal('fetch', fetchMock);
+
+    await provider.inner.invoke({
+      role: 'cortex-chat',
+      input: { prompt: 'hi' },
+      traceId: '00000000-0000-0000-0000-000000000002' as any,
+    });
+
+    const [invokedUrl] = fetchMock.mock.calls[0] as [string, RequestInit];
+    expect(invokedUrl).toBe(
+      'https://acme-resource.openai.azure.com/openai/deployments/my-gpt4o-deployment/chat/completions?api-version=2024-10-21',
+    );
+    expect(invokedUrl).not.toContain('your-resource');
   });
 
   it('constructor skips non-local entries when API key is unavailable', () => {

@@ -145,6 +145,78 @@ describe('ChatCompletionsProvider', () => {
     }
   });
 
+  it('defaults to an Authorization Bearer header when no auth header options are passed', async () => {
+    const provider = new ChatCompletionsProvider(MOCK_CONFIG, { apiKey: 'test-key' });
+    vi.mocked(fetch).mockResolvedValue({
+      ok: true,
+      json: async () => ({ choices: [{ message: { content: 'hi' } }], usage: {} }),
+    } as Response);
+
+    await provider.invoke({
+      role: 'cortex-chat',
+      input: { prompt: 'hi' },
+      traceId: '00000000-0000-0000-0000-000000000002' as any,
+    });
+
+    const [, init] = vi.mocked(fetch).mock.calls[0] as [string, RequestInit];
+    const headers = init.headers as Record<string, string>;
+    expect(headers.Authorization).toBe('Bearer test-key');
+    expect(headers['api-key']).toBeUndefined();
+  });
+
+  it('honors authHeaderName/authHeaderScheme "raw" for vendors like Azure OpenAI (#304)', async () => {
+    const provider = new ChatCompletionsProvider(MOCK_CONFIG, {
+      apiKey: 'raw-key',
+      authHeaderName: 'api-key',
+      authHeaderScheme: 'raw',
+    });
+    vi.mocked(fetch).mockResolvedValue({
+      ok: true,
+      json: async () => ({ choices: [{ message: { content: 'hi' } }], usage: {} }),
+    } as Response);
+
+    await provider.invoke({
+      role: 'cortex-chat',
+      input: { prompt: 'hi' },
+      traceId: '00000000-0000-0000-0000-000000000002' as any,
+    });
+
+    const [, init] = vi.mocked(fetch).mock.calls[0] as [string, RequestInit];
+    const headers = init.headers as Record<string, string>;
+    expect(headers['api-key']).toBe('raw-key');
+    expect(headers.Authorization).toBeUndefined();
+  });
+
+  it('applies the custom auth header on stream() too', async () => {
+    const provider = new ChatCompletionsProvider(MOCK_CONFIG, {
+      apiKey: 'raw-key',
+      authHeaderName: 'api-key',
+      authHeaderScheme: 'raw',
+    });
+    const encoder = new TextEncoder();
+    const stream = new ReadableStream<Uint8Array>({
+      start(controller) {
+        controller.enqueue(encoder.encode('data: [DONE]\n\n'));
+        controller.close();
+      },
+    });
+    vi.mocked(fetch).mockResolvedValue(new Response(stream, { status: 200 }));
+
+    const chunks: unknown[] = [];
+    for await (const chunk of provider.stream({
+      role: 'cortex-chat',
+      input: { prompt: 'hi' },
+      traceId: '00000000-0000-0000-0000-000000000002' as any,
+    })) {
+      chunks.push(chunk);
+    }
+
+    const [, init] = vi.mocked(fetch).mock.calls[0] as [string, RequestInit];
+    const headers = init.headers as Record<string, string>;
+    expect(headers['api-key']).toBe('raw-key');
+    expect(headers.Authorization).toBeUndefined();
+  });
+
   it('invoke() surfaces external abort as ABORTED', async () => {
     const provider = new ChatCompletionsProvider(MOCK_CONFIG, {
       apiKey: 'test-key',

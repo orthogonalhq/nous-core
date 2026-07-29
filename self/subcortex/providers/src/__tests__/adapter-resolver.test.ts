@@ -49,15 +49,16 @@ function makeThrowingProvider() {
 
 describe('adapter resolver', () => {
   it('aggregates all canonical adapter modules', () => {
-    // `chat-completions` appears multiple times: deepinfra, groq,
+    // `chat-completions` appears multiple times: azure-openai, deepinfra, groq,
     // huggingface-tgi, llama-cpp, moonshot, openai, openrouter, perplexity,
-    // and vllm all reuse the shared chat-completions adapter. mistral uses
+    // vllm, and xai all reuse the shared chat-completions adapter. mistral uses
     // its own adapterKey for resolver isolation.
     // The resolver keys modules by adapterKey, so the duplicates collapse to a single
     // resolvable module. Order follows the generated CERTIFIED_PROVIDER_ADAPTER_MODULES
     // (alphabetical by vendor) with the text fallback appended last.
     expect(ADAPTER_MODULES.map((module) => module.adapterKey)).toEqual([
       'anthropic',
+      'chat-completions',
       'codex-cli',
       'chat-completions',
       'gemini',
@@ -112,6 +113,7 @@ describe('adapter resolver', () => {
 
   it('resolves current provider definition vendors', () => {
     expect(resolveAdapterKeyFromConfig(makeProvider({ vendor: 'anthropic' }))).toBe('anthropic');
+    expect(resolveAdapterKeyFromConfig(makeProvider({ vendor: 'azure-openai' }))).toBe('chat-completions');
     expect(resolveAdapterKeyFromConfig(makeProvider({ vendor: 'codex-cli' }))).toBe('codex-cli');
     expect(resolveAdapterKeyFromConfig(makeProvider({ vendor: 'gemini' }))).toBe('gemini');
     expect(resolveAdapterKeyFromConfig(makeProvider({ vendor: 'deepinfra' }))).toBe('chat-completions');

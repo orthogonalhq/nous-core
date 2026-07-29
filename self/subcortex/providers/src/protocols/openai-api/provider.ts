@@ -58,10 +58,22 @@ export class ChatCompletionsProvider implements IModelProvider {
   private readonly apiKey: string;
   private readonly timeoutMs: number;
   private readonly completionsPath: string;
+  private readonly authHeaderName: string;
+  private readonly authHeaderScheme: 'raw' | 'bearer';
 
   constructor(
     config: ModelProviderConfig,
-    options?: { apiKey?: string; timeoutMs?: number; completionsPath?: string },
+    options?: {
+      apiKey?: string;
+      timeoutMs?: number;
+      completionsPath?: string;
+      // Most OpenAI-compatible vendors send `Authorization: Bearer <key>`
+      // (the default below). Vendors with a different credential header —
+      // e.g. Azure OpenAI's `api-key: <key>` — override these two options
+      // instead of hand-rolling a parallel request path. See #304.
+      authHeaderName?: string;
+      authHeaderScheme?: 'raw' | 'bearer';
+    },
   ) {
     this.config = config;
     this.endpoint =
@@ -71,6 +83,8 @@ export class ChatCompletionsProvider implements IModelProvider {
     this.apiKey = options?.apiKey ?? process.env.OPENAI_API_KEY ?? '';
     this.timeoutMs = options?.timeoutMs ?? DEFAULT_TIMEOUT_MS;
     this.completionsPath = options?.completionsPath ?? DEFAULT_COMPLETIONS_PATH;
+    this.authHeaderName = options?.authHeaderName ?? 'Authorization';
+    this.authHeaderScheme = options?.authHeaderScheme ?? 'bearer';
 
     if (!this.apiKey) {
       throw new NousError(
@@ -85,6 +99,11 @@ export class ChatCompletionsProvider implements IModelProvider {
     return this.config;
   }
 
+  private buildAuthHeader(): Record<string, string> {
+    const value = this.authHeaderScheme === 'bearer' ? `Bearer ${this.apiKey}` : this.apiKey;
+    return { [this.authHeaderName]: value };
+  }
+
   async invoke(request: ModelRequest): Promise<ModelResponse> {
     const input = this.validateInput(request.input);
     const messages = this.toOpenAiMessages(input);
@@ -94,7 +113,7 @@ export class ChatCompletionsProvider implements IModelProvider {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
-        Authorization: `Bearer ${this.apiKey}`,
+        ...this.buildAuthHeader(),
       },
       signal: request.abortSignal,
       body: JSON.stringify({
@@ -156,7 +175,7 @@ export class ChatCompletionsProvider implements IModelProvider {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
-        Authorization: `Bearer ${this.apiKey}`,
+        ...this.buildAuthHeader(),
       },
       signal: request.abortSignal,
       body: JSON.stringify({

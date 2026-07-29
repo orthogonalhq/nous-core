@@ -55,6 +55,7 @@ function configFromDefinition(definition: (typeof PROVIDER_DEFINITIONS)[number])
 
 afterEach(() => {
   delete process.env.ANTHROPIC_API_KEY;
+  delete process.env.AZURE_OPENAI_API_KEY;
   delete process.env.OPENAI_API_KEY;
   delete process.env.DEEPINFRA_API_KEY;
   delete process.env.MOONSHOT_API_KEY;
@@ -72,6 +73,7 @@ describe('provider definition to adapter to registry pipeline', () => {
   it('aggregates all production provider definitions by vendor key', () => {
     expect(PROVIDER_DEFINITIONS.map((definition) => definition.vendorKey)).toEqual([
       'anthropic',
+      'azure-openai',
       'codex-cli',
       'deepinfra',
       'gemini',
@@ -195,6 +197,7 @@ describe('provider definition to adapter to registry pipeline', () => {
 
   it('constructs providers from registry-derived definitions with env-var credentials', () => {
     process.env.ANTHROPIC_API_KEY = 'test-anthropic-key';
+    process.env.AZURE_OPENAI_API_KEY = 'test-azure-openai-key';
     process.env.OPENAI_API_KEY = 'test-openai-key';
     process.env.DEEPINFRA_API_KEY = 'test-deepinfra-key';
     process.env.HUGGINGFACE_API_KEY = 'test-huggingface-key';
@@ -207,6 +210,7 @@ describe('provider definition to adapter to registry pipeline', () => {
     const registry = new ProviderRegistry(createEmptyConfig());
     const expectedClassByVendor = {
       anthropic: AnthropicProvider,
+      'azure-openai': ChatCompletionsProvider,
       'codex-cli': CodexCliProvider,
       'github-copilot-cli': GitHubCopilotCliProvider,
       moonshot: ChatCompletionsProvider,
@@ -253,6 +257,7 @@ describe('provider definition to adapter to registry pipeline', () => {
     } as any);
 
     expect(registry.getProvider(resolveProviderDefinition('anthropic').wellKnownProviderId)).toBeNull();
+    expect(registry.getProvider(resolveProviderDefinition('azure-openai').wellKnownProviderId)).toBeNull();
     expect(registry.getProvider(resolveProviderDefinition('deepinfra').wellKnownProviderId)).toBeNull();
     expect(registry.getProvider(resolveProviderDefinition('codex-cli').wellKnownProviderId)).toBeInstanceOf(
       LaneAwareProvider,
