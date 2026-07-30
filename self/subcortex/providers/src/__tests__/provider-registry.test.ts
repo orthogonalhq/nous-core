@@ -12,6 +12,7 @@ afterEach(() => {
   delete process.env.OPENROUTER_API_KEY;
   delete process.env.AZURE_OPENAI_API_KEY;
   delete process.env.AZURE_OPENAI_API_VERSION;
+  delete process.env.DASHSCOPE_API_KEY;
   vi.restoreAllMocks();
 });
 
@@ -316,6 +317,35 @@ describe('ProviderRegistry', () => {
 
     const provider = registry.getProvider(
       '00000000-0000-0000-0000-000000000016' as any,
+    ) as any;
+
+    expect(provider).toBeInstanceOf(LaneAwareProvider);
+    expect(provider.inner).toBeInstanceOf(ChatCompletionsProvider);
+  });
+
+  it('routes DashScope remote providers to ChatCompletionsProvider inside LaneAwareProvider', () => {
+    process.env.DASHSCOPE_API_KEY = 'test-dashscope-key';
+
+    const registry = new ProviderRegistry({
+      get: () => ({ providers: [] }),
+      getSection: vi.fn(),
+      update: vi.fn(),
+      reload: vi.fn(),
+    } as any);
+
+    registry.registerProvider({
+      id: '00000000-0000-0000-0000-000000000017' as any,
+      name: 'DashScope (Qwen)',
+      type: 'text',
+      endpoint: 'https://dashscope-intl.aliyuncs.com/compatible-mode',
+      modelId: 'qwen-plus',
+      isLocal: false,
+      capabilities: ['chat'],
+      providerClass: 'remote_text',
+    });
+
+    const provider = registry.getProvider(
+      '00000000-0000-0000-0000-000000000017' as any,
     ) as any;
 
     expect(provider).toBeInstanceOf(LaneAwareProvider);

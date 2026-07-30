@@ -4,6 +4,7 @@ import { hydrateProviderDefinitions } from './provider-identity.js';
 import { providerDefinition as anthropicProviderDefinition } from './providers/anthropic/definition.js';
 import { providerDefinition as azureOpenaiProviderDefinition } from './providers/azure-openai/definition.js';
 import { providerDefinition as codexCliProviderDefinition } from './providers/codex-cli/definition.js';
+import { providerDefinition as dashscopeProviderDefinition } from './providers/dashscope/definition.js';
 import { providerDefinition as deepinfraProviderDefinition } from './providers/deepinfra/definition.js';
 import { providerDefinition as geminiProviderDefinition } from './providers/gemini/definition.js';
 import { providerDefinition as githubCopilotCliProviderDefinition } from './providers/github-copilot-cli/definition.js';
@@ -27,6 +28,7 @@ const PROVIDER_DEFINITION_LEAVES = [
   anthropicProviderDefinition,
   azureOpenaiProviderDefinition,
   codexCliProviderDefinition,
+  dashscopeProviderDefinition,
   deepinfraProviderDefinition,
   geminiProviderDefinition,
   githubCopilotCliProviderDefinition,

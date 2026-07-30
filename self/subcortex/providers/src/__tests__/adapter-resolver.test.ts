@@ -49,7 +49,7 @@ function makeThrowingProvider() {
 
 describe('adapter resolver', () => {
   it('aggregates all canonical adapter modules', () => {
-    // `chat-completions` appears multiple times: azure-openai, deepinfra, groq,
+    // `chat-completions` appears multiple times: azure-openai, dashscope, deepinfra, groq,
     // huggingface-tgi, llama-cpp, moonshot, openai, openrouter, perplexity,
     // vllm, and xai all reuse the shared chat-completions adapter. mistral uses
     // its own adapterKey for resolver isolation.
@@ -60,6 +60,7 @@ describe('adapter resolver', () => {
       'anthropic',
       'chat-completions',
       'codex-cli',
+      'chat-completions',
       'chat-completions',
       'gemini',
       'github-copilot-cli',
@@ -115,6 +116,7 @@ describe('adapter resolver', () => {
     expect(resolveAdapterKeyFromConfig(makeProvider({ vendor: 'anthropic' }))).toBe('anthropic');
     expect(resolveAdapterKeyFromConfig(makeProvider({ vendor: 'azure-openai' }))).toBe('chat-completions');
     expect(resolveAdapterKeyFromConfig(makeProvider({ vendor: 'codex-cli' }))).toBe('codex-cli');
+    expect(resolveAdapterKeyFromConfig(makeProvider({ vendor: 'dashscope' }))).toBe('chat-completions');
     expect(resolveAdapterKeyFromConfig(makeProvider({ vendor: 'gemini' }))).toBe('gemini');
     expect(resolveAdapterKeyFromConfig(makeProvider({ vendor: 'deepinfra' }))).toBe('chat-completions');
     expect(resolveAdapterKeyFromConfig(makeProvider({ vendor: 'github-copilot-cli' }))).toBe('github-copilot-cli');

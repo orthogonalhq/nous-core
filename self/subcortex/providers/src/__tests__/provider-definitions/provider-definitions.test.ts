@@ -35,6 +35,11 @@ const expectedDefinitions = {
     defaultModelId: 'codex-cli/default',
     envVar: undefined,
   },
+  dashscope: {
+    defaultEndpoint: 'https://dashscope-intl.aliyuncs.com/compatible-mode',
+    defaultModelId: 'qwen-plus',
+    envVar: 'DASHSCOPE_API_KEY',
+  },
   ollama: {
     defaultEndpoint: 'http://localhost:11434',
     defaultModelId: 'llama3.2',
@@ -113,6 +118,7 @@ describe('provider definitions catalog', () => {
       'anthropic',
       'azure-openai',
       'codex-cli',
+      'dashscope',
       'deepinfra',
       'gemini',
       'github-copilot-cli',
@@ -165,6 +171,7 @@ describe('provider definitions catalog', () => {
       join('providers', 'anthropic', 'implementation.ts'),
       join('providers', 'azure-openai', 'definition.ts'),
       join('providers', 'codex-cli', 'definition.ts'),
+      join('providers', 'dashscope', 'definition.ts'),
       join('providers', 'openclaw', 'definition.ts'),
       join('protocols', 'openai-api', 'provider.ts'),
       join('providers', 'ollama', 'implementation.ts'),
