@@ -15,6 +15,11 @@ const expectedDefinitions = {
     defaultModelId: 'claude-sonnet-4-20250514',
     envVar: 'ANTHROPIC_API_KEY',
   },
+  'azure-openai': {
+    defaultEndpoint: 'https://your-resource.openai.azure.com',
+    defaultModelId: 'gpt-4o',
+    envVar: 'AZURE_OPENAI_API_KEY',
+  },
   openai: {
     defaultEndpoint: 'https://api.openai.com',
     defaultModelId: 'gpt-4o',
@@ -111,6 +116,7 @@ describe('provider definitions catalog', () => {
   it('contains exactly the current validation roster by vendorKey', () => {
     expect(PROVIDER_DEFINITIONS.map((definition) => definition.vendorKey).sort()).toEqual([
       'anthropic',
+      'azure-openai',
       'codex-cli',
       'dashscope',
       'deepinfra',
@@ -163,6 +169,7 @@ describe('provider definitions catalog', () => {
       .replace(`${join('src', '__tests__', 'provider-definitions')}`, 'src');
     const providerFiles = [
       join('providers', 'anthropic', 'implementation.ts'),
+      join('providers', 'azure-openai', 'definition.ts'),
       join('providers', 'codex-cli', 'definition.ts'),
       join('providers', 'dashscope', 'definition.ts'),
       join('providers', 'openclaw', 'definition.ts'),

@@ -174,9 +174,16 @@ export class ProviderRegistry {
       return config;
     }
 
+    // TODO(#413): Replace this vendor-specific exception once endpoint ownership
+    // and the provider-runtime boundary are defined. Azure OpenAI requires a
+    // per-resource host, while other recognized remote providers retain the
+    // existing safety behavior of normalizing to their definition endpoint.
     return {
       ...config,
-      endpoint: definition.defaultEndpoint,
+      endpoint:
+        definition.vendorKey === 'azure-openai'
+          ? config.endpoint ?? definition.defaultEndpoint
+          : definition.defaultEndpoint,
     };
   }
 

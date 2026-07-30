@@ -18,7 +18,28 @@ describe('provider aggregate codegen', () => {
     )
       .trim()
       .split(/\r?\n/);
-    expect(output).toEqual(['anthropic', 'codex-cli', 'dashscope', 'deepinfra', 'gemini', 'github-copilot-cli', 'groq', 'huggingface-tgi', 'llama-cpp', 'mistral', 'moonshot','ollama', 'openai', 'openclaw', 'openrouter', 'perplexity', 'qwen-code', 'vllm', 'xai']);
+    expect(output).toEqual([
+      'anthropic',
+      'azure-openai',
+      'codex-cli',
+      'dashscope',
+      'deepinfra',
+      'gemini',
+      'github-copilot-cli',
+      'groq',
+      'huggingface-tgi',
+      'llama-cpp',
+      'mistral',
+      'moonshot',
+      'ollama',
+      'openai',
+      'openclaw',
+      'openrouter',
+      'perplexity',
+      'qwen-code',
+      'vllm',
+      'xai',
+    ]);
   });
 
   it('keeps checked-in generated files in sync with provider leaves', () => {

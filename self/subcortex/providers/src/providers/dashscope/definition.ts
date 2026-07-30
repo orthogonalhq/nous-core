@@ -2,9 +2,9 @@ import type { ProviderDefinitionLeaf } from '../../schemas/provider-definition.j
 
 /**
  * OpenAI-compatible base for DashScope international.
- * Deliberately omits Alibaba's `/v1` suffix — `ChatCompletionsProvider`
- * appends `/v1/chat/completions` and `/v1/models` itself (xAI shipped a
- * doubled-`/v1` bug with a `/v1` base; fixed in a4dc1950).
+ * Deliberately omits Alibaba's `/v1` suffix so `ChatCompletionsProvider`
+ * can append `/v1/chat/completions` without producing a doubled `/v1`.
+ * Model discovery uses the leaf's `/v1/models` metadata below.
  * China region: `https://dashscope.aliyuncs.com/compatible-mode`.
  * Workspace-scoped hosts also exist — override `defaultEndpoint` when needed.
  */
@@ -17,7 +17,8 @@ export const DASHSCOPE_DEFAULT_MODEL_ID = 'qwen-plus';
  * Completions-compatible API, so this leaf carries only DashScope-specific
  * metadata and reuses the shared `ChatCompletionsProvider`.
  * `defaultEndpoint` is the OpenAI-compatible base.
- * The shared provider appends `/v1/chat/completions` and `/v1/models`.
+ * The shared provider appends `/v1/chat/completions`; model discovery uses
+ * `modelListEndpoint` below.
  */
 export const DASHSCOPE_PROVIDER_DEFINITION = {
   vendorKey: 'dashscope',
