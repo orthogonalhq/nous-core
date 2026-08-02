@@ -22,6 +22,7 @@ describe('provider aggregate codegen', () => {
       'anthropic',
       'azure-openai',
       'codex-cli',
+      'cohere',
       'dashscope',
       'deepinfra',
       'gemini',
