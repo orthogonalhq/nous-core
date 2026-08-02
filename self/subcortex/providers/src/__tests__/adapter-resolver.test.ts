@@ -60,6 +60,7 @@ describe('adapter resolver', () => {
       'anthropic',
       'chat-completions',
       'codex-cli',
+      'cohere',
       'chat-completions',
       'chat-completions',
       'gemini',
