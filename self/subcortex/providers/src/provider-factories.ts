@@ -3,6 +3,7 @@ import type { ProviderFactoryModule } from './schemas/provider-factory.js';
 import { providerFactory as anthropicProviderFactory } from './providers/anthropic/provider.js';
 import { providerFactory as azureOpenaiProviderFactory } from './providers/azure-openai/provider.js';
 import { providerFactory as codexCliProviderFactory } from './providers/codex-cli/provider.js';
+import { providerFactory as cohereProviderFactory } from './providers/cohere/provider.js';
 import { providerFactory as dashscopeProviderFactory } from './providers/dashscope/provider.js';
 import { providerFactory as deepinfraProviderFactory } from './providers/deepinfra/provider.js';
 import { providerFactory as geminiProviderFactory } from './providers/gemini/provider.js';
@@ -27,6 +28,7 @@ export const CERTIFIED_PROVIDER_FACTORIES = [
   anthropicProviderFactory,
   azureOpenaiProviderFactory,
   codexCliProviderFactory,
+  cohereProviderFactory,
   dashscopeProviderFactory,
   deepinfraProviderFactory,
   geminiProviderFactory,
