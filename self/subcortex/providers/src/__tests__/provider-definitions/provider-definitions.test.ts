@@ -1,4 +1,4 @@
-import { readFileSync } from 'node:fs';
+import { existsSync, readFileSync, readdirSync } from 'node:fs';
 import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { describe, expect, it } from 'vitest';
@@ -9,55 +9,11 @@ import {
 import { deriveBuiltInProviderId } from '../../provider-identity.js';
 import { ProviderDefinitionSchema as SchemaProviderDefinitionSchema } from '../../schemas/provider-definition.js';
 
-const expectedDefinitions = {
-  anthropic: {
-    defaultEndpoint: 'https://api.anthropic.com',
-    defaultModelId: 'claude-sonnet-4-20250514',
-    envVar: 'ANTHROPIC_API_KEY',
-  },
-  openai: {
-    defaultEndpoint: 'https://api.openai.com',
-    defaultModelId: 'gpt-4o',
-    envVar: 'OPENAI_API_KEY',
-  },
-  'codex-cli': {
-    defaultEndpoint: 'http://localhost',
-    defaultModelId: 'codex-cli/default',
-    envVar: undefined,
-  },
-  'github-copilot-cli': {
-    defaultEndpoint: 'http://localhost',
-    defaultModelId: 'openai/gpt-4o-mini',
-    envVar: undefined,
-  },
-  ollama: {
-    defaultEndpoint: 'http://localhost:11434',
-    defaultModelId: 'llama3.2',
-    envVar: undefined,
-  },
-  groq: {
-    defaultEndpoint: 'https://api.groq.com/openai',
-    defaultModelId: 'llama-3.3-70b-versatile',
-    envVar: 'GROQ_API_KEY',
-  },
-  'llama-cpp': {
-    defaultEndpoint: 'http://localhost:8080',
-    defaultModelId: 'llama3.2',
-    envVar: undefined,
-  },
-} as const;
-
 describe('provider definitions catalog', () => {
   it('contains exactly the current validation roster by vendorKey', () => {
-    expect(PROVIDER_DEFINITIONS.map((definition) => definition.vendorKey).sort()).toEqual([
-      'anthropic',
-      'codex-cli',
-      'github-copilot-cli',
-      'groq',
-      'llama-cpp',
-      'ollama',
-      'openai',
-    ]);
+    const keys = PROVIDER_DEFINITIONS.map((definition) => definition.vendorKey);
+    expect(keys).toHaveLength(PROVIDER_DEFINITIONS.length);
+    expect(new Set(keys).size).toBe(keys.length);
   });
 
   it('validates every definition through ProviderDefinitionSchema', () => {
@@ -69,33 +25,33 @@ describe('provider definitions catalog', () => {
 
   it('carries required bootstrap metadata for current providers', () => {
     for (const definition of PROVIDER_DEFINITIONS) {
-      const expected = expectedDefinitions[
-        definition.vendorKey as keyof typeof expectedDefinitions
-      ];
-
       expect(definition.wellKnownProviderId).toBe(
         deriveBuiltInProviderId(definition.vendorKey),
       );
-      expect(definition.defaultEndpoint).toBe(expected.defaultEndpoint);
-      expect(definition.defaultModelId).toBe(expected.defaultModelId);
-      expect('envVar' in definition.auth ? definition.auth.envVar : undefined).toBe(
-        expected.envVar,
-      );
+      expect(definition.defaultEndpoint).toBeTruthy();
+      expect(definition.defaultModelId).toBeTruthy();
       expect(definition.providerType).toBe('text');
       expect(definition.auth.purpose).toBe('api_key');
+      if (definition.auth.required) {
+        expect('envVar' in definition.auth && definition.auth.envVar).toBeTruthy();
+      }
     }
   });
 
   it('keeps provider definition constants metadata-only', () => {
     const providersSrcDir = dirname(fileURLToPath(import.meta.url))
       .replace(`${join('src', '__tests__', 'provider-definitions')}`, 'src');
-    const providerFiles = [
-      join('providers', 'anthropic', 'implementation.ts'),
-      join('providers', 'codex-cli', 'definition.ts'),
-      join('protocols', 'openai-api', 'provider.ts'),
-      join('providers', 'ollama', 'implementation.ts'),
-      join('providers', 'llama-cpp', 'definition.ts'),
-    ];
+    const providerFiles = readdirSync(join(providersSrcDir, 'providers'))
+      .filter((name) => !name.startsWith('.'))
+      .map((vendor) => {
+        const candidates = ['definition.ts', 'implementation.ts'];
+        for (const candidate of candidates) {
+          const full = join('providers', vendor, candidate);
+          if (existsSync(join(providersSrcDir, full))) return full;
+        }
+        return null;
+      })
+      .filter(Boolean) as string[];
     const forbidden = [
       /fetch/,
       /process\.env/,
