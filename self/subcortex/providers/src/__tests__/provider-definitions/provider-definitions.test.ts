@@ -42,16 +42,15 @@ describe('provider definitions catalog', () => {
     const providersSrcDir = dirname(fileURLToPath(import.meta.url))
       .replace(`${join('src', '__tests__', 'provider-definitions')}`, 'src');
     const providerFiles = readdirSync(join(providersSrcDir, 'providers'))
-      .filter((name) => !name.startsWith('.'))
-      .map((vendor) => {
-        const candidates = ['definition.ts', 'implementation.ts'];
-        for (const candidate of candidates) {
-          const full = join('providers', vendor, candidate);
-          if (existsSync(join(providersSrcDir, full))) return full;
-        }
-        return null;
-      })
-      .filter(Boolean) as string[];
+    .filter((name) => !name.startsWith('.'))
+    .flatMap((vendor) => {
+      const candidates = ['definition.ts', 'implementation.ts'];
+      for (const candidate of candidates) {
+        const full = join('providers', vendor, candidate);
+        if (existsSync(join(providersSrcDir, full))) return [full];
+      }
+      return [];
+    });
     const forbidden = [
       /fetch/,
       /process\.env/,
