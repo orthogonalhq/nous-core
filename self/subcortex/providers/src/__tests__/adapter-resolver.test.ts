@@ -1,12 +1,12 @@
 import { describe, expect, it } from 'vitest';
 import {
   ADAPTER_MODULES,
-  PROVIDER_DEFINITIONS,
   buildAdapterResolver,
   normalizeAdapterKey,
   resolveAdapter,
   resolveAdapterKeyFromConfig,
 } from '../adapter-resolver.js';
+import { PROVIDER_DEFINITIONS } from '../provider-definitions.js';
 import { defineProviderAdapter } from '../schemas/provider-adapter.js';
 import { textAdapter } from '../shared/text-adapter.js';
 import type { ProviderAdapter } from '../schemas/provider-adapter.js';
