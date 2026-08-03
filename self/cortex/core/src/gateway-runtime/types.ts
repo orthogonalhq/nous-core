@@ -31,6 +31,7 @@ import type {
   IAppCredentialInstallService,
   ICredentialVaultService,
   ICredentialInjector,
+  ICliSessionManager,
   ILogger,
   IOpctlService,
   IThoughtEmitter,
@@ -265,6 +266,7 @@ export interface PrincipalSystemGatewayRuntimeDeps {
   agentGatewayFactory?: IAgentGatewayFactory;
   modelRouter?: IModelRouter;
   getProvider?: (providerId: string) => IModelProvider | null;
+  cliSessionManager?: ICliSessionManager;
   modelProviderByClass?: Partial<Record<AgentClass, IModelProvider>>;
   /**
    * Per-agent-class map from AgentClass to a provider UUID that bootstrap has

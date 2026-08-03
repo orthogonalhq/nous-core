@@ -1,6 +1,14 @@
 import { useMemo, useRef } from 'react'
 import { trpc } from '../client'
 
+type ApiKeyEntry = {
+  provider: string
+  displayName: string
+  configured: boolean
+  maskedKey: string | null
+  createdAt: string | null
+}
+
 /**
  * tRPC-backed preferences API hook.
  *
@@ -44,7 +52,8 @@ export function usePreferencesApi() {
     () => ({
       // Required methods
       getApiKeys: async () => {
-        return utilsRef.current.preferences.getApiKeys.fetch()
+        const entries = await utilsRef.current.preferences.getApiKeys.fetch()
+        return entries as ApiKeyEntry[]
       },
       setApiKey: async (input: { provider: string; key: string }) => {
         return setApiKeyRef.current(input as any)
@@ -66,10 +75,11 @@ export function usePreferencesApi() {
         const record = await utilsRef.current.preferences.getRoleAssignments.fetch()
         return Object.entries(record).map(([role, assignment]) => ({
           role,
-          providerId: (assignment as any)?.modelSpec ?? null,
+          providerId: (assignment as any)?.providerId ?? null,
+          modelSpec: (assignment as any)?.modelSpec ?? null,
         }))
       },
-      setRoleAssignment: async (input: { role: string; modelSpec: string }) => {
+      setRoleAssignment: async (input: { role: string; modelSpec: string | null }) => {
         return setRoleAssignmentRef.current(input as any)
       },
       // Setup wizard

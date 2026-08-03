@@ -5,9 +5,8 @@ import type {
   ModelRequest,
   ModelResponse,
   ModelStreamChunk,
-  ProviderId,
 } from '@nous/shared';
-import type { ProviderDefinition } from '../../schemas/provider-definition.js';
+import type { ProviderDefinitionLeaf } from '../../schemas/provider-definition.js';
 import { TextModelInputSchema, type TextModelInput } from '../../schemas/text-model-input.js';
 
 const DEFAULT_ENDPOINT = 'https://api.anthropic.com';
@@ -19,7 +18,6 @@ const ANTHROPIC_VERSION = '2023-06-01';
 export const ANTHROPIC_PROVIDER_DEFINITION = {
   vendorKey: 'anthropic',
   displayName: 'Anthropic',
-  wellKnownProviderId: '10000000-0000-0000-0000-000000000001' as ProviderId,
   providerType: 'text',
   providerClass: 'remote_text',
   protocol: 'anthropic-messages',
@@ -29,20 +27,27 @@ export const ANTHROPIC_PROVIDER_DEFINITION = {
   auth: {
     envVar: 'ANTHROPIC_API_KEY',
     vaultKeyNamespace: 'anthropic',
+    header: {
+      name: 'x-api-key',
+      scheme: 'raw',
+    },
     required: true,
     purpose: 'api_key',
   },
   headers: {
     'anthropic-version': ANTHROPIC_VERSION,
   },
+  modelListEndpoint: '/v1/models',
+  modelListFormat: 'anthropic-models',
   capabilities: {
     streaming: true,
     cacheControl: true,
     extendedThinking: true,
     nativeToolUse: true,
+    modelListing: true,
   },
   isLocal: false,
-} as const satisfies ProviderDefinition;
+} as const satisfies ProviderDefinitionLeaf;
 
 interface AnthropicMessageResponse {
   content?: Array<{ type?: string; text?: string; name?: string; input?: unknown; thinking?: string }>;

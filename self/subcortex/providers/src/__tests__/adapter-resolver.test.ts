@@ -6,6 +6,7 @@ import {
   resolveAdapter,
   resolveAdapterKeyFromConfig,
 } from '../adapter-resolver.js';
+import { PROVIDER_DEFINITIONS } from '../provider-definitions.js';
 import { defineProviderAdapter } from '../schemas/provider-adapter.js';
 import { textAdapter } from '../shared/text-adapter.js';
 import type { ProviderAdapter } from '../schemas/provider-adapter.js';
@@ -49,17 +50,26 @@ function makeThrowingProvider() {
 
 describe('adapter resolver', () => {
   it('aggregates all canonical adapter modules', () => {
-    expect(ADAPTER_MODULES.map((module) => module.adapterKey)).toEqual([
-      'anthropic',
-      'ollama',
-      'chat-completions',
-      'text',
-    ]);
+    // `chat-completions` appears three times: the openai, groq, and llama-cpp leaves
+    // reuse the shared chat-completions adapter. The resolver keys modules by
+    // adapterKey, so the duplicates collapse to a single resolvable module.
+    const adapterKeys = ADAPTER_MODULES.map((module) => module.adapterKey);
+    expect(adapterKeys).toHaveLength(ADAPTER_MODULES.length);
+    expect(adapterKeys).toContain('anthropic');
+    expect(adapterKeys).toContain('chat-completions');
+    expect(adapterKeys).toContain('codex-cli');
+    expect(adapterKeys).toContain('ollama');
+    expect(adapterKeys).toContain('text');
+    for (const definition of PROVIDER_DEFINITIONS) {
+      expect(adapterKeys).toContain(definition.adapterKey);
+    }
   });
 
   it('resolves canonical adapter keys', () => {
     expect(resolveAdapter('anthropic').capabilities.cacheControl).toBe(true);
     expect(resolveAdapter('chat-completions').capabilities.nativeToolUse).toBe(true);
+    expect(resolveAdapter('codex-cli').capabilities.streaming).toBe(true);
+    expect(resolveAdapter('github-copilot-cli').capabilities.nativeToolUse).toBe(false);
     expect(resolveAdapter('ollama').capabilities.extendedThinking).toBe(true);
     expect(resolveAdapter('text').capabilities.nativeToolUse).toBe(false);
   });
@@ -86,18 +96,19 @@ describe('adapter resolver', () => {
 
   it('resolves current provider definition vendors', () => {
     expect(resolveAdapterKeyFromConfig(makeProvider({ vendor: 'anthropic' }))).toBe('anthropic');
+    expect(resolveAdapterKeyFromConfig(makeProvider({ vendor: 'codex-cli' }))).toBe('codex-cli');
     expect(resolveAdapterKeyFromConfig(makeProvider({ vendor: 'ollama' }))).toBe('ollama');
   });
 
   it('falls back to name heuristic for non-catalog provider configs', () => {
     expect(resolveAdapterKeyFromConfig(makeProvider({ name: 'claude-3-opus' }))).toBe('anthropic');
     expect(resolveAdapterKeyFromConfig(makeProvider({ name: 'gpt-4-turbo' }))).toBe('chat-completions');
-    expect(resolveAdapterKeyFromConfig(makeProvider({ vendor: 'groq', name: 'my-gpt-model' }))).toBe('chat-completions');
+    expect(resolveAdapterKeyFromConfig(makeProvider({ vendor: 'unknown-vendor', name: 'my-gpt-model' }))).toBe('chat-completions');
     expect(resolveAdapterKeyFromConfig(makeProvider({ name: 'ollama-llama3' }))).toBe('ollama');
   });
 
   it('falls back to text when provider config cannot resolve', () => {
-    expect(resolveAdapterKeyFromConfig(makeProvider({ vendor: 'groq', name: 'custom-model' }))).toBe('text');
+    expect(resolveAdapterKeyFromConfig(makeProvider({ vendor: 'unknown-vendor', name: 'custom-model' }))).toBe('text');
     expect(resolveAdapterKeyFromConfig(makeProvider({}))).toBe('text');
     expect(resolveAdapterKeyFromConfig(makeThrowingProvider())).toBe('text');
   });

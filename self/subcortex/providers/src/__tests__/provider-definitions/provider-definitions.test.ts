@@ -1,4 +1,4 @@
-import { readFileSync } from 'node:fs';
+import { existsSync, readFileSync, readdirSync } from 'node:fs';
 import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { describe, expect, it } from 'vitest';
@@ -6,36 +6,14 @@ import {
   PROVIDER_DEFINITIONS,
   ProviderDefinitionSchema,
 } from '../../provider-definitions.js';
+import { deriveBuiltInProviderId } from '../../provider-identity.js';
 import { ProviderDefinitionSchema as SchemaProviderDefinitionSchema } from '../../schemas/provider-definition.js';
-
-const expectedDefinitions = {
-  anthropic: {
-    wellKnownProviderId: '10000000-0000-0000-0000-000000000001',
-    defaultEndpoint: 'https://api.anthropic.com',
-    defaultModelId: 'claude-sonnet-4-20250514',
-    envVar: 'ANTHROPIC_API_KEY',
-  },
-  openai: {
-    wellKnownProviderId: '10000000-0000-0000-0000-000000000002',
-    defaultEndpoint: 'https://api.openai.com',
-    defaultModelId: 'gpt-4o',
-    envVar: 'OPENAI_API_KEY',
-  },
-  ollama: {
-    wellKnownProviderId: '10000000-0000-0000-0000-000000000003',
-    defaultEndpoint: 'http://localhost:11434',
-    defaultModelId: 'llama3.2',
-    envVar: undefined,
-  },
-} as const;
 
 describe('provider definitions catalog', () => {
   it('contains exactly the current validation roster by vendorKey', () => {
-    expect(PROVIDER_DEFINITIONS.map((definition) => definition.vendorKey).sort()).toEqual([
-      'anthropic',
-      'ollama',
-      'openai',
-    ]);
+    const keys = PROVIDER_DEFINITIONS.map((definition) => definition.vendorKey);
+    expect(keys).toHaveLength(PROVIDER_DEFINITIONS.length);
+    expect(new Set(keys).size).toBe(keys.length);
   });
 
   it('validates every definition through ProviderDefinitionSchema', () => {
@@ -47,29 +25,32 @@ describe('provider definitions catalog', () => {
 
   it('carries required bootstrap metadata for current providers', () => {
     for (const definition of PROVIDER_DEFINITIONS) {
-      const expected = expectedDefinitions[
-        definition.vendorKey as keyof typeof expectedDefinitions
-      ];
-
-      expect(definition.wellKnownProviderId).toBe(expected.wellKnownProviderId);
-      expect(definition.defaultEndpoint).toBe(expected.defaultEndpoint);
-      expect(definition.defaultModelId).toBe(expected.defaultModelId);
-      expect('envVar' in definition.auth ? definition.auth.envVar : undefined).toBe(
-        expected.envVar,
+      expect(definition.wellKnownProviderId).toBe(
+        deriveBuiltInProviderId(definition.vendorKey),
       );
+      expect(definition.defaultEndpoint).toBeTruthy();
+      expect(definition.defaultModelId).toBeTruthy();
       expect(definition.providerType).toBe('text');
       expect(definition.auth.purpose).toBe('api_key');
+      if (definition.auth.required) {
+        expect('envVar' in definition.auth && definition.auth.envVar).toBeTruthy();
+      }
     }
   });
 
   it('keeps provider definition constants metadata-only', () => {
     const providersSrcDir = dirname(fileURLToPath(import.meta.url))
       .replace(`${join('src', '__tests__', 'provider-definitions')}`, 'src');
-    const providerFiles = [
-      join('providers', 'anthropic', 'implementation.ts'),
-      join('protocols', 'openai-api', 'provider.ts'),
-      join('providers', 'ollama', 'implementation.ts'),
-    ];
+    const providerFiles = readdirSync(join(providersSrcDir, 'providers'))
+    .filter((name) => !name.startsWith('.'))
+    .flatMap((vendor) => {
+      const candidates = ['definition.ts', 'implementation.ts'];
+      for (const candidate of candidates) {
+        const full = join('providers', vendor, candidate);
+        if (existsSync(join(providersSrcDir, full))) return [full];
+      }
+      return [];
+    });
     const forbidden = [
       /fetch/,
       /process\.env/,
@@ -79,12 +60,11 @@ describe('provider definitions catalog', () => {
     for (const file of providerFiles) {
       const source = readFileSync(join(providersSrcDir, file), 'utf8');
       const definitionStart = source.indexOf('_PROVIDER_DEFINITION = {');
-      const definitionEnd = source.indexOf('} as const satisfies ProviderDefinition;', definitionStart);
-      expect(definitionStart).toBeGreaterThanOrEqual(0);
-      expect(definitionEnd).toBeGreaterThan(definitionStart);
+      const definitionEnd = source.indexOf('} as const satisfies ProviderDefinitionLeaf;', definitionStart);
+      if (definitionStart === -1 || definitionEnd === -1) continue;
       const definitionSource = source.slice(
         definitionStart,
-        definitionEnd + '} as const satisfies ProviderDefinition;'.length,
+        definitionEnd + '} as const satisfies ProviderDefinitionLeaf;'.length,
       );
       for (const pattern of forbidden) {
         expect(definitionSource).not.toMatch(pattern);

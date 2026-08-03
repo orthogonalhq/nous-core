@@ -15,6 +15,7 @@ import { describe, expect, it, vi } from 'vitest';
 import type {
   AgentGatewayConfig,
   IEventBus,
+  ILogChannel,
   IModelProvider,
   IScopedMcpToolSurface,
   ModelRequest,
@@ -41,6 +42,19 @@ function makeOllamaConfig(): ReturnType<IModelProvider['getConfig']> {
     modelId: 'gemma3:4b',
     isLocal: true,
     capabilities: ['reasoning'],
+  } as ReturnType<IModelProvider['getConfig']>;
+}
+
+function makeCodexCliConfig(): ReturnType<IModelProvider['getConfig']> {
+  return {
+    id: PROVIDER_ID,
+    name: 'Codex CLI',
+    type: 'text',
+    vendor: 'codex-cli',
+    modelId: 'codex-cli/default',
+    isLocal: true,
+    capabilities: ['text'],
+    providerClass: 'local_text',
   } as ReturnType<IModelProvider['getConfig']>;
 }
 
@@ -97,6 +111,26 @@ function recordingEventBus(): IEventBus & { recorded: Array<{ channel: string; p
   return bus as never;
 }
 
+function recordingLog(): ILogChannel & { records: Array<{ level: string; message: string; data?: Record<string, unknown> }> } {
+  const records: Array<{ level: string; message: string; data?: Record<string, unknown> }> = [];
+  return {
+    records,
+    debug: vi.fn((message: string, data?: Record<string, unknown>) => {
+      records.push({ level: 'debug', message, data });
+    }),
+    info: vi.fn((message: string, data?: Record<string, unknown>) => {
+      records.push({ level: 'info', message, data });
+    }),
+    warn: vi.fn((message: string, data?: Record<string, unknown>) => {
+      records.push({ level: 'warn', message, data });
+    }),
+    error: vi.fn((message: string, data?: Record<string, unknown>) => {
+      records.push({ level: 'error', message, data });
+    }),
+    isEnabled: vi.fn().mockReturnValue(true),
+  };
+}
+
 const TOOL_DEFS: ToolDefinition[] = [
   {
     name: 'workflow_list',
@@ -114,6 +148,8 @@ function createGateway(args: {
   provider: IModelProvider;
   eventBus?: IEventBus;
   toolSurface?: IScopedMcpToolSurface;
+  log?: ILogChannel;
+  harness?: AgentGatewayConfig['harness'];
 }): { gateway: AgentGateway; outbox: InMemoryGatewayOutboxSink } {
   const outbox = new InMemoryGatewayOutboxSink();
   const toolSurface = args.toolSurface ?? {
@@ -126,6 +162,8 @@ function createGateway(args: {
     toolSurface,
     modelProvider: args.provider,
     eventBus: args.eventBus,
+    log: args.log,
+    harness: args.harness,
     outbox,
     now: () => NOW,
     nowMs: () => Date.parse(NOW),
@@ -141,6 +179,175 @@ function createGateway(args: {
 }
 
 describe('AgentGateway SP 1.13 RC-2 thinking-stream dispatch', () => {
+  it('WR-177 — logs Codex CLI content-streaming gate diagnostics and stream completion for no-tool turns', async () => {
+    const streamSpy = vi.fn().mockImplementation(async function* () {
+      yield { content: 'Hel', done: false };
+      yield { content: 'lo', done: false };
+      yield { content: '', done: true, usage: { inputTokens: 4, outputTokens: 2 } };
+    });
+    const invokeSpy = vi.fn();
+    const provider: IModelProvider = {
+      getConfig: () => makeCodexCliConfig(),
+      invoke: invokeSpy,
+      stream: streamSpy,
+    };
+    const eventBus = recordingEventBus();
+    const log = recordingLog();
+    const noToolSurface: IScopedMcpToolSurface = {
+      listTools: vi.fn().mockResolvedValue([]),
+      executeTool: vi.fn(),
+    };
+
+    const { gateway } = createGateway({
+      provider,
+      eventBus,
+      toolSurface: noToolSurface,
+      log,
+    });
+    const result = await gateway.run(createBaseInput());
+
+    expect(result.status).toBe('completed');
+    expect(streamSpy).toHaveBeenCalled();
+    expect(invokeSpy).not.toHaveBeenCalled();
+    expect(eventBus.recorded.filter((event) => event.channel === 'chat:content-chunk'))
+      .toEqual([
+        { channel: 'chat:content-chunk', payload: { content: 'Hel', traceId: TRACE_ID }, ts: expect.any(Number) },
+        { channel: 'chat:content-chunk', payload: { content: 'lo', traceId: TRACE_ID }, ts: expect.any(Number) },
+      ]);
+
+    expect(log.records).toEqual(expect.arrayContaining([
+      expect.objectContaining({
+        level: 'debug',
+        message: 'streaming gate diagnostics',
+        data: expect.objectContaining({
+          providerType: 'codex-cli',
+          eventBusAvailable: true,
+          toolCount: 0,
+          selectedPath: 'content_stream',
+          content: expect.objectContaining({
+            adapterStreaming: true,
+            providerStreamAvailable: true,
+            blockedByTools: false,
+            selected: true,
+          }),
+        }),
+      }),
+      expect.objectContaining({
+        level: 'debug',
+        message: 'content streaming invocation completed',
+        data: expect.objectContaining({
+          providerId: PROVIDER_ID,
+          modelId: 'codex-cli/default',
+          traceId: TRACE_ID,
+          contentChunkCount: 2,
+          contentLength: 5,
+          usage: { inputTokens: 4, outputTokens: 2 },
+        }),
+      }),
+    ]));
+  });
+
+  it('WR-177 — Codex CLI principal chat streams when visible tools are omitted by provider tool policy', async () => {
+    let capturedPrompt = '';
+    const streamSpy = vi.fn().mockImplementation(async function* (request: ModelRequest) {
+      capturedPrompt = String((request.input as { prompt?: string }).prompt ?? '');
+      yield { content: 'visible reply', done: false };
+      yield { content: '', done: true };
+    });
+    const invokeSpy = vi.fn();
+    const provider: IModelProvider = {
+      getConfig: () => makeCodexCliConfig(),
+      invoke: invokeSpy,
+      stream: streamSpy,
+    };
+    const eventBus = recordingEventBus();
+    const log = recordingLog();
+
+    const { gateway } = createGateway({
+      provider,
+      eventBus,
+      log,
+    });
+    const result = await gateway.run(createBaseInput());
+
+    expect(result.status).toBe('completed');
+    expect(streamSpy).toHaveBeenCalled();
+    expect(invokeSpy).not.toHaveBeenCalled();
+    expect(capturedPrompt).not.toContain('Available Tools');
+    expect(capturedPrompt).not.toContain('workflow_list');
+    expect(eventBus.recorded.filter((event) => event.channel === 'chat:content-chunk'))
+      .toEqual([
+        { channel: 'chat:content-chunk', payload: { content: 'visible reply', traceId: TRACE_ID }, ts: expect.any(Number) },
+      ]);
+    expect(log.records).toEqual(expect.arrayContaining([
+      expect.objectContaining({
+        message: 'streaming gate diagnostics',
+        data: expect.objectContaining({
+          providerType: 'codex-cli',
+          toolCount: 1,
+          modelVisibleToolCount: 0,
+          selectedPath: 'content_stream',
+          content: expect.objectContaining({
+            blockedByTools: false,
+            selected: true,
+          }),
+        }),
+      }),
+    ]));
+  });
+
+  it('WR-177 — suppresses harness toolDefinitions for non-native-tool providers before streaming gate', async () => {
+    let capturedPrompt = '';
+    const streamSpy = vi.fn().mockImplementation(async function* (request: ModelRequest) {
+      capturedPrompt = String((request.input as { prompt?: string }).prompt ?? '');
+      yield { content: 'harness reply', done: false };
+      yield { content: '', done: true };
+    });
+    const invokeSpy = vi.fn();
+    const provider: IModelProvider = {
+      getConfig: () => makeCodexCliConfig(),
+      invoke: invokeSpy,
+      stream: streamSpy,
+    };
+    const eventBus = recordingEventBus();
+    const log = recordingLog();
+
+    const { gateway } = createGateway({
+      provider,
+      eventBus,
+      log,
+      harness: {
+        promptFormatter: vi.fn().mockReturnValue({
+          systemPrompt: 'Custom Codex prompt.',
+          toolDefinitions: TOOL_DEFS,
+        }),
+      },
+    });
+    const result = await gateway.run(createBaseInput());
+
+    expect(result.status).toBe('completed');
+    expect(streamSpy).toHaveBeenCalled();
+    expect(invokeSpy).not.toHaveBeenCalled();
+    expect(capturedPrompt).toContain('Custom Codex prompt.');
+    expect(capturedPrompt).not.toContain('Available tools');
+    expect(capturedPrompt).not.toContain('workflow_list');
+    expect(log.records).toEqual(expect.arrayContaining([
+      expect.objectContaining({
+        message: 'streaming gate diagnostics',
+        data: expect.objectContaining({
+          providerType: 'codex-cli',
+          toolCount: 1,
+          modelVisibleToolCount: 0,
+          selectedPath: 'content_stream',
+          content: expect.objectContaining({
+            blockedByTools: false,
+            selected: true,
+          }),
+        }),
+      }),
+    ]));
+  });
+
   it('Scenario A — canStreamContent === false whenever tools.length > 0 (cycle-1 RC-2 protection)', async () => {
     // Provider exposes both stream() and (intentionally) NO invokeWithThinkingStream
     // so the only way streaming would happen is via stream() — which must NOT fire.

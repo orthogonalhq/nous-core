@@ -97,12 +97,37 @@ function AmbientBadge({ icon, label, color }: {
     )
 }
 
+function insertOverlayAfterKey(
+    entries: readonly LocalOverlayEntry[],
+    targetKey: string | null,
+    entry: LocalOverlayEntry,
+): readonly LocalOverlayEntry[] {
+    if (targetKey == null) return [...entries, entry]
+    const idx = entries.findIndex((o) => o.kind === 'optimistic-send' && o.key === targetKey)
+    if (idx < 0) return [...entries, entry]
+    return [
+        ...entries.slice(0, idx + 1),
+        entry,
+        ...entries.slice(idx + 1),
+    ]
+}
+
+function withoutQueuedFlag(message: ChatMessage): ChatMessage {
+    const { queued: _queued, ...unqueued } = message
+    return unqueued
+}
+
 // ---------------------------------------------------------------------------
 // Constants
 // ---------------------------------------------------------------------------
 
 /** Max inline thought items to retain across all traces. */
 const INLINE_BUFFER_MAX = 200
+const CHAT_PANEL_RENDERER_LOG_PREFIX = '[ChatPanelRenderer]'
+
+function logChatPanelRenderer(event: string, payload: Record<string, unknown>) {
+    console.warn(`${CHAT_PANEL_RENDERER_LOG_PREFIX} ${event}`, payload)
+}
 
 // ---------------------------------------------------------------------------
 // Component
@@ -170,6 +195,7 @@ export function ChatPanel(props: ChatPanelProps) {
 
     // --- Inline thought items (filtered, prose-style) ---
     const [inlineThoughts, setInlineThoughts] = useState<InlineThoughtItem[]>([])
+    const [completedTraceIds, setCompletedTraceIds] = useState<ReadonlySet<string>>(() => new Set())
 
     useEventSubscription({
         channels: ['thought:pfc-decision', 'thought:turn-lifecycle'],
@@ -177,6 +203,17 @@ export function ChatPanel(props: ChatPanelProps) {
             const event: ThoughtEvent = {
                 channel: channel as ThoughtEvent['channel'],
                 payload: payload as any,
+            }
+            if (event.channel === 'thought:turn-lifecycle') {
+                const lifecycle = event.payload as { phase?: string; traceId?: string }
+                if (lifecycle.phase === 'turn-complete' && typeof lifecycle.traceId === 'string') {
+                    setCompletedTraceIds(prev => {
+                        if (prev.has(lifecycle.traceId!)) return prev
+                        const next = new Set(prev)
+                        next.add(lifecycle.traceId!)
+                        return next
+                    })
+                }
             }
             const item = formatThoughtEvent(event)
             if (item) {
@@ -199,21 +236,80 @@ export function ChatPanel(props: ChatPanelProps) {
         [inlineThoughts],
     )
     const activeTraceId = useMemo(
-        () => deriveActiveTraceId(inlineThoughts, assistantTraceIds),
-        [inlineThoughts, assistantTraceIds],
+        () => deriveActiveTraceId(inlineThoughts, assistantTraceIds, completedTraceIds),
+        [inlineThoughts, assistantTraceIds, completedTraceIds],
     )
 
     // --- Streaming content buffer (progressive rendering) ---
     const [streamingContent, setStreamingContent] = useState('')
     const [streamingThinking, setStreamingThinking] = useState('')
+    const streamingTraceIdRef = useRef<string | null>(null)
+    const streamingContentLengthRef = useRef(0)
+    const streamingThinkingLengthRef = useRef(0)
+    const sendSequenceRef = useRef(0)
+
+    const acceptsStreamingPayload = useCallback((payload: { traceId?: string }) => {
+        if (!payload.traceId) return true
+        if (streamingTraceIdRef.current == null) {
+            streamingTraceIdRef.current = payload.traceId
+            return true
+        }
+        return streamingTraceIdRef.current === payload.traceId
+    }, [])
+
+    const handleStreamingChunk = useCallback((
+        channel: 'chat:content-chunk' | 'chat:thinking-chunk',
+        payload: { content?: string; traceId?: string },
+    ) => {
+        const contentLength = payload.content?.length ?? 0
+        const accepted = contentLength > 0 && acceptsStreamingPayload(payload)
+        if (!accepted) {
+            logChatPanelRenderer('stream-chunk-dropped', {
+                channel,
+                traceId: payload.traceId ?? null,
+                activeTraceId: streamingTraceIdRef.current,
+                contentLength,
+                reason: contentLength === 0 ? 'empty_content' : 'trace_mismatch',
+            })
+            return
+        }
+
+        if (channel === 'chat:content-chunk') {
+            setStreamingContent((prev) => {
+                const next = prev + payload.content!
+                streamingContentLengthRef.current = next.length
+                logChatPanelRenderer('stream-chunk-accepted', {
+                    channel,
+                    traceId: payload.traceId ?? null,
+                    activeTraceId: streamingTraceIdRef.current,
+                    contentLength,
+                    accumulatedContentLength: next.length,
+                    accumulatedThinkingLength: streamingThinkingLengthRef.current,
+                })
+                return next
+            })
+            return
+        }
+
+        setStreamingThinking((prev) => {
+            const next = prev + payload.content!
+            streamingThinkingLengthRef.current = next.length
+            logChatPanelRenderer('stream-chunk-accepted', {
+                channel,
+                traceId: payload.traceId ?? null,
+                activeTraceId: streamingTraceIdRef.current,
+                contentLength,
+                accumulatedContentLength: streamingContentLengthRef.current,
+                accumulatedThinkingLength: next.length,
+            })
+            return next
+        })
+    }, [acceptsStreamingPayload])
 
     useEventSubscription({
         channels: ['chat:content-chunk'],
         onEvent: (_channel, payload) => {
-            const p = payload as { content: string }
-            if (p.content) {
-                setStreamingContent(prev => prev + p.content)
-            }
+            handleStreamingChunk('chat:content-chunk', payload as { content?: string; traceId?: string })
         },
         enabled: sending,
     })
@@ -221,10 +317,7 @@ export function ChatPanel(props: ChatPanelProps) {
     useEventSubscription({
         channels: ['chat:thinking-chunk'],
         onEvent: (_channel, payload) => {
-            const p = payload as { content: string }
-            if (p.content) {
-                setStreamingThinking(prev => prev + p.content)
-            }
+            handleStreamingChunk('chat:thinking-chunk', payload as { content?: string; traceId?: string })
         },
         enabled: sending,
     })
@@ -307,37 +400,98 @@ export function ChatPanel(props: ChatPanelProps) {
     //   - immediate-send path (called from send() when no turn is in flight)
     //   - drain path (called from the queue-drain effect after a turn ends)
     // The skipUserAppend flag suppresses the user-message overlay push in
-    // the drain path because the enqueue path already pushed it.
+    // the drain path because the enqueue path already pushed it. When a
+    // queued entry drains, answeredOverlayKey identifies the visible user
+    // entry so the direct assistant fallback lands directly after it.
     //
-    // SP 1.9 Item 1 — assistant-side reconciliation no longer needs an
-    // explicit setMessages(prev => [...prev, assistant]) call: the
-    // `useChatApi.send` invalidate at transport/src/hooks/useChatApi.ts:60-64
-    // fires `utils.chat.getHistory.invalidate(...)` after the server-side
-    // STM append, which drives the useQuery refetch above (staleTime: 0).
-    // The optimistic-send overlay entry is pruned by the prune effect when
-    // the matching server entry appears.
-    const invoke = async (userMsg: string, skipUserAppend = false) => {
+    // The authoritative history refetch remains the long-lived source of
+    // truth, but the successful send payload also renders through the local
+    // overlay. That closes the successful-response/no-visible-assistant gap
+    // when STM append, session filtering, or React Query refetch lags behind
+    // the backend response. The overlay entry is pruned when the matching
+    // server entry appears.
+    const invoke = async (userMsg: string, skipUserAppend = false, answeredOverlayKey: string | null = null) => {
+        const sendSequence = sendSequenceRef.current + 1
+        sendSequenceRef.current = sendSequence
         setSending(true)
+        streamingTraceIdRef.current = null
+        streamingContentLengthRef.current = 0
+        streamingThinkingLengthRef.current = 0
+        logChatPanelRenderer('send-started', {
+            sendSequence,
+            stage,
+            skipUserAppend,
+            hasAnsweredOverlayKey: answeredOverlayKey != null,
+            hasProjectId: projectId != null,
+            hasSessionId: sessionId != null,
+        })
         onSendStart?.()
 
+        let userOverlayKey = answeredOverlayKey
         if (!skipUserAppend) {
             const userEntry: ChatMessage = { role: 'user', content: userMsg, timestamp: new Date().toISOString() }
+            userOverlayKey = overlayKeyForOptimisticSend(userEntry)
+            logChatPanelRenderer('user-overlay-appended', {
+                sendSequence,
+                role: userEntry.role,
+                contentLength: userEntry.content.length,
+                timestamp: userEntry.timestamp,
+                overlayKeyPresent: userOverlayKey != null,
+            })
             setLocalOverlay((prev) => [
                 ...prev,
                 {
                     kind: 'optimistic-send',
                     message: userEntry,
-                    key: overlayKeyForOptimisticSend(userEntry),
+                    key: userOverlayKey!,
                     issuedAt: Date.now(),
                 },
             ])
         }
 
         try {
-            await chatApi!.send(userMsg)
+            const result = await chatApi!.send(userMsg)
+            const assistantEntry: ChatMessage = {
+                role: 'assistant',
+                content: result.response,
+                timestamp: new Date().toISOString(),
+                ...(result.traceId ? { traceId: result.traceId } : {}),
+                ...(result.contentType ? { contentType: result.contentType } : {}),
+                ...(result.thinkingContent ? { thinkingContent: result.thinkingContent } : {}),
+                ...(result.cards ? { cards: result.cards } : {}),
+                ...(result.empty_response_kind ? { empty_response_kind: result.empty_response_kind } : {}),
+                ...(result.thinking_unavailable ? { thinking_unavailable: result.thinking_unavailable } : {}),
+            }
+            const assistantOverlay: LocalOverlayEntry = {
+                kind: 'optimistic-send',
+                message: assistantEntry,
+                key: overlayKeyForOptimisticSend(assistantEntry),
+                issuedAt: Date.now(),
+            }
+            logChatPanelRenderer('assistant-overlay-appended', {
+                sendSequence,
+                traceId: assistantEntry.traceId ?? null,
+                contentLength: assistantEntry.content.length,
+                hasThinkingContent: Boolean(assistantEntry.thinkingContent),
+                hasThinkingUnavailable: Boolean(assistantEntry.thinking_unavailable),
+                emptyResponseKind: assistantEntry.empty_response_kind ?? null,
+                hasStructuredCards: (assistantEntry.cards?.length ?? 0) > 0,
+                cardCount: assistantEntry.cards?.length ?? 0,
+                answeredOverlayKeyPresent: userOverlayKey != null,
+            })
+            setLocalOverlay((prev) => insertOverlayAfterKey(prev, userOverlayKey, assistantOverlay))
             // Reconcile: authoritative response replaces streaming buffer.
-            // The assistant entry arrives via the useQuery refetch driven by
-            // the useChatApi.send invalidate (Invariant E preserved).
+            // The assistant entry is also reconciled via the useQuery refetch
+            // driven by the useChatApi.send invalidate (Invariant E preserved).
+            logChatPanelRenderer('stream-buffer-cleared', {
+                sendSequence,
+                traceId: assistantEntry.traceId ?? null,
+                contentLength: streamingContentLengthRef.current,
+                thinkingLength: streamingThinkingLengthRef.current,
+                reason: 'send_resolved',
+            })
+            streamingContentLengthRef.current = 0
+            streamingThinkingLengthRef.current = 0
             setStreamingContent('')
             setStreamingThinking('')
         } catch {
@@ -355,6 +509,11 @@ export function ChatPanel(props: ChatPanelProps) {
                     issuedAt: Date.now(),
                 },
             ])
+            logChatPanelRenderer('assistant-error-overlay-appended', {
+                sendSequence,
+                contentLength: errEntry.content.length,
+                timestamp: errEntry.timestamp,
+            })
         } finally {
             setSending(false)
         }
@@ -380,6 +539,11 @@ export function ChatPanel(props: ChatPanelProps) {
                 timestamp: new Date().toISOString(),
                 queued: true,
             }
+            logChatPanelRenderer('user-message-queued', {
+                queuedDepth: queuedMessages.length + 1,
+                contentLength: queuedEntry.content.length,
+                timestamp: queuedEntry.timestamp,
+            })
             setLocalOverlay((prev) => [
                 ...prev,
                 {
@@ -403,6 +567,17 @@ export function ChatPanel(props: ChatPanelProps) {
         if (sending || queuedMessages.length === 0) return
         const [next, ...rest] = queuedMessages
         setQueuedMessages(rest)
+        const queuedOverlay = localOverlay.find(
+            (o) => o.kind === 'optimistic-send' && o.message.role === 'user' && o.message.queued,
+        )
+        const answeredOverlayKey = queuedOverlay?.kind === 'optimistic-send'
+            ? overlayKeyForOptimisticSend(withoutQueuedFlag(queuedOverlay.message))
+            : null
+        logChatPanelRenderer('queued-message-draining', {
+            queuedDepthBeforeDrain: queuedMessages.length,
+            queuedDepthAfterDrain: rest.length,
+            answeredOverlayKeyPresent: answeredOverlayKey != null,
+        })
         // Clear the queued flag on the oldest queued user-message overlay
         // entry (FIFO). Re-keys the overlay entry with the un-queued shape
         // so the dedup helper can match it against the eventual server entry.
@@ -413,19 +588,19 @@ export function ChatPanel(props: ChatPanelProps) {
             if (idx < 0) return prev
             const target = prev[idx]
             if (target.kind !== 'optimistic-send') return prev
-            const { queued: _queued, ...unqueued } = target.message
+            const unqueued = withoutQueuedFlag(target.message)
             const updated: LocalOverlayEntry = {
                 kind: 'optimistic-send',
-                message: unqueued as ChatMessage,
-                key: overlayKeyForOptimisticSend(unqueued as ChatMessage),
+                message: unqueued,
+                key: overlayKeyForOptimisticSend(unqueued),
                 issuedAt: target.issuedAt,
             }
             const copy = prev.slice()
             copy[idx] = updated
             return copy
         })
-        invoke(next, true)
-    }, [sending, queuedMessages])
+        invoke(next, true, answeredOverlayKey)
+    }, [sending, queuedMessages, localOverlay])
 
     // --- Input focus/blur forwarding ---
     const handleFocus = useCallback(() => {
@@ -451,6 +626,32 @@ export function ChatPanel(props: ChatPanelProps) {
 
     // --- Visible messages (ambient_large caps at 5 for performance) ---
     const visibleMessages = stage === 'ambient_large' ? mergedMessages.slice(-5) : mergedMessages
+
+    useEffect(() => {
+        const lastMessage = visibleMessages[visibleMessages.length - 1]
+        const assistantMessages = visibleMessages.filter((m) => m.role === 'assistant')
+        const lastAssistant = assistantMessages[assistantMessages.length - 1]
+
+        logChatPanelRenderer('render-snapshot', {
+            stage,
+            serverEntryCount: serverEntries.length,
+            localOverlayCount: localOverlay.length,
+            mergedMessageCount: mergedMessages.length,
+            visibleMessageCount: visibleMessages.length,
+            assistantCount: assistantMessages.length,
+            lastRole: lastMessage?.role ?? null,
+            lastContentLength: lastMessage?.content.length ?? 0,
+            lastAssistantTraceId: lastAssistant?.traceId ?? null,
+            lastAssistantContentLength: lastAssistant?.content.length ?? 0,
+            lastAssistantPreview: lastAssistant?.content.slice(0, 80) ?? null,
+        })
+    }, [
+        localOverlay.length,
+        mergedMessages,
+        serverEntries.length,
+        stage,
+        visibleMessages,
+    ])
 
     // --- Ambient gradient (shared across both ambient stages) ---
     const isAmbient = stage === 'ambient_small' || stage === 'ambient_large'

@@ -27,6 +27,8 @@ interface RawHistoryEntry {
     actionOutcome?: { actionType: string; label: string; timestamp: string; result?: ChatMessage['actionOutcome'] extends infer T ? T extends { result?: infer R } ? R : never : never }
     cards?: Array<{ type: string; props: Record<string, unknown> }>
     traceId?: string
+    empty_response_kind?: ChatMessage['empty_response_kind']
+    thinking_unavailable?: ChatMessage['thinking_unavailable']
     [key: string]: unknown
   }
   [key: string]: unknown
@@ -53,6 +55,8 @@ export function translateHistoryEntries(
           ? { actionOutcome: e.metadata.actionOutcome as ChatMessage['actionOutcome'] }
           : {}),
         ...(e.metadata?.cards ? { cards: e.metadata.cards } : {}),
+        ...(e.metadata?.empty_response_kind ? { empty_response_kind: e.metadata.empty_response_kind } : {}),
+        ...(e.metadata?.thinking_unavailable ? { thinking_unavailable: e.metadata.thinking_unavailable } : {}),
       }
     })
 }

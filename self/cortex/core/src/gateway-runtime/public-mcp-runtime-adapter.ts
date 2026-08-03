@@ -159,7 +159,7 @@ export class PublicMcpRuntimeAdapter {
           response.traceId,
           '',
         );
-        if (parsedOutput.toolCalls.some((toolCall) => toolCall.name === 'task_complete')) {
+        if (parsedOutput.toolCalls.some((toolCall: { name: string }) => toolCall.name === 'task_complete')) {
           return response;
         }
 

@@ -4,22 +4,22 @@ import type {
   FeedbackState,
   AvailableModel,
 } from '../types'
-import { PROVIDER_LABELS } from '../styles'
 
 export async function testStoredProviderKey(
   api: PreferencesApi,
   provider: Provider,
+  providerLabel = provider,
 ): Promise<FeedbackState> {
   const result = await api.testApiKey({ provider })
   if (result.valid) {
     return {
-      message: `${PROVIDER_LABELS[provider]} API key is valid.`,
+      message: `${providerLabel} API key is valid.`,
       success: true,
     }
   }
 
   return {
-    message: result.error ?? `${PROVIDER_LABELS[provider]} API key test failed.`,
+    message: result.error ?? `${providerLabel} API key test failed.`,
     success: false,
   }
 }

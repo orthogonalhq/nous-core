@@ -35,7 +35,7 @@ import type {
 } from '@nous/shared';
 import type { PanelTranspiler } from '@nous/subcortex-apps';
 import type { TokenAccumulatorService } from '@nous/subcortex-inference-runtime';
-import type { ProviderRegistry } from '@nous/subcortex-providers';
+import type { CliSessionManager, ProviderRegistry } from '@nous/subcortex-providers';
 import type { CostGovernanceService } from '@nous/subcortex-cost';
 import type {
   IPrincipalSystemGatewayRuntime,
@@ -105,6 +105,7 @@ export interface NousContext {
   panelTranspiler: PanelTranspiler;
   credentialVaultService: ICredentialVaultService;
   providerRegistry: ProviderRegistry;
+  cliSessionManager: CliSessionManager;
   dataDir: string;
   /** MAO events emitted by coding agent runs. */
   codingAgentMaoEvents: Array<{ type: string; data: unknown; timestamp: string }>;

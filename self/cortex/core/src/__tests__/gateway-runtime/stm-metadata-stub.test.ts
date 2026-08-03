@@ -115,6 +115,22 @@ describe('STM Metadata Stub — finalizeChatStmTurn metadata storage', () => {
     expect(assistantAppendCall[1].metadata.scope).toBe('principal');
   });
 
+  it('stores traceId on assistant entry metadata for UI history reconciliation', async () => {
+    const { runtime, stmStore } = createChatRuntime();
+
+    await runtime.handleChatTurn({
+      message: 'Hello',
+      projectId: PROJECT_ID,
+      traceId: TRACE_ID,
+      sessionId: SESSION_ID,
+      scope: 'principal',
+    });
+
+    const assistantAppendCall = stmStore.append.mock.calls[1];
+    expect(assistantAppendCall[1].metadata).toBeDefined();
+    expect(assistantAppendCall[1].metadata.traceId).toBe(TRACE_ID);
+  });
+
   // ── Tier 3: Edge cases ─────────────────────────────────────────────────
 
   it('does not store thinkingContent in metadata when it is undefined', async () => {

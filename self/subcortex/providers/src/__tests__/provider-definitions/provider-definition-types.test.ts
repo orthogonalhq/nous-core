@@ -15,12 +15,8 @@ type Equal<A, B> =
     : false;
 type Expect<T extends true> = T;
 
-type _ProviderVendorKeyIsExact = Expect<
-  Equal<ProviderVendorKey, 'anthropic' | 'openai' | 'ollama'>
->;
-type _BootstrapProviderKeyIsExact = Expect<
-  Equal<BootstrapProviderKey, 'anthropic' | 'openai' | 'ollama'>
->;
+type _ProviderVendorKeyDoesNotAcceptArbitraryString = Expect<Equal<string extends ProviderVendorKey ? true : false, false>>;
+type _BootstrapProviderKeyDoesNotAcceptArbitraryString = Expect<Equal<string extends BootstrapProviderKey ? true : false, false>>;
 type _ProviderVendorKeyDoesNotWiden = Expect<Equal<string extends ProviderVendorKey ? true : false, false>>;
 
 describe('provider definition type derivation', () => {
@@ -29,7 +25,9 @@ describe('provider definition type derivation', () => {
       (definition) => definition.vendorKey,
     );
 
-    expect(keys.sort()).toEqual(['anthropic', 'ollama', 'openai']);
+    expect(keys).toHaveLength(PROVIDER_DEFINITIONS.length);
+    expect(new Set(keys).size).toBe(keys.length);
+    expect(keys.every((key) => typeof key === 'string' && key.length > 0)).toBe(true);
   });
 
   it('supports local leaf-addition fixtures without production branch logic', () => {

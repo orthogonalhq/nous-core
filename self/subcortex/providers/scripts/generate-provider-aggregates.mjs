@@ -137,6 +137,7 @@ export type CertifiedProviderAdapterKey =
 function providerAdapterExtraExports(vendor) {
   const extrasByVendor = new Map([
     ['anthropic', ['createAnthropicAdapter']],
+    ['codex-cli', ['CODEX_CLI_EXECUTION_CAPABILITY_PROFILE', 'createCodexCliAdapter', 'renderCodexCliPrompt']],
     ['ollama', ['createOllamaAdapter', 'isToolCapableModel']],
     ['openai', ['createChatCompletionsAdapter']],
   ]);
@@ -154,16 +155,19 @@ function generateProviderDefinitions(leaves) {
     .map((leaf) => `  ${leaf.aliasBase}ProviderDefinition,`)
     .join('\n');
 
-  return withHeader(`import type { ProviderDefinition } from './schemas/provider-definition.js';
+  return withHeader(`import type { ProviderDefinition, ProviderDefinitionLeaf } from './schemas/provider-definition.js';
+import { hydrateProviderDefinitions } from './provider-identity.js';
 ${imports}
 
 export * from './schemas/provider-definition.js';
 
-export const PROVIDER_DEFINITIONS = [
+const PROVIDER_DEFINITION_LEAVES = [
 ${entries}
-] as const satisfies readonly ProviderDefinition[];
+] as const satisfies readonly ProviderDefinitionLeaf[];
 
-export type ProviderVendorKey = (typeof PROVIDER_DEFINITIONS)[number]['vendorKey'];
+export const PROVIDER_DEFINITIONS = hydrateProviderDefinitions(PROVIDER_DEFINITION_LEAVES);
+
+export type ProviderVendorKey = (typeof PROVIDER_DEFINITION_LEAVES)[number]['vendorKey'];
 export type BootstrapProviderKey = ProviderVendorKey;
 
 export function resolveProviderDefinition(vendorKey: ProviderVendorKey): ProviderDefinition {

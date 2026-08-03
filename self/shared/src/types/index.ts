@@ -16,6 +16,7 @@ export * from './workflow-monitoring.js';
 export * from './project-surface.js';
 export * from './project.js';
 export * from './provider.js';
+export * from './cli-session.js';
 export * from './cortex.js';
 export * from './routing.js';
 export * from './tools.js';

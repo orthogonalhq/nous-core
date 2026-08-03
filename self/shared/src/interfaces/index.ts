@@ -14,6 +14,9 @@ export type {
 export type {
   IModelRouter,
   IModelProvider,
+  CliSessionContext,
+  TeardownScope,
+  ICliSessionManager,
   IToolExecutor,
   WorkflowStartRequest,
   IWorkflowEngine,

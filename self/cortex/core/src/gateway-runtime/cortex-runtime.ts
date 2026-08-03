@@ -36,10 +36,12 @@ import type {
   TraceId,
   HarnessStrategies,
   ILogChannel,
+  IModelProvider,
   PromptFormatterInput,
   ProviderVendor,
 } from '@nous/shared';
 import { GatewayContextFrameSchema, type EmptyResponseKind } from '@nous/shared';
+import { CODEX_CLI_EXECUTION_CAPABILITY_PROFILE } from '@nous/subcortex-providers';
 import { markerForKind } from '../agent-gateway/agent-gateway.js';
 import { AgentGatewayFactory, createInboxFrame } from '../agent-gateway/index.js';
 import {
@@ -504,7 +506,7 @@ implements IPrincipalSystemGatewayRuntime, ISystemInboxSubmissionService {
   async handleChatTurn(input: ChatTurnInput): Promise<ChatTurnResult> {
     this.checkAttachOrWarn();
     const parsed = ChatTurnInputSchema.parse(input);
-    const { message, projectId, traceId, sessionId, scope } = parsed;
+    const { traceId } = parsed;
 
     // Emit turn-start lifecycle event for subscribers like useAgentActivity
     // (BT Round 2, RC-2). The deprecated GatewayBackedTurnExecutor was the
@@ -581,7 +583,21 @@ implements IPrincipalSystemGatewayRuntime, ISystemInboxSubmissionService {
     // Run Principal gateway (with turn-in-progress guard for recompose safety)
     this.turnInProgressByClass.set('Cortex::Principal', true);
     let result;
+    const previousPrincipalProvider = this.principalGatewayConfig.modelProvider;
+    const previousPrincipalRouter = this.principalGatewayConfig.modelRouter;
+    const previousPrincipalGetProvider = this.principalGatewayConfig.getProvider;
+    const chatProvider = await this.resolveChatTurnProvider({
+      projectId,
+      traceId,
+      sessionId,
+      scope,
+    });
     try {
+      if (chatProvider) {
+        this.principalGatewayConfig.modelProvider = chatProvider;
+        this.principalGatewayConfig.modelRouter = undefined;
+        this.principalGatewayConfig.getProvider = undefined;
+      }
       result = await this.principalGateway.run({
         taskInstructions: `Handle the current user chat turn. Respond conversationally.\n\n${WORKFLOW_PROMPT_FRAGMENT}\n\n${CARD_PROMPT_FRAGMENT}`,
         context: chatContext,
@@ -600,6 +616,9 @@ implements IPrincipalSystemGatewayRuntime, ISystemInboxSubmissionService {
         modelRequirements: this.deps.defaultModelRequirements,
       });
     } finally {
+      this.principalGatewayConfig.modelProvider = previousPrincipalProvider;
+      this.principalGatewayConfig.modelRouter = previousPrincipalRouter;
+      this.principalGatewayConfig.getProvider = previousPrincipalGetProvider;
       this.turnInProgressByClass.set('Cortex::Principal', false);
       this.checkPendingRecompose('Cortex::Principal');
     }
@@ -647,6 +666,54 @@ implements IPrincipalSystemGatewayRuntime, ISystemInboxSubmissionService {
 
   async whenIdle(): Promise<void> {
     await this.systemBacklogQueue.whenIdle();
+  }
+
+  private async resolveChatTurnProvider(args: {
+    projectId?: string;
+    traceId: string;
+    sessionId?: string;
+    scope?: ChatTurnInput['scope'];
+  }): Promise<IModelProvider | undefined> {
+    if (!this.deps.cliSessionManager) return undefined;
+
+    const providerId = await this.resolvePrincipalProviderId(args);
+    if (!providerId || !this.deps.getProvider) return undefined;
+
+    const provider = this.deps.getProvider(providerId);
+    if (!provider) return undefined;
+    const providerConfig = provider.getConfig();
+    const isCodexCliProvider = providerConfig.vendor === 'codex-cli';
+
+    return this.deps.cliSessionManager.resolveForChatTurn({
+      providerId: providerId as never,
+      sessionId: args.sessionId,
+      scope: args.scope,
+      projectId: args.projectId,
+      provider,
+      providerProtocol: isCodexCliProvider ? 'agent-cli' : undefined,
+      executionCapabilityProfile: isCodexCliProvider ? CODEX_CLI_EXECUTION_CAPABILITY_PROFILE : undefined,
+      requiredExecutionCapabilityProfile: isCodexCliProvider ? 'persistent_process' : undefined,
+    });
+  }
+
+  private async resolvePrincipalProviderId(args: {
+    projectId?: string;
+    traceId: string;
+  }): Promise<string | undefined> {
+    if (this.deps.modelRouter) {
+      const route = await this.deps.modelRouter.routeWithEvidence('cortex-chat', {
+        projectId: args.projectId as never,
+        traceId: args.traceId as never,
+        modelRequirements:
+          this.deps.defaultModelRequirements ?? {
+            profile: 'fast',
+            fallbackPolicy: 'block_if_unmet',
+          },
+      });
+      return route.providerId;
+    }
+
+    return this.deps.providerIdByClass?.['Cortex::Principal'];
   }
 
   async listBacklogEntries(filter?: { status?: import('./backlog-types.js').BacklogEntryStatus }): Promise<BacklogEntry[]> {
@@ -1032,6 +1099,7 @@ implements IPrincipalSystemGatewayRuntime, ISystemInboxSubmissionService {
       // SP 1.15 SKIP policy continuity per Invariant I-13).
       const assistantContent = emptyResponseKind ? markerForKind(emptyResponseKind) : assistantResponse;
       const assistantMetadata: Record<string, unknown> = {};
+      assistantMetadata.traceId = traceId;
       if (contentType && contentType !== 'text') assistantMetadata.contentType = contentType;
       if (thinkingContent) assistantMetadata.thinkingContent = thinkingContent;
       if (sessionId) assistantMetadata.sessionId = sessionId;

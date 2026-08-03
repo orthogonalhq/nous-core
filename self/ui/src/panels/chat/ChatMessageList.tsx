@@ -34,6 +34,24 @@ export function ChatMessageList({
         messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' })
     }, [messages])
 
+    useEffect(() => {
+        const assistantMessages = messages.filter((m) => m.role === 'assistant')
+        const lastMessage = messages[messages.length - 1]
+        const lastAssistant = assistantMessages[assistantMessages.length - 1]
+
+        console.warn('[ChatPanelRenderer] message-list-rendered', {
+            messageCount: messages.length,
+            assistantCount: assistantMessages.length,
+            lastRole: lastMessage?.role ?? null,
+            lastContentLength: lastMessage?.content.length ?? 0,
+            lastAssistantTraceId: lastAssistant?.traceId ?? null,
+            lastAssistantContentLength: lastAssistant?.content.length ?? 0,
+            lastAssistantPreview: lastAssistant?.content.slice(0, 80) ?? null,
+            sending,
+            activeTraceId,
+        })
+    }, [activeTraceId, messages, sending])
+
     const lastAssistantIndex = findLastAssistantIndex(messages)
 
     return (
@@ -85,6 +103,81 @@ function ChatMessageRow({
     sending,
     onCardAction,
 }: ChatMessageRowProps) {
+    const loggedEmptyResponseKeyRef = useRef<string | null>(null)
+    const isAssistant = message.role === 'assistant'
+    const hasStructuredCards = isAssistant ? (message.cards?.length ?? 0) > 0 : false
+    const hasTextContent = isAssistant ? message.content.trim().length > 0 : false
+    const emptyResponseDiagnostic = isAssistant
+        ? getEmptyAssistantDiagnostic(message, hasStructuredCards)
+        : null
+    const emptyResponseLogKey = emptyResponseDiagnostic
+        ? getAssistantRenderLogKey(message)
+        : null
+    const assistantRenderLogKey = isAssistant
+        ? getAssistantRenderLogKey(message)
+        : null
+
+    useEffect(() => {
+        if (!isAssistant || !assistantRenderLogKey) return
+
+        console.warn('[ChatPanelRenderer] assistant-row-rendered', {
+            traceId: message.traceId ?? null,
+            timestamp: message.timestamp,
+            contentLength: message.content.length,
+            contentPreview: message.content.slice(0, 80),
+            hasTextContent,
+            hasStructuredCards,
+            cardCount: message.cards?.length ?? 0,
+            hasThinkingContent: Boolean(message.thinkingContent),
+            hasThinkingUnavailable: Boolean(message.thinking_unavailable),
+            emptyResponseKind: message.empty_response_kind ?? null,
+            isLastAssistant,
+            sending,
+        })
+    }, [
+        assistantRenderLogKey,
+        hasStructuredCards,
+        hasTextContent,
+        isAssistant,
+        isLastAssistant,
+        message.cards?.length,
+        message.content,
+        message.empty_response_kind,
+        message.thinkingContent,
+        message.thinking_unavailable,
+        message.timestamp,
+        message.traceId,
+        sending,
+    ])
+
+    useEffect(() => {
+        if (!emptyResponseDiagnostic || !emptyResponseLogKey) return
+        if (loggedEmptyResponseKeyRef.current === emptyResponseLogKey) return
+        loggedEmptyResponseKeyRef.current = emptyResponseLogKey
+
+        console.warn('[ChatPanelRenderer] assistant-empty-response-rendered', {
+            emptyResponseKind: message.empty_response_kind ?? 'missing_final_content',
+            traceId: message.traceId ?? null,
+            timestamp: message.timestamp,
+            contentLength: message.content.length,
+            hasThinkingContent: Boolean(message.thinkingContent),
+            hasThinkingUnavailable: Boolean(message.thinking_unavailable),
+            hasStructuredCards,
+            cardCount: message.cards?.length ?? 0,
+        })
+    }, [
+        emptyResponseDiagnostic,
+        emptyResponseLogKey,
+        hasStructuredCards,
+        message.cards?.length,
+        message.content.length,
+        message.empty_response_kind,
+        message.thinkingContent,
+        message.thinking_unavailable,
+        message.timestamp,
+        message.traceId,
+    ])
+
     if (message.role === 'user') {
         const isQueued = message.queued === true
         return (
@@ -103,7 +196,6 @@ function ChatMessageRow({
     }
 
     const isStale = !!message.actionOutcome || !isLastAssistant
-    const hasStructuredCards = message.cards && message.cards.length > 0
 
     // Structured cards (tool-call delivery) take priority over inline XML parsing
     const segments = hasStructuredCards ? null : splitMessageSegments(message.content)
@@ -172,7 +264,15 @@ function ChatMessageRow({
                             <MarkdownRenderer key={`seg-${segIdx}`} content={segment.content} />
                         )
                     )
-                ) : (
+                ) : emptyResponseDiagnostic ? (
+                    <div
+                        data-testid="assistant-empty-response-diagnostic"
+                        data-empty-response-kind={message.empty_response_kind ?? 'missing_final_content'}
+                        style={styles.emptyResponseDiagnostic}
+                    >
+                        {emptyResponseDiagnostic}
+                    </div>
+                ) : !hasTextContent ? null : (
                     <MarkdownRenderer content={message.content} />
                 )}
             </div>
@@ -205,6 +305,29 @@ function findLastAssistantIndex(messages: ChatMessage[]): number {
         if (messages[i].role === 'assistant') return i
     }
     return -1
+}
+
+function getEmptyAssistantDiagnostic(message: ChatMessage, hasStructuredCards: boolean): string | null {
+    if (message.content.trim().length > 0 || hasStructuredCards) return null
+    if (message.empty_response_kind === 'thinking_only_no_finalizer') {
+        return 'No final assistant answer was returned. Thinking content is shown above when available.'
+    }
+    if (message.empty_response_kind === 'no_output_at_all') {
+        return 'No assistant output was returned for this turn.'
+    }
+    return 'No assistant content was returned for this turn.'
+}
+
+function getAssistantRenderLogKey(message: ChatMessage): string {
+    return [
+        message.timestamp,
+        message.traceId ?? '',
+        message.content.length,
+        message.empty_response_kind ?? 'missing_final_content',
+        message.thinkingContent ? 'thinking' : '',
+        message.thinking_unavailable ? 'thinking-unavailable' : '',
+        message.cards?.length ?? 0,
+    ].join('|')
 }
 
 // ---------------------------------------------------------------------------
@@ -276,5 +399,13 @@ const styles = {
         padding: '0 var(--nous-space-md) var(--nous-space-sm)',
         color: 'var(--nous-fg-subtle)',
         lineHeight: '1.5',
+    },
+    emptyResponseDiagnostic: {
+        color: 'var(--nous-fg-muted)',
+        fontFamily: 'var(--nous-font-family-mono)',
+        fontSize: 'var(--nous-font-size-xs)',
+        lineHeight: '1.5',
+        borderLeft: '2px solid var(--nous-border)',
+        paddingLeft: 'var(--nous-space-md)',
     },
 } as const

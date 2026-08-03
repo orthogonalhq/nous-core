@@ -2,7 +2,7 @@
 
 import React from 'react'
 import { render } from '@testing-library/react'
-import { describe, expect, it, vi, beforeAll } from 'vitest'
+import { describe, expect, it, vi, beforeAll, beforeEach, afterEach } from 'vitest'
 import type { ChatMessage } from '../types'
 
 // ---------------------------------------------------------------------------
@@ -40,10 +40,19 @@ import { ChatMessageList } from '../ChatMessageList'
 import { splitMessageSegments } from '../message-segments'
 
 const mockSplit = vi.mocked(splitMessageSegments)
+let consoleWarnSpy: ReturnType<typeof vi.spyOn>
 
 beforeAll(() => {
   // jsdom does not implement scrollIntoView
   Element.prototype.scrollIntoView = () => {}
+})
+
+beforeEach(() => {
+  consoleWarnSpy = vi.spyOn(console, 'warn').mockImplementation(() => undefined)
+})
+
+afterEach(() => {
+  consoleWarnSpy.mockRestore()
 })
 
 // ---------------------------------------------------------------------------
@@ -193,6 +202,44 @@ describe('ChatMessageList — edge cases', () => {
     const { container } = renderList(messages)
     expect(container).toBeTruthy()
   })
+
+  it('empty assistant message content renders a visible diagnostic', () => {
+    mockSplit.mockReturnValue([])
+    const messages = [makeMessage('assistant', '')]
+    const { container } = renderList(messages)
+
+    const diagnostic = container.querySelector('[data-testid="assistant-empty-response-diagnostic"]')
+    expect(diagnostic).not.toBeNull()
+    expect(diagnostic?.textContent).toContain('No assistant content was returned for this turn.')
+    expect(diagnostic?.getAttribute('data-empty-response-kind')).toBe('missing_final_content')
+  })
+
+  it('logs renderer diagnostics when the empty assistant fallback renders', () => {
+    mockSplit.mockReturnValue([])
+    const timestamp = new Date().toISOString()
+
+    renderList([
+      makeMessage('assistant', '', {
+        timestamp,
+        traceId: 'tr-empty-render',
+        thinkingContent: 'reasoning without final content',
+      }),
+    ])
+
+    expect(consoleWarnSpy).toHaveBeenCalledWith(
+      '[ChatPanelRenderer] assistant-empty-response-rendered',
+      expect.objectContaining({
+        emptyResponseKind: 'missing_final_content',
+        traceId: 'tr-empty-render',
+        timestamp,
+        contentLength: 0,
+        hasThinkingContent: true,
+        hasThinkingUnavailable: false,
+        hasStructuredCards: false,
+        cardCount: 0,
+      }),
+    )
+  })
 })
 
 // ---------------------------------------------------------------------------
@@ -240,6 +287,20 @@ describe('ChatMessageList — empty_response_kind auto-open (SP 1.15 RC-1)', () 
     const { container } = renderList(messages)
     const detailsEl = container.querySelector('details')
     expect(detailsEl).toBeNull()
+  })
+
+  it('renders an empty-response-kind diagnostic when final content is blank', () => {
+    mockSplit.mockReturnValue([])
+    const messages = [
+      makeMessage('assistant', '', {
+        empty_response_kind: 'no_output_at_all',
+      }),
+    ]
+    const { container } = renderList(messages)
+    const diagnostic = container.querySelector('[data-testid="assistant-empty-response-diagnostic"]')
+    expect(diagnostic).not.toBeNull()
+    expect(diagnostic?.textContent).toContain('No assistant output was returned for this turn.')
+    expect(diagnostic?.getAttribute('data-empty-response-kind')).toBe('no_output_at_all')
   })
 })
 

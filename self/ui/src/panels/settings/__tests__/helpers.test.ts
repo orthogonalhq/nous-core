@@ -16,7 +16,7 @@ describe('testStoredProviderKey', () => {
     const api = {
       testApiKey: vi.fn().mockResolvedValue({ valid: true, error: null }),
     } as unknown as PreferencesApi
-    const result = await testStoredProviderKey(api, 'anthropic')
+    const result = await testStoredProviderKey(api, 'anthropic', 'Anthropic')
     expect(result.success).toBe(true)
     expect(result.message).toContain('Anthropic')
     expect(result.message).toContain('valid')
@@ -26,7 +26,7 @@ describe('testStoredProviderKey', () => {
     const api = {
       testApiKey: vi.fn().mockResolvedValue({ valid: false, error: 'bad key' }),
     } as unknown as PreferencesApi
-    const result = await testStoredProviderKey(api, 'openai')
+    const result = await testStoredProviderKey(api, 'openai', 'OpenAI')
     expect(result.success).toBe(false)
     expect(result.message).toBe('bad key')
   })
@@ -35,7 +35,7 @@ describe('testStoredProviderKey', () => {
     const api = {
       testApiKey: vi.fn().mockResolvedValue({ valid: false, error: null }),
     } as unknown as PreferencesApi
-    const result = await testStoredProviderKey(api, 'anthropic')
+    const result = await testStoredProviderKey(api, 'anthropic', 'Anthropic')
     expect(result.success).toBe(false)
     expect(result.message).toContain('test failed')
   })
@@ -44,7 +44,7 @@ describe('testStoredProviderKey', () => {
     const api = {
       testApiKey: vi.fn().mockRejectedValue(new Error('network error')),
     } as unknown as PreferencesApi
-    await expect(testStoredProviderKey(api, 'anthropic')).rejects.toThrow('network error')
+    await expect(testStoredProviderKey(api, 'anthropic', 'Anthropic')).rejects.toThrow('network error')
   })
 })
 

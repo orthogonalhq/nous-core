@@ -58,6 +58,8 @@ export function setMockHistoryFromChatMessages(messages: ChatMessage[]): void {
       const metadata: Record<string, unknown> = {}
       if (m.contentType !== undefined) metadata.contentType = m.contentType
       if (m.thinkingContent !== undefined) metadata.thinkingContent = m.thinkingContent
+      if (m.empty_response_kind !== undefined) metadata.empty_response_kind = m.empty_response_kind
+      if (m.thinking_unavailable !== undefined) metadata.thinking_unavailable = m.thinking_unavailable
       if (m.actionOutcome !== undefined) metadata.actionOutcome = m.actionOutcome
       if (m.cards !== undefined) metadata.cards = m.cards
       const entry: Record<string, unknown> = {
@@ -119,7 +121,7 @@ export function makeTrpcMock(extras?: Record<string, unknown>): Record<string, u
           useMutation: () => ({ mutateAsync: vi.fn().mockResolvedValue({ welcomeFired: false, reason: 'no_project_id' }) }),
         },
       },
-      ...(extras ?? {}),
+      ...extras,
     },
   }
 }
