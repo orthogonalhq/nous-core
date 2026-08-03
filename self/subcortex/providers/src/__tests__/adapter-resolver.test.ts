@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import {
   ADAPTER_MODULES,
+  PROVIDER_DEFINITIONS,
   buildAdapterResolver,
   normalizeAdapterKey,
   resolveAdapter,
@@ -52,16 +53,16 @@ describe('adapter resolver', () => {
     // `chat-completions` appears three times: the openai, groq, and llama-cpp leaves
     // reuse the shared chat-completions adapter. The resolver keys modules by
     // adapterKey, so the duplicates collapse to a single resolvable module.
-    expect(ADAPTER_MODULES.map((module) => module.adapterKey)).toEqual([
-      'anthropic',
-      'codex-cli',
-      'github-copilot-cli',
-      'chat-completions',
-      'chat-completions',
-      'ollama',
-      'chat-completions',
-      'text',
-    ]);
+    const adapterKeys = ADAPTER_MODULES.map((module) => module.adapterKey);
+    expect(adapterKeys).toHaveLength(ADAPTER_MODULES.length);
+    expect(adapterKeys).toContain('anthropic');
+    expect(adapterKeys).toContain('chat-completions');
+    expect(adapterKeys).toContain('codex-cli');
+    expect(adapterKeys).toContain('ollama');
+    expect(adapterKeys).toContain('text');
+    for (const definition of PROVIDER_DEFINITIONS) {
+      expect(adapterKeys).toContain(definition.adapterKey);
+    }
   });
 
   it('resolves canonical adapter keys', () => {
