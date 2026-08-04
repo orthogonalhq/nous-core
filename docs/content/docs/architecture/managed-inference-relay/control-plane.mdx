@@ -1,0 +1,125 @@
+---
+title: Control Plane and Routing
+description: Tenant authentication, model aliases, route decisions, sessions, and relay tokens
+---
+
+# Control Plane and Routing
+
+The control plane makes policy-sensitive routing decisions before inference begins.
+
+## Responsibilities
+
+The control plane owns:
+
+- tenant authentication
+- org/workspace/entitlement resolution
+- quota checks
+- budget estimation
+- provider/model/region selection
+- inference session creation
+- relay token issuance
+- intended route recording
+- fallback policy preparation
+- preflight audit events
+
+## Model aliases
+
+Nue-managed models should be addressable by stable aliases:
+
+```text
+nue:auto
+nue:cost-efficient
+nue:balanced
+nue:premium
+nue:code
+nue:reasoning
+```
+
+An alias does not need to map one-to-one to a provider model. It may resolve differently depending on plan entitlements, region, latency, provider health, cost constraints, context window requirements, tool-use requirements, safety/compliance policy, and fallback availability.
+
+Example resolution:
+
+```json
+{
+  "requested_model": "nue:balanced",
+  "resolved_provider": "vertex-ai",
+  "resolved_model": "gemini-2.5-flash",
+  "region": "us-central1"
+}
+```
+
+## Route decision
+
+A route decision should be explicit and auditable.
+
+```json
+{
+  "tenant_id": "tenant_123",
+  "workspace_id": "workspace_456",
+  "session_id": "inf_abc",
+  "requested_model": "nue:auto",
+  "selected_provider": "vertex-ai",
+  "selected_model": "gemini-2.5-flash",
+  "region": "us-central1",
+  "fallbacks": [
+    {
+      "provider": "bedrock",
+      "model": "claude-haiku",
+      "region": "us-east-1"
+    }
+  ],
+  "max_input_tokens": 64000,
+  "max_output_tokens": 4096,
+  "usage_budget": {
+    "max_input_tokens": 64000,
+    "max_output_tokens": 4096
+  },
+  "expires_at": "2026-07-07T12:00:00Z"
+}
+```
+
+## Relay token
+
+The control plane issues a short-lived signed relay token for the selected route.
+
+The token should include:
+
+- tenant ID
+- workspace ID
+- session ID
+- route ID
+- selected provider/model/region
+- expiration
+- usage limits
+- allowed operation
+- streaming permission
+- trace ID
+
+The token must not include provider credentials.
+
+Recommended properties:
+
+- short TTL
+- single-session or narrow route scope
+- signed by Nue
+- validated by the relay
+- optionally bound to tenant token/session metadata
+
+## Routing policy inputs
+
+Routing policy may consider:
+
+- requested model alias
+- tenant policy
+- max latency target
+- required context length
+- tool-use support
+- multimodal support
+- region/compliance constraints
+- provider health
+- provider quota
+- estimated resource usage
+- recent latency
+- fallback availability
+
+Fallback should be selected before the stream starts when possible. Once streaming begins, transparent fallback is harder and may require explicit restart semantics.

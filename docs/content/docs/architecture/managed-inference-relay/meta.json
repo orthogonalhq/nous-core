@@ -1,0 +1,12 @@
+{
+  "title": "Managed Inference Relay",
+  "pages": [
+    "index",
+    "architecture",
+    "control-plane",
+    "relay-data-plane",
+    "provider-connectors",
+    "metering-billing",
+    "implementation-plan"
+  ]
+}
