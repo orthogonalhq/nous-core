@@ -10,6 +10,7 @@ import { resolveProviderFactory } from '../provider-factories.js';
 import { deriveBuiltInProviderId } from '../provider-identity.js';
 import { resolveAdapter, resolveAdapterKeyFromConfig } from '../adapter-resolver.js';
 import { ChatCompletionsProvider } from '../protocols/openai-api/provider.js';
+import type { ProviderDefinitionLeaf } from '../schemas/provider-definition.js';
 import { providerDefinition } from '../providers/together/definition.js';
 import { providerFactory } from '../providers/together/provider.js';
 import { providerAdapter } from '../providers/together/adapter.js';
@@ -49,10 +50,17 @@ describe('Together provider definition', () => {
     });
   });
 
-  it('declares dynamic model discovery via the openai-models list format', () => {
-    expect(providerDefinition.modelListEndpoint).toBe('/v1/models');
-    expect(providerDefinition.modelListFormat).toBe('openai-models');
-    expect(providerDefinition.capabilities?.modelListing).toBe(true);
+  it('declares /v1/models as a health-check endpoint, not a model-list endpoint', () => {
+    // Together's /v1/models returns a bare top-level array, not the
+    // { data: [...] } envelope the openai-models parser requires — so it's
+    // used for key validation (HTTP status only) rather than model listing.
+    expect(providerDefinition.healthCheckEndpoint).toBe('/v1/models');
+    // The leaf is narrowed by `as const`; widen to the leaf contract so the
+    // optional discovery fields are addressable and asserted absent.
+    const leaf: ProviderDefinitionLeaf = providerDefinition;
+    expect(leaf.modelListEndpoint).toBeUndefined();
+    expect(leaf.modelListFormat).toBeUndefined();
+    expect(leaf.capabilities?.modelListing).toBeUndefined();
   });
 
   it('does not hand-author wellKnownProviderId on the leaf', () => {

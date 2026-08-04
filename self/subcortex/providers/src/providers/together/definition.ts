@@ -4,9 +4,17 @@ import type { ProviderDefinitionLeaf } from '../../schemas/provider-definition.j
  * Together AI exposes an OpenAI Chat Completions-compatible API, so this leaf
  * carries only Together-specific metadata and reuses the shared
  * `ChatCompletionsProvider`. `defaultEndpoint` is the OpenAI-compatible base;
- * the shared provider appends `/v1/chat/completions` and `/v1/models`.
+ * the shared provider appends `/v1/chat/completions`.
  * No hand-authored built-in identifier here — generated catalogs derive
  * stable ids from vendorKey.
+ *
+ * `/v1/models` returns a bare top-level array, not the `{ data: [...] }`
+ * envelope the `openai-models` list-format parser requires, so it cannot be
+ * declared as `modelListEndpoint`/`modelListFormat` (that combination would
+ * silently fail to parse and fall back to a placeholder model every time).
+ * It's still useful for validating that an API key works, since key-testing
+ * only checks the HTTP status and never parses the body — so it's declared
+ * as `healthCheckEndpoint` instead.
  */
 export const TOGETHER_PROVIDER_DEFINITION = {
   vendorKey: 'together',
@@ -27,11 +35,9 @@ export const TOGETHER_PROVIDER_DEFINITION = {
     required: true,
     purpose: 'api_key',
   },
-  modelListEndpoint: '/v1/models',
-  modelListFormat: 'openai-models',
+  healthCheckEndpoint: '/v1/models',
   capabilities: {
     streaming: true,
-    modelListing: true,
   },
   isLocal: false,
 } as const satisfies ProviderDefinitionLeaf;
