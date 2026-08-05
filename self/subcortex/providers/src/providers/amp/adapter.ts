@@ -1,9 +1,11 @@
 /**
  * Amp provider adapter — ProviderAdapter for the Amp CLI coding agent.
  *
- * Amp is a session-bound CLI agent. This adapter formats canonical prompt/context
+ * Amp is invoked as a one-shot command: this adapter formats canonical prompt/context
  * data into a plain-text request suitable for Amp's stdin protocol, and parses
- * Amp's stdout output back to ParsedModelOutput.
+ * Amp's stdout output back to ParsedModelOutput. Amp itself supports resuming a prior
+ * conversation via `amp threads continue [threadId] -x`, but this integration does not
+ * capture or pass a thread identifier between invocations, so each call is independent.
  */
 import type { TraceId } from '@nous/shared';
 import type { ParsedModelOutput } from '../../shared/output.js';
@@ -16,7 +18,7 @@ import {
 } from '../../schemas/provider-adapter.js';
 import { AGENT_CLI_PROTOCOL_ID } from '../../protocols/agent-cli/index.js';
 
-export const AMP_EXECUTION_CAPABILITY_PROFILE = 'session_bound_command' as const;
+export const AMP_EXECUTION_CAPABILITY_PROFILE = 'one_shot_command' as const;
 
 const AMP_CAPABILITIES: AdapterCapabilities = {
   nativeToolUse: false,

@@ -1,16 +1,18 @@
 /**
  * Amp provider definition — CLI-backed provider leaf.
  *
- * Amp is a session-bound coding agent CLI. This leaf uses `ProviderDefinitionLeaf`
- * rather than the full `ProviderDefinition` shape: `wellKnownProviderId` is not
- * hand-authored here; it is derived centrally from `vendorKey` via
- * `provider-identity.ts` so the leaf stays semantic-only.
+ * Amp is a coding agent CLI. This leaf uses `ProviderDefinitionLeaf` rather than
+ * the full `ProviderDefinition` shape: `wellKnownProviderId` is not hand-authored
+ * here; it is derived centrally from `vendorKey` via `provider-identity.ts` so the
+ * leaf stays semantic-only.
  *
- * `executionCapabilityProfile: 'session_bound_command'` declares that Amp can
- * preserve command/session context across invocations but does not expose a
- * strict long-lived process protocol. This profile disqualifies Amp from
- * Cortex persistent-chat roles at selection time while keeping it available
- * for compatible agent roles.
+ * `executionCapabilityProfile: 'one_shot_command'` declares that this integration
+ * spawns a fresh `amp` process for every invocation via `-x` and does not retain or
+ * resume a thread identifier across calls. Amp itself supports session continuity
+ * through `amp threads continue [threadId] -x`, but that path is not used here:
+ * Nous owns the canonical conversation history and supplies the relevant context
+ * with each request, so from Nous's perspective each Amp invocation is a discrete,
+ * stateless command execution.
  */
 import type { ProviderDefinition, ProviderDefinitionLeaf } from '../../schemas/provider-definition.js';
 import { deriveBuiltInProviderId } from '../../provider-identity.js';
@@ -29,7 +31,7 @@ const AMP_LEAF = {
   displayName: 'Amp',
   protocol: AGENT_CLI_PROTOCOL_ID,
   adapterKey: 'amp',
-  executionCapabilityProfile: 'session_bound_command',
+  executionCapabilityProfile: 'one_shot_command',
   providerType: 'text',
   providerClass: 'local_text',
   isLocal: true,
@@ -86,6 +88,7 @@ const AMP_LEAF = {
     caveats: [
       'Prompt content is delivered via stdin (not argv) so it is not exposed through process listings or argv-based logging',
       'Abort is honored only before process start; once `amp` is spawned the request runs to completion or timeout',
+      'Amp CLI supports resuming prior conversations via `amp threads continue [threadId]`, but this integration does not use that path; each invocation is a fresh, independent process',
     ],
 
     targetIssueRefs: ['#287'],
