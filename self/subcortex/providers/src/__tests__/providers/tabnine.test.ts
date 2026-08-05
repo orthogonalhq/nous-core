@@ -306,6 +306,8 @@ describe('Tabnine provider leaf', () => {
         PATH: '/usr/local/bin',
         TABNINE_TOKEN: 'tabnine-pat',
         TABNINE_HOST: 'https://console.tabnine.com',
+        NODE_USE_ENV_PROXY: '1',
+        NODE_USE_SYSTEM_CA: '1',
         AWS_SECRET_ACCESS_KEY: 'unrelated-secret',
       },
       spawn: spawnProcess,
@@ -327,6 +329,8 @@ describe('Tabnine provider leaf', () => {
       PATH: '/usr/local/bin',
       TABNINE_TOKEN: 'tabnine-pat',
       TABNINE_HOST: 'https://console.tabnine.com',
+      NODE_USE_ENV_PROXY: '1',
+      NODE_USE_SYSTEM_CA: '1',
       NO_COLOR: '1',
     });
     expect(spawnOptions?.env).not.toHaveProperty('AWS_SECRET_ACCESS_KEY');
