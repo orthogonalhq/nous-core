@@ -25,11 +25,12 @@ export const ZHIPU_PROVIDER_DEFINITION = {
     required: true,
     purpose: 'api_key',
   },
-  // Zhipu exposes no public model-list endpoint, so discovery is omitted and
-  // the runtime falls back to defaultModelId. GLM supports tools + streaming.
+  // Zhipu exposes no public model-list endpoint, so discovery is omitted and the
+  // runtime falls back to defaultModelId. GLM supports streaming. Z.AI supports
+  // native function calling upstream, but Nous's shared Chat Completions path can't
+  // complete that tool-call round trip yet (#390), so nativeToolUse is omitted.
   capabilities: {
     streaming: true,
-    nativeToolUse: true,
   },
   isLocal: false,
 } as const satisfies ProviderDefinitionLeaf;
