@@ -1,0 +1,83 @@
+---
+title: Regional Relay Data Plane
+description: Low-overhead streaming relay responsibilities and runtime constraints
+---
+
+# Regional Relay Data Plane
+
+The regional relay is the Nue-controlled data-plane component that forwards inference requests to backend providers.
+
+It should be deployed as close as practical to the selected backend provider and should stream response data with minimal buffering.
+
+## Runtime shape
+
+The relay may be implemented as:
+
+- edge function
+- regional serverless function
+- lightweight regional service
+- Cloud Run-style service
+- Fly.io-style regional service
+- Lambda-style regional service
+- Cloudflare Worker-style service where runtime constraints allow
+
+Pure edge runtimes should be evaluated carefully for long streaming responses, outbound fetch limits, Node crypto compatibility, AWS SigV4 support, Google auth compatibility, and regional placement.
+
+## Responsibilities
+
+The relay owns:
+
+- relay token verification
+- session state validation
+- timeout and budget enforcement
+- provider connector loading
+- provider auth attachment
+- provider request forwarding
+- response streaming
+- usage event emission
+- trace event emission
+- provider error classification
+- fallback before stream start where possible
+
+## Not a raw tunnel
+
+The relay should be low-overhead, but it is not a raw tunnel. It must preserve:
+
+- Nue tenant authorization
+- quota and budget enforcement
+- provider credential secrecy
+- usage metering
+- observability
+- route auditability
+- provider error classification
+
+The relay should not expose provider credentials, reveal unnecessary provider internals, buffer entire streaming responses, perform broad model selection itself, or bypass tenant quota and usage-policy enforcement.
+
+## Streaming behavior
+
+Preferred behavior:
+
+- stream provider output without buffering the full response
+- use SSE where compatible
+- support OpenAI-compatible chunks where helpful
+- include final usage metadata where available
+- emit internal trace and usage events asynchronously where possible
+
+Example final usage event shape:
+
+```json
+{
+  "type": "usage",
+  "session_id": "inf_abc",
+  "input_tokens": 1200,
+  "output_tokens": 800,
+  "provider": "vertex-ai",
+  "model": "gemini-2.5-flash"
+}
+```
+
+## Failure handling
+
+The relay should classify failures into categories such as auth failure, quota exhausted, provider unavailable, timeout, rate limit, invalid request, model unavailable, region unavailable, and tenant budget exceeded.
+
+Fallback policy should define which failures are retryable. In general, fallback is safest before the first response chunk is streamed.

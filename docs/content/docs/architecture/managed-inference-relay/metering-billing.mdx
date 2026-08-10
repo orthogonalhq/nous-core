@@ -1,0 +1,92 @@
+---
+title: Usage Metering and Observability
+description: Usage events, usage ledger, quota, tracing, security, and privacy requirements
+---
+
+# Usage Metering and Observability
+
+The managed inference relay must emit reliable usage and trace data for usage accounting, quota enforcement, provider usage reconciliation, operations, and route health evaluation.
+
+## Usage events
+
+Each request should emit usage events.
+
+```json
+{
+  "tenant_id": "tenant_123",
+  "workspace_id": "workspace_456",
+  "session_id": "inf_abc",
+  "provider": "vertex-ai",
+  "model": "gemini-2.5-flash",
+  "region": "us-central1",
+  "input_tokens": 1200,
+  "output_tokens": 800,
+  "quota_units": 2000,
+  "metered_usage_units": 2000,
+  "latency_ms": 1840,
+  "status": "success"
+}
+```
+
+The usage ledger should support:
+
+- usage accounting
+- quota enforcement
+- usage tracking
+- provider usage reconciliation
+- abuse detection
+- route health evaluation
+- operational dashboards
+
+## Capability and Routing Catalog
+
+Routing should use a model/provider catalog that tracks capabilities, regions, health, quota state, and policy constraints.
+
+Example catalog record:
+
+```json
+{
+  "provider": "vertex-ai",
+  "model": "gemini-2.5-flash",
+  "aliases": ["nue:auto", "nue:cost-efficient", "nue:balanced"],
+  "regions": ["us-central1", "us-east4"],
+  "capabilities": {
+    "streaming": true,
+    "tool_use": true,
+    "vision": true,
+    "context_window": 1048576
+  },
+  "usage_accounting": {
+    "token_metering": true
+  },
+  "latency_class": "low",
+  "quality_tier": "balanced"
+}
+```
+
+## Observability
+
+The system should expose:
+
+- session ID
+- trace ID
+- selected provider/model/region
+- fallback attempts
+- latency
+- token usage
+- provider error classification
+- tenant quota consumption
+- estimated resource usage
+- relay runtime metrics
+
+Observability should not expose provider secrets or unnecessary sensitive prompt content.
+
+## Security requirements
+
+The system must keep provider credentials server-side, scope relay tokens narrowly, enforce tenant authorization before relay access, enforce request/session budget, avoid leaking provider credentials in logs, prevent cross-tenant session access, and record audit events for provider route decisions.
+
+## Privacy and data policy
+
+NueOS Cloud should enforce tenant data policy at routing time. Policy dimensions may include allowed regions, allowed providers, retention mode, logging mode, training opt-out requirements, regulated-data restrictions, and enterprise isolation requirements.
+
+The router should only select providers compatible with tenant policy.

@@ -1,0 +1,72 @@
+---
+title: Server-side Provider Connectors
+description: Responsibilities for Vertex, Bedrock, Azure, direct API, and open-weight connectors
+---
+
+# Server-side Provider Connectors
+
+Provider connectors live server-side and are selected by the control plane route decision.
+
+Examples:
+
+```text
+vertex-ai-connector
+bedrock-connector
+azure-openai-connector
+openai-connector
+anthropic-connector
+vllm-connector
+```
+
+## Connector responsibilities
+
+A provider connector should:
+
+- build provider-specific endpoints
+- authenticate or sign provider requests
+- transform request shape where needed
+- stream provider responses
+- normalize response chunks where needed
+- classify provider errors
+- expose usage metadata when available
+
+## Vertex AI connector
+
+The Vertex connector should handle Google Cloud integration concerns:
+
+- service account / ADC / workload identity auth
+- OAuth bearer token minting and refresh
+- project/location-aware endpoint construction
+- Vertex OpenAI-compatible or native route selection
+- Google auth, quota, rate-limit, and model availability error classification
+
+Vertex is not just a static API-key provider. The initial architecture treats Vertex as a server-side connector because it has project, region, quota, and auth concerns beyond a static API key. A separate BYOC/BYOK provider leaf can be evaluated independently.
+
+## Bedrock connector
+
+The Bedrock connector should handle AWS integration concerns:
+
+- AWS IAM / STS credentials
+- SigV4 request signing
+- Bedrock Converse / InvokeModel APIs
+- Bedrock streaming event mapping
+- throttling, auth, quota, and model availability error classification
+
+## Azure connector
+
+The Azure connector should handle Azure AI Foundry / Azure OpenAI concerns:
+
+- deployment/resource-aware endpoint construction
+- Azure region and deployment routing
+- API key, managed identity, or Entra auth where appropriate
+- quota, region, deployment, and auth error classification
+
+## Direct API connectors
+
+Direct API connectors may support providers such as OpenAI, Anthropic, Mistral, Groq, and Together AI. These connectors may be simpler than cloud substrate connectors, but they still run server-side for Nue-managed inference paths.
+
+## Open-weight runtime connectors
+
+Open-weight connectors may support vLLM, TGI, Ollama-like internal runtimes, dedicated GPU pools, or third-party hosted open-weight endpoints.
+
+They should expose capacity, model capabilities, health, and usage data to the routing layer.

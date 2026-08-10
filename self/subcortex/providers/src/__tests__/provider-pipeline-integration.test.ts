@@ -65,6 +65,7 @@ afterEach(() => {
   delete process.env.OPENROUTER_API_KEY;
   delete process.env.DASHSCOPE_API_KEY;
   delete process.env.PERPLEXITY_API_KEY;
+  delete process.env.TOGETHER_API_KEY;
   delete process.env.VLLM_API_KEY;
   delete process.env.MISTRAL_API_KEY;
   delete process.env.XAI_API_KEY;
@@ -91,6 +92,7 @@ describe('provider definition to adapter to registry pipeline', () => {
       'openrouter',
       'perplexity',
       'qwen-code',
+      'together',
       'vllm',
       'xai'
     ]);
@@ -209,6 +211,7 @@ describe('provider definition to adapter to registry pipeline', () => {
     process.env.OPENROUTER_API_KEY = 'test-openrouter-key';
     process.env.DASHSCOPE_API_KEY = 'test-dashscope-key';
     process.env.PERPLEXITY_API_KEY = 'test-perplexity-key';
+    process.env.TOGETHER_API_KEY = 'test-together-key';
     process.env.MISTRAL_API_KEY = 'test-mistral-key';
     process.env.XAI_API_KEY = 'test-xai-key';
 
@@ -232,6 +235,7 @@ describe('provider definition to adapter to registry pipeline', () => {
       openclaw: OpenClawProvider,
       openrouter: ChatCompletionsProvider,
       perplexity: ChatCompletionsProvider,
+      together: ChatCompletionsProvider,
       vllm: ChatCompletionsProvider,
       xai: ChatCompletionsProvider,
     };
@@ -273,6 +277,7 @@ describe('provider definition to adapter to registry pipeline', () => {
     expect(registry.getProvider(resolveProviderDefinition('openrouter').wellKnownProviderId)).toBeNull();
     expect(registry.getProvider(resolveProviderDefinition('dashscope').wellKnownProviderId)).toBeNull();
     expect(registry.getProvider(resolveProviderDefinition('perplexity').wellKnownProviderId)).toBeNull();
+    expect(registry.getProvider(resolveProviderDefinition('together').wellKnownProviderId)).toBeNull();
     expect(registry.getProvider(resolveProviderDefinition('huggingface-tgi').wellKnownProviderId)).toBeInstanceOf(
       LaneAwareProvider,
     );

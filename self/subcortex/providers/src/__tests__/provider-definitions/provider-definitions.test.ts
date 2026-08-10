@@ -70,6 +70,11 @@ const expectedDefinitions = {
     defaultModelId: 'qwen-code/default',
     envVar: undefined,
   },
+  together: {
+    defaultEndpoint: 'https://api.together.ai',
+    defaultModelId: 'meta-llama/Llama-3.3-70B-Instruct-Turbo',
+    envVar: 'TOGETHER_API_KEY',
+  },
   deepinfra: {
     defaultEndpoint: 'https://api.deepinfra.com/v1/openai',
     defaultModelId: 'meta-llama/Meta-Llama-3.1-70B-Instruct',
@@ -133,6 +138,7 @@ describe('provider definitions catalog', () => {
       'openrouter',
       'perplexity',
       'qwen-code',
+      'together',
       'vllm',
       'xai'
     ]);
@@ -183,6 +189,7 @@ describe('provider definitions catalog', () => {
       join('providers', 'gemini', 'implementation.ts'),
       join('providers', 'openrouter', 'definition.ts'),
       join('providers', 'perplexity', 'definition.ts'),
+      join('providers', 'together', 'definition.ts'),
       join('providers', 'vllm', 'definition.ts'),
       join('providers', 'xai', 'definition.ts'),
     ];

@@ -1,0 +1,65 @@
+---
+title: Implementation Plan
+description: Phased rollout for the NueOS Cloud managed inference relay
+---
+
+# Implementation Plan
+
+The managed inference relay should be implemented incrementally. The first version should prove the client-facing Nue Cloud provider path and a single backend route before adding full multi-provider routing.
+
+## Phase 1: Nue Cloud provider leaf and static backend
+
+- add `nue-ai-api` / `nue-cloud` provider leaf
+- implement Nue Cloud OpenAI-compatible endpoint
+- route to one static backend provider
+- support non-streaming invocation
+- support streaming invocation
+- emit basic usage events
+
+## Phase 2: Session and relay MVP
+
+- add managed inference session API
+- add relay token format
+- implement regional relay MVP
+- support one provider connector
+- add basic fallback before stream start
+- record trace and usage events
+
+## Phase 3: Cloud provider connectors
+
+- implement Vertex AI connector
+- implement Bedrock connector
+- implement Azure connector
+- add provider auth lifecycle handling
+- add provider-specific error classification
+
+## Phase 4: Routing and catalog
+
+- add capability catalog
+- add capability and routing catalog
+- support model aliases
+- support tenant-policy routing
+- support provider health-aware routing
+- support region-aware routing
+
+## Phase 5: Usage Accounting and Routing Policy
+
+- add usage ledger integration
+- add provider usage reconciliation
+- add usage and operations dashboards
+- add route health and policy evaluation
+- add tenant policy controls
+- add advanced fallback policies
+
+## Open questions
+
+- Should the public provider name be `nue-ai-api`, `nue-cloud`, or `nue-managed`?
+- Should the first external API be session-first or OpenAI-compatible?
+- Which relay runtime should be used first?
+- Should relay regions map directly to provider regions?
+- Should Vertex support begin with OpenAI-compatible routes or native routes?
+- Should Bedrock use Converse first or provider-specific InvokeModel calls?
+- Should managed provider routing be configurable per tenant?
+- Should tenants be able to opt out of specific backend providers?
+- Should BYOC Vertex/Bedrock/Azure be separate provider leaves or tracked separately from the initial managed relay?
+- What prompt/response logging defaults should apply for NueOS Cloud subscriptions?

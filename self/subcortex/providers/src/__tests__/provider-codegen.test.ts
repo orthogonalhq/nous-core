@@ -37,6 +37,7 @@ describe('provider aggregate codegen', () => {
       'openrouter',
       'perplexity',
       'qwen-code',
+      'together',
       'vllm',
       'xai',
     ]);

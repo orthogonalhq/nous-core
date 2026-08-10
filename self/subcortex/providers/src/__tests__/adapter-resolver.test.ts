@@ -51,7 +51,7 @@ describe('adapter resolver', () => {
   it('aggregates all canonical adapter modules', () => {
     // `chat-completions` appears multiple times: azure-openai, dashscope, deepinfra, groq,
     // huggingface-tgi, llama-cpp, moonshot, openai, openrouter, perplexity,
-    // vllm, and xai all reuse the shared chat-completions adapter. mistral uses
+    // together, vllm, and xai all reuse the shared chat-completions adapter. mistral uses
     // its own adapterKey for resolver isolation.
     // The resolver keys modules by adapterKey, so the duplicates collapse to a single
     // resolvable module. Order follows the generated CERTIFIED_PROVIDER_ADAPTER_MODULES
@@ -75,6 +75,7 @@ describe('adapter resolver', () => {
       'chat-completions',       
       'chat-completions',        
       'qwen-code',
+      'chat-completions',
       'chat-completions',
       'chat-completions',
       'text',
@@ -128,6 +129,7 @@ describe('adapter resolver', () => {
     expect(resolveAdapterKeyFromConfig(makeProvider({ vendor: 'openclaw' }))).toBe('openclaw');
     expect(resolveAdapterKeyFromConfig(makeProvider({ vendor: 'openrouter' }))).toBe('chat-completions');
     expect(resolveAdapterKeyFromConfig(makeProvider({ vendor: 'perplexity' }))).toBe('chat-completions');
+    expect(resolveAdapterKeyFromConfig(makeProvider({ vendor: 'together' }))).toBe('chat-completions');
     expect(resolveAdapterKeyFromConfig(makeProvider({ vendor: 'xai' }))).toBe('chat-completions');
   });
 

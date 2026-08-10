@@ -19,6 +19,7 @@ import { providerDefinition as openclawProviderDefinition } from './providers/op
 import { providerDefinition as openrouterProviderDefinition } from './providers/openrouter/definition.js';
 import { providerDefinition as perplexityProviderDefinition } from './providers/perplexity/definition.js';
 import { providerDefinition as qwenCodeProviderDefinition } from './providers/qwen-code/definition.js';
+import { providerDefinition as togetherProviderDefinition } from './providers/together/definition.js';
 import { providerDefinition as vllmProviderDefinition } from './providers/vllm/definition.js';
 import { providerDefinition as xaiProviderDefinition } from './providers/xai/definition.js';
 
@@ -43,6 +44,7 @@ const PROVIDER_DEFINITION_LEAVES = [
   openrouterProviderDefinition,
   perplexityProviderDefinition,
   qwenCodeProviderDefinition,
+  togetherProviderDefinition,
   vllmProviderDefinition,
   xaiProviderDefinition,
 ] as const satisfies readonly ProviderDefinitionLeaf[];

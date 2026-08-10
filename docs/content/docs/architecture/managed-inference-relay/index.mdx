@@ -1,0 +1,45 @@
+---
+title: Managed Inference Relay
+description: Overview of NueOS Cloud managed model routing and regional inference relay architecture
+---
+
+# Managed Inference Relay
+
+The managed inference relay is the NueOS Cloud path for tenant-authenticated model inference where Nue chooses and operates the backend model connector.
+
+Instead of asking clients to configure Vertex AI, AWS Bedrock, Azure AI Foundry, direct frontier APIs, or hosted open-weight pools, clients call a first-party Nue endpoint. Nue authenticates the tenant, selects the backend route, forwards the request through a low-overhead regional relay, and records usage for quota enforcement, metering, and operations.
+
+```text
+NueOS client
+  ↓
+nue-ai-api / nue-cloud provider leaf
+  ↓
+Nue Cloud control plane
+  ↓
+regional inference relay
+  ↓
+server-side provider connector
+  ↓
+Vertex / Bedrock / Azure / OpenAI / Anthropic / vLLM / etc.
+```
+
+## Why this exists
+
+The current provider leaf model works well for direct or BYOK providers with static API keys and stable endpoints. Cloud model platforms have a different shape: project/account identity, regional endpoints, OAuth/IAM/SigV4 authentication, quotas, capacity, tenant policy, and billing all matter.
+
+The managed relay keeps those concerns server-side while presenting a stable Nue-facing API to clients.
+
+## Reading order
+
+1. [Architecture Overview](/docs/architecture/managed-inference-relay/architecture) — problem statement, goals, non-goals, and core concepts.
+2. [Control Plane and Routing](/docs/architecture/managed-inference-relay/control-plane) — tenant auth, model aliases, route decisions, sessions, and relay tokens.
+3. [Regional Relay Data Plane](/docs/architecture/managed-inference-relay/relay-data-plane) — low-overhead streaming relay behavior and runtime responsibilities.
+4. [Server-side Provider Connectors](/docs/architecture/managed-inference-relay/provider-connectors) — Vertex, Bedrock, Azure, direct API, and open-weight connector responsibilities.
+5. [Usage Metering and Observability](/docs/architecture/managed-inference-relay/metering-billing) — usage ledger, usage accounting, quota, traces, and privacy constraints.
+6. [Implementation Plan](/docs/architecture/managed-inference-relay/implementation-plan) — phased rollout from a static backend to managed routing, metering, and cost controls.
+
+## Relation to provider adapters
+
+Provider adapters remain the right path for direct provider integrations such as OpenAI, Anthropic, Groq, Mistral, Together AI, Gemini API, and local runtimes.
+
+The managed inference relay is a different path for NueOS Cloud subscriptions where Nue manages provider credentials, routing, quota, billing, fallback, and provider selection.

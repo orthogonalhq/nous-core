@@ -1,0 +1,95 @@
+---
+title: Architecture Overview
+description: Problem statement, architecture objective, and core concepts for managed inference relay
+---
+
+# Architecture Overview
+
+NueOS Cloud needs a managed inference architecture for cloud-backed model supply providers that do not fit the thin static API-key provider leaf model.
+
+## Problem statement
+
+The current provider adapter shape assumes:
+
+- a static API key
+- a relatively static endpoint
+- one provider leaf per vendor
+- client/runtime-owned provider configuration
+- simple request forwarding
+
+That works for direct provider APIs such as OpenAI, Anthropic, Groq, Mistral, Together AI, and Gemini API.
+
+Cloud supply platforms such as Vertex AI, AWS Bedrock, and Azure AI Foundry involve additional server-side concerns:
+
+- cloud project, account, or subscription identity
+- region-aware endpoints
+- IAM, OAuth, SigV4, managed identity, or other non-static auth flows
+- tenant-level quota and billing concerns
+- provider-side quota and capacity
+- model availability by region
+- routing and fallback policy
+- server-side credential control
+
+These concerns should not be forced into ordinary client-side provider leaves.
+
+## Architecture objective
+
+For a NueOS Cloud subscription, a tenant should call Nue-managed inference without caring which backend provider serves the request.
+
+Clients request stable Nue aliases such as:
+
+```text
+nue:auto
+nue:cost-efficient
+nue:balanced
+nue:premium
+nue:code
+nue:reasoning
+```
+
+Nue selects the backend route based on requested capability, tenant policy, plan limits, model quality, cost efficiency, latency, regional availability, provider health, quota, and fallback policy.
+
+## Goals
+
+- Provide a first-party Nue Cloud provider leaf for NueOS clients.
+- Keep tenant authentication separate from provider authentication.
+- Keep provider credentials server-side.
+- Support regional low-overhead streaming relay.
+- Support provider routing, fallback, metering, and billing.
+- Support cloud supply providers as server-side connectors.
+- Avoid exposing backend provider selection as a required client concern.
+
+## Non-goals
+
+- Do not redesign every provider adapter as part of this architecture.
+- Do not require contributor provider leaves to implement cloud supply routing.
+- Do not expose provider credentials to clients.
+- Do not require tenants to understand Vertex, Bedrock, or Azure auth.
+- Do not make any single cloud provider define the entire abstraction.
+- Do not require full multi-provider routing in the first implementation phase.
+
+## Key concepts
+
+### Tenant auth
+
+Tenant auth is authentication from the client to NueOS Cloud.
+
+```http
+Authorization: Bearer <nue-tenant-token>
+```
+
+Tenant auth answers who the user is, which org/workspace owns the request, which subscription tier applies, which quota applies, and which billing/data policies apply.
+
+### Provider auth
+
+Provider auth is authentication from NueOS Cloud to the backend model provider. Examples include Vertex service account OAuth, Bedrock IAM/SigV4, Azure managed identity or deployment credentials, OpenAI/Anthropic API keys, and private auth for internal runtimes.
+
+Provider auth remains server-side.
+
+### Inference session
+
+An inference session is a short-lived server-side routing decision binding a tenant, workspace, requested model alias, selected backend provider/model/region, budget, timeout, fallback policy, and trace context.
+
+### Regional relay
+
+The regional relay is a lightweight data-plane component that streams between the client and selected provider connector. It is not a raw tunnel: it preserves auth, quota enforcement, metering, observability, provider credential secrecy, and fallback support.
