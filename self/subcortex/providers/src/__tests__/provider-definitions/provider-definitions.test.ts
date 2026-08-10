@@ -10,6 +10,12 @@ import { deriveBuiltInProviderId } from '../../provider-identity.js';
 import { ProviderDefinitionSchema as SchemaProviderDefinitionSchema } from '../../schemas/provider-definition.js';
 
 const expectedDefinitions = {
+  amp: {
+    wellKnownProviderId: '10000000-0000-0000-0000-000000000004',
+    defaultEndpoint: undefined,
+    defaultModelId: 'amp',
+    envVar: undefined,
+  },
   anthropic: {
     defaultEndpoint: 'https://api.anthropic.com',
     defaultModelId: 'claude-sonnet-4-20250514',
@@ -120,6 +126,7 @@ const expectedDefinitions = {
 describe('provider definitions catalog', () => {
   it('contains exactly the current validation roster by vendorKey', () => {
     expect(PROVIDER_DEFINITIONS.map((definition) => definition.vendorKey).sort()).toEqual([
+      'amp',
       'anthropic',
       'azure-openai',
       'codex-cli',
@@ -160,8 +167,8 @@ describe('provider definitions catalog', () => {
       expect(definition.wellKnownProviderId).toBe(
         deriveBuiltInProviderId(definition.vendorKey),
       );
-      expect(definition.defaultEndpoint).toBe(expected.defaultEndpoint);
-      expect(definition.defaultModelId).toBe(expected.defaultModelId);
+      expect('defaultEndpoint' in definition ? definition.defaultEndpoint : undefined).toBe(expected.defaultEndpoint);
+      expect('defaultModelId' in definition ? definition.defaultModelId : undefined).toBe(expected.defaultModelId);
       expect('envVar' in definition.auth ? definition.auth.envVar : undefined).toBe(
         expected.envVar,
       );

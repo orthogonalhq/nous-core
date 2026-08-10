@@ -207,7 +207,7 @@ export class ProviderRegistry {
     const endpoint = config.endpoint?.replace(/\/+$/, '');
     if (endpoint) {
       return PROVIDER_DEFINITIONS.find(
-        (definition) => definition.defaultEndpoint.replace(/\/+$/, '') === endpoint,
+        (definition) => 'defaultEndpoint' in definition && definition.defaultEndpoint?.replace(/\/+$/, '') === endpoint,
       );
     }
 

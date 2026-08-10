@@ -57,6 +57,7 @@ describe('adapter resolver', () => {
     // resolvable module. Order follows the generated CERTIFIED_PROVIDER_ADAPTER_MODULES
     // (alphabetical by vendor) with the text fallback appended last.
     expect(ADAPTER_MODULES.map((module) => module.adapterKey)).toEqual([
+      'amp',
       'anthropic',
       'chat-completions',
       'codex-cli',

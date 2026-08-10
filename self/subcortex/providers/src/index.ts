@@ -1,6 +1,7 @@
 /**
  * @nous/subcortex-providers — Model provider adapters for Nous-OSS.
  */
+export { AmpProvider } from './providers/amp/implementation.js';
 export { AnthropicProvider } from './providers/anthropic/implementation.js';
 export { GeminiProvider } from './providers/gemini/implementation.js';
 export { MistralProvider } from './providers/mistral/implementation.js';
