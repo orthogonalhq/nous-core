@@ -15,6 +15,7 @@ import {
   OllamaProvider,
   OpenClawProvider,
   QwenCodeProvider,
+  TabnineProvider,
   PROVIDER_DEFINITIONS,
   ProviderRegistry,
   buildAdapterResolver,
@@ -28,6 +29,7 @@ import {
   GITHUB_COPILOT_CLI_PROVIDER_DEFINITION,
   createGhProcessRunner,
 } from '../providers/github-copilot-cli/index.js';
+import { TABNINE_PROVIDER_DEFINITION } from '../providers/tabnine/index.js';
 
 const TRACE_ID = '550e8400-e29b-41d4-a716-446655440000' as TraceId;
 
@@ -94,6 +96,7 @@ describe('provider definition to adapter to registry pipeline', () => {
       'openrouter',
       'perplexity',
       'qwen-code',
+      'tabnine',
       'together',
       'vllm',
       'xai'
@@ -234,6 +237,7 @@ describe('provider definition to adapter to registry pipeline', () => {
       mistral: MistralProvider,
       ollama: OllamaProvider,
       'qwen-code': QwenCodeProvider,
+      tabnine: TabnineProvider,
       'huggingface-tgi': ChatCompletionsProvider,
       openclaw: OpenClawProvider,
       openrouter: ChatCompletionsProvider,
@@ -341,6 +345,22 @@ describe('github-copilot-cli — role compatibility', () => {
 
   it('is not persistent_process (cannot be assigned to Cortex Chat/System)', () => {
     expect(GITHUB_COPILOT_CLI_PROVIDER_DEFINITION.executionCapabilityProfile).not.toBe(
+      'persistent_process',
+    );
+  });
+});
+
+describe('tabnine — role compatibility', () => {
+  it('declares one_shot_command profile', () => {
+    expect(TABNINE_PROVIDER_DEFINITION.executionCapabilityProfile).toBe('one_shot_command');
+  });
+
+  it('is not persistent_process (rejected for Cortex persistent chat/system roles)', () => {
+    // one_shot_command spawns a fresh process per request with no carried session
+    // state, so it cannot back a persistent-chat/system role; the session manager
+    // fails closed for it (see cli-session-manager.test.ts). It stays available for
+    // compatible transient/worker roles.
+    expect(TABNINE_PROVIDER_DEFINITION.executionCapabilityProfile).not.toBe(
       'persistent_process',
     );
   });

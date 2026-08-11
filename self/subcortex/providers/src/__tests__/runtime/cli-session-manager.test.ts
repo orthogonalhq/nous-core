@@ -150,6 +150,42 @@ describe('CliSessionManager', () => {
     expect(manager.getActiveSessionCount()).toBe(0);
   });
 
+  it('fails closed for a one_shot_command provider (e.g. Tabnine) when a chat surface requires a persistent process', () => {
+    const provider = new FakeProvider();
+    const manager = new CliSessionManager();
+
+    expect(() => manager.resolveForChatTurn({
+      providerId: PROVIDER_ID,
+      sessionId: SESSION_ID,
+      scope: 'principal',
+      provider,
+      providerProtocol: AGENT_CLI_PROTOCOL_ID,
+      executionCapabilityProfile: 'one_shot_command',
+      requiredExecutionCapabilityProfile: 'persistent_process',
+    })).toThrowError(/incompatible/i);
+    expect(manager.getActiveSessionCount()).toBe(0);
+  });
+
+  it('remains available for a one_shot_command provider (e.g. Tabnine) on a compatible chat turn', () => {
+    const provider = new FakeProvider();
+    const manager = new CliSessionManager();
+
+    // A required profile the one_shot_command provider satisfies must not be rejected.
+    let resolved: IModelProvider | undefined;
+    expect(() => {
+      resolved = manager.resolveForChatTurn({
+        providerId: PROVIDER_ID,
+        sessionId: SESSION_ID,
+        scope: 'principal',
+        provider,
+        providerProtocol: AGENT_CLI_PROTOCOL_ID,
+        executionCapabilityProfile: 'one_shot_command',
+        requiredExecutionCapabilityProfile: 'one_shot_command',
+      });
+    }).not.toThrow();
+    expect(resolved).toBeDefined();
+  });
+
   it('creates and reuses a session-aware provider for the same compatible chat key', async () => {
     const provider = new FakeProvider();
     const createPinnedProvider = vi.fn(({ provider: inner }) => inner);

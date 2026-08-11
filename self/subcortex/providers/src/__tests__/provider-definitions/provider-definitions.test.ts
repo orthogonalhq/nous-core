@@ -76,6 +76,11 @@ const expectedDefinitions = {
     defaultModelId: 'qwen-code/default',
     envVar: undefined,
   },
+  tabnine: {
+    defaultEndpoint: 'http://localhost',
+    defaultModelId: 'tabnine/default',
+    envVar: undefined,
+  },
   together: {
     defaultEndpoint: 'https://api.together.ai',
     defaultModelId: 'meta-llama/Llama-3.3-70B-Instruct-Turbo',
@@ -145,6 +150,7 @@ describe('provider definitions catalog', () => {
       'openrouter',
       'perplexity',
       'qwen-code',
+      'tabnine',
       'together',
       'vllm',
       'xai'
@@ -192,6 +198,7 @@ describe('provider definitions catalog', () => {
       join('providers', 'llama-cpp', 'definition.ts'),
       join('providers', 'mistral', 'implementation.ts'),
       join('providers', 'qwen-code', 'definition.ts'),
+      join('providers', 'tabnine', 'definition.ts'),
       join('providers', 'deepinfra', 'definition.ts'),
       join('providers', 'gemini', 'implementation.ts'),
       join('providers', 'openrouter', 'definition.ts'),

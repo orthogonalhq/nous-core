@@ -39,6 +39,7 @@ export { CodexCliProvider } from './providers/codex-cli/implementation.js';
 export { GitHubCopilotCliProvider } from './providers/github-copilot-cli/provider.js';
 export { OpenClawProvider } from './providers/openclaw/implementation.js';
 export { QwenCodeProvider } from './providers/qwen-code/implementation.js';
+export { TabnineProvider } from './providers/tabnine/implementation.js';
 export {
   createTextAdapter,
   textAdapter,
