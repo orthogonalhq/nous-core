@@ -42,6 +42,7 @@ describe('provider aggregate codegen', () => {
       'together',
       'vllm',
       'xai',
+      'zhipu',
     ]);
   });
 

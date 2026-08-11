@@ -23,6 +23,7 @@ import { providerAdapter as tabnineProviderAdapter } from './providers/tabnine/a
 import { providerAdapter as togetherProviderAdapter } from './providers/together/adapter.js';
 import { providerAdapter as vllmProviderAdapter } from './providers/vllm/adapter.js';
 import { providerAdapter as xaiProviderAdapter } from './providers/xai/adapter.js';
+import { providerAdapter as zhipuProviderAdapter } from './providers/zhipu/adapter.js';
 
 export * from './schemas/provider-adapter.js';
 export { providerAdapter as ampAdapter } from './providers/amp/adapter.js';
@@ -48,6 +49,7 @@ export { providerAdapter as tabnineAdapter } from './providers/tabnine/adapter.j
 export { providerAdapter as togetherAdapter } from './providers/together/adapter.js';
 export { providerAdapter as vllmAdapter } from './providers/vllm/adapter.js';
 export { providerAdapter as xaiAdapter } from './providers/xai/adapter.js';
+export { providerAdapter as zhipuAdapter } from './providers/zhipu/adapter.js';
 
 export const CERTIFIED_PROVIDER_ADAPTER_MODULES = [
   ampProviderAdapter,
@@ -73,6 +75,7 @@ export const CERTIFIED_PROVIDER_ADAPTER_MODULES = [
   togetherProviderAdapter,
   vllmProviderAdapter,
   xaiProviderAdapter,
+  zhipuProviderAdapter,
 ] as const satisfies readonly ProviderAdapterModule[];
 
 export type CertifiedProviderAdapterKey =

@@ -24,6 +24,7 @@ import { providerDefinition as tabnineProviderDefinition } from './providers/tab
 import { providerDefinition as togetherProviderDefinition } from './providers/together/definition.js';
 import { providerDefinition as vllmProviderDefinition } from './providers/vllm/definition.js';
 import { providerDefinition as xaiProviderDefinition } from './providers/xai/definition.js';
+import { providerDefinition as zhipuProviderDefinition } from './providers/zhipu/definition.js';
 
 export * from './schemas/provider-definition.js';
 
@@ -51,6 +52,7 @@ const PROVIDER_DEFINITION_LEAVES = [
   togetherProviderDefinition,
   vllmProviderDefinition,
   xaiProviderDefinition,
+  zhipuProviderDefinition,
 ] as const satisfies readonly ProviderDefinitionLeaf[];
 
 export const PROVIDER_DEFINITIONS = hydrateProviderDefinitions(PROVIDER_DEFINITION_LEAVES);

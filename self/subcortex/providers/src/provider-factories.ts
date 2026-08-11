@@ -23,6 +23,7 @@ import { providerFactory as tabnineProviderFactory } from './providers/tabnine/p
 import { providerFactory as togetherProviderFactory } from './providers/together/provider.js';
 import { providerFactory as vllmProviderFactory } from './providers/vllm/provider.js';
 import { providerFactory as xaiProviderFactory } from './providers/xai/provider.js';
+import { providerFactory as zhipuProviderFactory } from './providers/zhipu/provider.js';
 
 export * from './schemas/provider-factory.js';
 
@@ -50,6 +51,7 @@ export const CERTIFIED_PROVIDER_FACTORIES = [
   togetherProviderFactory,
   vllmProviderFactory,
   xaiProviderFactory,
+  zhipuProviderFactory,
 ] as const satisfies readonly ProviderFactoryModule[];
 
 export type CertifiedProviderFactoryVendorKey =

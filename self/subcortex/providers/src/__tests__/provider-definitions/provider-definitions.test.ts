@@ -126,6 +126,11 @@ const expectedDefinitions = {
     defaultModelId: 'mistral-large-latest',
     envVar: 'MISTRAL_API_KEY',
   },
+  zhipu: {
+    defaultEndpoint: 'https://api.z.ai/api/paas/v4',
+    defaultModelId: 'glm-4.6',
+    envVar: 'ZHIPU_API_KEY',
+  },
 } as const;
 
 describe('provider definitions catalog', () => {
@@ -153,7 +158,8 @@ describe('provider definitions catalog', () => {
       'tabnine',
       'together',
       'vllm',
-      'xai'
+      'xai',
+      'zhipu'
     ]);
   });
 
